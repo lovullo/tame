@@ -1,0 +1,252 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/numeric/round"
+  desc="Numeric computations dealing with rounding">
+
+  <lv:import package="../base" />
+
+
+  <!-- template version of round function, supporting arbitrary nodes -->
+  <lv:template name="_round_" desc="Round to the nearest integer">
+    <lv:param name="@values@" desc="Calculation to round (single node)" />
+    <lv:param name="@precision@" desc="Level of precision after decimal point">
+      <lv:text>0</lv:text>
+    </lv:param>
+
+    <c:apply name="round_real" label="Rounded value">
+      <c:arg name="round_real_val">
+        <c:sum>
+          <lv:param-copy name="@values@" />
+        </c:sum>
+      </c:arg>
+
+      <c:arg name="round_real_n">
+        <c:expt>
+          <c:const value="10" type="integer" desc="Decimal base" />
+          <c:const value="@precision@" type="integer" desc="Exponent" />
+        </c:expt>
+      </c:arg>
+    </c:apply>
+  </lv:template>
+
+
+  <!--
+    Let expression exposing one or more of ceiling, floor, and nearest
+    integer of given name
+
+    This is our Swiss Army knife of rounding values.
+
+    The values @high@, @low@, and @nearest@ (can specify all or just one)
+    represent the names of the variables to store, respectively, the
+    ceiling, floor, and nearest integer to the value @name@. Those values
+    are then accessible within the scope of the let expression.
+
+    An @exp@ can be used to provide a base-10 exponent to move the decimal
+    place (negative is right, positive left) before performing rounding.
+
+    The @step@ allows specifying an arbitrary value to round toward. For
+    example, a @step@ of 1500 rounds in 1500 increments. This may be used
+    with @exp@, in which case the step will apply to @name@ after its value
+    has been exponentiated.
+  -->
+  <lv:template name="_let-round_"
+               desc="Produce floor and ceiling values">
+    <lv:param name="@values@"
+              desc="Calculation subject to let expression" />
+
+    <lv:param name="@name@"
+              desc="Value to round" />
+
+    <lv:param name="@index@"
+              desc="Optional value index">
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@high@"
+              desc="Name to yield ceil'd value into" />
+
+    <lv:param name="@low@"
+              desc="Name to yield floor'd value into" />
+
+    <lv:param name="@nearest@"
+              desc="Name to yield nearest integer to value into" />
+
+
+    <lv:param name="@exp@"
+              desc="Offset digits before rounding">
+      <lv:text>#0</lv:text>
+    </lv:param>
+
+    <lv:param name="@step@"
+              desc="Arbitrary step">
+      <lv:text>#1</lv:text>
+    </lv:param>
+
+
+
+    <c:let>
+      <c:values>
+        <c:value name="__div"
+                 type="float"
+                 desc="Exponential/step divisor">
+          <c:product>
+            <c:expt>
+              <c:const value="10" type="integer"
+                       desc="Decimal base" />
+              <c:value-of name="@exp@" />
+            </c:expt>
+
+            <c:value-of name="@step@" />
+          </c:product>
+        </c:value>
+      </c:values>
+
+      <c:let>
+        <c:values>
+          <c:value name="__adjusted"
+                   type="float"
+                   desc="Value adjusted for 10^@exp@ or step @step@">
+            <c:quotient>
+              <c:value-of name="@name@" index="@index@" />
+              <c:value-of name="__div" />
+            </c:quotient>
+          </c:value>
+        </c:values>
+
+        <c:let>
+          <c:values>
+            <lv:if name="@high@">
+              <c:value name="@high@" type="float"
+                       desc="Ceiling of adjusted {@name@}">
+                <c:product>
+                  <c:ceil>
+                    <c:value-of name="__adjusted" />
+                  </c:ceil>
+
+                  <c:value-of name="__div" />
+                </c:product>
+              </c:value>
+            </lv:if>
+
+            <lv:if name="@low@">
+              <c:value name="@low@" type="float"
+                       desc="floor of adjusted {@name@}">
+                <c:product>
+                  <c:floor>
+                    <c:value-of name="__adjusted" />
+                  </c:floor>
+
+                  <c:value-of name="__div" />
+                </c:product>
+              </c:value>
+            </lv:if>
+
+            <lv:if name="@nearest@">
+              <c:value name="@nearest@" type="float"
+                       desc="nearest integer to adjusted {@name@}">
+                <c:product>
+                  <t:round>
+                    <c:value-of name="__adjusted" />
+                  </t:round>
+
+                  <c:value-of name="__div" />
+                </c:product>
+              </c:value>
+            </lv:if>
+          </c:values>
+
+          <!-- body subject to let expression -->
+          <lv:param-copy name="@values@" />
+        </c:let>
+      </c:let>
+    </c:let>
+  </lv:template>
+
+
+  <!-- ceil if > 0.5, otherwise floor; round() in most languages -->
+  <!-- TODO: support left and right delimiters; do \floor \ceil -->
+  <lv:function name="round" desc="Round to the nearest integer">
+    <lv:param name="roundval" type="float" desc="Value to round to nearest integer" />
+
+    <!-- By raising by 0.5 and taking the floor() of the resulting value, we
+         can produce values consistent with common round() implementations. It
+         may be easier to think of this as ceil( val - 0.4 ), but representing
+         subtraction is more verbose than addition, so a floor() implementation
+         is used instead. -->
+    <c:floor>
+      <c:sum>
+        <c:value-of name="roundval" />
+        <c:const value="0.5" type="float" desc="Raises value in a manner that it can be properly rounded by a floor" />
+      </c:sum>
+    </c:floor>
+  </lv:function>
+
+
+  <lv:function name="round_real" desc="Round to the nearest 1/n">
+    <lv:param name="round_real_val" type="float"   desc="Value to round" />
+    <lv:param name="round_real_n"   type="integer" desc="Round to 1/n" />
+
+    <!-- we can achieve this by multiplying by N, rounding, and then dividing
+         by the same N -->
+    <c:quotient>
+      <c:apply name="round">
+        <c:arg name="roundval">
+          <c:product>
+            <c:value-of name="round_real_val" />
+            <c:value-of name="round_real_n" />
+          </c:product>
+        </c:arg>
+      </c:apply>
+
+      <c:value-of name="round_real_n" />
+    </c:quotient>
+  </lv:function>
+
+
+  <!-- this is simply a shorthand for round_real -->
+  <lv:function name="round_cents" desc="Round to the nearest penny">
+    <lv:param name="round_cents_val" type="float" desc="Monetary value" />
+
+    <c:apply name="round_real">
+      <c:arg name="round_real_n">
+        <c:const value="100" type="integer" desc="Round to the nearest 100th" />
+      </c:arg>
+
+      <c:arg name="round_real_val">
+        <c:value-of name="round_cents_val" />
+      </c:arg>
+    </c:apply>
+  </lv:function>
+
+
+  <lv:template name="_ceil-n_" desc="Ceiling on the last n digits">
+    <lv:param name="@values@" desc="Calculation to use (single node)" />
+    <lv:param name="@digits@" desc="Level of precision after decimal point" />
+
+    <c:product>
+      <c:ceil>
+        <c:quotient>
+          <lv:param-copy name="@values@" />
+          <c:expt>
+            <c:const value="10" type="integer" desc="Decimal base" />
+            <c:const value="@digits@" type="integer" desc="Number of digits" />
+          </c:expt>
+        </c:quotient>
+      </c:ceil>
+
+      <c:expt>
+        <c:const value="10" type="integer" desc="Decimal base" />
+        <c:const value="@digits@" type="integer" desc="Number of digits" />
+      </c:expt>
+    </c:product>
+  </lv:template>
+
+</lv:package>

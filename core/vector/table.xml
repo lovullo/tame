@@ -1,0 +1,936 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/vector/table"
+  desc="Functions for performing table lookups">
+
+  <lv:import package="../base" />
+  <lv:import package="../numeric/common" />
+  <lv:import package="list" />
+
+  <!-- since templates are inlined, we need to make these symbols available to
+       avoid terrible confusion -->
+  <lv:import package="common" export="true" />
+  <lv:import package="matrix" export="true" />
+
+
+  <lv:const name="TABLE_WHEN_MASK_VALUE" type="float" value="-0.0001" desc="Used to mask when conditions" />
+  <lv:const name="MFILTER_BISECT_GAP_MAX" type="integer" value="10" desc="Quit bisect if size is less than or equal to this value" />
+
+
+  <!--
+    Create a constant table
+
+    This definition must appear within a `constants' block.
+
+    Permitted children:
+      - _table_column_+ - Column definitions
+      - _table_rows_    - Begin table data definition
+  -->
+  <lv:template name="_create-table_"
+               desc="Create an arbitrary table for querying">
+    <lv:param name="@name@"   desc="Table name" />
+    <lv:param name="@values@" desc="Table definition" />
+
+    <lv:param name="@desc@" desc="Table description">
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@__tid@"
+              desc="Internal table identifier">
+      <lv:param-value name="@name@" upper="true" snake="true" />
+    </lv:param>
+
+
+    <lv:param-copy name="@values@">
+      <lv:param-meta name="create-table-id" value="@__tid@" />
+      <lv:param-meta name="create-table-name" value="@name@" />
+      <lv:param-meta name="create-table-desc" value="@desc@" />
+    </lv:param-copy>
+  </lv:template>
+
+
+  <!--
+    Declare a table column name
+
+    A column definition assigns a field name to a column index. If the
+    column always contains ordered (sequenced) data, then @seq@ should
+    be set to "true"; this allows a more efficient query strategy to
+    be used.
+
+    If a table is especially large, the first column should be treated
+    as the index and always be sequenced.
+  -->
+  <lv:template name="_table-column_"
+               desc="Declare name for table column">
+    <lv:param name="@name@"  desc="Column name" />
+    <lv:param name="@index@" desc="Column index (0-indexed)" />
+
+    <lv:param name="@desc@" desc="Column description">
+      <lv:param-value name="@name@" />
+    </lv:param>
+
+    <!-- use carefully; leave alone unless data is definately sorted,
+         or query results may be incorrect -->
+    <lv:param name="@seq@" desc="Column is sorted (sequential)">
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@__tid@"
+              desc="Internal table identifier">
+      <lv:param-inherit meta="create-table-id" />
+    </lv:param>
+
+    <!-- FIXME: this doesn't contain @__tid@ because of a bug in the
+         preprocessor; this is fixed in the new DSL -->
+    <lv:param name="@__constname@"
+              desc="Name of internal constant used for column lookup">
+      <lv:text>RATE_TABLE_</lv:text>
+      <lv:param-value name="@name@" upper="true" snake="true" />
+    </lv:param>
+
+
+    <!-- column index identifier -->
+    <lv:const name="{@__tid@}_{@__constname@}"
+              value="@index@" type="integer"
+              desc="@desc@" />
+
+    <!-- column sequential flag to permit query optimizations -->
+    <lv:if name="@seq@" eq="true">
+      <lv:const name="{@__tid@}_{@__constname@}_IS_SEQ"
+                value="1" type="integer"
+                desc="{@name@} is sequenced" />
+    </lv:if>
+    <lv:unless name="@seq@" eq="true">
+      <lv:const name="{@__tid@}_{@__constname@}_IS_SEQ"
+                value="0" type="integer"
+                desc="{@name@} is unordered" />
+    </lv:unless>
+  </lv:template>
+
+
+  <!--
+    Begin table data definition (rows)
+
+    Each _table-row_ child inserts a constant row into the table. Note
+    that all data must be constant.
+
+    Permitted children:
+      - _table-row_* - Table row definitions
+  -->
+  <lv:template name="_table-rows_"
+               desc="Begin table data definition">
+    <lv:param name="@values@" desc="Row definitions" />
+
+    <lv:param name="@__tid@"
+              desc="Table identifier">
+      <lv:param-inherit meta="create-table-id" />
+    </lv:param>
+    <lv:param name="@__tname@"
+              desc="Table name as provided by caller">
+      <lv:param-inherit meta="create-table-name" />
+    </lv:param>
+    <lv:param name="@__desc@"
+              desc="Table description">
+      <lv:param-inherit meta="create-table-desc" />
+    </lv:param>
+
+
+    <lv:const name="{@__tid@}_RATE_TABLE"
+              type="float"
+              desc="{@__tname@} table; {@__desc@}">
+      <lv:param-copy name="@values@" />
+    </lv:const>
+  </lv:template>
+
+
+  <!--
+    Define a constant table row
+
+    Rows will be inserted into the table in the order in which they
+    appear. Note that, if the column is marked as sequenced, it is
+    important that the order is itself sequenced.
+
+    All values must be constant.
+
+    Permitted children:
+      _table-value_+ - Row column value
+  -->
+  <lv:template name="_table-row_"
+               desc="Define a constant table row (ordered)">
+    <lv:param name="@values@" desc="Column values" />
+
+
+    <lv:set desc="Row">
+      <lv:param-copy name="@values@" />
+    </lv:set>
+  </lv:template>
+
+
+  <!--
+    Set a column value for the parent row
+
+    Column value order should match the defined column order. All
+    values must be constants.
+  -->
+  <lv:template name="_table-value_"
+               desc="Table column value for row (ordered)">
+    <lv:param name="@const@" desc="Constant column value" />
+
+
+    <lv:item value="@const@" desc="Column value" />
+  </lv:template>
+
+
+  <lv:template name="_query-first-field_" desc="Return the requested field from the first row returned by a query">
+    <lv:param name="@table@" desc="Table (matrix) to query" />
+    <lv:param name="@values@" desc="Query parameters" />
+
+    <!-- use either field or name[+index] -->
+    <lv:param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
+    <lv:param name="@name@" desc="Name of field to query (variable/constant); overrides @field@" />
+    <lv:param name="@index@" desc="Optional index for field name lookup (using @name@)" />
+
+
+    <c:car label="First row of query result">
+      <t:query-field table="@table@" field="@field@" name="@name@" index="@index@">
+        <lv:param-copy name="@values@" />
+      </t:query-field>
+    </c:car>
+  </lv:template>
+
+
+  <!--
+    Query-style syntax for matrix searches
+
+    Overhead of this algorithm is minimal. Let us consider that a direct access
+    to an element in a vector is O(1). Therefore, given a set of p predicates
+    in a direct matrix access, the time would be O(p).
+
+    In the case of this query method, we perform first a bisect and then a
+    linear search backward to the first element matching the given predicate.
+    Therefore, per field, the best case average is O(lg n), where n is the
+    number of rows; this assumes that no backward linear search is required.
+    Should such a search be required, the worst case per field is O(lg n + m),
+    where m is the length of the largest subset.
+
+    Once again considering p predicates, each predicate P_k where k > 0
+    (0-indexed) will operate on a subset of the first predicate. As already
+    discussed, the worst-case scenerio for the length of the subset is m. Since
+    further queries on this subset are rarely likely to use the bisect
+    algorithm, we're looking at O(m) time per field. Therefore, the total query
+    time for the best-case scenerio is still O(lg n) if m is sufficiently small
+    and O(lg n + pm) if m is sufficiently large.
+
+    An important case to note is when m approaches (or is equal to) n; in such
+    a case, the algorithm degrades to a worst-case linear search of O(pn) and
+    best case of O(n) if early predicates are sufficiently effective at
+    reducing the subsets to further predicates: That is, the bisect algorithm
+    either cannot be used or is ineffective. For large m, this may cause a
+    stack overflow due to the recursive nature of the algorithm. Is is
+    therefore important to order the first column of the table such that it is
+    both sorted and produces small m.  Additionally, it is ideal for the first
+    predicate to query the first field to quickly reduce the size of the set
+    for the next predicate.
+  -->
+  <lv:template name="_query-field_" desc="Return the requested field from rows returned by a query">
+    <lv:param name="@table@" desc="Table (matrix) to query" />
+    <lv:param name="@values@" desc="Query parameters" />
+
+    <!-- use one or the other -->
+    <lv:param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
+
+    <lv:param name="@index@" desc="Optional index for field name lookup (using @name@)" />
+    <!-- by default, if @field@ is provided instead of @name@, the field
+         constant will be generated (same concept as the 'when' template) -->
+    <lv:param name="@name@" desc="Name of field to query (variable/constant); overrides @field@">
+      <!-- convert @table@ to uppercase and snake case (replace - with _) -->
+      <lv:param-value name="@table@" upper="true" snake="true" />
+      <lv:text>_RATE_TABLE_</lv:text>
+      <lv:param-value name="@field@" upper="true" snake="true" />
+    </lv:param>
+
+
+    <c:apply name="mcol" label="Query result">
+      <!-- the matrix (vector of rows) returned by the query -->
+      <c:arg name="matrix">
+        <t:query-row table="@table@">
+          <lv:param-copy name="@values@" />
+        </t:query-row>
+      </c:arg>
+
+      <!-- the field (column) to retrieve; 0-based index -->
+      <c:arg name="col">
+        <!-- no index lookup needed -->
+        <lv:unless name="@index@">
+          <c:value-of name="@name@" />
+        </lv:unless>
+
+        <!-- index lookup required -->
+        <lv:if name="@index@">
+          <c:value-of name="@name@" index="@index@" />
+        </lv:if>
+      </c:arg>
+    </c:apply>
+  </lv:template>
+
+
+  <lv:template name="_query-row_" desc="Query a table (matrix) for a row (vector) of values">
+    <lv:param name="@table@" desc="Table (matrix)" />
+    <lv:param name="@values@" desc="Query parameters" />
+
+    <!-- this defaults to a table name constant as generated from the csv2xml
+         script; either this or @table@ should be used -->
+    <lv:param name="@matrix@" desc="Matrix to look up from">
+      <!-- convert @table@ to uppercase and snake case (replace - with _) -->
+      <lv:param-value name="@table@" upper="true" snake="true" />
+      <lv:text>_RATE_TABLE</lv:text>
+    </lv:param>
+
+    <c:apply name="_mquery">
+      <c:arg name="matrix">
+        <c:value-of name="@matrix@" />
+      </c:arg>
+
+      <c:arg name="criteria">
+        <c:set>
+          <lv:param-copy name="@values@">
+            <lv:param-meta name="table_basename" value="@matrix@" />
+          </lv:param-copy>
+        </c:set>
+      </c:arg>
+
+      <c:arg name="i">
+        <!-- begin with the last predicate (due to the way we'll recurse, it
+             will be applied *last* -->
+        <t:dec>
+          <c:length-of>
+            <c:set>
+              <lv:param-copy name="@values@">
+                <lv:param-meta name="table_basename" value="@matrix@" />
+              </lv:param-copy>
+            </c:set>
+          </c:length-of>
+        </t:dec>
+      </c:arg>
+    </c:apply>
+  </lv:template>
+
+
+  <lv:template name="_when_" desc="Create field predicate for query definition">
+    <lv:param name="@id@" desc="Field index" />
+    <lv:param name="@values@" desc="Field value (provide only one node)" />
+    <lv:param name="@sequential@" desc="Is data sequential?" />
+
+    <!-- @name@ may be provided directly, or @field@ may be used when the
+         basename is available (set by a query template), giving the illusion of
+         querying the table columns by name directly (magic!); pure syntatic
+         sugary goodness -->
+    <lv:param name="@field@" desc="Field name (to be used with base)" />
+    <lv:param name="@name@" desc="Field name (as a variable/constant)">
+      <lv:param-inherit meta="table_basename" />
+      <lv:text>_</lv:text>
+      <lv:param-value name="@field@" upper="true" snake="true" />
+    </lv:param>
+
+    <lv:param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+      <lv:param-inherit meta="table_basename" />
+      <lv:text>_</lv:text>
+      <lv:param-value name="@field@" upper="true" snake="true" />
+      <lv:text>_IS_SEQ</lv:text>
+    </lv:param>
+
+    <c:set label="Conditional for {@field@}">
+      <!-- the first element will represent the column (field) index -->
+      <lv:unless name="@name@">
+        <c:const value="@id@" type="integer" desc="Field index" />
+      </lv:unless>
+      <lv:if name="@name@">
+        <c:value-of name="@name@" />
+      </lv:if>
+
+      <!-- the second element will represent the expected value(s) -->
+      <c:set>
+        <lv:param-copy name="@values@" />
+      </c:set>
+
+      <!-- the final element will represent whether or not this field is sequential -->
+      <lv:if name="@sequential@">
+        <c:const value="@sequential@" type="boolean" desc="Whether data is sequential" />
+      </lv:if>
+      <lv:unless name="@sequential@">
+        <!-- if a field name was given, we can get the sequential information
+             that was already generated for us -->
+        <lv:if name="@field@">
+          <c:value-of name="@seqvar@" />
+        </lv:if>
+        <!-- otherwise, default to non-sequential -->
+        <lv:unless name="@field@">
+          <c:value-of name="FALSE" />
+        </lv:unless>
+      </lv:unless>
+    </c:set>
+  </lv:template>
+
+
+
+  <!--
+    These functions make the magic happen
+
+    They are hideous. Look away.
+  -->
+
+
+  <!-- this function is intended to be called by the _query_ template, not directly -->
+  <lv:function name="_mquery" desc="Query for vectors using a set of column criteria">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to query" />
+    <lv:param name="criteria" type="float" set="matrix" desc="Query criteria" />
+
+    <lv:param name="i" type="integer" desc="Current criteria index" />
+
+    <c:cases>
+      <c:case>
+        <c:when name="i">
+          <c:eq>
+            <!-- it's important that we allow index 0, since that is a valid
+                 predicate -->
+            <c:const value="-1" type="integer" desc="We're done." />
+          </c:eq>
+        </c:when>
+
+        <!-- we're done; stick with the result -->
+        <c:value-of name="matrix" />
+      </c:case>
+
+      <c:otherwise>
+        <c:apply name="mfilter">
+          <!-- matrix to search -->
+          <c:arg name="matrix">
+            <!-- >> recursion happens here << -->
+            <c:apply name="_mquery">
+              <c:arg name="matrix">
+                <c:value-of name="matrix" />
+              </c:arg>
+
+              <c:arg name="criteria">
+                <c:value-of name="criteria" />
+              </c:arg>
+
+              <c:arg name="i">
+                <t:dec>
+                  <c:value-of name="i" />
+                </t:dec>
+              </c:arg>
+            </c:apply>
+          </c:arg>
+
+          <!-- field (column) -->
+          <c:arg name="col">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="0" type="integer" desc="Field id" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+
+          <!-- value(s) to search for -->
+          <c:arg name="vals">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="1" type="integer" desc="Field value" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+
+          <!-- if it's sequential, we can cut down on the search substantially -->
+          <c:arg name="seq">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="2" type="integer" desc="Sequential flag" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+        </c:apply>
+      </c:otherwise>
+    </c:cases>
+  </lv:function>
+
+
+  <!--
+    Perform a lg(n) bisect on a data set.
+
+    This is intended to limit recursion on very large data sets (and
+    consequently will increase performance). This will bisect up until a certain
+    point (the gap), unless it finds the value in question. After finding the
+    value, it will perform a linear backward search to find the first occurrence
+    of the value. If the value is not found, it will halt at the gap and return
+    the first index of the gap, which we will consider its "best guess", at
+    which point a linear search can be performed by the caller to determine if
+    the value does in fact exist at all.
+
+    (The reason this operates so oddly is because of its caller. We could rid
+    the gap and make this a general-purpose function if need be. Technically,
+    the gap is useless and saves lg(g) steps, which may be very small.)
+  -->
+  <lv:function name="bisect" desc="Bisect a matrix toward the requested column value">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to bisect" />
+    <lv:param name="col" type="integer" desc="Column index to filter on" />
+    <lv:param name="val" type="float" desc="Column value to filter on" />
+    <lv:param name="start" type="integer" desc="Start index" />
+    <lv:param name="end" type="integer" desc="Start end" />
+
+    <c:let>
+      <c:values>
+        <!-- the gap represents the number of indexes between the current start
+             and end indexes -->
+        <c:value name="gap" type="integer" desc="Gap between current start and end">
+          <c:sum>
+            <c:value-of name="end" />
+
+            <t:negate>
+              <c:value-of name="start" />
+            </t:negate>
+          </c:sum>
+        </c:value>
+      </c:values>
+
+      <!--
+        At this point, we need to determine if we should continue the bisect or
+        halt. The purpose of the gap is based on the understanding that (with
+        our use cases) we will arrive, almost always, at one of two scenarios:
+        we found the value, but it's part of a larger set of the same values, or
+        the value we are looking for may not even exist at all.
+
+        The gap just limits recursion (but just barely) at smaller levels, since
+        bisect will take lg(n) steps). Increase the gap limit to decrease the
+        number of steps, or decrease it to 1 if you want a complete bisection.
+      -->
+      <c:cases>
+        <!-- give up if we've reached our gap limit -->
+        <c:case>
+          <c:when name="gap">
+            <c:lte>
+              <c:value-of name="MFILTER_BISECT_GAP_MAX" />
+            </c:lte>
+          </c:when>
+
+          <!-- we tried our best; return our current position -->
+          <c:value-of name="start" />
+        </c:case>
+
+        <!-- we have not yet reached our gap limit; keep going -->
+        <c:otherwise>
+          <c:let>
+            <c:values>
+              <c:value name="mid_index" type="integer" desc="Middle index">
+                <!-- to determine the new mid index, add half of the gap to the
+                     current index -->
+                <c:sum>
+                  <c:value-of name="start" />
+                  <c:ceil>
+                    <c:quotient>
+                      <c:value-of name="gap" />
+                      <c:const value="2" type="integer" desc="Bisect" />
+                    </c:quotient>
+                  </c:ceil>
+                </c:sum>
+              </c:value>
+            </c:values>
+
+            <c:let>
+              <c:values>
+                <c:value name="mid" type="float" desc="Middle value">
+                  <c:value-of name="matrix">
+                    <!-- row -->
+                    <c:index>
+                      <c:value-of name="mid_index" />
+                    </c:index>
+
+                    <!-- column -->
+                    <c:index>
+                      <c:value-of name="col" />
+                    </c:index>
+                  </c:value-of>
+                </c:value>
+              </c:values>
+
+              <c:cases>
+                <!-- if the middle value is lower than our value, then take the upper half -->
+                <c:case>
+                  <c:when name="mid">
+                    <c:lt>
+                      <c:value-of name="val" />
+                    </c:lt>
+                  </c:when>
+
+                  <c:recurse start="mid_index" />
+                </c:case>
+
+                <!-- similarily, take the lower half if we over-shot -->
+                <c:case>
+                  <c:when name="mid">
+                    <c:gt>
+                      <c:value-of name="val" />
+                    </c:gt>
+                  </c:when>
+
+                  <c:recurse end="mid_index" />
+                </c:case>
+
+                <!-- if we have an exact match, that doesn't necessarily mean that we
+                     have every value; we may have intersected a set of them -->
+                <c:otherwise>
+                  <!-- this will return an exact index: the first index
+                       containing the element we've been looking for (it is a
+                       linear backwards search) -->
+                  <c:apply name="foremost" matrix="matrix" col="col" i="mid_index" />
+                </c:otherwise>
+              </c:cases>
+            </c:let>
+          </c:let>
+        </c:otherwise>
+      </c:cases>
+    </c:let>
+  </lv:function>
+
+
+  <lv:function name="foremost" desc="Search backwards for the first occurrance in a sorted list">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to bisect" />
+    <lv:param name="col" type="integer" desc="Column index to search on" />
+    <lv:param name="i" type="integer" desc="Current index" />
+
+    <c:let>
+      <c:values>
+        <!-- we calculate this rather than accept it via an argument so that
+             this function may be called directly in a more convenient manner
+             -->
+        <c:value name="val" type="float" desc="Current value">
+          <c:value-of name="matrix">
+            <!-- row -->
+            <c:index>
+              <c:value-of name="i" />
+            </c:index>
+
+            <!-- column -->
+            <c:index>
+              <c:value-of name="col" />
+            </c:index>
+          </c:value-of>
+        </c:value>
+
+        <c:value name="prev" type="float" desc="Previous value">
+          <c:value-of name="matrix">
+            <!-- row -->
+            <c:index>
+              <t:dec>
+                <c:value-of name="i" />
+              </t:dec>
+            </c:index>
+
+            <!-- column -->
+            <c:index>
+              <c:value-of name="col" />
+            </c:index>
+          </c:value-of>
+        </c:value>
+      </c:values>
+
+      <c:cases>
+        <!-- if we have no more indexes to check, then we're done -->
+        <c:case>
+          <c:when name="i">
+            <c:eq>
+              <c:const value="0" type="integer" desc="Did we check the final (first) index?" />
+            </c:eq>
+          </c:when>
+
+          <!-- well, then, we're done -->
+          <c:value-of name="i" />
+        </c:case>
+
+        <!-- if the previous column value is the same value, then continue checking -->
+        <c:case>
+          <c:when name="prev">
+            <c:eq>
+              <c:value-of name="val" />
+            </c:eq>
+          </c:when>
+
+          <c:recurse>
+            <c:arg name="i">
+              <t:dec>
+                <c:value-of name="i" />
+              </t:dec>
+            </c:arg>
+          </c:recurse>
+        </c:case>
+
+        <!-- otherwise, we've found the foremost index -->
+        <c:otherwise>
+          <c:value-of name="i" />
+        </c:otherwise>
+      </c:cases>
+    </c:let>
+  </lv:function>
+
+
+  <lv:template name="_mask-unless_" desc="Mask a value unless the condition is truthful">
+    <lv:param name="@values@" desc="Body" />
+    <lv:param name="@name@" desc="Scalar to check" />
+    <lv:param name="@index@" desc="Optional index" />
+    <lv:param name="@desc@" desc="Optional description" />
+
+    <c:cases>
+      <!-- if masked -->
+      <c:case>
+        <!-- no index provided -->
+        <lv:unless name="@index@">
+          <c:when name="@name@">
+            <c:eq>
+              <c:value-of name="FALSE" />
+            </c:eq>
+          </c:when>
+        </lv:unless>
+
+        <!-- index provided -->
+        <lv:if name="@index@">
+          <c:when name="@name@" index="@index@">
+            <c:eq>
+              <c:value-of name="FALSE" />
+            </c:eq>
+          </c:when>
+        </lv:if>
+
+        <!-- TODO: configurable mask via meta and/or param -->
+        <c:value-of name="TABLE_WHEN_MASK_VALUE" />
+      </c:case>
+
+      <!-- if not masked -->
+      <c:otherwise>
+        <lv:param-copy name="@values@" />
+      </c:otherwise>
+    </c:cases>
+  </lv:template>
+
+
+  <lv:function name="mfilter" desc="Filter matrix rows by column value">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+    <lv:param name="col"    type="integer" desc="Column index to filter on" />
+    <lv:param name="vals"   type="float" desc="Column value to filter on" />
+    <lv:param name="seq"    type="boolean" desc="Is data sequential?" />
+
+    <!-- merge the result of each condition in vals into a single set, which
+         has the effect of supporting multiple conditions on a single column of
+         data (or just one, if they don't want to feel sweet). By performing
+         the lookups separately for each, we preserve the bisect-ability of the
+         condition. -->
+    <t:merge-until-empty set="vals" car="val" glance="TABLE_WHEN_MASK_VALUE">
+      <c:apply name="range" matrix="matrix" col="col" val="val" seq="seq">
+        <c:arg name="start">
+          <c:cases>
+            <!-- if we know that the data is sequential, then we may not need to
+                 perform a linear search (if the dataset is large enough and the
+                 column value is relatively distinct) -->
+            <c:case>
+              <c:when name="seq">
+                <c:eq>
+                  <c:value-of name="TRUE" />
+                </c:eq>
+              </c:when>
+
+              <c:apply name="bisect" matrix="matrix" col="col" val="val">
+                <c:arg name="start">
+                  <c:const value="0" type="integer" desc="Start bisect at beginning" />
+                </c:arg>
+
+                <c:arg name="end">
+                  <!-- bisect the length of the matrix -->
+                  <t:dec>
+                    <c:length-of>
+                      <c:value-of name="matrix" />
+                    </c:length-of>
+                  </t:dec>
+                </c:arg>
+              </c:apply>
+            </c:case>
+
+            <!-- we have no good guess; linear search :x -->
+            <c:otherwise>
+              <c:const value="0" type="integer" desc="Start at the first element" />
+            </c:otherwise>
+          </c:cases>
+        </c:arg>
+
+        <c:arg name="end">
+          <t:dec>
+            <c:length-of>
+              <c:value-of name="matrix" />
+            </c:length-of>
+          </t:dec>
+        </c:arg>
+      </c:apply>
+    </t:merge-until-empty>
+  </lv:function>
+
+
+  <lv:function name="range" desc="Filter matrix rows by column value within a certain range of indexes (inclusive)">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+    <lv:param name="col" type="integer" desc="Column index to filter on" />
+    <lv:param name="val" type="float" desc="Column value to filter on" />
+    <lv:param name="start" type="integer" desc="Starting index (inclusive)" />
+    <lv:param name="end" type="integer" desc="Ending index (inclusive)" />
+    <lv:param name="seq" type="boolean" desc="Is data sequential?" />
+
+    <c:let>
+      <c:values>
+        <c:value name="curval" type="float" desc="Current value">
+          <c:value-of name="matrix">
+            <c:index>
+              <c:value-of name="start" />
+            </c:index>
+
+            <c:index>
+              <c:value-of name="col" />
+            </c:index>
+          </c:value-of>
+        </c:value>
+      </c:values>
+
+      <!-- nested let needed so that the curval is available to over
+           in the body below -->
+      <c:let>
+        <c:values>
+          <!-- determine if the value we're looking for is over the current value
+               in a sorted list (meaning that we will not find it) -->
+          <c:value name="over" type="boolean" desc="Did we pass the potential value in a sorted list?">
+            <c:value-of name="TRUE">
+              <c:when name="seq">
+                <c:eq>
+                  <c:value-of name="TRUE" />
+                </c:eq>
+              </c:when>
+
+              <c:when name="curval">
+                <c:gt>
+                  <c:value-of name="val" />
+                </c:gt>
+              </c:when>
+            </c:value-of>
+          </c:value>
+        </c:values>
+
+        <c:cases>
+          <!-- if we're done filtering, then return an empty set -->
+          <c:case>
+            <c:when name="start">
+              <c:gt>
+                <c:value-of name="end" />
+              </c:gt>
+            </c:when>
+
+            <!-- empty set -->
+            <c:set />
+          </c:case>
+
+          <!-- if the data is sequential and the next element is over the
+               requested value, then we're done -->
+          <c:case>
+            <c:when name="over">
+              <c:eq>
+                <c:value-of name="TRUE" />
+              </c:eq>
+            </c:when>
+
+            <!-- empty set -->
+            <c:set />
+          </c:case>
+
+
+          <c:otherwise>
+            <c:apply name="_mfilter" matrix="matrix" col="col" val="val" start="start" end="end" seq="seq">
+              <c:arg name="cur">
+                <c:value-of name="matrix">
+                  <!-- current row -->
+                  <c:index>
+                    <c:value-of name="start" />
+                  </c:index>
+
+                  <!-- requested column -->
+                  <c:index>
+                    <c:value-of name="col" />
+                  </c:index>
+                </c:value-of>
+              </c:arg>
+            </c:apply>
+          </c:otherwise>
+        </c:cases>
+      </c:let>
+    </c:let>
+  </lv:function>
+
+
+  <lv:function name="_mfilter" desc="mfilter helper">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+    <lv:param name="col" type="integer" desc="Column index to filter on" />
+    <lv:param name="val" type="float" desc="Column value to filter on" />
+    <lv:param name="start" type="integer" desc="Starting index (aka current index)" />
+    <lv:param name="end" type="integer" desc="Ending index" />
+    <lv:param name="seq" type="integer" desc="Is data sequential?" />
+
+    <lv:param name="cur" type="float" desc="Current value" />
+
+    <c:cases>
+      <c:case>
+        <c:when name="cur">
+          <c:eq>
+            <c:value-of name="val" />
+          </c:eq>
+        </c:when>
+
+        <c:cons>
+          <c:value-of name="matrix">
+            <c:index>
+              <c:value-of name="start" />
+            </c:index>
+          </c:value-of>
+
+          <c:apply name="range" matrix="matrix" col="col" val="val" end="end" seq="seq">
+            <c:arg name="start">
+              <c:sum>
+                <c:value-of name="start" />
+                <c:const value="1" type="integer" desc="Check next element" />
+              </c:sum>
+            </c:arg>
+          </c:apply>
+        </c:cons>
+      </c:case>
+
+      <c:otherwise>
+        <c:apply name="range" matrix="matrix" col="col" val="val" end="end" seq="seq">
+          <c:arg name="start">
+            <c:sum>
+              <c:value-of name="start" />
+              <c:const value="1" type="integer" desc="Check next element" />
+            </c:sum>
+          </c:arg>
+        </c:apply>
+      </c:otherwise>
+    </c:cases>
+  </lv:function>
+</lv:package>

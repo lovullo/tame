@@ -1,0 +1,21 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
+
+  core="true"
+
+  name="core/numeric"
+  desc="Numeric computations">
+
+
+  <!-- we are a meta-package -->
+  <lv:import package="numeric/boolean" export="true" />
+  <lv:import package="numeric/convert" export="true" />
+  <lv:import package="numeric/minmax"  export="true" />
+  <lv:import package="numeric/round"   export="true" />
+
+  <lv:import package="numeric/common" export="true" />
+</lv:package>

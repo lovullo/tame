@@ -1,0 +1,389 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/vector/interp"
+  desc="Interpolation">
+
+  <lv:import package="../base" />
+  <lv:import package="../numeric/common" />
+
+
+  <lv:template name="_interpolate_" desc="Interpolate the first two values in a vector">
+    <lv:param name="@values@" desc="Set" />
+    <lv:param name="@low@" desc="Lower value" />
+    <lv:param name="@high@" desc="Upper value" />
+    <lv:param name="@actual@" desc="Actual value" />
+
+
+    <c:let>
+      <c:values>
+        <!-- allows us to reference the set values -->
+        <c:value name="orig_set" type="float" set="vector" desc="The given set">
+          <lv:param-copy name="@values@" />
+        </c:value>
+      </c:values>
+
+      <c:let>
+        <c:values>
+          <!-- ensure that the set is ordered such that the lower value is the first index -->
+          <c:value name="set" type="float" set="vector" desc="Ordered set">
+            <c:let>
+              <c:values>
+                <c:value name="a" type="float" desc="First set value">
+                  <c:car>
+                    <c:value-of name="orig_set" />
+                  </c:car>
+                </c:value>
+
+                <c:value name="b" type="float" desc="Second set value">
+                  <c:value-of name="orig_set">
+                    <c:index>
+                      <c:const value="1" type="integer" desc="Second index" />
+                    </c:index>
+                  </c:value-of>
+                </c:value>
+              </c:values>
+
+              <c:cases>
+                <!-- when a > b, reorder -->
+                <c:case>
+                  <c:when name="a">
+                    <c:gt>
+                      <c:value-of name="b" />
+                    </c:gt>
+                  </c:when>
+
+                  <c:set label="Re-ordered set such that the lower value is first in the vector">
+                    <c:value-of name="b" />
+                    <c:value-of name="a" />
+                  </c:set>
+                </c:case>
+
+                <!-- already ordered -->
+                <c:otherwise>
+                  <c:value-of name="orig_set" />
+                </c:otherwise>
+              </c:cases>
+            </c:let>
+          </c:value>
+
+          <!-- determine the skip to use for the vecstep call -->
+          <c:value name="skip" type="float" desc="First value to be used as skip">
+            <c:value-of name="@low@" />
+          </c:value>
+
+          <!-- determine the step to use for the vecstep call -->
+          <c:value name="step" type="float" desc="Use difference between the first two as the step">
+            <c:sum label="Step between the low and high values">
+              <c:value-of name="@high@" />
+
+              <t:negate>
+                <c:value-of name="@low@" />
+              </t:negate>
+            </c:sum>
+          </c:value>
+        </c:values>
+
+        <c:cases>
+          <!-- check to see if interpolation is even necessary; in particular,
+               this will prevent a step of 0 to vecstep, which would eventually
+               result in a division by 0 -->
+          <c:case>
+            <c:when name="step">
+              <c:eq>
+                <c:const value="0" type="integer" desc="No step indicates identical values" />
+              </c:eq>
+            </c:when>
+
+            <!-- just return the first value; it's exact and no interpolation is necessary -->
+            <c:value-of name="set">
+              <c:index>
+                <c:const value="0" type="integer" desc="First index" />
+              </c:index>
+            </c:value-of>
+          </c:case>
+
+          <!-- values are inexact; interpolation is required -->
+          <c:otherwise>
+            <!-- give the values computed above, we can re-use vecstep on the first two values on the vector -->
+            <c:apply name="vecstep" set="set" skip="skip" step="step" value="@actual@" />
+          </c:otherwise>
+        </c:cases>
+      </c:let>
+    </c:let>
+  </lv:template>
+
+
+  <!--
+    Perform interpolation on the results of a table query
+
+    Not only is interpolation itself obnoxious, but determining the values
+    to look up from a table in order to get the data *to* interpolate also
+    results in a great deal of boilerplate code. This makes you not want to
+    kill yourself. At least not because of this interpolation query
+  -->
+  <lv:template name="_interpolate-query-field_"
+               desc="Interpolate table data">
+    <lv:param name="@table@"  desc="Table to query" />
+    <lv:param name="@field@"  desc="Table field to query" />
+    <lv:param name="@key@"    desc="Predicate subject column" />
+    <lv:param name="@step@"   desc="Key step" />
+    <lv:param name="@values@" desc="Query predicates" />
+
+    <lv:param name="@actual@"
+              desc="Actual value" />
+
+    <lv:param name="@index@" desc="Actual value index">
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@table_max@"
+              desc="Maximum value in table (should be a multiple of @step)" />
+
+    <!-- TODO: accept a function to calculate factor -->
+    <lv:param name="@step_factor@"
+              desc="Factor to use per step after maximum to infer value" />
+    <lv:param name="@step_factor_index@"
+              desc="Index of step factor value">
+      <lv:text></lv:text>
+    </lv:param>
+
+
+    <c:let>
+      <c:values>
+        <!-- if the requested limit exceeds the maximum value we support in
+             the table, then look up the maximum -->
+        <c:value name="lookup" type="float"
+                 desc="Value to retrieve and interpolate">
+          <!-- maximum provided -->
+          <lv:if name="@table_max@">
+            <t:cap name="@table_max@">
+              <c:value-of name="@actual@" />
+            </t:cap>
+          </lv:if>
+
+          <!-- no maximum -->
+          <lv:unless name="@table_max@">
+            <c:value-of name="@actual@" index="@index@" />
+          </lv:unless>
+        </c:value>
+      </c:values>
+
+
+      <c:sum>
+        <!-- lookup -->
+        <t:let-round name="lookup"
+                     step="@step@"
+                     high="high"
+                     low="low">
+          <!-- query and interpolate -->
+          <t:interpolate low="low"
+                         high="high"
+                         actual="lookup">
+            <t:query-field table="@table@"
+                           field="@field@">
+              <!-- query for upper and lower values for interpolation -->
+              <t:when field="@key@">
+                <c:value-of name="low" />
+                <c:value-of name="high" />
+              </t:when>
+
+              <lv:param-copy name="@values@" />
+            </t:query-field>
+          </t:interpolate>
+        </t:let-round>
+
+        <!-- step factor -->
+        <lv:if name="@step_factor@">
+          <c:let>
+            <c:values>
+              <!-- additional value (of key) that needs to be infered -->
+              <c:value name="add" type="float"
+                       desc="Additional value">
+                <c:sum>
+                  <c:value-of name="@actual@" index="@index@" />
+                  <t:negate>
+                    <c:value-of name="lookup" />
+                  </t:negate>
+                </c:sum>
+              </c:value>
+            </c:values>
+
+
+            <c:product>
+              <c:value-of name="@step_factor@"
+                          index="@step_factor_index@" />
+              <c:quotient>
+                <c:value-of name="add" />
+                <c:value-of name="@step@" />
+              </c:quotient>
+            </c:product>
+          </c:let>
+        </lv:if>
+      </c:sum>
+    </c:let>
+  </lv:template>
+
+
+  <!--
+    Calculates a floating-point representation of an arbitrary position within a
+    vector of values, where the value may exist between two elements within the
+    vector.
+
+    For example, given the following vector with the value of 12.5:
+
+      [ 5   ]
+      [ 10  ]
+             <- value is somewhere in here
+      [ 15  ]
+      [ ... ]
+      [ 100 ]
+
+    (Since the vector is 0-indexed, and we know that the index of 10 and 15 are
+    1 and 2 respectively, a value halfway between them would have an index of
+    exactly 1.5; so that's the value we're looking for.)
+
+    To calculate its position, given a 0-indexed vector, we need to know (a) the
+    step between each value and (b) the offset of the first step (the skip). In
+    the above case, index 0 represents 5, so let's assume that the skip provided
+    to us is 5. In this case, we have:
+
+      12.5 - 5 = 7.5
+
+    Which is the value without the skip. We can now simply divide it by the
+    step:
+
+      7.5 / 5 = 1.5, Q.E.D.
+  -->
+  <lv:function name="vecpos" desc="Calculate the position of a value within a vector of a given step">
+    <lv:param name="step"  type="float" desc="Step between each of the values" />
+    <lv:param name="skip"  type="float" desc="Amount skipped before first element of vector" />
+    <lv:param name="value" type="float" desc="Arbitrary value" />
+
+    <c:quotient>
+      <c:sum>
+        <c:value-of name="value" />
+        <t:negate>
+          <c:value-of name="skip" />
+        </t:negate>
+      </c:sum>
+
+      <c:value-of name="step" />
+    </c:quotient>
+  </lv:function>
+
+
+  <!--
+    Calculates any arbitrary value given a vector of values and the step between
+    those values
+
+    This function is best demonstrated with an example. Consider the following
+    vector: [ 0, 5, 10, ..., 100 ]T. From this, we can see that the step is 5
+    and the skip is 0. (If the vector would have started at 5, then the skip
+    would have been 5.) The value is any arbitrary value.
+
+    This performs an index calculation and then calls vecstepi for further
+    processing; see vecstepi and vecpos for further information. Once the
+    relative position within the vector is calculated, we no longer need the
+    step and skip amounts, since they were only needed to determine the value's
+    position.
+  -->
+  <lv:function name="vecstep" desc="Calculate a value that falls between a vector of values at a given step">
+    <lv:param name="set"   type="float" set="vector" desc="Vector of values" />
+    <lv:param name="step"  type="float"              desc="Step between each of the values" />
+    <lv:param name="skip"  type="float"              desc="Amount skipped before first element of vector" />
+    <lv:param name="value" type="float"              desc="Arbitrary value" />
+
+    <!-- call the function that will do the actual work -->
+    <c:apply name="vecstepi" set="set">
+      <!-- this is why the function call is necessary; we do not support
+           variable assignments, so the only way to have the same effect is to
+           invoke another function with the assignment as an argument (this
+           value is used frequently) -->
+      <c:arg name="pos">
+        <c:apply name="vecpos" step="step" skip="skip" value="value" />
+      </c:arg>
+    </c:apply>
+  </lv:function>
+
+
+  <!--
+    Calculates any arbitrary value given a vector of values and an arbitrary
+    index
+
+    (Continuing from vecstep): if we were given the same vector [ 0, 5, 10, ...,
+    100 ]T and the calculated index 2 (assuming that the vectors are 0-indexed),
+    that would yield the same upper and lower value (5 and 5). The result would
+    then be ( 5 + ( 5-5 * 2-2 ) ) = 5. That's not very impressive, so let's
+    consider a more complicated case.
+
+    Consider that the given position is 2.5. By taking the floor and ceiling of
+    this position, we arrive at indexes 2 and 3, which yields the values 10 and
+    15 respectively. Our goal is to determine what the value (v) at position 2.5
+    should be:
+      - Start with the lower value; we'll be adding atop of this.
+      - Consider the remaining values (upper - lower): 15 - 10 = 5.
+        This means that we'll be adding some value between 0 and 5 such that the
+        value is 50% of the way (remember, we had 2.5) between the two. So,
+        we're looking for the value 2.5.
+      - To get this value, we can multiply the difference in the upper and lower
+        bounds by the decimal portion of our position (because 5 * 0.50 = 2.5).
+        To get the decimal portion, we can simply subtract the floor of the
+        position from the position itself: 2.5 - 2 = 0.5.
+      - So, we have: 5 + ( 15-10 * 2.5-2 ) = 5 + ( 5 * 0.5 ) = 5 + 2.5 = 7.5.
+  -->
+  <lv:function name="vecstepi" desc="Calculate a value that falls between a vector of values at an arbitrary index">
+    <lv:param name="set"  type="float" set="vector" desc="Vector of values" />
+    <lv:param name="pos"  type="float"              desc="Position of value within the vector (may be between values)" />
+
+    <c:sum>
+      <!-- add the closest lower value... -->
+      <c:value-of name="set">
+        <c:index>
+          <c:floor label="Lower index">
+            <c:value-of name="pos" />
+          </c:floor>
+        </c:index>
+      </c:value-of>
+
+      <c:product label="Partial value to apply atop of the lower base value">
+        <c:sum label="Subtract the upper and lower values to get the increment per step">
+          <c:value-of name="set" label="Upper value">
+            <c:index>
+              <c:ceil>
+                <c:value-of name="pos" />
+              </c:ceil>
+            </c:index>
+          </c:value-of>
+
+          <t:negate>
+            <c:value-of name="set" label="Lower value">
+              <c:index>
+                <c:floor>
+                  <c:value-of name="pos" />
+                </c:floor>
+              </c:index>
+            </c:value-of>
+          </t:negate>
+        </c:sum>
+
+        <!-- determine the % between the two values -->
+        <c:sum label="Dropping the whole number from the position (yielding only the decimal) gives us the % difference">
+          <c:value-of name="pos" />
+          <t:negate>
+            <c:floor>
+              <c:value-of name="pos" />
+            </c:floor>
+          </t:negate>
+        </c:sum>
+      </c:product>
+    </c:sum>
+  </lv:function>
+</lv:package>

@@ -1,0 +1,27 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/numeric/boolean"
+  desc="Numeric computations dealing with boolean algebra">
+
+  <lv:import package="../base" />
+
+
+  <lv:function name="not" desc="Negates a boolean value" sym="\lnot">
+    <lv:param name="not_value" type="boolean" desc="Boolean value to negate" />
+
+    <c:const value="1" type="boolean" desc="Value of 1 if given value is zero">
+      <c:when name="not_value">
+        <c:eq>
+          <c:const value="0" type="boolean" desc="Value to assert against for returning 1" />
+        </c:eq>
+      </c:when>
+    </c:const>
+  </lv:function>
+</lv:package>

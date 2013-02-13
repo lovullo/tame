@@ -1,0 +1,162 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/vector/common"
+  desc="General vector operations">
+
+  <lv:import package="../base" />
+  <lv:import package="../numeric/common" />
+
+
+  <!-- useful because you can pass a conditional expression as an argument and
+       select the index of the result -->
+  <lv:function name="vival" desc="Select index value from some vector">
+    <lv:param name="vector" type="float" set="vector" desc="Vector" />
+    <lv:param name="index" type="integer" desc="Index" />
+
+    <c:value-of name="vector">
+      <c:index>
+        <c:value-of name="index" />
+      </c:index>
+    </c:value-of>
+  </lv:function>
+
+
+  <lv:function name="mival" desc="Select index value from some matrix">
+    <lv:param name="matrix" type="float" set="matrix" desc="Matrix" />
+    <lv:param name="row" type="integer" desc="Row index" />
+    <lv:param name="col" type="integer" desc="Column index" />
+
+    <c:value-of name="matrix">
+      <c:index>
+        <c:value-of name="row" />
+      </c:index>
+      <c:index>
+        <c:value-of name="col" />
+      </c:index>
+    </c:value-of>
+  </lv:function>
+
+
+  <lv:template name="_map-value_" desc="Map from a value to another using a vector map">
+    <lv:param name="@from@" desc="Name of value to map" />
+    <lv:param name="@index@" desc="Index" />
+    <lv:param name="@using@" desc="Vector to use for mapping" />
+
+    <c:apply name="vival">
+      <c:arg name="vector">
+        <c:value-of name="@using@" />
+      </c:arg>
+
+      <c:arg name="index">
+        <c:value-of name="@from@" index="@index@" />
+      </c:arg>
+    </c:apply>
+  </lv:template>
+
+
+
+  <!--
+    Look up a matrix value using maps for both row and column indexes
+
+    This allows for the same values to be used with different matrices. The maps
+    will be used to map a value to an index within the matrix for either a row
+    or column.
+  -->
+  <lv:function name="mlookup" desc="Matrix value lookup based on two index maps">
+    <lv:param name="matrix" type="float"   set="matrix" desc="Rate matrix indexed by CT and PC" />
+    <lv:param name="rmap"   type="integer" set="vector" desc="Row index map" />
+    <lv:param name="cmap"   type="integer" set="vector" desc="Column index map" />
+
+    <lv:param name="rval" type="integer" desc="Row value (to be fed to map for index lookup)" />
+    <lv:param name="cval" type="integer" desc="Column value (to be fed to map for index lookup)" />
+
+    <c:value-of name="matrix">
+      <!-- row -->
+      <c:index>
+        <c:value-of name="rmap">
+          <c:index>
+            <c:value-of name="rval" />
+          </c:index>
+        </c:value-of>
+      </c:index>
+
+      <!-- column -->
+      <c:index>
+        <c:value-of name="cmap">
+          <c:index>
+            <c:value-of name="cval" />
+          </c:index>
+        </c:value-of>
+      </c:index>
+    </c:value-of>
+  </lv:function>
+
+
+  <lv:function name="first_index" desc="Determine the matching index of a vector; -1 if no match">
+    <lv:param name="vector" type="float"   set="vector" desc="Source vector to search" />
+    <lv:param name="value"  type="integer"              desc="Value to match" />
+    <lv:param name="offset" type="integer"              desc="Vector offset" />
+
+    <c:let>
+      <c:values>
+        <!-- TODO: do not calculate every time -->
+        <c:value name="vlen" type="integer" desc="Vector length">
+          <c:length-of>
+            <c:value-of name="vector" />
+          </c:length-of>
+        </c:value>
+      </c:values>
+
+
+      <c:cases>
+        <c:case>
+          <c:when name="offset">
+            <c:gte>
+              <c:value-of name="vlen" />
+            </c:gte>
+          </c:when>
+
+          <c:const value="-1" type="integer" desc="Not found" />
+        </c:case>
+
+
+        <c:case>
+          <c:when name="vector" index="offset">
+            <c:eq>
+              <c:value-of name="value" />
+            </c:eq>
+          </c:when>
+
+          <!-- found the index -->
+          <c:value-of name="offset" />
+        </c:case>
+
+
+        <c:otherwise>
+          <c:recurse vector="vector" value="value">
+            <c:arg name="offset">
+              <t:inc>
+                <c:value-of name="offset" />
+              </t:inc>
+            </c:arg>
+          </c:recurse>
+        </c:otherwise>
+      </c:cases>
+    </c:let>
+  </lv:function>
+
+
+  <!-- generates a variable that can be recognized as an empty set (useful for
+       defaults to params that require sets) -->
+  <lv:rate-each class="always" yields="__empty" generates="__emptySet" index="k">
+    <c:const value="0" type="integer" desc="Nothing" />
+  </lv:rate-each>
+</lv:package>

@@ -1,0 +1,118 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/numeric/common"
+  desc="General numeric opreations">
+
+  <lv:import package="../base" />
+
+
+  <lv:template name="_inc_" desc="Increment value [by 1]">
+    <lv:param name="@values@" desc="Value to increment (nodes)" />
+
+    <lv:param name="@value@" desc="Value to decrement by (default 1)">
+      <lv:text>1</lv:text>
+    </lv:param>
+
+    <c:sum>
+      <lv:param-copy name="@values@" />
+      <c:const value="@value@" type="integer" desc="Increment by 1" />
+    </c:sum>
+  </lv:template>
+
+
+
+  <lv:template name="_dec_" desc="Decrement value [by 1]">
+    <lv:param name="@values@" desc="Value to decrement (nodes)" />
+
+    <lv:param name="@value@" desc="Value to decrement by (default 1)">
+      <lv:text>1</lv:text>
+    </lv:param>
+
+
+    <c:sum>
+      <lv:param-copy name="@values@" />
+
+      <c:product>
+        <c:value-of name="NEGATE" />
+        <c:const value="@value@" type="integer" desc="Decrement by 1" />
+      </c:product>
+    </c:sum>
+  </lv:template>
+
+
+
+  <lv:template name="_negate_" desc="Negate a value">
+    <lv:param name="@values@" desc="Value to decrement (nodes)" />
+    <lv:param name="@label@" desc="Application label">
+      <!-- default empty -->
+      <lv:text></lv:text>
+    </lv:param>
+
+    <c:product label="@label@">
+      <c:value-of name="NEGATE" />
+      <lv:param-copy name="@values@" />
+    </c:product>
+  </lv:template>
+
+
+
+  <lv:template name="_percent-of_" desc="Take percentage of a value">
+    <lv:param name="@value@" desc="Value to take percentage of" />
+    <lv:param name="@index@" desc="Index" />
+    <lv:param name="@percent@" desc="Percent (as a whole number)" />
+
+    <lv:param name="@desc@" desc="Optional description">
+      <lv:text>Percent to reduce</lv:text>
+    </lv:param>
+
+    <c:product>
+      <c:value-of name="@value@" index="@index@" />
+      <t:ptor value="@percent@" desc="@desc@" />
+    </c:product>
+  </lv:template>
+
+
+
+  <!--
+    Calculates a value based on the given multiplier if the given value falls
+    within the given range
+  -->
+  <lv:function name="rangeadd" desc="Add a value multiplier for a given range">
+    <lv:param name="low"  type="float" desc="Lower bound, inclusive" />
+    <lv:param name="high" type="float" desc="Upper bound, inclusive" />
+    <lv:param name="val"  type="float" desc="Value to compare" />
+    <lv:param name="mult" type="float" desc="Range multiplier" />
+
+    <c:product>
+      <c:when name="val">
+        <c:gte>
+          <c:value-of name="low" />
+        </c:gte>
+      </c:when>
+      <c:when name="val">
+        <c:lte>
+          <c:value-of name="high" />
+        </c:lte>
+      </c:when>
+
+      <!-- atop of the 0.00003 we've already provided = 0.000035 -->
+      <c:value-of name="mult" />
+      <c:sum>
+        <c:value-of name="val" />
+        <!-- subtract -->
+        <c:product>
+          <c:value-of name="NEGATE" />
+          <c:value-of name="low" />
+        </c:product>
+      </c:sum>
+    </c:product>
+  </lv:function>
+</lv:package>

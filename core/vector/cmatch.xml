@@ -1,0 +1,159 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/vector/cmatch"
+  desc="Vector operations on classification matches">
+
+  <lv:import package="../base" />
+  <lv:import package="arithmetic" export="true" />
+
+
+  <!--
+    This wonderful little gem takes a classification match and stores it in a
+    vector, allowing for hassle-free use in calculations without awkward
+    hasany() calls on classification matrices (where a classification yields a
+    matrix, that is). This is useless for classifications that yield vectors,
+    since the result will be the same.
+
+    This template is also useful for combining various classification vectors
+    and matrices, whoose reduction would otherwise be a bit complicated. Of
+    course, the alternative there is also to create a classification that
+    relies on other classifications; use your best judgement.
+
+    This exploits the fact that _CMATCH_'s are always vectors, even if we are
+    matching on a matrix.  As such, the system has already gone through the
+    trouble of reducing the matrix into a vector for us, so all we need to do
+    is store each value into a vector, which can be easily accomplished using a
+    generator.
+
+    This is an excellent example of building a feature atop of the DSL without
+    having to add a new language feature.
+  -->
+  <lv:template name="_cmatch-to-vector_" desc="Vectorizes a classification match">
+    <lv:param name="@class@" desc="Classification match string" />
+    <lv:param name="@generates@" desc="Variable to yield generates (will yield a vector)" />
+    <lv:param name="@keep@" desc="Rate block @keep">
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@yields@" desc="Dummy variable to yield generates (useless, but required)">
+      <lv:text>__</lv:text>
+      <lv:param-value name="@generates@" />
+    </lv:param>
+
+    <lv:param name="@gendesc@" desc="Generator description">
+      <lv:text>Vector containing boolean </lv:text>
+      <lv:param-value name="@class@" />
+      <lv:text> classification matches</lv:text>
+    </lv:param>
+
+    <lv:param name="@sym@" desc="Generator symbol (corresponds to @generates@)">
+      <!-- defaults to nothing -->
+      <lv:text></lv:text>
+    </lv:param>
+
+    <!-- this conversion is as simple as using a generator to yield the value
+         of _CMATCH_ for each index -->
+    <lv:rate class="@class@" accumulate="none" yields="@yields@" always="true" keep="@keep@">
+      <c:sum of="_CMATCH_" index="k" generates="@generates@" desc="@gendesc@" sym="@sym@">
+        <c:value-of name="_CMATCH_" index="k" />
+      </c:sum>
+    </lv:rate>
+  </lv:template>
+
+
+  <lv:template name="_cmatch-to-scalar_" desc="Reduces a classification match into a scalar">
+    <lv:param name="@class@" desc="Classification match string" />
+    <lv:param name="@yields@" desc="Variable to yield into" />
+    <lv:param name="@sym@" desc="Yield symbol (defaults to nothing)">
+      <!-- defaults to nothing -->
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@keep@" desc="Rate block @keep">
+      <lv:text></lv:text>
+    </lv:param>
+
+
+    <lv:rate class="@class@" accumulate="none" yields="@yields@" sym="@sym@" keep="@keep@">
+      <!-- if any single one matches, then we want to yield a 1 -->
+      <c:apply name="maxreduce" maxreduce_set="_CMATCH_" />
+    </lv:rate>
+  </lv:template>
+
+
+
+  <!--
+    Counts one for each classification vector match
+  -->
+  <lv:template name="_cmatch-count_" desc="Counts the number of classification matches of a vector">
+    <lv:param name="@class@" desc="Classification match" />
+    <lv:param name="@yields@" desc="Value to yield" />
+
+    <!-- nothing by default -->
+    <lv:param name="@no@" desc="Non-match">
+      <lv:text></lv:text>
+    </lv:param>
+
+
+    <lv:rate class="@class@" no="@no@" yields="@yields@">
+      <c:sum of="_CMATCH_" />
+    </lv:rate>
+  </lv:template>
+
+
+  <!-- because verbose repition is an evil -->
+  <lv:inline-template>
+    <lv:for-each>
+      <lv:set cmp="eq" />
+      <lv:set cmp="ne" />
+      <lv:set cmp="gt" />
+      <lv:set cmp="gte" />
+      <lv:set cmp="lt" />
+      <lv:set cmp="lte" />
+    </lv:for-each>
+
+
+    <lv:template name="_match-{@cmp@}_" desc="Match value {@cmp@}">
+      <lv:param name="@on@" desc="Value to assert" />
+
+      <!-- pick one -->
+      <lv:param name="@const@" desc="Match against constant value" />
+      <lv:param name="@value@" desc="Match against variable" />
+
+      <lv:match on="@on@">
+        <lv:dyn-node name="c:{@cmp@}">
+          <lv:if name="@const@">
+            <c:const value="@const@" type="float" desc="Comparison" />
+          </lv:if>
+
+          <lv:unless name="@const@">
+            <c:value-of name="@value@" />
+          </lv:unless>
+        </lv:dyn-node>
+      </lv:match>
+    </lv:template>
+  </lv:inline-template>
+
+
+  <lv:template name="_match-class_"
+               desc="Match on a class name (rather than @yields)">
+    <lv:param name="@name@" desc="Classification name" />
+
+    <lv:param name="@__yields@" desc="Classification yield to match on">
+      <lv:param-class-to-yields name="@name@" />
+    </lv:param>
+
+    <lv:param name="@value@" desc="Value to match on">
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:match on="@__yields@" value="@value@" />
+  </lv:template>
+</lv:package>

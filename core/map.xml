@@ -1,0 +1,113 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<!--
+  Brings c:case statements to life
+
+  The problem with cases is that they are so verbose for simple cases. This
+  makes simple cases simple.
+-->
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
+
+  core="true"
+
+  name="map"
+  desc="Mapping templates/functions">
+
+
+  <lv:template name="_map-set_" desc="Map a set of values">
+    <lv:param name="@name@" desc="Param name" />
+    <lv:param name="@index@" desc="Index" />
+    <lv:param name="@values@" desc="Criteria (map nodes)" />
+    <lv:param name="@label@" desc="Case statement label">
+      <!-- default empty -->
+      <lv:text></lv:text>
+    </lv:param>
+
+    <lv:param name="@default@" desc="Default value" />
+
+    <c:cases label="@label@">
+      <lv:param-copy name="@values@">
+        <lv:param-meta name="map_param" value="@name@" />
+        <lv:param-meta name="map_index" value="@index@" />
+      </lv:param-copy>
+
+      <!-- TODO: allow setting default via @default or t:default or something
+           (or both) -->
+      <lv:if name="@default@">
+        <c:otherwise>
+          <c:const value="@default@" type="integer" desc="No mapping" />
+        </c:otherwise>
+      </lv:if>
+    </c:cases>
+  </lv:template>
+
+
+  <lv:template name="_map_" desc="Map criteria">
+    <lv:param name="@from@" desc="Value to map from" />
+    <lv:param name="@value@" desc="Constant to map to" />
+    <lv:param name="@to@" desc="Named value (use instead of @value@)" />
+
+    <lv:param name="@type@" desc="Constant value type">
+      <lv:text>float</lv:text>
+    </lv:param>
+
+    <lv:param name="@desc@" desc="Map description">
+      <lv:text>Destination mapping</lv:text>
+    </lv:param>
+
+    <!-- set by parent map-set -->
+    <lv:param name="@name@" desc="Param name">
+      <lv:param-inherit meta="map_param" />
+    </lv:param>
+    <lv:param name="@index@" desc="Index">
+      <lv:param-inherit meta="map_index" />
+    </lv:param>
+
+    <c:case>
+      <!-- index provided -->
+      <lv:if name="@index@">
+        <c:when name="@name@" index="@index@">
+          <c:eq>
+            <c:value-of name="@from@" />
+          </c:eq>
+        </c:when>
+      </lv:if>
+      <!-- no index provided -->
+      <lv:unless name="@index@">
+        <c:when name="@name@">
+          <c:eq>
+            <c:value-of name="@from@" />
+          </c:eq>
+        </c:when>
+      </lv:unless>
+
+      <lv:if name="@value@">
+        <c:const value="@value@" type="@type@" desc="@desc@" />
+      </lv:if>
+      <lv:unless name="@value@">
+        <!-- TODO: index support -->
+        <c:value-of name="@to@" />
+      </lv:unless>
+    </c:case>
+  </lv:template>
+
+
+  <lv:template name="_map-else_" desc="Non-matching map criteria">
+    <lv:param name="@value@" desc="Constant to map to" />
+    <lv:param name="@to@" desc="Named value (use instead of @value@)" />
+
+    <c:otherwise>
+      <lv:if name="@value@">
+        <c:const value="@value@" type="float" desc="@desc@" />
+      </lv:if>
+      <lv:unless name="@value@">
+        <!-- TODO: index support -->
+        <c:value-of name="@to@" />
+      </lv:unless>
+    </c:otherwise>
+  </lv:template>
+</lv:package>

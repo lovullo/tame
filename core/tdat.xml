@@ -1,0 +1,31 @@
+<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
+<lv:package
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
+
+  core="true"
+
+  name="core/tdat"
+  desc="Territory data support (used in conjunction with tdat script)">
+
+  <lv:import package="base" export="true" />
+
+
+  <lv:template name="_terr-code_" desc="Defines a territory code for a given classification">
+    <lv:param name="@class@"     desc="Classification" />
+    <lv:param name="@code@"      desc="Territory code" />
+    <lv:param name="@generates@" desc="Generator" />
+
+    <lv:param name="@yields@" desc="Yield var">
+      <lv:text>_</lv:text>
+      <lv:param-value name="@generates@" />
+    </lv:param>
+
+
+    <lv:rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="k">
+      <c:const value="@code@" type="integer" desc="Territory code" />
+    </lv:rate-each>
+  </lv:template>
+</lv:package>
