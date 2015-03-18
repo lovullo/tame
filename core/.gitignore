@@ -1,0 +1,4 @@
+# when core is built
+*.xmlo
+*.dep
+*.tmp
