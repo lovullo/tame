@@ -1,87 +1,81 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/vector/arithmetic"
   desc="Vector arithmetic">
 
-  <lv:import package="../base" />
-  <lv:import package="../numeric/common" />
-  <lv:import package="../numeric/minmax" />
+  <import package="../base" />
+  <import package="../numeric/common" />
+  <import package="../numeric/minmax" />
 
 
 
   <!-- for the time being, the vectors must be of the same length, or the first
        vector must be the longer (otherwise the values will not properly add)
        -->
-  <lv:template name="_vadd_" desc="Produce a vector resulting from the addition of two vectors">
-    <lv:param name="@a@" desc="First vector to add" />
-    <lv:param name="@b@" desc="Second vector to add" />
-    <lv:param name="@into@" desc="Variable to yield vector into" />
+  <template name="_vadd_" desc="Produce a vector resulting from the addition of two vectors">
+    <param name="@a@" desc="First vector to add" />
+    <param name="@b@" desc="Second vector to add" />
+    <param name="@into@" desc="Variable to yield vector into" />
 
-    <lv:param name="@yields@" desc="Value to yield (useless)">
-      <lv:text>__</lv:text>
-      <lv:param-value name="@into@" />
-    </lv:param>
+    <param name="@yields@" desc="Value to yield (useless)">
+      <text>__</text>
+      <param-value name="@into@" />
+    </param>
 
-    <lv:param name="@gendesc@" desc="Generator description (for @into@)">
-      <lv:text>Sum of vectors </lv:text>
-      <lv:param-value name="@a@" />
-      <lv:text> and </lv:text>
-      <lv:param-value name="@b@" />
-    </lv:param>
+    <param name="@gendesc@" desc="Generator description (for @into@)">
+      <text>Sum of vectors </text>
+      <param-value name="@a@" />
+      <text> and </text>
+      <param-value name="@b@" />
+    </param>
 
-    <lv:param name="@sym@" desc="Generator symbol">
+    <param name="@sym@" desc="Generator symbol">
       <!-- empty by default -->
-      <lv:text></lv:text>
-    </lv:param>
+      <text></text>
+    </param>
 
-    <lv:rate accumulate="none" yields="@yields@">
+    <rate accumulate="none" yields="@yields@">
       <c:sum of="@a@" index="k" generates="@into@" desc="@gendesc@" sym="@sym@">
         <c:value-of name="@a@" index="k" />
         <c:value-of name="@b@" index="k" />
       </c:sum>
-    </lv:rate>
-  </lv:template>
+    </rate>
+  </template>
 
 
   <!-- the template version of the function -->
-  <lv:template name="_maxreduce_" desc="Reduce a set to its maximum">
-    <lv:param name="@values@" desc="Values to reduce" />
-    <lv:param name="@isvector@" desc="Set to 'true' if the nodes should not be wrapped in c:set" />
-    <lv:param name="@label@" desc="Application label">
+  <template name="_maxreduce_" desc="Reduce a set to its maximum">
+    <param name="@values@" desc="Values to reduce" />
+    <param name="@isvector@" desc="Set to 'true' if the nodes should not be wrapped in c:set" />
+    <param name="@label@" desc="Application label">
       <!-- default empty -->
-      <lv:text></lv:text>
-    </lv:param>
+      <text></text>
+    </param>
 
     <c:apply name="maxreduce" label="@label@">
       <c:arg name="maxreduce_set">
         <!-- if we were not provided with a vector (default), create one out of
              the given nodes -->
-        <lv:unless name="@isvector@" eq="true">
+        <unless name="@isvector@" eq="true">
           <c:set>
-            <lv:param-copy name="@values@" />
+            <param-copy name="@values@" />
           </c:set>
-        </lv:unless>
+        </unless>
 
         <!-- if they told us that they have provided a vector, then do not
              create one -->
-        <lv:if name="@isvector@" eq="true">
-          <lv:param-copy name="@values@" />
-        </lv:if>
+        <if name="@isvector@" eq="true">
+          <param-copy name="@values@" />
+        </if>
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
-  <lv:function name="maxreduce" desc="Reduce a set to its maximum">
-    <lv:param name="maxreduce_set" type="float" set="vector" desc="Set to find max of" />
+  <function name="maxreduce" desc="Reduce a set to its maximum">
+    <param name="maxreduce_set" type="float" set="vector" desc="Set to find max of" />
 
     <c:let>
       <c:values>
@@ -123,7 +117,7 @@
         </c:otherwise>
       </c:cases>
     </c:let>
-  </lv:function>
+  </function>
 
 
   <!--
@@ -142,9 +136,9 @@
     TODO: If we can support variable applications, then this simply be a
     generic reduce function that accepts max/min/etc.
   -->
-  <lv:function name="_maxreduce" desc="Recursively reduce a set to its maximum (called by maxreduce)">
-    <lv:param name="_maxreduce_set" type="float" set="vector" desc="Set to find max of" />
-    <lv:param name="_maxreduce_i"   type="integer" desc="Index" />
+  <function name="_maxreduce" desc="Recursively reduce a set to its maximum (called by maxreduce)">
+    <param name="_maxreduce_set" type="float" set="vector" desc="Set to find max of" />
+    <param name="_maxreduce_i"   type="integer" desc="Index" />
 
     <c:cases>
       <!-- base case: if we're on the last index, do not recurse -->
@@ -194,39 +188,40 @@
         </c:apply>
       </c:otherwise>
     </c:cases>
-  </lv:function>
+  </function>
 
 
   <!-- simplifies retrieving the max of a set of values -->
-  <lv:template name="_maxOfEach_" desc="Take the max of the given set of values">
-    <lv:param name="@class@" desc="Class to match on" />
-    <lv:param name="@values@" desc="Individual values without lv:set" />
-    <lv:param name="@generates@" desc="Value to generate into" />
-    <lv:param name="@index@" desc="Index to use for rate-each" />
+  <template name="_maxOfEach_" desc="Take the max of the given set of values">
+    <param name="@class@" desc="Class to match on" />
+    <param name="@values@" desc="Individual values without set" />
+    <param name="@generates@" desc="Value to generate into" />
+    <param name="@index@" desc="Index to use for rate-each" />
 
-    <lv:param name="@yields@" desc="Yield variable">
-      <lv:text>_</lv:text>
-      <lv:param-value name="@generates@" />
-    </lv:param>
+    <param name="@yields@" desc="Yield variable">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
 
-    <lv:rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="@index@">
+    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="@index@">
       <c:apply name="maxreduce">
         <c:arg name="maxreduce_set">
           <c:set>
-            <lv:param-copy name="@values@" />
+            <param-copy name="@values@" />
           </c:set>
         </c:arg>
       </c:apply>
-    </lv:rate-each>
-  </lv:template>
+    </rate-each>
+  </template>
 
 
-  <lv:template name="_vsum_" desc="Yield sum of all elements of a vector as a scalar">
-    <lv:param name="@of@"     desc="Vector to sum" />
-    <lv:param name="@yields@" desc="Name of scalar to yield" />
+  <template name="_vsum_" desc="Yield sum of all elements of a vector as a scalar">
+    <param name="@of@"     desc="Vector to sum" />
+    <param name="@yields@" desc="Name of scalar to yield" />
 
-    <lv:rate yields="@yields@">
+    <rate yields="@yields@">
       <c:sum of="@of@" />
-    </lv:rate>
-  </lv:template>
-</lv:package>
+    </rate>
+  </template>
+</package>
+

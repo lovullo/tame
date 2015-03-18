@@ -1,22 +1,16 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
-
   core="true"
-
-  name="core/cond"
   desc="Generic conditionals">
 
-  <lv:import package="base" />
+  <import package="base" />
 
 
   <!-- TODO: use reduce once we have support for function passing -->
-  <lv:function name="or" desc="Return value A if non-zero, otherwise B">
-    <lv:param name="or_a" type="float" desc="Value to return if non-zero" />
-    <lv:param name="or_b" type="float" desc="Value to return if A is zero" />
+  <function name="or" desc="Return value A if non-zero, otherwise B">
+    <param name="or_a" type="float" desc="Value to return if non-zero" />
+    <param name="or_b" type="float" desc="Value to return if A is zero" />
 
     <c:cases>
       <!-- return B if A is zero -->
@@ -35,23 +29,23 @@
         <c:value-of name="or_a" />
       </c:otherwise>
     </c:cases>
-  </lv:function>
+  </function>
 
 
-  <lv:template name="_cond_" desc="Conditional shorthand">
-    <lv:param name="@name@" desc="Value to check" />
-    <lv:param name="@index@" desc="Index of boolean value" />
-    <lv:param name="@value@" desc="Constant value" />
-    <lv:param name="@type@" desc="Value type" />
+  <template name="_cond_" desc="Conditional shorthand">
+    <param name="@name@" desc="Value to check" />
+    <param name="@index@" desc="Index of boolean value" />
+    <param name="@value@" desc="Constant value" />
+    <param name="@type@" desc="Value type" />
 
-    <lv:param name="@cond@" desc="Value to compare against (default boolean true)">
-      <lv:text>TRUE</lv:text>
-    </lv:param>
+    <param name="@cond@" desc="Value to compare against (default boolean true)">
+      <text>TRUE</text>
+    </param>
 
-    <lv:param name="@desc@" desc="Value description">
-      <lv:text>Value when </lv:text>
-      <lv:param-value name="@name@" />
-    </lv:param>
+    <param name="@desc@" desc="Value description">
+      <text>Value when </text>
+      <param-value name="@name@" />
+    </param>
 
     <c:const value="@value@" type="@type@" desc="@desc@">
       <!-- TODO: non-index option -->
@@ -61,50 +55,50 @@
         </c:eq>
       </c:when>
     </c:const>
-  </lv:template>
+  </template>
 
 
-  <lv:template name="_yield-unless_" desc="Yield a value unless another value is set">
-    <lv:param name="@name@" desc="Overriding value" />
-    <lv:param name="@index@" desc="Index" />
-    <lv:param name="@values@" desc="Value to use otherwise" />
+  <template name="_yield-unless_" desc="Yield a value unless another value is set">
+    <param name="@name@" desc="Overriding value" />
+    <param name="@index@" desc="Index" />
+    <param name="@values@" desc="Value to use otherwise" />
 
     <c:cases>
       <c:case>
-        <lv:if name="@index@">
+        <if name="@index@">
           <c:when name="@name@" index="@index@">
             <c:gt>
               <c:const value="0" type="integer" desc="Use override if greater than 0" />
             </c:gt>
           </c:when>
-        </lv:if>
-        <lv:unless name="@index@">
+        </if>
+        <unless name="@index@">
           <c:when name="@name@">
             <c:gt>
               <c:const value="0" type="integer" desc="Use override if greater than 0" />
             </c:gt>
           </c:when>
-        </lv:unless>
+        </unless>
 
-        <lv:if name="@index@">
+        <if name="@index@">
           <c:value-of name="@name@" index="@index@" />
-        </lv:if>
-        <lv:unless name="@index@">
+        </if>
+        <unless name="@index@">
           <c:value-of name="@name@" />
-        </lv:unless>
+        </unless>
       </c:case>
 
       <c:otherwise>
-        <lv:param-copy name="@values@" />
+        <param-copy name="@values@" />
       </c:otherwise>
     </c:cases>
-  </lv:template>
+  </template>
 
 
-  <lv:template name="_default_" desc="Set a default value if a value is not set">
-    <lv:param name="@name@" desc="Param name" />
-    <lv:param name="@index@" desc="Index" />
-    <lv:param name="@default@" desc="Default value to use if empty" />
+  <template name="_default_" desc="Set a default value if a value is not set">
+    <param name="@name@" desc="Param name" />
+    <param name="@index@" desc="Index" />
+    <param name="@default@" desc="Default value to use if empty" />
 
     <c:cases>
       <c:case>
@@ -121,36 +115,37 @@
         <c:value-of name="@name@" index="@index@" />
       </c:otherwise>
     </c:cases>
-  </lv:template>
+  </template>
 
 
 
-  <lv:template name="_cond-value-each_" desc="Conditional value">
-    <lv:param name="@class@"     desc="Class match" />
-    <lv:param name="@generates@" desc="Variable to generate into" />
-    <lv:param name="@value@"     desc="Value to yield (use either this or const)" />
-    <lv:param name="@const@"     desc="Constant to yield (use either this or value)" />
-    <lv:param name="@count@"     desc="Optional number of times to apply const/value (as a variable)" />
+  <template name="_cond-value-each_" desc="Conditional value">
+    <param name="@class@"     desc="Class match" />
+    <param name="@generates@" desc="Variable to generate into" />
+    <param name="@value@"     desc="Value to yield (use either this or const)" />
+    <param name="@const@"     desc="Constant to yield (use either this or value)" />
+    <param name="@count@"     desc="Optional number of times to apply const/value (as a variable)" />
 
-    <lv:param name="@desc@" desc="Optional constant description">
-      <lv:text>Constant value</lv:text>
-    </lv:param>
+    <param name="@desc@" desc="Optional constant description">
+      <text>Constant value</text>
+    </param>
 
     <!-- simply returns a constant value for the class match -->
-    <lv:rate-each class="@class@" accumulate="none" generates="@generates@" index="k">
+    <rate-each class="@class@" accumulate="none" generates="@generates@" index="k">
       <c:product>
-        <lv:if name="@value@">
+        <if name="@value@">
           <c:value-of name="@value@" />
-        </lv:if>
-        <lv:unless name="@value@">
+        </if>
+        <unless name="@value@">
           <c:const value="@const@" type="float" desc="@desc@" />
-        </lv:unless>
+        </unless>
 
         <!-- if this is not provided, then the c:product will be optimized away -->
-        <lv:if name="@count@">
+        <if name="@count@">
           <c:value-of name="@count@" index="k" />
-        </lv:if>
+        </if>
       </c:product>
-    </lv:rate-each>
-  </lv:template>
-</lv:package>
+    </rate-each>
+  </template>
+</package>
+

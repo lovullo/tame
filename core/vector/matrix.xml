@@ -1,18 +1,12 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/vector/matrix"
   desc="Matrix (vector of vectors) arithmetic">
 
-  <lv:import package="../base" />
-  <lv:import package="list" />
+  <import package="../base" />
+  <import package="list" />
 
 
   <!--
@@ -52,36 +46,36 @@
     above is true, the result is achieved in a slightly different manner.)
   -->
   <!-- TODO: more generic name and documentation; we are in the core, after all -->
-  <lv:template name="_rate-vector_" desc="Matches against a matrix of classes and a matrix of rates and returns a vector representing the rates per location">
-    <lv:param name="@line@" desc="Line code classification string" />
-    <lv:param name="@class_set@" desc="Matrix containing line classification matches" />
-    <lv:param name="@into@" desc="Variable to which the vector will be assigned" />
+  <template name="_rate-vector_" desc="Matches against a matrix of classes and a matrix of rates and returns a vector representing the rates per location">
+    <param name="@line@" desc="Line code classification string" />
+    <param name="@class_set@" desc="Matrix containing line classification matches" />
+    <param name="@into@" desc="Variable to which the vector will be assigned" />
 
     <!-- this would be the sum of all the rates, which really is useless, but the XML requires it -->
-    <lv:param name="@yields@" desc="Variable to yield to (useless, but required)">
-      <lv:text>__</lv:text>
-      <lv:param-value name="@into@" />
-    </lv:param>
+    <param name="@yields@" desc="Variable to yield to (useless, but required)">
+      <text>__</text>
+      <param-value name="@into@" />
+    </param>
 
-    <lv:param name="@rate_matrix@" desc="Matrix containing the rates for the given line">
-      <lv:text>rate_</lv:text>
-      <lv:param-value name="@line@" />
-    </lv:param>
+    <param name="@rate_matrix@" desc="Matrix containing the rates for the given line">
+      <text>rate_</text>
+      <param-value name="@line@" />
+    </param>
 
-    <lv:rate-each class="@line@" accumulate="none" yields="@yields@" generates="@into@" index="k">
+    <rate-each class="@line@" accumulate="none" yields="@yields@" generates="@into@" index="k">
       <!-- take the dot product of the two vectors (each part of a larger matrix)
            to get the rate for the associated class code -->
       <c:product dot="true" label="Dot product between the class and rate vectors for each location will yield the respective rate per location">
         <c:value-of name="@class_set@" index="k" />
         <c:value-of name="@rate_matrix@" index="k" />
       </c:product>
-    </lv:rate-each>
-  </lv:template>
+    </rate-each>
+  </template>
 
 
-  <lv:function name="mcol" desc="Retrieve a matrix column as a vector">
-    <lv:param name="matrix" type="float"   set="matrix" desc="Matrix" />
-    <lv:param name="col"    type="integer"              desc="Column index (0-indexed)" />
+  <function name="mcol" desc="Retrieve a matrix column as a vector">
+    <param name="matrix" type="float"   set="matrix" desc="Matrix" />
+    <param name="col"    type="integer"              desc="Column index (0-indexed)" />
 
     <!-- generate a vector containing only the requested column from each row -->
     <t:cons-until-empty set="matrix" car="row">
@@ -91,5 +85,6 @@
         </c:index>
       </c:value-of>
     </t:cons-until-empty>
-  </lv:function>
-</lv:package>
+  </function>
+</package>
+

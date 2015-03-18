@@ -1,22 +1,16 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/numeric/minmax"
   desc="Numeric computations dealing with minimums and maximums">
 
-  <lv:import package="../base" />
+  <import package="../base" />
 
 
-  <lv:function name="max" desc="Return the greater value">
-    <lv:param name="max1" type="float" desc="First value to compare" />
-    <lv:param name="max2" type="float" desc="Second value to compare" />
+  <function name="max" desc="Return the greater value">
+    <param name="max1" type="float" desc="First value to compare" />
+    <param name="max2" type="float" desc="Second value to compare" />
 
     <c:cases>
       <c:case>
@@ -33,12 +27,12 @@
         <c:value-of name="max2" />
       </c:otherwise>
     </c:cases>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="min" desc="Return the lesser value">
-    <lv:param name="min1" type="float" desc="First value to compare" />
-    <lv:param name="min2" type="float" desc="Second value to compare" />
+  <function name="min" desc="Return the lesser value">
+    <param name="min1" type="float" desc="First value to compare" />
+    <param name="min2" type="float" desc="Second value to compare" />
 
     <c:cases>
       <c:case>
@@ -55,15 +49,15 @@
         <c:value-of name="min2" />
       </c:otherwise>
     </c:cases>
-  </lv:function>
+  </function>
 
 
-  <lv:template name="_min-zero_" desc="Does not allow a value below 0 to be yielded">
-    <lv:param name="@values@" desc="Calculation to apply restriction to" />
-    <lv:param name="@label@" desc="Application label">
+  <template name="_min-zero_" desc="Does not allow a value below 0 to be yielded">
+    <param name="@values@" desc="Calculation to apply restriction to" />
+    <param name="@label@" desc="Application label">
       <!-- default empty -->
-      <lv:text></lv:text>
-    </lv:param>
+      <text></text>
+    </param>
 
     <c:apply name="max" label="@label@">
       <c:arg name="max1">
@@ -71,26 +65,26 @@
       </c:arg>
 
       <c:arg name="max2">
-        <lv:param-copy name="@values@" />
+        <param-copy name="@values@" />
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
   <!-- trivial, but cuts turns a verbose rate-each and function application
        into potentially a one-line template application -->
-  <lv:template name="_quickMaxEach_" desc="Quick max application">
-    <lv:param name="@class@" desc="Class to match on" />
-    <lv:param name="@generates@" desc="Value to generate into" />
-    <lv:param name="@a@" desc="Value a" />
-    <lv:param name="@b@" desc="Value b" />
+  <template name="_quickMaxEach_" desc="Quick max application">
+    <param name="@class@" desc="Class to match on" />
+    <param name="@generates@" desc="Value to generate into" />
+    <param name="@a@" desc="Value a" />
+    <param name="@b@" desc="Value b" />
 
-    <lv:param name="@yields@" desc="Yield variable">
-      <lv:text>_</lv:text>
-      <lv:param-value name="@generates@" />
-    </lv:param>
+    <param name="@yields@" desc="Yield variable">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
 
-    <lv:rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="k">
+    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="k">
       <c:apply name="max">
         <c:arg name="max1">
           <c:value-of name="@a@" index="k" />
@@ -99,54 +93,54 @@
           <c:value-of name="@b@" index="k" />
         </c:arg>
       </c:apply>
-    </lv:rate-each>
-  </lv:template>
+    </rate-each>
+  </template>
 
 
-  <lv:template name="_cap_"
+  <template name="_cap_"
                desc="Cap a value at a given maximum">
-    <lv:param name="@values@" desc="Value expression" />
-    <lv:param name="@name@"   desc="Value to cap at" />
+    <param name="@values@" desc="Value expression" />
+    <param name="@name@"   desc="Value to cap at" />
 
-    <lv:param name="@index@" desc="Index of value to cap at">
-      <lv:text></lv:text>
-    </lv:param>
+    <param name="@index@" desc="Index of value to cap at">
+      <text></text>
+    </param>
 
-    <lv:param name="@value@"
+    <param name="@value@"
               desc="Constant value to cap at (deprecated)" />
 
-    <lv:param name="@desc@" desc="Value description">
-      <lv:text>Maximum value</lv:text>
-    </lv:param>
+    <param name="@desc@" desc="Value description">
+      <text>Maximum value</text>
+    </param>
 
     <c:apply name="min">
       <c:arg name="min1">
         <!-- deprecated -->
-        <lv:if name="@value@">
+        <if name="@value@">
           <c:const value="@value@" type="float" desc="@desc@" />
-        </lv:if>
-        <lv:unless name="@value@">
+        </if>
+        <unless name="@value@">
           <c:value-of name="@name@"
                       index="@index@"
                       type="float"
                       label="@desc@" />
-        </lv:unless>
+        </unless>
       </c:arg>
 
       <c:arg name="min2">
-        <lv:param-copy name="@values@" />
+        <param-copy name="@values@" />
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
 
   <!-- useful in products -->
-  <lv:template name="_min-value-of_" desc="Return a value or a minimum">
-    <lv:param name="@name@"  desc="Name of value" />
-    <lv:param name="@index@" desc="Value index" />
-    <lv:param name="@label@" desc="Optional label" />
-    <lv:param name="@min@"   desc="Minimum value" />
+  <template name="_min-value-of_" desc="Return a value or a minimum">
+    <param name="@name@"  desc="Name of value" />
+    <param name="@index@" desc="Value index" />
+    <param name="@label@" desc="Optional label" />
+    <param name="@min@"   desc="Minimum value" />
 
     <c:apply name="max" label="{@label@}, minimum of 1">
       <c:arg name="max1">
@@ -157,14 +151,14 @@
         <c:value-of name="@name@" index="@index@" label="@label@" />
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
 
-  <lv:template name="_between_" desc="Assert that a value is within the given range, inclusive">
-    <lv:param name="@min@" desc="Minimum value, inclusive" />
-    <lv:param name="@max@" desc="Maximum value, inclusive" />
-    <lv:param name="@desc@" desc="Description" />
+  <template name="_between_" desc="Assert that a value is within the given range, inclusive">
+    <param name="@min@" desc="Minimum value, inclusive" />
+    <param name="@max@" desc="Maximum value, inclusive" />
+    <param name="@desc@" desc="Description" />
 
     <c:gte>
       <c:const value="@min@" type="float" desc="{@desc@}; minimum" />
@@ -172,7 +166,7 @@
     <c:lte>
       <c:const value="@max@" type="float" desc="{@desc@}; maximum" />
     </c:lte>
-  </lv:template>
+  </template>
 
 
 
@@ -181,29 +175,29 @@
 
     TODO: max is incomplete (should have all the options of min)
    -->
-  <lv:template name="_bump_" desc="Bump a value if it does not reach a minimum">
+  <template name="_bump_" desc="Bump a value if it does not reach a minimum">
     <!-- if a minimum percentage -->
-    <lv:param name="@percent@"   desc="Percent, as a whole value" />
-    <lv:param name="@value@"     desc="Value to take percentage of, or take whole value of if no percent" />
-    <lv:param name="@vindex@"    desc="Optional index for base" />
-    <lv:param name="@name@"      desc="Provided value" />
-    <lv:param name="@generates@" desc="Variable to generate into" />
-    <lv:param name="@when@"      desc="Conditional bump" />
-    <lv:param name="@class@"     desc="Class to match on" />
-    <lv:param name="@keep@"      desc="Value of keep flag" />
+    <param name="@percent@"   desc="Percent, as a whole value" />
+    <param name="@value@"     desc="Value to take percentage of, or take whole value of if no percent" />
+    <param name="@vindex@"    desc="Optional index for base" />
+    <param name="@name@"      desc="Provided value" />
+    <param name="@generates@" desc="Variable to generate into" />
+    <param name="@when@"      desc="Conditional bump" />
+    <param name="@class@"     desc="Class to match on" />
+    <param name="@keep@"      desc="Value of keep flag" />
 
     <!-- alternative to @name@ -->
-    <lv:param name="@const@" desc="Constant value, instead of named" />
+    <param name="@const@" desc="Constant value, instead of named" />
 
     <!-- max values for bumping down -->
-    <lv:param name="@maxpercent@" desc="Maximum percent" />
+    <param name="@maxpercent@" desc="Maximum percent" />
 
 
-    <lv:rate yields="_{@generates@}" keep="@keep@">
+    <rate yields="_{@generates@}" keep="@keep@">
       <c:sum of="@name@" index="k" generates="@generates@" desc="Bumped value">
         <c:cases>
           <!-- if a condition was provided, check it first -->
-          <lv:if name="@when@">
+          <if name="@when@">
             <c:case>
               <c:when name="@when@" index="k">
                 <c:eq>
@@ -214,10 +208,10 @@
               <!-- just return the value provided -->
               <c:value-of name="@name@" index="k" />
             </c:case>
-          </lv:if>
+          </if>
 
           <!-- if a condition was provided, check it first -->
-          <lv:if name="@class@">
+          <if name="@class@">
             <c:case>
               <c:when name="@class@" index="k">
                 <c:eq>
@@ -228,7 +222,7 @@
               <!-- just return the value provided -->
               <c:const value="0" type="float" desc="Zero value" />
             </c:case>
-          </lv:if>
+          </if>
 
           <!-- condition was not provided or did not match (we check for the
                negative of the condition above so that this template will still
@@ -238,37 +232,37 @@
             <c:let>
               <c:values>
                 <c:value name="min" type="float" desc="Minimum">
-                  <lv:unless name="@const@">
+                  <unless name="@const@">
                     <!-- this will produce a percentage of the provided value, unless no
                          percent was given, in which case the entire value will be used
                          -->
                     <c:product>
                       <!-- if a percent was provided, then take a certain percentage of the value -->
-                      <lv:if name="@percent@">
+                      <if name="@percent@">
                         <!-- given index or default index? -->
-                        <lv:if name="@vindex@">
+                        <if name="@vindex@">
                           <c:value-of name="@value@" index="@vindex@" />
-                        </lv:if>
-                        <lv:unless name="@vindex@">
+                        </if>
+                        <unless name="@vindex@">
                           <c:value-of name="@value@" index="k" />
-                        </lv:unless>
+                        </unless>
 
                         <c:quotient label="Percent as real number">
                           <c:const value="@percent@" type="integer" desc="Whole percent" />
                           <c:const value="100" type="integer" desc="Divisor to convert percent to real number" />
                         </c:quotient>
-                      </lv:if>
+                      </if>
 
                       <!-- otherwise, use the given value -->
-                      <lv:unless name="@percent@">
+                      <unless name="@percent@">
                         <c:value-of name="@name@" index="k" />
-                      </lv:unless>
+                      </unless>
                     </c:product>
-                  </lv:unless>
+                  </unless>
 
-                  <lv:if name="@const@">
+                  <if name="@const@">
                     <c:const value="@const@" type="float" desc="Constant minimum value" />
-                  </lv:if>
+                  </if>
                 </c:value>
               </c:values>
 
@@ -281,16 +275,16 @@
                     </t:maxreduce>
                   </c:value>
 
-                  <lv:if name="@maxpercent@">
+                  <if name="@maxpercent@">
                     <c:value name="max" type="float" desc="Maximum">
                       <c:product>
                         <!-- given index or default index? -->
-                        <lv:if name="@vindex@">
+                        <if name="@vindex@">
                           <c:value-of name="@value@" index="@vindex@" />
-                        </lv:if>
-                        <lv:unless name="@vindex@">
+                        </if>
+                        <unless name="@vindex@">
                           <c:value-of name="@value@" index="k" />
-                        </lv:unless>
+                        </unless>
 
                         <c:quotient label="Max percent as real number">
                           <c:const value="@maxpercent@" type="integer" desc="Whole max percent" />
@@ -298,13 +292,13 @@
                         </c:quotient>
                       </c:product>
                     </c:value>
-                  </lv:if>
+                  </if>
                 </c:values>
 
                 <c:cases>
                   <!-- if a max percent was provided, then check to ensure it
                        was not exceeded -->
-                  <lv:if name="@maxpercent@">
+                  <if name="@maxpercent@">
                     <c:case>
                       <c:when name="@name@" index="k">
                         <c:gt>
@@ -314,7 +308,7 @@
 
                       <c:value-of name="max" />
                     </c:case>
-                  </lv:if>
+                  </if>
 
                   <!-- if no max, just yield the bumped value according to the minimum -->
                   <c:otherwise>
@@ -326,6 +320,7 @@
           </c:otherwise>
         </c:cases>
       </c:sum>
-    </lv:rate>
-  </lv:template>
-</lv:package>
+    </rate>
+  </template>
+</package>
+

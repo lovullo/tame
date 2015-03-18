@@ -1,30 +1,24 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/numeric/round"
   desc="Numeric computations dealing with rounding">
 
-  <lv:import package="../base" />
+  <import package="../base" />
 
 
   <!-- template version of round function, supporting arbitrary nodes -->
-  <lv:template name="_round_" desc="Round to the nearest integer">
-    <lv:param name="@values@" desc="Calculation to round (single node)" />
-    <lv:param name="@precision@" desc="Level of precision after decimal point">
-      <lv:text>0</lv:text>
-    </lv:param>
+  <template name="_round_" desc="Round to the nearest integer">
+    <param name="@values@" desc="Calculation to round (single node)" />
+    <param name="@precision@" desc="Level of precision after decimal point">
+      <text>0</text>
+    </param>
 
     <c:apply name="round_real" label="Rounded value">
       <c:arg name="round_real_val">
         <c:sum>
-          <lv:param-copy name="@values@" />
+          <param-copy name="@values@" />
         </c:sum>
       </c:arg>
 
@@ -35,7 +29,7 @@
         </c:expt>
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
   <!--
@@ -57,38 +51,38 @@
     with @exp@, in which case the step will apply to @name@ after its value
     has been exponentiated.
   -->
-  <lv:template name="_let-round_"
+  <template name="_let-round_"
                desc="Produce floor and ceiling values">
-    <lv:param name="@values@"
+    <param name="@values@"
               desc="Calculation subject to let expression" />
 
-    <lv:param name="@name@"
+    <param name="@name@"
               desc="Value to round" />
 
-    <lv:param name="@index@"
+    <param name="@index@"
               desc="Optional value index">
-      <lv:text></lv:text>
-    </lv:param>
+      <text></text>
+    </param>
 
-    <lv:param name="@high@"
+    <param name="@high@"
               desc="Name to yield ceil'd value into" />
 
-    <lv:param name="@low@"
+    <param name="@low@"
               desc="Name to yield floor'd value into" />
 
-    <lv:param name="@nearest@"
+    <param name="@nearest@"
               desc="Name to yield nearest integer to value into" />
 
 
-    <lv:param name="@exp@"
+    <param name="@exp@"
               desc="Offset digits before rounding">
-      <lv:text>#0</lv:text>
-    </lv:param>
+      <text>#0</text>
+    </param>
 
-    <lv:param name="@step@"
+    <param name="@step@"
               desc="Arbitrary step">
-      <lv:text>#1</lv:text>
-    </lv:param>
+      <text>#1</text>
+    </param>
 
 
 
@@ -123,7 +117,7 @@
 
         <c:let>
           <c:values>
-            <lv:if name="@high@">
+            <if name="@high@">
               <c:value name="@high@" type="float"
                        desc="Ceiling of adjusted {@name@}">
                 <c:product>
@@ -134,9 +128,9 @@
                   <c:value-of name="__div" />
                 </c:product>
               </c:value>
-            </lv:if>
+            </if>
 
-            <lv:if name="@low@">
+            <if name="@low@">
               <c:value name="@low@" type="float"
                        desc="floor of adjusted {@name@}">
                 <c:product>
@@ -147,9 +141,9 @@
                   <c:value-of name="__div" />
                 </c:product>
               </c:value>
-            </lv:if>
+            </if>
 
-            <lv:if name="@nearest@">
+            <if name="@nearest@">
               <c:value name="@nearest@" type="float"
                        desc="nearest integer to adjusted {@name@}">
                 <c:product>
@@ -160,21 +154,21 @@
                   <c:value-of name="__div" />
                 </c:product>
               </c:value>
-            </lv:if>
+            </if>
           </c:values>
 
           <!-- body subject to let expression -->
-          <lv:param-copy name="@values@" />
+          <param-copy name="@values@" />
         </c:let>
       </c:let>
     </c:let>
-  </lv:template>
+  </template>
 
 
   <!-- ceil if > 0.5, otherwise floor; round() in most languages -->
   <!-- TODO: support left and right delimiters; do \floor \ceil -->
-  <lv:function name="round" desc="Round to the nearest integer">
-    <lv:param name="roundval" type="float" desc="Value to round to nearest integer" />
+  <function name="round" desc="Round to the nearest integer">
+    <param name="roundval" type="float" desc="Value to round to nearest integer" />
 
     <!-- By raising by 0.5 and taking the floor() of the resulting value, we
          can produce values consistent with common round() implementations. It
@@ -187,12 +181,12 @@
         <c:const value="0.5" type="float" desc="Raises value in a manner that it can be properly rounded by a floor" />
       </c:sum>
     </c:floor>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="round_real" desc="Round to the nearest 1/n">
-    <lv:param name="round_real_val" type="float"   desc="Value to round" />
-    <lv:param name="round_real_n"   type="integer" desc="Round to 1/n" />
+  <function name="round_real" desc="Round to the nearest 1/n">
+    <param name="round_real_val" type="float"   desc="Value to round" />
+    <param name="round_real_n"   type="integer" desc="Round to 1/n" />
 
     <!-- we can achieve this by multiplying by N, rounding, and then dividing
          by the same N -->
@@ -208,12 +202,12 @@
 
       <c:value-of name="round_real_n" />
     </c:quotient>
-  </lv:function>
+  </function>
 
 
   <!-- this is simply a shorthand for round_real -->
-  <lv:function name="round_cents" desc="Round to the nearest penny">
-    <lv:param name="round_cents_val" type="float" desc="Monetary value" />
+  <function name="round_cents" desc="Round to the nearest penny">
+    <param name="round_cents_val" type="float" desc="Monetary value" />
 
     <c:apply name="round_real">
       <c:arg name="round_real_n">
@@ -224,17 +218,17 @@
         <c:value-of name="round_cents_val" />
       </c:arg>
     </c:apply>
-  </lv:function>
+  </function>
 
 
-  <lv:template name="_ceil-n_" desc="Ceiling on the last n digits">
-    <lv:param name="@values@" desc="Calculation to use (single node)" />
-    <lv:param name="@digits@" desc="Level of precision after decimal point" />
+  <template name="_ceil-n_" desc="Ceiling on the last n digits">
+    <param name="@values@" desc="Calculation to use (single node)" />
+    <param name="@digits@" desc="Level of precision after decimal point" />
 
     <c:product>
       <c:ceil>
         <c:quotient>
-          <lv:param-copy name="@values@" />
+          <param-copy name="@values@" />
           <c:expt>
             <c:const value="10" type="integer" desc="Decimal base" />
             <c:const value="@digits@" type="integer" desc="Number of digits" />
@@ -247,6 +241,6 @@
         <c:const value="@digits@" type="integer" desc="Number of digits" />
       </c:expt>
     </c:product>
-  </lv:template>
+  </template>
+</package>
 
-</lv:package>

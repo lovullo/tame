@@ -1,17 +1,11 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/vector/list"
   desc="Treating vectors as lists">
 
-  <lv:import package="../base" />
+  <import package="../base" />
 
 
 
@@ -21,23 +15,23 @@
 
     This template recurses and, as such, should only be used within functions.
   -->
-  <lv:template name="_cons-until-empty_" desc="Generate empty base case for functions that recurse on cdrs of sets">
-    <lv:param name="@values@" desc="Body" />
+  <template name="_cons-until-empty_" desc="Generate empty base case for functions that recurse on cdrs of sets">
+    <param name="@values@" desc="Body" />
 
-    <lv:param name="@set@" desc="Set to operate on" />
-    <lv:param name="@car@" desc="Variable in which to store car of the set">
-      <lv:text>__car</lv:text>
-    </lv:param>
-    <lv:param name="@cdr@" desc="Variable in which to store the cdr of the set">
-      <lv:text>__cdr</lv:text>
-    </lv:param>
+    <param name="@set@" desc="Set to operate on" />
+    <param name="@car@" desc="Variable in which to store car of the set">
+      <text>__car</text>
+    </param>
+    <param name="@cdr@" desc="Variable in which to store the cdr of the set">
+      <text>__cdr</text>
+    </param>
 
-    <lv:param name="@base@" desc="Base set to return (otherwise an empty set)" />
-    <lv:param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
+    <param name="@base@" desc="Base set to return (otherwise an empty set)" />
+    <param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
 
     <!-- intended for use by merge-until-empty to reduce duplicate code; not to
          be set via direct template applications -->
-    <lv:param name="@merge@" desc="Perform merge instead of cons; system-use only" />
+    <param name="@merge@" desc="Perform merge instead of cons; system-use only" />
 
 
     <c:let>
@@ -61,13 +55,13 @@
           </c:when>
 
           <!-- if a base set was provided, return that; otherwise, return an empty set -->
-          <lv:if name="@base@">
+          <if name="@base@">
             <c:value-of name="@base@" />
-          </lv:if>
-          <lv:unless name="@base@">
+          </if>
+          <unless name="@base@">
             <!-- return an empty set -->
             <c:set />
-          </lv:unless>
+          </unless>
         </c:case>
 
         <c:otherwise>
@@ -91,7 +85,7 @@
             <c:cases>
               <!-- if we have a glancing value, then immediately recurse
                    without processing if we have a match -->
-              <lv:if name="@glance@">
+              <if name="@glance@">
                 <c:case>
                   <c:when name="@car@">
                     <c:eq>
@@ -105,17 +99,17 @@
                     </c:arg>
                   </c:recurse>
                 </c:case>
-              </lv:if>
+              </if>
 
               <!-- otherwise, process as normal -->
               <c:otherwise>
-                <lv:unless name="@merge@">
+                <unless name="@merge@">
                   <!-- here's our recursive operation: cons the result of processing
                        this car with the result of recursively processing the cdr
                        (note that c:recurse will recurse on the function that applied
                        this template, _not_ on the template itself)-->
                   <c:cons>
-                    <lv:param-copy name="@values@" />
+                    <param-copy name="@values@" />
 
                     <c:recurse>
                       <c:arg name="@set@">
@@ -123,9 +117,9 @@
                       </c:arg>
                     </c:recurse>
                   </c:cons>
-                </lv:unless>
+                </unless>
 
-                <lv:if name="@merge@">
+                <if name="@merge@">
                   <!-- the order is different from the cons above to maintain
                        consistency in the returned set -->
                   <c:apply name="vmerge">
@@ -138,17 +132,17 @@
                     </c:arg>
 
                     <c:arg name="onto">
-                      <lv:param-copy name="@values@" />
+                      <param-copy name="@values@" />
                     </c:arg>
                   </c:apply>
-                </lv:if>
+                </if>
               </c:otherwise>
             </c:cases>
           </c:let>
         </c:otherwise>
       </c:cases>
     </c:let>
-  </lv:template>
+  </template>
 
 
 
@@ -157,31 +151,31 @@
 
     This template recurses and, as such, should only be used within functions.
   -->
-  <lv:template name="_merge-until-empty_" desc="Generate empty base case for functions that recursively merge on cdrs of sets">
-    <lv:param name="@values@" desc="Body" />
+  <template name="_merge-until-empty_" desc="Generate empty base case for functions that recursively merge on cdrs of sets">
+    <param name="@values@" desc="Body" />
 
-    <lv:param name="@set@" desc="Set to operate on" />
-    <lv:param name="@car@" desc="Variable in which to store car of the set" />
-    <lv:param name="@cdr@" desc="Variable in which to store the cdr of the set">
-      <lv:text>__cdr</lv:text>
-    </lv:param>
+    <param name="@set@" desc="Set to operate on" />
+    <param name="@car@" desc="Variable in which to store car of the set" />
+    <param name="@cdr@" desc="Variable in which to store the cdr of the set">
+      <text>__cdr</text>
+    </param>
 
-    <lv:param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
+    <param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
 
     <!-- to reduce duplicate template code, we simply set a merge flag on cons-until-empty -->
     <t:cons-until-empty set="@set@" car="@car@" cdr="@cdr@" glance="@glance@" merge="true">
-      <lv:param-copy name="@values@" />
+      <param-copy name="@values@" />
     </t:cons-until-empty>
-  </lv:template>
+  </template>
 
 
 
   <!--
     Merges two vectors
   -->
-  <lv:function name="vmerge" desc="Merge two vectors (does not remove duplicates)">
-    <lv:param name="vector" type="float" set="vector" desc="Vector to merge" />
-    <lv:param name="onto"   type="float" set="vector" desc="Vector to append to" />
+  <function name="vmerge" desc="Merge two vectors (does not remove duplicates)">
+    <param name="vector" type="float" set="vector" desc="Vector to merge" />
+    <param name="onto"   type="float" set="vector" desc="Vector to append to" />
 
     <!-- the template handles much of this for us: just keep cons'ing the car
          until we have nothing more to cons, then that gets cons'd onto the
@@ -189,5 +183,6 @@
     <t:cons-until-empty set="vector" car="car" base="onto">
       <c:value-of name="car" />
     </t:cons-until-empty>
-  </lv:function>
-</lv:package>
+  </function>
+</package>
+

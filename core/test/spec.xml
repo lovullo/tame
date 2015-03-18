@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
   BDD specification framework
 
@@ -39,7 +39,7 @@
   name="core/test/spec"
   desc="Behavior-driven development specification system">
 
-  <import package="../../core" />
+  <import package="../base" />
 
 
   <!--

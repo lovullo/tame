@@ -1,16 +1,10 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
-
   core="true"
-
-  name="core/datetime"
   desc="Date and time">
 
-  <lv:import package="base" />
+  <import package="base" />
 
 
   <!--
@@ -19,23 +13,23 @@
     Note that a positive number will be returned if the given date is in the past,
     negative if in the future.
   -->
-  <lv:template name="_ageYears_" desc="Age in years of the given date relative to the current">
-    <lv:param name="@generates@" desc="Generator variable, per index" />
-    <lv:param name="@yearset@"   desc="Set of years to iterate on" />
-    <lv:param name="@sym@"       desc="Generator symbol" />
-    <lv:param name="@when@"      desc="Only when this boolean value is true" />
-    <lv:param name="@default@"   desc="Default age when yearset values are empty" />
+  <template name="_ageYears_" desc="Age in years of the given date relative to the current">
+    <param name="@generates@" desc="Generator variable, per index" />
+    <param name="@yearset@"   desc="Set of years to iterate on" />
+    <param name="@sym@"       desc="Generator symbol" />
+    <param name="@when@"      desc="Only when this boolean value is true" />
+    <param name="@default@"   desc="Default age when yearset values are empty" />
 
-    <lv:param name="@yields@" desc="Variable to yield into">
-      <lv:text>_</lv:text>
-      <lv:param-value name="@generates@" />
-    </lv:param>
+    <param name="@yields@" desc="Variable to yield into">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
 
 
-    <lv:rate yields="@yields@">
+    <rate yields="@yields@">
       <c:sum of="@yearset@" index="k" generates="@generates@" desc="Relative age" sym="@sym@">
         <c:cases>
-          <lv:if name="@when@">
+          <if name="@when@">
             <c:case>
               <c:when name="@when@" index="k">
                 <c:eq>
@@ -44,14 +38,14 @@
               </c:when>
 
               <!-- return a default, or 0 if no default is provided -->
-              <lv:if name="@default@">
+              <if name="@default@">
                 <c:value-of name="@default@" index="k" />
-              </lv:if>
-              <lv:unless name="@default@">
+              </if>
+              <unless name="@default@">
                 <c:const value="0" type="integer" desc="Condition not met, but no default" />
-              </lv:unless>
+              </unless>
             </c:case>
-          </lv:if>
+          </if>
 
           <!-- if no @when@, then we'll always do this -->
           <c:otherwise>
@@ -74,15 +68,16 @@
               </c:case>
 
               <!-- we don't have a value; just use the default age we were given -->
-              <lv:if name="@default@">
+              <if name="@default@">
                 <c:otherwise>
                   <c:value-of name="@default@" index="k" />
                 </c:otherwise>
-              </lv:if>
+              </if>
             </c:cases>
           </c:otherwise>
         </c:cases>
       </c:sum>
-    </lv:rate>
-  </lv:template>
-</lv:package>
+    </rate>
+  </template>
+</package>
+

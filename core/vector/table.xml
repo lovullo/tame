@@ -1,28 +1,22 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/vector/table"
   desc="Functions for performing table lookups">
 
-  <lv:import package="../base" />
-  <lv:import package="../numeric/common" />
-  <lv:import package="list" />
+  <import package="../base" />
+  <import package="../numeric/common" />
+  <import package="list" />
 
   <!-- since templates are inlined, we need to make these symbols available to
        avoid terrible confusion -->
-  <lv:import package="common" export="true" />
-  <lv:import package="matrix" export="true" />
+  <import package="common" export="true" />
+  <import package="matrix" export="true" />
 
 
-  <lv:const name="TABLE_WHEN_MASK_VALUE" type="float" value="-0.0001" desc="Used to mask when conditions" />
-  <lv:const name="MFILTER_BISECT_GAP_MAX" type="integer" value="10" desc="Quit bisect if size is less than or equal to this value" />
+  <const name="TABLE_WHEN_MASK_VALUE" type="float" value="-0.0001" desc="Used to mask when conditions" />
+  <const name="MFILTER_BISECT_GAP_MAX" type="integer" value="10" desc="Quit bisect if size is less than or equal to this value" />
 
 
   <!--
@@ -34,27 +28,27 @@
       - _table_column_+ - Column definitions
       - _table_rows_    - Begin table data definition
   -->
-  <lv:template name="_create-table_"
+  <template name="_create-table_"
                desc="Create an arbitrary table for querying">
-    <lv:param name="@name@"   desc="Table name" />
-    <lv:param name="@values@" desc="Table definition" />
+    <param name="@name@"   desc="Table name" />
+    <param name="@values@" desc="Table definition" />
 
-    <lv:param name="@desc@" desc="Table description">
-      <lv:text></lv:text>
-    </lv:param>
+    <param name="@desc@" desc="Table description">
+      <text></text>
+    </param>
 
-    <lv:param name="@__tid@"
+    <param name="@__tid@"
               desc="Internal table identifier">
-      <lv:param-value name="@name@" upper="true" snake="true" />
-    </lv:param>
+      <param-value name="@name@" upper="true" snake="true" />
+    </param>
 
 
-    <lv:param-copy name="@values@">
-      <lv:param-meta name="create-table-id" value="@__tid@" />
-      <lv:param-meta name="create-table-name" value="@name@" />
-      <lv:param-meta name="create-table-desc" value="@desc@" />
-    </lv:param-copy>
-  </lv:template>
+    <param-copy name="@values@">
+      <param-meta name="create-table-id" value="@__tid@" />
+      <param-meta name="create-table-name" value="@name@" />
+      <param-meta name="create-table-desc" value="@desc@" />
+    </param-copy>
+  </template>
 
 
   <!--
@@ -68,52 +62,52 @@
     If a table is especially large, the first column should be treated
     as the index and always be sequenced.
   -->
-  <lv:template name="_table-column_"
+  <template name="_table-column_"
                desc="Declare name for table column">
-    <lv:param name="@name@"  desc="Column name" />
-    <lv:param name="@index@" desc="Column index (0-indexed)" />
+    <param name="@name@"  desc="Column name" />
+    <param name="@index@" desc="Column index (0-indexed)" />
 
-    <lv:param name="@desc@" desc="Column description">
-      <lv:param-value name="@name@" />
-    </lv:param>
+    <param name="@desc@" desc="Column description">
+      <param-value name="@name@" />
+    </param>
 
     <!-- use carefully; leave alone unless data is definately sorted,
          or query results may be incorrect -->
-    <lv:param name="@seq@" desc="Column is sorted (sequential)">
-      <lv:text></lv:text>
-    </lv:param>
+    <param name="@seq@" desc="Column is sorted (sequential)">
+      <text></text>
+    </param>
 
-    <lv:param name="@__tid@"
+    <param name="@__tid@"
               desc="Internal table identifier">
-      <lv:param-inherit meta="create-table-id" />
-    </lv:param>
+      <param-inherit meta="create-table-id" />
+    </param>
 
     <!-- FIXME: this doesn't contain @__tid@ because of a bug in the
          preprocessor; this is fixed in the new DSL -->
-    <lv:param name="@__constname@"
+    <param name="@__constname@"
               desc="Name of internal constant used for column lookup">
-      <lv:text>RATE_TABLE_</lv:text>
-      <lv:param-value name="@name@" upper="true" snake="true" />
-    </lv:param>
+      <text>RATE_TABLE_</text>
+      <param-value name="@name@" upper="true" snake="true" />
+    </param>
 
 
     <!-- column index identifier -->
-    <lv:const name="{@__tid@}_{@__constname@}"
+    <const name="{@__tid@}_{@__constname@}"
               value="@index@" type="integer"
               desc="@desc@" />
 
     <!-- column sequential flag to permit query optimizations -->
-    <lv:if name="@seq@" eq="true">
-      <lv:const name="{@__tid@}_{@__constname@}_IS_SEQ"
+    <if name="@seq@" eq="true">
+      <const name="{@__tid@}_{@__constname@}_IS_SEQ"
                 value="1" type="integer"
                 desc="{@name@} is sequenced" />
-    </lv:if>
-    <lv:unless name="@seq@" eq="true">
-      <lv:const name="{@__tid@}_{@__constname@}_IS_SEQ"
+    </if>
+    <unless name="@seq@" eq="true">
+      <const name="{@__tid@}_{@__constname@}_IS_SEQ"
                 value="0" type="integer"
                 desc="{@name@} is unordered" />
-    </lv:unless>
-  </lv:template>
+    </unless>
+  </template>
 
 
   <!--
@@ -125,30 +119,30 @@
     Permitted children:
       - _table-row_* - Table row definitions
   -->
-  <lv:template name="_table-rows_"
+  <template name="_table-rows_"
                desc="Begin table data definition">
-    <lv:param name="@values@" desc="Row definitions" />
+    <param name="@values@" desc="Row definitions" />
 
-    <lv:param name="@__tid@"
+    <param name="@__tid@"
               desc="Table identifier">
-      <lv:param-inherit meta="create-table-id" />
-    </lv:param>
-    <lv:param name="@__tname@"
+      <param-inherit meta="create-table-id" />
+    </param>
+    <param name="@__tname@"
               desc="Table name as provided by caller">
-      <lv:param-inherit meta="create-table-name" />
-    </lv:param>
-    <lv:param name="@__desc@"
+      <param-inherit meta="create-table-name" />
+    </param>
+    <param name="@__desc@"
               desc="Table description">
-      <lv:param-inherit meta="create-table-desc" />
-    </lv:param>
+      <param-inherit meta="create-table-desc" />
+    </param>
 
 
-    <lv:const name="{@__tid@}_RATE_TABLE"
+    <const name="{@__tid@}_RATE_TABLE"
               type="float"
               desc="{@__tname@} table; {@__desc@}">
-      <lv:param-copy name="@values@" />
-    </lv:const>
-  </lv:template>
+      <param-copy name="@values@" />
+    </const>
+  </template>
 
 
   <!--
@@ -163,15 +157,15 @@
     Permitted children:
       _table-value_+ - Row column value
   -->
-  <lv:template name="_table-row_"
+  <template name="_table-row_"
                desc="Define a constant table row (ordered)">
-    <lv:param name="@values@" desc="Column values" />
+    <param name="@values@" desc="Column values" />
 
 
-    <lv:set desc="Row">
-      <lv:param-copy name="@values@" />
-    </lv:set>
-  </lv:template>
+    <set desc="Row">
+      <param-copy name="@values@" />
+    </set>
+  </template>
 
 
   <!--
@@ -180,31 +174,31 @@
     Column value order should match the defined column order. All
     values must be constants.
   -->
-  <lv:template name="_table-value_"
+  <template name="_table-value_"
                desc="Table column value for row (ordered)">
-    <lv:param name="@const@" desc="Constant column value" />
+    <param name="@const@" desc="Constant column value" />
 
 
-    <lv:item value="@const@" desc="Column value" />
-  </lv:template>
+    <item value="@const@" desc="Column value" />
+  </template>
 
 
-  <lv:template name="_query-first-field_" desc="Return the requested field from the first row returned by a query">
-    <lv:param name="@table@" desc="Table (matrix) to query" />
-    <lv:param name="@values@" desc="Query parameters" />
+  <template name="_query-first-field_" desc="Return the requested field from the first row returned by a query">
+    <param name="@table@" desc="Table (matrix) to query" />
+    <param name="@values@" desc="Query parameters" />
 
     <!-- use either field or name[+index] -->
-    <lv:param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
-    <lv:param name="@name@" desc="Name of field to query (variable/constant); overrides @field@" />
-    <lv:param name="@index@" desc="Optional index for field name lookup (using @name@)" />
+    <param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
+    <param name="@name@" desc="Name of field to query (variable/constant); overrides @field@" />
+    <param name="@index@" desc="Optional index for field name lookup (using @name@)" />
 
 
     <c:car label="First row of query result">
       <t:query-field table="@table@" field="@field@" name="@name@" index="@index@">
-        <lv:param-copy name="@values@" />
+        <param-copy name="@values@" />
       </t:query-field>
     </c:car>
-  </lv:template>
+  </template>
 
 
   <!--
@@ -240,59 +234,59 @@
     predicate to query the first field to quickly reduce the size of the set
     for the next predicate.
   -->
-  <lv:template name="_query-field_" desc="Return the requested field from rows returned by a query">
-    <lv:param name="@table@" desc="Table (matrix) to query" />
-    <lv:param name="@values@" desc="Query parameters" />
+  <template name="_query-field_" desc="Return the requested field from rows returned by a query">
+    <param name="@table@" desc="Table (matrix) to query" />
+    <param name="@values@" desc="Query parameters" />
 
     <!-- use one or the other -->
-    <lv:param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
+    <param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
 
-    <lv:param name="@index@" desc="Optional index for field name lookup (using @name@)" />
+    <param name="@index@" desc="Optional index for field name lookup (using @name@)" />
     <!-- by default, if @field@ is provided instead of @name@, the field
          constant will be generated (same concept as the 'when' template) -->
-    <lv:param name="@name@" desc="Name of field to query (variable/constant); overrides @field@">
+    <param name="@name@" desc="Name of field to query (variable/constant); overrides @field@">
       <!-- convert @table@ to uppercase and snake case (replace - with _) -->
-      <lv:param-value name="@table@" upper="true" snake="true" />
-      <lv:text>_RATE_TABLE_</lv:text>
-      <lv:param-value name="@field@" upper="true" snake="true" />
-    </lv:param>
+      <param-value name="@table@" upper="true" snake="true" />
+      <text>_RATE_TABLE_</text>
+      <param-value name="@field@" upper="true" snake="true" />
+    </param>
 
 
     <c:apply name="mcol" label="Query result">
       <!-- the matrix (vector of rows) returned by the query -->
       <c:arg name="matrix">
         <t:query-row table="@table@">
-          <lv:param-copy name="@values@" />
+          <param-copy name="@values@" />
         </t:query-row>
       </c:arg>
 
       <!-- the field (column) to retrieve; 0-based index -->
       <c:arg name="col">
         <!-- no index lookup needed -->
-        <lv:unless name="@index@">
+        <unless name="@index@">
           <c:value-of name="@name@" />
-        </lv:unless>
+        </unless>
 
         <!-- index lookup required -->
-        <lv:if name="@index@">
+        <if name="@index@">
           <c:value-of name="@name@" index="@index@" />
-        </lv:if>
+        </if>
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
-  <lv:template name="_query-row_" desc="Query a table (matrix) for a row (vector) of values">
-    <lv:param name="@table@" desc="Table (matrix)" />
-    <lv:param name="@values@" desc="Query parameters" />
+  <template name="_query-row_" desc="Query a table (matrix) for a row (vector) of values">
+    <param name="@table@" desc="Table (matrix)" />
+    <param name="@values@" desc="Query parameters" />
 
     <!-- this defaults to a table name constant as generated from the csv2xml
          script; either this or @table@ should be used -->
-    <lv:param name="@matrix@" desc="Matrix to look up from">
+    <param name="@matrix@" desc="Matrix to look up from">
       <!-- convert @table@ to uppercase and snake case (replace - with _) -->
-      <lv:param-value name="@table@" upper="true" snake="true" />
-      <lv:text>_RATE_TABLE</lv:text>
-    </lv:param>
+      <param-value name="@table@" upper="true" snake="true" />
+      <text>_RATE_TABLE</text>
+    </param>
 
     <c:apply name="_mquery">
       <c:arg name="matrix">
@@ -301,9 +295,9 @@
 
       <c:arg name="criteria">
         <c:set>
-          <lv:param-copy name="@values@">
-            <lv:param-meta name="table_basename" value="@matrix@" />
-          </lv:param-copy>
+          <param-copy name="@values@">
+            <param-meta name="table_basename" value="@matrix@" />
+          </param-copy>
         </c:set>
       </c:arg>
 
@@ -313,71 +307,71 @@
         <t:dec>
           <c:length-of>
             <c:set>
-              <lv:param-copy name="@values@">
-                <lv:param-meta name="table_basename" value="@matrix@" />
-              </lv:param-copy>
+              <param-copy name="@values@">
+                <param-meta name="table_basename" value="@matrix@" />
+              </param-copy>
             </c:set>
           </c:length-of>
         </t:dec>
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
-  <lv:template name="_when_" desc="Create field predicate for query definition">
-    <lv:param name="@id@" desc="Field index" />
-    <lv:param name="@values@" desc="Field value (provide only one node)" />
-    <lv:param name="@sequential@" desc="Is data sequential?" />
+  <template name="_when_" desc="Create field predicate for query definition">
+    <param name="@id@" desc="Field index" />
+    <param name="@values@" desc="Field value (provide only one node)" />
+    <param name="@sequential@" desc="Is data sequential?" />
 
     <!-- @name@ may be provided directly, or @field@ may be used when the
          basename is available (set by a query template), giving the illusion of
          querying the table columns by name directly (magic!); pure syntatic
          sugary goodness -->
-    <lv:param name="@field@" desc="Field name (to be used with base)" />
-    <lv:param name="@name@" desc="Field name (as a variable/constant)">
-      <lv:param-inherit meta="table_basename" />
-      <lv:text>_</lv:text>
-      <lv:param-value name="@field@" upper="true" snake="true" />
-    </lv:param>
+    <param name="@field@" desc="Field name (to be used with base)" />
+    <param name="@name@" desc="Field name (as a variable/constant)">
+      <param-inherit meta="table_basename" />
+      <text>_</text>
+      <param-value name="@field@" upper="true" snake="true" />
+    </param>
 
-    <lv:param name="@seqvar@" desc="Var/constant containing whether field is sequential">
-      <lv:param-inherit meta="table_basename" />
-      <lv:text>_</lv:text>
-      <lv:param-value name="@field@" upper="true" snake="true" />
-      <lv:text>_IS_SEQ</lv:text>
-    </lv:param>
+    <param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+      <param-inherit meta="table_basename" />
+      <text>_</text>
+      <param-value name="@field@" upper="true" snake="true" />
+      <text>_IS_SEQ</text>
+    </param>
 
     <c:set label="Conditional for {@field@}">
       <!-- the first element will represent the column (field) index -->
-      <lv:unless name="@name@">
+      <unless name="@name@">
         <c:const value="@id@" type="integer" desc="Field index" />
-      </lv:unless>
-      <lv:if name="@name@">
+      </unless>
+      <if name="@name@">
         <c:value-of name="@name@" />
-      </lv:if>
+      </if>
 
       <!-- the second element will represent the expected value(s) -->
       <c:set>
-        <lv:param-copy name="@values@" />
+        <param-copy name="@values@" />
       </c:set>
 
       <!-- the final element will represent whether or not this field is sequential -->
-      <lv:if name="@sequential@">
+      <if name="@sequential@">
         <c:const value="@sequential@" type="boolean" desc="Whether data is sequential" />
-      </lv:if>
-      <lv:unless name="@sequential@">
+      </if>
+      <unless name="@sequential@">
         <!-- if a field name was given, we can get the sequential information
              that was already generated for us -->
-        <lv:if name="@field@">
+        <if name="@field@">
           <c:value-of name="@seqvar@" />
-        </lv:if>
+        </if>
         <!-- otherwise, default to non-sequential -->
-        <lv:unless name="@field@">
+        <unless name="@field@">
           <c:value-of name="FALSE" />
-        </lv:unless>
-      </lv:unless>
+        </unless>
+      </unless>
     </c:set>
-  </lv:template>
+  </template>
 
 
 
@@ -389,11 +383,11 @@
 
 
   <!-- this function is intended to be called by the _query_ template, not directly -->
-  <lv:function name="_mquery" desc="Query for vectors using a set of column criteria">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to query" />
-    <lv:param name="criteria" type="float" set="matrix" desc="Query criteria" />
+  <function name="_mquery" desc="Query for vectors using a set of column criteria">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to query" />
+    <param name="criteria" type="float" set="matrix" desc="Query criteria" />
 
-    <lv:param name="i" type="integer" desc="Current criteria index" />
+    <param name="i" type="integer" desc="Current criteria index" />
 
     <c:cases>
       <c:case>
@@ -469,7 +463,7 @@
         </c:apply>
       </c:otherwise>
     </c:cases>
-  </lv:function>
+  </function>
 
 
   <!--
@@ -488,12 +482,12 @@
     the gap and make this a general-purpose function if need be. Technically,
     the gap is useless and saves lg(g) steps, which may be very small.)
   -->
-  <lv:function name="bisect" desc="Bisect a matrix toward the requested column value">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to bisect" />
-    <lv:param name="col" type="integer" desc="Column index to filter on" />
-    <lv:param name="val" type="float" desc="Column value to filter on" />
-    <lv:param name="start" type="integer" desc="Start index" />
-    <lv:param name="end" type="integer" desc="Start end" />
+  <function name="bisect" desc="Bisect a matrix toward the requested column value">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to bisect" />
+    <param name="col" type="integer" desc="Column index to filter on" />
+    <param name="val" type="float" desc="Column value to filter on" />
+    <param name="start" type="integer" desc="Start index" />
+    <param name="end" type="integer" desc="Start end" />
 
     <c:let>
       <c:values>
@@ -607,13 +601,13 @@
         </c:otherwise>
       </c:cases>
     </c:let>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="foremost" desc="Search backwards for the first occurrance in a sorted list">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to bisect" />
-    <lv:param name="col" type="integer" desc="Column index to search on" />
-    <lv:param name="i" type="integer" desc="Current index" />
+  <function name="foremost" desc="Search backwards for the first occurrance in a sorted list">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to bisect" />
+    <param name="col" type="integer" desc="Column index to search on" />
+    <param name="i" type="integer" desc="Current index" />
 
     <c:let>
       <c:values>
@@ -687,35 +681,35 @@
         </c:otherwise>
       </c:cases>
     </c:let>
-  </lv:function>
+  </function>
 
 
-  <lv:template name="_mask-unless_" desc="Mask a value unless the condition is truthful">
-    <lv:param name="@values@" desc="Body" />
-    <lv:param name="@name@" desc="Scalar to check" />
-    <lv:param name="@index@" desc="Optional index" />
-    <lv:param name="@desc@" desc="Optional description" />
+  <template name="_mask-unless_" desc="Mask a value unless the condition is truthful">
+    <param name="@values@" desc="Body" />
+    <param name="@name@" desc="Scalar to check" />
+    <param name="@index@" desc="Optional index" />
+    <param name="@desc@" desc="Optional description" />
 
     <c:cases>
       <!-- if masked -->
       <c:case>
         <!-- no index provided -->
-        <lv:unless name="@index@">
+        <unless name="@index@">
           <c:when name="@name@">
             <c:eq>
               <c:value-of name="FALSE" />
             </c:eq>
           </c:when>
-        </lv:unless>
+        </unless>
 
         <!-- index provided -->
-        <lv:if name="@index@">
+        <if name="@index@">
           <c:when name="@name@" index="@index@">
             <c:eq>
               <c:value-of name="FALSE" />
             </c:eq>
           </c:when>
-        </lv:if>
+        </if>
 
         <!-- TODO: configurable mask via meta and/or param -->
         <c:value-of name="TABLE_WHEN_MASK_VALUE" />
@@ -723,17 +717,17 @@
 
       <!-- if not masked -->
       <c:otherwise>
-        <lv:param-copy name="@values@" />
+        <param-copy name="@values@" />
       </c:otherwise>
     </c:cases>
-  </lv:template>
+  </template>
 
 
-  <lv:function name="mfilter" desc="Filter matrix rows by column value">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
-    <lv:param name="col"    type="integer" desc="Column index to filter on" />
-    <lv:param name="vals"   type="float" desc="Column value to filter on" />
-    <lv:param name="seq"    type="boolean" desc="Is data sequential?" />
+  <function name="mfilter" desc="Filter matrix rows by column value">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+    <param name="col"    type="integer" desc="Column index to filter on" />
+    <param name="vals"   type="float" desc="Column value to filter on" />
+    <param name="seq"    type="boolean" desc="Is data sequential?" />
 
     <!-- merge the result of each condition in vals into a single set, which
          has the effect of supporting multiple conditions on a single column of
@@ -786,16 +780,16 @@
         </c:arg>
       </c:apply>
     </t:merge-until-empty>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="range" desc="Filter matrix rows by column value within a certain range of indexes (inclusive)">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
-    <lv:param name="col" type="integer" desc="Column index to filter on" />
-    <lv:param name="val" type="float" desc="Column value to filter on" />
-    <lv:param name="start" type="integer" desc="Starting index (inclusive)" />
-    <lv:param name="end" type="integer" desc="Ending index (inclusive)" />
-    <lv:param name="seq" type="boolean" desc="Is data sequential?" />
+  <function name="range" desc="Filter matrix rows by column value within a certain range of indexes (inclusive)">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+    <param name="col" type="integer" desc="Column index to filter on" />
+    <param name="val" type="float" desc="Column value to filter on" />
+    <param name="start" type="integer" desc="Starting index (inclusive)" />
+    <param name="end" type="integer" desc="Ending index (inclusive)" />
+    <param name="seq" type="boolean" desc="Is data sequential?" />
 
     <c:let>
       <c:values>
@@ -882,18 +876,18 @@
         </c:cases>
       </c:let>
     </c:let>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="_mfilter" desc="mfilter helper">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
-    <lv:param name="col" type="integer" desc="Column index to filter on" />
-    <lv:param name="val" type="float" desc="Column value to filter on" />
-    <lv:param name="start" type="integer" desc="Starting index (aka current index)" />
-    <lv:param name="end" type="integer" desc="Ending index" />
-    <lv:param name="seq" type="integer" desc="Is data sequential?" />
+  <function name="_mfilter" desc="mfilter helper">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+    <param name="col" type="integer" desc="Column index to filter on" />
+    <param name="val" type="float" desc="Column value to filter on" />
+    <param name="start" type="integer" desc="Starting index (aka current index)" />
+    <param name="end" type="integer" desc="Ending index" />
+    <param name="seq" type="integer" desc="Is data sequential?" />
 
-    <lv:param name="cur" type="float" desc="Current value" />
+    <param name="cur" type="float" desc="Current value" />
 
     <c:cases>
       <c:case>
@@ -932,5 +926,6 @@
         </c:apply>
       </c:otherwise>
     </c:cases>
-  </lv:function>
-</lv:package>
+  </function>
+</package>
+

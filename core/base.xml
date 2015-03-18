@@ -1,123 +1,117 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
-
   core="true"
-
-  name="core/base"
   desc="Base features">
 
 
   <!-- magic variable that will contain the result of a classification (this
        definition exists to simplify validations (its symbol is Xi because it
        looks like a sideways array) -->
-  <lv:const name="_CMATCH_" type="boolean" desc="Set indicating indexes of classification matches" sym="\Xi">
-    <lv:item value="0" desc="Dummy value; this set is populated upon entering each rate block" />
-  </lv:const>
+  <const name="_CMATCH_" type="boolean" desc="Set indicating indexes of classification matches" sym="\Xi">
+    <item value="0" desc="Dummy value; this set is populated upon entering each rate block" />
+  </const>
 
-  <lv:const name="NEGATE" value="-1" type="float" desc="Negate a value" sym="-" />
+  <const name="NEGATE" value="-1" type="float" desc="Negate a value" sym="-" />
 
   <!-- useful where constants are required -->
-  <lv:const name="ZERO" value="0.00" type="float" desc="Zero value" />
+  <const name="ZERO" value="0.00" type="float" desc="Zero value" />
 
   <!-- the runtime is responsible for automatically populating these fields with meaningful values -->
-  <lv:const name="__DATE_YEAR__" value="0" type="integer" desc="Current year" sym="\widehat{D^\gamma}" magic="true" />
+  <const name="__DATE_YEAR__" value="0" type="integer" desc="Current year" sym="\widehat{D^\gamma}" magic="true" />
 
 
-  <lv:typedef name="integer" desc="Any value in the set of integers" sym="\mathbb{I}">
-    <lv:base-type />
-  </lv:typedef>
+  <typedef name="integer" desc="Any value in the set of integers" sym="\mathbb{I}">
+    <base-type />
+  </typedef>
 
   <!-- real number -->
-  <lv:typedef name="float" desc="Any real number (represented as a float)" sym="\mathbb{R}">
-    <lv:base-type />
-  </lv:typedef>
+  <typedef name="float" desc="Any real number (represented as a float)" sym="\mathbb{R}">
+    <base-type />
+  </typedef>
 
-  <lv:typedef name="boolean" desc="Boolean values">
-    <lv:enum type="integer">
-      <lv:item name="TRUE" value="1" desc="True" />
-      <lv:item name="FALSE" value="0" desc="False" />
-    </lv:enum>
-  </lv:typedef>
+  <typedef name="boolean" desc="Boolean values">
+    <enum type="integer">
+      <item name="TRUE" value="1" desc="True" />
+      <item name="FALSE" value="0" desc="False" />
+    </enum>
+  </typedef>
 
   <!-- does not have much practical use outside of the core -->
-  <lv:typedef name="empty" desc="Empty set" sym="\emptyset">
-    <lv:base-type />
-  </lv:typedef>
+  <typedef name="empty" desc="Empty set" sym="\emptyset">
+    <base-type />
+  </typedef>
 
 
   <!--
     Useful in certain circumstances. Don't judge.
   -->
-  <lv:classify as="always" keep="true" yields="alwaysTrue" desc="Always true" />
+  <classify as="always" keep="true" yields="alwaysTrue" desc="Always true" />
 
 
-  <lv:template name="_todo_" desc="A simple TODO :)">
-    <lv:param name="@desc@" desc="TODO desc">
-      <lv:text>TODO</lv:text>
-    </lv:param>
+  <template name="_todo_" desc="A simple TODO :)">
+    <param name="@desc@" desc="TODO desc">
+      <text>TODO</text>
+    </param>
 
-    <lv:param name="@hide@" desc="Whether to hide content by stripping
+    <param name="@hide@" desc="Whether to hide content by stripping
                                   it entriely from the output" />
 
-    <lv:unless name="@hide@">
+    <unless name="@hide@">
       <c:const value="0" type="integer" desc="@desc@" />
-    </lv:unless>
-  </lv:template>
+    </unless>
+  </template>
 
 
-  <lv:template name="_ignore_" desc="Simply removes all child nodes (as if it was commented out)">
-    <lv:param name="@values@" desc="Nodes to comment out" />
-    <lv:param name="@desc@" desc="Description" />
+  <template name="_ignore_" desc="Simply removes all child nodes (as if it was commented out)">
+    <param name="@values@" desc="Nodes to comment out" />
+    <param name="@desc@" desc="Description" />
 
     <!-- nothing -->
-  </lv:template>
+  </template>
 
 
-  <lv:template name="_fail-on-empty_" desc="Fail on rate lookup failure">
-    <lv:param name="@values@" desc="Optional conditions to include in match" />
-    <lv:param name="@name@" desc="Data to check (scalar, vector or otherwise)" />
-    <lv:param name="@when@" desc="Conditional check (optional)" />
-    <lv:param name="@class@" desc="Conditional class check" />
+  <template name="_fail-on-empty_" desc="Fail on rate lookup failure">
+    <param name="@values@" desc="Optional conditions to include in match" />
+    <param name="@name@" desc="Data to check (scalar, vector or otherwise)" />
+    <param name="@when@" desc="Conditional check (optional)" />
+    <param name="@class@" desc="Conditional class check" />
 
-    <lv:param name="@as@" desc="Classifier name">
-      <lv:text>-err-empty-</lv:text>
-      <lv:param-value name="@name@" lower="true" />
-    </lv:param>
+    <param name="@as@" desc="Classifier name">
+      <text>-err-empty-</text>
+      <param-value name="@name@" lower="true" />
+    </param>
 
-    <lv:param name="@desc@" desc="Description">
-      <lv:param-value name="@name@" />
-      <lv:text> is empty</lv:text>
-    </lv:param>
+    <param name="@desc@" desc="Description">
+      <param-value name="@name@" />
+      <text> is empty</text>
+    </param>
 
-    <lv:param name="@classyields@" desc="Classification yield to match on">
-      <lv:param-class-to-yields name="@class@" />
-    </lv:param>
+    <param name="@classyields@" desc="Classification yield to match on">
+      <param-class-to-yields name="@class@" />
+    </param>
 
     <!-- default to external to ensure that calculations do not wind up in the
          classifier -->
-    <lv:param name="@external@" desc="External classification">
-      <lv:text>true</lv:text>
-    </lv:param>
+    <param name="@external@" desc="External classification">
+      <text>true</text>
+    </param>
 
 
-    <lv:classify as="@as@" desc="@desc@" external="@external@" terminate="true">
+    <classify as="@as@" desc="@desc@" external="@external@" terminate="true">
       <!-- include any option conditions -->
-      <lv:param-copy name="@values@" />
+      <param-copy name="@values@" />
 
-      <lv:if name="@when@">
-        <lv:match on="@when@" value="TRUE" />
-      </lv:if>
+      <if name="@when@">
+        <match on="@when@" value="TRUE" />
+      </if>
 
-      <lv:if name="@class@">
-        <lv:match on="@classyields@" value="TRUE" />
-      </lv:if>
+      <if name="@class@">
+        <match on="@classyields@" value="TRUE" />
+      </if>
 
-      <lv:match on="@name@" value="ZERO" />
-    </lv:classify>
-  </lv:template>
-</lv:package>
+      <match on="@name@" value="ZERO" />
+    </classify>
+  </template>
+</package>
 

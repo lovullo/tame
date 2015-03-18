@@ -1,24 +1,19 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../rater.xsd"
-
   core="true"
-
-  name="core/vector"
   desc="Vector operations">
 
 
   <!-- we are a meta-package -->
-  <lv:import package="vector/arithmetic" export="true" />
-  <lv:import package="vector/cmatch"     export="true" />
-  <lv:import package="vector/convert"    export="true" />
-  <lv:import package="vector/count"      export="true" />
-  <lv:import package="vector/list"       export="true" />
-  <lv:import package="vector/matrix"     export="true" />
-  <lv:import package="vector/table"      export="true" />
+  <import package="vector/arithmetic" export="true" />
+  <import package="vector/cmatch"     export="true" />
+  <import package="vector/convert"    export="true" />
+  <import package="vector/count"      export="true" />
+  <import package="vector/list"       export="true" />
+  <import package="vector/matrix"     export="true" />
+  <import package="vector/table"      export="true" />
 
-  <lv:import package="vector/common" export="true" />
-</lv:package>
+  <import package="vector/common" export="true" />
+</package>
+

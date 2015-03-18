@@ -1,38 +1,32 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/vector/common"
   desc="General vector operations">
 
-  <lv:import package="../base" />
-  <lv:import package="../numeric/common" />
+  <import package="../base" />
+  <import package="../numeric/common" />
 
 
   <!-- useful because you can pass a conditional expression as an argument and
        select the index of the result -->
-  <lv:function name="vival" desc="Select index value from some vector">
-    <lv:param name="vector" type="float" set="vector" desc="Vector" />
-    <lv:param name="index" type="integer" desc="Index" />
+  <function name="vival" desc="Select index value from some vector">
+    <param name="vector" type="float" set="vector" desc="Vector" />
+    <param name="index" type="integer" desc="Index" />
 
     <c:value-of name="vector">
       <c:index>
         <c:value-of name="index" />
       </c:index>
     </c:value-of>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="mival" desc="Select index value from some matrix">
-    <lv:param name="matrix" type="float" set="matrix" desc="Matrix" />
-    <lv:param name="row" type="integer" desc="Row index" />
-    <lv:param name="col" type="integer" desc="Column index" />
+  <function name="mival" desc="Select index value from some matrix">
+    <param name="matrix" type="float" set="matrix" desc="Matrix" />
+    <param name="row" type="integer" desc="Row index" />
+    <param name="col" type="integer" desc="Column index" />
 
     <c:value-of name="matrix">
       <c:index>
@@ -42,13 +36,13 @@
         <c:value-of name="col" />
       </c:index>
     </c:value-of>
-  </lv:function>
+  </function>
 
 
-  <lv:template name="_map-value_" desc="Map from a value to another using a vector map">
-    <lv:param name="@from@" desc="Name of value to map" />
-    <lv:param name="@index@" desc="Index" />
-    <lv:param name="@using@" desc="Vector to use for mapping" />
+  <template name="_map-value_" desc="Map from a value to another using a vector map">
+    <param name="@from@" desc="Name of value to map" />
+    <param name="@index@" desc="Index" />
+    <param name="@using@" desc="Vector to use for mapping" />
 
     <c:apply name="vival">
       <c:arg name="vector">
@@ -59,7 +53,7 @@
         <c:value-of name="@from@" index="@index@" />
       </c:arg>
     </c:apply>
-  </lv:template>
+  </template>
 
 
 
@@ -70,13 +64,13 @@
     will be used to map a value to an index within the matrix for either a row
     or column.
   -->
-  <lv:function name="mlookup" desc="Matrix value lookup based on two index maps">
-    <lv:param name="matrix" type="float"   set="matrix" desc="Rate matrix indexed by CT and PC" />
-    <lv:param name="rmap"   type="integer" set="vector" desc="Row index map" />
-    <lv:param name="cmap"   type="integer" set="vector" desc="Column index map" />
+  <function name="mlookup" desc="Matrix value lookup based on two index maps">
+    <param name="matrix" type="float"   set="matrix" desc="Rate matrix indexed by CT and PC" />
+    <param name="rmap"   type="integer" set="vector" desc="Row index map" />
+    <param name="cmap"   type="integer" set="vector" desc="Column index map" />
 
-    <lv:param name="rval" type="integer" desc="Row value (to be fed to map for index lookup)" />
-    <lv:param name="cval" type="integer" desc="Column value (to be fed to map for index lookup)" />
+    <param name="rval" type="integer" desc="Row value (to be fed to map for index lookup)" />
+    <param name="cval" type="integer" desc="Column value (to be fed to map for index lookup)" />
 
     <c:value-of name="matrix">
       <!-- row -->
@@ -97,13 +91,13 @@
         </c:value-of>
       </c:index>
     </c:value-of>
-  </lv:function>
+  </function>
 
 
-  <lv:function name="first_index" desc="Determine the matching index of a vector; -1 if no match">
-    <lv:param name="vector" type="float"   set="vector" desc="Source vector to search" />
-    <lv:param name="value"  type="integer"              desc="Value to match" />
-    <lv:param name="offset" type="integer"              desc="Vector offset" />
+  <function name="first_index" desc="Determine the matching index of a vector; -1 if no match">
+    <param name="vector" type="float"   set="vector" desc="Source vector to search" />
+    <param name="value"  type="integer"              desc="Value to match" />
+    <param name="offset" type="integer"              desc="Vector offset" />
 
     <c:let>
       <c:values>
@@ -151,12 +145,13 @@
         </c:otherwise>
       </c:cases>
     </c:let>
-  </lv:function>
+  </function>
 
 
   <!-- generates a variable that can be recognized as an empty set (useful for
        defaults to params that require sets) -->
-  <lv:rate-each class="always" yields="__empty" generates="__emptySet" index="k">
+  <rate-each class="always" yields="__empty" generates="__emptySet" index="k">
     <c:const value="0" type="integer" desc="Nothing" />
-  </lv:rate-each>
-</lv:package>
+  </rate-each>
+</package>
+

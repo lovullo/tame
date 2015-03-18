@@ -1,32 +1,26 @@
-<?xml-stylesheet type="text/xsl" href="summary.xsl"?>
-<lv:package
-  xmlns:lv="http://www.lovullo.com/rater"
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
-
   core="true"
-
-  name="core/vector/interp"
   desc="Interpolation">
 
-  <lv:import package="../base" />
-  <lv:import package="../numeric/common" />
+  <import package="../base" />
+  <import package="../numeric/common" />
 
 
-  <lv:template name="_interpolate_" desc="Interpolate the first two values in a vector">
-    <lv:param name="@values@" desc="Set" />
-    <lv:param name="@low@" desc="Lower value" />
-    <lv:param name="@high@" desc="Upper value" />
-    <lv:param name="@actual@" desc="Actual value" />
+  <template name="_interpolate_" desc="Interpolate the first two values in a vector">
+    <param name="@values@" desc="Set" />
+    <param name="@low@" desc="Lower value" />
+    <param name="@high@" desc="Upper value" />
+    <param name="@actual@" desc="Actual value" />
 
 
     <c:let>
       <c:values>
         <!-- allows us to reference the set values -->
         <c:value name="orig_set" type="float" set="vector" desc="The given set">
-          <lv:param-copy name="@values@" />
+          <param-copy name="@values@" />
         </c:value>
       </c:values>
 
@@ -118,7 +112,7 @@
         </c:cases>
       </c:let>
     </c:let>
-  </lv:template>
+  </template>
 
 
   <!--
@@ -129,31 +123,31 @@
     results in a great deal of boilerplate code. This makes you not want to
     kill yourself. At least not because of this interpolation query
   -->
-  <lv:template name="_interpolate-query-field_"
+  <template name="_interpolate-query-field_"
                desc="Interpolate table data">
-    <lv:param name="@table@"  desc="Table to query" />
-    <lv:param name="@field@"  desc="Table field to query" />
-    <lv:param name="@key@"    desc="Predicate subject column" />
-    <lv:param name="@step@"   desc="Key step" />
-    <lv:param name="@values@" desc="Query predicates" />
+    <param name="@table@"  desc="Table to query" />
+    <param name="@field@"  desc="Table field to query" />
+    <param name="@key@"    desc="Predicate subject column" />
+    <param name="@step@"   desc="Key step" />
+    <param name="@values@" desc="Query predicates" />
 
-    <lv:param name="@actual@"
+    <param name="@actual@"
               desc="Actual value" />
 
-    <lv:param name="@index@" desc="Actual value index">
-      <lv:text></lv:text>
-    </lv:param>
+    <param name="@index@" desc="Actual value index">
+      <text></text>
+    </param>
 
-    <lv:param name="@table_max@"
+    <param name="@table_max@"
               desc="Maximum value in table (should be a multiple of @step)" />
 
     <!-- TODO: accept a function to calculate factor -->
-    <lv:param name="@step_factor@"
+    <param name="@step_factor@"
               desc="Factor to use per step after maximum to infer value" />
-    <lv:param name="@step_factor_index@"
+    <param name="@step_factor_index@"
               desc="Index of step factor value">
-      <lv:text></lv:text>
-    </lv:param>
+      <text></text>
+    </param>
 
 
     <c:let>
@@ -163,16 +157,16 @@
         <c:value name="lookup" type="float"
                  desc="Value to retrieve and interpolate">
           <!-- maximum provided -->
-          <lv:if name="@table_max@">
+          <if name="@table_max@">
             <t:cap name="@table_max@">
               <c:value-of name="@actual@" />
             </t:cap>
-          </lv:if>
+          </if>
 
           <!-- no maximum -->
-          <lv:unless name="@table_max@">
+          <unless name="@table_max@">
             <c:value-of name="@actual@" index="@index@" />
-          </lv:unless>
+          </unless>
         </c:value>
       </c:values>
 
@@ -195,13 +189,13 @@
                 <c:value-of name="high" />
               </t:when>
 
-              <lv:param-copy name="@values@" />
+              <param-copy name="@values@" />
             </t:query-field>
           </t:interpolate>
         </t:let-round>
 
         <!-- step factor -->
-        <lv:if name="@step_factor@">
+        <if name="@step_factor@">
           <c:let>
             <c:values>
               <!-- additional value (of key) that needs to be infered -->
@@ -226,10 +220,10 @@
               </c:quotient>
             </c:product>
           </c:let>
-        </lv:if>
+        </if>
       </c:sum>
     </c:let>
-  </lv:template>
+  </template>
 
 
   <!--
@@ -262,10 +256,10 @@
 
       7.5 / 5 = 1.5, Q.E.D.
   -->
-  <lv:function name="vecpos" desc="Calculate the position of a value within a vector of a given step">
-    <lv:param name="step"  type="float" desc="Step between each of the values" />
-    <lv:param name="skip"  type="float" desc="Amount skipped before first element of vector" />
-    <lv:param name="value" type="float" desc="Arbitrary value" />
+  <function name="vecpos" desc="Calculate the position of a value within a vector of a given step">
+    <param name="step"  type="float" desc="Step between each of the values" />
+    <param name="skip"  type="float" desc="Amount skipped before first element of vector" />
+    <param name="value" type="float" desc="Arbitrary value" />
 
     <c:quotient>
       <c:sum>
@@ -277,7 +271,7 @@
 
       <c:value-of name="step" />
     </c:quotient>
-  </lv:function>
+  </function>
 
 
   <!--
@@ -295,11 +289,11 @@
     step and skip amounts, since they were only needed to determine the value's
     position.
   -->
-  <lv:function name="vecstep" desc="Calculate a value that falls between a vector of values at a given step">
-    <lv:param name="set"   type="float" set="vector" desc="Vector of values" />
-    <lv:param name="step"  type="float"              desc="Step between each of the values" />
-    <lv:param name="skip"  type="float"              desc="Amount skipped before first element of vector" />
-    <lv:param name="value" type="float"              desc="Arbitrary value" />
+  <function name="vecstep" desc="Calculate a value that falls between a vector of values at a given step">
+    <param name="set"   type="float" set="vector" desc="Vector of values" />
+    <param name="step"  type="float"              desc="Step between each of the values" />
+    <param name="skip"  type="float"              desc="Amount skipped before first element of vector" />
+    <param name="value" type="float"              desc="Arbitrary value" />
 
     <!-- call the function that will do the actual work -->
     <c:apply name="vecstepi" set="set">
@@ -311,7 +305,7 @@
         <c:apply name="vecpos" step="step" skip="skip" value="value" />
       </c:arg>
     </c:apply>
-  </lv:function>
+  </function>
 
 
   <!--
@@ -339,9 +333,9 @@
         position from the position itself: 2.5 - 2 = 0.5.
       - So, we have: 5 + ( 15-10 * 2.5-2 ) = 5 + ( 5 * 0.5 ) = 5 + 2.5 = 7.5.
   -->
-  <lv:function name="vecstepi" desc="Calculate a value that falls between a vector of values at an arbitrary index">
-    <lv:param name="set"  type="float" set="vector" desc="Vector of values" />
-    <lv:param name="pos"  type="float"              desc="Position of value within the vector (may be between values)" />
+  <function name="vecstepi" desc="Calculate a value that falls between a vector of values at an arbitrary index">
+    <param name="set"  type="float" set="vector" desc="Vector of values" />
+    <param name="pos"  type="float"              desc="Position of value within the vector (may be between values)" />
 
     <c:sum>
       <!-- add the closest lower value... -->
@@ -385,5 +379,6 @@
         </c:sum>
       </c:product>
     </c:sum>
-  </lv:function>
-</lv:package>
+  </function>
+</package>
+
