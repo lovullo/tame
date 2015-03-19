@@ -1,0 +1,336 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015  LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Interpolation specs">
+
+  <import package="../../../base" />
+  <import package="../../../numeric/common" />
+  <import package="../../../numeric/minmax" />
+  <import package="../../../numeric/round" />
+  <import package="../../../vector/arithmetic" />
+
+  <import package="../../spec" />
+  <import package="../../../vector/table" />
+  <import package="../../../vector/interpolate" />
+
+
+  <const name="INTERP_TABLE_STEP"
+         value="100" type="integer"
+         desc="Test table step" />
+
+  <!-- table containing test data -->
+  <t:create-table name="interp-query-field-test"
+                  desc="Test data for query interpolation">
+    <t:table-column name="key"
+                    index="0"
+                    desc="Lookup value" />
+    <t:table-column name="pred"
+                    index="1"
+                    desc="Random value for predicate testing" />
+    <t:table-column name="value"
+                    index="2"
+                    desc="Value to interpolate" />
+
+    <t:table-rows>
+      <t:table-row>
+        <t:table-value const="100" />
+        <t:table-value const="10" />
+        <t:table-value const="1" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="200" />
+        <t:table-value const="20" />
+        <t:table-value const="2" />
+      </t:table-row>
+
+      <!-- two values for predicate testing -->
+      <t:table-row>
+        <t:table-value const="300" />
+        <t:table-value const="30" />
+        <t:table-value const="3" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="300" />
+        <t:table-value const="31" />
+        <t:table-value const="3.5" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="400" />
+        <t:table-value const="40" />
+        <t:table-value const="4" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="400" />
+        <t:table-value const="31" />
+        <t:table-value const="4" />
+      </t:table-row>
+    </t:table-rows>
+  </t:create-table>
+
+
+  <const name="INTERP_TABLE_SM_STEP"
+         value="15" type="integer"
+         desc="Small-step test table step" />
+
+  <!-- test another step (we didn't hardcode 100, did we)? -->
+  <t:create-table name="interp-query-field-test-sm"
+                  desc="Test data for query interpolation; sm step">
+    <t:table-column name="key"
+                    index="0"
+                    desc="Lookup value" />
+    <t:table-column name="value"
+                    index="1"
+                    desc="Value to interpolate" />
+
+    <t:table-rows>
+      <t:table-row>
+        <t:table-value const="15" />
+        <t:table-value const="0" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="30" />
+        <t:table-value const="10" />
+      </t:table-row>
+    </t:table-rows>
+  </t:create-table>
+
+
+  <!-- by avoiding hardcoding these, we make these tests less fragile
+       (if the test data were to change) -->
+  <section title="Common inferable table values">
+    <rate yields="interpTableMaxKeyValue">
+      <t:maxreduce isvector="true">
+        <t:query-field table="interp-query-field-test"
+                       field="key" />
+      </t:maxreduce>
+    </rate>
+
+    <rate yields="interpTableMaxFieldValue">
+      <t:query-first-field table="interp-query-field-test"
+                           field="value">
+        <t:when field="key">
+          <c:value-of name="interpTableMaxKeyValue" />
+        </t:when>
+      </t:query-first-field>
+    </rate>
+  </section>
+
+
+
+  <t:describe name="_interpolate-query-field_">
+    <t:describe name="exact value query">
+      <!-- a simple expression with no body performs basic interpolation
+           based on a query result...just like that! -->
+      <t:it desc="succeeds without predicates">
+        <t:given>
+          <t:interpolate-query-field table="interp-query-field-test"
+                                     field="value"
+                                     key="key"
+                                     step="INTERP_TABLE_STEP"
+                                     actual="#100" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <!-- sanity check -->
+      <t:it desc="succeeds with predicates">
+        <t:given>
+          <t:interpolate-query-field table="interp-query-field-test"
+                                     field="value"
+                                     key="key"
+                                     step="INTERP_TABLE_STEP"
+                                     actual="#300">
+            <t:when field="pred">
+              <c:const value="31" type="float"
+                       desc="Test predicate value" />
+            </t:when>
+          </t:interpolate-query-field>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#3.5" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="inexact value query">
+      <t:it desc="performs interpolation on query field">
+        <!-- take that you f@%*#^! PITA algorithms -->
+        <t:given>
+          <t:interpolate-query-field table="interp-query-field-test"
+                                     field="value"
+                                     key="key"
+                                     step="INTERP_TABLE_STEP"
+                                     actual="#150" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <!-- this value does not exist in the table; it is
+                   interpolated, just like real magic -->
+              <c:value-of name="#1.5" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <!-- take note that the predicate applies to *both* rows
+           returned by the query -->
+      <t:it desc="performs interpolation considering predicates">
+        <t:given>
+          <t:interpolate-query-field table="interp-query-field-test"
+                                     field="value"
+                                     key="key"
+                                     step="INTERP_TABLE_STEP"
+                                     actual="#350">
+            <t:when field="pred">
+              <c:const value="31" type="float"
+                       desc="Test predicate value" />
+            </t:when>
+          </t:interpolate-query-field>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <!-- note that this interpolates between 3.5 and 4 -->
+              <c:value-of name="#3.75" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <!-- ensure that the step is indeed configurable -->
+    <t:it desc="permits arbitrary step">
+      <t:given>
+        <t:interpolate-query-field table="interp-query-field-test-sm"
+                                   field="value"
+                                   key="key"
+                                   step="INTERP_TABLE_SM_STEP"
+                                   actual="#22.5" />
+      </t:given>
+
+      <t:expect>
+        <t:match-result>
+          <c:eq>
+            <c:value-of name="#5" />
+          </c:eq>
+        </t:match-result>
+      </t:expect>
+    </t:it>
+
+
+    <t:describe name="with actual exceeding maximum">
+      <t:describe name="with no step factor">
+        <t:it desc="yields value of maximum key">
+          <t:given>
+            <t:interpolate-query-field table="interp-query-field-test"
+                                       field="value"
+                                       key="key"
+                                       step="INTERP_TABLE_STEP"
+                                       table_max="interpTableMaxKeyValue"
+                                       actual="#10000" />
+          </t:given>
+
+          <t:expect>
+            <t:match-result>
+              <c:eq>
+                <c:value-of name="interpTableMaxFieldValue" />
+              </c:eq>
+            </t:match-result>
+          </t:expect>
+        </t:it>
+      </t:describe>
+
+
+      <!-- we can infer values past the maximum -->
+      <!-- TODO: these are fragile, because we'd otherwise be
+           duplicating a lot of logic; let's factor some common logic
+           out of _interpolate-query-field_ -->
+      <t:describe name="with step factor">
+        <t:it desc="applies arbitrary factor linearly to difference">
+          <t:given>
+            <!-- note that our step factor differs from the previous
+                 field value step in the table -->
+            <t:interpolate-query-field table="interp-query-field-test"
+                                       field="value"
+                                       key="key"
+                                       step="INTERP_TABLE_STEP"
+                                       step_factor="#2"
+                                       table_max="interpTableMaxKeyValue"
+                                       actual="#600" />
+          </t:given>
+
+          <t:expect>
+            <t:match-result>
+              <c:eq>
+                <c:value-of name="#8" />
+              </c:eq>
+            </t:match-result>
+          </t:expect>
+        </t:it>
+
+
+        <!-- half-step relative to above expectation -->
+        <t:it desc="interpolates linear factor">
+          <t:given>
+            <t:interpolate-query-field table="interp-query-field-test"
+                                       field="value"
+                                       key="key"
+                                       step="INTERP_TABLE_STEP"
+                                       step_factor="#2"
+                                       table_max="interpTableMaxKeyValue"
+                                       actual="#650" />
+          </t:given>
+
+          <t:expect>
+            <t:match-result>
+              <c:eq>
+                <c:value-of name="#9" />
+              </c:eq>
+            </t:match-result>
+          </t:expect>
+        </t:it>
+      </t:describe>
+    </t:describe>
+  </t:describe>
+</package>

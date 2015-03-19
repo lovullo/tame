@@ -1,0 +1,357 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015  LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Test numeric computations dealing with rounding">
+
+
+  <import package="../../../test/spec" />
+
+  <import package="../../../base" />
+  <import package="../../../numeric/round" />
+
+
+  <const name="VALUE_LOW" sym="\check{v}"
+         value="5.1" type="float"
+         desc="Low-decimal value" />
+  <const name="VALUE_MID" sym="\bar{v}"
+         value="5.5" type="float"
+         desc="High-decimal value" />
+  <const name="VALUE_HIGH" sym="\hat{v}"
+         value="5.7" type="float"
+         desc="High-decimal value" />
+
+  <const name="VALUE_FLOOR" sym="\lfloor v\rfloor"
+         value="5" type="float"
+         desc="Floor of decimal value" />
+  <const name="VALUE_CEIL" sym="\lceil v\rceil"
+         value="6" type="float"
+         desc="Ceiling of decimal value" />
+
+  <!-- used to test @index; same constant value as above -->
+  <const name="VALUE_VEC" sym="V"
+         type="float"
+         desc="Vector of values">
+    <item value="0" />
+    <item value="5.5" desc="Same as VALUE_MID" />
+  </const>
+  <const name="VALUE_VEC_INDEX" sym="\nu"
+         value="1" type="integer"
+         desc="Index of test value within vector" />
+
+  <const name="VALUE_LARGE" sym="\Omega"
+         value="1234.56" type="float"
+         desc="Value to test rounding offsets" />
+
+  <const name="VALUE_STEP" sym="s"
+         value="43.46" type="integer"
+         desc="Test arbitrary step" />
+
+
+  <!--
+    Eliminate let-round repetition for initial expectations
+  -->
+  <template name="_expect-let-round_"
+            desc="Short-hand rounding expectation">
+    <param name="@name@" desc="Value to round" />
+
+    <!-- choose *one* -->
+    <param name="@high@"    desc="Round high" />
+    <param name="@low@"     desc="Round high" />
+    <param name="@nearest@" desc="Round near" />
+
+    <!-- take whatever we're given and use that as the expected value -->
+    <param name="@__expect@" desc="Expected value">
+      <param-value name="@high@" />
+      <param-value name="@low@" />
+      <param-value name="@nearest@" />
+    </param>
+
+
+    <!-- round based on the provided template param -->
+    <t:given>
+      <if name="@high@">
+        <t:let-round name="@name@" high="rounded_high">
+          <c:value-of name="rounded_high" />
+        </t:let-round>
+      </if>
+
+      <if name="@low@">
+        <t:let-round name="@name@" low="rounded_low">
+          <c:value-of name="rounded_low" />
+        </t:let-round>
+      </if>
+
+      <if name="@nearest@">
+        <t:let-round name="@name@" nearest="rounded_nearest">
+          <c:value-of name="rounded_nearest" />
+        </t:let-round>
+      </if>
+    </t:given>
+
+    <t:expect>
+      <t:match-result>
+        <c:eq>
+          <c:value-of name="@__expect@" />
+        </c:eq>
+      </t:match-result>
+    </t:expect>
+  </template>
+
+
+
+  <t:describe name="_let-round_">
+    <t:describe name="high">
+      <t:it desc="rounds up low decimals">
+        <t:expect-let-round name="VALUE_LOW"
+                            high="VALUE_CEIL" />
+      </t:it>
+      <t:it desc="rounds up high decimals">
+        <t:expect-let-round name="VALUE_HIGH"
+                            high="VALUE_CEIL" />
+      </t:it>
+      <t:it desc="rounds up halves">
+        <t:expect-let-round name="VALUE_MID"
+                            high="VALUE_CEIL" />
+      </t:it>
+      <t:it desc="leaves integers unchanged">
+        <t:expect-let-round name="VALUE_FLOOR"
+                            high="VALUE_FLOOR" />
+        <t:expect-let-round name="VALUE_CEIL"
+                            high="VALUE_CEIL" />
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="low">
+      <t:it desc="rounds down low decimals">
+        <t:expect-let-round name="VALUE_LOW"
+                            low="VALUE_FLOOR" />
+      </t:it>
+      <t:it desc="rounds down high decimals">
+        <t:expect-let-round name="VALUE_HIGH"
+                            low="VALUE_FLOOR" />
+      </t:it>
+      <t:it desc="rounds down halves">
+        <t:expect-let-round name="VALUE_MID"
+                            low="VALUE_FLOOR" />
+      </t:it>
+      <t:it desc="leaves integers unchanged">
+        <t:expect-let-round name="VALUE_FLOOR"
+                            low="VALUE_FLOOR" />
+        <t:expect-let-round name="VALUE_CEIL"
+                            low="VALUE_CEIL" />
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="nearest">
+      <t:it desc="rounds down low decimals">
+        <t:expect-let-round name="VALUE_LOW"
+                            nearest="VALUE_FLOOR" />
+      </t:it>
+      <t:it desc="rounds up high decimals">
+        <t:expect-let-round name="VALUE_HIGH"
+                            nearest="VALUE_CEIL" />
+      </t:it>
+      <t:it desc="rounds up halves">
+        <t:expect-let-round name="VALUE_MID"
+                            nearest="VALUE_CEIL" />
+      </t:it>
+      <t:it desc="leaves integers unchanged">
+        <t:expect-let-round name="VALUE_FLOOR"
+                            nearest="VALUE_FLOOR" />
+        <t:expect-let-round name="VALUE_CEIL"
+                            nearest="VALUE_CEIL" />
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with multiple names">
+      <t:it desc="produces each value">
+        <t:given>
+          <t:let-round name="VALUE_MID"
+                       low="round_low"
+                       high="round_high"
+                       nearest="round_near">
+            <c:sum>
+              <c:value-of name="round_low" />
+              <c:value-of name="round_high" />
+              <c:value-of name="round_near" />
+            </c:sum>
+          </t:let-round>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:sum>
+                <c:value-of name="VALUE_FLOOR" />
+                <c:value-of name="VALUE_CEIL" />
+                <c:value-of name="VALUE_CEIL" />
+              </c:sum>
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with name index">
+      <t:it desc="produces respective rounded value">
+        <t:given>
+          <t:let-round name="VALUE_VEC"
+                       index="VALUE_VEC_INDEX"
+                       low="round_low"
+                       high="round_high"
+                       nearest="round_near">
+            <c:sum>
+              <c:value-of name="round_low" />
+              <c:value-of name="round_high" />
+              <c:value-of name="round_near" />
+            </c:sum>
+          </t:let-round>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:sum>
+                <c:value-of name="VALUE_FLOOR" />
+                <c:value-of name="VALUE_CEIL" />
+                <c:value-of name="VALUE_CEIL" />
+              </c:sum>
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+
+
+  <t:describe name="with a non-zero exp N">
+    <t:it desc="rounds before decimal point with positive exp">
+      <t:given>
+        <t:let-round name="VALUE_LARGE"
+                     exp="#2"
+                     low="round_low">
+          <c:value-of name="round_low" />
+        </t:let-round>
+      </t:given>
+
+      <!-- 1234.56 moved over two dec places = 12.3456; round that -->
+      <t:expect>
+        <t:match-result>
+          <c:eq>
+            <c:const value="1200" type="integer"
+                     desc="Positive offset floor result" />
+          </c:eq>
+        </t:match-result>
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="rounds after decimal point with negative exp">
+      <t:given>
+        <t:let-round name="VALUE_LARGE"
+                     exp="#-1"
+                     low="round_low">
+          <c:value-of name="round_low" />
+        </t:let-round>
+      </t:given>
+
+      <!-- 1234.56 moved over one dec place = 12345.6; round that -->
+      <t:expect>
+        <t:match-result>
+          <c:eq>
+            <c:const value="1234.50" type="float"
+                     desc="Negative offset floor result" />
+          </c:eq>
+        </t:match-result>
+      </t:expect>
+    </t:it>
+  </t:describe>
+
+
+  <t:describe name="with a non-zero step N">
+    <t:it desc="rounds to the nearest arbitrary step">
+      <t:given>
+        <t:let-round name="VALUE_STEP"
+                     step="#15"
+                     low="round_low"
+                     high="round_high">
+          <c:sum>
+            <c:value-of name="round_low" />
+            <c:value-of name="round_high" />
+          </c:sum>
+        </t:let-round>
+      </t:given>
+
+      <t:expect>
+        <t:match-result>
+          <c:eq>
+            <!-- summed constants purely for clarity -->
+            <c:sum>
+              <c:const value="30" type="integer"
+                       desc="Floor of step 15" />
+              <c:const value="45" type="integer"
+                       desc="Ceiling of step 15" />
+            </c:sum>
+          </c:eq>
+        </t:match-result>
+      </t:expect>
+    </t:it>
+  </t:describe>
+
+
+  <t:describe name="with both step and exp">
+    <t:it desc="steps after exponentiation">
+      <t:given>
+        <t:let-round name="VALUE_STEP"
+                     step="#15"
+                     exp="#-1"
+                     low="round_low"
+                     high="round_high">
+          <c:sum>
+            <c:value-of name="round_low" />
+            <c:value-of name="round_high" />
+          </c:sum>
+        </t:let-round>
+      </t:given>
+
+      <!-- 43.46 * 10^-1 = 434.6 / 15 = 28.973; ceil/floor that, then undo
+           step/exp to yield final result -->
+      <t:expect>
+        <t:match-result>
+          <c:eq>
+            <!-- summed constants purely for clarity -->
+            <c:sum>
+              <c:const value="42" type="integer"
+                       desc="Floor of step 15 exp 1" />
+              <c:const value="43.5" type="integer"
+                       desc="Ceiling of step 15 exp 1" />
+            </c:sum>
+          </c:eq>
+        </t:match-result>
+      </t:expect>
+    </t:it>
+  </t:describe>
+</package>
