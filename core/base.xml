@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml version="1.0"?>
 <!--
   Copyright (C) 2015  LoVullo Associates, Inc.
 
@@ -18,75 +18,175 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <package xmlns="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc"
-  core="true"
-  desc="Base features">
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="Base features">
+
+  The \pkgself~package exposes common and internal
+  defintions.  Ideally, this package will be included automatically by
+  the compiler to remove repetitive, boilerplate imports.  Importing
+  this package isn't necessary if none of these definitions are
+  needed.
 
 
-  <!-- magic variable that will contain the result of a classification (this
-       definition exists to simplify validations (its symbol is Xi because it
-       looks like a sideways array) -->
-  <const name="_CMATCH_" type="boolean" desc="Set indicating indexes of classification matches" sym="\Xi">
-    <item value="0" desc="Dummy value; this set is populated upon entering each rate block" />
-  </const>
 
-  <const name="NEGATE" value="-1" type="float" desc="Negate a value" sym="-" />
+  <section title="Internal Constants">
+    \ref{_CMATCH_} is a magic constant that contains the result of
+    a~classification match.  This is used implicity by
+    \ref{rate-each}.\footnote{The symbol is \Xi~because it looks like
+    a sideways array.}
 
-  <!-- useful where constants are required -->
-  <const name="ZERO" value="0.00" type="float" desc="Zero value" />
+    \todo{Remove in favor of a local variable or generated
+    classification; there is no need (anymore) for this to be magic.}
 
-  <!-- the runtime is responsible for automatically populating these fields with meaningful values -->
-  <const name="__DATE_YEAR__" value="0" type="integer" desc="Current year" sym="\widehat{D^\gamma}" magic="true" />
-
-
-  <typedef name="integer" desc="Any value in the set of integers" sym="\mathbb{I}">
-    <base-type />
-  </typedef>
-
-  <!-- real number -->
-  <typedef name="float" desc="Any real number (represented as a float)" sym="\mathbb{R}">
-    <base-type />
-  </typedef>
-
-  <typedef name="boolean" desc="Boolean values">
-    <enum type="integer">
-      <item name="TRUE" value="1" desc="True" />
-      <item name="FALSE" value="0" desc="False" />
-    </enum>
-  </typedef>
-
-  <!-- does not have much practical use outside of the core -->
-  <typedef name="empty" desc="Empty set" sym="\emptyset">
-    <base-type />
-  </typedef>
+    <const name="_CMATCH_" type="boolean" sym="\Xi"
+           desc="Set indicating indexes of classification matches">
+      <item value="0"
+            desc="Dummy value; this set is populated upon entering
+                  each rate block" />
+    </const>
 
 
-  <!--
-    Useful in certain circumstances. Don't judge.
-  -->
-  <classify as="always" keep="true" yields="alwaysTrue" desc="Always true" />
+    The runtime is responsible for populating \ref{__DATE_YEAR__} with
+    a proper value representing the current year.
+
+    \todo{TAME is deterministic with this one exception; remove it and
+    have users use a param instead if they need this datum.}
+
+    <const name="__DATE_YEAR__" magic="true"
+           value="0" type="integer"
+           desc="Current year"
+           sym="\widehat{D^\gamma}" />
+  </section>
 
 
-  <template name="_todo_" desc="A simple TODO :)">
-    <param name="@desc@" desc="TODO desc">
-      <text>TODO</text>
-    </param>
 
-    <param name="@hide@" desc="Whether to hide content by stripping
-                                  it entriely from the output" />
+  <section title="Primitive Types">
+    Primitives are defined internally; these definitions simply
+    provide symbols to permit their use.
 
-    <unless name="@hide@">
-      <c:const value="0" type="integer" desc="@desc@" />
-    </unless>
-  </template>
+    <typedef name="integer"
+             desc="Any value in the set of integers"
+             sym="\mathbb{I}">
+      <base-type />
+    </typedef>
 
 
-  <template name="_ignore_" desc="Simply removes all child nodes (as if it was commented out)">
-    <param name="@values@" desc="Nodes to comment out" />
-    <param name="@desc@" desc="Description" />
+    <typedef name="float"
+             desc="Any real number (represented as a float)"
+             sym="\mathbb{R}">
+      <base-type />
+    </typedef>
 
-    <!-- nothing -->
-  </template>
+
+    <typedef name="boolean" desc="Boolean values">
+      <enum type="integer">
+        <item name="TRUE"  value="1" desc="True" />
+        <item name="FALSE" value="0" desc="False" />
+      </enum>
+    </typedef>
+
+
+    \ref{empty} does not have much use outside of the compiler.
+
+    <typedef name="empty"
+             desc="Empty set"
+             sym="\emptyset">
+      <base-type />
+    </typedef>
+  </section>
+
+
+
+  <section title="Convenience">
+    Negation is a common task and it was tedious in older versions of
+    TAME\footnote{Before it was even called TAME, actually.}  For
+    these situations, \ref{NEGATE} is provided to avoid having to use
+    a~\ref{const} expression.
+
+    <const name="NEGATE" value="-1"
+           desc="Negate a value"
+           sym="-" />
+
+
+    Similarly, $0$~is a~common value.  Where a value is required (such
+    as a~template argument), \ref{ZERO} may be used.  TAME now
+    supports a~constant-scalar syntax ({\tt #0}; \todo{reference this
+    in documentation}), making this largely unnecessary.
+
+    This is declared as a float to provide compatibility with all
+    types of expressions.
+
+    <const name="ZERO" value="0.00"
+           desc="Zero value" />
+
+
+    In the case where classifications are required, but a~static
+    assumption about the applicability of the subject can be made, we
+    have values that are always~true and always~false.  The use
+    of~\ref{never} may very well be a~code smell, but let us not rush
+    to judgment.\footnote{\ref{never} has been added as an analog
+    to~\ref{always}; its author has never had use for it.  Oh, look,
+    we just used ``never''.}
+
+    <classify as="always"
+              desc="Always true"
+              yields="alwaysTrue"
+              keep="true" />
+
+    <classify as="never"
+              desc="Never true"
+              yields="neverTrue"
+              keep="true" />
+  </section>
+
+
+
+  <section title="Work-In-Progress">
+    The templates in this section handle code that is
+    a~work-in-progress; they should probably not be used in production
+    code, since they indicate that something is incomplete or unused.
+
+    \ref{_todo_} formalizes TODO items and \may~always yield a scalar
+    integer~0, so it may be used within calculations.  If yielding a
+    constant value is not appropriate, it \may~also be stripped from
+    the output entirely.
+
+    <template name="_todo_"
+              desc="Represents work that needs to be done">
+      <param name="@desc@" desc="TODO desc">
+        <text>TODO</text>
+      </param>
+
+      <param name="@hide@" desc="Whether to hide content by stripping
+                                 it entriely from the output" />
+
+      <unless name="@hide@">
+        <c:const value="0"
+                 desc="@desc@" />
+      </unless>
+    </template>
+
+
+    The \ref{_ignore_} template serves as a~block
+    comment.\footnote{This is useful since XML does not support nested
+    comments, which makes it difficult to comment out code that
+    already has XML comments.}  It may be useful for debugging, but is
+    discouraged for use otherwise.  The \ref{_ignore_/@desc@} param
+    should be used to describe intent.
+
+    <template name="_ignore_"
+              desc="Removes all child nodes (as if commented out)">
+      <param name="@values@" desc="Nodes to comment out" />
+      <param name="@desc@"   desc="Reason for ignore" />
+
+      <!-- nothing -->
+    </template>
+  </section>
+
+
+
+  <!-- Everything below this line must be moved. -->
 
 
   <template name="_fail-on-empty_" desc="Fail on rate lookup failure">
