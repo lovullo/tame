@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015  LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         core="true"
+         desc="Assertions">
+
+  This package is young; the intent is to provide basic assertions to
+  ensure data integrity.  Failure will result in a~truthful value of
+  a~terminating classification.
+
+
+  <template name="_fail-on-empty_"
+            desc="Fail when a value is zero">
+    <param name="@values@" desc="Optional predicates to include in match" />
+    <param name="@name@"   desc="Data to check (scalar, vector or otherwise)" />
+    <param name="@when@"   desc="Conditional check (optional)" />
+    <param name="@class@"  desc="Conditional class check" />
+
+    <param name="@as@" desc="Generated classification name">
+      <text>-err-empty-</text>
+      <param-value name="@name@" lower="true" />
+    </param>
+
+    <param name="@desc@" desc="Description">
+      <param-value name="@name@" />
+      <text> is empty</text>
+    </param>
+
+    <param name="@classyields@" desc="Classification yield to match on">
+      <param-class-to-yields name="@class@" />
+    </param>
+
+    <!-- default to external to ensure that calculations do not wind up in the
+         classifier -->
+    <param name="@external@" desc="External classification">
+      <text>true</text>
+    </param>
+
+
+    <classify as="@as@" desc="@desc@" external="@external@" terminate="true">
+      <!-- include any option conditions -->
+      <param-copy name="@values@" />
+
+      <if name="@when@">
+        <match on="@when@" value="TRUE" />
+      </if>
+
+      <if name="@class@">
+        <match on="@classyields@" value="TRUE" />
+      </if>
+
+      <match on="@name@" value="ZERO" />
+    </classify>
+  </template>
+</package>

@@ -183,53 +183,5 @@
       <!-- nothing -->
     </template>
   </section>
-
-
-
-  <!-- Everything below this line must be moved. -->
-
-
-  <template name="_fail-on-empty_" desc="Fail on rate lookup failure">
-    <param name="@values@" desc="Optional conditions to include in match" />
-    <param name="@name@" desc="Data to check (scalar, vector or otherwise)" />
-    <param name="@when@" desc="Conditional check (optional)" />
-    <param name="@class@" desc="Conditional class check" />
-
-    <param name="@as@" desc="Classifier name">
-      <text>-err-empty-</text>
-      <param-value name="@name@" lower="true" />
-    </param>
-
-    <param name="@desc@" desc="Description">
-      <param-value name="@name@" />
-      <text> is empty</text>
-    </param>
-
-    <param name="@classyields@" desc="Classification yield to match on">
-      <param-class-to-yields name="@class@" />
-    </param>
-
-    <!-- default to external to ensure that calculations do not wind up in the
-         classifier -->
-    <param name="@external@" desc="External classification">
-      <text>true</text>
-    </param>
-
-
-    <classify as="@as@" desc="@desc@" external="@external@" terminate="true">
-      <!-- include any option conditions -->
-      <param-copy name="@values@" />
-
-      <if name="@when@">
-        <match on="@when@" value="TRUE" />
-      </if>
-
-      <if name="@class@">
-        <match on="@classyields@" value="TRUE" />
-      </if>
-
-      <match on="@name@" value="ZERO" />
-    </classify>
-  </template>
 </package>
 
