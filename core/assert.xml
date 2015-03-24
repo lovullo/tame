@@ -18,55 +18,101 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <package xmlns="http://www.lovullo.com/rater"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
          core="true"
          desc="Assertions">
+
+  <import package="base" />
 
   This package is young; the intent is to provide basic assertions to
   ensure data integrity.  Failure will result in a~truthful value of
   a~terminating classification.
 
+  The \ref{_assert_} template generates a~generic assertion using the
+  provided predicates, causing termination on match.  For convenience,
+  it accepts variable or classification-name conditions as arguments,
+  which are included with whatever predicates are provided in its
+  body.
 
-  <template name="_fail-on-empty_"
-            desc="Fail when a value is zero">
-    <param name="@values@" desc="Optional predicates to include in match" />
-    <param name="@name@"   desc="Data to check (scalar, vector or otherwise)" />
+  <template name="_assert_"
+            desc="Terminate on predicate failure">
+    <param name="@values@" desc="Predicates" />
     <param name="@when@"   desc="Conditional check (optional)" />
-    <param name="@class@"  desc="Conditional class check" />
+    <param name="@class@"  desc="Conditional class check (optional)" />
 
     <param name="@as@" desc="Generated classification name">
-      <text>-err-empty-</text>
-      <param-value name="@name@" lower="true" />
+      <text unique="true">-assert-</text>
     </param>
 
     <param name="@desc@" desc="Description">
-      <param-value name="@name@" />
-      <text> is empty</text>
+      <text>Assertion failure</text>
     </param>
 
-    <param name="@classyields@" desc="Classification yield to match on">
-      <param-class-to-yields name="@class@" />
-    </param>
-
-    <!-- default to external to ensure that calculations do not wind up in the
-         classifier -->
-    <param name="@external@" desc="External classification">
+    <!-- default to external to ensure that calculations do not wind
+         up in the classifier -->
+    <param name="@external@"
+           desc="Whether classification is external (default TRUE)">
       <text>true</text>
     </param>
 
+    <param name="@__classyields@"
+           desc="Classification yield to match on">
+      <param-class-to-yields name="@class@" />
+    </param>
 
-    <classify as="@as@" desc="@desc@" external="@external@" terminate="true">
-      <!-- include any option conditions -->
-      <param-copy name="@values@" />
 
+    <classify as="@as@"
+              desc="@desc@"
+              external="@external@"
+              terminate="true">
       <if name="@when@">
-        <match on="@when@" value="TRUE" />
+        <match on="@when@" />
       </if>
 
       <if name="@class@">
-        <match on="@classyields@" value="TRUE" />
+        <match on="@__classyields@" />
       </if>
 
-      <match on="@name@" value="ZERO" />
+      <!-- include any optional conditions -->
+      <param-copy name="@values@" />
     </classify>
   </template>
+
+
+
+  <section title="Standard Assertions">
+    There is currently one standard assertion---\ref{_fail-on-empty_};
+    more will appear in the future.
+
+    \ref{_fail-on-empty_} terminates if \ref{_fail-on-empty_/@name@}
+    is zero, subject to \ref{_fail-on-empty_/@when@} and
+    \ref{_fail-on-empty_/@class@} and any other provided
+    predicates.
+
+    The name of this assertion is likely to change in the future, but
+    a~template will be added in its place providing deprecation notices.
+
+    <template name="_fail-on-empty_"
+              desc="Fail when a value is zero">
+      <param name="@values@" desc="Optional predicates to include in match" />
+      <param name="@name@"   desc="Data to check (scalar, vector or otherwise)" />
+      <param name="@when@"   desc="Conditional check (optional)" />
+      <param name="@class@"  desc="Conditional class check" />
+
+      <param name="@desc@" desc="Description">
+        <param-value name="@name@" />
+        <text> is empty</text>
+      </param>
+
+
+      <t:assert desc="@desc@"
+                when="@when@"
+                class="@class@">
+        <!-- include any optional conditions -->
+        <param-copy name="@values@" />
+
+        <match on="@name@" value="ZERO" />
+      </t:assert>
+    </template>
+  </section>
 </package>
