@@ -99,17 +99,7 @@
 
 
   <section title="Convenience">
-    Negation is a common task and it was tedious in older versions of
-    TAME\footnote{Before it was even called TAME, actually.}  For
-    these situations, \ref{NEGATE} is provided to avoid having to use
-    a~\ref{const} expression.
-
-    <const name="NEGATE" value="-1"
-           desc="Negate a value"
-           sym="-" />
-
-
-    Similarly, $0$~is a~common value.  Where a value is required (such
+    $0$~is a~common value.  Where a value is required (such
     as a~template argument), \ref{ZERO} may be used.  TAME now
     supports a~constant-scalar syntax ({\tt #0}; \todo{reference this
     in documentation}), making this largely unnecessary.

@@ -26,54 +26,85 @@
   <import package="../base" />
 
 
-  <template name="_inc_" desc="Increment value [by 1]">
-    <param name="@values@" desc="Value to increment (nodes)" />
 
-    <param name="@value@" desc="Value to decrement by (default 1)">
-      <text>1</text>
-    </param>
+  <section title="Stepping">
+    Due to the declarative nature of~TAME, recursive operations
+    needing to step are~not all that common.  These operations are
+    useful when converting between 1-indexed and 0-indexed data.
 
-    <c:sum>
-      <param-copy name="@values@" />
-      <c:const value="@value@" type="integer" desc="Increment by 1" />
-    </c:sum>
-  </template>
+    \ref{_inc_} increments a value by a~single step (default~1).
 
+    <template name="_inc_"
+              desc="Increment value [by 1]">
+      <param name="@values@" desc="Value to increment (nodes)" />
 
-
-  <template name="_dec_" desc="Decrement value [by 1]">
-    <param name="@values@" desc="Value to decrement (nodes)" />
-
-    <param name="@value@" desc="Value to decrement by (default 1)">
-      <text>1</text>
-    </param>
+      <param name="@value@" desc="Value to decrement by (default 1)">
+        <text>1</text>
+      </param>
 
 
-    <c:sum>
-      <param-copy name="@values@" />
+      <c:sum>
+        <param-copy name="@values@" />
 
-      <c:product>
+        <c:const value="@value@"
+                 desc="Increment by 1" />
+      </c:sum>
+    </template>
+
+
+    \ref{_dec_} decrements a value by a~single step (default~1).
+
+    <template name="_dec_"
+              desc="Decrement value [by 1]">
+      <param name="@values@" desc="Value to decrement (nodes)" />
+
+      <param name="@value@" desc="Value to decrement by (default 1)">
+        <text>1</text>
+      </param>
+
+
+      <c:sum>
+        <param-copy name="@values@" />
+
+        <t:negate>
+          <c:const value="@value@"
+                   desc="Decrement by 1" />
+        </t:negate>
+      </c:sum>
+    </template>
+  </section>
+
+
+
+  <section title="Negation">
+    Negation is a common task and it was tedious in older versions of
+    TAME\footnote{Before it was even called TAME, actually.}  For
+    these situations, \ref{NEGATE} is provided to avoid having to use
+    a~\ref{const} expression.  To avoid a {\tt product} expression
+    altogether, use~\ref{_negate_}.
+
+    <const name="NEGATE" value="-1"
+           desc="Negate a value"
+           sym="-" />
+
+
+    <template name="_negate_"
+              desc="Negate an expression">
+      <param name="@values@" desc="Expression to negate" />
+      <param name="@label@"  desc="Application label (default empty)">
+        <text></text>
+      </param>
+
+      <c:product label="@label@">
         <c:value-of name="NEGATE" />
-        <c:const value="@value@" type="integer" desc="Decrement by 1" />
+        <param-copy name="@values@" />
       </c:product>
-    </c:sum>
-  </template>
+    </template>
+  </section>
 
 
 
-  <template name="_negate_" desc="Negate a value">
-    <param name="@values@" desc="Value to decrement (nodes)" />
-    <param name="@label@" desc="Application label">
-      <!-- default empty -->
-      <text></text>
-    </param>
-
-    <c:product label="@label@">
-      <c:value-of name="NEGATE" />
-      <param-copy name="@values@" />
-    </c:product>
-  </template>
-
+  <!-- Everything below this line must be moved. -->
 
 
   <template name="_percent-of_" desc="Take percentage of a value">
