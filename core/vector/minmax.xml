@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015  LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  title="Maximum and Minimum Elements">
+
+  <import package="../base" />
+  <import package="../numeric/common" />
+  <import package="../numeric/minmax" />
+
+
+  <section title="Vector Reduction">
+    Core currently only offers a~maximum reduction on
+    a~vector.  \todo{Add a~minimum reduction.}  \ref{_maxreduce_}
+    provides a convenient template-based abstraction.
+
+    <template name="_maxreduce_"
+              desc="Reduce a set to its maximum">
+      <param name="@values@"   desc="Values to reduce" />
+      <param name="@isvector@" desc="Set to 'true' if the nodes should
+                                     not be wrapped in c:set" />
+
+      <param name="@label@" desc="Application label">
+        <!-- default empty -->
+        <text></text>
+      </param>
+
+
+      <c:apply name="maxreduce" label="@label@">
+        <c:arg name="maxreduce_set">
+          <!-- if we were not provided with a vector (default), create
+               one out of the given nodes -->
+          <unless name="@isvector@" eq="true">
+            <c:set>
+              <param-copy name="@values@" />
+            </c:set>
+          </unless>
+
+          <!-- if they told us that they have provided a vector, then
+               do not create one -->
+          <if name="@isvector@" eq="true">
+            <param-copy name="@values@" />
+          </if>
+        </c:arg>
+      </c:apply>
+    </template>
+
+
+    \ref{maxreduce} is the~function encapsulated by the template and
+    may be applied directly.
+
+    \todo{This function was originally written before TAME supported
+    let~expressions and other convenience templates.  It has since
+    been refactored slightly, but can be made to be more concise.}
+
+    <function name="maxreduce" desc="Reduce a set to its maximum">
+      <param name="maxreduce_set" type="float" set="vector"
+             desc="Set to find max of" />
+
+      <c:let>
+        <c:values>
+          <c:value name="n" type="integer"
+                   desc="Length of set to reduce">
+            <c:length-of>
+              <c:value-of name="maxreduce_set" />
+            </c:length-of>
+          </c:value>
+        </c:values>
+
+
+        <c:cases>
+          <!-- if we have no values to reduce, then simply return 0 -->
+          <c:case>
+            <c:when name="n">
+              <c:eq>
+                <c:const value="0"
+                         desc="When there are no elements" />
+              </c:eq>
+            </c:when>
+
+            <c:const value="0" type="integer" desc="No value" />
+          </c:case>
+
+          <!-- we have values; perform reduction -->
+          <c:otherwise>
+            <c:apply name="_maxreduce">
+              <c:arg name="_maxreduce_set">
+                <c:value-of name="maxreduce_set" />
+              </c:arg>
+
+              <c:arg name="_maxreduce_i">
+                <t:dec>
+                  <c:length-of>
+                    <c:value-of name="maxreduce_set" />
+                  </c:length-of>
+                </t:dec>
+              </c:arg>
+            </c:apply>
+          </c:otherwise>
+        </c:cases>
+      </c:let>
+    </function>
+
+
+    \ref{_maxreduce} is a~helper function that recursively determines
+    the maximum value of the given set.  It should not be invoked
+    directly; use \ref{maxreduce} or~\ref{_maxreduce_} instead.
+
+    For example, given the vector~\vector{2,4,3,1}, here's the
+    recursive application:
+
+    \begingroup
+      \def\max{\textrm{max}}
+
+      \begin{equation}
+                \max( 1, \max( 3, max( 4, 2 ) ) )
+      \\ \yield \max( 1, \max( 3, 4 ) )
+      \\ \yield \max( 1, 4 )
+      \\ \yield 4
+      \end{equation}
+    \endgroup
+
+    \todo{If we eventually support first-class functions, then this
+    can simply be a~generic reduce function that accepts max/min/etc.}
+
+    \todo{This function was written before local variables generated
+    their own unique symbols; strip the prefixes.}
+
+    <function name="_maxreduce"
+              desc="Recursively reduce a set to its maximum (called by maxreduce)">
+      <param name="_maxreduce_set" type="float" set="vector"
+             desc="Set to find max of" />
+      <param name="_maxreduce_i"   type="integer"
+             desc="Index" />
+
+      <c:cases>
+        <!-- base case: if we're on the last index, do not recurse -->
+        <c:case>
+          <c:when name="_maxreduce_i">
+            <c:eq>
+              <c:const value="0"
+                       desc="Return when only one element remains" />
+            </c:eq>
+          </c:when>
+
+          <!-- return the first value -->
+          <c:value-of name="_maxreduce_set">
+            <c:index>
+              <c:const value="0"
+                       desc="First item in set" />
+            </c:index>
+          </c:value-of>
+        </c:case>
+
+        <!-- we have more elements in the set; recursively determine
+             the maximum value -->
+        <c:otherwise>
+          <c:apply name="max">
+            <!-- the first element to compare is our index -->
+            <c:arg name="max1">
+              <c:value-of name="_maxreduce_set">
+                <c:index>
+                  <c:value-of name="_maxreduce_i" />
+                </c:index>
+              </c:value-of>
+            </c:arg>
+
+            <!-- and we'll compare to the recursive application of the
+                 same set on the previous index -->
+            <c:arg name="max2">
+              <c:apply name="_maxreduce">
+                <c:arg name="_maxreduce_set">
+                  <c:value-of name="_maxreduce_set" />
+                </c:arg>
+
+                <c:arg name="_maxreduce_i">
+                  <c:sum>
+                    <c:value-of name="_maxreduce_i" />
+                    <c:const value="-1" type="integer" desc="Decrement index by 1" />
+                  </c:sum>
+                </c:arg>
+              </c:apply>
+            </c:arg>
+          </c:apply>
+        </c:otherwise>
+      </c:cases>
+    </function>
+  </section>
+
+
+
+  <!-- TODO: Everything below this line must be moved.  This
+       technically operates on a matrix as well. -->
+
+  <!-- simplifies retrieving the max of a set of values -->
+  <template name="_maxOfEach_" desc="Take the max of the given set of values">
+    <param name="@class@" desc="Class to match on" />
+    <param name="@values@" desc="Individual values without set" />
+    <param name="@generates@" desc="Value to generate into" />
+    <param name="@index@" desc="Index to use for rate-each" />
+
+    <param name="@yields@" desc="Yield variable">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
+
+    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="@index@">
+      <c:apply name="maxreduce">
+        <c:arg name="maxreduce_set">
+          <c:set>
+            <param-copy name="@values@" />
+          </c:set>
+        </c:arg>
+      </c:apply>
+    </rate-each>
+  </template>
+</package>
