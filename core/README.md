@@ -9,6 +9,9 @@ features.  It is a work in progress.
 This is also of limited use to others outside of LoVullo, since TAME
 has not yet been liberated.
 
+**BC Warning:** Backwards-incompatible changes will be made in
+minor/revision releases until the release of v1.0.
+
 
 ## Features
 - BDD abstraction;
