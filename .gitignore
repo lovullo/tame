@@ -1,0 +1,19 @@
+/test/index.html
+/test/**/xspec/
+/src/**/*.texi
+*.apply
+*.info
+
+# autotools- and configure-generated
+Makefile.in
+Makefile
+/aclocal.m4
+/*.cache/
+/configure
+/config.*
+
+# should be added using autoreconf -i
+/tools/install-sh
+/tools/missing
+/tools/mdate-sh
+/tools/texinfo.tex
