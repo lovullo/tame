@@ -1,0 +1,95 @@
+#!/bin/bash
+#
+#  Copyright (C) 2015 LoVullo Associates, Inc.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# FIXME: This guy needs some cleanup.
+# TODO:  Duplicated in hoxsl; can we extract?
+# #
+
+declare -r oldwd="$( pwd )"
+cd "$( dirname "$0" )"
+
+outdir=xspec
+index="index.html"
+
+htmlindex()
+{
+  cat >> "$index"
+}
+
+get-test-list()
+{
+  if [ $# -eq 0 ]; then
+    find . -name '*.xspec'
+  else
+    (
+      cd "$oldwd" \
+        && for spec in "$@"; do
+          echo "$( readlink -f "$spec" )"
+        done
+    )
+  fi
+}
+
+process-results()
+{
+  awk '
+    BEGIN { status = 0 }
+    { print }
+    /^      FAILED$/ { status = 1 }
+    END { exit status }
+  '
+}
+
+# xspec's output dir
+mkdir -p "$outdir"
+rm -f "$index"
+
+htmlindex <<EOH
+<html>
+  <head>
+    <title>Test Index</title>
+  </head>
+  <body>
+    <h1>Test Index</h1>
+    <ul>
+EOH
+
+
+declare -i status=0
+while read spec; do
+  echo "$spec"
+  ../tools/xspec/bin/xspec.sh "$spec" 2>&1 \
+    | process-results
+
+  test ${PIPESTATUS[0]} -eq 0 -a ${PIPESTATUS[1]} -eq 0 \
+    || status=1
+
+  spec_path="$( dirname "$spec" )/xspec"
+  result="$spec_path/$( basename "$spec" .xspec )-result.html"
+
+  printf '      <li><a href="%s">%s</a></li>' "$result" "$spec" \
+    | htmlindex
+done < <( get-test-list "$@" )
+
+htmlindex <<EOF
+    </ul>
+  </body>
+</html>
+EOF
+
+test "$status" -eq 0
+

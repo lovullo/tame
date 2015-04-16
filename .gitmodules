@@ -1,0 +1,6 @@
+[submodule "tools/literate-xsl"]
+	path = tools/literate-xsl
+	url = https://github.com/lovullo/literate-xsl
+[submodule "tools/xspec"]
+	path = tools/xspec
+	url = https://github.com/lovullo/xspec
