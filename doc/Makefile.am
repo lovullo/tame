@@ -35,5 +35,14 @@ xsltexis: $(stexi)
 	    -xsl:"$(path_tools)/literate-xsl/src/texinfo.xsl" \
 	    "$<" > "$@"
 
+# Privacy warning: if scripts are enabled, then you are subject to the
+# normal tracking risks of loading external scripts.  If this is from your
+# own domain or local filesystem, then you may be leaking personal
+# information.
+html-local:
+	find tame.html/ -name '*.html' -type f \
+		| xargs sed -i \
+		's#\(<script.*\)\?</body>#<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script></body>#'
+
 clean-local:
 	-rm -f $(stexi)
