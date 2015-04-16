@@ -42,6 +42,7 @@ Free Documentation License".
 @end ifnottex
 
 @menu
+* Preprocessor::  Metaprogramming system
 * License::       Document License
 @end menu
 
@@ -75,6 +76,23 @@ Free Documentation License".
 @end ifhtml
 
 
+@node Preprocessor
+@chapter Preprocessor
+
+@menu
+* Macro Expansion::
+@end menu
+
+@node Macro Expansion
+@section Macro Expansion
+
+@menu
+* Expansion Sequence::
+@end menu
+
+@lowersections
+@include ../src/preproc/expand/expand-sequence.texi
+@raisesections
 
 @include license.texi
 

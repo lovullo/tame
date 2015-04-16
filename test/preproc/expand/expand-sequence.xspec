@@ -1,0 +1,133 @@
+<?xml version="1.0"?>
+<!--
+  Tests expansion sequence
+
+  Copyright (C) 2015 LoVullo Associates, Inc.
+
+    This file is part of TAME.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see
+    <http://www.gnu.org/licenses/>.
+-->
+
+<description xmlns="http://www.jenitennison.com/xslt/xspec"
+             xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+             xmlns:x="http://www.jenitennison.com/xslt/xspec"
+             xmlns:eseq="http://www.lovullo.com/tame/preproc/expand/eseq"
+             xmlns:foo="http://www.lovullo.com/_junk"
+             stylesheet="expand-sequence-test.xsl">
+
+
+  <scenario label="Pass on an expansion sequence">
+    <scenario label="with an empty sequence">
+      <call function="eseq:expand-step">
+        <param name="eseq"
+               select="$foo:empty-eseq" />
+      </call>
+
+      <expect label="eliminates the sequence and yields nothing"
+              select="()" />
+    </scenario>
+
+
+    <scenario label="with no sequence">
+      <call function="eseq:expand-step">
+        <param name="eseq"
+               select="()" />
+      </call>
+
+      <expect label="retains an empty result"
+              select="()" />
+    </scenario>
+
+
+    <scenario label="with an expansion element">
+      <call function="eseq:expand-step">
+        <param name="eseq"
+               select="$foo:a" />
+      </call>
+
+      <expect label="produces expansion sequence node"
+              test="$x:result instance of element( foo:seq )" />
+
+      <expect label="retains expansion sequence node attributes"
+              test="$x:result/@foo = $foo:a/@foo" />
+
+      <expect label="allows the head to expand"
+              test="$x:result/*[1]/@head = 'true'
+                    and $x:result/*[1]/@foo:expanded" />
+    </scenario>
+
+
+    <scenario label="with an expanded node">
+      <!-- notice the additional expand-step calls -->
+      <call function="eseq:expand-step">
+        <param name="eseq"
+               select="eseq:expand-step(
+                         eseq:expand-step( $foo:a ) )" />
+      </call>
+
+      <expect label="hoists expanded element out of sequence"
+              test="$x:result[1] instance of element( foo:node )
+                    and $x:result[1]/@head = 'true'
+                    and $x:result[1]/foo:head" />
+
+      <expect label="maintains remaining sequence"
+              test="$x:result[2] instance of element( foo:seq )
+                    and $x:result[2]/foo:node" />
+    </scenario>
+
+
+    <scenario label="with nodes still pending expansion">
+      <!-- notice the additional expand-step calls -->
+      <call function="eseq:expand-step">
+        <param name="eseq"
+               select="eseq:expand-step(
+                         eseq:expand-step( $foo:unexpandable ) )" />
+      </call>
+
+      <!-- if this fails, then our is-expanded predicate is not being
+           used -->
+      <expect label="retains unexpanded head instead of hoisting"
+              test="$x:result/foo:node/@no-expand = 'true'" />
+    </scenario>
+  </scenario>
+
+
+  <scenario label="Pass on expansion sequence with hoisted node">
+    <variable name="foo:hoisted"
+      select="eseq:expand-step( $foo:expanded )" />
+
+    <call function="eseq:expand-step">
+      <param name="eseq"
+             select="$foo:hoisted" />
+    </call>
+
+    <expect label="maintains previously hoisted nodes"
+            test="$x:result[1] instance of element( foo:node )
+                  and $x:result[1]/@head = 'true'" />
+
+    <expect label="will hoist next node below previously hoisted
+                   node"
+            test="$x:result[2] instance of element( foo:node )
+                  and $x:result[2]/@tail = 'true'" />
+
+    <expect label="maintains empty expansion sequence"
+            test="$x:result[3] instance of element( foo:seq )
+                  and not( $x:result[3]/node() )" />
+
+    <expect label="final pass eliminates empty expansion sequence"
+            test="not( eseq:expand-step( $x:result )/foo:seq )" />
+  </scenario>
+</description>
