@@ -70,9 +70,7 @@ Free Documentation License".
 
 @ifhtml
 @c override @math to delimit for MathJax/KaTeX/etc
-@macro math{expr}
-\\(\expr\\\)
-@end macro
+@definfoenclose math,\(,\)
 @end ifhtml
 
 
