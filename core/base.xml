@@ -125,6 +125,7 @@
               keep="true" />
 
     <classify as="never"
+              any="true"
               desc="Never true"
               yields="neverTrue"
               keep="true" />
