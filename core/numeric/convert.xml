@@ -69,6 +69,11 @@
       <text>false</text>
     </param>
 
+    <param name="@negate@" desc="Whether to negate percentage before
+                                 conversion">
+      <text>false</text>
+    </param>
+
     <c:sum>
       <if name="@difference@" eq="true">
         <c:const value="1"
@@ -76,12 +81,19 @@
       </if>
 
       <c:quotient>
-        <if name="@name@">
-          <c:value-of name="@name@" index="@index@" />
-        </if>
-        <unless name="@name@">
-          <c:const value="@value@" type="float" desc="@desc@" />
-        </unless>
+        <c:product>
+          <if name="@negate@" eq="true">
+            <c:value-of name="NEGATE" />
+          </if>
+
+          <if name="@name@">
+            <c:value-of name="@name@" index="@index@" />
+          </if>
+          <unless name="@name@">
+            <c:const value="@value@" type="float" desc="@desc@" />
+          </unless>
+        </c:product>
+
         <c:const value="100" type="integer" desc="Convert to rational number" />
       </c:quotient>
     </c:sum>
@@ -97,9 +109,14 @@
       <text>false</text>
     </param>
 
+    <param name="@negate@" desc="Whether to negate percentage before
+                                 conversion">
+      <text>false</text>
+    </param>
+
     <rate yields="_{@generates@}">
       <c:sum of="@name@" index="k" generates="@generates@" desc="Real representation of {@name@}">
-        <t:ptor difference="@difference@"
+        <t:ptor difference="@difference@" negate="@negate@"
                 name="@name@" index="k" />
       </c:sum>
     </rate>
