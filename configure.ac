@@ -23,6 +23,17 @@ AM_INIT_AUTOMAKE([foreign])
 AC_ARG_VAR([JAVA], [The Java executable])
 AC_CHECK_PROGS(JAVA, [java])
 
+AC_ARG_VAR([SAXON_CP], [Saxon class path])
+
+: ${HOXSL=hoxsl}
+AC_ARG_VAR([HOXSL], [Path to hoxsl])
+
+AC_MSG_CHECKING([hoxsl path HOXSL=$HOXSL])
+AS_IF(test ! -d "$HOXSL",
+  AC_MSG_ERROR([hoxsl path '$HOXSL' does not exist!]))
+AC_MSG_RESULT(found)
+
 AC_CONFIG_FILES([Makefile doc/Makefile])
 
 AC_OUTPUT
+
