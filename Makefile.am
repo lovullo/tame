@@ -18,12 +18,34 @@
 
 SUBDIRS = doc
 
-path_src   := src
-path_test  := test
+path_src  = src
+path_test = test
 
-.PHONY: check test texis
+# all source files will be run through hoxsl; see `applies' target
+apply_src  := $(shell find "$(path_src)" -name '*.xsl')
+apply_dest := $(apply_src:%.xsl=%.xsl.apply)
+
+# needed by test runner
+export SAXON_CP
+
+
+.DELETE_ON_ERROR:
+
+.PHONY: check test texis applies
+
+.DEFAULT_GOAL := applies
 
 test: check
-check:
+check: | applies
 	$(path_test)/runner
 
+# the "applies" are hoxsl-generated stylesheets containing definitions to
+# permit partial function application
+applies: $(apply_dest)
+%.apply: %
+	$(JAVA) -jar "$(SAXON_CP)" \
+	    -xsl:"$(HOXSL)/transform/apply-gen.xsl" \
+	    "$<" > "$@"
+
+clean-local:
+	$(RM) $(apply_dest)
