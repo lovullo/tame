@@ -19,11 +19,13 @@
 -->
 <package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
   core="true"
   desc="Vector operations on classification matches">
 
   <import package="../base" />
   <import package="arithmetic" export="true" />
+  <import package="minmax"     export="true" />
 
 
   <!--
@@ -97,6 +99,57 @@
       <!-- if any single one matches, then we want to yield a 1 -->
       <c:apply name="maxreduce" maxreduce_set="_CMATCH_" />
     </rate>
+  </template>
+
+
+  In cases where a classification needs to be based on a result that
+  has been reduced to a scalar, \ref{_cmatch_to-scalar_} does not
+  solve the whole problem: for this, \ref{_classify-scalar_} may be
+  used.  In addition to performing the action of the former (if {\tt
+  @yields} is provided), the resulting classification itself will
+  match on the scalar result.  While this is not strictly
+  necessary---the predicate itself is already scalar---this is
+  important for systems or templates that derive the classification
+  result from the name of the classification.
+
+
+  <template name="_classify-scalar_"
+            desc="Classification with a forced-scalar result">
+    <param name="@values@" desc="Predicates" />
+    <param name="@as@"     desc="Classification name" />
+    <param name="@desc@"   desc="Classification description" />
+
+    <param name="@yields@" desc="Scalar result name">
+      <text>__</text>
+      <param-value snake="true" name="@as@" />
+    </param>
+
+    <param name="@keep@" desc="Whether to force compilation">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="Optional yield symbol">
+      <text></text>
+    </param>
+
+
+    <classify as="--{@as@}-pre"
+              yeilds="__{@yields@}Pre"
+              desc="(Generated for forcing of {@as@}}">
+      <param-copy name="@values@" />
+    </classify>
+
+    <t:cmatch-to-scalar class="--{@as@}-pre"
+                        yields="__{@yields@}Scalar"
+                        sym="@sym@"
+                        keep="@keep@" />
+
+    <classify as="@as@" yields="@yields@"
+              desc="@desc@"
+              keep="@keep@"
+              sym="@sym@">
+      <match on="__{@yields@}Scalar" />
+    </classify>
   </template>
 
 
