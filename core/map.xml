@@ -28,7 +28,19 @@
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
   core="true"
-  desc="Mapping templates/functions">
+  title="Map Sets">
+
+
+  The problem with \texttt{case} statements is that they are very
+  verbose, which is greatly distracting for smaller cases, and~can
+  take away from the actual intent of the~code.  Map~sets make simple
+  cases simple by allowing concise map definitions.
+
+  If \ref{_map-set_/@name@} is provided, then each map implicitly
+  operates on that reference as its input, unless overridden using
+  \ref{_map_/@name@}.  \ref{_map-set_/@default@} can be used to
+  provide a constant default if no mapping is otherwise available; see
+  also~\ref{_map-else_}.
 
 
   <template name="_map-set_" desc="Map a set of values">
@@ -42,14 +54,13 @@
 
     <param name="@default@" desc="Default value" />
 
+
     <c:cases label="@label@">
       <param-copy name="@values@">
         <param-meta name="map_param" value="@name@" />
         <param-meta name="map_index" value="@index@" />
       </param-copy>
 
-      <!-- TODO: allow setting default via @default or t:default or something
-           (or both) -->
       <if name="@default@">
         <c:otherwise>
           <c:const value="@default@" type="integer" desc="No mapping" />
@@ -57,6 +68,20 @@
       </if>
     </c:cases>
   </template>
+
+
+  Mappings are defined using \ref{_map_}.  The input defaults to
+  the~reference declared by~\ref{_map-set_/@name@},
+  if~provided.  \ref{_map_/@name@} takes precedence, even if
+  the~former is provided.  Just like \texttt{case}~statements,
+  multiple inputs can be provided by specifying multiple references;
+  this means that each \ref{_map_/@name@} can differ.\footnote{This
+  isn't particularly intuitive or recommended, but it does simplify
+  certain tasks enough to maybe justify this type of use.}
+
+  Just like \texttt{case}~statements themselves, maps are
+  surjective---the codomain implicitly includes $0$~to handle all
+  default cases, unless a default is provided.
 
 
   <template name="_map_" desc="Map criteria">
@@ -111,6 +136,12 @@
       </unless>
     </c:case>
   </template>
+
+
+  The default condition can be handled in two different ways: via
+  \ref{_map-set_/@default@}, or using \ref{_map-else_}; the latter
+  provides more flexibility and generally reads better.  Both cannot
+  be used together.
 
 
   <template name="_map-else_" desc="Non-matching map criteria">
