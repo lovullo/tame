@@ -52,20 +52,25 @@
       <text></text>
     </param>
 
-    <param name="@default@" desc="Default value" />
+    <!-- used in param-meta for _map-else_, so let's make the default
+         clear -->
+    <param name="@default@" desc="Default value">
+      <text></text>
+    </param>
 
 
     <c:cases label="@label@">
       <param-copy name="@values@">
-        <param-meta name="map_param" value="@name@" />
-        <param-meta name="map_index" value="@index@" />
+        <param-meta name="map_param"   value="@name@" />
+        <param-meta name="map_index"   value="@index@" />
+        <param-meta name="map_default" value="@default@" />
       </param-copy>
 
-      <if name="@default@">
+      <unless name="@default@" eq="">
         <c:otherwise>
           <c:const value="@default@" type="integer" desc="No mapping" />
         </c:otherwise>
-      </if>
+      </unless>
     </c:cases>
   </template>
 
@@ -155,6 +160,19 @@
     <param name="@to-index@" desc="Named value index">
       <text></text>
     </param>
+
+    <param name="@_map-default@" desc="_map_-specified default">
+      <param-inherit meta="map_default" />
+    </param>
+
+
+    <!-- provide a more friendly error; otherwise, they'd get an error
+         from having two c:otherwise nodes, which would be confusing -->
+    <unless name="@_map-default@" eq="">
+      <error>
+        A default value was already provided by _map-set_/@default@
+      </error>
+    </unless>
 
 
     <c:otherwise>
