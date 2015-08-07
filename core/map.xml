@@ -104,7 +104,7 @@
       </unless>
 
       <if name="@value@">
-        <c:const value="@value@" type="@type@" desc="@desc@" />
+        <c:const value="@value@" desc="@desc@" />
       </if>
       <unless name="@value@">
         <c:value-of name="@to@" index="@to-index@" />
@@ -124,7 +124,7 @@
 
     <c:otherwise>
       <if name="@value@">
-        <c:const value="@value@" type="float" desc="@desc@" />
+        <c:const value="@value@" desc="@desc@" />
       </if>
       <unless name="@value@">
         <c:value-of name="@to@" index="@to-index@" />
