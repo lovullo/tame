@@ -64,6 +64,10 @@
     <param name="@value@" desc="Constant to map to" />
     <param name="@to@" desc="Named value (use instead of @value@)" />
 
+    <param name="@to-index@" desc="Named value index">
+      <text></text>
+    </param>
+
     <param name="@type@" desc="Constant value type">
       <text>float</text>
     </param>
@@ -79,6 +83,7 @@
     <param name="@index@" desc="Index">
       <param-inherit meta="map_index" />
     </param>
+
 
     <c:case>
       <!-- index provided -->
@@ -102,8 +107,7 @@
         <c:const value="@value@" type="@type@" desc="@desc@" />
       </if>
       <unless name="@value@">
-        <!-- TODO: index support -->
-        <c:value-of name="@to@" />
+        <c:value-of name="@to@" index="@to-index@" />
       </unless>
     </c:case>
   </template>
@@ -113,13 +117,17 @@
     <param name="@value@" desc="Constant to map to" />
     <param name="@to@" desc="Named value (use instead of @value@)" />
 
+    <param name="@to-index@" desc="Named value index">
+      <text></text>
+    </param>
+
+
     <c:otherwise>
       <if name="@value@">
         <c:const value="@value@" type="float" desc="@desc@" />
       </if>
       <unless name="@value@">
-        <!-- TODO: index support -->
-        <c:value-of name="@to@" />
+        <c:value-of name="@to@" index="@to-index@" />
       </unless>
     </c:otherwise>
   </template>
