@@ -117,6 +117,10 @@
     <param name="@value@" desc="Constant to map to" />
     <param name="@to@" desc="Named value (use instead of @value@)" />
 
+    <param name="@desc@" desc="Map description">
+      <text>Destination mapping</text>
+    </param>
+
     <param name="@to-index@" desc="Named value index">
       <text></text>
     </param>
