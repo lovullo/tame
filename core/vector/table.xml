@@ -134,32 +134,45 @@
     Each _table-row_ child inserts a constant row into the table. Note
     that all data must be constant.
 
+    Use only one of @data@ or children to define rows.
+
     Permitted children:
       - _table-row_* - Table row definitions
   -->
   <template name="_table-rows_"
-               desc="Begin table data definition">
+            desc="Begin table data definition">
     <param name="@values@" desc="Row definitions" />
+    <param name="@data@"   desc="GNU Octave/MATLAB-style data definition" />
 
     <param name="@__tid@"
-              desc="Table identifier">
+           desc="Table identifier">
       <param-inherit meta="create-table-id" />
     </param>
+
     <param name="@__tname@"
-              desc="Table name as provided by caller">
+           desc="Table name as provided by caller">
       <param-inherit meta="create-table-name" />
     </param>
+
     <param name="@__desc@"
-              desc="Table description">
+           desc="Table description">
       <param-inherit meta="create-table-desc" />
     </param>
 
 
-    <const name="{@__tid@}_RATE_TABLE"
-              type="float"
-              desc="{@__tname@} table; {@__desc@}">
-      <param-copy name="@values@" />
-    </const>
+    <if name="@data@">
+      <const name="{@__tid@}_RATE_TABLE"
+             type="float"
+             desc="{@__tname@} table; {@__desc@}"
+             values="@data@" />
+    </if>
+    <unless name="@data@">
+      <const name="{@__tid@}_RATE_TABLE"
+             type="float"
+             desc="{@__tname@} table; {@__desc@}">
+        <param-copy name="@values@" />
+      </const>
+    </unless>
   </template>
 
 
