@@ -58,19 +58,35 @@
 
   <import package="../base" />
 
+  <import package="../vector/cmatch"
+          export="true" />
 
-  <!--
-    Determines whether all features are conformant to their specifications
 
-    This classification is a simple way to determine whether a test suite
-    has passed.
-  -->
-  <classify as="expect-ok"
-            yields="expectOk"
-            desc="All features conform to specifications">
-    <join prefix="expect-conform-" all="true" />
-  </classify>
 
+  <template name="_verify-specs_"
+            desc="Declare a template suite">
+    <param name="@result@" desc="Name of boolean result" />
+
+
+    <!--
+      Determines whether all features are conformant to their
+      specifications; this classification is a simple way to determine
+      whether a test suite has passed.
+    -->
+    <classify as="expect-ok"
+              yields="@result@"
+              desc="All features conform to specifications"
+              keep="true">
+      <inline-template>
+        <for-each>
+          <sym-set name-prefix="expect-conform-"
+                   type="class" />
+        </for-each>
+
+        <t:match-class name="{@sym_name@}" />
+      </inline-template>
+    </classify>
+  </template>
 
 
   <!--
@@ -108,7 +124,7 @@
            desc="Generated expectation prefix">
       <!-- descriptions may be nested; this may or may not exist -->
       <param-inherit meta="spec-prefix" />
-      <param-value name="@name@" dash="true" />
+      <param-value name="@name@" dash="true" identifier="true" />
       <text>-</text>
     </param>
 
@@ -118,20 +134,31 @@
     </param>
 
 
-    <!-- joins all generated classifications to provide a higher-level
-         failure if any expectations fail -->
-    <classify as="expect-conform-{@__prefix@}{@__uniq@}"
-              desc="{@__full_name@} meets expectations">
-      <join all="true" prefix="expect-that-{@__prefix@}" />
-    </classify>
+    <expand-sequence>
+      <expand-group>
+        <param-copy name="@values@">
+          <param-meta name="spec-name"
+                      value="@__full_name@" />
+          <param-meta name="spec-prefix"
+                      value="@__prefix@" />
+        </param-copy>
+      </expand-group>
 
+      <!-- joins all generated classifications to provide a higher-level
+           failure if any expectations fail -->
+      <classify as="expect-conform-{@__prefix@}{@__uniq@}"
+                desc="{@__full_name@} meets expectations"
+                keep="true">
+        <inline-template>
+          <for-each>
+            <sym-set name-prefix="expect-that-{@__prefix@}"
+                     type="class" />
+          </for-each>
 
-    <param-copy name="@values@">
-      <param-meta name="spec-name"
-                  value="@__full_name@" />
-      <param-meta name="spec-prefix"
-                  value="@__prefix@" />
-    </param-copy>
+          <t:match-class name="{@sym_name@}" />
+        </inline-template>
+      </classify>
+    </expand-sequence>
   </template>
 
 
@@ -158,7 +185,7 @@
 
     <param name="@__id@" desc="Unique identifier">
       <param-inherit meta="spec-prefix" />
-      <param-value name="@desc@" dash="true" />
+      <param-value name="@desc@" dash="true" identifier="true" />
     </param>
 
 

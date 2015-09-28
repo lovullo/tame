@@ -24,8 +24,12 @@
   program="true">
 
   <import package="../../base" />
+  <import package="../spec" />
 
   <import package="numeric/round" />
   <import package="numeric/convert" />
   <import package="vector/interpolate" />
+
+
+  <t:verify-specs result="expectOk" />
 </package>
