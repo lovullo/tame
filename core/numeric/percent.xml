@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015  LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Percentage arithmetic">
+
+  <import package="../base" />
+
+
+  Converting between real and~percent is trivial:
+
+  $$
+    \begin{align}
+      r &amp;= p\over100;
+      p &amp;= 100r.
+    \end{align}
+  $$
+
+  ^[Percent difference] (also called ^[relative change]) describes
+  the~change in value as a~percentage (for example: $10$~is $50%$
+  of~$20$, and is~$100%$ of~$5$).  ^[Percent change] recognizes the
+  direction of the change (that is---$10$ is~$20$ reduced by~$50%$, so
+  $p=-50$).
+
+  Since ``change'' sounds like a~verb eclarative contexts, we use
+  the~term ^[percent difference] to mean ^[relative change]; it is
+  defined as:
+
+  $$\delta \over x = {{x_\beta - x_\alpha}\over{x_\alpha}} \times 100 = p.$$
+
+  Notice that this preserves the direction of the change.  So, in the
+  context of the previous example, we can say that $10$
+  \emph{reduces}~$20$ by~$50%$, giving~$p=-50%$.
+
+
+  <template name="_rtop_"
+            desc="Rational number to percentage">
+    <param name="@name@"  desc="Percentage to convert" />
+
+    <param name="@index@" desc="Index">
+      <text></text>
+    </param>
+
+    <param name="@desc@" desc="Optional description">
+      <text>Real number to convert into percentage</text>
+    </param>
+
+    <param name="@difference@"
+           desc="Whether to interpret as a percent difference (default
+                 false)">
+      <text>false</text>
+    </param>
+
+    <!-- TODO -->
+    <param name="@negate@" desc="Whether to negate percentage before
+                                 conversion">
+      <text>false</text>
+    </param>
+
+
+    <c:product>
+      <c:sum>
+        <c:value-of name="@name@" index="@index@" />
+
+        <if name="@difference@" eq="true">
+          <c:const value="-1"
+                   desc="Percent difference is relative (1 = 100%)" />
+        </if>
+      </c:sum>
+
+      <c:const value="100"
+               desc="Real to percentage" />
+    </c:product>
+  </template>
+</package>

@@ -28,6 +28,7 @@
 
   <import package="numeric/round" />
   <import package="numeric/convert" />
+  <import package="numeric/percent" />
   <import package="vector/interpolate" />
 
 
