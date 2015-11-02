@@ -26,6 +26,7 @@
   <import package="../base" />
 
   <!-- TODO: transitional; remove (used to contain _ptor_ and friends) -->
+  <import package="percent" export="true" />
 
   <!-- for template applications -->
   <import package="common" export="true" />

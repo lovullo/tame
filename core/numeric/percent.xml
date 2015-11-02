@@ -140,12 +140,13 @@
 
 
 
-  <template name="_ptor-each_" desc="Each percent to real number">
-    <param name="@name@" desc="Percentage to convert" />
+  <template name="_ptor-each_"
+            desc="Each percent to real number">
+    <param name="@name@"      desc="Percentage to convert" />
     <param name="@generates@" desc="Value to generate into" />
 
-    <param name="@difference@" desc="Whether to perform a percent
-                                     difference (default false)">
+    <param name="@difference@"
+           desc="Whether to perform a percent difference">
       <text>false</text>
     </param>
 
@@ -154,8 +155,11 @@
       <text>false</text>
     </param>
 
+
     <rate yields="_{@generates@}">
-      <c:sum of="@name@" index="k" generates="@generates@" desc="Real representation of {@name@}">
+      <c:sum of="@name@"
+             generates="@generates@" index="k"
+             desc="Real representation of {@name@}">
         <t:ptor difference="@difference@" negate="@negate@"
                 name="@name@" index="k" />
       </c:sum>
@@ -165,13 +169,16 @@
 
 
   <!--
-    Yields a total percent as an integer and rational number. The integer is
-    useful for displaying a total percent (e.g. for credits/surcharges) and the
-    rational number is useful for using for multiplication in an equation.
+    Yields a total percent as an integer and rational number. The
+    integer is useful for displaying a total percent (e.g. for
+    credits/surcharges) and the rational number is useful for using
+    for multiplication in an equation.
 
     Example:
 
-      <t:total-percent class="foo" to_int="fooPercentTotal" to_rat="fooTotal" index="k">
+      <t:total-percent class="foo"
+                       to_int="fooPercentTotal" to_rat="fooTotal"
+                       index="k">
         <with-param name="@values@">
           <c:value-of name="fooA" index="k" />
           <c:value-of name="fooB" index="k" />
@@ -184,7 +191,9 @@
       - fooPercentTotal = -2
       - fooTotal        = 0.98
   -->
-  <template name="_total-percent_" desc="Generates a total percentage as an integer and a rational number">
+  <template name="_total-percent_"
+            desc="Generates a total percentage as an integer and a
+                  rational number">
     <!-- for use by @values@ -->
     <param name="@index@" desc="Index variable" />
 
@@ -205,14 +214,17 @@
 
 
     <!-- percent total (e.g. 7 for 7%) -->
-    <rate-each class="@class@" yields="@yields_int@" generates="@to_int@" index="@index@">
+    <rate-each class="@class@" yields="@yields_int@"
+               generates="@to_int@" index="@index@">
       <c:sum>
         <param-copy name="@values@" />
       </c:sum>
     </rate-each>
 
+
     <!-- as a rational number (to multiply by; e.g. 1.07 for 7%, 0.93 for -7%) -->
-    <rate-each class="@class@" yields="@yields_rat@" generates="@to_rat@" index="k">
+    <rate-each class="@class@" yields="@yields_rat@"
+               generates="@to_rat@" index="k">
       <c:sum>
         <c:const value="1" desc="Relative percent" />
         <t:ptor name="@to_int@" index="k" />
@@ -223,21 +235,25 @@
 
 
   <!--
-    This template is useful for, say, when a coverage is partially included, but
-    additional coverage may be purchased. For example, if 10% of coverage X is
-    included, but you can purchase more Y if 10% is insufficient, then we can
-    simply reduce coverage Y by 10% of coverage X.
+    This template is useful for, say, when a coverage is partially
+    included, but additional coverage may be purchased. For example,
+    if 10% of coverage X is included, but you can purchase more Y if
+    10% is insufficient, then we can simply reduce coverage Y by 10%
+    of coverage X.
 
-    If the initial value is insufficient, then the value 0 will be produced.
+    If the initial value is insufficient, then the value 0 will be
+    produced.
   -->
-  <template name="_percent-reduction_" desc="Reduces a set of values by a percentage of another set of values">
+  <template name="_percent-reduction_"
+            desc="Reduces a set of values by a percentage of another set of values">
     <param name="@index@" desc="Value index" />
 
     <param name="@reduce@"    desc="Vector to reduce values of" />
     <param name="@percentof@" desc="Vector to reduce values by a percentage of" />
     <param name="@percent@"   desc="Percent reduction (as a float)" />
     <param name="@minval@"    desc="Minimum value to reduce by (optional)" />
-    <param name="@condition@" desc="Boolean conditions (vector for each index) under which reduction should be applied" />
+    <param name="@condition@" desc="Boolean conditions (vector for
+                                    each index) under which reduction should be applied" />
 
     <param name="@desc@" desc="Optional description">
       <text>Percent to reduce by</text>
@@ -257,18 +273,21 @@
     <c:apply name="max" label="@label@">
       <!-- if the reduction produces a value less than 0, then simply return 0 -->
       <c:arg name="max1">
-        <c:const value="0" type="float" desc="0 will be returned if the reduction is too great" />
+        <c:const value="0"
+                 desc="0 will be returned if the reduction is too great" />
       </c:arg>
 
       <c:arg name="max2">
         <c:sum>
-          <c:value-of name="@reduce@" index="@index@" label="Initial value" />
+          <c:value-of name="@reduce@" index="@index@"
+                      label="Initial value" />
 
           <c:let>
             <c:values>
-              <c:value name="reduce" type="float" desc="Value to reduce by, should condition be met">
+              <c:value name="reduce" type="float"
+                       desc="Value to reduce by, should condition be met">
                 <c:product>
-                  <c:const value="@percent@" type="float" desc="@desc@" />
+                  <c:const value="@percent@" desc="@desc@" />
                   <c:value-of name="@percentof@" index="@index@" />
                 </c:product>
               </c:value>
@@ -287,7 +306,8 @@
                 <if name="@minval@">
                   <c:apply name="max" max1="reduce">
                     <c:arg name="max2">
-                      <c:const value="@minval@" type="float" desc="Minimum value to reduce by" />
+                      <c:const value="@minval@"
+                               desc="Minimum value to reduce by" />
                     </c:arg>
                   </c:apply>
                 </if>
@@ -304,7 +324,8 @@
 
 
 
-  <template name="_percent-of-set_" desc="Returns the percent of a set of given values">
+  <template name="_percent-of-set_"
+            desc="Returns the percent of a set of given values">
     <param name="@class@"     desc="Class match" />
     <param name="@of@"        desc="Vector of values to take the percent of" />
     <param name="@percent@"   desc="Percent reduction (as a float)" />
@@ -316,19 +337,23 @@
     </param>
 
 
-    <rate-each class="@class@" yields="@yields@" generates="@generates@" index="k">
+    <rate-each class="@class@" yields="@yields@"
+               generates="@generates@" index="k">
       <c:apply name="round">
         <c:arg name="roundval">
           <c:apply name="max">
             <!-- if the reduction produces a value less than 0, then simply return 0 -->
             <c:arg name="max1">
-              <c:const value="0" type="float" desc="0 will be returned if the reduction is too great" />
+              <c:const value="0"
+                       desc="0 will be returned if the reduction is too great" />
             </c:arg>
 
             <c:arg name="max2">
               <c:product label="Percent value">
-                <c:const value="@percent@" type="float" desc="Percent to reduce by" />
-                <c:value-of name="@of@" index="k" label="Value to take percentage of" />
+                <c:const value="@percent@" desc="Percent to reduce by" />
+
+                <c:value-of name="@of@" index="k"
+                            label="Value to take percentage of" />
               </c:product>
             </c:arg>
           </c:apply>
