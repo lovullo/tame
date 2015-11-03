@@ -138,5 +138,41 @@
         </t:expect>
       </t:it>
     </t:describe>
+
+
+    <t:describe name="given @negative@">
+      \ref{_rtop_} provides a way to negate the result using a
+      short-hand form for convenience and conciseness.
+
+      <t:it desc="negates resulting percentage">
+        <t:given>
+          <t:rtop name="#0.05" negate="true" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#-5" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="negates resulting difference">
+        <t:given>
+          <t:rtop name="#2" negate="true"
+                  difference="true" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#-100" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
   </t:describe>
 </package>

@@ -70,7 +70,6 @@
       <text>false</text>
     </param>
 
-    <!-- TODO -->
     <param name="@negate@" desc="Whether to negate percentage before
                                  conversion">
       <text>false</text>
@@ -78,6 +77,10 @@
 
 
     <c:product>
+      <if name="@negate@" eq="true">
+        <c:const value="-1" desc="Negate result" />
+      </if>
+
       <c:sum>
         <c:value-of name="@name@" index="@index@" />
 
