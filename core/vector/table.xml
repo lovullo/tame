@@ -24,11 +24,11 @@
   desc="Functions for performing table lookups">
 
   <import package="../base" />
-  <import package="../numeric/common" />
   <import package="list" />
 
   <!-- since templates are inlined, we need to make these symbols available to
        avoid terrible confusion -->
+  <import package="../numeric/common" export="true"/>
   <import package="common" export="true" />
   <import package="matrix" export="true" />
 
