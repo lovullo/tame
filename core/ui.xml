@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         title="UI Integration">
+
+  <import package="base" />
+
+  <!-- contains template dependencies -->
+  <import package="/rater/core/vector/cmatch" export="true" />
+
+
+  This package provides elementary integration with the UI through
+  mystical knowledge of the naming conventions that the compiler uses
+  when generating the UI package.
+
+  You should \emph{never} reference generated values yourself without
+  an abstraction.
+
+
+  <section title="Applicability">
+    An object in the UI is considered to be \dfn{applicable} if the
+    predicate defined by its {\tt @when} attribute matches.  These
+    predicates are generated, and should not be referenced directly;
+    instead, \ref{_match-ui-applicable_} should be used with the
+    question id.
+
+    The term ``applicable'' is used instead of ``visible'' because
+    object can be hidden by other means; a predicate might be true
+    while a field is actually hidden.  Further, a non-matching
+    predicate inhibits other behavior, like running of assertions.
+
+    Note that this template will only be useful with an object
+    (question, display, static, etc) that has a predicate defined;
+    otherwise, compilation will fail.
+
+    <template name="_match-ui-applicable_"
+              desc="Match whether a UI question is visible">
+      <param name="@on@"  desc="Question id" />
+
+      <param name="@value@" desc="Value to match">
+        <text>TRUE</text>
+      </param>
+
+      <param name="@__vis_class@" desc="Generated visibility class name">
+        <text>--vis-</text>
+        <param-value name="@on@" dash="true" />
+      </param>
+
+
+      <t:match-class name="@__vis_class@" value="@value@" />
+    </template>
+  </section>
+</package>

@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Test UI integration">
+
+  <import package="../spec" />
+
+  <import package="../../base" />
+  <import package="../../ui" />
+
+  <t:describe name="_match-ui-applicable_">
+    The UI package generator will produce classifications of the form
+    {\tt --vis-FIELD}, where {\tt FIELD} has all underscores converted
+    into dashes.  Others aren't supposed to know that, of course.
+
+    <t:it desc="Matches when visibility class is true">
+      <classify as="--vis-vis-true"
+                desc="Field class" />
+
+      <classify as="test-vis-true" desc="Test"
+                yields="testVisTrue">
+        <t:match-ui-applicable on="vis_true" />
+      </classify>
+
+      <t:given name="testVisTrue" />
+      <t:expect>
+        <t:match-result value="TRUE" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="Does not match when visibility class is false">
+      <classify as="--vis-vis-false" any="true"
+                desc="Field class" />
+
+      <classify as="test-vis-false" desc="Test"
+                yields="testVisFalse">
+        <t:match-ui-applicable on="vis_false" />
+      </classify>
+
+      <t:given name="testVisFalse" />
+      <t:expect>
+        <t:match-result value="FALSE" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="Can match against false visibility class">
+      <classify as="--vis-vis-true-false" any="true"
+                desc="Field class" />
+
+      <classify as="test-vis-true-false" desc="Test"
+                yields="testVisTrueFalse">
+        <t:match-ui-applicable on="vis_true_false"
+                               value="FALSE"/>
+      </classify>
+
+      <t:given name="testVisTrueFalse" />
+      <t:expect>
+        <t:match-result value="TRUE" />
+      </t:expect>
+    </t:it>
+  </t:describe>
+</package>
