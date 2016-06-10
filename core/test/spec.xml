@@ -175,6 +175,7 @@
     package.
 
     Permitted children:
+      - *         - arbitrary definitions for feature test
       - _given_?  - describe common data for expectations
       - _expect_+ - describe feature expectation
   -->
@@ -214,19 +215,30 @@
   <template name="_given_"
             desc="Describe a value for expectation groups">
     <param name="@values@" desc="Calculation" />
+
+    <param name="@name@" desc="Value to reference (optional)" />
+
     <param name="@__id@"
            desc="Unique identifier to avoid symbol conflicts">
       <text unique="true">given</text>
     </param>
 
-    <!-- we want this outside of param-copy so that it is available to
-         adjacent nodes -->
-    <param-meta name="spec-given-id"
-                value="@__id@" />
 
-    <rate yields="@__id@">
-      <param-copy name="@values@" />
-    </rate>
+    <!-- name given; no need to generate -->
+    <if name="@name@">
+      <param-meta name="spec-given-id"
+                  value="@name@" />
+    </if>
+
+    <!-- no name given; generate a unique one -->
+    <unless name="@name@">
+      <param-meta name="spec-given-id"
+                  value="@__id@" />
+
+      <rate yields="@__id@">
+        <param-copy name="@values@" />
+      </rate>
+    </unless>
   </template>
 
 
