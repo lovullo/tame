@@ -79,6 +79,7 @@ Free Documentation License".
 
 @menu
 * Macro Expansion::
+* Dependency Graph::
 @end menu
 
 @node Macro Expansion
@@ -91,6 +92,8 @@ Free Documentation License".
 @lowersections
 @include ../src/preproc/expand/expand-sequence.texi
 @raisesections
+
+@include ../src/graph.texi
 
 @include license.texi
 
