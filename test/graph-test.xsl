@@ -169,6 +169,31 @@
 </variable>
 
 
+<variable name="foo:graph-with-dupes" as="element( preproc:sym-deps )">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="dup">
+      <preproc:sym-ref name="a" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="dup">
+      <preproc:sym-ref name="b" />
+      <preproc:sym-ref name="b" />
+      <preproc:sym-ref name="b" />
+    </preproc:sym-dep>
+  </preproc:sym-deps>
+</variable>
+
+
+<variable name="foo:graph-deduped" as="element( preproc:sym-deps )">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="dup">
+      <preproc:sym-ref name="a" />
+      <preproc:sym-ref name="b" />
+    </preproc:sym-dep>
+  </preproc:sym-deps>
+</variable>
+
+
 <function name="foo:lookup">
   <param name="yield"  as="element()" />
   <param name="symbol" as="element( preproc:sym )" />

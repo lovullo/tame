@@ -136,6 +136,11 @@
   @end verbatim
   @caption{(G₁ ∪ G₂ ∪ G₃)}
   @end float
+
+  This function also removes duplicate vertices and edges,
+    so it can be used with a single (or multiple) graphs to normalize
+    and tidy things up.
+  Any unknown XML nodes are removed.
 -->
 <function name="graph:union" as="element( preproc:sym-deps )*">
   <param name="graphs" as="element( preproc:sym-deps )*" />
