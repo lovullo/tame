@@ -1,5 +1,5 @@
 <!---
-  Copyright (C) 2015 LoVullo Associates, Inc.
+  Copyright (C) 2015, 2016 LoVullo Associates, Inc.
 
   Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License,
@@ -9,7 +9,7 @@
   COPYING.FDL.
 -->
 # TAME
-TAME is The Adaptive MetalanguagE, a programming language and system of tools
+TAME is The Adaptive Metalanguage, a programming language and system of tools
 designed to aid in the development, understanding, and maintenance of systems
 performing numerous calculations on a complex graph of dependencies,
 conditions, and a large number of inputs.
