@@ -28,86 +28,6 @@
              xmlns:foo="http://www.lovullo.com/_junk"
              stylesheet="graph-test.xsl">
 
-  <scenario label="graph:dep-lookup">
-    <scenario label="given a symbol">
-      <scenario label="in the same package">
-        <scenario label="where dependencies exist">
-          <call function="graph:dep-lookup">
-            <param name="symbol"
-                   select="$foo:document/preproc:symtable
-                             /preproc:sym[ @name='local' ]" />
-            <param name="graph"
-                   select="$foo:document/preproc:sym-deps" />
-
-            <param name="lookup" select="()" />
-          </call>
-
-          <expect label="returns local dependencies"
-                  test="$x:result is
-                          $foo:document/preproc:sym-deps/preproc:sym-dep[
-                            @name='local' ]" />
-        </scenario>
-
-
-        <scenario label="with external @src but local deps">
-          <call function="graph:dep-lookup">
-            <param name="symbol"
-                   select="$foo:document/preproc:symtable
-                             /preproc:sym[ @name='external-but-not' ]" />
-            <param name="graph"
-                   select="$foo:document/preproc:sym-deps" />
-
-            <param name="lookup" select="()" />
-          </call>
-
-          <expect label="returns local dependencies"
-                  test="$x:result is
-                          $foo:document/preproc:sym-deps/preproc:sym-dep[
-                            @name='external-but-not' ]" />
-        </scenario>
-
-
-        <scenario label="where dependencies are missing">
-          <call function="graph:dep-lookup">
-            <param name="symbol"
-                   select="$foo:document/preproc:symtable
-                             /preproc:sym[ @name='missing-deps' ]" />
-            <param name="graph"
-                   select="$foo:document/preproc:sym-deps" />
-
-            <param name="lookup" select="()" />
-          </call>
-
-          <expect label="return empty sequence"
-                  test="empty( $x:result )" />
-        </scenario>
-      </scenario>
-
-
-      <scenario label="in a separate package">
-        <variable name="foo:expected-lookup" as="element()">
-          <foo:lookup-ok />
-        </variable>
-
-        <scenario label="where dependencies exist">
-          <call function="graph:dep-lookup">
-            <param name="symbol"
-                   select="$foo:document/preproc:symtable
-                             /preproc:sym[ @name='external' ]" />
-            <param name="graph"
-                   select="$foo:document/preproc:sym-deps" />
-
-            <param name="lookup"
-                   select="foo:lookup( $foo:expected-lookup )" />
-          </call>
-
-          <expect label="returns external dependenices"
-                  test="exists( $x:result/foo:lookup-ok )" />
-        </scenario>
-      </scenario>
-    </scenario>
-  </scenario>
-
 
   <scenario label="graph:reverse on a disconnected DAG">
     <call function="graph:reverse">
@@ -215,6 +135,99 @@
 
       <expect label="merges vertices and edges of unique vertices"
               select="$foo:graph-vtwo-vthree" />
+    </scenario>
+
+
+    <scenario label="given single graph with duplicate vectors">
+      <call function="graph:union">
+        <param name="graphs"
+               select="$foo:graph-with-dupes" />
+      </call>
+
+      <expect label="mergs duplicates"
+              select="$foo:graph-deduped" />
+    </scenario>
+  </scenario>
+
+
+
+  <scenario label="graph:dep-lookup">
+    <scenario label="given a symbol">
+      <scenario label="in the same package">
+        <scenario label="where dependencies exist">
+          <call function="graph:dep-lookup">
+            <param name="symbol"
+                   select="$foo:document/preproc:symtable
+                             /preproc:sym[ @name='local' ]" />
+            <param name="graph"
+                   select="$foo:document/preproc:sym-deps" />
+
+            <param name="lookup" select="()" />
+          </call>
+
+          <expect label="returns local dependencies"
+                  test="$x:result is
+                          $foo:document/preproc:sym-deps/preproc:sym-dep[
+                            @name='local' ]" />
+        </scenario>
+
+
+        <scenario label="with external @src but local deps">
+          <call function="graph:dep-lookup">
+            <param name="symbol"
+                   select="$foo:document/preproc:symtable
+                             /preproc:sym[ @name='external-but-not' ]" />
+            <param name="graph"
+                   select="$foo:document/preproc:sym-deps" />
+
+            <param name="lookup" select="()" />
+          </call>
+
+          <expect label="returns local dependencies"
+                  test="$x:result is
+                          $foo:document/preproc:sym-deps/preproc:sym-dep[
+                            @name='external-but-not' ]" />
+        </scenario>
+
+
+        <scenario label="where dependencies are missing">
+          <call function="graph:dep-lookup">
+            <param name="symbol"
+                   select="$foo:document/preproc:symtable
+                             /preproc:sym[ @name='missing-deps' ]" />
+            <param name="graph"
+                   select="$foo:document/preproc:sym-deps" />
+
+            <param name="lookup" select="()" />
+          </call>
+
+          <expect label="return empty sequence"
+                  test="empty( $x:result )" />
+        </scenario>
+      </scenario>
+
+
+      <scenario label="in a separate package">
+        <variable name="foo:expected-lookup" as="element()">
+          <foo:lookup-ok />
+        </variable>
+
+        <scenario label="where dependencies exist">
+          <call function="graph:dep-lookup">
+            <param name="symbol"
+                   select="$foo:document/preproc:symtable
+                             /preproc:sym[ @name='external' ]" />
+            <param name="graph"
+                   select="$foo:document/preproc:sym-deps" />
+
+            <param name="lookup"
+                   select="foo:lookup( $foo:expected-lookup )" />
+          </call>
+
+          <expect label="returns external dependenices"
+                  test="exists( $x:result/foo:lookup-ok )" />
+        </scenario>
+      </scenario>
     </scenario>
   </scenario>
 </description>

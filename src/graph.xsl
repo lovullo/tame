@@ -52,38 +52,6 @@
 -->
 
 <!--
-  Retrieve dependenices for @var{$symbol} on the @var{$graph},
-    using the lookup function @var{$lookup} to resolve external
-    subgraphs.
-  @var{$lookup} will be used only if the symbol cannot be
-    found in @var{$graph},
-    in which case the result of @var{$lookup} will used used in a
-    recursive call as the new @var{$graph}.
-
-  From a graph perspective,
-    the dependencies are edges on the @var{$symbol} vertex.
--->
-<function name="graph:dep-lookup" as="element( preproc:sym-dep )?">
-  <param name="symbol" as="element( preproc:sym )" />
-  <param name="graph"  as="element( preproc:sym-deps )" />
-  <param name="lookup" />
-
-  <variable name="deps" as="element( preproc:sym-dep )?"
-            select="$graph/preproc:sym-dep
-                      [ @name = $symbol/@name ]" />
-
-  <sequence select="if ( exists( $deps ) ) then
-                        $deps
-                      else if ( $lookup ) then
-                          graph:dep-lookup( $symbol,
-                                            f:apply( $lookup, $symbol ),
-                                            $lookup )
-                        else
-                          ()" />
-</function>
-
-
-<!--
   Produce a new graph that is the transpose of
     @var{$graph}@mdash{}that is,
     the graph @var{$graph} with the direction of all of its edges
@@ -188,6 +156,62 @@
       </preproc:sym-dep>
     </for-each-group>
   </preproc:sym-deps>
+</function>
+
+
+<!--
+@menu
+* Package Subgraphs:: Managing package dependencies
+@end menu
+-->
+
+<!--
+  @node Package Subgraphs
+  @subsection Package Subgraphs
+
+  Each package has its own independent dependency graph.
+  These vertices may have @dfn{virtual edges} to other packages'
+    graphs@mdash{}edges that will be formed once combined the
+    referenced graph;
+      these edges are indicated with @code{preproc:sym-ref/@@src}.
+
+  Graph operations are usually performed on single packages,
+    but it is occionally necessary to traverse packages to recurisvely
+    resolve dependencies.
+  @ref{graph:dep-lookup} makes this easy:
+
+  TODO: Generic graph functions.
+-->
+
+<!--
+  Retrieve dependenices for @var{$symbol} on the @var{$graph},
+    using the lookup function @var{$lookup} to resolve external
+    subgraphs.
+  @var{$lookup} will be used only if the symbol cannot be found in
+    @var{$graph},
+    in which case the result of @var{$lookup} will used used in a
+    recursive call as the new @var{$graph}.
+
+  From a graph perspective,
+    the dependencies are edges on the @var{$symbol} vertex.
+-->
+<function name="graph:dep-lookup" as="element( preproc:sym-dep )?">
+  <param name="symbol" as="element( preproc:sym )" />
+  <param name="graph"  as="element( preproc:sym-deps )" />
+  <param name="lookup" />
+
+  <variable name="deps" as="element( preproc:sym-dep )?"
+            select="$graph/preproc:sym-dep
+                      [ @name = $symbol/@name ]" />
+
+  <sequence select="if ( exists( $deps ) ) then
+                        $deps
+                      else if ( $lookup ) then
+                          graph:dep-lookup( $symbol,
+                                            f:apply( $lookup, $symbol ),
+                                            $lookup )
+                        else
+                          ()" />
 </function>
 
 </stylesheet>
