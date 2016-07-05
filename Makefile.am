@@ -44,7 +44,7 @@ check: | applies
 applies: $(apply_dest)
 %.apply: %
 	$(JAVA) -jar "$(SAXON_CP)" \
-	    -xsl:"$(HOXSL)/transform/apply-gen.xsl" \
+	    -xsl:"$(HOXSL)/src/transform/apply-gen.xsl" \
 	    "$<" > "$@"
 
 clean-local:
