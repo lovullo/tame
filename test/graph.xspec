@@ -107,4 +107,68 @@
       </scenario>
     </scenario>
   </scenario>
+
+
+  <scenario label="graph:reverse on a disconnected DAG">
+    <call function="graph:reverse">
+      <param name="graph"
+             select="$foo:reverse-graph" />
+    </call>
+
+    <!-- "root" (walk=0) vertices are used by nothing -->
+
+    <expect label="reverses walk=0 edges (A)"
+            test="empty(
+                    $x:result/preproc:sym-dep[ @name = 'A' ]/* )" />
+
+    <expect label="reverses walk=0 edges (X)"
+            test="empty(
+                    $x:result/preproc:sym-dep[ @name = 'X' ]/* )" />
+
+
+    <expect label="reverses edges recursively (B-A)"
+            test="exists( $x:result/preproc:sym-dep[ @name = 'B' ]
+                            /preproc:sym-ref[ @name = 'A' ] )" />
+
+    <!-- circular -->
+    <expect label="reverses edges recursively (B-D)"
+            test="exists( $x:result/preproc:sym-dep[ @name = 'B' ]
+                            /preproc:sym-ref[ @name = 'D' ] )" />
+
+    <expect label="reverses edges recursively (C-A)"
+            test="exists( $x:result/preproc:sym-dep[ @name = 'C' ]
+                            /preproc:sym-ref[ @name = 'A' ] )" />
+
+    <expect label="reverses edges recursively (C-B)"
+            test="exists( $x:result/preproc:sym-dep[ @name = 'C' ]
+                            /preproc:sym-ref[ @name = 'B' ] )" />
+
+    <expect label="reverses edges recursively (D-C)"
+            test="exists( $x:result/preproc:sym-dep[ @name = 'D' ]
+                            /preproc:sym-ref[ @name = 'C' ] )" />
+
+    <expect label="reverses walk=1 edges (Z-X)"
+            test="exists( $x:result/preproc:sym-dep[ @name = 'Z' ]
+                            /preproc:sym-ref[ @name = 'X' ] )" />
+
+
+    <!-- if done properly, we should have no new edges (the direction
+         on existing edges should just be reversed): the new graph
+         should be an isomorphism of the original  -->
+    <expect label="does not produce any additional edges"
+            test="count( $x:result//preproc:sym-ref )
+                    = count( $foo:reverse-graph//preproc:sym-ref )" />
+
+    <expect label="does not produce any additional vertices"
+            test="count( distinct-values( $x:result//preproc:*/@name ) )
+                    = count( distinct-values(
+                        $foo:reverse-graph//preproc:*/@name ) )" />
+
+    <expect label="copies union of edge attributes to new edges"
+            test="every $edge in $x:result//preproc:sym-ref
+                      [ ancestor::preproc:sym-dep[ @name = 'C' ] ]
+                    satisfies
+                      $edge/@cattr = 'cvalue'
+                        and $edge/@cattr2 = 'cvalue2'" />
+  </scenario>
 </description>

@@ -67,6 +67,38 @@
   </foo:root>
 </variable>
 
+
+<!-- a graph that is easier to mentally grasp when reversed -->
+<variable name="foo:reverse-graph" as="element( preproc:sym-deps )">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="A">
+      <preproc:sym-ref name="B" />
+      <preproc:sym-ref name="C" cattr="cvalue" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="B">
+      <preproc:sym-ref name="C" cattr="cvalue" cattr2="cvalue2" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="C">
+      <preproc:sym-ref name="D" />
+    </preproc:sym-dep>
+
+    <!-- produces a cycle -->
+    <preproc:sym-dep name="D">
+      <preproc:sym-ref name="B" />
+    </preproc:sym-dep>
+
+    <!-- disconnected -->
+    <preproc:sym-dep name="X">
+      <preproc:sym-ref name="Z" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="Z" />
+  </preproc:sym-deps>
+</variable>
+
+
 <function name="foo:lookup">
   <param name="yield"  as="element()" />
   <param name="symbol" as="element( preproc:sym )" />

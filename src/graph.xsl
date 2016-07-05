@@ -82,4 +82,66 @@
                           ()" />
 </function>
 
+
+<!--
+  Produce a new graph that is the transpose of
+    @var{$graph}@mdash{}that is,
+    the graph @var{$graph} with the direction of all of its edges
+    reversed.
+
+  This is useful for processing what symbols are @emph{used by} other
+    symbols.
+
+  For example:
+
+  @float Figure, fig:reverse-graph
+  @verbatim
+  G:  A->B->C->E
+       \
+        `->D
+
+  G': A<-B<-C<-E
+      ^
+       `D
+  @end verbatim
+  @caption{G' is the transpose of G}
+  @end float
+
+  Edge attributes (@code{preproc:sym-ref/@@*)} will be set to the
+    union of all attributes on all edges of the same @code{@@name} in
+    @code{$graph}.
+  @emph{If edge attributes do not share the same value,
+    the behavior is undefined.}
+-->
+<function name="graph:reverse" as="element( preproc:sym-deps )">
+  <param name="graph" as="element( preproc:sym-deps )" />
+
+  <variable name="reversed" as="element( preproc:sym-dep )*">
+    <for-each-group select="$graph//preproc:sym-ref"
+                    group-by="@name">
+      <preproc:sym-dep name="{@name}">
+        <for-each select="current-group()/ancestor::preproc:sym-dep">
+          <preproc:sym-ref>
+            <sequence select="current-group()/@*" />
+
+            <!-- keep our name (overrides the above) -->
+            <attribute name="name" select="@name" />
+          </preproc:sym-ref>
+        </for-each>
+      </preproc:sym-dep>
+    </for-each-group>
+  </variable>
+
+  <preproc:sym-deps>
+    <!-- vertices in $graph with no dependencies will not be in
+         $reversed -->
+    <for-each select="$graph/preproc:sym-dep[ not(
+                        @name = $reversed/preproc:sym-ref/@name ) ]">
+      <preproc:sym-dep name="{@name}" />
+    </for-each>
+
+    <sequence select="$reversed" />
+  </preproc:sym-deps>
+</function>
+
 </stylesheet>
