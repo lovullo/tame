@@ -29,6 +29,42 @@
              stylesheet="graph-test.xsl">
 
 
+  <scenario label="graph:make-from-vertices">
+    <scenario label="with no vertices">
+      <call function="graph:make-from-vertices">
+        <param name="vertices"
+               select="()" />
+      </call>
+
+      <expect label="produces an empty graph">
+        <preproc:sym-deps />
+      </expect>
+    </scenario>
+
+
+    <scenario label="with vertices">
+      <call function="graph:make-from-vertices">
+        <param name="vertices"
+               select="$foo:graph-vtwo/preproc:sym-dep" />
+      </call>
+
+      <expect label="produces a graph containing those vertices"
+              select="$foo:graph-vtwo" />
+    </scenario>
+
+
+    <scenario label="with duplicate vertices">
+      <call function="graph:make-from-vertices">
+        <param name="vertices"
+               select="$foo:graph-with-dupes/preproc:sym-dep" />
+      </call>
+
+      <expect label="removes duplicate vertices and edges"
+              select="$foo:graph-deduped" />
+    </scenario>
+  </scenario>
+
+
   <scenario label="graph:reverse on a disconnected DAG">
     <call function="graph:reverse">
       <param name="graph"

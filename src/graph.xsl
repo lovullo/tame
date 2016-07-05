@@ -29,6 +29,7 @@
 
 <import href="../hoxsl/src/apply.xsl" />
 
+
 <!--
   @node Dependency Graph
   @section Dependency Graph
@@ -50,6 +51,29 @@
     and may change in the future; always use the graph API, and only
     use the node QNames for type checks.}
 -->
+
+
+<!--
+  Create a graph from the given vertex set @var{$vertices}.
+  The resulting graph will be normalized with duplicate vertices and
+    edges removed,
+    making it suitable for ad hoc graph generation.@c
+  @footnote{This is done by calling @ref{graph:union}.}
+-->
+<function name="graph:make-from-vertices"
+          as="element( preproc:sym-deps )">
+  <param name="vertices" as="element( preproc:sym-dep )*" />
+
+  <variable name="graph" as="element( preproc:sym-deps )">
+    <preproc:sym-deps>
+        <sequence select="$vertices" />
+    </preproc:sym-deps>
+  </variable>
+
+  <!-- dedupe/normalize -->
+  <sequence select="graph:union( $graph )" />
+</function>
+
 
 <!--
   Produce a new graph that is the transpose of

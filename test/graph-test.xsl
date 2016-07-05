@@ -146,9 +146,9 @@
 <variable name="foo:graph-vtwo-vthree" as="element( preproc:sym-deps )">
   <preproc:sym-deps>
     <preproc:sym-dep name="a">
-      <preproc:sym-ref name="a" attr1="foo" />
       <preproc:sym-ref name="b" attr1="foo" attr2="bar" />
       <preproc:sym-ref name="c" />
+      <preproc:sym-ref name="a" attr1="foo" />
     </preproc:sym-dep>
 
     <preproc:sym-dep name="b">
