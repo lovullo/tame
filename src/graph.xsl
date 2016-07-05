@@ -144,4 +144,50 @@
   </preproc:sym-deps>
 </function>
 
+
+<!--
+  Merge sequence of graphs @var{$graphs} into a single graph by taking
+    the union of all vertices and edges.
+  Directionality will be preserved.
+
+  Edge attributes (@code{preproc:sym-ref/@@*)} will be set to the
+    union of all attributes on all edges of the same @code{@@name}.
+  @emph{If edge attributes do not share the same value,
+    the behavior is undefined.}
+
+  For example:
+
+  @float Figure, fig:union-graph
+  @verbatim
+  G₁:  A->B->C
+  G₂:  C->A
+  G₃:  B->C->D
+
+  G∪:  A->B->C->D
+       ^____/
+  @end verbatim
+  @caption{(G₁ ∪ G₂ ∪ G₃)}
+  @end float
+-->
+<function name="graph:union" as="element( preproc:sym-deps )*">
+  <param name="graphs" as="element( preproc:sym-deps )*" />
+
+  <preproc:sym-deps>
+    <for-each-group select="$graphs/preproc:sym-dep"
+                    group-by="@name">
+      <preproc:sym-dep name="{@name}">
+        <for-each-group select="current-group()/preproc:sym-ref"
+                        group-by="@name">
+          <preproc:sym-ref>
+            <sequence select="current-group()/@*" />
+
+            <!-- keep our name (overrides the above) -->
+            <attribute name="name" select="@name" />
+          </preproc:sym-ref>
+        </for-each-group>
+      </preproc:sym-dep>
+    </for-each-group>
+  </preproc:sym-deps>
+</function>
+
 </stylesheet>

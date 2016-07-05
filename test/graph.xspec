@@ -171,4 +171,50 @@
                       $edge/@cattr = 'cvalue'
                         and $edge/@cattr2 = 'cvalue2'" />
   </scenario>
+
+
+  <scenario label="graph:union">
+    <scenario label="given nothing">
+      <call function="graph:union">
+        <param name="graphs"
+               select="()" />
+      </call>
+
+      <expect label="produces an empty graph"
+              select="$foo:graph-empty" />
+    </scenario>
+
+
+    <scenario label="given two empty graphs">
+      <call function="graph:union">
+        <param name="graphs"
+               select="( $foo:graph-empty, $foo:graph-empty )" />
+      </call>
+
+      <expect label="produces an empty graph"
+              select="$foo:graph-empty" />
+    </scenario>
+
+
+    <scenario label="given graph with empty">
+      <call function="graph:union">
+        <param name="graphs"
+               select="( $foo:graph-empty, $foo:graph-vtwo )" />
+      </call>
+
+      <expect label="produces the non-empty graph"
+              select="$foo:graph-vtwo" />
+    </scenario>
+
+
+    <scenario label="given two different graphs">
+      <call function="graph:union">
+        <param name="graphs"
+               select="( $foo:graph-vtwo, $foo:graph-vthree )" />
+      </call>
+
+      <expect label="merges vertices and edges of unique vertices"
+              select="$foo:graph-vtwo-vthree" />
+    </scenario>
+  </scenario>
 </description>

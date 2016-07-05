@@ -99,6 +99,76 @@
 </variable>
 
 
+<variable name="foo:graph-empty" as="element( preproc:sym-deps )">
+  <preproc:sym-deps />
+</variable>
+
+
+<variable name="foo:graph-vtwo" as="element( preproc:sym-deps )">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="a">
+      <preproc:sym-ref name="a" attr1="foo" />
+      <preproc:sym-ref name="b" attr2="bar" />
+    </preproc:sym-dep>
+
+    <!-- test empty for merge -->
+    <preproc:sym-dep name="b" />
+  </preproc:sym-deps>
+</variable>
+
+
+<variable name="foo:graph-vthree" as="element( preproc:sym-deps )">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="a">
+      <preproc:sym-ref name="b" attr1="foo" />
+      <preproc:sym-ref name="c" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="b">
+      <preproc:sym-ref name="c" attr3="baz" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="c">
+      <preproc:sym-ref name="a" />
+    </preproc:sym-dep>
+
+    <!-- disconnected -->
+    <preproc:sym-dep name="d">
+      <preproc:sym-ref name="e" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="e" />
+  </preproc:sym-deps>
+</variable>
+
+
+<!-- result of merging the above two -->
+<variable name="foo:graph-vtwo-vthree" as="element( preproc:sym-deps )">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="a">
+      <preproc:sym-ref name="a" attr1="foo" />
+      <preproc:sym-ref name="b" attr1="foo" attr2="bar" />
+      <preproc:sym-ref name="c" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="b">
+      <preproc:sym-ref name="c" attr3="baz" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="c">
+      <preproc:sym-ref name="a" />
+    </preproc:sym-dep>
+
+    <!-- disconnected -->
+    <preproc:sym-dep name="d">
+      <preproc:sym-ref name="e" />
+    </preproc:sym-dep>
+
+    <preproc:sym-dep name="e" />
+  </preproc:sym-deps>
+</variable>
+
+
 <function name="foo:lookup">
   <param name="yield"  as="element()" />
   <param name="symbol" as="element( preproc:sym )" />
