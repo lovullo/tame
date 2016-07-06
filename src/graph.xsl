@@ -223,11 +223,13 @@
 
   From a graph perspective,
     the dependencies are edges on the @var{$symbol} vertex.
+
+  Parameters are organized for partial application.
 -->
 <function name="graph:dep-lookup" as="element( preproc:sym-dep )?">
-  <param name="symbol" as="element( preproc:sym )" />
-  <param name="graph"  as="element( preproc:sym-deps )" />
   <param name="lookup" />
+  <param name="graph"  as="element( preproc:sym-deps )" />
+  <param name="symbol" as="element( preproc:sym )" />
 
   <variable name="deps" as="element( preproc:sym-dep )?"
             select="$graph/preproc:sym-dep
@@ -236,9 +238,9 @@
   <sequence select="if ( exists( $deps ) ) then
                         $deps
                       else if ( $lookup ) then
-                          graph:dep-lookup( $symbol,
+                          graph:dep-lookup( $lookup,
                                             f:apply( $lookup, $symbol ),
-                                            $lookup )
+                                            $symbol )
                         else
                           ()" />
 </function>
