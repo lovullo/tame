@@ -1,11 +1,12 @@
 \input texinfo
+
+@include version.texi
+
 @c %**start of header
 @setfilename tame.info
 @documentencoding UTF-8
 @settitle TAME Manual v@value{VERSION}
 @c %**end of header
-
-@include version.texi
 
 @copying
 This manual is for TAME, version @value{VERSION}.
