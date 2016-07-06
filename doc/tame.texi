@@ -51,8 +51,9 @@ Free Documentation License".
 @end ifnottex
 
 @menu
-* Preprocessor::  Metaprogramming system
-* License::       Document License
+* Preprocessor::      Metaprogramming system
+* Dependency Graph::  Dependency processing and flow analysis
+* License::           Document License
 @end menu
 
 @ifnottex
@@ -88,7 +89,6 @@ Free Documentation License".
 
 @menu
 * Macro Expansion::
-* Dependency Graph::
 @end menu
 
 @node Macro Expansion
@@ -102,7 +102,10 @@ Free Documentation License".
 @include ../src/preproc/expand/expand-sequence.texi
 @raisesections
 
+@c chapter
+@raisesections
 @include ../src/graph.texi
+@lowersections
 
 @include license.texi
 
