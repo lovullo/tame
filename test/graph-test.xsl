@@ -194,6 +194,18 @@
 </variable>
 
 
+<variable name="foo:expected-lookup" as="element()">
+  <preproc:sym-ref name="foo" lookup="ok" />
+</variable>
+
+
+<variable name="foo:sym-list" as="element()+">
+  <preproc:sym name="foo" />
+  <preproc:sym name="bar" />
+  <preproc:sym name="baz" />
+</variable>
+
+
 <function name="foo:lookup">
   <param name="yield"  as="element()" />
   <param name="symbol" as="element( preproc:sym )" />
@@ -204,6 +216,16 @@
       <sequence select="$yield" />
     </preproc:sym-dep>
   </preproc:sym-deps>
+</function>
+
+
+<function name="foo:lookup-sym">
+  <param name="yield"  as="element()" />
+  <param name="symbol" as="element( preproc:sym )" />
+
+  <preproc:sym-dep name="{$symbol/@name}">
+    <sequence select="$yield" />
+  </preproc:sym-dep>
 </function>
 
 </stylesheet>

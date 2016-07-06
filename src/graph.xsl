@@ -245,4 +245,38 @@
                           ()" />
 </function>
 
+<!--
+  @ref{graph:dep-lookup} can be used together with the convenience
+    function @ref{graph:make-from-deps} to produce a graph that
+    contains all dependencies for a given symbol list.
+  Used together with @ref{graph:reverse},
+    a reverse dependency graph can be easily created that provides a
+    useful ``used by'' relationship.
+-->
+
+<!--
+  Create a dependency graph containing all dependencies of the given
+    symbol list @var{$symbols}.
+  The graph contains the union of the minimal subset of all package
+    subgraphs@mdash{}only vertices representing a symbol in
+    @var{$symbols} or its direct dependencies are included.
+
+  This function is @emph{not} recursive;
+    it assumes that the given symbol list @var{$symbols} is sufficient
+    for whatever operation is being performed.
+
+  The lookup function @var{$lookup} is invoked once per symbol in
+    @var{$symbols} with the @code{preproc:sym} to look up.
+  The final result is used to produce a new normalized graph,
+    with any duplicate vertices and edges removed.
+-->
+<function name="graph:make-from-deps" as="element( preproc:sym-deps )*">
+  <param name="lookup"  as="item()+" />
+  <param name="symbols" as="element( preproc:sym )*" />
+
+  <sequence select="graph:make-from-vertices(
+                      for $symbol in $symbols
+                        return f:apply( $lookup, $symbol ) )" />
+</function>
+
 </stylesheet>

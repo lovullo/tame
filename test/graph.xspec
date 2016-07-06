@@ -174,7 +174,7 @@
     </scenario>
 
 
-    <scenario label="given single graph with duplicate vectors">
+    <scenario label="given single graph with duplicate vertices">
       <call function="graph:union">
         <param name="graphs"
                select="$foo:graph-with-dupes" />
@@ -248,10 +248,6 @@
 
 
       <scenario label="in a separate package">
-        <variable name="foo:expected-lookup" as="element()">
-          <foo:lookup-ok />
-        </variable>
-
         <scenario label="where dependencies exist">
           <call function="graph:dep-lookup">
             <param name="lookup"
@@ -266,9 +262,28 @@
           </call>
 
           <expect label="returns external dependenices"
-                  test="exists( $x:result/foo:lookup-ok )" />
+                  test="deep-equal( $x:result/*, $foo:expected-lookup )" />
         </scenario>
       </scenario>
     </scenario>
+  </scenario>
+
+
+  <scenario label="graph:make-from-deps">
+    <call function="graph:make-from-deps">
+      <param name="lookup"
+             select="foo:lookup-sym( $foo:expected-lookup )" />
+
+      <param name="symbols"
+             select="$foo:sym-list" />
+    </call>
+
+    <expect label="produces a graph"
+            test="$x:result instance of element( preproc:sym-deps )" />
+
+    <expect label="looks up each symbol"
+            test="every $vertex in $x:result/preproc:sym-dep
+                    satisfies
+                      deep-equal( $vertex/*, $foo:expected-lookup )" />
   </scenario>
 </description>
