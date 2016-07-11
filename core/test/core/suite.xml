@@ -26,6 +26,7 @@
   <import package="../../base" />
   <import package="../spec" />
 
+  <import package="insurance" />
   <import package="numeric/round" />
   <import package="numeric/convert" />
   <import package="numeric/percent" />

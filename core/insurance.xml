@@ -1,0 +1,133 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         title="Insurance Abstractions">
+
+  <import package="base" />
+  <import package="numeric/round" export="true" />
+
+
+  These are primitive abstractions for insurance that will be
+  improved upon over time.
+
+  Some notable TODOs:
+
+  \begin{enumerate}
+    \item Enforce naming convention;
+    \item Support scalar results;
+    \item Fail on zero premium unless explicitly stated;
+    \item Fail on negative premium (use a credit template);
+    \item Rounding direction (currently only nearest); and
+    \item Credit, surcharge, and factor templates.
+  \end{enumerate}
+
+  \todo{Template to abstract these {\tt rate-each} generation
+  templates.}
+
+
+  <template name="_premium_"
+            desc="A premium dollar amount">
+    <param name="@values@"    desc="Body" />
+    <param name="@class@"     desc="Predicate" />
+    <param name="@generates@" desc="Generator name" />
+    <param name="@index@"     desc="Generator index" />
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <!-- required since various companies have various bizzare
+         rounding rules that tend to be a source of bugs; make the
+         developer think about it -->
+    <param name="@round@" desc="Rounding method" />
+
+    <!-- not yet used, but it will at least serve as code
+         documentation for the time being -->
+    <param name="@desc@" desc="Premium description" />
+
+
+    <rate-each class="@class@" no="@no@"
+               generates="@generates@" index="@index@"
+               sym="@sym@" gensym="@gensym@">
+      <!-- TODO: we now have reason for a more concise conditional
+           syntax -->
+      <if name="@round@" eq="dollar">
+        <t:round>
+          <param-copy name="@values@" />
+        </t:round>
+      </if>
+      <unless name="@round@" eq="dollar">
+        <if name="@round@" eq="cent">
+          <c:apply name="round_cents">
+            <c:arg name="round_cents_val">
+              <param-copy name="@values@" />
+            </c:arg>
+          </c:apply>
+        </if>
+
+        <unless name="@round@" eq="cent">
+          <param-copy name="@values@" />
+        </unless>
+      </unless>
+    </rate-each>
+  </template>
+
+
+  <!-- TODO -->
+  <template name="_factor_"
+            desc="Factor to multiply against">
+    <param name="@values@"    desc="Body" />
+    <param name="@class@"     desc="Predicate" />
+    <param name="@generates@" desc="Generator name" />
+    <param name="@index@"     desc="Generator index" />
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <!-- not yet used, but it will at least serve as code
+         documentation for the time being -->
+    <param name="@desc@" desc="Factor description" />
+
+
+    <rate-each class="@class@" no="@no@"
+               generates="@generates@" index="@index@"
+               sym="@sym@" gensym="@gensym@">
+      <param-copy name="@values@" />
+    </rate-each>
+  </template>
+</package>
