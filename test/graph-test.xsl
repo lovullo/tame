@@ -29,7 +29,6 @@
 
 <!-- SUT -->
 <import href="../src/graph.xsl" />
-
 <import href="graph-test.xsl.apply" />
 
 
@@ -48,6 +47,13 @@
                    src="not-here" />
 
       <preproc:sym name="missing-deps" />
+
+      <preproc:sym name="doc-sym"
+                   src="graph-doc" />
+
+      <!-- should _not_ be defined in source document -->
+      <preproc:sym name="doc-sym-unknown"
+                   src="graph-doc" />
     </preproc:symtable>
 
     <preproc:sym-deps>

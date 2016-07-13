@@ -28,6 +28,7 @@
             xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 <import href="../hoxsl/src/apply.xsl" />
+<import href="graph.xsl.apply" />
 
 
 <!--
@@ -277,6 +278,62 @@
   <sequence select="graph:make-from-vertices(
                       for $symbol in $symbols
                         return f:apply( $lookup, $symbol ) )" />
+</function>
+
+
+<!--
+@menu
+* Graph Lookups:: Graph constructors using symbol lookups
+@end menu
+-->
+
+<!--
+  @node Graph Lookups
+  @subsubsection Graph Lookups
+-->
+
+<!--
+  The provided graph lookups are constructors that use symbols to
+  locate a graph.  Using partial application, they are convenient for
+  use in @ref{graph:dep-lookup} to resolve external graphs.
+-->
+
+<!--
+  Look up a graph on a document indicated by a source symbol
+    @var{$symbol/@@src}.
+  The document will be loaded relative to @var{$rel-node} with the
+    file extension @var{$package-ext}.
+
+  There are no restrictions on the root node of the document,
+    but the @code{preproc:sym-deps} node is expected to be a child of
+    the root.
+
+  This function does not care if @var{$symbol} actually resolves to
+    anything in the destination package@mdash{
+      }such is up to the caller to decide.
+  If the referenced document contains no graph
+    (@code{preproc:sym-deps}), the empty sequence will be returned.
+  If the referenced document does not exist,
+    the result is implementation-defined.
+
+  Customarily, @var{$doc-ext} is ``xmlo'' (the compiled object file)
+    and @var{$rel-node} is the package from which @var{$symbol} was
+    obtained.
+-->
+<function name="graph:lookup-from-doc" as="element( preproc:sym-deps )?">
+  <param name="doc-ext"  as="xs:string" />
+  <param name="rel-node" as="node()" />
+  <param name="symbol"   as="element( preproc:sym )" />
+
+  <variable name="src" as="xs:string?"
+            select="$symbol/@src" />
+
+  <sequence select="if ( $src ) then
+                        document( concat( $src, '.', $doc-ext ),
+                                  $rel-node )
+                          /node()/preproc:sym-deps
+                      else
+                        ()" />
 </function>
 
 </stylesheet>

@@ -286,4 +286,67 @@
                     satisfies
                       deep-equal( $vertex/*, $foo:expected-lookup )" />
   </scenario>
+
+
+  <scenario label="graph:lookup-from-doc">
+    <variable name="expected-doc" as="document-node()"
+              select="document( 'graph-doc.xml', root() )" />
+
+    <scenario label="given a known external symbol">
+      <call function="graph:lookup-from-doc">
+        <param name="doc-ext"
+               select="'xml'" />
+
+        <param name="rel-node"
+               select="root()" />
+
+        <param name="symbol"
+               select="$foo:document/preproc:symtable
+                         /preproc:sym[ @name = 'doc-sym' ]" />
+      </call>
+
+      <expect label="looks up subgraph from document"
+              test="deep-equal( $x:result,
+                                $expected-doc/*/preproc:sym-deps )" />
+    </scenario>
+
+
+    <!-- since we're looking up the graph, we don't really care if the symbol
+         exissts in it or not (that is a caller concern) -->
+    <scenario label="given an unknown external symbol">
+      <call function="graph:lookup-from-doc">
+        <param name="doc-ext"
+               select="'xml'" />
+
+        <param name="rel-node"
+               select="root()" />
+
+        <param name="symbol"
+               select="$foo:document/preproc:symtable
+                         /preproc:sym[ @name = 'doc-sym-unknown' ]" />
+      </call>
+
+      <expect label="looks up subgraph from document"
+              test="deep-equal( $x:result,
+                                $expected-doc/*/preproc:sym-deps )" />
+    </scenario>
+
+
+    <scenario label="given a symbol with no @src">
+      <call function="graph:lookup-from-doc">
+        <param name="doc-ext"
+               select="'xml'" />
+
+        <param name="rel-node"
+               select="root()" />
+
+        <param name="symbol"
+               select="$foo:document/preproc:symtable
+                         /preproc:sym[ @name = 'local' ]" />
+      </call>
+
+      <expect label="produces empty sequence"
+              test="empty( $x:result )" />
+    </scenario>
+  </scenario>
 </description>

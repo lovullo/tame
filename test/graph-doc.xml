@@ -1,0 +1,10 @@
+<!--
+  Stub document for graph test
+-->
+<root xmlns:preproc="https://www.lovullo.com/rater/preproc">
+  <preproc:sym-deps>
+    <preproc:sym-dep name="foo">
+      <preproc:sym-ref name="bar" />
+    </preproc:sym-dep>
+  </preproc:sym-deps>
+</root>
