@@ -59,7 +59,7 @@
   The resulting graph will be normalized with duplicate vertices and
     edges removed,
     making it suitable for ad hoc graph generation.@c
-  @footnote{This is done by calling @ref{graph:union#1}.}
+  @footnote{This is done by calling @ttref{graph:union#1}.}
 -->
 <function name="graph:make-from-vertices"
           as="element( preproc:sym-deps )">
@@ -208,7 +208,7 @@
   Graph operations are usually performed on single packages,
     but it is occionally necessary to traverse packages to recurisvely
     resolve dependencies.
-  @ref{graph:dep-lookup#3} makes this easy:
+  @ttref{graph:dep-lookup#3} makes this easy:
 
   TODO: Generic graph functions.
 -->
@@ -247,10 +247,10 @@
 </function>
 
 <!--
-  @ref{graph:dep-lookup#3} can be used together with the convenience
-    function @ref{graph:make-from-deps#2} to produce a graph that
+  @ttref{graph:dep-lookup#3} can be used together with the convenience
+    function @ttref{graph:make-from-deps#2} to produce a graph that
     contains all dependencies for a given symbol list.
-  Used together with @ref{graph:reverse#1},
+  Used together with @ttref{graph:reverse#1},
     a reverse dependency graph can be easily created that provides a
     useful ``used by'' relationship.
 -->
@@ -295,7 +295,7 @@
 <!--
   The provided graph lookups are constructors that use symbols to
   locate a graph.  Using partial application, they are convenient for
-  use in @ref{graph:dep-lookup#3} to resolve external graphs.
+  use in @ttref{graph:dep-lookup#3} to resolve external graphs.
 -->
 
 <!--
