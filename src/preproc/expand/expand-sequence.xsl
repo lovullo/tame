@@ -38,7 +38,7 @@
   generally unnecessary.
 
   Expansion sequences are initiated by invoking
-  @ttref{eseq:expand-step} on any arbitrary node containing any number
+  @ttref{eseq:expand-step#1} on any arbitrary node containing any number
   of children to be expanded in order.  Each call will proceed one
   step (detailed herein), eventually resulting in each node expanded
   and the expansion sequence node eliminated.
@@ -191,7 +191,7 @@
   need a way for an implementation to notify us whether a node needs
   further expansion, or is ready to be hoisted.  Fortunately, we
   already have that information because of how we defined
-  @ttref{eseq:is-expandable}.  In other words, our previously declared
+  @ttref{eseq:is-expandable#1}.  In other words, our previously declared
   processing will already take care of hoisting for us when necessary,
   so we need only continue to expand nodes as necessary.
 -->
@@ -201,7 +201,7 @@
   expansions would never take place.
 
   Once expansion is complete, by the definition of
-  @ttref{eseq:is-expandable}, expansion will halt.
+  @ttref{eseq:is-expandable#1}, expansion will halt.
 -->
 <template mode="_eseq:expand" as="element()"
           match="*[ node()[1][
@@ -240,7 +240,7 @@
   yields an empty sequence, and the final template is matched.  When
   the head node @emph{is} available, it is either expandable or
   non-expandable, determined by the predicate
-  @ttref{eseq:is-expandable}.  Since the predicate returns a boolean,
+  @ttref{eseq:is-expandable#1}.  Since the predicate returns a boolean,
   it must be either @code{false()} or @code{true()}, and so it
   must satisfy either the first or second template respectively.}
 
@@ -251,7 +251,7 @@
   after all expansions are complete and the expansion sequence node
   itself is eliminated (per the final match above), then the node that
   was last expanded and hoisted will be considered to be the expansion
-  sequence by @ttref{eseq:expand-step}.  This is true, but should not
+  sequence by @ttref{eseq:expand-step#1}.  This is true, but should not
   be a problem in practice: hoisting is intended to place nodes into
   context for the caller; it is expected that the caller will
   recognize when to invoke sequence expansion (likely on a pre-defined
@@ -287,7 +287,7 @@
   function.
 
   Actual expansion is left to
-  @ref{eseq:expand-node,,@code{eseq:expand-node}}.
+  @ref{eseq:expand-node#1,,@code{eseq:expand-node#1}}.
 -->
 <function name="_eseq:expand-head" as="element()">
   <param name="eseq" as="element()" />
@@ -314,8 +314,8 @@
   expansion.
 
   Its default behavior is an important consideration: what if
-  @ttref{eseq:is-expandable} is overridden but the implementation
-  forgets to override @ttref{eseq:expand-node}?  If the default
+  @ttref{eseq:is-expandable#1} is overridden but the implementation
+  forgets to override @ttref{eseq:expand-node#1}?  If the default
   behavior were to simply echo back the node, it seems likely that we
   would never finish processing, since the very node that matched the
   predicate to begin with would remain unchanged.
@@ -334,9 +334,9 @@
   provided node.  Note that this call represents a single step in an
   expansion, so it need not result in a complete expansion; further
   processing will take place according to the result of the
-  @ttref{eseq:is-expandable} predicate.
+  @ttref{eseq:is-expandable#1} predicate.
 
-  If @ttref{eseq:is-expandable} is provided, but an override for this
+  If @ttref{eseq:is-expandable#1} is provided, but an override for this
   function is not, then the default behavior is to return a node in
   our namespace providing a description of the problem; this is to
   prevent infinite recursion/iteration.
@@ -353,7 +353,7 @@
 
 
 <!--
-  The return type of @ttref{eseq:expand-node} produces an interesting
+  The return type of @ttref{eseq:expand-node#1} produces an interesting
   concept.  Consider what may happen after an expansion:
 
   @enumerate
@@ -384,7 +384,7 @@
   continue processing; the expansion may have yielded additional
   symbols that must be added to the symbol table, for example.  The
   process will be continued on the next call to
-  @ttref{eseq:expand-step}.
+  @ttref{eseq:expand-step#1}.
 -->
 
 
@@ -396,7 +396,7 @@
   @dfn{Hoisting} is the process of moving a fully expanded head node
   out of the expansion sequence; it is the final step of the process
   for a head node and is driven wholly by the
-  @ttref{eseq:is-expandable} predicate.
+  @ttref{eseq:is-expandable#1} predicate.
 
   Unfortunately, we cannot continue processing immediately after
   hoisting for the same reasons that we cannot continue processing
