@@ -127,6 +127,82 @@
           </t:match-result>
         </t:expect>
       </t:it>
+
+
+      <t:it desc="Performs ceiling when 'up' (low)">
+        <t:premium class="length1"
+                   generates="premRoundCeilLow" index="k"
+                   round="up">
+          <c:value-of name="#1.1" />
+        </t:premium>
+
+        <t:given name="premRoundCeilLow" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs ceiling when 'up' (high)">
+        <t:premium class="length1"
+                   generates="premRoundCeilHigh" index="k"
+                   round="up">
+          <c:value-of name="#1.7" />
+        </t:premium>
+
+        <t:given name="premRoundCeilHigh" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs floor when 'down' (low)">
+        <t:premium class="length1"
+                   generates="premRoundFloorLow" index="k"
+                   round="down">
+          <c:value-of name="#1.1" />
+        </t:premium>
+
+        <t:given name="premRoundFloorLow" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs floor when 'down' (high)">
+        <t:premium class="length1"
+                   generates="premRoundFloorHigh" index="k"
+                   round="down">
+          <c:value-of name="#1.7" />
+        </t:premium>
+
+        <t:given name="premRoundFloorHigh" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
     </t:describe>
   </t:describe>
 </package>

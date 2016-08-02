@@ -93,7 +93,24 @@
         </if>
 
         <unless name="@round@" eq="cent">
-          <param-copy name="@values@" />
+          <if name="@round@" eq="up">
+            <c:ceil>
+              <param-copy name="@values@" />
+            </c:ceil>
+          </if>
+
+          <unless name="@round@" eq="up">
+            <if name="@round@" eq="down">
+              <c:floor>
+                <param-copy name="@values@" />
+              </c:floor>
+            </if>
+
+            <unless name="@round@" eq="down">
+              <!-- no rounding -->
+              <param-copy name="@values@" />
+            </unless>
+          </unless>
         </unless>
       </unless>
     </rate-each>
