@@ -66,6 +66,10 @@ Free Documentation License".
 ---
 @end macro
 
+@macro todo{str}
+@emph{[@strong{TODO: }\str\]}
+@end macro
+
 @macro ttref{ref}
 @ref{\ref\,,@code{\ref\}}
 @end macro
