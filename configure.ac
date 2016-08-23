@@ -45,7 +45,7 @@ AS_IF(test ! -d "$HOXSL",
   AC_MSG_ERROR([hoxsl path '$HOXSL' does not exist!]))
 AC_MSG_RESULT(found)
 
-AC_CONFIG_FILES([Makefile doc/Makefile src/init.xsl])
+AC_CONFIG_FILES([Makefile doc/Makefile src/init.xsl VERSION])
 
 AC_OUTPUT
 
