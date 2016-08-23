@@ -36,8 +36,4 @@
             select="@REV@" />
   <variable name="tame:version-suffix" as="xs:string"
             select="@SUFFIX@" />
-
-  <!-- hoxsl path is configured at build time -->
-  <import href="@HOXSL@/apply/thrush.xsl" />
-
 </stylesheet>

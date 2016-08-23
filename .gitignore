@@ -1,7 +1,7 @@
 /test/index.html
 /test/**/xspec/
 /src/**/*.texi
-/conf.xsl
+/src/conf.xsl
 *.apply
 *.info
 
