@@ -19,7 +19,7 @@
 @copying
 This manual is for TAME, version @value{VERSION}.
 
-Copyright @copyright{} 2015 LoVullo Associates, Inc.
+Copyright @copyright{} 2015, 2016 LoVullo Associates, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
