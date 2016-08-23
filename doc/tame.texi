@@ -53,6 +53,7 @@ Free Documentation License".
 @menu
 * Preprocessor::      Metaprogramming system
 * Dependency Graph::  Dependency processing and flow analysis
+* Symbol Table::      Lookup table for all objects
 * License::           Document License
 @end menu
 
@@ -109,6 +110,7 @@ Free Documentation License".
 @c chapter
 @raisesections
 @include ../src/graph.texi
+@include ../src/symtable.texi
 @lowersections
 
 @include license.texi

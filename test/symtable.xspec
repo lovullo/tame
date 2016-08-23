@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<!--
+  Tests dependency graph
+
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+    This file is part of TAME.
+
+    TAME is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see
+    <http://www.gnu.org/licenses/>.
+-->
+<description xmlns="http://www.jenitennison.com/xslt/xspec"
+             xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+             xmlns:x="http://www.jenitennison.com/xslt/xspec"
+             xmlns:symtable="http://www.lovullo.com/tame/symtable"
+             xmlns:preproc="http://www.lovullo.com/rater/preproc"
+             xmlns:foo="http://www.lovullo.com/_junk"
+             stylesheet="../src/symtable.xsl">
+
+  <variable name="table" as="element( preproc:syms )">
+    <preproc:syms>
+      <preproc:sym name="dup-a"
+                   src="dup-a-first"
+                   foo:dup="true" />
+      <preproc:sym name="dup-b"
+                   src="dup-b-first"
+                   foo:dup="true" />
+
+      <preproc:sym name="dup-a"
+                   src="dup-a-second"
+                   foo:dup="true" />
+      <preproc:sym name="dup-b"
+                   src="dup-b-second"
+                   foo:dup="true" />
+      <preproc:sym name="dup-b"
+                   src="dup-b-third"
+                   foo:dup="true" />
+
+      <!-- one of them is the same package as another; all three
+           should be recognized as duplicates so that the caller can
+           resolve or report intelligently -->
+      <preproc:sym name="dup-c-somesame"
+                   src="dup-c-first"
+                   foo:dup="true" />
+      <preproc:sym name="dup-c-somesame"
+                   src="dup-c-same"
+                   foo:unique="first"
+                   foo:dup="true" />
+      <preproc:sym name="dup-c-somesame"
+                   src="dup-c-same"
+                   foo:unique="second"
+                   foo:dup="true" />
+
+      <preproc:sym name="non-dup"
+                   src="ok" />
+
+      <preproc:sym name="non-dup-samepkg"
+                   src="same" />
+      <preproc:sym name="non-dup-samepkg"
+                   src="same" />
+
+      <!-- some symbols may be missing @src entirely to denote a local
+           symbol -->
+      <preproc:sym name="no-src" />
+
+      <!-- same package, no @src -->
+      <preproc:sym name="no-src-local"
+                   foo:uniq="a" />
+      <preproc:sym name="no-src-local"
+                   foo:uniq="b" />
+
+      <!-- so it should be considered in determining a duplicate -->
+      <preproc:sym name="no-src-dup"
+                   foo:uniq="a"
+                   foo:dup="true" />
+      <preproc:sym name="no-src-dup"
+                   foo:uniq="b"
+                   foo:dup="true" />
+      <preproc:sym name="no-src-dup"
+                   src="no-src"
+                   foo:dup="true" />
+
+      <!-- ignore externs (one)  -->
+      <preproc:sym name="extern-dup-one"
+                   src="extern-a" />
+      <preproc:sym name="extern-dup-one"
+                   extern="true"
+                   src="extern-b" />
+
+      <!-- ignore externs (both)  -->
+      <preproc:sym name="extern-dup-both"
+                   extern="true"
+                   src="extern-a" />
+      <preproc:sym name="extern-dup-both"
+                   extern="true"
+                   src="extern-b" />
+
+      <!-- ignore externs (combo)  -->
+      <preproc:sym name="extern-dup-bothish"
+                   src="extern-a" />
+      <preproc:sym name="extern-dup-bothish"
+                   extern="true"
+                   src="extern-b" />
+      <preproc:sym name="extern-dup-bothish"
+                   extern="true"
+                   src="extern-c" />
+    </preproc:syms>
+  </variable>
+
+  <variable name="dupes" as="element( preproc:sym )+"
+            select="$table/preproc:sym[ @foo:dup = 'true' ]" />
+
+  <variable name="distinct-dupes" as="xs:string+"
+            select="distinct-values(
+                      $table/preproc:sym[
+                        @foo:dup = 'true' ]/@name )" />
+
+
+  <scenario label="symtable:find-duplicates">
+    <call function="symtable:find-duplicates">
+      <param name="symtable"
+             select="$table" />
+    </call>
+
+    <expect label="finds all duplicates"
+            test="empty( $dupes except $x:result )" />
+
+    <expect label="does not find any non-duplicates"
+            test="empty( $x:result except $dupes )" />
+
+    <expect label="returns all duplicates by reference"
+            test="every $sym in $x:result
+                    satisfies $sym/parent::* is $table" />
+  </scenario>
+</description>
