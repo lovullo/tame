@@ -19,3 +19,6 @@ Makefile
 /tools/mdate-sh
 /tools/texinfo.tex
 /hoxsl
+
+# texinfo
+/doc/*.fns
