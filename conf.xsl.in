@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <!--
-  General configuration
+  General configuration and version information
 
-  Copyright (C) 2015 LoVullo Associates, Inc.
+  Copyright (C) 2015, 2016 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -21,9 +21,23 @@
     <http://www.gnu.org/licenses/>.
 -->
 <stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/XSL/Transform">
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:tame="http://www.lovullo.com/tame">
 
-<!-- hoxsl path is configured at build time -->
-<import href="@HOXSL@/apply/thrush.xsl" />
+  <variable name="tame:version" as="xs:string"
+            select="@VERSION@" />
+
+  <variable name="tame:version-major"  as="xs:string"
+            select="@MAJOR@" />
+  <variable name="tame:version-minor"  as="xs:string"
+            select="@MINOR@" />
+  <variable name="tame:version-rev"    as="xs:string"
+            select="@REV@" />
+  <variable name="tame:version-suffix" as="xs:string"
+            select="@SUFFIX@" />
+
+  <!-- hoxsl path is configured at build time -->
+  <import href="@HOXSL@/apply/thrush.xsl" />
 
 </stylesheet>

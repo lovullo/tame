@@ -20,6 +20,18 @@ AC_INIT([tame], [0.0.0], [dev@lovullo.com])
 AC_CONFIG_AUX_DIR([tools])
 AM_INIT_AUTOMAKE([foreign])
 
+# provide more granular version numbers based on the version string, using
+# the format MAJOR.MINOR.REV[-SUFFIX], where SUFFIX can itself contain
+# dashes (and often will)
+m4_define([ver_split],
+  m4_split(
+    patsubst(AC_PACKAGE_VERSION, [^\([^-]+\)-], [\1.]),
+    [\.]))
+AC_SUBST(MAJOR, m4_argn(1, ver_split))
+AC_SUBST(MINOR, m4_argn(2, ver_split))
+AC_SUBST(REV, m4_argn(3, ver_split))
+AC_SUBST(SUFFIX, m4_argn(4, ver_split))
+
 AC_ARG_VAR([JAVA], [The Java executable])
 AC_CHECK_PROGS(JAVA, [java])
 
