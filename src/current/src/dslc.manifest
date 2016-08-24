@@ -1,0 +1,2 @@
+Main-Class: com/lovullo/dslc/DslCompiler
+Class-Path: saxon8.jar
