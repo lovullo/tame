@@ -33,8 +33,8 @@ to implement a full compiler in XSLT.
 
 More information will become available as various portions are liberated
 during refactoring. [tame-core](https://github.com/lovullo/tame-core) is
-TAME's core library, and [hoxsl](https://github.com/lovullo/hoxsl) was
-developed as a supporting library.
+TAME's core library, and [hoxsl](https://savannah.nongnu.org/projects/hoxsl)
+was developed as a supporting library.
 
 
 ## "Current"
