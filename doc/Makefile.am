@@ -21,7 +21,9 @@
 path_src   := ../src
 path_tools := ../tools
 
-stylesheets := $(shell find "$(path_src)" -name '*.xsl')
+stylesheets := $(shell find "$(path_src)" \
+                         -name '*.xsl' \
+                         -a \! -path "$(path_src)"/current/\* )
 stexi       := $(stylesheets:.xsl=.texi)
 
 info_TEXINFOS  = tame.texi

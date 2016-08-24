@@ -1,0 +1,30 @@
+% manual style package
+
+% these margins ensure that the PDF can be easily scrolled vertically without
+% worrying about alternating margins (good for viewing on screen, but not on
+% paper)
+\usepackage[margin=1.25in]{geometry}
+\usepackage{amsmath}
+
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+
+% no name yet
+\def\lang{the DSL}
+
+\def\sref#1{Section \ref{s:#1}}
+\def\fref#1{Figure \ref{f:#1}}
+\def\aref#1{Algorithm \ref{a:#1}}
+\def\asref#1#2{A\ref{a:#1}(\ref{a:#1:#2})}
+
+\def\set#1{%
+  \ifmmode%
+    \left\{#1\right\}%
+  \else
+    $\left\{#1\right\}$%
+  \fi%
+}
+\def\boolset{\set{\top,\bot}}
+\def\inbool{\in\boolset}
+
+\def\term#1{{\sl #1}}

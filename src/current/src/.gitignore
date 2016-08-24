@@ -1,0 +1,6 @@
+# may be copied into the cwd for testing, since it is a dep
+saxon8.jar
+
+*.class
+*.jar
+*.manifest

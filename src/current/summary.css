@@ -1,0 +1,835 @@
+/**
+ * Rater XML summary stylesheet
+ */
+
+body {
+    /* menu width * menu em + 1 */
+    margin: 0em 0em 0em 13em;
+}
+
+.menu
+{
+    position: fixed;
+    overflow: scroll;
+
+    background-color: #ad7fa8;
+    border-right: 1px solid black;
+
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    width: 15em;
+
+    padding: 0.25em;
+
+    font-size: 0.8em;
+
+    resize: horizontal;
+    z-index: 10;
+}
+
+.menu h1
+{
+    font-size: 1.4em;
+    margin-bottom: 0.15em;
+    border-bottom: 1px solid #75507b;
+}
+.menu h1:not(:first-child)
+{
+    margin-top: 2em;
+}
+
+.menu h2
+{
+    font-size: 1.2em;
+    margin-left: 0.5em;
+    margin-bottom: 0.15em;
+}
+
+.menu ul
+{
+    margin: 0px;
+    padding-left: 1.25em;
+    list-style: none;
+}
+
+fieldset,
+.container-param,
+.tcontent
+{
+    display: none;
+}
+fieldset:target,
+.container-param:target,
+.tcontent:target
+{
+    display: block;
+}
+
+fieldset fieldset
+{
+    display: block;
+}
+
+
+#xml-raw:not(.show)
+{
+    display: none;
+}
+
+table > caption
+{
+    font-weight: bold;
+}
+
+dt
+{
+    font-size:   1.1em;
+    font-weight: bold;
+
+    margin-top: 0.5em;
+}
+
+dt.param.classifies {
+    color: green;
+}
+dt.param > .type
+{
+    font-size:   0.8em;
+    font-weight: normal;
+}
+
+dl.params > .default
+{
+    font-size: 0.8em;
+}
+
+table
+{
+    border: 1px solid #888a87;
+    margin: 1em 0px 0px 0px;
+}
+table th
+{
+    border-bottom: 2px solid #888a87;
+    padding: 0.5em;
+}
+table tr > td
+{
+    padding: 0.5em;
+}
+table tr:not(:last-child) > td
+{
+    border-bottom: 1px solid #888a87;
+}
+
+fieldset
+{
+    border: 0px;
+    margin: 0px;
+}
+
+.class .requires,
+.class .name,
+.class .usedby,
+.typedef .type,
+.typedef .name,
+.params .usedby,
+.rate .yields,
+.rate .param,
+.func .param,
+.func .usedby
+{
+    font-size: 0.8em;
+}
+
+.usedby a
+{
+    text-decoration: none;
+}
+
+.calc-order,
+.classifier-calcs
+{
+    max-height: 20em;
+    overflow-y: scroll;
+}
+
+#workstatus
+{
+    position: fixed;
+    display:  none;
+
+    background-color: #eeeeec;
+
+    left: 0px;
+    top: 0px;
+    right: auto;
+    padding: 0.25em;
+
+    font-size: 0.9em;
+    border-bottom: 1px solid #babdb6;
+    border-right:  1px solid #babdb6;
+
+    /* entry-form is 2000 */
+    z-index: 1999;
+}
+
+#workstatus.show
+{
+    display: block;
+}
+
+.package
+{
+    background-color: #eeeeec;
+
+    border: 1px solid #babdb6;
+    border-radius: 1em;
+
+    padding: 1em;
+
+    margin-bottom: 3em;
+
+    clear: both;
+}
+.package.devsummary
+{
+    background-color: #ad7fa8;
+    border-color: #75507b;
+}
+
+.package > .title
+{
+    position: relative;
+
+    background-color: #d3d7cf;
+
+    border-bottom: 1px solid #babdb6;
+    border-radius: 1em 1em 0px 0px;
+
+    margin: -1em -1em 0px -1em;
+    padding: 1em;
+}
+.package > .title > h2
+{
+    margin:  0;
+    padding: 0;
+}
+
+.package > h3,
+.package > div > h3
+{
+    border-width: 0px 0px 2px 0px;
+    border-style: solid;
+    border-color: #babdb6;
+
+    margin: 1em -0.9em;
+    padding: 0.1em 0.5em;
+}
+
+.package.us > .title,
+.package.devsummary > .title
+{
+    background-color: #ad7fa8;
+}
+.package.devsummary > .title,
+.package.devsummary > h3,
+.package.devsummary > div > h3
+{
+    border-bottom-color: #75507b;
+}
+
+.package h4.rate-group
+{
+    border-bottom: 1px dashed #babdb6;
+    margin-top: 3em;
+    margin-left: -0.5em;
+}
+.rate-groups .generates
+{
+    font-size: 0.9em;
+}
+
+.package > .title > .imports
+{
+    position: absolute;
+    top: 0px;
+    right: 0px;
+
+    margin: 1.25em;
+}
+.package > .title > .imports::before
+{
+    content: 'Imports: ';
+    font-weight: bold;
+}
+
+body > fieldset
+{
+    position: relative;
+    padding: 5em 0em 0em 0em;
+}
+
+body > fieldset > legend
+{
+    position: absolute;
+    background-color: #eeeeec;
+
+    border-top: 1px solid #babdb6;
+    border-bottom: 1px solid #babdb6;
+
+    padding: 0.5em;
+    left: -0.5em;
+    top: 0em;
+    right: 0px;
+
+    font-size: 1.5em;
+    letter-spacing: 0.1em;
+}
+
+body > fieldset > legend > a.pkg
+{
+    float: right;
+    font-size: 0.5em;
+    line-height: 2.5em;
+
+    color: inherit;
+    border: none;
+    text-decoration: none;
+}
+
+body > fieldset > legend + p.desc
+{
+    margin-top: 0em;
+    font-size: 1.1em;
+}
+
+fieldset.rate > legend > a
+{
+    text-decoration: none;
+    border-bottom:   1px dotted black;
+}
+
+fieldset.rate .classes
+{
+    display: inline-block;
+
+    margin: -1em 0em 2em 0em;
+    padding-bottom: 0.25em;
+
+    font-size: 0.9em;
+    border-bottom: 1px dotted black;
+}
+
+fieldset.rate .classes > .prefix
+{
+    font-variant: small-caps;
+}
+
+/* more than just .rate */
+fieldset .calc-yields
+{
+    font-variant: small-caps;
+}
+
+
+ul.let
+{
+    list-style:   none;
+    margin:  0;
+    padding: 0;
+}
+
+ul.let li.letequ
+{
+    margin-top: 1em;
+}
+
+ul.let .letdesc
+{
+    font-size: 0.9em;
+    margin-left: 1em;
+}
+
+
+.rate .body,
+.func .body,
+.yield .body
+{
+    float: left;
+}
+.rate .right,
+.func .right,
+.yield .right
+{
+    float: right;
+    padding: 0;
+    margin: 0;
+
+    max-width: 40%;
+}
+.rate .body
+{
+    /** give room for accumulators, depends, etc **/
+    margin-bottom: 5em;
+}
+.right h4
+{
+    border-bottom: 1px solid black;
+
+
+    margin-top:    0;
+    margin-bottom: 0.5em;
+}
+.right > div:not(:first-child)
+{
+    margin-top: 1em;
+}
+.right > .parts.many
+{
+    -webkit-columns: 2;
+    -moz-columns: 2;
+}
+.right > .parts > .part,
+.right > .generators > .generator
+{
+    text-align: center;
+    margin-top: 2em;
+}
+.right > .parts > .part:first-child
+{
+    margin-top: 0em;
+}
+.right > .parts.many > .part
+{
+    /** FF, Webkit and W3C respectively */
+    display: table;
+    -webkit-column-break-inside: avoid;
+    break-inside: avoid-column;
+}
+.right > .parts > .part > .label,
+.right > .generators > .generator > .desc
+{
+    font-size:  0.9em;
+}
+.accum
+{
+    position: absolute;
+    bottom:   1em;
+
+    font-size: 0.9em;
+
+    max-width: 60%;
+}
+
+.error
+{
+    font-weight: bold;
+    color: red;
+}
+
+
+/** entry form **/
+#test-data
+{
+    position: relative;
+}
+#test-data:not(:target)
+{
+    display: none;
+}
+
+form.entry-form
+{
+}
+
+form.entry-form.focus
+}
+
+form.entry-form > dl
+}
+
+form.entry-form.focus > dl
+{
+}
+
+form.entry-form dt
+{
+    clear: left;
+}
+
+form.entry-form .matrix
+{
+    display: inline-block;
+    border: 1px inset;
+    padding: 0.25em;
+
+    float: left;
+    clear: left;
+}
+
+form.entry-form .entry-add
+{
+    float: left;
+    clear: left;
+}
+
+form.entry-form > .foot
+{
+}
+
+form.entry-form > .foot > .ratemsg
+{
+    display: inline-block;
+
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+form.entry-form .final-accept:not(.show),
+form.entry-form .final-premium:not(.show)
+{
+    display: none;
+}
+
+form.entry-form .final-premium
+{
+    margin: 0.25em;
+
+    font-size: 3em;
+    font-weight: bold;
+    color:     green;
+
+    text-shadow: 1px 1px 1px black;
+}
+
+
+form.entry-form .final-premium:before
+{
+    content: '$';
+
+    min-height: 0em;
+
+    white-space: nowrap;
+}
+
+
+form.entry-form input[type="reset"]
+{
+    /* help protect against accidental clicks */
+    margin-left: 1em;
+}
+
+form .final-comments
+{
+    background-color: rgba( 255, 255, 255, 0.90 );
+
+    display: none;
+
+    text-align: left;
+
+    padding: 1em;
+}
+form .final-comments.show
+{
+    position: fixed;
+    display:  block;
+
+    border: 0.25em solid black;
+
+    top: 0.25em;
+    right: 0.25em;
+    bottom: 0.25em;
+    left: 12.7em;
+}
+
+form .final-comments textarea
+{
+    width: 95%;
+    height: 20em;
+}
+
+form .final-comments button
+{
+    padding: 0.5em 1em;
+    margin-right: 1em;
+}
+
+form .final-comments #final-submit
+{
+    font-weight: bold;
+}
+
+
+/** load dialog **/
+#prior:not(:target)
+{
+    display:  none;
+}
+
+.load-dialog td
+{
+    cursor: pointer;
+}
+
+.load-dialog > button
+{
+    margin-top: 0.5em;
+    padding:    0.5em 1em;
+    font-size:  1.1em;
+}
+
+.load-dialog tr > td:first-child,
+.load-dialog tr > td.premium
+{
+    white-space: nowrap;
+}
+
+.load-dialog tr > td.premium,
+.load-dialog tr > td.expected
+{
+    text-align: right;
+}
+
+.load-dialog tr.good
+{
+    background-color: #c0ffc0;
+}
+.load-dialog tr.bad
+{
+    background-color: #ffc0c0;
+}
+.load-dialog tr.good.waiting
+{
+    background-color: #edd400;
+}
+.load-dialog tr.bad.waiting
+{
+    background-color: #f57900;
+}
+.load-dialog tr.changed:not(.skipped)
+{
+    font-weight: bold;
+    font-style:  normal !important;
+}
+.load-dialog tr.premchanged
+{
+    font-style: italic;
+}
+.load-dialog tr.skipped
+{
+    background-color: gray;
+}
+
+
+.load-dialog.show
+{
+    display: block;
+}
+
+
+
+.entry-value,
+.entry-value-prior
+{
+    background-color: yellow;
+
+    padding:     0.1em;
+    margin-left: 1em;
+
+    font-weight: bold;
+    color:       green;
+}
+.entry-value-prior
+{
+    background-color: purple;
+
+    font-weight: normal;
+    font-size:   0.9em;
+    color:       white;
+}
+body:not(.prior) .entry-value-prior
+{
+    display: none;
+}
+
+
+/** validation errors **/
+.validation-errors
+{
+    position: fixed;
+    background-color: #FFAFAF;
+
+    border: 0.5em solid rgba( 255, 0, 0, 0.75 );
+    border-bottom: none;
+
+    bottom: -30.5em;
+    left:   0px;
+    right:  0px;
+
+    padding: 0px 0px 0px 0.5em;
+
+    z-index: 9000;
+}
+
+.validation-errors:hover
+{
+    background-color: white;
+
+    bottom: 0px;
+}
+
+.validation-errors ol
+{
+    height: 30em;
+
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+
+    overflow-y: scroll;
+}
+
+.validation-errors li > .content
+{
+    font-weight: normal;
+}
+
+.nb
+{
+    border-top:  1px solid #babdb6;
+    padding-top: 1em;
+}
+
+
+
+.ultra-breakdown
+{
+    display: block;
+
+    font-size: 0.9em;
+    clear: both;
+}
+
+.ultra-breakdown > h2
+{
+    margin-top: 3em;
+}
+
+.ultra-breakdown + .yields
+{
+    margin-top: 2em;
+}
+
+.ultra-breakdown legend > .uid
+{
+    font-size: 0.8em;
+}
+
+.ultra-breakdown fieldset
+{
+    margin-top: 1em;
+
+    border: 1px solid #babdb6;
+    border-radius: 0.5em;
+}
+
+.ultra-breakdown fieldset:hover
+{
+    border-color: black;
+}
+
+
+.test-summary
+{
+    float: right;
+}
+.test-summary table
+{
+    float: right;
+    clear: both;
+}
+
+#voi-container,
+#class-overview
+{
+    display: none;
+    margin:  0em 0.5em 2em 0em;
+}
+#class-overview td.prior
+{
+    font-size: 0.9em;
+    color:     purple;
+}
+body:not(.prior) #class-overview td.prior
+{
+    display: none;
+}
+
+#voi-container.show,
+#class-overview.show
+{
+    display: inline;
+}
+
+#voi-container td.prior
+{
+    font-size: 0.9em;
+    color:     purple;
+}
+body:not(.prior) #voi-container td.prior
+{
+    display: none;
+}
+
+.sel0
+{
+    background-color: #ccccff;
+}
+.sel1
+{
+    background-color: #ccffcc;
+}
+.sel2
+{
+    background-color: #ffcccc;
+}
+
+#voi-painter
+{
+    position: fixed;
+    display:  block;
+
+    background-color: white;
+    border: 3px solid #eeeeec;
+    border-radius: 0.25em;
+
+    top:  -3px;
+    left: 30em;
+
+    font-weight: bold;
+    font-size:   1.3em;
+
+    padding: 0.25em;
+}
+
+#prior-message
+{
+    background-color: #c0ffc0;
+    display: none;
+
+    border: 0.25em solid #4e9a06;
+    width: 50%;
+
+    font-family: monospace;
+
+    padding: 0.5em;
+}
+
+#prior-message.bad
+{
+    background-color: #ffc0c0;
+    border-color: #c00000;
+}

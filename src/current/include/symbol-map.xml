@@ -1,0 +1,80 @@
+<symbol-map
+  xmlns="http://www.lovullo.com/rater/symbol-map"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com symbol-map.xsd">
+
+  <!-- global parameter -->
+  <symbol type="param">\Theta</symbol>
+
+  <!-- function parameter -->
+  <symbol type="fparam">\theta</symbol>
+
+  <!-- constant -->
+  <symbol type="const">C</symbol>
+
+  <!-- enum item -->
+  <symbol type="item">E</symbol>
+
+  <symbol type="classify">\kappa</symbol>
+
+  <!-- the class accumulator will accumulate the values returned by any lv:rate
+       that matches a given classification -->
+  <symbol type="class-accumulator">K</symbol>
+
+  <!-- map functions to their own name -->
+  <symbol type="function">
+    <name />
+  </symbol>
+
+  <!-- lv:rate yield (omega to denote "final result") -->
+  <symbol type="rate">\omega</symbol>
+
+  <!-- generating expressions -->
+  <symbol type="generator">G</symbol>
+
+  <symbol type="accumulator">\sigma</symbol>
+
+  <!-- typedefs should have no symbol by default; their plain-text domain can be
+       listed -->
+  <symbol type="typedef">
+    <nothing />
+  </symbol>
+
+
+  <!--
+    Explicit symbol reservations
+
+    Any symbol mentioned within this file will be disallowed from being used in
+    any @sym attribute within raters/packages.
+
+    Note that this list need not contain symbols defined elsewhere in the
+    framework. For example, symbols mentioned in symbol-map need not appear here.
+
+    Do not be overly picky with this list; include only those that are established
+    in the field of mathematics as a whole (not a specific category, unless it is
+    CS), where the symbol is almost always understood to have a particular
+    meaning. For example:
+
+      - We wouldn't want to allow \pi, since that is already established as the
+        ratio of a circle's circumference to its diameter
+      - Nor should we allow \delta, since that is commonly used in CS to represent
+        Kronecker's delta
+      - We should *not*, however, disallow \mu just because it is the Möbius
+        function in number theory
+  -->
+  <reserved>
+    <!-- commonly used as an alterative to Iverson's convention under certain
+         circumstances, so it's best to avoid the notation entirely even if it is
+         not used within the framework -->
+    <reserve sym="\delta" reason="Kronecker delta" />
+
+    <reserve sym="\pi" reason="Ratio of a circle's circumference to its diameter" />
+    <reserve sym="\phi" reason="The golden ratio (another established mathematical constant)" />
+    <reserve sym="\Sigma" reason="Summation symbol; sigma-notation" />
+    <reserve sym="\Pi" reasons="Product symbol; pi-notation" />
+
+    <!-- as common as this is in programming as an index, this is another
+         established mathematical constant (sqrt(-1)) -->
+    <reserve sym="i" reason="Imaginary number" />
+  </reserved>
+</symbol-map>

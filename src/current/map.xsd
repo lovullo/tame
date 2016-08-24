@@ -1,0 +1,412 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://www.lovullo.com/rater/map"
+  xmlns="http://www.lovullo.com/rater/map"
+  elementFormDefault="qualified">
+
+
+  <xs:complexType name="classDescriptorType">
+    <xs:attribute name="name" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Classification name (lv:classify/@as)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="ignores-eligibility" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Classification should not add a match requiring that at least one
+          eligible supplier use it (if supported by implementation)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:simpleType name="valueType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        String constant
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+
+  <xs:complexType name="defaultType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Default complex value for a translation
+
+        Concatenates each value.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice maxOccurs="unbounded">
+      <xs:element name="from" type="fromType"
+                  minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="value" type="valueType"
+                  minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+  </xs:complexType>
+
+
+  <xs:complexType name="translateType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines a translation for a given value
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice maxOccurs="unbounded">
+      <xs:element name="from" type="fromType"
+                  minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="value" type="valueType"
+                  minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+
+    <xs:attribute name="key" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Source value to match against for translation
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="value" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Value to translate to
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="empty" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Default value when the resulting translation is the
+          empty string
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="fromType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines translation rules between source and destination fields; not
+        to be used with @from
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice maxOccurs="unbounded">
+      <!-- translation rule -->
+      <xs:element name="translate" type="translateType"
+                  minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="default" type="defaultType"
+                  minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+
+    <xs:attribute name="name" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Identifier of source field
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="default" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional default value if no source value is available
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="affects-eligibility" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Whether this field should be considered when generating eligibility
+          classes (if supported by implementation); default true
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:group name="setTransformGroup">
+    <xs:choice>
+      <xs:element name="set" type="setType" />
+
+
+      <xs:element name="const">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Maps a static value
+          </xs:documentation>
+        </xs:annotation>
+
+        <xs:complexType>
+          <xs:attribute name="value" type="xs:string" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Static value to map to destination
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+
+
+      <xs:element name="from">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Maps a source value to its destination by index
+          </xs:documentation>
+        </xs:annotation>
+
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Source field identifier
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="index" type="xs:string" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Iterator variable or constant integer representing the source
+                value index
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+    </xs:choice>
+  </xs:group>
+
+
+  <xs:complexType name="setType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Translates source data into a set
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:group ref="setTransformGroup" minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+
+    <xs:attribute name="each" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Source field identifier to use as index for the iterator
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="index" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Variable to serve as a reference for the iterator index
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="ignore-empty" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          When true, if a transformation yields a value that is undefined, an
+          empty string, or the string "0", then omit it from the set
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="mapType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines a map from a source field to a destination field with optional
+        transformation rules
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="from" type="fromType" minOccurs="0" maxOccurs="1" />
+      <xs:element name="set"  type="setType"  minOccurs="0" maxOccurs="1" />
+    </xs:sequence>
+
+    <xs:attribute name="to" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Identifier of destination field
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="from" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Identifier of source field if no data transformations are to be
+          performed; cannot be used with @value
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="value" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Constant value to be mapped to destination; cannot be used with @from
+          or from node
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="affects-eligibility" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Whether this field should be considered when generating eligibility
+          classes (if supported by implementation); default true
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="override" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Override mapping sharing the same destination identifier in an
+          imported package
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="passType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Maps from a source field to a destination field of the same name without
+        any translation; shorthand for identical @to and @from attributes on a
+        general map node
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="name" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Identifier of the source (and consequently destination) field
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="novalidate" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Do not validate that the field exists; useful for mapping data that is
+          not explicitly recognized as a field by the source
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="affects-eligibility" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Whether this field should be considered when generating eligibility
+          classes (if supported by implementation); default true
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="override" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Override mapping sharing the same destination identifier in an
+          imported package
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <!-- represents some type of mapping -->
+  <xs:group name="mappingGroup">
+    <xs:choice>
+      <xs:element name="map" type="mapType"
+        minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="pass" type="passType"
+        minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+  </xs:group>
+
+
+  <xs:complexType name="importType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Includes mappings from another source file
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="path" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Path to source file
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:element name="program-map">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Maps program data between two points
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="import" type="importType"
+          minOccurs="0" maxOccurs="unbounded" />
+        <xs:element name="class" type="classDescriptorType"
+          minOccurs="0" maxOccurs="unbounded" />
+
+        <xs:group ref="mappingGroup" minOccurs="0" maxOccurs="unbounded" />
+      </xs:sequence>
+
+      <xs:attribute name="src" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Source document to validate against (document root node must be
+            known to the implementation)
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+
+
+  <xs:element name="return-map">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Specifies data transformations/filtering to be performed on data before
+        being returned to a caller
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="import" type="importType"
+          minOccurs="0" maxOccurs="unbounded" />
+
+        <xs:group ref="mappingGroup" minOccurs="0" maxOccurs="unbounded" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

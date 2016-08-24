@@ -1,0 +1,372 @@
+\chapter{Classification System}
+The classification system is one of the most powerful features of \lang,
+allowing precise control over the classification and conditional processing of
+large sets of data, whether it be external input or values generated from within
+\lang\ itself. Virtually every conditional calculation is best represented
+through use of the classification system.
+
+
+\section{Classification Matcher}
+Data classification is performed by the classification matcher (sometimes
+referred to simply as the ``matcher''). Put simply, it is a function (defined by
+\aref{cmatch}) that, given a vector of inputs, produces a boolean vector (which
+may itself contain boolean vectors) determining if the given input conforms to a
+set of stated rules. A set of rules operating on a set input vectors is
+collectively known as a \term{classification}. The system that performs matching
+based on classifications is referred to as a \term{classifier}.
+
+A single classification can be separated into a set of rules, often referred to
+as \term{matches} within the context of \lang. A single rule attempts to match
+on a vector of inputs.\footnote{Scalar inputs are a special condition defined in
+\sref{cmatch-scalar}.} A simple example of such a match is shown in
+\fref{cmatch-ex-single}.
+
+\begin{figure}[h]
+  $$
+    I = \left[
+      \begin{array}{c}
+        1 \\ 3 \\ 4 \\ 1
+      \end{array}
+    \right]
+    \qquad
+    M = \left[
+      \begin{array}{c}
+        1 \\ 4
+      \end{array}
+    \right]
+    \quad
+    \to
+    \quad
+    R = \left[
+      \begin{array}{c}
+        \top \\ \bot \\ \top \\ \top
+      \end{array}
+    \right].
+  $$
+
+  \caption{A simple classification match $M$ on input $I$ and its result vector
+  $R$.}
+  \label{f:cmatch-ex-single}
+\end{figure}
+
+In \fref{cmatch-ex-single}, the input vector $I$ is \term{matched} against the
+rule $M$. The output is a boolean result vector $R$ which can be summarized with
+the following rule:
+
+$$
+  R_n = \exists m\in M(m = I_n).
+$$
+\noindent
+In other words, $R_n$ is $\top$ if $I_n\in M$ and is $\bot$ if $I_n\notin M$.
+Under this definition, $M$ can be considered to be the \term{domain} under which
+a given input $I_n$ is considered to be valid (a \term{match}).
+
+We say that a classification rule \term{matches} if \emph{any} input matches.
+That is:
+
+$$
+  \left[\textrm{The rule $M$ matches input $I$}\right]
+  \iff
+  \top\in R
+$$
+\noindent
+Another way to think of this concept is the reduction of the result vector $R$
+using a logical OR. Alternatively, one could assert that:
+
+$$
+  \left[\textrm{The rule $M$ matches input $I$}\right]
+  \iff
+  \sum\limits_n R_n \geq 1, \qquad R \in \set{0,1},
+$$
+\noindent
+if an implementation were willing to use the sets \boolset and \set{1,0}
+interchangeably.\footnote{See \sref{cmatch-int}.}
+
+The following sections, however, serve to demonstrate that such a simple view of
+the classification system, while useful for an introductory demonstration, is
+not sufficient when considering the level of flexibility that is necessary to
+handle more complicated data (in particular, when $I$ is a
+matrix).\footnote{See $\Omega$-reductions, introduced in
+\asref{cmatch}{omega-reduce}.}
+
+%TODO: More example sections
+
+
+\subsection{Classification Match (cmatch) Algorithm}
+\label{a:cmatch}
+
+The classification match (``cmatch'') algorithm is used to determine if a given
+set of data matches a given set of classification criteria.
+
+Let $I$ be the vector of input values.\footnote{$I$ may be a matrix (a vector
+of vectors).} Let $M$ be the vector of predicates to match against $I$ such
+that a match will be considered successful if \emph{any} predicate is true.
+Since $I$ shall always be a vector of values---even if the vector contains only
+one element (see algorithm below for comments on scalar values)---$M$ should be
+a vector of one element if the desire is to match against a scalar value (rather
+than a vector of values). Let $c$ (clear) be a boolean value\footnote{$1$ or $0$
+when used within an integer context within the algorithm.} representing whether
+the results of this operation should be logically AND'd together with the
+prior cmatch result ($R'$ in the algorithm below); otherwise, the results will
+be OR'd (see step \ref{a:cmatch-c} below).
+
+Let $A\!\left(M,I,c,R'\right)$ (the ``algorithm'') be defined as:
+
+\begin{enumerate}
+  \item
+  Let $R$ be the result vector.
+
+  \item\label{a:cmatch-scalar}
+  If the given input vector $I$ is a scalar, it should be converted to a vector
+  of length 1 with the value of the single element being the original scalar
+  value of $I$---that is, let $s$ be the original scalar value of $I$; then: $I
+  = \left[ s \right]$. If $s$ is undefined, then an empty result vector should
+  be returned.
+
+  \item\label{a:cmatch:input-vectorize}
+  Step \ref{a:cmatch-scalar} should also be done to the match vector $M$,
+  yielding $M = \left[ s \right]$ where $s$ is the original scalar $M$. If $s$
+  is undefined, then it should be treated as if it were the integer
+  $0$.\footnote{Consistent with the behavior of the remainder of the DSL.}
+
+  \item
+  Step \ref{a:cmatch-scalar} should also be done to the prior result vector
+  $R'$, yielding $R = \left[ s \right]$ where $s$ is the original scalar $R'$.
+  This situation may result from recursing at step \ref{a:cmatch-mrecurse} when
+  $R'_k$ is a scalar. If $s$ is undefined, then $R'$ should be initialized to an
+  empty vector, implying a fresh match (no prior results).
+  \goodbreak
+
+  \item\label{a:cmatch-iter}
+  The length of the result vector $R$~($\#R$) shall be the larger of the length
+  of the input vector $I$~($\#I$) or the prior result vector $R'$~($\#R'$).
+  For each $I_k \in I$:
+
+  \begin{enumerate}
+    \item\label{a:cmatch-mrecurse}
+    If $I_k$ is a vector, recurse, beginning at step 1. Let $r =
+    A(M_k,I_k,c,R'_k)$.
+
+    \begin{align*}
+      u &= \left\{
+        \begin{array}{ll}
+          \bot & \textrm{if }\#R' > 0, \\
+          c    & \textrm{otherwise.}
+        \end{array}
+      \right. \\
+      %
+      R_k &= \left\{
+        \begin{array}{ll}
+          r & \textrm{if $R'_k$ is a vector or undefined}, \\
+          \Omega(r,u) & \textrm{otherwise}.\footnotemark
+        \end{array}
+      \right.
+    \end{align*}
+
+    \footnotetext{\label{a:cmatch-order} If $R'_k$ is a scalar, we must ensure
+    consistency with step \ref{a:cmatch-c} to ensure that the algorithm is not
+    dependent on input or execution order. Note the use of $u$ in place of
+    $c$---this ensures that, if there are any $R'$, we are consistent with the
+    effects of step \ref{a:cmatch:fill} (but in reverse).}
+
+    Continue with the next $I$ at step \ref{a:cmatch-iter}.
+
+    \item
+    \label{a:cmatch:omega-reduce}
+    Otherwise, $I_k$ is a scalar. Let $t$ be a temporary (intermediate) scalar
+    such that $t = \exists m \in M m(I_k)$.
+
+    \item\label{a:cmatch-c}
+    Let $v = \Omega\left(R'_k,c\right)$ and let
+    $$
+      R_k = \left\{
+        \begin{array}{ll}
+          v \wedge t & c = \top, \\
+          v \vee   t & c = \bot.
+        \end{array}
+      \right.,
+    $$
+
+    where\footnote{$\Omega$ is simply the recursive reduction of a vector using
+    a logical OR. This function exists to resolve the situation where $R'_k$ is
+    a vector of values when $I_k$ is a scalar, which will occur when $M_k$ is
+    scalar for any $k$ during one application of the cmatch algorithm and $M_k$
+    is a vector for another iteration, where $R'$ is the previous match using
+    scalars. Note also that $X$, according to the recursion rule, may only be
+    undefined on the first iteration (in effect initializing the value).}
+
+    $$
+      \Omega\left(X,u\right) = \left\{
+        \begin{array}{ll}
+          u & \textrm{if X is undefined,} \\
+          X & \textrm{if X is a scalar,} \\
+          \exists x\in X \Omega(x,u) & \textrm{otherwise.}
+        \end{array}
+      \right. \>
+      \mbox{
+        $X \in \left\{\textrm{undefined},\top,\bot\right\}$
+        or a vector.
+      }
+    $$
+  \end{enumerate}
+
+  \item\label{a:cmatch:fill}
+  Let $v = \Omega\left(R'_k,c\right) \wedge \neg c$. If $\#R' > \#I$,
+  $$
+    R_k = \left\{
+      \begin{array}{ll}
+        v & \exists n\in I(n\textrm{ is a scalar}), \\
+        \left[v\right] & \textrm{otherwise.}\footnotemark
+      \end{array}
+    \right.
+    k \in \left\{j : \#I \leq j < \#R' \right\}.
+  $$
+
+  \footnotetext{Note that step \ref{a:cmatch:fill} will produce results
+  inconsistent with the recursive step \ref{a:cmatch-mrecurse} if there exists
+  an $I_n$ that is a matrix; this algorithm is not designed to handle such
+  scenarios.}
+\end{enumerate}
+
+Given a set of classification criteria $C$ such that $C_k = M$ for some integer
+$k$ and some application of $A$, and a vectorized clear flag $c$ such that $c_k$
+is associated with $C_k$, the final result $F(\#C-1)$ shall be defined as
+
+$$
+  F(k) = \left\{
+    \begin{array}{ll}
+      A\left(C_k,I_k,c_k\right) & \textrm{k = 0,} \\
+      A\bigl(C_k,I_k,c_k,F\!\left(k-1\right)\bigr) & \textrm{otherwise.}
+    \end{array}
+  \right.
+$$
+
+The order of recursion on $F$ need not be right-to-left; $A$ is defined such
+that it will produce the same result when applied in any order. This is
+necessary since the input may be provided in any order.\footnote{Ibid,
+\ref{a:cmatch-order}.}
+
+\subsubsection{Boolean Classification Match}
+\label{s:cmatch-boolean}
+A scalar boolean classification match $b$ may be obtained simply as $b =
+\Omega\left(F,\bot\right)$, where $F$ and $\Omega$ are defined in the algorithm
+above. Consequently, note that an empty result set $F$ will be treated as
+$\bot$, since index $0$ will be undefined.
+
+\subsubsection{Match Vector}
+$M$ is defined to be a vector of predicates which serve to {\sl match} against a
+vector of input values. Most frequently, predicates will likely be against scalar
+values. In such a case, an implementation may choose to forego function
+application for performance reasons and instead match directly against the
+scalar value. However, this document will consider scalar matches in the context
+of predicates as functions. As such, if $M$ is a matrix, then the results are
+implementation-defined (since the value does not make sense within the algorithm
+as defined).
+
+\subsubsection{Integer Results}
+\label{s:cmatch-int}
+$A$ defines $R$ to be a vector/matrix of boolean values. However, it may be
+useful to use the cmatch results in calculations; as such, implementations that
+make use of or produce cmatch results are required to do one or both of the
+following where $b$ is a boolean scalar:
+
+\begin{enumerate}
+  \item
+  Implicitly consider $b$ to be $\textrm{int}\!\left(b\right)$ when used in
+  calculations, and/or
+
+  \item
+  Perform the implicit conversion before $R$ is returned from $A$,
+\end{enumerate}
+
+where the function {\sl int} is defined as
+
+$$
+  \textrm{int}(b) = \left\{
+    \begin{array}{ll}
+      1 & \textrm{if }b = \top, \\
+      0 & \textrm{if }b = \bot.
+    \end{array}
+  \right.\qquad
+  b \in \left\{\top,\bot\right\}.
+$$
+
+
+\subsection{Scalar Classification Matches}
+\label{s:cmatch-scalar}
+Implementations may find it convenient to support scalar inputs and scalar
+classification matches to represent matching ``all'' indexes of a vector.
+\aref{cmatch} defines both a classification match ($R$, and consequently $F$)
+and an input ($I$) to be a vector, which is generally sufficient. However, in
+the case where the number of indexes of the inputs and results of other matches
+may be arbitrary, it may be useful to apply a certain classification across all
+indexes, which cannot be done when $c = \top$ using \aref{cmatch}.
+
+The onus of such a feature is on the implementation---it should flag such input
+($I$) as a scalar, which is necessary since $I$ is unconditionally converted to
+a vector by step \asref{cmatch}{input-vectorize}. If an implementation decides
+to support scalar classification matches, \emph{it must conform to this
+section}.  Let such a scalar flag be denoted $s_k \inbool$ respective to input
+$I_k$.  Handling of both $F$ and $I$ is discussed in the sections that follow.
+
+\subsubsection{Mixing Scalar And Vectorized Inputs}
+\label{s:cmatch-scalar-mixed}
+Under the condition that $\exists v\in s(v=\top)$, the compiler must:
+
+\begingroup
+  % this definition is local to this group
+  \def\siset{k \in\set{j : s_j = \top}}
+
+  \begin{enumerate}
+    \item
+    Reorder inputs $I$ such that each scalar input $I_k, \siset$ be applied
+    after all non-scalar inputs have been matched using \aref{cmatch}.
+    \begin{enumerate}
+      \item
+      Consequently (and contrary to what was mentioned in \aref{cmatch}),
+      application order of $A$ with respect to inputs $I$ \emph{does} in fact
+      matter and implementations should ensure that this restriction holds
+      during runtime.
+    \end{enumerate}
+
+    \item
+    Before application of a scalar input, the scalar $I_k$ should be vectorized
+    according to the following rule:
+
+    $$
+      I'_{k,l} = I_k,
+      \qquad \siset,
+      \; 0 \leq l < \#R',
+    $$
+
+    where $R'$ is the value immediately before the application of $I_k$ as
+    defined in \aref{cmatch}.
+
+    \item
+    Application of \aref{cmatch} should then proceed as normal, using $I'$ in
+    place of $I$.
+  \end{enumerate}
+\endgroup
+
+\subsubsection{Converting Vectorized Match To Scalar}
+As defined by \aref{cmatch}, the result $R$ will always be a vector. An
+implementation may \emph{only} convert a vectorized match to a scalar using the
+method defined in this section under the condition that $\forall v\in
+s(v=\top)$; otherwise, there will be a loss of data (due to the expansion rules
+defined in \sref{cmatch-scalar-mixed}). The implementation also \emph{must not}
+reduce the vectorized match to a scalar using $\Omega$. An implementation
+\emph{may}, however, $\Omega$-reduce the match result $R$ into an
+\emph{separate} value as mentioned in \sref{cmatch-boolean}.
+
+Under the condition that $\forall v\in s(v=\top)$, the system may post-process
+$F$ (as defined in \aref{cmatch}) such that
+
+$$
+  F' = F_0,
+$$
+
+and return $F'$ in place of $F$.
+
+Note also that $F'$ may be fed back into \aref{cmatch} as an input and that the
+results will be consistent and well-defined according to
+\sref{cmatch-scalar-mixed} (and, consequently, this section).

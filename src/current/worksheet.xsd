@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://www.lovullo.com/rater/worksheet"
+  xmlns="http://www.lovullo.com/rater/worksheet"
+  xmlns:w="http://www.lovullo.com/rater/worksheet"
+  elementFormDefault="qualified">
+
+
+<xs:element name="worksheet">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Root node for rating worksheets
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:complexType>
+    <xs:sequence>
+      <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+    </xs:sequence>
+
+    <xs:attribute name="name" type="xs:string" use="required" />
+
+    <xs:attribute name="package" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Package for which worksheet is being generated
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+</xs:element>
+
+</xs:schema>

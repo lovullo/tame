@@ -37,6 +37,13 @@ TAME's core library, and [hoxsl](https://github.com/lovullo/hoxsl) was
 developed as a supporting library.
 
 
+## "Current"
+The current state of the project as used in production is found in
+`src/current/`.  The environment surrounding the development of this
+project resulted in a bit of a mess, which is being refactored into
+`src/` as it is touched.  Documentation is virtually non-existent.
+
+
 ## License
 This program is free software: you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the Free

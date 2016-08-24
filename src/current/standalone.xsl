@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Outputs the global classifier that can be used to determine classifications
+  across all eligible suppliers.
+-->
+
+<xsl:stylesheet version="2.0"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:lvp="http://www.lovullo.com"
+  xmlns:lvm="http://www.lovullo.com/rater/map"
+  xmlns:lvmc="http://www.lovullo.com/rater/map/compiler"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:l="http://www.lovullo.com/rater/linker"
+  xmlns:compiler="http://www.lovullo.com/rater/compiler"
+  xmlns:calc-compiler="http://www.lovullo.com/calc/compiler"
+  xmlns:util="http://www.lovullo.com/util"
+
+  xmlns:ext="http://www.lovullo.com/ext"
+  xmlns:preproc="http://www.lovullo.com/rater/preproc">
+
+
+<xsl:output
+  indent="yes"
+  omit-xml-declaration="yes"
+  />
+
+<xsl:include href="include/dslc-base.xsl" />
+
+<!-- compiler -> JS -->
+<xsl:include href="compiler/linker.xsl" />
+<xsl:include href="compiler/map.xsl" />
+<xsl:include href="include/depgen.xsl" />
+
+<!-- path to program XML -->
+<xsl:param name="path-program-ui" />
+
+<xsl:template match="/" priority="5">
+  <!-- the rater itself -->
+  <xsl:text>var rater = </xsl:text>
+    <xsl:value-of disable-output-escaping="yes" select="/lv:package/l:exec/text()" />
+  <xsl:text>; </xsl:text>
+
+  <!-- maps may or may not exist -->
+  <xsl:variable name="map" select="/lv:package/l:map-exec" />
+  <xsl:variable name="retmap" select="/lv:package/l:retmap-exec" />
+
+  <!-- store a reference to the mapper in rater.fromMap() -->
+  <xsl:text>rater.fromMap = </xsl:text>
+    <xsl:choose>
+      <xsl:when test="$map">
+        <xsl:value-of disable-output-escaping="yes" select="$map/text()" />
+      </xsl:when>
+
+      <!-- no map available -->
+      <xsl:otherwise>
+        <!-- simply invoke the conintuation with the provided data -->
+        <xsl:text>function(d,c){c(d);}</xsl:text>
+      </xsl:otherwise>
+    </xsl:choose>
+  <xsl:text>; </xsl:text>
+
+  <!-- return map -->
+  <xsl:text>rater._retmap = </xsl:text>
+    <xsl:choose>
+      <xsl:when test="$retmap">
+        <xsl:value-of disable-output-escaping="yes" select="$retmap/text()" />
+      </xsl:when>
+
+      <!-- no map available -->
+      <xsl:otherwise>
+        <!-- simply invoke the conintuation with the provided data -->
+        <xsl:text>function(d,c){c(d);}</xsl:text>
+      </xsl:otherwise>
+    </xsl:choose>
+  <xsl:text>; </xsl:text>
+
+  <!-- we'll export a version that automatically performs the mapping -->
+  <xsl:text>module.exports = function( args_base ) { </xsl:text>
+    <xsl:text>var ret; rater.fromMap( args_base, function( args ) {</xsl:text>
+    <xsl:text>
+      var rater_result = rater( args );
+
+      // perf counter
+      var start = ( new Date() ).getTime();
+
+      rater._retmap( rater_result.vars, function( result )
+      {
+        // add the final premium
+        result.premium   = rater_result.premium;
+        result.__classes = rater_result.classes;
+
+        // process the rating worksheet
+        try
+        {
+          result.__worksheet = process_worksheet(
+            rater.worksheet,
+            rater_result.vars,
+            rater_result.consts,
+            rater_result.debug,
+            rater_result.premium
+          );
+        }
+        catch ( e )
+        {
+          result.__worksheet = [ 'Failed: ' + e.message ];
+        }
+        ret = result;
+      } );
+
+      // add performance data
+      var end  = ( new Date() ).getTime(),
+          time = ( ( new Date() ).getTime() - start );
+
+      ret.__perf = {
+        time: {
+          start: start,
+          end:   end,
+          total: time
+        }
+      };
+    </xsl:text>
+    <xsl:text>} );</xsl:text>
+
+    <xsl:text>return ret;</xsl:text>
+  <xsl:text>}; </xsl:text>
+
+  <xsl:text>
+    function process_worksheet( worksheet, vars, consts, debug, premium )
+    {
+      var ret = {};
+
+      for ( var name in worksheet )
+      {
+        var data   = Array.prototype.slice.call( worksheet[ name ] ),
+            disp   = data[0],
+            calc   = data[1],
+            always = data[2];
+
+        ret[ name ] = [
+          disp,
+          process_wdisplay_set( [calc], vars, consts, debug ),
+
+          ( ( name === 'yield' )
+            ? premium
+            : ( vars[ name ] || consts[ name ] )
+          ),
+
+          ( always === 'true' )
+        ];
+      }
+
+      return ret;
+    }
+
+    function process_wdisplay( data, vars, consts, debug )
+    {
+      if ( data === null )
+      {
+        return null;
+      }
+
+      var name = data[ 0 ],
+          desc = data[ 1 ],
+          sub  = data[ 2 ],
+          val  = data[ 3 ]; // may not exist
+
+      return [
+        name,
+        desc,
+        process_wdisplay_set( sub, vars, consts, debug ),
+        val || process_wval( name, desc, vars, consts, debug )
+      ];
+    }
+
+
+    function process_wval( type, desc, vars, consts, debug )
+    {
+      if ( desc.runtime )
+      {
+          type = 'runtime';
+      }
+
+      switch ( type )
+      {
+        case 'apply':
+        case 'cases':
+        case 'case':
+        case 'otherwise':
+        case 'runtime':
+          return ( debug[ desc._id ] );
+
+        case 'value-of':
+          return ( vars[ desc.name ] || consts[ desc.name ] );
+
+        default:
+          return '';
+      }
+    }
+
+
+    function process_wdisplay_set( sub, vars, consts, debug )
+    {
+      var ret = [],
+          i   = sub.length;
+
+      while ( i-- )
+      {
+        if ( sub[ i ] === undefined )
+        {
+          continue;
+        }
+
+        ret[ i ] = process_wdisplay( sub[ i ], vars, consts, debug );
+      }
+
+      return ret;
+    }
+  </xsl:text>
+
+  <!-- expose the raw, unmapped rater -->
+  <xsl:text>module.exports.rater = rater;</xsl:text>
+</xsl:template>
+
+</xsl:stylesheet>

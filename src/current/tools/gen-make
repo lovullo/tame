@@ -1,0 +1,96 @@
+#!/bin/bash
+#
+# Generates Makefile containing dependencies for each package
+# #
+
+# windows machines may not have the tools to resolve a path, so let's do so
+# ourselves (TODO: there's better (and more performant) ways of doing this than
+# repeated string replacements); TODO: ./
+resolv-path()
+{
+  # no need to do anything if the string does not contain a parent dir reference
+  # (we use this convoluted string replacement check for woe32/64 to prevent
+  # additional spawns (e.g. sed) that would slow us down and because =~ is not
+  # properly supported in msys
+  [[ "$1" != "${1/..\//}"a ]] || {
+    echo "$1"
+    return
+  }
+
+  local path=
+  while read name; do
+    if [ "$name" == .. ]; then
+      [ -n "$path" ] || {
+        echo "warning: will not resolve $1" >&2
+        return 5
+      }
+
+      path="${path%/*}"
+      continue
+    fi
+
+    path="$path/$name"
+  done <<< "${1//\//$'\n'}"
+
+  # echo path without leading /
+  echo -n "${path:1}"
+}
+
+
+# rule for building
+[ -z "$GEN_MAKE" ] && {
+  echo "%.xmlo:: %.tmp"
+  echo -e "\t@rm -f \$@ \$<"
+  [ -n "$xmlo_cmd" ] \
+    && echo -e "\t$xmlo_cmd" \
+    || echo -e "\ttouch \$@"
+
+  echo "%.xmlo:: %.xml | prexmlo"
+  [ -n "$xmlo_cmd" ] \
+    && echo -e "\t$xmlo_cmd" \
+    || echo -e "\ttouch \$@"
+
+  export GEN_MAKE="$( pwd )/$0"
+  exec "$GEN_MAKE" "$@"
+}
+
+until [ $# -eq 0 ]; do (
+  path="${1%%/}"
+  echo "[gen-make] scanning $path" >&2
+
+  cd "$( basename $path )/" || exit $?
+
+  deps=$( find -maxdepth 1 -iname '*.dep' )
+  for dpath in $deps; do
+    # equivalent to basename command; use this since spawning processes on
+    # windoze is slow as shit (originally we did find -exec bashename)
+    d="${dpath##*/}"
+
+    echo "[gen-make] found $path/$d" >&2
+    echo -n "$path/${d%.*}.xmlo:"
+
+    # output deps
+    while read dep; do
+      # if the first character is a slash, then it's relative to the project
+      # root---the resolution has already been done for us!
+      if [ "${dep:0:1}" == '/' ]; then
+        echo -n " ${dep:1}.xmlo"
+        continue
+      fi
+
+      echo -n ' '
+      resolv-path "$path/$dep.xmlo"
+    done < "$d"
+
+    echo
+  done
+
+  # recurse on every subdirectory
+  for p in */; do
+    [ "$p" == ./ -o "$p" == ../ ] && continue
+    [ ! -d "$p" ] || "$GEN_MAKE" "$path/$p" || {
+      echo "fatal: failed to recurse on $( pwd )/$path/$p" >&2
+      exit 1
+    }
+  done
+); shift; done
