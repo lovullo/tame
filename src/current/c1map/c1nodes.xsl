@@ -2,6 +2,24 @@
 <!--
   Describes how ConceptOne nodes are handled in the output.
 
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+    This file is part of TAME.
+
+    TAME is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see
+    <http://www.gnu.org/licenses/>.
+
   Only nodes in the C1 XML namespace will be included in the output; all other
   nodes will be in error, except for nodes as part of the c1 map namespace,
   which are processed and will not be included in the output.

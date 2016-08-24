@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
-  Compiles map fragments to produce a map from source data to a destination.
+  Compiles map fragments to produce a map from source data to a destination
+
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+    This file is part of TAME.
+
+    TAME is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see
+    <http://www.gnu.org/licenses/>.
 
   The source fields will be validated at compile-time to ensure that they exist;
   destination fields should be checked by the compiler and/or linker. The linker
@@ -12,7 +30,6 @@
   XXX: This is tightly coupled with the Program UI; refactor to support any type
   of source.
 -->
-
 <stylesheet version="2.0"
   xmlns="http://www.w3.org/1999/XSL/Transform"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"

@@ -2,6 +2,24 @@
 <!--
   Generates PHP code that works with the LoVullo ConceptOne import system
 
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+    This file is part of TAME.
+
+    TAME is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see
+    <http://www.gnu.org/licenses/>.
+
   This map expects that the data are available in the bucket provided by the
   quote and therefore validates against a provided Program UI source file. Data
   external to the bucket may be provided if it is indicated as such.
