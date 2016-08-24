@@ -53,6 +53,3 @@ any later version.
 This program is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-
-[nova-ho]: http://conferences.idealliance.org/extreme/html/2006/Novatchev01/EML2006Novatchev01.html
-[xslt-30-ho]: http://www.w3.org/TR/xslt-30/#dt-higher-order-operand
