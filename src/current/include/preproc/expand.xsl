@@ -488,52 +488,6 @@
   <xsl:variable name="self" select="." />
 
   <xsl:copy>
-    <!-- we just want to add an attribute that allows easy referencing of this
-         @yields set type, which will be a matrix if any matches match on a
-         matrix of values, otherwise it will be a vector -->
-    <xsl:attribute name="set">
-      <xsl:variable name="params"
-        select="root(.)//lv:param[ @name=$self//lv:match/@on ]" />
-
-      <xsl:choose>
-        <!-- XXX: This does not work properly with classes depending on other
-             classes -->
-        <xsl:when test="$params/@set = 'matrix'">
-          <xsl:text>matrix</xsl:text>
-        </xsl:when>
-
-        <!-- XXX: remove this when the above is fixed...note also that we have
-             to check for lv:join since it hasn't necessarily been preprocessed
-             yet...what a mess. Also note that, since templates and other things
-             may not have been expanded, we also fail this test if the
-             classification does not match on either a param or another
-             classification (since then things will get more complicated)-->
-        <xsl:when test="
-            not(
-              $self//lv:match
-              or $self//lv:join
-            )
-            or (
-              not( $params/@set )
-              and not(
-                .//lv:match[ @on=root(.)/lv:classify/@yields ]
-              )
-              and not( .//lv:join )
-              and (
-                $params
-                or .//lv:match[ @on=root(.)/lv:classify ]
-              )
-            )
-          ">
-          <!-- output nothing; it's just a scalar -->
-        </xsl:when>
-
-        <xsl:otherwise>
-          <xsl:text>vector</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
-    </xsl:attribute>
-
     <!-- if there is no @yields attribute, then generate one -->
     <xsl:if test="not( @yields )">
       <xsl:attribute name="yields">
