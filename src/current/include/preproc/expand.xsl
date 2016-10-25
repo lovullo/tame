@@ -497,7 +497,8 @@
       </xsl:attribute>
     </xsl:if>
 
-    <xsl:sequence select="@*" />
+    <xsl:apply-templates mode="preproc:expand"
+                         select="@*" />
 
     <!-- force @keep on @terminate -->
     <xsl:if test="@terminate='true'">
@@ -507,6 +508,24 @@
     <!-- copy everything else -->
     <xsl:apply-templates mode="preproc:expand" />
   </xsl:copy>
+</xsl:template>
+
+
+<!--
+  Normalize whitespace for class descriptions
+-->
+<xsl:template mode="preproc:expand" priority="5"
+              match="lv:classify/@desc">
+  <xsl:attribute name="desc"
+                 select="normalize-space( . )" />
+</xsl:template>
+
+<!--
+  All other class attributes are copied verbatim
+-->
+<xsl:template mode="preproc:expand" priority="1"
+              match="lv:classify/@*">
+  <xsl:sequence select="." />
 </xsl:template>
 
 
