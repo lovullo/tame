@@ -98,4 +98,16 @@
   </for-each-group>
 </function>
 
+
+<!--
+  @menu
+  * Symbol Format::  Anatomy of a symbol table entry
+  * Symbol Types::   Symbols describing various objects
+  @end menu
+
+  @lowersections
+  @include ../src/symtable/symbols.texi
+  @raisesections
+-->
+
 </stylesheet>
