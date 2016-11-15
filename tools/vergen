@@ -17,6 +17,9 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This script has been modified slightly by LoVullo Associates to support
+# TAME's versioning scheme (`v'-prefixed).
 ##
 
 # for distributions
@@ -29,7 +32,11 @@ git rev-parse --show-toplevel >/dev/null 2>&1 || {
   echo 'fatal: git repository is not available'
 }
 
-version="$( git describe --match='[0-9]\.*' --abbrev=7 HEAD 2>/dev/null )"
+version=$(
+  git describe --match='v[0-9]\.*' --abbrev=7 HEAD 2>/dev/null \
+    | sed 's/^v//'
+)
+
 git update-index -q --refresh
 test -z "$( git diff-index --name-only HEAD)" || version="$version-dirty"
 
