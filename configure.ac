@@ -16,7 +16,11 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-AC_INIT([tame], [1.0.0], [dev@lovullo.com])
+# version string is dynamically generated
+m4_define([ver], m4_esyscmd(tools/vergen))
+m4_if(ver, [], [m4_exit(1)])
+
+AC_INIT([tame], [ver], [dev@lovullo.com])
 AC_CONFIG_AUX_DIR([tools])
 AM_INIT_AUTOMAKE([foreign])
 
