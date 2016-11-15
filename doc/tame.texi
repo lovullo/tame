@@ -62,6 +62,10 @@ Free Documentation License".
 @end ifnottex
 
 
+@macro tame{}
+TAME
+@end macro
+
 @c TODO: move me
 @macro mdash{}
 ---
