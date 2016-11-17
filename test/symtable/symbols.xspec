@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!--
+  Tests semantic analysis for symbol generation
+
+  Copyright (C) 2016 LoVullo Associates, Inc.
+
+    This file is part of TAME.
+
+    TAME is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see
+    <http://www.gnu.org/licenses/>.
+-->
+<description xmlns="http://www.jenitennison.com/xslt/xspec"
+             xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+             xmlns:x="http://www.jenitennison.com/xslt/xspec"
+             xmlns:lv="http://www.lovullo.com/rater"
+             xmlns:preproc="http://www.lovullo.com/rater/preproc"
+             xmlns:foo="http://www.lovullo.com/_junk"
+             stylesheet="../../src/symtable/symbols.xsl">
+
+
+  <scenario label="lv:template">
+    <context mode="preproc:symtable">
+      <lv:template name="_foo_"
+                   desc="Test template">
+        <foo:ignored-content />
+      </lv:template>
+    </context>
+
+    <expect label="derives symbol data from template">
+      <preproc:sym type="tpl"
+                   name="_foo_"
+                   dim="0"
+                   desc="Test template" />
+    </expect>
+  </scenario>
+</description>

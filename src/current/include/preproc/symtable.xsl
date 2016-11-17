@@ -670,14 +670,6 @@
 </xsl:template>
 
 
-<xsl:template match="lv:template" mode="preproc:symtable" priority="9">
-  <!-- do not process template bodies; we're only interested in the symbols
-       they produce after expansion -->
-  <preproc:sym name="{@name}"
-    type="tpl" dim="0" desc="{@desc}" />
-</xsl:template>
-
-
 <xsl:template match="lv:rate" mode="preproc:symtable" priority="5">
   <xsl:variable name="external"  select="boolean( @external='true' )" />
 

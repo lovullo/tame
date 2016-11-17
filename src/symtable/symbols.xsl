@@ -246,7 +246,49 @@
     statically into the program for static reference without having to
     actually invoke the program.
   @end table
+
+
+  @menu
+  * Templates: Template Symbols.                @code{tpl}
+  @end menu
 -->
+
+
+<!--
+  @node Template Symbols
+  @subsection Template Symbols
+
+  Templates produce a single @code{tpl}@tie{}symbol representing the
+    macro itself.
+  At the time of parsing,
+    we do not care about the body of the template@mdash{
+      }when applied, it will expand into code that will be further
+        processed recursively during another pass to produce the
+        appropriate symbols for that expansion.
+-->
+
+<!--
+  Produce a @code{tpl} symbol with the following attributes:
+
+  @table @code
+  @item name
+  Name of the template as provided by @pkgns{template/@@name}.
+
+  @item dim
+  Always @samp{0};
+    templates are processed as macros before compilation.
+
+  @item desc
+  Template description as provided by @pkgns{template/@@desc}.
+  @end table
+-->
+<template mode="preproc:symtable" priority="5"
+          match="lv:template">
+  <preproc:sym type="tpl"
+               name="{@name}"
+               dim="0"
+               desc="{@desc}" />
+</template>
 
 
 </stylesheet>
