@@ -32,6 +32,7 @@
             xmlns:xs="http://www.w3.org/2001/XMLSchema"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:symtable="http://www.lovullo.com/tame/symtable"
+            xmlns:_symtable="http://www.lovullo.com/tame/symtable/_priv"
             xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 <import href="symbols.xsl.apply" />
@@ -72,9 +73,7 @@
 
   @item dim
   Dimensions of@tie{}@obj{} as an integer.
-  Standard dimensions are scalar@tie{}(0),
-    vector@tie{}(1),
-    and matrix@tie{}(2).
+  See @ref{_symtable:str-to-dim#1} for supported strings.
   @emph{Required}
 
   @item dtype
@@ -126,6 +125,42 @@
     symbol,
       it @emph{must} use a different namespace.
 -->
+
+
+<!--
+  Convert a string dimension representation into an integer.
+
+  Standard dimensions are @samp{scalar}@tie{}(0),
+    @samp{vector}@tie{}(1),
+    and @samp{matrix}@tie{}(2).
+  If no value is provided,
+    then @samp{scalar} is assumed.
+  All unknown strings will yield a value of @samp{-1}.@footnote{
+    That's not to say that @tame{} can't support an arbitrary number
+    of dimensions;
+      this syntax just doesn't provide that utility.}
+-->
+<function name="_symtable:str-to-dim" as="xs:integer">
+  <param name="str" as="xs:string?" />
+
+  <choose>
+    <when test="empty( $str ) or ( $str = 'scalar' )">
+      <sequence select="0" />
+    </when>
+
+    <when test="$str = 'vector'">
+      <sequence select="1" />
+    </when>
+
+    <when test="$str = 'matrix'">
+      <sequence select="2" />
+    </when>
+
+    <otherwise>
+      <sequence select="-1" />
+    </otherwise>
+  </choose>
+</function>
 
 
 <!--
@@ -249,10 +284,62 @@
 
 
   @menu
+  * Parameters: Parameter Symbols.              @code{param}
   * Templates: Template Symbols.                @code{tpl}
   * Program Metadata: Program Metadata Symbols. @code{meta}
   @end menu
 -->
+
+
+<!--
+  @node Parameter Symbols
+  @subsection Parameter Symbols
+
+  Global parameters define all inputs to the program.
+-->
+
+
+<!--
+  Produce a @code{param} symbol with the following attributes:
+
+  @table @code
+  @item name
+  Name of the parameter as provided by @pkgns{param/@@name}.
+
+  @item type
+  The datatype defining the parameter's domain,
+    as provided by @pkgns{param/@@type}.
+
+  @item dim
+  Numeric dimension converted from its string representation in
+    @pkgns{param/@@set}.@footnote{
+      The attribute name @pkgns{param/@@set} is unfortunate and simply
+        incorrect terminology with how it is used.
+      It will be changed in the future.}
+
+  @item desc
+  Description as provided by @pkgns{param/@@desc}.
+
+  @item tex
+  TeX symbol used when rendering parameter in an equation.
+
+  @item keep
+  Always @samp{true} to ensure that the symbol is retained after
+    linking.
+  @end table
+-->
+<template match="lv:param" mode="preproc:symtable" priority="5">
+  <variable name="dim" as="xs:integer"
+            select="_symtable:str-to-dim( @set )" />
+
+  <preproc:sym type="param"
+               name="{@name}"
+               dim="{$dim}"
+               desc="{@desc}"
+               dtype="{@type}"
+               tex="{@sym}"
+               keep="true" />
+</template>
 
 
 <!--

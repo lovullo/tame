@@ -71,6 +71,7 @@
 
 <xsl:include href="path.xsl" />
 <xsl:include href="../../tame/src/symtable.xsl" />
+<xsl:include href="../../tame/src/symtable/symbols.xsl" />
 
 
 <!-- we will recurse through the entire tree rather than performing a series of
@@ -754,23 +755,6 @@
   </xsl:if>
 
   <xsl:apply-templates mode="preproc:symtable" />
-</xsl:template>
-
-
-<!-- Will be completed during post-processing so that typedefs can be
-     properly resolved -->
-<xsl:template match="lv:param" mode="preproc:symtable" priority="5">
-  <xsl:variable name="dim">
-    <xsl:call-template name="preproc:param-dim" />
-  </xsl:variable>
-
-  <!-- we use the primitive data type derived from the typedef to ensure that
-       the system can still make use of the type even when the typedef is not
-       exported; indeed, typedefs are simply restrictions that need only be
-       known for compiling (at least at present). Also note the keep="true" to
-       ensure that all param symbols are retained after linking -->
-  <preproc:sym name="{@name}" keep="true"
-    type="param" dtype="{@type}" dim="{$dim}" desc="{@desc}" tex="{@sym}" />
 </xsl:template>
 
 

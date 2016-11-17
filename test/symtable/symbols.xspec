@@ -29,6 +29,77 @@
              stylesheet="../../src/symtable/symbols.xsl">
 
 
+  <scenario label="lv:param">
+    <context mode="preproc:symtable">
+      <lv:param name="foo_bar"
+                type="footype"
+                desc="Vector param"
+                set="vector" />
+
+      <lv:param name="tex_param"
+                type="tex"
+                desc="Matrix param with TeX"
+                set="matrix"
+                sym="\tex" />
+
+      <lv:param name="scalar_param"
+                type="bar"
+                desc="Scalar param (implicit)" />
+
+      <lv:param name="scalar_param_explicit"
+                type="bar"
+                set="scalar"
+                desc="Scalar param (explicit)" />
+
+      <lv:param name="unknown_dim"
+                type="wtf"
+                set="calabi-yau"
+                desc="Unknown dimension" />
+    </context>
+
+    <expect label="derives symbol data from param">
+      <preproc:sym type="param"
+                   name="foo_bar"
+                   dim="1"
+                   desc="Vector param"
+                   dtype="footype"
+                   tex=""
+                   keep="true" />
+
+      <preproc:sym type="param"
+                   name="tex_param"
+                   dim="2"
+                   desc="Matrix param with TeX"
+                   dtype="tex"
+                   tex="\tex"
+                   keep="true" />
+
+      <preproc:sym type="param"
+                   name="scalar_param"
+                   dim="0"
+                   desc="Scalar param (implicit)"
+                   dtype="bar"
+                   tex=""
+                   keep="true" />
+
+      <preproc:sym type="param"
+                   name="scalar_param_explicit"
+                   dim="0"
+                   desc="Scalar param (explicit)"
+                   dtype="bar"
+                   tex=""
+                   keep="true" />
+
+      <preproc:sym type="param"
+                   name="unknown_dim"
+                   dim="-1"
+                   desc="Unknown dimension"
+                   dtype="wtf"
+                   tex=""
+                   keep="true" />
+    </expect>
+  </scenario>
+
   <scenario label="lv:template">
     <context mode="preproc:symtable">
       <lv:template name="_foo_"
