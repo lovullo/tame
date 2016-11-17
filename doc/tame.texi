@@ -87,6 +87,10 @@ TAME
 ∎
 @end macro
 
+@macro pkgns{node}
+@code{lv:\node\}
+@end macro
+
 @ifhtml
 @c override @math to delimit for MathJax/KaTeX/etc
 @definfoenclose math,\(,\)
