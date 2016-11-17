@@ -44,4 +44,30 @@
                    desc="Test template" />
     </expect>
   </scenario>
+
+
+  <scenario label="lv:meta">
+    <context mode="preproc:symtable">
+      <lv:meta>
+        <lv:prop name="prop1">
+          <lv:const value="ignore" />
+        </lv:prop>
+
+        <lv:prop name="prop2">
+          <lv:const value="ignore" />
+        </lv:prop>
+      </lv:meta>
+    </context>
+
+    <expect label="derives symbols from properties">
+      <preproc:sym type="meta"
+                   name=":meta:prop1"
+                   desc="Metavalue prop1"
+                   keep="true" />
+      <preproc:sym type="meta"
+                   name=":meta:prop2"
+                   desc="Metavalue prop2"
+                   keep="true" />
+    </expect>
+  </scenario>
 </description>

@@ -250,6 +250,7 @@
 
   @menu
   * Templates: Template Symbols.                @code{tpl}
+  * Program Metadata: Program Metadata Symbols. @code{meta}
   @end menu
 -->
 
@@ -288,6 +289,47 @@
                name="{@name}"
                dim="0"
                desc="{@desc}" />
+</template>
+
+
+<!--
+  @node Program Metadata Symbols
+  @subsection Program Metadata Symbols
+
+  A basic key-value system allows for compiling static metadata into
+    the program.
+  These metadata can be referenced externally without having to run
+    the program.
+-->
+
+<!--
+  Produce a @code{meta} symbol for each @pkgns{meta/}@pkgns{prop} with
+    the following attributes:
+
+  @table @code
+  @item name
+  The metavalue name as provided by @pkgns{prop/@@name},
+    prefixed with @samp{:meta:} to avoid conflicts with other
+    symbols.
+
+  @item desc
+  Generic description including @code{name}.
+
+  @item keep
+  Always @samp{true}.
+  @end table
+
+  The @code{name} prefix enforces separation between the two
+    compilation stages by preventing conflicts.
+-->
+<template mode="preproc:symtable" priority="5"
+          match="lv:meta">
+  <for-each select="lv:prop">
+    <preproc:sym type="meta"
+                 name=":meta:{@name}"
+                 desc="Metavalue {@name}"
+                 keep="true" />
+  </for-each>
 </template>
 
 

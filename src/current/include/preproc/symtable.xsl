@@ -901,14 +901,6 @@
 </xsl:template>
 
 
-<xsl:template match="lv:meta" mode="preproc:symtable" priority="5">
-  <xsl:for-each select="lv:prop">
-    <preproc:sym name=":meta:{@name}" type="meta"
-                 keep="true" />
-  </xsl:for-each>
-</xsl:template>
-
-
 <xsl:template match="preproc:sym[ @type='param' ]" mode="preproc:symtable-complete" priority="5">
   <xsl:param name="syms" as="element( preproc:sym )*" />
 
