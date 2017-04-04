@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
-  Copyright (C) 2015  LoVullo Associates, Inc.
+  Copyright (C) 2015, 2017 LoVullo Associates, Inc.
 
   This file is part of tame-core.
 
@@ -25,13 +25,38 @@
   <import package="base" />
 
 
+  Providing the current timestamp externally allows the system to be
+    wholly deterministic.
+  It also captures the state of the data in time,
+    so re-calculating in the future (e.g. using the summary pages)
+    will yield the same result.
+
+  <param name="timestamp_current" type="integer" default="0"
+         desc="Unix timestamp representing the current time of the
+               system (clock time), as it should be perceived" />
+
+  This system does not handle its own arthiemtic to figure out the
+    current date components from the given timestamp.
+
+  <param name="timestamp_year" type="integer" default="0"
+         desc="Current year (clock time), as it should be perceived" />
+
+  <param name="timestamp_month" type="integer" default="0"
+         desc="Current month (clock time), as it should be perceived;
+               1-indexed" />
+
+  <param name="timestamp_day" type="integer" default="0"
+         desc="Current day (clock time), as it should be perceived;
+               1-indexed" />
+
+
   <!--
     Determines how many years the given date is relative to the current date
 
-    Note that a positive number will be returned if the given date is in the past,
-    negative if in the future.
+    Note that a positive number will be returned if the given date is
+    in the past, negative if in the future.
   -->
-  <template name="_ageYears_" desc="Age in years of the given date relative to the current">
+  <template name="_age-years_" desc="Age in years of the given date relative to the current">
     <param name="@generates@" desc="Generator variable, per index" />
     <param name="@yearset@"   desc="Set of years to iterate on" />
     <param name="@sym@"       desc="Generator symbol" />
@@ -76,7 +101,7 @@
                 </c:when>
 
                 <c:sum label="Calculate by subtracting the given year from the current year">
-                  <c:value-of name="__DATE_YEAR__" />
+                  <c:value-of name="timestamp_year" />
 
                   <c:product>
                     <c:value-of name="NEGATE" />

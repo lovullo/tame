@@ -51,7 +51,8 @@
     a proper value representing the current year.
 
     \todo{TAME is deterministic with this one exception; remove it and
-    have users use a param instead if they need this datum.}
+    have users use the params from {\tt datetime} instead if they need this
+    datum.}
 
     <const name="__DATE_YEAR__" magic="true"
            value="0" type="integer"
