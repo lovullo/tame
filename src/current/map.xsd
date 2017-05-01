@@ -148,6 +148,14 @@
       </xs:annotation>
     </xs:attribute>
 
+    <xs:attribute name="scalar" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Whether to force result to a scalar
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
     <xs:attribute name="affects-eligibility" type="xs:boolean">
       <xs:annotation>
         <xs:documentation xml:lang="en">
