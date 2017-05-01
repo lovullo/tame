@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://www.lovullo.com/rater/map/c1"
+  xmlns="http://www.lovullo.com/rater/map/c1"
+  elementFormDefault="qualified">
+
+
+  <!-- TODO: an actual XSD; this just ignores everything -->
+  <xs:element name="c1-map">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+      </xs:sequence>
+
+      <xs:anyAttribute namespace="##any" processContents="lax" />
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

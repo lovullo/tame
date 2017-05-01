@@ -51,6 +51,9 @@
 <xsl:include href="compiler/js.xsl" />
 <xsl:include href="compiler/map.xsl" />
 
+<!-- TODO: move into compiler/ -->
+<xsl:include href="c1map.xsl" />
+
 <!-- contains get-symbol-map -->
 <xsl:include href="include/display.xsl" />
 
