@@ -954,6 +954,7 @@
       <xsl:text>compiling entry point...</xsl:text>
     </xsl:with-param>
   </xsl:call-template>
+
   <xsl:apply-templates select="." mode="compiler:entry" />
 
 
@@ -979,6 +980,8 @@
     <xsl:with-param name="deps" select="$deps" />
   </xsl:apply-templates>
 
+  <!-- common stuff -->
+  <xsl:call-template name="compiler:static" />
 
   <!-- finally, finish up -->
   <xsl:call-template name="log:info">

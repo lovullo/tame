@@ -217,9 +217,6 @@
       </for-each>
     <text>}; </text>
 
-    <!-- common stuff -->
-    <call-template name="compiler:static" />
-
     <!-- the rater has been generated; return it -->
     <text>return rater;</text>
   <text>} )()</text>
