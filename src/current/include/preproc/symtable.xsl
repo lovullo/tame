@@ -592,7 +592,9 @@
              strip the data if this is a second-hand import -->
         <!-- TODO: this list has gotten too large, but reducing it will require
              refactoring other compilers and may reduce performance -->
-        <xsl:when test="@pollute='true' and @local='true'">
+        <xsl:when test="@pollute='true'
+                        and @local='true'
+                        and not( @extern='true' )">
           <xsl:sequence select="@name, @src, @pollute, @keep, @parent, @extclass" />
         </xsl:when>
 
