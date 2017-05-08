@@ -215,7 +215,7 @@
           <value-of select="@name" />
         <text>': true</text>
       </for-each>
-    <text>}</text>
+    <text>}; </text>
 
     <!-- common stuff -->
     <call-template name="compiler:static" />
