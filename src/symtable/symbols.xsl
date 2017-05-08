@@ -337,6 +337,7 @@
                dim="{$dim}"
                desc="{@desc}"
                dtype="{@type}"
+               default="{@default}"
                tex="{@sym}"
                keep="true" />
 </template>
