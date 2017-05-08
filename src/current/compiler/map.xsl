@@ -92,45 +92,54 @@
   <variable name="pkg">
     <lv:package name="{$__srcpkg}" lvmc:type="map">
       <!-- initial symbol table; full table will be generated below -->
-      <call-template name="lvmc:stub-symtable">
-        <with-param name="type-prefix" select="'map'" />
-      </call-template>
+     <call-template name="lvmc:stub-symtable">
+         <with-param name="type-prefix" select="'map'" />
+     </call-template>
 
       <!-- copy all source nodes -->
-      <copy-of select="*" />
-
-      <preproc:fragments>
-        <!-- special fragment to be output as the head -->
-        <preproc:fragment id=":map:___head">
-          <!-- use a callback just in case we need to make portions of this async in the
-               future -->
-          <text>function( input, callback ) {</text>
-            <text>var output = {};</text>
-        </preproc:fragment>
-
-        <!-- compile mapped -->
-        <apply-templates select="./lvm:*" mode="lvmc:compile">
-          <with-param name="rater" select="$rater" />
-          <with-param name="type" select="'map'" />
-        </apply-templates>
-
-        <!-- special fragment to be output as the foot -->
-        <preproc:fragment id=":map:___tail">
-            <text>callback(output);</text>
-          <text>};</text>
-        </preproc:fragment>
-      </preproc:fragments>
+      <sequence select="node()" />
     </lv:package>
   </variable>
 
-  <!-- output the result after symbol processing -->
-  <call-template name="preproc:gen-deps">
-    <with-param name="pkg" as="element( lv:package )">
-      <apply-templates select="$pkg" mode="preproc:sym-discover">
-        <with-param name="orig-root" select="." />
+  <!-- process symbol table -->
+  <variable name="pkg-with-symtable" as="element( lv:package )">
+    <call-template name="preproc:gen-deps">
+      <with-param name="pkg" as="element( lv:package )">
+        <apply-templates select="$pkg" mode="preproc:sym-discover">
+          <with-param name="orig-root" select="." />
+        </apply-templates>
+      </with-param>
+    </call-template>
+  </variable>
+
+  <!-- final result with compiled fragments -->
+  <lv:package>
+    <sequence select="$pkg-with-symtable/@*,
+                      $pkg-with-symtable/node()" />
+
+    <preproc:fragments>
+      <!-- special fragment to be output as the head -->
+      <preproc:fragment id=":map:___head">
+        <!-- use a callback just in case we need to make portions of this async in the
+             future -->
+        <text>function( input, callback ) {</text>
+        <text>var output = {};</text>
+      </preproc:fragment>
+
+      <!-- compile mapped -->
+      <apply-templates select="./lvm:*" mode="lvmc:compile">
+        <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable" />
+        <with-param name="rater"    select="$rater" />
+        <with-param name="type"     select="'map'" />
       </apply-templates>
-    </with-param>
-  </call-template>
+
+      <!-- special fragment to be output as the foot -->
+      <preproc:fragment id=":map:___tail">
+        <text>callback(output);</text>
+        <text>};</text>
+      </preproc:fragment>
+    </preproc:fragments>
+  </lv:package>
 </template>
 
 
@@ -139,6 +148,12 @@
 -->
 <template match="lvm:return-map" mode="lvmc:compile" priority="8">
   <param name="rater" />
+
+  <!-- we don't have use for this right now, but it's required
+       by other parts of this system -->
+  <variable name="dummy-symtable" as="element( preproc:symtable )">
+    <preproc:symtable lvmc:sym-ignore="true" />
+  </variable>
 
   <variable name="pkg">
     <lv:package name="{$__srcpkg}" lvmc:type="retmap">
@@ -160,6 +175,7 @@
         </preproc:fragment>
 
         <apply-templates select="./lvm:*" mode="lvmc:compile">
+          <with-param name="symtable" select="$dummy-symtable" />
           <with-param name="rater" select="$rater" />
           <with-param name="type" select="'retmap'" />
         </apply-templates>
@@ -210,7 +226,7 @@
   <!-- allow mappings to be overridden after import, which allows defaults
        to be set and then overridden -->
   <preproc:sym name=":{$type-prefix}:{$name}" virtual="true"
-    type="{$type-prefix}" pollute="true">
+               keep="true" type="{$type-prefix}" pollute="true">
 
     <!-- for consistency and cleanliness, only copy over if set -->
     <if test="@override='true'">
@@ -231,7 +247,7 @@
   Directly map an input to the output
 -->
 <template match="lvm:pass" mode="lvmc:compile" priority="5">
-  <param name="rater" />
+  <param name="symtable" as="element( preproc:symtable )" />
   <param name="type" />
 
   <preproc:fragment id=":{$type}:{@name}">
@@ -239,7 +255,7 @@
       <value-of select="@name" />
     <text>']=</text>
       <call-template name="lvmc:gen-input-default">
-        <with-param name="rater" select="$rater" />
+        <with-param name="symtable" select="$symtable" />
         <with-param name="to" select="@name" />
         <with-param name="from" select="@name" />
       </call-template>
@@ -269,7 +285,7 @@
   Maps an input to an output of a different name
 -->
 <template match="lvm:map[ @from ]" mode="lvmc:compile" priority="5">
-  <param name="rater" />
+  <param name="symtable" as="element( preproc:symtable )" />
   <param name="type" />
 
   <!-- if src and dest are identical, then it may as well be lvm:pass -->
@@ -287,7 +303,7 @@
     <value-of select="@to" />
     <text>']=</text>
     <call-template name="lvmc:gen-input-default">
-      <with-param name="rater" select="$rater" />
+      <with-param name="symtable" select="$symtable" />
       <with-param name="to" select="@to" />
       <with-param name="from" select="@from" />
     </call-template>
@@ -395,20 +411,22 @@
   if it were, this needs to reference its symbol table.
 -->
 <template name="lvmc:gen-input-default">
-  <param name="rater" />
+  <param name="symtable" as="element( preproc:symtable )" />
   <param name="to" />
   <!-- use one or the other; latter takes precedence -->
   <param name="from" />
   <param name="from-str" />
 
-  <variable name="default">
-    <if test="$rater">
-      <value-of select="concat( '''',
-                                lvmc:escape-string(
-                                  $rater/lv:param[ @name=$to ]/@default ),
-                                '''' )" />
-    </if>
-  </variable>
+  <variable name="sym" as="element( preproc:sym )?"
+            select="$symtable/preproc:sym[ @name=$to and @src ]" />
+
+  <if test="not( $sym ) and not( $symtable/@lvmc:sym-ignore )">
+    <message terminate="yes"
+                 select="concat(
+                           'error: unknown destination identifier `',
+                           string( $to ),
+                           ''' (did you import the package?)' )" />
+  </if>
 
   <variable name="from-var">
     <choose>
@@ -425,11 +443,11 @@
   </variable>
 
   <choose>
-    <when test="$default and not( $default = '' )">
+    <when test="$sym and $sym/@default and not( $sym/@default = '' )">
       <text>set_defaults(</text>
         <value-of select="$from-var" />
       <text>,'</text>
-        <value-of select="$default" />
+        <value-of select="lvmc:escape-string( $sym/@default )" />
       <text>')</text>
     </when>
 
@@ -466,6 +484,7 @@
 
 
 <template match="lvm:map[*]" mode="lvmc:compile" priority="5">
+  <param name="symtable" as="element( preproc:symtable )" />
   <param name="rater" />
   <param name="type" />
 
@@ -475,6 +494,7 @@
     <text>']=</text>
 
       <apply-templates select="./lvm:*" mode="lvmc:compile">
+        <with-param name="symtable" select="$symtable" />
         <with-param name="rater" select="$rater" />
       </apply-templates>
 
@@ -588,7 +608,7 @@
 
 
 <template match="lvm:map//lvm:from[*]" mode="lvmc:compile" priority="5">
-  <param name="rater" />
+  <param name="symtable" as="element( preproc:symtable )" />
 
   <variable name="to" select="ancestor::lvm:map/@to" />
 
@@ -627,7 +647,7 @@
             <!-- otherwise, generate one -->
             <otherwise>
               <call-template name="lvmc:gen-input-default">
-                <with-param name="rater" select="$rater" />
+                <with-param name="symtable" select="$symtable" />
                 <with-param name="to" select="$to" />
                 <with-param name="from-str">
                   <text>''+val[i]</text>
@@ -779,14 +799,17 @@
 
 
 <!-- import symbols -->
-<template match="lvm:import" mode="preproc:symtable" priority="5">
+<template match="lvm:import[ @path ]" mode="preproc:symtable" priority="5">
   <!-- original root passed to sym-discover -->
   <param name="orig-root" />
+
+  <variable name="src" as="xs:string"
+            select="@path" />
 
   <!-- perform symbol import -->
   <call-template name="preproc:symimport">
     <with-param name="orig-root" select="$orig-root" />
-    <with-param name="package" select="@path" />
+    <with-param name="package" select="$src" />
     <with-param name="export" select="'true'" />
   </call-template>
 </template>

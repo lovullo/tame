@@ -52,8 +52,8 @@
 
 <xsl:template match="lvm:program-map|lvm:return-map">
   <!-- output deps, one per line -->
-  <xsl:for-each select="lvm:import[ @path ]">
-    <xsl:value-of select="concat( @path, $nl )" />
+  <xsl:for-each select="lvm:import[ @path ]|lv:import[ @package ]">
+    <xsl:value-of select="concat( @path|@package, $nl )" />
   </xsl:for-each>
 </xsl:template>
 

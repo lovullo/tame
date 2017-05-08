@@ -382,10 +382,18 @@
       </xs:documentation>
     </xs:annotation>
 
-    <xs:attribute name="path" type="xs:string" use="required">
+    <xs:attribute name="path" type="xs:string">
       <xs:annotation>
         <xs:documentation xml:lang="en">
-          Path to source file
+          Path to source map file
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="package" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Path to source package
         </xs:documentation>
       </xs:annotation>
     </xs:attribute>
@@ -401,6 +409,9 @@
 
     <xs:complexType>
       <xs:sequence>
+        <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded"
+                processContents="lax" />
+
         <xs:element name="import" type="importType"
           minOccurs="0" maxOccurs="unbounded" />
         <xs:element name="class" type="classDescriptorType"
