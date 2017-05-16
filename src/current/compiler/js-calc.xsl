@@ -93,11 +93,11 @@
 
   <xsl:if test="$debugval = 'yes' or $debug-force">
     <xsl:text>; </xsl:text>
-    <xsl:text>( debug['</xsl:text>
+    <xsl:text>/*!+*/( debug['</xsl:text>
       <xsl:value-of select="@_id" />
     <xsl:text>'] || ( debug['</xsl:text>
       <xsl:value-of select="@_id" />
-    <xsl:text>'] = [] ) ).push( result ); </xsl:text>
+    <xsl:text>'] = [] ) ).push( result );/*!-*/ </xsl:text>
 
     <xsl:text>return result; </xsl:text>
     <xsl:text>} )() </xsl:text>

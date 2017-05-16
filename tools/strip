@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+# Strip debugging information from object files and executables.
+#
+# Analogous to GNU strip used for ELF and other binary formats.
+# Note that calculation breakdowns will not work after stripping.
+##
+
+# debug assignments
+sed -i 's#/\*!+\*/[^!]\+/\*!-\*/##g' ui/package.js
+

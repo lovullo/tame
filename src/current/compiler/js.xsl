@@ -918,11 +918,11 @@
 
   <text>;</text>
 
-  <text>( debug['</text>
+  <text>/*!+*/( debug['</text>
     <value-of select="@_id" />
   <text>'] || ( debug['</text>
     <value-of select="@_id" />
-  <text>'] = [] ) ).push( tmp ); </text>
+  <text>'] = [] ) ).push( tmp );/*!-*/ </text>
 
 
   <text>result = </text>
