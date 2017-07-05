@@ -929,31 +929,19 @@
 <template match="lvm:program-map" mode="lvmc:validate-ui">
   <param name="ui" />
 
+  <variable name="knowns" as="xs:string*"
+            select="$ui//lvp:question/@id,
+                    $ui//lvp:external/@id,
+                    $ui//lvp:calc/@id" />
+
 
   <!-- get a list of unknown source mappings -->
   <!-- TODO: this is a mess -->
   <variable name="unknown-pre" select="
-      .//lvm:pass[
-        not( @name=($ui//lvp:question/@id|$ui//lvp:external/@id) )
-        and not( @name=$ui//lvp:calc/@id )
-      ]
-      |
-      .//lvm:map[
-        @from
-        and not( @from=($ui//lvp:question/@id|$ui//lvp:external/@id) )
-        and not( @from=$ui//lvp:calc/@id )
-      ]
-      |
-      .//lvm:from[
-        not( @name=($ui//lvp:question/@id|$ui//lvp:external/@id) )
-        and not( @name=$ui//lvp:calc/@id )
-      ]
-      |
-      .//lvm:set[
-        @each
-        and not( @each=($ui//lvp:question/@id|$ui//lvp:external/@id) )
-        and not( @each=$ui//lvp:calc/@id )
-      ]
+      .//lvm:pass[ not( @name = $knowns ) ],
+      .//lvm:map[ @from and not( @from = $knowns ) ],
+      .//lvm:from[ not( @name = $knowns ) ],
+      .//lvm:set[ @each and not( @each = $knowns ) ]
     " />
 
   <variable name="unknown"
