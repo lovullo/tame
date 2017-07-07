@@ -932,7 +932,9 @@
   <variable name="knowns" as="xs:string*"
             select="$ui//lvp:question/@id,
                     $ui//lvp:external/@id,
-                    $ui//lvp:calc/@id" />
+                    $ui//lvp:calc/@id,
+                    for $id in $ui//lvp:meta/lvp:field/@id
+                      return concat( 'meta:', $id )" />
 
 
   <!-- get a list of unknown source mappings -->
