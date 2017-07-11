@@ -2,7 +2,7 @@
 <!--
   Assembles code fragments into a final executable
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -24,9 +24,8 @@
   responsible for outputting the generated code in whatever manner is
   appropriate (inline JS, a file, etc).
 -->
-<xsl:stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+<stylesheet version="2.0"
+  xmlns="http://www.w3.org/1999/XSL/Transform"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
@@ -35,54 +34,54 @@
   xmlns:compiler="http://www.lovullo.com/rater/compiler"
   xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
-<xsl:include href="../include/preproc/symtable.xsl" />
-<xsl:include href="../include/util.xsl" />
-<xsl:include href="js.xsl" />
+<include href="../include/preproc/symtable.xsl" />
+<include href="../include/util.xsl" />
+<include href="js.xsl" />
 
-<xsl:include href="linker/log.xsl" />
+<include href="linker/log.xsl" />
 
 <!-- indentation makes dep lists easier to mentally process -->
-<xsl:output indent="yes" />
+<output indent="yes" />
 
 <!-- optional fragments to include in exit block, comma-delimited
      (e.g. path/to/object/file/_fragment_)  -->
-<xsl:param name="rater-exit-fragments" />
+<param name="rater-exit-fragments" />
 
 <!--
   Used to output a great deal of linker information for debugging
 
   THIS WILL HAVE A PERFORMANCE HIT!
 -->
-<xsl:param name="l:aggressive-debug" select="false()" />
+<param name="l:aggressive-debug" select="false()" />
 
-<xsl:variable name="l:orig-root" as="document-node( element( lv:package ) )"
-              select="/" />
+<variable name="l:orig-root" as="document-node( element( lv:package ) )"
+          select="/" />
 
-<xsl:variable name="l:process-empty" as="element( l:pstack )">
+<variable name="l:process-empty" as="element( l:pstack )">
   <l:pstack />
-</xsl:variable>
+</variable>
 
-<xsl:variable name="l:stack-empty" as="element( l:sym-stack )">
+<variable name="l:stack-empty" as="element( l:sym-stack )">
   <l:sym-stack />
-</xsl:variable>
+</variable>
 
 
-<xsl:template match="*" mode="l:link" priority="1">
-  <xsl:call-template name="log:error">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>cannot link </xsl:text>
-      <xsl:value-of select="name()" />
-      <xsl:text>; must link program</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
-</xsl:template>
+<template match="*" mode="l:link" priority="1">
+  <call-template name="log:error">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>cannot link </text>
+      <value-of select="name()" />
+      <text>; must link program</text>
+    </with-param>
+  </call-template>
+</template>
 
 
 <!-- entry point (if run directly) -->
-<xsl:template match="/" priority="1">
-  <xsl:apply-templates select="/lv:*" mode="l:link" />
-</xsl:template>
+<template match="/" priority="1">
+  <apply-templates select="/lv:*" mode="l:link" />
+</template>
 
 
 <!--
@@ -92,73 +91,73 @@
   recognize the fact that linking should be done. They also contain definitions
   for exit points (lv:yields); think of it like defining a main() function.
 -->
-<xsl:template match="lv:package[ @program='true' ]" mode="l:link" priority="5">
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>linking </xsl:text>
-      <xsl:value-of select="@name" />
-      <xsl:text>...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+<template match="lv:package[ @program='true' ]" mode="l:link" priority="5">
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>linking </text>
+      <value-of select="@name" />
+      <text>...</text>
+    </with-param>
+  </call-template>
 
   <!-- start by recursively discovering imported shared object files -->
-  <xsl:variable name="pre-deps" as="element( l:dep )">
-    <xsl:call-template name="log:debug">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>building dependency tree...</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
+  <variable name="pre-deps" as="element( l:dep )">
+    <call-template name="log:debug">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>building dependency tree...</text>
+      </with-param>
+    </call-template>
 
     <l:dep>
       <!-- empty stack -->
-      <xsl:apply-templates select="preproc:symtable" mode="l:depgen">
-        <xsl:with-param name="stack" select="$l:stack-empty" as="element( l:sym-stack )" />
-      </xsl:apply-templates>
+      <apply-templates select="preproc:symtable" mode="l:depgen">
+        <with-param name="stack" select="$l:stack-empty" as="element( l:sym-stack )" />
+      </apply-templates>
     </l:dep>
-  </xsl:variable>
+  </variable>
 
 
   <!-- a single-pass post-processing of the deps to resolve any final issues -->
-  <xsl:variable name="deps" as="element( l:dep )">
-    <xsl:call-template name="log:debug">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>resolving dependency tree...</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
+  <variable name="deps" as="element( l:dep )">
+    <call-template name="log:debug">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>resolving dependency tree...</text>
+      </with-param>
+    </call-template>
 
-    <xsl:apply-templates select="$pre-deps" mode="l:resolv-deps" />
-  </xsl:variable>
+    <apply-templates select="$pre-deps" mode="l:resolv-deps" />
+  </variable>
 
-  <xsl:copy>
-    <xsl:copy-of select="@*" />
+  <copy>
+    <copy-of select="@*" />
 
     <!-- copy the dependency tree -->
-    <xsl:copy-of select="$deps" />
+    <copy-of select="$deps" />
 
     <!-- if map data was provided, generate the map -->
-    <xsl:variable name="maplink">
-      <xsl:apply-templates select="." mode="l:map">
-        <xsl:with-param name="deps" select="$deps" />
-      </xsl:apply-templates>
-    </xsl:variable>
+    <variable name="maplink">
+      <apply-templates select="." mode="l:map">
+        <with-param name="deps" select="$deps" />
+      </apply-templates>
+    </variable>
 
-    <xsl:if test="$maplink//l:map-error">
-      <xsl:call-template name="log:error">
-        <xsl:with-param name="name" select="'link'" />
-      </xsl:call-template>
-    </xsl:if>
+    <if test="$maplink//l:map-error">
+      <call-template name="log:error">
+        <with-param name="name" select="'link'" />
+      </call-template>
+    </if>
 
     <!-- all good. -->
-    <xsl:copy-of select="$maplink" />
+    <copy-of select="$maplink" />
 
     <!-- link. -->
     <l:exec>
-      <xsl:apply-templates select="." mode="l:link-deps">
+      <apply-templates select="." mode="l:link-deps">
         <!-- TODO: remove this exception -->
-        <xsl:with-param name="deps" select="
+        <with-param name="deps" select="
             $deps/preproc:sym[
               not(
                 starts-with( @type, 'map' )
@@ -166,31 +165,31 @@
               )
             ]
           " />
-      </xsl:apply-templates>
+      </apply-templates>
     </l:exec>
-  </xsl:copy>
-</xsl:template>
+  </copy>
+</template>
 
 
-<xsl:template mode="l:depgen" as="element( preproc:sym )*"
-              match="preproc:symtable">
-  <xsl:param name="stack" as="element( l:sym-stack )"
-             select="$l:stack-empty" />
+<template mode="l:depgen" as="element( preproc:sym )*"
+          match="preproc:symtable">
+  <param name="stack" as="element( l:sym-stack )"
+         select="$l:stack-empty" />
 
   <!-- we care only of the symbols used by lv:yields, from which all
        dependencies may be derived (if it's not derivable from the yield
        symbol, then it must not be used); note that lv:yield actually compiles
        into a special symbol ___yield -->
-  <xsl:variable name="yields" as="element( preproc:sym )+">
-    <xsl:copy-of select="preproc:sym[ @name='___yield' ]" />
+  <variable name="yields" as="element( preproc:sym )+">
+    <copy-of select="preproc:sym[ @name='___yield' ]" />
 
     <!-- also include anything derivable from any @keep symbol, either local
          or imported -->
-    <xsl:copy-of select="preproc:sym[ @keep='true' ]" />
+    <copy-of select="preproc:sym[ @keep='true' ]" />
 
     <!-- TODO: these should be included as a consequence of the linking
          process, not as an exception -->
-    <xsl:copy-of select="
+    <copy-of select="
         preproc:sym[
           @type='map' or @type='map:head' or @type='map:tail'
           or @type='retmap' or @type='retmap:head' or @type='retmap:tail'
@@ -198,159 +197,159 @@
       " />
 
     <!-- TODO: same as above -->
-    <xsl:copy-of select="preproc:sym[ @name='___worksheet' ]" />
-  </xsl:variable>
+    <copy-of select="preproc:sym[ @name='___worksheet' ]" />
+  </variable>
 
   <!-- start at the top of the table and begin processing each symbol
        individually, generating a dependency tree as we go -->
-  <xsl:variable name="result" as="element()+">
-    <xsl:call-template name="l:depgen-sym">
-      <xsl:with-param name="pending" select="$yields" />
-      <xsl:with-param name="stack" select="$stack" as="element( l:sym-stack )" />
-    </xsl:call-template>
-  </xsl:variable>
+  <variable name="result" as="element()+">
+    <call-template name="l:depgen-sym">
+      <with-param name="pending" select="$yields" />
+      <with-param name="stack" select="$stack" as="element( l:sym-stack )" />
+    </call-template>
+  </variable>
 
   <!-- stack will contain additional metadata -->
-  <xsl:sequence select="$result[ . instance of
-                                 element( preproc:sym ) ]" />
-</xsl:template>
+  <sequence select="$result[ . instance of
+                             element( preproc:sym ) ]" />
+</template>
 
 
-<xsl:template mode="l:resolv-deps" as="element( l:dep )"
-              priority="9"
-              match="l:dep">
-  <xsl:copy>
-    <xsl:apply-templates mode="l:resolv-deps" />
-  </xsl:copy>
-</xsl:template>
+<template mode="l:resolv-deps" as="element( l:dep )"
+          priority="9"
+          match="l:dep">
+  <copy>
+    <apply-templates mode="l:resolv-deps" />
+  </copy>
+</template>
 
 
 <!-- replace marks with the symbols that they reference (note that the linker
      will not add duplicates, so we needn't worry about them) -->
-<xsl:template mode="l:resolv-deps" as="element( preproc:sym )"
-              priority="8"
-              match="preproc:sym[ @l:mark-inclass ]">
+<template mode="l:resolv-deps" as="element( preproc:sym )"
+          priority="8"
+          match="preproc:sym[ @l:mark-inclass ]">
   <!-- FIXME: I sometimes return more than one symbol! -->
-  <xsl:variable name="sym" as="element( preproc:sym )*"
-                select=" root(.)/preproc:sym[
-                          @name = current()/@name ]" />
+  <variable name="sym" as="element( preproc:sym )*"
+            select="root(.)/preproc:sym[
+                      @name = current()/@name ]" />
 
   <!-- sanity check; hopefully never necessary -->
-  <xsl:if test="not( $sym )">
-    <xsl:call-template name="log:internal-error">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>l:mark-class found for non-existing symbol </xsl:text>
-        <xsl:value-of select="@name" />
-        <xsl:text>; there is a bug in l:depgen-process-sym</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
+  <if test="not( $sym )">
+    <call-template name="log:internal-error">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>l:mark-class found for non-existing symbol </text>
+        <value-of select="@name" />
+        <text>; there is a bug in l:depgen-process-sym</text>
+      </with-param>
+    </call-template>
+  </if>
 
   <!-- copy the element and mark as inclass (no need to check @src, since at
        this point, such conflicts would have already resulted in an error -->
   <preproc:sym>
-    <xsl:sequence select="$sym/@*" />
+    <sequence select="$sym/@*" />
 
     <!-- override attribute -->
-    <xsl:attribute name="inclass" select="'true'" />
+    <attribute name="inclass" select="'true'" />
   </preproc:sym>
-</xsl:template>
+</template>
 
 
 <!-- any now-inclass symbols should be stripped of their original position -->
-<xsl:template mode="l:resolv-deps" priority="7"
-              match="preproc:sym[
-                       @name = root(.)/preproc:sym[ @l:mark-inclass ]
-                                 /@name ]">
+<template mode="l:resolv-deps" priority="7"
+          match="preproc:sym[
+                   @name = root(.)/preproc:sym[ @l:mark-inclass ]
+                             /@name ]">
   <!-- bye-bye -->
-</xsl:template>
+</template>
 
 
-<xsl:template match="*" mode="l:resolv-deps" priority="1">
-  <xsl:sequence select="." />
-</xsl:template>
+<template match="*" mode="l:resolv-deps" priority="1">
+  <sequence select="." />
+</template>
 
 
 <!-- FIXME: I want element( l:preproc:sym ), but we also have
      l:mark-inclass -->
-<xsl:template name="l:depgen-sym" as="element()*">
-  <xsl:param name="pending" as="element( preproc:sym )*" />
-  <xsl:param name="stack" as="element( l:sym-stack )" />
-  <xsl:param name="path" as="xs:string"
-             select="''" />
-  <xsl:param name="processing" as="element( l:pstack )"
-             select="$l:process-empty" />
+<template name="l:depgen-sym" as="element()*">
+  <param name="pending" as="element( preproc:sym )*" />
+  <param name="stack" as="element( l:sym-stack )" />
+  <param name="path" as="xs:string"
+         select="''" />
+  <param name="processing" as="element( l:pstack )"
+         select="$l:process-empty" />
 
-  <xsl:variable name="pend-count" as="xs:integer"
-                select="count( $pending )" />
-  <xsl:variable name="stack-count" as="xs:integer"
-                select="count( $stack/preproc:sym )" />
-  <xsl:variable name="process-count" as="xs:integer"
-                select="count( $processing/* )" />
+  <variable name="pend-count" as="xs:integer"
+            select="count( $pending )" />
+  <variable name="stack-count" as="xs:integer"
+            select="count( $stack/preproc:sym )" />
+  <variable name="process-count" as="xs:integer"
+            select="count( $processing/* )" />
 
-  <xsl:choose>
+  <choose>
     <!-- if there are no pending symbols left, then we are done; return the
          stack -->
-    <xsl:when test="$pend-count = 0">
-      <xsl:sequence select="$stack/*" />
-    </xsl:when>
+    <when test="$pend-count = 0">
+      <sequence select="$stack/*" />
+    </when>
 
 
-    <xsl:otherwise>
+    <otherwise>
       <!-- take the first item from the pending list -->
-      <xsl:variable name="cur" as="element( preproc:sym )"
-                    select="$pending[1]" />
+      <variable name="cur" as="element( preproc:sym )"
+                select="$pending[1]" />
 
       <!-- aggressive debugging data -->
-      <xsl:if test="$l:aggressive-debug">
-        <xsl:call-template name="log:debug">
-          <xsl:with-param name="name" select="'link'" />
-          <xsl:with-param name="msg">
-            <xsl:text>(</xsl:text>
-            <xsl:value-of select="$path" />
-            <xsl:text>) </xsl:text>
-            <xsl:value-of select="$pend-count" />
-            <xsl:text>p - </xsl:text>
-            <xsl:value-of select="$stack-count" />
-            <xsl:text>s - </xsl:text>
-            <xsl:value-of select="$process-count" />
-            <xsl:text>r - </xsl:text>
-            <xsl:value-of select="$cur/@name" />
-            <xsl:text> [s:: </xsl:text>
-            <xsl:value-of select="$stack/preproc:sym/@name" />
-            <xsl:text> ::s] [r:: </xsl:text>
-            <xsl:value-of select="$processing/preproc:sym/@name" />
-            <xsl:text>::r]</xsl:text>
-          </xsl:with-param>
-        </xsl:call-template>
-      </xsl:if>
+      <if test="$l:aggressive-debug">
+        <call-template name="log:debug">
+          <with-param name="name" select="'link'" />
+          <with-param name="msg">
+            <text>(</text>
+            <value-of select="$path" />
+            <text>) </text>
+            <value-of select="$pend-count" />
+            <text>p - </text>
+            <value-of select="$stack-count" />
+            <text>s - </text>
+            <value-of select="$process-count" />
+            <text>r - </text>
+            <value-of select="$cur/@name" />
+            <text> [s:: </text>
+            <value-of select="$stack/preproc:sym/@name" />
+            <text> ::s] [r:: </text>
+            <value-of select="$processing/preproc:sym/@name" />
+            <text>::r]</text>
+          </with-param>
+        </call-template>
+      </if>
 
-      <xsl:variable name="pkg-seen" as="xs:boolean"
-                    select="(
-                              ( $cur/@src = '' or not( $cur/@src ) )
-                              and $stack/preproc:pkg-seen/@src = ''
-                            )
-                            or $cur/@src = $stack/preproc:pkg-seen/@src" />
+      <variable name="pkg-seen" as="xs:boolean"
+                select="(
+                          ( $cur/@src = '' or not( $cur/@src ) )
+                          and $stack/preproc:pkg-seen/@src = ''
+                        )
+                        or $cur/@src = $stack/preproc:pkg-seen/@src" />
 
-      <xsl:variable name="newpending" as="element( l:pending )">
+      <variable name="newpending" as="element( l:pending )">
         <l:pending>
-          <xsl:sequence select="$pending" />
+          <sequence select="$pending" />
 
           <!-- if this is the first time seeing this package, then pend its
                @keep's for processing -->
-          <xsl:if test="not( $pkg-seen )">
-            <xsl:message select="'[link] found package ', $cur/@src" />
+          <if test="not( $pkg-seen )">
+            <message select="'[link] found package ', $cur/@src" />
 
-            <xsl:variable name="document" as="element( lv:package )"
-                          select="if ( not( $cur/@src or $cur/@src = '' ) ) then
-                                    $l:orig-root/lv:package
-                                  else
-                                    document( concat( $cur/@src, '.xmlo' ),
-                                              $l:orig-root )
-                                      /lv:package" />
+            <variable name="document" as="element( lv:package )"
+                      select="if ( not( $cur/@src or $cur/@src = '' ) ) then
+                                $l:orig-root/lv:package
+                              else
+                                document( concat( $cur/@src, '.xmlo' ),
+                                          $l:orig-root )
+                                  /lv:package" />
 
-            <xsl:variable name="keeps" as="element( preproc:sym )*" select="
+            <variable name="keeps" as="element( preproc:sym )*" select="
                   $document/preproc:symtable/preproc:sym[
                     (
                       @keep='true'
@@ -367,91 +366,91 @@
                   ]
               " />
 
-            <xsl:variable name="keepdeps" as="element( preproc:sym )*">
-              <xsl:call-template name="l:dep-aug">
-                <xsl:with-param name="cur" select="$cur" />
-                <xsl:with-param name="deps" select="$keeps" />
-                <xsl:with-param name="proc-barrier" select="true()" />
-                <xsl:with-param name="parent-name"
+            <variable name="keepdeps" as="element( preproc:sym )*">
+              <call-template name="l:dep-aug">
+                <with-param name="cur" select="$cur" />
+                <with-param name="deps" select="$keeps" />
+                <with-param name="proc-barrier" select="true()" />
+                <with-param name="parent-name"
                   select="concat( 'package ', $cur/@src )" />
-              </xsl:call-template>
-            </xsl:variable>
+              </call-template>
+            </variable>
 
-            <xsl:sequence select="$keepdeps" />
-          </xsl:if>
+            <sequence select="$keepdeps" />
+          </if>
         </l:pending>
-      </xsl:variable>
+      </variable>
 
 
-      <xsl:variable name="stack-seen" as="element( l:sym-stack )">
+      <variable name="stack-seen" as="element( l:sym-stack )">
         <l:sym-stack>
-          <xsl:if test="not( $pkg-seen )">
-            <xsl:sequence select="$stack/*" />
+          <if test="not( $pkg-seen )">
+            <sequence select="$stack/*" />
             <preproc:pkg-seen src="{$cur/@src}" />
-          </xsl:if>
+          </if>
         </l:sym-stack>
-      </xsl:variable>
+      </variable>
 
-      <xsl:variable name="newstack" as="element( l:sym-stack )"
-                    select="if ( $pkg-seen ) then
-                              $stack
-                            else
-                              $stack-seen" />
+      <variable name="newstack" as="element( l:sym-stack )"
+                select="if ( $pkg-seen ) then
+                          $stack
+                        else
+                          $stack-seen" />
 
-      <xsl:apply-templates select="$cur" mode="l:depgen-process-sym">
-        <xsl:with-param name="pending" select="$newpending/*" />
-        <xsl:with-param name="stack" select="$newstack" />
-        <xsl:with-param name="path" select="$path" />
-        <xsl:with-param name="processing" select="
+      <apply-templates select="$cur" mode="l:depgen-process-sym">
+        <with-param name="pending" select="$newpending/*" />
+        <with-param name="stack" select="$newstack" />
+        <with-param name="path" select="$path" />
+        <with-param name="processing" select="
             if ( $cur/@l:proc-barrier = 'true' )
               then $l:process-empty
             else
               $processing
           " />
-      </xsl:apply-templates>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+      </apply-templates>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:function name="l:resolv-extern" as="element( preproc:sym )">
-  <xsl:param name="sym" as="element( preproc:sym )" />
+<function name="l:resolv-extern" as="element( preproc:sym )">
+  <param name="sym" as="element( preproc:sym )" />
 
-  <xsl:variable name="name" as="xs:string"
-                select="$sym/@name" />
+  <variable name="name" as="xs:string"
+            select="$sym/@name" />
 
   <!-- there is no reason (in the current implementation) that this
        should _not_ have already been resolved in the package being
        linked -->
-  <xsl:variable name="pkg" as="element( lv:package )" select="
+  <variable name="pkg" as="element( lv:package )" select="
         $l:orig-root/lv:package" />
 
-  <xsl:variable name="resolv" as="element( preproc:sym )?"
-                select="$pkg/preproc:symtable/preproc:sym[
-                          @name=$name ]" />
+  <variable name="resolv" as="element( preproc:sym )?"
+            select="$pkg/preproc:symtable/preproc:sym[
+                      @name=$name ]" />
 
-  <xsl:choose>
+  <choose>
     <!-- if this symbol is not external, then we have found it -->
-    <xsl:when test="$resolv and not( $resolv/@extern )">
-      <xsl:sequence select="$resolv" />
-    </xsl:when>
+    <when test="$resolv and not( $resolv/@extern )">
+      <sequence select="$resolv" />
+    </when>
 
     <!-- if there is no more stack to check and we have not found the symbol,
          then this is a problem (this should never happen) -->
-    <xsl:otherwise>
-      <xsl:call-template name="log:internal-error">
-        <xsl:with-param name="name" select="'link'" />
-        <xsl:with-param name="msg">
-          <xsl:text>unresolved extern </xsl:text>
-          <xsl:value-of select="$name" />
-          <xsl:text> (declared by `</xsl:text>
-          <xsl:value-of select="$sym/@src" />
-          <xsl:text>')</xsl:text>
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:function>
+    <otherwise>
+      <call-template name="log:internal-error">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>unresolved extern </text>
+          <value-of select="$name" />
+          <text> (declared by `</text>
+          <value-of select="$sym/@src" />
+          <text>')</text>
+        </with-param>
+      </call-template>
+    </otherwise>
+  </choose>
+</function>
 
 
 <!--
@@ -472,462 +471,462 @@
   arrive at the definition. Since the symbol is defined within that package,
   the object file will also contain its dependency list.
 -->
-<xsl:template match="preproc:sym[ @extern='true' ]" mode="l:depgen-process-sym" priority="5">
-  <xsl:param name="pending" as="element( preproc:sym )*" />
-  <xsl:param name="stack" as="element( l:sym-stack )" />
-  <xsl:param name="path" as="xs:string" />
-  <xsl:param name="processing" as="element( l:pstack )" />
+<template match="preproc:sym[ @extern='true' ]" mode="l:depgen-process-sym" priority="5">
+  <param name="pending" as="element( preproc:sym )*" />
+  <param name="stack" as="element( l:sym-stack )" />
+  <param name="path" as="xs:string" />
+  <param name="processing" as="element( l:pstack )" />
 
-  <xsl:variable name="cur" select="." />
+  <variable name="cur" select="." />
 
-  <xsl:variable name="eresolv" as="element( preproc:sym )*"
-                select="l:resolv-extern( $cur )" />
+  <variable name="eresolv" as="element( preproc:sym )*"
+            select="l:resolv-extern( $cur )" />
 
   <!-- were we able to resolve the symbol? -->
-  <xsl:if test="empty( $eresolv )">
-    <xsl:call-template name="log:internal-error">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>could not resolve external symbol `</xsl:text>
-          <xsl:value-of select="$cur/@name" />
-        <xsl:text>'</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
+  <if test="empty( $eresolv )">
+    <call-template name="log:internal-error">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>could not resolve external symbol `</text>
+          <value-of select="$cur/@name" />
+        <text>'</text>
+      </with-param>
+    </call-template>
+  </if>
 
   <!-- in the event that we are importing symbols from program packages (which
        hopefully is a rare case), we may have external symbols that resolve to
        the same package; filter out duplicates -->
-  <xsl:variable name="eresolv-uniq" as="element( preproc:sym )"
-                select="$eresolv[
-                          not( @src = $eresolv[ not( current() ) ]/@src ) ]" />
+  <variable name="eresolv-uniq" as="element( preproc:sym )"
+            select="$eresolv[
+                      not( @src = $eresolv[ not( current() ) ]/@src ) ]" />
 
   <!-- did we find more than one? (that would be very bad and likely represents
        a symbol table generation bug) -->
-  <xsl:if test="count( $eresolv-uniq ) gt 1">
-    <xsl:call-template name="log:internal-error">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>ambiguous external symbol `</xsl:text>
-          <xsl:value-of select="$cur/@name" />
-        <xsl:text>'; resolution failed (found </xsl:text>
-          <xsl:for-each select="$eresolv-uniq">
-            <xsl:if test="position() > 1">
-              <xsl:text>; </xsl:text>
-            </xsl:if>
-            <xsl:value-of select="@src" />
-          </xsl:for-each>
-        <xsl:text>); pulled in by: </xsl:text>
+  <if test="count( $eresolv-uniq ) gt 1">
+    <call-template name="log:internal-error">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>ambiguous external symbol `</text>
+          <value-of select="$cur/@name" />
+        <text>'; resolution failed (found </text>
+          <for-each select="$eresolv-uniq">
+            <if test="position() > 1">
+              <text>; </text>
+            </if>
+            <value-of select="@src" />
+          </for-each>
+        <text>); pulled in by: </text>
 
         <!-- help the user figure out how this happened -->
-        <xsl:for-each select="$processing/preproc:sym">
-          <xsl:if test="position() gt 1">
-            <xsl:text> - </xsl:text>
-          </xsl:if>
-          <xsl:value-of select="concat( @src, '/', @name )" />
-        </xsl:for-each>
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
+        <for-each select="$processing/preproc:sym">
+          <if test="position() gt 1">
+            <text> - </text>
+          </if>
+          <value-of select="concat( @src, '/', @name )" />
+        </for-each>
+      </with-param>
+    </call-template>
+  </if>
 
-  <xsl:call-template name="log:debug">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg"
-                    select="concat(
-                              'external symbol ', $cur/@name,
-                              ' resolved to ',
-                              ( if ( $eresolv-uniq/@src ) then
-                                  $eresolv-uniq/@src
-                                else '' ),
-                              '/',
-                              $eresolv-uniq/@name )" />
-  </xsl:call-template>
+  <call-template name="log:debug">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg"
+                select="concat(
+                          'external symbol ', $cur/@name,
+                          ' resolved to ',
+                          ( if ( $eresolv-uniq/@src ) then
+                              $eresolv-uniq/@src
+                            else '' ),
+                          '/',
+                          $eresolv-uniq/@name )" />
+  </call-template>
 
   <!-- use the resolved symbol in place of the original extern -->
-  <xsl:apply-templates select="$eresolv-uniq" mode="l:depgen-process-sym">
-    <xsl:with-param name="pending" select="$pending" />
-    <xsl:with-param name="stack" select="$stack" as="element( l:sym-stack )" />
-    <xsl:with-param name="path" select="$path" />
-    <xsl:with-param name="processing" select="$processing" />
-  </xsl:apply-templates>
-</xsl:template>
+  <apply-templates select="$eresolv-uniq" mode="l:depgen-process-sym">
+    <with-param name="pending" select="$pending" />
+    <with-param name="stack" select="$stack" as="element( l:sym-stack )" />
+    <with-param name="path" select="$path" />
+    <with-param name="processing" select="$processing" />
+  </apply-templates>
+</template>
 
 
-<xsl:template mode="l:depgen-process-sym" priority="1"
+<template mode="l:depgen-process-sym" priority="1"
               match="preproc:sym">
-  <xsl:param name="pending" as="element( preproc:sym )*" />
-  <xsl:param name="stack" as="element( l:sym-stack )" />
-  <xsl:param name="path" as="xs:string" />
-  <xsl:param name="processing" as="element( l:pstack )" />
+  <param name="pending" as="element( preproc:sym )*" />
+  <param name="stack" as="element( l:sym-stack )" />
+  <param name="path" as="xs:string" />
+  <param name="processing" as="element( l:pstack )" />
 
-  <xsl:variable name="cur" as="element( preproc:sym )"
-                select="." />
+  <variable name="cur" as="element( preproc:sym )"
+            select="." />
 
   <!-- determines if the compile destination for these dependencies will be
        within the classifier; this is the case for all class dependencies
        *unless* the class is external -->
-  <xsl:variable name="inclass" as="xs:boolean"
-                select="( ( $cur/@type='class' )
-                          and not( $cur/@extclass='true' ) )
-                        or $processing/preproc:sym[
-                          @type='class'
-                          and not( @extclass='true' ) ]" />
+  <variable name="inclass" as="xs:boolean"
+            select="( ( $cur/@type='class' )
+                      and not( $cur/@extclass='true' ) )
+                    or $processing/preproc:sym[
+                      @type='class'
+                      and not( @extclass='true' ) ]" />
 
   <!-- perform circular dependency check and blow up if found (we cannot choose
        a proper linking order without a correct dependency tree); the only
        exception is if the circular dependency is a function, since that simply
        implies recursion, which we can handle just fine -->
-  <xsl:variable name="circ" as="element( preproc:sym )*"
-                select="$processing/preproc:sym[
-                          @name=$cur/@name
-                          and @src=$cur/@src ]" />
+  <variable name="circ" as="element( preproc:sym )*"
+            select="$processing/preproc:sym[
+                      @name=$cur/@name
+                      and @src=$cur/@src ]" />
 
-  <xsl:choose>
+  <choose>
     <!-- non-function; fatal -->
-    <xsl:when test="$circ
+    <when test="$circ
                     and $circ[ not( @type='func' ) ]
       ">
-      <xsl:call-template name="l:err-circular">
-        <xsl:with-param name="stack" select="$processing" />
-        <xsl:with-param name="cur" select="$cur" />
-      </xsl:call-template>
-    </xsl:when>
+      <call-template name="l:err-circular">
+        <with-param name="stack" select="$processing" />
+        <with-param name="cur" select="$cur" />
+      </call-template>
+    </when>
 
     <!-- function; we've done all we need to, so do not re-link
          (recursive call) -->
-    <xsl:when test="$circ">
+    <when test="$circ">
       <!-- continue processing; leave stack unchanged -->
-      <xsl:call-template name="l:depgen-sym">
-        <xsl:with-param name="pending" select="remove( $pending, 1 )" />
-        <xsl:with-param name="processing" select="$processing" />
-        <xsl:with-param name="stack" select="$stack" as="element( l:sym-stack )"  />
-      </xsl:call-template>
-    </xsl:when>
+      <call-template name="l:depgen-sym">
+        <with-param name="pending" select="remove( $pending, 1 )" />
+        <with-param name="processing" select="$processing" />
+        <with-param name="stack" select="$stack" as="element( l:sym-stack )"  />
+      </call-template>
+    </when>
 
 
     <!-- process; TODO: good refactoring point; large template -->
-    <xsl:otherwise>
-      <xsl:variable name="existing" as="element( preproc:sym )*"
-                    select="$stack/preproc:sym[
-                              @name=$cur/@name ]" />
+    <otherwise>
+      <variable name="existing" as="element( preproc:sym )*"
+                select="$stack/preproc:sym[
+                          @name=$cur/@name ]" />
 
-      <xsl:variable name="src-conflict" as="element( preproc:sym )*"
-                    select="if ( not( $cur/@src ) or $cur/@src = '' ) then
-                              ()
-                            else
-                              $existing[ not( @src = $cur/@src ) ]" />
+      <variable name="src-conflict" as="element( preproc:sym )*"
+                select="if ( not( $cur/@src ) or $cur/@src = '' ) then
+                          ()
+                        else
+                          $existing[ not( @src = $cur/@src ) ]" />
 
-      <xsl:if test="$src-conflict">
-        <xsl:call-template name="log:error">
-          <xsl:with-param name="name" select="'link'" />
-          <xsl:with-param name="msg">
-            <xsl:text>symbol name is not unique: `</xsl:text>
-            <xsl:value-of select="@name" />
-            <xsl:text>' found in</xsl:text>
-            <xsl:value-of select="$cur/@src" />
+      <if test="$src-conflict">
+        <call-template name="log:error">
+          <with-param name="name" select="'link'" />
+          <with-param name="msg">
+            <text>symbol name is not unique: `</text>
+            <value-of select="@name" />
+            <text>' found in</text>
+            <value-of select="$cur/@src" />
 
-            <xsl:for-each select="$src-conflict">
-              <xsl:text> and </xsl:text>
-              <xsl:value-of select="@src" />
-            </xsl:for-each>
-          </xsl:with-param>
-        </xsl:call-template>
-      </xsl:if>
+            <for-each select="$src-conflict">
+              <text> and </text>
+              <value-of select="@src" />
+            </for-each>
+          </with-param>
+        </call-template>
+      </if>
 
       <!-- determine if class already exists, but needs to be marked for
            inclusion within the classifier -->
-      <xsl:variable name="needs-class-mark" as="xs:boolean"
-                    select="$existing
-                              and $inclass
-                              and not( $existing/@inclass='true' )
-                              and not( $stack/preproc:sym[
-                                         @l:mark-inclass
-                                         and @name=$cur/@name
-                                         and @src=$cur/@src ] )" />
+      <variable name="needs-class-mark" as="xs:boolean"
+                select="$existing
+                          and $inclass
+                          and not( $existing/@inclass='true' )
+                          and not( $stack/preproc:sym[
+                                     @l:mark-inclass
+                                     and @name=$cur/@name
+                                     and @src=$cur/@src ] )" />
 
       <!-- continue with the remainder of the symbol list -->
-      <xsl:call-template name="l:depgen-sym">
-        <xsl:with-param name="pending" select="remove( $pending, 1 )" />
-        <xsl:with-param name="processing" select="$processing" />
+      <call-template name="l:depgen-sym">
+        <with-param name="pending" select="remove( $pending, 1 )" />
+        <with-param name="processing" select="$processing" />
 
-        <xsl:with-param name="stack" as="element( l:sym-stack )">
+        <with-param name="stack" as="element( l:sym-stack )">
           <!-- if this symbol already exists on the stack, then there is no use
                re-adding it (note that we check both the symbol name and its source
                since symbols could very well share a name due to exporting rules) -->
-          <xsl:choose>
-            <xsl:when test="not( $existing ) or $needs-class-mark">
+          <choose>
+            <when test="not( $existing ) or $needs-class-mark">
               <!-- does this symbol have any dependencies? -->
-              <xsl:variable name="deps" as="element( preproc:sym )*">
-                <xsl:apply-templates select="$cur" mode="l:depgen-sym" />
-              </xsl:variable>
+              <variable name="deps" as="element( preproc:sym )*">
+                <apply-templates select="$cur" mode="l:depgen-sym" />
+              </variable>
 
               <!-- determine our path -->
-              <xsl:variable name="mypath">
-                <xsl:call-template name="preproc:get-path">
-                  <xsl:with-param name="path" select="$cur/@src" />
-                </xsl:call-template>
-              </xsl:variable>
+              <variable name="mypath">
+                <call-template name="preproc:get-path">
+                  <with-param name="path" select="$cur/@src" />
+                </call-template>
+              </variable>
 
               <!-- augment each of the dep paths with our own (this ultimately
                    creates symbol paths relative to the rater) -->
-              <xsl:variable name="deps-aug" as="element( preproc:sym )*">
-                <xsl:call-template name="l:dep-aug">
-                  <xsl:with-param name="cur" select="$cur" />
-                  <xsl:with-param name="deps" select="$deps" />
-                  <xsl:with-param name="inclass" select="$inclass" />
-                  <xsl:with-param name="mypath" select="$mypath" />
-                </xsl:call-template>
-              </xsl:variable>
+              <variable name="deps-aug" as="element( preproc:sym )*">
+                <call-template name="l:dep-aug">
+                  <with-param name="cur" select="$cur" />
+                  <with-param name="deps" select="$deps" />
+                  <with-param name="inclass" select="$inclass" />
+                  <with-param name="mypath" select="$mypath" />
+                </call-template>
+              </variable>
 
               <l:sym-stack>
                 <!-- process the dependencies (note that this has the effect of
                      outputting the existing stack as well, which is why we have
                      not yet done so) -->
-                <xsl:call-template name="l:depgen-sym">
-                  <xsl:with-param name="pending" select="$deps-aug" />
-                  <xsl:with-param name="stack" select="$stack" as="element( l:sym-stack )" />
-                  <xsl:with-param name="path" select="$mypath" />
-                  <xsl:with-param name="processing" as="element( l:pstack )">
+                <call-template name="l:depgen-sym">
+                  <with-param name="pending" select="$deps-aug" />
+                  <with-param name="stack" select="$stack" as="element( l:sym-stack )" />
+                  <with-param name="path" select="$mypath" />
+                  <with-param name="processing" as="element( l:pstack )">
                     <l:pstack>
-                      <xsl:sequence select="$processing/*" />
-                      <xsl:sequence select="$cur" />
+                      <sequence select="$processing/*" />
+                      <sequence select="$cur" />
                     </l:pstack>
-                  </xsl:with-param>
-                </xsl:call-template>
+                  </with-param>
+                </call-template>
 
                 <!-- finally, we can output ourself -->
-                <xsl:choose>
+                <choose>
                   <!-- existing symbol needs to be marked -->
-                  <xsl:when test="$needs-class-mark">
+                  <when test="$needs-class-mark">
                     <preproc:sym l:mark-inclass="true" name="{$cur/@name}" src="{$cur/@src}" />
-                  </xsl:when>
+                  </when>
 
                   <!-- new symbol -->
-                  <xsl:otherwise>
+                  <otherwise>
                     <preproc:sym>
-                      <xsl:sequence select="$cur/@*" />
-                      <xsl:attribute name="inclass" select="$inclass" />
+                      <sequence select="$cur/@*" />
+                      <attribute name="inclass" select="$inclass" />
                     </preproc:sym>
-                  </xsl:otherwise>
-                </xsl:choose>
+                  </otherwise>
+                </choose>
               </l:sym-stack>
-            </xsl:when>
+            </when>
 
 
             <!-- already exists; leave stack unchanged -->
-            <xsl:otherwise>
-              <xsl:sequence select="$stack" />
-            </xsl:otherwise>
-          </xsl:choose>
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+            <otherwise>
+              <sequence select="$stack" />
+            </otherwise>
+          </choose>
+        </with-param>
+      </call-template>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template name="l:dep-aug" as="element( preproc:sym )*">
-  <xsl:param name="cur" as="element( preproc:sym )" />
-  <xsl:param name="deps" as="element( preproc:sym )*" />
-  <xsl:param name="inclass" as="xs:boolean"
-             select="false()" />
-  <xsl:param name="proc-barrier" as="xs:boolean"
-             select="false()" />
-  <xsl:param name="parent-name" as="xs:string"
-             select="$cur/@name" />
-  <xsl:param name="mypath">
+<template name="l:dep-aug" as="element( preproc:sym )*">
+  <param name="cur" as="element( preproc:sym )" />
+  <param name="deps" as="element( preproc:sym )*" />
+  <param name="inclass" as="xs:boolean"
+         select="false()" />
+  <param name="proc-barrier" as="xs:boolean"
+         select="false()" />
+  <param name="parent-name" as="xs:string"
+         select="$cur/@name" />
+  <param name="mypath">
     <!-- default -->
-    <xsl:call-template name="preproc:get-path">
-      <xsl:with-param name="path" select="$cur/@src" />
-    </xsl:call-template>
-  </xsl:param>
+    <call-template name="preproc:get-path">
+      <with-param name="path" select="$cur/@src" />
+    </call-template>
+  </param>
 
-  <xsl:for-each select="$deps">
-    <xsl:copy>
-      <xsl:copy-of select="@*" />
+  <for-each select="$deps">
+    <copy>
+      <copy-of select="@*" />
 
-      <xsl:variable name="newsrc">
-        <xsl:choose>
+      <variable name="newsrc">
+        <choose>
           <!-- if a source path is provided, then we must take it
                relative to the current symbol's package's directory
                -->
-          <xsl:when test="@src">
-            <xsl:call-template name="preproc:resolv-path">
-              <xsl:with-param name="path">
-                <xsl:value-of select="$mypath" />
+          <when test="@src">
+            <call-template name="preproc:resolv-path">
+              <with-param name="path">
+                <value-of select="$mypath" />
 
-                <xsl:if test="$mypath and not( $mypath='' ) and @src and not( @src='' )">
-                  <xsl:text>/</xsl:text>
-                </xsl:if>
+                <if test="$mypath and not( $mypath='' ) and @src and not( @src='' )">
+                  <text>/</text>
+                </if>
 
-                <xsl:value-of select="@src" />
-              </xsl:with-param>
-            </xsl:call-template>
-          </xsl:when>
+                <value-of select="@src" />
+              </with-param>
+            </call-template>
+          </when>
 
           <!-- if no source path is set, then it exists in the same
                package as we do -->
-          <xsl:otherwise>
-            <xsl:value-of select="$cur/@src" />
-          </xsl:otherwise>
-        </xsl:choose>
-      </xsl:variable>
+          <otherwise>
+            <value-of select="$cur/@src" />
+          </otherwise>
+        </choose>
+      </variable>
 
       <!-- set new src path -->
-      <xsl:attribute name="src" select="$newsrc" />
+      <attribute name="src" select="$newsrc" />
 
       <!-- flag for inclusion into classifier, if necessary -->
-      <xsl:if test="$inclass">
-        <xsl:attribute name="inclass" select="$inclass" />
-      </xsl:if>
+      <if test="$inclass">
+        <attribute name="inclass" select="$inclass" />
+      </if>
 
-      <xsl:if test="$proc-barrier">
-        <xsl:attribute name="l:proc-barrier" select="'true'" />
-      </xsl:if>
+      <if test="$proc-barrier">
+        <attribute name="l:proc-barrier" select="'true'" />
+      </if>
 
 
-      <xsl:if test="$l:aggressive-debug">
-        <xsl:call-template name="log:debug">
-          <xsl:with-param name="name" select="'link'" />
-          <xsl:with-param name="msg">
-            <xsl:value-of select="$parent-name" />
-            <xsl:text> depends upon </xsl:text>
-            <xsl:if test="@extern='true'">
-              <xsl:text>external </xsl:text>
-            </xsl:if>
-            <xsl:value-of select="concat( @type, ' ', $newsrc, '/', @name )" />
-          </xsl:with-param>
-        </xsl:call-template>
-      </xsl:if>
-    </xsl:copy>
-  </xsl:for-each>
-</xsl:template>
+      <if test="$l:aggressive-debug">
+        <call-template name="log:debug">
+          <with-param name="name" select="'link'" />
+          <with-param name="msg">
+            <value-of select="$parent-name" />
+            <text> depends upon </text>
+            <if test="@extern='true'">
+              <text>external </text>
+            </if>
+            <value-of select="concat( @type, ' ', $newsrc, '/', @name )" />
+          </with-param>
+        </call-template>
+      </if>
+    </copy>
+  </for-each>
+</template>
 
 
 
 <!-- TODO: some better way. -->
-<xsl:template match="preproc:sym[ starts-with( @type, 'map' ) or starts-with( @type, 'retmap' ) ]"
+<template match="preproc:sym[ starts-with( @type, 'map' ) or starts-with( @type, 'retmap' ) ]"
   mode="l:depgen-sym" priority="7">
 
   <!-- do not process deps -->
-</xsl:template>
+</template>
 
 
-<xsl:template mode="l:depgen-sym" as="element()*"
-              match="preproc:pkg-seen"
-              priority="5">
-  <xsl:sequence select="." />
-</xsl:template>
+<template mode="l:depgen-sym" as="element()*"
+          match="preproc:pkg-seen"
+          priority="5">
+  <sequence select="." />
+</template>
 
 
-<xsl:template mode="l:depgen-sym" as="element( preproc:sym )*"
-              match="preproc:sym[
-                       @type='const' ]"
-              priority="7">
+<template mode="l:depgen-sym" as="element( preproc:sym )*"
+          match="preproc:sym[
+                   @type='const' ]"
+          priority="7">
   <!-- no need to link this; it has no code associated with it -->
-</xsl:template>
+</template>
 
-<xsl:template mode="l:depgen-sym" as="element( preproc:sym )*"
-              match="preproc:sym"
-              priority="5">
+<template mode="l:depgen-sym" as="element( preproc:sym )*"
+          match="preproc:sym"
+          priority="5">
   <!-- get the source package -->
-  <xsl:variable name="pkg" as="element( lv:package )?" select="
+  <variable name="pkg" as="element( lv:package )?" select="
       if ( @src and not( @src='' ) ) then
         document( concat( @src, '.xmlo' ), $l:orig-root )/lv:*
       else
         $l:orig-root/lv:package
     " />
 
-  <xsl:variable name="name" as="xs:string"
-                select="@name" />
-  <xsl:variable name="deps" as="element( preproc:sym-dep )?"
-                select="$pkg/preproc:sym-deps
-                          /preproc:sym-dep[ @name=$name ]" />
+  <variable name="name" as="xs:string"
+            select="@name" />
+  <variable name="deps" as="element( preproc:sym-dep )?"
+            select="$pkg/preproc:sym-deps
+                      /preproc:sym-dep[ @name=$name ]" />
 
   <!-- if we could not locate the dependencies, then consider this to be an
        error (even if there are no deps, there should still be a list dfn) -->
-  <xsl:if test="not( $deps )">
-    <xsl:call-template name="log:internal-error">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>could not locate dependency list for </xsl:text>
-        <xsl:value-of select="@src" />
-        <xsl:text>/</xsl:text>
-        <xsl:value-of select="@name" />
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
+  <if test="not( $deps )">
+    <call-template name="log:internal-error">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>could not locate dependency list for </text>
+        <value-of select="@src" />
+        <text>/</text>
+        <value-of select="@name" />
+      </with-param>
+    </call-template>
+  </if>
 
-  <xsl:variable name="symtable" as="element( preproc:symtable )"
-                select="$pkg/preproc:symtable" />
+  <variable name="symtable" as="element( preproc:symtable )"
+            select="$pkg/preproc:symtable" />
 
-  <xsl:for-each select="
+  <for-each select="
       $deps/preproc:sym-ref[
         not( @parent=$deps/preproc:sym-ref/@name )
       ]
     ">
-    <xsl:variable name="sym-ref" as="xs:string"
-                  select="@name" />
+    <variable name="sym-ref" as="xs:string"
+              select="@name" />
 
-    <xsl:variable name="sym" as="element( preproc:sym )?"
-                  select="$symtable/preproc:sym[ @name=$sym-ref ]" />
+    <variable name="sym" as="element( preproc:sym )?"
+              select="$symtable/preproc:sym[ @name=$sym-ref ]" />
 
     <!-- if we cannot locate the referenced symbol, then that too is an error
          -->
-    <xsl:if test="not( $sym )">
-      <xsl:call-template name="log:internal-error">
-        <xsl:with-param name="name" select="'link'" />
-        <xsl:with-param name="msg">
-          <xsl:text>failed locating dependency symbol `</xsl:text>
-          <xsl:value-of select="$sym-ref" />
-          <xsl:text>'</xsl:text>
-          <xsl:text> from package </xsl:text>
-          <xsl:value-of select="$pkg/@name" />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:if>
+    <if test="not( $sym )">
+      <call-template name="log:internal-error">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>failed locating dependency symbol `</text>
+          <value-of select="$sym-ref" />
+          <text>'</text>
+          <text> from package </text>
+          <value-of select="$pkg/@name" />
+        </with-param>
+      </call-template>
+    </if>
 
     <!-- output the symbol, sans children -->
     <preproc:sym>
-      <xsl:sequence select="$sym/@*" />
+      <sequence select="$sym/@*" />
     </preproc:sym>
-  </xsl:for-each>
-</xsl:template>
+  </for-each>
+</template>
 
 
-<xsl:template mode="l:depgen-sym"
-              match="*"
-              priority="1">
-  <xsl:message terminate="yes">
-    <xsl:text>internal error: unknown symbol for l:depgen-sym: </xsl:text>
-    <xsl:sequence select="." />
-  </xsl:message>
-</xsl:template>
+<template mode="l:depgen-sym"
+          match="*"
+          priority="1">
+  <message terminate="yes">
+    <text>internal error: unknown symbol for l:depgen-sym: </text>
+    <sequence select="." />
+  </message>
+</template>
 
 
-<xsl:template name="l:err-circular">
-  <xsl:param name="stack" />
-  <xsl:param name="cur" />
+<template name="l:err-circular">
+  <param name="stack" />
+  <param name="cur" />
 
-  <xsl:call-template name="log:error">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>circular dependency </xsl:text>
+  <call-template name="log:error">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>circular dependency </text>
 
-      <xsl:text>(</xsl:text>
-      <xsl:value-of select="concat( $cur/@src, '/', $cur/@name )" />
-      <xsl:text>): </xsl:text>
+      <text>(</text>
+      <value-of select="concat( $cur/@src, '/', $cur/@name )" />
+      <text>): </text>
 
-      <xsl:for-each select="$stack//preproc:sym">
-        <xsl:if test="position() > 1">
-          <xsl:text> - </xsl:text>
-        </xsl:if>
+      <for-each select="$stack//preproc:sym">
+        <if test="position() > 1">
+          <text> - </text>
+        </if>
 
-        <xsl:value-of select="concat( @src, '/', @name )" />
-      </xsl:for-each>
-    </xsl:with-param>
-  </xsl:call-template>
-</xsl:template>
+        <value-of select="concat( @src, '/', @name )" />
+      </for-each>
+    </with-param>
+  </call-template>
+</template>
 
 
 
@@ -944,140 +943,140 @@
   Note: though the linked code is suitable for execution, it is up to a
   particular implementation to decide how it should be wrapped and invoked.
 -->
-<xsl:template match="lv:package" mode="l:link-deps">
-  <xsl:param name="deps" />
+<template match="lv:package" mode="l:link-deps">
+  <param name="deps" />
 
   <!-- to make this executable, we must compile an entry point -->
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>compiling entry point...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>compiling entry point...</text>
+    </with-param>
+  </call-template>
 
-  <xsl:apply-templates select="." mode="compiler:entry" />
+  <apply-templates select="." mode="compiler:entry" />
 
 
-  <xsl:apply-templates select="." mode="l:link-meta">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="l:link-worksheet">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="l:link-classifier">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="l:link-params">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="l:link-types">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="l:link-funcs">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="l:link-rater">
-    <xsl:with-param name="deps" select="$deps" />
-  </xsl:apply-templates>
+  <apply-templates select="." mode="l:link-meta">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
+  <apply-templates select="." mode="l:link-worksheet">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
+  <apply-templates select="." mode="l:link-classifier">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
+  <apply-templates select="." mode="l:link-params">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
+  <apply-templates select="." mode="l:link-types">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
+  <apply-templates select="." mode="l:link-funcs">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
+  <apply-templates select="." mode="l:link-rater">
+    <with-param name="deps" select="$deps" />
+  </apply-templates>
 
   <!-- common stuff -->
-  <xsl:call-template name="compiler:static" />
+  <call-template name="compiler:static" />
 
   <!-- finally, finish up -->
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>compiling exit...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>compiling exit...</text>
+    </with-param>
+  </call-template>
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:value-of select="@name" />
-      <xsl:text> compilation complete.</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
-</xsl:template>
-
-
-<xsl:function name="l:link-exit-fragments" as="xs:string*">
-  <xsl:param name="paths"   as="xs:string" />
-  <xsl:param name="context" as="node()" />
-
-  <xsl:variable name="split" as="xs:string*"
-                select="tokenize( $paths, ',' )" />
-
-  <xsl:variable name="base-uri" as="xs:anyURI"
-                select="base-uri( $context )" />
-
-  <xsl:for-each select="$split">
-    <xsl:variable name="fragment" as="xs:string?"
-                  select="l:get-fragment-by-path( ., $base-uri )" />
-
-    <xsl:if test="empty( $fragment )">
-      <xsl:call-template name="log:error">
-        <xsl:with-param name="name" select="'link'" />
-        <xsl:with-param name="msg">
-          <xsl:text>fatal: missing exit fragment: </xsl:text>
-          <xsl:value-of select="." />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:if>
-
-    <xsl:sequence select="$fragment" />
-  </xsl:for-each>
-</xsl:function>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <value-of select="@name" />
+      <text> compilation complete.</text>
+    </with-param>
+  </call-template>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-meta">
-  <xsl:param name="deps" as="element( preproc:sym )*" />
+<function name="l:link-exit-fragments" as="xs:string*">
+  <param name="paths"   as="xs:string" />
+  <param name="context" as="node()" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking metadata...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <variable name="split" as="xs:string*"
+            select="tokenize( $paths, ',' )" />
 
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <variable name="base-uri" as="xs:anyURI"
+            select="base-uri( $context )" />
+
+  <for-each select="$split">
+    <variable name="fragment" as="xs:string?"
+              select="l:get-fragment-by-path( ., $base-uri )" />
+
+    <if test="empty( $fragment )">
+      <call-template name="log:error">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>fatal: missing exit fragment: </text>
+          <value-of select="." />
+        </with-param>
+      </call-template>
+    </if>
+
+    <sequence select="$fragment" />
+  </for-each>
+</function>
+
+
+<template match="lv:package" mode="l:link-meta">
+  <param name="deps" as="element( preproc:sym )*" />
+
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking metadata...</text>
+    </with-param>
+  </call-template>
+
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[ @type='meta' ]" />
-  </xsl:apply-templates>
-</xsl:template>
+  </apply-templates>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-worksheet">
-  <xsl:param name="deps" as="element( preproc:sym )*" />
+<template match="lv:package" mode="l:link-worksheet">
+  <param name="deps" as="element( preproc:sym )*" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking worksheet...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking worksheet...</text>
+    </with-param>
+  </call-template>
 
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[ @type='worksheet' ]" />
-  </xsl:apply-templates>
-</xsl:template>
+  </apply-templates>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-classifier">
-  <xsl:param name="deps" />
+<template match="lv:package" mode="l:link-classifier">
+  <param name="deps" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking classifier...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking classifier...</text>
+    </with-param>
+  </call-template>
 
   <!-- link everything that shall be a part of the classifier -->
-  <xsl:apply-templates select="." mode="compiler:entry-classifier" />
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <apply-templates select="." mode="compiler:entry-classifier" />
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[
           @inclass='true'
           and not( @type='param' )
@@ -1086,83 +1085,83 @@
           and not( @type='worksheet' )
         ]
       " />
-  </xsl:apply-templates>
-  <xsl:apply-templates select="." mode="compiler:exit-classifier" />
-</xsl:template>
+  </apply-templates>
+  <apply-templates select="." mode="compiler:exit-classifier" />
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-params">
-  <xsl:param name="deps" />
+<template match="lv:package" mode="l:link-params">
+  <param name="deps" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking global params...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking global params...</text>
+    </with-param>
+  </call-template>
 
   <!-- link all params -->
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[ @type='param' ]
       " />
-  </xsl:apply-templates>
-</xsl:template>
+  </apply-templates>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-types">
-  <xsl:param name="deps" />
+<template match="lv:package" mode="l:link-types">
+  <param name="deps" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking types...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking types...</text>
+    </with-param>
+  </call-template>
 
   <!-- link all params -->
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[ @type='type' ]
       " />
-  </xsl:apply-templates>
-</xsl:template>
+  </apply-templates>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-funcs">
-  <xsl:param name="deps" />
+<template match="lv:package" mode="l:link-funcs">
+  <param name="deps" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking functions...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking functions...</text>
+    </with-param>
+  </call-template>
 
   <!-- link all params -->
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[ @type='func' ]
       " />
-  </xsl:apply-templates>
-</xsl:template>
+  </apply-templates>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:link-rater">
-  <xsl:param name="deps" />
+<template match="lv:package" mode="l:link-rater">
+  <param name="deps" />
 
-  <xsl:call-template name="log:info">
-    <xsl:with-param name="name" select="'link'" />
-    <xsl:with-param name="msg">
-      <xsl:text>** linking rater...</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
+  <call-template name="log:info">
+    <with-param name="name" select="'link'" />
+    <with-param name="msg">
+      <text>** linking rater...</text>
+    </with-param>
+  </call-template>
 
-  <xsl:apply-templates select="." mode="compiler:entry-rater" />
+  <apply-templates select="." mode="compiler:entry-rater" />
 
   <!-- TODO: this list of exclusions is a mess -->
-  <xsl:apply-templates select="." mode="l:do-link">
-    <xsl:with-param name="symbols" select="
+  <apply-templates select="." mode="l:do-link">
+    <with-param name="symbols" select="
         $deps[
           not( @inclass='true' )
           and not( @type='param' )
@@ -1172,291 +1171,291 @@
           and not( @type='worksheet' )
         ]
       " />
-  </xsl:apply-templates>
+  </apply-templates>
 
-  <xsl:sequence select="l:link-exit-fragments(
+  <sequence select="l:link-exit-fragments(
                           $rater-exit-fragments,
                           . )" />
 
-  <xsl:apply-templates select="." mode="compiler:exit-rater">
-    <xsl:with-param name="symbols" select="$deps" />
-  </xsl:apply-templates>
-</xsl:template>
+  <apply-templates select="." mode="compiler:exit-rater">
+    <with-param name="symbols" select="$deps" />
+  </apply-templates>
+</template>
 
 
-<xsl:template match="lv:package" mode="l:do-link">
-  <xsl:param name="symbols" />
+<template match="lv:package" mode="l:do-link">
+  <param name="symbols" />
 
   <!-- link each of the dependencies -->
-  <xsl:for-each select="$symbols">
-    <xsl:call-template name="log:info">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>linking </xsl:text>
-        <xsl:value-of select="concat( @type, ' ', @src, '/', @name )" />
-        <xsl:text>...</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
+  <for-each select="$symbols">
+    <call-template name="log:info">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>linking </text>
+        <value-of select="concat( @type, ' ', @src, '/', @name )" />
+        <text>...</text>
+      </with-param>
+    </call-template>
 
-    <xsl:apply-templates select="." mode="l:link-deps" />
-  </xsl:for-each>
-</xsl:template>
+    <apply-templates select="." mode="l:link-deps" />
+  </for-each>
+</template>
 
 
-<xsl:template match="preproc:sym[ @type='lparam' ]" mode="l:link-deps" priority="9">
+<template match="preproc:sym[ @type='lparam' ]" mode="l:link-deps" priority="9">
   <!-- no object code for local params -->
-</xsl:template>
+</template>
 
 <!-- priority of 7 because there may otherwise be some ambiguities
      (e.g. with lparam) -->
-<xsl:template match="preproc:sym[ @parent ]" mode="l:link-deps" priority="7">
+<template match="preproc:sym[ @parent ]" mode="l:link-deps" priority="7">
   <!-- if a parent is defined, then its symbol will have been sufficient -->
-</xsl:template>
+</template>
 
-<xsl:template match="preproc:sym" mode="l:link-deps" priority="5">
+<template match="preproc:sym" mode="l:link-deps" priority="5">
   <!-- consult the source package for the last time... -->
-  <xsl:variable name="pkg" select="
+  <variable name="pkg" select="
       if ( @src and not( @src='' ) ) then
         document( concat( @src, '.xmlo' ), $l:orig-root )/lv:*
       else
         $l:orig-root/lv:package
     " />
 
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="objcode" as="xs:string?"
+  <variable name="name" select="@name" />
+  <variable name="objcode" as="xs:string?"
                 select="l:get-fragment( $pkg, $name )" />
 
-  <xsl:if test="empty( $objcode )">
-    <xsl:if test="not( @type='param'
-                       or ( @type='const' and @dim='0' )
-                       or @type='tpl'
-                       or @type='meta'
-                       or not( @type='worksheet' ) )">
-      <xsl:call-template name="log:internal-error">
-        <xsl:with-param name="name" select="'link'" />
-        <xsl:with-param name="msg">
-          <xsl:text>missing object code for symbol </xsl:text>
-          <xsl:value-of select="concat( @src, '/', @name )" />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:if>
-  </xsl:if>
+  <if test="empty( $objcode )">
+    <if test="not( @type='param'
+                   or ( @type='const' and @dim='0' )
+                   or @type='tpl'
+                   or @type='meta'
+                   or not( @type='worksheet' ) )">
+      <call-template name="log:internal-error">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>missing object code for symbol </text>
+          <value-of select="concat( @src, '/', @name )" />
+        </with-param>
+      </call-template>
+    </if>
+  </if>
 
-  <xsl:copy-of select="$objcode" />
-</xsl:template>
+  <copy-of select="$objcode" />
+</template>
 
 
-<xsl:function name="l:get-fragment-by-path" as="xs:string?">
-  <xsl:param name="path"     as="xs:string" />
-  <xsl:param name="base-uri" as="xs:anyURI" />
+<function name="l:get-fragment-by-path" as="xs:string?">
+  <param name="path"     as="xs:string" />
+  <param name="base-uri" as="xs:anyURI" />
 
-  <xsl:variable name="pkg-path" as="xs:string">
-    <xsl:call-template name="preproc:get-path">
-      <xsl:with-param name="path" select="$path" />
-    </xsl:call-template>
-  </xsl:variable>
+  <variable name="pkg-path" as="xs:string">
+    <call-template name="preproc:get-path">
+      <with-param name="path" select="$path" />
+    </call-template>
+  </variable>
 
-  <xsl:variable name="fragment-name" as="xs:string">
-    <xsl:call-template name="preproc:get-basename">
-      <xsl:with-param name="path" select="$path" />
-    </xsl:call-template>
-  </xsl:variable>
+  <variable name="fragment-name" as="xs:string">
+    <call-template name="preproc:get-basename">
+      <with-param name="path" select="$path" />
+    </call-template>
+  </variable>
 
-  <xsl:variable name="package-uri" as="xs:anyURI"
-                select="resolve-uri(
-                          concat( $pkg-path, '.xmlo' ),
-                          $base-uri )" />
+  <variable name="package-uri" as="xs:anyURI"
+            select="resolve-uri(
+                      concat( $pkg-path, '.xmlo' ),
+                      $base-uri )" />
 
-  <xsl:variable name="doc" as="document-node()"
+  <variable name="doc" as="document-node()"
                 select="doc( $package-uri )" />
 
-  <xsl:if test="empty( $doc )">
-    <xsl:call-template name="log:internal-error">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>could not locate package for exit-fragment: </xsl:text>
-        <xsl:value-of select="$package-uri" />
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
+  <if test="empty( $doc )">
+    <call-template name="log:internal-error">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>could not locate package for exit-fragment: </text>
+        <value-of select="$package-uri" />
+      </with-param>
+    </call-template>
+  </if>
 
-  <xsl:variable name="package" as="element()"
-                select="$doc/*" />
+  <variable name="package" as="element()"
+            select="$doc/*" />
 
-  <xsl:sequence select="l:get-fragment(
-                          $package,
-                          $fragment-name )" />
-</xsl:function>
-
-
-<xsl:function name="l:get-fragment" as="xs:string?">
-  <xsl:param name="package" as="element()" />
-  <xsl:param name="name"    as="xs:string" />
-
-  <xsl:variable name="fragment" as="element( preproc:fragment )?"
-                select="$package/preproc:fragments/preproc:fragment[
-                         @id = $name ]" />
-
-  <xsl:sequence select="$fragment/text()" />
-</xsl:function>
+  <sequence select="l:get-fragment(
+                      $package,
+                      $fragment-name )" />
+</function>
 
 
-<xsl:template match="lv:package" mode="l:map" priority="5">
+<function name="l:get-fragment" as="xs:string?">
+  <param name="package" as="element()" />
+  <param name="name"    as="xs:string" />
+
+  <variable name="fragment" as="element( preproc:fragment )?"
+            select="$package/preproc:fragments/preproc:fragment[
+                      @id = $name ]" />
+
+  <sequence select="$fragment/text()" />
+</function>
+
+
+<template match="lv:package" mode="l:map" priority="5">
   <!-- it is important that we check against the dependencies actually compiled
        rather than the list of available symbols -->
-  <xsl:param name="deps" as="element( l:dep )" />
+  <param name="deps" as="element( l:dep )" />
 
-  <xsl:variable name="syms" as="element( preproc:sym )*"
-                select="preproc:symtable/preproc:sym" />
+  <variable name="syms" as="element( preproc:sym )*"
+            select="preproc:symtable/preproc:sym" />
 
-  <xsl:variable name="mapsyms" as="element( preproc:sym )*"
-                select="$syms[ @type='map' ]" />
-  <xsl:variable name="retmapsyms" as="element( preproc:sym )*"
-                select="$syms[ @type='retmap' ]" />
+  <variable name="mapsyms" as="element( preproc:sym )*"
+            select="$syms[ @type='map' ]" />
+  <variable name="retmapsyms" as="element( preproc:sym )*"
+            select="$syms[ @type='retmap' ]" />
 
   <!-- get head and tail -->
-  <xsl:variable name="head"     select="$syms[ @type='map:head' ]" />
-  <xsl:variable name="tail"     select="$syms[ @type='map:tail' ]" />
-  <xsl:variable name="ret-head" select="$syms[ @type='retmap:head' ]" />
-  <xsl:variable name="ret-tail" select="$syms[ @type='retmap:tail' ]" />
+  <variable name="head"     select="$syms[ @type='map:head' ]" />
+  <variable name="tail"     select="$syms[ @type='map:tail' ]" />
+  <variable name="ret-head" select="$syms[ @type='retmap:head' ]" />
+  <variable name="ret-tail" select="$syms[ @type='retmap:tail' ]" />
 
-  <xsl:if test="count( $mapsyms ) gt 0">
-    <xsl:call-template name="log:info">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>generating input map...</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
+  <if test="count( $mapsyms ) gt 0">
+    <call-template name="log:info">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>generating input map...</text>
+      </with-param>
+    </call-template>
 
-    <xsl:if test="not( $head ) or not( $tail )">
-      <xsl:call-template name="log:internal-error">
-        <xsl:with-param name="name" select="'link'" />
-        <xsl:with-param name="msg">
-          <xsl:text>missing object code for input map head or tail</xsl:text>
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:if>
+    <if test="not( $head ) or not( $tail )">
+      <call-template name="log:internal-error">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>missing object code for input map head or tail</text>
+        </with-param>
+      </call-template>
+    </if>
 
     <!-- input map -->
     <l:map-exec>
-      <xsl:apply-templates select="$head" mode="l:link-deps" />
-      <xsl:text>&#10;</xsl:text>
-      <xsl:apply-templates select="$mapsyms" mode="l:map">
-        <xsl:with-param name="symtable" select="$deps" />
+      <apply-templates select="$head" mode="l:link-deps" />
+      <text>&#10;</text>
+      <apply-templates select="$mapsyms" mode="l:map">
+        <with-param name="symtable" select="$deps" />
         <!-- TODO -->
-        <xsl:with-param name="ignore-error" select="true()" />
-      </xsl:apply-templates>
-      <xsl:apply-templates select="$tail" mode="l:link-deps" />
+        <with-param name="ignore-error" select="true()" />
+      </apply-templates>
+      <apply-templates select="$tail" mode="l:link-deps" />
     </l:map-exec>
-  </xsl:if>
+  </if>
 
 
   <!-- TODO: very similar to above; refactor -->
-  <xsl:if test="count( $retmapsyms ) gt 0">
-    <xsl:call-template name="log:info">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>generating return map...</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
+  <if test="count( $retmapsyms ) gt 0">
+    <call-template name="log:info">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>generating return map...</text>
+      </with-param>
+    </call-template>
 
-    <xsl:if test="not( $ret-head ) or not( $ret-tail )">
-      <xsl:call-template name="log:internal-error">
-        <xsl:with-param name="name" select="'link'" />
-        <xsl:with-param name="msg">
-          <xsl:text>missing object code for return map head or tail</xsl:text>
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:if>
+    <if test="not( $ret-head ) or not( $ret-tail )">
+      <call-template name="log:internal-error">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>missing object code for return map head or tail</text>
+        </with-param>
+      </call-template>
+    </if>
 
     <!-- return map -->
     <l:retmap-exec>
-      <xsl:apply-templates select="$ret-head" mode="l:link-deps" />
-      <xsl:text>&#10;</xsl:text>
-      <xsl:apply-templates select="$retmapsyms" mode="l:map">
-        <xsl:with-param name="type" select="'return'" />
-        <xsl:with-param name="from" select="'input'" />
-        <xsl:with-param name="symtable" select="$deps" />
-      </xsl:apply-templates>
-      <xsl:apply-templates select="$ret-tail" mode="l:link-deps" />
+      <apply-templates select="$ret-head" mode="l:link-deps" />
+      <text>&#10;</text>
+      <apply-templates select="$retmapsyms" mode="l:map">
+        <with-param name="type" select="'return'" />
+        <with-param name="from" select="'input'" />
+        <with-param name="symtable" select="$deps" />
+      </apply-templates>
+      <apply-templates select="$ret-tail" mode="l:link-deps" />
     </l:retmap-exec>
-  </xsl:if>
-</xsl:template>
+  </if>
+</template>
 
 
-<xsl:template match="preproc:sym" mode="l:map" priority="5">
-  <xsl:param name="symtable" as="element( l:dep )" />
-  <xsl:param name="type" as="xs:string"
-             select="'input'" />
-  <xsl:param name="from" as="xs:string"
-             select="'destination'" />
-  <xsl:param name="ignore-error" as="xs:boolean"
-             select="false()" />
+<template match="preproc:sym" mode="l:map" priority="5">
+  <param name="symtable" as="element( l:dep )" />
+  <param name="type" as="xs:string"
+         select="'input'" />
+  <param name="from" as="xs:string"
+         select="'destination'" />
+  <param name="ignore-error" as="xs:boolean"
+         select="false()" />
 
-  <xsl:variable name="name" as="xs:string"
-                select="@name" />
-  <xsl:variable name="src" as="xs:string"
-                select="@src" />
+  <variable name="name" as="xs:string"
+            select="@name" />
+  <variable name="src" as="xs:string"
+            select="@src" />
 
   <!-- map symbols must always be remote -->
-  <xsl:variable name="pkg" as="element( lv:package )"
-                select="document( concat( @src, '.xmlo' ), . )
-                          /lv:package" />
+  <variable name="pkg" as="element( lv:package )"
+            select="document( concat( @src, '.xmlo' ), . )
+                      /lv:package" />
 
   <!-- get map symbol dependencies -->
-  <xsl:variable name="deps" as="element( preproc:sym-dep )*"
-                select="$pkg/preproc:sym-deps/
-                          preproc:sym-dep[ @name=$name ]" />
+  <variable name="deps" as="element( preproc:sym-dep )*"
+            select="$pkg/preproc:sym-deps/
+                      preproc:sym-dep[ @name=$name ]" />
 
-  <xsl:if test="not( $deps )">
-    <xsl:call-template name="log:internal-error">
-      <xsl:with-param name="name" select="'link'" />
-      <xsl:with-param name="msg">
-        <xsl:text>could not locate symbol dependencies: </xsl:text>
-        <xsl:value-of select="concat( @src, '/', @name )" />
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
+  <if test="not( $deps )">
+    <call-template name="log:internal-error">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>could not locate symbol dependencies: </text>
+        <value-of select="concat( @src, '/', @name )" />
+      </with-param>
+    </call-template>
+  </if>
 
   <!-- FIXME: we should not have to check for @yields here; we may
        have to require imports in the map to satisfy normalization
        before-hand -->
-  <xsl:variable name="unknown" as="element( preproc:sym-ref )*"
-                select="$deps/preproc:sym-ref[
-                          not( @name=$symtable/preproc:sym/@name
-                               or @name=$symtable/preproc:sym/@yields ) ]" />
+  <variable name="unknown" as="element( preproc:sym-ref )*"
+            select="$deps/preproc:sym-ref[
+                      not( @name=$symtable/preproc:sym/@name
+                           or @name=$symtable/preproc:sym/@yields ) ]" />
 
-  <xsl:choose>
+  <choose>
     <!-- ensure that every dependency is known (we only care that the symbol
          actually exists and is an input) -->
-    <xsl:when test="$unknown and not( $ignore-error )">
-      <xsl:for-each select="$unknown">
-        <xsl:call-template name="log:error">
-          <xsl:with-param name="terminate" select="'no'" />
-          <xsl:with-param name="name" select="'link'" />
-          <xsl:with-param name="msg">
-            <xsl:value-of select="$type" />
-            <xsl:text> map </xsl:text>
-            <xsl:value-of select="$from" />
-            <xsl:text> </xsl:text>
-              <xsl:value-of select="@name" />
-            <xsl:text> is not a known </xsl:text>
-              <xsl:value-of select="$type" />
-            <xsl:text> field for </xsl:text>
-            <xsl:value-of select="concat( $src, '/', $name )" />
-            <xsl:text>; ensure that it exists and is either used or has @keep set</xsl:text>
-          </xsl:with-param>
-        </xsl:call-template>
-      </xsl:for-each>
+    <when test="$unknown and not( $ignore-error )">
+      <for-each select="$unknown">
+        <call-template name="log:error">
+          <with-param name="terminate" select="'no'" />
+          <with-param name="name" select="'link'" />
+          <with-param name="msg">
+            <value-of select="$type" />
+            <text> map </text>
+            <value-of select="$from" />
+            <text> </text>
+              <value-of select="@name" />
+            <text> is not a known </text>
+              <value-of select="$type" />
+            <text> field for </text>
+            <value-of select="concat( $src, '/', $name )" />
+            <text>; ensure that it exists and is either used or has @keep set</text>
+          </with-param>
+        </call-template>
+      </for-each>
 
       <l:map-error />
-    </xsl:when>
+    </when>
 
     <!-- good to go; link symbol -->
-    <xsl:otherwise>
-      <xsl:apply-templates select="." mode="l:link-deps" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <apply-templates select="." mode="l:link-deps" />
+    </otherwise>
+  </choose>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
