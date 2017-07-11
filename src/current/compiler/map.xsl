@@ -406,9 +406,6 @@
 <!--
   Generate a direct input mapping or, if a default exists for the field, use the
   default if the input is an empty string
-
-  XXX: This is broken; $rater is not provided at the entry point, and
-  if it were, this needs to reference its symbol table.
 -->
 <template name="lvmc:gen-input-default">
   <param name="symtable" as="element( preproc:symtable )" />
@@ -632,7 +629,9 @@
       <!-- note that we're casting the value to a string; this is important,
            since case comparisons are strict (===) -->
       <text>switch(''+val[i]){</text>
-        <apply-templates mode="lvmc:compile" />
+        <apply-templates mode="lvmc:compile">
+          <with-param name="symtable" select="$symtable" />
+        </apply-templates>
 
         <if test="not( lvm:default )">
           <text>default: ret.push(</text>
@@ -706,10 +705,12 @@
 
 <template match="lvm:from/lvm:default"
           mode="lvmc:compile" priority="5">
+  <param name="symtable" as="element( preproc:symtable )" />
+
   <sequence select="concat(
                       'default:ret.push(',
                       string-join(
-                        lvmc:concat-compile( element(), () ),
+                        lvmc:concat-compile( element(), (), $symtable ),
                         '' ),
                       ');' )" />
 </template>
@@ -722,20 +723,26 @@
 
 
 <template match="lvm:map//lvm:from/lvm:translate" mode="lvmc:compile" priority="5">
+  <param name="symtable" as="element( preproc:symtable )" />
+
   <text>case '</text>
     <value-of select="@key" />
   <text>':</text>
-    <apply-templates select="." mode="lvmc:compile-translate" />
+    <apply-templates select="." mode="lvmc:compile-translate">
+      <with-param name="symtable" select="$symtable" />
+    </apply-templates>
   <text> break;</text>
 </template>
 
 
 <template match="lvm:translate[ element() ]"
               mode="lvmc:compile-translate" priority="5">
+  <param name="symtable" as="element( preproc:symtable )" />
+
   <sequence select="concat(
                       'ret.push(',
                       string-join(
-                        lvmc:concat-compile( element(), @empty ),
+                        lvmc:concat-compile( element(), @empty, $symtable ),
                         '' ),
                        ');' )" />
 </template>
@@ -744,6 +751,7 @@
 <function name="lvmc:concat-compile" as="xs:string+">
   <param name="children" as="element()+" />
   <param name="default"  as="xs:string?" />
+  <param name="symtable" as="element( preproc:symtable )" />
 
   <text>(function(){</text>
     <!-- end result should compile into a (dynamic) string -->
@@ -753,8 +761,9 @@
           <text> + </text>
         </if>
 
-        <apply-templates mode="lvmc:compile"
-                         select="." />
+        <apply-templates mode="lvmc:compile" select=".">
+          <with-param name="symtable" select="$symtable" />
+        </apply-templates>
       </for-each>
     <text>;</text>
 
