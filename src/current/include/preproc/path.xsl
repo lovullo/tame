@@ -2,7 +2,7 @@
 <!--
   Operations on paths
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -20,229 +20,228 @@
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 -->
-<xsl:stylesheet version="1.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+<stylesheet version="2.0"
+  xmlns="http://www.w3.org/1999/XSL/Transform"
   xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 
-<xsl:template name="preproc:get-path">
-  <xsl:param name="path" />
-  <xsl:param name="prev" select="''" />
+<template name="preproc:get-path">
+  <param name="path" />
+  <param name="prev" select="''" />
 
-  <xsl:variable name="first" select="substring-before( $path, '/' )" />
-  <xsl:variable name="rest" select="substring-after( $path, '/' )" />
+  <variable name="first" select="substring-before( $path, '/' )" />
+  <variable name="rest" select="substring-after( $path, '/' )" />
 
-  <xsl:choose>
+  <choose>
     <!-- if there's no $first, then there is no path separator, in which case
          we're done; if there's no rest, then there is a path separator, but it
          resulted in an empty string, meanaing that it ends in a path
          separator, in which case we are also done -->
-    <xsl:when test="not( $first ) or not( $rest )">
+    <when test="not( $first ) or not( $rest )">
       <!-- no more path separators; we're done -->
-      <xsl:value-of select="$prev" />
-    </xsl:when>
+      <value-of select="$prev" />
+    </when>
 
     <!-- keep recursing -->
-    <xsl:otherwise>
-      <xsl:call-template name="preproc:get-path">
-        <xsl:with-param name="path" select="$rest" />
-        <xsl:with-param name="prev">
-          <xsl:if test="not( $prev = '' )">
-            <xsl:value-of select="concat( $prev, '/' )" />
-          </xsl:if>
+    <otherwise>
+      <call-template name="preproc:get-path">
+        <with-param name="path" select="$rest" />
+        <with-param name="prev">
+          <if test="not( $prev = '' )">
+            <value-of select="concat( $prev, '/' )" />
+          </if>
 
-          <xsl:value-of select="$first" />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+          <value-of select="$first" />
+        </with-param>
+      </call-template>
+    </otherwise>
+  </choose>
+</template>
 
 
 <!-- FIXME: duplicate code with above -->
-<xsl:template name="preproc:get-basename">
-  <xsl:param name="path" />
-  <xsl:param name="prev" select="''" />
+<template name="preproc:get-basename">
+  <param name="path" />
+  <param name="prev" select="''" />
 
-  <xsl:variable name="first" select="substring-before( $path, '/' )" />
-  <xsl:variable name="rest" select="substring-after( $path, '/' )" />
+  <variable name="first" select="substring-before( $path, '/' )" />
+  <variable name="rest" select="substring-after( $path, '/' )" />
 
-  <xsl:choose>
+  <choose>
     <!-- if there's no $first, then there is no path separator, in which case
          we're done; if there's no rest, then there is a path separator, but it
          resulted in an empty string, meanaing that it ends in a path
          separator, in which case we are also done -->
-    <xsl:when test="not( $first ) or not( $rest )">
+    <when test="not( $first ) or not( $rest )">
       <!-- no more path separators; we're done -->
-      <xsl:value-of select="$path" />
-    </xsl:when>
+      <value-of select="$path" />
+    </when>
 
     <!-- keep recursing -->
-    <xsl:otherwise>
-      <xsl:call-template name="preproc:get-basename">
-        <xsl:with-param name="path" select="$rest" />
-        <xsl:with-param name="prev">
-          <xsl:if test="not( $prev = '' )">
-            <xsl:value-of select="concat( $prev, '/' )" />
-          </xsl:if>
+    <otherwise>
+      <call-template name="preproc:get-basename">
+        <with-param name="path" select="$rest" />
+        <with-param name="prev">
+          <if test="not( $prev = '' )">
+            <value-of select="concat( $prev, '/' )" />
+          </if>
 
-          <xsl:value-of select="$first" />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+          <value-of select="$first" />
+        </with-param>
+      </call-template>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template name="preproc:resolv-path">
-  <xsl:param name="path" />
+<template name="preproc:resolv-path">
+  <param name="path" />
 
   <!-- in order: strip //, process ../, strip ./ -->
-  <xsl:call-template name="preproc:strip-sdot-path">
-    <xsl:with-param name="path">
-      <xsl:call-template name="preproc:resolv-rel-path">
-        <xsl:with-param name="path">
-          <xsl:call-template name="preproc:strip-extra-path">
-            <xsl:with-param name="path" select="$path" />
-          </xsl:call-template>
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:with-param>
-  </xsl:call-template>
-</xsl:template>
+  <call-template name="preproc:strip-sdot-path">
+    <with-param name="path">
+      <call-template name="preproc:resolv-rel-path">
+        <with-param name="path">
+          <call-template name="preproc:strip-extra-path">
+            <with-param name="path" select="$path" />
+          </call-template>
+        </with-param>
+      </call-template>
+    </with-param>
+  </call-template>
+</template>
 
 
 <!-- XXX: warning, this won't like 'foo../' -->
-<xsl:template name="preproc:resolv-rel-path">
-  <xsl:param name="path" />
+<template name="preproc:resolv-rel-path">
+  <param name="path" />
 
   <!-- relative paths -->
-  <xsl:variable name="before" select="substring-before( $path, '../' )" />
-  <xsl:variable name="after" select="substring-after( $path, '../' )" />
+  <variable name="before" select="substring-before( $path, '../' )" />
+  <variable name="after" select="substring-after( $path, '../' )" />
 
-  <xsl:choose>
-    <xsl:when test="$before">
-      <xsl:call-template name="preproc:resolv-rel-path">
-        <xsl:with-param name="path">
+  <choose>
+    <when test="$before">
+      <call-template name="preproc:resolv-rel-path">
+        <with-param name="path">
           <!-- remove the last directory before the ../ -->
-          <xsl:variable name="before-path">
-            <xsl:call-template name="preproc:get-path">
-              <xsl:with-param name="path" select="$before" />
-            </xsl:call-template>
-          </xsl:variable>
+          <variable name="before-path">
+            <call-template name="preproc:get-path">
+              <with-param name="path" select="$before" />
+            </call-template>
+          </variable>
 
-          <xsl:value-of select="$before-path" />
+          <value-of select="$before-path" />
 
           <!-- the above get-path call will strip the trailing slash -->
-          <xsl:if test="not( $before-path = '' ) and not( $after = '' )">
-            <xsl:text>/</xsl:text>
-          </xsl:if>
+          <if test="not( $before-path = '' ) and not( $after = '' )">
+            <text>/</text>
+          </if>
 
-          <xsl:value-of select="$after" />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:when>
+          <value-of select="$after" />
+        </with-param>
+      </call-template>
+    </when>
 
 
     <!-- if there's no $before but there is an $after, then we must begin with
          '../', which we can do nothing with; output it and continue processing
          the remainder of the path -->
-    <xsl:when test="$after">
-      <xsl:text>../</xsl:text>
+    <when test="$after">
+      <text>../</text>
 
-      <xsl:call-template name="preproc:resolv-rel-path">
-        <xsl:with-param name="path" select="$after" />
-      </xsl:call-template>
-    </xsl:when>
+      <call-template name="preproc:resolv-rel-path">
+        <with-param name="path" select="$after" />
+      </call-template>
+    </when>
 
 
     <!-- no relative paths remaining -->
-    <xsl:otherwise>
-      <xsl:value-of select="$path" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <value-of select="$path" />
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template name="preproc:strip-sdot-path">
-  <xsl:param name="path" />
+<template name="preproc:strip-sdot-path">
+  <param name="path" />
 
-  <xsl:choose>
+  <choose>
     <!-- the only time this should be called with an unresolved relative path
          is if it begins with one, in which case we'll simply output it and
          continue processing without it -->
-    <xsl:when test="starts-with( $path, '../' )">
-      <xsl:text>../</xsl:text>
+    <when test="starts-with( $path, '../' )">
+      <text>../</text>
 
       <!-- continue processing without it -->
-      <xsl:call-template name="preproc:strip-sdot-path">
-        <xsl:with-param name="path" select="substring-after( $path, '../' )" />
-      </xsl:call-template>
-    </xsl:when>
+      <call-template name="preproc:strip-sdot-path">
+        <with-param name="path" select="substring-after( $path, '../' )" />
+      </call-template>
+    </when>
 
 
     <!-- path is safe for processing -->
-    <xsl:otherwise>
-      <xsl:variable name="a" select="substring-before( $path, './' )" />
-      <xsl:variable name="b" select="substring-after( $path, './' )" />
+    <otherwise>
+      <variable name="a" select="substring-before( $path, './' )" />
+      <variable name="b" select="substring-after( $path, './' )" />
 
 
-      <xsl:choose>
+      <choose>
         <!-- if we found one, recurse -->
-        <xsl:when test="$a or $b">
-          <xsl:call-template name="preproc:strip-sdot-path">
-            <xsl:with-param name="path">
-              <xsl:value-of select="$a" />
+        <when test="$a or $b">
+          <call-template name="preproc:strip-sdot-path">
+            <with-param name="path">
+              <value-of select="$a" />
 
-              <xsl:if test="$a and $b">
-                <xsl:text>/</xsl:text>
-              </xsl:if>
+              <if test="$a and $b">
+                <text>/</text>
+              </if>
 
-              <xsl:value-of select="$b" />
-            </xsl:with-param>
-          </xsl:call-template>
-        </xsl:when>
+              <value-of select="$b" />
+            </with-param>
+          </call-template>
+        </when>
 
 
         <!-- done -->
-        <xsl:otherwise>
-          <xsl:value-of select="$path" />
-        </xsl:otherwise>
-      </xsl:choose>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+        <otherwise>
+          <value-of select="$path" />
+        </otherwise>
+      </choose>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template name="preproc:strip-extra-path">
-  <xsl:param name="path" />
+<template name="preproc:strip-extra-path">
+  <param name="path" />
 
-  <xsl:variable name="a" select="substring-before( $path, '//' )" />
-  <xsl:variable name="b" select="substring-after( $path, '//' )" />
+  <variable name="a" select="substring-before( $path, '//' )" />
+  <variable name="b" select="substring-after( $path, '//' )" />
 
 
-  <xsl:choose>
+  <choose>
     <!-- if we found one, recurse -->
-    <xsl:when test="$a or $b">
-      <xsl:call-template name="preproc:strip-extra-path">
-        <xsl:with-param name="path">
-          <xsl:value-of select="$a" />
+    <when test="$a or $b">
+      <call-template name="preproc:strip-extra-path">
+        <with-param name="path">
+          <value-of select="$a" />
 
-          <xsl:if test="$a and $b">
-            <xsl:text>/</xsl:text>
-          </xsl:if>
+          <if test="$a and $b">
+            <text>/</text>
+          </if>
 
-          <xsl:value-of select="$b" />
-        </xsl:with-param>
-      </xsl:call-template>
-    </xsl:when>
+          <value-of select="$b" />
+        </with-param>
+      </call-template>
+    </when>
 
     <!-- we're done! -->
-    <xsl:otherwise>
-      <xsl:value-of select="$path" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <value-of select="$path" />
+    </otherwise>
+  </choose>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
