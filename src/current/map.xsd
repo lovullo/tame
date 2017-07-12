@@ -442,6 +442,9 @@
 
     <xs:complexType>
       <xs:sequence>
+        <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded"
+                processContents="lax" />
+
         <xs:element name="import" type="importType"
           minOccurs="0" maxOccurs="unbounded" />
 
