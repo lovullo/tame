@@ -500,11 +500,6 @@
     <xsl:apply-templates mode="preproc:expand"
                          select="@*" />
 
-    <!-- force @keep on @terminate -->
-    <xsl:if test="@terminate='true'">
-      <xsl:attribute name="keep" select="'true'" />
-    </xsl:if>
-
     <!-- copy everything else -->
     <xsl:apply-templates mode="preproc:expand" />
   </xsl:copy>

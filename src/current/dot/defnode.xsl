@@ -92,7 +92,6 @@
         <xsl:apply-templates select="." mode="dot:attr-extern" />
         <xsl:apply-templates select="." mode="dot:attr-color" />
         <xsl:apply-templates select="." mode="dot:attr-shape" />
-        <xsl:apply-templates select="." mode="dot:attr-keep" />
       </xsl:with-param>
     </xsl:call-template>
   </xsl:variable>

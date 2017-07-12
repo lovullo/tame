@@ -101,11 +101,6 @@
   <lv:classify as="{$as}" yields="{$yields}"
     desc="{@name} package is eligible">
 
-    <!-- TODO: this should really be a compile-time value -->
-    <xsl:if test="@keep-elig-class = 'true'">
-      <xsl:attribute name="keep" select="'true'" />
-    </xsl:if>
-
     <!-- each of our imported packages' elig classes must be truthful -->
     <xsl:apply-templates mode="preproc:gen-elig-class-matches"
       select="lv:import">

@@ -461,9 +461,7 @@
 
     <!-- ensure that this name does not already exist -->
     <xsl:if test="not( /lv:*/lv:classify[ @as=$genas ] )">
-      <!-- TODO: We're flagging as @keep for now due to gclass needs, but this
-           should be removed later -->
-      <lv:classify as="{$genas}" desc="{@desc}" keep="true">
+      <lv:classify as="{$genas}" desc="{@desc}">
         <lv:match on="{@name}" value="TRUE" />
       </lv:classify>
     </xsl:if>
