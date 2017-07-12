@@ -521,11 +521,17 @@
   <xsl:param name="no-extclass" select="@no-extclass" />
   <xsl:param name="keep-classes" select="@keep-classes" />
 
-  <xsl:variable name="path" select="concat( $package, '.xmlo' )" />
+  <xsl:variable name="path" as="xs:string"
+                select="concat( $package, '.xmlo' )" />
   <xsl:variable name="syms"
-    select="document( $path, $orig-root )/lv:*/preproc:symtable" />
+                select="document( $path, $orig-root )/lv:*/preproc:symtable" />
 
   <xsl:variable name="import-path" select="$package" />
+
+  <xsl:variable name="src-root" as="xs:string"
+                select="ancestor::lv:package/@__rootpath" />
+  <xsl:variable name="src-name" as="xs:string"
+                select="ancestor::lv:package/@name" />
 
   <!-- if they're including a program package, do they realize what they're
        doing!? -->
@@ -541,14 +547,6 @@
       <xsl:text>; use @allow-nonpkg to force (if you know what you are doing)</xsl:text>
     </xsl:message>
   </xsl:if>
-
-  <!-- determine our path from our name -->
-  <xsl:variable name="our-path">
-    <xsl:call-template name="preproc:get-path">
-      <xsl:with-param name="path"
-        select="ancestor::lv:package/@name" />
-    </xsl:call-template>
-  </xsl:variable>
 
   <!-- to keep everything consistent and to simplify package equality
        assertions, resolve relative paths -->
@@ -626,23 +624,11 @@
                itself) onto the existing relative path and resolving relative
                paths -->
           <xsl:otherwise>
-            <xsl:call-template name="preproc:resolv-path">
-              <xsl:with-param name="path">
-                <!-- get the path of the import, sans package name -->
-                <xsl:variable name="path">
-                  <xsl:call-template name="preproc:get-path">
-                    <xsl:with-param name="path" select="$import-path" />
-                  </xsl:call-template>
-                </xsl:variable>
-
-                <!-- concatenate it with the existing relative path -->
-                <xsl:if test="not( $path = '' )">
-                  <xsl:value-of select="concat( $path, '/' )" />
-                </xsl:if>
-
-                <xsl:value-of select="@src" />
-              </xsl:with-param>
-            </xsl:call-template>
+            <xsl:sequence select="preproc:resolve-relative-import(
+                                    $src-root,
+                                    $src-name,
+                                    $import-path,
+                                    @src )" />
           </xsl:otherwise>
         </xsl:choose>
       </xsl:attribute>
