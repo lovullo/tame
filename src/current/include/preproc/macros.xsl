@@ -434,40 +434,4 @@
   </lv:rate>
 </xsl:template>
 
-
-<!--
-  Generates a classifier for each boolean param
-
-  This is for convenience; a boolean can esssentially be considered its own
-  classifier, so let's generate one to cut down on the amount of code.
-
-  Technically not a macro, but needs to be done before preproc:expand.
-
-  XXX: Get rid of me!  Now unused!
--->
-<xsl:template match="lv:params[ not( @preproc:processed ) ]"
-  mode="preproc:macros" priority="5">
-
-  <xsl:copy>
-    <xsl:attribute name="preproc:processed" select="'true'" />
-    <xsl:sequence select="@*" />
-
-    <xsl:apply-templates mode="preproc:macros" />
-  </xsl:copy>
-
-  <xsl:for-each select="lv:param[ @type='boolean' ]">
-    <xsl:variable name="as" select="translate( @name, '_', '-' )" />
-    <xsl:variable name="genas" select="concat( 'is-', $as )" />
-
-    <!-- ensure that this name does not already exist -->
-    <xsl:if test="not( /lv:*/lv:classify[ @as=$genas ] )">
-      <!-- TODO: We're flagging as @keep for now due to gclass needs, but this
-           should be removed later -->
-      <lv:classify as="{$genas}" desc="{@desc}" keep="true">
-        <lv:match on="{@name}" value="TRUE" />
-      </lv:classify>
-    </xsl:if>
-  </xsl:for-each>
-</xsl:template>
-
 </xsl:stylesheet>

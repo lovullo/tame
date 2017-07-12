@@ -517,7 +517,6 @@
   <xsl:param name="orig-root" />
   <xsl:param name="package" select="@package" />
   <xsl:param name="export" select="@export" />
-  <xsl:param name="ignore-keep" select="@ignore-keep" />
   <xsl:param name="no-extclass" select="@no-extclass" />
   <xsl:param name="keep-classes" select="@keep-classes" />
 
@@ -593,7 +592,7 @@
         <xsl:when test="@pollute='true'
                         and @local='true'
                         and not( @extern='true' )">
-          <xsl:sequence select="@name, @src, @pollute, @keep, @parent, @extclass" />
+          <xsl:sequence select="@name, @src, @pollute, @parent, @extclass" />
         </xsl:when>
 
         <!-- copy all the symbol information -->
@@ -633,23 +632,6 @@
         </xsl:choose>
       </xsl:attribute>
 
-      <!-- keep manipulation: *always* keep classes if requested, even if
-           @ignore-keep is provided; in the case of the latter, unsets @keep -->
-      <xsl:choose>
-        <!-- keep classes when requested -->
-        <xsl:when test="
-          ( @type = 'class' or @type = 'cgen' )
-          and $keep-classes = 'true'">
-
-          <xsl:attribute name="keep" select="'false'" />
-        </xsl:when>
-
-        <!-- demolish @keep if requested -->
-        <xsl:when test="$ignore-keep = 'true'">
-          <xsl:attribute name="keep" select="'false'" />
-        </xsl:when>
-      </xsl:choose>
-
       <!-- children should always be copied, unless poluting -->
       <xsl:if test="not( @pollute='true' and @local='true' )">
         <xsl:sequence select="preproc:*" />
@@ -663,7 +645,7 @@
   <xsl:variable name="external"  select="boolean( @external='true' )" />
 
   <preproc:sym name="{@yields}" type="rate"
-    extclass="{$external}" keep="{boolean( @keep )}"
+    extclass="{$external}"
     local="{@local}" dtype="float" dim="0" tex="{@sym}" />
 
   <xsl:apply-templates mode="preproc:symtable" />
@@ -706,7 +688,7 @@
 <xsl:template match="c:*[ @generates ]" mode="preproc:symtable" priority="5">
   <xsl:variable name="parent" select="ancestor::lv:rate" />
 
-  <preproc:sym name="{@generates}" keep="{boolean( $parent/@keep )}"
+  <preproc:sym name="{@generates}"
     parent="{$parent/@yields}"
     type="gen" dtype="float" dim="1" desc="{@desc}" tex="{@sym}" />
 
@@ -718,10 +700,9 @@
 <xsl:template match="lv:classify" mode="preproc:symtable" priority="5">
   <xsl:variable name="external"  select="boolean( @external='true' )" />
   <xsl:variable name="terminate" select="boolean( @terminate='true' )" />
-  <xsl:variable name="keep"      select="boolean( @keep='true' )" />
 
   <preproc:sym name=":class:{@as}"
-    extclass="{$external}" terminate="{$terminate}" keep="{$keep}"
+    extclass="{$external}" terminate="{$terminate}"
     type="class" dim="?" desc="{@desc}" yields="{@yields}"
     orig-name="{@as}">
 
@@ -733,7 +714,7 @@
        to avoid scanning separate object files for such common information)
        -->
   <xsl:if test="@yields">
-    <preproc:sym name="{@yields}" keep="{$keep}"
+    <preproc:sym name="{@yields}"
       parent=":class:{@as}"
       extclass="{$external}" terminate="{$terminate}"
       type="cgen" dtype="boolean" dim="?" desc="{@desc}">

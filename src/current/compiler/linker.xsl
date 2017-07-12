@@ -181,23 +181,21 @@
        symbol, then it must not be used); note that lv:yield actually compiles
        into a special symbol ___yield -->
   <variable name="yields" as="element( preproc:sym )+">
-    <copy-of select="preproc:sym[ @name='___yield' ]" />
+    <!-- TOOD: this shouldn't be a magical exception; map it -->
+    <sequence select="preproc:sym[ @name='___yield' ]" />
 
-    <!-- also include anything derivable from any @keep symbol, either local
-         or imported -->
-    <copy-of select="preproc:sym[ @keep='true' ]" />
-
-    <!-- TODO: these should be included as a consequence of the linking
-         process, not as an exception -->
-    <copy-of select="
+    <!-- TODO: messy; refactor this symbol situation -->
+    <!-- this should be the sole source of outputs and, consequently,
+         dependencies -->
+    <sequence select="
         preproc:sym[
           @type='map' or @type='map:head' or @type='map:tail'
           or @type='retmap' or @type='retmap:head' or @type='retmap:tail'
         ]
       " />
 
-    <!-- TODO: same as above -->
-    <copy-of select="preproc:sym[ @name='___worksheet' ]" />
+    <!-- TODO: also should not be an exception -->
+    <sequence select="preproc:sym[ @name='___worksheet' ]" />
   </variable>
 
   <!-- start at the top of the table and begin processing each symbol
@@ -325,81 +323,9 @@
         </call-template>
       </if>
 
-      <variable name="pkg-seen" as="xs:boolean"
-                select="(
-                          ( $cur/@src = '' or not( $cur/@src ) )
-                          and $stack/preproc:pkg-seen/@src = ''
-                        )
-                        or $cur/@src = $stack/preproc:pkg-seen/@src" />
-
-      <variable name="newpending" as="element( l:pending )">
-        <l:pending>
-          <sequence select="$pending" />
-
-          <!-- if this is the first time seeing this package, then pend its
-               @keep's for processing -->
-          <if test="not( $pkg-seen )">
-            <message select="'[link] found package ', $cur/@src" />
-
-            <variable name="document" as="element( lv:package )"
-                      select="if ( not( $cur/@src or $cur/@src = '' ) ) then
-                                $l:orig-root/lv:package
-                              else
-                                document( concat( $cur/@src, '.xmlo' ),
-                                          $l:orig-root )
-                                  /lv:package" />
-
-            <variable name="keeps" as="element( preproc:sym )*" select="
-                  $document/preproc:symtable/preproc:sym[
-                    (
-                      @keep='true'
-                      or ( $l:orig-root/lv:package/@auto-keep-imports='true'
-                           and ( @type = 'class'
-                                 or @type = 'cgen' ) )
-                    )
-                    and not(
-                      $l:orig-root/lv:package/@no-extclass-keeps='true'
-                      and @extclass='true'
-                    )
-                    and not( @name=$pending/@name )
-                    and not( @name=$stack/preproc:sym/@name )
-                  ]
-              " />
-
-            <variable name="keepdeps" as="element( preproc:sym )*">
-              <call-template name="l:dep-aug">
-                <with-param name="cur" select="$cur" />
-                <with-param name="deps" select="$keeps" />
-                <with-param name="proc-barrier" select="true()" />
-                <with-param name="parent-name"
-                  select="concat( 'package ', $cur/@src )" />
-              </call-template>
-            </variable>
-
-            <sequence select="$keepdeps" />
-          </if>
-        </l:pending>
-      </variable>
-
-
-      <variable name="stack-seen" as="element( l:sym-stack )">
-        <l:sym-stack>
-          <if test="not( $pkg-seen )">
-            <sequence select="$stack/*" />
-            <preproc:pkg-seen src="{$cur/@src}" />
-          </if>
-        </l:sym-stack>
-      </variable>
-
-      <variable name="newstack" as="element( l:sym-stack )"
-                select="if ( $pkg-seen ) then
-                          $stack
-                        else
-                          $stack-seen" />
-
       <apply-templates select="$cur" mode="l:depgen-process-sym">
-        <with-param name="pending" select="$newpending/*" />
-        <with-param name="stack" select="$newstack" />
+        <with-param name="pending" select="$pending" />
+        <with-param name="stack" select="$stack" />
         <with-param name="path" select="$path" />
         <with-param name="processing" select="
             if ( $cur/@l:proc-barrier = 'true' )
@@ -610,11 +536,13 @@
                 select="$stack/preproc:sym[
                           @name=$cur/@name ]" />
 
+      <!-- TODO: this uses @name instead of @src because of map import
+           paths; decide on one or the other -->
       <variable name="src-conflict" as="element( preproc:sym )*"
-                select="if ( not( $cur/@src ) or $cur/@src = '' ) then
+                select="if ( not( $cur/@name ) or $cur/@name = '' ) then
                           ()
                         else
-                          $existing[ not( @src = $cur/@src ) ]" />
+                          $existing[ not( @name = $cur/@name ) ]" />
 
       <if test="$src-conflict">
         <call-template name="log:error">
@@ -622,7 +550,7 @@
           <with-param name="msg">
             <text>symbol name is not unique: `</text>
             <value-of select="@name" />
-            <text>' found in</text>
+            <text>' found in </text>
             <value-of select="$cur/@src" />
 
             <for-each select="$src-conflict">
@@ -805,17 +733,10 @@
 
 
 <!-- TODO: some better way. -->
-<template match="preproc:sym[ starts-with( @type, 'map' ) or starts-with( @type, 'retmap' ) ]"
+<template match="preproc:sym[ starts-with( @type, 'map' ) ]"
   mode="l:depgen-sym" priority="7">
 
   <!-- do not process deps -->
-</template>
-
-
-<template mode="l:depgen-sym" as="element()*"
-          match="preproc:pkg-seen"
-          priority="5">
-  <sequence select="." />
 </template>
 
 
@@ -1384,78 +1305,7 @@
 
 
 <template match="preproc:sym" mode="l:map" priority="5">
-  <param name="symtable" as="element( l:dep )" />
-  <param name="type" as="xs:string"
-         select="'input'" />
-  <param name="from" as="xs:string"
-         select="'destination'" />
-  <param name="ignore-error" as="xs:boolean"
-         select="false()" />
-
-  <variable name="name" as="xs:string"
-            select="@name" />
-  <variable name="src" as="xs:string"
-            select="@src" />
-
-  <!-- map symbols must always be remote -->
-  <variable name="pkg" as="element( lv:package )"
-            select="document( concat( @src, '.xmlo' ), . )
-                      /lv:package" />
-
-  <!-- get map symbol dependencies -->
-  <variable name="deps" as="element( preproc:sym-dep )*"
-            select="$pkg/preproc:sym-deps/
-                      preproc:sym-dep[ @name=$name ]" />
-
-  <if test="not( $deps )">
-    <call-template name="log:internal-error">
-      <with-param name="name" select="'link'" />
-      <with-param name="msg">
-        <text>could not locate symbol dependencies: </text>
-        <value-of select="concat( @src, '/', @name )" />
-      </with-param>
-    </call-template>
-  </if>
-
-  <!-- FIXME: we should not have to check for @yields here; we may
-       have to require imports in the map to satisfy normalization
-       before-hand -->
-  <variable name="unknown" as="element( preproc:sym-ref )*"
-            select="$deps/preproc:sym-ref[
-                      not( @name=$symtable/preproc:sym/@name
-                           or @name=$symtable/preproc:sym/@yields ) ]" />
-
-  <choose>
-    <!-- ensure that every dependency is known (we only care that the symbol
-         actually exists and is an input) -->
-    <when test="$unknown and not( $ignore-error )">
-      <for-each select="$unknown">
-        <call-template name="log:error">
-          <with-param name="terminate" select="'no'" />
-          <with-param name="name" select="'link'" />
-          <with-param name="msg">
-            <value-of select="$type" />
-            <text> map </text>
-            <value-of select="$from" />
-            <text> </text>
-              <value-of select="@name" />
-            <text> is not a known </text>
-              <value-of select="$type" />
-            <text> field for </text>
-            <value-of select="concat( $src, '/', $name )" />
-            <text>; ensure that it exists and is either used or has @keep set</text>
-          </with-param>
-        </call-template>
-      </for-each>
-
-      <l:map-error />
-    </when>
-
-    <!-- good to go; link symbol -->
-    <otherwise>
-      <apply-templates select="." mode="l:link-deps" />
-    </otherwise>
-  </choose>
+  <apply-templates select="." mode="l:link-deps" />
 </template>
 
 </stylesheet>
