@@ -104,8 +104,8 @@
         <with-param name="type-prefix" select="'map'" />
       </call-template>
 
-      <!-- copy all source nodes -->
-      <sequence select="node()" />
+      <!-- copy source nodes -->
+      <apply-templates mode="preproc:expand" select="node()" />
     </lv:package>
   </variable>
 
