@@ -416,7 +416,7 @@
     <preproc:sym type="meta"
                  name=":meta:{@name}"
                  desc="Metavalue {@name}"
-                 keep="true" />
+                 pollute="true" />
   </for-each>
 </template>
 

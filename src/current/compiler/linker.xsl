@@ -181,8 +181,10 @@
        symbol, then it must not be used); note that lv:yield actually compiles
        into a special symbol ___yield -->
   <variable name="yields" as="element( preproc:sym )+">
-    <!-- TOOD: this shouldn't be a magical exception; map it -->
-    <sequence select="preproc:sym[ @name='___yield' ]" />
+    <!-- TOOD: these shouldn't be a magical exception; map it -->
+    <sequence select="preproc:sym[ @name = '___yield'
+                                     or @name = '___worksheet'
+                                     or @type = 'meta' ]" />
 
     <!-- TODO: messy; refactor this symbol situation -->
     <!-- this should be the sole source of outputs and, consequently,
@@ -193,9 +195,6 @@
           or @type='retmap' or @type='retmap:head' or @type='retmap:tail'
         ]
       " />
-
-    <!-- TODO: also should not be an exception -->
-    <sequence select="preproc:sym[ @name='___worksheet' ]" />
   </variable>
 
   <!-- start at the top of the table and begin processing each symbol
