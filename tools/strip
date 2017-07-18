@@ -7,5 +7,5 @@
 ##
 
 # debug assignments
-sed -i 's#/\*!+\*/[^!]\+/\*!-\*/##g' ui/package.js
+sed -i 's#/\*!+\*/[^!]\+/\*!-\*/##g' "$@"
 
