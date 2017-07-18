@@ -26,8 +26,8 @@ stylesheets := $(shell find "$(path_src)" \
                          -a \! -path "$(path_src)"/current/\* )
 stexi       := $(stylesheets:.xsl=.texi)
 
-info_TEXINFOS  = tame.texi
-tame_TEXINFOS = license.texi $(stexi)
+info_TEXINFOS = tame.texi
+tame_TEXINFOS = todo.texi license.texi $(stexi)
 
 MAKEINFOHTML=$(MAKEINFO) --html
 

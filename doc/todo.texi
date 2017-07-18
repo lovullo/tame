@@ -1,0 +1,74 @@
+@c  This document is part of the TAME manual.
+@c  Copyright (C) 2017 LoVullo Associates, Inc.
+@c    Permission is granted to copy, distribute and/or modify this document
+@c    under the terms of the GNU Free Documentation License, Version 1.3 or
+@c    any later version published by the Free Software Foundation; with no
+@c    Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
+@c    A copy of the license is included in the section entitled ``GNU Free
+@c    Documentation License''.
+
+@node Project TODOs
+@appendix Project TODOs
+This project has far more TODOs than are listed here, but here are
+  some higher-level goals for the future.
+There are miscellaneous TODOs sprinkled throughout the code,
+  but those are lower-level.
+
+
+@section Linker
+The linker should be one of the fastest parts of the system@mdash{
+  }it should just do a topological sort,
+    resolve symbols as necessary,
+    and arrange code blocks.
+Unfortunately,
+  especially due to memory requirements of loading so many packages
+    into memory (using Saxon),
+  this has been a pain point.
+Performance has improved drastically,
+  but we can do better by gutting other parts of the system that were
+    designed as kluges or now have better solutions that alleviates
+    linker work.
+
+@enumerate
+  @item Limit recursion during stack processing.
+        If you look at a stack trace on error,
+          it can be hundreds of levels deep.
+        Instead,
+          use a trampoline-style approach and indicate that additional
+          symbols need to be loaded,
+            but don't do so immediately in a recursive manner.
+        This may or may not improve the memory footprint@mdash{
+          }hopefully Saxon will see that previously generated trees
+            are no longer necessary and GC them.
+
+  @item Remove concept of classifier vs. rating processes.
+        This distinction was important in the past to work around
+          pulling in too many dependencies,
+            but there's not really much rationale for separate
+              @code{classify} and @code{rate} methods now,
+                and it'll get rid of a decent amount of work.
+@end enumerate
+
+
+@section Input/Return Map
+@enumerate
+  @item Generate normal packages and use templates rather than a
+          specialized system;
+            it has numerous kluges to work around inconsistencies with
+              other parts of the system,
+                and copies code from portions,
+                particularly for preprocessing.
+@end enumerate
+
+
+@section Worksheet
+@enumerate
+  @item Implement a symbol table and treat worksheet packages as
+          normal packages.
+        As it stands today,
+          symbols will not be retained by the linker if they are
+          referenced by the worksheet because there is no symbol table;
+            this puts the onus on the developer to manually place
+              it in the return map,
+                which is error-prone.
+@end enumerate
