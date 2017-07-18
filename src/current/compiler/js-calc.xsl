@@ -35,12 +35,11 @@
   system (e.g. Closure Compiler) to perform additional optimizations.
 -->
 <stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/XSL/Transform"
-  xmlns:c="http://www.lovullo.com/calc"
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:w="http://www.lovullo.com/rater/worksheet"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc"
-  xmlns:calc-compiler="http://www.lovullo.com/calc/compiler">
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:c="http://www.lovullo.com/calc"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc"
+            xmlns:calc-compiler="http://www.lovullo.com/calc/compiler">
 
 
 <!-- enable debugging by default -->
