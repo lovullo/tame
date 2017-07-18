@@ -61,36 +61,13 @@
 
 
 <template match="c:*" mode="compile" priority="1">
-  <variable name="debugval">
-    <if test="
-        ( $calcc-debug = 'yes' )
-        or ( //w:worksheet//w:display/@name = @generates )
-        or (
-          (
-            local-name() = 'case'
-            or ./c:index
-          )
-          and //w:worksheet//w:display/@name = ancestor::c:*/@generates
-        )
-      ">
-
-      <text>yes</text>
-    </if>
-  </variable>
-
-  <!-- should we force debugging? TODO: decouple from lv namespace -->
-  <variable name="debug-force" select="
-      ancestor::lv:*/@yields =
-        root(.)//calc-compiler:force-debug/calc-compiler:ref/@name
-    " />
-
-  <if test="$debugval = 'yes' or $debug-force">
+  <if test="$calcc-debug = 'yes'">
     <text>( function() { var result = </text>
   </if>
 
   <apply-templates select="." mode="compile-pre" />
 
-  <if test="$debugval = 'yes' or $debug-force">
+  <if test="$calcc-debug = 'yes'">
     <text>; </text>
     <text>/*!+*/( debug['</text>
       <value-of select="@_id" />
