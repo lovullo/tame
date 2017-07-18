@@ -60,7 +60,13 @@
 </template>
 
 
-<template match="c:*" mode="compile" priority="1">
+<!--
+  Compile calculations with debug information.  This collects the
+  result of the calculation, allowing for extremely fine-grained
+  recursive study of a calculation.
+-->
+<template mode="compile" priority="1"
+          match="c:*">
   <if test="$calcc-debug = 'yes'">
     <text>( function() { var result = </text>
   </if>
@@ -78,6 +84,18 @@
     <text>return result; </text>
     <text>} )() </text>
   </if>
+</template>
+
+
+<!--
+  Functions are invoked many times and providing information about
+  each of their invocations is of limited use, so they should not
+  collect debug information.  This saves a lot of time and memory,
+  and hopefully allows JIT engines to better optimize.
+-->
+<template mode="compile" priority="7"
+          match="c:*[ ancestor::lv:function ]">
+  <apply-templates select="." mode="compile-pre" />
 </template>
 
 
