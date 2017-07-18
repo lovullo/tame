@@ -2,7 +2,7 @@
 <!--
   Compiles calculation XML into JavaScript
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -34,9 +34,8 @@
   The generated code may not be optimal, but it may be processed by another
   system (e.g. Closure Compiler) to perform additional optimizations.
 -->
-<xsl:stylesheet version="1.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+<stylesheet version="2.0"
+  xmlns="http://www.w3.org/1999/XSL/Transform"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:w="http://www.lovullo.com/rater/worksheet"
@@ -45,25 +44,25 @@
 
 
 <!-- enable debugging by default -->
-<xsl:param name="calcc-debug" select="'yes'" />
+<param name="calcc-debug" select="'yes'" />
 
 <!-- name to output when reporting problems -->
-<xsl:variable name="calc-compiler:name" select="'js-calc-compiler'" />
+<variable name="calc-compiler:name" select="'js-calc-compiler'" />
 
-<xsl:template name="calc-compiler:error">
-  <xsl:param name="message" select="'unspecified error'" />
+<template name="calc-compiler:error">
+  <param name="message" select="'unspecified error'" />
 
-  <xsl:message terminate="yes">
-    <xsl:value-of select="$calc-compiler:name" />
-    <xsl:text>: </xsl:text>
-    <xsl:value-of select="$message" />
-  </xsl:message>
-</xsl:template>
+  <message terminate="yes">
+    <value-of select="$calc-compiler:name" />
+    <text>: </text>
+    <value-of select="$message" />
+  </message>
+</template>
 
 
-<xsl:template match="c:*" mode="compile" priority="1">
-  <xsl:variable name="debugval">
-    <xsl:if test="
+<template match="c:*" mode="compile" priority="1">
+  <variable name="debugval">
+    <if test="
         ( $calcc-debug = 'yes' )
         or ( //w:worksheet//w:display/@name = @generates )
         or (
@@ -75,34 +74,34 @@
         )
       ">
 
-      <xsl:text>yes</xsl:text>
-    </xsl:if>
-  </xsl:variable>
+      <text>yes</text>
+    </if>
+  </variable>
 
   <!-- should we force debugging? TODO: decouple from lv namespace -->
-  <xsl:variable name="debug-force" select="
+  <variable name="debug-force" select="
       ancestor::lv:*/@yields =
         root(.)//calc-compiler:force-debug/calc-compiler:ref/@name
     " />
 
-  <xsl:if test="$debugval = 'yes' or $debug-force">
-    <xsl:text>( function() { var result = </xsl:text>
-  </xsl:if>
+  <if test="$debugval = 'yes' or $debug-force">
+    <text>( function() { var result = </text>
+  </if>
 
-  <xsl:apply-templates select="." mode="compile-pre" />
+  <apply-templates select="." mode="compile-pre" />
 
-  <xsl:if test="$debugval = 'yes' or $debug-force">
-    <xsl:text>; </xsl:text>
-    <xsl:text>/*!+*/( debug['</xsl:text>
-      <xsl:value-of select="@_id" />
-    <xsl:text>'] || ( debug['</xsl:text>
-      <xsl:value-of select="@_id" />
-    <xsl:text>'] = [] ) ).push( result );/*!-*/ </xsl:text>
+  <if test="$debugval = 'yes' or $debug-force">
+    <text>; </text>
+    <text>/*!+*/( debug['</text>
+      <value-of select="@_id" />
+    <text>'] || ( debug['</text>
+      <value-of select="@_id" />
+    <text>'] = [] ) ).push( result );/*!-*/ </text>
 
-    <xsl:text>return result; </xsl:text>
-    <xsl:text>} )() </xsl:text>
-  </xsl:if>
-</xsl:template>
+    <text>return result; </text>
+    <text>} )() </text>
+  </if>
+</template>
 
 
 <!--
@@ -114,34 +113,34 @@
 
   @return generated JS for the given calculation
 -->
-<xsl:template match="c:*" mode="compile-pre" priority="1">
+<template match="c:*" mode="compile-pre" priority="1">
   <!-- ensure everything is grouped (for precedence) and converted to a
        number -->
-  <xsl:text>( </xsl:text>
-  <xsl:apply-templates select="." mode="compile-calc" />
-  <xsl:text> )</xsl:text>
-</xsl:template>
+  <text>( </text>
+  <apply-templates select="." mode="compile-calc" />
+  <text> )</text>
+</template>
 
 
-<xsl:template match="c:const[ ./c:when ]|c:value-of[ ./c:when ]" mode="compile-pre" priority="5">
-  <xsl:text>( </xsl:text>
+<template match="c:const[ ./c:when ]|c:value-of[ ./c:when ]" mode="compile-pre" priority="5">
+  <text>( </text>
     <!-- first, do what we normally would do (compile the value) -->
-    <xsl:text>( </xsl:text>
-      <xsl:apply-templates select="." mode="compile-calc" />
-    <xsl:text> )</xsl:text>
+    <text>( </text>
+      <apply-templates select="." mode="compile-calc" />
+    <text> )</text>
 
     <!-- then multiply by the c:when result -->
-    <xsl:text> * ( </xsl:text>
-      <xsl:for-each select="./c:when">
-        <xsl:if test="position() > 1">
-          <xsl:text> * </xsl:text>
-        </xsl:if>
+    <text> * ( </text>
+      <for-each select="./c:when">
+        <if test="position() > 1">
+          <text> * </text>
+        </if>
 
-        <xsl:apply-templates select="." mode="compile" />
-      </xsl:for-each>
-    <xsl:text> )</xsl:text>
-  <xsl:text> )</xsl:text>
-</xsl:template>
+        <apply-templates select="." mode="compile" />
+      </for-each>
+    <text> )</text>
+  <text> )</text>
+</template>
 
 
 
@@ -162,53 +161,53 @@
 
   @return generated summation/product anonymous self-executing function
 -->
-<xsl:template match="c:product[@of]|c:sum[@of]" mode="compile-calc" priority="1">
+<template match="c:product[@of]|c:sum[@of]" mode="compile-calc" priority="1">
   <!-- see c:ceil/c:floor precision comments -->
-  <xsl:variable name="precision">
-    <xsl:choose>
-      <xsl:when test="@precision">
-        <xsl:value-of select="@precision" />
-      </xsl:when>
+  <variable name="precision">
+    <choose>
+      <when test="@precision">
+        <value-of select="@precision" />
+      </when>
 
-      <xsl:otherwise>
-        <xsl:text>8</xsl:text>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:variable>
+      <otherwise>
+        <text>8</text>
+      </otherwise>
+    </choose>
+  </variable>
 
-  <xsl:variable name="operator">
-    <xsl:apply-templates select="." mode="compile-getop" />
-  </xsl:variable>
+  <variable name="operator">
+    <apply-templates select="." mode="compile-getop" />
+  </variable>
 
-  <xsl:variable name="index">
-    <xsl:choose>
-      <xsl:when test="@index">
-        <xsl:value-of select="@index" />
-      </xsl:when>
+  <variable name="index">
+    <choose>
+      <when test="@index">
+        <value-of select="@index" />
+      </when>
 
       <!-- if they don't provide us with an index, then we don't want them using
            it -->
-      <xsl:otherwise>
-        <xsl:text>_$i$_</xsl:text>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:variable>
+      <otherwise>
+        <text>_$i$_</text>
+      </otherwise>
+    </choose>
+  </variable>
 
   <!-- introduce scope both to encapsulate values and so we can insert this as
        part of a larger expression (will return a value) -->
-  <xsl:text>( function() {</xsl:text>
+  <text>( function() {</text>
 
     <!-- will store result of the summation/product -->
-    <xsl:text>var sum = 0;</xsl:text>
+    <text>var sum = 0;</text>
 
-    <xsl:variable name="of" select="@of" />
+    <variable name="of" select="@of" />
 
-    <xsl:variable name="func" select="ancestor::lv:function" />
+    <variable name="func" select="ancestor::lv:function" />
 
-    <xsl:variable name="value">
-      <xsl:choose>
+    <variable name="value">
+      <choose>
         <!-- is @of a function param? -->
-        <xsl:when test="
+        <when test="
             $func
             and root(.)/preproc:symtable/preproc:sym[
               @type='lparam'
@@ -216,84 +215,84 @@
             ]
           ">
 
-          <xsl:value-of select="@of" />
-        </xsl:when>
+          <value-of select="@of" />
+        </when>
 
         <!-- maybe a constant? -->
-        <xsl:when test="
+        <when test="
             root(.)/preproc:symtable/preproc:sym[
               @type='const'
               and @name=$of
             ]
           ">
 
-          <xsl:text>consts['</xsl:text>
-            <xsl:value-of select="@of" />
-          <xsl:text>']</xsl:text>
-        </xsl:when>
+          <text>consts['</text>
+            <value-of select="@of" />
+          <text>']</text>
+        </when>
 
-        <xsl:otherwise>
-          <xsl:text>args['</xsl:text>
-            <xsl:value-of select="@of" />
-          <xsl:text>']</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
-    </xsl:variable>
+        <otherwise>
+          <text>args['</text>
+            <value-of select="@of" />
+          <text>']</text>
+        </otherwise>
+      </choose>
+    </variable>
 
     <!-- if we're looking to generate a set, initialize it -->
-    <xsl:if test="@generates">
-      <xsl:text>var G = []; </xsl:text>
-    </xsl:if>
+    <if test="@generates">
+      <text>var G = []; </text>
+    </if>
 
     <!-- loop through each value -->
-    <xsl:text>for ( var </xsl:text>
-      <xsl:value-of select="$index" />
-    <xsl:text> in </xsl:text>
-      <xsl:value-of select="$value" />
-    <xsl:text> ) {</xsl:text>
+    <text>for ( var </text>
+      <value-of select="$index" />
+    <text> in </text>
+      <value-of select="$value" />
+    <text> ) {</text>
 
-    <xsl:text>var result = +(+( </xsl:text>
-      <xsl:choose>
+    <text>var result = +(+( </text>
+      <choose>
         <!-- if there are child nodes, use that as the summand/expression -->
-        <xsl:when test="./c:*">
-          <xsl:apply-templates select="." mode="compile-calc-sumprod" />
-        </xsl:when>
+        <when test="./c:*">
+          <apply-templates select="." mode="compile-calc-sumprod" />
+        </when>
 
         <!-- otherwise, sum/multiply ever value in the set identified by @of -->
-        <xsl:otherwise>
-          <xsl:value-of select="$value" />
-          <xsl:text>[</xsl:text>
-            <xsl:value-of select="$index" />
-          <xsl:text>]</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
-    <xsl:text> )).toFixed(</xsl:text>
-      <xsl:value-of select="$precision" />
-    <xsl:text>);</xsl:text>
+        <otherwise>
+          <value-of select="$value" />
+          <text>[</text>
+            <value-of select="$index" />
+          <text>]</text>
+        </otherwise>
+      </choose>
+    <text> )).toFixed(</text>
+      <value-of select="$precision" />
+    <text>);</text>
 
     <!-- if generating a set, store this result -->
-    <xsl:if test="@generates">
-      <xsl:text>G.push( result ); </xsl:text>
-    </xsl:if>
+    <if test="@generates">
+      <text>G.push( result ); </text>
+    </if>
 
     <!-- generate summand -->
-    <xsl:text>sum </xsl:text>
-      <xsl:value-of select="$operator" />
-    <xsl:text>= +result;</xsl:text>
+    <text>sum </text>
+      <value-of select="$operator" />
+    <text>= +result;</text>
 
     <!-- end of loop -->
-    <xsl:text>}</xsl:text>
+    <text>}</text>
 
     <!-- if a set has been generated, store it -->
-    <xsl:if test="@generates">
-      <xsl:text>args['</xsl:text>
-        <xsl:value-of select="@generates" />
-      <xsl:text>'] = G; </xsl:text>
-    </xsl:if>
+    <if test="@generates">
+      <text>args['</text>
+        <value-of select="@generates" />
+      <text>'] = G; </text>
+    </if>
 
-    <xsl:text>return sum;</xsl:text>
-  <xsl:text>} )()</xsl:text>
-</xsl:template>
+    <text>return sum;</text>
+  <text>} )()</text>
+</template>
 
 
 <!--
@@ -304,47 +303,47 @@
   Dot products should operate only on vectors; if other input passes the
   validator, then the result is undefined.
 -->
-<xsl:template match="c:product[@dot]" mode="compile-calc" priority="5">
-  <xsl:text>( function() { </xsl:text>
+<template match="c:product[@dot]" mode="compile-calc" priority="5">
+  <text>( function() { </text>
 
   <!-- we need to determine which vector is the longest to ensure that we
        properly compute every value (remember, undefined will be equivalent to
        0, so the vectors needn't be of equal length *gasp* blasphemy!) -->
-  <xsl:text>var _$dlen$ = longerOf( </xsl:text>
-    <xsl:for-each select=".//c:value-of">
-      <xsl:if test="position() > 1">
-        <xsl:text>, </xsl:text>
-      </xsl:if>
+  <text>var _$dlen$ = longerOf( </text>
+    <for-each select=".//c:value-of">
+      <if test="position() > 1">
+        <text>, </text>
+      </if>
 
       <!-- skip any wrapping; we want the direct reference (so compile-calc, not
            compile)-->
-      <xsl:apply-templates select="." mode="compile-calc" />
-    </xsl:for-each>
-  <xsl:text> ); </xsl:text>
+      <apply-templates select="." mode="compile-calc" />
+    </for-each>
+  <text> ); </text>
 
   <!-- will store the total sum -->
-  <xsl:text>var _$dsum$ = 0;</xsl:text>
+  <text>var _$dsum$ = 0;</text>
 
   <!-- sum the product of each -->
-  <xsl:text disable-output-escaping="yes">for ( var _$d$ = 0; _$d$ &lt; _$dlen$; _$d$++ ) {</xsl:text>
-    <xsl:text>_$dsum$ += </xsl:text>
+  <text disable-output-escaping="yes">for ( var _$d$ = 0; _$d$ &lt; _$dlen$; _$d$++ ) {</text>
+    <text>_$dsum$ += </text>
       <!-- product of each -->
-      <xsl:for-each select=".//c:value-of">
-        <xsl:if test="position() > 1">
-          <xsl:text> * </xsl:text>
-        </xsl:if>
+      <for-each select=".//c:value-of">
+        <if test="position() > 1">
+          <text> * </text>
+        </if>
 
-        <xsl:text>( ( </xsl:text>
-          <xsl:apply-templates select="." mode="compile" />
-        <xsl:text> || [] )[ _$d$ ] || 0 )</xsl:text>
-      </xsl:for-each>
-    <xsl:text>; </xsl:text>
-  <xsl:text>}</xsl:text>
+        <text>( ( </text>
+          <apply-templates select="." mode="compile" />
+        <text> || [] )[ _$d$ ] || 0 )</text>
+      </for-each>
+    <text>; </text>
+  <text>}</text>
 
-  <xsl:text>return _$dsum$;</xsl:text>
+  <text>return _$dsum$;</text>
 
-  <xsl:text> } )()</xsl:text>
-</xsl:template>
+  <text> } )()</text>
+</template>
 
 
 <!--
@@ -354,42 +353,42 @@
 
   @return generated expression
 -->
-<xsl:template match="c:sum|c:product" mode="compile-calc">
-  <xsl:apply-templates select="." mode="compile-calc-sumprod" />
-</xsl:template>
+<template match="c:sum|c:product" mode="compile-calc">
+  <apply-templates select="." mode="compile-calc-sumprod" />
+</template>
 
 
-<xsl:template match="c:sum|c:product" mode="compile-calc-sumprod">
-  <xsl:variable name="operator">
-    <xsl:apply-templates select="." mode="compile-getop" />
-  </xsl:variable>
+<template match="c:sum|c:product" mode="compile-calc-sumprod">
+  <variable name="operator">
+    <apply-templates select="." mode="compile-getop" />
+  </variable>
 
-  <xsl:for-each select="./c:*">
+  <for-each select="./c:*">
     <!-- add operator between each expression -->
-    <xsl:if test="position() > 1">
-      <xsl:text> </xsl:text>
-      <xsl:value-of select="$operator" />
-      <xsl:text> </xsl:text>
-    </xsl:if>
+    <if test="position() > 1">
+      <text> </text>
+      <value-of select="$operator" />
+      <text> </text>
+    </if>
 
-    <xsl:apply-templates select="." mode="compile" />
-  </xsl:for-each>
-</xsl:template>
+    <apply-templates select="." mode="compile" />
+  </for-each>
+</template>
 
 
 <!--
   @return addition operator
 -->
-<xsl:template match="c:sum" mode="compile-getop">
-  <xsl:text>+</xsl:text>
-</xsl:template>
+<template match="c:sum" mode="compile-getop">
+  <text>+</text>
+</template>
 
 <!--
   @return multiplication operator
 -->
-<xsl:template match="c:product" mode="compile-getop">
-  <xsl:text>*</xsl:text>
-</xsl:template>
+<template match="c:product" mode="compile-getop">
+  <text>*</text>
+</template>
 
 
 <!--
@@ -397,33 +396,33 @@
 
   @return ceil/floor compiled JS
 -->
-<xsl:template match="c:ceil|c:floor" mode="compile-calc">
+<template match="c:ceil|c:floor" mode="compile-calc">
   <!-- determine precision for ceil/floor (floating point precision errors can
        drastically affect the outcome) -->
-  <xsl:variable name="precision">
-    <xsl:choose>
+  <variable name="precision">
+    <choose>
       <!-- if a precision was explicitly provided, then use that -->
-      <xsl:when test="@precision">
-        <xsl:value-of select="@precision" />
-      </xsl:when>
+      <when test="@precision">
+        <value-of select="@precision" />
+      </when>
 
       <!-- ECMAScript uses a default precision of 24; by reducing the
            precision to 8 decimal places, we can drastically reduce the affect
            of precision errors on the calculations -->
-      <xsl:otherwise>
-        <xsl:text>8</xsl:text>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:variable>
+      <otherwise>
+        <text>8</text>
+      </otherwise>
+    </choose>
+  </variable>
 
-  <xsl:text>Math.</xsl:text>
-  <xsl:value-of select="local-name()" />
-  <xsl:text>( +(</xsl:text>
-    <xsl:apply-templates select="./c:*" mode="compile" />
-  <xsl:text> ).toFixed( </xsl:text>
-    <xsl:value-of select="$precision" />
-  <xsl:text> ) )</xsl:text>
-</xsl:template>
+  <text>Math.</text>
+  <value-of select="local-name()" />
+  <text>( +(</text>
+    <apply-templates select="./c:*" mode="compile" />
+  <text> ).toFixed( </text>
+    <value-of select="$precision" />
+  <text> ) )</text>
+</template>
 
 
 <!--
@@ -435,10 +434,10 @@
 
   @return quoted constant value
 -->
-<xsl:template match="c:const" mode="compile-calc">
+<template match="c:const" mode="compile-calc">
   <!-- assumed to be numeric -->
-  <xsl:value-of select="@value" />
-</xsl:template>
+  <value-of select="@value" />
+</template>
 
 
 <!--
@@ -446,32 +445,32 @@
 
   @return generated JS representing value or 0
 -->
-<xsl:template match="c:value-of" mode="compile-calc" priority="1">
-  <xsl:apply-templates select="." mode="compile-calc-value" />
-</xsl:template>
+<template match="c:value-of" mode="compile-calc" priority="1">
+  <apply-templates select="." mode="compile-calc-value" />
+</template>
 
 <!-- TODO: this should really be decoupled -->
 <!-- TODO: does not properly support matrices -->
-<xsl:template match="c:value-of[ ancestor::lv:match ]" mode="compile-calc" priority="5">
-  <xsl:variable name="name" select="@name" />
+<template match="c:value-of[ ancestor::lv:match ]" mode="compile-calc" priority="5">
+  <variable name="name" select="@name" />
 
-  <xsl:choose>
+  <choose>
     <!-- scalar -->
-    <xsl:when test="
+    <when test="
         root(.)/preproc:symtable/preproc:sym[ @name=$name ]
           /@dim = '0'
       ">
-      <xsl:apply-templates select="." mode="compile-calc-value" />
-    </xsl:when>
+      <apply-templates select="." mode="compile-calc-value" />
+    </when>
 
     <!-- non-scalar -->
-    <xsl:otherwise>
-      <xsl:text>(</xsl:text>
-        <xsl:apply-templates select="." mode="compile-calc-value" />
-      <xsl:text>)[__$$i]</xsl:text>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <text>(</text>
+        <apply-templates select="." mode="compile-calc-value" />
+      <text>)[__$$i]</text>
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
@@ -484,31 +483,31 @@
 
   @return generated JS representing argument value or 0
 -->
-<xsl:template mode="compile-calc-value"
+<template mode="compile-calc-value"
   match="c:*[@name=ancestor::lv:function/lv:param/@name]">
 
   <!-- use the argument passed to the function -->
-  <xsl:apply-templates select="." mode="compile-calc-index">
-    <xsl:with-param name="value" select="@name" />
-  </xsl:apply-templates>
+  <apply-templates select="." mode="compile-calc-index">
+    <with-param name="value" select="@name" />
+  </apply-templates>
 
-  <xsl:text> || 0</xsl:text>
-</xsl:template>
+  <text> || 0</text>
+</template>
 
 
 <!--
   Using value from let expressions
 -->
-<xsl:template mode="compile-calc-value"
+<template mode="compile-calc-value"
   match="c:*[ @name=ancestor::c:let/c:values/c:value/@name ]">
 
   <!-- compile the value with the index (if any) -->
-  <xsl:apply-templates select="." mode="compile-calc-index">
-    <xsl:with-param name="value" select="@name" />
-  </xsl:apply-templates>
+  <apply-templates select="." mode="compile-calc-index">
+    <with-param name="value" select="@name" />
+  </apply-templates>
 
-  <xsl:text> || 0</xsl:text>
-</xsl:template>
+  <text> || 0</text>
+</template>
 
 
 <!--
@@ -523,7 +522,7 @@
 
   @return quoted constant value
 -->
-<xsl:template mode="compile-calc-value"
+<template mode="compile-calc-value"
   match="
     c:*[
       @name=root(.)/preproc:symtable/preproc:sym[
@@ -533,26 +532,26 @@
     ]
   ">
 
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="sym"
+  <variable name="name" select="@name" />
+  <variable name="sym"
     select="root(.)/preproc:symtable/preproc:sym[ @name=$name ]" />
 
   <!-- it is expected that validations prior to compiling will prevent JS
        injection here -->
-  <xsl:choose>
+  <choose>
     <!-- "magic" constants should not have their values inlined -->
-    <xsl:when test="$sym/@magic='true'">
-      <xsl:text>consts['</xsl:text>
-        <xsl:value-of select="@name" />
-      <xsl:text>']</xsl:text>
-    </xsl:when>
+    <when test="$sym/@magic='true'">
+      <text>consts['</text>
+        <value-of select="@name" />
+      <text>']</text>
+    </when>
 
     <!-- @value should be defined when @dim=0 -->
-    <xsl:otherwise>
-      <xsl:value-of select="$sym/@value" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <value-of select="$sym/@value" />
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
@@ -565,7 +564,7 @@
 
   @return generated code representing value of a variable, or 0 if undefined
 -->
-<xsl:template mode="compile-calc-value"
+<template mode="compile-calc-value"
   match="
     c:*[
       @name=root(.)/preproc:symtable/preproc:sym[
@@ -575,19 +574,19 @@
     ]
   ">
 
-  <xsl:variable name="value">
-    <xsl:text>consts['</xsl:text>
-      <xsl:value-of select="@name" />
-    <xsl:text>']</xsl:text>
-  </xsl:variable>
+  <variable name="value">
+    <text>consts['</text>
+      <value-of select="@name" />
+    <text>']</text>
+  </variable>
 
-  <xsl:apply-templates select="." mode="compile-calc-index">
-    <xsl:with-param name="value" select="$value" />
-  </xsl:apply-templates>
+  <apply-templates select="." mode="compile-calc-index">
+    <with-param name="value" select="$value" />
+  </apply-templates>
 
   <!-- undefined values in sets are considered to be 0 -->
-  <xsl:text> || 0</xsl:text>
-</xsl:template>
+  <text> || 0</text>
+</template>
 
 
 <!--
@@ -595,14 +594,14 @@
 
   @return generated code associated with the value of the generated index
 -->
-<xsl:template mode="compile-calc-value"
+<template mode="compile-calc-value"
   match="c:*[ @name = ancestor::c:*[ @of ]/@index ]">
 
   <!-- depending on how the index is generated, it could be a string, so we must
        cast it -->
-  <xsl:text>+</xsl:text>
-  <xsl:value-of select="@name" />
-</xsl:template>
+  <text>+</text>
+  <value-of select="@name" />
+</template>
 
 
 <!--
@@ -614,22 +613,22 @@
 
   @return generated code representing value of a variable, or 0 if undefined
 -->
-<xsl:template match="c:*" mode="compile-calc-value">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="pkg" as="element( lv:package )"
+<template match="c:*" mode="compile-calc-value">
+  <variable name="name" select="@name" />
+  <variable name="pkg" as="element( lv:package )"
                 select="root(.)" />
 
-  <xsl:variable name="dim"
+  <variable name="dim"
                 select="$pkg/preproc:symtable/preproc:sym[ @name=$name ]/@dim" />
 
   <!-- retrieve the value, casting to a number (to avoid potentially nasty
        string concatenation bugs instead of integer/floating point arithmetic)
        as long as we're either not a set, or provide an index for the set -->
-  <xsl:variable name="value">
-    <xsl:text>args['</xsl:text>
-      <xsl:value-of select="@name" />
-    <xsl:text>']</xsl:text>
-  </xsl:variable>
+  <variable name="value">
+    <text>args['</text>
+      <value-of select="@name" />
+    <text>']</text>
+  </variable>
 
   <!-- the awkward double-negatives are intentional, since @index may not
        exist; here's what we're doing:
@@ -642,7 +641,7 @@
   -->
   <!-- N.B. it is important to do this outside the value variable, otherwise the
        cast may be done at the incorrect time -->
-  <xsl:if test="
+  <if test="
       (
         $dim='0'
         or (
@@ -663,18 +662,18 @@
       )
     ">
 
-    <xsl:text>+</xsl:text>
-  </xsl:if>
+    <text>+</text>
+  </if>
 
-  <xsl:apply-templates select="." mode="compile-calc-index">
-    <xsl:with-param name="value" select="$value" />
-  </xsl:apply-templates>
+  <apply-templates select="." mode="compile-calc-index">
+    <with-param name="value" select="$value" />
+  </apply-templates>
 
   <!-- default to 0 if nothing is set (see notes on bottom of summary page; we
        assume all undefined values in a set to be implicitly 0, which greatly
        simplifies things) -->
-  <xsl:text> || 0</xsl:text>
-</xsl:template>
+  <text> || 0</text>
+</template>
 
 
 <!--
@@ -696,109 +695,109 @@
 
   @return index (including brackets), if one was provided
 -->
-<xsl:template match="c:*" mode="compile-calc-index">
-  <xsl:param name="value" />
-  <xsl:variable name="index" select="@index" />
+<template match="c:*" mode="compile-calc-index">
+  <param name="value" />
+  <variable name="index" select="@index" />
 
-  <xsl:choose>
-    <xsl:when test="@index">
+  <choose>
+    <when test="@index">
       <!-- output the value, falling back on an empty array to prevent errors
            when attempting to access undefined values -->
-      <xsl:text>(</xsl:text>
-        <xsl:value-of select="$value" />
-      <xsl:text>||[])</xsl:text>
+      <text>(</text>
+        <value-of select="$value" />
+      <text>||[])</text>
 
-      <xsl:text>[</xsl:text>
+      <text>[</text>
 
-      <xsl:choose>
+      <choose>
         <!-- if this index was explicitly defined as such, just output the name
              (since it will have been defined as a variable in the compiled code)
              -->
-        <xsl:when test="ancestor::c:*[ @of and @index=$index ]">
-          <xsl:value-of select="@index" />
-        </xsl:when>
+        <when test="ancestor::c:*[ @of and @index=$index ]">
+          <value-of select="@index" />
+        </when>
 
         <!-- if the index references a parameter, simply output the identifier -->
-        <xsl:when test="@index=ancestor::lv:function/lv:param/@name">
-          <xsl:value-of select="@index" />
-        </xsl:when>
+        <when test="@index=ancestor::lv:function/lv:param/@name">
+          <value-of select="@index" />
+        </when>
 
         <!-- scalar constant -->
-        <xsl:when test="@index = root(.)/preproc:symtable/preproc:sym
+        <when test="@index = root(.)/preproc:symtable/preproc:sym
                           [ @type='const'
                             and @dim='0' ]
                           /@name">
-          <xsl:value-of select="root(.)/preproc:symtable
+          <value-of select="root(.)/preproc:symtable
                                   /preproc:sym[ @name=$index ]
                                   /@value" />
-        </xsl:when>
+        </when>
 
         <!-- otherwise, it's a variable -->
-        <xsl:otherwise>
-          <xsl:text>args['</xsl:text>
-            <xsl:value-of select="@index" />
-          <xsl:text>']</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
+        <otherwise>
+          <text>args['</text>
+            <value-of select="@index" />
+          <text>']</text>
+        </otherwise>
+      </choose>
 
-      <xsl:text>]</xsl:text>
-    </xsl:when>
+      <text>]</text>
+    </when>
 
     <!-- if index node(s) were provided, then recursively generate -->
-    <xsl:when test="./c:index">
-      <xsl:apply-templates select="./c:index[1]" mode="compile-calc-index">
-        <xsl:with-param name="wrap" select="$value" />
-      </xsl:apply-templates>
-    </xsl:when>
+    <when test="./c:index">
+      <apply-templates select="./c:index[1]" mode="compile-calc-index">
+        <with-param name="wrap" select="$value" />
+      </apply-templates>
+    </when>
 
     <!-- otherwise, we have no index, so just output the compiled variable -->
-    <xsl:otherwise>
-      <xsl:value-of select="$value" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <value-of select="$value" />
+    </otherwise>
+  </choose>
+</template>
 
-<xsl:template match="c:index" mode="compile-calc-index">
-  <xsl:param name="wrap" />
+<template match="c:index" mode="compile-calc-index">
+  <param name="wrap" />
 
   <!-- get the next index node, if available -->
-  <xsl:variable name="next" select="following-sibling::c:index" />
+  <variable name="next" select="following-sibling::c:index" />
 
-  <xsl:variable name="value">
-    <xsl:value-of select="$wrap" />
+  <variable name="value">
+    <value-of select="$wrap" />
 
     <!-- generate index -->
-    <xsl:text>[</xsl:text>
-    <xsl:apply-templates select="./c:*[1]" mode="compile" />
-    <xsl:text>]</xsl:text>
-  </xsl:variable>
+    <text>[</text>
+    <apply-templates select="./c:*[1]" mode="compile" />
+    <text>]</text>
+  </variable>
 
-  <xsl:choose>
-    <xsl:when test="$next">
+  <choose>
+    <when test="$next">
       <!-- recurse on any sibling indexes, wrapping with default value -->
-      <xsl:apply-templates select="$next" mode="compile-calc-index">
-        <xsl:with-param name="wrap">
+      <apply-templates select="$next" mode="compile-calc-index">
+        <with-param name="wrap">
           <!-- wrap the value in parenthesis so that we can provide a default value if
                the index lookup fails -->
-          <xsl:text>(</xsl:text>
+          <text>(</text>
 
-          <xsl:value-of disable-output-escaping="yes" select="$value" />
+          <value-of disable-output-escaping="yes" select="$value" />
 
           <!-- using 0 as the default is fine, even if we have $next; accessing an index
                of 0 is perfectly fine, since it will be cast to an object; we just must
                make sure that it is not undefined -->
-          <xsl:text> || 0 )</xsl:text>
-        </xsl:with-param>
-      </xsl:apply-templates>
-    </xsl:when>
+          <text> || 0 )</text>
+        </with-param>
+      </apply-templates>
+    </when>
 
     <!-- if there is no sibling, just output our value with the index, unwrapped
          (since the caller will handle its default value for us -->
-    <xsl:otherwise>
-      <xsl:value-of disable-output-escaping="yes" select="$value" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <value-of disable-output-escaping="yes" select="$value" />
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
@@ -809,22 +808,22 @@
 
   @return generate quotient
 -->
-<xsl:template match="c:quotient" mode="compile-calc">
+<template match="c:quotient" mode="compile-calc">
   <!-- we only accept a numerator and a denominator -->
-  <xsl:apply-templates select="./c:*[1]" mode="compile" />
-  <xsl:text> / </xsl:text>
-  <xsl:apply-templates select="./c:*[2]" mode="compile" />
-</xsl:template>
+  <apply-templates select="./c:*[1]" mode="compile" />
+  <text> / </text>
+  <apply-templates select="./c:*[2]" mode="compile" />
+</template>
 
 
-<xsl:template match="c:expt" mode="compile-calc">
+<template match="c:expt" mode="compile-calc">
   <!-- we only accept a numerator and a denominator -->
-  <xsl:text>Math.pow(</xsl:text>
-  <xsl:apply-templates select="./c:*[1]" mode="compile" />
-  <xsl:text>, </xsl:text>
-  <xsl:apply-templates select="./c:*[2]" mode="compile" />
-  <xsl:text>)</xsl:text>
-</xsl:template>
+  <text>Math.pow(</text>
+  <apply-templates select="./c:*[1]" mode="compile" />
+  <text>, </text>
+  <apply-templates select="./c:*[2]" mode="compile" />
+  <text>)</text>
+</template>
 
 
 <!--
@@ -837,269 +836,269 @@
 
   @return generated function application
 -->
-<xsl:template match="c:apply" mode="compile-calc">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="self" select="." />
+<template match="c:apply" mode="compile-calc">
+  <variable name="name" select="@name" />
+  <variable name="self" select="." />
 
-  <xsl:call-template name="calc-compiler:gen-func-name">
-    <xsl:with-param name="name" select="@name" />
-  </xsl:call-template>
+  <call-template name="calc-compiler:gen-func-name">
+    <with-param name="name" select="@name" />
+  </call-template>
 
-  <xsl:text>( args</xsl:text>
+  <text>( args</text>
 
-  <xsl:variable name="arg-prefix" select="concat( ':', $name, ':' )" />
+  <variable name="arg-prefix" select="concat( ':', $name, ':' )" />
 
   <!-- generate argument list in the order that the arguments are expected (they
        can be entered in the XML in any order) -->
-  <xsl:for-each select="
+  <for-each select="
       root(.)/preproc:symtable/preproc:sym[
         @type='func'
         and @name=$name
       ]/preproc:sym-ref
     ">
 
-    <xsl:text>, </xsl:text>
+    <text>, </text>
 
-    <xsl:variable name="pname" select="substring-after( @name, $arg-prefix )" />
-    <xsl:variable name="arg" select="$self/c:arg[@name=$pname]" />
+    <variable name="pname" select="substring-after( @name, $arg-prefix )" />
+    <variable name="arg" select="$self/c:arg[@name=$pname]" />
 
-    <xsl:choose>
+    <choose>
       <!-- if the call specified this argument, then use it -->
-      <xsl:when test="$arg">
-        <xsl:apply-templates select="$arg/c:*[1]" mode="compile" />
-      </xsl:when>
+      <when test="$arg">
+        <apply-templates select="$arg/c:*[1]" mode="compile" />
+      </when>
 
       <!-- otherwise, there's no value; pass in 0 -->
-      <xsl:otherwise>
-        <xsl:value-of select="'0'" />
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:for-each>
+      <otherwise>
+        <value-of select="'0'" />
+      </otherwise>
+    </choose>
+  </for-each>
 
-  <xsl:text> )</xsl:text>
+  <text> )</text>
 
   <!-- if c:when was provided, compile it in such a way that we retain the
        function call (we want the result for providing debug information) -->
-  <xsl:if test="./c:when">
-    <xsl:text> * </xsl:text>
-    <xsl:apply-templates select="./c:when" mode="compile" />
-  </xsl:if>
-</xsl:template>
+  <if test="./c:when">
+    <text> * </text>
+    <apply-templates select="./c:when" mode="compile" />
+  </if>
+</template>
 
 
-<xsl:template match="c:when" mode="compile-calc">
+<template match="c:when" mode="compile-calc">
   <!-- note that if we have multiple c:whens, they'll be multiplied together by
        whatever calls this, so we're probably fine -->
 
-  <xsl:text>( function() {</xsl:text>
+  <text>( function() {</text>
     <!-- return a 1 or a 0 depending on the result of the expression -->
-    <xsl:text>return ( </xsl:text>
-      <xsl:text>( </xsl:text>
+    <text>return ( </text>
+      <text>( </text>
         <!-- get the value associated with this node -->
-        <xsl:apply-templates select="." mode="compile-calc-value" />
-      <xsl:text> ) </xsl:text>
+        <apply-templates select="." mode="compile-calc-value" />
+      <text> ) </text>
 
       <!-- generate remainder of expression -->
-      <xsl:apply-templates select="./c:*[1]" mode="compile-calc-when" />
-    <xsl:text>) ? 1 : 0; </xsl:text>
-  <xsl:text>} )()</xsl:text>
-</xsl:template>
+      <apply-templates select="./c:*[1]" mode="compile-calc-when" />
+    <text>) ? 1 : 0; </text>
+  <text>} )()</text>
+</template>
 
 
-<xsl:template match="c:eq|c:ne|c:lt|c:gt|c:lte|c:gte" mode="compile-calc-when">
-  <xsl:variable name="name" select="local-name()" />
+<template match="c:eq|c:ne|c:lt|c:gt|c:lte|c:gte" mode="compile-calc-when">
+  <variable name="name" select="local-name()" />
 
   <!-- map to LaTeX equivalent -->
-  <xsl:variable name="map">
-    <c id="eq">==</c>
-    <c id="ne">!=</c>
-    <c id="gt">&gt;</c>
-    <c id="lt">&lt;</c>
-    <c id="gte">&gt;=</c>
-    <c id="lte">&lt;=</c>
-  </xsl:variable>
+  <variable name="map">
+    <calc-compiler:c id="eq">==</calc-compiler:c>
+    <calc-compiler:c id="ne">!=</calc-compiler:c>
+    <calc-compiler:c id="gt">&gt;</calc-compiler:c>
+    <calc-compiler:c id="lt">&lt;</calc-compiler:c>
+    <calc-compiler:c id="gte">&gt;=</calc-compiler:c>
+    <calc-compiler:c id="lte">&lt;=</calc-compiler:c>
+  </variable>
 
-  <xsl:value-of disable-output-escaping="yes" select="$map/*[ @id=$name ]" />
-  <xsl:text> </xsl:text>
+  <value-of disable-output-escaping="yes" select="$map/*[ @id=$name ]" />
+  <text> </text>
 
-  <xsl:apply-templates select="./c:*[1]" mode="compile" />
-</xsl:template>
-
-
-<xsl:template match="c:*" mode="compile-calc-when">
-  <xsl:apply-templates select="." mode="compile-pre" />
-</xsl:template>
+  <apply-templates select="./c:*[1]" mode="compile" />
+</template>
 
 
-<xsl:template match="c:cases" mode="compile-calc">
-  <xsl:text>( function() {</xsl:text>
+<template match="c:*" mode="compile-calc-when">
+  <apply-templates select="." mode="compile-pre" />
+</template>
 
-    <xsl:for-each select="./c:case">
+
+<template match="c:cases" mode="compile-calc">
+  <text>( function() {</text>
+
+    <for-each select="./c:case">
       <!-- turn "if" into an "else if" if needed -->
-      <xsl:if test="position() > 1">
-        <xsl:text>else </xsl:text>
-      </xsl:if>
+      <if test="position() > 1">
+        <text>else </text>
+      </if>
 
-      <xsl:text>if (</xsl:text>
-        <xsl:for-each select="./c:when">
-          <xsl:if test="position() > 1">
+      <text>if (</text>
+        <for-each select="./c:when">
+          <if test="position() > 1">
             <!-- they all yield integer values, so this should work just fine -->
-            <xsl:text> * </xsl:text>
-          </xsl:if>
+            <text> * </text>
+          </if>
 
-          <xsl:apply-templates select="." mode="compile" />
-        </xsl:for-each>
-      <xsl:text> ) { return </xsl:text>
+          <apply-templates select="." mode="compile" />
+        </for-each>
+      <text> ) { return </text>
         <!-- process on its own so that we can debug its final value -->
-        <xsl:apply-templates select="." mode="compile" />
-      <xsl:text>; } </xsl:text>
-    </xsl:for-each>
+        <apply-templates select="." mode="compile" />
+      <text>; } </text>
+    </for-each>
 
     <!-- check for the existence of an "otherwise" clause, which should be
          trivial enough to generate -->
-    <xsl:if test="c:otherwise">
+    <if test="c:otherwise">
       <!-- this situation may occur in templates since it's a convenient and
            easy-to-use template notation (conditional cases, none of which may
            actually match and be output) -->
-      <xsl:choose>
-        <xsl:when test="c:case">
-          <xsl:text>else</xsl:text>
-        </xsl:when>
+      <choose>
+        <when test="c:case">
+          <text>else</text>
+        </when>
 
-        <xsl:otherwise>
-          <xsl:text>if ( true )</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
+        <otherwise>
+          <text>if ( true )</text>
+        </otherwise>
+      </choose>
 
-      <xsl:text> { return </xsl:text>
-        <xsl:apply-templates select="c:otherwise" mode="compile" />
-      <xsl:text>; } </xsl:text>
-    </xsl:if>
+      <text> { return </text>
+        <apply-templates select="c:otherwise" mode="compile" />
+      <text>; } </text>
+    </if>
 
-  <xsl:text> } )() || 0</xsl:text>
-</xsl:template>
+  <text> } )() || 0</text>
+</template>
 
-<xsl:template match="c:case" mode="compile-calc">
-  <xsl:apply-templates
+<template match="c:case" mode="compile-calc">
+  <apply-templates
     select="./c:*[ not( local-name() = 'when' ) ][1]"
     mode="compile-calc-when" />
-</xsl:template>
+</template>
 
-<xsl:template match="c:otherwise" mode="compile-calc">
-  <xsl:apply-templates
+<template match="c:otherwise" mode="compile-calc">
+  <apply-templates
     select="c:*[1]"
     mode="compile-calc-when" />
-</xsl:template>
+</template>
 
 
-<xsl:template match="c:set" mode="compile-calc">
-  <xsl:text>[</xsl:text>
-    <xsl:for-each select="./c:*">
-      <xsl:if test="position() > 1">
-        <xsl:text>,</xsl:text>
-      </xsl:if>
+<template match="c:set" mode="compile-calc">
+  <text>[</text>
+    <for-each select="./c:*">
+      <if test="position() > 1">
+        <text>,</text>
+      </if>
 
-      <xsl:apply-templates select="." mode="compile" />
-    </xsl:for-each>
-  <xsl:text>]</xsl:text>
-</xsl:template>
+      <apply-templates select="." mode="compile" />
+    </for-each>
+  <text>]</text>
+</template>
 
 
 <!--
   Just list the Lisp cons (constructs a list)
 -->
-<xsl:template match="c:cons" mode="compile-calc">
-  <xsl:variable name="car" select="./c:*[1]" />
-  <xsl:variable name="cdr" select="./c:*[2]" />
+<template match="c:cons" mode="compile-calc">
+  <variable name="car" select="./c:*[1]" />
+  <variable name="cdr" select="./c:*[2]" />
 
-  <xsl:text>(function(){</xsl:text>
+  <text>(function(){</text>
     <!-- duplicate the array just in case...if we notice a performance impact,
          then we can determine if such a duplication is necessary -->
-    <xsl:text>var cdr = Array.prototype.slice.call(</xsl:text>
-      <xsl:apply-templates select="$cdr" mode="compile" />
-    <xsl:text>, 0);</xsl:text>
-    <xsl:text>cdr.unshift( </xsl:text>
-      <xsl:apply-templates select="$car" mode="compile" />
-    <xsl:text> ); </xsl:text>
+    <text>var cdr = Array.prototype.slice.call(</text>
+      <apply-templates select="$cdr" mode="compile" />
+    <text>, 0);</text>
+    <text>cdr.unshift( </text>
+      <apply-templates select="$car" mode="compile" />
+    <text> ); </text>
     <!-- no longer the cdr -->
-    <xsl:text>return cdr; </xsl:text>
-  <xsl:text>})()</xsl:text>
-</xsl:template>
+    <text>return cdr; </text>
+  <text>})()</text>
+</template>
 
 
-<xsl:template match="c:car" mode="compile-calc">
-  <xsl:text>(</xsl:text>
-    <xsl:apply-templates select="c:*[1]" mode="compile" />
-  <xsl:text>[0]||0)</xsl:text>
-</xsl:template>
+<template match="c:car" mode="compile-calc">
+  <text>(</text>
+    <apply-templates select="c:*[1]" mode="compile" />
+  <text>[0]||0)</text>
+</template>
 
-<xsl:template match="c:cdr" mode="compile-calc">
-  <xsl:apply-templates select="c:*[1]" mode="compile" />
-  <xsl:text>.slice(1)</xsl:text>
-</xsl:template>
+<template match="c:cdr" mode="compile-calc">
+  <apply-templates select="c:*[1]" mode="compile" />
+  <text>.slice(1)</text>
+</template>
 
 
 <!--
   Returns the length of any type of set (not just a vector)
 -->
-<xsl:template match="c:length-of" mode="compile-calc">
-  <xsl:text>( </xsl:text>
-  <xsl:apply-templates select="./c:*[1]" mode="compile" />
-  <xsl:text>.length || 0 )</xsl:text>
-</xsl:template>
+<template match="c:length-of" mode="compile-calc">
+  <text>( </text>
+  <apply-templates select="./c:*[1]" mode="compile" />
+  <text>.length || 0 )</text>
+</template>
 
 
-<xsl:template match="c:let" mode="compile-calc">
+<template match="c:let" mode="compile-calc">
   <!-- the first node contains all the values -->
-  <xsl:variable name="values" select="./c:values/c:value" />
+  <variable name="values" select="./c:values/c:value" />
 
   <!-- if a @name was provided, then treat it like a named Scheme let
        expression in that it can be invoked with different arguments -->
-  <xsl:variable name="fname">
-    <xsl:if test="@name">
-      <xsl:call-template name="calc-compiler:gen-func-name">
-        <xsl:with-param name="name" select="@name" />
-      </xsl:call-template>
-    </xsl:if>
-  </xsl:variable>
+  <variable name="fname">
+    <if test="@name">
+      <call-template name="calc-compiler:gen-func-name">
+        <with-param name="name" select="@name" />
+      </call-template>
+    </if>
+  </variable>
 
-  <xsl:text>( </xsl:text>
-    <xsl:if test="@name">
-      <xsl:value-of select="$fname" />
-      <xsl:text> = </xsl:text>
-    </xsl:if>
-  <xsl:text>function( </xsl:text>
+  <text>( </text>
+    <if test="@name">
+      <value-of select="$fname" />
+      <text> = </text>
+    </if>
+  <text>function( </text>
     <!-- generate arguments -->
-    <xsl:for-each select="$values">
-      <xsl:if test="position() > 1">
-        <xsl:text>,</xsl:text>
-      </xsl:if>
+    <for-each select="$values">
+      <if test="position() > 1">
+        <text>,</text>
+      </if>
 
-      <xsl:value-of select="@name" />
-    </xsl:for-each>
-  <xsl:text> ) { </xsl:text>
+      <value-of select="@name" />
+    </for-each>
+  <text> ) { </text>
 
     <!-- the second node is the body -->
-    <xsl:text>return </xsl:text>
-      <xsl:apply-templates select="./c:*[2]" mode="compile" />
-    <xsl:text>;</xsl:text>
-  <xsl:text>} )</xsl:text>
+    <text>return </text>
+      <apply-templates select="./c:*[2]" mode="compile" />
+    <text>;</text>
+  <text>} )</text>
 
   <!-- assign the arguments according to the calculations -->
-  <xsl:text>( </xsl:text>
-    <xsl:for-each select="$values">
-      <xsl:if test="position() > 1">
-        <xsl:text>,</xsl:text>
-      </xsl:if>
+  <text>( </text>
+    <for-each select="$values">
+      <if test="position() > 1">
+        <text>,</text>
+      </if>
 
       <!-- compile the argument value (the parenthesis are just to make it
            easier to read the compiled code) -->
-      <xsl:text>(</xsl:text>
-        <xsl:apply-templates select="./c:*[1]" mode="compile" />
-      <xsl:text>)</xsl:text>
-    </xsl:for-each>
-  <xsl:text> ) </xsl:text>
-</xsl:template>
+      <text>(</text>
+        <apply-templates select="./c:*[1]" mode="compile" />
+      <text>)</text>
+    </for-each>
+  <text> ) </text>
+</template>
 
 
 <!--
@@ -1108,33 +1107,33 @@
 
   @return generated function name
 -->
-<xsl:template name="calc-compiler:gen-func-name">
-  <xsl:param name="name" />
+<template name="calc-compiler:gen-func-name">
+  <param name="name" />
 
-  <xsl:text>func_</xsl:text>
-  <xsl:value-of select="$name" />
-</xsl:template>
+  <text>func_</text>
+  <value-of select="$name" />
+</template>
 
 
-<xsl:template match="c:debug-to-console" mode="compile-calc">
-  <xsl:text>(function(){</xsl:text>
-    <xsl:text>var result = </xsl:text>
-      <xsl:apply-templates select="./c:*[1]" mode="compile" />
-    <xsl:text>;</xsl:text>
+<template match="c:debug-to-console" mode="compile-calc">
+  <text>(function(){</text>
+    <text>var result = </text>
+      <apply-templates select="./c:*[1]" mode="compile" />
+    <text>;</text>
 
     <!-- log the result and return it so that we do not inhibit the calculation
          (allowing it to be inlined anywhere) -->
-    <xsl:text>console.log( </xsl:text>
-      <xsl:if test="@label">
-        <xsl:text>'</xsl:text>
-          <xsl:value-of select="@label" />
-        <xsl:text>', </xsl:text>
-      </xsl:if>
+    <text>console.log( </text>
+      <if test="@label">
+        <text>'</text>
+          <value-of select="@label" />
+        <text>', </text>
+      </if>
 
-      <xsl:text>result ); </xsl:text>
-    <xsl:text>return result; </xsl:text>
-  <xsl:text>})()</xsl:text>
-</xsl:template>
+      <text>result ); </text>
+    <text>return result; </text>
+  <text>})()</text>
+</template>
 
 
 <!--
@@ -1147,12 +1146,12 @@
 
   @return self-executing anonymous error function
 -->
-<xsl:template match="c:*" mode="compile-calc">
-  <xsl:text>( function () {</xsl:text>
-    <xsl:text>throw Error( "Unknown calculation: </xsl:text>
-      <xsl:value-of select="name()" />
-    <xsl:text>" ); </xsl:text>
-  <xsl:text>} )() </xsl:text>
-</xsl:template>
+<template match="c:*" mode="compile-calc">
+  <text>( function () {</text>
+    <text>throw Error( "Unknown calculation: </text>
+      <value-of select="name()" />
+    <text>" ); </text>
+  <text>} )() </text>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
