@@ -50,6 +50,35 @@ Performance has improved drastically,
 @end enumerate
 
 
+@section Compiler
+The compiler itself has cruft from over the years and most of the code
+  exists from the design prior to object files and symbol tables.
+There is plenty of room for optimization.
+
+@enumerate
+  @item Validate against an algebraic type system.
+        Certain classes of bugs can be avoided entirely by stating that
+          values must always be a vector of positive real numbers, for
+          example.
+        The compiler can determine the type of expressions by the
+          symbols it references and by its child expressions.
+        In situations that are not resolvable at compile-time,
+          runtime checks via terminating classifications would do;
+            an example being the sum of two unsigned integers being
+            non-zero.
+        In cases where types are simply too difficult to determine
+          without significant compiler work,
+            annotations can be used to declare expressions equivalent
+            to certain mathematical concepts
+              (e.g. ``this function is equivalent to rounding to the
+                nearest integer'');
+              this can also serve as an alternative to primitives in
+                certain instances,
+                  since native target language features could be used.
+
+@end enumerate
+
+
 @section Input/Return Map
 @enumerate
   @item Generate normal packages and use templates rather than a
