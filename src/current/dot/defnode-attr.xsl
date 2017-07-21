@@ -30,7 +30,6 @@
 <xsl:import href="./attr-color.xsl" />
 <xsl:import href="./attr-shape.xsl" />
 <xsl:import href="./attr-extern.xsl" />
-<xsl:import href="./attr-keep.xsl" />
 
 
 <!--
