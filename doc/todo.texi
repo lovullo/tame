@@ -79,6 +79,25 @@ There is plenty of room for optimization.
 @end enumerate
 
 
+@section Preprocessor
+The preprocessor is primarily responsible for macro (template) expansion.
+
+@enumerate
+  @item Remove distinction between primitives and short-hand template
+          expansion.
+        Treat @emph{all} nodes as potential template expansions,
+          and use the core library to mark certain templates as
+          primitives.
+        This will allow extending the language grammar naturally,
+          and easily convert existing primitives to templates.@footnote{
+            For example, @samp{lv:rate-each} is a good candidate for
+              a template.
+            Ideally, all XSLT-driven expansions should be converted
+                into templates (the template system didn't exist back
+                then).}
+@end enumerate
+
+
 @section Input/Return Map
 @enumerate
   @item Generate normal packages and use templates rather than a
