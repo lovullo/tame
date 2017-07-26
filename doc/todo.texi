@@ -120,3 +120,14 @@ The preprocessor is primarily responsible for macro (template) expansion.
               it in the return map,
                 which is error-prone.
 @end enumerate
+
+
+@section Documentation
+Programs are written in a literate style.
+
+@enumerate
+  @item Auto-generate LaTeX documentation using the existing @code{lvspec}
+          package used to manually write specifications some time ago.
+        Certain implementation details may need to be sorted out,
+          like determining the section hierarchy.
+@end enumerate
