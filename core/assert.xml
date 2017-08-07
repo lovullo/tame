@@ -48,13 +48,6 @@
       <text>Assertion failure</text>
     </param>
 
-    <!-- default to external to ensure that calculations do not wind
-         up in the classifier -->
-    <param name="@external@"
-           desc="Whether classification is external (default TRUE)">
-      <text>true</text>
-    </param>
-
     <param name="@__classyields@"
            desc="Classification yield to match on">
       <param-class-to-yields name="@class@" />
@@ -63,7 +56,6 @@
 
     <classify as="@as@"
               desc="@desc@"
-              external="@external@"
               terminate="true">
       <if name="@when@">
         <match on="@when@" />
