@@ -186,6 +186,11 @@
                                      or @name = '___worksheet'
                                      or @type = 'meta' ]" />
 
+    <!-- include any package-level eligibility classes, which contain
+         terminating classifications and possibly other checks -->
+    <sequence select="preproc:sym[
+                        @name = ancestor::lv:package/@preproc:elig-class-yields ]" />
+
     <!-- TODO: messy; refactor this symbol situation -->
     <!-- this should be the sole source of outputs and, consequently,
          dependencies -->
