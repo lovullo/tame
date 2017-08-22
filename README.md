@@ -44,6 +44,13 @@ project resulted in a bit of a mess, which is being refactored into
 `src/` as it is touched.  Documentation is virtually non-existent.
 
 
+## Documentation
+Compiled documentation is available [via our GitLab
+mirror](https://lovullo.gitlab.io/tame/), which uses the same build
+pipeline as we do on our internal GitLab instance.  It contains the current
+state of master (with some delay), not just the most recent tag.
+
+
 ## License
 This program is free software: you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the Free
