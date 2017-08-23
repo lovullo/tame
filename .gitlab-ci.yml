@@ -1,0 +1,37 @@
+image: lovullo/rater-ci
+
+stages:
+    - build
+    - deploy
+
+before_script:
+    - apt-get update
+    - apt-get -y install --no-install-recommends texinfo texlive-latex-base
+    - apt-get -y install nodejs
+    - git submodule update --init --recursive
+    - git clone https://gitlab.com/mikegerwitz/hoxsl
+
+build:
+    stage: build
+    script:
+        - export SAXON_CP=/usr/share/ant/lib/saxon9/saxon9he.jar
+        - autoreconf -fvi
+        - ./configure
+        - ( cd progtest && npm install && ./autogen.sh && ./configure )
+        - make all check info pdf html
+    artifacts:
+        paths:
+            - doc/
+        expire_in: 30 min
+
+pages:
+    stage: deploy
+    script:
+        - mkdir -p public/doc
+        - mv doc/tame.html/* doc/tame.pdf doc/tame.info public/
+    artifacts:
+        paths:
+            - public/
+        expire_in: 30 min
+    only:
+        - tags
