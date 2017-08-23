@@ -112,7 +112,7 @@
   @end menu
 
   @lowersections
-  @include ../src/symtable/symbols.texi
+  @include src/symtable/symbols.texi
   @raisesections
 -->
 

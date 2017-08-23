@@ -113,13 +113,13 @@ TAME
 @end menu
 
 @lowersections
-@include ../src/preproc/expand/expand-sequence.texi
+@include src/preproc/expand/expand-sequence.texi
 @raisesections
 
 @c chapter
 @raisesections
-@include ../src/graph.texi
-@include ../src/symtable.texi
+@include src/graph.texi
+@include src/symtable.texi
 @lowersections
 
 @include todo.texi
