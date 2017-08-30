@@ -166,6 +166,36 @@
   </function>
 
 
+  The template \ref{_repeat-value_} will generate a vector from the
+    given value for each class match.
+
+  <template name="_repeat-value_"
+            desc="Repeat value for each class match">
+    <param name="@values@"    desc="Calculation producing value (use
+                                    one of this or @value@)" />
+    <param name="@class@"     desc="Classification to consider" />
+    <param name="@value@"     desc="Value to repeat (use one of this
+                                    or @values@)" />
+    <param name="@generates@" desc="Result value (vector)" />
+
+    <!-- if providing @values@ -->
+    <param name="@index@" desc="Generator index">
+      <text>__k</text>
+    </param>
+
+
+    <rate-each class="@class@"
+               generates="@generates@" index="@index@">
+      <if name="@values@">
+        <param-copy name="@values@" />
+      </if>
+      <unless name="@values@">
+        <c:value-of name="@value@" index="@index@" />
+      </unless>
+    </rate-each>
+  </template>
+
+
   <!-- generates a variable that can be recognized as an empty set (useful for
        defaults to params that require sets) -->
   <rate-each class="always" yields="__empty" generates="__emptySet" index="k">
