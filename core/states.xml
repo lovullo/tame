@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2017 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="United States">
+
+
+  <section title="States">
+    The type \ref{State} contains each of the States in the United~States,
+      with the addition of Washington~DC.
+    The States are 0-indexed and sorted by \emph{abbreviation}\footnote{
+      States are sorted by abbreviation rather than the State name beacuse
+        they are most frequently referenced as such.}.
+
+    <typedef name="State" desc="States">
+      <enum type="integer">
+        <item name="STATE_NONE" value="-1" desc="No State"       />
+        <item name="STATE_AK"   value="0"  desc="Alaska"         />
+        <item name="STATE_AL"   value="1"  desc="Alabama"        />
+        <item name="STATE_AR"   value="2"  desc="Arkansas"       />
+        <item name="STATE_AZ"   value="3"  desc="Arizona"        />
+        <item name="STATE_CA"   value="4"  desc="California"     />
+        <item name="STATE_CO"   value="5"  desc="Colorado"       />
+        <item name="STATE_CT"   value="6"  desc="Connecticut"    />
+        <item name="STATE_DC"   value="7"  desc="Washington DC"  />
+        <item name="STATE_DE"   value="8"  desc="Delaware"       />
+        <item name="STATE_FL"   value="9"  desc="Florida"        />
+        <item name="STATE_GA"   value="10" desc="Georgia"        />
+        <item name="STATE_HI"   value="11" desc="Hawaii"         />
+        <item name="STATE_IA"   value="12" desc="Iowa"           />
+        <item name="STATE_ID"   value="13" desc="Idaho"          />
+        <item name="STATE_IL"   value="14" desc="Illinois"       />
+        <item name="STATE_IN"   value="15" desc="Indiana"        />
+        <item name="STATE_KS"   value="16" desc="Kansas"         />
+        <item name="STATE_KY"   value="17" desc="Kentucky"       />
+        <item name="STATE_LA"   value="18" desc="Louisiana"      />
+        <item name="STATE_MA"   value="19" desc="Maine"          />
+        <item name="STATE_MD"   value="20" desc="Maryland"       />
+        <item name="STATE_ME"   value="21" desc="Massachusetts"  />
+        <item name="STATE_MI"   value="22" desc="Michigan"       />
+        <item name="STATE_MN"   value="23" desc="Minnesota"      />
+        <item name="STATE_MO"   value="24" desc="missouri"       />
+        <item name="STATE_MS"   value="25" desc="Mississippi"    />
+        <item name="STATE_MT"   value="26" desc="Montana"        />
+        <item name="STATE_NC"   value="27" desc="North Carolina" />
+        <item name="STATE_ND"   value="28" desc="North Dakota"   />
+        <item name="STATE_NE"   value="29" desc="Nebraska"       />
+        <item name="STATE_NH"   value="30" desc="New Hampshire"  />
+        <item name="STATE_NJ"   value="31" desc="New Jersey"     />
+        <item name="STATE_NM"   value="32" desc="New Mexico"     />
+        <item name="STATE_NV"   value="33" desc="Nevada"         />
+        <item name="STATE_NY"   value="34" desc="New York"       />
+        <item name="STATE_OH"   value="35" desc="Ohio"           />
+        <item name="STATE_OK"   value="36" desc="Oklahoma"       />
+        <item name="STATE_OR"   value="37" desc="Oregon"         />
+        <item name="STATE_PA"   value="38" desc="Pennsylvania"   />
+        <item name="STATE_RI"   value="39" desc="Rhode Island"   />
+        <item name="STATE_SC"   value="40" desc="South Carolina" />
+        <item name="STATE_SD"   value="41" desc="South Dakota"   />
+        <item name="STATE_TN"   value="42" desc="Tennessee"      />
+        <item name="STATE_TX"   value="43" desc="Texas"          />
+        <item name="STATE_UT"   value="44" desc="Utah"           />
+        <item name="STATE_VA"   value="45" desc="Virginia"       />
+        <item name="STATE_VT"   value="46" desc="Vermont"        />
+        <item name="STATE_WA"   value="47" desc="Washington"     />
+        <item name="STATE_WI"   value="48" desc="Wisconsin"      />
+        <item name="STATE_WV"   value="49" desc="West Virginia"  />
+        <item name="STATE_WY"   value="50" desc="Wyoming"        />
+      </enum>
+    </typedef>
+  </section>
+</package>
