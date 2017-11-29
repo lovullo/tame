@@ -275,8 +275,14 @@
   <xsl:variable name="pkg" as="element( lv:package )"
                 select="root(.)" />
 
-  <xsl:variable name="rate" as="element( lv:rate )"
+  <xsl:variable name="rate" as="element( lv:rate )*"
                 select="$pkg/lv:rate[ @yields=$name ]" />
+
+  <xsl:if test="count( $rate ) gt 1">
+    <xsl:message terminate="yes"
+                 select="'error: rate block name conflict:',
+                         string( $rate/@yields[1] )" />
+  </xsl:if>
 
   <xsl:apply-templates mode="preproc:depgen"
                        select="$rate" />
