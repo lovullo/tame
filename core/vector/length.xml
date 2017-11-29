@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2017 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Operations Based on Vector Length">
+
+  <import package="../base" />
+  <import package="../numeric/common" export="true" />
+
+
+  See the respective test specification for examples.
+
+
+  <section title="Non-empty Vectors">
+    \ref{_first-nonempty_} will yield the result of the first toplevel
+      expression that is not an empty vector.
+    This template yields an empty vector if no non-empty vectors are found.
+
+    <template name="_first-nonempty_"
+              desc="Return the first non-empty vector">
+      <param name="@values@" desc="List of vectors" />
+
+
+      <c:let>
+        <c:values>
+          <!-- avoid having to copy @values@ multiple times -->
+          <c:value name="_list" type="float"
+                   desc="Result of body expression">
+            <c:set>
+              <param-copy name="@values@" />
+            </c:set>
+          </c:value>
+        </c:values>
+
+
+        <c:apply name="_first_nonempty">
+          <c:arg name="list">
+            <c:value-of name="_list" />
+          </c:arg>
+
+          <c:arg name="index">
+            <c:const value="0" desc="First element" />
+          </c:arg>
+
+          <c:arg name="length">
+            <c:length-of>
+              <c:value-of name="_list" />
+            </c:length-of>
+          </c:arg>
+        </c:apply>
+      </c:let>
+    </template>
+
+
+    Its helper function is \ref{_first_nonempty},
+      which recurses through each vector element until a non-empty vector is
+        encountered.
+
+    <function name="_first_nonempty"
+              desc="Return the first non-empty vector">
+      <param name="list" type="float" set="vector"
+             desc="List of vectors to process" />
+
+      <param name="index" type="integer"
+             desc="Current index (for recursion), decrementing" />
+      <param name="length" type="integer"
+             desc="Length of list" />
+
+
+      <c:let>
+        <c:values>
+          <c:value name="cur_len" type="integer"
+                   desc="Length of current vector">
+            <c:length-of>
+              <c:value-of name="list" index="index" />
+            </c:length-of>
+          </c:value>
+        </c:values>
+
+
+        <c:cases>
+          <!-- if none were found (end of list), return empty vector -->
+          <c:case>
+            <c:when name="index">
+              <c:gte>
+                <c:value-of name="length" />
+              </c:gte>
+            </c:when>
+
+            <c:set />
+          </c:case>
+
+          <!-- non-empty vector, return it -->
+          <c:case>
+            <c:when name="cur_len">
+              <c:gt>
+                <c:const value="0" desc="Vector length" />
+              </c:gt>
+            </c:when>
+
+            <c:value-of name="list" index="index" />
+          </c:case>
+
+          <!-- vector was empty, keep going (decrement index) -->
+          <c:otherwise>
+            <c:recurse>
+              <c:arg name="index">
+                <t:inc>
+                  <c:value-of name="index" />
+                </t:inc>
+              </c:arg>
+            </c:recurse>
+          </c:otherwise>
+        </c:cases>
+      </c:let>
+    </function>
+  </section>
+</package>
