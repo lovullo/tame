@@ -247,21 +247,15 @@
 
   <!-- if the @src attribute is empty, then it resides within the same package
        -->
-  <xsl:variable name="typesrc">
-    <xsl:choose>
-      <xsl:when test="@src">
-        <xsl:value-of select="@src" />
-      </xsl:when>
-
-      <xsl:otherwise>
-        <xsl:value-of select="$sym/@src" />
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:variable>
+  <xsl:variable name="typesrc"
+                select="if ( $typesym/@src ) then
+                            $typesym/@src
+                          else
+                            $sym/@src" />
 
   <!-- load the typedef from the appropriate package -->
   <xsl:variable name="typepkg" select="
-      if ( @src and not( @src='' ) ) then
+      if ( $typesrc and not( $typesrc='' ) ) then
         document( concat( $typesrc, '.xmlo' ), $sym )/lv:*
       else
         $pkg
@@ -269,8 +263,8 @@
   <!-- this makes maintinance more difficult, but speeds up searching large
        trees -->
   <xsl:variable name="typedef" select="
-      $typepkg/lv:typedef[ @name=$type ]
-      |$typepkg/lv:typedef/lv:union/lv:typedef[ @name=$type ]
+      $typepkg//lv:typedef[ @name=$type ]
+      |$typepkg//lv:typedef/lv:union/lv:typedef[ @name=$type ]
     " />
 
   <xsl:choose>
