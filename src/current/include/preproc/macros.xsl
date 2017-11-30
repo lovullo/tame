@@ -402,7 +402,7 @@
 
     <xsl:sequence select="./lv:class" />
 
-    <c:sum of="_CMATCH_" index="{@index}" sym="{@gensym}">
+    <c:sum of="_CMATCH_" index="{@index}" sym="{@gensym}" dim="{@dim}">
       <!-- copy @generates, if it exists (has the benefit of copying nothing
            if it does not exist) -->
       <xsl:sequence select="@generates" />

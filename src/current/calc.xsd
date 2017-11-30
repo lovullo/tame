@@ -235,6 +235,16 @@
                 </xs:documentation>
               </xs:annotation>
             </xs:attribute>
+
+            <xs:attribute name="dim" type="xs:string">
+              <xs:annotation>
+                <xs:documentation xml:lang="en">
+                  Specify the dimension of each index of the generator result.
+                  Disables casting and truncating with @precision if greater
+                  than 0 or 'scaler'.  This expands into c:sum/@dim.
+                </xs:documentation>
+              </xs:annotation>
+            </xs:attribute>
           </xs:extension>
         </xs:complexContent>
       </xs:complexType>

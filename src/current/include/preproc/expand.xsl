@@ -123,6 +123,46 @@
 
 
 <!--
+  Translate dimension aliases (e.g. scaler, vector, matrix) into respective
+  numeric representations.
+-->
+<xsl:template mode="preproc:expand" priority="8"
+              match="c:*[ @dim
+                          and not( string( @dim ) castable as xs:integer ) ]">
+  <xsl:copy>
+    <xsl:sequence select="@*" />
+
+    <!-- replace dim with numeric -->
+    <xsl:attribute name="dim">
+      <xsl:choose>
+        <xsl:when test="@dim = 'scaler' or @dim = ''">
+          <xsl:sequence select="0" />
+        </xsl:when>
+
+        <xsl:when test="@dim = 'vector'">
+          <xsl:sequence select="1" />
+        </xsl:when>
+
+        <xsl:when test="@dim = 'matrix'">
+          <xsl:sequence select="2" />
+        </xsl:when>
+
+        <xsl:otherwise>
+          <xsl:message terminate="yes"
+                       select="concat(
+                                 '!!! [preproc] error: ',
+                                 'unknown dimension alias ''',
+                                 @dim, '''' )" />
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:attribute>
+
+    <xsl:sequence select="node()" />
+  </xsl:copy>
+</xsl:template>
+
+
+<!--
   Give let's a name so that they may be easily referenced uniquely
 -->
 <xsl:template match="c:let[ not( @name ) ]" mode="preproc:expand" priority="5">

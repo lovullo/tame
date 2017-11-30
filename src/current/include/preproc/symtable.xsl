@@ -688,9 +688,12 @@
 <xsl:template match="c:*[ @generates ]" mode="preproc:symtable" priority="5">
   <xsl:variable name="parent" select="ancestor::lv:rate" />
 
+  <xsl:variable name="dim" as="xs:integer"
+                select="if ( @dim ) then @dim else 1" />
+
   <preproc:sym name="{@generates}"
     parent="{$parent/@yields}"
-    type="gen" dtype="float" dim="1" desc="{@desc}" tex="{@sym}" />
+    type="gen" dtype="float" dim="{$dim}" desc="{@desc}" tex="{@sym}" />
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>

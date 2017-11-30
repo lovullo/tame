@@ -36,6 +36,7 @@
 -->
 <stylesheet version="2.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
             xmlns:c="http://www.lovullo.com/calc"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:preproc="http://www.lovullo.com/rater/preproc"
@@ -187,6 +188,9 @@
     </choose>
   </variable>
 
+  <variable name="dim" as="xs:integer"
+            select="if ( @dim ) then @dim else 0" />
+
   <!-- introduce scope both to encapsulate values and so we can insert this as
        part of a larger expression (will return a value) -->
   <text>( function() {</text>
@@ -245,7 +249,12 @@
       <value-of select="$value" />
     <text> ) {</text>
 
-    <text>var result = +(+( </text>
+    <text>var result = </text>
+    <!-- if caller wants to yield a vector, don't cast -->
+    <sequence select="if ( not( $dim gt 0 ) ) then
+                          '+(+( '
+                        else
+                          '(( '" />
       <choose>
         <!-- if there are child nodes, use that as the summand/expression -->
         <when test="./c:*">
@@ -260,9 +269,16 @@
           <text>]</text>
         </otherwise>
       </choose>
-    <text> )).toFixed(</text>
-      <value-of select="$precision" />
-    <text>);</text>
+    <text> ))</text>
+
+    <!-- if caller wants to yield a vector, don't truncate -->
+    <if test="not( $dim gt 0 )">
+      <text>.toFixed(</text>
+        <value-of select="$precision" />
+      <text>)</text>
+    </if>
+
+    <text>;</text>
 
     <!-- if generating a set, store this result -->
     <if test="@generates">
