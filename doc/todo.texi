@@ -75,7 +75,24 @@ There is plenty of room for optimization.
               this can also serve as an alternative to primitives in
                 certain instances,
                   since native target language features could be used.
-
+  @item Make parameters package-scoped and allow importers to
+          determine what to do with them.
+        If an importer provides a mapping for the parameter,
+          which may be a calculation or anything else,
+          then the parameter will be bound;
+            otherwise it will be propagated as a parameter.
+        But since we do not have any sort of loxical scoping or
+          closures,
+            if a parameter is bound more than once,
+              an error would have to occur during linking.
+        This would also replace externs,
+          which was intended to be a temporary kluge when
+            transitioning to a symbol-based system.
+        This also has the additional benefit that parameters can
+          represent inputs in shared systems for the sake of mocking
+            and as an alternative to externs without having the
+            downsides of a paramter---that
+              it must be mapped as an input.
 @end enumerate
 
 
