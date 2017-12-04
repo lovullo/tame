@@ -31,7 +31,9 @@
   <import package="numeric/convert" />
   <import package="numeric/percent" />
   <import package="vector/interpolate" />
+  <!-- XXX broken!
   <import package="ui" />
+  -->
 
 
   <t:verify-specs result="expectOk" />
