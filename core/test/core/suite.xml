@@ -35,4 +35,8 @@
 
 
   <t:verify-specs result="expectOk" />
+
+  <yield>
+    <c:value-of name="expectOk" />
+  </yield>
 </package>
