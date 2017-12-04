@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
-  Copyright (C) 2015  LoVullo Associates, Inc.
+  Copyright (C) 2015, 2017 LoVullo Associates, Inc.
 
   This file is part of tame-core.
 
@@ -25,6 +25,8 @@
 
   <import package="../base" />
 
+  <import package="../numeric/common" export="true" />
+
 
 
   <!--
@@ -43,6 +45,7 @@
     <param name="@cdr@" desc="Variable in which to store the cdr of the set">
       <text>__cdr</text>
     </param>
+    <param name="@index@" desc="Index variable" />
 
     <param name="@base@" desc="Base set to return (otherwise an empty set)" />
     <param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
@@ -115,6 +118,14 @@
                     <c:arg name="@set@">
                       <c:value-of name="@cdr@" />
                     </c:arg>
+
+                    <if name="@index@">
+                      <c:arg name="@index@">
+                        <t:inc>
+                          <c:value-of name="@index@" />
+                        </t:inc>
+                      </c:arg>
+                    </if>
                   </c:recurse>
                 </c:case>
               </if>
@@ -133,6 +144,14 @@
                       <c:arg name="@set@">
                         <c:value-of name="@cdr@" />
                       </c:arg>
+
+                      <if name="@index@">
+                        <c:arg name="@index@">
+                          <t:inc>
+                            <c:value-of name="@index@" />
+                          </t:inc>
+                        </c:arg>
+                      </if>
                     </c:recurse>
                   </c:cons>
                 </unless>
@@ -146,6 +165,14 @@
                         <c:arg name="@set@">
                           <c:value-of name="@cdr@" />
                         </c:arg>
+
+                        <if name="@index@">
+                          <c:arg name="@index@">
+                            <t:inc>
+                              <c:value-of name="@index@" />
+                            </t:inc>
+                          </c:arg>
+                        </if>
                       </c:recurse>
                     </c:arg>
 
