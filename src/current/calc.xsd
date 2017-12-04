@@ -461,7 +461,7 @@
           <xs:complexContent>
             <xs:extension base="operatorBaseType">
               <xs:sequence>
-                <xs:element name="arg" type="applyArgumentType" minOccurs="0" maxOccurs="unbounded" />
+                <xs:group ref="applyArgs" minOccurs="0" maxOccurs="unbounded" />
               </xs:sequence>
 
               <xs:attribute name="name" type="nameType" use="required">
@@ -479,6 +479,12 @@
         </xs:complexType>
       </xs:element>
 
+      <xs:group name="applyArgs">
+        <xs:choice>
+          <xs:element name="arg" type="applyArgumentType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded" />
+        </xs:choice>
+      </xs:group>
 
       <xs:complexType name="applyArgumentType">
         <xs:annotation>
@@ -514,7 +520,7 @@
           <xs:complexContent>
             <xs:extension base="operatorBaseType">
               <xs:sequence>
-                <xs:element name="arg" type="applyArgumentType" minOccurs="0" maxOccurs="unbounded" />
+                <xs:group ref="applyArgs" minOccurs="0" maxOccurs="unbounded" />
               </xs:sequence>
 
               <!-- argument shorthand -->
