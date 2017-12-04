@@ -26,50 +26,151 @@
   <import package="../base" />
   <import package="../numeric/common" />
   <import package="../numeric/minmax" />
+  <import package="list" />
 
 
 
-  <!-- for the time being, the vectors must be of the same length, or the first
-       vector must be the longer (otherwise the values will not properly add)
-       -->
-  <template name="_vadd_" desc="Produce a vector resulting from the addition of two vectors">
-    <param name="@a@" desc="First vector to add" />
-    <param name="@b@" desc="Second vector to add" />
-    <param name="@into@" desc="Variable to yield vector into" />
+  <section title="Vectors">
+    <!-- for the time being, the vectors must be of the same length, or the first
+         vector must be the longer (otherwise the values will not properly add)
+    -->
+    <template name="_vadd_" desc="Produce a vector resulting from the addition of two vectors">
+      <param name="@a@" desc="First vector to add" />
+      <param name="@b@" desc="Second vector to add" />
+      <param name="@into@" desc="Variable to yield vector into" />
 
-    <param name="@yields@" desc="Value to yield (useless)">
-      <text>__</text>
-      <param-value name="@into@" />
-    </param>
+      <param name="@yields@" desc="Value to yield (useless)">
+        <text>__</text>
+        <param-value name="@into@" />
+      </param>
 
-    <param name="@gendesc@" desc="Generator description (for @into@)">
-      <text>Sum of vectors </text>
-      <param-value name="@a@" />
-      <text> and </text>
-      <param-value name="@b@" />
-    </param>
+      <param name="@gendesc@" desc="Generator description (for @into@)">
+        <text>Sum of vectors </text>
+        <param-value name="@a@" />
+        <text> and </text>
+        <param-value name="@b@" />
+      </param>
 
-    <param name="@sym@" desc="Generator symbol">
-      <!-- empty by default -->
-      <text></text>
-    </param>
+      <param name="@sym@" desc="Generator symbol">
+        <!-- empty by default -->
+        <text></text>
+      </param>
 
-    <rate accumulate="none" yields="@yields@">
-      <c:sum of="@a@" index="k" generates="@into@" desc="@gendesc@" sym="@sym@">
-        <c:value-of name="@a@" index="k" />
-        <c:value-of name="@b@" index="k" />
-      </c:sum>
-    </rate>
-  </template>
+      <rate accumulate="none" yields="@yields@">
+        <c:sum of="@a@" index="k" generates="@into@" desc="@gendesc@" sym="@sym@">
+          <c:value-of name="@a@" index="k" />
+          <c:value-of name="@b@" index="k" />
+        </c:sum>
+      </rate>
+    </template>
 
 
-  <template name="_vsum_" desc="Yield sum of all elements of a vector as a scalar">
-    <param name="@of@"     desc="Vector to sum" />
-    <param name="@yields@" desc="Name of scalar to yield" />
+    <template name="_vsum_" desc="Yield sum of all elements of a vector as a scalar">
+      <param name="@of@"     desc="Vector to sum" />
+      <param name="@yields@" desc="Name of scalar to yield" />
 
-    <rate yields="@yields@">
-      <c:sum of="@of@" />
-    </rate>
-  </template>
+      <rate yields="@yields@">
+        <c:sum of="@of@" />
+      </rate>
+    </template>
+
+
+    \ref{_vproduct_} produces the product of two vectors:
+      $V_k = A_k B_k$.
+
+    <template name="_vproduct_"
+              desc="Vector product">
+      <param name="@vector_a@" desc="First vector" />
+      <param name="@vector_b@" desc="Second vector" />
+
+
+      <c:apply name="_vproduct"
+               vector_a="@vector_a@"
+               vector_b="@vector_b@" />
+    </template>
+
+
+    \ref{_vproduct} is its helper function for recursion.
+
+    <function name="_vproduct"
+              desc="Vector product">
+      <param name="vector_a" type="float" set="vector"
+             desc="First vector" />
+      <param name="vector_b" type="float" set="vector"
+             desc="Second vector" />
+      <param name="k" type="integer"
+             desc="Current index" />
+
+
+      <t:cons-until-empty set="vector_a" index="k" car="value_a">
+        <c:product>
+          <c:value-of name="value_a" />
+
+          <!-- TODO: TAME bug where index variables always compile to args -->
+          <c:value-of name="vector_b">
+            <c:index>
+              <c:value-of name="k" />
+            </c:index>
+          </c:value-of>
+        </c:product>
+      </t:cons-until-empty>
+    </function>
+  </section>
+
+
+
+  <section title="Matrices">
+    \ref{_mproduct_} produces the product of two matrices:
+      $M_{ij} = A_{ij} B_{ij}$.
+
+    <template name="_mproduct_"
+              desc="Matrix product">
+      <param name="@matrix_a@" desc="First matrix" />
+      <param name="@matrix_b@" desc="Second matrix" />
+
+
+      <c:apply name="_mproduct"
+               matrix_a="@matrix_a@"
+               matrix_b="@matrix_b@"
+               k="ZERO" />
+    </template>
+
+
+    \ref{_mproduct} is its helper function for recursion.
+    \ref{_vproduct_} is used to reduce the problem to the product of
+      and array of~vectors.
+
+    <function name="_mproduct"
+              desc="Matrix product">
+
+      <param name="matrix_a" type="float" set="matrix"
+             desc="First matrix" />
+      <param name="matrix_b" type="float" set="matrix"
+             desc="Second matrix" />
+      <param name="k" type="integer"
+             desc="Current index" />
+
+
+      <t:cons-until-empty set="matrix_a" index="k" car="vector_a">
+        <c:let>
+          <c:values>
+            <c:value name="vector_b" type="float" set="vector"
+                     desc="Second vector">
+              <c:value-of name="matrix_b">
+                <c:index>
+                  <c:debug-to-console>
+                    <c:value-of name="k" />
+                  </c:debug-to-console>
+                </c:index>
+              </c:value-of>
+            </c:value>
+          </c:values>
+
+          <t:vproduct vector_a="vector_a"
+                      vector_b="vector_b" />
+        </c:let>
+      </t:cons-until-empty>
+    </function>
+  </section>
 </package>
 
