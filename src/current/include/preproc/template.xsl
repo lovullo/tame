@@ -328,6 +328,20 @@
 </xsl:function>
 
 
+<!--
+  Inline templates depending on the symbol table must not be expanded
+  until the symbol table is actually available
+-->
+<xsl:template mode="preproc:macros" priority="6"
+              match="lv:inline-template[ lv:for-each/lv:sym-set
+                                         and not( root(.)/preproc:symtable ) ]">
+  <lv:expand-sequence>
+    <xsl:sequence select="." />
+  </lv:expand-sequence>
+
+  <xsl:message select="'[preproc] deferring inline-template waiting for symbol table'" />
+</xsl:template>
+
 
 <!--
   An inline template implicitly defines and then immediately applies a template
