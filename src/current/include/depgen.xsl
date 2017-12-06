@@ -357,6 +357,11 @@
 </xsl:template>
 
 
+<xsl:template match="c:*[ ancestor::lv:template ]"
+              mode="preproc:depgen" priority="8">
+  <!-- ignore symbols within templates -->
+</xsl:template>
+
 <xsl:template name="preproc:depgen-c-normal" match="c:value-of|c:when" mode="preproc:depgen" priority="5">
   <xsl:param name="name" select="@name" />
   <xsl:variable name="pkg" as="element( lv:package )"
