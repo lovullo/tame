@@ -2,7 +2,7 @@
 <!--
   Compiles rater XML into JavaScript
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -662,24 +662,6 @@
 </template>
 
 
-<template match="preproc:rate" mode="compile">
-  <variable name="yields" select="@ref" />
-
-  <!-- compile the lv:rate block associated with this name -->
-  <apply-templates
-    select="root(.)//lv:rate[ @yields=$yields ]"
-    mode="compile" />
-</template>
-
-<template match="preproc:class" mode="compile">
-  <variable name="as" select="@ref" />
-
-  <apply-templates
-    select="root(.)//lv:classify[ @as=$as ]"
-    mode="compile" />
-</template>
-
-
 <!--
   Generate domain checks for require-param nodes
 
@@ -1082,27 +1064,6 @@
   <text> );</text>
 
   <text>} </text>
-</template>
-
-
-<!--
-  Compile lv:rate's in such an order that dependencies will be compiled first
-
-  This is important to ensure that premium calculations based on other premiums
-  are actually calculated after the premium that they depend on. Having an
-  order-dependent document doesn't make sense with the declarative style and is
-  especially confusing when including packages.
--->
-<template match="lv:package" mode="compile-rates">
-  <!-- generate the rate blocks, dependencies first; does not compile classifier
-       dependencies, as those will be compiled with the appropriate classifier
-       -->
-  <apply-templates mode="compile" select="
-      ./preproc:rate-deps/preproc:flat/preproc:rate
-      |
-      ./preproc:rate-deps/preproc:flat/preproc:class[ @external='true' ]
-    " />
-
 </template>
 
 
