@@ -2,7 +2,7 @@
 <!--
   Performs template processing and expansion
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -304,19 +304,27 @@
   <!-- replace this node with a copy of all the child nodes of the given
        template; this inlines it as if it were copied and pasted directly
        into the XML, much like a C macro -->
-  <xsl:apply-templates
-    select="$tpl[ 1 ]/*"
-    mode="preproc:apply-template">
+  <xsl:variable name="apply-result">
+    <xsl:apply-templates
+        select="$tpl[ 1 ]/*"
+        mode="preproc:apply-template">
 
-    <xsl:with-param name="apply" select="$context"
-                    tunnel="yes" />
-    <xsl:with-param name="apply-tpl-name" select="$name"
-                    tunnel="yes" />
-    <xsl:with-param name="params" select="$params"
-                    tunnel="yes" />
+      <xsl:with-param name="apply" select="$context"
+                      tunnel="yes" />
+      <xsl:with-param name="apply-tpl-name" select="$name"
+                      tunnel="yes" />
+      <xsl:with-param name="params" select="$params"
+                      tunnel="yes" />
 
-    <xsl:with-param name="first-child" select="true()" />
-    <xsl:with-param name="src-root" select="$src-root"
+      <xsl:with-param name="first-child" select="true()" />
+      <xsl:with-param name="src-root" select="$src-root"
+                      tunnel="yes" />
+    </xsl:apply-templates>
+  </xsl:variable>
+
+  <xsl:apply-templates mode="preproc:mark-tpl-expansion"
+                       select="$apply-result">
+    <xsl:with-param name="tpl-name" select="$name"
                     tunnel="yes" />
   </xsl:apply-templates>
 
@@ -326,6 +334,34 @@
   <preproc:repass tpl="{$name}" />
   <preproc:tpl-step name="{$name}" type="apply-template" />
 </xsl:function>
+
+
+<!--
+  Add nodes describing where the parent node came from.
+
+  This helps in debugging and understanding code created by templates.
+  This isn't the best way, but e.g. enclosing all expanded nodes in a parent
+  tag causes problems with the rest of the system.  Adding an attribute to
+  the node is an option, but this implementation allows a node to be marked
+  by multiple templates, should such a thing ever occur.
+-->
+<xsl:template mode="preproc:mark-tpl-expansion" priority="5"
+              match="element()">
+  <xsl:param name="tpl-name" tunnel="yes" />
+
+  <xsl:copy>
+    <xsl:sequence select="@*" />
+
+    <preproc:from-template name="{$tpl-name}" />
+
+    <xsl:sequence select="node()" />
+  </xsl:copy>
+</xsl:template>
+
+<xsl:template mode="preproc:mark-tpl-expansion" priority="3"
+              match="node()|attribute()">
+  <xsl:sequence select="." />
+</xsl:template>
 
 
 <!--
