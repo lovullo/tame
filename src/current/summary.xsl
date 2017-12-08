@@ -1732,7 +1732,14 @@
   <xsl:param name="label" select="@label" />
   <xsl:param name="c" select="." />
 
+  <xsl:variable name="from-tpl"
+                select="preproc:from-template" />
+
   <fieldset>
+    <xsl:if test="$from-tpl">
+      <xsl:attribute name="class" select="'templated'" />
+    </xsl:if>
+
     <legend class="debugid">
       <xsl:attribute name="id">
         <xsl:text>ubd-</xsl:text>
@@ -1740,8 +1747,10 @@
       </xsl:attribute>
 
       <xsl:if test="$label">
-        <xsl:value-of select="$label" />
-        <xsl:text> </xsl:text>
+        <span class="label">
+          <xsl:value-of select="$label" />
+          <xsl:text> </xsl:text>
+        </span>
       </xsl:if>
 
       <span class="uid">
@@ -1749,6 +1758,19 @@
           <xsl:value-of select="$c/@_id" />
         <xsl:text>)</xsl:text>
       </span>
+
+      <xsl:if test="$from-tpl">
+        <xsl:for-each select="$from-tpl">
+          <xsl:if test="position() gt 1">
+            <xsl:text>, </xsl:text>
+          </xsl:if>
+
+          <span class="tplid">
+            <xsl:text>@</xsl:text>
+            <xsl:value-of select="@name" />
+          </span>
+        </xsl:for-each>
+      </xsl:if>
     </legend>
 
     <xsl:apply-templates select="$c" mode="ultra-breakdown-equ" />

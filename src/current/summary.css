@@ -1,7 +1,7 @@
 /**
  * Rater XML summary stylesheet
  *
- *   Copyright (C) 2016 LoVullo Associates, Inc.
+ *   Copyright (C) 2016, 2017 LoVullo Associates, Inc.
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -741,6 +741,17 @@ body:not(.prior) .entry-value-prior
 .ultra-breakdown legend > .uid
 {
     font-size: 0.8em;
+    color:     gray;
+}
+
+.ultra-breakdown legend > .tplid
+{
+    font-family:      monospace;
+    background-color: lightgoldenrodyellow;
+    border:           1px solid palegoldenrod;
+    border-radius:    0.25em;
+    padding:          0.15em;
+    margin:           0.15em;
 }
 
 .ultra-breakdown fieldset
@@ -751,9 +762,52 @@ body:not(.prior) .entry-value-prior
     border-radius: 0.5em;
 }
 
+.ultra-breakdown fieldset.templated
+{
+    border-width: 2px;
+}
+
 .ultra-breakdown fieldset:hover
 {
     border-color: black;
+}
+
+.ultra-breakdown > fieldset > fieldset:hover
+{
+    border-color: #009688;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset:hover
+{
+    border-color: #8bc34a;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset > fieldset:hover
+{
+    border-color: #ffeb3b;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset > fieldset > fieldset:hover
+{
+    border-color: #ffc107;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset:hover
+{
+    border-color: #ff5722;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset:hover
+{
+    border-color: #9C27B0;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset:hover
+{
+    border-color: #2196f3;
+}
+.ultra-breakdown > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset > fieldset:hover
+{
+    border-color: #009688;
+}
+
+.ultra-breakdown fieldset:hover
+{
+    border-style: solid;
 }
 
 
