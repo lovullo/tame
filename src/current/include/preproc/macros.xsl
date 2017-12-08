@@ -2,7 +2,7 @@
 <!--
   Handles macro preprocessing
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -79,9 +79,10 @@
       </xsl:apply-templates>
     </xsl:when>
 
-    <!-- no more passes needed; macro expansion complete -->
+    <!-- no more passes needed; strip any cruft and we're done -->
     <xsl:otherwise>
-      <xsl:sequence select="$nodeset" />
+      <xsl:apply-templates mode="preproc:strip-tpl-cruft"
+                           select="$nodeset" />
     </xsl:otherwise>
   </xsl:choose>
 </xsl:template>

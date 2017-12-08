@@ -305,21 +305,23 @@
        template; this inlines it as if it were copied and pasted directly
        into the XML, much like a C macro -->
   <xsl:variable name="apply-result">
-    <xsl:apply-templates
-        select="$tpl[ 1 ]/*"
-        mode="preproc:apply-template">
+    <preproc:tpl-barrier>
+      <xsl:apply-templates
+          select="$tpl[ 1 ]/*"
+          mode="preproc:apply-template">
 
-      <xsl:with-param name="apply" select="$context"
-                      tunnel="yes" />
-      <xsl:with-param name="apply-tpl-name" select="$name"
-                      tunnel="yes" />
-      <xsl:with-param name="params" select="$params"
-                      tunnel="yes" />
+        <xsl:with-param name="apply" select="$context"
+                        tunnel="yes" />
+        <xsl:with-param name="apply-tpl-name" select="$name"
+                        tunnel="yes" />
+        <xsl:with-param name="params" select="$params"
+                        tunnel="yes" />
 
-      <xsl:with-param name="first-child" select="true()" />
-      <xsl:with-param name="src-root" select="$src-root"
-                      tunnel="yes" />
-    </xsl:apply-templates>
+        <xsl:with-param name="first-child" select="true()" />
+        <xsl:with-param name="src-root" select="$src-root"
+                        tunnel="yes" />
+      </xsl:apply-templates>
+    </preproc:tpl-barrier>
   </xsl:variable>
 
   <xsl:apply-templates mode="preproc:mark-tpl-expansion"
@@ -334,6 +336,30 @@
   <preproc:repass tpl="{$name}" />
   <preproc:tpl-step name="{$name}" type="apply-template" />
 </xsl:function>
+
+
+<!--
+  Strip tpl barriers, which serve to scope metadata.
+-->
+<xsl:template mode="preproc:strip-tpl-cruft" priority="5"
+              match="preproc:tpl-barrier">
+  <xsl:apply-templates mode="preproc:strip-tpl-cruft"
+                       select="node()" />
+</xsl:template>
+
+<!--
+  Everything else stays.
+-->
+<xsl:template mode="preproc:strip-tpl-cruft" priority="3"
+              match="node()">
+  <xsl:copy>
+    <xsl:sequence select="@*" />
+
+    <xsl:apply-templates mode="preproc:strip-tpl-cruft"
+                         select="node()" />
+  </xsl:copy>
+</xsl:template>
+
 
 
 <!--
@@ -568,6 +594,13 @@
 </xsl:template>
 
 
+<!--
+  Generate template metadata from lv:param-meta nodes.
+
+  Metadata contained within an lv:param-copy has its scope limited to
+  children only.  Standalone lv:param-meta nodes are "hoisted" and are
+  available to siblings.
+-->
 <xsl:template match="lv:param-meta" mode="preproc:apply-template" priority="5">
   <xsl:param name="apply" as="node()"
              tunnel="yes" />
@@ -579,7 +612,11 @@
     </xsl:call-template>
   </xsl:variable>
 
-  <preproc:tpl-meta name="{@name}" value="{$value}" />
+  <preproc:tpl-meta name="{@name}" value="{$value}">
+    <xsl:if test="not( parent::lv:param-copy )">
+      <xsl:attribute name="hoist" select="'true'" />
+    </xsl:if>
+  </preproc:tpl-meta>
 </xsl:template>
 
 
@@ -985,6 +1022,8 @@
   <!-- find the metadata -->
   <xsl:variable name="values"
        select="$apply/ancestor::*/preceding-sibling::preproc:tpl-meta[ @name=$name ]/@value
+               , $apply/ancestor::*/preproc:tpl-barrier
+                   /preproc:tpl-meta[ @hoist = 'true' and @name=$name ]/@value
                , $apply/preceding-sibling::preproc:tpl-meta[ @name=$name ]/@value" />
 
   <!-- take the last one (precedence) -->
