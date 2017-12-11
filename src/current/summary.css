@@ -497,6 +497,12 @@ form.entry-form .entry-add
     clear: left;
 }
 
+form.entry-form .entry-testcase-dfn
+{
+    clear: left;
+    font-family: monospace;
+}
+
 form.entry-form > .foot
 {
 }

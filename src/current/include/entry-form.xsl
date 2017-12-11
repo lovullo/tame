@@ -179,6 +179,8 @@
     <xsl:if test="number(@dim) gt 0">
       <button class="entry-add">+</button>
     </xsl:if>
+
+    <div class="entry-testcase-dfn"></div>
   </dd>
 </xsl:template>
 

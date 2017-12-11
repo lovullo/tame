@@ -98,8 +98,10 @@ var client = ( function()
                 // if the name does not match, then we removed the square
                 // brackets, meaning that this is a set
                 bucket[ name ] = ( name === field.name )
-                    ? field.value
-                    : [ field.value ];
+                    ? +field.value
+                    : [ +field.value ];
+
+                updateParamTestcaseDfn( name );
             }
         );
     }
@@ -250,13 +252,16 @@ var client = ( function()
                 toarr.call( row.querySelectorAll( '[name]' ) ).forEach(
                     function( node )
                     {
-                        ref.push( node.value.trim() );
+                        ref.push( +node.value.trim() );
                     }
                 );
             } );
         }
 
         bucket[ name ] = value;
+
+        // update entry dfn
+        updateParamTestcaseDfn( target.name, value );
     } );
 
     // update screen on submit
@@ -311,6 +316,26 @@ var client = ( function()
             submitQuote( bucket, rate_result, comment, false, waiting, expect, save_id );
         } );
     } );
+
+
+    function updateParamTestcaseDfn( field_name, value )
+    {
+        const name        = field_name.replace( /\[\]$/, '' );
+        const dfn_element = getParamTestcaseDfnElement( name );
+
+        value = value || bucket[ name ];
+
+        const dfn = name + ': ' + JSON.stringify( value );
+        dfn_element.innerText = dfn;
+    }
+
+
+    function getParamTestcaseDfnElement( name )
+    {
+        return document.querySelectorAll(
+            '#param-input-' + name + ' > .entry-testcase-dfn'
+        )[ 0 ];
+    }
 
 
     function showFinalComments( looksgood, callback )
@@ -1326,6 +1351,8 @@ var client = ( function()
                     }
                 }
             }
+
+            updateParamTestcaseDfn( field );
         }
 
         form.reset();
@@ -1386,6 +1413,8 @@ var client = ( function()
                     elements[ total++ ].value = fdata[ i ];
                 }
             }
+
+            updateParamTestcaseDfn( field );
         }
 
         // re-allow input
