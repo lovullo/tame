@@ -157,7 +157,7 @@
       </xsl:choose>
     </xsl:attribute>
 
-    <xsl:sequence select="node()" />
+    <xsl:apply-templates select="node()" mode="preproc:expand" />
   </xsl:copy>
 </xsl:template>
 
