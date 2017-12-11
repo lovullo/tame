@@ -1,7 +1,7 @@
 /**
  * Summary page program
  *
- *  Copyright (C) 2016 LoVullo Associates, Inc.
+ *  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
  *
  *  This file is part of the Liza Data Collection Framework
  *
@@ -984,6 +984,12 @@ var client = ( function()
             }
 
             var name = queue.pop();
+
+            // hide internal classes ("-" prefix)
+            if ( /^-/.test( name ) )
+            {
+                return c();
+            }
 
             setWorkStatus(
                 'Formatting class summary values (' +
