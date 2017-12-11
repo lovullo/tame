@@ -1,7 +1,7 @@
 /**
  * Summary page program
  *
- *  Copyright (C) 2016 LoVullo Associates, Inc.
+ *  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
  *
  *  This file is part of the Liza Data Collection Framework
  *
@@ -98,8 +98,10 @@ var client = ( function()
                 // if the name does not match, then we removed the square
                 // brackets, meaning that this is a set
                 bucket[ name ] = ( name === field.name )
-                    ? field.value
-                    : [ field.value ];
+                    ? +field.value
+                    : [ +field.value ];
+
+                updateParamTestcaseDfn( name );
             }
         );
     }
@@ -250,13 +252,16 @@ var client = ( function()
                 toarr.call( row.querySelectorAll( '[name]' ) ).forEach(
                     function( node )
                     {
-                        ref.push( node.value.trim() );
+                        ref.push( +node.value.trim() );
                     }
                 );
             } );
         }
 
         bucket[ name ] = value;
+
+        // update entry dfn
+        updateParamTestcaseDfn( target.name, value );
     } );
 
     // update screen on submit
@@ -311,6 +316,26 @@ var client = ( function()
             submitQuote( bucket, rate_result, comment, false, waiting, expect, save_id );
         } );
     } );
+
+
+    function updateParamTestcaseDfn( field_name, value )
+    {
+        const name        = field_name.replace( /\[\]$/, '' );
+        const dfn_element = getParamTestcaseDfnElement( name );
+
+        value = value || bucket[ name ];
+
+        const dfn = name + ': ' + JSON.stringify( value );
+        dfn_element.innerText = dfn;
+    }
+
+
+    function getParamTestcaseDfnElement( name )
+    {
+        return document.querySelectorAll(
+            '#param-input-' + name + ' > .entry-testcase-dfn'
+        )[ 0 ];
+    }
 
 
     function showFinalComments( looksgood, callback )
@@ -727,7 +752,7 @@ var client = ( function()
                 value = vars[ name ];
 
             if ( value
-                && /^prem|^min|^surcharge|^cov(erage)?|^credit|^factor|^rate|Prem|[tT]otal/
+                && /^prem|^min|^surcharge|^cov(erage)?|^credit|^percent|^factor|^rate|Prem|[tT]otal/
                     .test( name )
                 && !( /^_/.test( name ) )
             )
@@ -984,6 +1009,12 @@ var client = ( function()
             }
 
             var name = queue.pop();
+
+            // hide internal classes ("-" prefix)
+            if ( /^-/.test( name ) )
+            {
+                return c();
+            }
 
             setWorkStatus(
                 'Formatting class summary values (' +
@@ -1320,6 +1351,8 @@ var client = ( function()
                     }
                 }
             }
+
+            updateParamTestcaseDfn( field );
         }
 
         form.reset();
@@ -1380,6 +1413,8 @@ var client = ( function()
                     elements[ total++ ].value = fdata[ i ];
                 }
             }
+
+            updateParamTestcaseDfn( field );
         }
 
         // re-allow input
