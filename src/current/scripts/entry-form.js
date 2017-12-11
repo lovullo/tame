@@ -727,7 +727,7 @@ var client = ( function()
                 value = vars[ name ];
 
             if ( value
-                && /^prem|^min|^surcharge|^cov(erage)?|^credit|^factor|^rate|Prem|[tT]otal/
+                && /^prem|^min|^surcharge|^cov(erage)?|^credit|^percent|^factor|^rate|Prem|[tT]otal/
                     .test( name )
                 && !( /^_/.test( name ) )
             )
