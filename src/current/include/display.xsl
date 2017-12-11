@@ -493,6 +493,7 @@
         <xsl:call-template name="_gen-let-list-item">
           <xsl:with-param name="context" select="$context" />
           <xsl:with-param name="class" select="'letequ'" />
+          <xsl:with-param name="letsym" select="." />
         </xsl:call-template>
       </xsl:for-each>
     </xsl:variable>
@@ -507,6 +508,7 @@
 <xsl:template name="_gen-let-list-item">
   <xsl:param name="context" />
   <xsl:param name="class" />
+  <xsl:param name="letsym" />
 
   <li>
     <xsl:if test="$class">
@@ -515,14 +517,14 @@
 
     <xsl:choose>
       <xsl:when test="@type='lparam' and $context">
-        <xsl:text>\(</xsl:text>
+        <xsl:text>let \(</xsl:text>
           <preproc:sym-ref name="{@name}" />
           <xsl:text> = </xsl:text>
 
           <xsl:variable name="varname" select="@varname" />
 
           <xsl:apply-templates select="
-              $context//c:let/c:values/c:value[
+              $context//c:let[ @name = $letsym/@lparent ]/c:values/c:value[
                 @name=$varname
               ]/c:*
             " />
