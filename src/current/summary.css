@@ -298,6 +298,7 @@ body > fieldset > legend
     left: -0.5em;
     top: 0em;
     right: 0px;
+    width: auto;
 
     font-size: 1.5em;
     letter-spacing: 0.1em;
