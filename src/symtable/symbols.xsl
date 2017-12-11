@@ -247,6 +247,11 @@
     defined scope (e.g. function parameters; let expressions).
   This symbol is not used by the linker.
 
+  @item lparent
+  Local parameter parent.
+  This is set for @code{let} expressions in place of @code{@@parent}
+    since the parent let does not actually generate a symbol.
+
   @item const
   Global constant.
   Constant values (of any dimension).

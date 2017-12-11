@@ -836,14 +836,14 @@
 
   <!-- the name is generated automatically by the preprocessor; the user cannot
        set it -->
-  <xsl:variable name="lname" select="
-    ancestor::c:let[
-      c:values/c:value[ @name=$name ]
-    ]/@name
-  " />
+  <xsl:variable name="lname" as="xs:string?"
+                select="ancestor::c:let[1]/@name" />
 
+  <!-- @lparent instead of @parent because the let does not actually exist
+       as a symbol -->
   <preproc:sym name=":{$lname}:{@name}" local="true" varname="{@name}"
-    type="lparam" dtype="{@type}" dim="{$dim}" desc="{@desc}" tex="{@sym}" />
+    type="lparam" dtype="{@type}" dim="{$dim}" desc="{@desc}" tex="{@sym}"
+    lparent="{$lname}" />
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>
