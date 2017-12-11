@@ -139,6 +139,13 @@
 
   <dt id="param-{@name}">
     <xsl:value-of select="@desc" />
+
+    <span class="param-id">
+      <xsl:text> </xsl:text>
+      <a href="#{@name}">
+        <xsl:sequence select="concat( '[', @name, ']' )" />
+      </a>
+    </span>
   </dt>
 
   <xsl:variable name="matrix">

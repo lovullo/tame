@@ -475,6 +475,12 @@ form.entry-form dt
     clear: left;
 }
 
+form.entry-form dt > .param-id
+{
+    font-weight: normal;
+    font-family: monospace;
+}
+
 form.entry-form .matrix
 {
     display: inline-block;
