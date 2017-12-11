@@ -215,7 +215,7 @@ var client = ( function()
 
         var target = e.target,
             name   = target.name.replace( /\[\]$/, '' ),
-            value  = target.value.trim();
+            value  = +target.value.trim();
 
         if ( !name )
         {
@@ -261,7 +261,7 @@ var client = ( function()
         bucket[ name ] = value;
 
         // update entry dfn
-        updateParamTestcaseDfn( target.name, value );
+        updateParamTestcaseDfn( name, value );
     } );
 
     // update screen on submit
@@ -318,9 +318,8 @@ var client = ( function()
     } );
 
 
-    function updateParamTestcaseDfn( field_name, value )
+    function updateParamTestcaseDfn( name, value )
     {
-        const name        = field_name.replace( /\[\]$/, '' );
         const dfn_element = getParamTestcaseDfnElement( name );
 
         value = value || bucket[ name ];
