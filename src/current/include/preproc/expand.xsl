@@ -422,7 +422,9 @@
   Note that we should *not* perform these optimizations if there are templates
   awaiting application or any other lv:* nodes that have not been expanded.
 -->
-<xsl:template match="c:sum[ lv:* or t:* ]|c:product[ lv:* or t:* ]" mode="preproc:expand" priority="7">
+<xsl:template match="c:sum[ lv:*[ not( @preproc:*) ] or t:* ]
+                     |c:product[ lv:*[ not( @preproc:* ) ] or t:* ]"
+              mode="preproc:expand" priority="7">
   <xsl:copy>
     <xsl:sequence select="@*" />
     <xsl:apply-templates mode="preproc:expand" />
