@@ -23,6 +23,7 @@
 <xsl:stylesheet version="1.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:l="http://www.lovullo.com/rater/linker"
@@ -92,20 +93,50 @@
       </div>
     </div>
 
-    <dl>
-      <!-- generate HTML elements for each *global* parameter, *but only if it
-           is used in the rater* -->
-      <xsl:apply-templates
-        select="/lv:package/l:dep/preproc:sym[ @type='param' ]"
-        mode="entry-form">
+    <!-- generate form fields for each param -->
+    <xsl:for-each-group select="/lv:package/l:dep/preproc:sym[ @type='param' ]"
+                        group-by="@src">
+      <xsl:variable name="pkg-name"
+                    select="preproc:package-name(
+                            current-grouping-key(),
+                            $root-pkg )" />
 
-        <xsl:with-param name="root-pkg" select="$root-pkg" />
-      </xsl:apply-templates>
-    </dl>
+      <fieldset class="param-set">
+        <legend data-pkg-name="{$pkg-name}">
+          <a href="#pkg-{$pkg-name}" class="sym-ref sym-pkg sym-large">
+            <xsl:value-of select="$pkg-name" />
+          </a>
+        </legend>
+
+        <xsl:variable name="syms" as="element( preproc:sym )*">
+          <xsl:perform-sort select="current-group()">
+            <xsl:sort select="@desc"></xsl:sort>
+          </xsl:perform-sort>
+        </xsl:variable>
+
+        <dl>
+          <xsl:apply-templates mode="entry-form" select="$syms">
+            <xsl:with-param name="root-pkg" select="$root-pkg" />
+          </xsl:apply-templates>
+        </dl>
+      </fieldset>
+    </xsl:for-each-group>
   </form>
 
   <script type="text/javascript" src="{$fw-path}/rater/scripts/entry-form.js"></script>
 </xsl:template>
+
+
+<xsl:function name="preproc:package-name" as="xs:string">
+  <xsl:param name="src"      as="xs:string" />
+  <xsl:param name="root-pkg" as="element( lv:package )"/>
+
+  <xsl:sequence select="
+      if ( not( $src = '' ) ) then
+        document( concat( $src, '.xmlo' ), $root-pkg )/lv:*/@name
+      else
+        ''" />
+</xsl:function>
 
 
 <!--
