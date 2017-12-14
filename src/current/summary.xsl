@@ -1823,6 +1823,24 @@
           </span>
         </xsl:for-each>
       </xsl:if>
+
+      <xsl:if test="@name">
+        <xsl:variable name="name" select="@name" />
+        <xsl:variable name="sym"
+                      select="/lv:*/preproc:symtable
+                                /preproc:sym[ @name=$name ]" />
+
+        <xsl:variable name="ref"
+                      select="if ( $sym/@parent ) then
+                                  $sym/@parent
+                                else
+                                  $name" />
+
+        <xsl:text> </xsl:text>
+        <a href="#{$ref}" class="sym-ref sym-{$sym/@type}">
+          <xsl:value-of select="$name" />
+        </a>
+      </xsl:if>
     </legend>
 
     <xsl:apply-templates select="$c" mode="ultra-breakdown-equ" />
