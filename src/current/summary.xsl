@@ -218,6 +218,8 @@
 
       <!-- global functions for developers -->
       <script type="text/javascript">
+        window.addEventListener( 'load', function()
+        {
         // expected VOI order
         window.voi_order = [
           <xsl:apply-templates
@@ -283,6 +285,7 @@
 
         // begin processing
         client.begin();
+        } );
       </script>
     </body>
   </html>
