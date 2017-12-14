@@ -1348,8 +1348,42 @@
   <xsl:text> be </xsl:text>
 
   <xsl:text>\(</xsl:text>
-    <xsl:apply-templates select="./c:*" mode="calc-iversons" />
+    <xsl:apply-templates select="./c:*" mode="calc-iversons">
+      <xsl:with-param name="recurse" select="false()" />
+    </xsl:apply-templates>
+  <xsl:text>\) </xsl:text>
+
+  <xsl:apply-templates mode="match-desc"
+                       select="c:*/c:*" />
+</xsl:template>
+
+
+<xsl:template match="c:value-of" mode="match-desc" priority="5">
+  <xsl:variable name="name"
+                select="@name" />
+
+  <xsl:variable name="sym" as="element( preproc:sym )"
+                select="/lv:*/preproc:symtable/preproc:sym[ @name=$name ]" />
+
+  <a href="#{$name}" class="sym-ref sym-{$sym/@type}">
+    <xsl:value-of select="$name" />
+  </a>
+</xsl:template>
+
+
+<xsl:template match="c:const" mode="match-desc" priority="5">
+  <xsl:text>\(</xsl:text>
+  <xsl:value-of select="@value" />
   <xsl:text>\)</xsl:text>
+</xsl:template>
+
+
+<xsl:template match="c:*" mode="match-desc" priority="1">
+  <xsl:message terminate="yes">
+    <xsl:text>[summary] internal: unknown match calculation for `</xsl:text>
+    <xsl:value-of select="ancestor::c:classify/@as" />
+    <xsl:text>'</xsl:text>
+  </xsl:message>
 </xsl:template>
 
 
