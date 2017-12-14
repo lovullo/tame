@@ -96,15 +96,24 @@
     <!-- generate form fields for each param -->
     <xsl:for-each-group select="/lv:package/l:dep/preproc:sym[ @type='param' ]"
                         group-by="@src">
-      <xsl:variable name="pkg-name"
-                    select="preproc:package-name(
-                            current-grouping-key(),
-                            $root-pkg )" />
+      <xsl:variable name="pkg"
+                    select="if ( not( @src = '' ) ) then
+                                document( concat( @src, '.xmlo' ), $root-pkg )/lv:*
+                              else
+                                ()" />
+
+      <xsl:variable name="pkg-display"
+                    select="if ( $pkg ) then
+                                concat( $pkg/@desc, ' (', $pkg/@name, ')' )
+                              else
+                                ''" />
+
+      <xsl:variable name="pkg-name" select="$pkg/@name" />
 
       <fieldset class="param-set">
         <legend data-pkg-name="{$pkg-name}">
           <a href="#pkg-{$pkg-name}" class="sym-ref sym-pkg sym-large">
-            <xsl:value-of select="$pkg-name" />
+            <xsl:value-of select="$pkg-display" />
           </a>
         </legend>
 
@@ -125,18 +134,6 @@
 
   <script type="text/javascript" src="{$fw-path}/rater/scripts/entry-form.js"></script>
 </xsl:template>
-
-
-<xsl:function name="preproc:package-name" as="xs:string">
-  <xsl:param name="src"      as="xs:string" />
-  <xsl:param name="root-pkg" as="element( lv:package )"/>
-
-  <xsl:sequence select="
-      if ( not( $src = '' ) ) then
-        document( concat( $src, '.xmlo' ), $root-pkg )/lv:*/@name
-      else
-        ''" />
-</xsl:function>
 
 
 <!--
