@@ -46,7 +46,7 @@
 
 <xsl:template match="preproc:sym[ @type='rate' ]" mode="summary:desc" priority="5">
   <span class="letlist-{@name}">
-    <a href="#{@name}">
+    <a href="#{@name}" class="sym-ref sym-rate">
       <xsl:value-of select="@name" />
     </a>
     <xsl:text> scalar</xsl:text>
@@ -56,14 +56,14 @@
 
 <xsl:template match="preproc:sym[ @type='gen' ]" mode="summary:desc" priority="5">
   <span class="letlist-{@parent}">
-    <a href="#{@parent}">
+    <a href="#{@parent}" class="sym-ref sym-gen">
       <xsl:value-of select="@name" />
     </a>
     <xsl:text> generator; vector</xsl:text>
 
     <span class="param">
       <xsl:text> (</xsl:text>
-        <a href="#{@parent}">
+        <a href="#{@parent}" class="sym-ref sym-rate">
           <xsl:value-of select="@parent" />
         </a>
       <xsl:text>)</xsl:text>
@@ -125,7 +125,7 @@
     <!-- TODO: use generator in letlist-* -->
     <span class="param">
       <xsl:text> (</xsl:text>
-      <a href="#:class:{$class/@as}">
+      <a href="#:class:{$class/@as}" class="sym-ref sym-class">
         <xsl:value-of select="$class/@as" />
       </a>
       <xsl:text>)</xsl:text>
@@ -135,7 +135,9 @@
 
 
 <xsl:template match="preproc:sym[ @type='const' ]" mode="summary:desc" priority="5">
-  <xsl:value-of select="@name" />
+  <a href="#{@name}" class="sym-ref sym-const">
+    <xsl:value-of select="@name" />
+  </a>
 </xsl:template>
 
 
@@ -157,11 +159,19 @@
 
   <span class="param letlist-{$param/@name}">
     <xsl:text> (</xsl:text>
-    <a href="#{$param/@name}">
+    <a href="#{$param/@name}" class="sym-ref sym-param">
       <xsl:value-of select="$param/@name" />
     </a>
     <xsl:text>)</xsl:text>
   </span>
+</xsl:template>
+
+
+<xsl:template match="preproc:sym[ @type='func' ]" mode="summary:desc" priority="5">
+  <a href="#{@name}" class="sym-ref sym-func">
+    <xsl:value-of select="@name" />
+  </a>
+  <xsl:text> function</xsl:text>
 </xsl:template>
 
 

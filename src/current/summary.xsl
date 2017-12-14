@@ -297,7 +297,7 @@
 
   <div class="menu" id="pkgmenu">
     <!-- build our own menu -->
-    <h1 id="pkg-{@name}">
+    <h1 id="pkg-{@name}" class="sym-ref sym-pkg">
       <xsl:value-of select="@name" />
     </h1>
 
@@ -340,7 +340,7 @@
         <xsl:variable name="pkg-name"
                       select="preproc:pkg-name( . )" />
 
-        <h1 id="pkg-{$pkg-name}">
+        <h1 id="pkg-{$pkg-name}" class="sym-ref sym-pkg">
           <xsl:value-of select="concat( '/', $pkg-name )" />
         </h1>
 
@@ -370,7 +370,7 @@
       <xsl:for-each select="$deps/*">
         <xsl:sort select="@name" data-type="text" />
         <li>
-          <a href="#{@name}">
+          <a href="#{@name}" class="sym-ref sym-{$type}">
             <xsl:choose>
               <xsl:when test="$after">
                 <xsl:value-of select="substring-after( @name, $after )" />
@@ -454,7 +454,9 @@
       <!-- first output any rate blocks are are ungrouped -->
       <xsl:for-each select="$src/lv:rate[ @yields=$rates/@name ]">
         <li>
-          <a href="#{@yields}"><xsl:value-of select="@yields" /></a>
+          <a href="#{@yields}" class="sym-ref sym-rate">
+            <xsl:value-of select="@yields" />
+          </a>
         </li>
       </xsl:for-each>
 
@@ -634,7 +636,7 @@
 <xsl:template name="pkg-out">
   <xsl:variable name="name" select="/lv:*/@name" />
 
-  <a class="pkg" href="#pkg-{$name}">
+  <a href="#pkg-{$name}" class="pkg sym-ref sym-pkg">
     <xsl:text>/</xsl:text>
     <xsl:value-of select="$name" />
   </a>
@@ -680,7 +682,13 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <xsl:variable name="type"
+                  select="if ( local-name() = 'item' ) then
+                              'const'
+                            else
+                              local-name()" />
+
+    <legend class="sym-{$type}">
       <xsl:variable name="sym"
                     select="/lv:*/preproc:symtable
                               /preproc:sym[ @name=$name ]" />
@@ -913,7 +921,7 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-type">
       <xsl:value-of select="@desc" />
 
       <span class="name">
@@ -965,7 +973,7 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-type">
       <xsl:value-of select="@desc" />
 
       <span class="name">
@@ -1015,7 +1023,7 @@
       <xsl:for-each select="lv:item">
         <tr>
           <td>
-            <a href="#{@name}">
+            <a href="#{@name}" class="sym-ref sym-const">
               <xsl:value-of select="@name" />
             </a>
           </td>
@@ -1073,11 +1081,13 @@
       <xsl:value-of select="@as" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-class">
       <xsl:value-of select="@desc" />
       <span class="name">
         <xsl:text> (</xsl:text>
+        <span>
           <xsl:value-of select="@as" />
+        </span>
         <xsl:text>)</xsl:text>
       </span>
 
@@ -1098,7 +1108,10 @@
         </xsl:attribute>
 
         <span class="calc-yields">Yields: </span>
-        <xsl:value-of select="@yields" />
+
+        <span class="sym-ref sym-cgen">
+          <xsl:value-of select="@yields" />
+        </span>
       </div>
     </xsl:if>
   </fieldset>
@@ -1184,7 +1197,7 @@
       <xsl:value-of select="@_id" />
     </xsl:attribute>
 
-    <a>
+    <a class="sym-ref sym-{$sym/@type}">
       <xsl:attribute name="href">
         <xsl:text>#</xsl:text>
         <xsl:choose>
@@ -1318,9 +1331,14 @@
   @return match HTML
 -->
 <xsl:template match="lv:match[@value]" mode="match-desc">
+  <xsl:variable name="value" select="@value" />
+
+  <xsl:variable name="sym"
+                select="/lv:*/preproc:symtable/preproc:sym[ @name=$value ]" />
+
   <xsl:text>= </xsl:text>
 
-  <a href="#{@value}">
+  <a href="#{@value}" class="sym-ref sym-{$sym/@type}">
     <xsl:value-of select="@value" />
   </a>
 </xsl:template>
@@ -1368,7 +1386,7 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-func">
       <xsl:text>\(</xsl:text>
 
       <xsl:choose>
@@ -1461,7 +1479,7 @@
       <xsl:value-of select="@yields" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-rate">
       <xsl:variable name="tex" select="
           /lv:*/preproc:symtable/preproc:sym[ @name=$name ]/@tex
         " />
@@ -1474,8 +1492,9 @@
         <xsl:text>\) </xsl:text>
       </xsl:if>
 
+      <xsl:text> </xsl:text>
+
       <span class="yields">
-        <xsl:text> </xsl:text>
         <xsl:value-of select="@yields" />
       </span>
 
@@ -1536,7 +1555,7 @@
             " />
 
           <!-- output description -->
-          <a href="#{$csymid}">
+          <a href="#{$csymid}" class="sym-ref sym-class">
             <xsl:value-of select="
               $pkg/lv:*/lv:classify[ @as=$cname ]/@desc
             " />
@@ -1765,8 +1784,7 @@
             <xsl:text>, </xsl:text>
           </xsl:if>
 
-          <span class="tplid">
-            <xsl:text>@</xsl:text>
+          <span class="tplid sym-ref sym-tpl">
             <xsl:value-of select="@name" />
           </span>
         </xsl:for-each>
@@ -1915,7 +1933,9 @@
           <div class="desc">
             <xsl:value-of select="@desc" />
             <xsl:text> (</xsl:text>
+            <a href="#{@generates}" class="sym-ref sym-gen">
               <xsl:value-of select="@generates" />
+            </a>
             <xsl:text>)</xsl:text>
           </div>
         </div>

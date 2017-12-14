@@ -27,7 +27,7 @@ body {
     position: fixed;
     overflow: scroll;
 
-    background-color: #ad7fa8;
+    background-color: #474c55;
     border-right: 1px solid black;
 
     top: 0px;
@@ -41,13 +41,23 @@ body {
 
     resize: horizontal;
     z-index: 10;
+
+    color: #dfdfe0;
+    line-height: 1.25em;
+}
+
+.menu a, .menu a:link, .menu a:active,
+.menu a:visited
+{
+    color:           #dfdfe0;
+    text-decoration: none;
 }
 
 .menu h1
 {
-    font-size: 1.4em;
+    font-size:     1.2em;
     margin-bottom: 0.15em;
-    border-bottom: 1px solid #75507b;
+    border-bottom: 1px solid #dfdfe0;
 }
 .menu h1:not(:first-child)
 {
@@ -56,7 +66,7 @@ body {
 
 .menu h2
 {
-    font-size: 1.2em;
+    font-size: 1.1em;
     margin-left: 0.5em;
     margin-bottom: 0.15em;
 }
@@ -68,7 +78,7 @@ body {
     list-style: none;
 }
 
-fieldset,
+body > fieldset,
 .container-param,
 .tcontent
 {
@@ -86,6 +96,33 @@ fieldset fieldset
     display: block;
 }
 
+fieldset > legend .entry-value
+{
+    font-size: 1em;
+}
+
+
+fieldset.param-set
+{
+    margin-top: 3ex;
+    border-top: 1px solid black;
+}
+
+fieldset.param-set > legend[data-pkg-name=""]
+{
+    display: none;
+}
+
+fieldset.param-set > legend
+{
+    padding: 0px;
+    margin:  0px 0px 1ex 0px;
+}
+
+fieldset.param-set > legend > a
+{
+    font-weight: bold;
+}
 
 #xml-raw:not(.show)
 {
@@ -99,10 +136,8 @@ table > caption
 
 dt
 {
-    font-size:   1.1em;
     font-weight: bold;
-
-    margin-top: 0.5em;
+    margin-top:  2ex;
 }
 
 dt.param.classifies {
@@ -306,25 +341,16 @@ body > fieldset > legend
 
 body > fieldset > legend > a.pkg
 {
-    float: right;
-    font-size: 0.5em;
+    float:       right;
+    font-size:   0.5em;
     line-height: 2.5em;
-
-    color: inherit;
-    border: none;
-    text-decoration: none;
+    padding:     0px 0.5em;
 }
 
 body > fieldset > legend + p.desc
 {
     margin-top: 0em;
     font-size: 1.1em;
-}
-
-fieldset.rate > legend > a
-{
-    text-decoration: none;
-    border-bottom:   1px dotted black;
 }
 
 fieldset.rate .classes
@@ -475,10 +501,123 @@ form.entry-form dt
     clear: left;
 }
 
+form.entry-form fieldset
+{
+    /* desc is limited to 65ch */
+    max-width: 120ch;
+}
+
 form.entry-form dt > .param-id
 {
+    float: right;
+}
+
+.menu a.sym-ref:visited,
+.menu a.sym-ref:link,
+.menu a.sym-ref:active
+{
+    color: black;
+}
+
+.sym-ref,
+.entry-value,
+.entry-value-prior
+{
+    display: inline-block;
+
+    font-weight:     normal;
+    font-family:     monospace;
+    letter-spacing:  0em;
+    text-decoration: none;
+    white-space:     nowrap;
+    color:           black;
+
+    border:        1px solid;
+    border-radius: 0.25em;
+    padding:       0.15em;
+    margin:        0.15em;
+}
+.sym-ref.sym-large
+{
+    font-size: 1.1em;
+    padding:   0.5em;
+}
+
+.sym-pkg
+{
+    background-color: #d1c3e9;
+    border-color:     #673ab7;
+}
+.sym-rate,
+.sym-gen
+{
+    background-color: #ffe3ba;
+    border-color:     #ff9800;
+}
+.sym-func
+{
+    background-color: #ffdfd5;
+    border-color:     #ff5722;
+}
+.sym-const
+{
+    background-color: #ececec;
+    border-color:     #9E9E9E;
+}
+.sym-type
+{
+    background-color: #d4c8c4;
+    border-color:     #795548;
+}
+.sym-param
+{
+    background-color: #cfd8dc;
+    border-color:     #607D8B;
+}
+.sym-class,
+.sym-cgen
+{
+    background-color: #dfeecc;
+    border-color:     #4caf50;
+}
+.sym-tpl
+{
+    background-color: #fffcdb;
+    border-color:     #ffeb3b;
+}
+
+
+.entry-value,
+.entry-value-prior
+{
+    background-color: yellow;
+
+    margin-left: 2em;
+
+    font-weight: bold;
+    font-size:   1.1em;
+    color:       green;
+}
+.entry-value-prior
+{
+    background-color: purple;
+    border-color:     black;
+
     font-weight: normal;
-    font-family: monospace;
+    font-size:   0.9em;
+    color:       white;
+}
+body:not(.prior) .entry-value-prior
+{
+    display: none;
+}
+
+
+form.entry-form dt > .param-desc
+{
+    display:   inline-block;
+    clear:     left;
+    max-width: 65ch;
 }
 
 form.entry-form .matrix
@@ -657,32 +796,6 @@ form .final-comments #final-submit
 }
 
 
-
-.entry-value,
-.entry-value-prior
-{
-    background-color: yellow;
-
-    padding:     0.1em;
-    margin-left: 1em;
-
-    font-weight: bold;
-    color:       green;
-}
-.entry-value-prior
-{
-    background-color: purple;
-
-    font-weight: normal;
-    font-size:   0.9em;
-    color:       white;
-}
-body:not(.prior) .entry-value-prior
-{
-    display: none;
-}
-
-
 /** validation errors **/
 .validation-errors
 {
@@ -755,16 +868,6 @@ body:not(.prior) .entry-value-prior
 {
     font-size: 0.8em;
     color:     gray;
-}
-
-.ultra-breakdown legend > .tplid
-{
-    font-family:      monospace;
-    background-color: lightgoldenrodyellow;
-    border:           1px solid palegoldenrod;
-    border-radius:    0.25em;
-    padding:          0.15em;
-    margin:           0.15em;
 }
 
 .ultra-breakdown fieldset

@@ -2,7 +2,7 @@
 <!--
   Outputs HTML form that can be used to feed values to the rater for testing
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -138,12 +138,14 @@
     select="$package/lv:param[ @name=$self/@name ]" />
 
   <dt id="param-{@name}">
-    <xsl:value-of select="@desc" />
+    <span class="param-desc">
+      <xsl:value-of select="@desc" />
+    </span>
 
     <span class="param-id">
       <xsl:text> </xsl:text>
-      <a href="#{@name}">
-        <xsl:sequence select="concat( '[', @name, ']' )" />
+      <a href="#{@name}" class="sym-ref sym-param">
+        <xsl:value-of select="@name" />
       </a>
     </span>
   </dt>
