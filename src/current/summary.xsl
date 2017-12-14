@@ -504,6 +504,8 @@
           and ( not( @src ) or @src='' )
         )
       )
+      and not( starts-with( @orig-name, '__' ) )
+      and not( starts-with( @orig-name, '--' ) )
     ]" />
 </xsl:template>
 
