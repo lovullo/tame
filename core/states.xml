@@ -52,12 +52,12 @@
         <item name="STATE_KS"   value="17" desc="Kansas"         />
         <item name="STATE_KY"   value="18" desc="Kentucky"       />
         <item name="STATE_LA"   value="19" desc="Louisiana"      />
-        <item name="STATE_MA"   value="20" desc="Maine"          />
+        <item name="STATE_MA"   value="20" desc="Massachusetts"  />
         <item name="STATE_MD"   value="21" desc="Maryland"       />
-        <item name="STATE_ME"   value="22" desc="Massachusetts"  />
+        <item name="STATE_ME"   value="22" desc="Maine"          />
         <item name="STATE_MI"   value="23" desc="Michigan"       />
         <item name="STATE_MN"   value="24" desc="Minnesota"      />
-        <item name="STATE_MO"   value="25" desc="missouri"       />
+        <item name="STATE_MO"   value="25" desc="Missouri"       />
         <item name="STATE_MS"   value="26" desc="Mississippi"    />
         <item name="STATE_MT"   value="27" desc="Montana"        />
         <item name="STATE_NC"   value="28" desc="North Carolina" />
