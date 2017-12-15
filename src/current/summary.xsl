@@ -26,6 +26,7 @@
 <xsl:stylesheet version="2.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:lvp="http://www.lovullo.com"
   xmlns:c="http://www.lovullo.com/calc"
@@ -61,6 +62,7 @@
      and JS -->
 <xsl:param name="fw-path" select="lv:package/@__rootpath" />
 
+<xsl:variable name="program" select="/lv:package" />
 
 
 <!--
@@ -1192,9 +1194,7 @@
 -->
 <xsl:template match="lv:match" priority="5" mode="process-match">
   <xsl:variable name="on" select="@on" />
-  <xsl:variable name="sym" select="
-      /lv:*/preproc:symtable/preproc:sym[ @name=$on ]
-    " />
+  <xsl:variable name="sym" select="preproc:sym-lookup( $on )" />
 
   <p class="debugid">
     <xsl:attribute name="id">
@@ -1211,7 +1211,7 @@
           </xsl:when>
 
           <xsl:otherwise>
-            <xsl:value-of select="@on" />
+            <xsl:value-of select="$sym/@name" />
           </xsl:otherwise>
         </xsl:choose>
       </xsl:attribute>
@@ -2221,6 +2221,19 @@
 <xsl:template match="*">
   <!-- catch-all -->
 </xsl:template>
+
+
+<!--
+  TODO: Everything should use this rather than consulting the symbol table
+  directly!  Further, anything that does not return a symbol is likely not
+  linked, in which case it should not be rendered at all.  Maybe we should
+  output those somewhere.
+-->
+<xsl:function name="preproc:sym-lookup" as="element( preproc:sym )">
+  <xsl:param name="name" as="xs:string" />
+
+  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ]" />
+</xsl:function>
 
 
 </xsl:stylesheet>
