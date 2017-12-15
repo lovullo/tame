@@ -310,6 +310,7 @@
     <ul>
       <li><a href="#test-data">Test Case</a></li>
       <li><a id="load-prior" href="#prior">Prior Test Cases</a></li>
+      <li><a href="#__nb">N.B.</a></li>
     </ul>
 
     <xsl:apply-templates select="." mode="gen-menu">
@@ -2070,10 +2071,14 @@
 
 <!-- basic summary info -->
 <xsl:template name="summary-info">
-  <div class="tcontent" id="__nb">
+  <div class="tcontent math-typeset-hover" id="__nb">
     <h2 class="nb">N.B.</h2>
-    <dl class="math-typeset-hover">
-      <dt>Iverson's Convention</dt>
+    <p>
+      This "Summary Page" provides both an overview of the rater as a whole
+        and a breakdown of all of its details on an intimate level.
+    </p>
+    <dl>
+      <dt>Iverson's Brackets</dt>
       <dd>
         <p>
           As is customary for many mathematical notations in CS, this system uses
@@ -2091,37 +2096,44 @@
         </p>
       </dd>
 
-      <dt>Sets</dt>
+      <dt>Arrays (Vectors, Matrices, etc.)</dt>
       <dd>
         <p>
+          All sequences/arrays of values are represented as matrices.
+          For one-dimensional arrays, column vectors are used; written
+          horizontally, their notation is
+          \(\left[\begin{array}\\x_0 &amp; x_1 &amp; \ldots &amp; x_n\end{array}\right]^T\),
+          where the \(T\) means "transpose".
+        </p>
+        <p>
           In the equations represented above, it is to be assumed that undefined
-          values in a set are implicitly 0; this simplifies the representations of
+          values in a vector are implicitly \(0\); this simplifies the representations of
           the various summations; they are not intended to be vigorous.
         </p>
         <p>
-          For example: let \( x \) = \( \{ 1, 2, 3 \} \). Given the equation \(
+          For example: let \( x \) = \( \left[\begin{array}\\1 &amp; 2 &amp; 3\end{array}\right]^T \). Given the equation \(
           \sum_k x_k \), it is assumed that the solution is \( 1 + 2 + 3 = 6 \),
           not undefined. Formally, the former sum is to be interpreted as: \(
-          \sum_{k=0}^n x_k \) where \( n \) is the length of set \( x \), or \(
+          \sum_{k=0}^n x_k \) where \( n \) is the length of vector \( x \), or \(
           \sum_k x_k [x_k \textrm{ is defined}] \) using Iverson's convention (the
           latter of which our first notation is based upon by simply omitting the
           brackets and implying their existence).
         </p>
       </dd>
 
-      <dt>Counting Sets</dt>
+      <dt>Counting Vectors</dt>
       <dd>
-        Let \(N(S)\) = the number of values within the set \(S\); this notation is
+        Let \(\#V\) = the number of values within the vector \(V\); this notation is
         used within certain summations. You may also see the following notations:
 
         <ul>
           <li>
-            \(\sum_{k} S_k\) to count the number of one-values in boolean set
-            \(S\) (e.g. if \(S\) denotes properties with swimming pools, we can
+            \(\sum_{k} V_k\) to count the number of one-values in boolean vector
+            \(V\) (e.g. if \(V\) denotes properties with swimming pools, we can
             count the number of swimming pools).
           </li>
           <li>
-            \(\sum_{k=0}^{N(S)} 1\) to count the number of values in set \(S\).
+            \(\sum_{k=0}^{\#V-1} 1\) to count the number of values in vector \(V\).
           </li>
         </ul>
       </dd>
@@ -2136,7 +2148,7 @@
       <dt>Subscript Precedence</dt>
       <dd>
         Subscripts should be applied from right to left. That is:
-        \(S_{x_{y_z}}\) = \(S_{(x_{(y_z)})}\). In the event where a notation may
+        \(V_{x_{y_z}}\) = \(V_{(x_{(y_z)})}\). In the event where a notation may
         be ambiguous (e.g. \(\theta_{1_x}\), since \(1_x\) could not possibly make
         sense in the context of this system), parenthesis will always be added to
         clarify intent.
