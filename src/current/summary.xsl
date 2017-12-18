@@ -26,6 +26,7 @@
 <xsl:stylesheet version="2.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:lvp="http://www.lovullo.com"
   xmlns:c="http://www.lovullo.com/calc"
@@ -61,6 +62,7 @@
      and JS -->
 <xsl:param name="fw-path" select="lv:package/@__rootpath" />
 
+<xsl:variable name="program" select="/lv:package" />
 
 
 <!--
@@ -218,6 +220,8 @@
 
       <!-- global functions for developers -->
       <script type="text/javascript">
+        window.addEventListener( 'load', function()
+        {
         // expected VOI order
         window.voi_order = [
           <xsl:apply-templates
@@ -283,6 +287,7 @@
 
         // begin processing
         client.begin();
+        } );
       </script>
     </body>
   </html>
@@ -297,7 +302,7 @@
 
   <div class="menu" id="pkgmenu">
     <!-- build our own menu -->
-    <h1 id="pkg-{@name}">
+    <h1 id="pkg-{@name}" class="sym-ref sym-pkg">
       <xsl:value-of select="@name" />
     </h1>
 
@@ -305,6 +310,7 @@
     <ul>
       <li><a href="#test-data">Test Case</a></li>
       <li><a id="load-prior" href="#prior">Prior Test Cases</a></li>
+      <li><a href="#__nb">N.B.</a></li>
     </ul>
 
     <xsl:apply-templates select="." mode="gen-menu">
@@ -340,7 +346,7 @@
         <xsl:variable name="pkg-name"
                       select="preproc:pkg-name( . )" />
 
-        <h1 id="pkg-{$pkg-name}">
+        <h1 id="pkg-{$pkg-name}" class="sym-ref sym-pkg">
           <xsl:value-of select="concat( '/', $pkg-name )" />
         </h1>
 
@@ -370,7 +376,7 @@
       <xsl:for-each select="$deps/*">
         <xsl:sort select="@name" data-type="text" />
         <li>
-          <a href="#{@name}">
+          <a href="#{@name}" class="sym-ref sym-{$type}">
             <xsl:choose>
               <xsl:when test="$after">
                 <xsl:value-of select="substring-after( @name, $after )" />
@@ -454,7 +460,9 @@
       <!-- first output any rate blocks are are ungrouped -->
       <xsl:for-each select="$src/lv:rate[ @yields=$rates/@name ]">
         <li>
-          <a href="#{@yields}"><xsl:value-of select="@yields" /></a>
+          <a href="#{@yields}" class="sym-ref sym-rate">
+            <xsl:value-of select="@yields" />
+          </a>
         </li>
       </xsl:for-each>
 
@@ -502,6 +510,8 @@
           and ( not( @src ) or @src='' )
         )
       )
+      and not( starts-with( @orig-name, '__' ) )
+      and not( starts-with( @orig-name, '--' ) )
     ]" />
 </xsl:template>
 
@@ -634,7 +644,7 @@
 <xsl:template name="pkg-out">
   <xsl:variable name="name" select="/lv:*/@name" />
 
-  <a class="pkg" href="#pkg-{$name}">
+  <a href="#pkg-{$name}" class="pkg sym-ref sym-pkg">
     <xsl:text>/</xsl:text>
     <xsl:value-of select="$name" />
   </a>
@@ -680,7 +690,13 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <xsl:variable name="type"
+                  select="if ( local-name() = 'item' ) then
+                              'const'
+                            else
+                              local-name()" />
+
+    <legend class="sym-{$type}">
       <xsl:variable name="sym"
                     select="/lv:*/preproc:symtable
                               /preproc:sym[ @name=$name ]" />
@@ -913,7 +929,7 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-type">
       <xsl:value-of select="@desc" />
 
       <span class="name">
@@ -965,7 +981,7 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-type">
       <xsl:value-of select="@desc" />
 
       <span class="name">
@@ -1015,7 +1031,7 @@
       <xsl:for-each select="lv:item">
         <tr>
           <td>
-            <a href="#{@name}">
+            <a href="#{@name}" class="sym-ref sym-const">
               <xsl:value-of select="@name" />
             </a>
           </td>
@@ -1073,11 +1089,13 @@
       <xsl:value-of select="@as" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-class">
       <xsl:value-of select="@desc" />
       <span class="name">
         <xsl:text> (</xsl:text>
+        <span>
           <xsl:value-of select="@as" />
+        </span>
         <xsl:text>)</xsl:text>
       </span>
 
@@ -1098,7 +1116,10 @@
         </xsl:attribute>
 
         <span class="calc-yields">Yields: </span>
-        <xsl:value-of select="@yields" />
+
+        <span class="sym-ref sym-cgen">
+          <xsl:value-of select="@yields" />
+        </span>
       </div>
     </xsl:if>
   </fieldset>
@@ -1174,9 +1195,7 @@
 -->
 <xsl:template match="lv:match" priority="5" mode="process-match">
   <xsl:variable name="on" select="@on" />
-  <xsl:variable name="sym" select="
-      /lv:*/preproc:symtable/preproc:sym[ @name=$on ]
-    " />
+  <xsl:variable name="sym" select="preproc:sym-lookup( $on )" />
 
   <p class="debugid">
     <xsl:attribute name="id">
@@ -1184,7 +1203,7 @@
       <xsl:value-of select="@_id" />
     </xsl:attribute>
 
-    <a>
+    <a class="sym-ref sym-{$sym/@type}">
       <xsl:attribute name="href">
         <xsl:text>#</xsl:text>
         <xsl:choose>
@@ -1193,7 +1212,7 @@
           </xsl:when>
 
           <xsl:otherwise>
-            <xsl:value-of select="@on" />
+            <xsl:value-of select="$sym/@name" />
           </xsl:otherwise>
         </xsl:choose>
       </xsl:attribute>
@@ -1318,9 +1337,14 @@
   @return match HTML
 -->
 <xsl:template match="lv:match[@value]" mode="match-desc">
+  <xsl:variable name="value" select="@value" />
+
+  <xsl:variable name="sym"
+                select="/lv:*/preproc:symtable/preproc:sym[ @name=$value ]" />
+
   <xsl:text>= </xsl:text>
 
-  <a href="#{@value}">
+  <a href="#{@value}" class="sym-ref sym-{$sym/@type}">
     <xsl:value-of select="@value" />
   </a>
 </xsl:template>
@@ -1330,8 +1354,42 @@
   <xsl:text> be </xsl:text>
 
   <xsl:text>\(</xsl:text>
-    <xsl:apply-templates select="./c:*" mode="calc-iversons" />
+    <xsl:apply-templates select="./c:*" mode="calc-iversons">
+      <xsl:with-param name="recurse" select="false()" />
+    </xsl:apply-templates>
+  <xsl:text>\) </xsl:text>
+
+  <xsl:apply-templates mode="match-desc"
+                       select="c:*/c:*" />
+</xsl:template>
+
+
+<xsl:template match="c:value-of" mode="match-desc" priority="5">
+  <xsl:variable name="name"
+                select="@name" />
+
+  <xsl:variable name="sym" as="element( preproc:sym )"
+                select="/lv:*/preproc:symtable/preproc:sym[ @name=$name ]" />
+
+  <a href="#{$name}" class="sym-ref sym-{$sym/@type}">
+    <xsl:value-of select="$name" />
+  </a>
+</xsl:template>
+
+
+<xsl:template match="c:const" mode="match-desc" priority="5">
+  <xsl:text>\(</xsl:text>
+  <xsl:value-of select="@value" />
   <xsl:text>\)</xsl:text>
+</xsl:template>
+
+
+<xsl:template match="c:*" mode="match-desc" priority="1">
+  <xsl:message terminate="yes">
+    <xsl:text>[summary] internal: unknown match calculation for `</xsl:text>
+    <xsl:value-of select="ancestor::c:classify/@as" />
+    <xsl:text>'</xsl:text>
+  </xsl:message>
 </xsl:template>
 
 
@@ -1368,7 +1426,7 @@
       <xsl:value-of select="@name" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-func">
       <xsl:text>\(</xsl:text>
 
       <xsl:choose>
@@ -1461,7 +1519,7 @@
       <xsl:value-of select="@yields" />
     </xsl:attribute>
 
-    <legend>
+    <legend class="sym-rate">
       <xsl:variable name="tex" select="
           /lv:*/preproc:symtable/preproc:sym[ @name=$name ]/@tex
         " />
@@ -1474,8 +1532,9 @@
         <xsl:text>\) </xsl:text>
       </xsl:if>
 
+      <xsl:text> </xsl:text>
+
       <span class="yields">
-        <xsl:text> </xsl:text>
         <xsl:value-of select="@yields" />
       </span>
 
@@ -1536,7 +1595,7 @@
             " />
 
           <!-- output description -->
-          <a href="#{$csymid}">
+          <a href="#{$csymid}" class="sym-ref sym-class">
             <xsl:value-of select="
               $pkg/lv:*/lv:classify[ @as=$cname ]/@desc
             " />
@@ -1765,11 +1824,28 @@
             <xsl:text>, </xsl:text>
           </xsl:if>
 
-          <span class="tplid">
-            <xsl:text>@</xsl:text>
+          <span class="tplid sym-ref sym-tpl">
             <xsl:value-of select="@name" />
           </span>
         </xsl:for-each>
+      </xsl:if>
+
+      <xsl:if test="@name">
+        <xsl:variable name="name" select="@name" />
+        <xsl:variable name="sym"
+                      select="/lv:*/preproc:symtable
+                                /preproc:sym[ @name=$name ]" />
+
+        <xsl:variable name="ref"
+                      select="if ( $sym/@parent ) then
+                                  $sym/@parent
+                                else
+                                  $name" />
+
+        <xsl:text> </xsl:text>
+        <a href="#{$ref}" class="sym-ref sym-{$sym/@type}">
+          <xsl:value-of select="$name" />
+        </a>
       </xsl:if>
     </legend>
 
@@ -1915,7 +1991,9 @@
           <div class="desc">
             <xsl:value-of select="@desc" />
             <xsl:text> (</xsl:text>
+            <a href="#{@generates}" class="sym-ref sym-gen">
               <xsl:value-of select="@generates" />
+            </a>
             <xsl:text>)</xsl:text>
           </div>
         </div>
@@ -1993,10 +2071,14 @@
 
 <!-- basic summary info -->
 <xsl:template name="summary-info">
-  <div class="tcontent" id="__nb">
+  <div class="tcontent math-typeset-hover" id="__nb">
     <h2 class="nb">N.B.</h2>
-    <dl class="math-typeset-hover">
-      <dt>Iverson's Convention</dt>
+    <p>
+      This "Summary Page" provides both an overview of the rater as a whole
+        and a breakdown of all of its details on an intimate level.
+    </p>
+    <dl>
+      <dt>Iverson's Brackets</dt>
       <dd>
         <p>
           As is customary for many mathematical notations in CS, this system uses
@@ -2014,37 +2096,44 @@
         </p>
       </dd>
 
-      <dt>Sets</dt>
+      <dt>Arrays (Vectors, Matrices, etc.)</dt>
       <dd>
         <p>
+          All sequences/arrays of values are represented as matrices.
+          For one-dimensional arrays, column vectors are used; written
+          horizontally, their notation is
+          \(\left[\begin{array}\\x_0 &amp; x_1 &amp; \ldots &amp; x_n\end{array}\right]^T\),
+          where the \(T\) means "transpose".
+        </p>
+        <p>
           In the equations represented above, it is to be assumed that undefined
-          values in a set are implicitly 0; this simplifies the representations of
+          values in a vector are implicitly \(0\); this simplifies the representations of
           the various summations; they are not intended to be vigorous.
         </p>
         <p>
-          For example: let \( x \) = \( \{ 1, 2, 3 \} \). Given the equation \(
+          For example: let \( x \) = \( \left[\begin{array}\\1 &amp; 2 &amp; 3\end{array}\right]^T \). Given the equation \(
           \sum_k x_k \), it is assumed that the solution is \( 1 + 2 + 3 = 6 \),
           not undefined. Formally, the former sum is to be interpreted as: \(
-          \sum_{k=0}^n x_k \) where \( n \) is the length of set \( x \), or \(
+          \sum_{k=0}^n x_k \) where \( n \) is the length of vector \( x \), or \(
           \sum_k x_k [x_k \textrm{ is defined}] \) using Iverson's convention (the
           latter of which our first notation is based upon by simply omitting the
           brackets and implying their existence).
         </p>
       </dd>
 
-      <dt>Counting Sets</dt>
+      <dt>Counting Vectors</dt>
       <dd>
-        Let \(N(S)\) = the number of values within the set \(S\); this notation is
+        Let \(\#V\) = the number of values within the vector \(V\); this notation is
         used within certain summations. You may also see the following notations:
 
         <ul>
           <li>
-            \(\sum_{k} S_k\) to count the number of one-values in boolean set
-            \(S\) (e.g. if \(S\) denotes properties with swimming pools, we can
+            \(\sum_{k} V_k\) to count the number of one-values in boolean vector
+            \(V\) (e.g. if \(V\) denotes properties with swimming pools, we can
             count the number of swimming pools).
           </li>
           <li>
-            \(\sum_{k=0}^{N(S)} 1\) to count the number of values in set \(S\).
+            \(\sum_{k=0}^{\#V-1} 1\) to count the number of values in vector \(V\).
           </li>
         </ul>
       </dd>
@@ -2059,7 +2148,7 @@
       <dt>Subscript Precedence</dt>
       <dd>
         Subscripts should be applied from right to left. That is:
-        \(S_{x_{y_z}}\) = \(S_{(x_{(y_z)})}\). In the event where a notation may
+        \(V_{x_{y_z}}\) = \(V_{(x_{(y_z)})}\). In the event where a notation may
         be ambiguous (e.g. \(\theta_{1_x}\), since \(1_x\) could not possibly make
         sense in the context of this system), parenthesis will always be added to
         clarify intent.
@@ -2144,6 +2233,19 @@
 <xsl:template match="*">
   <!-- catch-all -->
 </xsl:template>
+
+
+<!--
+  TODO: Everything should use this rather than consulting the symbol table
+  directly!  Further, anything that does not return a symbol is likely not
+  linked, in which case it should not be rendered at all.  Maybe we should
+  output those somewhere.
+-->
+<xsl:function name="preproc:sym-lookup" as="element( preproc:sym )">
+  <xsl:param name="name" as="xs:string" />
+
+  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ]" />
+</xsl:function>
 
 
 </xsl:stylesheet>

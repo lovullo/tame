@@ -2,7 +2,7 @@
 <!--
   Handles calculation output in LaTeX format for styling by Mathjax
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -631,6 +631,8 @@
   @return LaTeX equation
 -->
 <xsl:template match="c:eq|c:ne|c:gt|c:lt|c:gte|c:lte" mode="calc-iversons">
+  <xsl:param name="recurse" select="true()" />
+
   <xsl:variable name="name" select="local-name()" />
 
   <!-- map to LaTeX equivalent -->
@@ -646,7 +648,9 @@
   <xsl:value-of select="$map/*[ @id=$name ]" />
   <xsl:text> </xsl:text>
 
-  <xsl:apply-templates select="." mode="calc-recurse" />
+  <xsl:if test="$recurse">
+    <xsl:apply-templates select="." mode="calc-recurse" />
+  </xsl:if>
 </xsl:template>
 
 

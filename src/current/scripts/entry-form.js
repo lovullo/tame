@@ -2140,7 +2140,7 @@ var client = ( function()
             }
             catch ( e )
             {
-                alert( 'Failed setting param values from URL.\n\n' + e.message );
+                // probably not the type of data we're looking for; just ignore
             }
         }
 

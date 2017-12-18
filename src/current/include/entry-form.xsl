@@ -2,7 +2,7 @@
 <!--
   Outputs HTML form that can be used to feed values to the rater for testing
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -23,6 +23,7 @@
 <xsl:stylesheet version="1.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:l="http://www.lovullo.com/rater/linker"
@@ -92,16 +93,43 @@
       </div>
     </div>
 
-    <dl>
-      <!-- generate HTML elements for each *global* parameter, *but only if it
-           is used in the rater* -->
-      <xsl:apply-templates
-        select="/lv:package/l:dep/preproc:sym[ @type='param' ]"
-        mode="entry-form">
+    <!-- generate form fields for each param -->
+    <xsl:for-each-group select="/lv:package/l:dep/preproc:sym[ @type='param' ]"
+                        group-by="@src">
+      <xsl:variable name="pkg"
+                    select="if ( not( @src = '' ) ) then
+                                document( concat( @src, '.xmlo' ), $root-pkg )/lv:*
+                              else
+                                ()" />
 
-        <xsl:with-param name="root-pkg" select="$root-pkg" />
-      </xsl:apply-templates>
-    </dl>
+      <xsl:variable name="pkg-display"
+                    select="if ( $pkg ) then
+                                concat( $pkg/@desc, ' (', $pkg/@name, ')' )
+                              else
+                                ''" />
+
+      <xsl:variable name="pkg-name" select="$pkg/@name" />
+
+      <fieldset class="param-set">
+        <legend data-pkg-name="{$pkg-name}">
+          <a href="#pkg-{$pkg-name}" class="sym-ref sym-pkg sym-large">
+            <xsl:value-of select="$pkg-display" />
+          </a>
+        </legend>
+
+        <xsl:variable name="syms" as="element( preproc:sym )*">
+          <xsl:perform-sort select="current-group()">
+            <xsl:sort select="@desc"></xsl:sort>
+          </xsl:perform-sort>
+        </xsl:variable>
+
+        <dl>
+          <xsl:apply-templates mode="entry-form" select="$syms">
+            <xsl:with-param name="root-pkg" select="$root-pkg" />
+          </xsl:apply-templates>
+        </dl>
+      </fieldset>
+    </xsl:for-each-group>
   </form>
 
   <script type="text/javascript" src="{$fw-path}/rater/scripts/entry-form.js"></script>
@@ -138,12 +166,14 @@
     select="$package/lv:param[ @name=$self/@name ]" />
 
   <dt id="param-{@name}">
-    <xsl:value-of select="@desc" />
+    <span class="param-desc">
+      <xsl:value-of select="@desc" />
+    </span>
 
     <span class="param-id">
       <xsl:text> </xsl:text>
-      <a href="#{@name}">
-        <xsl:sequence select="concat( '[', @name, ']' )" />
+      <a href="#{@name}" class="sym-ref sym-param">
+        <xsl:value-of select="@name" />
       </a>
     </span>
   </dt>
