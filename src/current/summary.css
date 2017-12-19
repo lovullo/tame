@@ -597,6 +597,8 @@ form.entry-form dt > .param-id
     font-weight: bold;
     font-size:   1.1em;
     color:       green;
+
+    white-space: normal;
 }
 .entry-value-prior
 {
