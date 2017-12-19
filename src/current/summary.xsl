@@ -2241,7 +2241,7 @@
   linked, in which case it should not be rendered at all.  Maybe we should
   output those somewhere.
 -->
-<xsl:function name="preproc:sym-lookup" as="element( preproc:sym )">
+<xsl:function name="preproc:sym-lookup" as="element( preproc:sym )?">
   <xsl:param name="name" as="xs:string" />
 
   <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ]" />
