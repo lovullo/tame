@@ -205,7 +205,7 @@
   Classifications containing only an lv:any child node can be converted into
   existential classifications
 -->
-<xsl:template match="lv:classify[ lv:any and count(*) = 1 ]" mode="preproc:macros" priority="8">
+<xsl:template match="lv:classify[ lv:any and count(lv:*) = 1 ]" mode="preproc:macros" priority="8">
   <xsl:copy>
     <xsl:sequence select="@*" />
     <xsl:attribute name="any" select="'true'" />
@@ -272,6 +272,15 @@
 
   <!-- this will remain in its place -->
   <lv:match on="{$yields}" value="TRUE" preproc:generated="true" />
+</xsl:template>
+
+
+<!-- traverse through preproc nodes (e.g. preproc:tpl-barrier) -->
+<xsl:template match="preproc:*" mode="preproc:class-groupgen" priority="2">
+  <xsl:copy>
+    <xsl:sequence select="@*" />
+    <xsl:apply-templates select="node()" mode="preproc:class-extract" />
+  </xsl:copy>
 </xsl:template>
 
 
