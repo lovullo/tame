@@ -274,6 +274,12 @@
                                   or @name=$newresult/preproc:sym[ @type ]/@name
                                 )
                               )
+                              or (
+                                @local = 'true'
+                                and @name = following-sibling::preproc:sym[
+                                  not( @local = 'true' )
+                                ]/@name
+                              )
                             )
                           ]" />
 
@@ -481,6 +487,14 @@
           <xsl:copy>
             <xsl:sequence select="@*[ not( name()='override' ) ], *" />
           </xsl:copy>
+        </xsl:when>
+
+        <!-- if we have already imported the symbol as local, but this one
+             is non-local (exportable), then this one takes precedence -->
+        <xsl:when test="not( @local = 'true' )
+                          and $dupall[ @local = 'true' ]
+                          and not( $dupall[ not( @local = 'true' ) ] )">
+          <xsl:sequence select="." />
         </xsl:when>
 
         <xsl:when test="$dupall[ @type ]">
