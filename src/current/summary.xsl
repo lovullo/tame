@@ -2244,7 +2244,9 @@
 <xsl:function name="preproc:sym-lookup" as="element( preproc:sym )?">
   <xsl:param name="name" as="xs:string" />
 
-  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ]" />
+  <!-- XXX: There's a linker bug where there may be duplicate symbols in
+       l:dep! -->
+  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ][0]" />
 </xsl:function>
 
 
