@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2017 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="Extern Definition">
+
+  Externs are symbols that are expected to be defined by package importers
+    before linking.
+  Rather than explicitly declaring extern symbols,
+    these templates provide more human-readable abstractions.
+
+
+  Note that when defining extern classifications with
+    \ref{_classify-extern_},
+      if specifying a yield,
+      the dimensionality is~$1$ unless otherwise provided.
+
+  <template name="_classify-extern_"
+            desc="Define extern for classification">
+    <param name="@as@" desc="Extern classification name" />
+
+    <param name="@yields@" desc="Extern classification yield">
+      <text></text>
+    </param>
+
+    <!-- default assumption is a vector -->
+    <param name="@dim@" desc="Extern classification yield dimensions">
+      <text>1</text>
+    </param>
+
+    <extern name=":class:{@as@}" type="class" dim="0"
+            yields="@yields@" />
+
+    <if name="@yields@">
+      <extern name="@yields@" type="cgen" dim="@dim@"
+              parent=":class:{@as@}" />
+    </if>
+  </template>
+
+
+  <template name="_rate-each-extern_"
+            desc="Define extern for rate-each">
+    <param name="@generates@" desc="Extern generator name" />
+    <param name="@yields@"    desc="Extern yield name" />
+
+    <if name="@generates@">
+      <extern name="@generates@" type="gen" dtype="float" dim="1" />
+    </if>
+
+    <if name="@yields@">
+      <extern name="@yields@" type="rate" dtype="float" dim="0" />
+    </if>
+  </template>
+
+
+  <template name="_rate-extern_"
+            desc="Define extern for rate">
+    <param name="@yields@" desc="Extern yield name" />
+
+    <extern name="@yields@" type="rate" dtype="float" dim="0" />
+  </template>
+</package>

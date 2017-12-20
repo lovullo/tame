@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2017 LoVullo Associates, Inc.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="Aliasing Values">
+
+  These alias templates allow giving a new name to existing values.
+  They are most useful for avoiding too many template-generated variables.
+
+  <template name="_classify-alias_"
+            desc="Alias classification">
+    <param name="@as@"   desc="Classification alias name" />
+    <param name="@from@" desc="Source classification" />
+
+    <param name="@desc@" desc="Classification alias description">
+      <text>Alias for </text>
+      <param-value name="@from@" />
+    </param>
+
+    <param name="@yields@" desc="Classification alias yield">
+      <text></text>
+    </param>
+
+    <param name="@__src_yields@" desc="Source classification yield">
+      <param-class-to-yields name="@from@" />
+    </param>
+
+
+    <classify as="@as@" desc="@desc@" yields="@yields@">
+      <match on="@__src_yields@" />
+    </classify>
+  </template>
+
+
+  <template name="_rate-alias_"
+            desc="Alias calculation">
+    <param name="@yields@" desc="Alias name" />
+    <param name="@from@"   desc="Source name" />
+
+
+    <rate yields="@yields@">
+      <c:value-of name="@from@" />
+    </rate>
+  </template>
+
+
+  <template name="_rate-each-alias_"
+            desc="Alias generator">
+    <param name="@generates@" desc="Generator alias name" />
+    <param name="@from@"      desc="Source generator" />
+
+    <param name="@yields@" desc="Yield alias name">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
+
+
+    <rate yields="@yields@">
+      <c:sum of="@from@" desc="Alias iterator"
+             generates="@generates@" index="k">
+        <c:value-of name="@from@" index="k" />
+      </c:sum>
+    </rate>
+  </template>
+</package>
