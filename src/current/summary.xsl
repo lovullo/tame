@@ -1584,21 +1584,11 @@
           </xsl:if>
 
           <!-- get class package -->
-          <xsl:variable name="src" select="
-              $root/lv:*/preproc:symtable/preproc:sym[ @name=$csymid ]/@src
-            " />
-          <xsl:variable name="pkg" select="
-              if ( $src ) then
-                document( concat( $src, '.xmlo' ), $root )
-              else
-                $root
-            " />
+          <xsl:variable name="sym" select="preproc:sym-lookup( $csymid )" />
 
           <!-- output description -->
           <a href="#{$csymid}" class="sym-ref sym-class">
-            <xsl:value-of select="
-              $pkg/lv:*/lv:classify[ @as=$cname ]/@desc
-            " />
+            <xsl:value-of select="$sym/@desc" />
           </a>
         </xsl:for-each>
       </div>
@@ -2246,7 +2236,7 @@
 
   <!-- XXX: There's a linker bug where there may be duplicate symbols in
        l:dep! -->
-  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ][0]" />
+  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ][1]" />
 </xsl:function>
 
 

@@ -74,31 +74,18 @@
 
 <xsl:template match="preproc:sym[ @type='cgen' ]" mode="summary:desc" priority="5">
   <xsl:variable name="parent" select="@parent" />
-  <xsl:variable name="sym" select="
-      ancestor::preproc:symtable/preproc:sym[ @name=$parent ]
-    " />
+  <xsl:variable name="sym" select="preproc:sym-lookup( $parent )" />
 
   <xsl:apply-templates select="$sym" mode="summary:desc" />
 </xsl:template>
 
 
 <xsl:template match="preproc:sym[ @type='class' ]" mode="summary:desc" priority="5">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="document" select="
-      if ( @src ) then
-        document( concat( @src, '.xmlo' ), . )/lv:*
-      else
-        /lv:*
-    " />
-  <xsl:variable name="class" select="
-      $document/lv:classify[
-        @as=substring-after( $name, ':class:' )
-      ]
-    " />
+  <xsl:variable name="as" select="@orig-name" />
 
-  <span class="letlist-{$class/@as}">
+  <span class="letlist-{$as}">
     <xsl:text>"</xsl:text>
-    <xsl:value-of select="$class/@desc" />
+    <xsl:value-of select="@desc" />
     <xsl:text>"</xsl:text>
     <xsl:text> classification </xsl:text>
 
@@ -125,8 +112,8 @@
     <!-- TODO: use generator in letlist-* -->
     <span class="param">
       <xsl:text> (</xsl:text>
-      <a href="#:class:{$class/@as}" class="sym-ref sym-class">
-        <xsl:value-of select="$class/@as" />
+      <a href="#{@name}" class="sym-ref sym-class">
+        <xsl:value-of select="$as" />
       </a>
       <xsl:text>)</xsl:text>
     </span>
@@ -142,25 +129,12 @@
 
 
 <xsl:template match="preproc:sym[ @type='param' ]" mode="summary:desc" priority="5">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="document" select="
-      if ( @src ) then
-        document( concat( @src, '.xmlo' ), . )/lv:*
-      else
-        /lv:*
-    " />
-  <xsl:variable name="param" select="
-      $document/lv:param[
-        @name=$name
-      ]
-    " />
+  <xsl:value-of select="@desc" />
 
-  <xsl:value-of select="$param/@desc" />
-
-  <span class="param letlist-{$param/@name}">
+  <span class="param letlist-{@name}">
     <xsl:text> (</xsl:text>
-    <a href="#{$param/@name}" class="sym-ref sym-param">
-      <xsl:value-of select="$param/@name" />
+    <a href="#{@name}" class="sym-ref sym-param">
+      <xsl:value-of select="@name" />
     </a>
     <xsl:text>)</xsl:text>
   </span>
@@ -477,15 +451,15 @@
     " />
 
   <ul class="let">
+    <xsl:variable name="non-lparams" as="element( preproc:sym-ref )*"
+                  select="$deps/preproc:sym-ref[ not( @type = 'lparam' ) ]" />
+    <xsl:variable name="lparams" as="element( preproc:sym-ref )*"
+                  select="$deps/preproc:sym-ref[ @type = 'lparam' ]" />
+
     <!-- output a description for each dependency -->
     <xsl:variable name="result">
-      <xsl:for-each select="
-          /lv:*/preproc:symtable/preproc:sym[
-            not( @type='lparam' )
-            and @name=$deps/preproc:sym-ref/@name
-          ]
-        ">
-
+      <xsl:for-each select="for $name in $non-lparams/@name
+                              return preproc:sym-lookup( $name )">
         <xsl:call-template name="_gen-let-list-item">
           <xsl:with-param name="context" select="$context" />
         </xsl:call-template>
@@ -493,13 +467,8 @@
 
 
       <!-- handle c:let formatting separately -->
-      <xsl:for-each select="
-          /lv:*/preproc:symtable/preproc:sym[
-            @type='lparam'
-            and @name=$deps/preproc:sym-ref/@name
-          ]
-        ">
-
+      <xsl:for-each select="for $name in $lparams/@name
+                              return preproc:sym-lookup( $name )">
         <xsl:call-template name="_gen-let-list-item">
           <xsl:with-param name="context" select="$context" />
           <xsl:with-param name="class" select="'letequ'" />
