@@ -166,9 +166,9 @@
   <xsl:if test="./c:*">
     <!-- the upper limit of the summation will be denoted by #S, where S is the
          symbol for a given set -->
-    <xsl:text>^{\grave\#</xsl:text>
+    <xsl:text>^{|</xsl:text>
       <xsl:copy-of select="$symbol" />
-    <xsl:text>}</xsl:text>
+    <xsl:text>|-1}</xsl:text>
   </xsl:if>
 
   <!-- if no children are provided, just sum @of -->
@@ -695,9 +695,9 @@
 
 
 <xsl:template match="c:length-of">
-  <xsl:text>\#\left(</xsl:text>
+  <xsl:text>|\left(</xsl:text>
     <xsl:apply-templates select="./c:*[1]" />
-  <xsl:text>\right)</xsl:text>
+  <xsl:text>\right)|</xsl:text>
 </xsl:template>
 
 <xsl:template match="c:cons">
