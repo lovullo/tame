@@ -122,9 +122,13 @@
 
 
 <xsl:template match="preproc:sym[ @type='const' ]" mode="summary:desc" priority="5">
+  <xsl:value-of select="@desc" />
+
+  <xsl:text> (</xsl:text>
   <a href="#{@name}" class="sym-ref sym-const">
     <xsl:value-of select="@name" />
   </a>
+  <xsl:text>)</xsl:text>
 </xsl:template>
 
 
