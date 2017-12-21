@@ -2,7 +2,7 @@
 <!--
   Display-related tasks
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
 
     This file is part of TAME.
 
@@ -23,6 +23,7 @@
 <xsl:stylesheet version="1.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:sym="http://www.lovullo.com/rater/symbol-map"
@@ -59,14 +60,8 @@
     <a href="#{@parent}" class="sym-ref sym-gen">
       <xsl:value-of select="@name" />
     </a>
-    <xsl:text> generator; vector</xsl:text>
-
-    <span class="param">
-      <xsl:text> </xsl:text>
-        <a href="#{@parent}" class="sym-ref sym-rate">
-          <xsl:value-of select="@parent" />
-        </a>
-    </span>
+    <xsl:text> </xsl:text>
+    <xsl:sequence select="preproc:dim-to-str( @dim )" />
   </span>
 </xsl:template>
 
@@ -88,25 +83,7 @@
     <xsl:text>"</xsl:text>
     <xsl:text> classification </xsl:text>
 
-    <xsl:choose>
-      <xsl:when test="@dim = '0'">
-        <xsl:text>scalar</xsl:text>
-      </xsl:when>
-
-      <xsl:when test="@dim = '1'">
-        <xsl:text>vector</xsl:text>
-      </xsl:when>
-
-      <xsl:when test="@dim = '2'">
-        <xsl:text>matrix</xsl:text>
-      </xsl:when>
-
-      <xsl:otherwise>
-        <xsl:text> [dim </xsl:text>
-          <xsl:value-of select="@dim" />
-        <xsl:text>]</xsl:text>
-      </xsl:otherwise>
-    </xsl:choose>
+    <xsl:sequence select="preproc:dim-to-str( @dim )" />
 
     <!-- TODO: use generator in letlist-* -->
     <span class="param">
@@ -117,6 +94,29 @@
     </span>
   </span>
 </xsl:template>
+
+
+<xsl:function name="preproc:dim-to-str" as="xs:string">
+  <xsl:param name="dim" as="xs:integer" />
+
+  <xsl:choose>
+    <xsl:when test="$dim = '0'">
+      <xsl:sequence select="'scalar'" />
+    </xsl:when>
+
+    <xsl:when test="$dim = '1'">
+      <xsl:sequence select="'vector'" />
+    </xsl:when>
+
+    <xsl:when test="$dim = '2'">
+      <xsl:sequence select="'matrix'" />
+    </xsl:when>
+
+    <xsl:otherwise>
+      <xsl:sequence select="' [dim ', $dim, ']'" />
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:function>
 
 
 <xsl:template match="preproc:sym[ @type='const' ]" mode="summary:desc" priority="5">
