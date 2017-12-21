@@ -1162,6 +1162,56 @@
 </xsl:template>
 
 
+<!--
+  Retrieve symbol metadata.
+-->
+<xsl:template mode="preproc:gen-param-value" priority="5"
+              match="lv:param-sym-value">
+  <xsl:param name="params" as="element( lv:with-param )*"
+             tunnel="yes" />
+
+  <xsl:param name="src-root" as="element( lv:package )"
+             select="root(.)"
+             tunnel="yes" />
+
+  <xsl:variable name="pname" as="xs:string" select="@name" />
+  <xsl:variable name="value" as="xs:string" select="@value" />
+
+  <xsl:variable name="name" as="xs:string"
+                select="$params[ @name = $pname ]/@value" />
+
+  <xsl:variable name="sym-name" as="xs:string"
+                select="concat( @prefix, $name )" />
+
+  <!-- get @yields from class -->
+  <xsl:variable name="sym-value" as="xs:string?" select="
+      $src-root/preproc:symtable/preproc:sym[
+        @name = $sym-name ]
+          /@*[ local-name() = $value ]" />
+
+  <xsl:choose>
+    <xsl:when test="not( $sym-value ) or $sym-value = ''">
+      <xsl:message>
+        <xsl:text>warning: unable to find `@</xsl:text>
+        <xsl:value-of select="$value" />
+        <xsl:text>' for symbol `</xsl:text>
+        <xsl:value-of select="$sym-name" />
+        <xsl:text>' (does the symbol support `@</xsl:text>
+        <xsl:value-of select="$value" />
+        <xsl:text>' and has it been imported?)</xsl:text>
+      </xsl:message>
+
+      <!-- just use the name if nothing is available -->
+      <xsl:value-of select="$name" />
+    </xsl:when>
+
+    <xsl:otherwise>
+      <xsl:value-of select="$sym-value" />
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+
 <xsl:template mode="preproc:gen-param-value" priority="5"
               match="text()">
   <xsl:value-of select="." />
