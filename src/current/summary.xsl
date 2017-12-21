@@ -1980,11 +1980,10 @@
 
           <div class="desc">
             <xsl:value-of select="@desc" />
-            <xsl:text> (</xsl:text>
+            <xsl:text> </xsl:text>
             <span class="sym-ref sym-gen">
               <xsl:value-of select="@generates" />
             </span>
-            <xsl:text>)</xsl:text>
           </div>
         </div>
       </xsl:for-each>
