@@ -1981,9 +1981,9 @@
           <div class="desc">
             <xsl:value-of select="@desc" />
             <xsl:text> (</xsl:text>
-            <a href="#{@generates}" class="sym-ref sym-gen">
+            <span class="sym-ref sym-gen">
               <xsl:value-of select="@generates" />
-            </a>
+            </span>
             <xsl:text>)</xsl:text>
           </div>
         </div>
