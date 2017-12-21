@@ -25,14 +25,16 @@
   These alias templates allow giving a new name to existing values.
   They are most useful for avoiding too many template-generated variables.
 
+  If no description is provided,
+    aliases will inherit the description from the source symbol.
+
   <template name="_classify-alias_"
             desc="Alias classification">
     <param name="@as@"   desc="Classification alias name" />
     <param name="@from@" desc="Source classification" />
 
     <param name="@desc@" desc="Classification alias description">
-      <text>Alias for </text>
-      <param-value name="@from@" />
+      <param-sym-value prefix=":class:" name="@from@" value="desc" />
     </param>
 
     <param name="@yields@" desc="Classification alias yield">
@@ -67,6 +69,10 @@
     <param name="@generates@" desc="Generator alias name" />
     <param name="@from@"      desc="Source generator" />
 
+    <param name="@desc@" desc="Generator alias description">
+      <param-sym-value  name="@from@" value="desc" />
+    </param>
+
     <param name="@yields@" desc="Yield alias name">
       <text>_</text>
       <param-value name="@generates@" />
@@ -74,8 +80,7 @@
 
 
     <rate yields="@yields@">
-      <c:sum of="@from@" desc="Alias iterator"
-             generates="@generates@" index="k">
+      <c:sum of="@from@" desc="@desc@" generates="@generates@" index="k">
         <c:value-of name="@from@" index="k" />
       </c:sum>
     </rate>
