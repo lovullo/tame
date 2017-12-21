@@ -221,5 +221,28 @@
 
     <match on="@__yields@" value="@value@" />
   </template>
+
+
+  \ref{_vector-to-class_} converts a vector into a classification.
+
+  <template name="_vector-to-class_"
+            desc="Convert a vector to a classification">
+    <param name="@name@" desc="Source vector" />
+    <param name="@as@"   desc="Classification name" />
+
+    <param name="@yields@" desc="Classification yield">
+      <text></text>
+    </param>
+
+    <param name="@desc@" desc="Classification description">
+      <text>Classification of </text>
+      <param-value name="@name@" />
+    </param>
+
+
+    <classify as="@as@" desc="@desc@" yields="@yields@">
+      <match on="@name@" />
+    </classify>
+  </template>
 </package>
 
