@@ -1778,7 +1778,7 @@
 </xsl:template>
 
 <xsl:template name="ultra-breakdown-set" match="c:*" mode="ultra-breakdown" priority="1">
-  <xsl:param name="label" select="@label" />
+  <xsl:param name="label" select="if ( @label ) then @label else @desc" />
   <xsl:param name="c" select="." />
 
   <xsl:variable name="from-tpl"
