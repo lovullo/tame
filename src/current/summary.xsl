@@ -1965,7 +1965,7 @@
           <xsl:variable name="result">
             <xsl:text>\(</xsl:text>
               <xsl:text>\theta_{</xsl:text>
-                <xsl:value-of select="@index" />
+                <xsl:value-of select="preproc:tex-index( @index )" />
               <xsl:text>}</xsl:text>
 
               <!-- show equation -->

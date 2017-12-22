@@ -23,6 +23,7 @@
 <xsl:stylesheet version="1.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:preproc="http://www.lovullo.com/rater/preproc">
@@ -119,7 +120,7 @@
   <xsl:variable name="index">
     <xsl:choose>
       <xsl:when test="@index">
-        <xsl:value-of select="@index" />
+        <xsl:value-of select="preproc:tex-index( @index )" />
       </xsl:when>
 
       <xsl:otherwise>
@@ -185,6 +186,21 @@
   <!-- output any additional expressions, if any -->
   <xsl:apply-templates select="." mode="sum-body" />
 </xsl:template>
+
+
+<xsl:function name="preproc:tex-index" as="xs:string?">
+  <xsl:param name="index" as="xs:string?" />
+
+  <!-- TODO: there are potential display conflicts with the below
+       replacement -->
+
+  <!-- underscores are frequently used for internal names, but the display
+       is lousy, so just remove this. -->
+  <xsl:sequence select="if ( $index ) then
+                            replace( $index, '_', '' )
+                          else
+                            ()" />
+</xsl:function>
 
 
 <!--
@@ -373,7 +389,7 @@
       <xsl:otherwise>
         <xsl:call-template name="get-symbol">
           <xsl:with-param name="name" select="$name" />
-          <xsl:with-param name="index" select="@index" />
+          <xsl:with-param name="index" select="preproc:tex-index( @index )" />
           <xsl:with-param name="index-symbol" select="$index-symbol" />
         </xsl:call-template>
       </xsl:otherwise>
