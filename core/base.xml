@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Copyright (C) 2015 R-T Specialty, LLC.
+  Copyright (C) 2015, 2017 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -40,7 +40,7 @@
     classification; there is no need (anymore) for this to be magic.}
 
     <const name="_CMATCH_" type="boolean" sym="\Xi"
-           desc="Set indicating indexes of classification matches">
+           desc="Classification match vector (applicability)">
       <item value="0"
             desc="Dummy value; this set is populated upon entering
                   each rate block" />
@@ -155,7 +155,7 @@
 
       <unless name="@hide@">
         <c:const value="0"
-                 desc="@desc@" />
+                 desc="TODO: {@desc@}" />
       </unless>
     </template>
 
