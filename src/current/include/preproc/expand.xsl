@@ -273,6 +273,19 @@
 </xsl:template>
 
 
+<!-- anything with a '@' is likely a template variable reference, so we
+     should not attempt to perform constant expansion  -->
+<xsl:template mode="preproc:expand" priority="7"
+    match="c:const[ substring-after( @value, '@' ) ]
+           |lv:const[ substring-after( @value, '@' ) ]">
+  <xsl:copy>
+    <xsl:sequence select="@*" />
+
+    <xsl:apply-templates mode="preproc:expand" />
+  </xsl:copy>
+</xsl:template>
+
+
 <!-- constants that contain 'e' (scientific notation) should be expanded; allows
      for avoiding constants with many zeroes, which is hard to read -->
 <xsl:template mode="preproc:expand" priority="5"
