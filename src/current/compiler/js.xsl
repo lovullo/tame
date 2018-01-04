@@ -710,6 +710,9 @@
 
   <variable name="name" select="@on" />
 
+  <variable name="sym-on" as="element( preproc:sym )"
+            select="root(.)/preproc:symtable/preproc:sym[ @name = $name ]" />
+
   <text> tmp = </text>
 
   <variable name="input-raw">
@@ -721,7 +724,16 @@
       </when>
 
       <otherwise>
-        <text>args['</text>
+        <choose>
+          <when test="$sym-on/@type = 'const'">
+            <text>consts</text>
+          </when>
+          <otherwise>
+            <text>args</text>
+          </otherwise>
+        </choose>
+
+        <text>['</text>
           <value-of select="translate( @on, &quot;'&quot;, '' )" />
         <text>']</text>
       </otherwise>
