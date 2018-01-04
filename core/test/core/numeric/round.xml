@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Copyright (C) 2015 R-T Specialty, LLC.
+  Copyright (C) 2015, 2018 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -201,15 +201,8 @@
         </t:given>
 
         <t:expect>
-          <t:match-result>
-            <c:eq>
-              <c:sum>
-                <c:value-of name="VALUE_FLOOR" />
-                <c:value-of name="VALUE_CEIL" />
-                <c:value-of name="VALUE_CEIL" />
-              </c:sum>
-            </c:eq>
-          </t:match-result>
+          <!-- VALUE_FLOOR + VALUE_CEIL + VALUE_CEIL -->
+          <t:match-result eq="17" />
         </t:expect>
       </t:it>
     </t:describe>
@@ -232,15 +225,8 @@
         </t:given>
 
         <t:expect>
-          <t:match-result>
-            <c:eq>
-              <c:sum>
-                <c:value-of name="VALUE_FLOOR" />
-                <c:value-of name="VALUE_CEIL" />
-                <c:value-of name="VALUE_CEIL" />
-              </c:sum>
-            </c:eq>
-          </t:match-result>
+          <!-- VALUE_FLOOR + VALUE_CEIL + VALUE_CEIL -->
+          <t:match-result eq="17" />
         </t:expect>
       </t:it>
     </t:describe>
@@ -259,12 +245,7 @@
 
       <!-- 1234.56 moved over two dec places = 12.3456; round that -->
       <t:expect>
-        <t:match-result>
-          <c:eq>
-            <c:const value="1200" type="integer"
-                     desc="Positive offset floor result" />
-          </c:eq>
-        </t:match-result>
+        <t:match-result eq="1200" />
       </t:expect>
     </t:it>
 
@@ -280,12 +261,7 @@
 
       <!-- 1234.56 moved over one dec place = 12345.6; round that -->
       <t:expect>
-        <t:match-result>
-          <c:eq>
-            <c:const value="1234.50" type="float"
-                     desc="Negative offset floor result" />
-          </c:eq>
-        </t:match-result>
+        <t:match-result eq="1234.50" />
       </t:expect>
     </t:it>
   </t:describe>
@@ -306,17 +282,8 @@
       </t:given>
 
       <t:expect>
-        <t:match-result>
-          <c:eq>
-            <!-- summed constants purely for clarity -->
-            <c:sum>
-              <c:const value="30" type="integer"
-                       desc="Floor of step 15" />
-              <c:const value="45" type="integer"
-                       desc="Ceiling of step 15" />
-            </c:sum>
-          </c:eq>
-        </t:match-result>
+        <!-- 30 + 45 -->
+        <t:match-result eq="75" />
       </t:expect>
     </t:it>
   </t:describe>
@@ -340,17 +307,8 @@
       <!-- 43.46 * 10^-1 = 434.6 / 15 = 28.973; ceil/floor that, then undo
            step/exp to yield final result -->
       <t:expect>
-        <t:match-result>
-          <c:eq>
-            <!-- summed constants purely for clarity -->
-            <c:sum>
-              <c:const value="42" type="integer"
-                       desc="Floor of step 15 exp 1" />
-              <c:const value="43.5" type="integer"
-                       desc="Ceiling of step 15 exp 1" />
-            </c:sum>
-          </c:eq>
-        </t:match-result>
+        <!-- 42 + 43.5 -->
+        <t:match-result eq="85.5" />
       </t:expect>
     </t:it>
   </t:describe>
