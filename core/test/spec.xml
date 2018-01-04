@@ -2,7 +2,7 @@
 <!--
   BDD specification framework
 
-    Copyright (C) 2015 R-T Specialty, LLC.
+    Copyright (C) 2015, 2018 R-T Specialty, LLC.
 
     This file is part of tame-core.
 
@@ -48,6 +48,7 @@
 -->
 <package xmlns="http://www.lovullo.com/rater"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:c="http://www.lovullo.com/calc"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
 
@@ -322,20 +323,32 @@
 
     <!-- choose one -->
     <param name="@value@" desc="Match value" />
+    <param name="@eq@"    desc="Match equality" />
     <param name="@anyOf@" desc="Match against domain of type" />
 
 
     <if name="@value@">
       <match on="@__given_id@" index="@index@" value="@value@" />
     </if>
+
     <unless name="@value@">
-      <if name="@anyOf@">
-        <match on="@__given_id@" index="@index@" anyOf="@anyOf@" />
-      </if>
-      <unless name="@anyOf@">
+      <if name="@eq@">
         <match on="@__given_id@" index="@index@">
-          <param-copy name="@values@" />
+          <c:eq>
+            <c:value-of name="#{@eq@}" />
+          </c:eq>
         </match>
+      </if>
+
+      <unless name="@eq@">
+        <if name="@anyOf@">
+          <match on="@__given_id@" index="@index@" anyOf="@anyOf@" />
+        </if>
+        <unless name="@anyOf@">
+          <match on="@__given_id@" index="@index@">
+            <param-copy name="@values@" />
+          </match>
+        </unless>
       </unless>
     </unless>
   </template>
