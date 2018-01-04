@@ -1138,6 +1138,17 @@
 
   <!-- return the result of the calculation for this rate block -->
   <text>return (+( </text>
+    <!-- yield 0 if there are no calculations (rather than a syntax error!) -->
+    <if test="empty( c:* )">
+      <message>
+        <text>[jsc] warning: empty rate block: `</text>
+        <value-of select="@yields" />
+        <text>'</text>
+      </message>
+
+      <text>0</text>
+    </if>
+
     <!-- begin calculation generation (there should be only one calculation
          node as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
