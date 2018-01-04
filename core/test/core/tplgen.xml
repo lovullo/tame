@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         desc="Template Generation Package Specification">
+
+  <import package="../../test/spec" />
+
+  <import package="../../base" />
+  <import package="../../tplgen" />
+
+
+  <t:describe name="_for-each-n_">
+    <t:describe name="given a positive step">
+      <t:it desc="produces body N times exposing current N">
+        <t:given>
+          <c:sum>
+            <t:for-each-n start="2" end="6" step="2">
+              <c:const value="@current_n@" desc="Current N" />
+            </t:for-each-n>
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <!-- 2 + 4 + 6 -->
+          <t:match-result eq="12" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="given a negative step">
+      <t:it desc="produces body N times exposing current N">
+        <t:given>
+          <c:sum>
+            <t:for-each-n start="4" end="1" step="-1">
+              <c:const value="@current_n@" desc="Current N" />
+            </t:for-each-n>
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <!-- 4 + 3 + 2 + 1 = 4! (4 factorial) -->
+          <t:match-result eq="10" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Copyright (C) 2015 R-T Specialty, LLC.
+  Copyright (C) 2015, 2018 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -26,12 +26,15 @@
   <import package="../../base" />
   <import package="../spec" />
 
-  <import package="insurance" />
   <import package="numeric/round" />
   <import package="numeric/convert" />
   <import package="numeric/percent" />
   <import package="vector/interpolate" />
   <import package="vector/length" />
+
+  <import package="insurance" />
+  <import package="tplgen" />
+
   <!-- XXX broken!
   <import package="ui" />
   -->
