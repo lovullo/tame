@@ -845,13 +845,31 @@
 <xsl:template mode="preproc:gen-param-value" priority="5"
               match="lv:param-add">
   <!-- calculate the param value -->
-  <xsl:variable name="param-value">
+  <xsl:variable name="name-value">
     <xsl:call-template name="preproc:template-param-value">
       <xsl:with-param name="name" select="@name" />
     </xsl:call-template>
   </xsl:variable>
 
-  <xsl:value-of select="number($param-value) + number(@value)" />
+  <xsl:variable name="value-value">
+    <xsl:call-template name="preproc:template-param-value">
+      <xsl:with-param name="name" select="@value" />
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:if test="not( $name-value castable as xs:float )">
+    <xsl:message terminate="yes"
+                 select="concat( 'error: non-numeric lv:param-add/@name: ',
+                                 $name-value )" />
+  </xsl:if>
+
+  <xsl:if test="not( $value-value castable as xs:float )">
+    <xsl:message terminate="yes"
+                 select="concat( 'error: non-numeric lv:param-add/@value: ',
+                                 $name-value )" />
+  </xsl:if>
+
+  <xsl:value-of select="number( $name-value ) + number( $value-value )" />
 </xsl:template>
 
 
