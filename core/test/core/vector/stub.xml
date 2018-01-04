@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Copyright (C) 2015, 2018 R-T Specialty, LLC.
+  Copyright (C) 2018 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -18,32 +18,32 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <package xmlns="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc"
-  xmlns:t="http://www.lovullo.com/rater/apply-template"
-  desc="Core test suite"
-  program="true">
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         desc="Vector Stub Package Specification">
 
-  <import package="../../base" />
-  <import package="../spec" />
+  <import package="../../../test/spec" />
 
-  <import package="numeric/round" />
-  <import package="numeric/convert" />
-  <import package="numeric/percent" />
-  <import package="vector/interpolate" />
-  <import package="vector/length" />
-  <import package="vector/stub" />
-
-  <import package="insurance" />
-  <import package="tplgen" />
-
-  <!-- XXX broken!
-  <import package="ui" />
-  -->
+  <import package="../../../base" />
+  <import package="../../../vector/stub" />
 
 
-  <t:verify-specs result="expectOk" />
+  <t:n-vector n="5" name="TEST_N_VEC" value="1" />
 
-  <yield>
-    <c:value-of name="expectOk" />
-  </yield>
+
+  <t:describe name="_n-vector_">
+    <t:it desc="generates vector of length N">
+      <t:given>
+        <c:sum of="TEST_N_VEC" />
+      </t:given>
+
+      <t:expect>
+        <t:match-result>
+          <c:eq>
+            <c:value-of name="#5" />
+          </c:eq>
+        </t:match-result>
+      </t:expect>
+    </t:it>
+  </t:describe>
 </package>

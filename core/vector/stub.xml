@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Stub Vectors and Classifications">
+
+  <import package="../base" />
+  <import package="../tplgen" export="true" />
+
+
+  Stub vectors and classifications of various lengths---%
+    as well as the means of producing arbitrary lengths---%
+    are provided for convenience and testing.
+
+
+  <section title="Stub Vectors">
+    Ten n-vectors with each element containing the value~$0$ are
+      provided.
+
+    <t:for-each-n start="1" end="10" step="1">
+      <t:n-vector n="@current_n@" name="NVEC{@current_n@}"
+                  value="0" />
+    </t:for-each-n>
+  </section>
+
+
+
+  <section title="Stub Classifications">
+    Ten n-classes generated from the respective n-vectors are provided.
+
+    <t:for-each-n start="1" end="10" step="1">
+      <classify as="nclass{@current_n@}" yields="nClass{@current_n@}"
+                desc="Classification {@current_n@}-vector">
+        <match on="NVEC{@current_n@}" value="ZERO" />
+      </classify>
+    </t:for-each-n>
+  </section>
+
+
+
+  <section title="Vector Generation">
+    \ref{_n-vector_} generates vector constants of length~$n$ where each
+      element is assigned the provided value (or~$0$ if unspecified).
+
+    <template name="_n-vector_"
+              desc="Generate vector of length n">
+      <param name="@n@"     desc="Number of vector elements" />
+      <param name="@name@"  desc="Resulting vector constant name" />
+
+      <param name="@value@" desc="Value of elements (default n-1)">
+        <text>0</text>
+      </param>
+
+
+      <const name="@name@" desc="{@n@}-vector" set="vector">
+        <t:for-each-n start="1" end="@n@" step="1">
+          <item value="@value@" desc="Vector value" />
+        </t:for-each-n>
+      </const>
+    </template>
+  </section>
+</package>
