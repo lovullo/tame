@@ -33,6 +33,7 @@
   <import package="vector/length" />
   <import package="vector/stub" />
 
+  <import package="aggregate" />
   <import package="insurance" />
   <import package="tplgen" />
 
