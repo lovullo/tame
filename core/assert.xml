@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Copyright (C) 2015 R-T Specialty, LLC.
+  Copyright (C) 2015, 2018 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -23,66 +23,81 @@
          desc="Assertions">
 
   <import package="base" />
+  <import package="vector/cmatch" />
 
-  This package is young; the intent is to provide basic assertions to
-  ensure data integrity.  Failure will result in a~truthful value of
-  a~terminating classification.
+
+  This package is young;
+    the intent is to provide basic assertions to ensure data
+    integrity.
+
+  \emph{N.B. The behavior of this package changed in version 1.0.0---%
+          \ref{_assert_} now properly fails on non-match,
+            not match.}
 
   The \ref{_assert_} template generates a~generic assertion using the
-  provided predicates, causing termination on match.  For convenience,
-  it accepts variable or classification-name conditions as arguments,
-  which are included with whatever predicates are provided in its
-  body.
+    provided predicates.
+  If the predicates provided to the assertion fail (yields $\bot$),
+    the system immediately terminates.\footnote{
+      Beacuse the system stops processing once a terminating classification
+        yields~$\top$,
+          only one assertion will ever match,
+            even if others would match if execution were to continue.}
+
+  \ref{_assert_} implements assertions by genearting two classifications---%
+    one to perform the actual assertion,
+      and a terminating classification to ensure that the assertion
+        yields~$\top$.
 
   <template name="_assert_"
             desc="Terminate on predicate failure">
     <param name="@values@" desc="Predicates" />
-    <param name="@when@"   desc="Conditional check (optional)" />
-    <param name="@class@"  desc="Conditional class check (optional)" />
 
     <param name="@as@" desc="Generated classification name">
       <text unique="true">-assert-</text>
     </param>
 
     <param name="@desc@" desc="Description">
-      <text>Assertion failure</text>
-    </param>
-
-    <param name="@__classyields@"
-           desc="Classification yield to match on">
-      <param-class-to-yields name="@class@" />
+      <text>Assertion</text>
     </param>
 
 
-    <classify as="@as@"
-              desc="@desc@"
-              terminate="true">
-      <if name="@when@">
-        <match on="@when@" />
-      </if>
+    <param name="@neg_as@"
+           desc="Generated name for classification to be negated">
+      <text unique="true">-nassert-</text>
+    </param>
+    <param name="@neg_yields@"
+           desc="Generated yield for classification to be negated">
+      <text unique="true">_nassert</text>
+    </param>
 
-      <if name="@class@">
-        <match on="@__classyields@" />
-      </if>
 
-      <!-- include any optional conditions -->
+    <!-- The actual assertion will be performed by one classification... -->
+    <classify as="@neg_as@" yields="@neg_yields@"
+              desc="{@desc@} (assertion result)">
       <param-copy name="@values@" />
+    </classify>
+
+    <!-- ...which is in turn negated for the terminating
+         classification.  The reason for this is that terminating
+         classifications terminate on _match_. -->
+
+    <classify as="@as@" desc="@desc@" terminate="true">
+      <match on="@neg_yields@" value="FALSE" />
     </classify>
   </template>
 
 
 
   <section title="Standard Assertions">
-    There is currently one standard assertion---\ref{_fail-on-empty_};
-    more will appear in the future.
+    There is currently one standard assertion---\ref{_fail-on-empty_}.
 
     \ref{_fail-on-empty_} terminates if \ref{_fail-on-empty_/@name@}
-    is zero, subject to \ref{_fail-on-empty_/@when@} and
-    \ref{_fail-on-empty_/@class@} and any other provided
-    predicates.
+      is zero,
+        subject to \ref{_fail-on-empty_/@when@},
+          \ref{_fail-on-empty_/@class@}, and any other provided predicates.
 
-    The name of this assertion is likely to change in the future, but
-    a~template will be added in its place providing deprecation notices.
+    The name of this assertion is likely to change in the future,
+      but a~template will be added in its place providing deprecation notices.
 
     <template name="_fail-on-empty_"
               desc="Fail when a value is zero">
@@ -96,14 +111,25 @@
         <text> is empty</text>
       </param>
 
+      <param name="@__classyields@"
+             desc="Classification yield to match on">
+        <param-class-to-yields name="@class@" />
+      </param>
 
-      <t:assert desc="@desc@"
-                when="@when@"
-                class="@class@">
+
+      <t:assert desc="@desc@">
+        <if name="@when@">
+          <match on="@when@" />
+        </if>
+
+        <if name="@class@">
+          <match on="@__classyields@" />
+        </if>
+
         <!-- include any optional conditions -->
         <param-copy name="@values@" />
 
-        <match on="@name@" value="ZERO" />
+        <t:match-ne on="@name@" value="ZERO" />
       </t:assert>
     </template>
   </section>
