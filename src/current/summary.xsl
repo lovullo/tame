@@ -1387,7 +1387,7 @@
 <xsl:template match="c:*" mode="match-desc" priority="1">
   <xsl:message terminate="yes">
     <xsl:text>[summary] internal: unknown match calculation for `</xsl:text>
-    <xsl:value-of select="ancestor::c:classify/@as" />
+    <xsl:value-of select="ancestor::lv:classify/@as" />
     <xsl:text>'</xsl:text>
   </xsl:message>
 </xsl:template>
