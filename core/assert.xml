@@ -23,7 +23,7 @@
          desc="Assertions">
 
   <import package="base" />
-  <import package="vector/cmatch" />
+  <import package="vector/cmatch" export="true" />
 
 
   This package is young;
