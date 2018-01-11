@@ -56,7 +56,7 @@
       <text unique="true">-assert-</text>
     </param>
 
-    <param name="@desc@" desc="Description">
+    <param name="@failure@" desc="Failure description">
       <text>Assertion</text>
     </param>
 
@@ -73,7 +73,7 @@
 
     <!-- The actual assertion will be performed by one classification... -->
     <classify as="@neg_as@" yields="@neg_yields@"
-              desc="{@desc@} (assertion result)">
+              desc="{@failure@} (assertion result)">
       <param-copy name="@values@" />
     </classify>
 
@@ -81,7 +81,7 @@
          classification.  The reason for this is that terminating
          classifications terminate on _match_. -->
 
-    <classify as="@as@" desc="@desc@" terminate="true">
+    <classify as="@as@" desc="@failure@" terminate="true">
       <match on="@neg_yields@" value="FALSE" />
     </classify>
   </template>
@@ -104,7 +104,7 @@
       <param name="@when@"   desc="Conditional check (optional)" />
       <param name="@class@"  desc="Conditional class check" />
 
-      <param name="@desc@" desc="Description">
+      <param name="@failure@" desc="Failure description">
         <param-value name="@name@" />
         <text> is empty</text>
       </param>
@@ -115,7 +115,7 @@
       </param>
 
 
-      <t:assert desc="@desc@">
+      <t:assert failure="@failure@">
         <if name="@when@">
           <match on="@when@" />
         </if>
@@ -152,7 +152,7 @@
       <warning>deprecated; use _assert-nonzero_ instead.</warning>
 
       <t:assert-nonzero name="@name@" when="@when@" class="@class@"
-                        desc="@desc@">
+                        failure="@desc@">
         <param-copy name="@values@" />
       </t:assert-nonzero>
     </template>
