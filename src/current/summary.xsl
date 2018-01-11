@@ -2112,7 +2112,7 @@
 
       <dt>Counting Vectors</dt>
       <dd>
-        Let \(|V|\) = the number of values within the vector \(V\); this notation is
+        Let \(\left|V\right|\) = the number of values within the vector \(V\); this notation is
         used within certain summations. You may also see the following notations:
 
         <ul>
@@ -2122,7 +2122,7 @@
             count the number of swimming pools).
           </li>
           <li>
-            \(\sum_{k=0}^{|V|-1} 1\) to count the number of values in vector \(V\).
+            \(\sum_{k=0}^{\left|V\right|-1} 1\) to count the number of values in vector \(V\).
           </li>
         </ul>
       </dd>
