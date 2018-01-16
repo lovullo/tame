@@ -550,6 +550,9 @@
         <!-- certain characters are not valid for @yields -->
         <xsl:value-of select="translate( @as, '-', '' )" />
       </xsl:attribute>
+
+      <xsl:attribute name="preproc:yields-generated"
+                     select="'true'" />
     </xsl:if>
 
     <xsl:apply-templates mode="preproc:expand"

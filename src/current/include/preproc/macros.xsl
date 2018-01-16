@@ -406,6 +406,8 @@
         <xsl:otherwise>
           <xsl:attribute name="yields"
                          select="concat( '_', @generates )" />
+          <xsl:attribute name="preproc:yields-generated"
+                         select="'true'" />
         </xsl:otherwise>
       </xsl:choose>
     </xsl:if>

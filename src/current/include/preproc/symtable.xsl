@@ -660,7 +660,12 @@
 
   <preproc:sym name="{@yields}" type="rate"
     extclass="{$external}"
-    local="{@local}" dtype="float" dim="0" tex="{@sym}" />
+    local="{@local}" dtype="float" dim="0" tex="{@sym}">
+
+    <xsl:if test="@preproc:yields-generated">
+      <xsl:attribute name="preproc:generated" select="'true'" />
+    </xsl:if>
+  </preproc:sym>
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>
@@ -735,6 +740,10 @@
       parent=":class:{@as}"
       extclass="{$external}" terminate="{$terminate}"
       type="cgen" dtype="boolean" dim="?" desc="{@desc}">
+
+      <xsl:if test="@preproc:yields-generated">
+        <xsl:attribute name="preproc:generated" select="'true'" />
+      </xsl:if>
 
       <xsl:sequence select="@preproc:*" />
     </preproc:sym>
