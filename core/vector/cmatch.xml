@@ -192,6 +192,12 @@
       <param name="@const@" desc="Match against constant value" />
       <param name="@value@" desc="Match against variable" />
 
+      <if name="@const@">
+        <warning>
+          @const@ is deprecated; use @value@ with a #-prefix instead.
+        </warning>
+      </if>
+
       <match on="@on@">
         <dyn-node name="c:{@cmp@}">
           <if name="@const@">
