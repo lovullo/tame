@@ -749,11 +749,7 @@
           ]/lv:param/@name
         )
       ">
-      <xsl:copy>
-        <xsl:sequence select="@*" />
-
-        <xsl:apply-templates select="*" mode="preproc:apply-template" />
-      </xsl:copy>
+      <xsl:sequence select="." />
     </xsl:when>
 
     <xsl:otherwise>
