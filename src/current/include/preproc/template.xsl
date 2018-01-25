@@ -312,6 +312,8 @@
 
         <xsl:with-param name="apply" select="$context"
                         tunnel="yes" />
+        <xsl:with-param name="tpl" select="$tpl[ 1 ]"
+                        tunnel="yes" />
         <xsl:with-param name="apply-tpl-name" select="$name"
                         tunnel="yes" />
         <xsl:with-param name="params" select="$params"
@@ -885,8 +887,10 @@
   TODO: substring replacement for added flexibility
 -->
 <xsl:template match="@*" mode="preproc:apply-template" priority="5">
+  <xsl:param name="tpl" tunnel="yes" />
+
   <xsl:variable name="name" select="local-name()" />
-  <xsl:variable name="varname" select="." />
+  <xsl:variable name="varname" select="string(.)" />
 
   <!-- compile param value -->
   <xsl:variable name="value">
@@ -895,11 +899,22 @@
     </xsl:call-template>
   </xsl:variable>
 
-  <!-- if the result is an empty string, then do not output the attribute (this
-       allows for conditional attributes -->
-  <xsl:if test="not( $value = '' )">
-    <xsl:attribute name="{$name}" select="$value" />
-  </xsl:if>
+  <xsl:choose>
+    <!-- if the template being applied does not itself define this
+         parameter, and we're performing a full var replacement, keep the
+         name verbatim for later expansion -->
+    <xsl:when test="starts-with( $varname, '@' )
+                      and not( $tpl/lv:param[ @name = $varname ] )">
+                            <xsl:message select="ancestor::*[1]" />
+      <xsl:attribute name="{$name}" select="$varname" />
+    </xsl:when>
+
+    <!-- if the result is an empty string, then do not output the attribute (this
+         allows for conditional attributes -->
+    <xsl:when test="not( $value = '' )">
+      <xsl:attribute name="{$name}" select="$value" />
+    </xsl:when>
+  </xsl:choose>
 </xsl:template>
 
 
