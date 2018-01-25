@@ -135,14 +135,12 @@
 
 
   <section title="Work-In-Progress">
-    The templates in this section handle code that is
-    a~work-in-progress; they should probably not be used in production
-    code, since they indicate that something is incomplete or unused.
-
-    \ref{_todo_} formalizes TODO items and \may~always yield a scalar
-    integer~0, so it may be used within calculations.  If yielding a
-    constant value is not appropriate, it \may~also be stripped from
-    the output entirely.
+    \ref{_todo_} formalizes TODO items and may optionally yield a
+      value~\tt{@value@} for use within calculations.%
+        \footnote{This is different than its previous behavior of always
+                    yielding a scalar~$0$.}
+    All uses of the \ref{_todo_} template will produce a warning composed of
+      its description~\tt{@desc@}.
 
     <template name="_todo_"
               desc="Represents work that needs to be done">
@@ -150,13 +148,26 @@
         <text>TODO</text>
       </param>
 
-      <param name="@hide@" desc="Whether to hide content by stripping
-                                 it entriely from the output" />
+      <param name="@value@" desc="Placeholder value" />
+      <param name="@index@" desc="Placeholder value index">
+        <text></text>
+      </param>
 
-      <unless name="@hide@">
-        <c:const value="0"
-                 desc="TODO: {@desc@}" />
+      <unless name="@value@">
+        <unless name="@index@" eq="">
+          <error>Using @index@ without @value@</error>
+        </unless>
       </unless>
+
+
+      <warning>
+        TODO: <param-value name="@desc@" />
+      </warning>
+
+
+      <if name="@value@">
+        <c:value-of name="@value@" index="@index@" />
+      </if>
     </template>
 
 
