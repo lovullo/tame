@@ -322,6 +322,11 @@ var client = ( function()
     {
         const dfn_element = getParamTestcaseDfnElement( name );
 
+        if ( dfn_element === undefined )
+        {
+            return;
+        }
+
         value = value || bucket[ name ];
 
         const dfn = name + ': ' + JSON.stringify( value );
