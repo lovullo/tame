@@ -905,7 +905,6 @@
          name verbatim for later expansion -->
     <xsl:when test="starts-with( $varname, '@' )
                       and not( $tpl/lv:param[ @name = $varname ] )">
-                            <xsl:message select="ancestor::*[1]" />
       <xsl:attribute name="{$name}" select="$varname" />
     </xsl:when>
 
