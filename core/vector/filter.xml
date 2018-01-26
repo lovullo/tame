@@ -270,7 +270,7 @@
           which may be very small.)
 
 
-      <const name="TABLE_WHEN_MASK_VALUE" type="float" value="-0.0001"
+      <const name="TABLE_WHEN_MASK_VALUE" type="float" value="-0.0000001"
              desc="Used to mask when conditions" />
       <const name="MFILTER_BISECT_GAP_MAX" type="integer" value="10"
              desc="Quit bisect if size is less than or equal to this value" />
