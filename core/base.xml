@@ -183,7 +183,8 @@
       <param name="@values@" desc="Nodes to comment out" />
       <param name="@desc@"   desc="Reason for ignore" />
 
-      <!-- nothing -->
+
+      <warning>Ignored block!</warning>
     </template>
   </section>
 </package>
