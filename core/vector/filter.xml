@@ -25,11 +25,18 @@
 
 
   <section title="Matrix Filtering">
-    <function name="mfilter" desc="Filter matrix rows by column value">
+    \ref{mfilter} handles complex filtering of matrices.
+    If the requested column~\tt{@col@} is marked as sequential with~\tt{@seq@},
+      a~$O(lg n)$ bisect algorithm will be used;
+        otherwise,
+          it will undergo a~$O(n)$ linear scan.
+
+    <function name="mfilter"
+              desc="Filter matrix rows by column value">
       <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
-      <param name="col"    type="integer" desc="Column index to filter on" />
-      <param name="vals"   type="float" desc="Column value to filter on" />
-      <param name="seq"    type="boolean" desc="Is data sequential?" />
+      <param name="col"    type="integer"            desc="Column index to filter on" />
+      <param name="vals"   type="float"              desc="Column value to filter on" />
+      <param name="seq"    type="boolean"            desc="Is data sequential?" />
 
       <!-- merge the result of each condition in vals into a single set, which
            has the effect of supporting multiple conditions on a single column of
@@ -37,7 +44,7 @@
            the lookups separately for each, we preserve the bisect-ability of the
            condition. -->
       <t:merge-until-empty set="vals" car="val" glance="TABLE_WHEN_MASK_VALUE">
-        <c:apply name="range" matrix="matrix" col="col" val="val" seq="seq">
+        <c:apply name="mrange" matrix="matrix" col="col" val="val" seq="seq">
           <c:arg name="start">
             <c:cases>
               <!-- if we know that the data is sequential, then we may not need to
@@ -52,7 +59,7 @@
 
                 <c:apply name="bisect" matrix="matrix" col="col" val="val">
                   <c:arg name="start">
-                    <c:const value="0" type="integer" desc="Start bisect at beginning" />
+                    <c:const value="0" desc="Start bisect at beginning" />
                   </c:arg>
 
                   <c:arg name="end">
@@ -68,7 +75,7 @@
 
               <!-- we have no good guess; linear search :x -->
               <c:otherwise>
-                <c:const value="0" type="integer" desc="Start at the first element" />
+                <c:const value="0" desc="Start at the first element" />
               </c:otherwise>
             </c:cases>
           </c:arg>
@@ -85,7 +92,9 @@
     </function>
 
 
-    <function name="range" desc="Filter matrix rows by column value within a certain range of indexes (inclusive)">
+    <function name="mrange"
+              desc="Filter matrix rows by column value within a certain
+                    range of indexes (inclusive)">
       <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
       <param name="col" type="integer" desc="Column index to filter on" />
       <param name="val" type="float" desc="Column value to filter on" />
@@ -114,7 +123,8 @@
           <c:values>
             <!-- determine if the value we're looking for is over the current value
                  in a sorted list (meaning that we will not find it) -->
-            <c:value name="over" type="boolean" desc="Did we pass the potential value in a sorted list?">
+            <c:value name="over" type="boolean"
+                     desc="Did we pass the potential value in a sorted list?">
               <c:value-of name="TRUE">
                 <c:when name="seq">
                   <c:eq>
@@ -159,7 +169,8 @@
 
 
             <c:otherwise>
-              <c:apply name="_mfilter" matrix="matrix" col="col" val="val" start="start" end="end" seq="seq">
+              <c:apply name="_mfilter" matrix="matrix" col="col" val="val"
+                       start="start" end="end" seq="seq">
                 <c:arg name="cur">
                   <c:value-of name="matrix">
                     <!-- current row -->
@@ -183,13 +194,13 @@
 
     <function name="_mfilter" desc="mfilter helper">
       <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
-      <param name="col" type="integer" desc="Column index to filter on" />
-      <param name="val" type="float" desc="Column value to filter on" />
-      <param name="start" type="integer" desc="Starting index (aka current index)" />
-      <param name="end" type="integer" desc="Ending index" />
-      <param name="seq" type="integer" desc="Is data sequential?" />
+      <param name="col" type="integer"               desc="Column index to filter on" />
+      <param name="val" type="float"                 desc="Column value to filter on" />
+      <param name="start" type="integer"             desc="Starting index (aka current index)" />
+      <param name="end" type="integer"               desc="Ending index" />
+      <param name="seq" type="integer"               desc="Is data sequential?" />
 
-      <param name="cur" type="float" desc="Current value" />
+      <param name="cur" type="float"                 desc="Current value" />
 
       <c:cases>
         <c:case>
@@ -206,11 +217,12 @@
               </c:index>
             </c:value-of>
 
-            <c:apply name="range" matrix="matrix" col="col" val="val" end="end" seq="seq">
+            <c:apply name="mrange" matrix="matrix" col="col" val="val"
+                     end="end" seq="seq">
               <c:arg name="start">
                 <c:sum>
                   <c:value-of name="start" />
-                  <c:const value="1" type="integer" desc="Check next element" />
+                  <c:const value="1" desc="Check next element" />
                 </c:sum>
               </c:arg>
             </c:apply>
@@ -218,11 +230,12 @@
         </c:case>
 
         <c:otherwise>
-          <c:apply name="range" matrix="matrix" col="col" val="val" end="end" seq="seq">
+          <c:apply name="mrange" matrix="matrix" col="col" val="val"
+                   end="end" seq="seq">
             <c:arg name="start">
               <c:sum>
                 <c:value-of name="start" />
-                <c:const value="1" type="integer" desc="Check next element" />
+                <c:const value="1" desc="Check next element" />
               </c:sum>
             </c:arg>
           </c:apply>
