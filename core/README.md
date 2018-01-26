@@ -6,12 +6,6 @@ This library has accumulated a bit of cruft, is disorganized, and has
 not been substantially refactored to take advantage of new language
 features.  It is a work in progress.
 
-This is also of limited use to others outside of LoVullo, since TAME
-has not yet been liberated.
-
-**BC Warning:** Backwards-incompatible changes will be made in
-minor/revision releases until the release of v1.0.
-
 
 ## Features
 - BDD abstraction;
@@ -28,12 +22,12 @@ minor/revision releases until the release of v1.0.
 
 
 ## What is TAME?
-TAME is The Adaptive MetalanguagE, a programming language and system of tools
+TAME is The Adaptive Metalanguage, a programming language and system of tools
 designed to aid in the development, understanding, and maintenance of systems
 performing numerous calculations on a complex graph of dependencies,
 conditions, and a large number of inputs.
 
-This system was developed at LoVullo Associates to handle the complexity of
+This system was developed at R-T Specialty Buffalo to handle the complexity of
 comparative insurance rating systems. It is a domain-specific language (DSL)
 that itself encourages, through the use of templates, the creation of sub-DSLs.
 TAME itself is at heart a calculator—processing only numerical input and
@@ -48,20 +42,16 @@ environment, LaTeX, and others), linkers, and supporting tools.  The input
 grammar is XML, and the majority of the project (including the macro processor,
 compilers, and linkers) are written in XSLT. There is a reason for that odd
 choice; until an explanation is provided, know that someone is perverted enough
-to implement a full compiler in XSLT.
-
-More information will become available as various portions are liberated during
-refactoring; [hoxsl](https://github.com/lovullo/hoxsl) is a product of what is
-now known as TAME.
+to implement a full compiler stack in XSLT.
 
 
 ## License
-tame-core is free software: you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published
-by the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version.
 
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License for more details.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
