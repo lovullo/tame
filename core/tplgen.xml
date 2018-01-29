@@ -51,11 +51,15 @@
         <param-add name="@start@" value="@step@" />
       </param>
 
+      <param name="@n_dec@" desc="Current n - 1">
+        <param-add name="@start@" value="-1" />
+      </param>
+
 
       <!-- inefficient trick to expose @current_n@ to the body -->
       <inline-template>
         <for-each>
-          <set current_n="@start@" />
+          <set current_n="@start@" current_n_dec="@n_dec@" />
         </for-each>
 
         <param-copy name="@values@" />
