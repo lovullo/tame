@@ -26,9 +26,11 @@
   <import package="../../base" />
   <import package="../spec" />
 
-  <import package="numeric/round" />
   <import package="numeric/convert" />
   <import package="numeric/percent" />
+  <import package="numeric/round" />
+
+  <import package="vector/fold" />
   <import package="vector/interpolate" />
   <import package="vector/length" />
   <import package="vector/stub" />

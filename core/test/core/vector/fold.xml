@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Vector Folding and Unfolding Specs">
+
+  <import package="../../spec" />
+
+  <import package="../../../base" />
+  <import package="../../../vector/fold" />
+  <import package="../../../vector/stub" />
+
+
+  <const name="UNFOLD_VEC_MID_EMPTY" type="integer"
+         desc="3-vector with middle unset">
+    <item value="1" desc="Set" />
+    <item value="0" desc="Unset" />
+    <item value="1" desc="Set" />
+  </const>
+
+  <t:vector-to-class name="UNFOLD_VEC_MID_EMPTY" as="unfold-mid-empty" />
+
+  <const name="UNFOLD_VEC_3GROUP" type="integer"
+         desc="3-grouping for test case"
+         values="1,0,2,2,1,2" />
+
+  <!-- given the sequence [0 1 2 3 4 5] -->
+  <const name="UNFOLD_VEC_3GROUP_EXPECTED" type="integer"
+         desc="Expected result"
+         values="1; 0,4; 2,3,5" />
+
+
+  <const name="UNFOLD_3VEC_ONE_EACH" type="integer"
+         desc="3-vector with one in each group">
+  </const>
+
+
+  <t:describe name="_unfold-vector-grouped_">
+    <t:it desc="yields a vector whose length is that of the class">
+      <t:unfold-vector-grouped class="nclass3"
+                               generates="unfoldVecGroupedLenClass"
+                               src="NVEC1"
+                               grouping="NVEC1" />
+
+      <t:given>
+        <c:length-of>
+          <c:value-of name="unfoldVecGroupedLenClass" />
+        </c:length-of>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="3" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="uses grouping vector for grouping">
+      <t:unfold-vector-grouped class="nclass3"
+                               generates="unfoldVecGrouped"
+                               src="NVEC6_SEQ"
+                               grouping="UNFOLD_VEC_3GROUP" />
+
+      <!-- TODO: matrix classification matches -->
+    </t:it>
+
+
+    <t:it desc="does not include non-matching groups">
+      <t:unfold-vector-grouped class="unfold-mid-empty"
+                               generates="unfoldVecGroupedNonClassMatch"
+                               src="NVEC3_SEQ"
+                               grouping="NVEC3_SEQ" />
+
+      <t:given>
+        <c:sum>
+          <c:length-of>
+            <c:value-of name="unfoldVecGroupedNonClassMatch" index="#0" />
+          </c:length-of>
+          <c:length-of>
+            <c:value-of name="unfoldVecGroupedNonClassMatch" index="#1" />
+          </c:length-of>
+          <c:length-of>
+            <c:value-of name="unfoldVecGroupedNonClassMatch" index="#2" />
+          </c:length-of>
+
+          <!-- sum a second time to make sure it's 0 -->
+          <c:length-of>
+            <c:value-of name="unfoldVecGroupedNonClassMatch" index="#1" />
+          </c:length-of>
+        </c:sum>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="2" />
+      </t:expect>
+    </t:it>
+  </t:describe>
+</package>

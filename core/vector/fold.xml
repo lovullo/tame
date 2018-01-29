@@ -1,0 +1,99 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Folding and Unfolding of Vectors">
+
+  <import package="../base" />
+  <import package="filter" export="true" />
+
+
+  The term ``fold'' is also referred to as ``reduce''---%
+    they are synonymous.
+  Unless otherwise specified,
+    folding occurs left-to-right.
+
+  \emph{Unfolding} is the opposite of a reduction---%
+    it \emph{generates} values from existing values.
+
+
+  <section title="Matrix Generation">
+    \ref{_unfold-vector-grouped_} generates a matrix from a vector---%
+      that is, it generates vectors within a vector---%
+      by grouping values.
+
+    The \tt{@class@} is used both as a predicate and as a determination of
+      the resulting vector's length
+        (the~number of rows in the resulting matrix).
+    If non-matching,
+      no columns will be produced for that respective row.
+
+    \tt{@src@} is the vector to be unfolded,
+      containing the raw values to be grouped.
+
+    \tt{@grouping@} \should be the same length as~\ref{@src@} and determines
+      the group~(row) in which the respective value should appear.
+
+    \ref{@generates@} names the resulting matrix and~\ref{@desc@} provides
+      its description.
+
+    <template name="_unfold-vector-grouped_"
+              desc="Unfold vector into a matrix by grouping">
+      <param name="@class@"     desc="Iteration vector of desired length" />
+      <param name="@src@"       desc="Source vector" />
+      <param name="@grouping@"  desc="Grouping vector" />
+      <param name="@generates@" desc="Generator name (to yield)" />
+
+      <param name="@desc@" desc="Generator description">
+        <text>Unfolded vector </text>
+        <param-value name="@src@" />
+        <text> grouped by </text>
+        <param-value name="@grouping@" />
+      </param>
+
+      <param name="@lengthv@" desc="Length vector (of desired length)">
+        <param-class-to-yields name="@class@" />
+      </param>
+
+
+      <rate yields="_{@generates@}">
+        <c:sum of="@lengthv@" dim="matrix"
+               generates="@generates@" index="k"
+               desc="@desc@">
+          <c:cases>
+            <c:case label="Unfold on class vector match">
+              <c:when name="@lengthv@" index="k" />
+              <c:apply name="vfilter_lookup"
+                       vector_pred="@grouping@" vector_src="@src@"
+                       value="k"
+                       start_index="#0" />
+            </c:case>
+
+            <c:otherwise label="Ignore on class vector non-match">
+              <c:set />
+            </c:otherwise>
+          </c:cases>
+        </c:sum>
+      </rate>
+    </template>
+  </section>
+</package>
