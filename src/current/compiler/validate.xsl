@@ -496,15 +496,16 @@
           </xsl:choose>
         </xsl:when>
 
-        <!-- matrices require two indexes, unless being used as an argument to a
-             function or as part of a dot product (it is also acceptable as the
-             return value of a function, which must be in a tail position) -->
+        <!-- TODO: generalize this! -->
+        <!-- Matrix references require two indexes, unless referenced within
+             contexts -->
         <xsl:when test="
             ( number( $is-set ) gt 1 )
             and not( ./c:index[ $is-set ] )
             and not( ancestor::c:arg )
             and not( ancestor::c:let )
             and not( ancestor::c:product[ @dot ] )
+            and not( ancestor::c:length-of )
             and not( ancestor::c:cons )
             and not( ancestor::c:cons )
             and not(
@@ -519,8 +520,7 @@
               <xsl:value-of select="@name" />
               <xsl:text> requires </xsl:text>
                 <xsl:value-of select="$is-set" />
-              <xsl:text> indexes (use c:index) unless being</xsl:text>
-              <xsl:text> passed as a function argument</xsl:text>
+              <xsl:text> indexes (use c:index) in this context</xsl:text>
             </xsl:with-param>
           </xsl:call-template>
         </xsl:when>
