@@ -811,17 +811,18 @@
         select="root(.)/preproc:symtable/preproc:sym[ @name=$value ]" />
 
       <choose>
+        <!-- value unavailable (TODO: vector/matrix support) -->
+        <when test="$sym and not( $sym/@value )">
+            <message>
+              <text>[jsc] !!! bad classification match: `</text>
+                <value-of select="$value" />
+              <text>' is not a scalar constant</text>
+            </message>
+        </when>
+
         <!-- simple constant -->
         <when test="$sym and @value">
           <value-of select="$sym/@value" />
-        </when>
-
-        <!-- value unavailable (XXX: this probably should never happen...) -->
-        <when test="$sym and @value">
-            <message>
-              <text>[jsc] !!! TODO: bad classification match: '</text>
-                <value-of select="$value" />
-            </message>
         </when>
 
         <otherwise>
