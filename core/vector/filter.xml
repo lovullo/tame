@@ -27,6 +27,22 @@
   <import package="list" />
 
 
+  <section title="Vector Filtering">
+    <function name="vfilter_lookup"
+              desc="Filter predicate by value and use corresponding index in
+                    source vector as a value">
+      <param name="vector_pred" type="float" set="vector" desc="Vector to filter" />
+      <param name="vector_src" type="float" set="vector" desc="Vector to filter" />
+      <param name="value"  type="float"              desc="Predicate value" />
+      <param name="start_index" type="integer" desc="Starting vector_pred index" />
+
+      <t:cons-until-empty set="vector_pred" only="value" index="start_index">
+        <c:value-of name="vector_src" index="start_index" />
+      </t:cons-until-empty>
+    </function>
+  </section>
+
+
   <section title="Matrix Filtering">
     \ref{mfilter} handles complex filtering of matrices.
     If the requested column~\tt{@col@} is marked as sequential with~\tt{@seq@},
