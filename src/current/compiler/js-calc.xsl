@@ -202,6 +202,8 @@
 
     <variable name="func" select="ancestor::lv:function" />
 
+    <!-- XXX: this needs to use compile-calc-value, but can't right now
+         beacuse it's not a c:value-of! -->
     <variable name="value">
       <choose>
         <!-- is @of a function param? -->
@@ -214,6 +216,11 @@
           ">
 
           <value-of select="@of" />
+        </when>
+
+        <!-- let expression -->
+        <when test="$of = ancestor::c:let/c:values/c:value/@name">
+          <value-of select="$of" />
         </when>
 
         <!-- maybe a constant? -->
