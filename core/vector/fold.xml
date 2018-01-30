@@ -36,6 +36,38 @@
     it \emph{generates} values from existing values.
 
 
+  <section title="Matrix Folding">
+    \ref{_fold-matrix_} folds a matrix into a vector by summing each of
+      the~rows.
+
+    <template name="_fold-matrix_"
+              desc="Folds matrix into a vector by summing rows">
+      <param name="@name@"      desc="Matrix to fold" />
+      <param name="@class@"     desc="Iteration vector of desired length" />
+      <param name="@generates@" desc="Generator name (to yield)" />
+
+      <param name="@yields@" desc="Yield name">
+        <text></text>
+      </param>
+
+
+      <rate-each class="@class@" yields="@yields@"
+                 generates="@generates@" index="k">
+        <c:let>
+          <c:values>
+            <c:value name="row" type="float" set="vector"
+                     desc="Matrix row">
+              <c:value-of name="@name@" index="k" />
+            </c:value>
+          </c:values>
+
+          <c:sum of="row" />
+        </c:let>
+      </rate-each>
+    </template>
+  </section>
+
+
   <section title="Matrix Generation">
     \ref{_unfold-vector-grouped_} generates a matrix from a vector---%
       that is, it generates vectors within a vector---%
