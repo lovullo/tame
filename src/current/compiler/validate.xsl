@@ -682,6 +682,24 @@
 
 
 <!--
+  Rate block cannot be nested.
+-->
+<xsl:template mode="lvv:validate" priority="8"
+              match="lv:rate[ ancestor::lv:rate ]">
+  <xsl:variable name="within" as="element( lv:rate )"
+                select="ancestor::lv:rate[1]" />
+
+  <xsl:call-template name="lvv:error">
+    <xsl:with-param name="desc" select="'Nested rate block'" />
+    <xsl:with-param name="refnode" select="." />
+    <xsl:with-param name="content"
+                    select="concat( '`', @yields, ''' cannot be nested ',
+                                    'within `', $within/@yields, '''' )" />
+  </xsl:call-template>
+</xsl:template>
+
+
+<!--
   Throws an error if a generator is requested using unsupported data
 
   Specifically, a generator is intended to generate a set from an expression
