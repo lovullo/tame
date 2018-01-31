@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -24,7 +24,10 @@
          title="Insurance Abstractions">
 
   <import package="base" />
+  <import package="assert"        export="true" />
+  <import package="convention"    export="true" />
   <import package="numeric/round" export="true" />
+  <import package="vector/cmatch" export="true" />
 
 
   These are primitive abstractions for insurance that will be
@@ -38,7 +41,7 @@
     \item Fail on zero premium unless explicitly stated;
     \item Fail on negative premium (use a credit template);
     \item Rounding direction (currently only nearest); and
-    \item Credit, surcharge, and factor templates.
+    \item Credit and surcharge.
   \end{enumerate}
 
   \todo{Template to abstract these {\tt rate-each} generation
@@ -117,9 +120,17 @@
   </template>
 
 
-  <!-- TODO -->
+  \ref{_factor_} defines a calculation that results in a factor
+    which will later be used in a product.
+  There are special considerations for these types of values---%
+    generally, they should not have a value of~$0$ if some sort of calculation
+      condition or lookup is not met,
+        as that would have the effect of wiping out premium.
+  If zero is desired,
+    \tt{@allow-zero@} must be set to \tt{true} to explicitly permit it.
+
   <template name="_factor_"
-            desc="Factor to multiply against">
+            desc="Factor to multiply against (must be non-zero by default)">
     <param name="@values@"    desc="Body" />
     <param name="@class@"     desc="Predicate" />
     <param name="@generates@" desc="Generator name" />
@@ -136,15 +147,81 @@
       <text></text>
     </param>
 
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
     <!-- not yet used, but it will at least serve as code
          documentation for the time being -->
     <param name="@desc@" desc="Factor description" />
+    <unless name="@desc@">
+      <error>
+        a description (@desc@) is required for factor
+        `<param-value name="@generates@" />'
+      </error>
+    </unless>
+
+    <!-- normally we want factors to default to 1, otherwise they could wipe
+         out premium -->
+    <param name="@allow-zero@" desc="Allow value of zero (default false; see
+                                     also @default@)">
+      <text>false</text>
+    </param>
+
+    <!-- default is _only_ used when a factor is 0, so it makes no sense to
+         set a default to #0 -->
+    <param name="@default@" desc="Default value if 0 (optional)" />
+    <if name="@default@" eq="#0">
+      <error>
+        a value of #0 for @default@ is not meaningful;
+          use @allow-zero@ instead.
+      </error>
+    </if>
+
+    <t:naming-convention name="@generates@" prefix="factor" />
+
+    <unless name="@yields@" eq="">
+      <t:naming-convention name="@yields@" prefix="factor" />
+    </unless>
 
 
-    <rate-each class="@class@" no="@no@"
-               generates="@generates@" index="@index@"
-               sym="@sym@" gensym="@gensym@">
-      <param-copy name="@values@" />
+    <!-- factor calculation -->
+    <rate-each class="@class@" no="@no@" yields="@yields@" sym="@sym@"
+               generates="@generates@" index="@index@" gensym="@gensym@">
+      <!-- use a default if provided if the factor expression yields 0 -->
+      <if name="@default@">
+        <c:let>
+          <c:values>
+            <c:value name="factor" type="float"
+                     desc="Factor result before default">
+              <param-copy name="@values@" />
+            </c:value>
+          </c:values>
+
+          <t:map-set name="factor">
+            <t:map from="ZERO" value="@default@" />
+            <t:map-else value="factor" />
+          </t:map-set>
+        </c:let>
+      </if>
+
+      <!-- avoid let generation if no default was provided -->
+      <unless name="@default@">
+        <param-copy name="@values@" />
+      </unless>
     </rate-each>
+
+
+    <!-- assertion for non-zero -->
+    <unless name="@allow-zero@" eq="true">
+      <!-- assertions are useless if a static default was provided, since we
+           know that zero can then never be yielded-->
+      <unless name="@default@" prefix="#">
+        <t:assert failure="{@generates@} must not yield a value of 0 for
+                           any index">
+          <t:match-gt on="@generates@" value="ZERO" />
+        </t:assert>
+      </unless>
+    </unless>
   </template>
 </package>
