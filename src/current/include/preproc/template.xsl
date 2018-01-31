@@ -805,6 +805,38 @@
 </xsl:template>
 
 
+<xsl:template mode="preproc:apply-template-cmp" priority="5"
+              match="lv:*[ @prefix ]">
+  <xsl:param name="negate" select="false()" />
+  <xsl:param name="param-value" />
+  <xsl:param name="cmp-value" />
+
+  <xsl:variable name="has-prefix" as="xs:boolean"
+                select="starts-with( $param-value, $cmp-value )" />
+
+  <xsl:if test="( $negate and not( $has-prefix ) )
+                or ( not( $negate ) and $has-prefix )">
+    <xsl:apply-templates select="*" mode="preproc:apply-template" />
+  </xsl:if>
+</xsl:template>
+
+
+<xsl:template mode="preproc:apply-template-cmp" priority="5"
+              match="lv:*[ @suffix ]">
+  <xsl:param name="negate" select="false()" />
+  <xsl:param name="param-value" />
+  <xsl:param name="cmp-value" />
+
+  <xsl:variable name="has-suffix" as="xs:boolean"
+                select="ends-with( $param-value, $cmp-value )" />
+
+  <xsl:if test="( $negate and not( $has-suffix ) )
+                or ( not( $negate ) and $has-suffix )">
+    <xsl:apply-templates select="*" mode="preproc:apply-template" />
+  </xsl:if>
+</xsl:template>
+
+
 <xsl:template match="lv:*[not(@*[not(local-name()='name')])]" mode="preproc:apply-template-cmp" priority="2">
   <xsl:param name="negate" select="'false'" />
   <xsl:param name="param-value" />
