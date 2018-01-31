@@ -705,7 +705,10 @@
 
 
 <xsl:template match="c:*[ @generates ]" mode="preproc:symtable" priority="5">
-  <xsl:variable name="parent" select="ancestor::lv:rate" />
+  <!-- it's possible that templates generating rate blocks will cause nested
+       rate blocks, so only take the first ancestor -->
+  <xsl:variable name="parent" as="element( lv:rate )"
+                select="ancestor::lv:rate[1]" />
 
   <xsl:variable name="dim" as="xs:integer"
                 select="if ( @dim ) then @dim else 1" />
