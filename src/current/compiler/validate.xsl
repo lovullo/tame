@@ -682,6 +682,24 @@
 
 
 <!--
+  lv:rate blocks have no use for @generates.  Since XSDs don't work within
+  templates, let's validate that independently.  This is particularly
+  important for developers unfamiliar with the distinction between lv:rate
+  and lv:rate-each.
+-->
+<xsl:template mode="lvv:validate" priority="7"
+              match="lv:rate[ @generates ]">
+  <xsl:call-template name="lvv:error">
+    <xsl:with-param name="desc" select="'lv:rate/@generate'" />
+    <xsl:with-param name="refnode" select="." />
+    <xsl:with-param name="content"
+                    select="concat( '`', @yields, ''': lv:rate does ',
+                                    'not support @generates' )" />
+  </xsl:call-template>
+</xsl:template>
+
+
+<!--
   Rate block cannot be nested.
 -->
 <xsl:template mode="lvv:validate" priority="8"
