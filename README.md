@@ -1,5 +1,5 @@
 <!---
-  Copyright (C) 2015, 2016 LoVullo Associates, Inc.
+  Copyright (C) 2015, 2016 R-T Specialty, LLC.
 
   Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License,
@@ -49,6 +49,10 @@ Compiled documentation is available [via our GitLab
 mirror](https://lovullo.gitlab.io/tame/), which uses the same build
 pipeline as we do on our internal GitLab instance.  It contains the current
 state of master (with some delay), not just the most recent tag.
+
+
+## Hacking
+Information for TAME developers can be found in the file `HACKING`.
 
 
 ## License
