@@ -1,6 +1,6 @@
 # For use by automake and autoconf
 #
-#  Copyright (C) 2015 LoVullo Associates, Inc.
+#  Copyright (C) 2015 R-T Specialty, LLC.
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by

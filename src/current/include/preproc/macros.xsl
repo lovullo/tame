@@ -2,7 +2,7 @@
 <!--
   Handles macro preprocessing
 
-  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 R-T Specialty, LLC.
 
     This file is part of TAME.
 

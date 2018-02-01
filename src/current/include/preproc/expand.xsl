@@ -2,7 +2,7 @@
 <!--
   Handles node expansion
 
-  Copyright (C) 2016 LoVullo Associates, Inc.
+  Copyright (C) 2016 R-T Specialty, LLC.
 
     This file is part of TAME.
 

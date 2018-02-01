@@ -2,7 +2,7 @@
 <!--
   Outputs HTML form that can be used to feed values to the rater for testing
 
-  Copyright (C) 2016, 2017 LoVullo Associates, Inc.
+  Copyright (C) 2016, 2017 R-T Specialty, LLC.
 
     This file is part of TAME.
 

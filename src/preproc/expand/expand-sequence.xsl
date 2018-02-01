@@ -2,7 +2,7 @@
 <!--
   Expansion sequence
 
-  Copyright (C) 2015 LoVullo Associates, Inc.
+  Copyright (C) 2015 R-T Specialty, LLC.
 
     This file is part of TAME.
 
