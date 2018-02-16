@@ -1515,10 +1515,17 @@ var client = ( function()
                 yamlconsole.style.display = '';
                 yamlconsole.textContent   = '';
 
+                if ( yamlbrowse.files.length === 0 )
+                {
+                    return;
+                }
+
                 runYamlTestCases(
                     Array.prototype.slice.call( yamlbrowse.files, 0 ),
                     createYamlRunner( yamlconsole )
                 );
+
+                yamlbrowse.value = '';
 
                 return false;
             } );
