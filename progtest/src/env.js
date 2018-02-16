@@ -52,6 +52,10 @@ module.exports = {
             .use( ConstResolver( program ) )
             ( yaml_reader, TestCase );
 
+        // XXX: work around issue with consts not being initialized ahead of
+        // time (initialized during actual rating...!)
+        program.rater( {} );
+
         return yaml => new Promise( ( resolve, reject ) =>
         {
             try
