@@ -86,20 +86,24 @@ describe( "TestRunner", () =>
             ]
         ];
 
-        const results = Sut( NullTestReporter(), program )
-            .runTests( test_cases );
+        Sut( NullTestReporter(), program )
+            .runTests( test_cases )
+            .then( results =>
+            {
+                test_cases.forEach( ( test_case, i ) =>
+                {
+                    const result = results[ i ];
 
-        test_cases.forEach( ( test_case, i ) =>
-        {
-            const result = results[ i ];
-
-            expect( result.desc ).to.equal( test_case.description );
-            expect( result.i ).to.equal( i );
-            expect( result.total ).to.equal(
-                Object.keys( test_case.expect ).length
-            );
-            expect( result.failures ).to.deep.equal( expect_failures[ i ] );
-        } );
+                    expect( result.desc ).to.equal( test_case.description );
+                    expect( result.i ).to.equal( i );
+                    expect( result.total ).to.equal(
+                        Object.keys( test_case.expect ).length
+                    );
+                    expect( result.failures ).to.deep.equal(
+                        expect_failures[ i ]
+                    );
+                } );
+            } );
     } );
 
 

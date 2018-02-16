@@ -68,7 +68,7 @@ module.exports = Class( 'TestRunner',
      *
      * @param {Array<TestCase>} dfns array of TestCases
      *
-     * @return {Array<Object<desc,i,total,failures>>} results
+     * @return {Promise} promise to complete test cases, yielding results
      */
     'public runTests'( dfns )
     {
@@ -76,13 +76,49 @@ module.exports = Class( 'TestRunner',
 
         this._reporter.preRun( total );
 
-        const results = dfns.map(
-            ( test, i ) => this._runTest( test, i, total )
+        return this._runAsync( dfns ).then(
+            results => this._reporter.done( results )
         );
+    },
 
-        this._reporter.done( results );
 
-        return results;
+    /**
+     * Run all tests asynchronously
+     *
+     * TODO: This significantly slows down the runner!  The better option
+     * would be to go back to sync and put it in a Web Worker in the client,
+     * which would also async updating of the UI.
+     *
+     * @param {Array<TestCase>} dfns test case definitions
+     *
+     * @return {Promise} promise to complete test cases, yielding results
+     */
+    'private _runAsync'( dfns )
+    {
+        const total = dfns.length;
+
+        return new Promise( resolve =>
+        {
+            const results = [];
+
+            const runNext = () =>
+            {
+                if ( dfns.length === 0 )
+                {
+                    resolve( results );
+                    return;
+                }
+
+                const dfn    = dfns.shift();
+                const result = this._runTest( dfn, results.length, total );
+
+                results.push( result );
+
+                setTimeout( runNext, 0 );
+            };
+
+            runNext();
+        } );
     },
 
 
