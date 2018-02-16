@@ -17,9 +17,17 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-.PHONY: check test
+.PHONY: check test modindex FORCE
+
+namespaces=$(shell find src/ -type d)
+nsindex=$(addsuffix /index.js, $(namespaces))
 
 test: check
 check:
 	PATH="$(PATH):$(CURDIR)/node_modules/mocha/bin" \
 		mocha --harmony_destructuring --recursive test/
+
+modindex: $(nsindex)
+%/index.js: FORCE
+	$(CURDIR)/build-aux/gen-index "$*" > "$@"
+

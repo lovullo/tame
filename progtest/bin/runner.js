@@ -27,12 +27,20 @@ const filename = process.argv[ 3 ];
 const fs          = require( 'fs' );
 const yaml_reader = require( 'js-yaml' );
 
-const TestCase            = require( '../src/TestCase' );
-const YamlTestReader      = require( '../src/reader/YamlTestReader' );
-const ConstResolver       = require( '../src/reader/ConstResolver' );
-const DateResolver        = require( '../src/reader/DateResolver' );
-const TestRunner          = require( '../src/TestRunner' );
-const ConsoleTestReporter = require( '../src/reporter/ConsoleTestReporter' );
+const {
+    TestCase,
+    TestRunner,
+
+    reader: {
+        ConstResolver,
+        DateResolver,
+        YamlTestReader
+    },
+
+    reporter: {
+        ConsoleTestReporter
+    },
+} = require( '../src' );
 
 const runner = TestRunner(
     ConsoleTestReporter( process.stdout ),
