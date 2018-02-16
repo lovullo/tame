@@ -97,7 +97,7 @@ module.exports = Class( 'TestRunner',
     {
         const total = dfns.length;
 
-        return new Promise( resolve =>
+        return new Promise( ( resolve, reject ) =>
         {
             const results = [];
 

@@ -32,4 +32,8 @@ const runner = require( '../src/env' ).console(
     program, process.stdout
 );
 
-runner( case_yaml );
+// XXX: work around issue with consts not being initialized ahead of time
+program.rater( {} );
+
+runner( case_yaml )
+    .catch( e => console.error( e ) );

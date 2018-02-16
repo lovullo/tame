@@ -52,8 +52,18 @@ module.exports = {
             .use( ConstResolver( program ) )
             ( yaml_reader, TestCase );
 
-        return yaml => runner.runTests(
-            reader.loadCases( yaml )
-        );
+        return yaml => new Promise( ( resolve, reject ) =>
+        {
+            try
+            {
+                const cases = reader.loadCases( yaml );
+
+                resolve( runner.runTests( cases ) );
+            }
+            catch ( e )
+            {
+                reject( e );
+            }
+        } );
     },
 };

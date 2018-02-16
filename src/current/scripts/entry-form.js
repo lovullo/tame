@@ -1591,7 +1591,8 @@ var client = ( function()
             {
                 const yaml = ev.target.result;
 
-                runner( yaml );
+                runner( yaml )
+                    .catch( e => alert( e.message ) );
 
                 // run for remaining files
                 runYamlTestCases( files, runner );
