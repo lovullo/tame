@@ -273,6 +273,23 @@
     <value-of select="@default" />
   <text>',</text>
 
+  <text>depth: </text>
+    <!-- TODO: this logic is duplicated multiple places -->
+    <choose>
+      <when test="@set = 'vector'">
+        <sequence select="1" />
+      </when>
+
+      <when test="@set = 'matrix'">
+        <sequence select="2" />
+      </when>
+
+      <otherwise>
+        <sequence select="0" />
+      </otherwise>
+    </choose>
+  <text>,</text>
+
   <text>required: </text>
     <!-- param is required if the attribute is present, not non-empty -->
     <value-of select="string( not( boolean( @default ) ) )" />
@@ -1877,31 +1894,34 @@
     {
         for ( var param in params )
         {
-            var val = params[ param ]['default'];
-            if ( !val )
-            {
-                continue;
-            }
+            var param_data = params[ param ];
+            var val = param_data['default'] || 0;
+            var depth = param_data.depth || 0;
 
-            args[ param ] = set_defaults( args[ param ], val );
+            args[ param ] = set_defaults( args[ param ], val, +depth );
         }
     }
 
 
-    function set_defaults( input, value )
+    function set_defaults( input, value, depth )
     {
         // scalar
-        if ( !( typeof input === 'object' ) )
+        if ( depth === 0 )
         {
             return ( input === '' || input === undefined ) ? value : input;
         }
 
-        // otherwise, assume array
-        var i = input.length;
+        input = input || [];
+
+        // vector or matrix
+        var i = input.length || 1;
         var ret = [];
+        var value = ( depth === 2 ) ? [ value ] : value;
+
         while ( i-- ) {
-            ret[i] = ( input[i] === '' ) ? value : input[i];
+            ret[i] = ( input[i] === '' || input[i] === undefined ) ? value : input[i];
         }
+
         return ret;
     }
 ]]>
