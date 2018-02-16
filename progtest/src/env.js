@@ -1,5 +1,5 @@
 /**
- * Test case runner script
+ * Environment-specific runner initialization
  *
  *  Copyright (C) 2018 R-T Specialty, LLC.
  *
@@ -21,15 +21,39 @@
 
 "use strict";
 
-const program  = require( process.argv[ 2 ] );
-const filename = process.argv[ 3 ];
+const yaml_reader = require( 'js-yaml' );
 
-const fs = require( 'fs' );
+const {
+    TestCase,
+    TestRunner,
 
-const case_yaml = fs.readFileSync( filename, 'utf8' );
+    reader: {
+        ConstResolver,
+        DateResolver,
+        YamlTestReader
+    },
 
-const runner = require( '../src/env' ).console(
-    program, process.stdout
-);
+    reporter: {
+        ConsoleTestReporter
+    },
+} = require( '../src' );
 
-runner( case_yaml );
+
+module.exports = {
+    console: ( program, stdout ) =>
+    {
+        const runner = TestRunner(
+            ConsoleTestReporter( stdout ),
+            program
+        );
+
+        const reader = YamlTestReader
+            .use( DateResolver )
+            .use( ConstResolver( program ) )
+            ( yaml_reader, TestCase );
+
+        return yaml => runner.runTests(
+            reader.loadCases( yaml )
+        );
+    },
+};

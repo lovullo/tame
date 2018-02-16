@@ -1020,3 +1020,11 @@ body:not(.prior) #voi-container td.prior
     background-color: #ffc0c0;
     border-color: #c00000;
 }
+
+#yamlconsole
+{
+    display: block;
+    width:   95%;
+    height:  40ex;
+    margin:  2ex 0px;
+}

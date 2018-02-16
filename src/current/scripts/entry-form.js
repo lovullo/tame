@@ -1501,8 +1501,41 @@ var client = ( function()
                 loadQuote( qid, qdata_host );
             } );
 
+            const yamlconsole = dom.createElement( 'textarea' );
+            yamlconsole.style.display = 'none';
+            yamlconsole.id            = 'yamlconsole';
+
+            const yamlbrowse = dom.createElement( 'input' );
+            yamlbrowse.type          = 'file';
+            yamlbrowse.style.display = 'none';
+            yamlbrowse.accept        = '.yml, .yaml';
+            yamlbrowse.multiple      = 'multiple';
+            yamlbrowse.addEventListener( 'change', e =>
+            {
+                yamlconsole.style.display = '';
+                yamlconsole.textContent   = '';
+
+                runYamlTestCases(
+                    Array.prototype.slice.call( yamlbrowse.files, 0 ),
+                    createYamlRunner( yamlconsole )
+                );
+
+                return false;
+            } );
+
+            const yamlcases = dom.createElement( 'button' );
+            yamlcases.innerHTML = 'Load YAML Test Cases';
+            yamlcases.addEventListener( 'click', e =>
+            {
+                yamlbrowse.click();
+                return false;
+            } );
+
             dialog.appendChild( retest );
             dialog.appendChild( loadquote );
+            dialog.appendChild( yamlcases );
+            dialog.appendChild( yamlbrowse );
+            dialog.appendChild( yamlconsole );
             dialog.appendChild( getPriorTable() );
 
             dom.body.appendChild( dialog );
@@ -1514,6 +1547,57 @@ var client = ( function()
             };
 
             return getLoadDialog();
+        };
+
+
+        /**
+         * Create YAML test case runner
+         *
+         * @param {HTMLElement} yamlconsole element to contain runner output
+         *
+         * @return {function(string)} runner
+         */
+        const createYamlRunner = yamlconsole => require( 'progtest' )
+            .env.console(
+                { rater: window.rater },
+                {
+                    write( str )
+                    {
+                        yamlconsole.textContent += str;
+                    }
+                }
+            );
+
+
+        /**
+         * Run test cases in each YAML file FILES
+         *
+         * @param {Array<File>}      files  YAML files
+         * @param {function(string)} runner test case runner
+         *
+         * @return {undefined}
+         */
+        const runYamlTestCases = function( files, runner )
+        {
+            if ( files.length === 0 )
+            {
+                return;
+            }
+
+            const testfile = files.shift();
+            const reader   = new FileReader();
+
+            reader.onload = ev =>
+            {
+                const yaml = ev.target.result;
+
+                runner( yaml );
+
+                // run for remaining files
+                runYamlTestCases( files, runner );
+            };
+
+            reader.readAsBinaryString( testfile );
         };
 
 

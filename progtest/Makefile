@@ -17,7 +17,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-.PHONY: check test modindex FORCE
+.PHONY: check test modindex browserify FORCE
 
 namespaces=$(shell find src/ -type d)
 nsindex=$(addsuffix /index.js, $(namespaces))
@@ -31,3 +31,10 @@ modindex: $(nsindex)
 %/index.js: FORCE
 	$(CURDIR)/build-aux/gen-index "$*" > "$@"
 
+browserify: tame-progtest.js
+tame-progtest.js: FORCE
+	$(CURDIR)/node_modules/.bin/browserify \
+		--debug \
+		-r $(CURDIR)/src/index.js:progtest \
+		$(CURDIR)/src/index.js \
+		-o "$@"
