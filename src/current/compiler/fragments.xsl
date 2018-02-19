@@ -128,7 +128,11 @@
   <xsl:variable name="pkg" as="element( lv:package )"
                 select="root(.)" />
 
-  <xsl:apply-templates select="$pkg/lv:const[ @name=$name ]" mode="compile" />
+  <xsl:apply-templates mode="compile"
+                       select="$pkg/lv:const[ @name=$name ],
+                               $pkg/lv:typedef//lv:item[ @name=$name ]">
+    <xsl:with-param name="as-const" select="true()" />
+  </xsl:apply-templates>
 </xsl:template>
 
 <xsl:template match="preproc:sym[ @type='tpl' ]" mode="preproc:compile-fragments" priority="5">

@@ -17,3 +17,6 @@ version.texi
 *.txt
 *.html
 
+/Makefile.in
+/Makefile
+

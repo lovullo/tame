@@ -7,8 +7,8 @@
 *.info
 
 # autotools- and configure-generated
-Makefile.in
-Makefile
+/Makefile.in
+/Makefile
 /aclocal.m4
 /*.cache/
 /configure

@@ -132,6 +132,7 @@
     </xsl:for-each-group>
   </form>
 
+  <script type="text/javascript" src="{$fw-path}/rater/scripts/tame-progtest.js"></script>
   <script type="text/javascript" src="{$fw-path}/rater/scripts/entry-form.js"></script>
 </xsl:template>
 
