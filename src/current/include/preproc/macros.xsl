@@ -231,7 +231,7 @@
     <xsl:sequence select="@*" />
     <xsl:attribute name="any" select="'true'" />
 
-    <xsl:sequence select="*" />
+    <xsl:sequence select="lv:any/*" />
   </xsl:copy>
 
   <preproc:repass src="lv:classify any" />
