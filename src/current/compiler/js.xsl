@@ -533,9 +533,11 @@
     <text>'] = (function(){var result,tmp; </text>
   </if>
 
-  <!-- locate classification criteria -->
+  <!-- locate classification criteria (since lv:any and lv:all are split
+       into their own classifications, matching on any depth ensures we get
+       into any preproc:* nodes as well) -->
   <variable name="criteria" as="element( lv:match )*"
-            select="lv:match[
+            select="./lv:match[
                       not( $ignores )
                       or not( @on=$ignores/@ref ) ]" />
 
@@ -561,31 +563,23 @@
   <choose>
     <!-- if classification criteria were provided, then use them -->
     <when test="$criteria">
-      <variable name="criteria-scalar" as="element( lv:match )*"
-                select="$criteria[
-                          @on = $criteria-syms[
-                              @dim = '0' ]/@name ]" />
-
       <variable name="op" as="xs:string"
                 select="compiler:match-group-op( $self )" />
 
       <text></text>
-        <!-- first, non-scalar criteria -->
+      <!-- order matches from highest to lowest dimensions (required for
+           the cmatch algorithm)-->
+      <for-each select="reverse( xs:integer( min( $criteria-syms/@dim ) )
+                          to xs:integer( max( $criteria-syms/@dim ) ) )">
         <apply-templates mode="compile"
                          select="$criteria[
-                                   not( @on = $criteria-scalar/@on ) ]">
+                                   @on = $criteria-syms[
+                                            @dim = current() ]/@name ]">
           <with-param name="result-set" select="$result-set" />
           <with-param name="ignores" select="$ignores" />
           <with-param name="operator" select="$op" />
         </apply-templates>
-
-        <!-- scalars must be matched last -->
-        <apply-templates mode="compile"
-                         select="$criteria-scalar">
-          <with-param name="result-set" select="$result-set" />
-          <with-param name="ignores" select="$ignores" />
-          <with-param name="operator" select="$op" />
-        </apply-templates>
+      </for-each>
     </when>
 
     <!-- if no classification criteria, then always true/false -->
