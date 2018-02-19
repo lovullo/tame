@@ -202,15 +202,36 @@
 
 
 <!--
+  We can't accurately determine how to rewrite classifications if tempaltes
+  have not yet been expanded.
+-->
+<xsl:template mode="preproc:macros" priority="9"
+              match="lv:classify[ t:* ]">
+  <xsl:copy>
+    <xsl:sequence select="@*" />
+
+    <xsl:apply-templates mode="preproc:macros"
+                         select="*" />
+  </xsl:copy>
+
+  <preproc:repass src="lv:classify wait on template expansion" />
+</xsl:template>
+
+
+<!--
   Classifications containing only an lv:any child node can be converted into
   existential classifications
 -->
-<xsl:template match="lv:classify[ lv:any and count(lv:*) = 1 ]" mode="preproc:macros" priority="8">
+<xsl:template mode="preproc:macros" priority="8"
+              match="lv:classify[
+                       lv:any
+                       and count( lv:* ) = 1
+                       and not( preproc:tpl-barrier/lv:* ) ]">
   <xsl:copy>
     <xsl:sequence select="@*" />
     <xsl:attribute name="any" select="'true'" />
 
-    <xsl:sequence select="lv:any/*" />
+    <xsl:sequence select="*" />
   </xsl:copy>
 
   <preproc:repass src="lv:classify any" />
@@ -279,7 +300,7 @@
 <xsl:template match="preproc:*" mode="preproc:class-groupgen" priority="2">
   <xsl:copy>
     <xsl:sequence select="@*" />
-    <xsl:apply-templates select="node()" mode="preproc:class-extract" />
+    <xsl:apply-templates select="node()" mode="preproc:class-groupgen" />
   </xsl:copy>
 </xsl:template>
 
