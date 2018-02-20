@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
-  Copyright (C) 2015 R-T Specialty, LLC.
+  Copyright (C) 2015, 2018 R-T Specialty, LLC.
 
   This file is part of tame-core.
 
@@ -134,8 +134,8 @@
 
 
     <classify as="--{@as@}-pre"
-              yeilds="__{@yields@}Pre"
-              desc="(Generated for forcing of {@as@}}">
+              yields="__{@yields@}Pre"
+              desc="{@desc@}, pre-scalar">
       <param-copy name="@values@" />
     </classify>
 
