@@ -28,14 +28,14 @@ nsindex=$(addsuffix /index.js, $(namespaces))
 all-nodoc: all
 all: tame-progtest.js
 
+modindex: $(nsindex)
+%/index.js: FORCE
+	$(CURDIR)/build-aux/gen-index "$*" > "$@"
+
 test: check
 check:
 	PATH="$(PATH):$(CURDIR)/node_modules/mocha/bin" \
 		mocha --harmony_destructuring --recursive test/
-
-modindex: $(nsindex)
-%/index.js: FORCE
-	$(CURDIR)/build-aux/gen-index "$*" > "$@"
 
 browserify: tame-progtest.js
 tame-progtest.js: check modindex
