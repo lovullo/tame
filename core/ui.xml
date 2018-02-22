@@ -68,5 +68,26 @@
 
       <t:match-class name="@__vis_class@" value="@value@" />
     </template>
+
+
+    \ref{_match-ui-set_} determines whether a UI field has a truthful value,
+      which is non-empty and non-zero.
+
+    <template name="_match-ui-set_"
+              desc="Match whether a UI question is set">
+      <param name="@on@"  desc="Question id" />
+
+      <param name="@value@" desc="Whether set">
+        <text>TRUE</text>
+      </param>
+
+      <param name="@__set_class@" desc="Generated set class name">
+        <text>--set-</text>
+        <param-value name="@on@" dash="true" />
+      </param>
+
+
+      <t:match-class name="@__set_class@" value="@value@" />
+    </template>
   </section>
 </package>
