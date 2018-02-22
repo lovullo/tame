@@ -2,7 +2,7 @@
 <!--
   Compiles map fragments to produce a map from source data to a destination
 
-  Copyright (C) 2016, 2018 R-T Specialty, LLC.
+  Copyright (C) 2016 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -62,7 +62,7 @@
   <param name="rater" />
 
   <variable name="program-ui" select="
-      document( concat( @src, '.expanded' ), . )/lvp:program
+      document( concat( @src, '.xml' ), . )/lvp:program
     " />
 
   <variable name="map" select="." />
