@@ -16,7 +16,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-SUBDIRS = doc
+SUBDIRS = doc progtest
 
 path_src  = src
 path_test = test
@@ -35,13 +35,9 @@ export SAXON_CP
 
 .PHONY: check test texis applies FORCE
 
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL = all-nodoc
 
-all: applies progtest
-
-test: check
-check: | applies
-	$(path_test)/runner
+all-nodoc: applies progtest
 
 # the "applies" are hoxsl-generated stylesheets containing definitions to
 # permit partial function application
@@ -50,6 +46,10 @@ applies: $(apply_dest)
 	$(JAVA) -jar "$(SAXON_CP)" \
 	    -xsl:"$(HOXSL)/src/transform/apply-gen.xsl" \
 	    "$<" > "$@"
+
+test: check
+check: | applies
+	$(path_test)/runner
 
 progtest: FORCE
 	$(MAKE) -C progtest

@@ -24,6 +24,8 @@ nsindex=$(addsuffix /index.js, $(namespaces))
 
 .DEFAULT_GOAL: all
 
+# used be parent Makefile to prevent doc/ building `all'
+all-nodoc: all
 all: tame-progtest.js
 
 test: check
