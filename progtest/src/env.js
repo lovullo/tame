@@ -34,16 +34,17 @@ const {
     },
 
     reporter: {
-        ConsoleTestReporter
+        ConsoleTestReporter,
+        HtmlConsoleOutput,
     },
 } = require( '../src' );
 
 
 module.exports = {
-    console: ( program, stdout ) =>
+    console: ( program, stdout, reporter ) =>
     {
         const runner = TestRunner(
-            ConsoleTestReporter( stdout ),
+            ( reporter || ConsoleTestReporter( stdout ) ),
             program
         );
 
@@ -70,4 +71,10 @@ module.exports = {
             }
         } );
     },
+
+    browser: ( program, stdout ) => module.exports.console(
+        program,
+        stdout,
+        ConsoleTestReporter.use( HtmlConsoleOutput )( stdout )
+    ),
 };

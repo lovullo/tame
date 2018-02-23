@@ -30,6 +30,10 @@ const { Class } = require( 'easejs' );
  * Test cases will be output in a block of dots (success) or 'F's (failure),
  * in a style similar to PHPUnit.  If failures occur, they will be output to
  * in more detail after all tests have run.
+ *
+ * This class contains various virtual methods for overriding portions of
+ * the output.  It is a bit of a mess, produced in a rush.  If you find that
+ * it requires more extension in the future, it may be worth reconsidering.
  */
 module.exports = Class( 'ConsoleTestReporter',
 {
@@ -76,22 +80,67 @@ module.exports = Class( 'ConsoleTestReporter',
      * For the format of RESULT, see TestRunner.
      *
      * @param {Object} result test case result
+     * @param {number} total  total number of test cases
      *
      * @return {undefined}
      */
     'public testCaseResult'( result, total )
     {
-        const { i, failures } = result;
+        this._stdout.write( this.createTestCaseResult( result, total ) );
+    },
 
-        const ind = ( failures.length === 0 )
+
+    /**
+     * Produce string for test case result
+     *
+     * The result is the concatenation of result and progress indicators.
+     *
+     * @param {Object} result test case result
+     * @param {number} total  total number of test cases
+     *
+     * @return {string} output string
+     */
+    'virtual protected createTestCaseResult'( result, total )
+    {
+        return this.getInd( result, total ) +
+            this.createResultProgress( result, total );
+    },
+
+
+    /**
+     * Produce test case result indicator
+     *
+     * The indicator is a single `.` on success, and `F` on failure.
+     *
+     * @param {Object} result test case result
+     * @param {number} total  total number of test cases
+     *
+     * @return {string} output string
+     */
+    'virtual protected getInd'( { i, failures }, total )
+    {
+        return ( failures.length === 0 )
             ? '.'
             : 'F';
+    },
 
-        const sep = ( i % 50 === 49 )
+
+    /**
+     * Produce progress indicator for test case result
+     *
+     * Progress will be reported numerically every 50 test cases, followed
+     * by a newline.
+     *
+     * @param {Object} result test case result
+     * @param {number} total  total number of test cases
+     *
+     * @return {string} progress string
+     */
+    'virtual protected createResultProgress'( { i }, total )
+    {
+        return ( i % 50 === 49 )
             ? `  ${i+1}/${total}\n`
             : '';
-
-        this._stdout.write( ind + sep );
     },
 
 
@@ -126,12 +175,24 @@ module.exports = Class( 'ConsoleTestReporter',
      */
     'private _outputFailureReport'( results )
     {
-        const report = results
+        const parts = results
             .filter( ( { failures } ) => failures.length > 0 )
-            .map( this._reportTestFailure.bind( this ) )
-            .join( '\n' )
+            .map( this._reportTestFailure.bind( this ) );
 
-        this._stdout.write( "\n\n" + report );
+        this._stdout.write( this.combineFailureResults( parts ) );
+    },
+
+
+    /**
+     * Compile failure result strings into a single report
+     *
+     * @param {Array<string>} results failures
+     *
+     * @return {string} combined report
+     */
+    'virtual protected combineFailureResults'( results )
+    {
+        return "\n\n" + results.join( "\n" );
     },
 
 
@@ -144,12 +205,38 @@ module.exports = Class( 'ConsoleTestReporter',
      */
     'private _reportTestFailure'( { i, desc, failures } )
     {
-        return `[#${i+1}] ${desc}\n` +
-            failures.map( ( { field, expect, result } ) =>
-                `  ${field}:\n` +
-                `    expected: ` + JSON.stringify( expect ) + `\n` +
-                `    result:   ` + JSON.stringify( result ) + `\n`
-            ).join( '' );
+        return this.createFailureHeading( i, desc ) +
+            failures.map( this.createFailureDiff.bind( this ) )
+            .join( '' );
+    },
+
+
+    /**
+     * Create heading for individual test case failure
+     *
+     * @param {number} i    test case index
+     * @param {string} desc test case description
+     *
+     * @return {string} heading
+     */
+    'virtual protected createFailureHeading'( i, desc )
+    {
+        return `[#${i+1}] ${desc}\n`;
+    },
+
+
+    /**
+     * Create diff output for failed assertions
+     *
+     * @param {Object} result failure data
+     *
+     * @return {string} diff
+     */
+    'virtual protected createFailureDiff'( { field, expect, result } )
+    {
+        return `  ${field}:\n` +
+            `    expected: ` + JSON.stringify( expect ) + `\n` +
+            `    result:   ` + JSON.stringify( result ) + `\n`;
     },
 
 
@@ -173,11 +260,26 @@ module.exports = Class( 'ConsoleTestReporter',
             [ 0, 0, 0 ]
         );
 
-        const test_total = results.length;
+        this._stdout.write( this.createSummaryLine(
+            results.length, failed, acount, afailed
+        ) );
+    },
 
-        this._stdout.write(
-            `\n${test_total} tests, ${failed} failed (` +
-            `${acount} assertions, ${afailed} failures)`
-        );
+
+    /**
+     * Output a line, preceded by an empty line, summarizing the number of
+     * tests, assertions, and failures for each
+     *
+     * @param {number} test_total total number of test cases run
+     * @param {number} failed     number of failed test cases
+     * @param {number} acount     total number of assertions
+     * @param {number} failed     number of assertion failures
+     *
+     * @return {string} summary line
+     */
+    'virtual protected createSummaryLine'( test_total, failed, acount, afailed )
+    {
+        return `\n${test_total} tests, ${failed} failed (` +
+            `${acount} assertions, ${afailed} failures)`;
     },
 } );

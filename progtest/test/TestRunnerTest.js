@@ -102,6 +102,8 @@ describe( "TestRunner", () =>
                     expect( result.failures ).to.deep.equal(
                         expect_failures[ i ]
                     );
+                    expect( result.given ).to.equal( test_cases[ i ].data );
+                    expect( result.expect ).to.equal( test_cases[ i ].expect );
                 } );
             } );
     } );

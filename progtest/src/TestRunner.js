@@ -77,7 +77,7 @@ module.exports = Class( 'TestRunner',
         this._reporter.preRun( total );
 
         return this._runAsync( dfns ).then(
-            results => this._reporter.done( results )
+            results => ( this._reporter.done( results ), results )
         );
     },
 
@@ -157,6 +157,8 @@ module.exports = Class( 'TestRunner',
             i:        test_i,
             total:    cmp.length,
             failures: failures,
+            given:    data,
+            expect:   expect,
         };
 
         this._reporter.testCaseResult( result_data, total );
