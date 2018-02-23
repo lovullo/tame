@@ -134,7 +134,7 @@ module.exports = Class( 'TestRunner',
     'private _runTest'( { description: desc, data, expect }, test_i, total )
     {
         // no input map---#rate uses params directly
-        const result = this._program.rater( data ).vars;
+        const result = this._tryRun( data );
 
         const cmp = Object.keys( expect ).map(
             field => [
@@ -143,12 +143,18 @@ module.exports = Class( 'TestRunner',
             ]
         );
 
-        const failures = cmp.filter( ( [ , ok ] ) => !ok )
-              .map( ( [ field ] ) => ( {
-                  field:  field,
-                  expect: expect[ field ],
-                  result: result[ field ],
-              } ) );
+        const failures = ( result instanceof Error )
+            ? [ {
+                field:  "error",
+                expect: "",
+                result: result.message,
+            } ]
+            : cmp.filter( ( [ , ok ] ) => !ok )
+                .map( ( [ field ] ) => ( {
+                    field:  field,
+                    expect: expect[ field ],
+                    result: result[ field ],
+                } ) );
 
         const succeeded = cmp.length - failures.length;
 
@@ -164,6 +170,30 @@ module.exports = Class( 'TestRunner',
         this._reporter.testCaseResult( result_data, total );
 
         return result_data;
+    },
+
+
+    /**
+     * Attempt test case, returning error on failure
+     *
+     * If an error is thrown (e.g. terminating classification), it will be
+     * returned in place of the results.
+     *
+     * @param {Object} data input data
+     *
+     * @return {Object|Error} result or error
+     */
+    'private _tryRun'( data )
+    {
+        // no input map---#rate uses params directly
+        try
+        {
+            return this._program.rater( data ).vars;
+        }
+        catch( e )
+        {
+            return e;
+        }
     },
 
 

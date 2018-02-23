@@ -147,4 +147,37 @@ describe( "TestRunner", () =>
             { description: '', data: {}, expect: {} },
         ] );
     } );
+
+
+    // exceptions are thrown by terminating classifications
+    it( "recognizes exception as failure", () =>
+    {
+        const error_msg = [ "test failure 0", "test failure 1" ];
+
+        const program = {
+            rater( data )
+            {
+                throw Error( error_msg.shift() );
+            }
+        };
+
+        return Sut( NullTestReporter(), program )
+            .runTests( [
+                { description: '', data: {}, expect: {} },
+                { description: '', data: {}, expect: {} },
+            ] )
+            .then( results =>
+            {
+                results.forEach( ( { failures }, i ) =>
+                    expect( failures )
+                        .to.deep.equal( [
+                            {
+                                field:  "error",
+                                expect: "",
+                                result: `test failure ${i}`,
+                            },
+                        ] )
+                );
+            } );
+    } );
 } );
