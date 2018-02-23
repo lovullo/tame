@@ -1024,7 +1024,24 @@ body:not(.prior) #voi-container td.prior
 #yamlconsole
 {
     display: block;
+    overflow-y: scroll;
+
+    font-family: monospace;
+
     width:   95%;
     height:  40ex;
     margin:  2ex 0px;
+}
+
+#yamlconsole a:link,
+#yamlconsole a:active,
+#yamlconsole a:visited
+{
+    text-decoration: none;
+    color:           blue;
+}
+
+#yamlconsole a:hover
+{
+    text-decoration: underline;
 }

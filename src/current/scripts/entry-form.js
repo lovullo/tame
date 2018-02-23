@@ -1,7 +1,7 @@
 /**
  * Summary page program
  *
- *  Copyright (C) 2016, 2017 R-T Specialty, LLC.
+ *  Copyright (C) 2016, 2017, 2018 R-T Specialty, LLC.
  *
  *  This file is part of the Liza Data Collection Framework
  *
@@ -34,6 +34,9 @@ var program    = document.location.pathname.match( '/raters/(.*?)/' )[1],
     prior_url  = '/raters/submit-test.php?retrieve=' + supplier +
         '&program=' + program,
     qdata_host = 'dev';
+
+// last YAML test case results
+let yaml_results = [];
 
 var client = ( function()
 {
@@ -1501,9 +1504,21 @@ var client = ( function()
                 loadQuote( qid, qdata_host );
             } );
 
-            const yamlconsole = dom.createElement( 'textarea' );
+            const yamlconsole = dom.createElement( 'div' );
             yamlconsole.style.display = 'none';
             yamlconsole.id            = 'yamlconsole';
+            yamlconsole.addEventListener( 'click', ev =>
+            {
+                ev.preventDefault();
+
+                const target = ev.target;
+                if ( target.dataset.caseIndex === undefined )
+                {
+                    return;
+                }
+
+                loadYamlTestCase( +ev.target.dataset.caseIndex );
+            } );
 
             const yamlbrowse = dom.createElement( 'input' );
             yamlbrowse.type          = 'file';
@@ -1513,7 +1528,7 @@ var client = ( function()
             yamlbrowse.addEventListener( 'change', e =>
             {
                 yamlconsole.style.display = '';
-                yamlconsole.textContent   = '';
+                yamlconsole.innerHTML     = '';
 
                 if ( yamlbrowse.files.length === 0 )
                 {
@@ -1565,12 +1580,12 @@ var client = ( function()
          * @return {function(string)} runner
          */
         const createYamlRunner = yamlconsole => require( 'progtest' )
-            .env.console(
+            .env.browser(
                 { rater: window.rater },
                 {
                     write( str )
                     {
-                        yamlconsole.textContent += str;
+                        yamlconsole.innerHTML += str;
                     }
                 }
             );
@@ -1599,6 +1614,7 @@ var client = ( function()
                 const yaml = ev.target.result;
 
                 runner( yaml )
+                    .then( results => yaml_results = results )
                     .catch( e => alert( e.message ) );
 
                 // run for remaining files
@@ -1607,6 +1623,52 @@ var client = ( function()
 
             reader.readAsBinaryString( testfile );
         };
+
+
+        const loadYamlTestCase = function( caseid )
+        {
+            const testcase = yaml_results[ caseid ];
+
+            if ( !testcase )
+            {
+                alert( 'error: No such test case: ' + caseid );
+                return;
+            }
+
+            const { desc, given, expect, failures } = testcase;
+
+            if ( !given )
+            {
+                alert( 'error: Malformed test case data' );
+                return;
+            }
+
+            console.log( given );
+
+            // overwrite the bucket
+            bucket = given;
+            emptyBucket();
+
+            // make it obvious to the user that the data has been loaded
+            clearSummaryPremium();
+            showEntryForm();
+
+            // display expected values as the "prior" values
+            setTestCase( 0, { vars: expect } );
+
+            const success = failures.length === 0;
+
+            Prior.setPriorMessage(
+                '',
+                `[#${+caseid+1}] ${desc}`,
+                success,
+                0
+            );
+
+            // switch to test data and rate
+            document.location.hash = '#test-data';
+            rate( bucket );
+        }
 
 
         var getPriorTable = function()
@@ -2162,10 +2224,15 @@ var client = ( function()
                 return;
             }
 
+            const direct_link = ( id )
+                ? '<br /><br /><a href="#prior/' + id + '">[Direct Link]</a>'
+                : '';
+
+
             container.style.display = ( message ) ? 'inline-block' : 'none';
             container.className     = ( good ) ? 'good' : 'bad';
             container.innerHTML     = (
-                '<b>' + getUserFromHostname( host ) + ':</b> ' +
+                ( host ? '<b>' + getUserFromHostname( host ) + ':</b> ' : '' ) +
                 message
                     .replace( /^\n+|\n+$/g, '' )
                     .replace( /  /g, ' &nbsp;' )
@@ -2175,7 +2242,7 @@ var client = ( function()
                         /(Previously submitted by [^:]+:)/g,
                         '<b>$1</b>'
                     )
-                    + '<br /><br /><a href="#prior/' + id + '">[Direct Link]</a>'
+                    + direct_link
             );
         };
 
