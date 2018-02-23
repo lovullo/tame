@@ -2,7 +2,7 @@
 <!--
   Dependency generation
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -517,8 +517,9 @@
 </xsl:template>
 
 
-<xsl:template match="lv:template/lv:param" mode="preproc:depgen" priority="9">
-  <!-- ignore -->
+<xsl:template match="lv:template" mode="preproc:depgen" priority="9">
+  <!-- don't generate dependencies for templates (which may have been
+       generated inline in unexpected places) -->
 </xsl:template>
 
 
