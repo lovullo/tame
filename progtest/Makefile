@@ -22,6 +22,10 @@
 namespaces=$(shell find src/ -type d)
 nsindex=$(addsuffix /index.js, $(namespaces))
 
+.DEFAULT_GOAL: all
+
+all: tame-progtest.js
+
 test: check
 check:
 	PATH="$(PATH):$(CURDIR)/node_modules/mocha/bin" \
@@ -32,7 +36,7 @@ modindex: $(nsindex)
 	$(CURDIR)/build-aux/gen-index "$*" > "$@"
 
 browserify: tame-progtest.js
-tame-progtest.js: FORCE
+tame-progtest.js: check modindex
 	$(CURDIR)/node_modules/.bin/browserify \
 		--debug \
 		-r $(CURDIR)/src/index.js:progtest \

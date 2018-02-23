@@ -33,9 +33,11 @@ export SAXON_CP
 
 .DELETE_ON_ERROR:
 
-.PHONY: check test texis applies
+.PHONY: check test texis applies FORCE
 
-.DEFAULT_GOAL := applies
+.DEFAULT_GOAL := all
+
+all: applies progtest
 
 test: check
 check: | applies
@@ -48,6 +50,9 @@ applies: $(apply_dest)
 	$(JAVA) -jar "$(SAXON_CP)" \
 	    -xsl:"$(HOXSL)/src/transform/apply-gen.xsl" \
 	    "$<" > "$@"
+
+progtest: FORCE
+	$(MAKE) -C progtest
 
 clean-local:
 	$(RM) $(apply_dest)
