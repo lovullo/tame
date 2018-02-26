@@ -2,7 +2,7 @@
 <!--
   Generates a symbol table from fully a expanded (preprocessed) package
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -660,12 +660,7 @@
 
   <preproc:sym name="{@yields}" type="rate"
     extclass="{$external}"
-    local="{@local}" dtype="float" dim="0" tex="{@sym}">
-
-    <xsl:if test="@preproc:yields-generated">
-      <xsl:attribute name="preproc:generated" select="'true'" />
-    </xsl:if>
-  </preproc:sym>
+    local="{@local}" dtype="float" dim="0" tex="{@sym}" />
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>
