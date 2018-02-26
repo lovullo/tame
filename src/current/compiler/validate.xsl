@@ -2,7 +2,7 @@
 <!--
   Validates a document for correctness in a manner that is beyond XSD
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -473,12 +473,8 @@
 
           <xsl:choose>
             <xsl:when test="$sym/@dim = '?'">
-              <xsl:message>
-                <xsl:text>internal warning: unresolved param </xsl:text>
-                <xsl:text>dimension: `</xsl:text>
-                <xsl:value-of select="@name" />
-                <xsl:text>'</xsl:text>
-              </xsl:message>
+              <!-- probably uses an extern; this will be taken care of by
+                   the linker, or it will provide an error then -->
             </xsl:when>
 
             <xsl:otherwise>
