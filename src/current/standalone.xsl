@@ -114,7 +114,7 @@
           result.__worksheet = process_worksheet(
             rater.worksheet,
             rater_result.vars,
-            rater_result.consts,
+            rater.consts,
             rater_result.debug,
             rater_result.premium
           );
