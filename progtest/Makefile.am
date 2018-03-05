@@ -35,7 +35,7 @@ modindex: $(nsindex)
 test: check
 check:
 	PATH="$(PATH):$(CURDIR)/node_modules/mocha/bin" \
-		mocha --harmony_destructuring --recursive test/
+		mocha @NODE_DESTRUCTURE@ --recursive test/
 
 browserify: tame-progtest.js
 tame-progtest.js: check modindex

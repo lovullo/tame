@@ -21,7 +21,7 @@
 
 "use strict";
 
-const program  = require( process.argv[ 2 ] );
+const program  = require( process.cwd() + '/' + process.argv[ 2 ] );
 const filename = process.argv[ 3 ];
 
 const fs = require( 'fs' );
