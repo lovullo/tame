@@ -166,12 +166,13 @@ describe( "ConsoleTestReporter", () =>
             const lines = output.split( '\n' );
 
             // preceded by empty line
-            expect( lines[ lines.length - 2 ] ).to.equal( "" );
+            expect( lines[ lines.length - 3 ] ).to.equal( "" );
 
             // last line
-            expect( lines[ lines.length - 1 ] ).to.equal(
+            expect( lines[ lines.length - 2 ] ).to.equal(
                 `5 tests, 2 failed (15 assertions, 3 failures)`
             );
+            expect( lines[ lines.length - 1 ] ).to.equal( "" );
         } );
     } );
 } );

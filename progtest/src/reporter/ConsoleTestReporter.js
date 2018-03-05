@@ -280,6 +280,6 @@ module.exports = Class( 'ConsoleTestReporter',
     'virtual protected createSummaryLine'( test_total, failed, acount, afailed )
     {
         return `\n${test_total} tests, ${failed} failed (` +
-            `${acount} assertions, ${afailed} failures)`;
+            `${acount} assertions, ${afailed} failures)\n`;
     },
 } );
