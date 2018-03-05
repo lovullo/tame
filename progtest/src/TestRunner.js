@@ -76,49 +76,29 @@ module.exports = Class( 'TestRunner',
 
         this._reporter.preRun( total );
 
-        return this._runAsync( dfns ).then(
+        return this.runAllTests( dfns ).then(
             results => ( this._reporter.done( results ), results )
         );
     },
 
 
     /**
-     * Run all tests asynchronously
+     * Run all tests
      *
-     * TODO: This significantly slows down the runner!  The better option
-     * would be to go back to sync and put it in a Web Worker in the client,
-     * which would also async updating of the UI.
+     * This may be overridden by subtypes to change how the tests are run
+     * (for example, to run each asynchronously).
      *
      * @param {Array<TestCase>} dfns test case definitions
      *
      * @return {Promise} promise to complete test cases, yielding results
      */
-    'private _runAsync'( dfns )
+    'virtual protected runAllTests'( dfns )
     {
         const total = dfns.length;
 
-        return new Promise( ( resolve, reject ) =>
-        {
-            const results = [];
-
-            const runNext = () =>
-            {
-                if ( dfns.length === 0 )
-                {
-                    resolve( results );
-                    return;
-                }
-
-                const dfn    = dfns.shift();
-                const result = this._runTest( dfn, results.length, total );
-
-                results.push( result );
-
-                setTimeout( runNext, 0 );
-            };
-
-            runNext();
-        } );
+        return Promise.resolve(
+            dfns.map( ( dfn, i ) => this.runTest( dfn, ( i + 1 ), total ) )
+        );
     },
 
 
@@ -131,7 +111,7 @@ module.exports = Class( 'TestRunner',
      *
      * @return {Object<desc,i,total,failures>} test results
      */
-    'private _runTest'( { description: desc, data, expect }, test_i, total )
+    'protected runTest'( { description: desc, data, expect }, test_i, total )
     {
         // no input map---#rate uses params directly
         const result = this._tryRun( data );

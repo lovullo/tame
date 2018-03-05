@@ -26,6 +26,7 @@ const yaml_reader = require( 'js-yaml' );
 const {
     TestCase,
     TestRunner,
+    AsyncTestRunner,
 
     reader: {
         ConstResolver,
@@ -41,13 +42,26 @@ const {
 
 
 module.exports = {
-    console: ( program, stdout, reporter ) =>
-    {
-        const runner = TestRunner(
-            ( reporter || ConsoleTestReporter( stdout ) ),
+    console: ( program, stdout ) => module.exports.common(
+        program,
+        stdout,
+        TestRunner(
+            ConsoleTestReporter( stdout ),
             program
-        );
+        )
+    ),
 
+    browser: ( program, stdout ) => module.exports.common(
+        program,
+        stdout,
+        AsyncTestRunner(
+            ConsoleTestReporter.use( HtmlConsoleOutput )( stdout ),
+            program
+        )
+    ),
+
+    common: ( program, stdout, runner ) =>
+    {
         const reader = YamlTestReader
             .use( DateResolver )
             .use( ConstResolver( program ) )
@@ -71,10 +85,4 @@ module.exports = {
             }
         } );
     },
-
-    browser: ( program, stdout ) => module.exports.console(
-        program,
-        stdout,
-        ConsoleTestReporter.use( HtmlConsoleOutput )( stdout )
-    ),
 };
