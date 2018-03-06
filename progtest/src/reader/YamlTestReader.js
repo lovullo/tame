@@ -71,7 +71,7 @@ module.exports = Class( 'YamlTestReader' )
      */
     'virtual public loadCases'( yaml )
     {
-        const data = this._yamlParser.safeLoad( yaml )
+        const data = ( this._yamlParser.safeLoad( yaml ) || [] )
               .map( this._createTestCase );
 
         return data;

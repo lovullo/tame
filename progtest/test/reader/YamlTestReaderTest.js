@@ -52,4 +52,14 @@ describe( "YamlTestReader", () =>
         expect( Sut( mock_parser, case_ctor ).loadCases( yaml ) )
             .to.deep.equal( [ { ok: parsed[0] } ] );
     } );
+
+
+    it( "produces empty array given no tests", () =>
+    {
+        const mock_parser = { safeLoad: () => null };
+        const case_ctor   = () => null;   // unused
+
+        expect( Sut( mock_parser, case_ctor ).loadCases( "" ) )
+            .to.deep.equal( [] );
+    } );
 } );
