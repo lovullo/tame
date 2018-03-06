@@ -69,7 +69,7 @@ module.exports = {
 
         // XXX: work around issue with consts not being initialized ahead of
         // time (initialized during actual rating...!)
-        program.rater( {} );
+        program.rater( {}, false );
 
         return yaml => new Promise( ( resolve, reject ) =>
         {
