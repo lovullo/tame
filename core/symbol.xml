@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Symbol Introspection">
+
+  TAME provides powerful symbol table introspection features to assist
+    with metaprogramming.
+  This package provides templates to abstract some of those features and
+    make them easier to use.
+
+  If introspecting on symbols that are defined within the same package,
+    be aware that the symbols may not be available until a future pass;
+      \tt{expand-sequence} may be helpful in that situation.
+
+
+  \ref{_if-symbol_} is a general-purpose template to conditionally expand a
+    body if a symbol matches a given predicate.
+  The predicates currently supported are \tt{type} and \tt{dim}.
+  If no predicate is provided,
+    then the body will be expanded if the symbol exists.\footnote{
+      This is equivalent to \tt{type=""}.}
+
+  <template name="_if-symbol_"
+            desc="Expand body if symbol predicate matches">
+    <param name="@values@" desc="Condition body" />
+    <param name="@name@"   desc="Symbol name" />
+    <param name="@type@"   desc="Symbol type predicate" />
+    <param name="@dim@"    desc="Symbol dimensions predicate" />
+
+    <param name="@_sym_type@" desc="Symbol type lookup">
+      <param-sym-value name="@name@" value="type" ignore-missing="true" />
+    </param>
+    <param name="@_sym_dim@" desc="Symbol dimensions lookup">
+      <param-sym-value name="@name@" value="dim" ignore-missing="true" />
+    </param>
+
+
+    <if name="@type@">
+      <if name="@_sym_type@" eq="@type@">
+        <param-copy name="@values@" />
+      </if>
+    </if>
+    <unless name="@type@">
+      <if name="@dim@">
+        <if name="@_sym_dim@" eq="@dim@">
+          <param-copy name="@values@" />
+        </if>
+      </if>
+
+      <!-- default simply checks to see if the symbol exists -->
+      <unless name="@dim@">
+        <unless name="@_sym_type@" eq="">
+          <param-copy name="@values@" />
+        </unless>
+      </unless>
+    </unless>
+  </template>
+
+
+  \ref{_if-defined_} is the same as \ref{_if-symbol_} with no predicates;
+    it provides more comfortable terminology for a common use case.
+
+  <template name="_if-defined_"
+            desc="Expand body if symbol is defined">
+    <param name="@values@" desc="Condition body" />
+    <param name="@name@"   desc="Symbol name" />
+
+    <t:if-symbol name="@name@">
+      <param-copy name="@values@" />
+    </t:if-symbol>
+  </template>
+</package>

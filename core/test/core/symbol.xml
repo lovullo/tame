@@ -1,0 +1,171 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Vector Folding and Unfolding Specs">
+
+  <import package="../spec" />
+
+  <import package="../../vector/stub" />
+  <import package="../../base" />
+  <import package="../../symbol" />
+
+
+  <t:describe name="_if-symbol_">
+    <t:describe name="given no predicate">
+      <t:it desc="expands body if symbol is defined">
+        <t:given>
+          <c:sum>
+            <t:if-symbol name="TRUE">
+              <c:value-of name="TRUE" />
+            </t:if-symbol>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="does not expand body if symbol is undefined">
+        <t:given>
+          <c:sum>
+            <t:if-symbol name="UNDEFINED">
+              <c:value-of name="TRUE" />
+            </t:if-symbol>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="given type predicate">
+      <t:it desc="expands body if symbol is of given type">
+        <t:given>
+          <c:sum>
+            <t:if-symbol name="TRUE" type="const">
+              <c:value-of name="TRUE" />
+            </t:if-symbol>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="does not expand body if symbol is not of given type">
+        <t:given>
+          <c:sum>
+            <t:if-symbol name="TRUE" type="class">
+              <c:value-of name="TRUE" />
+            </t:if-symbol>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="given dim predicate">
+      <t:it desc="expands body if symbol dimenions matches">
+        <t:given>
+          <c:sum>
+            <t:if-symbol name="NVEC1" dim="1">
+              <c:value-of name="TRUE" />
+            </t:if-symbol>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="does not expand body if symbol does match dimensions">
+        <t:given>
+          <c:sum>
+            <t:if-symbol name="NVEC1" dim="2">
+              <c:value-of name="TRUE" />
+            </t:if-symbol>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+
+
+  <!-- this duplicates the above _if-symbol_ portion -->
+  <t:describe name="_if-defined_">
+    <t:describe name="given no predicate">
+      <t:it desc="expands body if symbol is defined">
+        <t:given>
+          <c:sum>
+            <t:if-defined name="TRUE">
+              <c:value-of name="TRUE" />
+            </t:if-defined>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="does not expand body if symbol is undefined">
+        <t:given>
+          <c:sum>
+            <t:if-defined name="UNDEFINED">
+              <c:value-of name="TRUE" />
+            </t:if-defined>
+            <c:value-of name="FALSE" />
+          </c:sum>
+        </t:given>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>

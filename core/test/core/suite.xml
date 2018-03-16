@@ -37,6 +37,7 @@
 
   <import package="aggregate" />
   <import package="insurance" />
+  <import package="symbol" />
   <import package="tplgen" />
 
   <!-- XXX broken!
