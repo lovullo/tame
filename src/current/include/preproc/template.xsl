@@ -1251,18 +1251,21 @@
 
   <xsl:choose>
     <xsl:when test="not( $sym-value ) or $sym-value = ''">
-      <xsl:message>
-        <xsl:text>warning: unable to find `@</xsl:text>
-        <xsl:value-of select="$value" />
-        <xsl:text>' for symbol `</xsl:text>
-        <xsl:value-of select="$sym-name" />
-        <xsl:text>' (does the symbol support `@</xsl:text>
-        <xsl:value-of select="$value" />
-        <xsl:text>' and has it been imported?)</xsl:text>
-      </xsl:message>
+      <!-- error out only if lookup failures aren't explicitly suppressed -->
+      <xsl:if test="not( @ignore-missing = 'true' )">
+        <xsl:message>
+          <xsl:text>warning: unable to find `@</xsl:text>
+          <xsl:value-of select="$value" />
+          <xsl:text>' for symbol `</xsl:text>
+          <xsl:value-of select="$sym-name" />
+          <xsl:text>' (does the symbol support `@</xsl:text>
+          <xsl:value-of select="$value" />
+          <xsl:text>' and has it been imported?)</xsl:text>
+        </xsl:message>
 
-      <!-- just use the name if nothing is available -->
-      <xsl:value-of select="$name" />
+        <!-- just use the name if nothing is available -->
+        <xsl:value-of select="$name" />
+      </xsl:if>
     </xsl:when>
 
     <xsl:otherwise>
