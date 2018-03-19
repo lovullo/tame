@@ -407,7 +407,7 @@
   </xsl:message>
   -->
 
-  <lv:rate>
+  <lv:rate preproc:gentle-no="true">
     <xsl:sequence select="@*[
         not( local-name() = 'index' )
         and not( local-name() = 'generates' )
