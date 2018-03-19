@@ -1648,11 +1648,6 @@
             <xsl:value-of select="$deps/@name" />
           <xsl:text>'</xsl:text>
         </xsl:message>
-
-        <xsl:message>~~~~[begin symbol dump]~~~~</xsl:message>
-        <xsl:message select="$deps" />
-        <xsl:message>~~~~[end symbol dump]~~~~</xsl:message>
-
         <xsl:text>?^!</xsl:text>
       </xsl:when>
 

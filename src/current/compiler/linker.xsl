@@ -92,14 +92,16 @@
   for exit points (lv:yields); think of it like defining a main() function.
 -->
 <template match="lv:package[ @program='true' ]" mode="l:link" priority="5">
-  <call-template name="log:info">
-    <with-param name="name" select="'link'" />
-    <with-param name="msg">
-      <text>linking </text>
-      <value-of select="@name" />
-      <text>...</text>
-    </with-param>
-  </call-template>
+  <if test="$l:aggressive-debug">
+    <call-template name="log:info">
+      <with-param name="name" select="'link'" />
+      <with-param name="msg">
+        <text>linking </text>
+        <value-of select="@name" />
+        <text>...</text>
+      </with-param>
+    </call-template>
+  </if>
 
   <!-- start by recursively discovering imported shared object files -->
   <variable name="pre-deps" as="element( l:dep )">
@@ -1113,14 +1115,16 @@
 
   <!-- link each of the dependencies -->
   <for-each select="$symbols">
-    <call-template name="log:info">
-      <with-param name="name" select="'link'" />
-      <with-param name="msg">
-        <text>linking </text>
-        <value-of select="concat( @type, ' ', @src, '/', @name )" />
-        <text>...</text>
-      </with-param>
-    </call-template>
+    <if test="$l:aggressive-debug">
+      <call-template name="log:info">
+        <with-param name="name" select="'link'" />
+        <with-param name="msg">
+          <text>linking </text>
+          <value-of select="concat( @type, ' ', @src, '/', @name )" />
+          <text>...</text>
+        </with-param>
+      </call-template>
+    </if>
 
     <apply-templates select="." mode="l:link-deps" />
   </for-each>
