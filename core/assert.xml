@@ -50,6 +50,12 @@
       and a terminating classification to ensure that the assertion
         yields~$\top$.
 
+  The param \ref{assert_ignore} will suppress assertion failures at runtime.
+
+  <param name="assert_ignore" type="boolean" default="0"
+         desc="Ignore assertion failures" />
+
+
   <template name="_assert_"
             desc="Terminate on predicate failure">
     <param name="@values@" desc="Predicates" />
@@ -97,6 +103,7 @@
          classifications terminate on _match_. -->
 
     <classify as="@as@" desc="@failure@" terminate="true">
+      <match on="assert_ignore" value="FALSE" />
       <match on="@neg_yields@" value="FALSE" />
     </classify>
   </template>
