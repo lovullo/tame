@@ -25,6 +25,12 @@
   These alias templates allow giving a new name to existing values.
   They are most useful for avoiding too many template-generated variables.
 
+  If an alias name matches the name of the source,
+    then no alias will be generated;
+      this behavior is useful when generating aliases in templates where the
+      caller may or may not choose a name that would otherwise conflict with
+      its internal representation.
+
   If no description is provided,
     aliases will inherit the description from the source symbol.
 
@@ -46,9 +52,11 @@
     </param>
 
 
-    <classify as="@as@" desc="@desc@" yields="@yields@">
-      <match on="@__src_yields@" />
-    </classify>
+    <unless name="@as@" eq="@from@">
+      <classify as="@as@" desc="@desc@" yields="@yields@">
+        <match on="@__src_yields@" />
+      </classify>
+    </unless>
   </template>
 
 
@@ -58,9 +66,11 @@
     <param name="@from@"   desc="Source name" />
 
 
-    <rate yields="@yields@">
-      <c:value-of name="@from@" />
-    </rate>
+    <unless name="@from@" eq="@yields@">
+      <rate yields="@yields@">
+        <c:value-of name="@from@" />
+      </rate>
+    </unless>
   </template>
 
 
@@ -70,7 +80,7 @@
     <param name="@from@"      desc="Source generator" />
 
     <param name="@desc@" desc="Generator alias description">
-      <param-sym-value  name="@from@" value="desc" />
+      <param-sym-value name="@from@" value="desc" />
     </param>
 
     <param name="@yields@" desc="Yield alias name">
@@ -79,10 +89,12 @@
     </param>
 
 
-    <rate yields="@yields@">
-      <c:sum of="@from@" desc="@desc@" generates="@generates@" index="k">
-        <c:value-of name="@from@" index="k" />
-      </c:sum>
-    </rate>
+    <unless name="@generates@" eq="@from@">
+      <rate yields="@yields@">
+        <c:sum of="@from@" desc="@desc@" generates="@generates@" index="k">
+          <c:value-of name="@from@" index="k" />
+        </c:sum>
+      </rate>
+    </unless>
   </template>
 </package>
