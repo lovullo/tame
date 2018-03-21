@@ -351,6 +351,10 @@
         <xsl:with-param name="name" select="@name" />
       </xsl:call-template>
     </lvmp:when>
+    <lvmp:cmp>
+      <xsl:apply-templates mode="lvm:valparse"
+                           select="@eq" />
+    </lvmp:cmp>
 
     <xsl:apply-templates />
   </lvmp:condition>

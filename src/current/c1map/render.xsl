@@ -262,7 +262,9 @@
   <xsl:apply-templates mode="lvmp:render" />
 </xsl:template>
 
-<xsl:template match="lvmp:condition/lvmp:when" mode="lvmp:render" priority="2">
+<xsl:template mode="lvmp:render" priority="2"
+              match="lvmp:condition/lvmp:when
+                     |lvmp:condition/lvmp:cmp">
   <!-- will be processed as part of sibling output -->
 </xsl:template>
 
@@ -338,6 +340,10 @@
   <xsl:text>( ( </xsl:text>
     <xsl:text>$contract->isTruthy( </xsl:text>
       <xsl:apply-templates select="$cond/lvmp:when/lvmp:*" mode="lvmp:render" />
+      <xsl:if test="$cond/lvmp:cmp/*">
+        <xsl:text>,</xsl:text>
+        <xsl:apply-templates select="$cond/lvmp:cmp/lvmp:*" mode="lvmp:render" />
+      </xsl:if>
     <xsl:text>)</xsl:text>
   <xsl:text> ) ? </xsl:text>
     <xsl:apply-templates mode="lvmp:render">
