@@ -63,6 +63,8 @@
       @emph{unless} another duplicate symbol of the
       same@tie{}@code{@@name} is found with a different @code{@@src},
         in which case all symbols will be returned.
+  An exception to this rule is made when both symbols lack a @code{@@src},
+    meaning that they are both defined in the same package.
   This allows sloppy comparison on concatenated symbol tables before
     tidying it up.
 
@@ -94,7 +96,11 @@
     <sequence select="if ( count( $srcs ) gt 1 ) then
                           current-group()
                         else
-                          ()" />
+                          if ( ( $srcs[ 1 ] = '.' )
+                               and ( count( current-group() ) gt 1 ) ) then
+                              current-group()
+                            else
+                              ()" />
   </for-each-group>
 </function>
 

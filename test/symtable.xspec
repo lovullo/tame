@@ -74,11 +74,19 @@
            symbol -->
       <preproc:sym name="no-src" />
 
-      <!-- same package, no @src -->
-      <preproc:sym name="no-src-local"
+      <!-- same package, no @src, no duplicate -->
+      <preproc:sym name="no-src-local-a"
                    foo:uniq="a" />
-      <preproc:sym name="no-src-local"
+      <preproc:sym name="no-src-local-b"
                    foo:uniq="b" />
+
+      <!-- same package, no @src, duplicate -->
+      <preproc:sym name="no-src-local"
+                   foo:uniq="a"
+                   foo:dup="true" />
+      <preproc:sym name="no-src-local"
+                   foo:uniq="b"
+                   foo:dup="true" />
 
       <!-- so it should be considered in determining a duplicate -->
       <preproc:sym name="no-src-dup"
