@@ -40,6 +40,7 @@
             xmlns:c="http://www.lovullo.com/calc"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:preproc="http://www.lovullo.com/rater/preproc"
+            xmlns:compiler="http://www.lovullo.com/rater/compiler"
             xmlns:calc-compiler="http://www.lovullo.com/calc/compiler">
 
 
@@ -453,7 +454,7 @@
 -->
 <template match="c:const" mode="compile-calc">
   <!-- assumed to be numeric -->
-  <value-of select="@value" />
+  <sequence select="compiler:js-number( @value )" />
 </template>
 
 

@@ -444,7 +444,7 @@
             <text>, </text>
           </if>
 
-          <value-of select="." />
+          <value-of select="compiler:js-number( . )" />
         </for-each>
       <text> ]</text>
     </for-each>
@@ -455,7 +455,7 @@
         <text>, </text>
       </if>
 
-      <value-of select="." />
+      <value-of select="compiler:js-number( . )" />
     </for-each>
 
   <text> ]; </text>
@@ -470,7 +470,7 @@
   <text>consts['</text>
     <value-of select="@name" />
   <text>'] = </text>
-    <value-of select="@value" />
+    <value-of select="compiler:js-number( @value )" />
   <text>;</text>
 </template>
 
@@ -526,6 +526,27 @@
       <sequence select="$set/lv:item/@value" />
     </otherwise>
   </choose>
+</function>
+
+
+<!--
+  Format JS numbers such that they won't be misinterpreted as octal (if they
+  have leading zeroes)
+-->
+<function name="compiler:js-number" as="xs:string?">
+  <param name="src" as="xs:string?" />
+
+  <variable name="norm" as="xs:string?"
+            select="normalize-space( $src )" />
+
+  <!-- note that this will make 0 into an empty string! -->
+  <variable name="stripped" as="xs:string"
+            select="replace( $norm, '^0+', '' )" />
+
+  <sequence select="if ( $stripped = '' ) then
+                      $norm
+                    else
+                      $stripped" />
 </function>
 
 
