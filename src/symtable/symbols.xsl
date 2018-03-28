@@ -381,7 +381,13 @@
   <preproc:sym type="tpl"
                name="{@name}"
                dim="0"
-               desc="{@desc}" />
+               desc="{@desc}">
+    <if test="@preproc:generated = 'true'">
+      <attribute name="local" select="'true'" />
+    </if>
+
+    <sequence select="@preproc:*" />
+  </preproc:sym>
 </template>
 
 

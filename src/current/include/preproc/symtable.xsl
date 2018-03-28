@@ -660,7 +660,12 @@
 
   <preproc:sym name="{@yields}" type="rate"
     extclass="{$external}"
-    local="{@local}" dtype="float" dim="0" tex="{@sym}" />
+    local="{@local}" dtype="float" dim="0" tex="{@sym}">
+
+    <xsl:if test="@preproc:generated = 'true'">
+      <xsl:attribute name="local" select="'true'" />
+    </xsl:if>
+  </preproc:sym>
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>
@@ -710,7 +715,12 @@
 
   <preproc:sym name="{@generates}"
     parent="{$parent/@yields}"
-    type="gen" dtype="float" dim="{$dim}" desc="{@desc}" tex="{@sym}" />
+    type="gen" dtype="float" dim="{$dim}" desc="{@desc}" tex="{@sym}">
+
+    <xsl:if test="@preproc:generated = 'true'">
+      <xsl:attribute name="local" select="'true'" />
+    </xsl:if>
+  </preproc:sym>
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>
@@ -721,10 +731,17 @@
   <xsl:variable name="external"  select="boolean( @external='true' )" />
   <xsl:variable name="terminate" select="boolean( @terminate='true' )" />
 
+  <xsl:variable name="is-generated" as="xs:boolean"
+                select="@preproc:generated = 'true'" />
+
   <preproc:sym name=":class:{@as}"
     extclass="{$external}" terminate="{$terminate}"
     type="class" dim="?" desc="{@desc}" yields="{@yields}"
     orig-name="{@as}">
+
+    <xsl:if test="$is-generated">
+      <xsl:attribute name="local" select="'true'" />
+    </xsl:if>
 
     <!-- copy preprocessor metadata to symbol for easy reference -->
     <xsl:sequence select="@preproc:*" />
@@ -741,6 +758,13 @@
 
       <xsl:if test="@preproc:yields-generated">
         <xsl:attribute name="preproc:generated" select="'true'" />
+      </xsl:if>
+
+      <!-- we only want to mark as local if $is-generated, not
+           @preproc:yields-generated, beacuse otherwise class yield lookups
+           would not always work in packages -->
+      <xsl:if test="$is-generated">
+        <xsl:attribute name="local" select="'true'" />
       </xsl:if>
 
       <xsl:sequence select="@preproc:*" />

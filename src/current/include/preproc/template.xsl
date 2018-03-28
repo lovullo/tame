@@ -421,7 +421,9 @@
   </xsl:message>
 
   <!-- generate template -->
-  <lv:template name="{$name}" desc="Inline template" preproc:from-inline="{$name}">
+  <lv:template name="{$name}" desc="Inline template"
+               preproc:from-inline="{$name}"
+               preproc:generated="true">
     <!-- generate params (from both our own attrs and any for-each sets) -->
     <xsl:variable name="params">
       <params>
