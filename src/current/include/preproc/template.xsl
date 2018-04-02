@@ -1167,8 +1167,37 @@
               mode="preproc:gen-param-value-style" priority="6">
   <xsl:param name="str" />
 
+  <xsl:variable name="norm" as="xs:string"
+                select="normalize-unicode( $str, 'NFC' )" />
+
+  <xsl:variable name="pre" as="xs:string">
+    <xsl:choose >
+      <xsl:when test="@identifier = 'class'">
+        <xsl:sequence select="replace( lower-case( $norm ), '[_ ]', '-' )" />
+      </xsl:when>
+
+      <xsl:when test="@identifier = 'param'">
+        <xsl:sequence select="replace( lower-case( $norm ), '[- ]', '_' )" />
+      </xsl:when>
+
+      <xsl:when test="@identifier = 'const'">
+        <xsl:sequence select="replace( upper-case( $norm ), '[- ]', '_' )" />
+      </xsl:when>
+
+      <!-- TODO: camelCase -->
+      <xsl:when test="@identifier = 'rate'">
+        <xsl:sequence select="replace( $norm, '[-_ ]', '' )" />
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:sequence select="$norm" />
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:variable>
+
+  <!-- everything else gets removed -->
   <xsl:sequence select="replace(
-                          normalize-unicode( $str, 'NFC' ),
+                          $pre,
                           '[^a-zA-Z0-9_-]',
                           '' )" />
 </xsl:template>
