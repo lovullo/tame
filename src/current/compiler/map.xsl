@@ -869,12 +869,22 @@
 
 
 <!-- import symbols -->
-<template match="lvm:import[ @path ]" mode="preproc:symtable" priority="5">
+<template match="lvm:import" mode="preproc:symtable" priority="5">
   <!-- original root passed to sym-discover -->
   <param name="orig-root" />
 
   <variable name="src" as="xs:string"
             select="@path" />
+
+  <if test="not( @path )">
+    <message terminate="yes"
+             select="concat(
+                       'fatal: import missing @path',
+                       if ( @package ) then
+                           ' (use instead of @package)'
+                         else
+                           () )" />
+  </if>
 
   <!-- perform symbol import -->
   <call-template name="preproc:symimport">
