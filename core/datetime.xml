@@ -18,11 +18,15 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <package xmlns="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc"
-  core="true"
-  desc="Date and time">
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="Date and time">
 
   <import package="base" />
+
+  <import package="assert" />
+  <import package="vector/cmatch" />
 
 
   Providing the current timestamp externally allows the system to be
@@ -34,6 +38,11 @@
   <param name="timestamp_current" type="integer" default="0"
          desc="Unix timestamp representing the current time of the
                system (clock time), as it should be perceived" />
+
+  <t:assert failure="Missing Unix timestamp for timestamp_current">
+    <t:match-gt on="timestamp_current" value="ZERO" />
+  </t:assert>
+
 
   This system does not handle its own arthiemtic to figure out the
     current date components from the given timestamp.
