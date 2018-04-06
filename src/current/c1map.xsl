@@ -361,6 +361,11 @@
 </xsl:template>
 
 
+<xsl:template match="lvm:if[ @for-each | @lvm:for-each ]" priority="9">
+  <xsl:message terminate="yes">error: cannot iterate on conditional</xsl:message>
+</xsl:template>
+
+
 <!--
   Unhandled node character data
 
