@@ -338,8 +338,27 @@
   mode="lvmp:c1-node-result" priority="5">
 
   <lvmp:for-each name="{@lvm:for-each}">
-    <!-- proceed with processing as normal -->
-    <xsl:apply-templates select="@*|*" />
+    <xsl:choose>
+      <xsl:when test="lvm:when">
+        <lvmp:condition when="true">
+          <lvmp:when>
+            <xsl:call-template name="lvmp:gen-val">
+              <xsl:with-param name="name" select="lvm:when/@name" />
+            </xsl:call-template>
+          </lvmp:when>
+          <lvmp:cmp>
+            <xsl:apply-templates mode="lvm:valparse"
+                                 select="lvm:when/@eq" />
+          </lvmp:cmp>
+
+          <xsl:apply-templates select="@*|*" />
+        </lvmp:condition>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:apply-templates select="@*|*" />
+      </xsl:otherwise>
+    </xsl:choose>
   </lvmp:for-each>
 </xsl:template>
 
@@ -363,6 +382,11 @@
 
 <xsl:template match="lvm:if[ @for-each | @lvm:for-each ]" priority="9">
   <xsl:message terminate="yes">error: cannot iterate on conditional</xsl:message>
+</xsl:template>
+
+
+<xsl:template match="lvm:when" priority="4">
+  <!-- handled as part of @lvm:for-each -->
 </xsl:template>
 
 

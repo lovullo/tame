@@ -291,6 +291,25 @@
 </xsl:template>
 
 
+<xsl:template match="lvmp:for-each[ lvmp:condition[ @when ] ]" mode="lvmp:render" priority="8">
+  <xsl:variable name="from">
+    <xsl:call-template name="lvmp:var-from">
+      <xsl:with-param name="name" select="@name" />
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:text>$contract->iterateValues( '</xsl:text>
+  <xsl:value-of select="$from" />
+  <xsl:text>', </xsl:text>
+  <xsl:text>function( $contract ) {</xsl:text>
+  <xsl:text>  return </xsl:text>
+  <xsl:apply-templates mode="lvmp:render" select="lvmp:condition" />
+  <xsl:text>;</xsl:text>
+  <xsl:text>}</xsl:text>
+  <xsl:text>)</xsl:text>
+</xsl:template>
+
+
 <!--
   The C1 import system recognizes the following formats:
 
@@ -350,6 +369,26 @@
       <xsl:with-param name="no-trailing-sep" select="true()" />
     </xsl:apply-templates>
   <xsl:text> : null ), </xsl:text>
+</xsl:template>
+
+
+
+<xsl:template mode="lvmp:render" priority="8" match="lvmp:condition[ @when ]">
+  <xsl:variable name="cond" select="." />
+
+  <xsl:text>( ( </xsl:text>
+  <xsl:text>$contract->isTruthy( </xsl:text>
+  <xsl:apply-templates select="$cond/lvmp:when/lvmp:*" mode="lvmp:render" />
+  <xsl:if test="$cond/lvmp:cmp/*">
+    <xsl:text>,</xsl:text>
+    <xsl:apply-templates select="$cond/lvmp:cmp/lvmp:*" mode="lvmp:render" />
+  </xsl:if>
+  <xsl:text>)</xsl:text>
+  <xsl:text> ) ? array(</xsl:text>
+  <xsl:apply-templates mode="lvmp:render">
+    <xsl:with-param name="no-trailing-sep" select="true()" />
+  </xsl:apply-templates>
+  <xsl:text>) : null )</xsl:text>
 </xsl:template>
 
 
