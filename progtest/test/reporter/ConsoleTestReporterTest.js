@@ -37,11 +37,11 @@ describe( "ConsoleTestReporter", () =>
             const sut    = Sut( stdout );
 
             [
-                { i: 0, failures: [] },
                 { i: 1, failures: [] },
-                { i: 2, failures: [ {} ] },
-                { i: 3, failures: [ {}, {} ] },
-                { i: 4, failures: [] },
+                { i: 2, failures: [] },
+                { i: 3, failures: [ {} ] },
+                { i: 4, failures: [ {}, {} ] },
+                { i: 5, failures: [] },
             ].forEach(
                 result => sut.testCaseResult( result, 5 )
             );
@@ -50,7 +50,7 @@ describe( "ConsoleTestReporter", () =>
         } );
 
 
-        it( "outputs line break with count after 40 cases", () =>
+        it( "outputs line break with count after 50 cases", () =>
         {
             let output = '';
 
@@ -58,7 +58,7 @@ describe( "ConsoleTestReporter", () =>
             const sut    = Sut( stdout );
 
             const results = ( new Array( 130 ) ).join( '.' ).split( '.' )
-                .map( ( _, i ) => ( { i: i, failures: [] } ) );
+                .map( ( _, i ) => ( { i: i + 1, failures: [] } ) );
 
             results.forEach(
                 result => sut.testCaseResult( result, 130 )

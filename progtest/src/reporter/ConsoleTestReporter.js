@@ -138,8 +138,8 @@ module.exports = Class( 'ConsoleTestReporter',
      */
     'virtual protected createResultProgress'( { i }, total )
     {
-        return ( i % 50 === 49 )
-            ? `  ${i+1}/${total}\n`
+        return ( i % 50 === 0 )
+            ? `  ${i}/${total}\n`
             : '';
     },
 
