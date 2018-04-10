@@ -1,0 +1,7 @@
+# Simple test case that should succeed
+
+- description: Success
+  data:
+    in: 1
+  expect:
+    out: 1

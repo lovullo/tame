@@ -1,4 +1,6 @@
-# tame-progtest Makefile
+#!/usr/bin/env bash
+#
+# Runner script system test
 #
 #  Copyright (C) 2018 R-T Specialty, LLC.
 #
@@ -17,33 +19,22 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-.PHONY: check test modindex dist browserify FORCE
+set -euo pipefail
 
-namespaces=$(shell find src/ -type d)
-nsindex=$(addsuffix /index.js, $(namespaces))
+cd "$( dirname "$0" )"
 
-.DEFAULT_GOAL: all
+declare -r bin=../bin
 
-# used be parent Makefile to prevent doc/ building `all'
-all-nodoc: all
-all: tame-progtest.js
 
-modindex: $(nsindex)
-%/index.js: FORCE
-	$(CURDIR)/build-aux/gen-index "$*" > "$@"
+main()
+{
+  set -x
 
-test: check
-check: modindex
-	PATH="$(PATH):$(CURDIR)/node_modules/mocha/bin" \
-		mocha @NODE_DESTRUCTURE@ --recursive test/
-	test/runner-test
+  # should succeed
+  "$bin"/runner _stub/program.js _stub/good.yml >/dev/null
 
-browserify: tame-progtest.js
-tame-progtest.js: check modindex
-	$(CURDIR)/node_modules/.bin/browserify \
-		--debug \
-		-r $(CURDIR)/src/index.js:progtest \
-		$(CURDIR)/src/index.js \
-		-o "$@"
+  # should fail
+  "$bin"/runner _stub/program.js _stub/bad.yml >/dev/null && exit 1 || true
+}
 
-dist: tame-progtest.js
+main "$@"

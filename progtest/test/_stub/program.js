@@ -1,5 +1,5 @@
 /**
- * Test case runner script
+ * Stub program ("rater")
  *
  *  Copyright (C) 2018 R-T Specialty, LLC.
  *
@@ -19,31 +19,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-"use strict";
-
-const program  = require( process.cwd() + '/' + process.argv[ 2 ] );
-const filename = process.argv[ 3 ];
-
-const fs = require( 'fs' );
-
-const case_yaml = fs.readFileSync( filename, 'utf8' );
-
-const runner = require( '../src/env' ).console(
-    program, process.stdout
-);
-
-runner( case_yaml )
-    .then( results =>
-    {
-        const failed = results.some(
-            ( { failures } ) => failures.length
-        );
-
-        process.exit( +failed );
-    } )
-    .catch( e =>
-    {
-        console.error( e );
-        process.exit( 1 );
-    } );
-
+exports.rater = data =>
+{
+    return { vars: { out: data.in } };
+};

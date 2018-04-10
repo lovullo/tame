@@ -1,0 +1,7 @@
+# Simple test case that should fail
+
+- description: Failure
+  data:
+    in: 0
+  expect:
+    out: 1
