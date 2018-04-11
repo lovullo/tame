@@ -618,12 +618,16 @@
 </template>
 
 <template match="lvm:map//lvm:set[@ignore-empty='true']" mode="lvmc:compile" priority="3">
+  <param name="type" as="xs:string"/>
+
   <text>(function(){</text>
     <text>var ret=[]; var tmp;</text>
 
     <for-each select="./lvm:*">
       <text>tmp=</text>
-        <apply-templates select="." mode="lvmc:compile" />
+        <apply-templates select="." mode="lvmc:compile">
+          <with-param name="type" select="$type" />
+        </apply-templates>
       <text>;</text>
 
       <text>if(tmp&amp;&amp;tmp!=='0')ret.push(tmp);</text>
@@ -634,13 +638,17 @@
 </template>
 
 <template match="lvm:map//lvm:set" mode="lvmc:compile" priority="2">
+  <param name="type" as="xs:string"/>
+
   <text>[</text>
     <for-each select="./lvm:*">
       <if test="position() > 1">
         <text>,</text>
       </if>
 
-      <apply-templates select="." mode="lvmc:compile" />
+      <apply-templates select="." mode="lvmc:compile">
+        <with-param name="type" select="$type" />
+      </apply-templates>
     </for-each>
   <text>]</text>
 </template>
