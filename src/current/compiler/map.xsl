@@ -737,6 +737,11 @@
   <text>})(input['</text>
     <value-of select="@name" />
   <text>']</text>
+  <if test="@index">
+    <text>[</text>
+    <value-of select="@index" />
+    <text>]</text>
+  </if>
 
   <if test="$nested">
     <text>[curindex]</text>
