@@ -136,9 +136,10 @@
 
       <!-- compile mapped -->
       <apply-templates select="./lvm:*" mode="lvmc:compile">
-        <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable" />
         <with-param name="rater"    select="$rater" />
         <with-param name="type"     select="'map'" />
+        <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable"
+                    tunnel="yes"/>
       </apply-templates>
 
       <!-- special fragment to be output as the foot -->
@@ -209,9 +210,10 @@
 
       <!-- compile mapped -->
       <apply-templates select="./lvm:*" mode="lvmc:compile">
-        <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable" />
         <with-param name="rater"    select="$rater" />
         <with-param name="type"     select="'retmap'" />
+        <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable"
+                    tunnel="yes"/>
       </apply-templates>
 
       <!-- special fragment to be output as the foot -->
@@ -251,7 +253,7 @@
   <!-- allow mappings to be overridden after import, which allows defaults
        to be set and then overridden -->
   <preproc:sym name=":{$type-prefix}:{$name}" virtual="true"
-               keep="true" type="{$type-prefix}" pollute="true">
+               type="{$type-prefix}" pollute="true">
 
     <!-- for consistency and cleanliness, only copy over if set -->
     <if test="@override='true'">
@@ -272,7 +274,8 @@
   Directly map an input to the output
 -->
 <template match="lvm:pass" mode="lvmc:compile" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
+  <param name="symtable" as="element( preproc:symtable )"
+         tunnel="yes" />
   <param name="type"     as="xs:string" />
 
   <preproc:fragment id=":{$type}:{@name}">
@@ -310,7 +313,8 @@
   Maps an input to an output of a different name
 -->
 <template match="lvm:map[ @from ]" mode="lvmc:compile" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
+  <param name="symtable" as="element( preproc:symtable )"
+         tunnel="yes" />
   <param name="type" />
 
   <!-- if src and dest are identical, then it may as well be lvm:pass -->
@@ -526,7 +530,6 @@
 
 
 <template match="lvm:map[*]" mode="lvmc:compile" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
   <param name="rater" />
   <param name="type" as="xs:string"/>
 
@@ -536,9 +539,8 @@
     <text>']=</text>
 
       <apply-templates select="./lvm:*" mode="lvmc:compile">
-        <with-param name="symtable" select="$symtable" />
         <with-param name="rater" select="$rater" />
-        <with-param name="type" select="$type" />
+        <with-param name="type"  select="$type" />
       </apply-templates>
 
     <text>;</text>
@@ -651,7 +653,8 @@
 
 
 <template match="lvm:map//lvm:from[*]" mode="lvmc:compile" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
+  <param name="symtable" as="element( preproc:symtable )"
+         tunnel="yes" />
   <param name="type"     as="xs:string" />
 
   <variable name="to" select="ancestor::lvm:map/@to" />
@@ -685,8 +688,7 @@
            since case comparisons are strict (===) -->
       <text>switch(''+val[i]){</text>
         <apply-templates mode="lvmc:compile">
-          <with-param name="symtable" select="$symtable" />
-          <with-param name="type"     select="$type" />
+          <with-param name="type" select="$type" />
         </apply-templates>
 
         <if test="not( lvm:default )">
@@ -760,7 +762,8 @@
 
 <template match="lvm:from/lvm:default"
           mode="lvmc:compile" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
+  <param name="symtable" as="element( preproc:symtable )"
+         tunnel="yes" />
   <param name="type"     as="xs:string" />
 
   <sequence select="concat(
@@ -779,15 +782,13 @@
 
 
 <template match="lvm:map//lvm:from/lvm:translate" mode="lvmc:compile" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
-  <param name="type"     as="xs:string" />
+  <param name="type" as="xs:string" />
 
   <text>case '</text>
     <value-of select="@key" />
   <text>':</text>
     <apply-templates select="." mode="lvmc:compile-translate">
-      <with-param name="symtable" select="$symtable" />
-      <with-param name="type"     select="$type" />
+      <with-param name="type" select="$type" />
     </apply-templates>
   <text> break;</text>
 </template>
@@ -795,7 +796,8 @@
 
 <template match="lvm:translate[ element() ]"
               mode="lvmc:compile-translate" priority="5">
-  <param name="symtable" as="element( preproc:symtable )" />
+  <param name="symtable" as="element( preproc:symtable )"
+         tunnel="yes" />
   <param name="type"     as="xs:string" />
 
   <sequence select="concat(
@@ -822,8 +824,7 @@
         </if>
 
         <apply-templates mode="lvmc:compile" select=".">
-          <with-param name="symtable" select="$symtable" />
-          <with-param name="type"     select="$type" />
+          <with-param name="type" select="$type" />
         </apply-templates>
       </for-each>
     <text>;</text>
