@@ -73,7 +73,7 @@ until [ $# -eq 0 ]; do (
   path="${1%%/}"
   echo "[gen-make] scanning $path" >&2
 
-  cd "$( basename $path )/" || exit $?
+  cd "$path" || exit $?
 
   deps=$( find -maxdepth 1 -iname '*.dep' )
   for dpath in $deps; do
@@ -103,7 +103,7 @@ until [ $# -eq 0 ]; do (
   # recurse on every subdirectory
   for p in */; do
     [ "$p" == ./ -o "$p" == ../ ] && continue
-    [ ! -d "$p" ] || "$GEN_MAKE" "$path/$p" || {
+    [ ! -d "$p" ] || ( cd "$OLDPWD" && "$GEN_MAKE" "$path/$p" ) || {
       echo "fatal: failed to recurse on $( pwd )/$path/$p" >&2
       exit 1
     }
