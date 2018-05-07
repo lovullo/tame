@@ -75,14 +75,24 @@ until [ $# -eq 0 ]; do (
 
   cd "$path" || exit $?
 
-  deps=$( find -maxdepth 1 -iname '*.dep' )
+  deps=$( find -maxdepth 1 -iname '*.dep' -o -iname '*.typelist' )
+
   for dpath in $deps; do
     # equivalent to basename command; use this since spawning processes on
     # windoze is slow as shit (originally we did find -exec bashename)
     d="${dpath##*/}"
+    sansext="${d%.*}"
 
     echo "[gen-make] found $path/$d" >&2
-    echo -n "$path/${d%.*}.xmlo:"
+
+    # this might be derived from another file
+    # TODO: handle all cases, not just typelists!
+    if [ -f "$sansext.typelist" ]; then
+      echo "$path/$sansext.xml: $path/$sansext.typelist"
+    fi
+
+    # begin this file's dependencies
+    echo -n "$path/$sansext.xmlo: $path/$sansext.xml "
 
     # output deps
     while read dep; do
