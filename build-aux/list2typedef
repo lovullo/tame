@@ -1,0 +1,173 @@
+#!/bin/bash
+# Generates typedef from list of strings
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+# store unique names and values to detect collisions
+declare -A _unames=()
+declare -A _uvalues=()
+
+
+# Provide an error and abort if a name or value collision is found
+#
+# This function stores each name and value that it sees each time it is
+# invoked.  If a duplicate is found, an error is output and the script
+# terminates.
+#
+# This is important because both values are transformed in a way that
+# the output space is a subset of the input.  In the case of names,
+# characters are stripped and replaced; in the case of values, the range
+# of the hash function is determined by the number of bytes desired.
+#
+# Both will cause really bad bugs if left undetected.
+assert-collision()
+{
+  local -r name="${1?Missing name (const)}"
+  local -r value="${2?Missing value (hashed)}"
+
+  test -z "${_unames[$name]}" || {
+    echo "error: name collision: $name" >&2
+    exit 1
+  }
+
+  test -z "${_uvalues[$value]}" || {
+    echo "error: value collision: $name = $value" >&2
+    exit 1
+  }
+
+  _unames["$name"]=1
+  _uvalues["$value"]=1
+}
+
+
+# Generate typedef item from given string
+#
+# An item node will be output with the given string converted to a class
+# (see `constify'); a BYTES-byte decimal integer as the value (see
+# `hash-name'); and the original string as the description.
+output-item()
+{
+  local -r typedef="${1?Missing typedef}"
+  local -ri bytes="${2?Missing byte size}"
+  local name; read -r name
+
+  local -r const=$( constify "$typedef" <<< "$name" )
+  local -r value=$( hash-name "$bytes" <<< "$name" )
+
+  assert-collision "$const" "$value"
+
+  printf '      <item name="%s" value="%s" desc="%s" />\n' \
+         "$const" \
+         "$value" \
+         "$name"
+}
+
+
+
+# Convert a string into a constant
+#
+# The returned format will be "TYPE_NAME", where "TYPE" is the typedef
+# converted into uppercase and "NAME" is the string converted into
+# uppercase with all consecutive non-alphanumeric characters converted
+# into an underscore.
+constify()
+{
+  local -r typedef="${1?Missing typedef}"
+  local name; read -r name
+
+  echo -n "${typedef^^}_"
+  sed 's/[^a-zA-Z0-9 ]\+//g;
+       s/ \+/_/g' <<< "${name^^}"
+}
+
+
+# Produce a decimal integer by taking the high BYTES bytes of the SHA256
+# hash of stdin
+#
+# Since the output of sha256sum is hexidecimal, two digits represent a
+# single byte.  For example, let BYTES=4: taking the first 8 digits
+# gives us the high 4 bytes (32 bits).  Another way to visualize this is
+# to convert a truncated hash to decimal.
+hash-name()
+{
+  local -ri bytes="${1?Missing byte size}"
+  local -ri digits=$(( bytes * 2 ))
+
+  echo $(( 0x$( sha256sum | head -c"$digits" ) ))
+}
+
+
+# Usage information
+#
+# This function terminates the script with EX_USAGE.
+usage()
+{
+  cat <<'EOF'
+Usage: $0 typename [bytes]
+Generate typedef of name TYPENAME using hashed standard input values
+
+Each input line will produce a single typedef item.  Each item has a
+decimal value of the high BYTES of its SHA256 hash.  If BYTES is not
+provided, it defaults to 4 (32 bits).
+
+Empty lines and lines beginning with a `#' are ignored.
+
+This script checks for collisions of both names and values.  If a
+hash collision is found, the number of bytes BYTES must be
+increased or the input string changed.  Collisions will immediate
+abort the script with a non-zero exit status.
+EOF
+
+  return 64  # EX_USAGE
+}
+
+
+# Output typedef with hashed values
+main()
+{
+  local -r typedef="${1?Missing typedef}"
+  local -ri bytes="${2:-4}"
+
+  test "$bytes" -gt 0 || {
+    echo 'error: byte count must be greater than 0' >&2
+    usage
+  }
+
+  cat <<EOF
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         title="$typedef Type">
+  <typedef name="$typedef" desc="$typedef">
+    <enum type="integer">
+EOF
+
+  while read line; do
+    # ignore empty and comment lines
+    [[ "$line" && ! "$line" =~ ^\#  ]] || continue
+
+    output-item "$typedef" "$bytes" <<< "$line"
+  done
+
+  echo '    </enum>'
+  echo '  </typedef>'
+  echo '</package>'
+}
+
+
+test $# -gt 0 || usage || exit
+
+main "$@"
