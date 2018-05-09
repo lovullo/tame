@@ -61,6 +61,13 @@
       <xsl:call-template name="lvmp:gen-val">
         <xsl:with-param name="name" select="$val" />
       </xsl:call-template>
+      <xsl:if test="$post">
+        <xsl:text> . </xsl:text>
+          <!-- TODO: escape -->
+          <xsl:call-template name="lvm:valparse">
+            <xsl:with-param name="str" select="$post" />
+          </xsl:call-template>
+      </xsl:if>
     </xsl:when>
 
     <!-- static value; no variable -->
@@ -68,15 +75,15 @@
       <xsl:text>'</xsl:text>
         <xsl:value-of select="$str" />
       <xsl:text>'</xsl:text>
+      <xsl:if test="$post">
+        <xsl:text> . '</xsl:text>
+        <!-- TODO: escape -->
+        <xsl:value-of select="$post" />
+        <xsl:text>'</xsl:text>
+      </xsl:if>
     </xsl:otherwise>
   </xsl:choose>
 
-  <xsl:if test="$post">
-    <xsl:text> . '</xsl:text>
-      <!-- TODO: escape -->
-      <xsl:value-of select="$post" />
-    <xsl:text>'</xsl:text>
-  </xsl:if>
 </xsl:template>
 
 
