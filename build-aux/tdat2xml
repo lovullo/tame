@@ -23,8 +23,6 @@
 <lv:package
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater/rater.xsd"
 
 <?php
 

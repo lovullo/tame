@@ -66,7 +66,8 @@
   xmlns:symtable="http://www.lovullo.com/tame/symtable"
   xmlns:preproc="http://www.lovullo.com/rater/preproc"
   xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc">
+  xmlns:c="http://www.lovullo.com/calc"
+  exclude-result-prefixes="xs symtable">
 
 
 <xsl:include href="path.xsl" />

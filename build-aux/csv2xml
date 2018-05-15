@@ -67,8 +67,6 @@ BEGIN {
     "  xmlns=\"http://www.lovullo.com/rater\"\n" \
     "  xmlns:c=\"http://www.lovullo.com/calc\"\n" \
     "  xmlns:t=\"http://www.lovullo.com/rater/apply-template\"\n" \
-    "  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" \
-    "  xsi:schemaLocation=\"http://www.lovullo.com/rater %1$srater/rater.xsd\"\n\n" \
     "  name=\"suppliers/rates/tables/%2$s\"\n" \
     "  desc=\"%2$s rate table\">\n\n" \
     "  <!--\n" \

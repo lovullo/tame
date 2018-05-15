@@ -1,8 +1,4 @@
-<symbol-map
-  xmlns="http://www.lovullo.com/rater/symbol-map"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com symbol-map.xsd">
-
+<symbol-map xmlns="http://www.lovullo.com/rater/symbol-map">
   <!-- global parameter -->
   <symbol type="param">\Theta</symbol>
 

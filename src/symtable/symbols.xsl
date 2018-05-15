@@ -33,7 +33,8 @@
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:symtable="http://www.lovullo.com/tame/symtable"
             xmlns:_symtable="http://www.lovullo.com/tame/symtable/_priv"
-            xmlns:preproc="http://www.lovullo.com/rater/preproc">
+            xmlns:preproc="http://www.lovullo.com/rater/preproc"
+            exclude-result-prefixes="symtable _symtable xs">
 
 <import href="symbols.xsl.apply" />
 

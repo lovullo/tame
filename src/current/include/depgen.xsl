@@ -34,7 +34,8 @@
   xmlns:t="http://www.lovullo.com/rater/apply-template"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:ext="http://www.lovullo.com/ext"
-  xmlns:util="http://www.lovullo.com/util">
+  xmlns:util="http://www.lovullo.com/util"
+  exclude-result-prefixes="ext util xs">
 
 
 <xsl:variable name="tex-defaults">
