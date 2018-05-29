@@ -1,7 +1,7 @@
 /**
  * TAME compiler fontend
  *
- *  Copyright (C) 2016 R-T Specialty, LLC.
+ *  Copyright (C) 2016, 2018 R-T Specialty, LLC.
  *
  *  This file is part of the Liza Data Collection Framework
  *
@@ -29,6 +29,8 @@
 package com.lovullo.dslc;
 
 import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.HashMap;
 import javax.xml.XMLConstants;
@@ -41,12 +43,15 @@ import org.xml.sax.SAXException;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
 
+
+// TODO: Decouple from rater/ path assumptions
 public class DslCompiler
 {
     private static class _DslCompiler
     {
         private Validator _xsd;
         private HashMap<String,Transformer> _xsl;
+        private Path _pathRoot;
 
 
         public _DslCompiler()
@@ -85,6 +90,9 @@ public class DslCompiler
 
                 System.exit( 4 );
             }
+
+            // root path of TAME
+            _pathRoot = Paths.get( "rater/tame" ).toRealPath();
 
             // transform to dest
             File destfile = new File( dest );
@@ -134,6 +142,7 @@ public class DslCompiler
             String relroot   = new String( new char[ dircount ] ).replace( "\0", "../" );
 
             Transformer t = _xsl.get( cmd );
+            t.setParameter( "__path-root", _pathRoot.toString() );
             t.setParameter( "__srcpkg", srcpkg );
             t.setParameter( "__relroot", relroot );
             t.setParameter( "__rseed", (int)( Math.random() * 10e6 ) );
