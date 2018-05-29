@@ -2,7 +2,7 @@
 <!--
   Compiles map fragments to produce a map from source data to a destination
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -268,6 +268,36 @@
     </if>
   </preproc:sym>
 </template>
+
+
+<!--
+  Get name of function associated with mapping method
+
+  Note that this expands to an empty string if no processing is
+  needed.  Since functions are applied using parenthesis, this has the
+  effect of creating either a function application or a parenthesized
+  expression, the latter of which simply returns the expression untouched.
+-->
+<function name="lvmc:get-method-func" as="xs:string">
+  <param name="method" as="xs:string?" />
+
+  <choose>
+    <!-- default -->
+    <when test="not( $method ) or ( $method = 'translate' )">
+      <sequence select="''" />
+    </when>
+
+    <when test="$method = ( 'hash', 'uppercase' )">
+      <sequence select="concat( 'map_method_', $method )" />
+    </when>
+
+    <otherwise>
+      <message terminate="yes"
+               select="concat( 'error: unknown map method `',
+                               $method, '''' )" />
+    </otherwise>
+  </choose>
+</function>
 
 
 <!--
@@ -752,25 +782,69 @@
 
 
 <template match="lvm:map//lvm:from" mode="lvmc:compile" priority="2">
-  <variable name="nested" as="xs:boolean"
-            select="exists( ancestor::lvm:from )" />
-
-  <text>input['</text>
-    <value-of select="@name" />
-  <text>']</text>
-
-  <choose>
-    <when test="@index">
-      <text>[</text>
-      <value-of select="@index" />
-      <text>]</text>
-    </when>
-
-    <when test="$nested">
-      <text>[curindex]</text>
-    </when>
-  </choose>
+  <sequence select="lvmc:value-ref( . )" />
 </template>
+
+
+<function name="lvmc:value-ref" as="xs:string">
+  <param name="from" as="element( lvm:from )" />
+
+  <variable name="nested" as="xs:boolean"
+            select="exists( $from/ancestor::lvm:from )" />
+
+  <variable name="name" as="xs:string"
+            select="$from/@name" />
+  <variable name="index" as="xs:string?"
+            select="$from/@index" />
+
+
+  <!-- index reference, if applicable -->
+  <variable name="index-ref" as="xs:string"
+            select="if ( $index ) then
+                        concat( '[', $index, ']' )
+                      else
+                        ''" />
+
+  <!-- additional index, if nested within another from -->
+  <variable name="nested-ref" as="xs:string"
+            select="if ( $nested ) then
+                        '[curindex]'
+                      else
+                        ''" />
+
+  <!-- compiled reference, including index and nested -->
+  <variable name="ref" as="xs:string"
+            select="concat(
+                      'input[''', $name, ''']', $index-ref, $nested-ref )" />
+
+  <!-- finally, wrap in any transformations -->
+  <sequence select="lvmc:transformation-wrap(
+                      $ref, $from/ancestor::lvm:transform )" />
+</function>
+
+
+<function name="lvmc:transformation-wrap" as="xs:string">
+  <param name="value"     as="xs:string" />
+  <param name="transform" as="element( lvm:transform )*" />
+
+<!-- transformations (if any) as function applications -->
+  <variable name="transform-methods" as="xs:string*"
+            select="for $method in $transform/@method
+                      return concat(
+                        lvmc:get-method-func( $method ),
+                        '(' )" />
+
+  <!-- closing parenthesis for each -->
+  <variable name="transform-close" as="xs:string*"
+            select="for $_ in $transform-methods
+                      return ')'" />
+
+  <!-- wrap $ref in methods and closing parentheses -->
+  <sequence select="concat(
+                      string-join( $transform-methods, '' ),
+                      $value,
+                      string-join( $transform-close, '' ) )" />
+</function>
 
 
 <template match="lvm:from/lvm:default"
@@ -794,7 +868,11 @@
 </template>
 
 
-<template match="lvm:map//lvm:from/lvm:translate" mode="lvmc:compile" priority="5">
+<!--
+  Key/value mapping
+-->
+<template mode="lvmc:compile" priority="5"
+          match="lvm:map//lvm:from/lvm:translate[ @key ]">
   <param name="type" as="xs:string" />
 
   <text>case '</text>
@@ -804,6 +882,18 @@
       <with-param name="type" select="$type" />
     </apply-templates>
   <text> break;</text>
+</template>
+
+
+<!--
+  Skip transformations during initial encounter
+
+  Transformations are applied within certain contexts; let those contexts
+  apply them when ready.
+-->
+<template mode="lvmc:compile" priority="3"
+          match="lvm:map//lvm:transform">
+  <apply-templates mode="lvmc:compile" />
 </template>
 
 
@@ -838,6 +928,8 @@
 
         <apply-templates mode="lvmc:compile" select=".">
           <with-param name="type" select="$type" />
+          <with-param name="symtable" select="$symtable"
+                      tunnel="yes"/>
         </apply-templates>
       </for-each>
     <text>;</text>
