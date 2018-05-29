@@ -2,7 +2,7 @@
 <!--
   Entry point for linker
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -23,6 +23,8 @@
 <xsl:stylesheet version="2.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+<xsl:include href="include/dslc-base.xsl" />
 
 <xsl:include href="compiler/linker.xsl" />
 

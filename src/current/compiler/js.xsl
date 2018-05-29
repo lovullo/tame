@@ -2,7 +2,7 @@
 <!--
   Compiles rater XML into JavaScript
 
-  Copyright (C) 2016, 2017 R-T Specialty, LLC.
+  Copyright (C) 2016, 2017, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -1954,8 +1954,51 @@
 
         return ret;
     }
+
+
+    /**
+     * Map each string in INPUT to uppercase
+     *
+     * @param {Array|string} input string
+     *
+     * @return {Array<number>|number} mapped value
+     */
+    function map_method_uppercase( input )
+    {
+        if ( Array.isArray( input ) )
+        {
+            return input.map( map_method_uppercase );
+        }
+
+        return input.toUpperCase();
+    }
+
+
+    /**
+     * Map each string in INPUT to an integer
+     *
+     * An integer is constructed by taking the four higher-order bytes from
+     * the SHA256 hash of the input (corresponding to eight hexadecimal digits).
+     *
+     * @param {Array|string} input preimage
+     *
+     * @return {Array<number>|number} mapped value
+     */
+    function map_method_hash( input )
+    {
+        if ( Array.isArray( input ) )
+        {
+            return input.map( map_method_hash );
+        }
+
+        const hash = sha256( input ).substr( 0, 8 );
+        return parseInt( hash, 16 );
+    }
 ]]>
 </text>
+
+<sequence select="unparsed-text(
+                    concat( $__path-root, '/src/js/sha256.js' ) )" />
 </template>
 
 </stylesheet>
