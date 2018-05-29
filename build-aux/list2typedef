@@ -66,7 +66,7 @@ output-item()
   local name; read -r name
 
   local -r const=$( constify "$typedef" <<< "$name" )
-  local -r value=$( hash-name "$bytes" <<< "$name" )
+  local -r value=$( echo -n "$name" | hash-name "$bytes" )
 
   assert-collision "$const" "$value"
 

@@ -29,6 +29,16 @@
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
+<!--
+  Absolute path to root of TAME
+
+  Relative paths between files in XSLT can be flaky because most operations
+  are relative to the root stylesheet (not the filename of the stylesheet
+  that a particular line of code is executing in).  Using absolute paths
+  mitigates that definitively.
+-->
+<xsl:param name="__path-root" />
+
 
 <!--
   Package source path, stripped of its extension

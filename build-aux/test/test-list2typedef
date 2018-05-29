@@ -41,9 +41,9 @@ Second'\''s @     @Line
          title="FooType Type">
   <typedef name="FooType" desc="FooType">
     <enum type="integer">
-      <item name="FOOTYPE_FIRST" value="4285081399" desc="First" />
-      <item name="FOOTYPE_SECONDS_LINE" value="582715539" desc="Second'\''s @     @Line" />
-      <item name="FOOTYPE_THIRD" value="3355510722" desc="!!!THIRD!!!" />
+      <item name="FOOTYPE_FIRST" value="2706493105" desc="First" />
+      <item name="FOOTYPE_SECONDS_LINE" value="3512333918" desc="Second'\''s @     @Line" />
+      <item name="FOOTYPE_THIRD" value="519392729" desc="!!!THIRD!!!" />
     </enum>
   </typedef>
 </package>'
@@ -79,11 +79,11 @@ test-collision-value-check()
 
   # we can easily force a collision by reducing the number of bytes to 1 and
   # calculating hashes from /usr/share/dict/words; this is one example
-  local err=$( ../list2typedef Foo 1 2>&1 >/dev/null <<< 'abacist
-abatis
+  local err=$( ../list2typedef Foo 1 2>&1 >/dev/null <<< 'abase
+abate
 ' && echo 'EXPECTED FAILURE' )
 
-  [[ "$err" =~ ABATIS && "$err" =~ '44' ]] || {
+  [[ "$err" =~ ABATE && "$err" =~ '157' ]] || {
     echo 'expecting useful error message for value collion' >&2
     return 1
   }
