@@ -187,7 +187,8 @@
 
     <t:n-vector n="52" name="NVEC_STATE_ALL" value="1" />
 
-    <classify as="state-all" desc="Every State in a State vector">
+    <classify as="state-all" yields="stateAll"
+              desc="Every State in a State vector">
       <match on="NVEC_STATE_ALL" />
     </classify>
   </section>
