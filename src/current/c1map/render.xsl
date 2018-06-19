@@ -133,6 +133,11 @@
   <xsl:param name="value" select="$var/@value" />
   <xsl:param name="default" select="$var/lvmp:default" />
 
+  <xsl:param name="escape-param" select="ancestor-or-self::*[@escape-param][ 1 ]/@escape-param" />
+  <xsl:param name="parent-value" select="parent::lvmp:value[1]"/>
+  <xsl:if test="$escape-param and $escape-param != '' and not($parent-value)">
+      <xsl:text>$contract-&gt;escapeValue(</xsl:text>
+  </xsl:if>
   <xsl:text>$contract-&gt;getValueByContext( </xsl:text>
     <!-- recursive process contexts -->
     <xsl:apply-templates select="lvmp:value" mode="lvmp:render">
@@ -145,6 +150,9 @@
   <xsl:text>' </xsl:text>
 
   <xsl:text> )</xsl:text>
+  <xsl:if test="$escape-param and $escape-param != '' and not($parent-value)">
+      <xsl:text> )</xsl:text>
+  </xsl:if>
 </xsl:template>
 
 
@@ -177,11 +185,82 @@
     </xsl:choose>
   </xsl:param>
 
+
+  <!--<xsl:param name="escape-param" select="$scope/lvmp:var-escape[ @escape-param ]" />-->
+  <xsl:param name="escape-param" select="ancestor-or-self::*[@escape-param][ 1 ]/@escape-param" />
+  <xsl:param name="parent-value" select="parent::lvmp:value[1]"/>
+  <!--
+  <xsl:message select="'====================='" />
+  <xsl:message select="$var/@name" />
+  <xsl:message select="ancestor-or-self::*[@escape-param]"/>
+  <xsl:message select="ancestor-or-self::*"/>
+  <xsl:message select="'\\\'"/>
+  <xsl:message select="$escape-param" />
+  <xsl:message select="'\\\\\\\\\\\\\\\\\\\\'"/>
+  -->
+<!--
+  <xsl:message select="parent::*/preceding-sibling::*"/>
+  <xsl:message select="'\\\\\\\\\\\\\\\\\\\\'"/>
+  <xsl:message select="parent::*"/>
+  <xsl:param name="escape-param" select="ancestor-or-self::*[ @escape-param ][ 1 ]" />
+  <xsl:message select="'====================='" />
+  <xsl:message select="ancestor-or-self::*" />
+  <xsl:text>*****</xsl:text>
+  <xsl:choose>
+    <xsl:when test="$escape-param">
+      <xsl:text>$contract-&gt;escapeValue( $contract-&gt;getValue( '</xsl:text>
+      <xsl:value-of select="$from" />
+      <xsl:text>', $contract->getValueIndex( '</xsl:text>
+      <xsl:value-of select="$index-name" />
+      <xsl:text>' ) )</xsl:text>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:text>$contract-&gt;getValue( '</xsl:text>
+      <xsl:value-of select="$from" />
+      <xsl:text>', $contract->getValueIndex( '</xsl:text>
+      <xsl:value-of select="$index-name" />
+      <xsl:text>' )</xsl:text>
+    </xsl:otherwise>
+  </xsl:choose>
+
+  <xsl:message select="'======================'" />
+  <xsl:text>ooooooooooooo:</xsl:text>
+
+  <xsl:message select="$scope" />
+<xsl:message select="'==========================='"/>
+<xsl:message select="$scope"/>
+
   <xsl:text>$contract-&gt;getValue( '</xsl:text>
     <xsl:value-of select="$from" />
   <xsl:text>', $contract->getValueIndex( '</xsl:text>
     <xsl:value-of select="$index-name" />
   <xsl:text>' )</xsl:text>
+-->
+<!--
+<xsl:message>===========</xsl:message>
+<xsl:message select=".[1]"/>
+<xsl:message select="$escape-param"/>
+<xsl:message select="parent::lvmp:value[1]"/>
+<xsl:message>===========</xsl:message>
+-->
+  <xsl:choose>
+    <xsl:when test="$escape-param and $escape-param != '' and not($parent-value)">
+<xsl:message select="'(escaping)'"/>
+      <xsl:text>$contract-&gt;escapeValue( $contract-&gt;getValue( '</xsl:text>
+      <xsl:value-of select="$from" />
+      <xsl:text>', $contract->getValueIndex( '</xsl:text>
+      <xsl:value-of select="$index-name" />
+      <xsl:text>' ) )</xsl:text>
+    </xsl:when>
+    <xsl:otherwise>
+<xsl:message select="'(not escaping)'"/>
+      <xsl:text>$contract-&gt;getValue( '</xsl:text>
+      <xsl:value-of select="$from" />
+      <xsl:text>', $contract->getValueIndex( '</xsl:text>
+      <xsl:value-of select="$index-name" />
+      <xsl:text>' )</xsl:text>
+    </xsl:otherwise>
+  </xsl:choose>
 
   <xsl:if test="$default">
     <xsl:text>, </xsl:text>
@@ -238,6 +317,10 @@
 </xsl:template>
 
 <xsl:template match="lvmp:var" mode="lvmp:render" priority="5">
+  <!-- no longer needed -->
+</xsl:template>
+
+<xsl:template match="lvmp:var-escape" mode="lvmp:render" priority="5">
   <!-- no longer needed -->
 </xsl:template>
 

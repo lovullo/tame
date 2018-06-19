@@ -39,18 +39,43 @@
   form:
     '>Name' => array( <recurse> )
 -->
+<!--
+<xsl:template match="c1:*[
+                       node()
+                       or ( @* and not( count( @* ) = count( @lvm:* )))]" priority="5">
+<xsl:template match="c1:*[(*) or ( @* and not( count( @* ) = count( @lvm:* )))]" priority="5">
+-->
 <xsl:template match="c1:*[*|@*]" priority="5">
   <!-- make the output a little bit sane -->
   <xsl:value-of select="$lvmp:nl" />
 
   <!-- defer node rendering; allows us to easily determine if there are
        siblings of the same name within a node boundary -->
-  <lvmp:node name="{name()}" />
+  <lvmp:node name="{name()}"/>
+<!--
+  <xsl:if test="not(@lvm:escape-param)">
+    <lvmp:node name="{name()}"/>
+  </xsl:if>
+  <xsl:if test="@lvm:escape-param">
+    <lvmp:node name="{name()}" escape-param="{@lvm:escape-param}"/>
+  </xsl:if>
+-->
   <xsl:text> => </xsl:text>
 
-  <lvmp:node-boundary>
-    <xsl:apply-templates select="." mode="lvmp:c1-node-result" />
-  </lvmp:node-boundary>
+<!--
+  <xsl:if test="not(@lvm:escape-param)">
+      <lvmp:node-boundary>
+        <xsl:apply-templates select="." mode="lvmp:c1-node-result" />
+      </lvmp:node-boundary>
+  </xsl:if>
+  <xsl:if test="@lvm:escape-param)">
+-->
+      <lvmp:node-boundary escape-param="{@lvm:escape-param}">
+        <xsl:apply-templates select="." mode="lvmp:c1-node-result" />
+      </lvmp:node-boundary>
+<!--
+  </xsl:if>
+-->
 </xsl:template>
 
 
@@ -61,6 +86,11 @@
 <xsl:template match="c1:*" mode="lvmp:c1-node-result" priority="1">
   <xsl:text>array( </xsl:text>
     <xsl:apply-templates select="@*|*" />
+    <xsl:if test="text() != '' and not(.[*])">
+        <xsl:text>'text()' => </xsl:text>
+        <xsl:apply-templates select="text()" mode="lvm:valparse" />
+        <xsl:text></xsl:text>
+    </xsl:if>
   <xsl:text>) </xsl:text>
 </xsl:template>
 
@@ -72,11 +102,22 @@
 <xsl:template match="c1:*[text()]" priority="4">
   <!-- defer node rendering; allows us to easily determine if there are
        siblings of the same name within a node boundary -->
-  <lvmp:node name="{name()}" />
+<!--
+-->
+<xsl:message select="'text-only node:'"/>
+<xsl:message select="."/>
+  <lvmp:node name="{name()}" escape-param="{@lvm:escape-param}"/>
   <xsl:text> => </xsl:text>
 
   <xsl:text></xsl:text>
     <!-- TODO: escape single quotes -->
+<!--
+<xsl:message select="'{{{'"/>
+<xsl:message>
+  <xsl:apply-templates select="text()" mode="lvm:valparse"/>
+</xsl:message>
+<xsl:message select="'}}}'"/>
+-->
     <xsl:apply-templates select="text()" mode="lvm:valparse" />
   <xsl:text>, </xsl:text>
 </xsl:template>
@@ -105,9 +146,31 @@
 </xsl:template>
 
 
+
 <xsl:template match="c1:*/@lvm:*" priority="6">
   <!-- discard all system attributes -->
+  <xsl:message select="'\ndiscarding:'"/>
+  <xsl:message select="."/>
   <!-- TODO: error once everything is properly implemented -->
+<!--
+  <xsl:text>'</xsl:text><xsl:value-of select="name()" />
+  <xsl:text>' => '[BLORT</xsl:text>
+  <xsl:apply-templates select="." mode="lvm:valparse"/>
+  <xsl:text>BLORT]' </xsl:text>
+-->
 </xsl:template>
+
+
+<!--
+<xsl:template match="c1:*[text()][ @lvm:escape-param ]" priority="7">
+  <lvmp:node name="{name()}" />
+  <xsl:text> => </xsl:text>
+
+  <xsl:text></xsl:text>
+    <xsl:apply-templates select="text()" mode="lvm:valparse" />
+  <xsl:text>, BLORT</xsl:text>
+
+</xsl:template>
+-->
 
 </xsl:stylesheet>
