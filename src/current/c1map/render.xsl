@@ -354,14 +354,15 @@
   ]
 ">
   <!-- select the nearest condition -->
-  <xsl:variable name="cond" select="ancestor::lvmp:condition[1]" />
+  <xsl:variable name="cond" as="element( lvmp:condition )"
+                select="ancestor::lvmp:condition[1]" />
 
   <xsl:text>( ( </xsl:text>
     <xsl:text>$contract->isTruthy( </xsl:text>
       <xsl:apply-templates select="$cond/lvmp:when/lvmp:*" mode="lvmp:render" />
-      <xsl:if test="$cond/lvmp:cmp/*">
+      <xsl:if test="$cond/lvmp:cmp/text() != ''">
         <xsl:text>,</xsl:text>
-        <xsl:apply-templates select="$cond/lvmp:cmp/lvmp:*" mode="lvmp:render" />
+        <xsl:apply-templates select="$cond/lvmp:cmp/text()" mode="lvmp:render" />
       </xsl:if>
     <xsl:text>)</xsl:text>
   <xsl:text> ) ? </xsl:text>
