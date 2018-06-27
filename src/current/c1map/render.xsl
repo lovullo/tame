@@ -360,9 +360,9 @@
   <xsl:text>( ( </xsl:text>
     <xsl:text>$contract->isTruthy( </xsl:text>
       <xsl:apply-templates select="$cond/lvmp:when/lvmp:*" mode="lvmp:render" />
-      <xsl:if test="$cond/lvmp:cmp/text() != ''">
+      <xsl:if test="$cond/lvmp:cmp/(*|text())">
         <xsl:text>,</xsl:text>
-        <xsl:apply-templates select="$cond/lvmp:cmp/text()" mode="lvmp:render" />
+        <xsl:apply-templates select="$cond/lvmp:cmp/(lvmp:*|text())" mode="lvmp:render" />
       </xsl:if>
     <xsl:text>)</xsl:text>
   <xsl:text> ) ? </xsl:text>
@@ -380,9 +380,9 @@
   <xsl:text>( ( </xsl:text>
   <xsl:text>$contract->isTruthy( </xsl:text>
   <xsl:apply-templates select="$cond/lvmp:when/lvmp:*" mode="lvmp:render" />
-  <xsl:if test="$cond/lvmp:cmp/*">
+  <xsl:if test="$cond/lvmp:cmp/(*|text())">
     <xsl:text>,</xsl:text>
-    <xsl:apply-templates select="$cond/lvmp:cmp/lvmp:*" mode="lvmp:render" />
+    <xsl:apply-templates select="$cond/lvmp:cmp/(lvmp:*|text())" mode="lvmp:render" />
   </xsl:if>
   <xsl:text>)</xsl:text>
   <xsl:text> ) ? array(</xsl:text>
