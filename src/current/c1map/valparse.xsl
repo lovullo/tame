@@ -36,6 +36,7 @@
   </xsl:call-template>
 </xsl:template>
 
+
 <xsl:template name="lvm:valparse">
   <xsl:param name="str" />
 
@@ -142,14 +143,6 @@
           ) )
         " />
 
-
-      <!--
-      <xsl:message select="$name,parent::c1:*" />
-      -->
-
-      <!--
-      <xsl:variable name="escape-param" select="ancestor::" />
-      -->
       <lvmp:value ref="{$rightmost}" index-key="{$context}">
         <xsl:call-template name="lvmp:gen-val">
           <xsl:with-param name="name" select="$context" />
