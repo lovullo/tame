@@ -48,7 +48,7 @@
   <lvmp:node name="{name()}" />
   <xsl:text> => </xsl:text>
 
-  <lvmp:node-boundary>
+  <lvmp:node-boundary escape-param="{@lvm:escape-param}">
     <xsl:apply-templates select="." mode="lvmp:c1-node-result" />
   </lvmp:node-boundary>
 </xsl:template>
@@ -61,6 +61,11 @@
 <xsl:template match="c1:*" mode="lvmp:c1-node-result" priority="1">
   <xsl:text>array( </xsl:text>
     <xsl:apply-templates select="@*|*" />
+    <xsl:if test="text() and not( element() )">
+        <xsl:text>'text()' => </xsl:text>
+        <xsl:apply-templates select="text()" mode="lvm:valparse" />
+        <xsl:text></xsl:text>
+    </xsl:if>
   <xsl:text>) </xsl:text>
 </xsl:template>
 
@@ -72,7 +77,7 @@
 <xsl:template match="c1:*[text()]" priority="4">
   <!-- defer node rendering; allows us to easily determine if there are
        siblings of the same name within a node boundary -->
-  <lvmp:node name="{name()}" />
+  <lvmp:node name="{name()}" escape-param="{@lvm:escape-param}"/>
   <xsl:text> => </xsl:text>
 
   <xsl:text></xsl:text>
@@ -103,6 +108,7 @@
     <xsl:apply-templates select="@value" mode="lvm:valparse" />
   <xsl:text>, </xsl:text>
 </xsl:template>
+
 
 
 <xsl:template match="c1:*/@lvm:*" priority="6">
