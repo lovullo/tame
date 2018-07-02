@@ -22,6 +22,7 @@
 -->
 <xsl:stylesheet version="2.0"
   xmlns:c1="http://www.epic-premier.com/XMLSchema"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   xmlns:lvm="http://www.lovullo.com/rater/map/c1"
   xmlns:lvmp="http://www.lovullo.com/rater/map/c1/pp">
@@ -29,6 +30,16 @@
 
 <xsl:import href="transform.xsl" />
 
+<xsl:function name="lvm:is-escaped-param" as="xs:boolean">
+    <xsl:param name="value" as="element( lvmp:value )"/>
+
+    <xsl:variable name="escape-param" as="xs:string?"
+                  select="$value/ancestor-or-self::lvmp:node-boundary[1]/@escape-param[ 1 ]" />
+    <xsl:variable name="parent-value" as="element( lvmp:value )?"
+                  select="$value/parent::lvmp:value[ 1 ]"/>
+
+    <xsl:sequence select="$escape-param and boolean($escape-param) and not( $parent-value )" />
+</xsl:function>
 
 <xsl:template match="lvmp:root" mode="lvmp:render" priority="5">
   <xsl:text>&lt;?php </xsl:text>
@@ -133,9 +144,8 @@
   <xsl:param name="value" select="$var/@value" />
   <xsl:param name="default" select="$var/lvmp:default" />
 
-  <xsl:param name="escape-param" select="ancestor-or-self::*[@escape-param][ 1 ]/@escape-param" />
-  <xsl:param name="parent-value" select="parent::lvmp:value[1]"/>
-  <xsl:if test="$escape-param and $escape-param != '' and not($parent-value)">
+  <xsl:variable name="needs-escape" as="xs:boolean" select="lvm:is-escaped-param( . )"/>
+  <xsl:if test="$needs-escape">
       <xsl:text>$contract-&gt;escapeValue(</xsl:text>
   </xsl:if>
   <xsl:text>$contract-&gt;getValueByContext( </xsl:text>
@@ -150,7 +160,7 @@
   <xsl:text>' </xsl:text>
 
   <xsl:text> )</xsl:text>
-  <xsl:if test="$escape-param and $escape-param != '' and not($parent-value)">
+  <xsl:if test="$needs-escape">
       <xsl:text> )</xsl:text>
   </xsl:if>
 </xsl:template>
@@ -185,10 +195,9 @@
     </xsl:choose>
   </xsl:param>
 
-  <xsl:param name="escape-param" select="ancestor-or-self::*[@escape-param][ 1 ]/@escape-param" />
-  <xsl:param name="parent-value" select="parent::lvmp:value[1]"/>
+  <xsl:variable name="needs-escape" as="xs:boolean" select="lvm:is-escaped-param( . )"/>
   <xsl:choose>
-    <xsl:when test="$escape-param and $escape-param != '' and not($parent-value)">
+    <xsl:when test="$needs-escape">
       <xsl:text>$contract-&gt;escapeValue( $contract-&gt;getValue( '</xsl:text>
       <xsl:value-of select="$from" />
       <xsl:text>', $contract->getValueIndex( '</xsl:text>

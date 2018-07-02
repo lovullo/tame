@@ -61,7 +61,7 @@
 <xsl:template match="c1:*" mode="lvmp:c1-node-result" priority="1">
   <xsl:text>array( </xsl:text>
     <xsl:apply-templates select="@*|*" />
-    <xsl:if test="text() != '' and not(.[*])">
+    <xsl:if test="text() and not( element() )">
         <xsl:text>'text()' => </xsl:text>
         <xsl:apply-templates select="text()" mode="lvm:valparse" />
         <xsl:text></xsl:text>
