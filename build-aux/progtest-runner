@@ -1,0 +1,54 @@
+#!/bin/bash
+# Run test cases for supplier
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+declare path_suppliers="${1?Missing supplier path}"
+declare path_tests="${2?Missing supplier test path}"
+
+declare -i result=0
+
+declare suppliers
+
+# if a file was provided, use it as the sole supplier; otherwise,
+# treat it as a directory of suppliers
+if [ -f "$path_suppliers" ]; then
+  suppliers=( "$path_suppliers" )
+  path_suppliers=$( dirname "$path_suppliers" )
+else
+  suppliers=( "$path_suppliers"/*.xml )
+fi
+
+# run tests for each supplier individually
+for supplier in "${suppliers[@]}"; do
+  base=$( basename "$supplier" .xml )
+  tests=$( find -L "$path_tests"/"$base"/ -name '*.yml' )
+
+  echo
+  echo "$path_suppliers/$base"
+  sed 's/./=/g' <<< "$path_suppliers/$base"
+
+  test -n "$tests" || {
+    echo "error: missing test cases for $base!" >&2
+    exit 1
+  }
+
+  rater/tame/progtest/bin/runner "$path_suppliers/$base.js" $tests \
+    || result=1
+done
+
+exit $result
