@@ -117,11 +117,8 @@ standalones: $(dest_standalone)
 	@echo "standalone $< $@" >>.cqueue
 	@touch $@
 
-# C1 XML
+# C1 XML (specific recipes are in suppliers.mk)
 c1map: $(dest_c1map)
-%.php: %.xml
-	@echo "c1map $< $@" >>.cqueue
-	@touch $@
 
 %.dot: %.xmlo
 	@echo "dot $< $@" >> .cqueue
@@ -204,7 +201,8 @@ suppliers.mk:
 		&& echo "rm $$(patsubst %.xmlo,%.tmp,$$@)" >> .cqueue \
 		&& touch $$@ \
 		&& touch -d +1sec $$(patsubst %.xmlo,%.tmp,$$@) >> .cqueue' \
-	    ./rater/tools/gen-make common/ $(path_suppliers)/ $(path_dsl)/ $(path_map)/ $(path_ui)/ >$@
+	    ./rater/tame/build-aux/gen-make common/ $(path_suppliers)/ $(path_dsl)/ $(path_map)/ $(path_ui)/ >$@ \
+		&& ./rater/tame/build-aux/gen-c1make $(path_c1map)/*.xml >>$@
 
 me-a-sandwich:
 	@test $$EUID -eq 0 \

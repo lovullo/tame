@@ -1,0 +1,96 @@
+#!/bin/bash
+# Generates GNU Make recipes for c1map build
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+set -euo pipefail
+
+
+# Recursively produce list of dependencies for given package
+#
+# Since all compilation occurs on the base package in the root of the c1map
+# directory, recursive dependencies are output as part of the recipe for the
+# base package rather than as dependencies of individual sub-packages.
+include-list()
+{
+  local -r dir="${1?Missing base directory}"
+  local -r file="${2?Missing package filename}"
+
+  # get name of all includes, recursively
+  grep -o 'lvm:include name="[^"]\+"' "$file" \
+    | cut -d\" -f2 \
+    | tee >(
+      while read dep; do
+        include-list "$dir" "$dir/$dep.xml"
+      done
+    )
+}
+
+
+# Format includes for GNUMakefile recipe
+#
+# All unique dependencies will be prefixed with the appropriate base path
+# and will be output on a single line.
+format-includes()
+{
+  local -r dir="${1?Missing base directory}"
+
+  sort -u \
+    | sed "s#^.*\$#$dir/&.xml#" \
+    | tr '\n' ' '
+}
+
+
+# Produce recipe for base package
+#
+# This should only be provided with the filename of a base package (that is,
+# an immediate child of c1map).
+#
+# A recipe will be output for generating a PHP file from the source code
+# and all package dependencies, recursively.
+c1recipe()
+{
+  local -r file="${1?Missing source filename}"
+
+  local -r dir=$( dirname "$file" )
+  local -r base=$( basename "$file" .xml )
+
+  local -r includes=$(
+    include-list "$dir" "$file" \
+      | format-includes "$dir" \
+  )
+
+  echo "$dir/$base.php: $file $includes"
+  echo -e '\t@echo "c1map $< $@" >> .cqueue'
+  echo -e '\t@touch $@'
+}
+
+
+# Produce recipe for each provided base package
+#
+# This should only be provided with filenames of a base package (that is,
+# an immediate children of c1map).
+main()
+{
+  while [ $# -gt 0 ]; do
+    c1recipe "$1"
+    shift
+  done
+}
+
+
+main "$@"
