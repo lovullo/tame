@@ -80,14 +80,6 @@
     </typedef>
 
 
-    <typedef name="boolean" desc="Boolean values">
-      <enum type="integer">
-        <item name="TRUE"  value="1" desc="True" />
-        <item name="FALSE" value="0" desc="False" />
-      </enum>
-    </typedef>
-
-
     \ref{empty} does not have much use outside of the compiler.
 
     <typedef name="empty"
@@ -95,6 +87,43 @@
              sym="\emptyset">
       <base-type />
     </typedef>
+  </section>
+
+
+  <section title="Boolean and Unknown">
+    \ref{boolean} contains the boolean \ref{TRUE} and~\ref{FALSE} values,
+      which map to~$1$ and~$0$ respectively.
+    The \ref{maybe} type is the union of \ref{boolean} and \ref{NOTHING},
+      with a value of~$-1$;\footnote{
+          This is similar in spirit to the Haskell \tt{Maybe} type,
+            or the OCaml \tt{Option} type.
+        }this is commonly used to represent an unknown state or missing
+        value.\footnote{
+          The \ref{nothing}~type is used for the sake of the union;
+            it should not be used directly.}
+
+    <typedef name="maybe" desc="Boolean or unknown value">
+      <union>
+        <typedef name="nothing" desc="Unknown value">
+          <enum type="integer">
+            <item name="NOTHING" value="-1" desc="Unknown or missing value" />
+          </enum>
+        </typedef>
+
+        <typedef name="boolean" desc="Boolean values">
+          <enum type="integer">
+            <item name="TRUE"  value="1" desc="True" />
+            <item name="FALSE" value="0" desc="False" />
+          </enum>
+        </typedef>
+      </union>
+    </typedef>
+
+    The constant \ref{UNKNOWN} is also defined as~$-1$ to serve as an
+      alternative to the term~``nothing''.
+
+    <const name="UNKNOWN" value="-1"
+           desc="Unknown or missing value" />
   </section>
 
 
