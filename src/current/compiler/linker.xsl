@@ -2,7 +2,7 @@
 <!--
   Assembles code fragments into a final executable
 
-  Copyright (C) 2016, 2017 R-T Specialty, LLC.
+  Copyright (C) 2016, 2017, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -228,56 +228,12 @@
 </template>
 
 
-<!-- replace marks with the symbols that they reference (note that the linker
-     will not add duplicates, so we needn't worry about them) -->
-<template mode="l:resolv-deps" as="element( preproc:sym )"
-          priority="8"
-          match="preproc:sym[ @l:mark-inclass ]">
-  <!-- FIXME: I sometimes return more than one symbol! -->
-  <variable name="sym" as="element( preproc:sym )*"
-            select="root(.)/preproc:sym[
-                      @name = current()/@name ]" />
-
-  <!-- sanity check; hopefully never necessary -->
-  <if test="not( $sym )">
-    <call-template name="log:internal-error">
-      <with-param name="name" select="'link'" />
-      <with-param name="msg">
-        <text>l:mark-class found for non-existing symbol </text>
-        <value-of select="@name" />
-        <text>; there is a bug in l:depgen-process-sym</text>
-      </with-param>
-    </call-template>
-  </if>
-
-  <!-- copy the element and mark as inclass (no need to check @src, since at
-       this point, such conflicts would have already resulted in an error -->
-  <preproc:sym>
-    <sequence select="$sym/@*" />
-
-    <!-- override attribute -->
-    <attribute name="inclass" select="'true'" />
-  </preproc:sym>
-</template>
-
-
-<!-- any now-inclass symbols should be stripped of their original position -->
-<template mode="l:resolv-deps" priority="7"
-          match="preproc:sym[
-                   @name = root(.)/preproc:sym[ @l:mark-inclass ]
-                             /@name ]">
-  <!-- bye-bye -->
-</template>
-
-
 <template match="*" mode="l:resolv-deps" priority="1">
   <sequence select="." />
 </template>
 
 
-<!-- FIXME: I want element( l:preproc:sym ), but we also have
-     l:mark-inclass -->
-<template name="l:depgen-sym" as="element()*">
+<template name="l:depgen-sym" as="element( preproc:sym )*">
   <param name="pending" as="element( preproc:sym )*" />
   <param name="stack" as="element( l:sym-stack )" />
   <param name="path" as="xs:string"
@@ -494,16 +450,6 @@
   <variable name="cur" as="element( preproc:sym )"
             select="." />
 
-  <!-- determines if the compile destination for these dependencies will be
-       within the classifier; this is the case for all class dependencies
-       *unless* the class is external -->
-  <variable name="inclass" as="xs:boolean"
-            select="( ( $cur/@type='class' )
-                      and not( $cur/@extclass='true' ) )
-                    or $processing/preproc:sym[
-                      @type='class'
-                      and not( @extclass='true' ) ]" />
-
   <!-- perform circular dependency check and blow up if found (we cannot choose
        a proper linking order without a correct dependency tree); the only
        exception is if the circular dependency is a function, since that simply
@@ -567,17 +513,6 @@
         </call-template>
       </if>
 
-      <!-- determine if class already exists, but needs to be marked for
-           inclusion within the classifier -->
-      <variable name="needs-class-mark" as="xs:boolean"
-                select="$existing
-                          and $inclass
-                          and not( $existing/@inclass='true' )
-                          and not( $stack/preproc:sym[
-                                     @l:mark-inclass
-                                     and @name=$cur/@name
-                                     and @src=$cur/@src ] )" />
-
       <!-- continue with the remainder of the symbol list -->
       <call-template name="l:depgen-sym">
         <with-param name="pending" select="remove( $pending, 1 )" />
@@ -588,7 +523,7 @@
                re-adding it (note that we check both the symbol name and its source
                since symbols could very well share a name due to exporting rules) -->
           <choose>
-            <when test="not( $existing ) or $needs-class-mark">
+            <when test="not( $existing )">
               <!-- does this symbol have any dependencies? -->
               <variable name="deps" as="element( preproc:sym )*">
                 <apply-templates select="$cur" mode="l:depgen-sym" />
@@ -607,7 +542,6 @@
                 <call-template name="l:dep-aug">
                   <with-param name="cur" select="$cur" />
                   <with-param name="deps" select="$deps" />
-                  <with-param name="inclass" select="$inclass" />
                   <with-param name="mypath" select="$mypath" />
                 </call-template>
               </variable>
@@ -629,20 +563,9 @@
                 </call-template>
 
                 <!-- finally, we can output ourself -->
-                <choose>
-                  <!-- existing symbol needs to be marked -->
-                  <when test="$needs-class-mark">
-                    <preproc:sym l:mark-inclass="true" name="{$cur/@name}" src="{$cur/@src}" />
-                  </when>
-
-                  <!-- new symbol -->
-                  <otherwise>
-                    <preproc:sym>
-                      <sequence select="$cur/@*" />
-                      <attribute name="inclass" select="$inclass" />
-                    </preproc:sym>
-                  </otherwise>
-                </choose>
+                <preproc:sym>
+                  <sequence select="$cur/@*" />
+                </preproc:sym>
               </l:sym-stack>
             </when>
 
@@ -662,8 +585,6 @@
 <template name="l:dep-aug" as="element( preproc:sym )*">
   <param name="cur" as="element( preproc:sym )" />
   <param name="deps" as="element( preproc:sym )*" />
-  <param name="inclass" as="xs:boolean"
-         select="false()" />
   <param name="proc-barrier" as="xs:boolean"
          select="false()" />
   <param name="parent-name" as="xs:string"
@@ -708,11 +629,6 @@
 
       <!-- set new src path -->
       <attribute name="src" select="$newsrc" />
-
-      <!-- flag for inclusion into classifier, if necessary -->
-      <if test="$inclass">
-        <attribute name="inclass" select="$inclass" />
-      </if>
 
       <if test="$proc-barrier">
         <attribute name="l:proc-barrier" select="'true'" />
@@ -991,8 +907,6 @@
 
 
 <template match="lv:package" mode="l:link-classifier">
-  <param name="deps" />
-
   <call-template name="log:info">
     <with-param name="name" select="'link'" />
     <with-param name="msg">
@@ -1002,17 +916,7 @@
 
   <!-- link everything that shall be a part of the classifier -->
   <apply-templates select="." mode="compiler:entry-classifier" />
-  <apply-templates select="." mode="l:do-link">
-    <with-param name="symbols" select="
-        $deps[
-          @inclass='true'
-          and not( @type='param' )
-          and not( @type='type' )
-          and not( @type='meta' )
-          and not( @type='worksheet' )
-        ]
-      " />
-  </apply-templates>
+  <!-- TODO: get rid of me completely! -->
   <apply-templates select="." mode="compiler:exit-classifier" />
 </template>
 
@@ -1090,8 +994,7 @@
   <apply-templates select="." mode="l:do-link">
     <with-param name="symbols" select="
         $deps[
-          not( @inclass='true' )
-          and not( @type='param' )
+          not( @type='param' )
           and not( @type='type' )
           and not( @type='func' )
           and not( @type='meta' )
