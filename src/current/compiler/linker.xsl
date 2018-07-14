@@ -57,13 +57,11 @@
 <variable name="l:orig-root" as="document-node( element( lv:package ) )"
           select="/" />
 
-<variable name="l:process-empty" as="element( l:pstack )">
-  <l:pstack />
-</variable>
+<variable name="l:process-empty" as="element( preproc:sym )*"
+          select="()" />
 
-<variable name="l:stack-empty" as="element( l:sym-stack )">
-  <l:sym-stack />
-</variable>
+<variable name="l:stack-empty" as="element( preproc:sym )*"
+          select="()" />
 
 
 <template match="*" mode="l:link" priority="1">
@@ -115,7 +113,7 @@
     <l:dep>
       <!-- empty stack -->
       <apply-templates select="preproc:symtable" mode="l:depgen">
-        <with-param name="stack" select="$l:stack-empty" as="element( l:sym-stack )" />
+        <with-param name="stack" select="$l:stack-empty" />
       </apply-templates>
     </l:dep>
   </variable>
@@ -175,8 +173,8 @@
 
 <template mode="l:depgen" as="element( preproc:sym )*"
           match="preproc:symtable">
-  <param name="stack" as="element( l:sym-stack )"
-         select="$l:stack-empty" />
+  <param name="stack" as="element( preproc:sym )*"
+         select="()" />
 
   <!-- we care only of the symbols used by lv:yields, from which all
        dependencies may be derived (if it's not derivable from the yield
@@ -209,7 +207,7 @@
   <variable name="result" as="element()+">
     <call-template name="l:depgen-sym">
       <with-param name="pending" select="$yields" />
-      <with-param name="stack" select="$stack" as="element( l:sym-stack )" />
+      <with-param name="stack" select="$stack" />
     </call-template>
   </variable>
 
@@ -235,24 +233,24 @@
 
 <template name="l:depgen-sym" as="element( preproc:sym )*">
   <param name="pending" as="element( preproc:sym )*" />
-  <param name="stack" as="element( l:sym-stack )" />
+  <param name="stack" as="element( preproc:sym )*" />
   <param name="path" as="xs:string"
          select="''" />
-  <param name="processing" as="element( l:pstack )"
+  <param name="processing" as="element( preproc:sym )*"
          select="$l:process-empty" />
 
   <variable name="pend-count" as="xs:integer"
             select="count( $pending )" />
   <variable name="stack-count" as="xs:integer"
-            select="count( $stack/preproc:sym )" />
+            select="count( $stack )" />
   <variable name="process-count" as="xs:integer"
-            select="count( $processing/* )" />
+            select="count( $processing )" />
 
   <choose>
     <!-- if there are no pending symbols left, then we are done; return the
          stack -->
     <when test="$pend-count = 0">
-      <sequence select="$stack/*" />
+      <sequence select="$stack" />
     </when>
 
 
@@ -277,9 +275,9 @@
             <text>r - </text>
             <value-of select="$cur/@name" />
             <text> [s:: </text>
-            <value-of select="$stack/preproc:sym/@name" />
+            <value-of select="$stack/@name" />
             <text> ::s] [r:: </text>
-            <value-of select="$processing/preproc:sym/@name" />
+            <value-of select="$processing/@name" />
             <text>::r]</text>
           </with-param>
         </call-template>
@@ -361,9 +359,9 @@
 -->
 <template match="preproc:sym[ @extern='true' ]" mode="l:depgen-process-sym" priority="5">
   <param name="pending" as="element( preproc:sym )*" />
-  <param name="stack" as="element( l:sym-stack )" />
+  <param name="stack" as="element( preproc:sym )*" />
   <param name="path" as="xs:string" />
-  <param name="processing" as="element( l:pstack )" />
+  <param name="processing" as="element( preproc:sym )*" />
 
   <variable name="cur" select="." />
 
@@ -407,7 +405,7 @@
         <text>); pulled in by: </text>
 
         <!-- help the user figure out how this happened -->
-        <for-each select="$processing/preproc:sym">
+        <for-each select="$processing">
           <if test="position() gt 1">
             <text> - </text>
           </if>
@@ -433,7 +431,7 @@
   <!-- use the resolved symbol in place of the original extern -->
   <apply-templates select="$eresolv-uniq" mode="l:depgen-process-sym">
     <with-param name="pending" select="$pending" />
-    <with-param name="stack" select="$stack" as="element( l:sym-stack )" />
+    <with-param name="stack" select="$stack" />
     <with-param name="path" select="$path" />
     <with-param name="processing" select="$processing" />
   </apply-templates>
@@ -443,9 +441,9 @@
 <template mode="l:depgen-process-sym" priority="1"
               match="preproc:sym">
   <param name="pending" as="element( preproc:sym )*" />
-  <param name="stack" as="element( l:sym-stack )" />
+  <param name="stack" as="element( preproc:sym )*" />
   <param name="path" as="xs:string" />
-  <param name="processing" as="element( l:pstack )" />
+  <param name="processing" as="element( preproc:sym )*" />
 
   <variable name="cur" as="element( preproc:sym )"
             select="." />
@@ -455,7 +453,7 @@
        exception is if the circular dependency is a function, since that simply
        implies recursion, which we can handle just fine -->
   <variable name="circ" as="element( preproc:sym )*"
-            select="$processing/preproc:sym[
+            select="$processing[
                       @name=$cur/@name
                       and @src=$cur/@src ]" />
 
@@ -477,7 +475,7 @@
       <call-template name="l:depgen-sym">
         <with-param name="pending" select="remove( $pending, 1 )" />
         <with-param name="processing" select="$processing" />
-        <with-param name="stack" select="$stack" as="element( l:sym-stack )"  />
+        <with-param name="stack" select="$stack" />
       </call-template>
     </when>
 
@@ -485,8 +483,7 @@
     <!-- process; TODO: good refactoring point; large template -->
     <otherwise>
       <variable name="existing" as="element( preproc:sym )*"
-                select="$stack/preproc:sym[
-                          @name=$cur/@name ]" />
+                select="$stack[ @name=$cur/@name ]" />
 
       <!-- TODO: this uses @name instead of @src because of map import
            paths; decide on one or the other -->
@@ -518,7 +515,7 @@
         <with-param name="pending" select="remove( $pending, 1 )" />
         <with-param name="processing" select="$processing" />
 
-        <with-param name="stack" as="element( l:sym-stack )">
+        <with-param name="stack" as="element( preproc:sym )*">
           <!-- if this symbol already exists on the stack, then there is no use
                re-adding it (note that we check both the symbol name and its source
                since symbols could very well share a name due to exporting rules) -->
@@ -546,27 +543,23 @@
                 </call-template>
               </variable>
 
-              <l:sym-stack>
-                <!-- process the dependencies (note that this has the effect of
-                     outputting the existing stack as well, which is why we have
-                     not yet done so) -->
-                <call-template name="l:depgen-sym">
-                  <with-param name="pending" select="$deps-aug" />
-                  <with-param name="stack" select="$stack" as="element( l:sym-stack )" />
-                  <with-param name="path" select="$mypath" />
-                  <with-param name="processing" as="element( l:pstack )">
-                    <l:pstack>
-                      <sequence select="$processing/*" />
-                      <sequence select="$cur" />
-                    </l:pstack>
-                  </with-param>
-                </call-template>
+              <!-- process the dependencies (note that this has the effect of
+                   outputting the existing stack as well, which is why we have
+                   not yet done so) -->
+              <call-template name="l:depgen-sym">
+                <with-param name="pending" select="$deps-aug" />
+                <with-param name="stack" select="$stack" />
+                <with-param name="path" select="$mypath" />
+                <with-param name="processing" as="element( preproc:sym )*">
+                  <sequence select="$processing" />
+                  <sequence select="$cur" />
+                </with-param>
+              </call-template>
 
-                <!-- finally, we can output ourself -->
-                <preproc:sym>
-                  <sequence select="$cur/@*" />
+              <!-- finally, we can output ourself -->
+              <preproc:sym>
+                <sequence select="$cur/@*" />
                 </preproc:sym>
-              </l:sym-stack>
             </when>
 
 
@@ -760,7 +753,7 @@
       <value-of select="concat( $cur/@src, '/', $cur/@name )" />
       <text>): </text>
 
-      <for-each select="$stack//preproc:sym">
+      <for-each select="$stack">
         <if test="position() > 1">
           <text> - </text>
         </if>
