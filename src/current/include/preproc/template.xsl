@@ -1353,8 +1353,7 @@
 
 
 
-<xsl:function name="eseq:is-expandable" as="xs:boolean"
-              override="yes">
+<xsl:function name="eseq:is-expandable" as="xs:boolean">
   <xsl:param name="node" as="node()" />
 
   <!-- TODO: what a mess; clean me up by changing the point at which
