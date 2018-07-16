@@ -99,9 +99,8 @@
       <!-- handle defaults -->
       <text>init_defaults( args, params );</text>
 
-      <!-- perform classifications -->
       <value-of select="$compiler:nl" />
-      <text>var classes = rater.classify( args, _canterm );</text>
+      <text>var classes = {};</text>
       <!-- for @external generated clases -->
       <text>var genclasses = {};</text>
 </template>
@@ -110,34 +109,23 @@
   <!-- allow classification of any arbitrary dataset -->
   <value-of select="$compiler:nl" />
   <text>rater.classify = function( args, _canterm ) {</text>
-    <text>_canterm = ( _canterm == undefined ) ? true : !!_canterm;</text>
-
-    <!-- XXX: Remove this; shouldn't be magic -->
-    <text>consts['__DATE_YEAR__'] = ( new Date() ).getFullYear(); </text>
-
-    <!-- object into which all classifications will be stored -->
-    <text>var classes = {}, genclasses = {}; </text>
-
-    <!-- TODO: We need to do something with this... -->
-    <text>var req_params = {}; </text>
+    return rater( args, _canterm ).classes;
+  <text> };</text>
 </template>
 
 <template match="lv:package" mode="compiler:exit-classifier">
-    <text>return classes;</text>
-  <text> };</text>
-
   <!-- TODO: make sure fromMap has actually been compiled -->
   <text>rater.classify.fromMap = function( args_base, _canterm ) { </text>
     <text>var ret = {}; </text>
     <text>rater.fromMap( args_base, function( args ) {</text>
-      <text>var classes = rater.classify( args, _canterm ); </text>
+      <text>var result = rater( args, _canterm ); </text>
 
       <text>
-        for ( var c in classes )
+        for ( var c in rater.classify.classmap )
         {
           ret[ c ] = {
-            is: !!classes[ c ],
-            indexes: args[ rater.classify.classmap[ c ] ]
+            is: !!result.classes[ c ],
+            indexes: result.vars[ rater.classify.classmap[ c ] ]
           };
         }
       </text>
@@ -221,15 +209,15 @@
 
   <!-- for each cgen symbol (which is the classification @yields), map the
        classification name (the @parent) to the cgen symbol name -->
-  <for-each select="$symbols[ @type='cgen' ]">
+  <for-each select="$symbols[ @type='class' and not( @preproc:generated ) ]">
     <if test="position() > 1">
       <text>,</text>
     </if>
 
     <text>'</text>
-      <value-of select="substring-after( @parent, ':class:' )" />
+      <value-of select="substring-after( @name, ':class:' )" />
     <text>':'</text>
-      <value-of select="@name" />
+      <value-of select="@yields" />
     <text>'</text>
   </for-each>
 </template>
