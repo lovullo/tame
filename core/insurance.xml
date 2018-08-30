@@ -26,6 +26,7 @@
   <import package="base" />
   <import package="assert"        export="true" />
   <import package="convention"    export="true" />
+  <import package="map"           export="true" />
   <import package="numeric/round" export="true" />
   <import package="vector/cmatch" export="true" />
 
