@@ -206,6 +206,12 @@
       </error>
     </if>
 
+    <!-- negative values might be indicitive of a failure to provide a floor
+         on certain factors when summing (for example) -->
+    <param name="@allow-negative@" desc="Allow negative value (default false)">
+      <text>false</text>
+    </param>
+
     <param name="@_prefix@" desc="Factor type (drives naming convention)">
       <text>factor</text>
     </param>
@@ -254,15 +260,31 @@
         <unless name="@generates@" eq="">
           <t:assert failure="{@generates@} must not yield a value of 0 for
                              any index">
-            <t:match-gt on="@generates@" value="ZERO" />
+            <t:match-ne on="@generates@" value="ZERO" />
           </t:assert>
         </unless>
 
         <unless name="@yields@" eq="">
           <t:assert failure="{@yields@} must not yield a value of 0">
-            <t:match-gt on="@yields@" value="ZERO" />
+            <t:match-ne on="@yields@" value="ZERO" />
           </t:assert>
         </unless>
+      </unless>
+    </unless>
+
+    <!-- assertion for non-negative -->
+    <unless name="@allow-negative@" eq="true">
+      <unless name="@generates@" eq="">
+        <t:assert failure="{@generates@} must not yield a negative value
+                           for any index">
+          <t:match-gt on="@generates@" value="ZERO" />
+        </t:assert>
+      </unless>
+
+      <unless name="@yields@" eq="">
+        <t:assert failure="{@yields@} must not yield a negative value">
+          <t:match-gt on="@yields@" value="ZERO" />
+        </t:assert>
       </unless>
     </unless>
   </template>
