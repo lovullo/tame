@@ -126,16 +126,28 @@
   There are special considerations for these types of values---%
     generally, they should not have a value of~$0$ if some sort of calculation
       condition or lookup is not met,
-        as that would have the effect of wiping out premium.
+        as that would have the effect of wiping out premium.\footnote{
+          Note that every generator index can be non-zero but still sum up
+            to a zero yield,
+              which would trigger this error.}
   If zero is desired,
     \tt{@allow-zero@} must be set to \tt{true} to explicitly permit it.
 
   <template name="_factor_"
             desc="Factor to multiply against (must be non-zero by default)">
-    <param name="@values@"    desc="Body" />
-    <param name="@class@"     desc="Predicate" />
-    <param name="@generates@" desc="Generator name" />
-    <param name="@index@"     desc="Generator index" />
+    <param name="@values@" desc="Body" />
+
+    <param name="@class@" desc="Predicate">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generator name">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Generator index">
+      <text></text>
+    </param>
 
     <param name="@no@" desc="Negated predicate">
       <text></text>
@@ -152,14 +164,29 @@
       <text></text>
     </param>
 
+    <!-- at least one of generates or yields is required -->
+    <if name="@yields@" eq="">
+      <if name="@generates@" eq="">
+        <error>must provide at least one of @generates or @yields</error>
+      </if>
+    </if>
+
     <!-- not yet used, but it will at least serve as code
          documentation for the time being -->
     <param name="@desc@" desc="Factor description" />
     <unless name="@desc@">
-      <error>
-        a description (@desc@) is required for factor
-        `<param-value name="@generates@" />'
-      </error>
+      <unless name="@generates@" eq="">
+        <error>
+            a description (@desc@) is required for
+            `<param-value name="@generates@" />'
+        </error>
+      </unless>
+      <if name="@generates@" eq="">
+        <error>
+            a description (@desc@) is required for
+            `<param-value name="@yields@" />'
+        </error>
+      </if>
     </unless>
 
     <!-- normally we want factors to default to 1, otherwise they could wipe
@@ -179,10 +206,16 @@
       </error>
     </if>
 
-    <t:naming-convention name="@generates@" prefix="factor" />
+    <param name="@_prefix@" desc="Factor type (drives naming convention)">
+      <text>factor</text>
+    </param>
+
+    <unless name="@generates@" eq="">
+      <t:naming-convention name="@generates@" prefix="@_prefix@" />
+    </unless>
 
     <unless name="@yields@" eq="">
-      <t:naming-convention name="@yields@" prefix="factor" />
+      <t:naming-convention name="@yields@" prefix="@_prefix@" />
     </unless>
 
 
@@ -218,10 +251,18 @@
       <!-- assertions are useless if a static default was provided, since we
            know that zero can then never be yielded-->
       <unless name="@default@" prefix="#">
-        <t:assert failure="{@generates@} must not yield a value of 0 for
-                           any index">
-          <t:match-gt on="@generates@" value="ZERO" />
-        </t:assert>
+        <unless name="@generates@" eq="">
+          <t:assert failure="{@generates@} must not yield a value of 0 for
+                             any index">
+            <t:match-gt on="@generates@" value="ZERO" />
+          </t:assert>
+        </unless>
+
+        <unless name="@yields@" eq="">
+          <t:assert failure="{@yields@} must not yield a value of 0">
+            <t:match-gt on="@yields@" value="ZERO" />
+          </t:assert>
+        </unless>
       </unless>
     </unless>
   </template>
