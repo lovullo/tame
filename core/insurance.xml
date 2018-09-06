@@ -288,4 +288,136 @@
       </unless>
     </unless>
   </template>
+
+
+  The \ref{_credit_} and \ref{_debit_} templates define factors that are
+    intended to introduce, respectively, credits and surcharges.
+  Each name defined using these templates must be prefixed with ``credit''
+    and ``debit'' respectively.
+  Credits must never exceed a value of~$1$,
+    as they would then be treated as if they were surcharges.
+  Similarly, debits must never have a value less than~$1$.
+  Both must have values greater than~$0$.
+
+  If a value can be either a credit or a debit,
+    it is sometimes called an ``adjustment''.
+  In reality it is just another factor,
+    so just use \ref{_factor_} in such a~case.
+
+  <template name="_credit_"
+            desc="Credit to be used as a factor">
+    <param name="@values@" desc="Credit calculation" />
+
+    <param name="@class@" desc="Predicate">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generator name">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Generator index">
+      <text></text>
+    </param>
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <param name="@desc@" desc="Factor description">
+      <text></text>
+    </param>
+
+
+    <t:factor _prefix="credit"
+              class="@class@" no="@no@" yields="@yields@" sym="@sym@"
+              generates="@generates@" index="@index@" gensym="@gensym@"
+              desc="@desc@">
+      <param-copy name="@values@" />
+    </t:factor>
+
+    <unless name="@generates@" eq="">
+      <t:assert failure="{@generates@} is a credit but one or more
+                         of its values are greater than 1">
+        <t:match-lte on="@generates@" value="#1" />
+      </t:assert>
+    </unless>
+
+    <unless name="@yields@" eq="">
+      <t:assert failure="{@yields@} is a credit but its value is
+                         greater than 1">
+        <t:match-lte on="@yields@" value="#1" />
+      </t:assert>
+    </unless>
+  </template>
+
+
+  <template name="_debit_"
+            desc="Debit to be used as a factor">
+    <param name="@values@" desc="Credit calculation" />
+
+    <param name="@class@" desc="Predicate">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generator name">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Generator index">
+      <text></text>
+    </param>
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <param name="@desc@" desc="Factor description">
+      <text></text>
+    </param>
+
+
+    <t:factor _prefix="debit"
+              class="@class@" no="@no@" yields="@yields@" sym="@sym@"
+              generates="@generates@" index="@index@" gensym="@gensym@"
+              desc="@desc@">
+      <param-copy name="@values@" />
+    </t:factor>
+
+    <unless name="@generates@" eq="">
+      <t:assert failure="{@generates@} is a debit but one or more
+                         of its values are less than 1">
+        <t:match-gte on="@generates@" value="#1" />
+      </t:assert>
+    </unless>
+
+    <unless name="@yields@" eq="">
+      <t:assert failure="{@yields@} is a credit but its value is
+                         less than 1">
+        <t:match-gte on="@yields@" value="#1" />
+      </t:assert>
+    </unless>
+  </template>
 </package>
