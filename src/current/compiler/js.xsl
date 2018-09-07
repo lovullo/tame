@@ -667,7 +667,7 @@
     <text>classes['</text>
       <value-of select="@as" />
     <text>'] ) throw Error( '</text>
-      <value-of select="@desc" />
+      <value-of select="replace( @desc, '''', '\\''' )" />
     <text>' );</text>
 
     <value-of select="$compiler:nl" />
