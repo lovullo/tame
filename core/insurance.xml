@@ -335,6 +335,10 @@
       <text></text>
     </param>
 
+    <param name="@default@" desc="Default value if 0 (optional)">
+      <text></text>
+    </param>
+
     <param name="@desc@" desc="Factor description">
       <text></text>
     </param>
@@ -343,6 +347,7 @@
     <t:factor _prefix="credit"
               class="@class@" no="@no@" yields="@yields@" sym="@sym@"
               generates="@generates@" index="@index@" gensym="@gensym@"
+              default="@default@"
               desc="@desc@">
       <param-copy name="@values@" />
     </t:factor>
@@ -394,6 +399,10 @@
       <text></text>
     </param>
 
+    <param name="@default@" desc="Default value if 0 (optional)">
+      <text></text>
+    </param>
+
     <param name="@desc@" desc="Factor description">
       <text></text>
     </param>
@@ -402,6 +411,7 @@
     <t:factor _prefix="debit"
               class="@class@" no="@no@" yields="@yields@" sym="@sym@"
               generates="@generates@" index="@index@" gensym="@gensym@"
+              default="@default@"
               desc="@desc@">
       <param-copy name="@values@" />
     </t:factor>
