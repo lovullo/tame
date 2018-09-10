@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Param Definitions">
+
+  <import package="base"   export="true" />
+  <import package="assert" export="true" />
+
+
+  Parmaters should be defined using the \ref{_param_}~template
+    rather than the \tt{param}~primitive.
+  This template provides additional options for domain
+    specification,
+      and further generates an assertion to ensure that the inputs are
+      valid for the domain during runtime.
+
+  More complex domains can be specified by writing classification predicates
+    in the body of the param.
+  This should be done only when the \ref{_param_} template does not
+    provide a sufficient abstraction.\footnote{
+      Future versions of TAME will make use of domain data specified using
+        \ref{_param_} template params for compile-time validations and
+        the Summary Page.
+      This template does not yet set such metadata,
+        but will be able to be easily modified to do so in the future.}
+
+  To ignore param domain violations at runtime (for debugging),
+    set \ref{param_domain_ignore}.
+  Since domain violations are assertions,
+    setting \ref{assert_ignore} will also inhibit them.
+  Param domain violation errors are otherwise fatal.
+
+  Support for a domain abstraction separate from this param abstraction will
+    be provided in the future,
+      building on these concepts.
+
+  <param name="param_domain_ignore" type="boolean" default="0"
+         desc="Ignore param domain violations" />
+
+  <template name="_param_"
+            desc="Parameter definition">
+    <param name="@values@" desc="Domain predicates" />
+    <param name="@name@" desc="Param name" />
+    <param name="@type@" desc="Param type" />
+    <param name="@desc@" desc="Param description" />
+
+    <param name="@default@" desc="Param default (optional)">
+      <text></text>
+    </param>
+
+    <!-- this is the new attribute that should be used in place of @set@ -->
+    <param name="@dim@" desc="Param dimensions (default scalar)">
+      <param-value name="@set@" />
+    </param>
+
+    <param name="@set@" desc="Param dimensions (deprecated; use @dim@)">
+      <text></text>
+    </param>
+    <unless name="@set@" eq="">
+      <warning>
+        _param_/@set@ is deprecated; use @dim@ instead for
+        `<param-value name="@name@" />'
+      </warning>
+    </unless>
+
+    <param name="@min@" desc="Minimum value, inclusive (optional)" />
+    <param name="@max@" desc="Maximum value, inclusive (optional)" />
+
+    <param name="@_param-assert-as@" desc="Assertion @as (generated)">
+      <text>domain-invalid-</text>
+      <param-value name="@name@" identifier="class" />
+    </param>
+    <param name="@_param-assert-neg-as@" desc="Assertion @as (generated)">
+      <text>domain-valid-</text>
+      <param-value name="@name@" identifier="class" />
+    </param>
+
+
+    <!-- enclosed within expand-sequence purely to prevent the template
+         from thinking that this param node represents a template param -->
+    <expand-sequence>
+      <param name="@name@" type="@type@" set="@dim@"
+             desc="@desc@" />
+    </expand-sequence>
+
+
+    <!-- domain validation -->
+    <t:assert failure="Domain violation: invalid value for param `{@name@}'"
+              neg-as="@_param-assert-neg-as@"
+              neg-desc="Domain violation: valid value for param `{@name@}'"
+              as="@_param-assert-as@">
+      <match on="@name@" anyOf="@type@" />
+
+      <!-- minimum and maximum values, if provided -->
+      <if name="@min@">
+        <match on="@name@">
+          <c:gte>
+            <c:const value="@min@" desc="Minimum value, inclusive" />
+          </c:gte>
+        </match>
+      </if>
+      <if name="@max@">
+        <match on="@name@">
+          <c:lte>
+            <c:const value="@max@" desc="Maximum value, inclusive" />
+          </c:lte>
+        </match>
+      </if>
+
+      <!-- additional predicates defining the domain -->
+      <param-copy name="@values@" />
+
+      <!-- permit ignoring (for debugging) -->
+      <match on="param_domain_ignore" value="FALSE" />
+    </t:assert>
+  </template>
+</package>
