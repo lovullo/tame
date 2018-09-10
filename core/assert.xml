@@ -72,18 +72,18 @@
                                 matches (optional)" />
 
 
-    <param name="@neg_as@"
+    <param name="@neg-as@"
            desc="Generated name for classification to be negated">
       <text unique="true">-nassert-</text>
     </param>
-    <param name="@neg_yields@"
+    <param name="@neg-yields@"
            desc="Generated yield for classification to be negated">
       <text unique="true">_nassert</text>
     </param>
 
 
     <!-- The actual assertion will be performed by one classification... -->
-    <classify as="@neg_as@" yields="@neg_yields@"
+    <classify as="@neg-as@" yields="@neg-yields@"
               desc="{@failure@} (assertion result)">
       <any>
         <!-- if class is provided and does not match, then the assertion
@@ -104,7 +104,7 @@
 
     <classify as="@as@" desc="@failure@" terminate="true">
       <match on="assert_ignore" value="FALSE" />
-      <match on="@neg_yields@" value="FALSE" />
+      <match on="@neg-yields@" value="FALSE" />
     </classify>
   </template>
 </package>
