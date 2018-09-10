@@ -288,7 +288,7 @@
 
 <!-- constants that contain 'e' (scientific notation) should be expanded; allows
      for avoiding constants with many zeroes, which is hard to read -->
-<xsl:template mode="preproc:expand" priority="5"
+<xsl:template mode="preproc:expand" priority="6"
     match="c:const[ substring-before( @value, 'e' ) ]
            |lv:const[ substring-before( @value, 'e' ) ]">
   <xsl:copy>
@@ -304,7 +304,7 @@
   </xsl:copy>
 </xsl:template>
 
-<xsl:template mode="preproc:expand" priority="5"
+<xsl:template mode="preproc:expand" priority="6"
     match="c:const[ substring-before( @value, 'm' ) ]
            |lv:const[ substring-before( @value, 'm' ) ]">
   <xsl:copy>
@@ -321,7 +321,7 @@
   </xsl:copy>
 </xsl:template>
 
-<xsl:template mode="preproc:expand" priority="5"
+<xsl:template mode="preproc:expand" priority="6"
     match="c:const[ substring-before( @value, 'k' ) ]
            |lv:const[ substring-before( @value, 'k' ) ]">
   <xsl:copy>
