@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="Matrix (vector of vectors) arithmetic">
+
+  <import package="../base" />
+  <import package="list" />
+
+
+  <!--
+    Extracts a vector of rates (a value for each location) associated with the
+    requested class and line codes
+
+    This seems more complicated/confusing than it really is, so it helps to
+    look at an example. Consider that we have the following data passed to this
+    template (assuming that this is the data that will exist at runtime):
+
+      R = [ [ "A", "B" ], [ "C" ], [ "D", "E" ] ]
+      C = [ [  1 ,  0  ], [  0  ], [  0,   1  ] ]
+      L = "gl"
+
+    Given matrix R (@rate_matrix@) and the classification matches C, for any
+    index that matches the given line L, a dot product will be performed. Let
+    us assume that indexes 0 and 2 match GL; we would then have the following
+    dot product:
+
+      R = [ [ "A", "B" ], ..., [ "D", "E" ] ]
+      C = [ [  1 ,  0  ], ..., [  0,   1  ] ]
+        = [   "A",                    "E"   ]
+
+    And so the resulting vector would be [ "A", "E" ]. To put this into an
+    example within the context of dwelling, let C above be the classification
+    set for all vacant buildings. Then, [ "A", "E" ] would be the rate
+    associated with the vacant building class code for locations 0 and 2
+    respectively.
+
+    If multiple matches are found per location, then the two rates will be
+    summed (as that is how dot products work), which is obviously not good.
+    However, this should not be a problem, because you should not have
+    duplicate class codes per location. Fix your data if that happens.
+
+    (Note that the dot product is actually performed for each index and then
+    multiplied by the classification match __CMATCH__, so while the effect
+    above is true, the result is achieved in a slightly different manner.)
+  -->
+  <!-- TODO: more generic name and documentation; we are in the core, after all -->
+  <template name="_rate-vector_" desc="Matches against a matrix of classes and a matrix of rates and returns a vector representing the rates per location">
+    <param name="@line@" desc="Line code classification string" />
+    <param name="@class_set@" desc="Matrix containing line classification matches" />
+    <param name="@into@" desc="Variable to which the vector will be assigned" />
+
+    <!-- this would be the sum of all the rates, which really is useless, but the XML requires it -->
+    <param name="@yields@" desc="Variable to yield to (useless, but required)">
+      <text>__</text>
+      <param-value name="@into@" />
+    </param>
+
+    <param name="@rate_matrix@" desc="Matrix containing the rates for the given line">
+      <text>rate_</text>
+      <param-value name="@line@" />
+    </param>
+
+    <rate-each class="@line@" accumulate="none" yields="@yields@" generates="@into@" index="k">
+      <!-- take the dot product of the two vectors (each part of a larger matrix)
+           to get the rate for the associated class code -->
+      <c:product dot="true" label="Dot product between the class and rate vectors for each location will yield the respective rate per location">
+        <c:value-of name="@class_set@" index="k" />
+        <c:value-of name="@rate_matrix@" index="k" />
+      </c:product>
+    </rate-each>
+  </template>
+
+
+  <function name="mcol" desc="Retrieve a matrix column as a vector">
+    <param name="matrix" type="float"   set="matrix" desc="Matrix" />
+    <param name="col"    type="integer"              desc="Column index (0-indexed)" />
+
+    <!-- generate a vector containing only the requested column from each row -->
+    <t:cons-until-empty set="matrix" car="row">
+      <c:value-of name="row">
+        <c:index>
+          <c:value-of name="col" />
+        </c:index>
+      </c:value-of>
+    </t:cons-until-empty>
+  </function>
+</package>
+

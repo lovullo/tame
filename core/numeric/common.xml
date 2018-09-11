@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="General numeric opreations">
+
+  <import package="../base" />
+
+
+
+  <section title="Stepping">
+    Due to the declarative nature of~TAME, recursive operations
+    needing to step are~not all that common.  These operations are
+    useful when converting between 1-indexed and 0-indexed data.
+
+    \ref{_inc_} increments a value by a~single step (default~1).
+
+    <template name="_inc_"
+              desc="Increment value [by 1]">
+      <param name="@values@" desc="Value to increment (nodes)" />
+
+      <param name="@value@" desc="Value to decrement by (default 1)">
+        <text>1</text>
+      </param>
+
+
+      <c:sum>
+        <param-copy name="@values@" />
+
+        <c:const value="@value@"
+                 desc="Increment by 1" />
+      </c:sum>
+    </template>
+
+
+    \ref{_dec_} decrements a value by a~single step (default~1).
+
+    <template name="_dec_"
+              desc="Decrement value [by 1]">
+      <param name="@values@" desc="Value to decrement (nodes)" />
+
+      <param name="@value@" desc="Value to decrement by (default 1)">
+        <text>1</text>
+      </param>
+
+
+      <c:sum>
+        <param-copy name="@values@" />
+
+        <t:negate>
+          <c:const value="@value@"
+                   desc="Decrement by 1" />
+        </t:negate>
+      </c:sum>
+    </template>
+  </section>
+
+
+
+  <section title="Negation">
+    Negation is a common task and it was tedious in older versions of
+    TAME\footnote{Before it was even called TAME, actually.}  For
+    these situations, \ref{NEGATE} is provided to avoid having to use
+    a~\ref{const} expression.  To avoid a {\tt product} expression
+    altogether, use~\ref{_negate_}.
+
+    <const name="NEGATE" value="-1"
+           desc="Negate a value"
+           sym="-" />
+
+
+    <template name="_negate_"
+              desc="Negate an expression">
+      <param name="@values@" desc="Expression to negate" />
+      <param name="@label@"  desc="Application label (default empty)">
+        <text></text>
+      </param>
+
+      <c:product label="@label@">
+        <c:value-of name="NEGATE" />
+        <param-copy name="@values@" />
+      </c:product>
+    </template>
+  </section>
+
+
+
+  <!-- Everything below this line must be moved. -->
+
+
+  <template name="_percent-of_" desc="Take percentage of a value">
+    <param name="@value@" desc="Value to take percentage of" />
+    <param name="@index@" desc="Index" />
+    <param name="@percent@" desc="Percent (as a whole number)" />
+
+    <param name="@desc@" desc="Optional description">
+      <text>Percent to reduce</text>
+    </param>
+
+    <c:product>
+      <c:value-of name="@value@" index="@index@" />
+      <t:ptor value="@percent@" desc="@desc@" />
+    </c:product>
+  </template>
+
+
+
+  <!--
+    Calculates a value based on the given multiplier if the given value falls
+    within the given range
+  -->
+  <function name="rangeadd" desc="Add a value multiplier for a given range">
+    <param name="low"  type="float" desc="Lower bound, inclusive" />
+    <param name="high" type="float" desc="Upper bound, inclusive" />
+    <param name="val"  type="float" desc="Value to compare" />
+    <param name="mult" type="float" desc="Range multiplier" />
+
+    <c:product>
+      <c:when name="val">
+        <c:gte>
+          <c:value-of name="low" />
+        </c:gte>
+      </c:when>
+      <c:when name="val">
+        <c:lte>
+          <c:value-of name="high" />
+        </c:lte>
+      </c:when>
+
+      <!-- atop of the 0.00003 we've already provided = 0.000035 -->
+      <c:value-of name="mult" />
+      <c:sum>
+        <c:value-of name="val" />
+        <!-- subtract -->
+        <c:product>
+          <c:value-of name="NEGATE" />
+          <c:value-of name="low" />
+        </c:product>
+      </c:sum>
+    </c:product>
+  </function>
+</package>
+

@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="Numeric computations dealing with minimums and maximums">
+
+  <import package="../base" />
+
+
+  <function name="max" desc="Return the greater value">
+    <param name="max1" type="float" desc="First value to compare" />
+    <param name="max2" type="float" desc="Second value to compare" />
+
+    <c:cases>
+      <c:case>
+        <c:when name="max1">
+          <c:gte>
+            <c:value-of name="max2" />
+          </c:gte>
+        </c:when>
+
+        <c:value-of name="max1" />
+      </c:case>
+
+      <c:otherwise>
+        <c:value-of name="max2" />
+      </c:otherwise>
+    </c:cases>
+  </function>
+
+
+  <function name="min" desc="Return the lesser value">
+    <param name="min1" type="float" desc="First value to compare" />
+    <param name="min2" type="float" desc="Second value to compare" />
+
+    <c:cases>
+      <c:case>
+        <c:when name="min1">
+          <c:lte>
+            <c:value-of name="min2" />
+          </c:lte>
+        </c:when>
+
+        <c:value-of name="min1" />
+      </c:case>
+
+      <c:otherwise>
+        <c:value-of name="min2" />
+      </c:otherwise>
+    </c:cases>
+  </function>
+
+
+  <template name="_min-zero_" desc="Does not allow a value below 0 to be yielded">
+    <param name="@values@" desc="Calculation to apply restriction to" />
+    <param name="@label@" desc="Application label">
+      <!-- default empty -->
+      <text></text>
+    </param>
+
+    <c:apply name="max" label="@label@">
+      <c:arg name="max1">
+        <c:const value="0" type="integer" desc="Do not allow a value under 0" />
+      </c:arg>
+
+      <c:arg name="max2">
+        <param-copy name="@values@" />
+      </c:arg>
+    </c:apply>
+  </template>
+
+
+  <!-- trivial, but cuts turns a verbose rate-each and function application
+       into potentially a one-line template application -->
+  <template name="_quickMaxEach_" desc="Quick max application">
+    <param name="@class@" desc="Class to match on" />
+    <param name="@generates@" desc="Value to generate into" />
+    <param name="@a@" desc="Value a" />
+    <param name="@b@" desc="Value b" />
+
+    <param name="@yields@" desc="Yield variable">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
+
+    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="k">
+      <c:apply name="max">
+        <c:arg name="max1">
+          <c:value-of name="@a@" index="k" />
+        </c:arg>
+        <c:arg name="max2">
+          <c:value-of name="@b@" index="k" />
+        </c:arg>
+      </c:apply>
+    </rate-each>
+  </template>
+
+
+  <template name="_cap_"
+               desc="Cap a value at a given maximum">
+    <param name="@values@" desc="Value expression" />
+    <param name="@name@"   desc="Value to cap at" />
+
+    <param name="@index@" desc="Index of value to cap at">
+      <text></text>
+    </param>
+
+    <param name="@value@"
+              desc="Constant value to cap at (deprecated)" />
+
+    <param name="@desc@" desc="Value description">
+      <text>Maximum value</text>
+    </param>
+
+    <c:apply name="min">
+      <c:arg name="min1">
+        <!-- deprecated -->
+        <if name="@value@">
+          <c:const value="@value@" type="float" desc="@desc@" />
+        </if>
+        <unless name="@value@">
+          <c:value-of name="@name@"
+                      index="@index@"
+                      type="float"
+                      label="@desc@" />
+        </unless>
+      </c:arg>
+
+      <c:arg name="min2">
+        <param-copy name="@values@" />
+      </c:arg>
+    </c:apply>
+  </template>
+
+
+
+  <!-- useful in products -->
+  <template name="_min-value-of_" desc="Return a value or a minimum">
+    <param name="@name@"  desc="Name of value" />
+    <param name="@index@" desc="Value index" />
+    <param name="@label@" desc="Optional label" />
+    <param name="@min@"   desc="Minimum value" />
+
+    <c:apply name="max" label="{@label@}, minimum of 1">
+      <c:arg name="max1">
+        <c:const value="@min@" type="float" desc="Minimum value" />
+      </c:arg>
+
+      <c:arg name="max2">
+        <c:value-of name="@name@" index="@index@" label="@label@" />
+      </c:arg>
+    </c:apply>
+  </template>
+
+
+
+  <template name="_between_" desc="Assert that a value is within the given range, inclusive">
+    <param name="@min@" desc="Minimum value, inclusive" />
+    <param name="@max@" desc="Maximum value, inclusive" />
+    <param name="@desc@" desc="Description" />
+
+    <c:gte>
+      <c:const value="@min@" type="float" desc="{@desc@}; minimum" />
+    </c:gte>
+    <c:lte>
+      <c:const value="@max@" type="float" desc="{@desc@}; maximum" />
+    </c:lte>
+  </template>
+
+
+
+  <!--
+    Performs min and max bumping
+
+    TODO: max is incomplete (should have all the options of min)
+   -->
+  <template name="_bump_" desc="Bump a value if it does not reach a minimum">
+    <!-- if a minimum percentage -->
+    <param name="@percent@"   desc="Percent, as a whole value" />
+    <param name="@value@"     desc="Value to take percentage of, or take whole value of if no percent" />
+    <param name="@vindex@"    desc="Optional index for base" />
+    <param name="@name@"      desc="Provided value" />
+    <param name="@generates@" desc="Variable to generate into" />
+    <param name="@when@"      desc="Conditional bump" />
+    <param name="@class@"     desc="Class to match on" />
+    <param name="@keep@"      desc="Value of keep flag" />
+
+    <!-- alternative to @name@ -->
+    <param name="@const@" desc="Constant value, instead of named" />
+
+    <!-- max values for bumping down -->
+    <param name="@maxpercent@" desc="Maximum percent" />
+
+
+    <rate yields="_{@generates@}" keep="@keep@">
+      <c:sum of="@name@" index="k" generates="@generates@" desc="Bumped value">
+        <c:cases>
+          <!-- if a condition was provided, check it first -->
+          <if name="@when@">
+            <c:case>
+              <c:when name="@when@" index="k">
+                <c:eq>
+                  <c:value-of name="FALSE" />
+                </c:eq>
+              </c:when>
+
+              <!-- just return the value provided -->
+              <c:value-of name="@name@" index="k" />
+            </c:case>
+          </if>
+
+          <!-- if a condition was provided, check it first -->
+          <if name="@class@">
+            <c:case>
+              <c:when name="@class@" index="k">
+                <c:eq>
+                  <c:value-of name="FALSE" />
+                </c:eq>
+              </c:when>
+
+              <!-- just return the value provided -->
+              <c:const value="0" type="float" desc="Zero value" />
+            </c:case>
+          </if>
+
+          <!-- condition was not provided or did not match (we check for the
+               negative of the condition above so that this template will still
+               produce valid output event if @when@ is not provided; the
+               c:cases will be optimized away in that case) -->
+          <c:otherwise>
+            <c:let>
+              <c:values>
+                <c:value name="min" type="float" desc="Minimum">
+                  <unless name="@const@">
+                    <!-- this will produce a percentage of the provided value, unless no
+                         percent was given, in which case the entire value will be used
+                         -->
+                    <c:product>
+                      <!-- if a percent was provided, then take a certain percentage of the value -->
+                      <if name="@percent@">
+                        <!-- given index or default index? -->
+                        <if name="@vindex@">
+                          <c:value-of name="@value@" index="@vindex@" />
+                        </if>
+                        <unless name="@vindex@">
+                          <c:value-of name="@value@" index="k" />
+                        </unless>
+
+                        <c:quotient label="Percent as real number">
+                          <c:const value="@percent@" type="integer" desc="Whole percent" />
+                          <c:const value="100" type="integer" desc="Divisor to convert percent to real number" />
+                        </c:quotient>
+                      </if>
+
+                      <!-- otherwise, use the given value -->
+                      <unless name="@percent@">
+                        <c:value-of name="@name@" index="k" />
+                      </unless>
+                    </c:product>
+                  </unless>
+
+                  <if name="@const@">
+                    <c:const value="@const@" type="float" desc="Constant minimum value" />
+                  </if>
+                </c:value>
+              </c:values>
+
+              <c:let>
+                <c:values>
+                  <c:value name="minbumped" type="float" desc="Bumped to minimum">
+                    <t:maxreduce>
+                      <c:value-of name="min" />
+                      <c:value-of name="@name@" index="k" />
+                    </t:maxreduce>
+                  </c:value>
+
+                  <if name="@maxpercent@">
+                    <c:value name="max" type="float" desc="Maximum">
+                      <c:product>
+                        <!-- given index or default index? -->
+                        <if name="@vindex@">
+                          <c:value-of name="@value@" index="@vindex@" />
+                        </if>
+                        <unless name="@vindex@">
+                          <c:value-of name="@value@" index="k" />
+                        </unless>
+
+                        <c:quotient label="Max percent as real number">
+                          <c:const value="@maxpercent@" type="integer" desc="Whole max percent" />
+                          <c:const value="100" type="integer" desc="Divisor to convert max percent to real number" />
+                        </c:quotient>
+                      </c:product>
+                    </c:value>
+                  </if>
+                </c:values>
+
+                <c:cases>
+                  <!-- if a max percent was provided, then check to ensure it
+                       was not exceeded -->
+                  <if name="@maxpercent@">
+                    <c:case>
+                      <c:when name="@name@" index="k">
+                        <c:gt>
+                          <c:value-of name="max" />
+                        </c:gt>
+                      </c:when>
+
+                      <c:value-of name="max" />
+                    </c:case>
+                  </if>
+
+                  <!-- if no max, just yield the bumped value according to the minimum -->
+                  <c:otherwise>
+                    <c:value-of name="minbumped" />
+                  </c:otherwise>
+                </c:cases>
+              </c:let>
+            </c:let>
+          </c:otherwise>
+        </c:cases>
+      </c:sum>
+    </rate>
+  </template>
+</package>
+

@@ -1,0 +1,423 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         title="Insurance Abstractions">
+
+  <import package="base" />
+  <import package="assert"        export="true" />
+  <import package="convention"    export="true" />
+  <import package="map"           export="true" />
+  <import package="numeric/round" export="true" />
+  <import package="vector/cmatch" export="true" />
+
+
+  These are primitive abstractions for insurance that will be
+  improved upon over time.
+
+  Some notable TODOs:
+
+  \begin{enumerate}
+    \item Enforce naming convention;
+    \item Support scalar results;
+    \item Fail on zero premium unless explicitly stated;
+    \item Fail on negative premium (use a credit template);
+    \item Rounding direction (currently only nearest); and
+    \item Credit and surcharge.
+  \end{enumerate}
+
+  \todo{Template to abstract these {\tt rate-each} generation
+  templates.}
+
+
+  <template name="_premium_"
+            desc="A premium dollar amount">
+    <param name="@values@"    desc="Body" />
+    <param name="@class@"     desc="Predicate" />
+    <param name="@generates@" desc="Generator name" />
+    <param name="@index@"     desc="Generator index" />
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <!-- required since various companies have various bizzare
+         rounding rules that tend to be a source of bugs; make the
+         developer think about it -->
+    <param name="@round@" desc="Rounding method" />
+
+    <!-- not yet used, but it will at least serve as code
+         documentation for the time being -->
+    <param name="@desc@" desc="Premium description" />
+
+
+    <rate-each class="@class@" no="@no@"
+               generates="@generates@" index="@index@"
+               sym="@sym@" gensym="@gensym@">
+      <!-- TODO: we now have reason for a more concise conditional
+           syntax -->
+      <if name="@round@" eq="dollar">
+        <t:round>
+          <param-copy name="@values@" />
+        </t:round>
+      </if>
+      <unless name="@round@" eq="dollar">
+        <if name="@round@" eq="cent">
+          <c:apply name="round_cents">
+            <c:arg name="round_cents_val">
+              <param-copy name="@values@" />
+            </c:arg>
+          </c:apply>
+        </if>
+
+        <unless name="@round@" eq="cent">
+          <if name="@round@" eq="up">
+            <c:ceil>
+              <param-copy name="@values@" />
+            </c:ceil>
+          </if>
+
+          <unless name="@round@" eq="up">
+            <if name="@round@" eq="down">
+              <c:floor>
+                <param-copy name="@values@" />
+              </c:floor>
+            </if>
+
+            <unless name="@round@" eq="down">
+              <!-- no rounding -->
+              <param-copy name="@values@" />
+            </unless>
+          </unless>
+        </unless>
+      </unless>
+    </rate-each>
+  </template>
+
+
+  \ref{_factor_} defines a calculation that results in a factor
+    which will later be used in a product.
+  There are special considerations for these types of values---%
+    generally, they should not have a value of~$0$ if some sort of calculation
+      condition or lookup is not met,
+        as that would have the effect of wiping out premium.\footnote{
+          Note that every generator index can be non-zero but still sum up
+            to a zero yield,
+              which would trigger this error.}
+  If zero is desired,
+    \tt{@allow-zero@} must be set to \tt{true} to explicitly permit it.
+
+  <template name="_factor_"
+            desc="Factor to multiply against (must be non-zero by default)">
+    <param name="@values@" desc="Body" />
+
+    <param name="@class@" desc="Predicate">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generator name">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Generator index">
+      <text></text>
+    </param>
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <!-- at least one of generates or yields is required -->
+    <if name="@yields@" eq="">
+      <if name="@generates@" eq="">
+        <error>must provide at least one of @generates or @yields</error>
+      </if>
+    </if>
+
+    <!-- not yet used, but it will at least serve as code
+         documentation for the time being -->
+    <param name="@desc@" desc="Factor description" />
+    <unless name="@desc@">
+      <unless name="@generates@" eq="">
+        <error>
+            a description (@desc@) is required for
+            `<param-value name="@generates@" />'
+        </error>
+      </unless>
+      <if name="@generates@" eq="">
+        <error>
+            a description (@desc@) is required for
+            `<param-value name="@yields@" />'
+        </error>
+      </if>
+    </unless>
+
+    <!-- normally we want factors to default to 1, otherwise they could wipe
+         out premium -->
+    <param name="@allow-zero@" desc="Allow value of zero (default false; see
+                                     also @default@)">
+      <text>false</text>
+    </param>
+
+    <!-- default is _only_ used when a factor is 0, so it makes no sense to
+         set a default to #0 -->
+    <param name="@default@" desc="Default value if 0 (optional)" />
+    <if name="@default@" eq="#0">
+      <error>
+        a value of #0 for @default@ is not meaningful;
+          use @allow-zero@ instead.
+      </error>
+    </if>
+
+    <!-- negative values might be indicitive of a failure to provide a floor
+         on certain factors when summing (for example) -->
+    <param name="@allow-negative@" desc="Allow negative value (default false)">
+      <text>false</text>
+    </param>
+
+    <param name="@_prefix@" desc="Factor type (drives naming convention)">
+      <text>factor</text>
+    </param>
+
+    <unless name="@generates@" eq="">
+      <t:naming-convention name="@generates@" prefix="@_prefix@" />
+    </unless>
+
+    <unless name="@yields@" eq="">
+      <t:naming-convention name="@yields@" prefix="@_prefix@" />
+    </unless>
+
+
+    <!-- factor calculation -->
+    <rate-each class="@class@" no="@no@" yields="@yields@" sym="@sym@"
+               generates="@generates@" index="@index@" gensym="@gensym@">
+      <!-- use a default if provided if the factor expression yields 0 -->
+      <if name="@default@">
+        <c:let>
+          <c:values>
+            <c:value name="factor" type="float"
+                     desc="Factor result before default">
+              <param-copy name="@values@" />
+            </c:value>
+          </c:values>
+
+          <t:map-set name="factor">
+            <t:map from="ZERO" value="@default@" />
+            <t:map-else value="factor" />
+          </t:map-set>
+        </c:let>
+      </if>
+
+      <!-- avoid let generation if no default was provided -->
+      <unless name="@default@">
+        <param-copy name="@values@" />
+      </unless>
+    </rate-each>
+
+
+    <!-- assertion for non-zero -->
+    <unless name="@allow-zero@" eq="true">
+      <!-- assertions are useless if a static default was provided, since we
+           know that zero can then never be yielded-->
+      <unless name="@default@" prefix="#">
+        <unless name="@generates@" eq="">
+          <t:assert failure="{@generates@} must not yield a value of 0 for
+                             any index">
+            <t:match-ne on="@generates@" value="ZERO" />
+          </t:assert>
+        </unless>
+
+        <unless name="@yields@" eq="">
+          <t:assert failure="{@yields@} must not yield a value of 0">
+            <t:match-ne on="@yields@" value="ZERO" />
+          </t:assert>
+        </unless>
+      </unless>
+    </unless>
+
+    <!-- assertion for non-negative -->
+    <unless name="@allow-negative@" eq="true">
+      <unless name="@generates@" eq="">
+        <t:assert failure="{@generates@} must not yield a negative value
+                           for any index">
+          <t:match-gt on="@generates@" value="ZERO" />
+        </t:assert>
+      </unless>
+
+      <unless name="@yields@" eq="">
+        <t:assert failure="{@yields@} must not yield a negative value">
+          <t:match-gt on="@yields@" value="ZERO" />
+        </t:assert>
+      </unless>
+    </unless>
+  </template>
+
+
+  The \ref{_credit_} and \ref{_debit_} templates define factors that are
+    intended to introduce, respectively, credits and surcharges.
+  Each name defined using these templates must be prefixed with ``credit''
+    and ``debit'' respectively.
+  Credits must never exceed a value of~$1$,
+    as they would then be treated as if they were surcharges.
+  Similarly, debits must never have a value less than~$1$.
+  Both must have values greater than~$0$.
+
+  If a value can be either a credit or a debit,
+    it is sometimes called an ``adjustment''.
+  In reality it is just another factor,
+    so just use \ref{_factor_} in such a~case.
+
+  <template name="_credit_"
+            desc="Credit to be used as a factor">
+    <param name="@values@" desc="Credit calculation" />
+
+    <param name="@class@" desc="Predicate">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generator name">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Generator index">
+      <text></text>
+    </param>
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <param name="@desc@" desc="Factor description">
+      <text></text>
+    </param>
+
+
+    <t:factor _prefix="credit"
+              class="@class@" no="@no@" yields="@yields@" sym="@sym@"
+              generates="@generates@" index="@index@" gensym="@gensym@"
+              desc="@desc@">
+      <param-copy name="@values@" />
+    </t:factor>
+
+    <unless name="@generates@" eq="">
+      <t:assert failure="{@generates@} is a credit but one or more
+                         of its values are greater than 1">
+        <t:match-lte on="@generates@" value="#1" />
+      </t:assert>
+    </unless>
+
+    <unless name="@yields@" eq="">
+      <t:assert failure="{@yields@} is a credit but its value is
+                         greater than 1">
+        <t:match-lte on="@yields@" value="#1" />
+      </t:assert>
+    </unless>
+  </template>
+
+
+  <template name="_debit_"
+            desc="Debit to be used as a factor">
+    <param name="@values@" desc="Credit calculation" />
+
+    <param name="@class@" desc="Predicate">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generator name">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Generator index">
+      <text></text>
+    </param>
+
+    <param name="@no@" desc="Negated predicate">
+      <text></text>
+    </param>
+
+    <param name="@sym@" desc="TeX symbol">
+      <text></text>
+    </param>
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <param name="@desc@" desc="Factor description">
+      <text></text>
+    </param>
+
+
+    <t:factor _prefix="debit"
+              class="@class@" no="@no@" yields="@yields@" sym="@sym@"
+              generates="@generates@" index="@index@" gensym="@gensym@"
+              desc="@desc@">
+      <param-copy name="@values@" />
+    </t:factor>
+
+    <unless name="@generates@" eq="">
+      <t:assert failure="{@generates@} is a debit but one or more
+                         of its values are less than 1">
+        <t:match-gte on="@generates@" value="#1" />
+      </t:assert>
+    </unless>
+
+    <unless name="@yields@" eq="">
+      <t:assert failure="{@yields@} is a credit but its value is
+                         less than 1">
+        <t:match-gte on="@yields@" value="#1" />
+      </t:assert>
+    </unless>
+  </template>
+</package>

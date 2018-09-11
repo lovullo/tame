@@ -1,0 +1,264 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         desc="Aggregate Package Specification">
+
+  <import package="../../base" />
+  <import package="../../test/spec" />
+
+  <import package="../../base" />
+  <import package="../../vector/cmatch" />
+  <import package="../../vector/stub" />
+
+  <import package="../../aggregate" />
+
+
+  <rate-each class="nclass3"
+             generates="aggregateGen1" index="k">
+    <c:const value="1" desc="Constant value" />
+  </rate-each>
+
+  <rate-each class="nclass3"
+             generates="aggregateGen2" index="k">
+    <c:value-of name="k" />
+  </rate-each>
+
+
+  <rate yields="aggregateRate1">
+    <c:const value="1" desc="Constant value" />
+  </rate>
+
+  <rate yields="aggregateRate2">
+    <c:const value="3" desc="Constant value" />
+  </rate>
+
+
+  <classify as="agg-class-1"
+            desc="Aggregate test 1">
+    <match on="AGG_1VEC" />
+  </classify>
+
+  <classify as="agg-class-2"
+            desc="Aggregate test 2">
+    <t:match-gt on="AGG_INCVEC" const="0" />
+  </classify>
+
+
+  <t:n-vector n="3" name="AGG_1VEC" value="1" />
+
+  <const name="AGG_INCVEC" desc="Incrementing vector">
+    <item value="0" />
+    <item value="1" />
+    <item value="2" />
+  </const>
+
+
+
+  <t:describe name="aggregate template">
+    <t:describe name="_aggregate-rate-each_">
+      <t:aggregate-rate-each class="nclass3" yields="yieldAggReEmpty"
+                             prefix="doesNotExist"
+                             generates="genAggReEmpty" />
+
+      <t:aggregate-rate-each class="nclass3" yields="yieldAggReNonEmpty"
+                             prefix="aggregateGen"
+                             generates="genAggReNonEmpty" />
+
+
+      <t:describe name="with no symbols">
+        <t:it desc="produces 0">
+          <t:given>
+            <c:sum>
+              <c:value-of name="yieldAggReEmpty" />
+              <c:sum of="genAggReEmpty" />
+            </c:sum>
+          </t:given>
+
+          <t:expect>
+            <t:match-result eq="0" />
+          </t:expect>
+        </t:it>
+      </t:describe>
+
+
+      <t:describe name="with symbols">
+        <t:it desc="sums respective index of each symbol">
+          <t:given>
+            <c:sum of="genAggReNonEmpty" />
+          </t:given>
+
+          <t:expect>
+            <!-- 1 + 2 + 3 -->
+            <t:match-result eq="6" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields sum of symbols">
+          <t:given>
+            <c:value-of name="yieldAggReNonEmpty" />
+          </t:given>
+
+          <t:expect>
+            <!-- same as above -->
+            <t:match-result eq="6" />
+          </t:expect>
+        </t:it>
+      </t:describe>
+    </t:describe>
+
+
+    <t:describe name="_aggregate-rate_">
+      <t:aggregate-rate prefix="doesNotExist"  yields="yieldAggRateEmpty" />
+      <t:aggregate-rate prefix="aggregateRate" yields="yieldAggRateNonEmpty" />
+
+      <t:describe name="with no symbols">
+        <t:it desc="yields 0">
+          <t:given>
+            <c:value-of name="yieldAggRateEmpty" />
+          </t:given>
+
+          <t:expect>
+            <t:match-result eq="0" />
+          </t:expect>
+        </t:it>
+      </t:describe>
+
+
+      <t:describe name="with symbols">
+        <t:it desc="yields sum of symbols">
+          <t:given>
+            <c:value-of name="yieldAggRateNonEmpty" />
+          </t:given>
+
+          <t:expect>
+            <t:match-result eq="4" />
+          </t:expect>
+        </t:it>
+      </t:describe>
+    </t:describe>
+
+
+    <t:describe name="_aggregate-classify_">
+      <t:describe name="as a univiersal quantifier">
+        <t:aggregate-classify prefix="does-not-exist" as="class-agg-univ-empty"
+                              desc="Aggregate universal class empty test"
+                              yields="classAggUnivEmpty" />
+        <t:aggregate-classify prefix="agg-class-" as="class-agg-univ-nonempty"
+                              desc="Aggregate class nonempty test"
+                              yields="classAggUnivNonEmpty" />
+
+        <t:describe name="with no symbols">
+          <t:it desc="produces scalar 1">
+            <t:given>
+              <c:value-of name="classAggUnivEmpty" />
+            </t:given>
+
+            <t:expect>
+              <t:match-result eq="1" />
+            </t:expect>
+          </t:it>
+        </t:describe>
+
+
+        <t:describe name="with symbols">
+          <t:it desc="generates matching class">
+            <rate-each class="class-agg-univ-nonempty"
+                       yields="aggUnivNonEmptyCheck"
+                       index="k">
+              <c:const value="1" desc="Truth check" />
+            </rate-each>
+
+            <t:expect>
+              <!-- two non-zero in AGG_INCVEC -->
+              <t:match-eq on="aggUnivNonEmptyCheck" const="2" />
+            </t:expect>
+          </t:it>
+
+
+          <t:it desc="produces vector">
+            <t:given>
+              <c:sum of="classAggUnivNonEmpty" />
+            </t:given>
+
+            <t:expect>
+              <!-- two non-zero in AGG_INCVEC -->
+              <t:match-result eq="2" />
+            </t:expect>
+          </t:it>
+        </t:describe>
+      </t:describe>
+
+
+      <t:describe name="as a existential quantifier">
+        <t:aggregate-classify prefix="does-not-exist" as="class-agg-exist-empty"
+                              desc="Aggregate existersal class empty test"
+                              yields="classAggExistEmpty"
+                              any="true" />
+        <t:aggregate-classify prefix="agg-class-" as="class-agg-exist-nonempty"
+                              desc="Aggregate class nonempty test"
+                              yields="classAggExistNonEmpty"
+                              any="true" />
+
+        <t:describe name="with no symbols">
+          <t:it desc="produces scalar 0">
+            <t:given>
+              <c:value-of name="classAggExistEmpty" />
+            </t:given>
+
+            <t:expect>
+              <t:match-result eq="0" />
+            </t:expect>
+          </t:it>
+        </t:describe>
+
+
+        <t:describe name="with symbols">
+          <t:it desc="generates matching class">
+            <rate-each class="class-agg-exist-nonempty"
+                       yields="aggExistNonEmptyCheck"
+                       index="k">
+              <c:const value="1" desc="Truth check" />
+            </rate-each>
+
+            <t:expect>
+              <!-- all match in AGG_1VEC -->
+              <t:match-eq on="aggExistNonEmptyCheck" const="3" />
+            </t:expect>
+          </t:it>
+
+
+          <t:it desc="produces vector">
+            <t:given>
+              <c:sum of="classAggExistNonEmpty" />
+            </t:given>
+
+            <t:expect>
+              <!-- all match in AGG_1VEC -->
+              <t:match-result eq="3" />
+            </t:expect>
+          </t:it>
+        </t:describe>
+      </t:describe>
+    </t:describe>
+  </t:describe>
+</package>

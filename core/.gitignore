@@ -1,0 +1,7 @@
+# when core is built
+*.xmlo
+*.xmle
+*.js
+*.dep
+*.tmp
+*.html

@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="Converts scalars to another type">
+
+  <import package="../base" />
+
+  <!-- TODO: transitional; remove (used to contain _ptor_ and friends) -->
+  <import package="percent" export="true" />
+
+  <!-- for template applications -->
+  <import package="common" export="true" />
+  <import package="round" export="true" />
+
+
+  <!-- even more trivial, but again, cuts down on code -->
+  <template name="_scalarToAccum_" desc="Simply accumulates a scalar">
+    <param name="@scalar@" desc="Scalar to accumulate" />
+    <param name="@accum@" desc="Accumulator to accumulate into" />
+
+    <!-- this is useless, but required -->
+    <param name="@yields@" desc="Value to yield into, since it's required (useless)">
+      <text>__accum_</text>
+      <param-value name="@accum@" />
+      <text>_</text>
+      <param-value name="@scalar@" />
+    </param>
+
+    <param name="@type@" desc="Accumulation method">
+      <text>all</text>
+    </param>
+
+    <rate yields="@yields@">
+      <accumulate into="@accum@" type="@type@" />
+      <c:value-of name="@scalar@" />
+    </rate>
+  </template>
+
+
+  <!--
+    Map values falling within adjacent intervals
+
+    Interval endpoints are defined using `_endpoint_` nodes.  The
+    first interval is defined as [-∞,@start@), and the last endpoint
+    as (end,∞], where `end` is the value of the final `_endpoint_`.
+    The default maps for these two implicit intervals default to 0,
+    but may be changed with, respectively, @low@ and @high@.
+
+    Permitted children:
+      - _endpoint_* - Endpoint definition.
+  -->
+  <template name="_map-interval_"
+            desc="Map adjacent, closed intervals to scalars">
+    <param name="@values@" desc="Interval definitions" />
+    <param name="@name@"   desc="Reference value" />
+
+    <param name="@start@"
+           desc="Left endpoint of first interval (constant)" />
+
+    <param name="@index@"
+           desc="Reference value index">
+      <text></text>
+    </param>
+
+    <param name="@low@"
+           desc="Default value when less than @start@">
+      <text>#0</text>
+    </param>
+    <param name="@lowindex@"
+           desc="Low value index">
+      <text></text>
+    </param>
+
+    <param name="@high@"
+           desc="Default value when greater than final endpoint value">
+      <text>#0</text>
+    </param>
+    <param name="@highindex@"
+           desc="High value index">
+      <text></text>
+    </param>
+
+
+    <c:let>
+      <!-- c:when does not support shorthand constants (yet); this is
+           a workaround -->
+      <c:values>
+        <c:value name="__intval"
+                 type="float"
+                 desc="Interval reference value">
+          <c:value-of name="@name@" index="@index@" />
+        </c:value>
+      </c:values>
+
+
+      <c:cases>
+        <c:case>
+          <c:when name="__intval">
+            <c:lt>
+              <c:const value="@start@"
+                       type="float"
+                       desc="First interval left endpoint" />
+            </c:lt>
+          </c:when>
+
+          <c:value-of name="@low@" index="@lowindex@" />
+        </c:case>
+
+        <param-copy name="@values@" />
+
+        <c:otherwise>
+          <c:value-of name="@high@" index="@highindex@" />
+        </c:otherwise>
+      </c:cases>
+    </c:let>
+  </template>
+
+
+  <!--
+    Adjacent endpoint definition
+
+    A value that falls within range of the associated interval will be
+    mapped to the value @map@.
+
+    The first endpoint defined is the right endpoint of the interval
+    defined by [start,@value@], where `start` is defined by the parent
+    `_map-interval_`.
+
+    All other endpoints define the interval (prev,@value@].
+  -->
+  <template name="_endpoint_"
+            desc="Define an interval endpoint for _map-interval_">
+    <param name="@value@"
+           desc="Right endpoint of previous interval" />
+    <param name="@map@"
+           desc="Value to which interval is mapped" />
+
+    <param name="@mapindex@"
+           desc="Map value index">
+      <text></text>
+    </param>
+
+
+    <c:case>
+      <c:when name="__intval">
+        <c:lte>
+          <c:const value="@value@"
+                   type="float"
+                   desc="Previous interval right endpoint" />
+        </c:lte>
+      </c:when>
+
+      <c:value-of name="@map@"
+                  index="@mapindex@" />
+    </c:case>
+  </template>
+</package>

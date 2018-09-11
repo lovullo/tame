@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="When Matching">
+
+  <import package="base" />
+
+
+  This package deals with matching in calculations (such as case statements
+    or values);
+    for classifications, see \tt{vector/cmatch}.
+
+
+  <inline-template>
+    <for-each>
+      <set cmp="eq" />
+      <set cmp="ne" />
+      <set cmp="gt" />
+      <set cmp="gte" />
+      <set cmp="lt" />
+      <set cmp="lte" />
+    </for-each>
+
+
+    <template name="_when-{@cmp@}_" desc="Value predicate {@cmp@}">
+      <param name="@name@" desc="Name to assert against" />
+
+      <param name="@index@" desc="Name index (optional)">
+        <text></text>
+      </param>
+
+      <!-- former exists only for consistency with cmatch templates and will
+           produce an error -->
+      <param name="@const@" desc="Match against constant value" />
+      <param name="@value@" desc="Match against variable" />
+
+      <param name="@value_index@" desc="Value index (optional)">
+        <text></text>
+      </param>
+
+
+      <if name="@const@">
+        <error>
+          @const@ is deprecated; use @value@ with a #-prefix instead.
+        </error>
+      </if>
+
+
+      <c:when name="@name@" index="@index@">
+        <dyn-node name="c:{@cmp@}">
+          <c:value-of name="@value@" index="@value_index@" />
+        </dyn-node>
+      </c:when>
+    </template>
+  </inline-template>
+</package>

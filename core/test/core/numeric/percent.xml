@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         desc="Test percentage arithemetic">
+
+  <import package="../../spec" />
+
+  <import package="../../../base" />
+  <import package="../../../numeric/percent" />
+
+
+  <t:describe name="_rtop_">
+    <t:describe name="given only a percentage">
+      <t:it desc="converts real into whole percentage">
+        <t:given>
+          <t:rtop name="#0.05" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#5" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="converts integer into whole percentage">
+        <t:given>
+          <t:rtop name="#5" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#500" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="converts negative into negative percentage">
+        <t:given>
+          <t:rtop name="#-0.5" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#-50" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="given a percent difference">
+      These tests are similar to the above, except that they represent
+      the~percent difference between two values.  That is, given the
+      values $5$~and $15$, we arrive at a~$200%$ increase.  So
+      if~$p=200$, then we want $5r=15, r=3=\((15-5)/5\)+1$.
+
+      <t:it desc="converts R into percentage P that will increase N
+                  by P%">
+        <t:given>
+          <t:rtop name="#3" difference="true" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#200" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      Similarly, if we go from~$10$ to~$5$, we have~$p=-100$
+      and~$10r=5$; then~$r=1/2=0.5$.
+
+      <t:it desc="converts negative N into percentage P that will
+                  decrease N by P%">
+        <t:given>
+          <t:rtop name="#0.5" difference="true" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#-50" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="given a value index">
+      <const name="PERCENT_REAL_VECTOR"
+             desc="Test vector">
+        <item value="3" desc="Real number" />
+      </const>
+
+      <t:it desc="converts the scalar value at the given index">
+        <t:given>
+          <t:rtop name="PERCENT_REAL_VECTOR" index="#0" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#300" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="given @negative@">
+      \ref{_rtop_} provides a way to negate the result using a
+      short-hand form for convenience and conciseness.
+
+      <t:it desc="negates resulting percentage">
+        <t:given>
+          <t:rtop name="#0.05" negate="true" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#-5" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="negates resulting difference">
+        <t:given>
+          <t:rtop name="#2" negate="true"
+                  difference="true" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#-100" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>

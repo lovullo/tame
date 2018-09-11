@@ -1,0 +1,494 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015, 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="Functions for performing table lookups">
+
+  <import package="../base" />
+
+  <!-- since templates are inlined, we need to make these symbols available to
+       avoid terrible confusion -->
+  <import package="../numeric/common" export="true"/>
+  <import package="common" export="true" />
+  <import package="filter" export="true" />
+  <import package="matrix" export="true" />
+
+  <!--
+    Create a constant table
+
+    This definition must appear within a `constants' block.
+
+    Permitted children:
+      - _table_column_+ - Column definitions
+      - _table_rows_    - Begin table data definition
+  -->
+  <template name="_create-table_"
+               desc="Create an arbitrary table for querying">
+    <param name="@name@"   desc="Table name" />
+    <param name="@values@" desc="Table definition" />
+
+    <param name="@desc@" desc="Table description">
+      <text></text>
+    </param>
+
+    <param name="@__tid@"
+              desc="Internal table identifier">
+      <param-value name="@name@" upper="true" snake="true" />
+    </param>
+
+
+    <param-copy name="@values@">
+      <param-meta name="create-table-id" value="@__tid@" />
+      <param-meta name="create-table-name" value="@name@" />
+      <param-meta name="create-table-desc" value="@desc@" />
+    </param-copy>
+  </template>
+
+
+  <!--
+    Declare a table column name
+
+    A column definition assigns a field name to a column index. If the
+    column always contains ordered (sequenced) data, then @seq@ should
+    be set to "true"; this allows a more efficient query strategy to
+    be used.
+
+    If a table is especially large, the first column should be treated
+    as the index and always be sequenced.
+  -->
+  <template name="_table-column_"
+               desc="Declare name for table column">
+    <param name="@name@"  desc="Column name" />
+    <param name="@index@" desc="Column index (0-indexed)" />
+
+    <param name="@desc@" desc="Column description">
+      <param-value name="@name@" />
+    </param>
+
+    <!-- use carefully; leave alone unless data is definately sorted,
+         or query results may be incorrect -->
+    <param name="@seq@" desc="Column is sorted (sequential)">
+      <text></text>
+    </param>
+
+    <param name="@__tid@"
+              desc="Internal table identifier">
+      <param-inherit meta="create-table-id" />
+    </param>
+
+    <!-- FIXME: this doesn't contain @__tid@ because of a bug in the
+         preprocessor; this is fixed in the new DSL -->
+    <param name="@__constname@"
+              desc="Name of internal constant used for column lookup">
+      <text>RATE_TABLE_</text>
+      <param-value name="@name@" upper="true" snake="true" />
+    </param>
+
+
+    <!-- column index identifier -->
+    <const name="{@__tid@}_{@__constname@}"
+              value="@index@" type="integer"
+              desc="@desc@" />
+
+    <!-- column sequential flag to permit query optimizations -->
+    <if name="@seq@" eq="true">
+      <const name="{@__tid@}_{@__constname@}_IS_SEQ"
+                value="1" type="integer"
+                desc="{@name@} is sequenced" />
+    </if>
+    <unless name="@seq@" eq="true">
+      <const name="{@__tid@}_{@__constname@}_IS_SEQ"
+                value="0" type="integer"
+                desc="{@name@} is unordered" />
+    </unless>
+  </template>
+
+
+  <!--
+    Begin table data definition (rows)
+
+    Each _table-row_ child inserts a constant row into the table. Note
+    that all data must be constant.
+
+    Use only one of @data@ or children to define rows.
+
+    Permitted children:
+      - _table-row_* - Table row definitions
+  -->
+  <template name="_table-rows_"
+            desc="Begin table data definition">
+    <param name="@values@" desc="Row definitions" />
+    <param name="@data@"   desc="GNU Octave/MATLAB-style data definition" />
+
+    <param name="@__tid@"
+           desc="Table identifier">
+      <param-inherit meta="create-table-id" />
+    </param>
+
+    <param name="@__tname@"
+           desc="Table name as provided by caller">
+      <param-inherit meta="create-table-name" />
+    </param>
+
+    <param name="@__desc@"
+           desc="Table description">
+      <param-inherit meta="create-table-desc" />
+    </param>
+
+
+    <if name="@data@">
+      <const name="{@__tid@}_RATE_TABLE"
+             type="float"
+             desc="{@__tname@} table; {@__desc@}"
+             values="@data@" />
+    </if>
+    <unless name="@data@">
+      <const name="{@__tid@}_RATE_TABLE"
+             type="float"
+             desc="{@__tname@} table; {@__desc@}">
+        <param-copy name="@values@" />
+      </const>
+    </unless>
+  </template>
+
+
+  <!--
+    Define a constant table row
+
+    Rows will be inserted into the table in the order in which they
+    appear. Note that, if the column is marked as sequenced, it is
+    important that the order is itself sequenced.
+
+    All values must be constant.
+
+    Permitted children:
+      _table-value_+ - Row column value
+  -->
+  <template name="_table-row_"
+               desc="Define a constant table row (ordered)">
+    <param name="@values@" desc="Column values" />
+
+
+    <set desc="Row">
+      <param-copy name="@values@" />
+    </set>
+  </template>
+
+
+  <!--
+    Set a column value for the parent row
+
+    Column value order should match the defined column order. All
+    values must be constants.
+  -->
+  <template name="_table-value_"
+               desc="Table column value for row (ordered)">
+    <param name="@const@" desc="Constant column value" />
+
+
+    <item value="@const@" desc="Column value" />
+  </template>
+
+
+  <template name="_query-first-field_" desc="Return the requested field from the first row returned by a query">
+    <param name="@table@" desc="Table (matrix) to query" />
+    <param name="@values@" desc="Query parameters" />
+
+    <!-- use either field or name[+index] -->
+    <param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
+    <param name="@name@" desc="Name of field to query (variable/constant); overrides @field@" />
+    <param name="@index@" desc="Optional index for field name lookup (using @name@)" />
+
+
+    <c:car label="First row of query result">
+      <t:query-field table="@table@" field="@field@" name="@name@" index="@index@">
+        <param-copy name="@values@" />
+      </t:query-field>
+    </c:car>
+  </template>
+
+
+  <!--
+    Query-style syntax for matrix searches
+
+    Overhead of this algorithm is minimal. Let us consider that a direct access
+    to an element in a vector is O(1). Therefore, given a set of p predicates
+    in a direct matrix access, the time would be O(p).
+
+    In the case of this query method, we perform first a bisect and then a
+    linear search backward to the first element matching the given predicate.
+    Therefore, per field, the best case average is O(lg n), where n is the
+    number of rows; this assumes that no backward linear search is required.
+    Should such a search be required, the worst case per field is O(lg n + m),
+    where m is the length of the largest subset.
+
+    Once again considering p predicates, each predicate P_k where k > 0
+    (0-indexed) will operate on a subset of the first predicate. As already
+    discussed, the worst-case scenerio for the length of the subset is m. Since
+    further queries on this subset are rarely likely to use the bisect
+    algorithm, we're looking at O(m) time per field. Therefore, the total query
+    time for the best-case scenerio is still O(lg n) if m is sufficiently small
+    and O(lg n + pm) if m is sufficiently large.
+
+    An important case to note is when m approaches (or is equal to) n; in such
+    a case, the algorithm degrades to a worst-case linear search of O(pn) and
+    best case of O(n) if early predicates are sufficiently effective at
+    reducing the subsets to further predicates: That is, the bisect algorithm
+    either cannot be used or is ineffective. For large m, this may cause a
+    stack overflow due to the recursive nature of the algorithm. Is is
+    therefore important to order the first column of the table such that it is
+    both sorted and produces small m.  Additionally, it is ideal for the first
+    predicate to query the first field to quickly reduce the size of the set
+    for the next predicate.
+  -->
+  <template name="_query-field_" desc="Return the requested field from rows returned by a query">
+    <param name="@table@" desc="Table (matrix) to query" />
+    <param name="@values@" desc="Query parameters" />
+
+    <!-- use one or the other -->
+    <param name="@field@" desc="Column to select (variable/constant); do not use with @name@" />
+
+    <param name="@index@" desc="Optional index for field name lookup (using @name@)" />
+    <!-- by default, if @field@ is provided instead of @name@, the field
+         constant will be generated (same concept as the 'when' template) -->
+    <param name="@name@" desc="Name of field to query (variable/constant); overrides @field@">
+      <!-- convert @table@ to uppercase and snake case (replace - with _) -->
+      <param-value name="@table@" upper="true" snake="true" />
+      <text>_RATE_TABLE_</text>
+      <param-value name="@field@" upper="true" snake="true" />
+    </param>
+
+
+    <c:apply name="mcol" label="Query result">
+      <!-- the matrix (vector of rows) returned by the query -->
+      <c:arg name="matrix">
+        <t:query-row table="@table@">
+          <param-copy name="@values@" />
+        </t:query-row>
+      </c:arg>
+
+      <!-- the field (column) to retrieve; 0-based index -->
+      <c:arg name="col">
+        <!-- no index lookup needed -->
+        <unless name="@index@">
+          <c:value-of name="@name@" />
+        </unless>
+
+        <!-- index lookup required -->
+        <if name="@index@">
+          <c:value-of name="@name@" index="@index@" />
+        </if>
+      </c:arg>
+    </c:apply>
+  </template>
+
+
+  <template name="_query-row_" desc="Query a table (matrix) for a row (vector) of values">
+    <param name="@table@" desc="Table (matrix)" />
+    <param name="@values@" desc="Query parameters" />
+
+    <!-- this defaults to a table name constant as generated from the csv2xml
+         script; either this or @table@ should be used -->
+    <param name="@matrix@" desc="Matrix to look up from">
+      <!-- convert @table@ to uppercase and snake case (replace - with _) -->
+      <param-value name="@table@" upper="true" snake="true" />
+      <text>_RATE_TABLE</text>
+    </param>
+
+    <c:apply name="_mquery">
+      <c:arg name="matrix">
+        <c:value-of name="@matrix@" />
+      </c:arg>
+
+      <c:arg name="criteria">
+        <c:set>
+          <param-copy name="@values@">
+            <param-meta name="table_basename" value="@matrix@" />
+          </param-copy>
+        </c:set>
+      </c:arg>
+
+      <c:arg name="i">
+        <!-- begin with the last predicate (due to the way we'll recurse, it
+             will be applied *last* -->
+        <t:dec>
+          <c:length-of>
+            <c:set>
+              <param-copy name="@values@">
+                <param-meta name="table_basename" value="@matrix@" />
+              </param-copy>
+            </c:set>
+          </c:length-of>
+        </t:dec>
+      </c:arg>
+    </c:apply>
+  </template>
+
+
+  <template name="_when_" desc="Create field predicate for query definition">
+    <param name="@id@" desc="Field index" />
+    <param name="@values@" desc="Field value (provide only one node)" />
+    <param name="@sequential@" desc="Is data sequential?" />
+
+    <!-- @name@ may be provided directly, or @field@ may be used when the
+         basename is available (set by a query template), giving the illusion of
+         querying the table columns by name directly (magic!); pure syntatic
+         sugary goodness -->
+    <param name="@field@" desc="Field name (to be used with base)" />
+    <param name="@name@" desc="Field name (as a variable/constant)">
+      <param-inherit meta="table_basename" />
+      <text>_</text>
+      <param-value name="@field@" upper="true" snake="true" />
+    </param>
+
+    <param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+      <param-inherit meta="table_basename" />
+      <text>_</text>
+      <param-value name="@field@" upper="true" snake="true" />
+      <text>_IS_SEQ</text>
+    </param>
+
+    <c:set label="Conditional for {@field@}">
+      <!-- the first element will represent the column (field) index -->
+      <unless name="@name@">
+        <c:const value="@id@" type="integer" desc="Field index" />
+      </unless>
+      <if name="@name@">
+        <c:value-of name="@name@" />
+      </if>
+
+      <!-- the second element will represent the expected value(s) -->
+      <c:set>
+        <param-copy name="@values@" />
+      </c:set>
+
+      <!-- the final element will represent whether or not this field is sequential -->
+      <if name="@sequential@">
+        <c:const value="@sequential@" type="boolean" desc="Whether data is sequential" />
+      </if>
+      <unless name="@sequential@">
+        <!-- if a field name was given, we can get the sequential information
+             that was already generated for us -->
+        <if name="@field@">
+          <c:value-of name="@seqvar@" />
+        </if>
+        <!-- otherwise, default to non-sequential -->
+        <unless name="@field@">
+          <c:value-of name="FALSE" />
+        </unless>
+      </unless>
+    </c:set>
+  </template>
+
+
+
+  <!--
+    These functions make the magic happen
+
+    They are hideous. Look away.
+  -->
+
+
+  <!-- this function is intended to be called by the _query_ template, not directly -->
+  <function name="_mquery" desc="Query for vectors using a set of column criteria">
+    <param name="matrix" type="float" set="matrix" desc="Matrix to query" />
+    <param name="criteria" type="float" set="matrix" desc="Query criteria" />
+
+    <param name="i" type="integer" desc="Current criteria index" />
+
+    <c:cases>
+      <c:case>
+        <c:when name="i">
+          <c:eq>
+            <!-- it's important that we allow index 0, since that is a valid
+                 predicate -->
+            <c:const value="-1" type="integer" desc="We're done." />
+          </c:eq>
+        </c:when>
+
+        <!-- we're done; stick with the result -->
+        <c:value-of name="matrix" />
+      </c:case>
+
+      <c:otherwise>
+        <c:apply name="mfilter">
+          <!-- matrix to search -->
+          <c:arg name="matrix">
+            <!-- >> recursion happens here << -->
+            <c:apply name="_mquery">
+              <c:arg name="matrix">
+                <c:value-of name="matrix" />
+              </c:arg>
+
+              <c:arg name="criteria">
+                <c:value-of name="criteria" />
+              </c:arg>
+
+              <c:arg name="i">
+                <t:dec>
+                  <c:value-of name="i" />
+                </t:dec>
+              </c:arg>
+            </c:apply>
+          </c:arg>
+
+          <!-- field (column) -->
+          <c:arg name="col">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="0" type="integer" desc="Field id" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+
+          <!-- value(s) to search for -->
+          <c:arg name="vals">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="1" type="integer" desc="Field value" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+
+          <!-- if it's sequential, we can cut down on the search substantially -->
+          <c:arg name="seq">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="2" type="integer" desc="Sequential flag" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+        </c:apply>
+      </c:otherwise>
+    </c:cases>
+  </function>
+</package>
+

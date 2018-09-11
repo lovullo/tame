@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015, 2017 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="Treating vectors as lists">
+
+  <import package="../base" />
+
+  <import package="../numeric/common" export="true" />
+  <import package="../when"           export="true" />
+
+
+
+  <!--
+    This abstraction relieves the developer of one of the most common
+    lisp-style recursions: recursing over a set's cdr until empty.
+
+    This template recurses and, as such, should only be used within functions.
+  -->
+  <template name="_cons-until-empty_" desc="Generate empty base case for functions that recurse on cdrs of sets">
+    <param name="@values@" desc="Body" />
+
+    <param name="@set@" desc="Set to operate on" />
+    <param name="@car@" desc="Variable in which to store car of the set">
+      <text>__car</text>
+    </param>
+    <param name="@cdr@" desc="Variable in which to store the cdr of the set">
+      <text>__cdr</text>
+    </param>
+    <param name="@index@" desc="Index variable" />
+
+    <param name="@base@" desc="Base set to return (otherwise an empty set)" />
+    <param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
+    <param name="@only@" desc="Process only this value; otherwise recurse without action" />
+
+    <!-- intended for use by merge-until-empty to reduce duplicate code; not to
+         be set via direct template applications -->
+    <param name="@merge@" desc="Perform merge instead of cons; system-use only" />
+
+
+    <c:let>
+      <c:values>
+        <!-- TODO: it'd be nice if the DSL made values unique for us, unless
+             they're used, to prevent potential conflicts with template callers
+             -->
+        <c:value name="__valn" type="integer" desc="Number of values">
+          <c:length-of>
+            <c:value-of name="@set@" />
+          </c:length-of>
+        </c:value>
+      </c:values>
+
+      <c:cases>
+        <c:case>
+          <c:when name="__valn">
+            <c:eq>
+              <c:const value="0" type="integer" desc="When there are no more elements in the set" />
+            </c:eq>
+          </c:when>
+
+          <!-- if a base set was provided, return that; otherwise, return an empty set -->
+          <if name="@base@">
+            <c:value-of name="@base@" />
+          </if>
+          <unless name="@base@">
+            <!-- return an empty set -->
+            <c:set />
+          </unless>
+        </c:case>
+
+        <c:otherwise>
+          <c:let>
+            <c:values>
+              <c:value name="@car@" type="float" desc="Car of set">
+                <c:car>
+                  <c:value-of name="@set@" />
+                </c:car>
+              </c:value>
+
+              <c:value name="@cdr@" type="float" desc="Cdr of set">
+                <c:cdr>
+                  <c:value-of name="@set@" />
+                </c:cdr>
+              </c:value>
+            </c:values>
+
+            <!-- this case statement will be optimized away if we have no
+                 @glance@ or @only@ value -->
+            <c:cases>
+              <!-- if we have a glancing value, then immediately recurse
+                   without processing if we have a match -->
+              <if name="@glance@">
+                <c:case>
+                  <t:when-eq name="@car@" value="@glance@" />
+
+                  <c:recurse>
+                    <c:arg name="@set@">
+                      <c:value-of name="@cdr@" />
+                    </c:arg>
+
+                    <if name="@index@">
+                      <c:arg name="@index@">
+                        <t:inc>
+                          <c:value-of name="@index@" />
+                        </t:inc>
+                      </c:arg>
+                    </if>
+                  </c:recurse>
+                </c:case>
+              </if>
+
+              <!-- if we should only recurse when a value matches, ignore
+                   non-match -->
+              <if name="@only@">
+                <c:case>
+                  <t:when-ne name="@car@" value="@only@" />
+
+                  <c:recurse>
+                    <c:arg name="@set@">
+                      <c:value-of name="@cdr@" />
+                    </c:arg>
+
+                    <if name="@index@">
+                      <c:arg name="@index@">
+                        <t:inc>
+                          <c:value-of name="@index@" />
+                        </t:inc>
+                      </c:arg>
+                    </if>
+                  </c:recurse>
+                </c:case>
+              </if>
+
+              <!-- otherwise, process as normal -->
+              <c:otherwise>
+                <unless name="@merge@">
+                  <!-- here's our recursive operation: cons the result of processing
+                       this car with the result of recursively processing the cdr
+                       (note that c:recurse will recurse on the function that applied
+                       this template, _not_ on the template itself)-->
+                  <c:cons>
+                    <param-copy name="@values@" />
+
+                    <c:recurse>
+                      <c:arg name="@set@">
+                        <c:value-of name="@cdr@" />
+                      </c:arg>
+
+                      <if name="@index@">
+                        <c:arg name="@index@">
+                          <t:inc>
+                            <c:value-of name="@index@" />
+                          </t:inc>
+                        </c:arg>
+                      </if>
+                    </c:recurse>
+                  </c:cons>
+                </unless>
+
+                <if name="@merge@">
+                  <!-- the order is different from the cons above to maintain
+                       consistency in the returned set -->
+                  <c:apply name="vmerge">
+                    <c:arg name="vector">
+                      <c:recurse>
+                        <c:arg name="@set@">
+                          <c:value-of name="@cdr@" />
+                        </c:arg>
+
+                        <if name="@index@">
+                          <c:arg name="@index@">
+                            <t:inc>
+                              <c:value-of name="@index@" />
+                            </t:inc>
+                          </c:arg>
+                        </if>
+                      </c:recurse>
+                    </c:arg>
+
+                    <c:arg name="onto">
+                      <param-copy name="@values@" />
+                    </c:arg>
+                  </c:apply>
+                </if>
+              </c:otherwise>
+            </c:cases>
+          </c:let>
+        </c:otherwise>
+      </c:cases>
+    </c:let>
+  </template>
+
+
+
+  <!--
+    Like cons-until-empty, except that it merges each application instead of cons-ing it.
+
+    This template recurses and, as such, should only be used within functions.
+  -->
+  <template name="_merge-until-empty_" desc="Generate empty base case for functions that recursively merge on cdrs of sets">
+    <param name="@values@" desc="Body" />
+
+    <param name="@set@" desc="Set to operate on" />
+    <param name="@car@" desc="Variable in which to store car of the set" />
+    <param name="@cdr@" desc="Variable in which to store the cdr of the set">
+      <text>__cdr</text>
+    </param>
+
+    <param name="@glance@" desc="Glance at (but do nothing with) this value; recurse without action" />
+    <param name="@only@"   desc="Process only this value; otherwise recurse without action" />
+
+    <!-- to reduce duplicate template code, we simply set a merge flag on cons-until-empty -->
+    <t:cons-until-empty set="@set@" car="@car@" cdr="@cdr@"
+                        glance="@glance@" only="@only@" merge="true">
+      <param-copy name="@values@" />
+    </t:cons-until-empty>
+  </template>
+
+
+
+  <!--
+    Merges two vectors
+  -->
+  <function name="vmerge" desc="Merge two vectors (does not remove duplicates)">
+    <param name="vector" type="float" set="vector" desc="Vector to merge" />
+    <param name="onto"   type="float" set="vector" desc="Vector to append to" />
+
+    <!-- the template handles much of this for us: just keep cons'ing the car
+         until we have nothing more to cons, then that gets cons'd onto the
+         base -->
+    <t:cons-until-empty set="vector" car="car" base="onto">
+      <c:value-of name="car" />
+    </t:cons-until-empty>
+  </function>
+</package>
+

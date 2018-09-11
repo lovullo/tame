@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  core="true"
+  desc="Vector element counting">
+
+  <import package="../base" />
+
+
+  <!-- TODO: deprecate in favor of the new c:length-of -->
+  <function name="length" desc="Counts the number of items in a vector (regardless of value)">
+    <param name="count_set" type="integer" set="vector" desc="Vector to count" />
+
+    <c:sum of="count_set" index="k">
+      <c:const value="1" type="integer" desc="Add 1 for each value in the set" />
+    </c:sum>
+  </function>
+
+
+  <!-- similar to a logical "exists" -->
+  <function name="hasany" desc="Returns 1 or 0 based on whether any values in a boolean vector are set" sym="\exists">
+    <param name="any_set" type="boolean" set="vector" desc="Boolean set to check" />
+
+    <c:ceil>
+      <c:quotient label="Create a fraction > 0 if any value in the given set is 1">
+        <c:sum of="any_set" label="Will be > 0 if any 1s exist in the set" />
+
+        <c:sum>
+          <c:apply name="length">
+            <c:arg name="count_set">
+              <c:value-of name="any_set" />
+            </c:arg>
+          </c:apply>
+
+          <!-- ensure the equation is not undefined if length = 0 -->
+          <c:const value="1" type="integer" desc="Add 1 to ensure equation is always defined" />
+        </c:sum>
+      </c:quotient>
+    </c:ceil>
+  </function>
+</package>
+

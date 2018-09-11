@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="General vector operations">
+
+  <import package="../base" />
+  <import package="../numeric/common" />
+
+
+  <!-- useful because you can pass a conditional expression as an argument and
+       select the index of the result -->
+  <function name="vival" desc="Select index value from some vector">
+    <param name="vector" type="float" set="vector" desc="Vector" />
+    <param name="index" type="integer" desc="Index" />
+
+    <c:value-of name="vector">
+      <c:index>
+        <c:value-of name="index" />
+      </c:index>
+    </c:value-of>
+  </function>
+
+
+  <function name="mival" desc="Select index value from some matrix">
+    <param name="matrix" type="float" set="matrix" desc="Matrix" />
+    <param name="row" type="integer" desc="Row index" />
+    <param name="col" type="integer" desc="Column index" />
+
+    <c:value-of name="matrix">
+      <c:index>
+        <c:value-of name="row" />
+      </c:index>
+      <c:index>
+        <c:value-of name="col" />
+      </c:index>
+    </c:value-of>
+  </function>
+
+
+  <template name="_map-value_" desc="Map from a value to another using a vector map">
+    <param name="@from@" desc="Name of value to map" />
+    <param name="@index@" desc="Index" />
+    <param name="@using@" desc="Vector to use for mapping" />
+
+    <c:apply name="vival">
+      <c:arg name="vector">
+        <c:value-of name="@using@" />
+      </c:arg>
+
+      <c:arg name="index">
+        <c:value-of name="@from@" index="@index@" />
+      </c:arg>
+    </c:apply>
+  </template>
+
+
+
+  <!--
+    Look up a matrix value using maps for both row and column indexes
+
+    This allows for the same values to be used with different matrices. The maps
+    will be used to map a value to an index within the matrix for either a row
+    or column.
+  -->
+  <function name="mlookup" desc="Matrix value lookup based on two index maps">
+    <param name="matrix" type="float"   set="matrix" desc="Rate matrix indexed by CT and PC" />
+    <param name="rmap"   type="integer" set="vector" desc="Row index map" />
+    <param name="cmap"   type="integer" set="vector" desc="Column index map" />
+
+    <param name="rval" type="integer" desc="Row value (to be fed to map for index lookup)" />
+    <param name="cval" type="integer" desc="Column value (to be fed to map for index lookup)" />
+
+    <c:value-of name="matrix">
+      <!-- row -->
+      <c:index>
+        <c:value-of name="rmap">
+          <c:index>
+            <c:value-of name="rval" />
+          </c:index>
+        </c:value-of>
+      </c:index>
+
+      <!-- column -->
+      <c:index>
+        <c:value-of name="cmap">
+          <c:index>
+            <c:value-of name="cval" />
+          </c:index>
+        </c:value-of>
+      </c:index>
+    </c:value-of>
+  </function>
+
+
+  <function name="first_index" desc="Determine the matching index of a vector; -1 if no match">
+    <param name="vector" type="float"   set="vector" desc="Source vector to search" />
+    <param name="value"  type="integer"              desc="Value to match" />
+    <param name="offset" type="integer"              desc="Vector offset" />
+
+    <c:let>
+      <c:values>
+        <!-- TODO: do not calculate every time -->
+        <c:value name="vlen" type="integer" desc="Vector length">
+          <c:length-of>
+            <c:value-of name="vector" />
+          </c:length-of>
+        </c:value>
+      </c:values>
+
+
+      <c:cases>
+        <c:case>
+          <c:when name="offset">
+            <c:gte>
+              <c:value-of name="vlen" />
+            </c:gte>
+          </c:when>
+
+          <c:const value="-1" type="integer" desc="Not found" />
+        </c:case>
+
+
+        <c:case>
+          <c:when name="vector" index="offset">
+            <c:eq>
+              <c:value-of name="value" />
+            </c:eq>
+          </c:when>
+
+          <!-- found the index -->
+          <c:value-of name="offset" />
+        </c:case>
+
+
+        <c:otherwise>
+          <c:recurse vector="vector" value="value">
+            <c:arg name="offset">
+              <t:inc>
+                <c:value-of name="offset" />
+              </t:inc>
+            </c:arg>
+          </c:recurse>
+        </c:otherwise>
+      </c:cases>
+    </c:let>
+  </function>
+
+
+  The template \ref{_repeat-value_} will generate a vector from the
+    given value for each class match.
+
+  <template name="_repeat-value_"
+            desc="Repeat value for each class match">
+    <param name="@values@"    desc="Calculation producing value (use
+                                    one of this or @value@)" />
+    <param name="@class@"     desc="Classification to consider" />
+    <param name="@value@"     desc="Value to repeat (use one of this
+                                    or @values@)" />
+    <param name="@generates@" desc="Result value (vector)" />
+
+    <!-- if providing @values@ -->
+    <param name="@index@" desc="Generator index">
+      <text>__k</text>
+    </param>
+
+
+    <rate-each class="@class@"
+               generates="@generates@" index="@index@">
+      <if name="@values@">
+        <param-copy name="@values@" />
+      </if>
+      <unless name="@values@">
+        <c:value-of name="@value@" index="@index@" />
+      </unless>
+    </rate-each>
+  </template>
+
+
+  <!-- generates a variable that can be recognized as an empty set (useful for
+       defaults to params that require sets) -->
+  <rate-each class="always" yields="__empty" generates="__emptySet" index="k">
+    <c:const value="0" type="integer" desc="Nothing" />
+  </rate-each>
+</package>
+

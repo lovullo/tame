@@ -1,0 +1,220 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015, 2017, 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="Base features">
+
+  The \pkgself~package exposes common and internal
+  defintions.  Ideally, this package will be included automatically by
+  the compiler to remove repetitive, boilerplate imports.  Importing
+  this package isn't necessary if none of these definitions are
+  needed.
+
+
+
+  <section title="Internal Constants">
+    \ref{_CMATCH_} is a magic constant that contains the result of
+    a~classification match.  This is used implicity by
+    \ref{rate-each}.\footnote{The symbol is \Xi~because it looks like
+    a sideways array.}
+
+    \todo{Remove in favor of a local variable or generated
+    classification; there is no need (anymore) for this to be magic.}
+
+    <const name="_CMATCH_" type="boolean" sym="\Xi"
+           desc="Classification match vector (applicability)">
+      <item value="0"
+            desc="Dummy value; this set is populated upon entering
+                  each rate block" />
+    </const>
+
+
+    The runtime is responsible for populating \ref{__DATE_YEAR__} with
+    a proper value representing the current year.
+
+    \todo{TAME is deterministic with this one exception; remove it and
+    have users use the params from {\tt datetime} instead if they need this
+    datum.}
+
+    <const name="__DATE_YEAR__" magic="true"
+           value="0" type="integer"
+           desc="Current year"
+           sym="\widehat{D^\gamma}" />
+  </section>
+
+
+
+  <section title="Primitive Types">
+    Primitives are defined internally; these definitions simply
+    provide symbols to permit their use.
+
+    <typedef name="integer"
+             desc="Any value in the set of integers"
+             sym="\mathbb{I}">
+      <base-type />
+    </typedef>
+
+
+    <typedef name="float"
+             desc="Any real number (represented as a float)"
+             sym="\mathbb{R}">
+      <base-type />
+    </typedef>
+
+
+    \ref{empty} does not have much use outside of the compiler.
+
+    <typedef name="empty"
+             desc="Empty set"
+             sym="\emptyset">
+      <base-type />
+    </typedef>
+  </section>
+
+
+  <section title="Boolean and Unknown">
+    \ref{boolean} contains the boolean \ref{TRUE} and~\ref{FALSE} values,
+      which map to~$1$ and~$0$ respectively.
+    The \ref{maybe} type is the union of \ref{boolean} and \ref{NOTHING},
+      with a value of~$-1$;\footnote{
+          This is similar in spirit to the Haskell \tt{Maybe} type,
+            or the OCaml \tt{Option} type.
+        }this is commonly used to represent an unknown state or missing
+        value.\footnote{
+          The \ref{nothing}~type is used for the sake of the union;
+            it should not be used directly.}
+
+    <typedef name="maybe" desc="Boolean or unknown value">
+      <union>
+        <typedef name="nothing" desc="Unknown value">
+          <enum type="integer">
+            <item name="NOTHING" value="-1" desc="Unknown or missing value" />
+          </enum>
+        </typedef>
+
+        <typedef name="boolean" desc="Boolean values">
+          <enum type="integer">
+            <item name="TRUE"  value="1" desc="True" />
+            <item name="FALSE" value="0" desc="False" />
+          </enum>
+        </typedef>
+      </union>
+    </typedef>
+
+    The constant \ref{UNKNOWN} is also defined as~$-1$ to serve as an
+      alternative to the term~``nothing''.
+
+    <const name="UNKNOWN" value="-1"
+           desc="Unknown or missing value" />
+  </section>
+
+
+
+  <section title="Convenience">
+    $0$~is a~common value.  Where a value is required (such
+    as a~template argument), \ref{ZERO} may be used.  TAME now
+    supports a~constant-scalar syntax ({\tt #0}; \todo{reference this
+    in documentation}), making this largely unnecessary.
+
+    This is declared as a float to provide compatibility with all
+    types of expressions.
+
+    <const name="ZERO" value="0.00"
+           desc="Zero value" />
+
+
+    In the case where classifications are required, but a~static
+    assumption about the applicability of the subject can be made, we
+    have values that are always~true and always~false.  The use
+    of~\ref{never} may very well be a~code smell, but let us not rush
+    to judgment.\footnote{\ref{never} has been added as an analog
+    to~\ref{always}; its author has never had use for it.  Oh, look,
+    we just used ``never''.}
+
+    <classify as="always"
+              desc="Always true"
+              yields="alwaysTrue"
+              keep="true" />
+
+    <classify as="never"
+              any="true"
+              desc="Never true"
+              yields="neverTrue"
+              keep="true" />
+  </section>
+
+
+
+  <section title="Work-In-Progress">
+    \ref{_todo_} formalizes TODO items and may optionally yield a
+      value~\tt{@value@} for use within calculations.%
+        \footnote{This is different than its previous behavior of always
+                    yielding a scalar~$0$.}
+    All uses of the \ref{_todo_} template will produce a warning composed of
+      its description~\tt{@desc@}.
+
+    <template name="_todo_"
+              desc="Represents work that needs to be done">
+      <param name="@desc@" desc="TODO desc">
+        <text>TODO</text>
+      </param>
+
+      <param name="@value@" desc="Placeholder value" />
+      <param name="@index@" desc="Placeholder value index">
+        <text></text>
+      </param>
+
+      <unless name="@value@">
+        <unless name="@index@" eq="">
+          <error>Using @index@ without @value@</error>
+        </unless>
+      </unless>
+
+
+      <warning>
+        TODO: <param-value name="@desc@" />
+      </warning>
+
+
+      <if name="@value@">
+        <c:value-of name="@value@" index="@index@" />
+      </if>
+    </template>
+
+
+    The \ref{_ignore_} template serves as a~block
+    comment.\footnote{This is useful since XML does not support nested
+    comments, which makes it difficult to comment out code that
+    already has XML comments.}  It may be useful for debugging, but is
+    discouraged for use otherwise.  The \ref{_ignore_/@desc@} param
+    should be used to describe intent.
+
+    <template name="_ignore_"
+              desc="Removes all child nodes (as if commented out)">
+      <param name="@values@" desc="Nodes to comment out" />
+      <param name="@desc@"   desc="Reason for ignore" />
+
+
+      <warning>Ignored block!</warning>
+    </template>
+  </section>
+</package>
+

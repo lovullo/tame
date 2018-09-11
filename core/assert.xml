@@ -1,0 +1,110 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015, 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         core="true"
+         desc="Assertions">
+
+  <import package="base" />
+  <import package="vector/cmatch" export="true" />
+
+
+  This package is young;
+    the intent is to provide basic assertions to ensure data
+    integrity.
+
+  \emph{N.B. The behavior of this package changed in version 1.0.0---%
+          \ref{_assert_} now properly fails on non-match,
+            not match.}
+
+  The \ref{_assert_} template generates a~generic assertion using the
+    provided predicates.
+  If the predicates provided to the assertion fail (yields $\bot$),
+    the system immediately terminates.\footnote{
+      Beacuse the system stops processing once a terminating classification
+        yields~$\top$,
+          only one assertion will ever match,
+            even if others would match if execution were to continue.}
+  \tt{@class@} may optionally be used to predicate the asseriton itself---%
+    the assertion will be performed only on respective class matches.
+
+  \ref{_assert_} implements assertions by genearting two classifications---%
+    one to perform the actual assertion,
+      and a terminating classification to ensure that the assertion
+        yields~$\top$.
+
+  The param \ref{assert_ignore} will suppress assertion failures at runtime.
+
+  <param name="assert_ignore" type="boolean" default="0"
+         desc="Ignore assertion failures" />
+
+
+  <template name="_assert_"
+            desc="Terminate on predicate failure">
+    <param name="@values@" desc="Predicates" />
+
+    <param name="@as@" desc="Generated classification name">
+      <text unique="true">-assert-</text>
+    </param>
+
+    <param name="@failure@" desc="Failure description">
+      <text>Assertion</text>
+    </param>
+
+    <param name="@class@" desc="Only perform assertion for respective class
+                                matches (optional)" />
+
+
+    <param name="@neg_as@"
+           desc="Generated name for classification to be negated">
+      <text unique="true">-nassert-</text>
+    </param>
+    <param name="@neg_yields@"
+           desc="Generated yield for classification to be negated">
+      <text unique="true">_nassert</text>
+    </param>
+
+
+    <!-- The actual assertion will be performed by one classification... -->
+    <classify as="@neg_as@" yields="@neg_yields@"
+              desc="{@failure@} (assertion result)">
+      <any>
+        <!-- if class is provided and does not match, then the assertion
+             succeeds automatically -->
+        <if name="@class@">
+          <t:match-class name="@class@" value="FALSE" />
+        </if>
+
+        <all>
+          <param-copy name="@values@" />
+        </all>
+      </any>
+    </classify>
+
+    <!-- ...which is in turn negated for the terminating
+         classification.  The reason for this is that terminating
+         classifications terminate on _match_. -->
+
+    <classify as="@as@" desc="@failure@" terminate="true">
+      <match on="assert_ignore" value="FALSE" />
+      <match on="@neg_yields@" value="FALSE" />
+    </classify>
+  </template>
+</package>

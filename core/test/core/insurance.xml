@@ -1,0 +1,208 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2016 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  title="Test Insurance Abstractions">
+
+  <import package="../spec" />
+
+  <import package="../../base" />
+  <import package="../../dummy" />
+  <import package="../../vector/cmatch" />
+
+  <!-- SUT -->
+  <import package="../../insurance" />
+
+
+  <t:describe name="_premium_">
+    <t:describe name="@round@">
+      <t:it desc="Performs no round when 'none'">
+        <t:premium class="length1"
+                   generates="premRoundNone" index="k"
+                   round="none">
+          <c:value-of name="#0.5" />
+        </t:premium>
+
+        <t:given name="premRoundNone" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#0.5" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Rounds to nearest integer when 'dollar' (up)">
+        <t:premium class="length1"
+                   generates="premRoundDollarUp" index="k"
+                   round="dollar">
+          <c:value-of name="#1.5" />
+        </t:premium>
+
+        <t:given name="premRoundDollarUp" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Rounds to nearest integer when 'dollar' (down)">
+        <t:premium class="length1"
+                   generates="premRoundDollarDown" index="k"
+                   round="dollar">
+          <c:value-of name="#1.4" />
+        </t:premium>
+
+        <t:given name="premRoundDollarDown" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Rounds to nearest cent when 'cent' (up)">
+        <t:premium class="length1"
+                   generates="premRoundCentUp" index="k"
+                   round="cent">
+          <c:value-of name="#1.505" />
+        </t:premium>
+
+        <t:given name="premRoundCentUp" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1.51" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Rounds to nearest cent when 'cent' (down)">
+        <t:premium class="length1"
+                   generates="premRoundCentDown" index="k"
+                   round="cent">
+          <c:value-of name="#1.504" />
+        </t:premium>
+
+        <t:given name="premRoundCentDown" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1.50" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs ceiling when 'up' (low)">
+        <t:premium class="length1"
+                   generates="premRoundCeilLow" index="k"
+                   round="up">
+          <c:value-of name="#1.1" />
+        </t:premium>
+
+        <t:given name="premRoundCeilLow" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs ceiling when 'up' (high)">
+        <t:premium class="length1"
+                   generates="premRoundCeilHigh" index="k"
+                   round="up">
+          <c:value-of name="#1.7" />
+        </t:premium>
+
+        <t:given name="premRoundCeilHigh" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs floor when 'down' (low)">
+        <t:premium class="length1"
+                   generates="premRoundFloorLow" index="k"
+                   round="down">
+          <c:value-of name="#1.1" />
+        </t:premium>
+
+        <t:given name="premRoundFloorLow" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="Performs floor when 'down' (high)">
+        <t:premium class="length1"
+                   generates="premRoundFloorHigh" index="k"
+                   round="down">
+          <c:value-of name="#1.7" />
+        </t:premium>
+
+        <t:given name="premRoundFloorHigh" />
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+               <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>

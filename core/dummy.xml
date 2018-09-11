@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2016 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         title="Dummy Values">
+
+  These are dummy values created primarily for testing.
+
+  Vectors are required for iteration;
+    the below generate values useful for doing so in constant,
+    calculation, and classification form.
+
+
+  <const name="VEC1" desc="Vector of length 1">
+    <item value="1" desc="Dummy value" />
+  </const>
+  <const name="VEC2" desc="Vector of length 2">
+    <item value="1" desc="Dummy value" />
+    <item value="2" desc="Dummy value" />
+  </const>
+  <const name="VEC3" desc="Vector of length 3">
+    <item value="1" desc="Dummy value" />
+    <item value="2" desc="Dummy value" />
+    <item value="3" desc="Dummy value" />
+  </const>
+
+
+  <rate yields="_vec1">
+    <c:sum of="VEC1" generates="vec1" index="k"
+           desc="Vector of length 1">
+      <c:const value="1" desc="Dummy" />
+    </c:sum>
+  </rate>
+  <rate yields="_vec2">
+    <c:sum of="VEC2" generates="vec2" index="k"
+           desc="Vector of length 2">
+      <c:const value="1" desc="Dummy" />
+    </c:sum>
+  </rate>
+  <rate yields="_vec3">
+    <c:sum of="VEC3" generates="vec3" index="k"
+           desc="Vector of length 3">
+      <c:const value="1" desc="Dummy" />
+    </c:sum>
+  </rate>
+
+
+  <classify as="length1" desc="Classification of length 1">
+    <match on="vec1">
+      <c:gt>
+        <c:const value="0" desc="Check if defined" />
+      </c:gt>
+    </match>
+  </classify>
+  <classify as="length2" desc="Classification of length 2">
+    <match on="vec2">
+      <c:gt>
+        <c:const value="0" desc="Check if defined" />
+      </c:gt>
+    </match>
+  </classify>
+  <classify as="length3" desc="Classification of length 3">
+    <match on="vec3">
+      <c:gt>
+        <c:const value="0" desc="Check if defined" />
+      </c:gt>
+    </match>
+  </classify>
+</package>

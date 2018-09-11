@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  core="true"
+  desc="Generic conditionals">
+
+  <import package="base" />
+
+
+  <!-- TODO: use reduce once we have support for function passing -->
+  <function name="or" desc="Return value A if non-zero, otherwise B">
+    <param name="or_a" type="float" desc="Value to return if non-zero" />
+    <param name="or_b" type="float" desc="Value to return if A is zero" />
+
+    <c:cases>
+      <!-- return B if A is zero -->
+      <c:case>
+        <c:when name="or_a">
+          <c:eq>
+            <c:const value="0" type="integer" desc="Return B if A is 0" />
+          </c:eq>
+        </c:when>
+
+        <c:value-of name="or_b" />
+      </c:case>
+
+      <!-- return A if non-zero -->
+      <c:otherwise>
+        <c:value-of name="or_a" />
+      </c:otherwise>
+    </c:cases>
+  </function>
+
+
+  <template name="_cond_" desc="Conditional shorthand">
+    <param name="@name@" desc="Value to check" />
+    <param name="@index@" desc="Index of boolean value" />
+    <param name="@value@" desc="Constant value" />
+    <param name="@type@" desc="Value type" />
+
+    <param name="@cond@" desc="Value to compare against (default boolean true)">
+      <text>TRUE</text>
+    </param>
+
+    <param name="@desc@" desc="Value description">
+      <text>Value when </text>
+      <param-value name="@name@" />
+    </param>
+
+    <c:const value="@value@" type="@type@" desc="@desc@">
+      <!-- TODO: non-index option -->
+      <c:when name="@name@" index="@index@">
+        <c:eq>
+          <c:value-of name="@cond@" />
+        </c:eq>
+      </c:when>
+    </c:const>
+  </template>
+
+
+  <template name="_yield-unless_" desc="Yield a value unless another value is set">
+    <param name="@name@" desc="Overriding value" />
+    <param name="@index@" desc="Index" />
+    <param name="@values@" desc="Value to use otherwise" />
+
+    <c:cases>
+      <c:case>
+        <if name="@index@">
+          <c:when name="@name@" index="@index@">
+            <c:gt>
+              <c:const value="0" type="integer" desc="Use override if greater than 0" />
+            </c:gt>
+          </c:when>
+        </if>
+        <unless name="@index@">
+          <c:when name="@name@">
+            <c:gt>
+              <c:const value="0" type="integer" desc="Use override if greater than 0" />
+            </c:gt>
+          </c:when>
+        </unless>
+
+        <if name="@index@">
+          <c:value-of name="@name@" index="@index@" />
+        </if>
+        <unless name="@index@">
+          <c:value-of name="@name@" />
+        </unless>
+      </c:case>
+
+      <c:otherwise>
+        <param-copy name="@values@" />
+      </c:otherwise>
+    </c:cases>
+  </template>
+
+
+  <template name="_default_" desc="Set a default value if a value is not set">
+    <param name="@name@" desc="Param name" />
+    <param name="@index@" desc="Index" />
+    <param name="@default@" desc="Default value to use if empty" />
+
+    <c:cases>
+      <c:case>
+        <c:when name="@name@" index="@index@">
+          <c:eq>
+            <c:const value="0" type="integer" desc="No value" />
+          </c:eq>
+        </c:when>
+
+        <c:const value="@default@" type="integer" desc="Default value" />
+      </c:case>
+
+      <c:otherwise>
+        <c:value-of name="@name@" index="@index@" />
+      </c:otherwise>
+    </c:cases>
+  </template>
+
+
+
+  <template name="_cond-value-each_" desc="Conditional value">
+    <param name="@class@"     desc="Class match" />
+    <param name="@generates@" desc="Variable to generate into" />
+    <param name="@value@"     desc="Value to yield (use either this or const)" />
+    <param name="@const@"     desc="Constant to yield (use either this or value)" />
+    <param name="@count@"     desc="Optional number of times to apply const/value (as a variable)" />
+
+    <param name="@desc@" desc="Optional constant description">
+      <text>Constant value</text>
+    </param>
+
+    <!-- simply returns a constant value for the class match -->
+    <rate-each class="@class@" accumulate="none" generates="@generates@" index="k">
+      <c:product>
+        <if name="@value@">
+          <c:value-of name="@value@" />
+        </if>
+        <unless name="@value@">
+          <c:const value="@const@" type="float" desc="@desc@" />
+        </unless>
+
+        <!-- if this is not provided, then the c:product will be optimized away -->
+        <if name="@count@">
+          <c:value-of name="@count@" index="k" />
+        </if>
+      </c:product>
+    </rate-each>
+  </template>
+</package>
+

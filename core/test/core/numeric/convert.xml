@@ -1,0 +1,209 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2015 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Test numeric computations dealing with rounding">
+
+
+  <import package="../../spec" />
+
+  <import package="../../../base" />
+  <import package="../../../numeric/convert" />
+
+
+  <t:describe name="_map-interval_">
+    <t:describe name="with values between intervals">
+      <t:it desc="maps start endpoint to first interval">
+        <t:given>
+          <!-- same value as start -->
+          <t:map-interval name="#5"
+                          start="5">
+            <t:endpoint value="10" map="#1" />
+            <t:endpoint value="20" map="#2" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="maps first endpoint to first interval">
+        <t:given>
+          <!-- value same as first endpoint -->
+          <t:map-interval name="#10"
+                          start="0">
+            <t:endpoint value="10" map="#1" />
+            <t:endpoint value="20" map="#2" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="maps value between start and first to first interval">
+        <t:given>
+          <!-- between start and first endpoint -->
+          <t:map-interval name="#5"
+                          start="0">
+            <t:endpoint value="10" map="#1" />
+            <t:endpoint value="20" map="#2" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#1" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="maps value between first and second endpoint to second
+                  interval">
+        <t:given>
+          <!-- between start and first endpoint -->
+          <t:map-interval name="#11"
+                          start="0">
+            <t:endpoint value="10" map="#1" />
+            <t:endpoint value="20" map="#2" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="maps value after final endpoint to default">
+        <t:given>
+          <!-- between start and first endpoint -->
+          <t:map-interval name="#11"
+                          start="0">
+            <t:endpoint value="10" map="#1" />
+            <t:endpoint value="20" map="#2" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="in interval [-∞,start) ">
+      <t:it desc="defaults to map value of 0">
+        <t:given>
+          <t:map-interval name="#1"
+                          start="5" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#0" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="maps to low value when provided">
+        <t:given>
+          <t:map-interval name="#1"
+                          start="5"
+                          low="#2" />
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#2" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="in interval (end,∞] ">
+      <t:it desc="defaults to map value of 0">
+        <t:given>
+          <t:map-interval name="#20"
+                          start="0">
+            <t:endpoint value="10" map="#1" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#0" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="maps to high value when provided">
+        <t:given>
+          <t:map-interval name="#20"
+                          start="0"
+                          high="#25">
+            <t:endpoint value="10" map="#1" />
+          </t:map-interval>
+        </t:given>
+
+        <t:expect>
+          <t:match-result>
+            <c:eq>
+              <c:value-of name="#25" />
+            </c:eq>
+          </t:match-result>
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>

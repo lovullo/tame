@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2015, 2017 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         xmlns:c="http://www.lovullo.com/calc"
+         core="true"
+         desc="Date and time">
+
+  <import package="base" />
+
+  <import package="assert" />
+  <import package="vector/cmatch" />
+
+
+  Providing the current timestamp externally allows the system to be
+    wholly deterministic.
+  It also captures the state of the data in time,
+    so re-calculating in the future (e.g. using the summary pages)
+    will yield the same result.
+
+  <param name="timestamp_current" type="integer" default="0"
+         desc="Unix timestamp representing the current time of the
+               system (clock time), as it should be perceived" />
+
+  <t:assert failure="Missing Unix timestamp for timestamp_current">
+    <t:match-gt on="timestamp_current" value="ZERO" />
+  </t:assert>
+
+
+  This system does not handle its own arthiemtic to figure out the
+    current date components from the given timestamp.
+
+  <param name="timestamp_year" type="integer" default="0"
+         desc="Current year (clock time), as it should be perceived" />
+
+  <param name="timestamp_month" type="integer" default="0"
+         desc="Current month (clock time), as it should be perceived;
+               1-indexed" />
+
+  <param name="timestamp_day" type="integer" default="0"
+         desc="Current day (clock time), as it should be perceived;
+               1-indexed" />
+
+
+  <!--
+    Determines how many years the given date is relative to the current date
+
+    Note that a positive number will be returned if the given date is
+    in the past, negative if in the future.
+  -->
+  <template name="_age-years_" desc="Age in years of the given date relative to the current">
+    <param name="@generates@" desc="Generator variable, per index" />
+    <param name="@yearset@"   desc="Set of years to iterate on" />
+    <param name="@sym@"       desc="Generator symbol" />
+    <param name="@when@"      desc="Only when this boolean value is true" />
+    <param name="@default@"   desc="Default age when yearset values are empty" />
+
+    <param name="@yields@" desc="Variable to yield into">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
+
+
+    <rate yields="@yields@">
+      <c:sum of="@yearset@" index="k" generates="@generates@" desc="Relative age" sym="@sym@">
+        <c:cases>
+          <if name="@when@">
+            <c:case>
+              <c:when name="@when@" index="k">
+                <c:eq>
+                  <c:value-of name="FALSE" />
+                </c:eq>
+              </c:when>
+
+              <!-- return a default, or 0 if no default is provided -->
+              <if name="@default@">
+                <c:value-of name="@default@" index="k" />
+              </if>
+              <unless name="@default@">
+                <c:const value="0" type="integer" desc="Condition not met, but no default" />
+              </unless>
+            </c:case>
+          </if>
+
+          <!-- if no @when@, then we'll always do this -->
+          <c:otherwise>
+            <c:cases>
+              <c:case>
+                <c:when name="@yearset@" index="k">
+                  <c:gt>
+                    <c:const value="0" type="integer" desc="Only calculate difference if a value is available" />
+                  </c:gt>
+                </c:when>
+
+                <c:sum label="Calculate by subtracting the given year from the current year">
+                  <c:value-of name="timestamp_year" />
+
+                  <c:product>
+                    <c:value-of name="NEGATE" />
+                    <c:value-of name="@yearset@" index="k" />
+                  </c:product>
+                </c:sum>
+              </c:case>
+
+              <!-- we don't have a value; just use the default age we were given -->
+              <if name="@default@">
+                <c:otherwise>
+                  <c:value-of name="@default@" index="k" />
+                </c:otherwise>
+              </if>
+            </c:cases>
+          </c:otherwise>
+        </c:cases>
+      </c:sum>
+    </rate>
+  </template>
+</package>
+

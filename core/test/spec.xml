@@ -1,0 +1,355 @@
+<?xml version="1.0"?>
+<!--
+  BDD specification framework
+
+    Copyright (C) 2015, 2018 R-T Specialty, LLC.
+
+    This file is part of tame-core.
+
+    tame-core is free software: you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as
+    published by the Free Software Foundation, either version 3 of the
+    License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+  This framework uses specifications, not stories[0].  Its syntax is heavily
+  motivated by popular BDD frameworks such as RSpec (Ruby), Jasmine
+  (JavaScript), and Mocha (JavaScript).
+
+  As an example, consider a specification for a simple stack implementation:
+
+    describe stack
+      describe push
+        it increases the stack size by 1
+        describe to an empty stack
+          it produces a stack of size 1
+      describe pop
+        it decreases the stack size by 1
+        it returns the most recently pushed item
+        describe multiple times
+          it returns elements in reverse order of push
+        describe from an empty stack
+          it produces an error
+
+  These templates expand all definitions flatly into their parent node;
+  descriptions should therefore be in the package root or within nodes that
+  support calculation and classification definitions.
+
+
+  [0]: http://en.wikipedia.org/wiki/Behavior-driven_development
+         #Story_versus_specification
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
+
+  core="true"
+
+  name="core/test/spec"
+  desc="Behavior-driven development specification system">
+
+  <import package="../base" />
+
+  <import package="../vector/cmatch"
+          export="true" />
+
+
+
+  <template name="_verify-specs_"
+            desc="Declare a template suite">
+    <param name="@result@" desc="Name of boolean result" />
+
+
+    <!--
+      Determines whether all features are conformant to their
+      specifications; this classification is a simple way to determine
+      whether a test suite has passed.
+    -->
+    <classify as="expect-ok"
+              yields="@result@"
+              desc="All features conform to specifications"
+              keep="true">
+      <inline-template>
+        <for-each>
+          <sym-set name-prefix="expect-conform-"
+                   type="class" />
+        </for-each>
+
+        <t:match-class name="{@sym_name@}" />
+      </inline-template>
+    </classify>
+  </template>
+
+
+  <!--
+    Describe a feature specification
+
+    Each specification has a name that describes the feature as concisely as
+    possible. For example, if testing a stack, then `@name@` should simply
+    be "stack".
+
+    Specifications may be arbitrarily nested to group together
+    sub-features. If testing a specific feature of a parent feature, defer
+    as much of the description to the "it" clauses as possible.
+
+    A high-level classification will be generated that will assert on the
+    results of all expectations contained therein.
+
+    Permitted children:
+      - _describe_* - describe sub-features
+      - _it_+       - describe expectations
+  -->
+  <template name="_describe_"
+            desc="Describe a specification">
+    <param name="@name@"   desc="Subject (SUT)" />
+    <param name="@values@" desc="Specification descriptions" />
+
+
+    <param name="@__full_name@"
+           desc="Full subject name, inherited from parents">
+      <param-inherit meta="spec-name" />
+      <param-value name="@name@" />
+      <text> </text>
+    </param>
+
+    <param name="@__prefix@"
+           desc="Generated expectation prefix">
+      <!-- descriptions may be nested; this may or may not exist -->
+      <param-inherit meta="spec-prefix" />
+      <param-value name="@name@" dash="true" identifier="true" />
+      <text>-</text>
+    </param>
+
+    <param name="@__uniq@"
+           desc="Unique id">
+      <text unique="true" />
+    </param>
+
+
+    <expand-sequence>
+      <expand-group>
+        <param-copy name="@values@">
+          <param-meta name="spec-name"
+                      value="@__full_name@" />
+          <param-meta name="spec-prefix"
+                      value="@__prefix@" />
+        </param-copy>
+      </expand-group>
+
+      <!-- joins all generated classifications to provide a higher-level
+           failure if any expectations fail -->
+      <classify as="expect-conform-{@__prefix@}{@__uniq@}"
+                desc="{@__full_name@} meets expectations"
+                keep="true">
+        <inline-template>
+          <for-each>
+            <sym-set name-prefix="expect-that-{@__prefix@}"
+                     type="class" />
+          </for-each>
+
+          <t:match-class name="{@sym_name@}" />
+        </inline-template>
+      </classify>
+    </expand-sequence>
+  </template>
+
+
+
+  <!--
+    Describe a logical group of expectations
+
+    While `_describe_` delimits features (or sub-features), `_it_` delimits
+    logical groups of expectations of those features. Each expectation
+    within an `_it_` group can assert on a common `_given_` value.
+
+    The description should complete the sentence that started at the
+    uppermost `_describe_` ancestor; see the examples at the head of this
+    package.
+
+    Permitted children:
+      - *         - arbitrary definitions for feature test
+      - _given_?  - describe common data for expectations
+      - _expect_+ - describe feature expectation
+  -->
+  <template name="_it_"
+            desc="Describe logical group of expectations">
+    <param name="@desc@"   desc="Description of expectation" />
+    <param name="@values@" desc="Expectations" />
+
+    <param name="@__id@" desc="Unique identifier">
+      <param-inherit meta="spec-prefix" />
+      <param-value name="@desc@" dash="true" identifier="true" />
+    </param>
+
+
+    <param-copy name="@values@">
+      <param-meta name="spec-it"
+                  value="@desc@" />
+      <param-meta name="spec-it-prefix"
+                  value="@__id@" />
+    </param-copy>
+  </template>
+
+
+
+  <!--
+    Describe a value for expectation groups
+
+    The defined value is available to adjacent expectations through use of
+    `_match-result`.
+
+    A `_given_` definition is not required; it exists as a convenient and
+    concise way to represent test data.
+
+    Permitted children:
+      - Any valid calculation
+  -->
+  <template name="_given_"
+            desc="Describe a value for expectation groups">
+    <param name="@values@" desc="Calculation" />
+
+    <param name="@name@" desc="Value to reference (optional)" />
+
+    <param name="@__id@"
+           desc="Unique identifier to avoid symbol conflicts">
+      <text unique="true">given</text>
+    </param>
+
+
+    <!-- name given; no need to generate -->
+    <if name="@name@">
+      <param-meta name="spec-given-id"
+                  value="@name@" />
+    </if>
+
+    <!-- no name given; generate a unique one -->
+    <unless name="@name@">
+      <param-meta name="spec-given-id"
+                  value="@__id@" />
+
+      <rate yields="@__id@">
+        <param-copy name="@values@" />
+      </rate>
+    </unless>
+  </template>
+
+
+
+  <!--
+    Describe a feature expectation
+
+    An expectation tests the adherence of a feature to its specification. It
+    generates a classification and therefore shares identical child nodes.
+
+    Expectations may assert upon any value within scope. The
+    `_given_` template exists to simplify test calculation definitions;
+    asserting on the result of the adjacent `_given_` can be done using
+    `_match-result_`.
+
+    Permitted children:
+      - Any valid classification predicates
+  -->
+  <template name="_expect_"
+            desc="Describe a feature expectation">
+    <param name="@values@"
+           desc="Predicates" />
+
+    <!-- generated by the _describe_ template -->
+    <param name="@__spec_name@"
+           desc="Inherit specification name">
+      <param-inherit meta="spec-name" />
+    </param>
+
+    <!-- generated by the _it_ template -->
+    <param name="@__spec_it@"
+           desc="Inherit specification clause">
+      <param-inherit meta="spec-it" />
+    </param>
+
+    <!-- generate a unique id to avoid class conflicts (be sure to use the
+         ineherited prefix so that they can all be combined into a larger
+         predicate to assert on failing tests) -->
+    <param name="@__id@"
+           desc="Unique identifier">
+      <text>expect-that-</text>
+      <param-inherit meta="spec-it-prefix" />
+      <text unique="true">-</text>
+    </param>
+
+
+    <classify as="@__id@"
+              desc="{@__spec_name@}{@__spec_it@}">
+      <param-copy name="@values@">
+        <param-meta name="spec-expect-id"
+                    value="@__id@" />
+      </param-copy>
+    </classify>
+  </template>
+
+
+  <!--
+    Match against result of an adjacent `_given_` expression
+
+    This has equivalent syntax to the primitive `match`, except that `@on`
+    is determined for you.
+
+    Permitted children:
+      - Anything permitted by the `match` primitive
+  -->
+  <template name="_match-result_"
+            desc="Match against result of an adjacent _given_ expression">
+    <param name="@values@"
+           desc="Calculation as predicate">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Constant index">
+      <text></text>
+    </param>
+
+    <param name="@__given_id@"
+           desc="Unique identifier of _given_ expression">
+      <param-inherit meta="spec-given-id" />
+    </param>
+
+    <!-- choose one -->
+    <param name="@value@" desc="Match value" />
+    <param name="@eq@"    desc="Match equality" />
+    <param name="@anyOf@" desc="Match against domain of type" />
+
+
+    <if name="@value@">
+      <match on="@__given_id@" index="@index@" value="@value@" />
+    </if>
+
+    <unless name="@value@">
+      <if name="@eq@">
+        <match on="@__given_id@" index="@index@">
+          <c:eq>
+            <c:value-of name="#{@eq@}" />
+          </c:eq>
+        </match>
+      </if>
+
+      <unless name="@eq@">
+        <if name="@anyOf@">
+          <match on="@__given_id@" index="@index@" anyOf="@anyOf@" />
+        </if>
+        <unless name="@anyOf@">
+          <match on="@__given_id@" index="@index@">
+            <param-copy name="@values@" />
+          </match>
+        </unless>
+      </unless>
+    </unless>
+  </template>
+</package>
