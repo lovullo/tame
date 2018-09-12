@@ -64,8 +64,7 @@
                    desc="Vector param"
                    dtype="footype"
                    default=""
-                   tex=""
-                   keep="true" />
+                   tex="" />
 
       <preproc:sym type="param"
                    name="tex_param"
@@ -73,8 +72,7 @@
                    desc="Matrix param with TeX"
                    dtype="tex"
                    default=""
-                   tex="\tex"
-                   keep="true" />
+                   tex="\tex" />
 
       <preproc:sym type="param"
                    name="scalar_param"
@@ -82,8 +80,7 @@
                    desc="Scalar param (implicit)"
                    dtype="bar"
                    default=""
-                   tex=""
-                   keep="true" />
+                   tex="" />
 
       <preproc:sym type="param"
                    name="scalar_param_explicit"
@@ -91,8 +88,7 @@
                    desc="Scalar param (explicit)"
                    dtype="bar"
                    default=""
-                   tex=""
-                   keep="true" />
+                   tex="" />
 
       <preproc:sym type="param"
                    name="unknown_dim"
@@ -100,8 +96,7 @@
                    desc="Unknown dimension"
                    dtype="wtf"
                    default=""
-                   tex=""
-                   keep="true" />
+                   tex="" />
     </expect>
   </scenario>
 

@@ -344,8 +344,7 @@
                desc="{@desc}"
                dtype="{@type}"
                default="{@default}"
-               tex="{@sym}"
-               keep="true" />
+               tex="{@sym}" />
 </template>
 
 
