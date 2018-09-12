@@ -27,9 +27,9 @@ stylesheets := $(shell find "$(path_src)" \
 stexi       := $(stylesheets:.xsl=.texi)
 
 info_TEXINFOS = tame.texi
-tame_TEXINFOS = todo.texi license.texi $(stexi)
+tame_TEXINFOS = todo.texi license.texi $(stexi) tame.css
 
-MAKEINFOHTML=$(MAKEINFO) --html
+MAKEINFOHTML=$(MAKEINFO) --html --css-include tame.css
 
 xsltexis: $(stexi)
 %.texi: %.xsl

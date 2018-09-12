@@ -1,0 +1,173 @@
+/*
+Copyright (C) 2016-2017 Oliver Heimlich
+Copyright (C) 2017, 2018 R-T Specialty, LLC.
+
+This file is part of Octave.
+
+Octave is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 3 of the License, or (at
+your option) any later version.
+
+Octave is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received a copy of the GNU General Public License
+along with Octave; see the file COPYING.  If not, see
+<http://www.gnu.org/licenses/>.
+*/
+
+/** modified by RT Specialty / LoVullo **/
+/** TODO: loading fonts from Google is a privacy issue; download as part
+    of build and self-host **/
+@import url('https://fonts.googleapis.com/css?family=Noto+Sans');
+@import url('https://fonts.googleapis.com/css?family=Roboto+Mono');
+
+/* Use custom fonts */
+code, kbd, samp, tt, pre { font-family: 'Roboto Mono', monospace; }
+code, kbd, samp, tt { font-style: italic; padding: 0 0.1ex; /* slightly increase margin to surrounding text */ }
+body, .sansserif { font-family: 'Noto Sans', sans-serif; }
+h1, h2, h3, h4, h5, .menu-comment, .roman, .menu-preformatted { font-family: 'Noto Sans', serif; }
+
+/*
+Use colors from the solarized color theme (sparsely),
+the main text will remain in default colors for optimal readability (black on white).
+*/
+pre.example, pre.verbatim, .header, .float-caption, hr
+{
+  /* base00 ~ body text in light solarized theme */
+  color: #657b83;
+  border-color: #657b83;
+}
+pre.example, pre.verbatim
+{
+  /* base3 ~ background color in light solarized theme */
+  background-color: #fdf6e3;
+  padding: 0.5em;
+  font-size: 0.9em;
+  overflow-x: scroll;
+}
+a { color: #268bd2; /* blue */ }
+a:visited { color: #d33682; /* magenta */ }
+
+/** added by RT Specialty / LoVullo **/
+.float
+{
+    margin-block-start: 2em;
+    margin-block-end: 2em;
+}
+
+/* Center floating tables and images */
+.float table, .float img, .float object { margin-left: auto; margin-right: auto; }
+
+/* Decrease table width, but not on small screens */
+.float table { max-width: 38em; }
+
+/* Use horizontal lines: above/below tables and after table headers (Chicago Style) */
+.float table, .float th { border-collapse: collapse; border-top: 1px solid black; border-bottom: 1px solid black; }
+.float th, .float td { padding: 0.5em; }
+
+/* Use horizontal ruler with double lines */
+hr { border-width: 0; border-top-width: 3px; border-style: double; }
+
+/* Smaller gap between subsequent @group blocks */
+.example, .verbatim { margin-bottom: 1em; }
+.example + .example, .verbatim + .verbatim { margin-top: -0.5em }
+
+/* Smaller gap between definition and its description */
+dd > p:first-child { margin-top: 0.5em; }
+
+/* Limit maximum body width such that text is easier to read */
+body {
+  max-width: 42em;
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+
+  text-align: justify;
+}
+
+/* On small screens don't indent the code examples to prevent overflow */
+div.example, div.verbatim { margin-left: auto; max-width: 38.8em; }
+
+/*
+Use left margin such that text is easier to read,
+but don't sacrifice space on small screens.
+*/
+@media screen and (min-width: 43em)
+{
+  /* Smooth transition for screens between 43em and 57em */
+  body { margin-left: auto; margin-right: auto; }
+  @media (min-width: 57em)
+  {
+    body { margin-left: 7.5em; }
+  }
+}
+
+/** added by RT Specialty / LoVullo **/
+.doc-notice
+{
+    border-left: 5px solid #657b83;
+    margin:  0px;
+    padding-block-start: 0.25em;
+    padding-block-end: 0.25em;
+}
+
+.doc-notice p
+{
+    padding-left: 1em;
+    margin: 0px;
+}
+
+.doc-notice.devnotice,
+.doc-notice.devnote
+{
+    border-color: #d33682;
+}
+
+.doc-notice p::before
+{
+    display: block;
+    float: left;
+    margin-left: -1.5em;
+}
+
+.doc-notice.devnotice p::before
+{
+    color: #d33682;
+    content: '\01F6A7';
+}
+
+.doc-notice.devnote p::before
+{
+    color: #d33682;
+    content: '\01F4DD';
+}
+
+.doc-notice.tip p::before
+{
+    content: '\261E';
+}
+
+.doc-notice.trivia p::before
+{
+    content: '\1F914';
+}
+
+.doc-notice p
+{
+    padding-left: 1.75em;
+}
+
+.footnote-notice.devnotice p:first-child::before
+{
+    content: '\01F6A7';
+    margin-right: 0.5em;
+}
+
+/* "Example:" */
+.doc-notice.ex strong:first-child
+{
+    color: #657b83;
+}
