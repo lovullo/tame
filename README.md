@@ -1,5 +1,5 @@
 <!---
-  Copyright (C) 2015, 2016 R-T Specialty, LLC.
+  Copyright (C) 2015, 2016, 2017 LoVullo Associates, Inc.
 
   Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License,
@@ -45,10 +45,13 @@ project resulted in a bit of a mess, which is being refactored into
 
 
 ## Documentation
-Compiled documentation is available [via our GitLab
-mirror](https://lovullo.gitlab.io/tame/), which uses the same build
-pipeline as we do on our internal GitLab instance.  It contains the current
-state of master (with some delay), not just the most recent tag.
+Compiled documentation for the latest release is available via our GitLab
+mirror, which uses the same build pipeline as we do on our internal GitLab
+instance.  Available formats are:
+
+- [Multi-page HTML][doc-html]
+- [PDF][doc-pdf]
+- [Info][doc-info]
 
 
 ## Hacking
@@ -64,3 +67,8 @@ any later version.
 This program is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+[doc-html]: https://lovullo.gitlab.io/tame/
+[doc-pdf]: https://lovullo.gitlab.io/tame/tame.pdf
+[doc-info]: https://lovullo.gitlab.io/tame/tame.info
+

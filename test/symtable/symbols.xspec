@@ -63,40 +63,40 @@
                    dim="1"
                    desc="Vector param"
                    dtype="footype"
-                   tex=""
-                   keep="true" />
+                   default=""
+                   tex="" />
 
       <preproc:sym type="param"
                    name="tex_param"
                    dim="2"
                    desc="Matrix param with TeX"
                    dtype="tex"
-                   tex="\tex"
-                   keep="true" />
+                   default=""
+                   tex="\tex" />
 
       <preproc:sym type="param"
                    name="scalar_param"
                    dim="0"
                    desc="Scalar param (implicit)"
                    dtype="bar"
-                   tex=""
-                   keep="true" />
+                   default=""
+                   tex="" />
 
       <preproc:sym type="param"
                    name="scalar_param_explicit"
                    dim="0"
                    desc="Scalar param (explicit)"
                    dtype="bar"
-                   tex=""
-                   keep="true" />
+                   default=""
+                   tex="" />
 
       <preproc:sym type="param"
                    name="unknown_dim"
                    dim="-1"
                    desc="Unknown dimension"
                    dtype="wtf"
-                   tex=""
-                   keep="true" />
+                   default=""
+                   tex="" />
     </expect>
   </scenario>
 
@@ -134,11 +134,11 @@
       <preproc:sym type="meta"
                    name=":meta:prop1"
                    desc="Metavalue prop1"
-                   keep="true" />
+                   pollute="true" />
       <preproc:sym type="meta"
                    name=":meta:prop2"
                    desc="Metavalue prop2"
-                   keep="true" />
+                   pollute="true" />
     </expect>
   </scenario>
 </description>
