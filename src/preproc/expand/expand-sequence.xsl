@@ -31,8 +31,8 @@
 @section Expansion Sequence
 
   An @dfn{expansion sequence} @math{E} is an ordered list of nodes
-  @math{N_1,N_2,\\ldots,N_m} satisfying the property that, given some
-  node @math{N_x\\in E} such that @math{m\\geq x>1}, the node
+  @math{N_1,N_2,\ldots,N_m} satisfying the property that, given some
+  node @math{N_x\in E} such that @math{m\geq x>1}, the node
   @math{N_@{x-1@}} must have already been fully expanded before
   expansion of @math{N_x} begins.  Such an ordering guarantee is
   generally unnecessary.
