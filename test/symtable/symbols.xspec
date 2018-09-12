@@ -63,6 +63,7 @@
                    dim="1"
                    desc="Vector param"
                    dtype="footype"
+                   default=""
                    tex=""
                    keep="true" />
 
@@ -71,6 +72,7 @@
                    dim="2"
                    desc="Matrix param with TeX"
                    dtype="tex"
+                   default=""
                    tex="\tex"
                    keep="true" />
 
@@ -79,6 +81,7 @@
                    dim="0"
                    desc="Scalar param (implicit)"
                    dtype="bar"
+                   default=""
                    tex=""
                    keep="true" />
 
@@ -87,6 +90,7 @@
                    dim="0"
                    desc="Scalar param (explicit)"
                    dtype="bar"
+                   default=""
                    tex=""
                    keep="true" />
 
@@ -95,6 +99,7 @@
                    dim="-1"
                    desc="Unknown dimension"
                    dtype="wtf"
+                   default=""
                    tex=""
                    keep="true" />
     </expect>
@@ -134,11 +139,11 @@
       <preproc:sym type="meta"
                    name=":meta:prop1"
                    desc="Metavalue prop1"
-                   keep="true" />
+                   pollute="true" />
       <preproc:sym type="meta"
                    name=":meta:prop2"
                    desc="Metavalue prop2"
-                   keep="true" />
+                   pollute="true" />
     </expect>
   </scenario>
 </description>
