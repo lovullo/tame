@@ -40,13 +40,6 @@ Performance has improved drastically,
         This may or may not improve the memory footprint@mdash{
           }hopefully Saxon will see that previously generated trees
             are no longer necessary and GC them.
-
-  @item Remove concept of classifier vs. rating processes.
-        This distinction was important in the past to work around
-          pulling in too many dependencies,
-            but there's not really much rationale for separate
-              @code{classify} and @code{rate} methods now,
-                and it'll get rid of a decent amount of work.
 @end enumerate
 
 
