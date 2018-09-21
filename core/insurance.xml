@@ -92,6 +92,20 @@
     <!-- not yet used, but it will at least serve as code
          documentation for the time being -->
     <param name="@desc@" desc="Premium description" />
+    <unless name="@desc@">
+      <unless name="@generates@" eq="">
+        <error>
+            a description (@desc@) is required for
+            `<param-value name="@generates@" />'
+        </error>
+      </unless>
+      <if name="@generates@" eq="">
+        <error>
+            a description (@desc@) is required for
+            `<param-value name="@yields@" />'
+        </error>
+      </if>
+    </unless>
 
 
     <rate-each class="@class@" no="@no@" yields="@yields@"
