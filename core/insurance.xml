@@ -37,12 +37,10 @@
   Some notable TODOs:
 
   \begin{enumerate}
-    \item Enforce naming convention;
     \item Support scalar results;
     \item Fail on zero premium unless explicitly stated;
-    \item Fail on negative premium (use a credit template);
-    \item Rounding direction (currently only nearest); and
-    \item Credit and surcharge.
+    \item Fail on negative premium (use a credit template); and
+    \item Rounding direction (currently only nearest).
   \end{enumerate}
 
   \todo{Template to abstract these {\tt rate-each} generation
@@ -67,6 +65,25 @@
       <text></text>
     </param>
 
+    <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <!-- at least one of generates or yields is required -->
+    <if name="@yields@" eq="">
+      <if name="@generates@" eq="">
+        <error>must provide at least one of @generates or @yields</error>
+      </if>
+    </if>
+
+    <unless name="@generates@" eq="">
+      <t:naming-convention name="@generates@" prefix="prem" />
+    </unless>
+
+    <unless name="@yields@" eq="">
+      <t:naming-convention name="@yields@" prefix="prem" />
+    </unless>
+
     <!-- required since various companies have various bizzare
          rounding rules that tend to be a source of bugs; make the
          developer think about it -->
@@ -77,7 +94,7 @@
     <param name="@desc@" desc="Premium description" />
 
 
-    <rate-each class="@class@" no="@no@"
+    <rate-each class="@class@" no="@no@" yields="@yields@"
                generates="@generates@" index="@index@"
                sym="@sym@" gensym="@gensym@">
       <!-- TODO: we now have reason for a more concise conditional
