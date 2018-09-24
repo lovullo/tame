@@ -51,8 +51,6 @@
             desc="A premium dollar amount">
     <param name="@values@"    desc="Body" />
     <param name="@class@"     desc="Predicate" />
-    <param name="@generates@" desc="Generator name" />
-    <param name="@index@"     desc="Generator index" />
 
     <param name="@no@" desc="Negated predicate">
       <text></text>
@@ -66,6 +64,14 @@
     </param>
 
     <param name="@yields@" desc="Yield (optional)">
+      <text></text>
+    </param>
+
+    <param name="@generates@" desc="Generates (optional)">
+      <text></text>
+    </param>
+
+    <param name="@index@" desc="Index (optional)">
       <text></text>
     </param>
 
