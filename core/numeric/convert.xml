@@ -160,8 +160,13 @@
       <text></text>
     </param>
 
+    <param name="@desc@"
+           desc="Endpoint description">
+      <text></text>
+    </param>
 
-    <c:case>
+
+    <c:case label="@desc@">
       <c:when name="__intval">
         <c:lte>
           <c:const value="@value@"
