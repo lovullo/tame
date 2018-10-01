@@ -457,36 +457,12 @@
         </xsl:message>
       </xsl:if>
 
-      <!-- first output any rate blocks are are ungrouped -->
       <xsl:for-each select="$src/lv:rate[ @yields=$rates/@name ]">
         <li>
           <a href="#{@yields}" class="sym-ref sym-rate">
             <xsl:value-of select="@yields" />
           </a>
         </li>
-      </xsl:for-each>
-
-      <!-- finally, grouped ones -->
-      <xsl:for-each select="$src/lv:rate-group">
-        <xsl:variable name="grates" select="
-            lv:rate[ @yields=$rates/@name ]
-          " />
-
-        <xsl:if test="$grates">
-          <li class="rate-group">
-            <xsl:value-of select="@desc" />
-
-            <ul>
-              <xsl:for-each select="$grates">
-                <li>
-                  <a href="#{@yields}">
-                    <xsl:value-of select="@yields" />
-                  </a>
-                </li>
-              </xsl:for-each>
-            </ul>
-          </li>
-        </xsl:if>
       </xsl:for-each>
     </ul>
   </xsl:if>
@@ -862,26 +838,6 @@
 <xsl:template match="lv:param" mode="gen-class-use-list">
   <!-- FIXME: this used to make use of lv:required-params, which no longer
        exists -->
-</xsl:template>
-
-
-<!-- necessary since the first rate-group may be matched for the premium
-     calculation heading -->
-<xsl:template match="lv:rate-group">
-  <xsl:apply-templates select="." mode="rate-group-title" />
-</xsl:template>
-
-<xsl:template match="lv:rate-group" mode="rate-group-title">
-  <xsl:call-template name="_debug">
-    <xsl:with-param name="text">
-      <xsl:text>processing rate group "</xsl:text>
-      <xsl:value-of select="@desc" />
-      <xsl:text>"</xsl:text>
-    </xsl:with-param>
-  </xsl:call-template>
-
-  <!-- process children -->
-  <xsl:apply-templates />
 </xsl:template>
 
 

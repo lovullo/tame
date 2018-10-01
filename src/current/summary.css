@@ -293,17 +293,6 @@ fieldset
     border-bottom-color: #75507b;
 }
 
-.package h4.rate-group
-{
-    border-bottom: 1px dashed #babdb6;
-    margin-top: 3em;
-    margin-left: -0.5em;
-}
-.rate-groups .generates
-{
-    font-size: 0.9em;
-}
-
 .package > .title > .imports
 {
     position: absolute;
