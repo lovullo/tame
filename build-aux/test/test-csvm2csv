@@ -35,6 +35,8 @@ run-test()
   # SUT invocation
   declare -r given=$( ../csvm2csv < <( cat <<< "$input" ) )
 
+  test $? -eq 0 || return 1
+
   # expected output
   diff <( cat <<< "$expected" ) <( cat <<< "$given" )
 }
@@ -187,6 +189,62 @@ $baz, 5'
 }
 
 
+# :foo=0 should be considered to be defined
+test-var-zero-ref()
+{
+  declare -r input='header, line
+:foo=0
+$foo'
+
+  declare -r expected='header,line
+0'
+
+  run-test "$input" "$expected"
+}
+
+
+test-fail-unknown-var-ref()
+{
+  ((testsum++))
+
+  local -r result=$(
+    ../csvm2csv 2>&1 <<< '$undefined' \
+      && echo '(test failure: expected failure)'
+  )
+
+  grep -q 'unknown.*\$undefined' <<< "$result" \
+    || return 1
+}
+
+
+test-fail-non-numeric-range()
+{
+  ((testsum++))
+
+  local -r result=$(
+    ../csvm2csv 2>&1 <<< 'A--Z' \
+      && echo '(test failure: expected failure)'
+  )
+
+  grep -q 'invalid range.*A--Z' <<< "$result" \
+    || return 1
+}
+
+
+test-fail-invalid-var-dfn()
+{
+  ((testsum++))
+
+  local -r result=$(
+    ../csvm2csv 2>&1 <<< ':BAD@#=var' \
+      && echo '(test failure: expected failure)'
+  )
+
+  grep -q 'invalid variable definition.*:BAD@#=var' <<< "$result" \
+    || return 1
+}
+
+
 test-comment \
   && test-range \
   && test-delim \
@@ -195,13 +253,17 @@ test-comment \
   && test-var-in-range-delim \
   && test-var-with-range-delim \
   && test-var-with-var \
+  && test-var-zero-ref \
+  && test-fail-unknown-var-ref \
+  && test-fail-non-numeric-range \
+  && test-fail-invalid-var-dfn \
   || {
     echo 'csvm2csv test failed' >&2
     exit 1
   }
 
 # safety check
-test "$testsum" -eq 8 || {
+test "$testsum" -eq 12 || {
   echo 'error: did not run all csvm2csv tests!' >&2
   exit 1
 }

@@ -46,12 +46,20 @@
 
 
 # Expand variable with its value, if any
-function expand_vars( s )
+function expand_vars( s,   value )
 {
   # attempt to parse variable (may expand into a range)
   if ( match( s, /^\$([a-zA-Z_-]+)$/, m ) )
   {
-    return vars[ m[1] ];
+    value = vars[ m[1] ];
+
+    if ( value == "" )
+    {
+      print "error: unknown variable reference: `$" m[1] "'" > "/dev/stderr"
+      exit 1
+    }
+
+    return value
   }
 
   return s
@@ -102,6 +110,12 @@ function parseline( i, m, j, me, orig )
     j  = expand_vars( m[1] )
     me = expand_vars( m[2] )
 
+    if ( !match( j, /^[0-9]+$/ ) || !match( me, /^[0-9]+$/ ) )
+    {
+      print "error: invalid range: `" $i "'" > "/dev/stderr"
+      exit 1
+    }
+
     do
     {
       $i = j
@@ -130,7 +144,12 @@ BEGIN {
 
 # lines that begin with a colon are variable definitions
 /^:/ {
-  match( $0, /^:([a-zA-Z_-]+)=(.*?)$/, m )
+  if ( !match( $0, /^:([a-zA-Z_-]+)=(.*?)$/, m ) )
+  {
+      print "error: invalid variable definition: `" $0 "'" > "/dev/stderr"
+      exit 1
+  }
+
   vars[ m[1] ] = m[2]
   next
 }
