@@ -20,6 +20,7 @@ SUBDIRS = doc progtest
 
 path_src  = src
 path_test = test
+path_aux  = build-aux
 
 # all source files will be run through hoxsl; see `applies' target
 apply_src  := $(shell find "$(path_src)" "$(path_test)" \
@@ -49,6 +50,7 @@ applies: $(apply_dest)
 
 test: check
 check: | applies
+	for test in $(path_aux)/test/test-*; do ./$$test || exit 1; done
 	$(path_test)/runner
 
 progtest: FORCE
