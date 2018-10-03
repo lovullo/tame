@@ -1,0 +1,195 @@
+#!/usr/bin/awk -f
+#
+# Expands a "magic" CSV file into a normal CSV
+#
+#   Copyright (C) 2016, 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# "Magic" CSVs simply exist to make life easier: they permit comments, blank
+# lines, variables, sub-delimiter expansion, and any number of ranges per line.
+# Ranges will be expanded in every combination, making rate tables highly
+# maintainable.
+#
+# Variables are also supported when defined using :var=val. Variables may
+# expand into ranges, 'cause they're awesome. Multiple variables may be
+# delimited by semi-colons, as may multiple values.
+#
+# For example:
+#   :foo=1--3
+#   $foo;7;9--10:$foo, 5--10,1/1/2017
+#
+# Would generate:
+#   1, 5, 1483246800
+#   1, 6, 1483246800
+#   ...
+#   5, 10, 1483246800
+#   2, 5, 1483246800
+#   ...
+#   9, 5, 14832468005
+#   ...
+#   1, 5, 1483246800
+#   1, 6, 1483246800
+#   ...
+##
+
+
+# Expand variable with its value, if any
+function expand_vars( s,   value )
+{
+  # attempt to parse variable (may expand into a range)
+  if ( match( s, /^\$([a-zA-Z_-]+)$/, m ) )
+  {
+    value = vars[ m[1] ];
+
+    if ( value == "" )
+    {
+      print "error: unknown variable reference: `$" m[1] "'" > "/dev/stderr"
+      exit 1
+    }
+
+    return value
+  }
+
+  return s
+}
+
+
+# Expand line
+function parseline( i, m, j, me, orig )
+{
+  if ( i > NF )
+  {
+    print
+    return
+  }
+
+  orig = $i
+
+  # expand variables before any processing so that expansions
+  # can include any type of formatting
+  $i = expand_vars( $i )
+
+  if ( match( $i, /^([0-9]+\/){2}[0-9]+$/, m ) )
+  {
+    cmd = "date --date=" $i " +%s"
+    cmd |& getline $i
+    close(cmd)
+  }
+
+  # check first for delimiters
+  if ( match( $i, /^([^;]+);(.*)$/, m ) )
+  {
+    # give it a shot with the first value
+    $i = m[1]
+    parseline( i )
+
+    # strip off the first value and process with following value(s)
+    $i = m[2]
+    parseline( i )
+
+    # we've delegated; we're done
+    $i = orig
+    return
+  }
+
+  # parse range
+  if ( match( $i, /^([^-]+)--([^-]+)$/, m ) )
+  {
+    j  = expand_vars( m[1] )
+    me = expand_vars( m[2] )
+
+    if ( !match( j, /^[0-9]+$/ ) || !match( me, /^[0-9]+$/ ) )
+    {
+      print "error: invalid range: `" $i "'" > "/dev/stderr"
+      exit 1
+    }
+
+    do
+    {
+      $i = j
+      parseline( i + 1 )
+    } while ( j++ < me )
+  }
+  else
+  {
+    parseline( i + 1 );
+  }
+
+  # restore to original value
+  $i = orig
+}
+
+
+BEGIN {
+  # we're parsing CSVs
+  FS = " *, *"
+  OFS = ","
+
+  has_directives = 0
+  directives     = "!(NODIRECTIVES)"
+}
+
+
+# skip all lines that begin with `#', which denotes a comment, or are empty
+/^#|^$/ { next; }
+
+# directives are echoed back and are intended for processing by
+# the parent csvm2csv script
+/^!/ && output_started {
+  print "error: directive must appear before header: `" $0 "'" > "/dev/stderr"
+  exit 1
+}
+/^!/ && has_directives {
+  print "error: all directives must be on one line: `" $0 "'" > "/dev/stderr"
+  exit 1
+}
+/^!/ {
+  has_directives = 1
+  directives     = $0
+
+  next
+}
+
+# lines that begin with a colon are variable definitions
+/^:/ {
+  if ( !match( $0, /^:([a-zA-Z_-]+)=(.*?)$/, m ) )
+  {
+      print "error: invalid variable definition: `" $0 "'" > "/dev/stderr"
+      exit 1
+  }
+
+  vars[ m[1] ] = m[2]
+  next
+}
+
+# Always begin output with a line for directives, even if there are
+# none.  This makes subsequent processing much easier, since we won't have
+# to conditionally ignore the top line.
+!output_started {
+  print directives
+
+  output_started = 1
+}
+
+# lines that need any sort of processing (ranges, dates, etc)
+/--|;|\$[a-zA-Z_-]|\// { parseline( 1 ); next; }
+
+# all other lines are normal; simply output them verbatim
+{
+  # this assignment will ensure that awk processes the output, ensuring that
+  # extra spaces between commas are stripped
+  $1=$1
+  print
+}
