@@ -54,6 +54,19 @@ instance.  Available formats are:
 - [Info][doc-info]
 
 
+## Getting Started
+To get started, make sure Saxon version 9 or later is available and its path
+set as `SAXON_CP`; that the path to hoxsl is set via `HOXSL`; and then run
+the `bootstrap` script:
+
+```bash
+export SAXON_CP=/path/to/saxon9he.jar
+export HOXSL=/path/to/hoxsl/root
+
+./boostrap
+```
+
+
 ## Hacking
 Information for TAME developers can be found in the file `HACKING`.
 
