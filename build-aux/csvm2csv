@@ -1,8 +1,7 @@
-#!/usr/bin/awk -f
-#
+#!/bin/bash
 # Compiles a "magic" CSV file into a normal CSV
 #
-#   Copyright (C) 2016, 2018 R-T Specialty, LLC.
+#   Copyright (C) 2018 R-T Specialty, LLC.
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -17,150 +16,95 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-# "Magic" CSVs simply exist to make life easier: they permit comments, blank
-# lines, variables, sub-delimiter expansion, and any number of ranges per line.
-# Ranges will be expanded in every combination, making rate tables highly
-# maintainable.
+# For format of CSVMs, see `csvm-expand'.
 #
-# Variables are also supported when defined using :var=val. Variables may
-# expand into ranges, 'cause they're awesome. Multiple variables may be
-# delimited by semi-colons, as may multiple values.
-#
-# For example:
-#   :foo=1--3
-#   $foo;7;9--10:$foo, 5--10,1/1/2017
-#
-# Would generate:
-#   1, 5, 1483246800
-#   1, 6, 1483246800
-#   ...
-#   5, 10, 1483246800
-#   2, 5, 1483246800
-#   ...
-#   9, 5, 14832468005
-#   ...
-#   1, 5, 1483246800
-#   1, 6, 1483246800
-#   ...
+# To disable sorting of CSVM output, use the `!NOSORT' directive before the
+# header line.
 ##
 
+# account for symlinks, since historically this script lives in a different
+# directory and has been symlinked for compatibility
+declare -r mypath=$( dirname "$( readlink -f "$0" )" )
 
-# Expand variable with its value, if any
-function expand_vars( s,   value )
+
+# Generate -k arguments for GNU sort given a CSV header
+#
+# The generated arguments will be of the form -k1,1n ... -kl,ln, where `l'
+# is the total number of header entries.
+#
+# For example, given this header:
+#   foo, bar, baz
+# the output would be:
+#   -k1,1n -k2,2n -k3,3n
+sort-key-args()
 {
-  # attempt to parse variable (may expand into a range)
-  if ( match( s, /^\$([a-zA-Z_-]+)$/, m ) )
-  {
-    value = vars[ m[1] ];
+  local -r header="${1?Missing CSV header}"
 
-    if ( value == "" )
-    {
-      print "error: unknown variable reference: `$" m[1] "'" > "/dev/stderr"
-      exit 1
+  local -i i=0
+
+  # generate -ki,in for each column (notice that a trailing
+  # comma is added to the header because of the read delimiter)
+  while read -d,; do
+    echo -n "-k$((++i)),${i}n "
+  done <<< "$header,"
+}
+
+
+# Sort every column of CSV
+#
+# The columns will all be sorted left-to-right.  The header is left in place
+# as the first row.
+csv-sort()
+{
+  # the first line of the expanded CSVM is the CSV header
+  local header; read -r header
+  local -r keys=$( sort-key-args "$header" )
+
+  # all remaining input (which is now sans header) is sorted
+  echo "$header"
+  sort -t, $keys -
+}
+
+
+# Output usage information
+#
+# Kudos to you if you understand the little Easter egg.
+usage()
+{
+  cat <<EOU
+Usage: $0 [FILE]
+Expand CSVM represented by FILE or stdin into a CSV
+
+The columns of the expanded CSV will be automatically sorted
+left-to-right.  To inhibit this behavior, use the \`!NOSORT'
+directive anywhere before the header line in the source CSVM.
+
+Options:
+  --help  Output usage information.
+
+This program has magic CSV powers.
+EOU
+
+  exit 64  # EX_USAGE
+}
+
+
+# Sort CSV rows left-to-right unless the `!NOSORT' directive is provided
+main()
+{
+  test ! "$1" == --help || usage
+
+  "$mypath/csvm-expand" "$@" \
+    | {
+      local directives; read -r directives
+
+      # ignore sorting if given NOSORT directive
+      if [[ "$directives" =~ NOSORT ]]; then
+        cat
+      else
+        csv-sort "$sort"
+      fi
     }
-
-    return value
-  }
-
-  return s
 }
 
-
-# Expand line
-function parseline( i, m, j, me, orig )
-{
-  if ( i > NF )
-  {
-    print
-    return
-  }
-
-  orig = $i
-
-  # expand variables before any processing so that expansions
-  # can include any type of formatting
-  $i = expand_vars( $i )
-
-  if ( match( $i, /^([0-9]+\/){2}[0-9]+$/, m ) )
-  {
-    cmd = "date --date=" $i " +%s"
-    cmd |& getline $i
-    close(cmd)
-  }
-
-  # check first for delimiters
-  if ( match( $i, /^([^;]+);(.*)$/, m ) )
-  {
-    # give it a shot with the first value
-    $i = m[1]
-    parseline( i )
-
-    # strip off the first value and process with following value(s)
-    $i = m[2]
-    parseline( i )
-
-    # we've delegated; we're done
-    $i = orig
-    return
-  }
-
-  # parse range
-  if ( match( $i, /^([^-]+)--([^-]+)$/, m ) )
-  {
-    j  = expand_vars( m[1] )
-    me = expand_vars( m[2] )
-
-    if ( !match( j, /^[0-9]+$/ ) || !match( me, /^[0-9]+$/ ) )
-    {
-      print "error: invalid range: `" $i "'" > "/dev/stderr"
-      exit 1
-    }
-
-    do
-    {
-      $i = j
-      parseline( i + 1 )
-    } while ( j++ < me )
-  }
-  else
-  {
-    parseline( i + 1 );
-  }
-
-  # restore to original value
-  $i = orig
-}
-
-
-BEGIN {
-  # we're parsing CSVs
-  FS = " *, *"
-  OFS = ","
-}
-
-
-# skip all lines that begin with `#', which denotes a comment, or are empty
-/^#|^$/ { next; }
-
-# lines that begin with a colon are variable definitions
-/^:/ {
-  if ( !match( $0, /^:([a-zA-Z_-]+)=(.*?)$/, m ) )
-  {
-      print "error: invalid variable definition: `" $0 "'" > "/dev/stderr"
-      exit 1
-  }
-
-  vars[ m[1] ] = m[2]
-  next
-}
-
-# lines that need any sort of processing (ranges, dates, etc)
-/--|;|\$[a-zA-Z_-]|\// { parseline( 1 ); next; }
-
-# all other lines are normal; simply output them verbatim
-{
-  # this assignment will ensure that awk processes the output, ensuring that
-  # extra spaces between commas are stripped
-  $1=$1
-  print
-}
+main "$@"

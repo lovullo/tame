@@ -38,7 +38,10 @@ run-test()
   test $? -eq 0 || return 1
 
   # expected output
-  diff <( cat <<< "$expected" ) <( cat <<< "$given" )
+  diff <( cat <<< "$expected" ) <( cat <<< "$given" ) || {
+    echo "test $testsum failure" >&2
+    return 1
+  }
 }
 
 
@@ -92,11 +95,11 @@ test-delim()
 
   declare -r expected='header,line
 1,2
+3,6
+3,9
 4,2
 4,6
-4,9
-3,6
-3,9'
+4,9'
 
   run-test "$input" "$expected"
 }
@@ -179,11 +182,12 @@ test-var-with-var()
 :baz=$range;$foo
 $baz, 5'
 
+  # note that the output is sorted
   declare -r expected='header,line
 2,5
+2,5
 3,5
-4,5
-2,5'
+4,5'
 
   run-test "$input" "$expected"
 }
@@ -200,6 +204,51 @@ $foo'
 0'
 
   run-test "$input" "$expected"
+}
+
+
+test-directive-stripped()
+{
+  declare -r input='!DIRECTIVE
+header, line'
+
+  declare -r expected='header,line'
+
+  run-test "$input" "$expected"
+}
+
+
+test-no-sort()
+{
+  declare -r input='!NOSORT
+header, line
+1,1
+0,0'
+
+  declare -r expected='header,line
+1,1
+0,0'
+
+  run-test "$input" "$expected"
+}
+
+
+# all directives should be put on a single line
+test-fail-multi-directive()
+{
+  declare -r input='!DIRECTIVE1
+!DIRECTIVE2
+header, line'
+
+  ((testsum++))
+
+  local -r result=$(
+    ../csvm2csv 2>&1 <<< "$input" \
+      && echo '(test failure: expected failure)'
+  )
+
+  grep -q '!DIRECTIVE2' <<< "$result" \
+    || return 1
 }
 
 
@@ -254,6 +303,9 @@ test-comment \
   && test-var-with-range-delim \
   && test-var-with-var \
   && test-var-zero-ref \
+  && test-directive-stripped \
+  && test-no-sort \
+  && test-fail-multi-directive \
   && test-fail-unknown-var-ref \
   && test-fail-non-numeric-range \
   && test-fail-invalid-var-dfn \
@@ -263,7 +315,7 @@ test-comment \
   }
 
 # safety check
-test "$testsum" -eq 12 || {
+test "$testsum" -eq 15 || {
   echo 'error: did not run all csvm2csv tests!' >&2
   exit 1
 }
