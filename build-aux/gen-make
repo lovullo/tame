@@ -94,6 +94,12 @@ until [ $# -eq 0 ]; do (
     # begin this file's dependencies
     echo -n "$path/$sansext.xmlo: $path/$sansext.xml "
 
+    # only further process dependency files
+    if [[ ! $dpath =~ .dep$ ]]; then
+      echo
+      continue;
+    fi
+
     # output deps
     while read dep; do
       # if the first character is a slash, then it's relative to the project
