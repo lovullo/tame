@@ -1380,8 +1380,7 @@
 
 
 
-<xsl:function name="eseq:expand-node" as="node()*"
-              override="yes">
+<xsl:function name="eseq:expand-node" as="node()*">
   <xsl:param name="node" as="node()" />
 
   <xsl:apply-templates mode="preproc:macros"
