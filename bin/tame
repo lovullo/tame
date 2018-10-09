@@ -1,0 +1,220 @@
+#!/bin/bash
+# Client for TAME daemon (tamed)
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+set -euo pipefail
+
+declare -r mypath=$( dirname "$( readlink -f "$0" )" )
+
+declare -ri EX_NOTAMED=1  # tried to start tamed but failed
+declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
+
+
+# Send a single command to a runner and observe the result
+#
+# stdin will be directed to the runner.  stdout of the runner will be
+# echoed until a line beginning with "DONE" is found, after which this
+# procedure will return with the exit code indicated by the runner.
+command-runner()
+{
+  local -ri id="${1?Missing id}"
+  local -r root="${2?Missing root run path}"
+  shift 2
+
+  local -r base="$root/$id"
+  local -ri pid=$( cat "$base/pid" )
+
+  # TODO flock
+
+  verify-runner "$base" "$pid"
+
+  # all remaining arguments are passed to the runner
+  echo "$@" > "$base/0"
+
+  # output lines from runner until we reach a line stating "DONE"
+  while read line; do
+    # don't parse words in the initial read because we may be
+    # dealing with a lot of lines
+    if [ "${line:0:5}" == "DONE " ]; then
+      read _ code _ <<< "$line"
+      return "$code"
+    fi
+
+    echo "$line"
+  done < "$base/1"
+}
+
+
+# Verify that a runner is available
+#
+# If the runner is offline or not owned by $UID, then exit with
+# a non-zero status.
+verify-runner()
+{
+  local -r base="${1?Missing base}"
+  local -ri pid="${2?Missing pid}"
+
+  ps "$pid" &>/dev/null || {
+    echo "error: runner $id ($pid) is offline!" >&2
+    exit "$EX_NOTAMED"
+  }
+
+  test -O "$base/0" || {
+    echo "error: runner $id ($pid) is not owned by $USER!" >&2
+    exit "$EX_NOTAMED"
+  }
+}
+
+
+# Wait somewhat impatiently for tamed
+#
+# Assumes that tamed's runner 0 is running once the pidfile becomes
+# available.  Polls for a maximum of six seconds before giving up
+# and exiting with a non-zero status.
+wait-for-tamed()
+{
+  local -r base="${1?Missing base}"
+
+  # we could use inotify, but that is not installed by default
+  # on Debian systems, so let's just poll rather than introduce
+  # another dependency (give up after 6 seconds)
+  local -i i=12
+  while test $((i--)); do
+    test ! -f "$base/0/pid" || return 0
+    sleep 0.5
+  done
+
+  # still not available
+  echo 'error: tamed still unavailable; giving up' >&2
+  exit "$EX_NOTAMED"
+}
+
+
+# Start tamed if it is not already running
+#
+# If tamed is already running, nothing will happen; otherwise, start
+# tamed and wait impatiently for the runner to become available.
+#
+# Even if tamed is started, wait for runner 0 to become available;
+# this ensures that tamed is initialized even if this script is run
+# after tamed is started but before it has fully come online (e.g
+# parallel make).
+start-tamed()
+{
+  local -r root="${1?Missing root}"
+
+  local -ri pid=$( cat "$root/pid" 2>/dev/null )
+
+  ps "$pid" &>/dev/null || {
+    echo "starting tamed at $root..."
+
+    # tell tamed to clean up so that we eliminate race conditions
+    # with wait-for-tamed (this will also kill any stray processes
+    # that a previous tamed may have spawned but didn't get the
+    # chance to clean up)
+    kill-tamed "$root" || true
+
+    # start tamed and allow it to persist for future commands
+    "$mypath/tamed" "$root" & disown
+  }
+
+  # wait for tamed even if it was already started (just in
+  # case this script was executed right after tamed started
+  # but before it is done initializing)
+  wait-for-tamed "$root"
+}
+
+
+# Kill tamed
+#
+# Ask tamed to kill itself.
+kill-tamed()
+{
+  local -r root="${1?Missing root}"
+
+  "$mypath/tamed" --kill "$root"
+}
+
+
+# Filter dslc output to essential information
+#
+# The original output of dslc is quite noisy; this filters it down
+# to only errors and warnings.
+#
+# Eventually, dslc out to be modified to handle filtering its own
+# output rather than wasting cycles doing this filtering.
+saneout()
+{
+  awk ' \
+    /^~~~~\[begin /,/^~~~~\[end / { next } \
+    /^rm / { next } \
+    /^Exception|^\t+at / { \
+      if ( /^E/ ) { \
+        print; \
+        print "Stack trace written to .runlog"; \
+      } \
+      next; \
+     } \
+    /([Ww]arning|[Nn]otice)[: ]/ { printf "\033[0;33m"; w++; out=1; } \
+    /[Ff]atal:/ { printf "\033[0;31m"; out=1; } \
+    /!|[Ee]rror:/ { printf "\033[0;31m"; e++; out=1; } \
+    /internal:/ { printf "\033[0;35m"; out=1; } \
+    /internal error:/ { printf "\033[1m"; out=1; } \
+    /^[^[]/ || out { print; printf "\033[0;0m"; out=0; } \
+  '
+}
+
+
+# Output usage information and exit
+usage()
+{
+  cat <<EOF
+Usage: $0 cmdline
+Or:    $0 --kill
+Send command line CMDLINE to a tamed runner.  Start tamed if
+not already running.
+
+Options:
+  --kill   kill tamed
+  --help   show this message
+EOF
+
+  exit $EX_USAGE
+}
+
+
+# Run tame
+main()
+{
+  local -r root=/run/user/$UID/tamed
+
+  test $# -gt 0 || usage
+
+  case "${1:-}" in
+    --kill) kill-tamed "$root"; exit;;
+    --help) usage;;
+  esac
+
+  start-tamed "$root"
+
+  # for now we only support a single runner
+  command-runner 0 "$root" "$@" | saneout
+}
+
+main "$@"
+

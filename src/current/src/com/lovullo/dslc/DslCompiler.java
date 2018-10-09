@@ -105,11 +105,16 @@ public class DslCompiler
                     new StreamResult( new File( dest ) ),
                     params
                 );
+
+                // TODO: more unique identifier
+                System.err.println( "DONE 0 " + dest );
             }
             catch ( Exception e )
             {
                 // delete the output file; it's garbage
                 destfile.delete();
+
+                System.err.println( "DONE 1 " + dest );
 
                 // be verbose and unprofessional.
                 throw e;
