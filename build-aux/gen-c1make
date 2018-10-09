@@ -75,8 +75,7 @@ c1recipe()
   )
 
   echo "$dir/$base.php: $file $includes"
-  echo -e '\t@echo "c1map $< $@" >> .cqueue'
-  echo -e '\t@touch $@'
+  echo -e '\t$(TAME) c1map $< $@'
 }
 
 

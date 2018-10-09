@@ -43,6 +43,10 @@ command-runner()
 
   verify-runner "$base" "$pid"
 
+  # forward signals to runner so that build is actually halted
+  # (rather than continuing in background after we die)
+  trap 'kill -TERM $pid &>/dev/null' INT TERM
+
   # all remaining arguments are passed to the runner
   echo "$@" > "$base/0"
 
@@ -163,10 +167,11 @@ saneout()
   awk ' \
     /^~~~~\[begin /,/^~~~~\[end / { next } \
     /^rm / { next } \
+    /^COMMAND / { next } \
     /^Exception|^\t+at / { \
       if ( /^E/ ) { \
         print; \
-        print "Stack trace written to .runlog"; \
+        print "Stack trace written to run-*.log"; \
       } \
       next; \
      } \
@@ -184,14 +189,19 @@ saneout()
 usage()
 {
   cat <<EOF
-Usage: $0 cmdline
+Usage: $0 [-v|--verbose] cmdline
 Or:    $0 --kill
 Send command line CMDLINE to a tamed runner.  Start tamed if
 not already running.
 
 Options:
-  --kill   kill tamed
-  --help   show this message
+  --help         show this message
+  --kill         kill tamed
+  -v, --verbose  show runner logs
+
+Environment Variables:
+  TAME_VERBOSE  when greater than zero, show runner logs
+                (see also --verbose)
 EOF
 
   exit $EX_USAGE
@@ -203,17 +213,27 @@ main()
 {
   local -r root=/run/user/$UID/tamed
 
+  local outcmd=saneout
+
   test $# -gt 0 || usage
 
   case "${1:-}" in
     --kill) kill-tamed "$root"; exit;;
+    -v|--verbose) outcmd=cat;;
     --help) usage;;
   esac
+
+  # alternative to --verbose
+  if [ "${TAME_VERBOSE:-0}" -ge 1 ]; then
+    outcmd=cat
+  fi
 
   start-tamed "$root"
 
   # for now we only support a single runner
-  command-runner 0 "$root" "$@" | saneout
+  command-runner 0 "$root" "$@" \
+    | tee -a "run-0.log" \
+    | "$outcmd"
 }
 
 main "$@"

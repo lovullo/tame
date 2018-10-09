@@ -25,6 +25,9 @@ declare -ri EX_RUNNING=1
 declare -ri EX_USAGE=64      # incorrect usage; sysexits.h
 declare -ri EX_CANTCREAT=73  # cannot create file; sysexits.h
 
+# number of seconds before runners are considered unused and terminate
+declare -ri TAMED_STALL_SECONDS="${TAMED_STALL_SECONDS:-30}"
+
 # set by `main', global for `cleanup'
 declare root=
 
@@ -50,6 +53,9 @@ mkfifos()
       echo "fatal: failed to create FIFO at $in"
       exit $EX_CANTCREAT
     }
+
+    # keep FIFOs open so we don't get EOF from writers
+    tail -f >"$root/$n" &
   done
 }
 
@@ -69,13 +75,13 @@ spawn-runner()
 
   mkfifos "$base"
 
-  # TODO: should we separate back out std{out,err}?
-  # XXX: why does dslc quit (with a 0 exit code) occsionally? stdin?
+  # monitor runner usage and kill when inactive
+  stall-monitor "$base" &
+
+  # loop to restart runner in case of crash
   while true; do
-    "$mypath/dslc" < <( persistent-cat "$base/0" ) \
-                   >"$base/1" \
-                   2>&1
-    echo "warning: runner $id exited with code $?; restarting"
+    "$mypath/dslc" < "$base/0" &> "$base/1"
+    echo "warning: runner $id exited with code ${PIPESTATUS[0]}; restarting" >&2
   done &
 
   echo "$!" > "$base/pid"
@@ -84,19 +90,37 @@ spawn-runner()
 }
 
 
-# Persistently read commands from FIFO IN
+# Kill runner at BASE when it becomes inactive for TAMED_STALL_SECONDS
+# seconds
 #
-# This will continue to read from the FIFO as long as it is
-# readable.  This is necessary since SIGPIPE gets sent to
-# processes reading/writing from/to the FIFO whenever a
-# process detaches from it.
-persistent-cat()
+# This monitors the modification time on the stdout FIFO.  stdin does not
+# need to be monitored since dslc immediately echoes back commands it
+# receives.
+#
+# dslc is pretty chatty at the time of writing this, so TAMED_STALL_SECONDS
+# can easily be <=30s even for large packages.  This may need to change in
+# the future if it becomes too much less chatty.  Increase that environment
+# variable if runners stall unexpectedly in the middle of builds.
+stall-monitor()
 {
-  local -r in="${1?Missing input path}"
+  local -r base="${1?Missing base}"
 
-  while test -r "$in"; do
-    read -r < "$in" || return
-    echo "$REPLY"
+  # monitor output FIFO modification time
+  while true; do
+    local -i since=$( date +%s )
+    sleep "$TAMED_STALL_SECONDS"
+    local -i last=$( stat -c%Y "$base/1" )
+
+    # keep waiting if there has been activity since $since
+    test "$last" -le "$since" || continue
+
+    # no activity; kill
+    local -r pid=$( cat "$base/pid" )
+    kill "$pid"
+    wait "$pid" 2>/dev/null
+
+    # this stall subprocess is no longer needed
+    break
   done
 }
 
@@ -154,8 +178,6 @@ kill-running()
 # recurse.
 cleanup()
 {
-  echo "killing remaining runners..."
-
   rm -rf "$root"
   kill 0
 }
@@ -170,11 +192,17 @@ Start tamed and runners.  Do not fork into background process.
 
 The default value of RUNPATH is \`/run/user/$UID/tamed'.
 
-Only one runner is currently supported.
+Only one runner is currently supported.  tamed exits once all
+runners have terminated.  Runners will be killed once they are
+inactive for at least TAMED_STALL_SECONDS (default 30).
 
 Options:
-  --kill   kill a runing tamed at path RUNPATH
   --help   show this message
+  --kill   kill a runing tamed at path RUNPATH
+
+Environment Variables:
+  TAMED_STALL_SECONDS   number of seconds of runner inactivity before
+                        runner is automatically killed (default 30)
 EOF
 
   exit $EX_USAGE

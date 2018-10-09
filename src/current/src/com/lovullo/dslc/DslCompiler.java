@@ -69,17 +69,10 @@ public class DslCompiler
             HashMap<String,String> params
         ) throws Exception
         {
-            if ( cmd.equals( "validate" ) )
+            // validate before compilation
+            if ( cmd.equals( "compile" ) )
             {
                 _xsd.validate( doc );
-                return;
-            }
-            else if ( cmd.equals( "rm" ) )
-            {
-                // remove file (purposely uncaught)
-                ( new File( src ) ).delete();
-
-                return;
             }
 
             if ( dest.equals( "" ) )
@@ -295,7 +288,8 @@ public class DslCompiler
 
     private static void compileSrc( _DslCompiler dslc, String cmdline ) throws Exception
     {
-        System.err.println( cmdline );
+        System.err.printf( "COMMAND " + cmdline + "\n" );
+
         String[] args = cmdline.split( " " );
         String   dest = "";
 
