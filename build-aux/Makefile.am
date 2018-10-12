@@ -73,7 +73,7 @@ SHELL = /bin/bash -O extglob
 # these files will never be deleted when Make considers them to be intermediate
 # (e.g. when building summary pages), since they are still needed or take a
 # while to build
-.PRECIOUS: %.js %.xml %.xmle %.xmlo
+.SECONDARY: %.js %.xml %.xmle %.xmlo
 
 all: program-data-copy
 
