@@ -68,12 +68,10 @@ default: program-ui c1map FORCE
 .DELETE_ON_ERROR:
 .NOTPARALLEL:
 
-SHELL = /bin/bash -O extglob
+# keep all intermediate files for easy introspection
+.SECONDARY:
 
-# these files will never be deleted when Make considers them to be intermediate
-# (e.g. when building summary pages), since they are still needed or take a
-# while to build
-.SECONDARY: %.js %.xml %.xmle %.xmlo
+SHELL = /bin/bash -O extglob
 
 all: program-data-copy
 
@@ -86,7 +84,7 @@ include $()suppliers.mk
 
 summary-html: $(dest_summary_html) ;
 
-%.html: %.js
+%.html: %.js %.xmle
 	$(TAME) summary $*.xmle $@
 
 standalones: $(dest_standalone)
@@ -206,7 +204,7 @@ program-data-copy: standalones program-ui c1map .version.xml
 	ant -f "$(path_lv)/build.xml" js-mod-order
 
 # TODO: merge this and the above
-lvroot: summary-html
+lvroot: summary-html program-ui c1map
 	mkdir -p "$(path_lvroot)/src/node/program/rater/programs/@program@"
 	mkdir -p "$(path_lvroot)/src/node/program/classify"
 	mkdir -p "$(path_lvroot)/src/node/program/ui/custom"
