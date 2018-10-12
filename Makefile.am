@@ -34,10 +34,11 @@ export SAXON_CP
 
 .DELETE_ON_ERROR:
 
-.PHONY: check test texis applies FORCE
+.PHONY: all all-nodoc check test texis applies FORCE
 
-.DEFAULT_GOAL = all-nodoc
+.DEFAULT_GOAL = all
 
+all: applies progtest
 all-nodoc: applies progtest
 
 # the "applies" are hoxsl-generated stylesheets containing definitions to
