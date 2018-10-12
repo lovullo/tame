@@ -1,0 +1,245 @@
+#!/bin/bash
+# Daemon for accepting TAME commands (compilers, linker, etc)
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+set -euo pipefail
+
+declare -r mypath=$( dirname "$( readlink -f "$0" )" )
+
+declare -ri EX_RUNNING=1
+declare -ri EX_USAGE=64      # incorrect usage; sysexits.h
+declare -ri EX_CANTCREAT=73  # cannot create file; sysexits.h
+
+# number of seconds before runners are considered unused and terminate
+declare -ri TAMED_STALL_SECONDS="${TAMED_STALL_SECONDS:-30}"
+
+# set by `main', global for `cleanup'
+declare root=
+
+
+# Create FIFOs for runner
+#
+# The FIFOs are intended to be attached to stderr and stdout
+# of the runner and will be created relative to the given
+# root path ROOT.
+#
+# If a FIFO cannot be created, exit with EX_CANTCREAT.
+mkfifos()
+{
+  local -r root="${1?Missing root path}"
+
+  mkdir -p "$root"
+
+  # note that there's no stderr; see `add-runner'
+  for n in 0 1; do
+    rm -f "$root-$n"
+
+    mkfifo -m 0600 "$root/$n" || {
+      echo "fatal: failed to create FIFO at $in"
+      exit $EX_CANTCREAT
+    }
+
+    # keep FIFOs open so we don't get EOF from writers
+    tail -f >"$root/$n" &
+  done
+}
+
+
+# Spawn a runner
+#
+# A new runner is created by spawning dslc and attaching
+# new FIFOs under the given id ID relative to the given
+# run path ROOT.  The PID of the runner will be stored
+# alongside the FIFOs in a pidfile `pid'.
+spawn-runner()
+{
+  local -ri id="${1?Missing id}"
+  local -r root="${2?Missing root run path}"
+
+  local -r base="$root/$id"
+
+  mkfifos "$base"
+
+  # monitor runner usage and kill when inactive
+  stall-monitor "$base" &
+
+  # loop to restart runner in case of crash
+  while true; do
+    "$mypath/dslc" < "$base/0" &> "$base/1"
+    echo "warning: runner $id exited with code ${PIPESTATUS[0]}; restarting" >&2
+  done &
+
+  echo "$!" > "$base/pid"
+
+  echo "runner $id ($!): $base"
+}
+
+
+# Kill runner at BASE when it becomes inactive for TAMED_STALL_SECONDS
+# seconds
+#
+# This monitors the modification time on the stdout FIFO.  stdin does not
+# need to be monitored since dslc immediately echoes back commands it
+# receives.
+#
+# dslc is pretty chatty at the time of writing this, so TAMED_STALL_SECONDS
+# can easily be <=30s even for large packages.  This may need to change in
+# the future if it becomes too much less chatty.  Increase that environment
+# variable if runners stall unexpectedly in the middle of builds.
+stall-monitor()
+{
+  local -r base="${1?Missing base}"
+
+  # monitor output FIFO modification time
+  while true; do
+    local -i since=$( date +%s )
+    sleep "$TAMED_STALL_SECONDS"
+    local -i last=$( stat -c%Y "$base/1" )
+
+    # keep waiting if there has been activity since $since
+    test "$last" -le "$since" || continue
+
+    # no activity; kill
+    local -r pid=$( cat "$base/pid" )
+    kill "$pid"
+    wait "$pid" 2>/dev/null
+
+    # this stall subprocess is no longer needed
+    break
+  done
+}
+
+
+# Exit if tamed is already running at path ROOT
+#
+# If tamed is already running at ROOT, exit with status
+# EX_RUNNING; otherwise, do nothing except output a warning
+# if a stale pid file exists.
+abort-if-running()
+{
+  local -r root="${1?Missing root rundir}"
+
+  local -ri pid=$( cat "$root/pid" 2>/dev/null )
+
+  test "$pid" -gt 0 || return 0
+
+  ! ps "$pid" &>/dev/null || {
+    echo "fatal: tamed is already running at $root (pid $pid)!"
+    exit $EX_RUNNING
+  }
+
+  test -z "$pid" || {
+    echo "warning: clearing stale tamed (pid $pid)"
+  }
+}
+
+
+# Kill running tamed at path ROOT
+#
+# If no pidfile is found at ROOT, do nothing.  This sends a
+# signal only to the parent tamed process, _not_ individual
+# runners; the target tamed is expected to clean up itself.
+# Consequently, if a tamed terminated abnormally without
+# cleaning up, this will not solve that problem.
+kill-running()
+{
+  local -r root="${1?Missing root}"
+
+  local -r pid=$( cat "$root"/pid 2>/dev/null )
+
+  test -n "$pid" || return 0
+
+  echo "killing tamed at $root ($pid)..."
+  kill "$pid"
+}
+
+
+# Clean up child processes before exit
+#
+# This should be called before exit (perhaps by a trap).  Kills
+# the entire process group.
+#
+# Do not attach this to a SIGTERM trap or it will infinitely
+# recurse.
+cleanup()
+{
+  rm -rf "$root"
+  kill 0
+}
+
+
+# Output usage information and exit
+usage()
+{
+  cat <<EOF
+Usage: $0 [--kill] [runpath]
+Start tamed and runners.  Do not fork into background process.
+
+The default value of RUNPATH is \`/run/user/$UID/tamed'.
+
+Only one runner is currently supported.  tamed exits once all
+runners have terminated.  Runners will be killed once they are
+inactive for at least TAMED_STALL_SECONDS (default 30).
+
+Options:
+  --help   show this message
+  --kill   kill a runing tamed at path RUNPATH
+
+Environment Variables:
+  TAMED_STALL_SECONDS   number of seconds of runner inactivity before
+                        runner is automatically killed (default 30)
+EOF
+
+  exit $EX_USAGE
+}
+
+
+# Run tamed
+main()
+{
+  local kill=
+  case "${1:-}" in
+    --kill) kill=1; shift;;
+    --help) usage;;
+  esac
+
+  root="${1:-/run/user/$UID/tamed}"
+
+  # kill if requested
+  test -z "$kill" || {
+    kill-running "$root"
+    exit
+  }
+
+  abort-if-running "$root"
+
+  # clean up background processes before we exit
+  trap exit TERM
+  trap cleanup EXIT
+
+  # start fresh
+  rm -rf "$root"; mkdir -p "$root"
+  echo $$ > "$root/pid"
+
+  # only a single runner for now
+  spawn-runner 0 "$root"
+
+  wait -n
+}
+
+main "$@"

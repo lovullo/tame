@@ -69,17 +69,10 @@ public class DslCompiler
             HashMap<String,String> params
         ) throws Exception
         {
-            if ( cmd.equals( "validate" ) )
+            // validate before compilation
+            if ( cmd.equals( "compile" ) )
             {
                 _xsd.validate( doc );
-                return;
-            }
-            else if ( cmd.equals( "rm" ) )
-            {
-                // remove file (purposely uncaught)
-                ( new File( src ) ).delete();
-
-                return;
             }
 
             if ( dest.equals( "" ) )
@@ -105,11 +98,16 @@ public class DslCompiler
                     new StreamResult( new File( dest ) ),
                     params
                 );
+
+                // TODO: more unique identifier
+                System.err.println( "DONE 0 " + dest );
             }
             catch ( Exception e )
             {
                 // delete the output file; it's garbage
                 destfile.delete();
+
+                System.err.println( "DONE 1 " + dest );
 
                 // be verbose and unprofessional.
                 throw e;
@@ -290,7 +288,8 @@ public class DslCompiler
 
     private static void compileSrc( _DslCompiler dslc, String cmdline ) throws Exception
     {
-        System.err.println( cmdline );
+        System.err.printf( "COMMAND " + cmdline + "\n" );
+
         String[] args = cmdline.split( " " );
         String   dest = "";
 

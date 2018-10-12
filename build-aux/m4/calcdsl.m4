@@ -33,12 +33,9 @@ AM_INIT_AUTOMAKE([foreign])
 AC_ARG_VAR([JAVA], [The Java executable])
 AC_ARG_VAR([ANT], [Apache Ant])
 AC_ARG_VAR([DSLC_JAR], [Path to DSL Compiler JAR])
-AC_ARG_VAR([TAME], [Path to TAME])
+AC_ARG_VAR([TAME], [The TAME compiler])
 AC_ARG_VAR([RATER_CLASSPATH], [DSL Compiler Saxon class path])
 AC_ARG_VAR([PROGUI_TEST_PATH], [Path to JavaScript tests for Program UI])
-
-# Required version of TAME
-AC_SUBST([tame_needed_ver], [1.0.0])
 
 # Auto-discover Java and Ant paths
 AC_CHECK_PROGS(JAVA, [java])
@@ -64,34 +61,18 @@ AS_IF([test ! "$DSLC_JAR"],
 
 # TAME is the compiler (whereas dslc invokes it, keeps things in memory, etc)
 AS_IF([test ! "$TAME"],
-  [AC_CHECK_FILE([$CALCROOT/tame],
-    [AC_SUBST([TAME], [$CALCROOT/tame])],
+  [AC_CHECK_FILE([$CALCROOT/tame/bin/tame],
+    [AC_SUBST([TAME], [$CALCROOT/tame/bin/tame])],
     [AC_MSG_ERROR(
       [TAME not found])])],
   [])
-
-AC_MSG_CHECKING([TAME version])
-
-AC_SUBST_FILE([tame_version])
-tame_version=$( cat "$TAME/VERSION" )
-
-# We get subtle errors or potential compiler bugs if the TAME version is
-# incorrect; check for >= the required version
-AS_VERSION_COMPARE([$tame_version], [$tame_needed_ver],
-  [
-    AC_MSG_RESULT([$tame_version])
-    AC_MSG_ERROR([TAME version $tame_needed_ver or greater required])
-  ],
-  [AC_MSG_RESULT([$tame_version])],
-  [AC_MSG_RESULT([$tame_version (>$tame_needed_ver)])])
 
 # @program@ in *.in files will be replaced with the program name provided by AC_INIT
 AC_SUBST([program], AC_PACKAGE_NAME)
 
 # Final files to be output by `configure'.  The path before the colon is the
 # destination name; after the colon is the source.
-AC_CONFIG_FILES(Makefile:m4_defn(`calc_root')/build-aux/Makefile.in
-                Makefile.2:m4_defn(`calc_root')/build-aux/Makefile.2.in)
+AC_CONFIG_FILES(Makefile:m4_defn(`calc_root')/build-aux/Makefile.in)
 
 # Generate configure script
 AC_OUTPUT

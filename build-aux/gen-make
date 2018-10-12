@@ -54,16 +54,8 @@ resolv-path()
 
 # rule for building
 [ -z "$GEN_MAKE" ] && {
-  echo "%.xmlo:: %.tmp"
-  echo -e "\t@rm -f \$@ \$<"
-  [ -n "$xmlo_cmd" ] \
-    && echo -e "\t$xmlo_cmd" \
-    || echo -e "\ttouch \$@"
-
-  echo "%.xmlo:: %.xml | prexmlo"
-  [ -n "$xmlo_cmd" ] \
-    && echo -e "\t$xmlo_cmd" \
-    || echo -e "\ttouch \$@"
+  echo "%.xmlo: %.xml"
+  echo -e '\t$(TAME) compile $< $@'
 
   export GEN_MAKE="$( pwd )/$0"
   exec "$GEN_MAKE" "$@"
@@ -119,6 +111,8 @@ until [ $# -eq 0 ]; do (
   # recurse on every subdirectory
   for p in */; do
     [ "$p" == ./ -o "$p" == ../ ] && continue
+    [ "$p" == node_modules/ -o "$p" == tame/ ] && continue
+
     [ ! -d "$p" ] || ( cd "$OLDPWD" && "$GEN_MAKE" "$path/$p" ) || {
       echo "fatal: failed to recurse on $( pwd )/$path/$p" >&2
       exit 1

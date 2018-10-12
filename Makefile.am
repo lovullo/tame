@@ -16,7 +16,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-SUBDIRS = doc progtest
+SUBDIRS = src/current/src doc progtest
 
 path_src  = src
 path_test = test

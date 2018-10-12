@@ -14,12 +14,13 @@ designed to aid in the development, understanding, and maintenance of systems
 performing numerous calculations on a complex graph of dependencies,
 conditions, and a large number of inputs.
 
-This system was developed at LoVullo Associates to handle the complexity of
-comparative insurance rating systems. It is a domain-specific language (DSL)
-that itself encourages, through the use of templates, the creation of sub-DSLs.
-TAME itself is at heart a calculator—processing only numerical input and
-output—driven by quantifiers as predicates. Calculations and quantifiers are
-written declaratively without concern for order of execution.
+This system was developed at R-T Specialty (formerly LoVullo Associates) to
+handle the complexity of comparative insurance rating systems. It is a
+domain-specific language (DSL) that itself encourages, through the use of
+templates, the creation of sub-DSLs.  TAME itself is at heart a
+calculator—processing only numerical input and output—driven by quantifiers
+as predicates. Calculations and quantifiers are written declaratively
+without concern for order of execution.
 
 The system has powerful dependency resolution and data flow capabilities.
 
@@ -27,14 +28,9 @@ TAME consists of a macro processor (implementing a metalanguage), numerous
 compilers for various targets (JavaScript, HTML documentation and debugging
 environment, LaTeX, and others), linkers, and supporting tools.  The input
 grammar is XML, and the majority of the project (including the macro processor,
-compilers, and linkers) are written in XSLT. There is a reason for that odd
+compilers, and linkers) is written in XSLT. There is a reason for that odd
 choice; until an explanation is provided, know that someone is perverted enough
 to implement a full compiler in XSLT.
-
-More information will become available as various portions are liberated
-during refactoring. [tame-core](https://github.com/lovullo/tame-core) is
-TAME's core library, and [hoxsl](https://savannah.nongnu.org/projects/hoxsl)
-was developed as a supporting library.
 
 
 ## "Current"
@@ -52,6 +48,19 @@ instance.  Available formats are:
 - [Multi-page HTML][doc-html]
 - [PDF][doc-pdf]
 - [Info][doc-info]
+
+
+## Getting Started
+To get started, make sure Saxon version 9 or later is available and its path
+set as `SAXON_CP`; that the path to hoxsl is set via `HOXSL`; and then run
+the `bootstrap` script:
+
+```bash
+$ export SAXON_CP=/path/to/saxon9he.jar
+$ export HOXSL=/path/to/hoxsl/root
+
+$ ./boostrap
+```
 
 
 ## Hacking

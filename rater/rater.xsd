@@ -1,0 +1,1987 @@
+<?xml version="1.0"?>
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://www.lovullo.com/rater"
+  xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  elementFormDefault="qualified">
+
+<!-- this schema supports calculations -->
+<xs:import
+  namespace="http://www.lovullo.com/calc"
+  schemaLocation="calc.xsd" />
+
+<!-- can include maps -->
+<xs:import
+  namespace="http://www.lovullo.com/rater/map"
+  schemaLocation="map.xsd" />
+
+<!-- C1 map -->
+<xs:import
+  namespace="http://www.lovullo.com/rater/map/c1"
+  schemaLocation="c1map.xsd" />
+
+<!-- worksheets -->
+<xs:import
+  namespace="http://www.lovullo.com/rater/worksheet"
+  schemaLocation="worksheet.xsd" />
+
+
+<!--basicTypes-->
+  <xs:simpleType name="packageNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Name of a package/rater. Must match the name of the XML file, sans the
+        extension. If the package is in a subdirectory, then the name should be
+        a relative path (e.g. "rates/company").
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z][a-z0-9/-]+" />
+      <xs:minLength value="2" />
+      <xs:maxLength value="75" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="constNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Name of a constant.
+
+        Underscore prefixes should be reserved for system constants.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:NCName">
+      <xs:pattern value="_*[A-Z][A-Z0-9_]+" />
+      <xs:minLength value="1" />
+      <xs:maxLength value="75" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="typeNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Name of a type (as would be defined via typedef).
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:NCName">
+      <xs:pattern value="[a-zA-Z]+" />
+      <xs:minLength value="1" />
+      <xs:maxLength value="50" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="functionNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Name of a mathematical function.
+
+        Since the name will appear in equations, it has a restricted character
+        set and length.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:NCName">
+      <xs:pattern value="[a-z_-]+" />
+      <xs:minLength value="1" />
+      <xs:maxLength value="15" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="paramNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Name of a parameter (global or local)
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:NCName">
+      <xs:pattern value="[a-z_][a-z0-9_]*" />
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="yieldsNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Represents a value yielded by a calculation (e.g. a premium).
+
+        The camelCase requirement as opposed to the snake_case requirement used
+        for other variables, such as params, is intended to provide a
+        distinction.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="_*[a-z][a-zA-Z0-9]+|\{?@[a-z][a-zA-Z0-9_]*@\}?" />
+      <xs:minLength value="1" />
+      <xs:maxLength value="50" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="indexNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Single-character index variable
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z]|\{?@[a-z][a-zA-Z0-9_]*@\}?" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="templateNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Template name; underscore prefix and suffix is mandatory to help ensure
+        distinctive names between other identifiers.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="_[a-zA-Z0-9@\{\}-]+_" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="templateParamNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Template parameter name
+
+        Template parameters are delimited by '@'s; this restriction is in place
+        to permit substring replacements with clear delimiters.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="@[a-z_-][a-zA-Z0-9_-]*@" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="descType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Documentation for a specific element.
+
+        The documentation must not be sparse; please provide something
+        descriptive that will be useful to someone completely new to the code.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <!-- let's make an attempt at reasonable documentation, shall we? -->
+      <xs:minLength value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="symbolType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Symbol used to represent an entity when rendered.
+
+        The string should consist of TeX/LaTeX commands and should produce a
+        single symbol.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+
+  <xs:simpleType name="setType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Types of sets (vectors or matrices)
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="vector" />
+      <xs:enumeration value="matrix" />
+    </xs:restriction>
+  </xs:simpleType>
+<!--/basicTypes-->
+
+
+<!--constants-->
+  <xs:complexType name="itemSetType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Permits the static declaration of a matrix; a set represents a vector
+        and sibling sets can be combined to create a matrix
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <!-- allow an empty set for skipping rows -->
+      <xs:element name="item" type="itemType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+
+    <xs:attribute name="desc" type="descType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Description explaining what the set represents
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="itemType">
+    <xs:attribute name="value" type="xs:token">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Value of the constant; must be compatible with the
+          enumeration's @type.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Description explaining what the value represents
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="constType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines a single constant.
+
+        Constants differ from other variables (such as parameters) in that their
+        values cannot change; they exist as an alternative to hard-coding values
+        and as a means of re-use (magic values are not permitted).
+
+        The value of the constant must be compatiable with its type.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice>
+      <xs:element name="set" type="itemSetType" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="item" type="itemType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+
+    <xs:attribute name="name" type="constNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name of the constant. The name must always be used in place of the
+          value when referencing the constant.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="value" type="xs:token">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Value of the constant; must be within the domain of its type.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="values" type="xs:token">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Short-hand GNU Octave / MATLAB Style matrix specification.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="type" type="typeNameType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Constant data type
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Useful description of the constant that explains what it is used for
+          and provides a context
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="sym" type="symbolType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional LaTeX symbol for typesetting
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="magic" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          (CORE ONLY) Denotes a constant whose value may be determined by runtime
+
+          This should prevent any compiler from inlining the constant value.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/constants-->
+
+
+<!--import-->
+  <xs:simpleType name="packagePathType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Path to a package without the extension.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z./][a-zA-Z0-9./-]+" />
+      <xs:minLength value="2" />
+      <xs:maxLength value="100" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:complexType name="topicOfType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Declares the package that this package is a sub-topic of.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="package" type="packagePathType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Path to package, sans the ``.xml'' extension.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="section" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Parent section name; defaults to root.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="importType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Permits importing package or template contents for use in the parent document.
+
+        The @package attribute may be used for explicitly loading a package.
+
+        @templates specifies a path for template auto-loading, but does not load any
+        templates, allowing the system to use only the templates that are needed.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="package" type="packagePathType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Path to package to import, sans the ``.xml'' extension.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="export" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Export the symbols imported by this package
+
+          By default, all imported symbols are local, meaning that importing a
+          package will not include the symbols that the package itself has
+          imported. This is generally desirable from a maintainance standpoint,
+          but certain meta-packages (packages that exist simply to include
+          packages) may wish to make use of this feature.
+
+          Use sparingly.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="topic-of" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Short-hand for a separate topic-of node; parent
+          section.  "true" is equivalent to "root".
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="allow-nonpkg" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Allow importing symbol tables that are not explicitly defined as
+          includable packages.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="ignore-keep" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Strip @keep flag from all imported symbols.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="no-extclass" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Do not import symbols flagged as external to the classifier.
+
+          This is of limited use outside of specialized settings, such as the
+          UI classifier.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="keep-classes" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Keep all classifications, even if @ignore-keep is set.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/import-->
+
+
+<!--typedef-->
+  <xs:complexType name="typedefType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines a type that may be used to represent a restricted set of values.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice>
+      <xs:element name="union" type="unionType" minOccurs="0" maxOccurs="1" />
+      <xs:element name="enum" type="enumType" minOccurs="0" maxOccurs="1" />
+
+      <!-- used only by core packages -->
+      <xs:element name="base-type" minOccurs="0" maxOccurs="1" />
+    </xs:choice>
+
+    <xs:attribute name="name" type="typeNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name by which the type may be referenced
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Description of what the type may be used for
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="sym" type="symbolType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional LaTeX symbol for typesetting
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="unionType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Merges multiple typedefs of the same type into a single type.
+
+        Useful for categorizing types and sub-types in a semantic manner.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="typedef" type="typedefType" minOccurs="2" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="enumType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines an enumerated set of values.
+
+        The type may accept any @value in the set. When referenced, @name must
+        be used. The name must be styled as a constant (since it is not a
+        variable).
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="item" minOccurs="1" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="name" type="constNameType" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Name of enumerated value. This defines a constant and so the
+                name should be styled as such.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="value" type="xs:token">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Value of the constant; must be compatible with the
+                enumeration's @type.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="desc" type="descType" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Description explaining what the value represents
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+
+    <xs:attribute name="type" type="typeNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Type of all enumerated values in a particular list
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/typedef-->
+
+
+<!--funcAndParams-->
+  <xs:complexType name="paramType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Represents a parameter accepted by the rater or a function.
+
+        Parameters accepted by the rater itself will be declared globally,
+        whereas parameters defined within functions will be local to that
+        function.
+
+        Regardless of scope, parameter names must never conflict.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="name" type="paramNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name by which parameter can be identified
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="type" type="typeNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Parameter data type
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Description of parameter
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="set" type="setType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Whether or not the parameter is a set of values of type @type (an
+          array)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="default" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Default value for parameter if none is provided; must be within the
+          domain of its @type
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="sym" type="symbolType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional LaTeX symbol for typesetting
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="functionType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Defines a mathematical function --- a reusable equation that optionally
+        accepts arguments.
+
+        Functions also have access to the global argument list and any other
+        values; not everything must be passed in. Functions may contain only
+        a single calculation node (which itself may contain other calculations).
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="param" type="paramType" minOccurs="0" maxOccurs="unbounded" />
+      <xs:group ref="c:calculationRoot" minOccurs="1" maxOccurs="1" />
+    </xs:sequence>
+
+    <xs:attribute name="name" type="functionNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name of the function. Since the function is intended to be a function
+          in the mathematical sense and may be output as part of an equation,
+          the name is restricted to lowercase alpha characters.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Description of function and its purpose
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="sym" type="symbolType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional symbol to use in place of function name when typesetting
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/funcAndParams-->
+
+
+<!--rate-->
+  <xs:simpleType name="classType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        String of classifications, space-delimited.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:token">
+      <xs:pattern value="([a-z-][a-z0-9-]+ ?)+|@[a-z][a-zA-Z0-9_]*@" />
+      <xs:minLength value="1" />
+      <xs:maxLength value="100" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+
+  <!-- name derived from xsl:with-param; distinguishes between macro params and
+       lv:arg -->
+  <xs:complexType name="withParamType">
+    <xs:sequence>
+      <xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+    </xs:sequence>
+
+    <xs:attribute name="name" type="templateParamNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name of parameter to replace in template
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="value" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          String with which template parameter should be replaced
+
+          All template parameters are replaced by the preprocessor before
+          the XML document reaches any other system; this means that all
+          parameter replacements are performed as strings, just as if you
+          copied and pasted the template XML into place and did a
+          search-and-replace/regex on the XML.
+
+          Consequently, variable replacements are not permitted. You may
+          replace the parameter with text representing the name of a
+          global parameter, for example, but you cannot pass in the
+          current value of of that parameter.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="applyTemplateType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        This node will be entirely removed and replaced with the child nodes
+        of the referenced template.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="with-param" type="withParamType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+
+    <xs:attribute name="name" type="templateNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name of template to include in its place.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <!-- any other attributes will be expanded into lv:with-param; this works
+         well since macros work with string values -->
+    <xs:anyAttribute namespace="##any" processContents="lax" />
+  </xs:complexType>
+
+
+  <xs:complexType name="inlineTemplateType" mixed="true">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        This node will be replaced with the processed template.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="for-each" minOccurs="0" maxOccurs="1">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="sym-set" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:anyAttribute namespace="##any" processContents="lax" />
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="set" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:anyAttribute namespace="##any" processContents="lax" />
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+
+      <!-- see also templateType -->
+      <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:group name="calcOrTemplate">
+    <xs:choice>
+      <!-- long-hand -->
+      <xs:element name="apply-template" type="applyTemplateType" />
+      <xs:element name="inline-template" type="inlineTemplateType" />
+
+      <!-- short-hand with namespace prefix -->
+      <xs:any namespace="http://www.lovullo.com/rater/apply-template"
+        minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+
+      <xs:group ref="c:calculationRoot" />
+    </xs:choice>
+  </xs:group>
+
+
+  <xs:complexType name="rateCommon" abstract="true">
+    <xs:attribute name="class" type="classType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Classifications, delimited by spaces, that must be satisfied in order
+          to perform the premium calculation.
+
+          If no classification is given, then the rating will always be
+          performed.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="no" type="classType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Classifications, delimited by commas, that must be <em>not</em> be
+          satisfied in order to perform the premium calculation.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="sym" type="symbolType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional LaTeX symbol used to identify this premium (display only)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="always" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Always enter this rate block, even if the classification does not
+          match. This is useful if you wish to use the _CMATCH_ results
+          even on a non-match.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <!-- alternative to @class -->
+  <xs:complexType name="classNodeType">
+    <xs:attribute name="ref" type="classNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Class name to apply to block
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="no" type="xs:boolean" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Whether or not the classification should be considered as if it were
+          part of a @no attribute
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="rateTypeSansYields">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Represents a premium calculation to be performed based on a prior
+        classification (sans @yields)
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:complexContent>
+      <xs:extension base="rateCommon">
+        <xs:sequence>
+          <xs:element name="class" type="classNodeType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:group ref="calcOrTemplate" minOccurs="1" maxOccurs="1" />
+        </xs:sequence>
+
+        <xs:attribute name="precision" type="constNameType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Precision of result (empty will use system default)
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="keep" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Compile the rate block even if it does not contribute to the
+              final premium (that is---is outside the dependency tree of
+              lv:yields)
+
+              This is useful for calculating supplemental data that does not
+              directly contribute to the premium.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="external" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Rate calculation should be compiled external to the classifier (that
+              is, the classification should only be performed on-demand for rating
+              purposes).
+
+              This has the benefit of removing the classifier from the classify()
+              method, which may be important for, say, asserting on final premium
+              amount.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+
+  <xs:complexType name="rateType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Represents a premium calculation to be performed based on a prior
+        classification
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:complexContent>
+      <xs:extension base="rateTypeSansYields">
+        <xs:attribute name="yields" type="yieldsNameType" use="required">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Variable in which to store the result of the calculation (will
+              default to 0 if calculation is not performed).
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+
+  <xs:complexType name="rateEachType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Identical to lv:rate, except that it requires and index with which it
+        will automatically loop through the magic _CMATCH_ set and multiply the
+        calculation by its value; this creates a conditional effect.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:complexContent>
+      <xs:extension base="rateTypeSansYields">
+        <xs:attribute name="index" type="indexNameType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Set the index to use for summing over the _CMATCH_ set.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="yields" type="yieldsNameType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Optional variable in which to store the result of the calculation (will
+              default to 0 if calculation is not performed).
+
+              If not provided, will prefix the value of @generates.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="generates" type="yieldsNameType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Produces a generating function as vector @generates
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="gensym" type="symbolType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Symbol to use for display of generator
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="dim" type="xs:string">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Number of dimensions as integer or alias.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+
+  <xs:complexType name="rateEachTemplateType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Generates lv:rate-each, applying the given template (simply removes
+        boilerplate template application at the root level)
+
+        The template is expected to accept an @index@ parameter.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:complexContent>
+      <xs:extension base="rateCommon">
+        <xs:sequence>
+          <xs:element name="class" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType>
+              <xs:attribute name="ref" type="classNameType" use="required" />
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="with-param" type="withParamType" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+
+        <xs:attribute name="name" type="templateNameType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Template to apply
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="yields" type="yieldsNameType" use="required">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Variable in which to store the result of the calculation (will
+              default to 0 if calculation is not performed).
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="generates">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Produces a generating function as vector @generates
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="gensym" type="symbolType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Symbol to use for display of generator
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="keep" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Compile the rate block even if it does not contribute to the
+              final premium (that is---is outside the dependency tree of
+              lv:yields)
+
+              This is useful for calculating supplemental data that does not
+              directly contribute to the premium.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="local" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              The symbol associated with the rate block should never be exported
+              (similar to a private member in Object-Oriented languages, or
+              static definitions in C)
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+
+  <xs:group name="templateParamGenGroup">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Permits default value generation.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice>
+      <xs:element name="text">
+        <xs:complexType>
+          <xs:simpleContent>
+            <xs:extension base="xs:string">
+              <xs:attribute name="unique" type="xs:boolean" />
+            </xs:extension>
+          </xs:simpleContent>
+        </xs:complexType>
+      </xs:element>
+
+      <xs:element name="param-value">
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+
+          <xs:attribute name="ucfirst" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts the first character of the value to uppercase
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="upper" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts the string to uppercase
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="lower" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts the string to lowercase
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="snake" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts '-' to '_'
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="rmdash" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts '-' to ''
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="dash" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts spaces to dashes
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
+          <xs:attribute name="identifier" type="xs:string">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Strip all characters that do not constitute a valid
+                object identifier (for use in genrating names)
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+
+      <xs:element name="param-inherit">
+        <xs:complexType>
+          <xs:attribute name="meta" type="xs:string" use="required" />
+        </xs:complexType>
+      </xs:element>
+
+      <xs:element name="param-add">
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+
+          <xs:attribute name="value" type="xs:string">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Value to add to param (assumed to be a numeric param)
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+
+      <xs:element name="param-class-to-yields">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Converts a class name to its @yields variable
+          </xs:documentation>
+        </xs:annotation>
+
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+        </xs:complexType>
+      </xs:element>
+
+      <xs:element name="param-sym-value">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Retrieve symbol metadata.
+          </xs:documentation>
+        </xs:annotation>
+
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+          <xs:anyAttribute namespace="##any" processContents="lax" />
+        </xs:complexType>
+      </xs:element>
+    </xs:choice>
+  </xs:group>
+
+
+  <xs:element name="param-copy">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="param-meta" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="name" type="xs:string" use="required" />
+            <xs:attribute name="value" type="xs:string" use="required" />
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+
+      <xs:attribute name="name" type="xs:string" use="required" />
+
+      <xs:attribute name="expand" type="xs:boolean">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Result of param copy should trigger template param expansion has if
+            the copied nodes were a part of the template itself.
+
+            Without this option, param expansion is not performed on the copied
+            nodes for that pass, meaning that the copied nodes will be
+            unaffected by the template.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- TODO: if -->
+  <xs:element name="unless">
+    <xs:complexType mixed="true">
+      <xs:sequence>
+        <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+      </xs:sequence>
+
+      <xs:anyAttribute namespace="##any" processContents="lax" />
+    </xs:complexType>
+  </xs:element>
+
+
+  <xs:complexType name="templateParamType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Declares a parameter available for replacement within the template.
+
+        Notice how, unlike parameters for raters and functions, this parameter
+        does not require a type; this is because all replacements are done by
+        the preprocessor and, as such, all replacements are done as strings.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:group ref="templateParamGenGroup" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+
+    <xs:attribute name="name" type="templateParamNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Parameter name to be used for replacements
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Parameter description
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="templateType" mixed="true">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Declares a template whose body may be referenced using lv:apply-template.
+
+        Templates are a basic means of code reuse that act as macros: when
+        referenced by lv:apply-template, the body of the template will be put
+        in its place as if it were pasted by hand. Therefore, this achieves the
+        effect of copy-and-paste without the obvious downsides of actually
+        copying and pasting code.
+
+        This permits the construction of lv:rate blocks in a more natural manner. Other
+        methods of re-use include referencing previously calculated premiums (by other
+        lv:rate blocks) and the use of functions; both have their downsides. Namely:
+
+          - Premiums calculated by other lv:rate blocks yield a single float value, which
+            aggregates individual indexes that may have been used during rating. As such,
+            if you need those individual premiums per index, premiums from other lv:rate
+            blocks cannot be used. In such a case, functions may be used.
+          - Using a function requires verbose code for application and makes
+            the documentation and debugging more complicated. It does, however,
+            have the benefit of being able to accept arguments, which templates
+            cannot do (and as such should be used whenever variable reuse is
+            necessary outside the scope of the global parameter list).
+          - Templates were designed with the idea that a bunch of common calculations
+            could be defined that could then be applied to individual raters as a more
+            natural alternative to functions. That is---the developer is accustomed to
+            creating lv:rate blocks that contain calculations, not excessive function
+            calls joined together with other expressions. Templates eliminate the need
+            for boilerplate function application code and, because they are handled by
+            the preprocessor, also generate easy-to-understand documentation and make
+            debugging more natural for both developers and testers.
+          - While templates do not accept arguments, they *do* permit string-replacement
+            of parameters by the preprocessor. This has the benefit of being
+            able to replace text as if it were done in your editor.
+            Consequently, this means that the replacement can be anything that
+            is considered valid by the validator/compiler.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:element name="param" type="templateParamType" minOccurs="0" maxOccurs="unbounded" />
+      <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+    </xs:sequence>
+
+    <xs:attribute name="name" type="templateNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Template name; will be used by lv:apply-template.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Describe purpose of the template
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/rate-->
+
+
+<!--classify-->
+  <xs:simpleType name="classNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Classification identifier; will be used to refer to the classification.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z-][a-z0-9-]+|@[a-z][a-zA-Z0-9_]*@" />
+      <xs:minLength value="2" />
+      <xs:maxLength value="50" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:complexType name="classifyType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Classifies data based on the provided argument list and other
+        classifications. Classifications are used during rating to determine
+        how premiums should be calculated in a declarative manner.
+
+        If no classification criteria are provided, then the classification
+        will always take place (implying a direct "is a" relationship between
+        the rater and a particular classification).
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:group ref="classCriteria" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+
+    <xs:attribute name="as" type="classNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name of classification. Can be used to determine whether or not the
+          data has been classified as such.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="any" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Convert classification from a universal quantifier into an
+          existential
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="desc" type="descType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Description of classification
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="yields" type="yieldsNameType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional variable in which to store a boolean set of matches (useful
+          if classifying against sets)
+
+          As an example, consider classifying as vacant land by matching on a
+          set of class codes. The system will check each class code in the
+          provided set against valid class codes for vacant land. Should one
+          item in the set match <em>any</em> of the criteria, the
+          classification will succeed and its associated index in the @yields
+          identifier will be set to 1. Otherwise, the value will remain 0.
+
+          This allows for performing conditional calculations by simply
+          multiplying by the boolean value. If the value is 0, that portion of
+          the equation will effectively have not happened, simulating a
+          conditional.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="keep" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Always perform the classification, even if it is unused.
+
+          Otherwise, the system may not compile unused classifications (and so
+          the classification would not occur).
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="terminate" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Classification should result in termination (useful for eligibility
+          and error conditions)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="external" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Classification should be compiled external to the classifier (that
+          is, the classification should only be performed on-demand for rating
+          purposes).
+
+          This has the benefit of removing the classifier from the classify()
+          method, which may be important for, say, asserting on final premium
+          amount.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:group name="classCriteria">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Criteria with which a classification may be matched.
+
+        All criteria is driven off of the global argument list.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:choice>
+      <xs:group ref="applyTemplateGroup" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="any" type="anyMatchType" />
+      <xs:element name="match" type="matchType" />
+      <xs:element name="join" type="joinMatchType" />
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+  </xs:group>
+
+
+  <xs:complexType name="anyMatchType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Succeeds if any of the child matches succeed (equivalent to an OR statement).
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:group ref="anyMatchNodes" minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:group name="anyMatchNodes">
+    <xs:choice>
+      <xs:group ref="classCriteria" minOccurs="1" maxOccurs="unbounded" />
+      <xs:element name="all" type="allMatchType" minOccurs="0" maxOccurs="unbounded" />
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+  </xs:group>
+
+
+  <xs:complexType name="allMatchType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Succeeds if all of the child matches succeed (equivalent to an AND statement).
+
+        This is implied by the root lv:classify node.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:group ref="classCriteria" minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="matchType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Perform a basic match against a given value or enumerated list.
+
+        One of value or anyOf should be provided. If neither is provided, one
+        may provide any condition nodes accepted by c:when; multiple will be
+        combined with logical and. This provides additional flexibility
+        necessary for more complicated assertions that would otherwise rely on
+        convoluted regular expressions.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:sequence>
+      <xs:group ref="c:conditions" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+
+    <xs:attribute name="on" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Name of global parameter to perform match on
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="value" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Value to match against (must be within domain of parameter). Use only
+          one of this or @anyOf.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="anyOf" type="typeNameType">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Value must match any value within an enumerated list. Enumeration to
+          match against must be within the domain of the parameter. USe only
+          one of this or @value.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="pattern" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          JavaScript-compatible regular expression
+
+          Forward slashes must be escaped with a backslash and opening/closing
+          delimiters should not be specified.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+
+  <xs:complexType name="joinMatchType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Join matching classifiers into an lv:any block where they will be
+        matched on the value TRUE.
+
+        Each matching classifier must have a @yields attribute.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="prefix" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Any classifier's @as attribute matching this prefix will be included
+          within an lv:any block.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="all" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Univerisal quantifier (default is existential)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/classify-->
+
+
+<xs:complexType name="yieldType">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Yields a single value (premium) representing the entire result of the
+      rating process.
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:sequence>
+    <xs:group ref="c:calculationRoot" minOccurs="1" maxOccurs="1" />
+  </xs:sequence>
+</xs:complexType>
+
+
+<!--extern-->
+  <xs:simpleType name="externSymbolTypes">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Internal symbol types
+
+        These are the strings used directly by the symbol map; it is
+        recommended that the user use some type of abstraction (e.g. a
+        template).
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="rate" />
+      <xs:enumeration value="gen" />
+      <xs:enumeration value="cgen" />
+      <xs:enumeration value="param" />
+      <xs:enumeration value="lparam" />
+      <xs:enumeration value="const" />
+      <xs:enumeration value="tpl" />
+      <xs:enumeration value="type" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:complexType name="externType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Declares an external symbol
+
+        This allows a symbol to be used in a package that does not either include
+        or define it. The symbol must be defined before linking.
+      </xs:documentation>
+    </xs:annotation>
+
+    <xs:attribute name="name" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Symbol name
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="type" type="externSymbolTypes" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Symbol type
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="dtype" type="typeNameType" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Symbol data type
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="dim" type="xs:integer" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Symbol dimensions (0 = scalar, 1 = vector, 2 = matrix, etc)
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="missing" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Optional user-friendly message to output when extern is
+          missing (such as how to satisfy it).
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+<!--/extern-->
+
+
+<xs:element name="packageBase" type="packageBaseType" abstract="true">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Represents a single rater (calculator). This is a root node; there may be
+      only one rater per document.
+    </xs:documentation>
+  </xs:annotation>
+</xs:element>
+
+
+<xs:group name="sectionGroupRoot">
+  <xs:choice>
+    <xs:group ref="rateGroup" minOccurs="0" maxOccurs="unbounded" />
+
+    <xs:element name="section">
+      <xs:complexType mixed="true">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Denotes a group of common data.  The section title will
+            become a heading in the documentation.
+          </xs:documentation>
+        </xs:annotation>
+
+        <!-- XXX: duplicated -->
+        <xs:choice maxOccurs="unbounded">
+          <xs:group ref="importGroup" minOccurs="0" maxOccurs="unbounded" />
+          <xs:element name="extern" type="externType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:element name="meta" type="metaType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:element name="param" type="paramType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:element name="typedef" type="typedefType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:element name="const" type="constType" minOccurs="0" maxOccurs="unbounded" />
+          <xs:group ref="classifyGroup" minOccurs="0" maxOccurs="unbounded" />
+          <xs:group ref="functionGroup" minOccurs="0" maxOccurs="unbounded" />
+          <xs:group ref="sectionGroupRoot" minOccurs="0" maxOccurs="unbounded" />
+        </xs:choice>
+
+        <xs:attribute name="title" type="descType" use="required">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Section title to appear in documentation.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:complexType>
+    </xs:element>
+  </xs:choice>
+</xs:group>
+
+
+<xs:group name="applyTemplateGroup">
+  <xs:choice>
+    <!-- any of the below can be enclosed within a template -->
+    <xs:element name="apply-template" type="applyTemplateType" />
+    <xs:element name="inline-template" type="inlineTemplateType" />
+
+    <!-- short-hand with namespace prefix -->
+    <xs:any namespace="http://www.lovullo.com/rater/apply-template"
+      minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+  </xs:choice>
+</xs:group>
+
+<xs:group name="importGroup">
+  <xs:choice>
+    <xs:element name="topic-of" type="topicOfType" minOccurs="0" maxOccurs="1" />
+    <xs:element name="import" type="importType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:group ref="applyTemplateGroup" minOccurs="0" maxOccurs="unbounded" />
+  </xs:choice>
+</xs:group>
+
+<xs:group name="rateGroup">
+  <xs:choice>
+    <xs:group ref="applyTemplateGroup" minOccurs="0" maxOccurs="unbounded" />
+
+    <xs:element name="rate" type="rateType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="rate-each" type="rateEachType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="rate-each-template" type="rateEachTemplateType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="template" type="templateType" minOccurs="0" maxOccurs="unbounded" />
+  </xs:choice>
+</xs:group>
+
+<xs:group name="functionGroup">
+  <xs:choice>
+    <xs:element name="function" type="functionType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="template" type="templateType" minOccurs="0" maxOccurs="unbounded" />
+  </xs:choice>
+</xs:group>
+
+<xs:group name="classifyGroup">
+  <xs:choice>
+    <xs:element name="classify" type="classifyType" minOccurs="0" />
+    <xs:element name="apply-template" type="applyTemplateType" minOccurs="0" />
+    <xs:element name="inline-template" type="inlineTemplateType" minOccurs="0" />
+    <xs:any namespace="http://www.lovullo.com/rater/apply-template" processContents="lax" minOccurs="0" />
+  </xs:choice>
+</xs:group>
+
+
+<xs:complexType name="metaType">
+  <xs:sequence>
+    <xs:element name="prop" minOccurs="1" maxOccurs="unbounded">
+      <xs:complexType>
+        <xs:sequence>
+          <xs:element name="value" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType>
+              <xs:attribute name="name" type="constNameType" use="required" />
+            </xs:complexType>
+          </xs:element>
+
+          <xs:element name="const" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType>
+              <xs:attribute name="value" type="xs:string" use="required" />
+            </xs:complexType>
+          </xs:element>
+        </xs:sequence>
+
+        <xs:attribute name="name" type="xs:string" use="required" />
+      </xs:complexType>
+    </xs:element>
+  </xs:sequence>
+</xs:complexType>
+
+
+<xs:complexType name="packageBaseType" abstract="true"
+                mixed="true">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Base type that defines elements and attributes acceptable by any package
+      (note that a rater is considered to be a concrete package).
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:choice maxOccurs="unbounded">
+    <xs:group ref="importGroup" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="extern" type="externType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="meta" type="metaType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="const" type="constType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="param" type="paramType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:element name="typedef" type="typedefType" minOccurs="0" maxOccurs="unbounded" />
+    <xs:group ref="classifyGroup" minOccurs="0" maxOccurs="unbounded" />
+    <xs:group ref="functionGroup" minOccurs="0" maxOccurs="unbounded" />
+    <xs:group ref="sectionGroupRoot" minOccurs="0" maxOccurs="unbounded" />
+
+    <!-- intended for code generators -->
+    <xs:element name="__external-data" minOccurs="0" maxOccurs="1">
+      <xs:complexType>
+        <xs:sequence>
+          <xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+        </xs:sequence>
+      </xs:complexType>
+    </xs:element>
+
+    <xs:element name="yield" type="yieldType" minOccurs="0" maxOccurs="1">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Entry point for a program package; yields final result.
+
+          This will result in an error if the package is not a program.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:element>
+
+    <!-- with how dynamic the system is, maintaining this XSD is becoming
+         cumbersome; we need to generate one -->
+    <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+  </xs:choice>
+
+  <xs:attribute name="name" type="packageNameType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        UNIX-style package name that may be used to identify the package. Must
+        match the name of the file, sans the ``.xml'' extension.
+      </xs:documentation>
+    </xs:annotation>
+  </xs:attribute>
+</xs:complexType>
+
+
+<xs:element name="rater">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Represents a single rater (calculator). This is a root node; there may be
+      only one rater per document. All raters yield a final premium.
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:complexType>
+    <xs:complexContent>
+      <xs:extension base="packageBaseType" />
+    </xs:complexContent>
+  </xs:complexType>
+</xs:element>
+
+
+<xs:element name="package">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Represents a reusable package that may be included in raters or other
+      packages. This is a root node; there may be only one per document.
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:complexType>
+    <xs:complexContent>
+      <xs:extension base="packageBaseType">
+        <!-- TODO: make required after @desc is removed -->
+        <xs:attribute name="title" type="descType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Package title.  This is used as a user-friendly package
+              name, and as the heading for generated documentation.
+
+              This replaces the previous <tt>@desc</tt> attribute,
+              which existed prior to the literate implementation.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="desc" type="descType">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Deprecated; use @title.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="program" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Package contains an entry point can may be linked into an
+              executable.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <!-- used only by core packages -->
+        <xs:attribute name="core" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Used to indicate that the package is contained within the rating
+              framework itself. <strong>Do not use for your own
+              packages.</strong>
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="debug" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Setting this to "true" will enable pretty sweet debugging features that
+              will make your life more tolerable (and perhaps even pleasant).
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="no-extclass-keeps" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              When importing @keep symbols from packages, ignore those flagged
+              as @extclass
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="auto-keep-imports" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Automatically treat all symbols as if they had @keep set.
+
+              This ensures that all imported symbols will be present in
+              the compiled output.  This is generally not desired, since
+              it will inflate the output by including unused symbols.
+
+              N.B.: Currently only keeps classifications and their
+              generators!
+
+              This is of limited use outside of specialized settings, such
+              as the UI classifier.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+
+        <xs:attribute name="keep-elig-class" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Mark generated eligibility classification with @keep.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+</xs:element>
+
+
+<xs:element name="template" type="templateType">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">
+      Templates may exist as the root node in their own file for auto-loading.
+    </xs:documentation>
+  </xs:annotation>
+</xs:element>
+
+</xs:schema>

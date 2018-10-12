@@ -2,8 +2,9 @@
 dslc_src := $(wildcard com/lovullo/dslc/*.java)
 dslc_bin := $(dslc_src:.java=.class)
 
-.PHONY: dslc clean
+.PHONY: all all-nodoc dslc clean
 
+all: dslc
 dslc: dslc.jar
 
 %.class: %.java
