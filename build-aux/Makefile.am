@@ -73,6 +73,9 @@ default: program-ui c1map FORCE
 
 SHELL = /bin/bash -O extglob
 
+# propagate to tame{,d}
+export TAMED_STALL_SECONDS
+
 all: program-data-copy
 
 program-ui: standalones ui/package.js ui/Program.js program-ui-immediate

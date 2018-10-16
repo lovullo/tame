@@ -28,6 +28,9 @@ declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
 # before forcibly restarting it
 declare -ri RUNNER_CMD_WAITTIME=3
 
+# propagate to daemon
+export TAMED_STALL_SECONDS
+
 
 # Send a single command to a runner and observe the result
 #
