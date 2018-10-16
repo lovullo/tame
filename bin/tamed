@@ -53,10 +53,10 @@ mkfifos()
       echo "fatal: failed to create FIFO at $in"
       exit $EX_CANTCREAT
     }
-
-    # keep FIFOs open so we don't get EOF from writers
-    tail -f >"$root/$n" &
   done
+
+  # keep FIFOs open so we don't get EOF from writers
+  tail -f >"$root/0" &
 }
 
 
@@ -80,8 +80,13 @@ spawn-runner()
 
   # loop to restart runner in case of crash
   while true; do
-    "$mypath/dslc" < "$base/0" &> "$base/1"
-    echo "warning: runner $id exited with code ${PIPESTATUS[0]}; restarting" >&2
+    declare -i job=0
+    trap 'kill -INT $job' HUP
+    "$mypath/dslc" < "$base/0" &> "$base/1" & job=$!
+
+    declare -i status=0
+    wait -n 2>/dev/null || status=$?
+    echo "warning: runner $id exited with code $status; restarting" >&2
   done &
 
   echo "$!" > "$base/pid"

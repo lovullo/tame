@@ -24,6 +24,10 @@ declare -r mypath=$( dirname "$( readlink -f "$0" )" )
 declare -ri EX_NOTAMED=1  # tried to start tamed but failed
 declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
 
+# maximum amount of time in seconds to wait for runner to ack
+# before forcibly restarting it
+declare -ri RUNNER_CMD_WAITTIME=3
+
 
 # Send a single command to a runner and observe the result
 #
@@ -48,7 +52,18 @@ command-runner()
   trap 'kill -TERM $pid &>/dev/null' INT TERM
 
   # all remaining arguments are passed to the runner
-  echo "$@" > "$base/0"
+  echo "$*" > "$base/0"
+
+  # we should immediately get a response from the runner;
+  # if not, then it may have stalled for some reason
+  verify-runner-ack "$*" < "$base/1" || {
+    echo "warning: failed runner $id ack; requesting reload" >&2
+    kill -HUP "$pid"
+    sleep "$RUNNER_CMD_WAITTIME"
+
+    # try once more
+    verify-runner-ack "$*" < "$base/1" || exit
+  }
 
   # output lines from runner until we reach a line stating "DONE"
   while read line; do
@@ -81,6 +96,23 @@ verify-runner()
   test -O "$base/0" || {
     echo "error: runner $id ($pid) is not owned by $USER!" >&2
     exit "$EX_NOTAMED"
+  }
+}
+
+
+# Wait for command acknowledgment from runner
+#
+# The runner must respond within RUNNER_CMD_WAITTIME seconds
+# and must echo back the command that was given.  Otherwise,
+# this function returns with a non-zero status.
+verify-runner-ack()
+{
+  local -r cmd="${1?Missing command}"
+
+  read -t"$RUNNER_CMD_WAITTIME" -r ack || return
+  test "COMMAND $cmd" == "$ack" || {
+    # TODO check for ack mismatch once output race condition is fixed
+    :
   }
 }
 
