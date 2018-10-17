@@ -22,6 +22,7 @@ set -euo pipefail
 declare -r mypath=$( dirname "$( readlink -f "$0" )" )
 
 declare -ri EX_NOTAMED=1  # tried to start tamed but failed
+declare -ri EX_STALLED=2  # runner stalled and could not recover
 declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
 
 # maximum amount of time in seconds to wait for runner to ack
@@ -62,10 +63,13 @@ command-runner()
   verify-runner-ack "$*" < "$base/1" || {
     echo "warning: failed runner $id ack; requesting reload" >&2
     kill -HUP "$pid"
-    sleep "$RUNNER_CMD_WAITTIME"
 
-    # try once more
-    verify-runner-ack "$*" < "$base/1" || exit
+    # try one last time
+    echo "$*" > "$base/0"
+    verify-runner-ack "$*" < "$base/1" || {
+      echo "error: runner $id still unresponsive; giving up" >&2
+      exit "$EX_STALLED"
+    }
   }
 
   # output lines from runner until we reach a line stating "DONE"
