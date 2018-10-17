@@ -83,7 +83,7 @@ export TAMED_STALL_SECONDS
 
 all: program-data-copy
 
-program-ui: standalones ui/package.js ui/Program.js program-ui-immediate
+program-ui: standalones ui/package.strip.js ui/Program.js program-ui-immediate
 program-ui-immediate: ui/html/index.phtml
 
 # Note the `$()' here to prevent Automake from inlining this file---it is
@@ -203,7 +203,7 @@ program-data-copy: standalones program-ui c1map .version.xml
 	  "$(path_lv)/src/node/program/ui/custom/"
 	cp -v "$(path_srv)/rater.js" \
 	  "$(path_lv)/src/node/program/rater/programs/@program@.js"
-	cp -v "$(path_ui)/package.js" \
+	cp -v "$(path_ui)/package.strip.js" \
 	  "$(path_lv)/src/node/program/classify/@program@.js"
 	cp -v "$(path_ui)/"{Program,include,package}.js \
 	  "$(path_lv)/src/_gen/scripts/program/@program@/"
@@ -216,7 +216,7 @@ program-data-copy: standalones program-ui c1map .version.xml
 	ant -f "$(path_lv)/build.xml" js-mod-order
 
 # TODO: merge this and the above
-lvroot: summary-html program-ui c1map
+lvroot: summary-html program-ui c1map strip
 	mkdir -p "$(path_lvroot)/src/node/program/rater/programs/@program@"
 	mkdir -p "$(path_lvroot)/src/node/program/classify"
 	mkdir -p "$(path_lvroot)/src/node/program/ui/custom"
@@ -228,7 +228,7 @@ lvroot: summary-html program-ui c1map
 	  "$(path_lvroot)/src/node/program/rater/programs/@program@.js"
 	cp -v "$(path_suppliers)/"*.js \
 	  "$(path_lvroot)/src/node/program/rater/programs/@program@"
-	cp -v "$(path_ui)/package.js" \
+	cp -v "$(path_ui)/package.strip.js" \
 	  "$(path_lvroot)/src/node/program/classify/@program@.js"
 	cp -v "$(path_ui)/"{Program,include,package}.js \
 	  "$(path_lvroot)/src/_gen/scripts/program/@program@/"
