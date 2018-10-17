@@ -22,6 +22,7 @@ path_rates         := $(path_suppliers)/rates
 path_map           := map
 path_c1map         := $(path_map)/c1
 path_dsl           := rater
+path_tame          := $(path_dsl)/tame
 path_ui            := ui
 path_tests         := test
 path_suppliers     := suppliers
@@ -42,6 +43,10 @@ dest_standalone := $(patsubst \
 	$(path_suppliers)/%.xml, \
 	$(path_suppliers)/%.js, \
 	$(src_suppliers))
+dest_standalone_strip := $(patsubst \
+	$(path_suppliers)/%.js, \
+	$(path_suppliers)/%.strip.js, \
+	$(dest_standalone))
 dest_map := $(patsubst \
 	$(path_map)/%.xml, \
 	$(path_map)/%.xmle, \
@@ -61,7 +66,7 @@ ant = @ANT@ -e
 
 .PHONY: FORCE default program-data-copy lvroot program-ui-immediate test \
         default clean interp-rate-tables summary-html c1map standalones \
-        program-ui version FORCE
+        strip program-ui version FORCE
 
 default: program-ui c1map FORCE
 
@@ -91,10 +96,14 @@ summary-html: $(dest_summary_html) ;
 	$(TAME) summary $*.xmle $@
 
 standalones: $(dest_standalone)
+strip: $(dest_standalone_strip) ui/package.strip.js
 %.xmle: %.xmlo
 	$(TAME) link $< $@
 %.js: %.xmle
 	$(TAME) standalone $< $@
+%.strip.js: %.js
+	cp $< $@
+	$(path_tame)/tools/strip $@
 
 # C1 XML (specific recipes are in suppliers.mk)
 c1map: $(dest_c1map)
@@ -239,7 +248,7 @@ intralov-root: summary-html
 	ln -fL $(path_suppliers)/*.{html,js} "$(path_intralov_root)/suppliers"
 
 test: check
-check-am: standalones ui/package.js
+check-am: strip
 	@$(path_dsl)/build-aux/progtest-runner $(path_suppliers) $(path_tests)
 	@$(path_dsl)/build-aux/progtest-runner ui/package.xml $(path_tests)/ui
 

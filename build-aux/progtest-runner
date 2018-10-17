@@ -47,7 +47,8 @@ for supplier in "${suppliers[@]}"; do
     exit 1
   }
 
-  rater/tame/progtest/bin/runner "$path_suppliers/$base.js" $tests \
+  # note that this depends on the _stripped_ version
+  rater/tame/progtest/bin/runner "$path_suppliers/$base.strip.js" $tests \
     || result=1
 done
 
