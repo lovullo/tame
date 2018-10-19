@@ -56,6 +56,12 @@ dest_c1map := $(patsubst \
 	$(path_c1map)/%.php, \
 	$(src_c1map))
 
+program_fragments=$(shell \
+  find $(path_ui)/program/ -name '*.xml' 2>/dev/null \
+    | tr '\n' ' ' \
+    | LC_ALL=C sort \
+)
+
 compiled_suppliers := $(src_suppliers:.xml=.xmlo)
 linked_suppliers   := $(src_suppliers:.xml=.xmle)
 
@@ -139,7 +145,7 @@ version: .version.xml
 .version.xml: FORCE
 	git log HEAD^.. -1 --pretty=format:'<version>%h</version>' > .version.xml
 
-ui/program.expanded.xml: ui/program.xml
+ui/program.expanded.xml: ui/program.xml $(program_fragments)
 	$(TAME) progui-expand $< $@
 ui/Program.js: ui/program.expanded.xml ui/package.js
 	$(TAME) progui-class $< $@ include-path=../../../ui/
