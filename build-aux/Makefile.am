@@ -79,6 +79,7 @@ default: program-ui c1map FORCE
 SHELL = /bin/bash -O extglob
 
 # propagate to tame{,d}
+export TAME_CMD_WAITTIME
 export TAMED_STALL_SECONDS
 
 all: program-data-copy

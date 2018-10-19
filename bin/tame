@@ -27,7 +27,7 @@ declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
 
 # maximum amount of time in seconds to wait for runner to ack
 # before forcibly restarting it
-declare -ri RUNNER_CMD_WAITTIME=3
+declare -ri TAME_CMD_WAITTIME="${TAME_CMD_WAITTIME:-3}"
 
 # propagate to daemon
 export TAMED_STALL_SECONDS
@@ -63,6 +63,9 @@ command-runner()
   verify-runner-ack "$*" < "$base/1" || {
     echo "warning: failed runner $id ack; requesting reload" >&2
     kill -HUP "$pid"
+
+    # give some extra time in case the host is under high load
+    sleep "$TAME_CMD_WAITTIME"
 
     # try one last time
     echo "$*" > "$base/0"
@@ -109,14 +112,14 @@ verify-runner()
 
 # Wait for command acknowledgment from runner
 #
-# The runner must respond within RUNNER_CMD_WAITTIME seconds
+# The runner must respond within TAME_CMD_WAITTIME seconds
 # and must echo back the command that was given.  Otherwise,
 # this function returns with a non-zero status.
 verify-runner-ack()
 {
   local -r cmd="${1?Missing command}"
 
-  read -t"$RUNNER_CMD_WAITTIME" -r ack || return
+  read -t"$TAME_CMD_WAITTIME" -r ack || return
   test "COMMAND $cmd" == "$ack" || {
     # TODO check for ack mismatch once output race condition is fixed
     :
@@ -233,14 +236,22 @@ Or:    $0 --kill
 Send command line CMDLINE to a tamed runner.  Start tamed if
 not already running.
 
+If a runner does not acknlowedge a request in TAME_CMD_WAITTIME
+seconds, it will be reloaded and given TAME_CMD_WAITTIME seconds
+to come online.  After that time has elapsed, the command will
+be re-attempted, timing out again after TAME_CMD_WAITTIME and
+and at that point giving up.
+
 Options:
   --help         show this message
   --kill         kill tamed
   -v, --verbose  show runner logs
 
 Environment Variables:
-  TAME_VERBOSE  when greater than zero, show runner logs
-                (see also --verbose)
+  TAME_VERBOSE       when greater than zero, show runner logs
+                       (see also --verbose)
+  TAME_CMD_WAITTIME  number of seconds to wait for ack from
+                       runner (default 3)
 EOF
 
   exit $EX_USAGE
