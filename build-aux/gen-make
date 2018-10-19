@@ -2,7 +2,7 @@
 #
 # Generates Makefile containing dependencies for each package
 #
-#   Copyright (C) 2016 R-T Specialty, LLC.
+#   Copyright (C) 2016, 2018 R-T Specialty, LLC.
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -94,15 +94,24 @@ until [ $# -eq 0 ]; do (
 
     # output deps
     while read dep; do
+      ext=.xmlo
+
+      # a trailing `$' means "leave the path alone"; don't automatically
+      # add the extension in this case
+      if [[ "$dep" =~ \$$ ]]; then
+        dep="${dep:0:-1}"
+        ext=
+      fi
+
       # if the first character is a slash, then it's relative to the project
       # root---the resolution has already been done for us!
       if [ "${dep:0:1}" == '/' ]; then
-        echo -n " ${dep:1}.xmlo"
+        echo -n " ${dep:1}$ext"
         continue
       fi
 
       echo -n ' '
-      resolv-path "$path/$dep.xmlo"
+      resolv-path "$path/$dep$ext"
     done < "$d"
 
     echo

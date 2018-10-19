@@ -51,6 +51,12 @@
 
 
 <xsl:template match="lvm:program-map|lvm:return-map">
+  <!-- a trailing '$' indicates that the path should be interpreted
+       verbatim; no ".xmlo" should be added -->
+  <xsl:if test="@src">
+    <xsl:value-of select="concat( string( @src ), '.xml$', $nl )" />
+  </xsl:if>
+
   <!-- output deps, one per line -->
   <xsl:for-each select="lvm:import[ @path ]|lv:import[ @package ]">
     <xsl:value-of select="concat( @path|@package, $nl )" />
