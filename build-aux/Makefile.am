@@ -58,8 +58,8 @@ dest_c1map := $(patsubst \
 
 program_fragments=$(shell \
   find $(path_ui)/program/ -name '*.xml' 2>/dev/null \
-    | tr '\n' ' ' \
     | LC_ALL=C sort \
+    | tr '\n' ' ' \
 )
 
 compiled_suppliers := $(src_suppliers:.xml=.xmlo)
