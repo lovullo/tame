@@ -56,6 +56,11 @@ describe( "TestRunner", () =>
                     baz: [ 4, 2 ],
                 },
             },
+            {
+                description: "recursive",
+                data:        { a: [[[[1]]]] },
+                expect:      { foo: [[[[1]]]] },
+            },
         ];
 
         const rate_results = [
@@ -67,6 +72,10 @@ describe( "TestRunner", () =>
                 foo: [ 1, 2 ],
                 bar: [ 3, 4 ],
                 baz: [ 4, 5 ],
+            } },
+            // no failures
+            { vars: {
+                foo: [[[[1]]]],
             } },
         ];
 
@@ -83,10 +92,11 @@ describe( "TestRunner", () =>
                     expect: test_cases[ 1 ].expect.baz,
                     result: rate_results[ 1 ].vars.baz,
                 },
-            ]
+            ],
+            [],
         ];
 
-        Sut( NullTestReporter(), program )
+        return Sut( NullTestReporter(), program )
             .runTests( test_cases )
             .then( results =>
             {
@@ -95,7 +105,6 @@ describe( "TestRunner", () =>
                     const result = results[ i ];
 
                     expect( result.desc ).to.equal( test_case.description );
-                    expect( result.i ).to.equal( i );
                     expect( result.total ).to.equal(
                         Object.keys( test_case.expect ).length
                     );
