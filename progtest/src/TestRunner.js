@@ -192,7 +192,7 @@ module.exports = Class( 'TestRunner',
         {
             return Array.isArray( y )
                 && ( x.length === y.length )
-                && x.every( ( xval, i ) => xval === y[ i ] );
+                && x.every( ( xval, i ) => this._deepCompare( xval, y[ i ] ) );
         }
 
         // scalar
