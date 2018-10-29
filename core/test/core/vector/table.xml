@@ -1,0 +1,219 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2018 R-T Specialty, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  desc="Table Querying Specs">
+
+  <import package="../../spec" />
+
+  <import package="../../../base" />
+  <import package="../../../vector/table" />
+
+
+  <t:create-table name="test-table"
+                  desc="Dummy table for query testing">
+    <t:table-column name="a"
+                    index="0"
+                    desc="Column A" />
+    <t:table-column name="b"
+                    index="1"
+                    desc="Column B" />
+    <t:table-column name="c"
+                    index="2"
+                    desc="Column C" />
+
+    <t:table-rows>
+      <t:table-row>
+        <t:table-value const="1" />
+        <t:table-value const="11" />
+        <t:table-value const="111" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="1" />
+        <t:table-value const="12" />
+        <t:table-value const="121" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="2" />
+        <t:table-value const="21" />
+        <t:table-value const="111" />
+      </t:table-row>
+    </t:table-rows>
+  </t:create-table>
+
+
+  <t:describe name="_query-first-field_">
+    <t:it desc="returns first row of multi-row result">
+      <t:given>
+        <t:query-first-field table="test-table" field="c">
+          <t:when field="a">
+            <c:value-of name="#1" />
+          </t:when>
+        </t:query-first-field>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="111" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="returns first row of single-row result">
+      <t:given>
+        <t:query-first-field table="test-table" field="c">
+          <t:when field="a">
+            <c:value-of name="#1" />
+          </t:when>
+          <t:when field="b">
+            <c:value-of name="#12" />
+          </t:when>
+        </t:query-first-field>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="121" />
+      </t:expect>
+    </t:it>
+  </t:describe>
+
+
+
+  <t:describe name="_query-field_">
+    <t:describe name="with predicates">
+      <t:it desc="returns vector of field values">
+        <t:given>
+          <c:length-of>
+            <t:query-field table="test-table" field="c">
+              <t:when field="a">
+                <c:value-of name="#1" />
+              </t:when>
+            </t:query-field>
+          </c:length-of>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="2" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="returns vector of field values even for single result">
+        <t:given>
+          <c:car>
+            <t:query-field table="test-table" field="c">
+              <t:when field="a">
+                <c:value-of name="#1" />
+              </t:when>
+              <t:when field="b">
+                <c:value-of name="#11" />
+              </t:when>
+            </t:query-field>
+          </c:car>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="111" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with no predicates">
+      <t:it desc="returns vector of all field values">
+        <t:given>
+          <c:length-of>
+            <t:query-field table="test-table" field="c" />
+          </c:length-of>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="3" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+
+
+
+  <t:describe name="_query-row_">
+    <t:describe name="with predicates">
+      <t:it desc="returns vector of rows">
+        <t:given>
+          <c:length-of>
+            <t:query-row table="test-table">
+              <t:when field="a">
+                <c:value-of name="#1" />
+              </t:when>
+            </t:query-row>
+          </c:length-of>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="2" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="returns vector of rows even for single result">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="first_row" type="integer" set="vector">
+                <c:car>
+                  <t:query-row table="test-table">
+                    <t:when field="a">
+                      <c:value-of name="#1" />
+                    </t:when>
+                    <t:when field="b">
+                      <c:value-of name="#11" />
+                    </t:when>
+                  </t:query-row>
+                </c:car>
+              </c:value>
+            </c:values>
+
+            <c:sum of="first_row" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="123" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with no predicates">
+      <t:it desc="returns vector of all rows">
+        <t:given>
+          <c:length-of>
+            <t:query-row table="test-table" />
+          </c:length-of>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="3" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>

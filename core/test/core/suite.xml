@@ -33,7 +33,7 @@
   <import package="vector/fold" />
   <import package="vector/interpolate" />
   <import package="vector/length" />
-  <import package="vector/stub" />
+  <import package="vector/table" />
 
   <import package="aggregate" />
   <import package="insurance" />
