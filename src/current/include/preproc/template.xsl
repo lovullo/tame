@@ -609,14 +609,19 @@
   <xsl:param name="apply" as="node()"
              tunnel="yes" />
 
-  <!-- determine the value -->
+  <xsl:variable name="name">
+    <xsl:call-template name="preproc:template-param-value">
+      <xsl:with-param name="name" select="@name" />
+    </xsl:call-template>
+  </xsl:variable>
+
   <xsl:variable name="value">
     <xsl:call-template name="preproc:template-param-value">
       <xsl:with-param name="name" select="@value" />
     </xsl:call-template>
   </xsl:variable>
 
-  <preproc:tpl-meta name="{@name}" value="{$value}">
+  <preproc:tpl-meta name="{$name}" value="{$value}">
     <xsl:if test="not( parent::lv:param-copy )">
       <xsl:attribute name="hoist" select="'true'" />
     </xsl:if>
@@ -1079,7 +1084,11 @@
   <xsl:param name="apply" as="node()"
              tunnel="yes" />
 
-  <xsl:variable name="name" select="@meta" />
+  <xsl:variable name="name">
+    <xsl:call-template name="preproc:template-param-value">
+      <xsl:with-param name="name" select="@meta" />
+    </xsl:call-template>
+  </xsl:variable>
 
   <!-- find the metadata -->
   <xsl:variable name="values"
