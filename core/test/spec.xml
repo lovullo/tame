@@ -136,29 +136,40 @@
 
 
     <expand-sequence>
-      <expand-group>
-        <param-copy name="@values@">
-          <param-meta name="spec-name"
-                      value="@__full_name@" />
-          <param-meta name="spec-prefix"
-                      value="@__prefix@" />
-        </param-copy>
-      </expand-group>
+      <param-copy name="@values@">
+        <param-meta name="spec-name"
+                    value="@__full_name@" />
+        <param-meta name="spec-prefix"
+                    value="@__prefix@" />
+      </param-copy>
 
       <!-- joins all generated classifications to provide a higher-level
            failure if any expectations fail -->
-      <classify as="expect-conform-{@__prefix@}{@__uniq@}"
-                desc="{@__full_name@} meets expectations"
-                keep="true">
-        <inline-template>
-          <for-each>
-            <sym-set name-prefix="expect-that-{@__prefix@}"
-                     type="class" />
-          </for-each>
+      <!-- XXX: there is a bug in expand-sequence where it does not wait for
+           all template expansions before continuing to expand the next item
+           in the sequence -->
+      <expand-sequence>
+        <expand-sequence>
+          <expand-sequence>
+            <expand-sequence>
+              <expand-sequence>
+                <classify as="expect-conform-{@__prefix@}{@__uniq@}"
+                          desc="{@__full_name@} meets expectations"
+                          keep="true">
+                  <inline-template>
+                    <for-each>
+                      <sym-set name-prefix="expect-that-{@__prefix@}"
+                               type="class" />
+                    </for-each>
 
-          <t:match-class name="{@sym_name@}" />
-        </inline-template>
-      </classify>
+                    <t:match-class name="{@sym_name@}" />
+                  </inline-template>
+                </classify>
+              </expand-sequence>
+            </expand-sequence>
+          </expand-sequence>
+        </expand-sequence>
+      </expand-sequence>
     </expand-sequence>
   </template>
 
