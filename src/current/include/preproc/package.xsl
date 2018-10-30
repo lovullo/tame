@@ -259,7 +259,7 @@
 
 
 <!-- skip things that cannot contain template applications -->
-<xsl:template match="lv:template|lv:const|lv:typedef"
+<xsl:template match="lv:template|lv:const|lv:typedef|lv:param-copy"
               mode="preproc:tpl-check" priority="9">
 </xsl:template>
 

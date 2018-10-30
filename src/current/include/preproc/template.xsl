@@ -585,6 +585,27 @@
 
 
 <!--
+  Halt expansion at this point and remove the barrier for future expansions
+-->
+<xsl:template match="lv:expand-barrier" mode="preproc:apply-template" priority="5">
+  <xsl:sequence select="node()" />
+</xsl:template>
+
+
+<!--
+  Leave immediate children alone but continue expanding grandchildren
+-->
+<xsl:template match="lv:skip-child-expansion" mode="preproc:apply-template" priority="5">
+  <xsl:for-each select="element()">
+    <xsl:copy>
+      <xsl:copy-of select="@*" />
+      <xsl:apply-templates mode="preproc:apply-template" />
+    </xsl:copy>
+  </xsl:for-each>
+</xsl:template>
+
+
+<!--
   Preprocesses template nodes
 
   Currently, only attributes will be processed. Otherwise, the template ends up
