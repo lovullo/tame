@@ -580,7 +580,22 @@
     <xs:element name="set" substitutionGroup="operator">
       <xs:annotation>
         <xs:documentation xml:lang="en">
-          Creates a set out of its siblings
+          Creates a set out of its siblings (deprecated in favor of
+          c:vector)
+        </xs:documentation>
+      </xs:annotation>
+
+      <xs:complexType>
+        <xs:complexContent>
+          <xs:extension base="operatorBaseType" />
+        </xs:complexContent>
+      </xs:complexType>
+    </xs:element>
+
+    <xs:element name="vector" substitutionGroup="operator">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Creates a vector out of its siblings
         </xs:documentation>
       </xs:annotation>
 

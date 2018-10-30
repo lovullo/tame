@@ -671,10 +671,9 @@
 
 
 <!--
-  TODO: Technically this is incorrect; sets cannot have duplicate values. This
-  would be best styled as a vector/matrix/etc.
+  Style vectors
 -->
-<xsl:template match="c:set" priority="1">
+<xsl:template match="c:set|c:vector" priority="1">
   <xsl:text>\left[</xsl:text>
     <xsl:for-each select="./c:*">
       <xsl:if test="position() > 1">
@@ -686,11 +685,16 @@
   <xsl:text>\right]^T</xsl:text>
 </xsl:template>
 
-<!-- style subsets as matrices (easier to read) -->
-<xsl:template match="c:set[ ./c:set ]" priority="5">
+
+<!--
+  Style vector of vector as matrix
+-->
+<xsl:template priority="5"
+              match="c:set[ c:set ]
+                     |c:vector[ c:vector ]">
   <xsl:text>\left[\begin{array}\\</xsl:text>
 
-  <xsl:for-each select="./c:set">
+  <xsl:for-each select="c:set|c:vector">
     <xsl:if test="position() > 1">
       <xsl:text>\\</xsl:text>
     </xsl:if>

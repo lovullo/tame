@@ -1009,7 +1009,16 @@
 </template>
 
 
-<template match="c:set" mode="compile-calc">
+<!--
+  TODO: Remove c:set in the future.
+-->
+<template match="c:set" mode="compile-calc" priority="9">
+  <message select="'warning: c:set is deprecated; use c:vector instead'" />
+  <next-match />
+</template>
+
+
+<template match="c:set|c:vector" mode="compile-calc" priority="5">
   <text>[</text>
     <for-each select="./c:*">
       <if test="position() > 1">
