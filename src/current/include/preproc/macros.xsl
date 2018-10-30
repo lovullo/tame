@@ -159,9 +159,15 @@
 <xsl:template mode="preproc:macros"
               match="c:value-of[ starts-with( @name, '#' ) ]"
               priority="7">
+  <xsl:variable name="desc" as="xs:string"
+                select="if ( @label ) then
+                            @label
+                          else
+                            'Generated short-hand constant'" />
+
   <c:const value="{substring-after( @name, '#' )}"
            type="float"
-           desc="Generated short-hand constant" />
+           desc="{$desc}" />
 </xsl:template>
 
 
