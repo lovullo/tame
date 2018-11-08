@@ -21,7 +21,7 @@
 path_rates         := $(path_suppliers)/rates
 path_map           := map
 path_c1map         := $(path_map)/c1
-path_dsl           := rater
+path_dsl           := $(CALCROOT)
 path_tame          := $(path_dsl)/tame
 path_ui            := ui
 path_tests         := test
@@ -189,9 +189,9 @@ clean:
 # an explanation
 suppliers.mk:
 	$(ant) pkg-dep
-	mv $(path_ui)/program.dep $(path_ui)/package-dfns.dep
-	./rater/tame/build-aux/gen-make common/ $(path_suppliers)/ $(path_dsl)/ $(path_map)/ $(path_ui)/ >$@
-	./rater/tame/build-aux/gen-c1make $(path_c1map)/*.xml >>$@
+	test ! -f $(path_ui)/program.dep || mv $(path_ui)/program.dep $(path_ui)/package-dfns.dep
+	$(path_dsl)/tame/build-aux/gen-make $(SRCPATHS) > $@
+	test ! -d $(path_c1map) || $(path_dsl)/tame/build-aux/gen-c1make $(path_c1map)/*.xml >> $@
 
 program-data-copy: standalones program-ui c1map .version.xml
 	mkdir -p "$(path_lv)/src/node/program/rater/programs/@program@"

@@ -1,6 +1,6 @@
 # Common build configuration for TAME-based build systems
 #
-#   Copyright (C) 2017 R-T Specialty, LLC.
+#   Copyright (C) 2017, 2018 R-T Specialty, LLC.
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -49,6 +49,13 @@ AS_IF([test "$ANT"],,
 # Automake runs before shell is available, thus the separate m4 variable
 CALCROOT="m4_defn(`calc_root')"
 
+# Default source paths for BC
+test -n "$SRCPATHS" || SRCPATHS='common/ suppliers/ map/ ui/ rater/'
+AC_MSG_NOTICE([using source paths: $SRCPATHS])
+
+AC_SUBST([CALCROOT], [$CALCROOT])
+AC_SUBST([SRCPATHS], [$SRCPATHS])
+
 # Checks to ensure that dslc is built, and gives instructions on how to
 # build it otherwise.  We do not want to build that for them---that can be
 # added to a bootstrap script, but isn't permissible in build scripts.
@@ -79,7 +86,7 @@ AC_OUTPUT
 
 # we want this to run as part of the configure script, not during M4
 # expansion
-"$CALCROOT/build-aux/suppmk-gen"
+"$CALCROOT/build-aux/suppmk-gen" $SRCPATHS
 
 AC_MSG_NOTICE([complete
 

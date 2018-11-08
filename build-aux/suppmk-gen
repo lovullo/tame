@@ -27,7 +27,7 @@ while read csv; do
   csvbase="${csv%%.*}"
   echo "$csvbase.xmlo: $csvbase.xml"
   echo "$csvbase.xml: $csvbase.csvo"
-done < <( find suppliers common -regex '^.+\.csv.?$' ) \
+done < <( find "$@" -regex '^.+\.csv.?$' ) \
   >> suppliers.mk
 
 while read tdat; do
@@ -35,6 +35,6 @@ while read tdat; do
   echo "$tbase.xmlo: $tbase.xml rater/core/tdat.xmlo"
   echo "$tbase.xml: $tdat"
   echo -e "\trater/tools/tdat2xml \$< > \$@"
-done < <( find suppliers common -regex '^.+territories/.+\.dat$' ) \
+done < <( find "$@" -regex '^.+territories/.+\.dat$' ) \
   >> suppliers.mk
 
