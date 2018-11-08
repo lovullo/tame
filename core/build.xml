@@ -1,0 +1,22 @@
+<!--
+  TODO: Remove need for depfiles and remove this last requirement on Ant.
+  The only reason this was used originally was because Ant loaded the JVM
+  only once.
+-->
+<project name="tame" default="build" basedir=".">
+  <property name="source" value="."/>
+
+  <target name="pkg-dep"
+    description="Output package dependencies in a plain-text format">
+
+    <xslt style="../src/current/pkg-dep.xsl"
+      force="true"
+      basedir="${source}"
+      destdir="${source}"
+      includes="**/*.xml"
+      excludes="rater/"
+      extension=".dep" />
+  </target>
+</project>
+
+
