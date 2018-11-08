@@ -54,10 +54,12 @@ public class DslCompiler
         private Path _pathRoot;
 
 
-        public _DslCompiler()
+        public _DslCompiler( String path_root )
+            throws IOException
         {
-            _xsd  = _createXsd();
-            _xsl  = new HashMap<String,Transformer>();
+            _pathRoot = Paths.get( path_root ).toRealPath();
+            _xsd      = _createXsd();
+            _xsl      = new HashMap<String,Transformer>();
         }
 
 
@@ -83,9 +85,6 @@ public class DslCompiler
 
                 System.exit( 4 );
             }
-
-            // root path of TAME
-            _pathRoot = Paths.get( "rater/tame" ).toRealPath();
 
             // transform to dest
             File destfile = new File( dest );
@@ -140,7 +139,7 @@ public class DslCompiler
             String relroot   = new String( new char[ dircount ] ).replace( "\0", "../" );
 
             Transformer t = _xsl.get( cmd );
-            t.setParameter( "__path-root", _pathRoot.toString() );
+            t.setParameter( "__path-root", _pathRoot.toString() + "/tame" );
             t.setParameter( "__srcpkg", srcpkg );
             t.setParameter( "__relroot", relroot );
             t.setParameter( "__rseed", (int)( Math.random() * 10e6 ) );
@@ -193,7 +192,7 @@ public class DslCompiler
             try
             {
                 final Schema schema  =
-                    factory.newSchema( new File( "rater/rater.xsd" ) );
+                    factory.newSchema( new File( _pathRoot.toString() + "/rater.xsd" ) );
 
                 return schema.newValidator();
             }
@@ -219,7 +218,9 @@ public class DslCompiler
                     "net.sf.saxon.TransformerFactoryImpl", null
                 );
 
-                final Source xsl = new StreamSource( "rater/" + src + ".xsl" );
+                final Source xsl = new StreamSource(
+                    _pathRoot.toString() + "/" + src + ".xsl"
+                );
 
                 return factory.newTransformer( xsl );
             }
@@ -245,22 +246,21 @@ public class DslCompiler
             new InputStreamReader( System.in )
         );
 
-        String src = ( args.length > 0 ) ? args[0] : "";
+        String src       = "";
+        String path_root = ( args.length > 0 ) ? args[0] : "";
 
-        _DslCompiler dslc = new _DslCompiler();
+        if ( path_root == "" )
+        {
+            throw new Exception( "Missing rater/ root path" );
+        }
+
+        _DslCompiler dslc = new _DslCompiler( path_root );
 
         try
         {
-            if ( src != "" )
+            while ( ( src = stdin.readLine() ) != null )
             {
                 compileSrc( dslc, src );
-            }
-            else
-            {
-                while ( ( src = stdin.readLine() ) != null )
-                {
-                    compileSrc( dslc, src );
-                }
             }
         }
         catch ( IOException e )

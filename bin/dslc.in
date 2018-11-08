@@ -22,7 +22,21 @@
 declare -r mypath=$( dirname "$( readlink -f "$0" )" )
 declare -r dslc_jar="$mypath/../src/current/src/dslc.jar"
 
+# TODO: decouple from old rater/ directory
+rater-path()
+{
+  # use rater/ in cwd if available to maintain previous behavior
+  if [ -d "$(pwd)/rater" ]; then
+    echo "$(pwd)/rater"
+    return
+  fi
+
+  # otherwise use our own
+  echo "$mypath/../rater"
+}
+
 
 CLASSPATH="$CLASSPATH:@DSLC_CLASSPATH@:$dslc_jar" \
   "@JAVA@" @JAVA_OPTS@ \
-  com.lovullo.dslc.DslCompiler
+  com.lovullo.dslc.DslCompiler \
+  "$( rater-path )"
