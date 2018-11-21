@@ -1568,7 +1568,7 @@
                 v = returnOrReduceOr( store[ i ], u );
 
             // recurse on vectors
-            if ( typeof param[ i ] === 'object' )
+            if ( typeof param[ i ] === 'object' || typeof store[ i ] === 'object' )
             {
                 var r = deepClone( store[ i ] || [] );
                 if ( typeof r !== 'object' )
