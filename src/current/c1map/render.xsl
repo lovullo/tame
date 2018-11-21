@@ -2,7 +2,7 @@
 <!--
   Renders the final PHP code
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -45,9 +45,8 @@
   <xsl:text>&lt;?php </xsl:text>
   <xsl:value-of select="$lvmp:nl" />
 
-  <!-- TODO: add program id to namespace -->
-  <xsl:text>namespace lovullo\c1\interfaces\c1\contract\</xsl:text>
-    <xsl:value-of select="@program" />
+  <xsl:text>namespace </xsl:text>
+    <xsl:value-of select="@namespace" />
     <xsl:text>;</xsl:text>
   <xsl:value-of select="$lvmp:nl" />
 

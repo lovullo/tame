@@ -2,7 +2,7 @@
 <!--
   Generates PHP code that works with the LoVullo ConceptOne import system
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -30,6 +30,7 @@
 <xsl:stylesheet version="2.0"
   xmlns:c1="http://www.epic-premier.com/XMLSchema"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lvm="http://www.lovullo.com/rater/map/c1"
   xmlns:lvmp="http://www.lovullo.com/rater/map/c1/pp">
 
@@ -68,9 +69,26 @@
         concat( translate( c1:*[1]/name(), '_', '' ), 'Composer' )
     " />
 
+  <!-- TODO: this default value maintains BC, but it ought to be specified;
+       remove this in the future -->
+  <xsl:variable name="namespace" as="xs:string"
+                select="if ( @namespace ) then
+                            @namespace
+                          else
+                            concat(
+                              'lovullo\c1\interfaces\c1\contract\',
+                              @program )" />
+
+  <!-- deprecation warning for above -->
+  <xsl:if test="not( @namespace )">
+    <xsl:message select="concat(
+                           'warning: missing lvm:c1-map/@namespace; defaulting to `',
+                           replace( $namespace, '\\', '\\\\' ), '''' )" />
+  </xsl:if>
+
   <!-- preprocessed result -->
   <xsl:variable name="pp-result">
-    <lvmp:root program="{@program}" name="{$name}">
+    <lvmp:root program="{@program}" name="{$name}" namespace="{$namespace}">
       <!-- introduce outer scope for variables -->
       <lvmp:scope id="">
         <xsl:apply-templates />
