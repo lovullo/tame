@@ -29,6 +29,7 @@ path_suppliers     := suppliers
 path_lv            := lovullo
 path_srv           := srv
 path_lvroot        := lvroot
+path_c1root        := c1root
 path_intralov_root := "intralov-root/@program@"
 
 src_suppliers := $(wildcard $(path_suppliers)/*.xml)
@@ -70,7 +71,7 @@ extless_supp_delim := $(subst .xml,,$(subst .xml ,$(comma),$(src_suppliers)))
 
 ant = @ANT@ -e
 
-.PHONY: FORCE default program-data-copy lvroot program-ui-immediate test \
+.PHONY: FORCE default program-data-copy lvroot c1root program-ui-immediate test \
         default clean interp-rate-tables summary-html c1map standalones \
         strip program-ui version FORCE
 
@@ -219,7 +220,7 @@ program-data-copy: standalones program-ui c1map .version.xml
 	cp -v "$(path_suppliers)/"*.js \
 	  "$(path_lv)/src/node/program/rater/programs/@program@"
 	test ! -d "$(path_c1map)" || cp -v "$(path_c1map)/"*.php \
-	  "$(path_lv)/src/lib/c1/interfaces/c1/contract/@program@/"
+	  "@C1_IMPORT_MAPDEST@/@program@/"
 	ant -f "$(path_lv)/build.xml" js-mod-order
 
 # TODO: merge this and the above
@@ -247,6 +248,13 @@ lvroot: summary-html program-ui c1map strip
 	  "$(path_lvroot)/src/node/program/ui/custom/"
 	test ! -d "$(path_c1map)" || cp -v "$(path_c1map)/"*.php \
 	  "$(path_lvroot)/src/lib/c1/interfaces/c1/contract/@program@/"
+
+# used by newer systems (note that lvroot still contains the c1map files so
+# as not to break BC)
+c1root: c1map
+	mkdir -p "$(path_c1root)/src/RSG/ImportBundle/Lib/interfaces/c1/contract/@program@/"
+	cp -v "$(path_c1map)/"*.php \
+	  "$(path_c1root)/src/RSG/ImportBundle/Lib/interfaces/c1/contract/@program@/"
 
 intralov-root: summary-html
 	mkdir -p "$(path_intralov_root)/"{rater/scripts,suppliers}

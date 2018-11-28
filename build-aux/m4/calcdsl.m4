@@ -41,6 +41,11 @@ AC_ARG_VAR([PROGUI_TEST_PATH], [Path to JavaScript tests for Program UI])
 AC_CHECK_PROGS(JAVA, [java])
 AC_CHECK_PROGS(ANT, [ant])
 
+# Destination paths for local development
+AC_CHECK_FILE(c1-import,
+  [AC_SUBST(C1_IMPORT_MAPDEST, c1-import/src/RSG/ImportBundle/Lib/interfaces/c1/contract)],
+  [AC_SUBST(C1_IMPORT_MAPDEST, lovullo/src/lib/c1/interfaces/c1/contract)])
+
 AS_IF([test "$JAVA"],,
   [AC_MSG_ERROR([missing java])])
 AS_IF([test "$ANT"],,
