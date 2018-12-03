@@ -31,6 +31,7 @@ declare -ri TAME_CMD_WAITTIME="${TAME_CMD_WAITTIME:-3}"
 
 # propagate to daemon
 export TAMED_STALL_SECONDS
+export TAMED_SPAWNER_PID
 
 
 # Send a single command to a runner and observe the result

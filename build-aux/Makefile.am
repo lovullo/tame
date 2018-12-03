@@ -89,6 +89,9 @@ SHELL = /bin/bash -O extglob
 export TAME_CMD_WAITTIME
 export TAMED_STALL_SECONDS
 
+TAMED_SPAWNER_PID=$(shell echo $$PPID)
+export TAMED_SPAWNER_PID
+
 all: program-data-copy
 
 program-ui: standalones ui/package.strip.js ui/Program.js program-ui-immediate

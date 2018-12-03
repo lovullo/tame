@@ -25,8 +25,12 @@ declare -ri EX_RUNNING=1
 declare -ri EX_USAGE=64      # incorrect usage; sysexits.h
 declare -ri EX_CANTCREAT=73  # cannot create file; sysexits.h
 
-# number of seconds before runners are considered unused and terminate
-declare -ri TAMED_STALL_SECONDS="${TAMED_STALL_SECONDS:-30}"
+# number of seconds of output silence before runners are considered unused
+# and are subject to termination (see stall-monitor)
+declare -ri TAMED_STALL_SECONDS="${TAMED_STALL_SECONDS:-1}"
+
+# id of process that indirectly spawned tamed (default $PPID)
+declare -ri TAMED_SPAWNER_PID="${TAMED_SPAWNER_PID:-$PPID}"
 
 # set by `main', global for `cleanup'
 declare root=
@@ -106,6 +110,11 @@ spawn-runner()
 # can easily be <=30s even for large packages.  This may need to change in
 # the future if it becomes too much less chatty.  Increase that environment
 # variable if runners stall unexpectedly in the middle of builds.
+#
+# If the id of the spawning process has been provided then we will never
+# consider ourselves to be stalled if that process is still running.  This
+# prevents, for example, tamed from killing itself while a parent make
+# process is still running.
 stall-monitor()
 {
   local -r base="${1?Missing base}"
@@ -119,6 +128,8 @@ stall-monitor()
     # keep waiting if there has been activity since $since
     test "$last" -le "$since" || continue
 
+    spawner-dead || continue
+
     # no activity; kill
     local -r pid=$( cat "$base/pid" )
     kill "$pid"
@@ -127,6 +138,18 @@ stall-monitor()
     # this stall subprocess is no longer needed
     break
   done
+}
+
+
+# Check to see if the spawning process has died
+#
+# If no spawning process was provided, then this always returns a zero
+# status.  Otherwise, it returns whether the given pid is _not_ running.
+spawner-dead()
+{
+  test "$TAMED_SPAWNER_PID" -gt 0 || return 0
+
+  ! ps "$TAMED_SPAWNER_PID" &>/dev/null
 }
 
 
@@ -199,7 +222,12 @@ The default value of RUNPATH is \`/run/user/$UID/tamed'.
 
 Only one runner is currently supported.  tamed exits once all
 runners have terminated.  Runners will be killed once they are
-inactive for at least TAMED_STALL_SECONDS (default 30).
+inactive for at least TAMED_STALL_SECONDS (default 1), unless
+the process identified by TAMED_SPAWNER_PID is still running.
+For example, a build script may wish to set TAMED_SPAWNER_PID
+to the process id of make itself.  It defaults to the actual
+parent process id (PPID), so tamed will never kill itself if
+run manually on a shell.
 
 Options:
   --help   show this message
@@ -207,7 +235,9 @@ Options:
 
 Environment Variables:
   TAMED_STALL_SECONDS   number of seconds of runner inactivity before
-                        runner is automatically killed (default 30)
+                        runner is automatically killed (default 1)
+  TAMED_SPAWNER_PID     inhibit stalling while this process is running
+                        (default PPID)
 EOF
 
   exit $EX_USAGE
