@@ -226,8 +226,8 @@ inactive for at least TAMED_STALL_SECONDS (default 1), unless
 the process identified by TAMED_SPAWNER_PID is still running.
 For example, a build script may wish to set TAMED_SPAWNER_PID
 to the process id of make itself.  It defaults to the actual
-parent process id (PPID), so tamed will never kill itself if
-run manually on a shell.
+parent process id (PPID), so tamed will not kill itself if
+run manually on a shell (unless the shell exits first).
 
 Options:
   --help   show this message
