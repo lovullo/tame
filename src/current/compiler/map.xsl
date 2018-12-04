@@ -501,10 +501,11 @@
   default if the input is an empty string.
 -->
 <template name="lvmc:gen-input-default">
-  <param name="sym" as="element( preproc:sym )?" />
+  <param name="sym" as="element( preproc:sym )" />
   <!-- use one or the other; latter takes precedence -->
   <param name="from" />
   <param name="from-str" />
+  <param name="dim" select="number( $sym/@dim )" />
 
   <variable name="from-var">
     <choose>
@@ -526,7 +527,9 @@
         <value-of select="$from-var" />
       <text>,'</text>
         <value-of select="lvmc:escape-string( $sym/@default )" />
-      <text>')</text>
+      <text>',</text>
+        <value-of select="$dim" />
+      <text>)</text>
     </when>
 
     <otherwise>
@@ -699,8 +702,8 @@
 
   <variable name="to" select="ancestor::lvm:map/@to" />
 
-  <variable name="nested" as="xs:boolean"
-            select="exists( ancestor::lvm:from )" />
+  <variable name="nested-depth" as="xs:integer"
+            select="count( ancestor::lvm:from )" />
 
   <variable name="sym" as="element( preproc:sym )?"
             select="lvmc:get-symbol( $symtable, $type, $to, @name )" />
@@ -717,17 +720,40 @@
                              $to, ' to ', @name )" />
   </if>
 
+  <!-- Determine how many dimensions we _pretend_ a symbol has.  This is
+       confusing and awkward with how this code is written.  One `from'
+       element can represent either a scalar or vector mapping; the JS
+       code below converts scalars to vectors at runtime. -->
+  <variable name="effective-dim" as="xs:double"
+            select="max( ( 0, number( $sym/@dim ) - 1 ) ) + 1" />
+
+  <!-- The symbol dimensions are reduced by the current nesting level plus
+       one to account for the outer loop at runtime.  -->
+  <variable name="nested-dim" as="xs:double"
+            select="$effective-dim - ( $nested-depth + 1 )" />
+
+  <!-- Prevent mapping deeper than the number of available dimensions.  This
+       check is confusing and awkward with how this code is written.  One
+       `from' element can represent either a scalar or vector mapping. -->
+  <if test="$nested-dim lt 0">
+    <message terminate="yes"
+             select="concat( 'error: `from'' nesting for ', $sym/@name,
+                             ' must not exceed a depth of ',
+                             $effective-dim )" />
+  </if>
+
+  <!-- TODO: support arbitrary depth -->
   <!-- oval = orig val -->
   <text>(function(oval){</text>
     <text>var val = ( (oval||'').length ) ? oval : [oval]; </text>
     <text>var ret = []; </text>
 
-    <if test="not( $nested )">
+    <if test="$nested-depth = 0">
       <text>var curindex;</text>
     </if>
 
     <text>for ( var i = 0, l = val.length; i&lt;l; i++ ){</text>
-      <if test="not( $nested )">
+      <if test="$nested-depth = 0">
         <text>curindex = i;</text>
       </if>
 
@@ -748,13 +774,17 @@
                                         '''' )" />
             </when>
 
-            <!-- otherwise, generate one -->
             <otherwise>
               <call-template name="lvmc:gen-input-default">
                 <with-param name="sym" select="$sym" />
                 <with-param name="from-str">
                   <text>''+val[i]</text>
                 </with-param>
+                <!-- We have to reduce the nesting level by one because of
+                     our outer loop, but we do not want to go below 0, which
+                     _could_ happen if from is used with a scalar symbol
+                     (see above nested-dim check) -->
+                <with-param name="dim" select="$nested-dim" />
               </call-template>
             </otherwise>
           </choose>
@@ -782,7 +812,7 @@
     <text>]</text>
   </if>
 
-  <if test="$nested">
+  <if test="$nested-depth gt 0">
     <text>[curindex]</text>
   </if>
 
