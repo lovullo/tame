@@ -270,7 +270,7 @@ main()
 
   case "${1:-}" in
     --kill) kill-tamed "$root"; exit;;
-    -v|--verbose) outcmd=cat;;
+    -v|--verbose) outcmd=cat; shift;;
     --help) usage;;
   esac
 
