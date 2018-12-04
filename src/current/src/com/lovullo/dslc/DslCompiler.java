@@ -71,17 +71,13 @@ public class DslCompiler
             HashMap<String,String> params
         ) throws Exception
         {
-            // validate before compilation
-            if ( cmd.equals( "compile" ) )
-            {
-                _xsd.validate( doc );
-            }
-
             if ( dest.equals( "" ) )
             {
                 System.err.printf(
                     "fatal: no destination path provided\n"
                 );
+
+                System.err.println( "DONE 1 " + dest );
 
                 System.exit( 4 );
             }
@@ -90,6 +86,12 @@ public class DslCompiler
             File destfile = new File( dest );
             try
             {
+                // validate before compilation
+                if ( cmd.equals( "compile" ) )
+                {
+                    _xsd.validate( doc );
+                }
+
                 _transform(
                     src,
                     doc,
@@ -106,10 +108,12 @@ public class DslCompiler
                 // delete the output file; it's garbage
                 destfile.delete();
 
-                System.err.println( "DONE 1 " + dest );
+                // this must be output _before_ the DONE line to ensure that
+                // it is considered to be part of the compilation output for
+                // this file
+                System.err.printf( "fatal: %s\n", e.getMessage() );
 
-                // be verbose and unprofessional.
-                throw e;
+                System.err.println( "DONE 1 " + dest );
             }
         }
 
