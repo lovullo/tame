@@ -491,6 +491,8 @@
                            string( $symname ),
                            ''' (did you import the package?)' )" />
   </if>
+
+  <sequence select="$sym" />
 </function>
 
 
@@ -700,13 +702,20 @@
   <variable name="nested" as="xs:boolean"
             select="exists( ancestor::lvm:from )" />
 
-  <!-- XXX: we rely on the side-effect of this blowing up if the
-       symbol does not exist -->
   <variable name="sym" as="element( preproc:sym )?"
             select="lvmc:get-symbol( $symtable, $type, $to, @name )" />
 
-  <!-- kluge to force function call (it's lazy) -->
-  <if test="not( $sym )" />
+  <!-- Saxon evaluates variables lazily.  Rather than using the
+       Saxon-specific @saxon:assign="true" attribute above, we just need to
+       use the value.  This conditional cannot be empty, otherwise it'll be
+       optimized away. -->
+  <if test="not( $sym )">
+    <!-- Consequently, this should never be hit -->
+    <message terminate="yes"
+             select="concat( 'internal: unexpected condition in ',
+                             'lvm:map//lvm:from processing of ',
+                             $to, ' to ', @name )" />
+  </if>
 
   <!-- oval = orig val -->
   <text>(function(oval){</text>
