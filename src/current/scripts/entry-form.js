@@ -167,9 +167,6 @@ var client = ( function()
         save_id      = '';
         prior_result = undefined;
 
-        // clear prior message
-        Prior.setPriorMessage( null );
-
         // clear prior class from body
         document.body.className = document.body.className.replace(
             /\bprior\b/, ''

@@ -57,7 +57,6 @@
 
       <div>
         <input type="submit" value="Calculate Premium" />
-        <input type="reset" value="Reset" />
       </div>
 
       <div class="final-premium"></div>
