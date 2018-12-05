@@ -20,6 +20,9 @@
 body {
     /* menu width * menu em + 1 */
     margin: 0em 0em 0em 13em;
+
+    /* somewhat-modern sans font stack */
+    font-family: "DejaVu Sans", "Liberation Sans", Corbel, "Lucida Sans", sans-serif;
 }
 
 .menu
