@@ -83,7 +83,7 @@ default: program-ui c1map FORCE
 # keep all intermediate files for easy introspection
 .SECONDARY:
 
-SHELL = /bin/bash -O extglob
+SHELL = /bin/bash -O extglob -O nullglob
 
 # propagate to tame{,d}
 export TAME_CMD_WAITTIME
@@ -197,6 +197,9 @@ suppliers.mk:
 	$(path_dsl)/tame/build-aux/gen-make $(SRCPATHS) > $@
 	test ! -d $(path_c1map) || $(path_dsl)/tame/build-aux/gen-c1make $(path_c1map)/*.xml >> $@
 
+# TODO: There is a potential for conflict in copying files to
+# src/node/programs/rater/programs/@program@.  Note that the `for' loop is
+# used here to handle the situation where no such files exist.
 program-data-copy: standalones program-ui c1map .version.xml
 	mkdir -p "$(path_lv)/src/node/program/rater/programs/@program@"
 	mkdir -p "$(path_lv)/src/node/program/classify"
@@ -214,6 +217,9 @@ program-data-copy: standalones program-ui c1map .version.xml
 	  "$(path_lv)/src/node/program/ui/custom/"
 	cp -v "$(path_srv)/rater.js" \
 	  "$(path_lv)/src/node/program/rater/programs/@program@.js"
+	for f in "$(path_srv)/"!(rater).js; do \
+	  cp -v "$$f" "$(path_lv)/src/node/program/rater/programs/@program@/"; \
+	done
 	cp -v "$(path_ui)/package.strip.js" \
 	  "$(path_lv)/src/node/program/classify/@program@.js"
 	cp -v "$(path_ui)/"{Program,include,package}.js \
@@ -237,6 +243,9 @@ lvroot: summary-html program-ui c1map strip
 	mkdir -p "$(path_lvroot)/src/lib/c1/interfaces/c1/contract/@program@"
 	cp -v "$(path_srv)/rater.js" \
 	  "$(path_lvroot)/src/node/program/rater/programs/@program@.js"
+	for f in "$(path_srv)/"!(rater).js; do \
+	  cp -v "$$f" "$(path_lvroot)/src/node/program/rater/programs/@program@/"; \
+	done
 	cp -v "$(path_suppliers)/"*.js \
 	  "$(path_lvroot)/src/node/program/rater/programs/@program@"
 	cp -v "$(path_ui)/package.strip.js" \
