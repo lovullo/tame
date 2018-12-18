@@ -30,11 +30,15 @@ path_lv            := lovullo
 path_srv           := srv
 path_lvroot        := lvroot
 path_c1root        := c1root
+path_common        := common
 path_intralov_root := "intralov-root/@program@"
 
 src_suppliers := $(wildcard $(path_suppliers)/*.xml)
 src_map       := $(wildcard $(path_map)/*.xml)
 src_c1map     := $(wildcard $(path_c1map)/*.xml)
+
+src_common := $(shell find $(path_common) -name '*.xml')
+xmlo_common := $(patsubst %.xml, %.xmlo, $(src_common))
 
 dest_summary_html := $(patsubst \
 	$(path_suppliers)/%.xml, \
@@ -72,7 +76,7 @@ extless_supp_delim := $(subst .xml,,$(subst .xml ,$(comma),$(src_suppliers)))
 ant = @ANT@ -e
 
 .PHONY: FORCE default program-data-copy lvroot c1root program-ui-immediate test \
-        default clean interp-rate-tables summary-html c1map standalones \
+        default clean interp-rate-tables summary-html c1map standalones common \
         strip program-ui version FORCE
 
 default: program-ui c1map FORCE
@@ -93,6 +97,10 @@ TAMED_SPAWNER_PID=$(shell echo $$PPID)
 export TAMED_SPAWNER_PID
 
 all: program-data-copy
+
+# Building all common files is useful in a distributed pipeline so that
+# suppliers can be concurrently built without rebuilding common dependencies
+common: $(xmlo_common)
 
 program-ui: standalones ui/package.strip.js ui/Program.js program-ui-immediate
 program-ui-immediate: ui/html/index.phtml
