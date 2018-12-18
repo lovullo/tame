@@ -29,6 +29,7 @@ apply_dest := $(apply_src:%.xsl=%.xsl.apply)
 
 # needed by test runner
 export SAXON_CP
+export DSLC_CLASSPATH
 
 
 .DELETE_ON_ERROR:

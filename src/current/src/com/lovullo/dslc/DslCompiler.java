@@ -31,17 +31,15 @@ package com.lovullo.dslc;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
 import java.util.HashMap;
-import javax.xml.XMLConstants;
+import java.util.Map;
+import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
-import javax.xml.transform.stream.StreamResult;
-import javax.xml.transform.*;
-import javax.xml.validation.*;
-import javax.xml.transform.sax.SAXTransformerFactory;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import javax.xml.validation.Validator;
+import javax.xml.XMLConstants;
+import net.sf.saxon.s9api.*;
 
 
 // TODO: Decouple from rater/ path assumptions
@@ -50,8 +48,10 @@ public class DslCompiler
     private static class _DslCompiler
     {
         private Validator _xsd;
-        private HashMap<String,Transformer> _xsl;
+        private HashMap<String,XsltTransformer> _xsl;
         private Path _pathRoot;
+        private Processor _processor;
+        private XsltCompiler _xsltCompiler;
 
 
         public _DslCompiler( String path_root )
@@ -59,7 +59,10 @@ public class DslCompiler
         {
             _pathRoot = Paths.get( path_root ).toRealPath();
             _xsd      = _createXsd();
-            _xsl      = new HashMap<String,Transformer>();
+            _xsl      = new HashMap<String,XsltTransformer>();
+
+            _processor = new Processor( false );
+            _xsltCompiler = _processor.newXsltCompiler();
         }
 
 
@@ -96,7 +99,7 @@ public class DslCompiler
                     src,
                     doc,
                     cmd,
-                    new StreamResult( new File( dest ) ),
+                    _processor.newSerializer( new File( dest ) ),
                     params
                 );
 
@@ -122,7 +125,7 @@ public class DslCompiler
             String src,
             Source doc,
             String cmd,
-            StreamResult dest,
+            Destination dest,
             HashMap<String,String> params
         ) throws Exception
         {
@@ -142,26 +145,45 @@ public class DslCompiler
             Integer dircount = srcpkg.replaceAll( "[^/]", "" ).length();
             String relroot   = new String( new char[ dircount ] ).replace( "\0", "../" );
 
-            Transformer t = _xsl.get( cmd );
-            t.setParameter( "__path-root", _pathRoot.toString() + "/tame" );
-            t.setParameter( "__srcpkg", srcpkg );
-            t.setParameter( "__relroot", relroot );
-            t.setParameter( "__rseed", (int)( Math.random() * 10e6 ) );
+            XsltTransformer t = _xsl.get( cmd );
+
+            t.setParameter(
+                new QName( "__path-root" ),
+                XdmValue.makeValue( _pathRoot.toString() + "/tame" )
+            );
+            t.setParameter(
+                new QName( "__srcpkg" ),
+                XdmValue.makeValue( srcpkg )
+            );
+            t.setParameter(
+                new QName( "__relroot" ),
+                XdmValue.makeValue( relroot )
+            );
+            t.setParameter(
+                new QName( "__rseed" ),
+                XdmValue.makeValue( (int)( Math.random() * 10e6 ) )
+            );
 
             _setTemplateParams( t, params );
 
-            t.transform( doc, dest );
+            t.setSource( doc );
+            t.setDestination( dest );
+
+            t.transform();
         }
 
 
         private void _setTemplateParams(
-            Transformer t,
+            XsltTransformer t,
             HashMap<String,String> params
         ) throws Exception
         {
             for ( Map.Entry<String, String> param : params.entrySet() )
             {
-                t.setParameter( param.getKey(), param.getValue() );
+                t.setParameter(
+                    new QName( param.getKey() ),
+                    XdmValue.makeValue( param.getValue() )
+                );
             }
         }
 
@@ -200,7 +222,7 @@ public class DslCompiler
 
                 return schema.newValidator();
             }
-            catch ( SAXException e )
+            catch ( Exception e )
             {
                 System.err.printf(
                     "fatal: %s\n",
@@ -214,19 +236,15 @@ public class DslCompiler
         }
 
 
-        private Transformer _createXslt( String src )
+        private XsltTransformer _createXslt( String src )
         {
             try
             {
-                final TransformerFactory factory = TransformerFactory.newInstance(
-                    "net.sf.saxon.TransformerFactoryImpl", null
-                );
-
                 final Source xsl = new StreamSource(
                     _pathRoot.toString() + "/" + src + ".xsl"
                 );
 
-                return factory.newTransformer( xsl );
+                return _xsltCompiler.compile( xsl ).load();
             }
             catch ( Exception e )
             {
