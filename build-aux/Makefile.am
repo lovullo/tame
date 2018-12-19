@@ -102,7 +102,7 @@ all: program-data-copy
 # suppliers can be concurrently built without rebuilding common dependencies
 common: $(xmlo_common)
 
-program-ui: standalones ui/package.strip.js ui/Program.js ui/html/index.phtml
+program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 
 # Note the `$()' here to prevent Automake from inlining this file---it is
 # to be generated when imports change, which can be at any time.
