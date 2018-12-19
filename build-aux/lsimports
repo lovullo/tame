@@ -1,0 +1,51 @@
+#!/bin/bash
+# Output absolute import paths for each provided package
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# All arguments must be paths to the source XML files for a package.  The
+# output will be of the form:
+#
+#   file.xml: /absolute/import/path
+#
+# Relative paths will be concatenated with the directory name of the source
+# file.  Parent references are resolved by replacing "/foo/../bar" with
+# "/bar".  Absolute imports are taken as-is.
+#
+# Namespace prefixes are ignored and the first attribute to the `import'
+# node must be `@package', and must appear on the same line.
+##
+
+grep -H '<\([a-z]\+:\)\?import \+\(package\|path\)=' "$@" \
+  | awk -F': |"' '
+      # prefix with filename
+      { printf "%s ", $1 }
+
+      # absolute paths should just be echoed
+      $3 ~ /^\// { print $3; next }
+
+      # otherwise concatenate import with package directory
+      {
+        dir  = gensub( /[^/]+.xml/, "", "", $1 )
+        path = "/" dir $3
+
+        # resolve parent references
+        while ( path ~ /\/\.\.\// ) {
+          sub( /\/[^/]+\/\.\.\//, "/", path )
+        }
+
+        print path
+      }'

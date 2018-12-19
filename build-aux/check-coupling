@@ -1,0 +1,98 @@
+#!/bin/bash
+# Check for inappropriate coupling between packages
+#
+#   Copyright (C) 2018 R-T Specialty, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# THIS SCRIPT ASSUMES NO SPACES IN FILE NAMES (because `make' wouldn't work
+# with those files anyway)!
+#
+# This script works by filtering `lsimports' output and then reformatting it
+# for display.
+##
+
+declare -r mypath="$( dirname $0 )"
+
+
+# Invoke `lsimports' relative to our path.
+lsimports()
+{
+  "$mypath/lsimports" "$@"
+}
+
+
+# Report violations in a user-friendly manner by reformatting lsimports
+# output
+report-violations()
+{
+  awk '{ print "coupling violation: " $1 " must not import " $2 }'
+}
+
+
+# Input and return maps that do not match supplier names.  Note that this
+# will return ui.xml.
+non-supplier-maps()
+{
+  find map -name '*.xml' -a \! -wholename 'map/c1/*' \
+    | grep -vf <( ls suppliers/*.xml | xargs -n1 basename )
+}
+
+
+# Output packages associated with a given supplier (with the exception of
+# the suppliers/$name.xml package).
+supplier-packages()
+{
+  local -r name=${1?Missing supplier name}
+
+  test ! -d "suppliers/$name" || find "suppliers/$name" -name '*.xml'
+  test ! -f "map/$name.xml" || echo "map/$name.xml"
+  test ! -f "map/return/$name.xml" || echo "map/return/$name.xml"
+}
+
+
+# Find violations, producing filtered lsimports output.
+find-violations()
+{
+  # Suppliers must not be imported by common or UI packages.
+  lsimports $( find common ui -name '*.xml' ) \
+            $( non-supplier-maps ) \
+    | grep ' /suppliers/'
+
+  # Suppliers must not import other suppliers.
+  # TODO: Check against supplier maps
+  for supplier in suppliers/*.xml; do
+    local name=$( basename "$supplier" .xml )
+
+    lsimports "$supplier" $( supplier-packages "$name" ) \
+      | grep ' /suppliers/' \
+      | grep -v " /suppliers/$name/"
+  done
+}
+
+
+# Find violations and report any failures, exiting with a non-zero status if
+# any violations are found.
+main()
+{
+  local -r bad=$( find-violations )
+
+  test -z "$bad" || {
+    report-violations <<< "$bad"
+    return 1
+  }
+}
+
+
+main "$@"
