@@ -15,27 +15,23 @@
 #
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This program is intended to be called directly by make; it's API is
+# subject to change.  Please use `make check` as appropriate.
 ##
-
-declare path_suppliers="${1?Missing supplier path}"
-declare path_tests="${2?Missing supplier test path}"
 
 declare -i result=0
 
 declare suppliers
 
-# if a file was provided, use it as the sole supplier; otherwise,
-# treat it as a directory of suppliers
-if [ -f "$path_suppliers" ]; then
-  suppliers=( "$path_suppliers" )
-  path_suppliers=$( dirname "$path_suppliers" )
-else
-  suppliers=( "$path_suppliers"/*.xml )
-fi
+# The first argument indicates the test directory.
+declare -r path_tests=${1?Missing test path}
+shift
 
-# run tests for each supplier individually
-for supplier in "${suppliers[@]}"; do
+# All remaining arguments are taken to be a list of suppliers to test.
+for supplier in "$@"; do
   base=$( basename "$supplier" .xml )
+  path_suppliers=$( dirname "$supplier" )
   tests=$( find -L "$path_tests"/"$base"/ -name '*.yml' )
 
   echo

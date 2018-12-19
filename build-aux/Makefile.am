@@ -40,6 +40,10 @@ src_c1map     := $(wildcard $(path_c1map)/*.xml)
 src_common := $(shell find $(path_common) -name '*.xml')
 xmlo_common := $(patsubst %.xml, %.xmlo, $(src_common))
 
+# Intended to be (optionally) overridden from the command line
+SUPPLIERS=$(src_suppliers) $(path_ui)/package.xml
+suppliers_strip=$(patsubst %.xml, %.strip.js, $(SUPPLIERS))
+
 dest_summary_html := $(patsubst \
 	$(path_suppliers)/%.xml, \
 	$(path_suppliers)/%.html, \
@@ -281,10 +285,13 @@ intralov-root: summary-html
 	ln -fL $(path_dsl)/scripts/*.js "$(path_intralov_root)/rater/scripts/"
 	ln -fL $(path_suppliers)/*.{html,js} "$(path_intralov_root)/suppliers"
 
+# Suppliers to check may be overridden using SUPPLIERS.  Multiple suppliers
+# should be space-delimited.  Note that the UI is considered to be a special
+# type of supplier (ui/package.xml) and is included by default in the value
+# of SUPPLIERS.
+check-am: $(suppliers_strip)
+	$(path_dsl)/build-aux/progtest-runner $(path_tests) $(SUPPLIERS)
 test: check
-check-am: strip
-	@$(path_dsl)/build-aux/progtest-runner $(path_suppliers) $(path_tests)
-	@$(path_dsl)/build-aux/progtest-runner ui/package.xml $(path_tests)/ui
 
 kill-tamed: tamed-die
 tamed-die:
