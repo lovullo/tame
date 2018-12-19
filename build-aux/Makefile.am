@@ -75,7 +75,7 @@ extless_supp_delim := $(subst .xml,,$(subst .xml ,$(comma),$(src_suppliers)))
 
 ant = @ANT@ -e
 
-.PHONY: FORCE default program-data-copy lvroot c1root program-ui-immediate test \
+.PHONY: FORCE default program-data-copy lvroot c1root test \
         default clean interp-rate-tables summary-html c1map standalones common \
         strip program-ui version FORCE
 
@@ -102,8 +102,7 @@ all: program-data-copy
 # suppliers can be concurrently built without rebuilding common dependencies
 common: $(xmlo_common)
 
-program-ui: standalones ui/package.strip.js ui/Program.js program-ui-immediate
-program-ui-immediate: ui/html/index.phtml
+program-ui: standalones ui/package.strip.js ui/Program.js ui/html/index.phtml
 
 # Note the `$()' here to prevent Automake from inlining this file---it is
 # to be generated when imports change, which can be at any time.
