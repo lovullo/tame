@@ -359,7 +359,7 @@
 
   <preproc:fragment id=":{$type}:{@to}">
     <text>output['</text>
-    <value-of select="@to" />
+    <value-of select="lvmc:escape-string( @to )" />
     <text>']=</text>
     <call-template name="lvmc:gen-input-default">
       <with-param name="sym"
@@ -515,7 +515,7 @@
 
       <otherwise>
         <text>input['</text>
-          <value-of select="$from" />
+          <value-of select="lvmc:escape-string( $from )" />
         <text>']</text>
       </otherwise>
     </choose>
@@ -547,7 +547,7 @@
 
   <preproc:fragment id=":{$type}:{@to}">
     <text>output['</text>
-      <value-of select="@to" />
+      <value-of select="lvmc:escape-string( @to )" />
     <text>']='</text>
       <value-of select="normalize-space( @value )" />
     <text>';</text>
@@ -627,7 +627,7 @@
 
 <template match="lvm:const" mode="lvmc:compile" priority="5">
   <text>'</text>
-    <value-of select="@value" />
+    <value-of select="lvmc:escape-string( @value )" />
   <text>'</text>
 </template>
 
@@ -635,7 +635,7 @@
   <text>(function(){</text>
     <text>var ret=[];</text>
     <text>var len=input['</text>
-      <value-of select="@each" />
+      <value-of select="lvmc:escape-string( @each )" />
     <text>'].length;</text>
 
     <text>for(var _i=0;_i&lt;len;_i++){</text>
@@ -915,7 +915,7 @@
   <param name="type" as="xs:string" />
 
   <text>case '</text>
-    <value-of select="@key" />
+    <value-of select="lvmc:escape-string( @key )" />
   <text>':</text>
     <apply-templates select="." mode="lvmc:compile-translate">
       <with-param name="type" select="$type" />
@@ -990,7 +990,7 @@
 <template match="lvm:translate"
               mode="lvmc:compile-translate" priority="1">
   <text>ret.push('</text>
-    <value-of select="normalize-space( @value )" />
+    <value-of select="lvmc:escape-string( normalize-space( @value ) )" />
   <text>');</text>
 </template>
 
