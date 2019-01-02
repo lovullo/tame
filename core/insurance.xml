@@ -314,13 +314,13 @@
       <unless name="@generates@" eq="">
         <t:assert failure="{@generates@} must not yield a negative value
                            for any index">
-          <t:match-gt on="@generates@" value="ZERO" />
+          <t:match-gte on="@generates@" value="ZERO" />
         </t:assert>
       </unless>
 
       <unless name="@yields@" eq="">
         <t:assert failure="{@yields@} must not yield a negative value">
-          <t:match-gt on="@yields@" value="ZERO" />
+          <t:match-gte on="@yields@" value="ZERO" />
         </t:assert>
       </unless>
     </unless>
