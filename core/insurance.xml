@@ -37,14 +37,18 @@
   Some notable TODOs:
 
   \begin{enumerate}
-    \item Support scalar results;
-    \item Fail on zero premium unless explicitly stated;
-    \item Fail on negative premium (use a credit template); and
+    \item Support scalar results; and
     \item Rounding direction (currently only nearest).
   \end{enumerate}
 
   \todo{Template to abstract these {\tt rate-each} generation
   templates.}
+
+  <param name="assert_ignore_premium_zero" type="boolean"
+         desc="Ignore assertion failures for $0 premiums" />
+
+  <param name="assert_ignore_premium_negative" type="boolean"
+         desc="Ignore assertion failures for negative premiums" />
 
 
   <template name="_premium_"
@@ -113,6 +117,14 @@
       </if>
     </unless>
 
+    <param name="@allow-zero@" desc="Allow value of zero (default false)">
+      <text>false</text>
+    </param>
+
+    <param name="@allow-negative@" desc="Allow negative value (default false)">
+      <text>false</text>
+    </param>
+
 
     <rate-each class="@class@" no="@no@" yields="@yields@"
                generates="@generates@" index="@index@"
@@ -155,6 +167,52 @@
         </unless>
       </unless>
     </rate-each>
+
+
+    <!-- assertion for non-zero -->
+    <unless name="@allow-zero@" eq="true">
+      <unless name="@generates@" eq="">
+        <t:assert failure="{@desc@} ({@generates@}) must not yield a value
+                           of 0 for any index">
+          <any>
+            <match on="assert_ignore_premium_zero" />
+            <t:match-ne on="@generates@" value="ZERO" />
+          </any>
+        </t:assert>
+      </unless>
+
+      <unless name="@yields@" eq="">
+        <t:assert failure="{@desc@} ({@yields@}) must not yield a value of 0">
+          <any>
+            <match on="assert_ignore_premium_zero" />
+            <t:match-ne on="@yields@" value="ZERO" />
+          </any>
+        </t:assert>
+      </unless>
+    </unless>
+
+    <!-- assertion for non-negative -->
+    <unless name="@allow-negative@" eq="true">
+      <unless name="@generates@" eq="">
+        <t:assert failure="{@desc@} ({@generates@}) must not yield a negative
+                           value for any index">
+          <any>
+            <match on="assert_ignore_premium_negative" />
+            <t:match-gte on="@generates@" value="ZERO" />
+          </any>
+        </t:assert>
+      </unless>
+
+      <unless name="@yields@" eq="">
+        <t:assert failure="{@desc@} ({@yields@}) must not yield a negative
+                           value">
+          <any>
+            <match on="assert_ignore_premium_negative" />
+            <t:match-gte on="@yields@" value="ZERO" />
+          </any>
+        </t:assert>
+      </unless>
+    </unless>
   </template>
 
 
