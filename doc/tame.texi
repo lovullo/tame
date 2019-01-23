@@ -55,7 +55,6 @@ Free Documentation License".
 * Preprocessor::      Metaprogramming system
 * Dependency Graph::  Dependency processing and flow analysis
 * Symbol Table::      Lookup table for all objects
-* Project TODOs::     High-level project tasks
 * License::           Document License
 @end menu
 
@@ -124,7 +123,6 @@ TAME
 @include src/symtable.texi
 @lowersections
 
-@include todo.texi
 @include license.texi
 
 @bye
