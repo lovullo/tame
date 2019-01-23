@@ -91,7 +91,7 @@ AC_OUTPUT
 
 # we want this to run as part of the configure script, not during M4
 # expansion
-"$CALCROOT/build-aux/suppmk-gen" $SRCPATHS
+"$CALCROOT/build-aux/suppmk-gen" $SRCPATHS || exit
 
 AC_MSG_NOTICE([complete
 
