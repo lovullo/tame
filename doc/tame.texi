@@ -98,25 +98,7 @@ TAME
 @end ifhtml
 
 @include about.texi
-
-
-@node Preprocessor
-@appendix Preprocessor
-
-@menu
-* Macro Expansion::
-@end menu
-
-@node Macro Expansion
-@section Macro Expansion
-
-@menu
-* Expansion Sequence::
-@end menu
-
-@lowersections
-@include src/preproc/expand/expand-sequence.texi
-@raisesections
+@include preproc.texi
 
 @include src/graph.texi
 @include src/symtable.texi
