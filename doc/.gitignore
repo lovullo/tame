@@ -20,3 +20,6 @@ version.texi
 /Makefile.in
 /Makefile
 
+# generated from *.in
+/config.texi
+

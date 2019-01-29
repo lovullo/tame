@@ -8,9 +8,14 @@
 @c    A copy of the license is included in the section entitled ``GNU Free
 @c    Documentation License''.
 
-@include version.texi
-
 @c %**start of header
+@include config.texi
+@include version.texi
+@include macros.texi
+
+@c Developer Notes index (used only if DEVNOTES)
+@defindex dn
+
 @setfilename tame.info
 @documentencoding UTF-8
 @settitle TAME Manual v@value{VERSION}
@@ -43,6 +48,12 @@ Free Documentation License".
 @insertcopying
 @end titlepage
 
+@devnotice{
+  This manual contains inline notes for developers of @tame{}.@footnote{
+    To disable for user documentation, pass @option{--disable-devnotes}
+      to @command{configure}.}
+  For an index of notes@comma{} see @ref{Developer Notes Index}.}
+
 @contents
 
 @ifnottex
@@ -56,46 +67,16 @@ Free Documentation License".
 * Dependency Graph::  Dependency processing and flow analysis
 * Symbol Table::      Lookup table for all objects
 * License::           Document License
+* Concept Index::
+@ifset DEVNOTES
+* Developer Notes Index::  Index of pertenant notes for developers of @tame{}.
+@end ifset
 @end menu
 
 @ifnottex
 @insertcopying
 @end ifnottex
 
-
-@macro tame{}
-TAME
-@end macro
-
-@c TODO: move me
-@macro mdash{}
----
-@end macro
-
-@macro todo{str}
-@emph{[@strong{TODO: }\str\]}
-@end macro
-
-@macro ttref{ref}
-@ref{\ref\,,@code{\ref\}}
-@end macro
-
-@macro proof{str}
-@sc{Proof:} \str\ @qed
-@end macro
-
-@macro qed{}
-∎
-@end macro
-
-@macro pkgns{node}
-@code{lv:\node\}
-@end macro
-
-@ifhtml
-@c override @math to delimit for MathJax/KaTeX/etc
-@definfoenclose math,\(,\)
-@end ifhtml
 
 @include about.texi
 @include preproc.texi
@@ -104,5 +85,15 @@ TAME
 @include src/symtable.texi
 
 @include license.texi
+
+@node Concept Index
+@unnumbered Concept Index
+@printindex cp
+
+@ifset DEVNOTES
+  @node Developer Notes Index
+  @unnumbered Developer Notes Index
+  @printindex dn
+@end ifset
 
 @bye

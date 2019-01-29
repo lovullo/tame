@@ -16,7 +16,7 @@ Makefile
 aclocal.m4
 *.cache/
 configure
-config.*
+/config.*
 
 # should be added using autoreconf -i
 /tools/install-sh

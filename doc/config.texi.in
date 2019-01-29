@@ -1,0 +1,4 @@
+@c Manual configuration
+
+@c whether to include notes for TAME developers
+@SET_DEVNOTES@
