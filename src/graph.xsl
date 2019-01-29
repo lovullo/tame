@@ -33,7 +33,7 @@
 
 <!--
   @node Dependency Graph
-  @section Dependency Graph
+  @appendix Dependency Graph
 
   The dependency graph is a directed graph consisting of
     every known symbol,
@@ -197,7 +197,7 @@
 
 <!--
   @node Package Subgraphs
-  @subsection Package Subgraphs
+  @section Package Subgraphs
 
   Each package has its own independent dependency graph.
   These vertices may have @dfn{virtual edges} to other packages'
@@ -289,7 +289,7 @@
 
 <!--
   @node Graph Lookups
-  @subsubsection Graph Lookups
+  @subsection Graph Lookups
 -->
 
 <!--

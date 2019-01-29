@@ -32,7 +32,7 @@
 
 <!--
   @node Symbol Table
-  @section Symbol Table
+  @appendix Symbol Table
 
   The @dfn{symbol table} holds declarations for each symbol known to
     a@tie{}particular package.
@@ -111,9 +111,7 @@
   * Symbol Types::   Symbols describing various objects
   @end menu
 
-  @lowersections
   @include src/symtable/symbols.texi
-  @raisesections
 -->
 
 </stylesheet>

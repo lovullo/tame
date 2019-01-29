@@ -99,8 +99,9 @@ TAME
 
 @include about.texi
 
+
 @node Preprocessor
-@chapter Preprocessor
+@appendix Preprocessor
 
 @menu
 * Macro Expansion::
@@ -117,11 +118,8 @@ TAME
 @include src/preproc/expand/expand-sequence.texi
 @raisesections
 
-@c chapter
-@raisesections
 @include src/graph.texi
 @include src/symtable.texi
-@lowersections
 
 @include license.texi
 
