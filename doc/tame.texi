@@ -62,7 +62,7 @@ Free Documentation License".
 @end ifnottex
 
 @menu
-* About TAME::        History of TAME and how to use it
+* Using TAME::        History of TAME and how to use it
 * Preprocessor::      Metaprogramming system
 * Dependency Graph::  Dependency processing and flow analysis
 * Symbol Table::      Lookup table for all objects
@@ -78,7 +78,7 @@ Free Documentation License".
 @end ifnottex
 
 
-@include about.texi
+@include usage.texi
 @include preproc.texi
 
 @include src/graph.texi

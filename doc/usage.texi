@@ -7,8 +7,8 @@
 @c    A copy of the license is included in the section entitled ``GNU Free
 @c    Documentation License''.
 
-@node About TAME
-@chapter About TAME
+@node Using TAME
+@chapter Using TAME
 @tame{} is The Adaptive Metalanguage,
   a programming language and system of tools designed to aid in the
   development; understanding; and maintenance of systems performing
