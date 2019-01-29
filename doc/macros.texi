@@ -96,6 +96,7 @@ TAME
 
 @c documentation TODO
 @macro todo{text}
+@dnindex TODO
 @devnotice{TODO: \text\}
 @end macro
 
