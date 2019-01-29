@@ -1932,7 +1932,7 @@
         input = input || [];
 
         // vector or matrix
-        var i = input.length || 1;
+        var i = input.length || 0;
         var ret = [];
         var value = ( depth === 2 ) ? [ value ] : value;
 
