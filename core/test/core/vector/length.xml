@@ -53,7 +53,7 @@
         <t:given>
           <c:length-of>
             <t:first-nonempty>
-              <c:set />
+              <c:vector />
             </t:first-nonempty>
           </c:length-of>
         </t:given>
@@ -74,8 +74,8 @@
         <t:given>
           <c:length-of>
             <t:first-nonempty>
-              <c:set />
-              <c:set />
+              <c:vector />
+              <c:vector />
             </t:first-nonempty>
           </c:length-of>
         </t:given>
@@ -96,10 +96,10 @@
         <t:given>
           <c:car>
             <t:first-nonempty>
-              <c:set />
-              <c:set>
+              <c:vector />
+              <c:vector>
                 <c:const value="50" desc="Non-empty vector" />
-              </c:set>
+              </c:vector>
             </t:first-nonempty>
           </c:car>
         </t:given>
@@ -120,12 +120,12 @@
         <t:given>
           <c:car>
             <t:first-nonempty>
-              <c:set>
+              <c:vector>
                 <c:const value="60" desc="Non-empty vector" />
-              </c:set>
-              <c:set>
+              </c:vector>
+              <c:vector>
                 <c:const value="70" desc="Non-empty vector" />
-              </c:set>
+              </c:vector>
             </t:first-nonempty>
           </c:car>
         </t:given>

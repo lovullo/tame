@@ -72,10 +72,10 @@
                     </c:gt>
                   </c:when>
 
-                  <c:set label="Re-ordered set such that the lower value is first in the vector">
+                  <c:vector label="Re-ordered set such that the lower value is first in the vector">
                     <c:value-of name="b" />
                     <c:value-of name="a" />
-                  </c:set>
+                  </c:vector>
                 </c:case>
 
                 <!-- already ordered -->

@@ -45,9 +45,9 @@
           <!-- avoid having to copy @values@ multiple times -->
           <c:value name="_list" type="float"
                    desc="Result of body expression">
-            <c:set>
+            <c:vector>
               <param-copy name="@values@" />
-            </c:set>
+            </c:vector>
           </c:value>
         </c:values>
 
@@ -106,7 +106,7 @@
               </c:gte>
             </c:when>
 
-            <c:set />
+            <c:vector />
           </c:case>
 
           <!-- non-empty vector, return it -->

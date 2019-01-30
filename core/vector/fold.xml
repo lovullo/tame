@@ -121,7 +121,7 @@
             </c:case>
 
             <c:otherwise label="Ignore on class vector non-match">
-              <c:set />
+              <c:vector />
             </c:otherwise>
           </c:cases>
         </c:sum>

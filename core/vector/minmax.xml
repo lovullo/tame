@@ -37,7 +37,7 @@
               desc="Reduce a set to its maximum">
       <param name="@values@"   desc="Values to reduce" />
       <param name="@isvector@" desc="Set to 'true' if the nodes should
-                                     not be wrapped in c:set" />
+                                     not be wrapped in c:vector" />
 
       <param name="@label@" desc="Application label">
         <!-- default empty -->
@@ -50,9 +50,9 @@
           <!-- if we were not provided with a vector (default), create
                one out of the given nodes -->
           <unless name="@isvector@" eq="true">
-            <c:set>
+            <c:vector>
               <param-copy name="@values@" />
-            </c:set>
+            </c:vector>
           </unless>
 
           <!-- if they told us that they have provided a vector, then
@@ -226,9 +226,9 @@
     <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="@index@">
       <c:apply name="maxreduce">
         <c:arg name="maxreduce_set">
-          <c:set>
+          <c:vector>
             <param-copy name="@values@" />
-          </c:set>
+          </c:vector>
         </c:arg>
       </c:apply>
     </rate-each>

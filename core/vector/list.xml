@@ -83,7 +83,7 @@
           </if>
           <unless name="@base@">
             <!-- return an empty set -->
-            <c:set />
+            <c:vector />
           </unless>
         </c:case>
 

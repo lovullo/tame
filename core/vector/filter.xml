@@ -170,7 +170,7 @@
               </c:when>
 
               <!-- empty set -->
-              <c:set />
+              <c:vector />
             </c:case>
 
             <!-- if the data is sequential and the next element is over the
@@ -183,7 +183,7 @@
               </c:when>
 
               <!-- empty set -->
-              <c:set />
+              <c:vector />
             </c:case>
 
 

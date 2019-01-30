@@ -320,11 +320,11 @@
       </c:arg>
 
       <c:arg name="criteria">
-        <c:set>
+        <c:vector>
           <param-copy name="@values@">
             <param-meta name="table_basename" value="@matrix@" />
           </param-copy>
-        </c:set>
+        </c:vector>
       </c:arg>
 
       <c:arg name="i">
@@ -332,11 +332,11 @@
              will be applied *last* -->
         <t:dec>
           <c:length-of>
-            <c:set>
+            <c:vector>
               <param-copy name="@values@">
                 <param-meta name="table_basename" value="@matrix@" />
               </param-copy>
-            </c:set>
+            </c:vector>
           </c:length-of>
         </t:dec>
       </c:arg>
@@ -367,7 +367,7 @@
       <text>_IS_SEQ</text>
     </param>
 
-    <c:set label="Conditional for {@field@}">
+    <c:vector label="Conditional for {@field@}">
       <!-- the first element will represent the column (field) index -->
       <unless name="@name@">
         <c:const value="@id@" type="integer" desc="Field index" />
@@ -377,9 +377,9 @@
       </if>
 
       <!-- the second element will represent the expected value(s) -->
-      <c:set>
+      <c:vector>
         <param-copy name="@values@" />
-      </c:set>
+      </c:vector>
 
       <!-- the final element will represent whether or not this field is sequential -->
       <if name="@sequential@">
@@ -396,7 +396,7 @@
           <c:value-of name="FALSE" />
         </unless>
       </unless>
-    </c:set>
+    </c:vector>
   </template>
 
 
