@@ -63,6 +63,7 @@ Free Documentation License".
 
 @menu
 * Using TAME::        History of TAME and how to use it
+* Core Concepts::     Design philosophy and mathematical concepts
 * Preprocessor::      Metaprogramming system
 * Dependency Graph::  Dependency processing and flow analysis
 * Symbol Table::      Lookup table for all objects
@@ -79,6 +80,7 @@ Free Documentation License".
 
 
 @include usage.texi
+@include concept.texi
 @include preproc.texi
 
 @include src/graph.texi

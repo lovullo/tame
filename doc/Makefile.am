@@ -27,8 +27,8 @@ stylesheets := $(shell find "$(path_src)" \
 stexi       := $(stylesheets:.xsl=.texi)
 
 info_TEXINFOS = tame.texi
-tame_TEXINFOS = usage.texi macros.texi preproc.texi license.texi \
-                config.texi $(stexi) tame.css
+tame_TEXINFOS = usage.texi concept.texi preproc.texi license.texi \
+                config.texi macros.texi $(stexi) tame.css
 
 MAKEINFOHTML=$(MAKEINFO) --html --css-include tame.css
 
