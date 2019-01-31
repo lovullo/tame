@@ -693,6 +693,7 @@
     <xs:sequence>
       <xs:element name="when" type="whenType" minOccurs="0" maxOccurs="unbounded" />
       <xs:element name="index" type="indexType" minOccurs="0" maxOccurs="2" />
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded" />
     </xs:sequence>
 
     <xs:attribute name="name" type="nameType" use="required">
