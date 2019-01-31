@@ -28,6 +28,7 @@
   <!-- since templates are inlined, we need to make these symbols available to
        avoid terrible confusion -->
   <import package="../numeric/common" export="true"/>
+  <import package="../when" export="true"/>
   <import package="common" export="true" />
   <import package="filter" export="true" />
   <import package="matrix" export="true" />
@@ -314,33 +315,36 @@
       <text>_RATE_TABLE</text>
     </param>
 
-    <c:apply name="_mquery">
-      <c:arg name="matrix">
-        <c:value-of name="@matrix@" />
-      </c:arg>
 
-      <c:arg name="criteria">
-        <c:vector>
-          <param-copy name="@values@">
-            <param-meta name="table_basename" value="@matrix@" />
-          </param-copy>
-        </c:vector>
-      </c:arg>
+    <c:let>
+      <c:values>
+        <c:value name="_qparams" type="integer" set="matrix"
+                 desc="Query parameters">
+          <c:vector>
+            <param-copy name="@values@">
+              <param-meta name="table_basename" value="@matrix@" />
+            </param-copy>
+          </c:vector>
+        </c:value>
+      </c:values>
 
-      <c:arg name="i">
-        <!-- begin with the last predicate (due to the way we'll recurse, it
-             will be applied *last* -->
-        <t:dec>
-          <c:length-of>
-            <c:vector>
-              <param-copy name="@values@">
-                <param-meta name="table_basename" value="@matrix@" />
-              </param-copy>
-            </c:vector>
-          </c:length-of>
-        </t:dec>
-      </c:arg>
-    </c:apply>
+
+      <c:apply name="_mquery" matrix="@matrix@">
+        <c:arg name="criteria">
+          <c:value-of name="_qparams" />
+        </c:arg>
+
+        <c:arg name="i">
+          <!-- begin with the last predicate (due to the way we'll recurse, it
+               will be applied *last* -->
+          <t:dec>
+            <c:length-of>
+              <c:value-of name="_qparams" />
+            </c:length-of>
+          </t:dec>
+        </c:arg>
+      </c:apply>
+    </c:let>
   </template>
 
 
@@ -417,38 +421,27 @@
 
     <c:cases>
       <c:case>
-        <c:when name="i">
-          <c:eq>
-            <!-- it's important that we allow index 0, since that is a valid
-                 predicate -->
-            <c:const value="-1" type="integer" desc="We're done." />
-          </c:eq>
-        </c:when>
+        <!-- it's important that we allow index 0, since that is a valid
+             predicate -->
+        <t:when-eq name="i" value="#-1" />
 
         <!-- we're done; stick with the result -->
         <c:value-of name="matrix" />
       </c:case>
+
 
       <c:otherwise>
         <c:apply name="mfilter">
           <!-- matrix to search -->
           <c:arg name="matrix">
             <!-- >> recursion happens here << -->
-            <c:apply name="_mquery">
-              <c:arg name="matrix">
-                <c:value-of name="matrix" />
-              </c:arg>
-
-              <c:arg name="criteria">
-                <c:value-of name="criteria" />
-              </c:arg>
-
+            <c:recurse>
               <c:arg name="i">
                 <t:dec>
                   <c:value-of name="i" />
                 </t:dec>
               </c:arg>
-            </c:apply>
+            </c:recurse>
           </c:arg>
 
           <!-- field (column) -->

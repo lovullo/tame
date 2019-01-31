@@ -24,6 +24,7 @@
          desc="Filtering Vectors and Matrices">
 
   <import package="../base" />
+  <import package="../when" />
   <import package="list" />
 
 
@@ -70,11 +71,7 @@
                    perform a linear search (if the dataset is large enough and the
                    column value is relatively distinct) -->
               <c:case>
-                <c:when name="seq">
-                  <c:eq>
-                    <c:value-of name="TRUE" />
-                  </c:eq>
-                </c:when>
+                <t:when-eq name="seq" value="TRUE" />
 
                 <c:apply name="bisect" matrix="matrix" col="col" val="val">
                   <c:arg name="start">
@@ -145,17 +142,8 @@
             <c:value name="over" type="boolean"
                      desc="Did we pass the potential value in a sorted list?">
               <c:value-of name="TRUE">
-                <c:when name="seq">
-                  <c:eq>
-                    <c:value-of name="TRUE" />
-                  </c:eq>
-                </c:when>
-
-                <c:when name="curval">
-                  <c:gt>
-                    <c:value-of name="val" />
-                  </c:gt>
-                </c:when>
+                <t:when-eq name="seq" value="TRUE" />
+                <t:when-gt name="curval" value="val" />
               </c:value-of>
             </c:value>
           </c:values>
@@ -163,26 +151,16 @@
           <c:cases>
             <!-- if we're done filtering, then return an empty set -->
             <c:case>
-              <c:when name="start">
-                <c:gt>
-                  <c:value-of name="end" />
-                </c:gt>
-              </c:when>
+              <t:when-gt name="start" value="end" />
 
-              <!-- empty set -->
               <c:vector />
             </c:case>
 
             <!-- if the data is sequential and the next element is over the
                  requested value, then we're done -->
             <c:case>
-              <c:when name="over">
-                <c:eq>
-                  <c:value-of name="TRUE" />
-                </c:eq>
-              </c:when>
+              <t:when-eq name="over" value="TRUE" />
 
-              <!-- empty set -->
               <c:vector />
             </c:case>
 
@@ -223,11 +201,7 @@
 
       <c:cases>
         <c:case>
-          <c:when name="cur">
-            <c:eq>
-              <c:value-of name="val" />
-            </c:eq>
-          </c:when>
+          <t:when-eq name="cur" value="val" />
 
           <c:cons>
             <c:value-of name="matrix">
@@ -329,15 +303,12 @@
           <c:cases>
             <!-- give up if we've reached our gap limit -->
             <c:case>
-              <c:when name="gap">
-                <c:lte>
-                  <c:value-of name="MFILTER_BISECT_GAP_MAX" />
-                </c:lte>
-              </c:when>
+              <t:when-lte name="gap" value="MFILTER_BISECT_GAP_MAX" />
 
               <!-- we tried our best; return our current position -->
               <c:value-of name="start" />
             </c:case>
+
 
             <!-- we have not yet reached our gap limit; keep going -->
             <c:otherwise>
@@ -378,22 +349,14 @@
                   <c:cases>
                     <!-- if the middle value is lower than our value, then take the upper half -->
                     <c:case>
-                      <c:when name="mid">
-                        <c:lt>
-                          <c:value-of name="val" />
-                        </c:lt>
-                      </c:when>
+                      <t:when-lt name="mid" value="val" />
 
                       <c:recurse start="mid_index" />
                     </c:case>
 
                     <!-- similarily, take the lower half if we over-shot -->
                     <c:case>
-                      <c:when name="mid">
-                        <c:gt>
-                          <c:value-of name="val" />
-                        </c:gt>
-                      </c:when>
+                      <t:when-gt name="mid" value="val" />
 
                       <c:recurse end="mid_index" />
                     </c:case>
@@ -460,24 +423,14 @@
           <c:cases>
             <!-- if we have no more indexes to check, then we're done -->
             <c:case>
-              <c:when name="i">
-                <c:eq>
-                  <c:const value="0"
-                           desc="Did we check the final (first) index?" />
-                </c:eq>
-              </c:when>
+              <t:when-eq name="i" value="#0" />
 
-              <!-- well, then, we're done -->
               <c:value-of name="i" />
             </c:case>
 
             <!-- if the previous column value is the same value, then continue checking -->
             <c:case>
-              <c:when name="prev">
-                <c:eq>
-                  <c:value-of name="val" />
-                </c:eq>
-              </c:when>
+              <t:when-eq name="prev" value="val" />
 
               <c:recurse>
                 <c:arg name="i">
@@ -507,23 +460,7 @@
         <c:cases>
           <!-- if masked -->
           <c:case>
-            <!-- no index provided -->
-            <unless name="@index@">
-              <c:when name="@name@">
-                <c:eq>
-                  <c:value-of name="FALSE" />
-                </c:eq>
-              </c:when>
-            </unless>
-
-            <!-- index provided -->
-            <if name="@index@">
-              <c:when name="@name@" index="@index@">
-                <c:eq>
-                  <c:value-of name="FALSE" />
-                </c:eq>
-              </c:when>
-            </if>
+            <t:when-eq name="@name@" index="@index@" value="FALSE" />
 
             <!-- TODO: configurable mask via meta and/or param -->
             <c:value-of name="TABLE_WHEN_MASK_VALUE" />
