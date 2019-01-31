@@ -348,7 +348,45 @@
   </template>
 
 
-  <template name="_when_" desc="Create field predicate for query definition">
+  There are a series of \tt{_where-*_} templates for query predicates that
+    are analogous to the \tt{_match-*_} and \tt{_when-*_} templates used in
+    other contexts.
+
+  <inline-template>
+    <for-each>
+      <set tplname="_where-eq_"  op="CMP_OP_EQ"  desc="equal" />
+      <set tplname="_where-lt_"  op="CMP_OP_LT"  desc="less than" />
+      <set tplname="_where-lte_" op="CMP_OP_LTE" desc="less than or equal to" />
+      <set tplname="_where-gt_"  op="CMP_OP_GT"  desc="greater than" />
+      <set tplname="_where-gte_" op="CMP_OP_GTE" desc="greater than or equal to" />
+    </for-each>
+
+
+    <template name="@tplname@" desc="Field predicate for table query ({@desc@})">
+      <param name="@values@"     desc="Field value (provide only one node)" />
+      <param name="@id@"         desc="Field index" />
+      <param name="@field@"      desc="Field name (to be used with base)" />
+
+      <param name="@name@" desc="Field name (as a variable/constant)">
+        <text></text>
+      </param>
+
+      <param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+        <text></text>
+      </param>
+
+
+      <t:where id="@id@" seqvar="@seqvar@"
+               field="@field@" name="@name@" op="@op@">
+        <expand-barrier>
+          <param-copy name="@values@" />
+        </expand-barrier>
+      </t:where>
+    </template>
+  </inline-template>
+
+
+  <template name="_where_" desc="Create field predicate for query definition">
     <param name="@id@" desc="Field index" />
     <param name="@values@" desc="Field value (provide only one node)" />
     <param name="@sequential@" desc="Is data sequential?" />
@@ -410,6 +448,46 @@
       <!-- the fourth and final element is the comparison operator -->
       <c:value-of name="@op@" />
     </c:vector>
+  </template>
+
+
+  <!--
+    _when_ is deprecated in favor of _where-eq_.
+
+    This old template aimed to be consistent with the use of `when'
+    elsewhere (for cases and value predicates), but it was awkward in a
+    query abstraction.
+  -->
+  <template name="_when_"
+            desc="Create field predicate for query definition (deprecated;
+                  use _where-*_)">
+    <param name="@values@"     desc="Field value (provide only one node)" />
+    <param name="@id@"         desc="Field index" />
+    <param name="@sequential@" desc="Is data sequential?" />
+    <param name="@field@"      desc="Field name (to be used with base)" />
+
+    <param name="@name@" desc="Field name (as a variable/constant)">
+      <text></text>
+    </param>
+
+    <param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+      <text></text>
+    </param>
+
+    <param name="@op@"
+           desc="Comparison operator (default CMP_OP_EQ; see CmpOp typedef)">
+      <text></text>
+    </param>
+
+
+    <warning>
+      _when_ is deprecated; use _where-eq_ instead
+    </warning>
+
+    <t:where id="@id@" sequential="@sequential@" seqvar="@seqvar@"
+             field="@field@" name="@name@" op="CMP_OP_EQ">
+      <param-copy name="@values@" />
+    </t:where>
   </template>
 
 

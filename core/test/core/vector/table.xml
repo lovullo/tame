@@ -122,9 +122,9 @@
     <t:it desc="returns first row of multi-row result">
       <t:given>
         <t:query-first-field table="test-table" field="c">
-          <t:when field="a">
+          <t:where-eq field="a">
             <c:value-of name="#1" />
-          </t:when>
+          </t:where-eq>
         </t:query-first-field>
       </t:given>
 
@@ -137,12 +137,12 @@
     <t:it desc="returns first row of single-row result">
       <t:given>
         <t:query-first-field table="test-table" field="c">
-          <t:when field="a">
+          <t:where-eq field="a">
             <c:value-of name="#1" />
-          </t:when>
-          <t:when field="b">
+          </t:where-eq>
+          <t:where-eq field="b">
             <c:value-of name="#12" />
-          </t:when>
+          </t:where-eq>
         </t:query-first-field>
       </t:given>
 
@@ -160,9 +160,9 @@
         <t:given>
           <c:length-of>
             <t:query-field table="test-table" field="c">
-              <t:when field="a">
+              <t:where-eq field="a">
                 <c:value-of name="#1" />
-              </t:when>
+              </t:where-eq>
             </t:query-field>
           </c:length-of>
         </t:given>
@@ -177,12 +177,12 @@
         <t:given>
           <c:car>
             <t:query-field table="test-table" field="c">
-              <t:when field="a">
+              <t:where-eq field="a">
                 <c:value-of name="#1" />
-              </t:when>
-              <t:when field="b">
+              </t:where-eq>
+              <t:where-eq field="b">
                 <c:value-of name="#11" />
-              </t:when>
+              </t:where-eq>
             </t:query-field>
           </c:car>
         </t:given>
@@ -218,9 +218,9 @@
             <c:values>
               <c:value name="results" type="integer" set="vector">
                 <t:query-field table="test-table-seq" field="a">
-                  <t:when field="a" op="CMP_OP_LT">
+                  <t:where-lt field="a">
                     <c:value-of name="#5" />
-                  </t:when>
+                  </t:where-lt>
                 </t:query-field>
               </c:value>
             </c:values>
@@ -244,9 +244,9 @@
             <c:values>
               <c:value name="results" type="integer" set="vector">
                 <t:query-field table="test-table-seq" field="a">
-                  <t:when field="a" op="CMP_OP_LTE">
+                  <t:where-lte field="a">
                     <c:value-of name="#5" />
-                  </t:when>
+                  </t:where-lte>
                 </t:query-field>
               </c:value>
             </c:values>
@@ -270,9 +270,9 @@
             <c:values>
               <c:value name="results" type="integer" set="vector">
                 <t:query-field table="test-table-seq" field="a">
-                  <t:when field="a" op="CMP_OP_GT">
+                  <t:where-gt field="a">
                     <c:value-of name="#5" />
-                  </t:when>
+                  </t:where-gt>
                 </t:query-field>
               </c:value>
             </c:values>
@@ -296,9 +296,9 @@
             <c:values>
               <c:value name="results" type="integer" set="vector">
                 <t:query-field table="test-table-seq" field="a">
-                  <t:when field="a" op="CMP_OP_GTE">
+                  <t:where-gte field="a">
                     <c:value-of name="#5" />
-                  </t:when>
+                  </t:where-gte>
                 </t:query-field>
               </c:value>
             </c:values>
@@ -323,9 +323,9 @@
         <t:given>
           <c:length-of>
             <t:query-row table="test-table">
-              <t:when field="a">
+              <t:where-eq field="a">
                 <c:value-of name="#1" />
-              </t:when>
+              </t:where-eq>
             </t:query-row>
           </c:length-of>
         </t:given>
@@ -343,12 +343,12 @@
               <c:value name="first_row" type="integer" set="vector">
                 <c:car>
                   <t:query-row table="test-table">
-                    <t:when field="a">
+                    <t:where-eq field="a">
                       <c:value-of name="#1" />
-                    </t:when>
-                    <t:when field="b">
+                    </t:where-eq>
+                    <t:where-eq field="b">
                       <c:value-of name="#11" />
-                    </t:when>
+                    </t:where-eq>
                   </t:query-row>
                 </c:car>
               </c:value>

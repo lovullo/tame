@@ -202,10 +202,10 @@
             <t:query-field table="@table@"
                            field="@field@">
               <!-- query for upper and lower values for interpolation -->
-              <t:when field="@key@">
+              <t:where-eq field="@key@">
                 <c:value-of name="low" />
                 <c:value-of name="high" />
-              </t:when>
+              </t:where-eq>
 
               <param-copy name="@values@" />
             </t:query-field>
