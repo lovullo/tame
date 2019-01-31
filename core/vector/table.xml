@@ -371,6 +371,12 @@
       <text>_IS_SEQ</text>
     </param>
 
+    <param name="@op@"
+           desc="Comparison operator (default CMP_OP_EQ; see CmpOp typedef)">
+      <text>CMP_OP_EQ</text>
+    </param>
+
+
     <c:vector label="Conditional for {@field@}">
       <!-- the first element will represent the column (field) index -->
       <unless name="@name@">
@@ -385,7 +391,7 @@
         <param-copy name="@values@" />
       </c:vector>
 
-      <!-- the final element will represent whether or not this field is sequential -->
+      <!-- the third element will represent whether or not this field is sequential -->
       <if name="@sequential@">
         <c:const value="@sequential@" type="boolean" desc="Whether data is sequential" />
       </if>
@@ -400,6 +406,9 @@
           <c:value-of name="FALSE" />
         </unless>
       </unless>
+
+      <!-- the fourth and final element is the comparison operator -->
+      <c:value-of name="@op@" />
     </c:vector>
   </template>
 
@@ -476,6 +485,18 @@
               </c:index>
               <c:index>
                 <c:const value="2" type="integer" desc="Sequential flag" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+
+          <!-- comparison operator -->
+          <c:arg name="op">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="3" type="integer" desc="Comparison operator" />
               </c:index>
             </c:value-of>
           </c:arg>

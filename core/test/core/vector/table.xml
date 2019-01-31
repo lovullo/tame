@@ -61,6 +61,63 @@
   </t:create-table>
 
 
+  <t:create-table name="test-table-seq"
+                  desc="Dummy sequential table for query testing">
+    <t:table-column name="a"
+                    index="0"
+                    desc="Column A" />
+    <t:table-column name="b"
+                    index="1"
+                    desc="Column B" />
+
+    <t:table-rows>
+      <t:table-row>
+        <t:table-value const="1" />
+        <t:table-value const="1" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="2" />
+        <t:table-value const="1" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="2" />
+        <t:table-value const="2" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="5" />
+        <t:table-value const="1" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="5" />
+        <t:table-value const="2" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="5" />
+        <t:table-value const="3" />
+      </t:table-row>
+
+      <t:table-row>
+        <t:table-value const="7" />
+        <t:table-value const="1" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="7" />
+        <t:table-value const="2" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="7" />
+        <t:table-value const="3" />
+      </t:table-row>
+      <t:table-row>
+        <t:table-value const="7" />
+        <t:table-value const="4" />
+      </t:table-row>
+    </t:table-rows>
+  </t:create-table>
+
+
   <t:describe name="_query-first-field_">
     <t:it desc="returns first row of multi-row result">
       <t:given>
@@ -147,6 +204,112 @@
 
         <t:expect>
           <t:match-result eq="3" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <!-- TODO: tried using inline-template here but id generation was not
+         working as expected -->
+    <t:describe name="with CMP_OP_LT">
+      <t:it desc="matches less than a given value">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="results" type="integer" set="vector">
+                <t:query-field table="test-table-seq" field="a">
+                  <t:when field="a" op="CMP_OP_LT">
+                    <c:value-of name="#5" />
+                  </t:when>
+                </t:query-field>
+              </c:value>
+            </c:values>
+
+            <c:sum of="results" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <!-- 1 + 2 + 2 -->
+          <t:match-result eq="5" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with CMP_OP_LTE">
+      <t:it desc="matches less than or equal to a given value">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="results" type="integer" set="vector">
+                <t:query-field table="test-table-seq" field="a">
+                  <t:when field="a" op="CMP_OP_LTE">
+                    <c:value-of name="#5" />
+                  </t:when>
+                </t:query-field>
+              </c:value>
+            </c:values>
+
+            <c:sum of="results" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <!-- 1 + 2 + 2 + 5 + 5 + 5 -->
+          <t:match-result eq="20" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with CMP_OP_GT">
+      <t:it desc="matches greater than a given value">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="results" type="integer" set="vector">
+                <t:query-field table="test-table-seq" field="a">
+                  <t:when field="a" op="CMP_OP_GT">
+                    <c:value-of name="#5" />
+                  </t:when>
+                </t:query-field>
+              </c:value>
+            </c:values>
+
+            <c:sum of="results" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <!-- 7 + 7 + 7 + 7 -->
+          <t:match-result eq="28" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with CMP_OP_GTE">
+      <t:it desc="matches greater than or equal to a given value">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="results" type="integer" set="vector">
+                <t:query-field table="test-table-seq" field="a">
+                  <t:when field="a" op="CMP_OP_GTE">
+                    <c:value-of name="#5" />
+                  </t:when>
+                </t:query-field>
+              </c:value>
+            </c:values>
+
+            <c:sum of="results" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <!-- 5 + 5 + 5 + 7 + 7 + 7 + 7 -->
+          <t:match-result eq="43" />
         </t:expect>
       </t:it>
     </t:describe>

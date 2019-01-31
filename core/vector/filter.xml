@@ -28,6 +28,19 @@
   <import package="list" />
 
 
+  <typedef name="CmpOp"
+           desc="Comparison operator">
+    <enum type="integer">
+      <!-- DO NOT REORDER; see mrange 'over' check -->
+      <item name="CMP_OP_EQ"  value="1" desc="Equal (=)" />
+      <item name="CMP_OP_LT"  value="2" desc="Less than (&lt;)" />
+      <item name="CMP_OP_LTE" value="3" desc="Less than or equal to (&lt;=)" />
+      <item name="CMP_OP_GT"  value="4" desc="Greater than (&gt;)" />
+      <item name="CMP_OP_GTE" value="5" desc="Greater than or equal to (&gt;=)" />
+    </enum>
+  </typedef>
+
+
   <section title="Vector Filtering">
     <function name="vfilter_lookup"
               desc="Filter predicate by value and use corresponding index in
@@ -46,10 +59,11 @@
 
   <section title="Matrix Filtering">
     \ref{mfilter} handles complex filtering of matrices.
-    If the requested column~\tt{@col@} is marked as sequential with~\tt{@seq@},
-      a~$O(lg n)$ bisect algorithm will be used;
-        otherwise,
-          it will undergo a~$O(n)$ linear scan.
+    If the requested column~\tt{@col@} is marked as sequential with~\tt{@seq@}
+      \emph{and} the comparison operator is~\ref{CMP_OP_EQ},
+        then an~$O(lg n)$ bisect algorithm will be used;
+          otherwise,
+            it will undergo a~$O(n)$ linear scan.
 
     <function name="mfilter"
               desc="Filter matrix rows by column value">
@@ -57,6 +71,7 @@
       <param name="col"    type="integer"            desc="Column index to filter on" />
       <param name="vals"   type="float"              desc="Column value to filter on" />
       <param name="seq"    type="boolean"            desc="Is data sequential?" />
+      <param name="op"     type="integer"            desc="Comparison operator" />
 
       <!-- merge the result of each condition in vals into a single set, which
            has the effect of supporting multiple conditions on a single column of
@@ -64,13 +79,15 @@
            the lookups separately for each, we preserve the bisect-ability of the
            condition. -->
       <t:merge-until-empty set="vals" car="val" glance="TABLE_WHEN_MASK_VALUE">
-        <c:apply name="mrange" matrix="matrix" col="col" val="val" seq="seq">
+        <c:apply name="mrange" matrix="matrix" col="col" val="val" seq="seq" op="op">
           <c:arg name="start">
             <c:cases>
               <!-- if we know that the data is sequential, then we may not need to
                    perform a linear search (if the dataset is large enough and the
                    column value is relatively distinct) -->
+              <!-- TODO: bisect is currently only performed for CMP_OP_EQ -->
               <c:case>
+                <t:when-eq name="op" value="CMP_OP_EQ" />
                 <t:when-eq name="seq" value="TRUE" />
 
                 <c:apply name="bisect" matrix="matrix" col="col" val="val">
@@ -117,6 +134,7 @@
       <param name="start" type="integer" desc="Starting index (inclusive)" />
       <param name="end" type="integer" desc="Ending index (inclusive)" />
       <param name="seq" type="boolean" desc="Is data sequential?" />
+      <param name="op" type="integer" desc="Comparison operator" />
 
       <c:let>
         <c:values>
@@ -157,8 +175,10 @@
             </c:case>
 
             <!-- if the data is sequential and the next element is over the
-                 requested value, then we're done -->
+                 requested value, then we're done (can only be used for
+                 equality and LT{,E}; need a GT{,E} version  -->
             <c:case>
+              <t:when-lte name="op" value="CMP_OP_LTE" />
               <t:when-eq name="over" value="TRUE" />
 
               <c:vector />
@@ -166,8 +186,8 @@
 
 
             <c:otherwise>
-              <c:apply name="_mfilter" matrix="matrix" col="col" val="val"
-                       start="start" end="end" seq="seq">
+              <c:apply name="_mrange_cmp" matrix="matrix" col="col" val="val"
+                       start="start" end="end" seq="seq" op="op">
                 <c:arg name="cur">
                   <c:value-of name="matrix">
                     <!-- current row -->
@@ -189,29 +209,95 @@
     </function>
 
 
-    <function name="_mfilter" desc="mfilter helper">
+    <!-- mutually recursive with _mrange -->
+    <function name="_mrange_cmp" desc="mrange helper for value comparison">
       <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
       <param name="col" type="integer"               desc="Column index to filter on" />
       <param name="val" type="float"                 desc="Column value to filter on" />
       <param name="start" type="integer"             desc="Starting index (aka current index)" />
       <param name="end" type="integer"               desc="Ending index" />
       <param name="seq" type="integer"               desc="Is data sequential?" />
-
+      <param name="op" type="integer"                desc="Comparison operator" />
       <param name="cur" type="float"                 desc="Current value" />
 
-      <c:cases>
-        <c:case>
-          <t:when-eq name="cur" value="val" />
 
-          <c:cons>
-            <c:value-of name="matrix">
-              <c:index>
-                <c:value-of name="start" />
-              </c:index>
-            </c:value-of>
+      <c:let>
+        <c:values>
+          <c:value name="found" type="boolean"
+                   desc="Whether comparison matches">
+            <c:cases>
+              <c:case label="Equal">
+                <t:when-eq name="op" value="CMP_OP_EQ" />
 
+                <c:value-of name="TRUE">
+                  <t:when-eq name="cur" value="val" />
+                </c:value-of>
+              </c:case>
+
+              <c:case label="Less than">
+                <t:when-eq name="op" value="CMP_OP_LT" />
+
+                <c:value-of name="TRUE">
+                  <t:when-lt name="cur" value="val" />
+                </c:value-of>
+              </c:case>
+
+              <c:case label="Less than or equal to">
+                <t:when-eq name="op" value="CMP_OP_LTE" />
+
+                <c:value-of name="TRUE">
+                  <t:when-lte name="cur" value="val" />
+                </c:value-of>
+              </c:case>
+
+              <c:case label="Greater than">
+                <t:when-eq name="op" value="CMP_OP_GT" />
+
+                <c:value-of name="TRUE">
+                  <t:when-gt name="cur" value="val" />
+                </c:value-of>
+              </c:case>
+
+              <c:case label="Greater than or equal to">
+                <t:when-eq name="op" value="CMP_OP_GTE" />
+
+                <c:value-of name="TRUE">
+                  <t:when-gte name="cur" value="val" />
+                </c:value-of>
+              </c:case>
+            </c:cases>
+          </c:value>
+        </c:values>
+
+        <c:cases>
+          <!-- if values matches, cons it -->
+          <c:case>
+            <t:when-eq name="found" value="TRUE" />
+
+            <c:cons>
+              <c:value-of name="matrix">
+                <c:index>
+                  <c:value-of name="start" />
+                </c:index>
+              </c:value-of>
+
+              <c:apply name="mrange" matrix="matrix" col="col" val="val"
+                       end="end" seq="seq" op="op">
+                <c:arg name="start">
+                  <c:sum>
+                    <c:value-of name="start" />
+                    <c:const value="1" desc="Check next element" />
+                  </c:sum>
+                </c:arg>
+              </c:apply>
+            </c:cons>
+          </c:case>
+
+
+          <!-- no match, continue (mutual) recursion -->
+          <c:otherwise>
             <c:apply name="mrange" matrix="matrix" col="col" val="val"
-                     end="end" seq="seq">
+                     end="end" seq="seq" op="op">
               <c:arg name="start">
                 <c:sum>
                   <c:value-of name="start" />
@@ -219,21 +305,9 @@
                 </c:sum>
               </c:arg>
             </c:apply>
-          </c:cons>
-        </c:case>
-
-        <c:otherwise>
-          <c:apply name="mrange" matrix="matrix" col="col" val="val"
-                   end="end" seq="seq">
-            <c:arg name="start">
-              <c:sum>
-                <c:value-of name="start" />
-                <c:const value="1" desc="Check next element" />
-              </c:sum>
-            </c:arg>
-          </c:apply>
-        </c:otherwise>
-      </c:cases>
+          </c:otherwise>
+        </c:cases>
+      </c:let>
     </function>
 
 
