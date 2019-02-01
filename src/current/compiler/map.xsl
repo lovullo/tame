@@ -745,7 +745,7 @@
   <!-- TODO: support arbitrary depth -->
   <!-- oval = orig val -->
   <text>(function(oval){</text>
-    <text>var val = Array.isArray(oval) ? oval : [oval||'']; </text>
+    <text>var val = Array.isArray(oval) ? oval : [oval===undefined?'':oval]; </text>
     <text>var ret = []; </text>
 
     <if test="$nested-depth = 0">
