@@ -358,7 +358,7 @@
 </xsl:template>
 
 
-<xsl:template match="c:*[ ancestor::lv:template ]"
+<xsl:template match="lv:template"
               mode="preproc:depgen" priority="8">
   <!-- ignore symbols within templates -->
 </xsl:template>
