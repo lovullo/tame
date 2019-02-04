@@ -28,6 +28,7 @@
   <!-- since templates are inlined, we need to make these symbols available to
        avoid terrible confusion -->
   <import package="../numeric/common" export="true"/>
+  <import package="../when" export="true"/>
   <import package="common" export="true" />
   <import package="filter" export="true" />
   <import package="matrix" export="true" />
@@ -314,37 +315,78 @@
       <text>_RATE_TABLE</text>
     </param>
 
-    <c:apply name="_mquery">
-      <c:arg name="matrix">
-        <c:value-of name="@matrix@" />
-      </c:arg>
 
-      <c:arg name="criteria">
-        <c:vector>
-          <param-copy name="@values@">
-            <param-meta name="table_basename" value="@matrix@" />
-          </param-copy>
-        </c:vector>
-      </c:arg>
+    <c:let>
+      <c:values>
+        <c:value name="_qparams" type="integer" set="matrix"
+                 desc="Query parameters">
+          <c:vector>
+            <param-copy name="@values@">
+              <param-meta name="table_basename" value="@matrix@" />
+            </param-copy>
+          </c:vector>
+        </c:value>
+      </c:values>
 
-      <c:arg name="i">
-        <!-- begin with the last predicate (due to the way we'll recurse, it
-             will be applied *last* -->
-        <t:dec>
-          <c:length-of>
-            <c:vector>
-              <param-copy name="@values@">
-                <param-meta name="table_basename" value="@matrix@" />
-              </param-copy>
-            </c:vector>
-          </c:length-of>
-        </t:dec>
-      </c:arg>
-    </c:apply>
+
+      <c:apply name="_mquery" matrix="@matrix@">
+        <c:arg name="criteria">
+          <c:value-of name="_qparams" />
+        </c:arg>
+
+        <c:arg name="i">
+          <!-- begin with the last predicate (due to the way we'll recurse, it
+               will be applied *last* -->
+          <t:dec>
+            <c:length-of>
+              <c:value-of name="_qparams" />
+            </c:length-of>
+          </t:dec>
+        </c:arg>
+      </c:apply>
+    </c:let>
   </template>
 
 
-  <template name="_when_" desc="Create field predicate for query definition">
+  There are a series of \tt{_where-*_} templates for query predicates that
+    are analogous to the \tt{_match-*_} and \tt{_when-*_} templates used in
+    other contexts.
+
+  <inline-template>
+    <for-each>
+      <set tplname="_where-eq_"  op="CMP_OP_EQ"  desc="equal" />
+      <set tplname="_where-lt_"  op="CMP_OP_LT"  desc="less than" />
+      <set tplname="_where-lte_" op="CMP_OP_LTE" desc="less than or equal to" />
+      <set tplname="_where-gt_"  op="CMP_OP_GT"  desc="greater than" />
+      <set tplname="_where-gte_" op="CMP_OP_GTE" desc="greater than or equal to" />
+    </for-each>
+
+
+    <template name="@tplname@" desc="Field predicate for table query ({@desc@})">
+      <param name="@values@"     desc="Field value (provide only one node)" />
+      <param name="@id@"         desc="Field index" />
+      <param name="@field@"      desc="Field name (to be used with base)" />
+
+      <param name="@name@" desc="Field name (as a variable/constant)">
+        <text></text>
+      </param>
+
+      <param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+        <text></text>
+      </param>
+
+
+      <t:where id="@id@" seqvar="@seqvar@"
+               field="@field@" name="@name@" op="@op@">
+        <expand-barrier>
+          <param-copy name="@values@" />
+        </expand-barrier>
+      </t:where>
+    </template>
+  </inline-template>
+
+
+  <template name="_where_" desc="Create field predicate for query definition">
     <param name="@id@" desc="Field index" />
     <param name="@values@" desc="Field value (provide only one node)" />
     <param name="@sequential@" desc="Is data sequential?" />
@@ -367,6 +409,12 @@
       <text>_IS_SEQ</text>
     </param>
 
+    <param name="@op@"
+           desc="Comparison operator (default CMP_OP_EQ; see CmpOp typedef)">
+      <text>CMP_OP_EQ</text>
+    </param>
+
+
     <c:vector label="Conditional for {@field@}">
       <!-- the first element will represent the column (field) index -->
       <unless name="@name@">
@@ -381,7 +429,7 @@
         <param-copy name="@values@" />
       </c:vector>
 
-      <!-- the final element will represent whether or not this field is sequential -->
+      <!-- the third element will represent whether or not this field is sequential -->
       <if name="@sequential@">
         <c:const value="@sequential@" type="boolean" desc="Whether data is sequential" />
       </if>
@@ -396,7 +444,50 @@
           <c:value-of name="FALSE" />
         </unless>
       </unless>
+
+      <!-- the fourth and final element is the comparison operator -->
+      <c:value-of name="@op@" />
     </c:vector>
+  </template>
+
+
+  <!--
+    _when_ is deprecated in favor of _where-eq_.
+
+    This old template aimed to be consistent with the use of `when'
+    elsewhere (for cases and value predicates), but it was awkward in a
+    query abstraction.
+  -->
+  <template name="_when_"
+            desc="Create field predicate for query definition (deprecated;
+                  use _where-*_)">
+    <param name="@values@"     desc="Field value (provide only one node)" />
+    <param name="@id@"         desc="Field index" />
+    <param name="@sequential@" desc="Is data sequential?" />
+    <param name="@field@"      desc="Field name (to be used with base)" />
+
+    <param name="@name@" desc="Field name (as a variable/constant)">
+      <text></text>
+    </param>
+
+    <param name="@seqvar@" desc="Var/constant containing whether field is sequential">
+      <text></text>
+    </param>
+
+    <param name="@op@"
+           desc="Comparison operator (default CMP_OP_EQ; see CmpOp typedef)">
+      <text></text>
+    </param>
+
+
+    <warning>
+      _when_ is deprecated; use _where-eq_ instead
+    </warning>
+
+    <t:where id="@id@" sequential="@sequential@" seqvar="@seqvar@"
+             field="@field@" name="@name@" op="CMP_OP_EQ">
+      <param-copy name="@values@" />
+    </t:where>
   </template>
 
 
@@ -417,38 +508,27 @@
 
     <c:cases>
       <c:case>
-        <c:when name="i">
-          <c:eq>
-            <!-- it's important that we allow index 0, since that is a valid
-                 predicate -->
-            <c:const value="-1" type="integer" desc="We're done." />
-          </c:eq>
-        </c:when>
+        <!-- it's important that we allow index 0, since that is a valid
+             predicate -->
+        <t:when-eq name="i" value="#-1" />
 
         <!-- we're done; stick with the result -->
         <c:value-of name="matrix" />
       </c:case>
+
 
       <c:otherwise>
         <c:apply name="mfilter">
           <!-- matrix to search -->
           <c:arg name="matrix">
             <!-- >> recursion happens here << -->
-            <c:apply name="_mquery">
-              <c:arg name="matrix">
-                <c:value-of name="matrix" />
-              </c:arg>
-
-              <c:arg name="criteria">
-                <c:value-of name="criteria" />
-              </c:arg>
-
+            <c:recurse>
               <c:arg name="i">
                 <t:dec>
                   <c:value-of name="i" />
                 </t:dec>
               </c:arg>
-            </c:apply>
+            </c:recurse>
           </c:arg>
 
           <!-- field (column) -->
@@ -483,6 +563,18 @@
               </c:index>
               <c:index>
                 <c:const value="2" type="integer" desc="Sequential flag" />
+              </c:index>
+            </c:value-of>
+          </c:arg>
+
+          <!-- comparison operator -->
+          <c:arg name="op">
+            <c:value-of name="criteria">
+              <c:index>
+                <c:value-of name="i" />
+              </c:index>
+              <c:index>
+                <c:const value="3" type="integer" desc="Comparison operator" />
               </c:index>
             </c:value-of>
           </c:arg>
