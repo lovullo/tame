@@ -651,6 +651,12 @@
 </template>
 
 
+<!--
+  Calculate symbol dimensions by taking the highest dimension of its
+  dependencies
+
+  If all dependencies are not yet resolved, then schedule a repass.
+-->
 <template match="preproc:sym[ not( @src ) and @dim='?' ]" mode="preproc:resolv-syms" priority="5">
   <param name="orig-root" as="element()" />
   <param name="symtable-map" as="map(*)" tunnel="yes" />
@@ -669,42 +675,9 @@
                              $name, '''' )" />
   </if>
 
-  <variable name="depsyms-unresolv" as="element( preproc:sym )*"
+  <variable name="depsyms" as="element( preproc:sym )*"
             select="for $ref in $deps/preproc:sym-ref
                       return $symtable-map( $ref/@name )" />
-
-  <variable name="depsyms-resolv">
-    <for-each select="$depsyms-unresolv">
-      <choose>
-        <when test="not( @src )">
-          <sequence select="." />
-        </when>
-
-        <!-- look up complete symbol -->
-        <otherwise>
-          <variable name="name" select="@name" />
-          <variable name="sym" select="
-            document( concat( @src, '.xmlo' ), $orig-root )
-              /lv:package/preproc:symtable/preproc:sym[
-                @name=$name
-              ]
-            " />
-
-          <if test="not( $sym )">
-            <message terminate="yes">
-              <text>[preproc] !!! failed to look up symbol `</text>
-                <value-of select="$name" />
-              <text>'</text>
-            </message>
-          </if>
-
-          <sequence select="$sym" />
-        </otherwise>
-      </choose>
-    </for-each>
-  </variable>
-
-  <variable name="depsyms" select="$depsyms-resolv/preproc:sym" />
 
   <choose>
     <!-- unresolved dependency dimensions; defer until next pass -->
@@ -719,38 +692,12 @@
 
     <!-- all dependencies are resolved; calculate dimensions -->
     <otherwise>
-      <!-- sort dependencies so that the largest dimension is at the top -->
-      <variable name="maxset">
-        <for-each select="$depsyms">
-          <sort select="@dim" data-type="number" order="descending" />
-          <sequence select="." />
-        </for-each>
-      </variable>
+      <variable name="max" as="xs:double"
+                select="if ( empty( $depsyms ) ) then
+                            0
+                          else
+                            max( $depsyms/@dim )" />
 
-      <variable name="max">
-        <choose>
-          <when test="count( $deps/preproc:sym-ref ) = 0">
-            <!-- no dependencies, unknown size, so it's a scalar -->
-            <text>0</text>
-          </when>
-
-          <otherwise>
-            <!-- largest value -->
-            <value-of select="$maxset/preproc:sym[1]/@dim" />
-          </otherwise>
-        </choose>
-      </variable>
-
-      <!-- failure? -->
-      <if test="not( $max ) or $max = ''">
-        <message terminate="yes">
-          <text>[preproc] !!! failed to determine dimensions of `</text>
-            <value-of select="$name" />
-          <text>'</text>
-        </message>
-      </if>
-
-      <!-- copy, substituting calculated dimensions -->
       <copy>
         <sequence select="@*" />
         <attribute name="dim" select="$max" />
