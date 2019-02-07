@@ -28,53 +28,52 @@
   The goal of the eligibility classification is to create a cascading failure in
   the event of bad data.
 -->
-<xsl:stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:xs="http://www.w3.org/2001/XMLSchema"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc"
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:c="http://www.lovullo.com/calc">
 
 
 
 <!--
   Trigger eligibility class generation
 -->
-<xsl:template match="lv:package[ not( @preproc:elig-class-yields ) ]"
+<template match="lv:package[ not( @preproc:elig-class-yields ) ]"
               as="element( lv:package )"
               priority="5"
               mode="preproc:expand-elig-class">
-  <xsl:param name="orig-root" as="element( lv:package )" />
+  <param name="orig-root" as="element( lv:package )" />
 
-  <xsl:variable name="elig-class" as="element( lv:classify )">
-    <xsl:apply-templates select="." mode="preproc:gen-elig-class">
-      <xsl:with-param name="orig-root" select="$orig-root" />
-    </xsl:apply-templates>
-  </xsl:variable>
+  <variable name="elig-class" as="element( lv:classify )">
+    <apply-templates select="." mode="preproc:gen-elig-class">
+      <with-param name="orig-root" select="$orig-root" />
+    </apply-templates>
+  </variable>
 
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:attribute name="preproc:elig-class"
+    <attribute name="preproc:elig-class"
       select="$elig-class/@as" />
 
-    <xsl:attribute name="preproc:elig-class-yields"
+    <attribute name="preproc:elig-class-yields"
       select="$elig-class/@yields" />
 
-    <xsl:sequence select="$elig-class" />
-    <xsl:apply-templates mode="preproc:macros" />
-  </xsl:copy>
-</xsl:template>
+    <sequence select="$elig-class" />
+    <apply-templates mode="preproc:macros" />
+  </copy>
+</template>
 
 
-<xsl:template match="lv:package" as="element( lv:package )"
+<template match="lv:package" as="element( lv:package )"
               priority="1"
   mode="preproc:expand-elig-class">
 
   <!-- already processed -->
-  <xsl:sequence select="." />
-</xsl:template>
+  <sequence select="." />
+</template>
 
 
 
@@ -84,17 +83,17 @@
 
   The eligibility classification will yield a scalar.
 -->
-<xsl:template match="lv:package" as="element( lv:classify )"
+<template match="lv:package" as="element( lv:classify )"
               mode="preproc:gen-elig-class">
-  <xsl:param name="orig-root" as="element( lv:package )" />
+  <param name="orig-root" as="element( lv:package )" />
 
-  <xsl:message>[preproc/eligclass] generating eligibility class</xsl:message>
+  <message>[preproc/eligclass] generating eligibility class</message>
 
 
   <!-- class-ify name -->
-  <xsl:variable name="as" as="xs:string"
+  <variable name="as" as="xs:string"
                 select="preproc:gen-elig-class-name( @name )" />
-  <xsl:variable name="yields" as="xs:string"
+  <variable name="yields" as="xs:string"
                 select="preproc:gen-elig-class-yields( @name )" />
 
 
@@ -102,33 +101,33 @@
     desc="{@name} package is eligible">
 
     <!-- each of our imported packages' elig classes must be truthful -->
-    <xsl:apply-templates mode="preproc:gen-elig-class-matches"
+    <apply-templates mode="preproc:gen-elig-class-matches"
       select="lv:import">
 
-      <xsl:with-param name="orig-root" select="$orig-root" />
-    </xsl:apply-templates>
+      <with-param name="orig-root" select="$orig-root" />
+    </apply-templates>
 
     <!-- param values must be within their domain -->
     <!-- XXX: does not work when param is undefined due to no mapping
-    <xsl:apply-templates mode="preproc:gen-elig-param-class"
+    <apply-templates mode="preproc:gen-elig-param-class"
       select="lv:param" />
     -->
 
     <!-- terminating classifications must not have matched -->
-    <xsl:apply-templates mode="preproc:gen-elig-term-class"
+    <apply-templates mode="preproc:gen-elig-term-class"
       select="preproc:symtable/preproc:sym[ @type='class' ]" />
   </lv:classify>
-</xsl:template>
+</template>
 
 
 <!--
   Generate eligibility classification name for package
 -->
-<xsl:function name="preproc:gen-elig-class-name"
+<function name="preproc:gen-elig-class-name"
               as="xs:string">
-  <xsl:param name="name" />
+  <param name="name" />
 
-  <xsl:sequence select="
+  <sequence select="
       concat( '--elig-',
         translate(
           translate( $name, '.', '' ),
@@ -136,23 +135,23 @@
         )
       )
       " />
-</xsl:function>
+</function>
 
 
 <!--
   Generate eligibility result scalar name for package
 -->
-<xsl:function name="preproc:gen-elig-class-yields"
+<function name="preproc:gen-elig-class-yields"
               as="xs:string">
-  <xsl:param name="name" />
+  <param name="name" />
 
-  <xsl:sequence select="
+  <sequence select="
       concat(
         'isElig',
         translate(
           translate( $name, '.', '' ),
           '/-', '' ) )" />
-</xsl:function>
+</function>
 
 
 <!--
@@ -160,60 +159,60 @@
 
   For each imported package, its eligibility classification must be true.
 -->
-<xsl:template match="lv:import[ @package ]"
+<template match="lv:import[ @package ]"
               as="element( lv:match )?"
               priority="5"
               mode="preproc:gen-elig-class-matches">
-  <xsl:param name="orig-root" as="element( lv:package )" />
+  <param name="orig-root" as="element( lv:package )" />
 
   <!-- FIXME: path may not yet be resolved due to preprocessing order -->
-  <xsl:variable name="pkg-path" as="xs:string">
-    <xsl:call-template name="__apply-relroot">
-      <xsl:with-param name="path" select="@package" />
-    </xsl:call-template>
-  </xsl:variable>
+  <variable name="pkg-path" as="xs:string">
+    <call-template name="__apply-relroot">
+      <with-param name="path" select="@package" />
+    </call-template>
+  </variable>
 
-  <xsl:variable name="pkg" as="element( lv:package )"
+  <variable name="pkg" as="element( lv:package )"
                 select="document( concat( $pkg-path, '.xmlo' ),
                                   $__entry-root )
                           /lv:package" />
 
-  <xsl:if test="not( $pkg )">
-    <xsl:message terminate="yes">
-      <xsl:text>[preproc/eligclass] error: could not load `</xsl:text>
-        <xsl:value-of select="$pkg-path" />
-      <xsl:text>' object file</xsl:text>
-    </xsl:message>
-  </xsl:if>
+  <if test="not( $pkg )">
+    <message terminate="yes">
+      <text>[preproc/eligclass] error: could not load `</text>
+        <value-of select="$pkg-path" />
+      <text>' object file</text>
+    </message>
+  </if>
 
-  <xsl:variable name="chk" as="xs:string?"
+  <variable name="chk" as="xs:string?"
                 select="$pkg/@preproc:elig-class-yields" />
 
-  <xsl:choose>
-    <xsl:when test="not( $chk ) or ( $chk = '' )">
+  <choose>
+    <when test="not( $chk ) or ( $chk = '' )">
       <!-- TODO: make this an error once we make maps part of the
            conventional build process -->
-      <xsl:message>
-        <xsl:text>[preproc/eligclass] internal: empty eligibility </xsl:text>
-        <xsl:text>class for `</xsl:text>
-          <xsl:value-of select="$pkg/@name" />
-        <xsl:text>'; skipping</xsl:text>
-      </xsl:message>
-    </xsl:when>
+      <message>
+        <text>[preproc/eligclass] internal: empty eligibility </text>
+        <text>class for `</text>
+          <value-of select="$pkg/@name" />
+        <text>'; skipping</text>
+      </message>
+    </when>
 
-    <xsl:otherwise>
+    <otherwise>
       <!-- use eligibility class as stated by the package -->
       <lv:match on="{$chk}" value="TRUE" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template match="lv:import" priority="1"
+<template match="lv:import" priority="1"
   mode="preproc:gen-elig-class-matches">
 
   <!-- do nothing -->
-</xsl:template>
+</template>
 
 
 <!--
@@ -221,7 +220,7 @@
 
   This is a trivial operation.
 -->
-<xsl:template match="lv:param"
+<template match="lv:param"
               as="element( lv:any )"
               mode="preproc:gen-elig-param-class" priority="5">
 
@@ -229,11 +228,11 @@
     <lv:match on="{@name}" anyOf="{@type}" />
 
     <!-- TODO: defaults should always be within the domain! -->
-    <xsl:if test="@default">
+    <if test="@default">
       <lv:match on="{@name}" anyOf="empty" />
-    </xsl:if>
+    </if>
   </lv:any>
-</xsl:template>
+</template>
 
 
 
@@ -248,7 +247,7 @@
   classification marked as external to the classifier. There may or may not
   be something we want to do about this in the future.
 -->
-<xsl:template match="preproc:sym[
+<template match="preproc:sym[
                        not( @src )
                        and not( @pollute='true' )
                        and @type='class'
@@ -260,14 +259,14 @@
               mode="preproc:gen-elig-term-class">
 
   <lv:match on="{@yields}" value="FALSE" />
-</xsl:template>
+</template>
 
 
-<xsl:template match="preproc:sym" priority="1"
+<template match="preproc:sym" priority="1"
   mode="preproc:gen-elig-term-class">
 
   <!-- do nothing -->
-</xsl:template>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
 

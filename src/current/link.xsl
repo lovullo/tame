@@ -20,12 +20,11 @@
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 -->
-<xsl:stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform">
 
-<xsl:include href="include/dslc-base.xsl" />
+<include href="include/dslc-base.xsl" />
 
-<xsl:include href="compiler/linker.xsl" />
+<include href="compiler/linker.xsl" />
 
-</xsl:stylesheet>
+</stylesheet>

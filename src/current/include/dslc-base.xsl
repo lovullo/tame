@@ -25,9 +25,8 @@
   additional features that are defined/abstracted within this file; every
   template that is intended for use with dslc should include this.
 -->
-<xsl:stylesheet version="1.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform">
 
 <!--
   Absolute path to root of TAME
@@ -37,7 +36,7 @@
   that a particular line of code is executing in).  Using absolute paths
   mitigates that definitively.
 -->
-<xsl:param name="__path-root" />
+<param name="__path-root" />
 
 
 <!--
@@ -61,7 +60,7 @@
   Consequently, no two files are able to have the same __srcpkg string; this
   value may therefore be used for disambiguation.
 -->
-<xsl:param name="__srcpkg" />
+<param name="__srcpkg" />
 
 
 <!--
@@ -70,7 +69,7 @@
   The project root is determined entirely by __srcpath by repeating the string
   "../" for the number of occurrances of "/".
 -->
-<xsl:param name="__relroot" />
+<param name="__relroot" />
 
 
 <!--
@@ -79,7 +78,7 @@
   XSLT is deterministic and does not offer support for generating random values;
   its generate-id() function is not sufficient for cross-package generation.
 -->
-<xsl:param name="__rseed" />
+<param name="__rseed" />
 
 
 <!--
@@ -89,7 +88,7 @@
   important for `document' function calls, which use nodes as a reference
   point for resolving relative paths.
 -->
-<xsl:variable name="__entry-root" select="/" />
+<variable name="__entry-root" select="/" />
 
 
 
@@ -100,19 +99,19 @@
   with the leading path delimiter stripped; otherwise, it will be echoed
   as-is.
 -->
-<xsl:template name="__apply-relroot">
-  <xsl:param name="path" />
+<template name="__apply-relroot">
+  <param name="path" />
 
-  <xsl:choose>
-    <xsl:when test="starts-with( $path, '/' )">
-      <xsl:value-of select="$__relroot" />
-      <xsl:value-of select="substring-after( $path, '/' )" />
-    </xsl:when>
+  <choose>
+    <when test="starts-with( $path, '/' )">
+      <value-of select="$__relroot" />
+      <value-of select="substring-after( $path, '/' )" />
+    </when>
 
-    <xsl:otherwise>
-      <xsl:value-of select="$path" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <value-of select="$path" />
+    </otherwise>
+  </choose>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>

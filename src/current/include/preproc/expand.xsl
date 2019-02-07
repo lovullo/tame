@@ -23,65 +23,63 @@
   This process is responsible for expanding shorthand and various other data
   into a consistent format for the compiler and other processes.
 -->
-<xsl:stylesheet
-    version="2.0"
-    xmlns="http://www.w3.org/1999/xhtml"
-    xmlns:xs="http://www.w3.org/2001/XMLSchema"
-    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns:preproc="http://www.lovullo.com/rater/preproc"
-    xmlns:lv="http://www.lovullo.com/rater"
-    xmlns:t="http://www.lovullo.com/rater/apply-template"
-    xmlns:c="http://www.lovullo.com/calc"
-    xmlns:w="http://www.lovullo.com/rater/worksheet">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:t="http://www.lovullo.com/rater/apply-template"
+            xmlns:c="http://www.lovullo.com/calc"
+            xmlns:w="http://www.lovullo.com/rater/worksheet">
 
 
-<xsl:include href="domain.xsl" />
+<include href="domain.xsl" />
 
 
-<xsl:template match="lv:package[ not( @preproc:name ) ]"
+<template match="lv:package[ not( @preproc:name ) ]"
               mode="preproc:expand" priority="5"
               as="element( lv:package )">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
     <!-- generate name from source package identifier -->
-    <xsl:attribute name="name" select="$__srcpkg" />
+    <attribute name="name" select="$__srcpkg" />
 
     <!-- relative path to root src directory (for resolving absolute include
          paths) -->
-    <xsl:attribute name="__rootpath" select="$__relroot" />
+    <attribute name="__rootpath" select="$__relroot" />
 
     <!-- TODO: temporary; remove -->
-    <xsl:attribute name="preproc:name" select="$__srcpkg" />
+    <attribute name="preproc:name" select="$__srcpkg" />
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 
-<xsl:template match="*" mode="preproc:expand" priority="1">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+<template match="*" mode="preproc:expand" priority="1">
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!-- imports relative to project root -->
-<xsl:template match="lv:import[ starts-with( @package, '/' ) ]" mode="preproc:expand" priority="5">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+<template match="lv:import[ starts-with( @package, '/' ) ]" mode="preproc:expand" priority="5">
+  <copy>
+    <sequence select="@*" />
 
     <!-- resolve path into path relative to project root -->
-    <xsl:attribute name="package">
-      <xsl:call-template name="__apply-relroot">
-        <xsl:with-param name="path" select="@package" />
-      </xsl:call-template>
-    </xsl:attribute>
-  </xsl:copy>
-</xsl:template>
+    <attribute name="package">
+      <call-template name="__apply-relroot">
+        <with-param name="path" select="@package" />
+      </call-template>
+    </attribute>
+  </copy>
+</template>
 
 
 <!--
@@ -89,90 +87,90 @@
 
   Eventually, the typedefs will be converted into templates and removed entirely.
 -->
-<xsl:template match="lv:typedef"
+<template match="lv:typedef"
   mode="preproc:expand" priority="5">
 
-  <xsl:apply-templates select="." mode="preproc:mkdomain" />
+  <apply-templates select="." mode="preproc:mkdomain" />
 
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+  <copy>
+    <sequence select="@*" />
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!--
   Infer primitive type if not provided.
 -->
-<xsl:template mode="preproc:expand"
+<template mode="preproc:expand"
               match="c:const[ not( @type ) ]
                      |lv:const[ not( @type ) ]"
               priority="5">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:attribute name="type"
+    <attribute name="type"
                    select="if ( substring-before( @value, '.' ) ) then
                              'float'
                            else
                              'integer'" />
 
-    <xsl:sequence select="*" />
-  </xsl:copy>
-</xsl:template>
+    <sequence select="*" />
+  </copy>
+</template>
 
 
 <!--
   Translate dimension aliases (e.g. scaler, vector, matrix) into respective
   numeric representations.
 -->
-<xsl:template mode="preproc:expand" priority="8"
+<template mode="preproc:expand" priority="8"
               match="c:*[ @dim
                           and not( string( @dim ) castable as xs:integer ) ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
     <!-- replace dim with numeric -->
-    <xsl:attribute name="dim">
-      <xsl:choose>
-        <xsl:when test="@dim = 'scaler' or @dim = ''">
-          <xsl:sequence select="0" />
-        </xsl:when>
+    <attribute name="dim">
+      <choose>
+        <when test="@dim = 'scaler' or @dim = ''">
+          <sequence select="0" />
+        </when>
 
-        <xsl:when test="@dim = 'vector'">
-          <xsl:sequence select="1" />
-        </xsl:when>
+        <when test="@dim = 'vector'">
+          <sequence select="1" />
+        </when>
 
-        <xsl:when test="@dim = 'matrix'">
-          <xsl:sequence select="2" />
-        </xsl:when>
+        <when test="@dim = 'matrix'">
+          <sequence select="2" />
+        </when>
 
-        <xsl:otherwise>
-          <xsl:message terminate="yes"
+        <otherwise>
+          <message terminate="yes"
                        select="concat(
                                  '!!! [preproc] error: ',
                                  'unknown dimension alias ''',
                                  @dim, '''' )" />
-        </xsl:otherwise>
-      </xsl:choose>
-    </xsl:attribute>
+        </otherwise>
+      </choose>
+    </attribute>
 
-    <xsl:apply-templates select="node()" mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates select="node()" mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!--
   Give let's a name so that they may be easily referenced uniquely
 -->
-<xsl:template match="c:let[ not( @name ) ]" mode="preproc:expand" priority="5">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:attribute name="name" select="generate-id(.)" />
+<template match="c:let[ not( @name ) ]" mode="preproc:expand" priority="5">
+  <copy>
+    <sequence select="@*" />
+    <attribute name="name" select="generate-id(.)" />
 
-    <xsl:apply-templates select="*" mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates select="*" mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!--
@@ -183,16 +181,16 @@
   TODO: play well with others; if we change the priority back to 5, we introduce
   match ambiguities
 -->
-<xsl:template match="c:let/c:values/c:value/c:*[1][ not( @label ) ]" mode="preproc:expand" priority="4">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+<template match="c:let/c:values/c:value/c:*[1][ not( @label ) ]" mode="preproc:expand" priority="4">
+  <copy>
+    <sequence select="@*" />
 
     <!-- default the label to the description of the parent c:value -->
-    <xsl:attribute name="label" select="../@desc" />
+    <attribute name="label" select="../@desc" />
 
-    <xsl:apply-templates select="*" mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates select="*" mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!--
@@ -201,31 +199,31 @@
   Note: we check for any children because we may have things like
   template applications that we do not want wiped out.
 -->
-<xsl:template match="c:when[ not( * ) ]" mode="preproc:expand" priority="5">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+<template match="c:when[ not( * ) ]" mode="preproc:expand" priority="5">
+  <copy>
+    <sequence select="@*" />
 
     <c:gt>
       <c:value-of name="FALSE" />
     </c:gt>
-  </xsl:copy>
-</xsl:template>
+  </copy>
+</template>
 
 
 <!--
   c:when with multiple children
 -->
-<xsl:template match="c:when[ count( c:* ) gt 1 ]" mode="preproc:expand" priority="5">
-  <xsl:variable name="when" select="." />
+<template match="c:when[ count( c:* ) gt 1 ]" mode="preproc:expand" priority="5">
+  <variable name="when" select="." />
 
   <!-- expand into adjacent c:when's -->
-  <xsl:for-each select="c:*">
+  <for-each select="c:*">
     <c:when>
-      <xsl:sequence select="$when/@*" />
-      <xsl:apply-templates select="." mode="preproc:expand" />
+      <sequence select="$when/@*" />
+      <apply-templates select="." mode="preproc:expand" />
     </c:when>
-  </xsl:for-each>
-</xsl:template>
+  </for-each>
+</template>
 
 
 <!--
@@ -234,17 +232,17 @@
   This exists simply because function application is so verbose and, when
   recursing, generally only a small fraction of the arguments actually change.
 -->
-<xsl:template match="c:recurse" mode="preproc:expand" priority="5">
-  <xsl:variable name="self" select="." />
-  <xsl:variable name="fname" select="ancestor::lv:function/@name" />
-  <xsl:variable name="overrides" select="./c:arg" />
+<template match="c:recurse" mode="preproc:expand" priority="5">
+  <variable name="self" select="." />
+  <variable name="fname" select="ancestor::lv:function/@name" />
+  <variable name="overrides" select="./c:arg" />
 
   <c:apply name="{$fname}">
     <!-- every non-@name attribute should be converted into an argument -->
-    <xsl:call-template name="preproc:arg-short-expand" />
+    <call-template name="preproc:arg-short-expand" />
 
     <!-- include all non-overridden args -->
-    <xsl:for-each select="
+    <for-each select="
         ancestor::lv:function/lv:param[
           not(
             @name=$overrides/@name
@@ -257,149 +255,149 @@
       <c:arg name="{@name}">
         <c:value-of name="{@name}" />
       </c:arg>
-    </xsl:for-each>
+    </for-each>
 
     <!-- copy in the overrides -->
-    <xsl:apply-templates select="$overrides" mode="preproc:expand" />
+    <apply-templates select="$overrides" mode="preproc:expand" />
   </c:apply>
-</xsl:template>
+</template>
 
 
 <!-- metadata constants have different semantics -->
 <!-- TODO: maybe ignore single-quoted? -->
-<xsl:template mode="preproc:expand" priority="6"
+<template mode="preproc:expand" priority="6"
               match="lv:meta/lv:prop/lv:const">
-  <xsl:sequence select="." />
-</xsl:template>
+  <sequence select="." />
+</template>
 
 
 <!-- anything with a '@' is likely a template variable reference, so we
      should not attempt to perform constant expansion  -->
-<xsl:template mode="preproc:expand" priority="7"
+<template mode="preproc:expand" priority="7"
     match="c:const[ substring-after( @value, '@' ) ]
            |lv:const[ substring-after( @value, '@' ) ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!-- constants that contain 'e' (scientific notation) should be expanded; allows
      for avoiding constants with many zeroes, which is hard to read -->
-<xsl:template mode="preproc:expand" priority="6"
+<template mode="preproc:expand" priority="6"
     match="c:const[ substring-before( @value, 'e' ) ]
            |lv:const[ substring-before( @value, 'e' ) ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:attribute name="value">
-      <xsl:call-template name="preproc:expand-e">
-        <xsl:with-param name="number" select="@value" />
-      </xsl:call-template>
-    </xsl:attribute>
+    <attribute name="value">
+      <call-template name="preproc:expand-e">
+        <with-param name="number" select="@value" />
+      </call-template>
+    </attribute>
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
-<xsl:template mode="preproc:expand" priority="6"
+<template mode="preproc:expand" priority="6"
     match="c:const[ substring-before( @value, 'm' ) ]
            |lv:const[ substring-before( @value, 'm' ) ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:attribute name="value">
-      <xsl:call-template name="preproc:expand-e">
-        <xsl:with-param name="number"
+    <attribute name="value">
+      <call-template name="preproc:expand-e">
+        <with-param name="number"
           select="concat( substring-before( @value, 'm' ), 'e6' )" />
-      </xsl:call-template>
-    </xsl:attribute>
+      </call-template>
+    </attribute>
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
-<xsl:template mode="preproc:expand" priority="6"
+<template mode="preproc:expand" priority="6"
     match="c:const[ substring-before( @value, 'k' ) ]
            |lv:const[ substring-before( @value, 'k' ) ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:attribute name="value">
-      <xsl:call-template name="preproc:expand-e">
-        <xsl:with-param name="number"
+    <attribute name="value">
+      <call-template name="preproc:expand-e">
+        <with-param name="number"
           select="concat( substring-before( @value, 'k' ), 'e3' )" />
-      </xsl:call-template>
-    </xsl:attribute>
+      </call-template>
+    </attribute>
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!-- expand scientific notation -->
 <!-- XXX: negatives not currently supported -->
-<xsl:template name="preproc:expand-e">
-  <xsl:param name="number" />
-  <xsl:param name="whole" select="substring-before( $number, '.' )" />
-  <xsl:param name="dec"   select="substring-before( substring-after( $number, '.' ), 'e' )" />
-  <xsl:param name="count" as="xs:double"
+<template name="preproc:expand-e">
+  <param name="number" />
+  <param name="whole" select="substring-before( $number, '.' )" />
+  <param name="dec"   select="substring-before( substring-after( $number, '.' ), 'e' )" />
+  <param name="count" as="xs:double"
              select="number( substring-after( $number, 'e' ) )" />
 
   <!-- output the whole number portion -->
-  <xsl:choose>
-    <xsl:when test="$whole and not( $whole = '' )">
-      <xsl:value-of select="$whole" />
-    </xsl:when>
+  <choose>
+    <when test="$whole and not( $whole = '' )">
+      <value-of select="$whole" />
+    </when>
 
     <!-- if no decimal was provided, then use the entire number before 'e' -->
-    <xsl:when test="$number and not( $number = '' ) and ( $whole = '' )">
-      <xsl:value-of select="substring-before( $number, 'e' )" />
-    </xsl:when>
-  </xsl:choose>
+    <when test="$number and not( $number = '' ) and ( $whole = '' )">
+      <value-of select="substring-before( $number, 'e' )" />
+    </when>
+  </choose>
 
-  <xsl:choose>
-    <xsl:when test="$count > 0">
-      <xsl:choose>
+  <choose>
+    <when test="$count > 0">
+      <choose>
         <!-- if we have a decimal, then use the first digit (as if we moved one
              place to the right) -->
-        <xsl:when test="$dec and not( $dec = '' )">
-          <xsl:value-of select="substring( $dec, 1, 1 )" />
-        </xsl:when>
+        <when test="$dec and not( $dec = '' )">
+          <value-of select="substring( $dec, 1, 1 )" />
+        </when>
 
         <!-- no decimal portion remaining; fill with 0 -->
-        <xsl:otherwise>
-          <xsl:text>0</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
+        <otherwise>
+          <text>0</text>
+        </otherwise>
+      </choose>
 
       <!-- recursively expand -->
-      <xsl:call-template name="preproc:expand-e">
+      <call-template name="preproc:expand-e">
         <!-- already processed the whole -->
-        <xsl:with-param name="whole" select="''" />
+        <with-param name="whole" select="''" />
 
-        <xsl:with-param name="dec">
+        <with-param name="dec">
           <!-- move to the right one decimal place; otherwise, no decimal -->
-          <xsl:if test="$dec">
-            <xsl:value-of select="substring( $dec, 2 )" />
-          </xsl:if>
-        </xsl:with-param>
+          <if test="$dec">
+            <value-of select="substring( $dec, 2 )" />
+          </if>
+        </with-param>
 
-        <xsl:with-param name="count" select="$count - 1" />
-      </xsl:call-template>
-    </xsl:when>
+        <with-param name="count" select="$count - 1" />
+      </call-template>
+    </when>
 
     <!-- output the remaining decimal, if any -->
-    <xsl:otherwise>
-      <xsl:if test="$dec and not( $dec = '' )">
-        <xsl:text>.</xsl:text>
-        <xsl:value-of select="$dec" />
-      </xsl:if>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <if test="$dec and not( $dec = '' )">
+        <text>.</text>
+        <value-of select="$dec" />
+      </if>
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
@@ -412,7 +410,7 @@
   Note that we should *not* perform these optimizations if there are templates
   awaiting application or any other lv:* nodes that have not been expanded.
 -->
-<xsl:template mode="preproc:expand" priority="5" match="
+<template mode="preproc:expand" priority="5" match="
     c:cases[
       not( lv:* or t:* )
       and c:otherwise[
@@ -423,8 +421,8 @@
 
   <!-- just replace with the content of the otherwise block (do not explicitly
        process c:*, since there may be templates) -->
-  <xsl:apply-templates select="c:otherwise/*" mode="preproc:expand" />
-</xsl:template>
+  <apply-templates select="c:otherwise/*" mode="preproc:expand" />
+</template>
 
 
 <!--
@@ -435,25 +433,25 @@
   Note that we should *not* perform these optimizations if there are templates
   awaiting application or any other lv:* nodes that have not been expanded.
 -->
-<xsl:template match="c:sum[ lv:*[ not( @preproc:*) ] or t:* ]
+<template match="c:sum[ lv:*[ not( @preproc:*) ] or t:* ]
                      |c:product[ lv:*[ not( @preproc:* ) ] or t:* ]"
               mode="preproc:expand" priority="7">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+  <copy>
+    <sequence select="@*" />
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
-<xsl:template match="c:sum[ not( @of or @generates ) and count( c:* ) &lt; 2 ]" mode="preproc:expand" priority="5">
-  <xsl:apply-templates select="c:*" mode="preproc:expand" />
-</xsl:template>
-<xsl:template match="c:product[ not( @of or @generates ) and count( c:* ) &lt; 2 ]" mode="preproc:expand" priority="5">
-  <xsl:apply-templates select="c:*" mode="preproc:expand" />
-</xsl:template>
+<template match="c:sum[ not( @of or @generates ) and count( c:* ) &lt; 2 ]" mode="preproc:expand" priority="5">
+  <apply-templates select="c:*" mode="preproc:expand" />
+</template>
+<template match="c:product[ not( @of or @generates ) and count( c:* ) &lt; 2 ]" mode="preproc:expand" priority="5">
+  <apply-templates select="c:*" mode="preproc:expand" />
+</template>
 
 
 <!-- TODO: We could add shorthand for indexes too, e.g. name[i] or name[0] -->
-<xsl:template match="
+<template match="
     c:apply[
       @*[
         not(
@@ -465,20 +463,20 @@
   "
   mode="preproc:expand" priority="5">
 
-  <xsl:copy>
+  <copy>
     <!-- keep the name attribute, which specifies what function to apply -->
-    <xsl:sequence select="@name, @label" />
+    <sequence select="@name, @label" />
 
     <!-- every other attribute should be converted into an argument -->
-    <xsl:call-template name="preproc:arg-short-expand" />
+    <call-template name="preproc:arg-short-expand" />
 
-    <xsl:apply-templates select="c:arg" mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates select="c:arg" mode="preproc:expand" />
+  </copy>
+</template>
 
 
-<xsl:template name="preproc:arg-short-expand">
-  <xsl:for-each select="@*[
+<template name="preproc:arg-short-expand">
+  <for-each select="@*[
       not(
         local-name() = 'name'
         or local-name() = 'label'
@@ -488,18 +486,18 @@
     <c:arg name="{local-name()}">
       <c:value-of name="{.}" />
     </c:arg>
-  </xsl:for-each>
-</xsl:template>
+  </for-each>
+</template>
 
 
-<xsl:template match="lv:rate[ lv:class ]|lv:function[ lv:class ]|lv:yield[ lv:class ]"
+<template match="lv:rate[ lv:class ]|lv:function[ lv:class ]|lv:yield[ lv:class ]"
   mode="preproc:expand" priority="9">
   <!-- already processed -->
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+  <copy>
+    <sequence select="@*" />
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 <!--
   Add lv:class nodes containing the values of each individual class
@@ -507,31 +505,31 @@
   This eliminates the need to tokenize later and drastically simplifies xpath
   queries.
 -->
-<xsl:template match="lv:rate|lv:function|lv:yield" mode="preproc:expand" priority="5">
-  <xsl:variable name="self" select="." />
+<template match="lv:rate|lv:function|lv:yield" mode="preproc:expand" priority="5">
+  <variable name="self" select="." />
 
-  <xsl:variable name="classes" select="tokenize( @class, ' ' )" />
-  <xsl:variable name="no-classes" select="tokenize( @no, ' ' )" />
+  <variable name="classes" select="tokenize( @class, ' ' )" />
+  <variable name="no-classes" select="tokenize( @no, ' ' )" />
 
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
     <!-- convert classes into nodes to make life easier down the road (if any) -->
-    <xsl:for-each select="$classes">
-      <xsl:if test=".">
+    <for-each select="$classes">
+      <if test=".">
         <lv:class ref="{.}" no="false" />
-      </xsl:if>
-    </xsl:for-each>
+      </if>
+    </for-each>
 
-    <xsl:for-each select="$no-classes">
-      <xsl:if test=".">
+    <for-each select="$no-classes">
+      <if test=".">
         <lv:class ref="{.}" no="true" />
-      </xsl:if>
-    </xsl:for-each>
+      </if>
+    </for-each>
 
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 
@@ -539,156 +537,156 @@
   To make life a bit easier, calculate the set type of a classification @yields
   and add it to the node as a @set attribute
 -->
-<xsl:template match="lv:classify" mode="preproc:expand" priority="5">
-  <xsl:variable name="self" select="." />
+<template match="lv:classify" mode="preproc:expand" priority="5">
+  <variable name="self" select="." />
 
-  <xsl:copy>
+  <copy>
     <!-- if there is no @yields attribute, then generate one -->
-    <xsl:if test="not( @yields )">
-      <xsl:attribute name="yields">
-        <xsl:text>__is</xsl:text>
+    <if test="not( @yields )">
+      <attribute name="yields">
+        <text>__is</text>
         <!-- certain characters are not valid for @yields -->
-        <xsl:value-of select="translate( @as, '-', '' )" />
-      </xsl:attribute>
+        <value-of select="translate( @as, '-', '' )" />
+      </attribute>
 
-      <xsl:attribute name="preproc:yields-generated"
+      <attribute name="preproc:yields-generated"
                      select="'true'" />
-    </xsl:if>
+    </if>
 
-    <xsl:apply-templates mode="preproc:expand"
+    <apply-templates mode="preproc:expand"
                          select="@*" />
 
     <!-- copy everything else -->
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
 <!--
   Normalize whitespace for class descriptions
 -->
-<xsl:template mode="preproc:expand" priority="5"
+<template mode="preproc:expand" priority="5"
               match="lv:classify/@desc">
-  <xsl:attribute name="desc"
+  <attribute name="desc"
                  select="normalize-space( . )" />
-</xsl:template>
+</template>
 
 <!--
   All other class attributes are copied verbatim
 -->
-<xsl:template mode="preproc:expand" priority="1"
+<template mode="preproc:expand" priority="1"
               match="lv:classify/@*">
-  <xsl:sequence select="." />
-</xsl:template>
+  <sequence select="." />
+</template>
 
 
 <!-- default lv:match/@on short-hand to assert on a value of TRUE -->
-<xsl:template match="lv:match[ not( @value
+<template match="lv:match[ not( @value
                                     or @anyOf
                                     or @pattern
                                     or * ) ]"
   mode="preproc:expand" priority="7">
 
-  <xsl:copy>
-    <xsl:copy-of select="@*" />
-    <xsl:attribute name="value"
+  <copy>
+    <copy-of select="@*" />
+    <attribute name="value"
                    select="'TRUE'" />
-  </xsl:copy>
-</xsl:template>
+  </copy>
+</template>
 
 
-<xsl:template mode="preproc:expand"
+<template mode="preproc:expand"
               match="lv:join[ @all='true' ]"
               priority="8">
-  <xsl:call-template name="preproc:mk-class-join-contents" />
-</xsl:template>
+  <call-template name="preproc:mk-class-join-contents" />
+</template>
 
 
-<xsl:template mode="preproc:expand"
+<template mode="preproc:expand"
               match="lv:join"
               priority="7">
   <lv:any>
-    <xsl:call-template name="preproc:mk-class-join-contents" />
+    <call-template name="preproc:mk-class-join-contents" />
   </lv:any>
-</xsl:template>
+</template>
 
 
-<xsl:template name="preproc:mk-class-join-contents">
-  <xsl:variable name="prefix" select="@prefix" />
+<template name="preproc:mk-class-join-contents">
+  <variable name="prefix" select="@prefix" />
 
   <!-- TODO: remove lv:template nodes in a pass before this so that this
        check is not necessary -->
-  <xsl:for-each select="root(.)/lv:classify[
+  <for-each select="root(.)/lv:classify[
                         starts-with( @as, $prefix )
                         and not( ancestor::lv:template )
                         ]">
     <lv:match value="TRUE">
-      <xsl:attribute name="on">
-        <xsl:choose>
-          <xsl:when test="@yields">
-            <xsl:value-of select="@yields" />
-          </xsl:when>
+      <attribute name="on">
+        <choose>
+          <when test="@yields">
+            <value-of select="@yields" />
+          </when>
 
-          <xsl:otherwise>
-            <xsl:text>__is</xsl:text>
-            <xsl:value-of select="@as" />
-          </xsl:otherwise>
-        </xsl:choose>
-      </xsl:attribute>
+          <otherwise>
+            <text>__is</text>
+            <value-of select="@as" />
+          </otherwise>
+        </choose>
+      </attribute>
     </lv:match>
-  </xsl:for-each>
-</xsl:template>
+  </for-each>
+</template>
 
 
 <!-- enums have implicit values (as they are, well, enumerated; @value overrides) -->
 <!-- TODO: should @value set the next implicit index? -->
-<xsl:template match="lv:item[ not( @value ) ]" mode="preproc:expand" priority="5">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:attribute name="value" select="count( preceding-sibling::* )" />
-    <xsl:apply-templates mode="preproc:expand" />
-  </xsl:copy>
-</xsl:template>
+<template match="lv:item[ not( @value ) ]" mode="preproc:expand" priority="5">
+  <copy>
+    <sequence select="@*" />
+    <attribute name="value" select="count( preceding-sibling::* )" />
+    <apply-templates mode="preproc:expand" />
+  </copy>
+</template>
 
 
-<xsl:template match="w:display[ @prefix ]" mode="preproc:expand" priority="5">
-  <xsl:variable name="prefix" select="@prefix" />
-  <xsl:variable name="children" select="w:*" />
+<template match="w:display[ @prefix ]" mode="preproc:expand" priority="5">
+  <variable name="prefix" select="@prefix" />
+  <variable name="children" select="w:*" />
 
-  <xsl:for-each select="root(.)//lv:rate[ starts-with( @yields, $prefix ) ]">
+  <for-each select="root(.)//lv:rate[ starts-with( @yields, $prefix ) ]">
     <w:display name="{@yields}">
-      <xsl:sequence select="$children" />
+      <sequence select="$children" />
     </w:display>
-  </xsl:for-each>
-</xsl:template>
+  </for-each>
+</template>
 
 
 <!-- remove templates that have been copied from an external source for
      processing -->
-<xsl:template match="lv:template[
+<template match="lv:template[
                        @name=root()
                          /preproc:symtable/preproc:sym[ @src ]/@name ]"
   mode="preproc:expand" priority="5">
-</xsl:template>
+</template>
 
 <!-- IMPORTANT: do not process unexpanded templates -->
-<xsl:template match="lv:template" mode="preproc:expand" priority="4">
-  <xsl:sequence select="." />
-</xsl:template>
+<template match="lv:template" mode="preproc:expand" priority="4">
+  <sequence select="." />
+</template>
 
 
-<xsl:template match="preproc:symtable" mode="preproc:expand" priority="5">
+<template match="preproc:symtable" mode="preproc:expand" priority="5">
   <!-- ignore -->
-  <xsl:sequence select="." />
-</xsl:template>
+  <sequence select="." />
+</template>
 
 
-<xsl:template match="lv:__external-data" mode="preproc:expand" priority="5">
+<template match="lv:__external-data" mode="preproc:expand" priority="5">
   <!-- intended for use by code generators; data is not retained in object file
        unless some other process overrides this template -->
-</xsl:template>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
 
 <!--
 Footnotes

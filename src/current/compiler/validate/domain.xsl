@@ -23,13 +23,12 @@
   TODO: For core domains, validate src package path as well. (Right now,
   param types are polluting, and so this is not a problem.)
 -->
-<xsl:stylesheet version="1.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc"
-  xmlns:lvv="http://www.lovullo.com/rater/validate"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:c="http://www.lovullo.com/calc"
+            xmlns:lvv="http://www.lovullo.com/rater/validate"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 
 <!--
@@ -37,32 +36,32 @@
 
   SYM-DOMAIN should be a symbol resolving to the domain definition.
 -->
-<xsl:template name="lvv:domain-check">
-  <xsl:param name="value" />
-  <xsl:param name="sym-domain" />
+<template name="lvv:domain-check">
+  <param name="value" />
+  <param name="sym-domain" />
 
-  <xsl:if test="not( $sym-domain )">
-    <xsl:message terminate="yes">
-      <xsl:text>internal error: no domain symbol provided; </xsl:text>
-      <xsl:text>caller: </xsl:text>
-      <xsl:copy-of select="." />
-    </xsl:message>
-  </xsl:if>
+  <if test="not( $sym-domain )">
+    <message terminate="yes">
+      <text>internal error: no domain symbol provided; </text>
+      <text>caller: </text>
+      <copy-of select="." />
+    </message>
+  </if>
 
   <!-- generate node to simplify xpath expressions -->
-  <xsl:variable name="sym-validate">
+  <variable name="sym-validate">
     <lvv:chk value="{$value}">
-      <xsl:copy-of select="$sym-domain" />
+      <copy-of select="$sym-domain" />
     </lvv:chk>
-  </xsl:variable>
+  </variable>
 
-  <xsl:apply-templates mode="lvv:domain-check"
+  <apply-templates mode="lvv:domain-check"
     select="$sym-validate/lvv:chk">
 
-    <xsl:with-param name="self-pkg" select="
+    <with-param name="self-pkg" select="
       $sym-domain/ancestor::lv:package" />
-  </xsl:apply-templates>
-</xsl:template>
+  </apply-templates>
+</template>
 
 
 <!--
@@ -72,7 +71,7 @@
   - Floats must be any type of number; and
   - Booleans may be only 1 or 0.
 -->
-<xsl:template match="
+<template match="
   lvv:chk[
     preproc:sym/@type = 'type'
     and (
@@ -99,14 +98,14 @@
   ]"
   mode="lvv:domain-check" priority="5">
 
-  <xsl:call-template name="lvv:domain-fail" />
-</xsl:template>
+  <call-template name="lvv:domain-fail" />
+</template>
 
 
 <!--
   Domain assertions on user-defined types
 -->
-<xsl:template match="
+<template match="
     lvv:chk[
       preproc:sym/@type='type'
       and not (
@@ -118,50 +117,50 @@
   "
   mode="lvv:domain-check" priority="5">
 
-  <xsl:param name="self-pkg" />
+  <param name="self-pkg" />
 
-  <xsl:variable name="chkval" select="@value" />
+  <variable name="chkval" select="@value" />
 
-  <xsl:variable name="domain">
-    <xsl:call-template name="lvv:get-domain-by-sym">
-      <xsl:with-param name="sym" select="preproc:sym" />
-      <xsl:with-param name="self-pkg" select="$self-pkg" />
-    </xsl:call-template>
-  </xsl:variable>
+  <variable name="domain">
+    <call-template name="lvv:get-domain-by-sym">
+      <with-param name="sym" select="preproc:sym" />
+      <with-param name="self-pkg" select="$self-pkg" />
+    </call-template>
+  </variable>
 
-  <xsl:choose>
-    <xsl:when test="$domain/lv:domain/lv:element[ @value = $chkval ]">
+  <choose>
+    <when test="$domain/lv:domain/lv:element[ @value = $chkval ]">
       <lvv:ok type="domain-check" />
-    </xsl:when>
+    </when>
 
-    <xsl:otherwise>
-      <xsl:call-template name="lvv:domain-fail" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <call-template name="lvv:domain-fail" />
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
   No validation failure
 -->
-<xsl:template match="lvv:chk"
+<template match="lvv:chk"
   mode="lvv:domain-check" priority="2">
 
   <lvv:ok type="domain-check" />
-</xsl:template>
+</template>
 
 
 <!--
   We passed ourselves something unexpected
 -->
-<xsl:template match="*"
+<template match="*"
   mode="lvv:domain-chk" priority="1">
 
-  <xsl:message terminate="yes">
-    <xsl:text>internal error: unexpected node for lvv:domain-chk: </xsl:text>
-    <xsl:copy-of select="." />
-  </xsl:message>
-</xsl:template>
+  <message terminate="yes">
+    <text>internal error: unexpected node for lvv:domain-chk: </text>
+    <copy-of select="." />
+  </message>
+</template>
 
 
 <!--
@@ -170,19 +169,19 @@
   TODO: Once domains are used as the primary source instead of typedefs,
   check to ensure that the symbol is an actual domain symbol.
 -->
-<xsl:template name="lvv:domain-fail">
+<template name="lvv:domain-fail">
   <lvv:fail type="domain-check">
-    <xsl:copy-of select="." />
+    <copy-of select="." />
   </lvv:fail>
-</xsl:template>
+</template>
 
 
-<xsl:template name="lvv:get-domain-by-sym">
-  <xsl:param name="sym" />
-  <xsl:param name="self-pkg" select="ancestor::lv:package" />
+<template name="lvv:get-domain-by-sym">
+  <param name="sym" />
+  <param name="self-pkg" select="ancestor::lv:package" />
 
   <!-- package containing symbol -->
-  <xsl:variable name="pkg" select="
+  <variable name="pkg" select="
       if ( $sym/@src and not( $sym/@src='' ) ) then
         document( concat( $sym/@src, '.xmlo' ), $__entry-root )
           /lv:package
@@ -191,20 +190,20 @@
     " />
 
   <!-- attempt to locate domain of the given name -->
-  <xsl:variable name="domain" select="
+  <variable name="domain" select="
     $pkg/lv:domain[ @name = $sym/@name ]" />
 
-  <xsl:if test="not( $domain )">
-    <xsl:message terminate="yes">
-      <xsl:text>error: no domain found for </xsl:text>
-      <xsl:value-of select="$sym/@src" />
-      <xsl:text>/</xsl:text>
-      <xsl:value-of select="$sym/@name" />
-    </xsl:message>
-  </xsl:if>
+  <if test="not( $domain )">
+    <message terminate="yes">
+      <text>error: no domain found for </text>
+      <value-of select="$sym/@src" />
+      <text>/</text>
+      <value-of select="$sym/@name" />
+    </message>
+  </if>
 
-  <xsl:copy-of select="$domain" />
-</xsl:template>
+  <copy-of select="$domain" />
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
 

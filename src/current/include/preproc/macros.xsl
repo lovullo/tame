@@ -20,19 +20,18 @@
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 -->
-<xsl:stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:xs="http://www.w3.org/2001/XMLSchema"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc"
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:t="http://www.lovullo.com/rater/apply-template"
-  xmlns:c="http://www.lovullo.com/calc"
-  xmlns:ext="http://www.lovullo.com/ext">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:t="http://www.lovullo.com/rater/apply-template"
+            xmlns:c="http://www.lovullo.com/calc"
+            xmlns:ext="http://www.lovullo.com/ext">
 
 
-<xsl:include href="template.xsl" />
-<xsl:include href="eligclass.xsl" />
+<include href="template.xsl" />
+<include href="eligclass.xsl" />
 
 
 <!--
@@ -41,60 +40,60 @@
   This will continue to recurse until no preproc:repass nodes are found; this
   allos macros to expand into macros for further processing.
 -->
-<xsl:template match="*" mode="preproc:macropass" priority="1"
+<template match="*" mode="preproc:macropass" priority="1"
               as="node()+">
-  <xsl:variable name="result" as="node()+">
-    <xsl:apply-templates select="." mode="preproc:macros" />
-  </xsl:variable>
+  <variable name="result" as="node()+">
+    <apply-templates select="." mode="preproc:macros" />
+  </variable>
 
-  <xsl:variable name="nodeset" select="$result" />
+  <variable name="nodeset" select="$result" />
 
-  <xsl:variable name="repass"
+  <variable name="repass"
                 select="$nodeset//preproc:repass" />
 
   <!-- halt if we are in error -->
-  <xsl:for-each select="$nodeset//preproc:error">
-    <xsl:message terminate="yes">
-      <xsl:text>!!! [preproc] error: </xsl:text>
-      <xsl:value-of select="." />
-    </xsl:message>
-  </xsl:for-each>
+  <for-each select="$nodeset//preproc:error">
+    <message terminate="yes">
+      <text>!!! [preproc] error: </text>
+      <value-of select="." />
+    </message>
+  </for-each>
 
-  <xsl:choose>
+  <choose>
     <!-- if it was indicated that we must do so, recurse -->
-    <xsl:when test="$repass and not( $repass[ @need-sym ] )">
+    <when test="$repass and not( $repass[ @need-sym ] )">
 
       <!-- record the repass to keep a count -->
       <!-- TODO: reintroduce
       <preproc:repass-record />
       -->
 
-      <xsl:message>[preproc] *REPASS*</xsl:message>
+      <message>[preproc] *REPASS*</message>
 
       <!-- perform the repass -->
-      <xsl:apply-templates select="$nodeset" mode="preproc:macropass">
-        <xsl:with-param name="clear-tpl-step"
+      <apply-templates select="$nodeset" mode="preproc:macropass">
+        <with-param name="clear-tpl-step"
                         tunnel="yes"
                         select="false()" />
-      </xsl:apply-templates>
-    </xsl:when>
+      </apply-templates>
+    </when>
 
     <!-- no more passes needed; strip any cruft and we're done -->
-    <xsl:otherwise>
-      <xsl:apply-templates mode="preproc:strip-tpl-cruft"
+    <otherwise>
+      <apply-templates mode="preproc:strip-tpl-cruft"
                            select="$nodeset" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template match="*" mode="preproc:macros" priority="1">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+<template match="*" mode="preproc:macros" priority="1">
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:apply-templates mode="preproc:macros" />
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="preproc:macros" />
+  </copy>
+</template>
 
 
 <!--
@@ -102,38 +101,38 @@
 
   Otherwise, we would recurse indefinately.
 -->
-<xsl:template match="preproc:repass" mode="preproc:macros" priority="5">
+<template match="preproc:repass" mode="preproc:macros" priority="5">
   <!-- remove; no longer needed -->
-</xsl:template>
+</template>
 
 
-<xsl:template match="preproc:tpl-step" mode="preproc:macros" priority="5">
-  <xsl:param name="clear-tpl-step"
+<template match="preproc:tpl-step" mode="preproc:macros" priority="5">
+  <param name="clear-tpl-step"
              tunnel="yes"
              select="true()" />
 
-  <xsl:choose>
-    <xsl:when test="$clear-tpl-step">
+  <choose>
+    <when test="$clear-tpl-step">
       <!-- strip -->
-    </xsl:when>
+    </when>
 
-    <xsl:otherwise>
-      <xsl:copy-of select="." />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <copy-of select="." />
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
   lv:rater is just a special type of package
 -->
-<xsl:template match="lv:rater" mode="preproc:macros" priority="9">
+<template match="lv:rater" mode="preproc:macros" priority="9">
   <lv:package program="true">
-    <xsl:sequence select="@*, *" />
+    <sequence select="@*, *" />
   </lv:package>
 
   <preproc:repass src="lv:rater" />
-</xsl:template>
+</template>
 
 
 
@@ -143,11 +142,11 @@
   These nodes (usually) contain nothing that can be processed on the macro pass,
   so recursion is unnecessary; note the low priority.
 -->
-<xsl:template match="lv:typedef"
+<template match="lv:typedef"
               mode="preproc:macros" priority="2">
 
-  <xsl:sequence select="." />
-</xsl:template>
+  <sequence select="." />
+</template>
 
 
 <!--
@@ -156,10 +155,10 @@
   It is a nuisance to have separate params (e.g. templates) for constants
   and values.
 -->
-<xsl:template mode="preproc:macros"
+<template mode="preproc:macros"
               match="c:value-of[ starts-with( @name, '#' ) ]"
               priority="7">
-  <xsl:variable name="desc" as="xs:string"
+  <variable name="desc" as="xs:string"
                 select="if ( @label ) then
                             @label
                           else
@@ -168,7 +167,7 @@
   <c:const value="{substring-after( @name, '#' )}"
            type="float"
            desc="{$desc}" />
-</xsl:template>
+</template>
 
 
 <!--
@@ -177,110 +176,110 @@
   It is a nuisance to have separate params (e.g. templates) for constants
   and values.
 -->
-<xsl:template mode="preproc:macros"
+<template mode="preproc:macros"
               match="c:value-of[ starts-with( @index, '#' ) ]"
               priority="7">
-  <xsl:copy>
-    <xsl:copy-of select="@*[ not( name() = 'index' ) ]" />
+  <copy>
+    <copy-of select="@*[ not( name() = 'index' ) ]" />
 
     <c:index>
       <c:const value="{substring-after( @index, '#' )}"
                type="float"
                desc="Generated short-hand constant" />
     </c:index>
-  </xsl:copy>
-</xsl:template>
+  </copy>
+</template>
 
 
 <!--
   It does not make sense to try to take an index of a scalar
 -->
-<xsl:template mode="preproc:macros"
+<template mode="preproc:macros"
               match="c:value-of[
                        @index
                        and starts-with( @name, '#' ) ]"
               priority="9">
   <preproc:error>
-    <xsl:text>Cannot take index of scalar value: </xsl:text>
-    <xsl:value-of select="@name" />
+    <text>Cannot take index of scalar value: </text>
+    <value-of select="@name" />
   </preproc:error>
-</xsl:template>
+</template>
 
 
 <!--
   We can't accurately determine how to rewrite classifications if tempaltes
   have not yet been expanded.
 -->
-<xsl:template mode="preproc:macros" priority="9"
+<template mode="preproc:macros" priority="9"
               match="lv:classify[ t:* ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
+  <copy>
+    <sequence select="@*" />
 
-    <xsl:apply-templates mode="preproc:macros"
+    <apply-templates mode="preproc:macros"
                          select="*" />
-  </xsl:copy>
+  </copy>
 
   <preproc:repass src="lv:classify wait on template expansion" />
-</xsl:template>
+</template>
 
 
 <!--
   Classifications containing only an lv:any child node can be converted into
   existential classifications
 -->
-<xsl:template mode="preproc:macros" priority="8"
+<template mode="preproc:macros" priority="8"
               match="lv:classify[
                        lv:any
                        and count( lv:* ) = 1
                        and not( preproc:tpl-barrier/lv:* ) ]">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:attribute name="any" select="'true'" />
+  <copy>
+    <sequence select="@*" />
+    <attribute name="any" select="'true'" />
 
-    <xsl:sequence select="lv:any/*" />
-  </xsl:copy>
+    <sequence select="lv:any/*" />
+  </copy>
 
   <preproc:repass src="lv:classify any" />
-</xsl:template>
+</template>
 
 
-<xsl:template match="lv:classify[ .//lv:any|.//lv:all ]" mode="preproc:macros" priority="6">
-  <xsl:variable name="result">
-    <xsl:apply-templates select="." mode="preproc:class-groupgen" />
-  </xsl:variable>
+<template match="lv:classify[ .//lv:any|.//lv:all ]" mode="preproc:macros" priority="6">
+  <variable name="result">
+    <apply-templates select="." mode="preproc:class-groupgen" />
+  </variable>
 
-  <xsl:apply-templates select="$result/lv:classify" mode="preproc:class-extract" />
+  <apply-templates select="$result/lv:classify" mode="preproc:class-extract" />
 
   <preproc:repass src="lv:classify any|all" />
-</xsl:template>
+</template>
 
 
-<xsl:template match="lv:classify" mode="preproc:class-groupgen" priority="5">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:apply-templates mode="preproc:class-groupgen" />
-  </xsl:copy>
-</xsl:template>
+<template match="lv:classify" mode="preproc:class-groupgen" priority="5">
+  <copy>
+    <sequence select="@*" />
+    <apply-templates mode="preproc:class-groupgen" />
+  </copy>
+</template>
 
 
-<xsl:template mode="preproc:class-groupgen" priority="9"
+<template mode="preproc:class-groupgen" priority="9"
     match="lv:any[ not( element() ) ]
            |lv:all[ not( element() ) ]">
   <!-- useless; remove -->
-</xsl:template>
+</template>
 
 
-<xsl:template match="lv:any|lv:all" mode="preproc:class-groupgen" priority="5">
+<template match="lv:any|lv:all" mode="preproc:class-groupgen" priority="5">
   <!-- this needs to be unique enough that there is unlikely to be a conflict
        between generated ids in various packages; generate-id is not enough for
        cross-package guarantees (indeed, I did witness conflicts), so there is
        a random seed passed into the stylesheet externally -->
-  <xsl:variable name="id" select="concat( $__rseed, generate-id(.) )" />
+  <variable name="id" select="concat( $__rseed, generate-id(.) )" />
 
-  <xsl:variable name="parent-name" select="ancestor::lv:classify/@as" />
-  <xsl:variable name="yields" select="concat( 'is', $id )" />
+  <variable name="parent-name" select="ancestor::lv:classify/@as" />
+  <variable name="yields" select="concat( 'is', $id )" />
 
-  <xsl:variable name="external" as="xs:string?"
+  <variable name="external" as="xs:string?"
                 select="ancestor::lv:classify/@external" />
 
   <!-- this will be raised outside of the parent classification during
@@ -290,112 +289,112 @@
                preproc:generated-from="{$parent-name}"
                external="{$external}"
                desc="(generated from predicate group of {$parent-name}">
-    <xsl:if test="local-name() = 'any'">
-      <xsl:attribute name="any" select="'true'" />
-    </xsl:if>
+    <if test="local-name() = 'any'">
+      <attribute name="any" select="'true'" />
+    </if>
 
-    <xsl:apply-templates mode="preproc:class-groupgen" />
+    <apply-templates mode="preproc:class-groupgen" />
   </lv:classify>
 
   <!-- this will remain in its place -->
   <lv:match on="{$yields}" value="TRUE" preproc:generated="true" />
-</xsl:template>
+</template>
 
 
 <!-- traverse through preproc nodes (e.g. preproc:tpl-barrier) -->
-<xsl:template match="preproc:*" mode="preproc:class-groupgen" priority="2">
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:apply-templates select="node()" mode="preproc:class-groupgen" />
-  </xsl:copy>
-</xsl:template>
+<template match="preproc:*" mode="preproc:class-groupgen" priority="2">
+  <copy>
+    <sequence select="@*" />
+    <apply-templates select="node()" mode="preproc:class-groupgen" />
+  </copy>
+</template>
 
 
 <!-- retain everything else -->
-<xsl:template match="*" mode="preproc:class-groupgen" priority="1">
-  <xsl:sequence select="." />
-</xsl:template>
+<template match="*" mode="preproc:class-groupgen" priority="1">
+  <sequence select="." />
+</template>
 
 
-<xsl:template match="lv:classify" mode="preproc:class-extract" priority="5">
-  <xsl:apply-templates select="lv:classify" mode="preproc:class-extract" />
+<template match="lv:classify" mode="preproc:class-extract" priority="5">
+  <apply-templates select="lv:classify" mode="preproc:class-extract" />
 
-  <xsl:copy>
-    <xsl:sequence select="@*" />
-    <xsl:apply-templates mode="preproc:class-filter" />
-  </xsl:copy>
-</xsl:template>
+  <copy>
+    <sequence select="@*" />
+    <apply-templates mode="preproc:class-filter" />
+  </copy>
+</template>
 
 
-<xsl:template match="*" mode="preproc:class-extract" priority="1">
+<template match="*" mode="preproc:class-extract" priority="1">
   <!-- ignore non-class -->
-</xsl:template>
+</template>
 
 
-<xsl:template match="lv:classify" mode="preproc:class-filter" priority="5">
+<template match="lv:classify" mode="preproc:class-filter" priority="5">
   <!-- remove -->
-</xsl:template>
+</template>
 
 
-<xsl:template match="*" mode="preproc:class-filter" priority="1">
-  <xsl:sequence select="." />
-</xsl:template>
+<template match="*" mode="preproc:class-filter" priority="1">
+  <sequence select="." />
+</template>
 
 
 <!--
   Sections exist purely for organization and documentation.  Move all
   nodes out of it, so that we do not complicate parsing.
 -->
-<xsl:template mode="preproc:macros" priority="2"
+<template mode="preproc:macros" priority="2"
               match="lv:section">
-  <xsl:apply-templates select="*" mode="preproc:macros" />
-</xsl:template>
+  <apply-templates select="*" mode="preproc:macros" />
+</template>
 
 
 <!--
   lv:yield is simply another rate block with a special name that is recognized
   by the linker
 -->
-<xsl:template match="lv:yield" mode="preproc:macros" priority="5">
+<template match="lv:yield" mode="preproc:macros" priority="5">
   <lv:rate yields="___yield" local="true">
-    <xsl:apply-templates mode="preproc:macros" />
+    <apply-templates mode="preproc:macros" />
   </lv:rate>
-</xsl:template>
+</template>
 
 
 <!-- this situation may occur both manually and from lv:rate-each-template -->
-<xsl:template match="lv:rate-each[ lv:apply-template ]" mode="preproc:macros" priority="9">
-  <xsl:variable name="apply">
+<template match="lv:rate-each[ lv:apply-template ]" mode="preproc:macros" priority="9">
+  <variable name="apply">
     <preproc:apply>
-      <xsl:apply-templates select="lv:apply-template" mode="preproc:macros" />
+      <apply-templates select="lv:apply-template" mode="preproc:macros" />
     </preproc:apply>
-  </xsl:variable>
+  </variable>
 
-  <xsl:choose>
+  <choose>
     <!-- did the template apply? (note that we only check for a single one,
          since that's all that we should have) -->
-    <xsl:when test="$apply/preproc:apply/lv:apply-template">
-      <xsl:sequence select="." />
+    <when test="$apply/preproc:apply/lv:apply-template">
+      <sequence select="." />
 
-      <xsl:message>
-        <xsl:text>[preproc] waiting to expand rate-each </xsl:text>
-        <xsl:value-of select="@yields" />
-        <xsl:text> (immediate template(s) need expansion)...</xsl:text>
-      </xsl:message>
-    </xsl:when>
+      <message>
+        <text>[preproc] waiting to expand rate-each </text>
+        <value-of select="@yields" />
+        <text> (immediate template(s) need expansion)...</text>
+      </message>
+    </when>
 
-    <xsl:otherwise>
+    <otherwise>
       <!-- it applied! -->
-      <xsl:copy>
-        <xsl:sequence select="@*, *[ not( local-name()='apply-template' ) ]" />
-        <xsl:sequence select="$apply/preproc:apply/*" />
-      </xsl:copy>
+      <copy>
+        <sequence select="@*, *[ not( local-name()='apply-template' ) ]" />
+        <sequence select="$apply/preproc:apply/*" />
+      </copy>
 
       <!-- we'll process this block next time around -->
       <preproc:repass src="lv:rate-each lv:apply-template" />
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    </otherwise>
+  </choose>
+</template>
 
 
 <!--
@@ -404,68 +403,68 @@
 
   The intent here is to reduce highly repetitive code.
 -->
-<xsl:template match="lv:rate-each" mode="preproc:macros" priority="5">
+<template match="lv:rate-each" mode="preproc:macros" priority="5">
   <!-- TODO: debug flag
-  <xsl:message>
-    <xsl:text>[preproc] expanding rate-each </xsl:text>
-    <xsl:value-of select="@yields" />
-    <xsl:text>...</xsl:text>
-  </xsl:message>
+  <message>
+    <text>[preproc] expanding rate-each </text>
+    <value-of select="@yields" />
+    <text>...</text>
+  </message>
   -->
 
   <lv:rate preproc:gentle-no="true">
-    <xsl:sequence select="@*[
+    <sequence select="@*[
         not( local-name() = 'index' )
         and not( local-name() = 'generates' )
       ]" />
 
-    <xsl:if test="not( @yields )">
+    <if test="not( @yields )">
       <!-- if @generates is not supplied either, then we cannot continue -->
-      <xsl:choose>
-        <xsl:when test="not( @generates )">
+      <choose>
+        <when test="not( @generates )">
           <!-- TODO: some means of identifying this...the error isn't terribly
                helpful... :x -->
           <preproc:error>
-            <xsl:text>rate-each must provide either @yields or @generates</xsl:text>
+            <text>rate-each must provide either @yields or @generates</text>
           </preproc:error>
-        </xsl:when>
+        </when>
 
-        <xsl:otherwise>
-          <xsl:attribute name="yields"
+        <otherwise>
+          <attribute name="yields"
                          select="concat( '_', @generates )" />
-          <xsl:attribute name="preproc:yields-generated"
+          <attribute name="preproc:yields-generated"
                          select="'true'" />
-        </xsl:otherwise>
-      </xsl:choose>
-    </xsl:if>
+        </otherwise>
+      </choose>
+    </if>
 
-    <xsl:sequence select="./lv:class" />
+    <sequence select="./lv:class" />
 
     <c:sum of="_CMATCH_" index="{@index}" sym="{@gensym}">
-      <xsl:if test="@dim">
-        <xsl:copy-of select="@dim" />
-      </xsl:if>
+      <if test="@dim">
+        <copy-of select="@dim" />
+      </if>
 
       <!-- copy @generates, if it exists (has the benefit of copying nothing
            if it does not exist) -->
-      <xsl:sequence select="@generates" />
+      <sequence select="@generates" />
 
-      <xsl:attribute name="desc">
-        <xsl:text>Set of individual </xsl:text>
-        <xsl:value-of select="@yields" />
-        <xsl:text> premiums</xsl:text>
-      </xsl:attribute>
+      <attribute name="desc">
+        <text>Set of individual </text>
+        <value-of select="@yields" />
+        <text> premiums</text>
+      </attribute>
 
       <c:product>
         <c:value-of name="_CMATCH_" index="{@index}">
-          <xsl:attribute name="label">
-            <xsl:text>Zero if not </xsl:text>
-              <xsl:value-of select="@class" />
-            <xsl:text>, otherwise one</xsl:text>
-          </xsl:attribute>
+          <attribute name="label">
+            <text>Zero if not </text>
+              <value-of select="@class" />
+            <text>, otherwise one</text>
+          </attribute>
         </c:value-of>
 
-        <xsl:apply-templates
+        <apply-templates
           select="*[
               not(
                 local-name() = 'class'
@@ -475,6 +474,6 @@
       </c:product>
     </c:sum>
   </lv:rate>
-</xsl:template>
+</template>
 
-</xsl:stylesheet>
+</stylesheet>

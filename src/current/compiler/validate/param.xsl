@@ -20,13 +20,12 @@
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 -->
-<xsl:stylesheet version="1.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:c="http://www.lovullo.com/calc"
-  xmlns:lvv="http://www.lovullo.com/rater/validate"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:c="http://www.lovullo.com/calc"
+            xmlns:lvv="http://www.lovullo.com/rater/validate"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 
 <!--
@@ -34,7 +33,7 @@
 
   TODO: Doesn't the symbol table lookup process handle this?
 -->
-<xsl:template match="
+<template match="
   lv:param[
     not(
       @type=root(.)/preproc:symtable/preproc:sym[
@@ -44,17 +43,17 @@
   ]"
   mode="lvv:validate" priority="5">
 
-  <xsl:call-template name="lvv:error">
-    <xsl:with-param name="desc" select="'Unknown param type'" />
-    <xsl:with-param name="refnode" select="." />
-    <xsl:with-param name="content">
-      <xsl:text>'</xsl:text>
-      <xsl:value-of select="@type" />
-      <xsl:text>' is undefined for param </xsl:text>
-      <xsl:value-of select="@name" />
-    </xsl:with-param>
-  </xsl:call-template>
-</xsl:template>
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'Unknown param type'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>'</text>
+      <value-of select="@type" />
+      <text>' is undefined for param </text>
+      <value-of select="@name" />
+    </with-param>
+  </call-template>
+</template>
 
 
 <!--
@@ -63,58 +62,58 @@
   Note that this template priority is less than the template that checks to
   ensure that the param type exists in the first place.
 -->
-<xsl:template match="lv:param[ @default ]"
+<template match="lv:param[ @default ]"
   mode="lvv:validate" priority="4">
 
-  <xsl:variable name="type" select="@type" />
+  <variable name="type" select="@type" />
 
   <!-- default must be within its domain -->
-  <xsl:variable name="result">
-    <xsl:call-template name="lvv:domain-check">
-      <xsl:with-param name="value" select="@default" />
-      <xsl:with-param name="sym-domain" select="
+  <variable name="result">
+    <call-template name="lvv:domain-check">
+      <with-param name="value" select="@default" />
+      <with-param name="sym-domain" select="
         root(.)/preproc:symtable/preproc:sym[
           @name = $type
         ]" />
-    </xsl:call-template>
-  </xsl:variable>
+    </call-template>
+  </variable>
 
-  <xsl:if test="not( $result/lvv:ok )">
-    <xsl:variable name="fail" select="$result/lvv:fail/lvv:chk" />
+  <if test="not( $result/lvv:ok )">
+    <variable name="fail" select="$result/lvv:fail/lvv:chk" />
 
     <!-- if we didn't succeed, but we didn't fail, then we did something we
          weren't supposed to -->
-    <xsl:if test="not( $fail )">
-      <xsl:message terminate="yes">
-        <xsl:text>internal error: in limbo processing param `</xsl:text>
-          <xsl:value-of select="@name" />
-        <xsl:text>' @default</xsl:text>
-      </xsl:message>
-    </xsl:if>
+    <if test="not( $fail )">
+      <message terminate="yes">
+        <text>internal error: in limbo processing param `</text>
+          <value-of select="@name" />
+        <text>' @default</text>
+      </message>
+    </if>
 
-    <xsl:call-template name="lvv:error">
-      <xsl:with-param name="desc" select="'param @default domain violation'" />
-      <xsl:with-param name="refnode" select="." />
-      <xsl:with-param name="content">
-        <xsl:text>param `</xsl:text>
-          <xsl:value-of select="@name" />
-        <xsl:text>' @default of `</xsl:text>
-          <xsl:value-of select="$fail/@value" />
-        <xsl:text>' is not within its domain of </xsl:text>
-        <xsl:value-of select="$fail/preproc:sym/@src" />
-        <xsl:text>/</xsl:text>
-        <xsl:value-of select="$fail/preproc:sym/@name" />
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
-</xsl:template>
+    <call-template name="lvv:error">
+      <with-param name="desc" select="'param @default domain violation'" />
+      <with-param name="refnode" select="." />
+      <with-param name="content">
+        <text>param `</text>
+          <value-of select="@name" />
+        <text>' @default of `</text>
+          <value-of select="$fail/@value" />
+        <text>' is not within its domain of </text>
+        <value-of select="$fail/preproc:sym/@src" />
+        <text>/</text>
+        <value-of select="$fail/preproc:sym/@name" />
+      </with-param>
+    </call-template>
+  </if>
+</template>
 
 
 <!--
   Fallback for no validation issues
 -->
-<xsl:template match="lv:param" mode="lvv:validate" priority="2">
-</xsl:template>
+<template match="lv:param" mode="lvv:validate" priority="2">
+</template>
 
-</xsl:stylesheet>
+</stylesheet>
 

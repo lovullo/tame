@@ -20,14 +20,12 @@
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 -->
-<xsl:stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:l="http://www.lovullo.com/rater/linker"
-  xmlns:dot="http://www.lovullo.com/calc/dot"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:l="http://www.lovullo.com/rater/linker"
+            xmlns:dot="http://www.lovullo.com/calc/dot"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 
 <!--
@@ -45,22 +43,22 @@
 
   Lord Jesus it's a fire.
 -->
-<xsl:template match="lv:package[ l:dep ]" priority="9">
-  <xsl:apply-templates select="." mode="dot:head" />
+<template match="lv:package[ l:dep ]" priority="9">
+  <apply-templates select="." mode="dot:head" />
 
   <!-- we know that all symbols in the linker symbol table are used, so we can
        immediately generate the node definitions -->
-  <xsl:apply-templates mode="dot:defnode"
+  <apply-templates mode="dot:defnode"
     select="l:dep/preproc:sym" />
 
   <!-- outputting the dependencies of those symbols is more involved and
        requires processing data from each object file -->
-  <xsl:apply-templates select="l:dep/preproc:sym" mode="dot:ldep-sym-deps">
-    <xsl:with-param name="exec-name" select="concat( @__rootpath, @name )" />
-  </xsl:apply-templates>
+  <apply-templates select="l:dep/preproc:sym" mode="dot:ldep-sym-deps">
+    <with-param name="exec-name" select="concat( @__rootpath, @name )" />
+  </apply-templates>
 
-  <xsl:apply-templates select="." mode="dot:tail" />
-</xsl:template>
+  <apply-templates select="." mode="dot:tail" />
+</template>
 
 
 <!--
@@ -70,9 +68,9 @@
   be a single unit. Since the parent will also be in the symbol table (it is,
   after all, a dependency), we don't have to worry about these at all.
 -->
-<xsl:template match="preproc:sym[ @parent ]" mode="dot:ldep-sym-deps" priority="5">
+<template match="preproc:sym[ @parent ]" mode="dot:ldep-sym-deps" priority="5">
   <!-- ignore -->
-</xsl:template>
+</template>
 
 
 <!--
@@ -81,36 +79,36 @@
   The linker symbol table only stores a flattened symbol list; to get the
   symbol's dependencies, we must consult the source object file.
 -->
-<xsl:template match="preproc:sym" mode="dot:ldep-sym-deps" priority="1">
-  <xsl:param name="exec-name" />
+<template match="preproc:sym" mode="dot:ldep-sym-deps" priority="1">
+  <param name="exec-name" />
 
-  <xsl:variable name="name" select="@name" />
+  <variable name="name" select="@name" />
 
   <!-- empty @src implies program package -->
-  <xsl:variable name="pkg" select="
+  <variable name="pkg" select="
       if ( @src and not( @src='' ) ) then
         document( concat( @src, '.xmlo' ), / )/lv:package
       else
         document( concat( $exec-name, '.xmlo' ), / )/lv:package
     " />
 
-  <xsl:variable name="sym-dep" select="
+  <variable name="sym-dep" select="
       $pkg/preproc:sym-deps/preproc:sym-dep[
         @name=$name
       ]
     " />
 
-  <xsl:if test="not( $sym-dep )">
-    <xsl:message terminate="yes">
-      <xsl:text>error: cannot locate symbol dependencies for `</xsl:text>
-        <xsl:value-of select="concat( @src, '/', @name )" />
-      <xsl:text>'</xsl:text>
-    </xsl:message>
-  </xsl:if>
+  <if test="not( $sym-dep )">
+    <message terminate="yes">
+      <text>error: cannot locate symbol dependencies for `</text>
+        <value-of select="concat( @src, '/', @name )" />
+      <text>'</text>
+    </message>
+  </if>
 
-  <xsl:apply-templates select="$sym-dep" mode="dot:depout" />
-</xsl:template>
+  <apply-templates select="$sym-dep" mode="dot:depout" />
+</template>
 
 
-</xsl:stylesheet>
+</stylesheet>
 

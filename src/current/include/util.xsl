@@ -20,86 +20,84 @@
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 -->
-<xsl:stylesheet version="1.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-
-  xmlns:util="http://www.lovullo.com/util"
-  xmlns:lv="http://www.lovullo.com/rater"
-  xmlns:lvm="http://www.lovullo.com/rater/map"
-  xmlns:c="http://www.lovullo.com/calc"
-  xmlns:ext="http://www.lovullo.com/ext">
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:util="http://www.lovullo.com/util"
+            xmlns:lv="http://www.lovullo.com/rater"
+            xmlns:lvm="http://www.lovullo.com/rater/map"
+            xmlns:c="http://www.lovullo.com/calc"
+            xmlns:ext="http://www.lovullo.com/ext">
 
 
-<xsl:variable name="_chrlower" select="'abcdefghijklmnopqrstuvwxyz'" />
-<xsl:variable name="_chrupper" select="'ABCDEFGHIJKLMNOPQRSTUVWXYZ'" />
+<variable name="_chrlower" select="'abcdefghijklmnopqrstuvwxyz'" />
+<variable name="_chrupper" select="'ABCDEFGHIJKLMNOPQRSTUVWXYZ'" />
 
 <!--
   Path to map directory
 -->
-<xsl:param name="map-root" select="'../map/'" />
-<xsl:param name="retmap-root" select="concat( $map-root, 'return/' )" />
+<param name="map-root" select="'../map/'" />
+<param name="retmap-root" select="concat( $map-root, 'return/' )" />
 
 
-<xsl:template name="util:load-package">
-  <xsl:param name="package" />
-  <xsl:param name="self" />
+<template name="util:load-package">
+  <param name="package" />
+  <param name="self" />
 
-  <xsl:variable name="path" select="concat($package, '.xml')" />
-  <xsl:variable name="pkg" select="document( $path, $self )/lv:package" />
+  <variable name="path" select="concat($package, '.xml')" />
+  <variable name="pkg" select="document( $path, $self )/lv:package" />
 
   <ext:package name="{$pkg/@name}">
     <!-- path, including extension -->
-    <xsl:attribute name="path">
-      <xsl:value-of select="$path" />
-    </xsl:attribute>
+    <attribute name="path">
+      <value-of select="$path" />
+    </attribute>
 
     <!-- path, excluding extension (as it appears in @package) -->
-    <xsl:attribute name="import-path">
-      <xsl:value-of select="@package" />
-    </xsl:attribute>
+    <attribute name="import-path">
+      <value-of select="@package" />
+    </attribute>
 
-    <xsl:copy-of select="$pkg" />
+    <copy-of select="$pkg" />
   </ext:package>
-</xsl:template>
+</template>
 
 
-<xsl:template match="lvm:*" mode="util:map-expand" priority="1">
-  <xsl:param name="path" select="'.'" />
+<template match="lvm:*" mode="util:map-expand" priority="1">
+  <param name="path" select="'.'" />
 
-  <xsl:copy>
-    <xsl:copy-of select="@*" />
-    <xsl:apply-templates mode="util:map-expand">
-      <xsl:with-param name="path" select="$path" />
-    </xsl:apply-templates>
-  </xsl:copy>
-</xsl:template>
+  <copy>
+    <copy-of select="@*" />
+    <apply-templates mode="util:map-expand">
+      <with-param name="path" select="$path" />
+    </apply-templates>
+  </copy>
+</template>
 
 <!-- recursively inline imports -->
-<xsl:template match="lvm:import" mode="util:map-expand" priority="5">
-  <xsl:param name="path" select="'.'" />
+<template match="lvm:import" mode="util:map-expand" priority="5">
+  <param name="path" select="'.'" />
 
-  <xsl:apply-templates
+  <apply-templates
     select="document( concat( @path, '.xml' ), . )/lvm:*/*"
     mode="util:map-expand">
 
-    <xsl:with-param name="path" select="concat( $path, '/', @path )" />
-  </xsl:apply-templates>
-</xsl:template>
+    <with-param name="path" select="concat( $path, '/', @path )" />
+  </apply-templates>
+</template>
 
 <!-- must be lower priority than lv:import -->
-<xsl:template match="/lvm:*/lvm:*" mode="util:map-expand" priority="3">
-  <xsl:param name="path" select="'.'" />
+<template match="/lvm:*/lvm:*" mode="util:map-expand" priority="3">
+  <param name="path" select="'.'" />
 
-  <xsl:copy>
-    <xsl:copy-of select="@*" />
-    <xsl:attribute name="__src" select="$path" />
+  <copy>
+    <copy-of select="@*" />
+    <attribute name="__src" select="$path" />
 
-    <xsl:apply-templates mode="util:map-expand">
-      <xsl:with-param name="path" select="$path" />
-    </xsl:apply-templates>
-  </xsl:copy>
-</xsl:template>
+    <apply-templates mode="util:map-expand">
+      <with-param name="path" select="$path" />
+    </apply-templates>
+  </copy>
+</template>
 
 
 <!--
@@ -111,93 +109,93 @@
 
   @return string provided string with first character converted to uppercase
 -->
-<xsl:template name="util:ucfirst">
-  <xsl:param name="str" />
+<template name="util:ucfirst">
+  <param name="str" />
 
   <!-- convert first char to uppercase -->
-  <xsl:value-of
+  <value-of
     select="translate( substring( $str, 1, 1 ), $_chrlower, $_chrupper )" />
 
   <!-- remainder of string as it was provided -->
-  <xsl:value-of select="substring( $str, 2 )" />
-</xsl:template>
+  <value-of select="substring( $str, 2 )" />
+</template>
 
 
 <!--
   Converts a string to uppercase
 -->
-<xsl:template name="util:uppercase">
-  <xsl:param name="str" />
-  <xsl:value-of select="translate( $str, $_chrlower, $_chrupper )" />
-</xsl:template>
+<template name="util:uppercase">
+  <param name="str" />
+  <value-of select="translate( $str, $_chrlower, $_chrupper )" />
+</template>
 
 <!--
   Converts a string to lowercase
 -->
-<xsl:template name="util:lowercase">
-  <xsl:param name="str" />
-  <xsl:value-of select="translate( $str, $_chrupper, $_chrlower )" />
-</xsl:template>
+<template name="util:lowercase">
+  <param name="str" />
+  <value-of select="translate( $str, $_chrupper, $_chrlower )" />
+</template>
 
 
-<xsl:template name="util:json">
-  <xsl:param name="id" />
-  <xsl:param name="value" />
-  <xsl:param name="obj" />
-  <xsl:param name="array" />
+<template name="util:json">
+  <param name="id" />
+  <param name="value" />
+  <param name="obj" />
+  <param name="array" />
 
-  <xsl:if test="$id">
-    <xsl:text>"</xsl:text>
-      <xsl:call-template name="util:json-escape">
-        <xsl:with-param name="string" select="$id" />
-      </xsl:call-template>
-    <xsl:text>":</xsl:text>
-  </xsl:if>
+  <if test="$id">
+    <text>"</text>
+      <call-template name="util:json-escape">
+        <with-param name="string" select="$id" />
+      </call-template>
+    <text>":</text>
+  </if>
 
-  <xsl:choose>
-    <xsl:when test="$array">
-      <xsl:text>[</xsl:text>
-        <xsl:for-each select="$array/*">
-          <xsl:if test="position() > 1">
-            <xsl:text>,</xsl:text>
-          </xsl:if>
+  <choose>
+    <when test="$array">
+      <text>[</text>
+        <for-each select="$array/*">
+          <if test="position() > 1">
+            <text>,</text>
+          </if>
 
-          <xsl:value-of select="." />
-        </xsl:for-each>
-      <xsl:text>]</xsl:text>
-    </xsl:when>
+          <value-of select="." />
+        </for-each>
+      <text>]</text>
+    </when>
 
-    <xsl:when test="$obj">
-      <xsl:text>{</xsl:text>
-        <xsl:for-each select="$obj/*">
-          <xsl:if test="position() > 1">
-            <xsl:text>,</xsl:text>
-          </xsl:if>
+    <when test="$obj">
+      <text>{</text>
+        <for-each select="$obj/*">
+          <if test="position() > 1">
+            <text>,</text>
+          </if>
 
-          <xsl:value-of select="." />
-        </xsl:for-each>
-      <xsl:text>}</xsl:text>
-    </xsl:when>
+          <value-of select="." />
+        </for-each>
+      <text>}</text>
+    </when>
 
-    <xsl:when test="$value">
-      <xsl:text>"</xsl:text>
-        <xsl:call-template name="util:json-escape">
-          <xsl:with-param name="string" select="$value" />
-        </xsl:call-template>
-      <xsl:text>"</xsl:text>
-    </xsl:when>
+    <when test="$value">
+      <text>"</text>
+        <call-template name="util:json-escape">
+          <with-param name="string" select="$value" />
+        </call-template>
+      <text>"</text>
+    </when>
 
-    <xsl:otherwise>
-      <xsl:message terminate="yes">[util] !!! invalid util:json</xsl:message>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+    <otherwise>
+      <message terminate="yes">[util] !!! invalid util:json</message>
+    </otherwise>
+  </choose>
+</template>
 
 
-<xsl:template name="util:json-escape">
-  <xsl:param name="string" />
+<template name="util:json-escape">
+  <param name="string" />
 
-  <xsl:value-of select="$string" />
-</xsl:template>
+  <value-of select="$string" />
+</template>
 
-</xsl:stylesheet>
+</stylesheet>

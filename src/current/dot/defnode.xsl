@@ -23,14 +23,12 @@
   Nodes do not need to be defined (DOT will generate them upon first reference);
   this defines nodes that require additional data associated with them.
 -->
-<xsl:stylesheet version="2.0"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+<stylesheet version="2.0"
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:dot="http://www.lovullo.com/calc/dot"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
-  xmlns:dot="http://www.lovullo.com/calc/dot"
-  xmlns:preproc="http://www.lovullo.com/rater/preproc">
-
-<xsl:import href="./defnode-attr.xsl" />
+<import href="./defnode-attr.xsl" />
 
 
 <!--
@@ -38,7 +36,7 @@
 
   XXX: Duplicated logic from smy-ref!
 -->
-<xsl:template mode="dot:defnode" priority="9" match="
+<template mode="dot:defnode" priority="9" match="
     preproc:sym[
       @type='const'
       or @type='map' or @type='retmap'
@@ -56,7 +54,7 @@
       or @preproc:generated='true'
     ]
   ">
-</xsl:template>
+</template>
 
 
 <!--
@@ -65,13 +63,13 @@
   Symbols with defined parents are generated as part of that parent and will
   therefore be treated as a single unit.
 -->
-<xsl:template match="preproc:sym[ @parent ]" mode="dot:defnode" priority="7">
-  <xsl:variable name="parent" select="@parent" />
+<template match="preproc:sym[ @parent ]" mode="dot:defnode" priority="7">
+  <variable name="parent" select="@parent" />
 
-  <xsl:apply-templates select="
+  <apply-templates select="
       parent::preproc:symtable/preproc:sym[ @name=$parent ]
     " />
-</xsl:template>
+</template>
 
 
 <!--
@@ -80,44 +78,44 @@
   If no attributes are generated, then the node will be entirely omitted (it'll
   be created automatically by DOT when referenced).
 -->
-<xsl:template match="preproc:sym" mode="dot:defnode" priority="1">
-  <xsl:variable name="attr">
-    <xsl:call-template name="dot:render-attr-list">
-      <xsl:with-param name="attr-list">
+<template match="preproc:sym" mode="dot:defnode" priority="1">
+  <variable name="attr">
+    <call-template name="dot:render-attr-list">
+      <with-param name="attr-list">
         <!-- this kluge exists because of XSLT limitiations and the confusion
              that would result (in this particular situation) from
-             xsl:apply-imports
+             apply-imports
              -->
-        <xsl:apply-templates select="." mode="dot:defnode-attr" />
-        <xsl:apply-templates select="." mode="dot:attr-extern" />
-        <xsl:apply-templates select="." mode="dot:attr-color" />
-        <xsl:apply-templates select="." mode="dot:attr-shape" />
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:variable>
+        <apply-templates select="." mode="dot:defnode-attr" />
+        <apply-templates select="." mode="dot:attr-extern" />
+        <apply-templates select="." mode="dot:attr-color" />
+        <apply-templates select="." mode="dot:attr-shape" />
+      </with-param>
+    </call-template>
+  </variable>
 
-  <xsl:if test="not( $attr = '' )">
-    <xsl:text>"</xsl:text>
-      <xsl:value-of select="@name" />
-    <xsl:text>" [</xsl:text>
-      <xsl:value-of select="$attr" />
+  <if test="not( $attr = '' )">
+    <text>"</text>
+      <value-of select="@name" />
+    <text>" [</text>
+      <value-of select="$attr" />
 
-      <xsl:if test="@src and not( @src='' )">
-        <xsl:if test="$attr">
-          <xsl:text>,</xsl:text>
-        </xsl:if>
+      <if test="@src and not( @src='' )">
+        <if test="$attr">
+          <text>,</text>
+        </if>
 
         <!-- link to other packages in the graph for navigation -->
-        <xsl:text>href="</xsl:text>
-          <xsl:value-of select="concat( @src, '.svg' )" />
-        <xsl:text>"</xsl:text>
-      </xsl:if>
-    <xsl:text>];</xsl:text>
+        <text>href="</text>
+          <value-of select="concat( @src, '.svg' )" />
+        <text>"</text>
+      </if>
+    <text>];</text>
 
-    <xsl:value-of select="$dot:nl" />
-  </xsl:if>
-</xsl:template>
+    <value-of select="$dot:nl" />
+  </if>
+</template>
 
 
-</xsl:stylesheet>
+</stylesheet>
 
