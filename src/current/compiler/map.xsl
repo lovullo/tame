@@ -2,7 +2,7 @@
 <!--
   Compiles map fragments to produce a map from source data to a destination
 
-  Copyright (C) 2016, 2018 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018, 2019 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -237,10 +237,12 @@
     <preproc:sym name=":{$type-prefix}:___head"
                  type="{$type-prefix}:head"
                  pollute="true"
-                 ignore-dup="true" />
+                 ignore-dup="true"
+                 no-deps="true" />
     <preproc:sym name=":{$type-prefix}:___tail"
                  type="{$type-prefix}:tail"
-                 ignore-dup="true" />
+                 ignore-dup="true"
+                 no-deps="true" />
   </preproc:symtable>
 </template>
 
@@ -249,6 +251,7 @@
   <param name="name" />
   <param name="from" />
   <param name="type-prefix" select="/lv:package/@lvmc:type" />
+  <param name="no-deps" as="xs:boolean" select="false()" />
 
   <!-- allow mappings to be overridden after import, which allows defaults
        to be set and then overridden -->
@@ -265,6 +268,10 @@
     <!-- only copy from data if present -->
     <if test="$from">
       <copy-of select="$from" />
+    </if>
+
+    <if test="$no-deps">
+      <attribute name="no-deps" select="'true'" />
     </if>
   </preproc:sym>
 </template>
@@ -333,8 +340,18 @@
   </call-template>
 </template>
 
+
 <template match="lvm:pass" mode="preproc:depgen" priority="5">
-  <preproc:sym-ref name="{@name}" lax="true" />
+  <preproc:sym-dep name=":map:{@name}">
+    <preproc:sym-ref name="{@name}" lax="true" />
+  </preproc:sym-dep>
+</template>
+
+<template match="lvm:pass[ root(.)/@lvmc:type = 'retmap' ]"
+          mode="preproc:depgen" priority="6">
+  <preproc:sym-dep name=":retmap:{@name}">
+    <preproc:sym-ref name="{@name}" lax="true" />
+  </preproc:sym-dep>
 </template>
 
 
@@ -385,24 +402,22 @@
 <template match="lvm:map[ @from
                           and root(.)/@lvmc:type = 'map' ]"
               mode="preproc:depgen" priority="5">
-  <!-- to the DSL -->
-  <preproc:sym-ref name="{@to}" lax="true" />
+  <preproc:sym-dep name=":map:{@to}">
+    <preproc:sym-ref name="{@to}" lax="true" />
+  </preproc:sym-dep>
 </template>
 
 <template match="lvm:map[ @from
                           and root(.)/@lvmc:type = 'retmap' ]"
-              mode="preproc:depgen" priority="5">
-  <!-- from the DSL -->
-  <preproc:sym-ref name="{@from}" lax="true" />
+              mode="preproc:depgen" priority="6">
+  <preproc:sym-dep name=":retmap:{@to}">
+    <preproc:sym-ref name="{@from}" lax="true" />
+  </preproc:sym-dep>
 </template>
 
 <template match="lvm:map[ @from ]" mode="preproc:depgen" priority="4">
   <message terminate="yes"
                select="'internal error: unhandled lvm:map: ', ." />
-</template>
-
-<template match="/*[ @lvmc:type='retmap' ]//lvm:map[ @from ]" mode="preproc:depgen" priority="6">
-  <preproc:sym-ref name="{@from}" lax="true" />
 </template>
 
 
@@ -560,6 +575,7 @@
 <template match="lvm:map[ @value ]" mode="preproc:symtable" priority="5">
   <call-template name="lvmc:mapsym">
     <with-param name="name" select="@to" />
+    <with-param name="no-deps" select="true()" />
   </call-template>
 </template>
 
@@ -612,15 +628,19 @@
 </template>
 
 <template match="lvm:map[ * ]" mode="preproc:depgen" priority="5">
-  <preproc:sym-ref name="{@to}" lax="true" />
+  <preproc:sym-dep name=":map:{@to}">
+    <preproc:sym-ref name="{@to}" lax="true" />
+  </preproc:sym-dep>
 </template>
 
 <template match="lvm:map[ *
                      and root(.)/@lvmc:type = 'retmap' ]"
               mode="preproc:depgen" priority="6">
-  <for-each select=".//lvm:from">
-    <preproc:sym-ref name="{@name}" lax="true" />
-  </for-each>
+  <preproc:sym-dep name=":retmap:{@to}">
+    <for-each select=".//lvm:from">
+      <preproc:sym-ref name="{@name}" lax="true" />
+    </for-each>
+  </preproc:sym-dep>
 </template>
 
 

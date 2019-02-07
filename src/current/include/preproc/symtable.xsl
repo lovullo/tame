@@ -861,7 +861,8 @@
   <xsl:variable name="fname" select="parent::lv:function/@name" />
 
   <preproc:sym name=":{$fname}:{@name}" parent="{$fname}" varname="{@name}"
-    type="lparam" dtype="{@type}" dim="{$dim}" desc="{@desc}" tex="{@sym}">
+    type="lparam" dtype="{@type}" dim="{$dim}" desc="{@desc}" tex="{@sym}"
+    no-deps="true">
 
     <!-- may or may not be defined -->
     <xsl:sequence select="@default" />
@@ -889,7 +890,7 @@
        as a symbol -->
   <preproc:sym name=":{$lname}:{@name}" local="true" varname="{@name}"
     type="lparam" dtype="{@type}" dim="{$dim}" desc="{@desc}" tex="{@sym}"
-    lparent="{$lname}" />
+    lparent="{$lname}" no-deps="true" />
 
   <xsl:apply-templates mode="preproc:symtable" />
 </xsl:template>

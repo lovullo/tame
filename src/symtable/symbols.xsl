@@ -2,7 +2,7 @@
 <!--
   Semantic analysis for symbol generation
 
-  Copyright (C) 2016 R-T Specialty, LLC.
+  Copyright (C) 2016, 2019 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -97,6 +97,13 @@
   This is useful to display to the user on error when@tie{}@sym{}
     is the result of generated code
       (e.g. @ref{Macro Expansion,,template expansion}).
+
+  @item no-deps
+  When @code{true},
+    linker does not attempt to look up dependencies for this symbol.
+  Otherwise,
+    as a safeguard against compilation bugs,
+    the linker will fail if a symbol is missing a dependency list.
 
   @item allow-circular
   Permit@tie{}@sym{} to be part of a cycle (@pxref{Dependency Graph}).
@@ -427,7 +434,8 @@
     <preproc:sym type="meta"
                  name=":meta:{@name}"
                  desc="Metavalue {@name}"
-                 pollute="true" />
+                 pollute="true"
+                 no-deps="true" />
   </for-each>
 </template>
 

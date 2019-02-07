@@ -2,7 +2,7 @@
 <!--
   Dependency generation
 
-  Copyright (C) 2016, 2018 R-T Specialty, LLC.
+  Copyright (C) 2016, 2018, 2019 R-T Specialty, LLC.
 
     This file is part of TAME.
 
@@ -28,9 +28,11 @@
 <xsl:stylesheet version="1.0"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:map="http://www.w3.org/2005/xpath-functions/map"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:preproc="http://www.lovullo.com/rater/preproc"
   xmlns:lv="http://www.lovullo.com/rater"
+  xmlns:lvm="http://www.lovullo.com/rater/map"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:ext="http://www.lovullo.com/ext"
@@ -75,22 +77,41 @@
 <xsl:template match="preproc:symtable" mode="preproc:depgen" priority="9">
   <xsl:variable name="symtable" select="." />
 
-  <preproc:sym-deps>
-    <!-- process dependencies for all non-imported symbols -->
-    <xsl:for-each select="preproc:sym[ not( @src ) ]">
-      <xsl:variable name="cursym" select="." />
+  <xsl:variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
+                select="map:merge( for $sym in $symtable/preproc:sym
+                          return map{ string( $sym/@name ) : $sym } )" />
 
-      <xsl:variable name="deps">
-        <preproc:deps>
-          <xsl:apply-templates select="." mode="preproc:depgen" />
-        </preproc:deps>
-      </xsl:variable>
+  <preproc:sym-deps>
+    <xsl:variable name="deps" as="element( preproc:sym-dep )*">
+      <xsl:apply-templates mode="preproc:depgen"
+                           select="root(.)/lv:*,
+                                   root(.)/lvm:*">
+        <xsl:with-param name="symtable-map" select="$symtable-map"
+                        tunnel="yes" />
+      </xsl:apply-templates>
+    </xsl:variable>
+
+    <!-- preproc:sym-deps may be nested -->
+    <xsl:for-each select="$deps, $deps//preproc:sym-dep">
+      <xsl:variable name="sym-name" as="xs:string"
+                    select="@name" />
+
+      <xsl:variable name="cursym" as="element( preproc:sym )?"
+                    select="$symtable-map( $sym-name )" />
+
+      <xsl:if test="not( $cursym )">
+        <xsl:message select="." />
+        <xsl:message terminate="yes"
+                     select="concat( 'internal error: ',
+                                     'cannot find symbol in symbol table: ',
+                                     '`', $sym-name, '''' )" />
+      </xsl:if>
 
       <!-- do not output duplicates (we used to not output references
            to ourselves, but we are now retaining them, since those
            data are useful) -->
       <xsl:variable name="uniq" select="
-          $deps/preproc:deps/preproc:sym-ref[
+          preproc:sym-ref[
             not( @name=preceding-sibling::preproc:sym-ref/@name )
           ]
         " />
@@ -111,9 +132,8 @@
       <xsl:variable name="syms-rtf">
         <xsl:for-each select="$uniq">
           <xsl:variable name="name" select="@name" />
-          <xsl:variable name="sym" select="
-              $symtable/preproc:sym[ @name=$name ]
-            " />
+          <xsl:variable name="sym" as="element( preproc:sym )?"
+                        select="$symtable-map( $name )" />
 
           <!-- we should never have this problem. -->
           <xsl:if test="not( $sym ) and not( @lax='true' )">
@@ -144,6 +164,7 @@
           </preproc:sym>
         </xsl:for-each>
       </xsl:variable>
+
       <xsl:variable name="syms" select="$syms-rtf/preproc:sym" />
 
       <!-- only applicable if the symbol is @lax and the symbol was not
@@ -259,102 +280,72 @@
 </xsl:template>
 
 
-<xsl:template match="preproc:sym[ @extern='true' ]" mode="preproc:depgen" priority="9">
-  <!-- externs will be processed once they are resolved in another package -->
+<xsl:template mode="preproc:depgen" priority="7"
+              match="lv:rate">
+  <preproc:sym-dep name="{@yields}">
+    <xsl:apply-templates mode="preproc:depgen" />
+  </preproc:sym-dep>
 </xsl:template>
 
 
-<!-- all symbols with a @parent (e.g. generators) should depend on the parent
-     itself (which of course introduces the parent's dependencies into the tree) -->
-<xsl:template match="preproc:sym[ @parent ]" mode="preproc:depgen" priority="7">
-  <preproc:sym-ref name="{@parent}" />
+<xsl:template mode="preproc:depgen" priority="7"
+              match="c:sum[@generates]
+                     |c:product[@generates]">
+  <preproc:sym-dep name="{@generates}">
+    <preproc:sym-ref name="{ancestor::lv:rate[1]/@yields}" />
+  </preproc:sym-dep>
+
+  <!-- this may have other rules; see below -->
+  <xsl:next-match />
 </xsl:template>
 
 
-<xsl:template match="preproc:sym[ @type='rate' ]" mode="preproc:depgen" priority="5">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="pkg" as="element( lv:package )"
-                select="root(.)" />
+<xsl:template mode="preproc:depgen" priority="7"
+              match="lv:classify">
+  <preproc:sym-dep name=":class:{@as}">
+    <xsl:apply-templates mode="preproc:depgen" />
+  </preproc:sym-dep>
 
-  <xsl:variable name="rate" as="element( lv:rate )*"
-                select="$pkg/lv:rate[ @yields=$name ]" />
-
-  <xsl:if test="count( $rate ) gt 1">
-    <xsl:message terminate="yes"
-                 select="'error: rate block name conflict:',
-                         string( $rate/@yields[1] )" />
+  <xsl:if test="@yields">
+    <preproc:sym-dep name="{@yields}">
+      <preproc:sym-ref name=":class:{@as}" />
+    </preproc:sym-dep>
   </xsl:if>
-
-  <xsl:apply-templates mode="preproc:depgen"
-                       select="$rate" />
 </xsl:template>
 
 
-<xsl:template match="preproc:sym[ @type='class' ]" mode="preproc:depgen" priority="5">
-  <!-- all class symbol names are prefixed with ":class:" -->
-  <xsl:variable name="as" select="substring-after( @name, ':class:' )" />
-  <xsl:variable name="pkg" as="element( lv:package )"
-                select="root(.)" />
+<xsl:template mode="preproc:depgen" priority="8"
+              match="lv:function/lv:param">
+  <xsl:variable name="fname" as="xs:string"
+                select="parent::lv:function/@name" />
 
-  <xsl:apply-templates
-    select="$pkg/lv:classify[ @as=$as ]"
-    mode="preproc:depgen" />
+  <preproc:sym-dep name=":{$fname}:{@name}">
+    <preproc:sym-ref name="{$fname}" />
+  </preproc:sym-dep>
+</xsl:template>
+
+<xsl:template mode="preproc:depgen" priority="7"
+              match="lv:param">
+  <preproc:sym-dep name="{@name}">
+    <preproc:sym-ref name="{@type}" />
+    <xsl:apply-templates mode="preproc:depgen" />
+  </preproc:sym-dep>
 </xsl:template>
 
 
-<xsl:template match="preproc:sym[ @type='param' ]" mode="preproc:depgen" priority="5">
-  <xsl:variable name="name" select="@name" />
-  <xsl:apply-templates
-    select="root(.)/lv:param[ @name=$name ]"
-    mode="preproc:depgen" />
+<xsl:template mode="preproc:depgen" priority="7"
+              match="lv:function">
+  <preproc:sym-dep name="{@name}">
+    <xsl:apply-templates mode="preproc:depgen" />
+  </preproc:sym-dep>
 </xsl:template>
 
 
-<xsl:template match="preproc:sym[ @type='func' ]" mode="preproc:depgen" priority="5">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="pkg" as="element( lv:package )"
-                select="root(.)" />
-
-  <xsl:apply-templates
-    select="$pkg/lv:function[ @name=$name ]"
-    mode="preproc:depgen" />
-</xsl:template>
-
-
-<xsl:template match="preproc:sym[ @type='type' ]" mode="preproc:depgen" priority="5">
-  <xsl:variable name="name" select="@name" />
-  <xsl:variable name="pkg" as="element( lv:package )"
-                select="root(.)" />
-
-  <!-- a typedef could optionally be contained within another typedef -->
-  <xsl:apply-templates mode="preproc:depgen" select="
-      $pkg/lv:typedef[ @name=$name ]
-      , $pkg/lv:typedef//lv:typedef[ @name=$name ]
-    " />
-</xsl:template>
-
-<xsl:template match="preproc:sym[ @type='lparam' ]" mode="preproc:depgen" priority="5">
-  <!-- do nothing -->
-</xsl:template>
-
-<xsl:template match="preproc:sym[ @type='const' ]" mode="preproc:depgen" priority="5">
-  <!-- do nothing -->
-</xsl:template>
-
-<xsl:template match="preproc:sym[ @type='tpl' ]" mode="preproc:depgen" priority="5">
-  <!-- do nothing -->
-</xsl:template>
-
-<xsl:template match="preproc:sym[ @type='meta' ]" mode="preproc:depgen" priority="5">
-  <!-- do nothing -->
-</xsl:template>
-
-
-<xsl:template match="preproc:sym" mode="preproc:depgen" priority="1">
-  <xsl:message terminate="yes">
-    <xsl:text>[depgen] error: unexpected symbol </xsl:text>
-    <xsl:sequence select="." />
-  </xsl:message>
+<xsl:template mode="preproc:depgen" priority="7"
+              match="lv:typedef">
+  <preproc:sym-dep name="{@name}">
+    <xsl:apply-templates mode="preproc:depgen" />
+  </preproc:sym-dep>
 </xsl:template>
 
 
@@ -363,14 +354,17 @@
   <!-- ignore symbols within templates -->
 </xsl:template>
 
+
+
 <xsl:template name="preproc:depgen-c-normal" match="c:value-of|c:when" mode="preproc:depgen" priority="5">
   <xsl:param name="name" select="@name" />
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:variable name="pkg" as="element( lv:package )"
                 select="root(.)" />
 
-
-  <xsl:variable name="sym"
-    select="$pkg/preproc:symtable/preproc:sym[ @name=$name ]" />
+  <xsl:variable name="sym" as="element( preproc:sym )?"
+                select="$symtable-map( $name )" />
 
   <!-- see if there is a c:let associated with this name -->
   <xsl:variable name="let" select="
@@ -445,18 +439,13 @@
 </xsl:template>
 
 
-<xsl:template match="c:let/c:values/c:value" mode="preproc:depgen" priority="5">
-  <!-- do not consider the c:value name -->
-  <xsl:apply-templates mode="preproc:depgen" />
-</xsl:template>
-
-
 <xsl:template name="preproc:depgen-match">
   <xsl:param name="on" select="@on" />
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
 
   <xsl:variable name="class" select="ancestor::lv:classify" />
-  <xsl:variable name="sym"
-    select="root(.)/preproc:symtable/preproc:sym[ @name=$on ]" />
+  <xsl:variable name="sym" as="element( preproc:sym )"
+                select="$symtable-map( $on )" />
 
   <!-- are we depending on another classification? -->
   <xsl:if test="$sym/@type='cgen'">
@@ -524,23 +513,18 @@
 </xsl:template>
 
 
-<xsl:template match="lv:param" mode="preproc:depgen" priority="5">
-  <!-- while the type is reduced to a primitive, let's still include the
-       dependency symbol -->
-  <preproc:sym-ref name="{@type}" />
+<xsl:template match="lv:union" mode="preproc:depgen" priority="5">
+  <xsl:for-each select="lv:typedef">
+    <preproc:sym-ref name="{@name}" />
+  </xsl:for-each>
+
+  <!-- we still need to process the typedefs independently -->
+  <xsl:apply-templates mode="preproc:depgen" />
 </xsl:template>
 
 
-<xsl:template match="lv:typedef" mode="preproc:depgen" priority="5">
-  <!-- we depend on any types that we create a union of -->
-  <xsl:for-each select="lv:union/lv:typedef">
-    <preproc:sym-ref name="{@name}" />
-  </xsl:for-each>
-
-  <!-- and each of the constants generated by our type -->
-  <xsl:for-each select="lv:enum/lv:item">
-    <preproc:sym-ref name="{@name}" />
-  </xsl:for-each>
+<xsl:template match="lv:enum/lv:item" mode="preproc:depgen" priority="5">
+  <preproc:sym-ref name="{@name}" />
 </xsl:template>
 
 
@@ -555,9 +539,8 @@
   <xsl:apply-templates mode="preproc:depgen" />
 </xsl:template>
 
-
-<xsl:template match="text()" mode="preproc:depgen" priority="2">
-  <!-- not interested. nope. -->
+<xsl:template match="node()" mode="preproc:depgen" priority="1">
+  <!-- skip -->
 </xsl:template>
 
 </xsl:stylesheet>

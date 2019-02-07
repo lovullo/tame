@@ -673,15 +673,20 @@
         $l:orig-root/lv:package
     " />
 
-  <variable name="name" as="xs:string"
-            select="@name" />
+  <variable name="name" as="xs:string" select="@name" />
+  <variable name="no-deps" as="xs:boolean"
+            select="if ( @no-deps = 'true' ) then true() else false()" />
+
   <variable name="deps" as="element( preproc:sym-dep )?"
-            select="$pkg/preproc:sym-deps
-                      /preproc:sym-dep[ @name=$name ]" />
+            select="if ( $no-deps ) then
+                        ()
+                      else
+                        $pkg/preproc:sym-deps
+                          /preproc:sym-dep[ @name=$name ]" />
 
   <!-- if we could not locate the dependencies, then consider this to be an
        error (even if there are no deps, there should still be a list dfn) -->
-  <if test="not( $deps )">
+  <if test="not( $no-deps or $deps )">
     <call-template name="log:internal-error">
       <with-param name="name" select="'link'" />
       <with-param name="msg">

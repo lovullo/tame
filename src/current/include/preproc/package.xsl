@@ -739,15 +739,6 @@
         </xsl:message>
       </xsl:if>
 
-      <!-- logging -->
-      <xsl:message>
-        <xsl:text>[preproc] resolved `</xsl:text>
-          <xsl:value-of select="$name" />
-        <xsl:text>' dimensions as `</xsl:text>
-          <xsl:value-of select="$max" />
-        <xsl:text>'</xsl:text>
-      </xsl:message>
-
       <!-- copy, substituting calculated dimensions -->
       <xsl:copy>
         <xsl:sequence select="@*" />
