@@ -2,7 +2,7 @@
 <!--
   Outputs HTML form that can be used to feed values to the rater for testing
 
-  Copyright (C) 2016, 2017 R-T Specialty, LLC.
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 
     This file is part of TAME.
 

@@ -1,7 +1,7 @@
 /**
  * Source: https://raw.githubusercontent.com/geraintluff/sha256/gh-pages/sha256.js
  * This script is in the public domain.
- * This comment was added by R-T Specialty.
+ * This comment was added by Ryan Specialty Group.
  *
  * N.B.: THIS IMPLEMENTATION IS NOT INTENDED FOR SECURE CRYPTOGRAPHIC
  * OPERATIONS.  It is used as a seemingly faithful implementation of SHA256

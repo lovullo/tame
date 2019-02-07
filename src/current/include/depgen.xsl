@@ -2,7 +2,7 @@
 <!--
   Dependency generation
 
-  Copyright (C) 2016, 2018, 2019 R-T Specialty, LLC.
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 
     This file is part of TAME.
 

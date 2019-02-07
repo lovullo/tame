@@ -14,7 +14,7 @@ designed to aid in the development, understanding, and maintenance of systems
 performing numerous calculations on a complex graph of dependencies,
 conditions, and a large number of inputs.
 
-This system was developed at R-T Specialty (formerly LoVullo Associates) to
+This system was developed at Ryan Specialty Group (formerly LoVullo Associates) to
 handle the complexity of comparative insurance rating systems. It is a
 domain-specific language (DSL) that itself encourages, through the use of
 templates, the creation of sub-DSLs.  TAME itself is at heart a

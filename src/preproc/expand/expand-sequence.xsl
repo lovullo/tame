@@ -2,7 +2,7 @@
 <!--
   Expansion sequence
 
-  Copyright (C) 2015 R-T Specialty, LLC.
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 
     This file is part of TAME.
 

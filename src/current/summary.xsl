@@ -2,7 +2,7 @@
 <!--
   Outputs rater summary, containing details for both the rater and its packages
 
-  Copyright (C) 2016, 2017 R-T Specialty, LLC.
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 
     This file is part of TAME.
 

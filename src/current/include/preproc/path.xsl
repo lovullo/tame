@@ -2,7 +2,7 @@
 <!--
   Operations on paths
 
-  Copyright (C) 2017 R-T Specialty, LLC.
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 
     This file is part of TAME.
 

@@ -2,7 +2,7 @@
 <!--
   Validates a document for correctness in a manner that is beyond XSD
 
-  Copyright (C) 2016, 2018 R-T Specialty, LLC.
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 
     This file is part of TAME.
 
