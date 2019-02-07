@@ -656,7 +656,7 @@
 
   <xsl:variable name="name" select="@name" />
 
-  <xsl:variable name="deps" as="element( preproc:sym-dep )"
+  <xsl:variable name="deps" as="element( preproc:sym-dep )?"
                 select="/lv:*/preproc:sym-deps/preproc:sym-dep[
                           @name=$name ]" />
 
@@ -1579,7 +1579,7 @@
 
 
 <xsl:template match="preproc:sym-ref" mode="typeset-final" priority="5">
-  <xsl:param name="deps" as="element( preproc:sym-dep )"/>
+  <xsl:param name="deps" as="element( preproc:sym-dep )?"/>
 
   <xsl:variable name="name" select="@name" />
   <xsl:variable name="tex" select="
