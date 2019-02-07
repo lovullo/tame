@@ -26,6 +26,7 @@
 -->
 <stylesheet version="2.0"
   xmlns="http://www.w3.org/1999/XSL/Transform"
+  xmlns:map="http://www.w3.org/2005/xpath-functions/map"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
@@ -57,11 +58,18 @@
 <variable name="l:orig-root" as="document-node( element( lv:package ) )"
           select="/" />
 
+<variable name="l:orig-package" as="element( lv:package )"
+          select="$l:orig-root/lv:package" />
+
 <variable name="l:process-empty" as="element( preproc:sym )*"
           select="()" />
 
 <variable name="l:stack-empty" as="element( preproc:sym )*"
           select="()" />
+
+<variable name="l:root-symtable-map" as="map( xs:string, element( preproc:sym ) )"
+          select="map:merge( for $sym in $l:orig-package/preproc:symtable/preproc:sym
+                    return map{ string( $sym/@name ) : $sym } )" />
 
 
 <template match="*" mode="l:link" priority="1">
@@ -106,7 +114,7 @@
     <call-template name="log:debug">
       <with-param name="name" select="'link'" />
       <with-param name="msg">
-        <text>building dependency tree...</text>
+        <text>building dependency graph...</text>
       </with-param>
     </call-template>
 
@@ -124,7 +132,7 @@
     <call-template name="log:debug">
       <with-param name="name" select="'link'" />
       <with-param name="msg">
-        <text>resolving dependency tree...</text>
+        <text>resolving dependency graph...</text>
       </with-param>
     </call-template>
 
@@ -134,7 +142,7 @@
   <copy>
     <copy-of select="@*" />
 
-    <!-- copy the dependency tree -->
+    <!-- copy the dependency graph -->
     <copy-of select="$deps" />
 
     <!-- if map data was provided, generate the map -->
@@ -203,7 +211,7 @@
   </variable>
 
   <!-- start at the top of the table and begin processing each symbol
-       individually, generating a dependency tree as we go -->
+       individually, generating a dependency graph as we go -->
   <variable name="result" as="element()+">
     <call-template name="l:depgen-sym">
       <with-param name="pending" select="$yields" />
@@ -308,12 +316,8 @@
   <!-- there is no reason (in the current implementation) that this
        should _not_ have already been resolved in the package being
        linked -->
-  <variable name="pkg" as="element( lv:package )" select="
-        $l:orig-root/lv:package" />
-
   <variable name="resolv" as="element( preproc:sym )?"
-            select="$pkg/preproc:symtable/preproc:sym[
-                      @name=$name ]" />
+            select="$l:root-symtable-map( $name )" />
 
   <choose>
     <!-- if this symbol is not external, then we have found it -->
@@ -449,7 +453,7 @@
             select="." />
 
   <!-- perform circular dependency check and blow up if found (we cannot choose
-       a proper linking order without a correct dependency tree); the only
+       a proper linking order without a correct dependency graph); the only
        exception is if the circular dependency is a function, since that simply
        implies recursion, which we can handle just fine -->
   <variable name="circ" as="element( preproc:sym )*"
@@ -670,7 +674,7 @@
       if ( @src and not( @src='' ) ) then
         document( concat( @src, '.xmlo' ), $l:orig-root )/lv:*
       else
-        $l:orig-root/lv:package
+        $l:orig-package
     " />
 
   <variable name="name" as="xs:string" select="@name" />
@@ -1048,7 +1052,7 @@
       if ( @src and not( @src='' ) ) then
         document( concat( @src, '.xmlo' ), $l:orig-root )/lv:*
       else
-        $l:orig-root/lv:package
+        $l:orig-package
     " />
 
   <variable name="name" select="@name" />
