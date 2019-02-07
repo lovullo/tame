@@ -25,6 +25,8 @@
 -->
 <stylesheet version="1.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:map="http://www.w3.org/2005/xpath-functions/map"
             xmlns:preproc="http://www.lovullo.com/rater/preproc"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:t="http://www.lovullo.com/rater/apply-template"
@@ -565,6 +567,16 @@
   <param name="orig-root" as="element()" />
   <param name="rpcount" select="0" />
 
+  <variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $sym in preproc:symtable/preproc:sym
+                        return map{ string( $sym/@name ) : $sym } )" />
+
+  <variable name="symdep-map" as="map( xs:string, element( preproc:sym-dep ) )"
+            select="map:merge(
+                      for $sym-dep in preproc:sym-deps/preproc:sym-dep
+                        return map{ string( $sym-dep/@name ) : $sym-dep } )" />
+
   <!-- arbitrary; intended to prevent infinite recursion -->
   <!-- TODO: same method as for templates; ensure changes, but do not create
        arbitrary limit -->
@@ -588,6 +600,8 @@
 
       <apply-templates mode="preproc:resolv-syms">
         <with-param name="orig-root" select="$orig-root" />
+        <with-param name="symtable-map" select="$symtable-map" tunnel="yes" />
+        <with-param name="symdep-map" select="$symdep-map" tunnel="yes" />
       </apply-templates>
     </copy>
   </variable>
@@ -639,20 +653,25 @@
 
 <template match="preproc:sym[ not( @src ) and @dim='?' ]" mode="preproc:resolv-syms" priority="5">
   <param name="orig-root" as="element()" />
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+  <param name="symdep-map" as="map(*)" tunnel="yes" />
 
   <variable name="name" select="@name" />
   <variable name="pkg"  as="element( lv:package )"
                 select="root(.)" />
 
-  <variable name="deps" as="element( preproc:sym-dep )*" select="
-      $pkg/preproc:sym-deps/preproc:sym-dep[ @name=$name ]
-    " />
+  <variable name="deps" as="element( preproc:sym-dep )?"
+            select="$symdep-map( $name )" />
 
-  <variable name="depsyms-unresolv" as="element( preproc:sym )*" select="
-      $pkg/preproc:symtable/preproc:sym[
-        @name=$deps/preproc:sym-ref/@name
-      ]
-    " />
+  <!-- TODO: make this fatal -->
+  <if test="empty( $deps ) and not( @no-deps = 'true' )">
+    <message select="concat( 'internal: failed to located dependencies for `',
+                             $name, '''' )" />
+  </if>
+
+  <variable name="depsyms-unresolv" as="element( preproc:sym )*"
+            select="for $ref in $deps/preproc:sym-ref
+                      return $symtable-map( $ref/@name )" />
 
   <variable name="depsyms-resolv">
     <for-each select="$depsyms-unresolv">
@@ -692,12 +711,6 @@
     <when test="
         $depsyms/@dim = '?'
       ">
-      <message>
-        <text>[preproc] deferring `</text>
-          <value-of select="$name" />
-        <text>' dimensions with unresolved dependencies</text>
-      </message>
-
       <!-- schedule repass :x -->
       <sequence select="." />
       <preproc:repass src="preproc:sym resolv-syms"
