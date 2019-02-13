@@ -68,5 +68,32 @@
         <t:match-result eq="1" />
       </t:expect>
     </t:it>
+
+
+    <t:it desc="reduces existing vectors when @isvector@">
+      <t:given>
+        <c:let>
+          <c:values>
+            <c:value name="vector" type="integer" set="vector"
+                     desc="Test vector">
+              <c:vector>
+                <c:value-of name="#9" />
+                <c:value-of name="#3" />
+                <c:value-of name="#2" />
+                <c:value-of name="#5" />
+              </c:vector>
+            </c:value>
+          </c:values>
+
+          <t:minreduce isvector="true">
+            <c:value-of name="vector" />
+          </t:minreduce>
+        </c:let>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="2" />
+      </t:expect>
+    </t:it>
   </t:describe>
 </package>
