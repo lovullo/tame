@@ -24,14 +24,104 @@
   title="Maximum and Minimum Elements">
 
   <import package="../base" />
+  <import package="../when" />
   <import package="../numeric/common" />
   <import package="../numeric/minmax" />
 
 
   <section title="Vector Reduction">
-    Core currently only offers a~maximum reduction on
-    a~vector.  \todo{Add a~minimum reduction.}  \ref{_maxreduce_}
-    provides a convenient template-based abstraction.
+    Two types of reductions are provided for minimum and maximum respectively:
+      \ref{_minreduce_} and \ref{_maxreduce_}.\footnote{
+        This is because TAME does not have first-class functions.}
+    They both produce scalar values of the minimums and maximums
+      (respectively) of vectors.
+
+    <template name="_minreduce_"
+              desc="Reduce a vector to its minimum">
+      <param name="@values@"   desc="Values to reduce" />
+      <param name="@isvector@" desc="Set to 'true' if the nodes should
+                                     not be wrapped in c:vector" />
+
+      <param name="@label@" desc="Application label">
+        <!-- default empty -->
+        <text></text>
+      </param>
+
+
+      <c:apply name="_minreduce" label="@label@">
+        <c:arg name="vector">
+          <if name="@isvector@" eq="true">
+            <param-copy name="@values@" />
+          </if>
+          <unless name="@isvector@" eq="true">
+            <c:vector>
+              <param-copy name="@values@" />
+            </c:vector>
+          </unless>
+        </c:arg>
+      </c:apply>
+    </template>
+
+
+    <function name="_minreduce"
+              desc="Minimum value in a vector">
+      <param name="vector" type="float" set="vector"
+             desc="Vector to find minimum of" />
+
+      <c:let>
+        <c:values>
+          <c:value name="length" type="integer"
+                   desc="Length of vector">
+            <c:length-of>
+              <c:value-of name="vector" />
+            </c:length-of>
+          </c:value>
+        </c:values>
+
+        <c:cases>
+          <c:case label="Empty vector">
+            <t:when-eq name="length" value="#0" />
+
+            <c:value-of name="#0" />
+          </c:case>
+
+
+          <c:case label="Single-element vector">
+            <t:when-eq name="length" value="#1" />
+
+            <c:value-of name="vector">
+              <c:index>
+                <c:value-of name="#0" />
+              </c:index>
+            </c:value-of>
+          </c:case>
+
+
+          <c:otherwise label="Non-empty vector">
+            <c:apply name="min">
+              <c:arg name="min1">
+                <c:value-of name="vector">
+                  <c:index>
+                    <c:value-of name="#0" />
+                  </c:index>
+                </c:value-of>
+              </c:arg>
+
+              <c:arg name="min2">
+                <c:recurse>
+                  <c:arg name="vector">
+                    <c:cdr>
+                      <c:value-of name="vector" />
+                    </c:cdr>
+                  </c:arg>
+                </c:recurse>
+              </c:arg>
+            </c:apply>
+          </c:otherwise>
+        </c:cases>
+      </c:let>
+    </function>
+
 
     <template name="_maxreduce_"
               desc="Reduce a set to its maximum">
@@ -72,6 +162,8 @@
     let~expressions and other convenience templates.  It has since
     been refactored slightly, but can be made to be more concise.}
 
+    <!-- TODO: rewrite this to be more concise, with the more lisp-like
+         recursive strategy of minreduce -->
     <function name="maxreduce" desc="Reduce a set to its maximum">
       <param name="maxreduce_set" type="float" set="vector"
              desc="Set to find max of" />
