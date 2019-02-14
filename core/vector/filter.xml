@@ -54,6 +54,116 @@
         <c:value-of name="vector_src" index="start_index" />
       </t:cons-until-empty>
     </function>
+
+
+    \ref{_vfilter-mask_} allows filtering a vector using a boolean vector as
+      a mask.
+    If an index in the mask is~$0$,
+      then that corresponding index in the source vector will be removed.
+    The mask vector \should be the same length as the source vector.\footnote{
+      Remember that TAME treats undefined values as~$0$.}
+
+    <template name="_vfilter-mask_"
+              desc="Filter vector using a binary vector as a mask">
+      <param name="@values@" desc="Inline vector" />
+      <param name="@name@"   desc="Named vector (in place of inline)" />
+      <param name="@mask@"   desc="Mask vector" />
+
+
+      <c:apply name="_vfilter_mask" mask="@mask@">
+        <c:arg name="vector">
+          <if name="@name@">
+            <c:value-of name="@name@" />
+          </if>
+          <unless name="@name@">
+            <c:vector>
+              <param-copy name="@values@" />
+            </c:vector>
+          </unless>
+        </c:arg>
+      </c:apply>
+    </template>
+
+
+    <function name="_vfilter_mask"
+              desc="Filter source vector using binary vector as a mask">
+      <param name="vector" type="float" set="vector"
+             desc="Source vector" />
+      <param name="mask" type="integer" set="vector"
+             desc="Binary vector used to filter source vector" />
+
+
+      <c:let>
+        <c:values>
+          <c:value name="length" type="integer"
+                   desc="Length of source vector">
+            <c:length-of>
+              <c:value-of name="vector" />
+            </c:length-of>
+          </c:value>
+
+          <!-- TODO: support constants in @index -->
+          <c:value name="curmask" type="integer"
+                   desc="Current mask value">
+            <c:value-of name="mask">
+              <c:index>
+                <c:value-of name="#0" />
+              </c:index>
+            </c:value-of>
+          </c:value>
+        </c:values>
+
+        <c:cases>
+          <c:case label="No more elements in source vector">
+            <t:when-eq name="length" value="#0" />
+
+            <c:vector />
+          </c:case>
+
+
+          <c:case label="Skip non-match">
+            <t:when-eq name="curmask" value="FALSE" />
+
+            <c:recurse>
+              <c:arg name="vector">
+                <c:cdr>
+                  <c:value-of name="vector" />
+                </c:cdr>
+              </c:arg>
+              <c:arg name="mask">
+                <c:cdr>
+                  <c:value-of name="mask" />
+                </c:cdr>
+              </c:arg>
+            </c:recurse>
+          </c:case>
+
+
+          <c:otherwise>
+            <c:cons>
+              <c:value-of name="vector">
+                <c:index>
+                  <c:value-of name="#0" />
+                </c:index>
+              </c:value-of>
+
+              <c:recurse>
+                <c:arg name="vector">
+                  <c:cdr>
+                    <c:value-of name="vector" />
+                  </c:cdr>
+                </c:arg>
+                <c:arg name="mask">
+                  <c:cdr>
+                    <c:value-of name="mask" />
+                  </c:cdr>
+                </c:arg>
+              </c:recurse>
+            </c:cons>
+          </c:otherwise>
+        </c:cases>
+      </c:let>
+    </function>
   </section>
 
 

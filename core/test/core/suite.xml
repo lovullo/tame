@@ -30,6 +30,7 @@
   <import package="numeric/percent" />
   <import package="numeric/round" />
 
+  <import package="vector/filter" />
   <import package="vector/fold" />
   <import package="vector/interpolate" />
   <import package="vector/length" />

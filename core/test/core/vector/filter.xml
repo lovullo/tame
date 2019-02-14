@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         desc="Testing minimum and maximum values of vectors">
+
+  <import package="../../spec" />
+
+  <import package="../../../base" />
+  <import package="../../../vector/filter" />
+  <import package="../../../vector/stub" />
+
+
+  <const name="VFILTER_MASK_NONE" type="integer"
+         desc="4-vector masking nothing">
+    <item value="1" desc="First set" />
+    <item value="1" desc="Second set" />
+    <item value="1" desc="Third set" />
+    <item value="1" desc="Fourth set" />
+  </const>
+
+  <const name="VFILTER_MASK_MIDDLE" type="integer"
+         desc="4-vector with middle elements unmasked">
+    <item value="0" desc="First unset" />
+    <item value="1" desc="Second set" />
+    <item value="1" desc="Third set" />
+    <item value="0" desc="Fourth unset" />
+  </const>
+
+
+  <t:describe name="_vfilter-mask_">
+    <t:it desc="produces an empty vector given an empty vector">
+      <t:given>
+        <c:length-of>
+          <!-- empty body with no @name@ -->
+          <t:vfilter-mask mask="NVEC1">
+          </t:vfilter-mask>
+        </c:length-of>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="0" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="acts as identity given an all-set mask">
+      <t:given>
+        <c:length-of>
+          <t:vfilter-mask name="NVEC4_SEQ" mask="VFILTER_MASK_NONE" />
+        </c:length-of>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="4" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="retains original vector values">
+      <t:given>
+        <c:let>
+          <c:values>
+            <c:value name="vec" type="integer" set="vector"
+                     desc="Result">
+              <t:vfilter-mask name="NVEC4_SEQ" mask="VFILTER_MASK_NONE" />
+            </c:value>
+          </c:values>
+
+          <c:sum of="vec" />
+        </c:let>
+      </t:given>
+
+      <t:expect>
+        <!-- 0 + 1 + 2 + 3 (NVEC4_SEQ) -->
+        <t:match-result eq="6" />
+      </t:expect>
+    </t:it>
+
+
+    <t:it desc="produces empty vector given all-unset mask">
+      <t:given>
+        <c:length-of>
+          <!-- NVEC4 is a 4-vector of 0s -->
+          <t:vfilter-mask name="NVEC4_SEQ" mask="NVEC4" />
+        </c:length-of>
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="0" />
+      </t:expect>
+    </t:it>
+
+
+    <t:describe name="given a partly set mask">
+      <t:it desc="removes masked vector elements">
+        <t:given>
+          <c:length-of>
+            <t:vfilter-mask name="NVEC4_SEQ" mask="VFILTER_MASK_MIDDLE" />
+          </c:length-of>
+        </t:given>
+
+        <t:expect>
+          <t:match-result eq="2" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="retains value of original vector elements">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="vec" type="integer" set="vector"
+                       desc="Result">
+                <t:vfilter-mask name="NVEC4_SEQ" mask="VFILTER_MASK_MIDDLE" />
+              </c:value>
+            </c:values>
+
+            <c:sum of="vec" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <!-- 1 + 2 -->
+          <t:match-result eq="3" />
+        </t:expect>
+      </t:it>
+
+
+      <!-- same as above, but inline -->
+      <t:it desc="masks inline vectors">
+        <t:given>
+          <c:let>
+            <c:values>
+              <c:value name="vec" type="integer" set="vector"
+                       desc="Result">
+                <!-- inline values -->
+                <t:vfilter-mask mask="VFILTER_MASK_MIDDLE">
+                  <c:value-of name="#10" />
+                  <c:value-of name="#12" />
+                  <c:value-of name="#14" />
+                  <c:value-of name="#16" />
+                </t:vfilter-mask>
+              </c:value>
+            </c:values>
+
+            <c:sum of="vec" />
+          </c:let>
+        </t:given>
+
+        <t:expect>
+          <!-- 12 + 14 -->
+          <t:match-result eq="26" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+  </t:describe>
+</package>
