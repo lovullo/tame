@@ -134,11 +134,13 @@
       <preproc:sym type="meta"
                    name=":meta:prop1"
                    desc="Metavalue prop1"
-                   pollute="true" />
+                   pollute="true"
+                   no-deps="true" />
       <preproc:sym type="meta"
                    name=":meta:prop2"
                    desc="Metavalue prop2"
-                   pollute="true" />
+                   pollute="true"
+                   no-deps="true" />
     </expect>
   </scenario>
 </description>
