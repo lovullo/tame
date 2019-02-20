@@ -248,12 +248,12 @@
       </variable>
 
       <!-- remove duplicates (if any) -->
-      <sequence select="
-          $extresults/preproc:sym[
-            not( @name=preceding-sibling::preproc:sym/@name )
-          ]
-          , $extresults//preproc:error
-        " />
+      <for-each-group select="$extresults/preproc:sym"
+                      group-by="@name">
+        <sequence select="current-group()[ 1 ]" />
+      </for-each-group>
+
+      <sequence select="$extresults//preproc:error" />
 
       <!-- process symbols (except imported externs) -->
       <variable name="newresult" as="element( preproc:syms )">
@@ -264,6 +264,24 @@
         </call-template>
       </variable>
 
+      <!-- contains duplicates -->
+      <variable name="new-seq-map" as="map( xs:string, element( preproc:sym )+ )"
+                select="map:merge(
+                          for $sym in $newresult/preproc:sym
+                            return map{ string( $sym/@name ) : $sym },
+                          map{ 'duplicates' : 'combine' } )" />
+
+      <variable name="new-typed-map" as="map( xs:string, element( preproc:sym ) )"
+                select="map:merge(
+                          for $sym in $newresult/preproc:sym[ @type ]
+                            return map{ string( $sym/@name ) : $sym } )" />
+
+      <variable name="nonlocals-map" as="map( xs:string, element( preproc:sym ) )"
+                select="map:merge(
+                          for $sym in $newresult/preproc:sym[ not( @local = 'true' ) ]
+                            return map{ string( $sym/@name ) : $sym } )" />
+
+      <!-- TODO: revisit this logic -->
       <variable name="dedup" as="element( preproc:sym )*"
                     select="$newresult/preproc:sym[
                             not(
@@ -271,19 +289,19 @@
                                 @pollute='true'
                                 and not( @type )
                                 and (
-                                  @name=preceding-sibling::preproc:sym/@name
-                                  or @name=$newresult/preproc:sym[ @type ]/@name
+                                  (
+                                    ( count( $new-seq-map( @name ) ) gt 1 )
+                                    and @name=preceding-sibling::preproc:sym/@name
+                                  )
+                                  or exists( $new-typed-map( @name ) )
                                 )
                               )
                               or (
                                 @local = 'true'
-                                and @name = following-sibling::preproc:sym[
-                                  not( @local = 'true' )
-                                ]/@name
+                                and exists( $nonlocals-map( @name ) )
                               )
                             )
                           ]" />
-
 
       <apply-templates mode="preproc:symtable-complete"
                            select="$dedup">
@@ -291,9 +309,7 @@
       </apply-templates>
     </preproc:symtable>
 
-    <message>
-      <text>[preproc/symtable] done.</text>
-    </message>
+    <message select="'[preproc/symtable] done.'" />
 
     <!-- copy all of the original elements after the symbol table; we're not
          outputting them as we go, so we need to make sure that we don't get
@@ -434,6 +450,7 @@
 </function>
 
 
+<!-- TODO: revisit this mess -->
 <template name="preproc:symtable-process-symbols">
   <param name="extresults" as="element( preproc:syms )" />
   <param name="new"        as="element( preproc:syms )" />
@@ -457,6 +474,18 @@
                       for $sym in $extresults/preproc:sym
                         return map{ string( $sym/@name ) : $sym } )" />
 
+  <!-- contains duplicates -->
+  <variable name="new-seq-map" as="map( xs:string, element( preproc:sym )+ )"
+            select="map:merge(
+                      for $sym in $new/preproc:sym
+                        return map{ string( $sym/@name ) : $sym },
+                      map{ 'duplicates' : 'combine' } )" />
+
+  <variable name="new-overrides-map" as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $sym in $new/preproc:sym[ @override = 'true' ]
+                        return map{ string( $sym/@name ) : $sym } )" />
+
   <preproc:syms>
     <sequence select="$cursym" />
 
@@ -467,7 +496,13 @@
       <variable name="dupall" as="element( preproc:sym )*"
                 select="$cursym-map( $name ),
                         $extresults-map( $name ),
-                        preceding-sibling::preproc:sym[ @name = $name ]" />
+                        if ( count( $new-seq-map( $name ) ) gt 1 ) then
+                            preceding-sibling::preproc:sym[ @name = $name ]
+                          else
+                            ()" />
+
+      <variable name="override" as="element( preproc:sym )?"
+                select="$new-overrides-map( @name )" />
 
       <choose>
         <when test="@pollute='true' and not( @type )">
@@ -475,9 +510,7 @@
           <sequence select="." />
         </when>
 
-        <!-- note that dupall uses preceding-sibling, which will catch
-             duplicates in that case even if @override is not set -->
-        <when test="following-sibling::preproc:sym[ @name=$name and @override='true' ]">
+        <when test="exists( $override ) and not( $override is . )">
           <!-- overridden; we're obsolete :( -->
         </when>
 
