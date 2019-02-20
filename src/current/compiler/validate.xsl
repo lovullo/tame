@@ -33,6 +33,8 @@
 -->
 <stylesheet version="1.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:map="http://www.w3.org/2005/xpath-functions/map"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:ext="http://www.lovullo.com/ext"
             xmlns:c="http://www.lovullo.com/calc"
@@ -68,6 +70,11 @@
 <template match="lv:package" mode="lvv:validate" priority="9">
   <param name="symbol-map" />
 
+  <variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $sym in preproc:symtable/preproc:sym
+                        return map{ string( $sym/@name ) : $sym } )" />
+
   <choose>
     <when test="$prohibit-validation = 'true'">
       <message>
@@ -89,7 +96,10 @@
       </message>
 
       <!-- validate -->
-      <apply-templates mode="lvv:validate" />
+      <apply-templates mode="lvv:validate">
+        <with-param name="symtable-map" select="$symtable-map"
+                    tunnel="yes" />
+      </apply-templates>
     </otherwise>
   </choose>
 </template>
@@ -119,6 +129,7 @@
 </template>
 
 
+<!-- XXX: Nothing is calling this! -->
 <template name="lvv:symbol-chk">
   <param name="root" />
   <param name="symbol-map" />
@@ -171,14 +182,13 @@
 
 
 <template match="c:apply[@name]" mode="lvv:validate" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="name" select="@name" />
   <variable name="self" select="." />
-  <variable name="fsym" select="
-      root(.)/preproc:symtable/preproc:sym[
-        @type='func'
-        and @name=$name
-      ]
-    " />
+
+  <variable name="fsym" as="element( preproc:sym )"
+            select="$symtable-map( $name )" />
 
   <!-- ensure that a function is being applied -->
   <if test="not( $fsym )">
@@ -230,7 +240,12 @@
   Validate that match @on's exist
 -->
 <template match="lv:classify[ @as ]//lv:match" mode="lvv:validate" priority="9">
-  <if test="not( @on=root(.)/preproc:symtable/preproc:sym[ @type ]/@name )">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <variable name="sym" as="element( preproc:sym )?"
+            select="$symtable-map( @on )" />
+
+  <if test="not( $sym )">
     <call-template name="lvv:error">
       <with-param name="desc" select="'Unknown match @on'" />
       <with-param name="refnode" select="." />
@@ -256,14 +271,13 @@
   Validate that non-numeric value matches actually exist and are constants
 -->
 <template match="lv:match[@value]" mode="lvv:validate-match" priority="5">
-  <if test="
-      not( number( @value ) = @value )
-      and not(
-        @value=root(.)/preproc:symtable/preproc:sym[
-          @type='const'
-        ]/@name
-      )
-    ">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <variable name="sym" as="element( preproc:sym )?"
+            select="$symtable-map( @value )" />
+
+  <if test="not( number( @value ) = @value )
+            and not( $sym )">
 
     <call-template name="lvv:error">
       <with-param name="desc" select="'Unknown match value'" />
@@ -338,6 +352,8 @@
 </template>
 
 <template match="c:*[@name or @of]" mode="lvv:validate" priority="2">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="name">
     <choose>
       <when test="@of">
@@ -349,19 +365,6 @@
       </otherwise>
     </choose>
   </variable>
-
-  <!-- XXX: have to maintain this list! -->
-  <variable name="nodes" select="
-      root(.)//lv:*[
-        @name=$name
-        or @yields=$name
-        or @as=$name
-      ]
-      , root(.)//c:*[
-        @generates=$name
-      ]
-      , root(.)//c:values/c:value[ @name=$name ]
-    " />
 
   <!-- locate function params/let vars -->
   <variable name="fname" select="
@@ -385,16 +388,11 @@
   <!-- if this name references a function parameter, then it takes
        precedence (note that this consequently means that it masks any other
        names that may be globally defined) -->
-  <variable name="sym" select="
-    if ( $fname ) then
-      root(.)/preproc:symtable/preproc:sym[
-        @name=concat( ':', $fname, ':', $name )
-      ]
-    else
-      root(.)/preproc:symtable/preproc:sym[
-        @name=$name
-      ]
-    " />
+  <variable name="sym" as="element( preproc:sym )?"
+            select="if ( $fname ) then
+                        $symtable-map( concat( ':', $fname, ':', $name ) )
+                      else
+                        $symtable-map( $name )" />
 
   <variable name="type" select="$sym/@dtype" />
 
@@ -581,15 +579,12 @@
 
 
 <template match="c:apply/c:arg[@name]" mode="lvv:validate" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <!-- merely validate its existence -->
   <variable name="fname" select="parent::c:apply/@name" />
-  <if test="not(
-      concat( ':', $fname, ':', @name ) = root(.)/preproc:symtable/preproc:sym[
-        @type='lparam'
-        and @parent=$fname
-      ]/@name
-    )">
 
+  <if test="not( $symtable-map( concat( ':', $fname, ':', @name ) ) )">
     <call-template name="lvv:error">
       <with-param name="desc" select="'Unknown argument'" />
       <with-param name="refnode" select="." />
@@ -641,20 +636,21 @@
   Checks for use of undefined classifications
 -->
 <template mode="lvv:validate" priority="2"
-  match="lv:rate/lv:class[
-    not( concat( ':class:', @ref ) = root(.)/preproc:symtable/preproc:sym[ @type='class' ]/@name )
-  ]">
+          match="lv:rate/lv:class">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
 
-  <call-template name="lvv:error">
-    <with-param name="desc" select="'Unknown classification'" />
-    <with-param name="refnode" select="." />
-    <with-param name="content">
-      <text>unknown classification '</text>
+  <if test="not( $symtable-map( concat( ':class:', @ref ) ) )">
+    <call-template name="lvv:error">
+      <with-param name="desc" select="'Unknown classification'" />
+      <with-param name="refnode" select="." />
+      <with-param name="content">
+        <text>unknown classification '</text>
         <value-of select="@ref" />
-      <text>' referenced by </text>
-      <value-of select="ancestor::lv:rate/@yields" />
-    </with-param>
-  </call-template>
+        <text>' referenced by </text>
+        <value-of select="ancestor::lv:rate/@yields" />
+      </with-param>
+    </call-template>
+  </if>
 </template>
 
 

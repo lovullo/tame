@@ -551,6 +551,7 @@
   @return generated classification expression
 -->
 <template match="lv:classify" mode="compile">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="noclass" />
   <param name="result-set" />
   <param name="ignores" />
@@ -569,7 +570,7 @@
     <text>'] = (function(){var result,tmp; </text>
   </if>
 
-  <!-- locate classification criteria (since lv:any and lv:all are split
+  <!-- locate classification predicates (since lv:any and lv:all are split
        into their own classifications, matching on any depth ensures we get
        into any preproc:* nodes as well) -->
   <variable name="criteria" as="element( lv:match )*"
@@ -578,8 +579,8 @@
                       or not( @on=$ignores/@ref ) ]" />
 
   <variable name="criteria-syms" as="element( preproc:sym )*"
-            select="root(.)/preproc:symtable/preproc:sym[
-                      @name = $criteria/@on ]" />
+            select="for $match in $criteria
+                      return $symtable-map( $match/@on )" />
 
   <variable name="dest">
     <choose>
@@ -674,7 +675,7 @@
   </if>
 
     <variable name="sym"
-      select="root(.)/preproc:symtable/preproc:sym[ @name=$self/@yields ]" />
+      select="$symtable-map( $self/@yields )" />
 
   <!-- if we are not any type of set, then yield the value of the first
          index (note the $criteria check; see above); note that we do not do
@@ -733,6 +734,8 @@
   @return generated match code
 -->
 <template match="lv:match" mode="compile" priority="1">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <!-- default to all matches being required -->
   <param name="operator" select="'&amp;&amp;'" />
   <param name="yields" select="../@yields" />
@@ -741,7 +744,7 @@
   <variable name="name" select="@on" />
 
   <variable name="sym-on" as="element( preproc:sym )"
-            select="root(.)/preproc:symtable/preproc:sym[ @name = $name ]" />
+            select="$symtable-map( $name )" />
 
   <text> tmp = </text>
 
@@ -837,8 +840,8 @@
   <choose>
     <when test="@value">
       <variable name="value" select="@value" />
-      <variable name="sym"
-        select="root(.)/preproc:symtable/preproc:sym[ @name=$value ]" />
+      <variable name="sym" as="element( preproc:sym )?"
+                select="$symtable-map( $value )" />
 
       <choose>
         <!-- value unavailable (TODO: vector/matrix support) -->
@@ -1191,6 +1194,8 @@
 </template>
 
 <template match="lv:rate" mode="compile-class-condition">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="rate" select="." />
 
   <!-- Generate expression for class list (leave the @no check to the cmatch
@@ -1220,11 +1225,8 @@
 
           <variable name="ref" select="@ref" />
 
-          <if test="
-              root(.)/preproc:symtable/preproc:sym[
-                @name=concat( ':class:', $ref )
-              ]/@preproc:generated='true'
-            ">
+          <if test="$symtable-map( concat( ':class:', $ref ) )
+                      /@preproc:generated='true'">
             <text>gen</text>
           </if>
 
@@ -1244,6 +1246,8 @@
 
 
 <template match="lv:rate" mode="compile-cmatch">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="root" select="root(.)" />
 
   <!-- generate cmatch call that will generate the cmatch set -->
@@ -1255,6 +1259,7 @@
 
       <text>args['</text>
         <call-template name="compiler:get-class-yield">
+          <with-param name="symtable-map" select="$symtable-map" />
           <with-param name="name" select="@ref" />
           <with-param name="search" select="$root" />
         </call-template>
@@ -1268,6 +1273,7 @@
 
       <text>args['</text>
         <call-template name="compiler:get-class-yield">
+          <with-param name="symtable-map" select="$symtable-map" />
           <with-param name="name" select="@ref" />
           <with-param name="search" select="$root" />
         </call-template>
@@ -1278,16 +1284,13 @@
 
 
 <template name="compiler:get-class-yield">
+  <param name="symtable-map" as="map(*)" />
   <param name="name" />
   <param name="search" />
 
-  <variable name="yields">
-    <value-of select="
-        root(.)/preproc:symtable/preproc:sym[
-          @name=concat( ':class:', $name )
-        ]/@yields
-      " />
-  </variable>
+  <variable name="yields"
+            select="$symtable-map(
+                      concat( ':class:', $name ) )/@yields" />
 
   <choose>
     <when test="$yields != ''">
