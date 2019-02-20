@@ -62,6 +62,7 @@
 <stylesheet version="2.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
             xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:map="http://www.w3.org/2005/xpath-functions/map"
             xmlns:symtable="http://www.lovullo.com/tame/symtable"
             xmlns:preproc="http://www.lovullo.com/rater/preproc"
             xmlns:lv="http://www.lovullo.com/rater"
@@ -438,37 +439,35 @@
   <param name="new"        as="element( preproc:syms )" />
   <param name="this-pkg"   as="element( lv:package )" />
 
+  <message>
+    <text>[preproc/symtable] processing symbol table...</text>
+  </message>
+
+  <variable name="cursym" as="element( preproc:sym )*"
+                select="preproc:symtable/preproc:sym[
+                          not( @held = 'true' ) ]" />
+
+  <variable name="cursym-map" as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $sym in $cursym
+                        return map{ string( $sym/@name ) : $sym } )" />
+
+  <variable name="extresults-map" as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $sym in $extresults/preproc:sym
+                        return map{ string( $sym/@name ) : $sym } )" />
+
   <preproc:syms>
-    <variable name="cursym" as="element( preproc:sym )*"
-                  select="preproc:symtable/preproc:sym[
-                            not( @held = 'true' ) ]" />
-
     <sequence select="$cursym" />
-
-    <message>
-      <text>[preproc/symtable] processing symbol table...</text>
-    </message>
 
     <for-each select="$new/preproc:sym[ not( @extern='true' and @src ) ]">
       <variable name="name" select="@name" />
       <variable name="src" select="@src" />
-      <variable name="dupall" select="
-          (
-            preceding-sibling::preproc:sym,
-            $cursym,
-            $extresults/preproc:sym
-          )[
-            @name=$name
-          ]
-        " />
-      <variable name="dup" select="
-          $dupall[
-            not(
-              @src=$src
-              or ( not( @src ) and not( $src ) )
-            )
-          ]
-        " />
+
+      <variable name="dupall" as="element( preproc:sym )*"
+                select="$cursym-map( $name ),
+                        $extresults-map( $name ),
+                        preceding-sibling::preproc:sym[ @name = $name ]" />
 
       <choose>
         <when test="@pollute='true' and not( @type )">
@@ -509,6 +508,8 @@
       </choose>
     </for-each>
   </preproc:syms>
+
+  <message select="'[preproc/symtable] done processing symbol table.'" />
 </template>
 
 
