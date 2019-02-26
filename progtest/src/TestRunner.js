@@ -156,8 +156,8 @@ module.exports = Class( 'TestRunner',
     /**
      * Attempt test case, returning error on failure
      *
-     * If an error is thrown (e.g. terminating classification), it will be
-     * returned in place of the results.
+     * If an error is thrown (e.g. terminating classification or unknown
+     * input), then it will be returned in place of the results.
      *
      * @param {Object} data input data
      *
@@ -168,11 +168,40 @@ module.exports = Class( 'TestRunner',
         // no input map---#rate uses params directly
         try
         {
+            this._verifyKnownParams( data );
+
             return this._program.rater( data ).vars;
         }
         catch( e )
         {
             return e;
+        }
+    },
+
+
+    /**
+     * Verify that all provided inputs match known params
+     *
+     * If a given input is not known for the rater for the current program,
+     * an Error will be thrown with a comma-delimited list of all unknown
+     * params.
+     *
+     * @param {Object} data input data
+     *
+     * @return {undefined}
+     *
+     * @throws Error when unknown input is found
+     */
+    'private _verifyKnownParams'( data )
+    {
+        const params = this._program.rater.params || {};
+
+        const unknown = Object.keys( data )
+            .filter( param => params[ param ] === undefined );
+
+        if ( unknown.length > 0 )
+        {
+            throw Error( "Unknown params: " + unknown.join( ", " ) );
         }
     },
 
