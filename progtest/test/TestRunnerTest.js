@@ -41,6 +41,9 @@ describe( "TestRunner", () =>
             }
         };
 
+        // `a' is a known param
+        program.rater.params = { a: {} };
+
         const test_cases = [
             {
                 description: "first",
@@ -114,6 +117,32 @@ describe( "TestRunner", () =>
                     expect( result.given ).to.equal( test_cases[ i ].data );
                     expect( result.expect ).to.equal( test_cases[ i ].expect );
                 } );
+            } );
+    } );
+
+
+    it( "fails on unknown params", () =>
+    {
+        // no params at all are defined
+        const program = { rater: () => ( { vars: {} } ) };
+
+        const bad_test = {
+            description: 'bad param',
+            data:        {
+                unknown_param_1: 0,
+                unknown_param_2: 0,
+            },
+            expect:      {},
+        };
+
+        return Sut( NullTestReporter(), program )
+            .runTests( [ bad_test ] )
+            .then( ( [ result ] ) =>
+            {
+                expect( result.failures[ 0 ].result )
+                    .to.contain( 'unknown_param_1' );
+                expect( result.failures[ 0 ].result )
+                    .to.contain( 'unknown_param_2' );
             } );
     } );
 

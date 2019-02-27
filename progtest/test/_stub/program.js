@@ -23,3 +23,6 @@ exports.rater = data =>
 {
     return { vars: { out: data.in } };
 };
+
+exports.rater.params = { in: {} };
+

@@ -198,6 +198,8 @@
       </for-each>
     <text>}; </text>
 
+    <text>rater.params = params;</text>
+
     <!-- the rater has been generated; return it -->
     <text>return rater;</text>
   <text>} )()</text>
