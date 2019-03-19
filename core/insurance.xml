@@ -438,10 +438,15 @@
       <text></text>
     </param>
 
+    <param name="@allow-zero@" desc="Allow value of zero (default false)">
+      <text></text>
+    </param>
+
 
     <t:factor _prefix="credit"
               class="@class@" no="@no@" yields="@yields@" sym="@sym@"
               generates="@generates@" index="@index@" gensym="@gensym@"
+              allow-zero="@allow-zero@"
               default="@default@"
               desc="@desc@">
       <param-copy name="@values@" />
@@ -502,10 +507,15 @@
       <text></text>
     </param>
 
+    <param name="@allow-zero@" desc="Allow value of zero (default false)">
+      <text></text>
+    </param>
+
 
     <t:factor _prefix="debit"
               class="@class@" no="@no@" yields="@yields@" sym="@sym@"
               generates="@generates@" index="@index@" gensym="@gensym@"
+              allow-zero="@allow-zero@"
               default="@default@"
               desc="@desc@">
       <param-copy name="@values@" />
