@@ -58,7 +58,7 @@ END {
 # This spawns a single process for date and reads from standard in.  Even
 # then, though, date parsing is very slow for many thousands of rows, so the
 # output is also cached in `date_cache'.
-function parse_date( i,   orig )
+function parse_date( i,   src )
 {
   src = $i
 
