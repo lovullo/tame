@@ -44,6 +44,36 @@
 #   ...
 ##
 
+BEGIN {
+  date_cmd = "stdbuf -o0 date -f- +%s"
+}
+
+END {
+  close( date_cmd )
+}
+
+
+# Parse a date string into a Unix timestamp (memoized)
+#
+# This spawns a single process for date and reads from standard in.  Even
+# then, though, date parsing is very slow for many thousands of rows, so the
+# output is also cached in `date_cache'.
+function parse_date( i,   orig )
+{
+  src = $i
+
+  if ( date_cache[ src ] )
+  {
+    $i = date_cache[ src ]
+    return
+  }
+
+  print $i |& date_cmd
+  date_cmd |& getline $i
+
+  date_cache[ src ] = $i;
+}
+
 
 # Expand variable with its value, if any
 function expand_vars( s,   value )
@@ -83,9 +113,7 @@ function parseline( i, m, j, me, orig )
 
   if ( match( $i, /^([0-9]+\/){2}[0-9]+$/, m ) )
   {
-    cmd = "date --date=" $i " +%s"
-    cmd |& getline $i
-    close(cmd)
+    parse_date( i );
   }
 
   # check first for delimiters
