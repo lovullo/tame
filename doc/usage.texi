@@ -157,6 +157,7 @@ $ ./configure SAXON_CP=/path/to/saxon9he.jar
 
 @menu
 * Common Targets::  Common Makefile targets.
+* Parallel Builds:: Building multiple files concurrently.
 @end menu
 
 
@@ -198,3 +199,53 @@ Here are the most common phony targets that may be useful:
     for example,
     to rebuild all files using the new version.
 @end table
+
+
+@node Parallel Builds
+@subsection Parallel Builds
+@cindex Make, parallel builds
+GNU Make offers parallel builds through the @code{-j} flag,
+  which specifies the maximum number of concurrent jobs.
+This is supported by both @command{tame} and @command{tamed}.
+
+@command{tamed} starts by spawning a single runner,
+  which is marked as available.
+When a command is issued to @command{tame},
+  it will reserve the first available runner it finds by marking it as
+    busy.
+Once the runner is finished,
+  it will be marked as available once again.
+If all available runners are busy,
+  @command{tame} issues a signal to @command{tamed} to spawn another
+    runner,
+      which @command{tame} then reserves and marks as busy.
+No runners are ever freed (terminated) until @command{tamed} itself
+  terminates.
+
+For example,
+  to build with up to four concurrent runners,
+    use @samp{-j4}:
+
+@float Figure, f:make-j
+@example
+$ make -j4
+@end example
+@caption{Compiling with four concurrent runners}
+@end float
+
+@cindex build, memory
+@tip{Compiling and linking large packages can be memory intensive.
+     While runner memory consumption may vary,
+       it's wise to profile the memory usage of a single runner and
+         use that to estimate how many concurrent runners your system
+           can support.}
+
+@cindex Saxon
+@tip{Saxon is also multi-threaded under certain circumstances,
+       so you should allocate fewer jobs than you have available CPU
+         cores.
+     GNU Make also offers a @code{-l} flag that tells it not to spawn
+       more jobs if the system is above the indicated load.
+     But note that,
+       even if a runner is idle,
+         it is still using up memory.}

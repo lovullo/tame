@@ -54,13 +54,27 @@ mkfifos()
     rm -f "$root-$n"
 
     mkfifo -m 0600 "$root/$n" || {
-      echo "fatal: failed to create FIFO at $in"
+      echo "fatal: failed to create FIFO at $root/n"
       exit $EX_CANTCREAT
     }
   done
 
   # keep FIFOs open so we don't get EOF from writers
   tail -f >"$root/0" &
+}
+
+
+# Spawn a new runner using the next available runner id
+#
+# See `spawn-runner' for more information.
+spawn-next-runner()
+{
+  local -r root="${1?Missing root path}"
+
+  # get the next available id
+  local -ri id=$( < "$root/maxid" )
+
+  spawn-runner "$(( id + 1 ))" "$root"
 }
 
 
@@ -79,6 +93,9 @@ spawn-runner()
 
   mkfifos "$base"
 
+  # flag as available (the client will manipulate these)
+  echo 0 > "$base/busy"
+
   # monitor runner usage and kill when inactive
   stall-monitor "$base" &
 
@@ -94,6 +111,9 @@ spawn-runner()
   done &
 
   echo "$!" > "$base/pid"
+
+  # we assume that this is the new largest runner id
+  echo "$id" > "$root/maxid"
 
   echo "runner $id ($!): $base"
 }
@@ -271,10 +291,22 @@ main()
   rm -rf "$root"; mkdir -p "$root"
   echo $$ > "$root/pid"
 
-  # only a single runner for now
+  # start with a single runner; we'll spawn more if requested
   spawn-runner 0 "$root"
+  trap "spawn-next-runner '$root'" USR1
 
-  wait -n
+  # wait for runners to complete or for a signal to be received by this
+  # process that terminates `wait'
+  while true; do
+    wait -n || {
+      status=$?
+
+      # ignore USR1
+      if [ $status -ne 138 ]; then
+        exit $status
+      fi
+    }
+  done
 }
 
 main "$@"

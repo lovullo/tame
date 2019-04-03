@@ -21,8 +21,11 @@ set -euo pipefail
 
 declare -r mypath=$( dirname "$( readlink -f "$0" )" )
 
-declare -ri EX_NOTAMED=1  # tried to start tamed but failed
+declare -ri EX_NOTAMED=1  # tried to start tamed or runner but failed
 declare -ri EX_STALLED=2  # runner stalled and could not recover
+declare -ri EX_NORUN=3    # no available runners
+declare -ri EX_DLOCK=4    # failed to get a lock to start tamed
+declare -ri EX_BLOCK=5    # failed to get a lock for busy runner check
 declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
 
 # maximum amount of time in seconds to wait for runner to ack
@@ -32,6 +35,27 @@ declare -ri TAME_CMD_WAITTIME="${TAME_CMD_WAITTIME:-3}"
 # propagate to daemon
 export TAMED_STALL_SECONDS
 export TAMED_SPAWNER_PID
+
+
+# Send a single command to the next available runner and
+# observe the result
+#
+# See `command-runner' for more information.
+command-available-runner()
+{
+  local -r root="${1?Missing root run path}"
+  shift 1
+
+  local -r id=$( reserve-runner "$root" )
+
+  test -n "$id" || {
+    echo "no available runners at $root" >&2
+    exit $EX_NORUN
+  }
+
+  command-runner "$id" "$root" "$@" \
+    | tee -a "run-$id.log"
+}
 
 
 # Send a single command to a runner and observe the result
@@ -47,8 +71,6 @@ command-runner()
 
   local -r base="$root/$id"
   local -ri pid=$( cat "$base/pid" )
-
-  # TODO flock
 
   verify-runner "$base" "$pid"
 
@@ -82,11 +104,124 @@ command-runner()
     # dealing with a lot of lines
     if [ "${line:0:5}" == "DONE " ]; then
       read _ code _ <<< "$line"
+
+      mark-available "$base"
       return "$code"
     fi
 
     echo "$line"
   done < "$base/1"
+}
+
+
+# Get id of the first available runner and mark it as busy
+#
+# If no runners are available, tamed is signalled to spawn a new one.
+#
+# This command calls `mark-busy' so that it can acquire a runner in an
+# atomic manner.  The caller is responsible for invoking `mark-available'
+# after processing is complete.
+#
+# If no runner is available, then the result will be empty.
+reserve-runner()
+{
+  local -r root=${1?Missing root}
+
+  local -r timeout=10
+
+  (
+    flock -w $timeout 7 || {
+      echo "error: failed to acquire busy lock at $root" >&2
+      exit $EX_BLOCK
+    }
+
+    # grab the first available or request a new one
+    local id=$( get-available-runner-id "$root" )
+    if [ -z "$id" ]; then
+      id=$( spawn-runner-and-wait "$root" ) || {
+        echo "error: failed to reserve runner at $root" >&2
+        exit $EX_NORUN
+      }
+    fi
+
+    # mark it as busy while we still have the lock
+    mark-busy "$root/$id"
+
+    echo "$id"
+  ) 7>"$root/busy-lock"
+}
+
+
+# Get the id of the next available runner
+#
+# THIS FUNCTION MUST BE GUARDED BY A MUTEX!  Otherwise there is a race
+# between acquiring the available id and then actually making use of it.
+#
+# If multiple runners are available, then the first available runner sorted
+# numerically will be chosen.  This helps to give the same runners more
+# work, since they're more likely to have source (and compiled) already
+# parsed in memory.  As such, runners will have load disproportionately
+# spread, and may exhibit large variances in resource consumption.
+#
+# Sorting numerically is done because globbing sorts lexically---if runner
+# 10 is spawned, then it would find itself after "1" in the list rather than
+# after runner "9".
+#
+# If all runners are visible, then nothing will be returned.
+get-available-runner-id()
+{
+  local -r root=${1?Missing root}
+
+  grep -l 0 "$root"/*/busy \
+    | awk -F/ '{ print $(NF-1) }' \
+    | sort -n \
+    | head -n1
+}
+
+
+# Tell tamed to spawn a new runner and output the new runner id
+#
+# THIS FUNCTION MUST BE GUARDED BY A MUTEX!  Otherwise there is a race
+# between signaling and reading from `maxid'.
+#
+# This sens USR1 to tamed indicating that the next available runner should
+# be spawned, and then waits on that expected runner.  See `wait-for-runner'
+# for more information on waiting.
+spawn-runner-and-wait()
+{
+  local -r root=${1?Missing root}
+
+  local -r pid=$( < "$root/pid" )
+  local -ri maxid=$( < "$root/maxid" )
+
+  # request runner
+  kill -USR1 "$pid"
+
+  # wait on the expected id
+  local -ri nextid=$(( maxid + 1 ))
+  wait-for-runner "$root" "$nextid"
+
+  echo "$nextid"
+}
+
+
+# Mark a runner as busy (unable to accept new commands)
+#
+# Once work is done, use `mark-available' to undo this operation.
+mark-busy()
+{
+  local -r base=${1?Missing runner base path}
+  echo 1 > "$base/busy"
+}
+
+
+# Mark a runner as available (able to accept new commands)
+#
+# Once work is available, use `mark-busy' to undo this operation.
+mark-available()
+{
+  local -r base=${1?Missing runner base path}
+  echo 0 > "$base/busy"
 }
 
 
@@ -128,27 +263,54 @@ verify-runner-ack()
 }
 
 
-# Wait somewhat impatiently for tamed
+# Wait somewhat impatiently for a runner
 #
-# Assumes that tamed's runner 0 is running once the pidfile becomes
+# Assumes that the runner is ready once the pidfile becomes
 # available.  Polls for a maximum of six seconds before giving up
 # and exiting with a non-zero status.
-wait-for-tamed()
+wait-for-runner()
 {
-  local -r base="${1?Missing base}"
+  local -r root=${1?Missing root}
+  local -r id=${2?Missing runner id}
 
   # we could use inotify, but that is not installed by default
   # on Debian systems, so let's just poll rather than introduce
   # another dependency (give up after 6 seconds)
   local -i i=12
   while test $((i--)); do
-    test ! -f "$base/0/pid" || return 0
+    test ! -f "$root/$id/pid" || return 0
     sleep 0.5
   done
 
   # still not available
-  echo 'error: tamed still unavailable; giving up' >&2
+  echo "error: runner $id still unavailable; giving up" >&2
   exit "$EX_NOTAMED"
+}
+
+
+# Attempts to start tamed if it's not already running
+#
+# This is designed to be safe for parallel builds by allowing only the first
+# process to start tamed and hanging the others until spawning is complete.
+#
+# See `_start-tamed' for more information.
+start-tamed-safe()
+{
+  local -r root=${1?Missing root}
+
+  local -ri timeout=5
+
+  (
+    flock -w $timeout 6 || {
+      echo "error: failed to acquire tamed spawning lock at $root" >&2
+      exit $EX_DLOCK
+    }
+
+    _start-tamed "$root"
+
+    flock -u 6
+    rm -f "$root-guard"
+  ) 6>"$root-guard"
 }
 
 
@@ -161,7 +323,7 @@ wait-for-tamed()
 # this ensures that tamed is initialized even if this script is run
 # after tamed is started but before it has fully come online (e.g
 # parallel make).
-start-tamed()
+_start-tamed()
 {
   local -r root="${1?Missing root}"
 
@@ -183,7 +345,7 @@ start-tamed()
   # wait for tamed even if it was already started (just in
   # case this script was executed right after tamed started
   # but before it is done initializing)
-  wait-for-tamed "$root"
+  wait-for-runner "$root" 0
 }
 
 
@@ -243,6 +405,16 @@ to come online.  After that time has elapsed, the command will
 be re-attempted, timing out again after TAME_CMD_WAITTIME and
 and at that point giving up.
 
+The first available runner sorted numerically will be
+chosen.  This helps to give the same runners more work,
+since they're more likely to have source (and compiled)
+already parsed in memory.  As such, runners will have load
+disproportionately spread, and may exhibit large variances
+in resource consumption.
+
+If all runners are busy, then a new runner will be spawned,
+allowing for parallel builds.
+
 Options:
   --help         show this message
   --kill         kill tamed
@@ -279,11 +451,10 @@ main()
     outcmd=cat
   fi
 
-  start-tamed "$root"
+  start-tamed-safe "$root"
 
   # for now we only support a single runner
-  command-runner 0 "$root" "$@" \
-    | tee -a "run-0.log" \
+  command-available-runner "$root" "$@" \
     | "$outcmd"
 }
 

@@ -86,7 +86,6 @@ ant = @ANT@ -e
 default: program-ui c1map FORCE
 
 .DELETE_ON_ERROR:
-.NOTPARALLEL:
 
 # keep all intermediate files for easy introspection
 .SECONDARY:
@@ -153,7 +152,11 @@ c1map: $(dest_c1map)
 %.csvo: %.csv
 	cp $< $@
 
-%.xml: %.csvo
+# TODO: This is necessary right now because of the current depgen
+# process.  Once that is eliminated in favor of individual dependency files
+# (e.g. the %.d convention), this can go away since dependency generation
+# can properly take place for the various file formats.
+%.xml: %.csvo rater/core/vector/table.xmlo
 	rater/tools/csv2xml $< > $@
 
 version: .version.xml
@@ -169,7 +172,7 @@ ui/html/index.phtml: ui/program.expanded.xml
 ui/package-dfns.xmlo: ui/package-dfns.xml
 ui/package-dfns.xml: ui/program.expanded.xml
 	$(TAME) progui-pkg $< $@
-ui/package-map.xmlo: ui/package-map.xml
+ui/package-map.xmlo: ui/package-map.xml ui/package-dfns.xmlo
 ui/package-map.xml: ui/program.expanded.xml ui/package-dfns.xml
 	$(TAME) progui-pkg-map $< $@
 
