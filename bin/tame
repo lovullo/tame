@@ -299,6 +299,9 @@ start-tamed-safe()
   local -r root=${1?Missing root}
 
   local -ri timeout=5
+  local -r guard="$root-guard"
+
+  mkdir -p "$( dirname "$root" )"
 
   (
     flock -w $timeout 6 || {
@@ -309,8 +312,8 @@ start-tamed-safe()
     _start-tamed "$root"
 
     flock -u 6
-    rm -f "$root-guard"
-  ) 6>"$root-guard"
+    rm -f "$guard"
+  ) 6>"$guard"
 }
 
 
