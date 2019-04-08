@@ -120,6 +120,22 @@ $bar_baz-quux,$foo'
   run-test "$input" "$expected"
 }
 
+# same as above but with whitespace
+test-whitespace-including-tabs-ok()
+{
+  declare -r input='header, line
+:foo=1
+:bar_baz-quux=2
+$foo, 1
+$bar_baz-quux,	$foo'
+
+  declare -r expected='header,line
+1,1
+2,1'
+
+  run-test "$input" "$expected"
+}
+
 
 test-range-delim()
 {
@@ -305,6 +321,7 @@ test-comment \
   && test-var-zero-ref \
   && test-directive-stripped \
   && test-no-sort \
+  && test-whitespace-including-tabs-ok \
   && test-fail-multi-directive \
   && test-fail-unknown-var-ref \
   && test-fail-non-numeric-range \
@@ -315,7 +332,7 @@ test-comment \
   }
 
 # safety check
-test "$testsum" -eq 15 || {
+test "$testsum" -eq 16 || {
   echo 'error: did not run all csvm2csv tests!' >&2
   exit 1
 }

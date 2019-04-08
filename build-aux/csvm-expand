@@ -162,7 +162,7 @@ function parseline( i, m, j, me, orig )
 
 BEGIN {
   # we're parsing CSVs
-  FS = " *, *"
+  FS = "[[:space:]]*,[[:space:]]*"
   OFS = ","
 
   has_directives = 0
