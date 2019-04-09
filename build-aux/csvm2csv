@@ -22,6 +22,8 @@
 # header line.
 ##
 
+set -o pipefail
+
 # account for symlinks, since historically this script lives in a different
 # directory and has been symlinked for compatibility
 declare -r mypath=$( dirname "$( readlink -f "$0" )" )
