@@ -615,6 +615,45 @@ var client = ( function()
     }
 
 
+    /**
+     * Fill in missing timestamp values from the current time
+     *
+     * Any of the following missing, empty, or 0 will have their values set:
+     * timestamp_{current,year,month,day}.  Each of these are params defined
+     * in core and expected to be set by the caller.
+     *
+     * @param {Object} args param data
+     *
+     * @return {Object} args
+     */
+    function fillTimeValues( args )
+    {
+        const now = new Date();
+
+        if ( !+args.timestamp_current )
+        {
+            args.timestamp_current = [ Math.floor( now.getTime() / 1000 ) ];
+        }
+
+        if ( !+args.timestamp_year )
+        {
+            args.timestamp_year = [ now.getFullYear() ];
+        }
+
+        if ( !+args.timestamp_month )
+        {
+            args.timestamp_month = [ now.getMonth() + 1 ];
+        }
+
+        if ( !+args.timestamp_day )
+        {
+            args.timestamp_day = [ now.getDate() ];
+        }
+
+        return args;
+    }
+
+
     function rate( args, showresults, exception )
     {
         showresults = ( showresults === undefined ) ? true : !!showresults;
@@ -627,6 +666,9 @@ var client = ( function()
             alert( 'fatal: rater unavailable.' );
             return;
         }
+
+        // TODO: need a better way to handle values that are added automatically
+        fillTimeValues( args );
 
         setWorkStatus( 'Performing rating...' );
 
