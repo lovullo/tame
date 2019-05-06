@@ -68,7 +68,7 @@ module.exports = Trait( 'HtmlConsoleOutput' )
         const ind = this.__super( result );
         const title = `[#${i}] ` + this._titleify( desc );
 
-        return `<a href="#" data-case-index="${i}" title="${title}">${ind}</a>`;
+        return `<a href="#" data-case-index="${i-1}" title="${title}">${ind}</a>`;
     },
 
 
@@ -135,8 +135,8 @@ module.exports = Trait( 'HtmlConsoleOutput' )
      */
     'override protected createFailureHeading'( i, desc )
     {
-        return `<a href="#" data-case-index="${i}">` +
-            `[#${i+1}]</a> ${desc}<br />`;
+        return `<a href="#" data-case-index="${i-1}">` +
+            `[#${i}]</a> ${desc}<br />`;
     },
 
 
