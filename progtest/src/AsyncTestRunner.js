@@ -30,7 +30,7 @@ const TestRunner = require( './TestRunner' );
  *
  * This allows the browser to repaint between cases.
  */
-module.exports = Class( 'TestRunner' )
+module.exports = Class( 'AsyncTestRunner' )
     .extend( TestRunner,
 {
     /**
@@ -61,7 +61,7 @@ module.exports = Class( 'TestRunner' )
                 }
 
                 const dfn    = dfns.shift();
-                const result = this.runTest( dfn, results.length, total );
+                const result = this.runTest( dfn, ( results.length + 1 ), total );
 
                 results.push( result );
 
