@@ -163,7 +163,7 @@ version: .version.xml
 .version.xml: FORCE
 	git log HEAD^.. -1 --pretty=format:'<version>%h</version>' > .version.xml
 
-ui/program.expanded.xml: ui/program.xml $(program_fragments)
+ui/program.expanded.xml: ui/program.xml $(program_fragments) .version.xml
 	$(TAME) progui-expand $< $@
 ui/Program.js: ui/program.expanded.xml ui/package.js
 	$(TAME) progui-class $< $@ include-path=../../../ui/
