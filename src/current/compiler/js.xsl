@@ -101,7 +101,6 @@
 
       <value-of select="$compiler:nl" />
       <text>var classes = {};</text>
-      <!-- for @external generated clases -->
       <text>var genclasses = {};</text>
 </template>
 

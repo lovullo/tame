@@ -512,8 +512,6 @@
                                 or @yields = current()/@yields )
                           and ( not( current()/@parent )
                                 or @parent = current()/@parent )
-                          and ( not( current()/@external )
-                                or @external = current()/@external )
                           and ( not( current()/@imports = 'true' )
                                 or not( @src ) )
                           and ( not( current()/@name-prefix )
@@ -548,7 +546,6 @@
       <lv:with-param name="@sym_desc@"     value="{@desc}" />
       <lv:with-param name="@sym_yields@"   value="{@yields}" />
       <lv:with-param name="@sym_parent@"   value="{@parent}" />
-      <lv:with-param name="@sym_external@" value="{@external}" />
     </lv:apply-template>
   </for-each>
 </template>

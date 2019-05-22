@@ -279,15 +279,11 @@
   <variable name="parent-name" select="ancestor::lv:classify/@as" />
   <variable name="yields" select="concat( 'is', $id )" />
 
-  <variable name="external" as="xs:string?"
-                select="ancestor::lv:classify/@external" />
-
   <!-- this will be raised outside of the parent classification during
        post-processing -->
   <lv:classify as="{$id}" yields="{$yields}"
                preproc:generated="true"
                preproc:generated-from="{$parent-name}"
-               external="{$external}"
                desc="(generated from predicate group of {$parent-name}">
     <if test="local-name() = 'any'">
       <attribute name="any" select="'true'" />

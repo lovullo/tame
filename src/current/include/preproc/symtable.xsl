@@ -565,7 +565,6 @@
   <param name="orig-root" />
   <param name="package" select="@package" />
   <param name="export" select="@export" />
-  <param name="no-extclass" select="@no-extclass" />
   <param name="keep-classes" select="@keep-classes" />
 
   <variable name="path" as="xs:string"
@@ -618,15 +617,12 @@
        will not be imported -->
   <for-each select="
       $syms/preproc:sym[
-        (
-          not( @local='true' )
-          or @pollute='true'
-          or (
-            ( @type='class' or @type='cgen' )
-            and $keep-classes='true'
-          )
+        not( @local='true' )
+        or @pollute='true'
+        or (
+          ( @type='class' or @type='cgen' )
+          and $keep-classes='true'
         )
-        and not( $no-extclass='true' and @extclass='true' )
       ]
     ">
     <copy>
@@ -640,7 +636,7 @@
         <when test="@pollute='true'
                         and @local='true'
                         and not( @extern='true' )">
-          <sequence select="@name, @src, @pollute, @parent, @extclass" />
+          <sequence select="@name, @src, @pollute, @parent" />
         </when>
 
         <!-- copy all the symbol information -->
@@ -690,10 +686,7 @@
 
 
 <template match="lv:rate" mode="preproc:symtable" priority="5">
-  <variable name="external"  select="boolean( @external='true' )" />
-
   <preproc:sym name="{@yields}" type="rate"
-    extclass="{$external}"
     local="{@local}" dtype="float" dim="0" tex="{@sym}">
 
     <if test="@preproc:generated = 'true'">
@@ -762,14 +755,13 @@
 
 <!-- note the @dim value; this is determined later from its dependencies -->
 <template match="lv:classify" mode="preproc:symtable" priority="5">
-  <variable name="external"  select="boolean( @external='true' )" />
   <variable name="terminate" select="boolean( @terminate='true' )" />
 
   <variable name="is-generated" as="xs:boolean"
                 select="@preproc:generated = 'true'" />
 
   <preproc:sym name=":class:{@as}"
-    extclass="{$external}" terminate="{$terminate}"
+    terminate="{$terminate}"
     type="class" dim="?" desc="{@desc}" yields="{@yields}"
     orig-name="{@as}">
 
@@ -787,7 +779,7 @@
   <if test="@yields">
     <preproc:sym name="{@yields}"
       parent=":class:{@as}"
-      extclass="{$external}" terminate="{$terminate}"
+      terminate="{$terminate}"
       type="cgen" dtype="boolean" dim="?" desc="{@desc}">
 
       <if test="@preproc:yields-generated">

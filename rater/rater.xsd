@@ -439,17 +439,6 @@
       </xs:annotation>
     </xs:attribute>
 
-    <xs:attribute name="no-extclass" type="xs:boolean">
-      <xs:annotation>
-        <xs:documentation xml:lang="en">
-          Do not import symbols flagged as external to the classifier.
-
-          This is of limited use outside of specialized settings, such as the
-          UI classifier.
-        </xs:documentation>
-      </xs:annotation>
-    </xs:attribute>
-
     <xs:attribute name="keep-classes" type="xs:boolean">
       <xs:annotation>
         <xs:documentation xml:lang="en">
@@ -1931,15 +1920,6 @@
             <xs:documentation xml:lang="en">
               Setting this to "true" will enable pretty sweet debugging features that
               will make your life more tolerable (and perhaps even pleasant).
-            </xs:documentation>
-          </xs:annotation>
-        </xs:attribute>
-
-        <xs:attribute name="no-extclass-keeps" type="xs:boolean">
-          <xs:annotation>
-            <xs:documentation xml:lang="en">
-              When importing @keep symbols from packages, ignore those flagged
-              as @extclass
             </xs:documentation>
           </xs:annotation>
         </xs:attribute>

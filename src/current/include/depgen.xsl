@@ -440,28 +440,6 @@
 
 <template name="preproc:depgen-match">
   <param name="on" select="@on" />
-  <param name="symtable-map" as="map(*)" tunnel="yes" />
-
-  <variable name="class" select="ancestor::lv:classify" />
-  <variable name="sym" as="element( preproc:sym )"
-                select="$symtable-map( $on )" />
-
-  <!-- are we depending on another classification? -->
-  <if test="$sym/@type='cgen'">
-    <variable name="cname" select="substring-after( $sym/@parent, ':class:' )" />
-
-    <!-- check if one of our dependencies wants to be external to the classifier,
-         but we're trying to pull them in...tug-of-war -->
-    <if test="$sym/@extclass='true' and not( $class/@external='true' )">
-      <message terminate="yes">
-        <text>[preproc] !!! fatal: internal classification `</text>
-          <value-of select="$class/@as" />
-        <text>' cannot pull in external classification `</text>
-          <value-of select="$cname" />
-        <text>'</text>
-      </message>
-    </if>
-  </if>
 
   <!-- process the @on -->
   <call-template name="preproc:depgen-c-normal">

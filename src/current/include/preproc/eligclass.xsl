@@ -241,18 +241,12 @@
 
   All terminiating classifications defined in the package must yield false
   for the package to be eligible.
-
-  N.B. This checks to ensure @extclass is not set; this prevents errors when
-  the eligibility classification attempts to pull in a terminating
-  classification marked as external to the classifier. There may or may not
-  be something we want to do about this in the future.
 -->
 <template match="preproc:sym[
                        not( @src )
                        and not( @pollute='true' )
                        and @type='class'
                        and @terminate='true'
-                       and not( @extclass='true' )
                      ]"
               as="element( lv:match )"
               priority="5"
