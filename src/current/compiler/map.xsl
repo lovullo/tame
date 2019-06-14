@@ -529,9 +529,7 @@
       </when>
 
       <otherwise>
-        <text>input['</text>
-          <value-of select="lvmc:escape-string( $from )" />
-        <text>']</text>
+        <sequence select="lvmc:gen-input( 'input', $from )" />
       </otherwise>
     </choose>
   </variable>
@@ -654,9 +652,9 @@
 <template match="lvm:map//lvm:set[@each]" mode="lvmc:compile" priority="5">
   <text>(function(){</text>
     <text>var ret=[];</text>
-    <text>var len=input['</text>
-      <value-of select="lvmc:escape-string( @each )" />
-    <text>'].length;</text>
+    <text>var len=</text>
+    <value-of select="lvmc:gen-input( 'input', @each )" />
+    <text>.length;</text>
 
     <text>for(var _i=0;_i&lt;len;_i++){</text>
       <text>var </text>
@@ -823,9 +821,8 @@
     </otherwise>
   </choose>
 
-  <text>})(input['</text>
-    <value-of select="@name" />
-  <text>']</text>
+  <text>})(</text>
+    <value-of select="lvmc:gen-input( 'input', @name )" />
   <if test="@index">
     <text>[</text>
     <value-of select="@index" />
@@ -843,6 +840,38 @@
 <template match="lvm:map//lvm:from" mode="lvmc:compile" priority="2">
   <sequence select="lvmc:value-ref( . )" />
 </template>
+
+
+<!--
+  Generate source value lookup
+
+  Nested value lookups are supported using `.' in `source'.
+-->
+<function name="lvmc:gen-input" as="xs:string">
+  <param name="name"   as="xs:string" />
+  <param name="source" as="xs:string" />
+
+  <variable name="nested-prefix" as="xs:string"
+            select="substring-before( $source, '.' )" />
+  <variable name="nested-suffix" as="xs:string"
+            select="substring-after( $source, '.' )" />
+
+  <choose>
+    <when test="$nested-prefix">
+      <sequence select="lvmc:gen-input(
+                          concat( '(', $name, '[''',
+                                  lvmc:escape-string( $nested-prefix ),
+                                  ''']||{})' ),
+                          $nested-suffix )" />
+    </when>
+
+    <otherwise>
+      <sequence select="concat( $name, '[''',
+                                lvmc:escape-string( $source ),
+                                ''']' )" />
+    </otherwise>
+  </choose>
+</function>
 
 
 <function name="lvmc:value-ref" as="xs:string">
@@ -874,7 +903,9 @@
   <!-- compiled reference, including index and nested -->
   <variable name="ref" as="xs:string"
             select="concat(
-                      'input[''', $name, ''']', $index-ref, $nested-ref )" />
+                      lvmc:gen-input( 'input', $name ),
+                      $index-ref,
+                      $nested-ref )" />
 
   <!-- finally, wrap in any transformations -->
   <sequence select="lvmc:transformation-wrap(
