@@ -153,6 +153,46 @@
   </template>
 
 
+  The vector analog to \ref{_classify-scalar_} is
+  \ref{_classify-vector_}.  The results are undefined if the classification
+  would have otherwise yielded a scalar value (that is, do not use this to
+  force a scalar into a vector).  It may work in an intuitive way, but it's
+  not designed to.
+
+  <template name="_classify-vector_"
+            desc="Classification with a forced-vector result">
+    <param name="@values@" desc="Predicates" />
+    <param name="@as@"     desc="Classification name" />
+    <param name="@desc@"   desc="Classification description" />
+
+    <param name="@yields@" desc="Scalar result name">
+      <text>__</text>
+      <param-value snake="true" name="@as@" />
+    </param>
+
+    <param name="@sym@" desc="Optional yield symbol">
+      <text></text>
+    </param>
+
+
+    <classify as="--{@as@}-pre"
+              yields="__{@yields@}Pre"
+              desc="{@desc@}, pre-vector">
+      <param-copy name="@values@" />
+    </classify>
+
+    <t:cmatch-to-vector class="--{@as@}-pre"
+                        generates="__{@yields@}Vector"
+                        sym="@sym@" />
+
+    <classify as="@as@" yields="@yields@"
+              desc="@desc@"
+              sym="@sym@">
+      <match on="__{@yields@}Vector" />
+    </classify>
+  </template>
+
+
 
   <!--
     Counts one for each classification vector match
