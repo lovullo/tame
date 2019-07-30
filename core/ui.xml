@@ -87,7 +87,10 @@
       </param>
 
 
-      <t:match-class name="@__set_class@" value="@value@" />
+      <all>
+        <t:match-ui-applicable on="@on@" />
+        <t:match-class name="@__set_class@" value="@value@" />
+      </all>
     </template>
   </section>
 </package>
