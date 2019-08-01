@@ -1,0 +1,8 @@
+// some of the indexes are created in post.neo4j
+:begin
+CREATE CONSTRAINT ON (n:TamePackage) ASSERT n.fqn IS UNIQUE;
+CREATE CONSTRAINT ON (n:TameSymbol) ASSERT n.fqn IS UNIQUE;
+:commit
+
+:begin
+

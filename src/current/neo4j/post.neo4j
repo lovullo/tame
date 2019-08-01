@@ -1,0 +1,60 @@
+
+:commit
+
+// it's easier just to create these labels after-the-fact rather than muddy
+// the query generation
+:begin
+MATCH (n:TameSymbol {type: "class"}) SET n:TameClass;
+MATCH (n:TameSymbol {type: "rate"}) SET n:TameRate;
+MATCH (n:TameSymbol {type: "gen"}) SET n:TameGen;
+MATCH (n:TameSymbol {type: "cgen"}) SET n:TameCgen;
+MATCH (n:TameSymbol {type: "type"}) SET n:TameType;
+MATCH (n:TameSymbol {type: "const"}) SET n:TameConst;
+MATCH (n:TameSymbol {type: "func"}) SET n:TameFunc;
+MATCH (n:TameSymbol {type: "param"}) SET n:TameParam;
+MATCH (n:TameSymbol {type: "map"}) SET n:TameMapInput;
+MATCH (n:TameSymbol {type: "retmap"}) SET n:TameMapReturn;
+
+MATCH (n:TameSymbol {extern: "true"}) SET n:TameExtern;
+
+MATCH (n:TameSymbol {generated: "true"}) SET n:TameSymbolGenerated;
+MATCH (n:TamePackage {program: "true"}) SET n:TameProgram;
+:commit
+
+// these are created in post.neo4j beacuse (a) they're used only for
+// querying and (b) they're more convenient to define with the new labels
+:begin
+CREATE INDEX ON :TameSymbol(name);
+CREATE INDEX ON :TameConst(value);
+CREATE INDEX ON :TameClass(orig_name);
+:commit
+
+// cleanup that's easier to do here than in XSLT
+:begin
+// typedefs define constants, not use them
+MATCH (c:TameConst)<-[r:USES]-(t:TameType)
+CREATE UNIQUE (c)<-[:DEFINES]-(t)
+DELETE r;
+
+// same with unions
+MATCH (t:TameType)<-[r:USES]-(u:TameType)
+CREATE UNIQUE (t)<-[:DEFINES]-(u)
+DELETE r;
+
+// maps map, not use
+MATCH (n:TameMapInput)-[r:USES]->(p:TameParam)
+CREATE (n)-[:MAPS]->(p)
+DELETE r;
+:commit
+
+// for convenience in querying; framework-wide conventions
+:begin
+MATCH (n:TameClass) WHERE n.orig_name STARTS WITH "submit-" SET n:SubmitRule;
+MATCH (n:TamePackage {program: "true"}) WHERE n.name STARTS WITH "suppliers/" SET n:Supplier;
+:commit
+
+// megarater-specific
+:begin
+MATCH (c:TameConst)<-[*0..3]-(:TameType {name: "classCode"}) SET c:ClassCode;
+:commit
+
