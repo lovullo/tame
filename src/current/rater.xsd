@@ -1163,6 +1163,20 @@
           <xs:attribute name="value" type="xs:string" use="required" />
         </xs:complexType>
       </xs:element>
+
+      <xs:element name="param-typedef-lookup">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Look up typedef constant name by value.
+          </xs:documentation>
+        </xs:annotation>
+
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+          <xs:attribute name="value" type="xs:string" use="required" />
+          <xs:anyAttribute namespace="##any" processContents="lax" />
+        </xs:complexType>
+      </xs:element>
     </xs:choice>
   </xs:group>
 

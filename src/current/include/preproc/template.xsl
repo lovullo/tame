@@ -1332,6 +1332,80 @@
 </template>
 
 
+<!--
+  Look up the name of a constant within a typedef by its value.
+
+  This exists because sym-set is far too slow because of the inline
+  templates; maybe it can be deprecated in the future or replaced with a
+  more general primitive.
+
+  The intent of this is to allow code generators to simply output integers
+  and let Tame figure out what constant to use, thus avoiding a map to
+  constant names in the code generator.  By using constant names, the values
+  acquire meaning that is persisted onto the dependency graph and can be
+  used for reporting and static analysis.
+-->
+<template mode="preproc:gen-param-value" priority="5"
+          match="lv:param-typedef-lookup">
+  <param name="params" as="element( lv:with-param )*"
+             tunnel="yes" />
+
+  <param name="src-root" as="element( lv:package )"
+             select="root(.)"
+             tunnel="yes" />
+
+  <variable name="tname" as="xs:string" select="@name" />
+  <variable name="value" as="xs:string" select="@value" />
+
+  <variable name="typedef-name" as="xs:string"
+                select="if ( starts-with( $tname, '@' ) ) then
+                            $params[ @name = $tname ]/@value
+                          else
+                            $tname" />
+  <variable name="query-value" as="xs:string"
+                select="$params[ @name = $value ]/@value" />
+
+  <variable name="typedef-sym" as="element( preproc:sym )"
+            select="$src-root/preproc:symtable/preproc:sym[
+                      @name = $typedef-name
+                      and @type = 'type' ]" />
+
+  <variable name="typedef-pkg" as="element( lv:package )"
+            select="if ( $typedef-sym/@src ) then
+                          document( concat( $typedef-sym/@src, '.xmlo' ), $__entry-root )
+                            /lv:package
+                        else
+                          $src-root/lv:package" />
+
+  <variable name="typedef" as="element( lv:typedef )"
+            select="$typedef-pkg//lv:typedef[
+                      @name = $typedef-name ]" />
+
+  <!-- get @yields from class -->
+  <variable name="const-name" as="xs:string*"
+            select="$typedef//lv:item[ @value = $query-value ]/@name" />
+
+  <choose>
+    <when test="not( $const-name )">
+      <!-- error out only if lookup failures aren't explicitly suppressed -->
+      <if test="not( @ignore-missing = 'true' )">
+        <message terminate="yes">
+          <text>error: the value `</text>
+          <value-of select="$query-value" />
+          <text>' does not exist in the domain of `</text>
+          <value-of select="$tname" />
+          <text>'</text>
+        </message>
+      </if>
+    </when>
+
+    <otherwise>
+      <value-of select="$const-name" />
+    </otherwise>
+  </choose>
+</template>
+
+
 <template mode="preproc:gen-param-value" priority="5"
               match="text()">
   <value-of select="." />
