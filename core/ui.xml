@@ -92,5 +92,41 @@
         <t:match-class name="@__set_class@" value="@value@" />
       </all>
     </template>
+
+
+    The templates below are analogous to the generic match templates,
+      but they translate \tt{@on@} to the question param
+        and also check that the question is applicable (using
+        \ref{_match-ui-applicable_}).
+
+    <inline-template>
+      <for-each>
+        <set cmp="eq" />
+        <set cmp="ne" />
+        <set cmp="gt" />
+        <set cmp="gte" />
+        <set cmp="lt" />
+        <set cmp="lte" />
+      </for-each>
+
+
+      <template name="_match-ui-{@cmp@}_"
+                desc="Match UI value {@cmp@}">
+        <param name="@on@" desc="Question id" />
+
+        <!-- pick one -->
+        <param name="@value@" desc="Match against variable" />
+
+        <all>
+          <t:match-ui-applicable on="@on@" />
+
+          <match on="ui_q_{@on@}">
+            <dyn-node name="c:{@cmp@}">
+              <c:value-of name="@value@" />
+            </dyn-node>
+          </match>
+        </all>
+      </template>
+    </inline-template>
   </section>
 </package>
