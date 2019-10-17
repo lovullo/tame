@@ -20,37 +20,30 @@
 <package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  desc="Core test suite"
-  program="true">
+  desc="Vector definition specs">
 
-  <import package="../../base" />
-  <import package="../spec" />
+  <import package="../../spec" />
 
-  <import package="numeric/convert" />
-  <import package="numeric/percent" />
-  <import package="numeric/round" />
-
-  <import package="vector/define" />
-  <import package="vector/filter" />
-  <import package="vector/fold" />
-  <import package="vector/interpolate" />
-  <import package="vector/length" />
-  <import package="vector/minmax" />
-  <import package="vector/table" />
-
-  <import package="aggregate" />
-  <import package="insurance" />
-  <import package="symbol" />
-  <import package="tplgen" />
-
-  <!-- XXX broken!
-  <import package="ui" />
-  -->
+  <import package="../../../base" />
+  <import package="../../../vector/define" />
 
 
-  <t:verify-specs result="expectOk" />
+  <t:describe name="_define-vector_">
+    <t:it desc="defines a global vector">
+      <t:define-vector generates="testVector">
+        <c:vector>
+          <c:value-of name="#1" />
+          <c:value-of name="#2" />
+        </c:vector>
+      </t:define-vector>
 
-  <yield>
-    <c:value-of name="expectOk" />
-  </yield>
+      <t:given>
+        <c:sum of="testVector" />
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="3" />
+      </t:expect>
+    </t:it>
+  </t:describe>
 </package>

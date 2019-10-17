@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  core="true"
+  desc="Vector definition">
+
+  This package provides a type of global~\tt{let}.
+  The term ``define'' is consistent with the influence of the language
+    Scheme on this system.
+  One a primitive is provided,
+    this abstraction can be modified to make use of it.
+
+  This addresses the challenge with defining arbitrary values.
+  TAME was designed for a map-reduce style of computation that
+    maintains index assocaitions.
+  This makes it easy to reason about data flow.
+
+  Consequently,
+    arbitrary definitions should be used sparingly until they become a core
+      feature of TAME.
+
+
+  <template name="_define-vector_"
+            desc="Define a vector with an arbitrary value">
+    <param name="@values@"    desc="Definition" />
+    <param name="@generates@" desc="Vector name" />
+
+
+    <rate yields="_{@generates@}">
+      <c:let>
+        <c:values>
+          <c:value name="value" type="float" set="vector"
+                   desc="Value to produce">
+            <param-copy name="@values@" />
+          </c:value>
+        </c:values>
+
+        <!-- effectively means @generates@ = value -->
+        <c:sum of="value" generates="@generates@" index="k"
+               desc="Return value">
+          <c:value-of name="value" index="k" />
+        </c:sum>
+      </c:let>
+    </rate>
+  </template>
+</package>
