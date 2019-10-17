@@ -43,20 +43,21 @@
             desc="Define a vector with an arbitrary value">
     <param name="@values@"    desc="Definition" />
     <param name="@generates@" desc="Vector name" />
+    <param name="@desc@"      desc="Vector description" />
 
 
     <rate yields="_{@generates@}">
       <c:let>
         <c:values>
           <c:value name="value" type="float" set="vector"
-                   desc="Value to produce">
+                   desc="{@desc@} (intermediate value)">
             <param-copy name="@values@" />
           </c:value>
         </c:values>
 
         <!-- effectively means @generates@ = value -->
         <c:sum of="value" generates="@generates@" index="k"
-               desc="Return value">
+               desc="@desc@">
           <c:value-of name="value" index="k" />
         </c:sum>
       </c:let>

@@ -30,7 +30,8 @@
 
   <t:describe name="_define-vector_">
     <t:it desc="defines a global vector">
-      <t:define-vector generates="testVector">
+      <t:define-vector generates="testVector"
+                       desc="Test vector">
         <c:vector>
           <c:value-of name="#1" />
           <c:value-of name="#2" />
