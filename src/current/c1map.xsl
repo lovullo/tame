@@ -331,6 +331,10 @@
   </lvmp:var>
 </xsl:template>
 
+<xsl:template match="lvm:pass[@name='line_code'] | lvm:map[@to='line_code']" priority="9">
+  <xsl:message terminate="yes">error: "line_code" is a reserved word</xsl:message>
+</xsl:template>
+
 <xsl:template match="lvm:external" priority="4">
   <lvmp:var name="{@name}" from="{@name}" src="external">
     <xsl:call-template name="lvmp:map-common" />

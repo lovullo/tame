@@ -55,7 +55,7 @@
   <xsl:text> {</xsl:text>
   <xsl:value-of select="$lvmp:nl" />
 
-    <xsl:text>public function compose( $contract ) {</xsl:text>
+    <xsl:text>public function compose( $contract, $line_code ) {</xsl:text>
     <xsl:value-of select="$lvmp:nl" />
       <xsl:text>    return array(</xsl:text>
       <xsl:value-of select="$lvmp:nl" />
@@ -201,7 +201,16 @@
       <xsl:value-of select="$from" />
       <xsl:text>', $contract->getValueIndex( '</xsl:text>
       <xsl:value-of select="$index-name" />
-      <xsl:text>' ) )</xsl:text>
+      <xsl:text>' )</xsl:text>
+      <xsl:if test="$default">
+        <xsl:text>, </xsl:text>
+        <xsl:apply-templates select="$default" mode="lvmp:render" />
+      </xsl:if>
+      <xsl:text> ) )</xsl:text>
+    </xsl:when>
+    <xsl:when test="$from='line_code'">
+      <xsl:text>$</xsl:text>
+      <xsl:value-of select="$from" />
     </xsl:when>
     <xsl:otherwise>
       <xsl:text>$contract-&gt;getValue( '</xsl:text>
@@ -209,15 +218,14 @@
       <xsl:text>', $contract->getValueIndex( '</xsl:text>
       <xsl:value-of select="$index-name" />
       <xsl:text>' )</xsl:text>
+      <xsl:if test="$default">
+        <xsl:text>, </xsl:text>
+        <xsl:apply-templates select="$default" mode="lvmp:render" />
+      </xsl:if>
+      <xsl:text> )</xsl:text>
     </xsl:otherwise>
   </xsl:choose>
 
-  <xsl:if test="$default">
-    <xsl:text>, </xsl:text>
-    <xsl:apply-templates select="$default" mode="lvmp:render" />
-  </xsl:if>
-
-  <xsl:text> )</xsl:text>
 </xsl:template>
 
 
@@ -315,7 +323,7 @@
   <xsl:text>$contract->iterateValues( '</xsl:text>
       <xsl:value-of select="$from" />
     <xsl:text>', </xsl:text>
-    <xsl:text>function( $contract ) {</xsl:text>
+    <xsl:text>function( $contract ) use( $line_code ) {</xsl:text>
       <xsl:text>  return array(</xsl:text>
       <xsl:apply-templates mode="lvmp:render" />
       <xsl:text>);</xsl:text>
@@ -334,7 +342,7 @@
   <xsl:text>$contract->iterateValues( '</xsl:text>
   <xsl:value-of select="$from" />
   <xsl:text>', </xsl:text>
-  <xsl:text>function( $contract ) {</xsl:text>
+  <xsl:text>function( $contract ) use( $line_code ) {</xsl:text>
   <xsl:text>  return </xsl:text>
   <xsl:apply-templates mode="lvmp:render" select="lvmp:condition" />
   <xsl:text>;</xsl:text>
