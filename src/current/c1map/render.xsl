@@ -398,7 +398,35 @@
   <xsl:variable name="cond" as="element( lvmp:condition )"
                 select="ancestor::lvmp:condition[1]" />
 
-  <xsl:text>( ( </xsl:text>
+  <xsl:text>( </xsl:text>
+
+  <xsl:call-template name="conditionals">
+    <xsl:with-param name="cond" select="$cond" />
+  </xsl:call-template>
+
+  <xsl:text> ) ? </xsl:text>
+
+  <xsl:apply-templates mode="lvmp:render">
+    <xsl:with-param name="no-trailing-sep" select="true()" />
+  </xsl:apply-templates>
+  <xsl:text> : null ), </xsl:text>
+</xsl:template>
+
+
+<xsl:template name="conditionals">
+  <xsl:param name="cond"/>
+
+  <!-- if the parent node is also a conditional, it should be joined with this one -->
+  <xsl:if test="$cond/parent::lvmp:condition">
+    <xsl:call-template name="conditionals">
+      <xsl:with-param name="cond" select="$cond/.." />
+    </xsl:call-template>
+
+    <xsl:text>)</xsl:text>
+    <xsl:text> &amp;&amp; </xsl:text>
+  </xsl:if>
+
+  <xsl:text>( </xsl:text>
     <xsl:text>$contract->isTruthy( </xsl:text>
       <xsl:apply-templates select="$cond/lvmp:when/lvmp:*" mode="lvmp:render" />
       <xsl:if test="$cond/lvmp:cmp/(*|text())">
@@ -406,13 +434,7 @@
         <xsl:apply-templates select="$cond/lvmp:cmp/(lvmp:*|text())" mode="lvmp:render" />
       </xsl:if>
     <xsl:text>)</xsl:text>
-  <xsl:text> ) ? </xsl:text>
-    <xsl:apply-templates mode="lvmp:render">
-      <xsl:with-param name="no-trailing-sep" select="true()" />
-    </xsl:apply-templates>
-  <xsl:text> : null ), </xsl:text>
 </xsl:template>
-
 
 
 <xsl:template mode="lvmp:render" priority="8" match="lvmp:condition[ @when ]">
