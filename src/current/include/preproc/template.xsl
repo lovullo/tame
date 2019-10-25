@@ -1386,6 +1386,14 @@
             select="$typedef//lv:item[ @value = $query-value ]/@name" />
 
   <choose>
+    <when test="count( $const-name ) gt 1">
+      <message terminate="yes"
+               select="concat( 'error: the value ''', $query-value, ''' ',
+                               'is associated with more than one item in ''',
+                               $tname, ''': ',
+                               string-join( $const-name, ', ' ) )" />
+    </when>
+
     <when test="not( $const-name )">
       <!-- error out only if lookup failures aren't explicitly suppressed -->
       <if test="not( @ignore-missing = 'true' )">
