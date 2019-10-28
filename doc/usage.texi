@@ -9,7 +9,7 @@
 
 @node Using TAME
 @chapter Using TAME
-@tame{} is The Adaptive Metalanguage,
+@tame{} is The Algebraic Metalanguage,
   a programming language and system of tools designed to aid in the
   development; understanding; and maintenance of systems performing
   numerous calculations on a complex graph of dependencies;
