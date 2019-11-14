@@ -1,0 +1,14 @@
+# autotools- and configure-generated
+/build-aux/install-sh
+/build-aux/missing
+confdefs.h
+Makefile.in
+Makefile
+aclocal.m4
+*.cache/
+configure
+/config.*
+
+# Rust/Cargo-generated
+/target/
+
