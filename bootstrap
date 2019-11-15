@@ -25,10 +25,12 @@ export HOXSL="${HOXSL?Missing path to hoxsl}"
 
 test "${1:-}" = -n || git submodule update --init --recursive
 
-cd progtest \
-  && { which npm && npm install || true; } \
-  && ./autogen.sh && ./configure \
-  && cd - \
+(
+  cd progtest \
+    && { which npm && npm install || true; } \
+    && ./autogen.sh && ./configure
+) \
+  && ( cd tamer && ./bootstrap && ./configure && make check ) \
   && { test -e hoxsl || ln -s ../hoxsl; } \
   && autoreconf -fvi \
   && ./configure \
