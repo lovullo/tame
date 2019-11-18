@@ -30,7 +30,7 @@ test "${1:-}" = -n || git submodule update --init --recursive
     && { which npm && npm install || true; } \
     && ./autogen.sh && ./configure
 ) \
-  && ( cd tamer && ./bootstrap && ./configure && make check ) \
+  && ( cd tamer && ./bootstrap && ./configure ) \
   && { test -e hoxsl || ln -s ../hoxsl; } \
   && autoreconf -fvi \
   && ./configure \

@@ -16,7 +16,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-SUBDIRS = src/current/src doc progtest
+SUBDIRS = tamer src/current/src doc progtest
 
 path_src  = src
 path_test = test
@@ -50,7 +50,7 @@ applies: $(apply_dest)
 	    "$<" > "$@"
 
 test: check
-check: | applies
+check-am: | applies
 	for test in $(path_aux)/test/test-*; do ./$$test || exit 1; done
 	$(path_test)/runner
 

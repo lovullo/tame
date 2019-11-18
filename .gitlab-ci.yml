@@ -12,23 +12,12 @@ build:
         - export SAXON_CP=/usr/share/ant/lib/saxon9/saxon9he.jar
         - autoreconf -fvi
         - ./configure
+        - ( cd tamer && ./bootstrap && ./configure )
         - ( cd progtest && npm install && ./autogen.sh && ./configure )
         - make all check info pdf html
     artifacts:
         paths:
             - doc/
-        expire_in: 30 min
-
-build-rust:
-    stage: build
-    image: rust:1.39
-    script:
-        - cd tamer
-        - ./bootstrap
-        - ./configure
-        - make check
-    artifacts:
-        paths:
             - tamer/target
         expire_in: 30 min
 
