@@ -16,10 +16,6 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-path_src  = src
-path_test = test
-path_aux  = build-aux
-
 .DELETE_ON_ERROR:
 
 .PHONY: all
