@@ -25,7 +25,7 @@ path_aux  = build-aux
 .PHONY: all
 
 all:
-	cargo build
+	@CARGO@ build
 
 doc: html
 html-am:
