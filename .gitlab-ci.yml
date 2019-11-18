@@ -10,10 +10,8 @@ build:
         - git submodule update --init --recursive
         - git clone https://gitlab.com/mikegerwitz/hoxsl
         - export SAXON_CP=/usr/share/ant/lib/saxon9/saxon9he.jar
-        - autoreconf -fvi
-        - ./configure
-        - ( cd tamer && ./bootstrap && ./configure )
-        - ( cd progtest && npm install && ./autogen.sh && ./configure )
+        - export HOXSL=hoxsl
+        - ./bootstrap
         - make all check info pdf html
     artifacts:
         paths:
