@@ -27,6 +27,10 @@ path_aux  = build-aux
 all:
 	cargo build
 
+doc: html
+html-am:
+	@CARGO@ doc
+
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
 check-am:
