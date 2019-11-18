@@ -1,4 +1,4 @@
-image: lovullo/rater-ci
+image: $BUILD_IMAGE
 
 stages:
     - build
