@@ -7,9 +7,6 @@ stages:
 build:
     stage: build
     script:
-        - apt-get update
-        - apt-get -y install --no-install-recommends texinfo texlive-latex-base
-        - apt-get -y install nodejs
         - git submodule update --init --recursive
         - git clone https://gitlab.com/mikegerwitz/hoxsl
         - export SAXON_CP=/usr/share/ant/lib/saxon9/saxon9he.jar
