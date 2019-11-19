@@ -19,20 +19,5 @@
 
 set -euo pipefail
 
-export SAXON_CP="${SAXON_CP?Missing path to saxon9he.jar}"
-export RATER_CLASSPATH="${RATER_CLASSPATH:-$SAXON_CP}"
-export HOXSL="${HOXSL?Missing path to hoxsl}"
-
-test "${1:-}" = -n || git submodule update --init --recursive
-
-(
-  cd progtest \
-    && { which npm && npm install || true; } \
-    && ./autogen.sh && ./configure
-) \
-  && ( cd tamer && ./bootstrap && ./configure ) \
-  && { test -e hoxsl || ln -s ../hoxsl; } \
-  && autoreconf -fvi \
-  && ./configure \
-  && make all
+./autogen.sh
 

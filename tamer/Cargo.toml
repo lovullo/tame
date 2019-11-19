@@ -1,0 +1,11 @@
+[package]
+name = "tamer"
+version = "0.0.0"
+authors = ["Mike Gerwitz <mike.gerwitz@ryansg.com>"]
+description="TAME on Rust"
+license="GPLv3+"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
