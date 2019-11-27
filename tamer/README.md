@@ -24,3 +24,26 @@ To bootstrap from the source repository, run `./bootstrap`.
 To configure the build for your system, run `./configure`.  To build, run
 `make`.  To run tests, run `make check`.
 
+You may also invoke `cargo` directly, which `make` will do for you using
+options provided to `configure`.
+
+*Note that the default development build results in terrible runtime
+performance!*  See [#Build Flags][] below for instructions on how to
+generate a release binary.
+
+
+### Build Flags
+The environment variable `CARGO_BUILD_FLAGS` can be used to provide
+additional arguments to `cargo build` when invoked via `make`.  This can be
+provided optionally during `configure` and can be overridden when invoking
+`make`.  For example:
+
+```sh
+# release build
+$ ./configure && make CARGO_BUILD_FLAGS=--release
+$ ./configure CARGO_BUILD_FLAGS=--release && make
+
+# dev build
+$ ./configure && make
+$ ./configure CARGO_BUILD_FLAGS=--release && make CARGO_BUILD_FLAGS=
+```

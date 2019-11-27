@@ -20,8 +20,10 @@
 
 .PHONY: all
 
+CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
+
 all:
-	@CARGO@ build
+	@CARGO@ build $(CARGO_BUILD_FLAGS)
 
 doc: html
 html-am:
