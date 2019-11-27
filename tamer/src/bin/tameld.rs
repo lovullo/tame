@@ -33,12 +33,11 @@
 //! the `xmle` file is still needed for other purposes, such as `summary`
 //! and `dote` generation.
 
-fn main() -> () {
-    println!("I don't do anything yet.")
-}
+extern crate tamer;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {}
+use std::error::Error;
+use tamer::ld::poc;
+
+pub fn main() -> Result<(), Box<dyn Error>> {
+    poc::main()
 }
