@@ -16,4 +16,5 @@ opt-level = 3
 
 [dependencies]
 quick-xml = ">= 0.17.0"
+petgraph = ">= 0.4.13"
 
