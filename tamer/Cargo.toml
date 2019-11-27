@@ -2,7 +2,7 @@
 name = "tamer"
 version = "0.0.0"
 authors = ["Mike Gerwitz <mike.gerwitz@ryansg.com>"]
-description="TAME on Rust"
+description="TAME in Rust"
 license="GPLv3+"
 edition = "2018"
 
