@@ -18,20 +18,204 @@
 //! **This is a poorly-written proof of concept; do not use!**  It has been
 //! banished to its own file to try to make that more clear.
 
+use fixedbitset::FixedBitSet;
+use petgraph::graph::{DiGraph, EdgeIndex, Neighbors, NodeIndex};
+use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use std::collections::hash_map::{Entry, Iter};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs;
 use std::io::BufRead;
+use std::ops::{Deref, Index};
+use std::rc::Rc;
 
-type SymRef = String;
-type DepMap<T = SymRef> = HashMap<T, Vec<T>>;
+// The term "sym" is used throughout because it's easier to search for that
+// in source code than "symbol", which is a generic term with many different
+// meanings.
+
+// if mutability is needed:
+//#[derive(Debug)]
+//struct SymRecord {
+//    data: SymData,
+//
+//    // the idea is to keep the index encapsulated so that nothing else can
+//    // ever hold a reference to it, ensuring that it's freed when the node
+//    // is removed
+//    index: Rc<RefCell<Option<NodeIndex>>>,
+//}
+
+#[derive(Debug)]
+struct SymData {
+    name: Rc<str>,
+}
+
+type DepGraphNode = SymEntry;
+type DepGraphEdge = ();
+
+struct DepGraph {
+    graph: DiGraph<DepGraphNode, DepGraphEdge>,
+
+    // serves as both a string internment system and graph indexer
+    index: HashMap<Rc<str>, SymRef>,
+    // if removals are permitted:
+    //index: HashMap<Rc<str>, Weak<RefCell<Option<NodeIndex>>>>,
+}
+
+// This encapsulates the underlying Graph to enforce certain
+// assumptions.  For example, we do not permit removing nodes because that
+// would invalidate the NodeIndex reference in the index, which would then
+// require workarounds like the commented-out code above and below.
+//
+// While Petgraph's use of indexes to represent graph and edge references
+// makes it easy to bypass the borrow checker, it does just that---it's no
+// different than a pointer reference (albeit guaranteed to safely reference
+// a node rather than an arbitrary memory location) that can change out from
+// under you at any moment.  As such, much of the planning that went into
+// this was determining how to best mitigate that.
+//
+// The linker has certain needs that may differ as the compiler evolves, so
+// it may be desirable to permit deletions in the future.  In the meantime,
+// if a node needs to be deleted, we can simply remove all edges from it and
+// possibly mark it in a way that states it was removed.
+//
+// This graph uses a separate map to serve a dual role: a string internment
+// system and an indexer by symbol name.  This will have to evolve in the
+// future as the graph ends up containing more stuff.
+//
+// This is currently called a dependency graph, since that's what we're
+// using it for, but in the future the compiler will also use it as an IR,
+// so this will likely be renamed.
+impl DepGraph {
+    fn new() -> Self {
+        Self {
+            // TODO: with_capacity
+            graph: DiGraph::new(),
+            index: HashMap::new(),
+        }
+    }
+
+    fn declare(&mut self, name: &str) -> SymRef {
+        match self.index.entry(name.into()) {
+            Entry::Occupied(o) => *o.get(),
+            Entry::Vacant(v) => {
+                let entry = SymEntry::MissingSym {
+                    name: Rc::clone(v.key()),
+                };
+
+                let index = SymRef(self.graph.add_node(entry));
+                v.insert(index);
+
+                index
+            }
+        }
+    }
+
+    // will not duplicate dependencies if they already exist
+    fn declare_dep(&mut self, symbol: SymRef, dep: SymRef) -> () {
+        self.graph.update_edge(*symbol, *dep, ());
+    }
+
+    fn lookup(&self, name: &str) -> Option<SymRef> {
+        self.index.get(name.into()).map(|index| *index)
+    }
+
+    fn index_iter(&self) -> Iter<Rc<str>, SymRef> {
+        self.index.iter()
+    }
+
+    // POC when removals were permitted:
+    //fn add_symbol(&mut self, sym: SymData) -> NodeIndex {
+    //    let name = Rc::clone(&sym.name);
+    //    let record = SymRecord { data: sym, index: Rc::new(RefCell::new(None)) };
+    //    let index = self.graph.add_node(record);
+
+    //    let index = Rc::downgrade(&self.graph[index].index);
+    //    self.graph[index].index.replace(Some(index));
+
+    //    self.index.insert(name, index);
+    //    index
+    //}
+}
+
+impl GraphBase for DepGraph {
+    type NodeId = NodeIndex;
+    type EdgeId = EdgeIndex;
+}
+
+impl Visitable for DepGraph {
+    type Map = FixedBitSet;
+
+    fn visit_map(&self) -> Self::Map {
+        self.graph.visit_map()
+    }
+
+    fn reset_map(&self, map: &mut Self::Map) {
+        self.graph.reset_map(map)
+    }
+}
+
+impl<'a> IntoNeighbors for &'a DepGraph {
+    type Neighbors = Neighbors<'a, DepGraphEdge>;
+
+    fn neighbors(self, n: Self::NodeId) -> Self::Neighbors {
+        self.graph.neighbors(n)
+    }
+}
+
+impl Index<SymRef> for DepGraph {
+    type Output = DepGraphNode;
+
+    fn index(&self, index: SymRef) -> &Self::Output {
+        &self.graph[*index]
+    }
+}
+
+// TODO: we may not to allow this; using SymRef could be a means to
+// guarantee that a lookup has occurred and that it actually exists.  We
+// don't need this if we set NodeId = SymRef in GraphBase, but that requires
+// implementing other traits as well.
+impl Index<NodeIndex> for DepGraph {
+    type Output = DepGraphNode;
+
+    fn index(&self, index: NodeIndex) -> &Self::Output {
+        &self.graph[index]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SymRef(NodeIndex);
+
+impl From<SymRef> for NodeIndex {
+    fn from(symref: SymRef) -> Self {
+        *symref
+    }
+}
+
+impl From<NodeIndex> for SymRef {
+    fn from(index: NodeIndex) -> Self {
+        Self(index)
+    }
+}
+
+impl Deref for SymRef {
+    type Target = NodeIndex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum SymEntry {
+    MissingSym { name: Rc<str> },
+}
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     let mut pkgs_seen = HashSet::<String>::new();
-    let mut deps: DepMap = HashMap::new();
     let mut fragments = HashMap::<String, String>::new();
+    let mut depgraph = DepGraph::new();
 
     let package_path = std::env::args().nth(1).expect("Missing argument");
     let abs_path = fs::canonicalize(package_path).unwrap();
@@ -41,11 +225,21 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     load_xmlo(
         &abs_path.to_str().unwrap().to_string(),
         &mut pkgs_seen,
-        &mut deps,
         &mut fragments,
+        &mut depgraph,
     )?;
 
-    let sorted = sort_deps(deps)?;
+    //    println!(
+    //        "Graph {:?}",
+    //        depgraph
+    //            .graph
+    //            .raw_nodes()
+    //            .iter()
+    //            .map(|node| &node.weight)
+    //            .collect::<Vec<_>>()
+    //    );
+
+    let sorted = sort_deps(&depgraph);
 
     println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
@@ -55,8 +249,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 fn load_xmlo<'a>(
     path_str: &'a str,
     pkgs_seen: &mut HashSet<String>,
-    deps: &mut DepMap,
     fragments: &mut HashMap<String, String>,
+    depgraph: &mut DepGraph,
 ) -> Result<(), Box<dyn Error>> {
     let path = fs::canonicalize(path_str)?;
     let path_str = path.to_str().unwrap();
@@ -87,7 +281,7 @@ fn load_xmlo<'a>(
                             .find(|attr| attr.key == b"name")
                             .map(|attr| attr.value)
                             .and_then(|mut name| {
-                                read_deps(&mut reader, deps, name.to_mut())
+                                read_deps(&mut reader, depgraph, name.to_mut())
                             })
                             .ok_or("Missing name"),
 
@@ -107,11 +301,7 @@ fn load_xmlo<'a>(
 
                         b"preproc:fragment" => filtered
                             .find(|attr| attr.key == b"id")
-                            .map(|attr| {
-                                String::from_utf8(
-                                    attr.value.to_owned().to_vec(),
-                                )
-                            })
+                            .map(|attr| String::from_utf8(attr.value.to_vec()))
                             .and_then(|id| {
                                 let fragment = reader
                                     .read_text(ele.name(), &mut Vec::new())
@@ -149,7 +339,7 @@ fn load_xmlo<'a>(
         let path_abs = path_buf.canonicalize().unwrap();
         let path = path_abs.to_str().unwrap();
 
-        load_xmlo(path, pkgs_seen, deps, fragments)?;
+        load_xmlo(path, pkgs_seen, fragments, depgraph)?;
     }
 
     Ok(())
@@ -157,14 +347,16 @@ fn load_xmlo<'a>(
 
 fn read_deps<B>(
     reader: &mut Reader<B>,
-    deps: &mut HashMap<String, Vec<String>>,
+    depgraph: &mut DepGraph,
     name: &[u8],
 ) -> Option<()>
 where
     B: BufRead,
 {
-    let sym_name = String::from_utf8(name.to_vec()).unwrap();
-    let mut sym_deps = Vec::<String>::new();
+    // TODO: API needs to expose whether a symbol is already known so that
+    // we can warn on them
+    // note: using from_utf8_unchecked here did _not_ improve performance
+    let sym_node = depgraph.declare(std::str::from_utf8(name).unwrap());
 
     //println!("processing deps for {}", sym_name);
 
@@ -175,14 +367,17 @@ where
                 let mut filtered =
                     attrs.with_checks(false).filter_map(Result::ok);
 
-                filtered
-                    .find(|attr| attr.key == b"name")
-                    .map(|attr| attr.value.to_owned())
-                    .and_then(|name| {
-                        let str = String::from_utf8(name.to_vec()).unwrap();
-                        sym_deps.push(str);
+                filtered.find(|attr| attr.key == b"name").and_then(
+                    |mut attr| {
+                        let name = attr.value.to_mut();
+                        let str = std::str::from_utf8(name).unwrap();
+
+                        let dep_node = depgraph.declare(&str);
+                        depgraph.declare_dep(sym_node, dep_node);
+
                         Some(())
-                    });
+                    },
+                );
 
                 //println!("{:?}", ele.attributes().collect::<Vec<_>>());
             }
@@ -196,103 +391,58 @@ where
             _ => (),
         }
     }
-    .and_then(|_| {
-        //println!("{}: {:?}", sym_name, sym_deps);
-
-        let prev_value = deps.insert(sym_name.clone(), sym_deps);
-
-        if prev_value.is_some() {
-            println!(
-                "WARNING: {} previously had deps: {:?}",
-                sym_name,
-                prev_value.unwrap()
-            );
-        };
-
-        Some(())
-    })
 }
 
-// TODO: use something like linked_hash_set (a crate), or a set in
-// combination with a stack, to be able to provide debugging information
-// for cycles
-//
-// symbol moves from deps -> processing -> sorted
-struct SortState<T = SymRef> {
-    deps: DepMap<T>,
-    processing: HashSet<T>,
-    visited: HashSet<T>,
-    sorted: Vec<T>,
-}
-
-fn sort_deps(deps: DepMap) -> Result<Vec<SymRef>, Box<dyn Error>> {
+fn sort_deps(depgraph: &DepGraph) -> Vec<&SymEntry> {
     // @type=meta, @preproc:elig-class-yields
     // @type={ret}map{,:head,:tail}
 
-    let roots = discover_roots(&deps);
+    let roots = discover_roots(depgraph);
 
-    let mut state = SortState {
-        deps: deps,
-        processing: HashSet::new(),
-        visited: HashSet::new(),
-        sorted: Vec::new(),
-    };
+    // This is technically a topological sort, but functions have
+    // cycles.  Once we have more symbol metadata, we can filter them out
+    // and actually invoke toposort.
+    let mut dfs = DfsPostOrder::empty(&depgraph);
+    let mut sorted = Vec::new();
 
-    // unfortunately these roots are hardcoded (we can address that in the
-    // future; we must maintain BC for now)
-    roots
-        .iter()
-        .for_each(|root_sym| process_dep(&mut state, root_sym.to_string()));
+    // TODO: we'll be processing various roots separately
+    for index in roots {
+        dfs.stack.push(*index);
+    }
 
-    Ok(state.sorted)
+    while let Some(index) = dfs.next(&depgraph) {
+        sorted.push(&depgraph[index]);
+    }
+
+    sorted
 }
 
-fn discover_roots(deps: &DepMap) -> Vec<SymRef> {
-    let mut map_syms = deps
-        .keys()
-        .filter(|key| key.starts_with(":map:") || key.starts_with(":retmap:"))
-        .map(|key| key.to_string())
+fn discover_roots(depgraph: &DepGraph) -> Vec<SymRef> {
+    // TODO: filter_map
+    let mut map_syms = depgraph
+        .index_iter()
+        .filter(|(key, _)| {
+            key.starts_with(":map:") || key.starts_with(":retmap:")
+        })
+        .map(|(_, value)| *value)
         .collect::<Vec<_>>();
 
     let mut roots = vec!["___yield", "___worksheet"]
         .iter()
-        .map(|sym| sym.to_string())
+        .filter_map(|sym| depgraph.lookup(sym))
         .collect::<Vec<_>>();
 
     roots.append(&mut map_syms);
 
-    //println!("found roots: {:?}", roots);
+    //println!(
+    //    "found roots: {:?}",
+    //    roots
+    //        .iter()
+    //        .map(|index| &depgraph.graph[*index])
+    //        .collect::<Vec<_>>()
+    //);
 
     roots
-}
-
-fn process_dep(state: &mut SortState, current: SymRef) {
-    // TODO: since we're bailing out early, it's possible we _would have_
-    // encountered a cycle if we kept going.  Do we care about this?
-    // Possibly not, since it's still possible to perform our sort, but then
-    // cycles should be caught by the compiler.
-    //
-    // TODO: Profile: Is it more performant to perform a check on the
-    // intersection of the visited set and a set of all dependencies?  That
-    // requires creating a new set, so possibly not.
-    if !state.visited.insert(current.to_string()) {
-        return;
-    }
-
-    if !state.processing.insert(current.to_string()) {
-        panic!("Cycle: {}", current);
-    }
-
-    let deps = state.deps.remove(&current).unwrap_or_else(|| {
-        println!("warning: Missing dependencies for {}", current);
-        vec![]
-    });
-
-    deps.iter()
-        .for_each(|dep| process_dep(state, dep.to_string()));
-
-    state.processing.remove(&current);
-    state.sorted.push(current);
 }
 
 #[cfg(test)]

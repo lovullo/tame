@@ -36,6 +36,7 @@ dependencies = [
 name = "tamer"
 version = "0.0.0"
 dependencies = [
+ "fixedbitset 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "petgraph 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-xml 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
