@@ -24,6 +24,7 @@ pages:
     script:
         - mkdir -p public/doc
         - mv doc/tame.html/* doc/tame.pdf doc/tame.info public/
+        - mv tamer/target/doc public/tamer/
     artifacts:
         paths:
             - public/

@@ -2,10 +2,20 @@
 name = "tamer"
 version = "0.0.0"
 authors = ["Mike Gerwitz <mike.gerwitz@ryansg.com>"]
-description="TAME on Rust"
+description="TAME in Rust"
 license="GPLv3+"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.dev]
+# Release-level optimizations.  Spending the extra couple of moments
+# compile-time is well worth the huge savings we get at runtime.  Note that
+# this is still every so slightly slower than a release build; see other
+# profile options for release at
+# <https://doc.rust-lang.org/cargo/reference/manifest.html>.
+opt-level = 3
 
 [dependencies]
+quick-xml = ">= 0.17.0"
+petgraph = ">= 0.4.13"
+# used by petgraph
+fixedbitset = ">= 0.1"

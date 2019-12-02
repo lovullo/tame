@@ -25,7 +25,7 @@
   <import package="base" />
 
   <!-- contains template dependencies -->
-  <import package="/rater/core/vector/cmatch" export="true" />
+  <import package="vector/cmatch" export="true" />
 
 
   This package provides elementary integration with the UI through

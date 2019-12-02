@@ -52,6 +52,9 @@ AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
                    [AC_MSG_RESULT([yes ($rustc_version)])],
                    [AC_MSG_ERROR([no ($rustc_version)])])
 
+AC_ARG_VAR([CARGO_BUILD_FLAGS],
+           [Flags to be passed to `cargo build' when invoked via Make])
+
 AC_CONFIG_FILES([Makefile])
 
 AC_OUTPUT

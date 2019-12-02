@@ -16,16 +16,18 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-path_src  = src
-path_test = test
-path_aux  = build-aux
-
 .DELETE_ON_ERROR:
 
 .PHONY: all
 
+CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
+
 all:
-	cargo build
+	@CARGO@ build $(CARGO_BUILD_FLAGS)
+
+doc: html
+html-am:
+	@CARGO@ doc
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
