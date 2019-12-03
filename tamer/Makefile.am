@@ -18,7 +18,7 @@
 
 .DELETE_ON_ERROR:
 
-.PHONY: all
+.PHONY: all fix fmt
 
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 
@@ -31,6 +31,12 @@ html-am:
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
-check-am:
+check-am: check-fmt
 	@CARGO@ test
 
+check-fmt:
+	@CARGO@ fmt -- --check
+
+fix: fmt
+fmt:
+	@CARGO@ fmt

@@ -55,6 +55,15 @@ AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
 AC_ARG_VAR([CARGO_BUILD_FLAGS],
            [Flags to be passed to `cargo build' when invoked via Make])
 
+# Cargo commands may be available but not necessarily installed for the
+# active toolchain.  Let's check that.
+AC_MSG_CHECKING([whether cargo-fmt is available for active toolchain])
+AS_IF([cargo fmt --help &>/dev/null],
+      [AC_MSG_RESULT(yes)],
+      [AC_MSG_RESULT(no)
+       cargo fmt --help  # run again so user can see output
+       AC_MSG_ERROR([missing cargo-fmt for active toolchain])])
+
 AC_CONFIG_FILES([Makefile])
 
 AC_OUTPUT

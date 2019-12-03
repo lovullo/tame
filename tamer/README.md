@@ -47,3 +47,34 @@ $ ./configure CARGO_BUILD_FLAGS=--release && make
 $ ./configure && make
 $ ./configure CARGO_BUILD_FLAGS=--release && make CARGO_BUILD_FLAGS=
 ```
+
+
+## Hacking
+This section contains advice for those developing TAMER.
+
+
+### Running Tests
+Developers should be using test-driven development (TDD).  `make check` will
+run all necessary tests.
+
+
+### Code Format
+Rust provides `rustfmt` that can automatically format code for you.  This
+project mandates its use and therefore eliminates personal preference in
+code style (for better or worse).
+
+Formatting checks are run during `make check` and, on failure, will output
+the diff that would be applied if you ran `make fmt` (or `make fix`); this
+will run `cargo fmt` for you (and will use the binaries configured via
+`configure`).
+
+Since developers should be doing test-driven development (TDD) and therefore
+should be running `make check` frequently, the hope is that frequent
+feedback on formatting issues will allow developers to quickly adjust their
+habits to avoid triggering formatting errors at all.
+
+If you want to automatically fix formatting errors and then run tests:
+
+```sh
+$ make fmt check
+```
