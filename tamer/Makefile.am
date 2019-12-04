@@ -27,6 +27,7 @@ all:
 
 doc: html
 html-am:
+	@CARGO@ test --doc
 	@CARGO@ @CARGO_DOC_FLAGS@ doc
 
 # note that 'cargo check' is something else; see 'cargo --help'
