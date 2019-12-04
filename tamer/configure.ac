@@ -55,6 +55,16 @@ AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
 AC_ARG_VAR([CARGO_BUILD_FLAGS],
            [Flags to be passed to `cargo build' when invoked via Make])
 
+# The `test` feature is required for benchmarking.  If unavailable, then
+# it's still an unstable feature and we'll need to use nightly.  We don't
+# check for nightly here, though---if it's missing, then cargo will tell the
+# user what to do.
+AC_MSG_CHECKING([`test` feature support])
+AS_IF(["$RUSTC" --crate-type lib build_aux/bench_check.rs &>/dev/null],
+      [AC_MSG_RESULT(available)],
+      [AC_MSG_RESULT([no (nightly required)])
+       AC_SUBST([CARGO_BENCH_FLAGS], [+nightly])])
+
 # Cargo commands may be available but not necessarily installed for the
 # active toolchain.  Let's check that.
 AC_MSG_CHECKING([whether cargo-fmt is available for active toolchain])

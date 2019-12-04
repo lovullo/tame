@@ -78,3 +78,20 @@ If you want to automatically fix formatting errors and then run tests:
 ```sh
 $ make fmt check
 ```
+
+
+## Benchmarking
+Benchmarks serve two purposes: external integration tests (which are subject
+to module visibility constraints) and actual benchmarking.  To run
+benchmarks, invoke `make bench`.
+
+Note that link-time optimizations (LTO) are performed on the binary for
+benchmarking so that its performance reflects release builds that will be
+used in production.
+
+The `configure` script will automatically detect whether the `test` feature
+is unstable (as it was as of the time of writing) and, if so, will
+automatically fall back to invoking nightly (by running `cargo +nightly
+bench`).
+
+If you do not have nightly, run you install it via `rustup install nightly`.

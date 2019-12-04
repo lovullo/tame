@@ -18,7 +18,7 @@
 
 .DELETE_ON_ERROR:
 
-.PHONY: all fix fmt
+.PHONY: all fix fmt check-fmt bench
 
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 
@@ -36,6 +36,9 @@ check-am: check-fmt
 
 check-fmt:
 	@CARGO@ fmt -- --check
+
+bench:
+	@CARGO@ @CARGO_BENCH_FLAGS@ bench
 
 fix: fmt
 fmt:
