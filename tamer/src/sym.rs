@@ -480,6 +480,7 @@ where
     ///   see [`HashSet::with_capacity`].
     ///
     /// See also `intern` benchmarks.
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             map: HashSet::with_capacity_and_hasher(
@@ -593,11 +594,28 @@ mod test {
         }
     }
 
-    mod hash_set_interner {
-        use super::*;
+    macro_rules! each_interner {
+        ($($(#[$attr:meta])* fn $name:ident() $body:block)*) => {
+            macro_rules! interner {
+                ($mod:ident: $type:ty) => {
+                    mod $mod {
+                        use super::*;
 
-        /// Two different string values in memory should be interned to the
-        /// same object if they represent the same data.
+                        type Sut = $type;
+
+                        $(
+                            $(#[$attr])*
+                            fn $name() $body
+                        )*
+                    }
+                }
+            }
+
+            interner!(common_hash_set: HashSetInterner<SymbolRc, RandomState>);
+        }
+    }
+
+    each_interner! {
         #[test]
         fn recognizes_equal_strings() {
             let a = "foo";
@@ -605,7 +623,7 @@ mod test {
             let c = "bar";
             let d = c.to_string();
 
-            let mut sut = HashSetInterner::<SymbolRc>::new();
+            let mut sut = Sut::new();
 
             let (ia, ib, ic, id) =
                 (sut.intern(a), sut.intern(&b), sut.intern(c), sut.intern(&d));
@@ -628,7 +646,7 @@ mod test {
 
         #[test]
         fn length_increases_with_each_new_intern() {
-            let mut sut = HashSetInterner::<SymbolRc>::new();
+            let mut sut = Sut::new();
 
             assert_eq!(0, sut.len(), "invalid empty len");
 
@@ -645,7 +663,7 @@ mod test {
 
         #[test]
         fn can_check_wither_string_is_interned() {
-            let mut sut = HashSetInterner::<SymbolRc>::new();
+            let mut sut = Sut::new();
 
             assert!(!sut.contains("foo"), "recognize missing value");
             sut.intern("foo");
@@ -654,7 +672,7 @@ mod test {
 
         #[test]
         fn intern_soft() {
-            let mut sut = HashSetInterner::<SymbolRc>::new();
+            let mut sut = Sut::new();
 
             assert_eq!(None, sut.intern_soft("foo"));
 
@@ -665,7 +683,7 @@ mod test {
         #[test]
         fn new_with_capacity() {
             let n = 512;
-            let sut = HashSetInterner::<SymbolRc>::with_capacity(n);
+            let sut = Sut::with_capacity(n);
 
             // note that this is not publicly available
             assert!(sut.map.capacity() >= n);
