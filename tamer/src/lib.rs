@@ -15,4 +15,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! An incremental rewrite of TAME in Rust.
+
 pub mod ld;
+pub mod sym;

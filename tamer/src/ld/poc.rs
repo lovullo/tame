@@ -446,7 +446,7 @@ fn discover_roots(depgraph: &DepGraph) -> Vec<SymRef> {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     #[test]
     fn placeholder() {}
 }
