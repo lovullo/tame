@@ -82,6 +82,12 @@ mod symbol {
     }
 }
 
+fn gen_strs(n: usize) -> Vec<String> {
+    (0..n)
+        .map(|n| n.to_string() + "foobarbazquuxlongsymbol")
+        .collect()
+}
+
 mod hash_set {
     use super::*;
     use std::collections::hash_map::RandomState;
@@ -113,12 +119,6 @@ mod hash_set {
 
             self.map.get(value).unwrap().clone()
         }
-    }
-
-    fn gen_strs(n: usize) -> Vec<String> {
-        (0..n)
-            .map(|n| n.to_string() + "foobarbazquuxlongsymbol")
-            .collect()
     }
 
     /// This is our baseline with a raw Rc<str>.
@@ -217,6 +217,170 @@ mod hash_set {
                         n,
                     );
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+            });
+        }
+    }
+}
+
+mod hash_map {
+    use super::*;
+    use std::collections::hash_map::{Entry, RandomState};
+    use std::collections::HashMap;
+    use std::hash::BuildHasher;
+
+    pub struct HashMapSut<M, S = RandomState>
+    where
+        S: BuildHasher,
+    {
+        pub map: HashMap<Rc<str>, M, S>,
+    }
+
+    impl<M, S> HashMapSut<M, S>
+    where
+        M: Default,
+        S: BuildHasher + Default,
+    {
+        #[inline]
+        fn new() -> Self {
+            Self {
+                map: HashMap::with_hasher(Default::default()),
+            }
+        }
+
+        pub fn intern(&mut self, value: &str) -> Rc<str> {
+            match self.map.entry(value.into()) {
+                Entry::Vacant(v) => {
+                    let intern = v.key().clone();
+
+                    v.insert(Default::default());
+                    intern
+                }
+                Entry::Occupied(o) => o.key().clone(),
+            }
+        }
+    }
+
+    /// This is our baseline with a raw Rc<str>.
+    #[bench]
+    fn with_all_new_rc_str_1000_baseline(bench: &mut Bencher) {
+        let strs = gen_strs(1000);
+
+        bench.iter(|| {
+            let mut sut = HashMapSut::<(), RandomState>::new();
+            strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+        });
+    }
+
+    #[bench]
+    fn with_all_new_1000(bench: &mut Bencher) {
+        let strs = gen_strs(1000);
+
+        bench.iter(|| {
+            let mut sut = HashMapInterner::<SymbolRc, ()>::new();
+            strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+        });
+    }
+
+    #[bench]
+    /// This is our baseline with a raw Rc<str>.
+    fn with_one_new_rc_str_1000_baseline(bench: &mut Bencher) {
+        bench.iter(|| {
+            let mut sut = HashMapSut::<(), RandomState>::new();
+            (0..1000).map(|_| sut.intern("first")).for_each(drop);
+        });
+    }
+
+    #[bench]
+    fn with_one_new_1000(bench: &mut Bencher) {
+        bench.iter(|| {
+            let mut sut = HashMapInterner::<SymbolRc, ()>::new();
+            (0..1000).map(|_| sut.intern("first")).for_each(drop);
+        });
+    }
+
+    mod fnv {
+        use super::*;
+        use ::fnv::FnvBuildHasher;
+
+        /// This is our baseline with a raw Rc<str>.
+        #[bench]
+        fn with_all_new_rc_str_1000_baseline(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+            bench.iter(|| {
+                let mut sut = HashMapSut::<(), FnvBuildHasher>::new();
+                strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_all_new_1000(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+
+            bench.iter(|| {
+                let mut sut =
+                    HashMapInterner::<SymbolRc, (), FnvBuildHasher>::new();
+                strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+            });
+        }
+
+        #[bench]
+        /// This is our baseline with a raw Rc<str>.
+        fn with_one_new_rc_str_1000_baseline(bench: &mut Bencher) {
+            bench.iter(|| {
+                let mut sut: HashMapSut<(), FnvBuildHasher> = HashMapSut {
+                    map: HashMap::with_hasher(Default::default()),
+                };
+                (0..1000).map(|_| sut.intern("first")).for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_one_new_1000(bench: &mut Bencher) {
+            bench.iter(|| {
+                let mut sut =
+                    HashMapInterner::<SymbolRc, (), FnvBuildHasher>::new();
+                (0..1000).map(|_| sut.intern("first")).for_each(drop);
+            });
+        }
+
+        /// Since FNV is the best-performing, let's build upon it to demonstrate
+        /// the benefits of with_capacity
+        #[bench]
+        fn with_all_new_1000_with_capacity(bench: &mut Bencher) {
+            let n = 1000;
+            let strs = gen_strs(n);
+
+            bench.iter(|| {
+                let mut sut =
+                HashMapInterner::<SymbolRc, (), FnvBuildHasher>::with_capacity(n);
+                strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_all_new_meta_1000(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+
+            bench.iter(|| {
+                let mut sut =
+                    HashMapInterner::<SymbolRc, u8, FnvBuildHasher>::new();
+                strs.iter().map(|s| sut.intern_meta(&s, 0)).for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_all_new_then_set_meta_1000(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+
+            bench.iter(|| {
+                let mut sut =
+                    HashMapInterner::<SymbolRc, u8, FnvBuildHasher>::new();
+                strs.iter()
+                    .map(|s| {
+                        sut.intern(&s);
+                        sut.intern_meta(&s, 0);
+                    })
+                    .for_each(drop);
             });
         }
     }

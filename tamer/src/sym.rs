@@ -27,16 +27,27 @@
 //! Symbols are created, stored, compared, and retrieved by
 //!   an [`Interner`]:
 //!
-//!   - [`DefaultSetInterner`] - The currently recommended intern pool
-//!       configuration for symbol interning.
 //!   - [`HashSetInterner`] - Intern pool backed by a [`HashSet`].
-//!   - [`FnvHashSetInterner`] - Intern pool backed by a [`HashSet`] using the
-//!       Fowler-Noll-Vo hashing algorithm.
+//!     - [`DefaultSetInterner`] - The currently recommended intern pool
+//!         configuration for symbol interning without metadata.
+//!     - [`FnvHashSetInterner`] - Intern pool backed by a [`HashSet`] using the
+//!         Fowler-Noll-Vo hashing algorithm.
+//!   - [`HashMapInterner`] - Intern pool backed by a [`HashMap`] to provide
+//!       associated metadata.
+//!     - [`DefaultMapInterner`] - The currently recommended intern pool
+//!         configuration for symbol interning with metadata.
+//!     - [`FnvHashMapInterner`] - Intern pool backed by a [`HashMap`] using
+//!         the Fowler-Noll-Vo hashing algorithm.
 //!
-//! Note that the [`DefaultSetInterner`] has a configuration chosen for
-//!   efficient _symbol interning_;
-//!     see its documentation for more information and caveats,
-//!       since it may not fit your particular use case.
+//! When basic interning is required,
+//!   use a set-based interner.
+//! When metadata needs to be stored alongside symbols,
+//!   consider whether a map-based interner suits your needs.
+//!
+//! Note that the [`DefaultSetInterner`] and [`DefaultMapInterner`] have
+//!   configuration chosen for efficient _symbol interning_;
+//!     see their documentation for more information and caveats,
+//!       since they may not fit your particular use case.
 //!
 //! All [`Symbol`] values implement [`Clone`] and can be passed around
 //!   freely without associated lifetimes.
@@ -91,7 +102,8 @@
 //!
 //! Symbols can be used as keys to a map to associate unique data with each
 //!   intern,
-//!     while at the same time doubling as an intern pool.
+//!     while at the same time doubling as an intern pool
+//!       (see [`MetaInterner`]).
 //!
 //! From the perspective of Rust,
 //!   this also provides a convenient alternative to passing around
@@ -122,10 +134,8 @@
 //! However, the best mechanism by which to perform interning must be
 //!   determined on a case-by-case basis.
 //! For example,
-//!   if a mapping between strings and some value is required,
-//!   then the pool can be combined with the mapping by using a
-//!     [`HashMap`](std::collections::HashMap)
-//!     with a `Rc<str>` key type.
+//!   if additional metadata for strings is required,
+//!   then the pool and mapping can be combined using [`HashMapInterner`].
 //!
 //! [rfc-1845]: https://rust-lang.github.io/rfcs/1845-shared-from-slice.html
 //!
@@ -139,6 +149,28 @@
 //!
 //! [smart pointer]: https://doc.rust-lang.org/book/ch15-00-smart-pointers.html
 //!
+//!
+//! Intern Metadata
+//! ---------------
+//! It's common to associate interns with additional information.
+//! For example,
+//!   an intern may represent a symbol in a symbol table,
+//!   or an indexer may want to associated a symbol with some other data.
+//! Metadata can be stored alongside an intern using one of the
+//!   [`MetaInterner`] interners,
+//!     such as [`HashMapInterner`]:
+//!
+//! ```
+//! use tamer::sym::{MetaInterner, DefaultMapInterner};
+//!
+//! let mut interner = DefaultMapInterner::<u8>::new();
+//!
+//! let (_intern, prev) = interner.intern_meta("foo", 20);
+//!
+//! assert_eq!(None, prev);
+//! assert_eq!(Some(&20), interner.meta("foo"));
+//! assert_eq!(None, interner.meta("missing"));
+//! ```
 //!
 //! Lifetime of Interns
 //! -------------------
@@ -271,8 +303,8 @@
 //! [rust-string-interner]: https://github.com/robbepop/string-interner
 
 use ::fnv::FnvBuildHasher;
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
+use std::collections::hash_map::{Entry, RandomState};
+use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hash};
 use std::ops::Deref;
 use std::rc::Rc;
@@ -431,9 +463,71 @@ pub trait Interner<T: Symbol> {
     fn len(&self) -> usize;
 }
 
+/// Store metadata alongside [`Symbol`] values.
+///
+/// This provides a simple key/value store where interns are used as the key
+///   and arbitrary metadata can be stored as a value.
+/// It may be ideal to use for symbol tables or indexers.
+///
+/// Metadata types must implement [`Default`],
+///   which will be used when interning with [`Interner::intern`].
+/// To provide metadata at the time of interning,
+///   use [`intern_meta`](MetaInterner::intern_meta) instead,
+///     which will also overwrite any existing metadata an existing intern.
+///
+/// A reference to metadata for an intern can be retrieved with
+///   [`meta`](MetaInterner::meta).
+///
+/// See the [module-level documentation](self) for an example.
+pub trait MetaInterner<T, M>: Interner<T>
+where
+    T: Symbol,
+    M: Default,
+{
+    /// Intern a string slice with metadata,
+    ///   or return an existing string slice and overwrite its metadata.
+    ///
+    /// If an intern does not yet exist for the given string slice,
+    ///   then these two are equivalent:
+    ///
+    /// ```
+    /// # use tamer::sym::{Interner, MetaInterner, DefaultMapInterner};
+    /// #
+    /// # let mut interner = DefaultMapInterner::<usize>::new();
+    /// #
+    /// // These store the same intern and metadata if no such intern exists
+    /// interner.intern("foo");
+    /// interner.intern_meta("foo", Default::default());
+    /// ```
+    ///
+    /// When an intern does not yet exist,
+    ///   this returns a tuple containing the new intern and [`None`],
+    ///     indicating that there was no prior metadata.
+    ///
+    /// When an intern _does_ exist,
+    ///   this function will _replace existing metadata_.
+    /// The tuple will contain the existing intern,
+    ///   along with [`Some`] containing the _previous_ metadata as an owned
+    ///   value.
+    ///
+    /// This behavior can be exploited to determine whether a symbol
+    ///   previously existed without using [`Interner::contains`].
+    fn intern_meta(&mut self, value: &str, meta: M) -> (T, Option<M>);
+
+    /// Retrieve a reference to the metadata associated with an intern
+    ///   identified by the given string slice.
+    ///
+    /// If no such intern exists,
+    ///   the value will be [`None`].
+    /// If an intern exists but did not have its value explicitly set via
+    ///   [`intern_meta`](MetaInterner::intern_meta),
+    ///     its value will be the [`Default`] of `M`.
+    fn meta(&self, value: &str) -> Option<&M>;
+}
+
 /// An interner backed by a [`HashSet`].
 ///
-/// This interner is appropriate to be used when symbols need only be
+/// This interner is appropriate to be used when strings need only be
 ///   interned and have no associated data.
 ///
 /// For the recommended configuration,
@@ -550,6 +644,138 @@ pub type FnvHashSetInterner<T> = HashSetInterner<T, FnvBuildHasher>;
 ///   see [`FnvHashSetInterner`].
 pub type DefaultSetInterner = FnvHashSetInterner<SymbolRc>;
 
+/// An interner backed by a [`HashMap`].
+///
+/// This interner is appropriate to be used when strings need to be interned
+///   alongside additional metadata.
+///
+/// For the recommended configuration,
+///   see [`DefaultMapInterner`].
+///
+/// See the [module-level documentation](self) for an example and more
+///   information on when this interner is appropriate.
+pub struct HashMapInterner<T = SymbolRc, M = (), S = RandomState>
+where
+    T: Symbol,
+    M: Default,
+    S: BuildHasher,
+{
+    /// Intern pool.
+    map: HashMap<T, M, S>,
+}
+
+impl<T, M, S> HashMapInterner<T, M, S>
+where
+    T: Symbol,
+    M: Default,
+    S: BuildHasher + Default,
+{
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::with_hasher(Default::default()),
+        }
+    }
+
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            map: HashMap::with_capacity_and_hasher(
+                capacity,
+                Default::default(),
+            ),
+        }
+    }
+}
+
+impl<T, M, S> Interner<T> for HashMapInterner<T, M, S>
+where
+    T: Symbol,
+    M: Default,
+    S: BuildHasher,
+{
+    fn intern(&mut self, value: &str) -> T {
+        match self.map.entry(T::new(&value)) {
+            Entry::Vacant(v) => {
+                let intern = v.key().clone();
+
+                v.insert(Default::default());
+                intern
+            }
+            Entry::Occupied(o) => o.key().clone(),
+        }
+    }
+
+    #[inline]
+    fn intern_soft(&mut self, value: &str) -> Option<T> {
+        match self.map.entry(T::new(&value)) {
+            Entry::Vacant(_) => None,
+            Entry::Occupied(o) => Some(o.key().clone()),
+        }
+    }
+
+    #[inline]
+    fn contains(&self, value: &str) -> bool {
+        self.map.contains_key(&T::new(&value))
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.map.len()
+    }
+}
+
+impl<T, M, S> MetaInterner<T, M> for HashMapInterner<T, M, S>
+where
+    T: Symbol,
+    M: Default,
+    S: BuildHasher,
+{
+    fn intern_meta(&mut self, value: &str, meta: M) -> (T, Option<M>) {
+        match self.map.entry(T::new(&value)) {
+            Entry::Vacant(v) => {
+                let intern = v.key().clone();
+
+                v.insert(meta);
+                (intern, None)
+            }
+            Entry::Occupied(mut o) => (o.key().clone(), Some(o.insert(meta))),
+        }
+    }
+
+    #[inline]
+    fn meta(&self, value: &str) -> Option<&M> {
+        self.map.get(&T::new(value))
+    }
+}
+
+/// Map interner using the [Fowler-Noll-Vo][fnv] (FNV) hashing function.
+///
+/// _This is currently the hash function used by [`DefaultMapInterner`]._
+///
+/// If the intern pool will contains strings primarily of length ≤ 60,
+///   and if denial of service is not a concern,
+///   then use of the FNV hash function will outperform the default
+///     [`DefaultHasher`](std::collections::hash_map::DefaultHasher)
+///     (which uses SipHash at the time of writing).
+/// See intern benchmarks for a comparison.
+/// For a comparison of various hashing algorithms,
+///   see the [`hash-rs`][hash-rs] project.
+///
+/// [hash-rs]: https://github.com/Gankra/hash-rs
+pub type FnvHashMapInterner<T, M> = HashMapInterner<T, M, FnvBuildHasher>;
+
+/// Recommended configuration for map-based interners.
+///
+/// The choice of this default relies on certain assumptions:
+///   - Denial-of-service attacks against the hash function are not a
+///       concern; and
+///   - Strings to be interned are mostly ≤ 60 characters.
+///
+/// For more information on the hashing algorithm,
+///   see [`FnvHashMapInterner`].
+pub type DefaultMapInterner<M> = FnvHashMapInterner<SymbolRc, M>;
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -594,6 +820,10 @@ mod test {
         }
     }
 
+    /// Run the enclosed test functions for each of the [`Interner`]
+    /// implementations.
+    ///
+    /// The system (interner) under test (SUT) is exposed as `Sut`.
     macro_rules! each_interner {
         ($($(#[$attr:meta])* fn $name:ident() $body:block)*) => {
             macro_rules! interner {
@@ -612,6 +842,7 @@ mod test {
             }
 
             interner!(common_hash_set: HashSetInterner<SymbolRc, RandomState>);
+            interner!(common_hash_map: HashMapInterner<SymbolRc, (), RandomState>);
         }
     }
 
@@ -687,6 +918,61 @@ mod test {
 
             // note that this is not publicly available
             assert!(sut.map.capacity() >= n);
+        }
+    }
+
+    mod hash_set {
+        use super::*;
+
+        #[test]
+        fn get_meta_of_missing_intern() {
+            let sut = HashMapInterner::<SymbolRc, (), RandomState>::new();
+            assert_eq!(None, sut.meta("foo"));
+        }
+
+        /// Unless explicitly set, the metavalue must be the default value
+        /// for the given type.
+        #[test]
+        fn get_meta_of_existing_intern_with_default() {
+            let expected = u8::default();
+            let mut sut = HashMapInterner::<SymbolRc, u8, RandomState>::new();
+
+            sut.intern("foo");
+            assert_eq!(Some(&expected), sut.meta("foo"));
+        }
+
+        #[test]
+        fn set_meta_of_new_intern() {
+            let given = 5;
+            let mut sut = HashMapInterner::<SymbolRc, u8, RandomState>::new();
+
+            sut.intern_meta("foo", given);
+            assert_eq!(Some(&given), sut.meta("foo"))
+        }
+
+        #[test]
+        fn set_meta_of_existing_intern() {
+            let old = u8::default();
+            let first = 3;
+            let second = 3;
+            let mut sut = HashMapInterner::<SymbolRc, u8, RandomState>::new();
+
+            // will have default value
+            let intern = sut.intern("foo");
+
+            assert_eq!(
+                (intern.clone(), Some(old)),
+                sut.intern_meta("foo", first),
+                "overwrite of default value"
+            );
+
+            assert_eq!(
+                (intern.clone(), Some(first)),
+                sut.intern_meta("foo", second),
+                "overwrite of first explicit value"
+            );
+
+            assert_eq!(Some(&second), sut.meta("foo"), "read of final value");
         }
     }
 }
