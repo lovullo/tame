@@ -23,7 +23,7 @@ lto = true
 lto = true
 
 [dependencies]
-fnv = ">= 1.0.3"
+fxhash = ">= 0.2.1"
 petgraph = ">= 0.4.13"
 quick-xml = ">= 0.17.0"
 # used by petgraph

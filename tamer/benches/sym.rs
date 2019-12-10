@@ -159,16 +159,16 @@ mod hash_set {
         });
     }
 
-    mod fnv {
+    mod fx {
         use super::*;
-        use ::fnv::FnvBuildHasher;
+        use fxhash::FxBuildHasher;
 
         /// This is our baseline with a raw Rc<str>.
         #[bench]
         fn with_all_new_rc_str_1000_baseline(bench: &mut Bencher) {
             let strs = gen_strs(1000);
             bench.iter(|| {
-                let mut sut = HashSetSut::<FnvBuildHasher>::new();
+                let mut sut = HashSetSut::<FxBuildHasher>::new();
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }
@@ -178,8 +178,7 @@ mod hash_set {
             let strs = gen_strs(1000);
 
             bench.iter(|| {
-                let mut sut =
-                    HashSetInterner::<SymbolRc, FnvBuildHasher>::new();
+                let mut sut = HashSetInterner::<SymbolRc, FxBuildHasher>::new();
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }
@@ -188,7 +187,7 @@ mod hash_set {
         /// This is our baseline with a raw Rc<str>.
         fn with_one_new_rc_str_1000_baseline(bench: &mut Bencher) {
             bench.iter(|| {
-                let mut sut: HashSetSut<FnvBuildHasher> = HashSetSut {
+                let mut sut: HashSetSut<FxBuildHasher> = HashSetSut {
                     map: HashSet::with_hasher(Default::default()),
                 };
                 (0..1000).map(|_| sut.intern("first")).for_each(drop);
@@ -198,13 +197,12 @@ mod hash_set {
         #[bench]
         fn with_one_new_1000(bench: &mut Bencher) {
             bench.iter(|| {
-                let mut sut =
-                    HashSetInterner::<SymbolRc, FnvBuildHasher>::new();
+                let mut sut = HashSetInterner::<SymbolRc, FxBuildHasher>::new();
                 (0..1000).map(|_| sut.intern("first")).for_each(drop);
             });
         }
 
-        /// Since FNV is the best-performing, let's build upon it to demonstrate
+        /// Since Fx is the best-performing, let's build upon it to demonstrate
         /// the benefits of with_capacity
         #[bench]
         fn with_all_new_1000_with_capacity(bench: &mut Bencher) {
@@ -213,7 +211,7 @@ mod hash_set {
 
             bench.iter(|| {
                 let mut sut =
-                    HashSetInterner::<SymbolRc, FnvBuildHasher>::with_capacity(
+                    HashSetInterner::<SymbolRc, FxBuildHasher>::with_capacity(
                         n,
                     );
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
@@ -298,16 +296,16 @@ mod hash_map {
         });
     }
 
-    mod fnv {
+    mod fx {
         use super::*;
-        use ::fnv::FnvBuildHasher;
+        use fxhash::FxBuildHasher;
 
         /// This is our baseline with a raw Rc<str>.
         #[bench]
         fn with_all_new_rc_str_1000_baseline(bench: &mut Bencher) {
             let strs = gen_strs(1000);
             bench.iter(|| {
-                let mut sut = HashMapSut::<(), FnvBuildHasher>::new();
+                let mut sut = HashMapSut::<(), FxBuildHasher>::new();
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }
@@ -318,7 +316,7 @@ mod hash_map {
 
             bench.iter(|| {
                 let mut sut =
-                    HashMapInterner::<SymbolRc, (), FnvBuildHasher>::new();
+                    HashMapInterner::<SymbolRc, (), FxBuildHasher>::new();
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }
@@ -327,7 +325,7 @@ mod hash_map {
         /// This is our baseline with a raw Rc<str>.
         fn with_one_new_rc_str_1000_baseline(bench: &mut Bencher) {
             bench.iter(|| {
-                let mut sut: HashMapSut<(), FnvBuildHasher> = HashMapSut {
+                let mut sut: HashMapSut<(), FxBuildHasher> = HashMapSut {
                     map: HashMap::with_hasher(Default::default()),
                 };
                 (0..1000).map(|_| sut.intern("first")).for_each(drop);
@@ -338,7 +336,7 @@ mod hash_map {
         fn with_one_new_1000(bench: &mut Bencher) {
             bench.iter(|| {
                 let mut sut =
-                    HashMapInterner::<SymbolRc, (), FnvBuildHasher>::new();
+                    HashMapInterner::<SymbolRc, (), FxBuildHasher>::new();
                 (0..1000).map(|_| sut.intern("first")).for_each(drop);
             });
         }
@@ -352,7 +350,7 @@ mod hash_map {
 
             bench.iter(|| {
                 let mut sut =
-                HashMapInterner::<SymbolRc, (), FnvBuildHasher>::with_capacity(n);
+                HashMapInterner::<SymbolRc, (), FxBuildHasher>::with_capacity(n);
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }
@@ -363,7 +361,7 @@ mod hash_map {
 
             bench.iter(|| {
                 let mut sut =
-                    HashMapInterner::<SymbolRc, u8, FnvBuildHasher>::new();
+                    HashMapInterner::<SymbolRc, u8, FxBuildHasher>::new();
                 strs.iter().map(|s| sut.intern_meta(&s, 0)).for_each(drop);
             });
         }
@@ -374,7 +372,7 @@ mod hash_map {
 
             bench.iter(|| {
                 let mut sut =
-                    HashMapInterner::<SymbolRc, u8, FnvBuildHasher>::new();
+                    HashMapInterner::<SymbolRc, u8, FxBuildHasher>::new();
                 strs.iter()
                     .map(|s| {
                         sut.intern(&s);

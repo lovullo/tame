@@ -30,14 +30,14 @@
 //!   - [`HashSetInterner`] - Intern pool backed by a [`HashSet`].
 //!     - [`DefaultSetInterner`] - The currently recommended intern pool
 //!         configuration for symbol interning without metadata.
-//!     - [`FnvHashSetInterner`] - Intern pool backed by a [`HashSet`] using the
-//!         Fowler-Noll-Vo hashing algorithm.
+//!     - [`FxHashSetInterner`] - Intern pool backed by a [`HashSet`] using the
+//!         [Fx Hash][fxhash] hashing algorithm.
 //!   - [`HashMapInterner`] - Intern pool backed by a [`HashMap`] to provide
 //!       associated metadata.
 //!     - [`DefaultMapInterner`] - The currently recommended intern pool
 //!         configuration for symbol interning with metadata.
-//!     - [`FnvHashMapInterner`] - Intern pool backed by a [`HashMap`] using
-//!         the Fowler-Noll-Vo hashing algorithm.
+//!     - [`FxHashMapInterner`] - Intern pool backed by a [`HashMap`] using
+//!         the [Fx Hash][fxhash] hashing algorithm.
 //!
 //! When basic interning is required,
 //!   use a set-based interner.
@@ -297,12 +297,42 @@
 //!       for Rust developed by Mozilla for Servo.
 //!   - [`string-interner`][rust-string-interner] is another string
 //!       interning library for Rust.
+//!   - [Rustc interns strings as `Symbol`s][rustc-intern] using an
+//!       [arena allocator][rustc-arena] and avoids `Rc` by representing
+//!       symbols as integer values and converting them to strings using a
+//!       global pool and unsafe rust to cast to a `static` slice.
+//!     - This was the direction TAMER was initially going to take,
+//!         but the simplicity of `Rc` was chosen over unsafe rust until
+//!         such an optimization is needed and its benefits demonstrable.
+//!     - Rustc identifies symbols by integer value encapsulated within a
+//!         `Symbol`.
+//!       TAMER does this at the level of the ASG instead,
+//!         treating the interner as a separate system.
 //!
 //! [flyweight pattern]: https://en.wikipedia.org/wiki/Flyweight_pattern
 //! [rust-string-cache]: https://github.com/servo/string-cache
 //! [rust-string-interner]: https://github.com/robbepop/string-interner
+//! [rustc-intern]: https://doc.rust-lang.org/nightly/nightly-rustc/syntax/ast/struct.Name.html
+//! [rustc-arena]: https://doc.rust-lang.org/nightly/nightly-rustc/arena/index.html
+//!
+//! The hash function chosen for this module is [Fx Hash][fxhash].
+//!
+//!  - Rustc previously used the [Fowler-Noll-Vo (FNV)][fnv] hash
+//!      function,
+//!        but [now uses Fx Hash][rustc-fx].
+//!    This was extracted into the [`fxhash`][fxhash] crate,
+//!      which is used by TAMER.
+//!    - TAMER originally used FNV,
+//!         but benchmarks showed that Fx Hash was more performant.
+//!  - Benchmarks for other hash functions,
+//!      including FNV,
+//!      can be found at the [`hash-rs`][hash-rs] project.
+//!
+//! [fnv]: https://doc.servo.org/fnv/
+//! [rustc-fx]: https://doc.rust-lang.org/nightly/nightly-rustc/rustc_data_structures/fx/index.html
+//! [hash-rs]: https://github.com/Gankra/hash-rs
 
-use ::fnv::FnvBuildHasher;
+use fxhash::FxBuildHasher;
 use std::collections::hash_map::{Entry, RandomState};
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hash};
@@ -617,32 +647,27 @@ where
     }
 }
 
-/// Interner using the [Fowler-Noll-Vo][fnv] (FNV) hashing function.
+/// Interner using the [Fx Hash][fxhash] hashing function.
 ///
 /// _This is currently the hash function used by [`DefaultSetInterner`]._
 ///
-/// If the intern pool will contains strings primarily of length ≤ 60,
-///   and if denial of service is not a concern,
-///   then use of the FNV hash function will outperform the default
+/// If denial of service is not a concern,
+///   then this will outperform the default
 ///     [`DefaultHasher`](std::collections::hash_map::DefaultHasher)
 ///     (which uses SipHash at the time of writing).
-/// See intern benchmarks for a comparison.
-/// For a comparison of various hashing algorithms,
-///   see the [`hash-rs`][hash-rs] project.
 ///
-/// [hash-rs]: https://github.com/Gankra/hash-rs
-pub type FnvHashSetInterner<T> = HashSetInterner<T, FnvBuildHasher>;
+/// See intern benchmarks for a comparison.
+pub type FxHashSetInterner<T> = HashSetInterner<T, FxBuildHasher>;
 
 /// Recommended configuration for set-based interners.
 ///
-/// The choice of this default relies on certain assumptions:
-///   - Denial-of-service attacks against the hash function are not a
-///       concern; and
-///   - Strings to be interned are mostly ≤ 60 characters.
+/// The choice of this default relies on the assumption that
+///   denial-of-service attacks against the hash function are not a
+///   concern.
 ///
 /// For more information on the hashing algorithm,
-///   see [`FnvHashSetInterner`].
-pub type DefaultSetInterner = FnvHashSetInterner<SymbolRc>;
+///   see [`FxHashSetInterner`].
+pub type DefaultSetInterner = FxHashSetInterner<SymbolRc>;
 
 /// An interner backed by a [`HashMap`].
 ///
@@ -749,32 +774,27 @@ where
     }
 }
 
-/// Map interner using the [Fowler-Noll-Vo][fnv] (FNV) hashing function.
+/// Interner using the [Fx Hash][fxhash] hashing function.
 ///
 /// _This is currently the hash function used by [`DefaultMapInterner`]._
 ///
-/// If the intern pool will contains strings primarily of length ≤ 60,
-///   and if denial of service is not a concern,
-///   then use of the FNV hash function will outperform the default
+/// If denial of service is not a concern,
+///   then this will outperform the default
 ///     [`DefaultHasher`](std::collections::hash_map::DefaultHasher)
 ///     (which uses SipHash at the time of writing).
-/// See intern benchmarks for a comparison.
-/// For a comparison of various hashing algorithms,
-///   see the [`hash-rs`][hash-rs] project.
 ///
-/// [hash-rs]: https://github.com/Gankra/hash-rs
-pub type FnvHashMapInterner<T, M> = HashMapInterner<T, M, FnvBuildHasher>;
+/// See intern benchmarks for a comparison.
+pub type FxHashMapInterner<T, M> = HashMapInterner<T, M, FxBuildHasher>;
 
 /// Recommended configuration for map-based interners.
 ///
-/// The choice of this default relies on certain assumptions:
-///   - Denial-of-service attacks against the hash function are not a
-///       concern; and
-///   - Strings to be interned are mostly ≤ 60 characters.
+/// The choice of this default relies on the assumption that
+///   denial-of-service attacks against the hash function are not a
+///   concern.
 ///
 /// For more information on the hashing algorithm,
-///   see [`FnvHashMapInterner`].
-pub type DefaultMapInterner<M> = FnvHashMapInterner<SymbolRc, M>;
+///   see [`FxHashMapInterner`].
+pub type DefaultMapInterner<M> = FxHashMapInterner<SymbolRc, M>;
 
 #[cfg(test)]
 mod test {
