@@ -1127,7 +1127,7 @@
   <!-- FIXME: it's assumed that generated classifications are always part of the
        same package (this is true right now, but may not be in the future!) -->
   <xsl:variable name="ref" select="
-      /lv:*/lv:classify[ @yields=$on ]/lv:match
+      //lv:classify[ @yields=$on ]/lv:match
     " />
 
   <xsl:if test="not( $ref )">
