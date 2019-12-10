@@ -19,19 +19,8 @@
 //! utility.  Its job is to take each of the compiled object files and
 //! produce a final executable.
 //!
-//! # Backwards-Compatibility (XSLT System)
-//! This linker is part of the TAMER (TAME in Rust) project, which aims to
-//! incrementally rewrite TAME in Rust.  Consequently, it must be able to
-//! serve as a drop-in replacement for the existing (XSLT) linker, which
-//! takes as input `xmlo` files and produces as output an `xmle` file.  This
-//! is not efficient, and future versions will begin to migrate away from
-//! this strategy.
-//!
-//! The output `xmle` file is then fed to a `standalone` command which
-//! extracts the JavaScript fragment and places it into its own file.  Even
-//! when that is replaced (when this just outputs a final JS file directly),
-//! the `xmle` file is still needed for other purposes, such as `summary`
-//! and `dote` generation.
+//! For more information about the linker,
+//!   see the [`tamer::ld`] module.
 
 extern crate tamer;
 
