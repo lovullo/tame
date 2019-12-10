@@ -44,3 +44,6 @@ bench:
 fix: fmt
 fmt:
 	@CARGO@ fmt
+
+clean-am:
+	@CARGO@ clean
