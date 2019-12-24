@@ -17,43 +17,23 @@
 
 //! String internment system.
 //!
-//! This system is currently a thin wrapper providing an abstraction for
-//!   future evolution.
-//!
-//! Interned strings are represented by [`Symbol`]:
-//!
-//!   - [`SymbolRc`] - Wrapper around [`Rc`]-backed [`str`] slices.
-//!
-//! Symbols are created, stored, compared, and retrieved by
-//!   an [`Interner`]:
-//!
-//!   - [`HashSetInterner`] - Intern pool backed by a [`HashSet`].
-//!     - [`DefaultSetInterner`] - The currently recommended intern pool
-//!         configuration for symbol interning without metadata.
-//!     - [`FxHashSetInterner`] - Intern pool backed by a [`HashSet`] using the
+//! Interned strings are represented by [`Symbol`],
+//!   created by an [`Interner`]:
+//~
+//!   - [`ArenaInterner`] - Intern pool backed by an [arena][] for fast
+//!     and stable allocation.
+//!     - [`DefaultInterner`] - The currently recommended intern pool
+//!         configuration for symbol interning.
+//!     - [`FxArenaInterner`] - Intern pool backed by an [arena][] using the
 //!         [Fx Hash][fxhash] hashing algorithm.
-//!   - [`HashMapInterner`] - Intern pool backed by a [`HashMap`] to provide
-//!       associated metadata.
-//!     - [`DefaultMapInterner`] - The currently recommended intern pool
-//!         configuration for symbol interning with metadata.
-//!     - [`FxHashMapInterner`] - Intern pool backed by a [`HashMap`] using
-//!         the [Fx Hash][fxhash] hashing algorithm.
 //!
-//! When basic interning is required,
-//!   use a set-based interner.
-//! When metadata needs to be stored alongside symbols,
-//!   consider whether a map-based interner suits your needs.
+//! Interners return symbols by reference which allows for `O(1)` comparison
+//!   by pointer.
 //!
-//! Note that the [`DefaultSetInterner`] and [`DefaultMapInterner`] have
-//!   configuration chosen for efficient _symbol interning_;
-//!     see their documentation for more information and caveats,
-//!       since they may not fit your particular use case.
-//!
-//! All [`Symbol`] values implement [`Clone`] and can be passed around
-//!   freely without associated lifetimes.
+//! [arena]: bumpalo
 //!
 //! ```
-//! use tamer::sym::{Interner, DefaultSetInterner};
+//! use tamer::sym::{Interner, DefaultInterner, Symbol, SymbolIndex};
 //!
 //! // Inputs to be interned
 //! let a = "foo";
@@ -61,7 +41,9 @@
 //! let c = "foobar";
 //! let d = &c[0..3];
 //!
-//! let mut interner = DefaultSetInterner::new();
+//! // Interners employ interior mutability and so do not need to be
+//! // declared `mut`
+//! let interner = DefaultInterner::new();
 //!
 //! let (ia, ib, ic, id) = (
 //!     interner.intern(a),
@@ -76,13 +58,20 @@
 //! assert_ne!(ia, ic);
 //!
 //! // All interns can be cloned and clones are eq
-//! assert_eq!(ia, ia.clone());
+//! assert_eq!(*ia, ia.clone());
 //!
 //! // Only "foo" and "foobar" are interned
 //! assert_eq!(2, interner.len());
 //! assert!(interner.contains("foo"));
 //! assert!(interner.contains("foobar"));
 //! assert!(!interner.contains("something else"));
+//!
+//! // Each symbol has an associated, densely-packed integer value
+//! // that can be used for indexing
+//! assert_eq!(SymbolIndex::from_u32(1), ia.index());
+//! assert_eq!(SymbolIndex::from_u32(1), ib.index());
+//! assert_eq!(SymbolIndex::from_u32(2), ic.index());
+//! assert_eq!(SymbolIndex::from_u32(1), id.index());
 //! ```
 //!
 //! What Is String Interning?
@@ -94,136 +83,72 @@
 //!   new string.
 //!  Interned strings are typically referred to as "symbols" or "atoms".
 //!
-//! String comparison then amounts to comparing pointers (`O(1)`) in the
-//!   best case (see Equality of Interns below)
+//! String comparison then amounts to comparing pointers (`O(1)`)
 //!     rather than having to scan the string (`O(n)`).
-//! There is, however, a cost of interning strings,
-//!   as well as comparing new strings to the intern pool.
-//!
-//! Symbols can be used as keys to a map to associate unique data with each
-//!   intern,
-//!     while at the same time doubling as an intern pool
-//!       (see [`MetaInterner`]).
-//!
-//! From the perspective of Rust,
-//!   this also provides a convenient alternative to passing around
-//!   lifetimes,
-//!     which becomes unwieldy when shared data is used in many places
-//!       throughout the system.
-//! Each [`Symbol`] implements [`Clone`].
+//! There is, however, a hashing cost of interning strings,
+//!   as well as looking up strings in the intern pool.
 //!
 //! [string interning]: https://en.wikipedia.org/wiki/String_interning
 //!
 //!
 //! Internment Mechanism
 //! ====================
-//! An internment mechanism is easily implemented in Rust using [`Rc`],
-//!   which is the approach taken by [`SymbolRc`].
-//! While this does have a minor runtime overhead,
-//!   the simplicity afforded by the implementation makes it attractive
-//!   until it becomes a bottleneck.
-//! Considering all of the low-hanging fruit in the TAME→TAMER
-//!   transition,
-//!     this is not expected to be a bottleneck for quite some time.
+//! The current [`DefaultInterner`] is [`FxArenaInterner`],
+//!   which is an [arena][]-allocated intern pool mapped by the
+//!   [Fx Hash][fxhash] hash function:
 //!
-//! Rust implemented [`From`] for slices for [`Rc`] in [RFC 1845][rfc-1845],
-//!   where it explicitly used string interning as a use case.
-//! A trivial string interner can be implemented using
-//!   `HashSet<Rc<str>>`,
-//!     which is done by [`HashSetInterner`] using [`SymbolRc`].
-//! However, the best mechanism by which to perform interning must be
-//!   determined on a case-by-case basis.
-//! For example,
-//!   if additional metadata for strings is required,
-//!   then the pool and mapping can be combined using [`HashMapInterner`].
+//! 1. Strings are compared against the existing intern pool using a
+//!      [`HashMap`].
+//! 2. If a string has not yet been interned:
+//!    - The string is copied into the arena-backed pool;
+//!    - A new [`Symbol`] is allocated adjacent to it in the arena holding
+//!       a string slice referencing the arena-allocated string; and
+//!    - The symbol is stored as the value in the [`HashMap`] for that key.
+//! 3. Otherwise, a reference to the existing [`Symbol`] is returned.
 //!
-//! [rfc-1845]: https://rust-lang.github.io/rfcs/1845-shared-from-slice.html
-//!
-//! Further, we may want to implement a more robust internment system in the
-//!   future,
-//!     possibly using existing crates.
-//!
-//! To accommodate the above situations,
-//!   this implementation is generalized and defers implementation details
-//!   to individual implementers.
+//! Since the arena provides a stable location in memory,
+//!   and all symbols are immutable,
+//!   [`ArenaInterner`] is able to safely return any number of references to
+//!     a single [`Symbol`],
+//!       bound to the lifetime of the arena itself.
+//! Since the [`Symbol`] contains the string slice,
+//!   it also acts as a [smart pointer] for the interned string itself,
+//!     allowing [`Symbol`] to be used in any context where `&str` is
+//!     expected.
+//! Dropping a [`Symbol`] does _not_ affect the underlying arena-allocated
+//!   data.
 //!
 //! [smart pointer]: https://doc.rust-lang.org/book/ch15-00-smart-pointers.html
 //!
+//! Each symbol also has an associated integer index value
+//!   (see [`Symbol::index`]),
+//!     which provides a dense range of values suitable for use in vectors
+//!       as an alternative to [`HashMap`] for mapping symbol data.
 //!
-//! Intern Metadata
-//! ---------------
-//! It's common to associate interns with additional information.
-//! For example,
-//!   an intern may represent a symbol in a symbol table,
-//!   or an indexer may want to associated a symbol with some other data.
-//! Metadata can be stored alongside an intern using one of the
-//!   [`MetaInterner`] interners,
-//!     such as [`HashMapInterner`]:
+//! Since a reference to the same [`Symbol`] is returned for each
+//!   [`Interner::intern`] and [`Interner::intern_soft`] call,
+//!     symbols can be compared by pointer in `O(1)` time.
+//! Symbols also implement [`Copy`],
+//!   and will still compare equal to other symbols referencing the same
+//!   interned value by comparing the underlying string slice pointers.
 //!
-//! ```
-//! use tamer::sym::{MetaInterner, DefaultMapInterner};
+//! This implementation was heavily motivated by [Rustc's own internment
+//!   system][rustc-intern],
+//!     but differs in significant ways:
 //!
-//! let mut interner = DefaultMapInterner::<u8>::new();
-//!
-//! let (_intern, prev) = interner.intern_meta("foo", 20);
-//!
-//! assert_eq!(None, prev);
-//! assert_eq!(Some(&20), interner.meta("foo"));
-//! assert_eq!(None, interner.meta("missing"));
-//! ```
-//!
-//! Lifetime of Interns
-//! -------------------
-//! Implementations need not bother with trying to free up space in the
-//!   intern pool when strings are no longer in use,
-//!     since compilation processes are short-lived.
-//! This gives much more flexibility in implementation.
-//!
-//!
-//! Equality of Interns
-//! -------------------
-//! Two [`Symbol`] values must be considered [`Eq`] if their wrapped
-//!   values are `Eq`.
-//! This requirement,
-//!   together with the requirement that equal values share the same hash
-//!     (via [`Hash`]),
-//!     permit use of hash tables
-//!       (such as [`HashSet`] and [`HashMap`](std::collections::HashMap))
-//!       to store interned values.
-//!
-//! Comparing [`Rc`] values is usually cheap because checks are first
-//!   performed by comparing pointers to the underlying data.
-//! If they represent the same interned symbol,
-//!   then pointers will match.
-//! If not,
-//!   the underlying values will be compared.
-//! Since they are known to be different,
-//!   this comparison should go quickly,
-//!   unless the two strings being compared share a common prefix.
-//!
-//! In situations where it is not acceptable to fall back to a potentially
-//!   expensive negative case,
-//!     you may compare interned values by memory location using
-//!     [`Symbol::ptr_eq`]
-//!       (so named after [`Rc::ptr_eq`]):
-//!
-//! ```
-//! use tamer::sym::{Symbol, SymbolRc};
-//!
-//! let a = SymbolRc::new("foo");
-//! let b = SymbolRc::new(&"foo".to_string());
-//!
-//! assert_eq!(a, b);
-//! assert_eq!(*a, *b);
-//! assert!(a.ptr_eq(&a.clone()));
-//! assert!(!a.ptr_eq(&b));
-//! ```
+//!   - This implementation stores string references in [`Symbol`] rather
+//!       than relying on a global singleton [`Interner`];
+//!   - Consequently, associates the lifetime of interned strings with that
+//!       of the underlying arena rather than casting to `&'static`;
+//!   - Retrieves symbol values by pointer reference without requiring use
+//!       of [`Interner`] or a locking mechanism; and
+//!   - Stores [`Symbol`] objects in the arena rather than within a vector
+//!       indexed by [`SymbolIndex`].
 //!
 //!
 //! Name Mangling
 //! =============
-//! Interners do not perform [name mangling][],
-//!   nor is it yet clear if they should.
+//! Interners do not perform [name mangling][].
 //! For future consideration,
 //!   see [RFC 2603][rfc-2603] and the [Itanium ABI][itanium-abi].
 //!
@@ -289,8 +214,7 @@
 //!   - The [flyweight pattern][] in object-oriented programming is a type
 //!     of interning.
 //!   - [RFC 1845][rfc-1845] gives an example of string interning using
-//!       `Rc<str>`,
-//!         which is used by [`SymbolRc`].
+//!       `Rc<str>`.
 //!   - Emacs directly exposes the intern pool at runtime as
 //!     [`obarray`][es].
 //!   - [`string-cache`][rust-string-cache] is a string interning system
@@ -301,19 +225,22 @@
 //!       [arena allocator][rustc-arena] and avoids `Rc` by representing
 //!       symbols as integer values and converting them to strings using a
 //!       global pool and unsafe rust to cast to a `static` slice.
-//!     - This was the direction TAMER was initially going to take,
-//!         but the simplicity of `Rc` was chosen over unsafe rust until
-//!         such an optimization is needed and its benefits demonstrable.
 //!     - Rustc identifies symbols by integer value encapsulated within a
 //!         `Symbol`.
-//!       TAMER does this at the level of the ASG instead,
-//!         treating the interner as a separate system.
+//!     - Rustc's [`newtype_index!` macro][rustc-nt] uses [`NonZeroU32`] so
+//!         that [`Option`] uses no additional space
+//!         (see [pull request `53315`][rustc-nt-pr]).
+//!     - Differences between TAMER and Rustc's implementations are outlined
+//!         above.
 //!
 //! [flyweight pattern]: https://en.wikipedia.org/wiki/Flyweight_pattern
 //! [rust-string-cache]: https://github.com/servo/string-cache
 //! [rust-string-interner]: https://github.com/robbepop/string-interner
+//! [rfc-1845]: https://rust-lang.github.io/rfcs/1845-shared-from-slice.html
 //! [rustc-intern]: https://doc.rust-lang.org/nightly/nightly-rustc/syntax/ast/struct.Name.html
 //! [rustc-arena]: https://doc.rust-lang.org/nightly/nightly-rustc/arena/index.html
+//! [rustc-nt]: https://doc.rust-lang.org/nightly/nightly-rustc/rustc_index/macro.newtype_index.html
+//! [rustc-nt-pr]: https://github.com/rust-lang/rust/pull/53315
 //!
 //! The hash function chosen for this module is [Fx Hash][fxhash].
 //!
@@ -332,156 +259,154 @@
 //! [rustc-fx]: https://doc.rust-lang.org/nightly/nightly-rustc/rustc_data_structures/fx/index.html
 //! [hash-rs]: https://github.com/Gankra/hash-rs
 
+use bumpalo::Bump;
 use fxhash::FxBuildHasher;
-use std::collections::hash_map::{Entry, RandomState};
-use std::collections::{HashMap, HashSet};
-use std::hash::{BuildHasher, Hash};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::hash::BuildHasher;
+use std::num::NonZeroU32;
 use std::ops::Deref;
-use std::rc::Rc;
 
-/// Reference to an interned string.
+/// Unique symbol identifier.
 ///
-/// This encapsulates implementation details regarding the internment
-///   process and allows it to change over time,
-///     or even vary between subsystems.
+/// _Do not construct this value yourself;_
+///   use an [`Interner`].
 ///
-/// An interned string must be treated as if it were the underlying
-///   interned type `T` by implementing [`Deref`].
-/// Further,
-///   since interned string should be mere references to data,
-///   they ought to be cheap to copy.
-/// However,
-///   since reference counting may be involved,
-///   we must use [`Clone`] instead of [`Copy`].
+/// This newtype helps to prevent other indexes from being used where a
+///   symbol index is expected.
+/// Note, however, that it provides no defense against mixing symbol indexes
+///   between multiple [`Interner`]s.
 ///
-/// Storing Interns
-/// ===============
-/// _This is a wrapper for an interned value;
-///   it does not necessary mean that a value was actually interned!_
-/// It ought to be created using an [`Interner`],
-///   which is responsible for creation, storage, and retrieval of interned
-///   values.
-pub trait Symbol: Deref<Target = str> + Clone + Eq + Hash {
-    /// Represent `value` as an interned string.
+/// The index `0` is never valid because of [`NonZeroU32`],
+///   which allows us to have `Option<SymbolIndex>` at no space cost.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct SymbolIndex(NonZeroU32);
+
+impl SymbolIndex {
+    /// Construct index from a non-zero `u32` value.
     ///
-    /// _This does not perform internment;_ see
-    /// [`Interner`].  This merely provides a wrapper for interned
-    /// values which are then stored by an `Interner`.
-    fn new(value: &str) -> Self;
-
-    /// Compare underlying memory location for equality with the memory
-    /// location of another interned value.
-    ///
-    /// Symbol strings are [`Eq`] one-another if their underlying values
-    ///   are also `Eq`.
-    /// This allows comparing underlying memory locations for equality,
-    ///   both to ensure that internment is actually being performed,
-    ///   and to permit separate internment systems sharing the same string
-    ///     set.
-    fn ptr_eq(&self, other: &Self) -> bool;
-}
-
-/// An `Rc`-backed reference to an interned string.
-///
-/// This is a zero-cost abstraction and should provide no additional
-///   overhead over using `Rc` directly.
-#[derive(Debug, Eq, PartialEq, Hash)]
-pub struct SymbolRc(Rc<str>);
-
-impl Symbol for SymbolRc {
-    /// Represent `value` as an interned string.
-    ///
-    /// _This does not perform internment;_ see
-    /// [`Interner`].  This merely provides a wrapper for interned
-    /// values which are then stored by an `Interner`.
-    #[inline]
-    fn new(value: &str) -> Self {
-        Self(value.into())
+    /// Panics
+    /// ------
+    /// Will panic if `n == 0`.
+    pub fn from_u32(n: u32) -> SymbolIndex {
+        SymbolIndex(NonZeroU32::new(n).unwrap())
     }
 
-    /// Compare underlying memory location for equality with the memory
-    /// location of another interned value.
+    /// Construct index from an unchecked non-zero `u32` value.
     ///
-    /// ```
-    /// use tamer::sym::{Symbol, SymbolRc};
-    ///
-    /// let a = SymbolRc::new("foo");
-    /// let b = SymbolRc::new(&"foo".to_string());
-    ///
-    /// assert!(a.ptr_eq(&a.clone()));
-    /// assert!(!a.ptr_eq(&b));
-    /// ```
-    ///
-    /// For more information,
-    ///   see [`Symbol::ptr_eq`].
-    #[inline]
-    fn ptr_eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+    /// This does not verify that `n > 0` and so must only be used in
+    ///   contexts where this invariant is guaranteed to hold.
+    /// Unlike [`from_u32`](SymbolIndex::from_u32),
+    ///   this never panics.
+    unsafe fn from_u32_unchecked(n: u32) -> SymbolIndex {
+        SymbolIndex(NonZeroU32::new_unchecked(n))
     }
 }
 
-impl Deref for SymbolRc {
+/// Interned string.
+///
+/// A reference to this symbol is returned each time the same string is
+///   interned with the same [`Interner`];
+///     as such,
+///       symbols can be compared for equality by pointer;
+///         the underlying symbol id need not be used.
+///
+/// Each symbol is identified by a unique integer
+///   (see [`index`](Symbol::index)).
+/// The use of integers creates a more dense range of values than pointers,
+///     which allows callers to use a plain [`Vec`] as a map instead of
+///     something far more expensive like
+///     [`HashSet`](std::collections::HashSet);
+///       this is especially beneficial for portions of the system that make
+///         use of nearly all interned symbols,
+///           like the ASG.
+///
+/// The symbol also stores a string slice referencing the interned string
+///   itself,
+///     whose lifetime is that of the [`Interner`]'s underlying data store.
+/// Dereferencing the symbol will expose the underlying slice.
+#[derive(Copy, Clone, Debug)]
+pub struct Symbol<'i> {
+    index: SymbolIndex,
+    str: &'i str,
+}
+
+impl<'i> Symbol<'i> {
+    /// Construct a new interned value.
+    ///
+    /// _This must only be done by an [`Interner`]._
+    #[inline]
+    fn new(index: SymbolIndex, str: &'i str) -> Symbol<'i> {
+        Self { index, str }
+    }
+
+    /// Retrieve unique symbol index.
+    ///
+    /// This is a densely-packed identifier that can be used as an index for
+    ///   mapping.
+    /// See [`SymbolIndex`] for more information.
+    #[inline]
+    pub fn index(&self) -> SymbolIndex {
+        self.index
+    }
+}
+
+impl<'i> PartialEq for Symbol<'i> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self as *const _, other as *const _)
+            || std::ptr::eq(self.str.as_ptr(), other.str.as_ptr())
+    }
+}
+
+impl<'i> Eq for Symbol<'i> {}
+
+impl<'i> Deref for Symbol<'i> {
     type Target = str;
 
-    /// Retrieve underlying string slice.
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Clone for SymbolRc {
-    /// Clone a reference to the interned value.
+    /// Dereference to interned string slice.
     ///
-    /// This creates another pointer to the same internal value, increasing
-    /// the strong reference count on the underlying [`Rc`].
+    /// This allows for symbols to be used where strings are expected.
     #[inline]
-    fn clone(&self) -> Self {
-        Self(Rc::clone(&self.0))
-    }
-}
-
-impl From<&str> for SymbolRc {
-    #[inline]
-    fn from(value: &str) -> Self {
-        Self::new(value)
+    fn deref(&self) -> &str {
+        self.str
     }
 }
 
 /// Create, store, compare, and retrieve [`Symbol`] values.
 ///
-/// Interners are generic over the type of their interned values.
-/// They accept string slices and produce values of type [`Symbol`].
-///
-/// The intended use case is to attempt to blindly
-///   [`intern`](Interner::intern) slices;
-///     if it has already been interned,
-///       then you will receive a copy of the existing [`Symbol`] value.
-/// If it hasn't been interned,
-///   then it will be added.
+/// Interners accept string slices and produce values of type [`Symbol`].
+/// A reference to the same [`Symbol`] will always be returned for a given
+///   string,
+///     allowing symbols to be compared for equality cheaply by comparing
+///     pointers.
+/// Symbol locations in memory are fixed for the lifetime of the interner.
 ///
 /// If you care whether a value has been interned yet or not,
-///   use [`contains`](Interner::contains).
+///   see [`intern_soft`][Interner::intern_soft`] and
+///     [`contains`](Interner::contains).
 ///
 /// See the [module-level documentation](self) for an example.
-pub trait Interner<T: Symbol> {
-    /// Intern a string slice or return an existing matching intern.
+pub trait Interner<'i> {
+    /// Intern a string slice or return an existing [`Symbol`].
     ///
     /// If the provided string has already been interned,
-    ///   then the existing [`Symbol`] value will be cloned and returned.
+    ///   then a reference to the existing [`Symbol`] will be returned.
     /// Otherwise,
-    ///   the string will be interned and a clone returned.
+    ///   the string will be interned and a new [`Symbol`] created.
     ///
-    /// To retrieve an existing intern _without_ interning,
+    /// The lifetime of the returned symbol is bound to the lifetime of the
+    ///   underlying intern pool.
+    ///
+    /// To retrieve an existing symbol _without_ interning,
     ///   see [`intern_soft`](Interner::intern_soft).
-    fn intern(&mut self, value: &str) -> T;
+    fn intern(&'i self, value: &str) -> &'i Symbol<'i>;
 
     /// Retrieve an existing intern for the string slice `s`.
     ///
     /// Unlike [`intern`](Interner::intern),
     ///   this will _not_ intern the string if it has not already been
     ///   interned.
-    fn intern_soft(&mut self, value: &str) -> Option<T>;
+    fn intern_soft(&'i self, value: &str) -> Option<&'i Symbol<'i>>;
 
     /// Determine whether the given value has already been interned.
     fn contains(&self, value: &str) -> bool;
@@ -493,163 +418,131 @@ pub trait Interner<T: Symbol> {
     fn len(&self) -> usize;
 }
 
-/// Store metadata alongside [`Symbol`] values.
+/// An interner backed by an [arena](bumpalo).
 ///
-/// This provides a simple key/value store where interns are used as the key
-///   and arbitrary metadata can be stored as a value.
-/// It may be ideal to use for symbol tables or indexers.
-///
-/// Metadata types must implement [`Default`],
-///   which will be used when interning with [`Interner::intern`].
-/// To provide metadata at the time of interning,
-///   use [`intern_meta`](MetaInterner::intern_meta) instead,
-///     which will also overwrite any existing metadata an existing intern.
-///
-/// A reference to metadata for an intern can be retrieved with
-///   [`meta`](MetaInterner::meta).
-///
-/// See the [module-level documentation](self) for an example.
-pub trait MetaInterner<T, M>: Interner<T>
-where
-    T: Symbol,
-    M: Default,
-{
-    /// Intern a string slice with metadata,
-    ///   or return an existing string slice and overwrite its metadata.
-    ///
-    /// If an intern does not yet exist for the given string slice,
-    ///   then these two are equivalent:
-    ///
-    /// ```
-    /// # use tamer::sym::{Interner, MetaInterner, DefaultMapInterner};
-    /// #
-    /// # let mut interner = DefaultMapInterner::<usize>::new();
-    /// #
-    /// // These store the same intern and metadata if no such intern exists
-    /// interner.intern("foo");
-    /// interner.intern_meta("foo", Default::default());
-    /// ```
-    ///
-    /// When an intern does not yet exist,
-    ///   this returns a tuple containing the new intern and [`None`],
-    ///     indicating that there was no prior metadata.
-    ///
-    /// When an intern _does_ exist,
-    ///   this function will _replace existing metadata_.
-    /// The tuple will contain the existing intern,
-    ///   along with [`Some`] containing the _previous_ metadata as an owned
-    ///   value.
-    ///
-    /// This behavior can be exploited to determine whether a symbol
-    ///   previously existed without using [`Interner::contains`].
-    fn intern_meta(&mut self, value: &str, meta: M) -> (T, Option<M>);
-
-    /// Retrieve a reference to the metadata associated with an intern
-    ///   identified by the given string slice.
-    ///
-    /// If no such intern exists,
-    ///   the value will be [`None`].
-    /// If an intern exists but did not have its value explicitly set via
-    ///   [`intern_meta`](MetaInterner::intern_meta),
-    ///     its value will be the [`Default`] of `M`.
-    fn meta(&self, value: &str) -> Option<&M>;
-}
-
-/// An interner backed by a [`HashSet`].
-///
-/// This interner is appropriate to be used when strings need only be
-///   interned and have no associated data.
+/// Since interns exist until the interner itself is freed,
+///   an arena is a much more efficient and appropriate memory allocation
+///   strategy.
+/// This further provides a stable location in memory for symbol data.
 ///
 /// For the recommended configuration,
-///   see [`DefaultSetInterner`].
+///   see [`DefaultInterner`].
 ///
-/// See the [module-level documentation](self) for an example.
-pub struct HashSetInterner<T = SymbolRc, S = RandomState>
+/// See the [module-level documentation](self) for examples and more
+///   information on how to use this interner.
+pub struct ArenaInterner<'i, S>
 where
-    T: Symbol,
-    S: BuildHasher,
-{
-    /// Intern pool.
-    map: HashSet<T, S>,
-}
-
-impl<T, S> HashSetInterner<T, S>
-where
-    T: Symbol,
     S: BuildHasher + Default,
 {
-    /// Create a new interner with an underlying [`HashSet`].
+    /// String and [`Symbol`] storage.
+    arena: Bump,
+
+    /// Next available symbol index.
     ///
-    /// Prefer [`with_capacity`](HashSetInterner::with_capacity) over this
-    ///   function if capacity can be reasonably estimated.
+    /// This must always be ≥1.
+    /// It is not defined as `NonZeroU32` because
+    ///   `intern` enforces the invariant.
+    next_index: Cell<u32>,
+
+    /// Map of interned strings to their respective [`Symbol`].
+    ///
+    /// Both strings and symbols are allocated within `arena`.
+    map: RefCell<HashMap<&'i str, &'i Symbol<'i>, S>>,
+}
+
+impl<'i, S> ArenaInterner<'i, S>
+where
+    S: BuildHasher + Default,
+{
+    /// Initialize a new interner with no initial capacity.
+    ///
+    /// Prefer [`with_capacity`](ArenaInterner::with_capacity) when possible.
     #[inline]
     pub fn new() -> Self {
-        Self {
-            map: HashSet::with_hasher(Default::default()),
-        }
+        Self::with_capacity(0)
     }
 
-    /// Create a new interner with at least the specified capacity for the
-    ///   underlying [`HashSet`].
+    /// Initialize a new interner with an initial capacity for the
+    ///   underlying [`HashMap`].
     ///
-    /// This method of construction should be used any time a capacity can
-    ///   be predicated since it reduces the chance of reallocations as
-    ///   interns exceed the capacity.
-    /// For example,
-    ///   if interns are used to represent symbols and most packages contain
-    ///   at least `N` symbols,
-    ///     then `capacity` ought to be ≥N.
+    /// The given `capacity` has no affect on arena allocation.
+    /// Specifying initial capacity is important only for the map of strings
+    ///   to symbols because it will reallocate and re-hash its contents
+    ///   once capacity is exceeded.
+    /// See benchmarks.
     ///
-    /// For more information,
-    ///   see [`HashSet::with_capacity`].
+    /// If reallocation is a major concern,
+    ///   a [consistent hashing algorithm][consistent] could be considered,
+    ///   but the implementation will still incur the cost of copying
+    ///     the [`HashMap`]'s contents to a new location in memory.
     ///
-    /// See also `intern` benchmarks.
+    /// [consistent]: https://en.wikipedia.org/wiki/Consistent_hashing
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            map: HashSet::with_capacity_and_hasher(
+            arena: Bump::new(),
+            next_index: Cell::new(1),
+            map: RefCell::new(HashMap::with_capacity_and_hasher(
                 capacity,
                 Default::default(),
-            ),
+            )),
         }
     }
 }
 
-impl<T, S> Interner<T> for HashSetInterner<T, S>
+impl<'i, S> Interner<'i> for ArenaInterner<'i, S>
 where
-    T: Symbol,
-    S: BuildHasher,
+    S: BuildHasher + Default,
 {
-    fn intern(&mut self, value: &str) -> T {
-        let intern = T::new(value);
+    fn intern(&'i self, value: &str) -> &'i Symbol<'i> {
+        let mut map = self.map.borrow_mut();
 
-        if !self.map.contains(&intern) {
-            self.map.insert(intern.clone());
-            return intern;
+        if let Some(sym) = map.get(value) {
+            return sym;
         }
 
-        self.map.get(&intern).unwrap().clone()
+        let next_index = self.next_index.get();
+
+        // Next_index should always be initialized to at least 1.
+        debug_assert!(next_index != 0);
+        let id = unsafe { SymbolIndex::from_u32_unchecked(next_index) };
+
+        // Copy string slice into the arena.
+        let clone: &'i str = unsafe {
+            &*(std::str::from_utf8_unchecked(
+                self.arena.alloc_slice_clone(value.as_bytes()),
+            ) as *const str)
+        };
+
+        // Symbols are also stored within the arena, adjacent to the
+        // string.  This ensures that both have stable locations in memory.
+        let sym: &'i Symbol<'i> = self.arena.alloc(Symbol::new(id, &clone));
+
+        map.insert(clone, sym);
+        self.next_index.set(next_index + 1);
+
+        sym
     }
 
     #[inline]
-    fn intern_soft(&mut self, value: &str) -> Option<T> {
-        self.map.get(&T::new(value)).map(|s| s.clone())
+    fn intern_soft(&'i self, value: &str) -> Option<&'i Symbol<'i>> {
+        self.map.borrow().get(value).map(|sym| *sym)
     }
 
     #[inline]
     fn contains(&self, value: &str) -> bool {
-        self.map.contains(&T::new(value))
+        self.map.borrow().contains_key(value)
     }
 
     #[inline]
     fn len(&self) -> usize {
-        self.map.len()
+        self.map.borrow().len()
     }
 }
 
 /// Interner using the [Fx Hash][fxhash] hashing function.
 ///
-/// _This is currently the hash function used by [`DefaultSetInterner`]._
+/// _This is currently the hash function used by [`DefaultInterner`]._
 ///
 /// If denial of service is not a concern,
 ///   then this will outperform the default
@@ -657,216 +550,117 @@ where
 ///     (which uses SipHash at the time of writing).
 ///
 /// See intern benchmarks for a comparison.
-pub type FxHashSetInterner<T> = HashSetInterner<T, FxBuildHasher>;
+pub type FxArenaInterner<'i> = ArenaInterner<'i, FxBuildHasher>;
 
-/// Recommended configuration for set-based interners.
+/// Recommended [`Interner`] and configuration.
 ///
 /// The choice of this default relies on the assumption that
 ///   denial-of-service attacks against the hash function are not a
 ///   concern.
 ///
 /// For more information on the hashing algorithm,
-///   see [`FxHashSetInterner`].
-pub type DefaultSetInterner = FxHashSetInterner<SymbolRc>;
-
-/// An interner backed by a [`HashMap`].
-///
-/// This interner is appropriate to be used when strings need to be interned
-///   alongside additional metadata.
-///
-/// For the recommended configuration,
-///   see [`DefaultMapInterner`].
-///
-/// See the [module-level documentation](self) for an example and more
-///   information on when this interner is appropriate.
-pub struct HashMapInterner<T = SymbolRc, M = (), S = RandomState>
-where
-    T: Symbol,
-    M: Default,
-    S: BuildHasher,
-{
-    /// Intern pool.
-    map: HashMap<T, M, S>,
-}
-
-impl<T, M, S> HashMapInterner<T, M, S>
-where
-    T: Symbol,
-    M: Default,
-    S: BuildHasher + Default,
-{
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            map: HashMap::with_hasher(Default::default()),
-        }
-    }
-
-    #[inline]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            map: HashMap::with_capacity_and_hasher(
-                capacity,
-                Default::default(),
-            ),
-        }
-    }
-}
-
-impl<T, M, S> Interner<T> for HashMapInterner<T, M, S>
-where
-    T: Symbol,
-    M: Default,
-    S: BuildHasher,
-{
-    fn intern(&mut self, value: &str) -> T {
-        match self.map.entry(T::new(&value)) {
-            Entry::Vacant(v) => {
-                let intern = v.key().clone();
-
-                v.insert(Default::default());
-                intern
-            }
-            Entry::Occupied(o) => o.key().clone(),
-        }
-    }
-
-    #[inline]
-    fn intern_soft(&mut self, value: &str) -> Option<T> {
-        match self.map.entry(T::new(&value)) {
-            Entry::Vacant(_) => None,
-            Entry::Occupied(o) => Some(o.key().clone()),
-        }
-    }
-
-    #[inline]
-    fn contains(&self, value: &str) -> bool {
-        self.map.contains_key(&T::new(&value))
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.map.len()
-    }
-}
-
-impl<T, M, S> MetaInterner<T, M> for HashMapInterner<T, M, S>
-where
-    T: Symbol,
-    M: Default,
-    S: BuildHasher,
-{
-    fn intern_meta(&mut self, value: &str, meta: M) -> (T, Option<M>) {
-        match self.map.entry(T::new(&value)) {
-            Entry::Vacant(v) => {
-                let intern = v.key().clone();
-
-                v.insert(meta);
-                (intern, None)
-            }
-            Entry::Occupied(mut o) => (o.key().clone(), Some(o.insert(meta))),
-        }
-    }
-
-    #[inline]
-    fn meta(&self, value: &str) -> Option<&M> {
-        self.map.get(&T::new(value))
-    }
-}
-
-/// Interner using the [Fx Hash][fxhash] hashing function.
-///
-/// _This is currently the hash function used by [`DefaultMapInterner`]._
-///
-/// If denial of service is not a concern,
-///   then this will outperform the default
-///     [`DefaultHasher`](std::collections::hash_map::DefaultHasher)
-///     (which uses SipHash at the time of writing).
-///
-/// See intern benchmarks for a comparison.
-pub type FxHashMapInterner<T, M> = HashMapInterner<T, M, FxBuildHasher>;
-
-/// Recommended configuration for map-based interners.
-///
-/// The choice of this default relies on the assumption that
-///   denial-of-service attacks against the hash function are not a
-///   concern.
-///
-/// For more information on the hashing algorithm,
-///   see [`FxHashMapInterner`].
-pub type DefaultMapInterner<M> = FxHashMapInterner<SymbolRc, M>;
+///   see [`FxArenaInterner`].
+pub type DefaultInterner<'i> = FxArenaInterner<'i>;
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    mod interned_rc {
+    mod symbol {
         use super::*;
 
-        /// Dereferencing should fall through all layers to the underlying `T`.
+        /// Option<Symbol> should have no space cost.
         #[test]
-        fn derefs_to_inner_value() {
-            let expected = "foo";
-            let sut = SymbolRc::new(expected);
+        fn symbol_index_option_no_cost() {
+            use std::mem::size_of;
 
-            assert_eq!(expected, &*sut);
-        }
-
-        /// Symbol string must be easily cloned and must represent the same
-        /// underlying data.
-        #[test]
-        fn clones_equal() {
-            let expected = "bar";
-            let sut = SymbolRc::new(expected);
-
-            // This is the true test
-            assert!(sut.ptr_eq(&sut.clone()));
-            assert_eq!(sut, sut.clone());
-
-            // But we also want to verify derefs.
-            assert_eq!(*sut, *sut.clone());
+            assert_eq!(
+                size_of::<Option<Symbol>>(),
+                size_of::<Symbol>(),
+                "Option<Symbol> should be the same size as Symbol"
+            );
         }
 
         #[test]
-        fn not_ptr_eq_if_memory_locations_differ() {
-            let a = SymbolRc::new("foo");
-            let b = SymbolRc::new(&"foo".to_string());
+        fn self_compares_eq() {
+            let sym = Symbol::new(SymbolIndex::from_u32(1), "str");
 
-            // Pointers differ
-            assert!(!a.ptr_eq(&b));
+            assert_eq!(&sym, &sym);
+        }
 
-            // But values do not
-            assert_eq!(*a, *b);
+        #[test]
+        fn copy_compares_equal() {
+            let sym = Symbol::new(SymbolIndex::from_u32(1), "str");
+            let cpy = sym;
+
+            assert_eq!(sym, cpy);
+        }
+
+        // Integer values are for convenience, not identity.  They cannot be
+        // used as a unique identifier across different interners.
+        #[test]
+        fn same_index_different_slices_compare_unequal() {
+            let a = Symbol::new(SymbolIndex::from_u32(1), "a");
+            let b = Symbol::new(SymbolIndex::from_u32(1), "b");
+
+            assert_ne!(a, b);
+        }
+
+        // As mentioned above, ids are _not_ the identity of the symbol.  If
+        // two values point to the same location in memory, they are assumed
+        // to have come from the same interner, and should therefore have
+        // the same index this should never happen unless symbols are
+        // being created without the use of interners, which is unsupported.
+        //
+        // This test is a cautionary tale.
+        #[test]
+        fn different_index_same_slices_compare_equal() {
+            let slice = "str";
+
+            let a = Symbol::new(SymbolIndex::from_u32(1), slice);
+            let b = Symbol::new(SymbolIndex::from_u32(2), slice);
+
+            assert_eq!(a, b);
+        }
+
+        #[test]
+        fn cloned_symbols_compare_equal() {
+            let sym = Symbol::new(SymbolIndex::from_u32(1), "foo");
+
+            assert_eq!(sym, sym.clone());
+        }
+
+        // &Symbol can be used where string slices are expected (this won't
+        // compile otherwise).
+        #[test]
+        fn ref_can_be_used_as_string_slice() {
+            let slice = "str";
+            let sym_slice: &str = &Symbol::new(SymbolIndex::from_u32(1), slice);
+
+            assert_eq!(slice, sym_slice);
+        }
+
+        // For use when we can guarantee proper ids.
+        #[test]
+        fn can_create_index_unchecked() {
+            assert_eq!(SymbolIndex::from_u32(1), unsafe {
+                SymbolIndex::from_u32_unchecked(1)
+            });
+        }
+
+        #[test]
+        fn can_retrieve_symbol_index() {
+            let index = SymbolIndex::from_u32(1);
+
+            assert_eq!(index, Symbol::new(index, "").index());
         }
     }
 
-    /// Run the enclosed test functions for each of the [`Interner`]
-    /// implementations.
-    ///
-    /// The system (interner) under test (SUT) is exposed as `Sut`.
-    macro_rules! each_interner {
-        ($($(#[$attr:meta])* fn $name:ident() $body:block)*) => {
-            macro_rules! interner {
-                ($mod:ident: $type:ty) => {
-                    mod $mod {
-                        use super::*;
+    mod interner {
+        use super::*;
 
-                        type Sut = $type;
+        type Sut<'i> = DefaultInterner<'i>;
 
-                        $(
-                            $(#[$attr])*
-                            fn $name() $body
-                        )*
-                    }
-                }
-            }
-
-            interner!(common_hash_set: HashSetInterner<SymbolRc, RandomState>);
-            interner!(common_hash_map: HashMapInterner<SymbolRc, (), RandomState>);
-        }
-    }
-
-    each_interner! {
         #[test]
         fn recognizes_equal_strings() {
             let a = "foo";
@@ -874,30 +668,51 @@ mod test {
             let c = "bar";
             let d = c.to_string();
 
-            let mut sut = Sut::new();
+            let sut = Sut::new();
 
             let (ia, ib, ic, id) =
                 (sut.intern(a), sut.intern(&b), sut.intern(c), sut.intern(&d));
 
-            assert!(ia.ptr_eq(&ib));
             assert_eq!(ia, ib);
             assert_eq!(&ia, &ib);
             assert_eq!(*ia, *ib);
 
-            assert!(ic.ptr_eq(&id));
             assert_eq!(ic, id);
             assert_eq!(&ic, &id);
             assert_eq!(*ic, *id);
 
-            assert!(!ia.ptr_eq(&ic));
             assert_ne!(ia, ic);
             assert_ne!(&ia, &ic);
             assert_ne!(*ia, *ic);
         }
 
         #[test]
+        fn symbol_id_increases_with_each_new_intern() {
+            let sut = Sut::new();
+
+            // Remember that identifiers begin at 1
+            assert_eq!(
+                SymbolIndex::from_u32(1),
+                sut.intern("foo").index(),
+                "First index should be 1"
+            );
+
+            assert_eq!(
+                SymbolIndex::from_u32(1),
+                sut.intern("foo").index(),
+                "Index should not increment for already-interned symbols"
+            );
+
+            assert_eq!(
+                SymbolIndex::from_u32(2),
+                sut.intern("bar").index(),
+                "Index should increment for new symbols"
+            );
+        }
+
+        #[test]
         fn length_increases_with_each_new_intern() {
-            let mut sut = Sut::new();
+            let sut = Sut::new();
 
             assert_eq!(0, sut.len(), "invalid empty len");
 
@@ -914,7 +729,7 @@ mod test {
 
         #[test]
         fn can_check_wither_string_is_interned() {
-            let mut sut = Sut::new();
+            let sut = Sut::new();
 
             assert!(!sut.contains("foo"), "recognize missing value");
             sut.intern("foo");
@@ -923,7 +738,7 @@ mod test {
 
         #[test]
         fn intern_soft() {
-            let mut sut = Sut::new();
+            let sut = Sut::new();
 
             assert_eq!(None, sut.intern_soft("foo"));
 
@@ -937,62 +752,7 @@ mod test {
             let sut = Sut::with_capacity(n);
 
             // note that this is not publicly available
-            assert!(sut.map.capacity() >= n);
-        }
-    }
-
-    mod hash_set {
-        use super::*;
-
-        #[test]
-        fn get_meta_of_missing_intern() {
-            let sut = HashMapInterner::<SymbolRc, (), RandomState>::new();
-            assert_eq!(None, sut.meta("foo"));
-        }
-
-        /// Unless explicitly set, the metavalue must be the default value
-        /// for the given type.
-        #[test]
-        fn get_meta_of_existing_intern_with_default() {
-            let expected = u8::default();
-            let mut sut = HashMapInterner::<SymbolRc, u8, RandomState>::new();
-
-            sut.intern("foo");
-            assert_eq!(Some(&expected), sut.meta("foo"));
-        }
-
-        #[test]
-        fn set_meta_of_new_intern() {
-            let given = 5;
-            let mut sut = HashMapInterner::<SymbolRc, u8, RandomState>::new();
-
-            sut.intern_meta("foo", given);
-            assert_eq!(Some(&given), sut.meta("foo"))
-        }
-
-        #[test]
-        fn set_meta_of_existing_intern() {
-            let old = u8::default();
-            let first = 3;
-            let second = 3;
-            let mut sut = HashMapInterner::<SymbolRc, u8, RandomState>::new();
-
-            // will have default value
-            let intern = sut.intern("foo");
-
-            assert_eq!(
-                (intern.clone(), Some(old)),
-                sut.intern_meta("foo", first),
-                "overwrite of default value"
-            );
-
-            assert_eq!(
-                (intern.clone(), Some(first)),
-                sut.intern_meta("foo", second),
-                "overwrite of first explicit value"
-            );
-
-            assert_eq!(Some(&second), sut.meta("foo"), "read of final value");
+            assert!(sut.map.borrow().capacity() >= n);
         }
     }
 }
