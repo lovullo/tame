@@ -54,9 +54,6 @@ resolv-path()
 
 # rule for building
 [ -z "$GEN_MAKE" ] && {
-  echo "%.xmlo: %.xml"
-  echo -e '\t$(TAME) compile $< $@'
-
   export GEN_MAKE="$( pwd )/$0"
   exec "$GEN_MAKE" "$@"
 }

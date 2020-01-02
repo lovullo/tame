@@ -99,6 +99,12 @@ export TAMED_STALL_SECONDS
 TAMED_SPAWNER_PID=$(shell echo $$PPID)
 export TAMED_SPAWNER_PID
 
+# Optional timestamping for TAME commands
+TS_FMT=%s
+tame__ts_0 = :
+tame__ts_1 = @printf '[%($(TS_FMT))T] '
+TAME_TS = $(tame__ts_$(TS))
+
 all: program-data-copy
 
 # Building all common files is useful in a distributed pipeline so that
@@ -107,6 +113,11 @@ common: $(xmlo_common)
 
 program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 
+# Individual dependencies appear in suppliers.mk (see below)
+%.xmlo: %.xml
+	$(TAME_TS)
+	$(TAME) compile $< $@
+
 # Note the `$()' here to prevent Automake from inlining this file---it is
 # to be generated when imports change, which can be at any time.
 include $()suppliers.mk
@@ -114,13 +125,16 @@ include $()suppliers.mk
 summary-html: $(dest_summary_html) ;
 
 %.html: %.js %.xmle
+	$(TAME_TS)
 	$(TAME) summary $*.xmle $@
 
 standalones: $(dest_standalone)
 strip: $(dest_standalone_strip) ui/package.strip.js
 %.xmle: %.xmlo
+	$(TAME_TS)
 	$(TAME) link $< $@
 %.js: %.xmle
+	$(TAME_TS)
 	$(TAME) standalone $< $@
 %.strip.js: %.js
 	cp $< $@
@@ -130,8 +144,10 @@ strip: $(dest_standalone_strip) ui/package.strip.js
 c1map: $(dest_c1map)
 
 %.dot: %.xmlo
+	$(TAME_TS)
 	$(TAME) dot $< $@
 %.dote: %.xmle
+	$(TAME_TS)
 	$(TAME) dot $< $@
 
 %.svg: %.dote
@@ -164,16 +180,21 @@ version: .version.xml
 	git log HEAD^.. -1 --pretty=format:'<version>%h</version>' > .version.xml
 
 ui/program.expanded.xml: ui/program.xml $(program_fragments)
+	$(TAME_TS)
 	$(TAME) progui-expand $< $@
 ui/Program.js: ui/program.expanded.xml ui/package.js
+	$(TAME_TS)
 	$(TAME) progui-class $< $@ include-path=../../../ui/
 ui/html/index.phtml: ui/program.expanded.xml
+	$(TAME_TS)
 	$(TAME) progui-html $< $@ out-path=./
 ui/package-dfns.xmlo: ui/package-dfns.xml
 ui/package-dfns.xml: ui/program.expanded.xml
+	$(TAME_TS)
 	$(TAME) progui-pkg $< $@
 ui/package-map.xmlo: ui/package-map.xml ui/package-dfns.xmlo
 ui/package-map.xml: ui/program.expanded.xml ui/package-dfns.xml
+	$(TAME_TS)
 	$(TAME) progui-pkg-map $< $@
 
 # for the time being, this does not depend on clean-rate-tables because $(ant) will
@@ -298,6 +319,7 @@ test: check
 
 kill-tamed: tamed-die
 tamed-die:
+	$(TAME_TS)
 	$(TAME) --kill
 
 me-a-sandwich:
