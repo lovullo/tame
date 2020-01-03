@@ -123,7 +123,8 @@
   <!-- final result with compiled fragments -->
   <lv:package>
     <sequence select="$pkg-with-symtable/@*,
-                      $pkg-with-symtable/node()" />
+                      $pkg-with-symtable/preproc:sym-deps/preceding-sibling::*,
+                      $pkg-with-symtable/preproc:sym-deps" />
 
     <preproc:fragments>
       <!-- special fragment to be output as the head -->
@@ -148,6 +149,8 @@
         <text>};</text>
       </preproc:fragment>
     </preproc:fragments>
+
+    <sequence select="$pkg-with-symtable/preproc:sym-deps/following-sibling::*" />
   </lv:package>
 </template>
 
@@ -197,7 +200,8 @@
   <!-- final result with compiled fragments -->
   <lv:package>
     <sequence select="$pkg-with-symtable/@*,
-                      $pkg-with-symtable/node()" />
+                      $pkg-with-symtable/preproc:sym-deps/preceding-sibling::*,
+                      $pkg-with-symtable/preproc:sym-deps" />
 
     <preproc:fragments>
       <!-- special fragment to be output as the head -->
@@ -222,6 +226,8 @@
         <text>};</text>
       </preproc:fragment>
     </preproc:fragments>
+
+    <sequence select="$pkg-with-symtable/preproc:sym-deps/following-sibling::*" />
   </lv:package>
 </template>
 

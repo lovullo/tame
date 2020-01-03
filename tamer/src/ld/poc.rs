@@ -314,6 +314,14 @@ fn load_xmlo<'a>(
                         _ => Ok(()),
                     }
                 }
+                Ok(Event::End(ele)) => {
+                    match ele.name() {
+                        // We don't need to read any further than the end of
+                        // the fragments (symtable, sym-deps, fragments)
+                        b"preproc:fragments" => break (),
+                        _ => Ok(()),
+                    }
+                }
                 Ok(Event::Eof) => break (),
                 Err(e) => {
                     panic!("Error at {}: {:?}", reader.buffer_position(), e);

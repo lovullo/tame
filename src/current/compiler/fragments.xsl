@@ -31,21 +31,42 @@
 
 <template mode="preproc:compile-fragments" priority="9"
           match="lv:package">
+  <copy>
+    <sequence select="@*" />
+
+    <apply-templates select="*" mode="preproc:compile-fragments-root" />
+  </copy>
+</template>
+
+
+<template mode="preproc:compile-fragments-root" priority="1"
+          match="node()">
+  <sequence select="." />
+</template>
+
+
+<!-- Position fragments directly after dependencies.  This allows TAMER to
+    halt processing early on, rather than having to read the rest of the
+    file (fragments used to be placed at the end). -->
+<template mode="preproc:compile-fragments-root" priority="5"
+          match="preproc:sym-deps">
+  <sequence select="." />
+
+  <variable name="package" as="element( lv:package )"
+            select="parent::lv:package" />
+
   <variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
             select="map:merge(
-                      for $sym in preproc:symtable/preproc:sym
+                      for $sym in $package/preproc:symtable/preproc:sym
                         return map{ string( $sym/@name ) : $sym } )" />
 
-  <copy>
-    <sequence select="@*, *" />
-
-    <preproc:fragments>
-      <apply-templates mode="preproc:compile-fragments">
-        <with-param name="symtable-map" select="$symtable-map"
-                    tunnel="yes" />
-      </apply-templates>
-    </preproc:fragments>
-  </copy>
+  <preproc:fragments>
+    <apply-templates select="$package/*"
+                     mode="preproc:compile-fragments">
+      <with-param name="symtable-map" select="$symtable-map"
+                  tunnel="yes" />
+    </apply-templates>
+  </preproc:fragments>
 </template>
 
 

@@ -66,10 +66,24 @@
       <text>[depgen] *determining symbol dependencies...</text>
     </message>
 
-    <apply-templates select="preproc:symtable" mode="preproc:depgen" />
-
-    <sequence select="*" />
+    <apply-templates select="*" mode="preproc:depgen-root" />
   </copy>
+</template>
+
+
+<template mode="preproc:depgen-root" priority="1"
+          match="node()">
+  <sequence select="." />
+</template>
+
+
+<template mode="preproc:depgen-root" priority="5"
+          match="preproc:symtable">
+  <!-- Place symbol table _before_ dependencies.  This simplifies
+       streaming processing in TAMER. -->
+  <sequence select="." />
+
+  <apply-templates select="." mode="preproc:depgen" />
 </template>
 
 
