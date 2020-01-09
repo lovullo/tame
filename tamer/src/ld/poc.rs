@@ -18,16 +18,16 @@
 //! **This is a poorly-written proof of concept; do not use!**  It has been
 //! banished to its own file to try to make that more clear.
 
+use crate::obj::xmlo::reader::{XmloEvent, XmloReader};
+use crate::sym::{DefaultInterner, Interner};
 use fixedbitset::FixedBitSet;
 use petgraph::graph::{DiGraph, EdgeIndex, Neighbors, NodeIndex};
 use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
-use quick_xml::events::Event;
-use quick_xml::Reader;
 use std::collections::hash_map::{Entry, Iter};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs;
-use std::io::BufRead;
+use std::io::BufReader;
 use std::ops::{Deref, Index};
 use std::rc::Rc;
 
@@ -214,8 +214,9 @@ enum SymEntry {
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     let mut pkgs_seen = HashSet::<String>::new();
-    let mut fragments = HashMap::<String, String>::new();
+    let mut fragments = HashMap::<&str, String>::new();
     let mut depgraph = DepGraph::new();
+    let interner = DefaultInterner::new();
 
     let package_path = std::env::args().nth(1).expect("Missing argument");
     let abs_path = fs::canonicalize(package_path).unwrap();
@@ -227,6 +228,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         &mut pkgs_seen,
         &mut fragments,
         &mut depgraph,
+        &interner,
     )?;
 
     //    println!(
@@ -246,11 +248,12 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_xmlo<'a>(
+fn load_xmlo<'a, 'i, I: Interner<'i>>(
     path_str: &'a str,
     pkgs_seen: &mut HashSet<String>,
-    fragments: &mut HashMap<String, String>,
+    fragments: &mut HashMap<&'i str, String>,
     depgraph: &mut DepGraph,
+    interner: &'i I,
 ) -> Result<(), Box<dyn Error>> {
     let path = fs::canonicalize(path_str)?;
     let path_str = path.to_str().unwrap();
@@ -259,80 +262,44 @@ fn load_xmlo<'a>(
         return Ok(());
     }
 
-    println!("processing {}", path_str);
+    //println!("processing {}", path_str);
 
-    let mut found = HashSet::<String>::new();
+    let mut found = HashSet::<&str>::new();
 
-    match Reader::from_file(&path) {
-        Ok(mut reader) => loop {
-            let mut buf = Vec::new();
+    let file = fs::File::open(&path)?;
+    let reader = BufReader::new(file);
+    let mut xmlo = XmloReader::new(reader, interner);
 
-            // we know that the XML produced by Saxon is valid
-            reader.check_end_names(false);
+    loop {
+        match xmlo.read_event()? {
+            XmloEvent::SymDeps(sym, deps) => {
+                // TODO: API needs to expose whether a symbol is already
+                // known so that we can warn on them
+                //
+                // note: using from_utf8_unchecked here did _not_ improve
+                // performance
+                let sym_node = depgraph.declare(sym);
 
-            match reader.read_event(&mut buf) {
-                Ok(Event::Start(ele)) | Ok(Event::Empty(ele)) => {
-                    let mut attrs = ele.attributes();
-                    let mut filtered =
-                        attrs.with_checks(false).filter_map(Result::ok);
-
-                    match ele.name() {
-                        b"preproc:sym-dep" => filtered
-                            .find(|attr| attr.key == b"name")
-                            .map(|attr| attr.value)
-                            .and_then(|mut name| {
-                                read_deps(&mut reader, depgraph, name.to_mut())
-                            })
-                            .ok_or("Missing name"),
-
-                        b"preproc:sym" => {
-                            filtered
-                                .find(|attr| attr.key == b"src")
-                                .map(|attr| attr.value.to_owned())
-                                .and_then(|src| {
-                                    let path_str =
-                                        std::str::from_utf8(&src).unwrap();
-
-                                    found.insert(path_str.to_string());
-                                    Some(())
-                                });
-                            Ok(())
-                        }
-
-                        b"preproc:fragment" => filtered
-                            .find(|attr| attr.key == b"id")
-                            .map(|attr| String::from_utf8(attr.value.to_vec()))
-                            .and_then(|id| {
-                                let fragment = reader
-                                    .read_text(ele.name(), &mut Vec::new())
-                                    .unwrap_or("".to_string());
-
-                                fragments.insert(id.unwrap(), fragment);
-                                Some(())
-                            })
-                            .ok_or("Missing fragment id"),
-                        _ => Ok(()),
-                    }
+                for dep_sym in deps {
+                    let dep_node = depgraph.declare(dep_sym);
+                    depgraph.declare_dep(sym_node, dep_node);
                 }
-                Ok(Event::End(ele)) => {
-                    match ele.name() {
-                        // We don't need to read any further than the end of
-                        // the fragments (symtable, sym-deps, fragments)
-                        b"preproc:fragments" => break (),
-                        _ => Ok(()),
-                    }
-                }
-                Ok(Event::Eof) => break (),
-                Err(e) => {
-                    panic!("Error at {}: {:?}", reader.buffer_position(), e);
-                }
-                _ => Ok(()),
             }
-            .unwrap_or_else(|r| panic!("Parse error: {:?}", r));
 
-            buf.clear();
-        },
-        Err(e) => panic!("Error {:?}", e),
+            XmloEvent::SymDecl(_sym, attrs) => {
+                if let Some(sym_src) = attrs.src {
+                    found.insert(sym_src);
+                }
+            }
+
+            XmloEvent::Fragment(sym, text) => {
+                fragments.insert(sym, text);
+            }
+
+            // We don't need to read any further than the end of the
+            // header (symtable, sym-deps, fragments)
+            XmloEvent::Eoh => break,
+        }
     }
 
     let mut dir = path.clone();
@@ -347,58 +314,10 @@ fn load_xmlo<'a>(
         let path_abs = path_buf.canonicalize().unwrap();
         let path = path_abs.to_str().unwrap();
 
-        load_xmlo(path, pkgs_seen, fragments, depgraph)?;
+        load_xmlo(path, pkgs_seen, fragments, depgraph, interner)?;
     }
 
     Ok(())
-}
-
-fn read_deps<B>(
-    reader: &mut Reader<B>,
-    depgraph: &mut DepGraph,
-    name: &[u8],
-) -> Option<()>
-where
-    B: BufRead,
-{
-    // TODO: API needs to expose whether a symbol is already known so that
-    // we can warn on them
-    // note: using from_utf8_unchecked here did _not_ improve performance
-    let sym_node = depgraph.declare(std::str::from_utf8(name).unwrap());
-
-    //println!("processing deps for {}", sym_name);
-
-    loop {
-        match reader.read_event(&mut Vec::new()) {
-            Ok(Event::Start(ele)) | Ok(Event::Empty(ele)) => {
-                let mut attrs = ele.attributes();
-                let mut filtered =
-                    attrs.with_checks(false).filter_map(Result::ok);
-
-                filtered.find(|attr| attr.key == b"name").and_then(
-                    |mut attr| {
-                        let name = attr.value.to_mut();
-                        let str = std::str::from_utf8(name).unwrap();
-
-                        let dep_node = depgraph.declare(&str);
-                        depgraph.declare_dep(sym_node, dep_node);
-
-                        Some(())
-                    },
-                );
-
-                //println!("{:?}", ele.attributes().collect::<Vec<_>>());
-            }
-
-            Ok(Event::Eof) | Ok(Event::End(_)) => break Some(()),
-
-            Err(e) => {
-                panic!("Error at {}: {:?}", reader.buffer_position(), e);
-            }
-
-            _ => (),
-        }
-    }
 }
 
 fn sort_deps(depgraph: &DepGraph) -> Vec<&SymEntry> {
