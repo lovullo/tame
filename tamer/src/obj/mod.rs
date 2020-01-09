@@ -1,4 +1,4 @@
-// TAME in Rust (TAMER)
+// Object files
 //
 //  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
 //
@@ -15,9 +15,20 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! An incremental rewrite of TAME in Rust.
+//! Object file construction and processing.
+//!
+//! An _[object file][]_ contains relocatable compiled code, symbol tables,
+//!   and other information produced by the compiler.
+//! It is the responsibility of the [linker](super::ld) to construct a final
+//!   executable from these files.
+//!
+//! [object file]: https://en.wikipedia.org/wiki/Object_file
+//!
+//! The only object file currently supported by TAMER is the [`xmlo`]
+//!   format,
+//!     produced by the XSLT compiler.
+//! It will likely be replaced with [ELF] object files in the future.
+//!
+//! [ELF]: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
 
-pub mod ir;
-pub mod ld;
-pub mod obj;
-pub mod sym;
+pub mod xmlo;

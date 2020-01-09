@@ -437,7 +437,9 @@ pub trait Interner<'i> {
     ///   [`std::str::from_utf8_unchecked`].
     /// It is provided for convenience when interning from trusted binary
     ///   data
-    ///     (such as object files).
+    ///     (such as [object files][]).
+    ///
+    /// [object files]: crate::obj
     unsafe fn intern_utf8_unchecked(&'i self, value: &[u8]) -> &'i Symbol<'i> {
         self.intern(std::str::from_utf8_unchecked(value))
     }
