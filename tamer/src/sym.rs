@@ -263,6 +263,7 @@ use bumpalo::Bump;
 use fxhash::FxBuildHasher;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::BuildHasher;
 use std::num::NonZeroU32;
 use std::ops::Deref;
@@ -369,6 +370,16 @@ impl<'i> Deref for Symbol<'i> {
     #[inline]
     fn deref(&self) -> &str {
         self.str
+    }
+}
+
+impl<'i> fmt::Display for Symbol<'i> {
+    /// Display name of underlying string.
+    ///
+    /// Since symbols contain pointers to their interned slices,
+    ///   we effectively get this for free.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.str)
     }
 }
 
@@ -653,6 +664,13 @@ mod test {
             let index = SymbolIndex::from_u32(1);
 
             assert_eq!(index, Symbol::new(index, "").index());
+        }
+
+        #[test]
+        fn displays_as_interned_value() {
+            let sym = Symbol::new(SymbolIndex::from_u32(1), "foo");
+
+            assert_eq!(format!("{}", sym), sym.str);
         }
     }
 
