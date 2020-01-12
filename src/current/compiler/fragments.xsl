@@ -138,6 +138,11 @@
   <apply-templates mode="preproc:compile-fragments" />
 </template>
 
+<!-- Do not compile these as consts -->
+<template mode="preproc:compile-fragments" priority="9"
+          match="lv:meta/lv:prop/lv:const">
+  <!-- ignore -->
+</template>
 
 <template mode="preproc:compile-fragments" priority="5"
           match="lv:meta/lv:prop">

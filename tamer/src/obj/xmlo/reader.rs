@@ -507,6 +507,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
 
         let id = filtered
             .find(|attr| attr.key == b"id")
+            .filter(|attr| &*attr.value != b"")
             .map_or(Err(XmloError::UnassociatedFragment), |attr| {
                 Ok(unsafe { interner.intern_utf8_unchecked(&attr.value) })
             })?;
@@ -1176,6 +1177,23 @@ mod test {
                 Ok(XmlEvent::Start(MockBytesStart::new(
                     b"preproc:fragment",
                     Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            match sut.read_event() {
+                Err(XmloError::UnassociatedFragment) => (),
+                bad => panic!("expected XmloError: {:?}", bad),
+            }
+        }
+
+        // Yes, this happened.
+        fn fragment_fails_with_empty_id(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"preproc:fragment",
+                    Some(MockAttributes::new(vec![MockAttribute::new(
+                        b"id", b"",
+                    )])),
                 )))
             }));
 
