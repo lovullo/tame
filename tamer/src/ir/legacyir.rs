@@ -29,6 +29,26 @@ use crate::sym::Symbol;
 use std::convert::TryFrom;
 use std::result::Result;
 
+/// Toplevel package attributes.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct PackageAttrs<'i> {
+    /// Whether this package is a program.
+    ///
+    /// A _program_ is a package intended to be linked into a final
+    ///   executable.
+    /// Programs cannot be imported by other packages.
+    /// Non-program packages cannot be linked.
+    pub program: bool,
+
+    /// Symbol representing package eligibility.
+    ///
+    /// A package is _eligible_ for computation if certain invariants are
+    ///   met.
+    /// This symbol is responsible for including each of those invariants as
+    ///   dependencies so that they are included at link-time.
+    pub elig: Option<&'i Symbol<'i>>,
+}
+
 /// Symbol attributes.
 ///
 /// This is a subset of all available attributes available on the
@@ -172,7 +192,7 @@ impl TryFrom<&[u8]> for SymType {
 /// This is the type of scalar data stored within the given symbol.
 ///
 /// *NB:* This was _not enforced_ by the XSLT-based compiler.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SymDtype {
     /// {⊥,⊤} = {0,1} ⊂ ℤ
     Boolean,

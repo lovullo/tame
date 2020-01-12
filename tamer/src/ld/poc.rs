@@ -272,6 +272,8 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
     loop {
         match xmlo.read_event()? {
+            XmloEvent::Package(_) => {}
+
             XmloEvent::SymDeps(sym, deps) => {
                 // TODO: API needs to expose whether a symbol is already
                 // known so that we can warn on them

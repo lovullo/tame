@@ -52,7 +52,7 @@
 //! use tamer::ir::legacyir::SymType;
 //! use tamer::sym::{DefaultInterner, Interner};
 //!
-//! let xmlo = br#"<package>
+//! let xmlo = br#"<package program="true">
 //!       <preproc:symtable>
 //!         <preproc:sym name="syma" type="class" />
 //!         <preproc:sym name="symb" type="cgen" />
@@ -77,12 +77,14 @@
 //! let interner = DefaultInterner::new();
 //! let mut reader = XmloReader::new(xmlo as &[u8], &interner);
 //!
+//! let mut prog = None;
 //! let mut syms = Vec::new();
 //! let mut deps = Vec::new();
 //! let mut fragments = Vec::new();
 //!
 //! loop {
 //!     match reader.read_event()? {
+//!         XmloEvent::Package(attrs) => prog = Some(attrs.program),
 //!         XmloEvent::SymDecl(sym, attrs) => syms.push((sym, attrs.ty)),
 //!         XmloEvent::SymDeps(sym, symdeps) => deps.push((sym, symdeps)),
 //!         XmloEvent::Fragment(sym, text) => fragments.push((sym, text)),
@@ -91,6 +93,8 @@
 //!         XmloEvent::Eoh => break,
 //!     }
 //! }
+//!
+//! assert_eq!(Some(true), prog);
 //!
 //! assert_eq!(
 //!     vec![
@@ -125,7 +129,7 @@
 //! # }
 //! ```
 
-use crate::ir::legacyir::SymAttrs;
+use crate::ir::legacyir::{PackageAttrs, SymAttrs};
 use crate::sym::{Interner, Symbol};
 #[cfg(test)]
 use mock::MockBytesStart as BytesStart;
@@ -184,6 +188,12 @@ where
 
     /// String internment system.
     interner: &'i I,
+
+    /// Whether the root has been validated.
+    ///
+    /// This is used to ensure that we provide an error early on if we try
+    ///   to process something that isn't a package.
+    seen_root: bool,
 }
 
 impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
@@ -200,6 +210,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
             buffer: Vec::new(),
             sub_buffer: Vec::new(),
             interner,
+            seen_root: false,
         }
     }
 
@@ -225,12 +236,33 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<'i>> {
         let event = self.reader.read_event(&mut self.buffer)?;
 
+        // Ensure that the first encountered node is something we expect
+        if !self.seen_root {
+            match &event {
+                // We don't process namespaces, so we have to guess what
+                // they may be (map xmlo files differ, for example)
+                XmlEvent::Start(ele) => {
+                    if !(ele.name() == b"package"
+                        || ele.name() == b"lv:package")
+                    {
+                        return Err(XmloError::UnexpectedRoot);
+                    }
+
+                    self.seen_root = true;
+                }
+                _ => return self.read_event(),
+            }
+        }
+
         match event {
             XmlEvent::Empty(ele) if ele.name() == b"preproc:sym" => {
                 Self::process_sym(&ele, self.interner)
             }
 
             XmlEvent::Start(ele) => match ele.name() {
+                b"package" => Self::process_package(&ele, self.interner),
+                b"lv:package" => Self::process_package(&ele, self.interner),
+
                 b"preproc:sym-dep" => Self::process_dep(
                     &ele,
                     self.interner,
@@ -268,6 +300,37 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
             // Ignore and recurse, looking for something we can process
             _ => self.read_event(),
         }
+    }
+
+    /// Process `lv:package` element attributes.
+    ///
+    /// The result is an [`XmloEvent::Package`] containing each applicable
+    ///   attribute,
+    ///     parsed.
+    fn process_package<'a>(
+        ele: &'a BytesStart<'a>,
+        interner: &'i I,
+    ) -> XmloResult<XmloEvent<'i>> {
+        let mut program = false;
+        let mut elig: Option<&'i Symbol<'i>> = None;
+
+        for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
+            match attr.key {
+                b"program" => {
+                    program = &*attr.value == b"true";
+                }
+
+                b"preproc:elig-class-yields" => {
+                    elig = Some(unsafe {
+                        interner.intern_utf8_unchecked(&attr.value)
+                    });
+                }
+
+                _ => (),
+            }
+        }
+
+        Ok(XmloEvent::Package(PackageAttrs { program, elig }))
     }
 
     /// Process `preproc:sym` element attributes.
@@ -492,6 +555,11 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
 ///   be useful and can't be easily skipped without parsing.
 #[derive(Debug, PartialEq, Eq)]
 pub enum XmloEvent<'i> {
+    /// Package declaration.
+    ///
+    /// This contains data gathered from the root `lv:package` node.
+    Package(PackageAttrs<'i>),
+
     /// Symbol declaration.
     ///
     /// This represents an entry in the symbol table,
@@ -535,6 +603,8 @@ pub enum XmloEvent<'i> {
 pub enum XmloError {
     /// XML parsing error.
     XmlError(XmlError),
+    /// The root node was not an `lv:package`.
+    UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
     UnassociatedSym,
     /// The provided `preproc:sym/@type` is unknown or invalid.
@@ -564,6 +634,9 @@ impl Display for XmloError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             XmloError::XmlError(e) => e.fmt(fmt),
+            XmloError::UnexpectedRoot => {
+                write!(fmt, "unexpected package root (is this a package?)")
+            }
             XmloError::UnassociatedSym => write!(
                 fmt,
                 "unassociated symbol table entry: preproc:sym/@name missing"
@@ -819,6 +892,10 @@ mod test {
                     #[allow(unused_mut)]
                     let mut $sut = Sut::new(stub_data, &$interner);
 
+                    // We don't want to have to output a proper root node
+                    // for every one of our tests.
+                    $sut.seen_root = true;
+
                     $body;
 
                     Ok(())
@@ -854,6 +931,97 @@ mod test {
                 Err(XmloError::UnassociatedSym) => (),
                 bad => panic!("expected XmloError::UnassociatedSym: {:?}", bad),
             }
+        }
+
+        fn fails_on_invalid_root(sut, interner) {
+            // xmlo_tests macro sets this for us, so we need to clear it to
+            // be able to perform the check
+            sut.seen_root = false;
+
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"not-a-valid-package-node",
+                    Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            match sut.read_event() {
+                Err(XmloError::UnexpectedRoot) => (),
+                bad => panic!("expected XmloError: {:?}", bad),
+            }
+        }
+
+        fn recognizes_valid_roots(sut, interner) {
+            // xmlo_tests macro sets this for us, so we need to clear it to
+            // be able to perform the check
+            sut.seen_root = false;
+
+            // First valid root
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"package",
+                    Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            // Will fail if the above is not valid.  See below for actually
+            // testing the package node.
+            sut.read_event()?;
+
+            // We don't process namespaces (to slow) so we have to handle
+            // the difference explicitly.
+            sut.seen_root = false;
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"lv:package",
+                    Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            sut.read_event()?;
+        }
+
+        fn package_event_program(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"package",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(b"program", b"true"),
+                        MockAttribute::new(
+                            b"preproc:elig-class-yields", b"eligClassYields",
+                        ),
+                    ])),
+                )))
+            }));
+
+            let result = sut.read_event()?;
+
+            assert_eq!(
+                XmloEvent::Package(PackageAttrs {
+                    program: true,
+                    elig: Some(interner.intern("eligClassYields")),
+                }),
+                result
+            );
+        }
+
+        fn package_event_nonprogram(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"package",
+                    Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            let result = sut.read_event()?;
+
+            assert_eq!(
+                XmloEvent::Package(PackageAttrs {
+                    program: false,
+                    ..Default::default()
+                }),
+                result
+            );
         }
 
         fn sym_dep_event(sut, interner) {
@@ -1114,6 +1282,9 @@ mod test {
 
     macro_rules! sym_test_reader_event {
         ($sut:ident, $name:ident, $($key:ident=$val:literal),*) => {
+            // See xmlo_tests macro for explanation
+            $sut.seen_root = true;
+
             $sut.reader.next_event = Some(Box::new(|_, _| {
                 Ok(XmlEvent::Empty(MockBytesStart::new(
                     b"preproc:sym",
