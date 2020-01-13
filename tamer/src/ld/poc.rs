@@ -135,9 +135,11 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
                 let owned = attrs.src.is_none();
 
-                let kind = attrs.try_into().map_err(|err| {
+                let kind = (&attrs).try_into().map_err(|err| {
                     format!("sym `{}` attrs error: {}", sym, err)
                 });
+
+                let src = attrs.into();
 
                 // TODO: should probably track these down in the XSLT linker...
                 match kind {
@@ -148,7 +150,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                                 || sym.starts_with(":map:")
                                 || sym.starts_with(":retmap:"));
 
-                        let node = depgraph.declare(sym, kindval)?;
+                        let node = depgraph.declare(sym, kindval, src)?;
 
                         if link_root {
                             roots.push(node);

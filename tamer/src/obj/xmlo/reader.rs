@@ -392,6 +392,28 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                     sym_attrs.extern_ = &*attr.value == b"true";
                 }
 
+                b"preproc:generated" => {
+                    sym_attrs.generated = &*attr.value == b"true";
+                }
+
+                b"parent" => {
+                    sym_attrs.parent = Some(unsafe {
+                        interner.intern_utf8_unchecked(&attr.value)
+                    });
+                }
+
+                b"yields" => {
+                    sym_attrs.yields = Some(unsafe {
+                        interner.intern_utf8_unchecked(&attr.value)
+                    });
+                }
+
+                b"desc" => {
+                    sym_attrs.desc = Some(unsafe {
+                        String::from_utf8_unchecked(attr.value.to_vec())
+                    });
+                }
+
                 // As this reader evolves, we may wish to provide an error
                 // for unknown attributes so that we can be sure that we've
                 // handled them all.
@@ -1411,6 +1433,21 @@ mod test {
             ..Default::default()
         }
 
+        parent: [parent="foo"] => SymAttrs {
+            parent: Some(interner.intern("foo")),
+            ..Default::default()
+        }
+
+        yields: [yields="yield"] => SymAttrs {
+            yields: Some(interner.intern("yield")),
+            ..Default::default()
+        }
+
+        desc: [desc="Description"] => SymAttrs {
+            desc: Some("Description".to_string()),
+            ..Default::default()
+        }
+
         // Multiple attributes at once
         multi: [src="foo", type="class", dim="1", dtype="float", extern="true"]
             => SymAttrs {
@@ -1419,7 +1456,46 @@ mod test {
                 dim: Some(1),
                 dtype: Some(SymDtype::Float),
                 extern_: true,
+                ..Default::default()
             }
+    }
+
+    // can't be tested using the above
+    #[test]
+    fn generated_true() -> XmloResult<()> {
+        let stub_data: &[u8] = &[];
+        let interner = DefaultInterner::new();
+        let mut sut = Sut::new(stub_data, &interner);
+
+        // See xmlo_tests macro for explanation
+        sut.seen_root = true;
+
+        sut.reader.next_event = Some(Box::new(|_, _| {
+            Ok(XmlEvent::Empty(MockBytesStart::new(
+                b"preproc:sym",
+                Some(MockAttributes::new(vec![
+                    MockAttribute::new(b"name", b"generated_true"),
+                    MockAttribute::new(b"preproc:generated", b"true"),
+                ])),
+            )))
+        }));
+
+        let result = sut.read_event()?;
+
+        let expected_attrs = SymAttrs {
+            generated: true,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            XmloEvent::SymDecl(
+                interner.intern("generated_true"),
+                expected_attrs
+            ),
+            result
+        );
+
+        Ok(())
     }
 
     #[test]

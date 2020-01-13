@@ -59,7 +59,7 @@
 //!
 //! ```
 //! use tamer::global;
-//! use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object};
+//! use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, Source};
 //! use tamer::sym::{Interner, DefaultInterner};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -71,7 +71,7 @@
 //! let identa_sym = interner.intern("identa");
 //! let identb_sym = interner.intern("identb");
 //!
-//! let identa = asg.declare(identa_sym, IdentKind::Meta)?;
+//! let identa = asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
 //! let identb = asg.declare_extern(identb_sym, IdentKind::Meta)?;
 //!
 //! assert_eq!(
@@ -103,7 +103,7 @@
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, FragmentText};
+//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -111,13 +111,16 @@
 //! # let interner = DefaultInterner::new();
 //! #
 //! // Fragments can be attached to resolved identifiers.
-//! let ident = asg.declare(interner.intern("ident"), IdentKind::Meta)?;
+//! let ident = asg.declare(
+//!     interner.intern("ident"), IdentKind::Meta, Source::default()
+//! )?;
 //! asg.set_fragment(ident, FragmentText::from("test fragment"))?;
 //!
 //! assert_eq!(
 //!     Some(&Object::IdentFragment(
 //!         interner.intern("ident"),
 //!         IdentKind::Meta,
+//!         Source::default(),
 //!         FragmentText::from("test fragment"),
 //!     )),
 //!     asg.get(ident),
@@ -138,7 +141,7 @@ mod object;
 
 pub use graph::{Asg, AsgResult, ObjectRef};
 pub use ident::IdentKind;
-pub use object::{FragmentText, Object};
+pub use object::{FragmentText, Object, Source};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg<'i, Ix> = base::BaseAsg<'i, Ix>;

@@ -150,6 +150,18 @@ impl<'i> TryFrom<SymAttrs<'i>> for IdentKind {
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
     fn try_from(attrs: SymAttrs<'i>) -> Result<Self, Self::Error> {
+        Self::try_from(&attrs)
+    }
+}
+
+impl<'i> TryFrom<&SymAttrs<'i>> for IdentKind {
+    type Error = &'static str;
+
+    /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
+    ///
+    /// Certain [`IdentKind`] require that certain attributes be present,
+    ///   otherwise the conversion will fail.
+    fn try_from(attrs: &SymAttrs<'i>) -> Result<Self, Self::Error> {
         let ty = attrs.ty.as_ref().ok_or("missing symbol type")?;
 
         macro_rules! ident {
@@ -206,12 +218,43 @@ impl<'i> TryFrom<SymAttrs<'i>> for IdentKind {
 pub struct Dim(u8);
 
 /// Underlying datatype of identifier.
+///
+/// TODO: This will always be 0≤n≤9, so let's introduce a newtype for it.
+impl AsRef<str> for Dim {
+    fn as_ref(&self) -> &str {
+        match self.0 {
+            0 => &"0",
+            1 => &"1",
+            2 => &"2",
+            3 => &"3",
+            4 => &"4",
+            5 => &"5",
+            6 => &"6",
+            7 => &"7",
+            8 => &"8",
+            9 => &"9",
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Underlying datatype of identifier.
 pub type DataType = SymDtype;
 
 #[cfg(test)]
 mod test {
     use super::*;
     use std::convert::TryInto;
+
+    #[test]
+    fn dim_to_str() {
+        // we'll just test high and low
+        let low: &str = Dim(0).as_ref();
+        let high: &str = Dim(9).as_ref();
+
+        assert_eq!("0", low);
+        assert_eq!("9", high);
+    }
 
     macro_rules! test_kind {
         ($name:ident, $src:expr => $dest:expr) => {

@@ -19,7 +19,7 @@
 
 use super::graph::{Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef};
 use super::ident::IdentKind;
-use super::object::{FragmentText, Object};
+use super::object::{FragmentText, Object, Source};
 use crate::sym::Symbol;
 use fixedbitset::FixedBitSet;
 use petgraph::graph::{
@@ -125,13 +125,14 @@ where
         &mut self,
         name: &'i Symbol<'i>,
         kind: IdentKind,
+        src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>> {
         // TODO: src check
         if let Some(existing) = self.lookup(name) {
             return Ok(existing);
         }
 
-        let node = self.graph.add_node(Some(Object::Ident(name, kind)));
+        let node = self.graph.add_node(Some(Object::Ident(name, kind, src)));
 
         self.index_identifier(name, node);
 
@@ -172,8 +173,8 @@ where
             .expect("internal error: BaseAsg::set_fragment missing Node data");
 
         let result = match ty {
-            Object::Ident(sym, kind) => {
-                Ok(Object::IdentFragment(sym, kind, text))
+            Object::Ident(sym, kind, src) => {
+                Ok(Object::IdentFragment(sym, kind, src, text))
             }
             _ => {
                 let err = Err(AsgError::BadFragmentDest(format!(
@@ -287,18 +288,47 @@ mod test {
         let syma = Symbol::new_dummy(SymbolIndex::from_u32(5), "syma");
         let symb = Symbol::new_dummy(SymbolIndex::from_u32(1), "symab");
 
-        let nodea = sut.declare(&syma, IdentKind::Meta)?;
-        let nodeb = sut.declare(&symb, IdentKind::Worksheet)?;
+        let nodea = sut.declare(
+            &syma,
+            IdentKind::Meta,
+            Source {
+                desc: Some("a".to_string()),
+                ..Default::default()
+            },
+        )?;
+
+        let nodeb = sut.declare(
+            &symb,
+            IdentKind::Worksheet,
+            Source {
+                desc: Some("b".to_string()),
+                ..Default::default()
+            },
+        )?;
 
         assert_ne!(nodea, nodeb);
 
         assert_eq!(
-            Some(&Object::Ident(&syma, IdentKind::Meta)),
+            Some(&Object::Ident(
+                &syma,
+                IdentKind::Meta,
+                Source {
+                    desc: Some("a".to_string()),
+                    ..Default::default()
+                },
+            )),
             sut.get(nodea),
         );
 
         assert_eq!(
-            Some(&Object::Ident(&symb, IdentKind::Worksheet)),
+            Some(&Object::Ident(
+                &symb,
+                IdentKind::Worksheet,
+                Source {
+                    desc: Some("b".to_string()),
+                    ..Default::default()
+                },
+            )),
             sut.get(nodeb),
         );
 
@@ -310,7 +340,14 @@ mod test {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "lookup");
-        let node = sut.declare(&sym, IdentKind::Meta)?;
+        let node = sut.declare(
+            &sym,
+            IdentKind::Meta,
+            Source {
+                generated: true,
+                ..Default::default()
+            },
+        )?;
 
         assert_eq!(Some(node), sut.lookup(&sym));
 
@@ -335,10 +372,11 @@ mod test {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
-        let node = sut.declare(&sym, IdentKind::Meta)?;
+        let node = sut.declare(&sym, IdentKind::Meta, Source::default())?;
 
         // Same declaration a second time
-        let redeclare = sut.declare(&sym, IdentKind::Meta)?;
+        let redeclare =
+            sut.declare(&sym, IdentKind::Meta, Source::default())?;
 
         assert_eq!(node, redeclare);
         Ok(())
@@ -349,7 +387,11 @@ mod test {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
-        let node = sut.declare(&sym, IdentKind::Meta)?;
+        let src = Source {
+            generated: true,
+            ..Default::default()
+        };
+        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
 
         let fragment = "a fragment".to_string();
         let node_with_frag = sut.set_fragment(node, fragment.clone())?;
@@ -362,7 +404,7 @@ mod test {
         );
 
         assert_eq!(
-            Some(&Object::IdentFragment(&sym, IdentKind::Meta, fragment)),
+            Some(&Object::IdentFragment(&sym, IdentKind::Meta, src, fragment)),
             sut.get(node)
         );
 
@@ -374,7 +416,7 @@ mod test {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let node = sut.declare(&sym, IdentKind::Meta)?;
+        let node = sut.declare(&sym, IdentKind::Meta, Source::default())?;
         let fragment = "orig fragment".to_string();
 
         sut.set_fragment(node, fragment.clone())?;
@@ -391,7 +433,12 @@ mod test {
 
         // Make sure we didn't leave the node in an inconsistent state
         assert_eq!(
-            Some(&Object::IdentFragment(&sym, IdentKind::Meta, fragment)),
+            Some(&Object::IdentFragment(
+                &sym,
+                IdentKind::Meta,
+                Default::default(),
+                fragment
+            )),
             sut.get(node)
         );
 
@@ -405,8 +452,8 @@ mod test {
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
         let dep = Symbol::new_dummy(SymbolIndex::from_u32(1), "dep");
 
-        let symnode = sut.declare(&sym, IdentKind::Meta)?;
-        let depnode = sut.declare(&dep, IdentKind::Meta)?;
+        let symnode = sut.declare(&sym, IdentKind::Meta, Source::default())?;
+        let depnode = sut.declare(&dep, IdentKind::Meta, Source::default())?;
 
         sut.add_dep(symnode, depnode);
         assert!(sut.has_dep(symnode, depnode));

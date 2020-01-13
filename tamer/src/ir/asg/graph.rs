@@ -18,7 +18,7 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{FragmentText, Object};
+use super::object::{FragmentText, Object, Source};
 use crate::sym::Symbol;
 use petgraph::graph::{IndexType, NodeIndex};
 use std::result::Result;
@@ -65,6 +65,7 @@ pub trait Asg<'i, Ix: IndexType> {
         &mut self,
         name: &'i Symbol<'i>,
         kind: IdentKind,
+        src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Declare an abstract identifier.
