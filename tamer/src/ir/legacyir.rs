@@ -131,6 +131,16 @@ pub struct SymAttrs<'i> {
     ///
     /// This is used primarily by [`SymType::Class`] and [`SymType::Gen`].
     pub desc: Option<String>,
+
+    /// Related identifiers.
+    ///
+    /// These data represent a kluge created to add additional symbol
+    /// information in two different contexts:
+    ///
+    ///  - [`SymType::Map`] includes the name of the source field; and
+    ///  - [`SymType::Func`] lists params in order (so that the compiler
+    ///    knows application order).
+    pub from: Option<Vec<&'i Symbol<'i>>>,
 }
 
 /// Legacy symbol types.
@@ -232,6 +242,18 @@ pub enum SymDtype {
     Empty,
 }
 
+impl AsRef<str> for SymDtype {
+    /// Produce `xmlo`-compatible representation.
+    fn as_ref(&self) -> &str {
+        match self {
+            SymDtype::Boolean => &"boolean",
+            SymDtype::Integer => &"integer",
+            SymDtype::Float => &"float",
+            SymDtype::Empty => &"empty",
+        }
+    }
+}
+
 impl TryFrom<&[u8]> for SymDtype {
     type Error = String;
 
@@ -288,5 +310,11 @@ mod test {
             Err(s) => assert!(s.contains("unknownd")),
             bad => panic!("expected error: {:?}", bad),
         }
+    }
+
+    #[test]
+    fn symdtype_as_str() {
+        let boolean: &str = SymDtype::Boolean.as_ref();
+        assert_eq!("boolean", boolean);
     }
 }

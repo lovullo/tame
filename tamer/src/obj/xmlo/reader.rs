@@ -129,7 +129,7 @@
 //! # }
 //! ```
 
-use crate::ir::legacyir::{PackageAttrs, SymAttrs};
+use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
 use crate::sym::{Interner, Symbol};
 #[cfg(test)]
 use mock::MockBytesStart as BytesStart;
@@ -233,6 +233,8 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     /// ======
     /// - Any of [`XmloError`].
     ///   See private methods for more information.
+    ///
+    /// TODO: Augment failures with context
     pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<'i>> {
         let event = self.reader.read_event(&mut self.buffer)?;
 
@@ -278,15 +280,33 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                 ),
 
                 // `func` symbols include additional data for param
-                // ordering.  We don't care about that, so process the
-                // declaration and then skip the rest.
+                // ordering, which we don't care about.  But `map` includes
+                // source field information which we want to keep.  (We
+                // don't care about `retmap` for our purposes.)
                 b"preproc:sym" => {
-                    let event = Self::process_sym(&ele, self.interner);
+                    let mut event = Self::process_sym(&ele, self.interner)?;
 
-                    self.reader
-                        .read_to_end(ele.name(), &mut self.sub_buffer)?;
+                    match &mut event {
+                        XmloEvent::SymDecl(_, attrs)
+                            if attrs.ty == Some(SymType::Map) =>
+                        {
+                            attrs.from = Some(Self::process_map_from(
+                                self.interner,
+                                &mut self.reader,
+                                &mut self.sub_buffer,
+                            )?);
 
-                    event
+                            Ok(event)
+                        }
+                        _ => {
+                            self.reader.read_to_end(
+                                ele.name(),
+                                &mut self.sub_buffer,
+                            )?;
+
+                            Ok(event)
+                        }
+                    }
                 }
 
                 // Just like the outer match, recurse
@@ -423,6 +443,56 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
 
         name.map(|name_sym| XmloEvent::SymDecl(name_sym, sym_attrs))
             .ok_or(XmloError::UnassociatedSym)
+    }
+
+    /// Process `preproc:from` for `preproc:sym[@type="map"]` elements.
+    ///
+    /// Map symbols contain additional information describing source
+    ///   inputs external to the system.
+    ///
+    /// Errors
+    /// ======
+    /// - [`XmloError::InvalidMapFrom`] if `@name` missing or if unexpected
+    ///   data (e.g. elements) are encountered.
+    /// - [`XmloError::XmlError`] on XML parsing failure.
+    fn process_map_from<'a>(
+        interner: &'i I,
+        reader: &mut XmlReader<B>,
+        buffer: &mut Vec<u8>,
+    ) -> XmloResult<Vec<&'i Symbol<'i>>> {
+        let mut froms = Vec::new();
+
+        loop {
+            match reader.read_event(buffer)? {
+                XmlEvent::Empty(ele) if ele.name() == b"preproc:from" => froms
+                    .push(
+                        ele.attributes()
+                            .with_checks(false)
+                            .filter_map(Result::ok)
+                            .find(|attr| attr.key == b"name")
+                            .map_or(
+                                Err(XmloError::InvalidMapFrom(
+                                    "preproc:from/@name missing".into(),
+                                )),
+                                |attr| {
+                                    Ok(unsafe {
+                                        interner
+                                            .intern_utf8_unchecked(&attr.value)
+                                    })
+                                },
+                            )?,
+                    ),
+
+                XmlEvent::End(ele) if ele.name() == b"preproc:sym" => break,
+
+                // Note that whitespace counts as text
+                XmlEvent::Text(_) => (),
+
+                _ => Err(XmloError::InvalidMapFrom("unexpected data".into()))?,
+            };
+        }
+
+        Ok(froms)
     }
 
     /// Process `preproc:sym-dep` element.
@@ -638,6 +708,8 @@ pub enum XmloError {
     InvalidDim(String),
     /// A `preproc:sym-dep` element was found, but is missing `@name`.
     UnassociatedSymDep,
+    /// The `preproc:sym[@type="map"]` contains unexpected or invalid data.
+    InvalidMapFrom(String),
     /// Invalid dependency in adjacency list
     ///   (`preproc:sym-dep/preproc:sym-ref`).
     MalformedSymRef(String),
@@ -672,6 +744,9 @@ impl Display for XmloError {
             }
             XmloError::InvalidDim(dim) => {
                 write!(fmt, "invalid preproc:sym/@dim `{}`", dim)
+            }
+            XmloError::InvalidMapFrom(msg) => {
+                write!(fmt, "invalid preproc:sym[@type=\"map\"]: {}", msg)
             }
             XmloError::UnassociatedSymDep => write!(
                 fmt,
@@ -1282,7 +1357,9 @@ mod test {
             );
         }
 
-        // Some preproc:sym nodes have children (`func` symbols, specifically)
+        // Some preproc:sym nodes have children (`func` symbols,
+        // specifically) that we choose to ignore.  See next test for
+        // data we do care about.
         fn sym_nonempty_element(sut, interner) {
             sut.reader.next_event = Some(Box::new(|_, _| {
                 // Notice Start, not Empty
@@ -1317,6 +1394,146 @@ mod test {
             // (all of its children) so that the next event will yield the
             // next symbol.
             assert_eq!(Some("preproc:sym".into()), sut.reader.read_to_end_name);
+        }
+
+        // `map` symbols include information about their source
+        // fields.
+        fn sym_map_from(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
+                // Notice Start, not Empty
+                0 => Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"preproc:sym",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(
+                            b"name", b"sym-map-from",
+                        ),
+                        MockAttribute::new(
+                            b"type", b"map",
+                        ),
+                    ])),
+                ))),
+
+                1 => Ok(XmlEvent::Empty(MockBytesStart::new(
+                    b"preproc:from",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(
+                            b"name", b"from-a",
+                        ),
+                    ])),
+                ))),
+
+                // make sure that whitespace is permitted
+                2 => Ok(XmlEvent::Text(MockBytesText::new(
+                    b"      ",
+                ))),
+
+                3 => Ok(XmlEvent::Empty(MockBytesStart::new(
+                    b"preproc:from",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(
+                            b"name", b"from-b",
+                        ),
+                    ])),
+                ))),
+
+                4 => Ok(XmlEvent::End(MockBytesEnd::new(
+                    b"preproc:sym",
+                ))),
+
+                _ => Err(XmlError::UnexpectedEof(
+                    format!("MockXmlReader out of events: {}", event_i).into(),
+                )),
+            }));
+
+            let result = sut.read_event()?;
+
+            assert_eq!(
+                XmloEvent::SymDecl(
+                    interner.intern("sym-map-from"),
+                    SymAttrs {
+                        ty: Some(SymType::Map),
+                        from: Some(vec![
+                            interner.intern("from-a"),
+                            interner.intern("from-b"),
+                        ]),
+                        ..Default::default()
+                    },
+                ),
+                result
+            );
+
+            // Should _not_ have read to the end.
+            assert_eq!(None, sut.reader.read_to_end_name);
+        }
+
+        fn sym_map_from_missing_name(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
+                // Notice Start, not Empty
+                0 => Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"preproc:sym",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(
+                            b"name", b"sym-map-from-bad",
+                        ),
+                        MockAttribute::new(
+                            b"type", b"map",
+                        ),
+                    ])),
+                ))),
+
+                // missing @name
+                1 => Ok(XmlEvent::Empty(MockBytesStart::new(
+                    b"preproc:from",
+                    Some(MockAttributes::new(vec![])),
+                ))),
+
+                2 => Ok(XmlEvent::End(MockBytesEnd::new(
+                    b"preproc:sym",
+                ))),
+
+                _ => Err(XmlError::UnexpectedEof(
+                    format!("MockXmlReader out of events: {}", event_i).into(),
+                )),
+            }));
+
+            match sut.read_event() {
+                Err(XmloError::InvalidMapFrom(msg)) => {
+                    assert!(msg.contains("preproc:from"))
+                }
+                bad => panic!("expected XmloError: {:?}", bad),
+            }
+        }
+
+        fn sym_map_from_unexpected_data(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
+                // Notice Start, not Empty
+                0 => Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"preproc:sym",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(
+                            b"name", b"sym-map-from-bad",
+                        ),
+                        MockAttribute::new(
+                            b"type", b"map",
+                        ),
+                    ])),
+                ))),
+
+                // garbage
+                1 => Ok(XmlEvent::Empty(MockBytesStart::new(
+                    b"preproc:nonsense",
+                    Some(MockAttributes::new(vec![])),
+                ))),
+
+                _ => Err(XmlError::UnexpectedEof(
+                    format!("MockXmlReader out of events: {}", event_i).into(),
+                )),
+            }));
+
+            match sut.read_event() {
+                Err(XmloError::InvalidMapFrom(_)) => (),
+                bad => panic!("expected XmloError: {:?}", bad),
+            }
         }
     }
 

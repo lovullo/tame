@@ -799,16 +799,11 @@
     </with-param>
   </call-template>
 
-  <apply-templates select="." mode="compiler:entry" />
-
 
   <apply-templates select="." mode="l:link-meta">
     <with-param name="deps" select="$deps" />
   </apply-templates>
   <apply-templates select="." mode="l:link-worksheet">
-    <with-param name="deps" select="$deps" />
-  </apply-templates>
-  <apply-templates select="." mode="l:link-classifier">
     <with-param name="deps" select="$deps" />
   </apply-templates>
   <apply-templates select="." mode="l:link-params">
@@ -823,9 +818,6 @@
   <apply-templates select="." mode="l:link-rater">
     <with-param name="deps" select="$deps" />
   </apply-templates>
-
-  <!-- common stuff -->
-  <call-template name="compiler:static" />
 
   <!-- finally, finish up -->
   <call-template name="log:info">
@@ -908,21 +900,6 @@
 </template>
 
 
-<template match="lv:package" mode="l:link-classifier">
-  <call-template name="log:info">
-    <with-param name="name" select="'link'" />
-    <with-param name="msg">
-      <text>** linking classifier...</text>
-    </with-param>
-  </call-template>
-
-  <!-- link everything that shall be a part of the classifier -->
-  <apply-templates select="." mode="compiler:entry-classifier" />
-  <!-- TODO: get rid of me completely! -->
-  <apply-templates select="." mode="compiler:exit-classifier" />
-</template>
-
-
 <template match="lv:package" mode="l:link-params">
   <param name="deps" />
 
@@ -990,8 +967,6 @@
     </with-param>
   </call-template>
 
-  <apply-templates select="." mode="compiler:entry-rater" />
-
   <!-- TODO: this list of exclusions is a mess -->
   <apply-templates select="." mode="l:do-link">
     <with-param name="symbols" select="
@@ -1008,10 +983,6 @@
   <sequence select="l:link-exit-fragments(
                           $rater-exit-fragments,
                           . )" />
-
-  <apply-templates select="." mode="compiler:exit-rater">
-    <with-param name="symbols" select="$deps" />
-  </apply-templates>
 </template>
 
 

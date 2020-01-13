@@ -113,6 +113,19 @@ pub struct Source<'i> {
     ///
     /// Identifiers created by templates are not considered to be generated.
     pub generated: bool,
+
+    /// Related identifiers.
+    ///
+    /// These data represent a kluge created to add additional symbol
+    /// information in two different contexts:
+    ///
+    ///  - [`IdentKind::Map`] includes the name of the source field; and
+    ///  - [`IdentKind::Func`] lists params in order (so that the compiler
+    ///    knows application order).
+    ///
+    /// TODO: We have `parent`, `yields`, and `from`.
+    ///   We should begin to consolodate.
+    pub from: Option<Vec<&'i Symbol<'i>>>,
 }
 
 impl<'i> From<SymAttrs<'i>> for Source<'i> {
@@ -125,6 +138,7 @@ impl<'i> From<SymAttrs<'i>> for Source<'i> {
             parent: attrs.parent,
             yields: attrs.yields,
             desc: attrs.desc,
+            from: attrs.from,
         }
     }
 }
@@ -138,12 +152,14 @@ mod test {
     fn source_from_sym_attrs() {
         let psym = Symbol::new_dummy(SymbolIndex::from_u32(1), "parent");
         let ysym = Symbol::new_dummy(SymbolIndex::from_u32(2), "yields");
+        let fsym = Symbol::new_dummy(SymbolIndex::from_u32(2), "from");
 
         let attrs = SymAttrs {
             generated: true,
             parent: Some(&psym),
             yields: Some(&ysym),
             desc: Some("sym desc".to_string()),
+            from: Some(vec![&fsym]),
             ..Default::default()
         };
 
@@ -153,6 +169,7 @@ mod test {
                 parent: attrs.parent,
                 yields: attrs.yields,
                 desc: Some("sym desc".to_string()),
+                from: Some(vec![&fsym]),
             },
             attrs.into(),
         );
