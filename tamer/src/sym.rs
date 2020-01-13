@@ -227,9 +227,9 @@
 //!       global pool and unsafe rust to cast to a `static` slice.
 //!     - Rustc identifies symbols by integer value encapsulated within a
 //!         `Symbol`.
-//!     - Rustc's [`newtype_index!` macro][rustc-nt] uses [`NonZeroU32`] so
-//!         that [`Option`] uses no additional space
-//!         (see [pull request `53315`][rustc-nt-pr]).
+//!     - Rustc's [`newtype_index!` macro][rustc-nt] uses
+//!         [`global::NonZeroProgSymSize`] so that [`Option`] uses no
+//!         additional space (see [pull request `53315`][rustc-nt-pr]).
 //!     - Differences between TAMER and Rustc's implementations are outlined
 //!         above.
 //!
@@ -259,13 +259,14 @@
 //! [rustc-fx]: https://doc.rust-lang.org/nightly/nightly-rustc/rustc_data_structures/fx/index.html
 //! [hash-rs]: https://github.com/Gankra/hash-rs
 
+use crate::global;
 use bumpalo::Bump;
 use fxhash::FxBuildHasher;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::fmt;
 use std::hash::BuildHasher;
-use std::num::NonZeroU32;
 use std::ops::Deref;
 
 /// Unique symbol identifier.
@@ -278,10 +279,16 @@ use std::ops::Deref;
 /// Note, however, that it provides no defense against mixing symbol indexes
 ///   between multiple [`Interner`]s.
 ///
-/// The index `0` is never valid because of [`NonZeroU32`],
+/// The index `0` is never valid because of [`global::NonZeroProgSymSize`],
 ///   which allows us to have `Option<SymbolIndex>` at no space cost.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SymbolIndex(NonZeroU32);
+pub struct SymbolIndex(global::NonZeroProgSymSize);
+
+impl From<SymbolIndex> for usize {
+    fn from(value: SymbolIndex) -> usize {
+        value.0.get().try_into().unwrap()
+    }
+}
 
 impl SymbolIndex {
     /// Construct index from a non-zero `u32` value.
@@ -290,7 +297,7 @@ impl SymbolIndex {
     /// ------
     /// Will panic if `n == 0`.
     pub fn from_u32(n: u32) -> SymbolIndex {
-        SymbolIndex(NonZeroU32::new(n).unwrap())
+        SymbolIndex(global::NonZeroProgSymSize::new(n).unwrap())
     }
 
     /// Construct index from an unchecked non-zero `u32` value.
@@ -300,7 +307,7 @@ impl SymbolIndex {
     /// Unlike [`from_u32`](SymbolIndex::from_u32),
     ///   this never panics.
     unsafe fn from_u32_unchecked(n: u32) -> SymbolIndex {
-        SymbolIndex(NonZeroU32::new_unchecked(n))
+        SymbolIndex(global::NonZeroProgSymSize::new_unchecked(n))
     }
 }
 
@@ -336,6 +343,11 @@ impl<'i> Symbol<'i> {
     /// Construct a new interned value.
     ///
     /// _This must only be done by an [`Interner`]._
+    /// As such,
+    ///   this function is not public.
+    ///
+    /// For test builds (when `cfg(test)`),
+    ///   `new_dummy` is available to create symbols for tests.
     #[inline]
     fn new(index: SymbolIndex, str: &'i str) -> Symbol<'i> {
         Self { index, str }
@@ -349,6 +361,18 @@ impl<'i> Symbol<'i> {
     #[inline]
     pub fn index(&self) -> SymbolIndex {
         self.index
+    }
+
+    /// Construct a new interned value _for testing_.
+    ///
+    /// This is a public version of [`Symbol::new`] available for test
+    ///   builds.
+    /// This separate name is meant to strongly imply that you should not be
+    ///   doing this otherwise.
+    #[cfg(test)]
+    #[inline(always)]
+    pub fn new_dummy(index: SymbolIndex, str: &'i str) -> Symbol<'i> {
+        Self::new(index, str)
     }
 }
 
@@ -467,9 +491,9 @@ where
     /// Next available symbol index.
     ///
     /// This must always be ≥1.
-    /// It is not defined as `NonZeroU32` because
+    /// It is not defined as `NonZeroProgSymSize` because
     ///   `intern` enforces the invariant.
-    next_index: Cell<u32>,
+    next_index: Cell<global::ProgSymSize>,
 
     /// Map of interned strings to their respective [`Symbol`].
     ///

@@ -17,6 +17,7 @@
 
 //! An incremental rewrite of TAME in Rust.
 
+pub mod global;
 pub mod ir;
 pub mod ld;
 pub mod obj;

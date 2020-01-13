@@ -123,7 +123,8 @@ pub enum SymType {
     Func,
     /// Generator (from `lv:rate/@generates`).
     Gen,
-    /// Local function parameter (from `lv:function/lv:param/@name`).
+    /// Local function parameter (from `lv:function/lv:param/@name`) or let
+    ///   binding (from `lv:let/lv:values/lv:value/@name`).
     Lparam,
     /// Global parameter (from `lv:param/@name`).
     Param,

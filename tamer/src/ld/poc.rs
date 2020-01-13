@@ -18,204 +18,26 @@
 //! **This is a poorly-written proof of concept; do not use!**  It has been
 //! banished to its own file to try to make that more clear.
 
-use crate::obj::xmlo::reader::{XmloEvent, XmloReader};
+use crate::global;
+use crate::ir::asg::IdentKind;
+use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef};
+use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner};
-use fixedbitset::FixedBitSet;
-use petgraph::graph::{DiGraph, EdgeIndex, Neighbors, NodeIndex};
-use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
-use std::collections::hash_map::{Entry, Iter};
+use petgraph::visit::DfsPostOrder;
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
-use std::ops::{Deref, Index};
-use std::rc::Rc;
 
-// The term "sym" is used throughout because it's easier to search for that
-// in source code than "symbol", which is a generic term with many different
-// meanings.
-
-// if mutability is needed:
-//#[derive(Debug)]
-//struct SymRecord {
-//    data: SymData,
-//
-//    // the idea is to keep the index encapsulated so that nothing else can
-//    // ever hold a reference to it, ensuring that it's freed when the node
-//    // is removed
-//    index: Rc<RefCell<Option<NodeIndex>>>,
-//}
-
-#[derive(Debug)]
-struct SymData {
-    name: Rc<str>,
-}
-
-type DepGraphNode = SymEntry;
-type DepGraphEdge = ();
-
-struct DepGraph {
-    graph: DiGraph<DepGraphNode, DepGraphEdge>,
-
-    // serves as both a string internment system and graph indexer
-    index: HashMap<Rc<str>, SymRef>,
-    // if removals are permitted:
-    //index: HashMap<Rc<str>, Weak<RefCell<Option<NodeIndex>>>>,
-}
-
-// This encapsulates the underlying Graph to enforce certain
-// assumptions.  For example, we do not permit removing nodes because that
-// would invalidate the NodeIndex reference in the index, which would then
-// require workarounds like the commented-out code above and below.
-//
-// While Petgraph's use of indexes to represent graph and edge references
-// makes it easy to bypass the borrow checker, it does just that---it's no
-// different than a pointer reference (albeit guaranteed to safely reference
-// a node rather than an arbitrary memory location) that can change out from
-// under you at any moment.  As such, much of the planning that went into
-// this was determining how to best mitigate that.
-//
-// The linker has certain needs that may differ as the compiler evolves, so
-// it may be desirable to permit deletions in the future.  In the meantime,
-// if a node needs to be deleted, we can simply remove all edges from it and
-// possibly mark it in a way that states it was removed.
-//
-// This graph uses a separate map to serve a dual role: a string internment
-// system and an indexer by symbol name.  This will have to evolve in the
-// future as the graph ends up containing more stuff.
-//
-// This is currently called a dependency graph, since that's what we're
-// using it for, but in the future the compiler will also use it as an IR,
-// so this will likely be renamed.
-impl DepGraph {
-    fn new() -> Self {
-        Self {
-            // TODO: with_capacity
-            graph: DiGraph::new(),
-            index: HashMap::new(),
-        }
-    }
-
-    fn declare(&mut self, name: &str) -> SymRef {
-        match self.index.entry(name.into()) {
-            Entry::Occupied(o) => *o.get(),
-            Entry::Vacant(v) => {
-                let entry = SymEntry::MissingSym {
-                    name: Rc::clone(v.key()),
-                };
-
-                let index = SymRef(self.graph.add_node(entry));
-                v.insert(index);
-
-                index
-            }
-        }
-    }
-
-    // will not duplicate dependencies if they already exist
-    fn declare_dep(&mut self, symbol: SymRef, dep: SymRef) -> () {
-        self.graph.update_edge(*symbol, *dep, ());
-    }
-
-    fn lookup(&self, name: &str) -> Option<SymRef> {
-        self.index.get(name.into()).map(|index| *index)
-    }
-
-    fn index_iter(&self) -> Iter<Rc<str>, SymRef> {
-        self.index.iter()
-    }
-
-    // POC when removals were permitted:
-    //fn add_symbol(&mut self, sym: SymData) -> NodeIndex {
-    //    let name = Rc::clone(&sym.name);
-    //    let record = SymRecord { data: sym, index: Rc::new(RefCell::new(None)) };
-    //    let index = self.graph.add_node(record);
-
-    //    let index = Rc::downgrade(&self.graph[index].index);
-    //    self.graph[index].index.replace(Some(index));
-
-    //    self.index.insert(name, index);
-    //    index
-    //}
-}
-
-impl GraphBase for DepGraph {
-    type NodeId = NodeIndex;
-    type EdgeId = EdgeIndex;
-}
-
-impl Visitable for DepGraph {
-    type Map = FixedBitSet;
-
-    fn visit_map(&self) -> Self::Map {
-        self.graph.visit_map()
-    }
-
-    fn reset_map(&self, map: &mut Self::Map) {
-        self.graph.reset_map(map)
-    }
-}
-
-impl<'a> IntoNeighbors for &'a DepGraph {
-    type Neighbors = Neighbors<'a, DepGraphEdge>;
-
-    fn neighbors(self, n: Self::NodeId) -> Self::Neighbors {
-        self.graph.neighbors(n)
-    }
-}
-
-impl Index<SymRef> for DepGraph {
-    type Output = DepGraphNode;
-
-    fn index(&self, index: SymRef) -> &Self::Output {
-        &self.graph[*index]
-    }
-}
-
-// TODO: we may not to allow this; using SymRef could be a means to
-// guarantee that a lookup has occurred and that it actually exists.  We
-// don't need this if we set NodeId = SymRef in GraphBase, but that requires
-// implementing other traits as well.
-impl Index<NodeIndex> for DepGraph {
-    type Output = DepGraphNode;
-
-    fn index(&self, index: NodeIndex) -> &Self::Output {
-        &self.graph[index]
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct SymRef(NodeIndex);
-
-impl From<SymRef> for NodeIndex {
-    fn from(symref: SymRef) -> Self {
-        *symref
-    }
-}
-
-impl From<NodeIndex> for SymRef {
-    fn from(index: NodeIndex) -> Self {
-        Self(index)
-    }
-}
-
-impl Deref for SymRef {
-    type Target = NodeIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum SymEntry {
-    MissingSym { name: Rc<str> },
-}
+type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
+type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     let mut pkgs_seen = HashSet::<String>::new();
     let mut fragments = HashMap::<&str, String>::new();
-    let mut depgraph = DepGraph::new();
+    let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
+    let mut roots = Vec::new();
     let interner = DefaultInterner::new();
 
     let package_path = std::env::args().nth(1).expect("Missing argument");
@@ -229,6 +51,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         &mut fragments,
         &mut depgraph,
         &interner,
+        &mut roots,
     )?;
 
     //    println!(
@@ -241,7 +64,14 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     //            .collect::<Vec<_>>()
     //    );
 
-    let sorted = sort_deps(&depgraph);
+    roots.extend(
+        vec!["___yield", "___worksheet"]
+            .iter()
+            .map(|name| interner.intern(name))
+            .filter_map(|sym| depgraph.lookup(sym)),
+    );
+
+    let sorted = sort_deps(&depgraph, &roots);
 
     println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
@@ -252,8 +82,9 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     path_str: &'a str,
     pkgs_seen: &mut HashSet<String>,
     fragments: &mut HashMap<&'i str, String>,
-    depgraph: &mut DepGraph,
+    depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
+    roots: &mut Vec<LinkerObjectRef>,
 ) -> Result<(), Box<dyn Error>> {
     let path = fs::canonicalize(path_str)?;
     let path_str = path.to_str().unwrap();
@@ -269,39 +100,95 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     let file = fs::File::open(&path)?;
     let reader = BufReader::new(file);
     let mut xmlo = XmloReader::new(reader, interner);
+    let mut elig = None;
 
     loop {
-        match xmlo.read_event()? {
-            XmloEvent::Package(_) => {}
+        match xmlo.read_event() {
+            Ok(XmloEvent::Package(attrs)) => {
+                elig = attrs.elig;
+            }
 
-            XmloEvent::SymDeps(sym, deps) => {
+            Ok(XmloEvent::SymDeps(sym, deps)) => {
                 // TODO: API needs to expose whether a symbol is already
                 // known so that we can warn on them
                 //
                 // note: using from_utf8_unchecked here did _not_ improve
                 // performance
-                let sym_node = depgraph.declare(sym);
+                let sym_node = depgraph
+                    .lookup(sym)
+                    .expect(&format!("missing sym for deps: `{}`", sym));
 
                 for dep_sym in deps {
-                    let dep_node = depgraph.declare(dep_sym);
-                    depgraph.declare_dep(sym_node, dep_node);
+                    let dep_node = depgraph.lookup(dep_sym).expect(&format!(
+                        "missing dep sym for deps: `{}` -> `{}`",
+                        sym, dep_sym
+                    ));
+
+                    depgraph.add_dep(sym_node, dep_node);
                 }
             }
 
-            XmloEvent::SymDecl(_sym, attrs) => {
+            Ok(XmloEvent::SymDecl(sym, attrs)) => {
                 if let Some(sym_src) = attrs.src {
                     found.insert(sym_src);
                 }
+
+                let owned = attrs.src.is_none();
+
+                let kind = attrs.try_into().map_err(|err| {
+                    format!("sym `{}` attrs error: {}", sym, err)
+                });
+
+                // TODO: should probably track these down in the XSLT linker...
+                match kind {
+                    Ok(kindval) => {
+                        // TODO: inefficient
+                        let link_root = owned
+                            && (kindval == IdentKind::Meta
+                                || sym.starts_with(":map:")
+                                || sym.starts_with(":retmap:"));
+
+                        let node = depgraph.declare(sym, kindval)?;
+
+                        if link_root {
+                            roots.push(node);
+                        }
+                    }
+                    Err(e) => println!("{:?}; skipping...", e),
+                };
             }
 
-            XmloEvent::Fragment(sym, text) => {
-                fragments.insert(sym, text);
+            Ok(XmloEvent::Fragment(sym, text)) => {
+                let result = depgraph.set_fragment(
+                    depgraph.lookup(sym).expect(&format!(
+                        "missing symbol for fragment: {}",
+                        sym
+                    )),
+                    text,
+                );
+
+                match result {
+                    Ok(_) => (),
+                    Err(e) => println!("{:?}; skipping...", e),
+                };
             }
 
             // We don't need to read any further than the end of the
             // header (symtable, sym-deps, fragments)
-            XmloEvent::Eoh => break,
+            Ok(XmloEvent::Eoh) => break,
+
+            Err(err @ XmloError::UnassociatedFragment) => {
+                println!("{:?}; skipping...", err);
+            }
+
+            err @ Err(_) => err.map(|_| ())?,
         }
+    }
+
+    if let Some(elig_sym) = elig {
+        roots.push(depgraph.lookup(elig_sym).expect(
+            "internal error: package elig references nonexistant symbol",
+        ));
     }
 
     let mut dir = path.clone();
@@ -316,17 +203,18 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         let path_abs = path_buf.canonicalize().unwrap();
         let path = path_abs.to_str().unwrap();
 
-        load_xmlo(path, pkgs_seen, fragments, depgraph, interner)?;
+        load_xmlo(path, pkgs_seen, fragments, depgraph, interner, roots)?;
     }
 
     Ok(())
 }
 
-fn sort_deps(depgraph: &DepGraph) -> Vec<&SymEntry> {
+fn sort_deps<'a, 'i>(
+    depgraph: &'a LinkerAsg<'i>,
+    roots: &Vec<LinkerObjectRef>,
+) -> Vec<&'a Object<'i>> {
     // @type=meta, @preproc:elig-class-yields
     // @type={ret}map{,:head,:tail}
-
-    let roots = discover_roots(depgraph);
 
     // This is technically a topological sort, but functions have
     // cycles.  Once we have more symbol metadata, we can filter them out
@@ -334,44 +222,19 @@ fn sort_deps(depgraph: &DepGraph) -> Vec<&SymEntry> {
     let mut dfs = DfsPostOrder::empty(&depgraph);
     let mut sorted = Vec::new();
 
+    //println!("discovered roots: {:?}", roots);
+
     // TODO: we'll be processing various roots separately
     for index in roots {
-        dfs.stack.push(*index);
+        dfs.stack.push((*index).into());
     }
 
+    // TODO: can we encapsulate NodeIndex?
     while let Some(index) = dfs.next(&depgraph) {
-        sorted.push(&depgraph[index]);
+        sorted.push(depgraph.get(index).unwrap());
     }
 
     sorted
-}
-
-fn discover_roots(depgraph: &DepGraph) -> Vec<SymRef> {
-    // TODO: filter_map
-    let mut map_syms = depgraph
-        .index_iter()
-        .filter(|(key, _)| {
-            key.starts_with(":map:") || key.starts_with(":retmap:")
-        })
-        .map(|(_, value)| *value)
-        .collect::<Vec<_>>();
-
-    let mut roots = vec!["___yield", "___worksheet"]
-        .iter()
-        .filter_map(|sym| depgraph.lookup(sym))
-        .collect::<Vec<_>>();
-
-    roots.append(&mut map_syms);
-
-    //println!(
-    //    "found roots: {:?}",
-    //    roots
-    //        .iter()
-    //        .map(|index| &depgraph.graph[*index])
-    //        .collect::<Vec<_>>()
-    //);
-
-    roots
 }
 
 #[cfg(test)]
