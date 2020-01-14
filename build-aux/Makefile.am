@@ -114,7 +114,7 @@ common: $(xmlo_common)
 program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 
 # Individual dependencies appear in suppliers.mk (see below)
-%.xmlo: %.xml
+%.xmlo: %.xml $(path_tame)/.rev-xmlo
 	$(TAME_TS)
 	$(TAME) compile $< $@
 
@@ -130,7 +130,7 @@ summary-html: $(dest_summary_html) ;
 
 standalones: $(dest_standalone)
 strip: $(dest_standalone_strip) ui/package.strip.js
-%.xmle: %.xmlo
+%.xmle: %.xmlo $(path_tame)/.rev-xmle
 	$(TAME_TS)
 	$(TAME) link $< $@
 %.js: %.xmle
