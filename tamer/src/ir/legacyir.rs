@@ -32,6 +32,15 @@ use std::result::Result;
 /// Toplevel package attributes.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct PackageAttrs<'i> {
+    /// Unique package identifier.
+    ///
+    /// The package name is derived from the filename relative to the
+    ///   project root during compilation (see `relroot`).
+    pub name: Option<&'i Symbol<'i>>,
+
+    /// Relative path from package to project root.
+    pub relroot: Option<String>,
+
     /// Whether this package is a program.
     ///
     /// A _program_ is a package intended to be linked into a final
@@ -104,6 +113,14 @@ pub struct SymAttrs<'i> {
     /// The linker (see [`crate::ld`]) is responsible for ensuring that the
     ///   extern is satisfied and properly located in the final executable.
     pub extern_: bool,
+
+    /// Unique package identifier.
+    ///
+    /// The name of a package is automatically derived from the package path
+    ///   relative to the project root.
+    /// _Note that this is problematic if one wants to compile the equivalent
+    ///   of shared libraries._
+    pub pkg_name: Option<&'i Symbol<'i>>,
 
     /// The identifier from which this one is derived.
     ///

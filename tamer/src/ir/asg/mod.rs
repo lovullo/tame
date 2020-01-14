@@ -93,6 +93,51 @@
 //! # }
 //! ```
 //!
+//! Missing Identifiers
+//! -------------------
+//! Since identifiers in TAME can be defined in any order relative to their
+//!   dependencies within a source file,
+//!     it is often the case that a dependency will have to be added to the
+//!     graph before it is resolved.
+//! For example,
+//!   [`Asg::add_dep_lookup`] will add an [`Object::Missing`] to the graph
+//!     if either identifier has not yet been declared.
+//!
+//! ```
+//! # use tamer::global;
+//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, FragmentText, Source};
+//! # use tamer::sym::{Interner, DefaultInterner};
+//! #
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let mut asg = DefaultAsg::<global::PkgIdentSize>::with_capacity(1024, 1024);
+//! # let interner = DefaultInterner::new();
+//! #
+//! let identa_sym = interner.intern("identa");
+//! let identb_sym = interner.intern("identb");
+//! let (identa, identb) = asg.add_dep_lookup(identa_sym, identb_sym);
+//!
+//! assert_eq!(Some(&Object::Missing(identa_sym)), asg.get(identa));
+//! assert_eq!(Some(&Object::Missing(identb_sym)), asg.get(identb));
+//!
+//! // The identifiers returned above are proper objects on the graph.
+//! assert_eq!(Some(identa), asg.lookup(identa_sym));
+//! assert_eq!(Some(identb), asg.lookup(identb_sym));
+//!
+//! // Once declared, the missing identifier changes state and dependencies
+//! // are retained.
+//! asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
+//!
+//! assert_eq!(
+//!     Some(&Object::Ident(identa_sym, IdentKind::Meta, Source::default())),
+//!     asg.get(identa),
+//! );
+//!
+//! assert!(asg.has_dep(identa, identb));
+//! #
+//! # Ok(()) // main
+//! # }
+//! ```
+//!
 //! Fragments
 //! ---------
 //! A compiled fragment can be attached to any resolved identifier (see

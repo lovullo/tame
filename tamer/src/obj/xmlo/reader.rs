@@ -52,7 +52,7 @@
 //! use tamer::ir::legacyir::SymType;
 //! use tamer::sym::{DefaultInterner, Interner};
 //!
-//! let xmlo = br#"<package program="true">
+//! let xmlo = br#"<package name="foo">
 //!       <preproc:symtable>
 //!         <preproc:sym name="syma" type="class" />
 //!         <preproc:sym name="symb" type="cgen" />
@@ -77,14 +77,14 @@
 //! let interner = DefaultInterner::new();
 //! let mut reader = XmloReader::new(xmlo as &[u8], &interner);
 //!
-//! let mut prog = None;
+//! let mut pkgname = None;
 //! let mut syms = Vec::new();
 //! let mut deps = Vec::new();
 //! let mut fragments = Vec::new();
 //!
 //! loop {
 //!     match reader.read_event()? {
-//!         XmloEvent::Package(attrs) => prog = Some(attrs.program),
+//!         XmloEvent::Package(attrs) => pkgname = attrs.name,
 //!         XmloEvent::SymDecl(sym, attrs) => syms.push((sym, attrs.ty)),
 //!         XmloEvent::SymDeps(sym, symdeps) => deps.push((sym, symdeps)),
 //!         XmloEvent::Fragment(sym, text) => fragments.push((sym, text)),
@@ -94,7 +94,7 @@
 //!     }
 //! }
 //!
-//! assert_eq!(Some(true), prog);
+//! assert_eq!(Some(interner.intern("foo")), pkgname);
 //!
 //! assert_eq!(
 //!     vec![
@@ -194,6 +194,12 @@ where
     /// This is used to ensure that we provide an error early on if we try
     ///   to process something that isn't a package.
     seen_root: bool,
+
+    /// Name of the package currently being read.
+    ///
+    /// This is known after processing the root `package` element,
+    ///   provided that it's a proper root node.
+    pkg_name: Option<&'i Symbol<'i>>,
 }
 
 impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
@@ -211,6 +217,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
             sub_buffer: Vec::new(),
             interner,
             seen_root: false,
+            pkg_name: None,
         }
     }
 
@@ -258,12 +265,17 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
 
         match event {
             XmlEvent::Empty(ele) if ele.name() == b"preproc:sym" => {
-                Self::process_sym(&ele, self.interner)
+                Self::process_sym(&self.pkg_name, &ele, self.interner)
             }
 
             XmlEvent::Start(ele) => match ele.name() {
-                b"package" => Self::process_package(&ele, self.interner),
-                b"lv:package" => Self::process_package(&ele, self.interner),
+                b"package" | b"lv:package" => {
+                    let attrs = Self::process_package(&ele, self.interner)?;
+
+                    self.pkg_name = attrs.name;
+
+                    Ok(XmloEvent::Package(attrs))
+                }
 
                 b"preproc:sym-dep" => Self::process_dep(
                     &ele,
@@ -284,7 +296,8 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                 // source field information which we want to keep.  (We
                 // don't care about `retmap` for our purposes.)
                 b"preproc:sym" => {
-                    let mut event = Self::process_sym(&ele, self.interner)?;
+                    let mut event =
+                        Self::process_sym(&self.pkg_name, &ele, self.interner)?;
 
                     match &mut event {
                         XmloEvent::SymDecl(_, attrs)
@@ -330,12 +343,26 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     fn process_package<'a>(
         ele: &'a BytesStart<'a>,
         interner: &'i I,
-    ) -> XmloResult<XmloEvent<'i>> {
+    ) -> XmloResult<PackageAttrs<'i>> {
         let mut program = false;
         let mut elig: Option<&'i Symbol<'i>> = None;
+        let mut name: Option<&'i Symbol<'i>> = None;
+        let mut relroot: Option<String> = None;
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
             match attr.key {
+                b"name" => {
+                    name = Some(unsafe {
+                        interner.intern_utf8_unchecked(&attr.value)
+                    });
+                }
+
+                b"__rootpath" => {
+                    relroot = Some(unsafe {
+                        String::from_utf8_unchecked(attr.value.to_vec())
+                    });
+                }
+
                 b"program" => {
                     program = &*attr.value == b"true";
                 }
@@ -350,7 +377,14 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
             }
         }
 
-        Ok(XmloEvent::Package(PackageAttrs { program, elig }))
+        // TODO: proper errors, no panic
+        Ok(PackageAttrs {
+            name,
+            relroot,
+            program,
+            elig,
+            ..Default::default()
+        })
     }
 
     /// Process `preproc:sym` element attributes.
@@ -366,6 +400,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     /// ======
     /// - [`XmloError::UnassociatedSym`] if missing `preproc:sym/@name`.
     fn process_sym<'a>(
+        pkg_name: &Option<&'i Symbol<'i>>,
         ele: &'a BytesStart<'a>,
         interner: &'i I,
     ) -> XmloResult<XmloEvent<'i>> {
@@ -440,6 +475,8 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                 _ => (),
             }
         }
+
+        sym_attrs.pkg_name = *pkg_name;
 
         name.map(|name_sym| XmloEvent::SymDecl(name_sym, sym_attrs))
             .ok_or(XmloError::UnassociatedSym)
@@ -993,6 +1030,7 @@ mod test {
                     // We don't want to have to output a proper root node
                     // for every one of our tests.
                     $sut.seen_root = true;
+                    $sut.pkg_name = Some($interner.intern("pkg/name"));
 
                     $body;
 
@@ -1098,6 +1136,7 @@ mod test {
                 XmloEvent::Package(PackageAttrs {
                     program: true,
                     elig: Some(interner.intern("eligClassYields")),
+                    ..Default::default()
                 }),
                 result
             );
@@ -1115,6 +1154,30 @@ mod test {
 
             assert_eq!(
                 XmloEvent::Package(PackageAttrs {
+                    program: false,
+                    ..Default::default()
+                }),
+                result
+            );
+        }
+
+        fn package_event_name(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"package",
+                    Some(MockAttributes::new(vec![
+                        MockAttribute::new(b"name", b"pkg/name"),
+                        MockAttribute::new(b"__rootpath", b"../../"),
+                    ])),
+                )))
+            }));
+
+            let result = sut.read_event()?;
+
+            assert_eq!(
+                XmloEvent::Package(PackageAttrs {
+                    name: Some(interner.intern("pkg/name")),
+                    relroot: Some("../../".into()),
                     program: false,
                     ..Default::default()
                 }),
@@ -1351,7 +1414,10 @@ mod test {
             assert_eq!(
                 XmloEvent::SymDecl(
                     interner.intern("sym-expected"),
-                    Default::default()
+                    SymAttrs {
+                        pkg_name: Some(interner.intern("pkg/name")),
+                        ..Default::default()
+                    },
                 ),
                 result
             );
@@ -1384,6 +1450,7 @@ mod test {
                     interner.intern("sym-nonempty"),
                     SymAttrs {
                         dim: Some(2),
+                        pkg_name: Some(interner.intern("pkg/name")),
                         ..Default::default()
                     },
                 ),
@@ -1456,6 +1523,7 @@ mod test {
                             interner.intern("from-a"),
                             interner.intern("from-b"),
                         ]),
+                        pkg_name: Some(interner.intern("pkg/name")),
                         ..Default::default()
                     },
                 ),
@@ -1538,29 +1606,45 @@ mod test {
     }
 
     macro_rules! sym_test_reader_event {
-        ($sut:ident, $name:ident, $($key:ident=$val:literal),*) => {
+        ($sut:ident, $interner:ident, $name:ident, $($key:ident=$val:literal),*) => {
             // See xmlo_tests macro for explanation
             $sut.seen_root = true;
 
-            $sut.reader.next_event = Some(Box::new(|_, _| {
-                Ok(XmlEvent::Empty(MockBytesStart::new(
-                    b"preproc:sym",
-                    Some(MockAttributes::new(
-                        vec![
-                            MockAttribute::new(
-                                b"name",
-                                stringify!($name).as_bytes(),
-                            ),
-                            $(
+            $sut.reader.next_event = Some(Box::new(|_, event_i| {
+                match event_i {
+                    0 => Ok(XmlEvent::Start(MockBytesStart::new(
+                        b"package",
+                        Some(MockAttributes::new(vec![
+                            MockAttribute::new(b"name", b"pkg/name")
+                        ])),
+                    ))),
+
+                    1 => Ok(XmlEvent::Empty(MockBytesStart::new(
+                        b"preproc:sym",
+                        Some(MockAttributes::new(
+                            vec![
                                 MockAttribute::new(
-                                    stringify!($key).as_bytes(),
-                                    $val.as_bytes(),
+                                    b"name",
+                                    stringify!($name).as_bytes(),
                                 ),
-                            )*
-                        ],
+                                $(
+                                    MockAttribute::new(
+                                        stringify!($key).as_bytes(),
+                                        $val.as_bytes(),
+                                    ),
+                                )*
+                            ],
+                        )),
+                    ))),
+
+                    _ => Err(XmlError::UnexpectedEof(
+                        format!("MockXmlReader out of events: {}", event_i).into(),
                     )),
-                )))
+                }
             }));
+
+            // consume the package to set the name
+            let _ = $sut.read_event();
         }
     }
 
@@ -1573,11 +1657,12 @@ mod test {
                     let $interner = DefaultInterner::new();
                     let mut sut = Sut::new(stub_data, &$interner);
 
-                    sym_test_reader_event!(sut, $name, $( $key=$val ),*);
+                    sym_test_reader_event!(sut, $interner, $name, $( $key=$val ),*);
 
                     let result = sut.read_event()?;
 
-                    let expected_attrs = $expect;
+                    let mut expected_attrs = $expect;
+                    expected_attrs.pkg_name = Some($interner.intern("pkg/name"));
 
                     assert_eq!(
                         XmloEvent::SymDecl(
@@ -1596,6 +1681,7 @@ mod test {
         (interner)
 
         src: [src="foo/bar/baz"] => SymAttrs {
+            // see macro for src relpath
             src: Some(interner.intern("foo/bar/baz")),
             ..Default::default()
         }
@@ -1668,6 +1754,7 @@ mod test {
         // Multiple attributes at once
         multi: [src="foo", type="class", dim="1", dtype="float", extern="true"]
             => SymAttrs {
+                // see macro for src relpath
                 src: Some(interner.intern("foo")),
                 ty: Some(SymType::Class),
                 dim: Some(1),
@@ -1686,6 +1773,7 @@ mod test {
 
         // See xmlo_tests macro for explanation
         sut.seen_root = true;
+        sut.pkg_name = Some(interner.intern("pkg/name"));
 
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Empty(MockBytesStart::new(
@@ -1701,6 +1789,7 @@ mod test {
 
         let expected_attrs = SymAttrs {
             generated: true,
+            pkg_name: Some(interner.intern("pkg/name")),
             ..Default::default()
         };
 
@@ -1721,7 +1810,7 @@ mod test {
         let interner = DefaultInterner::new();
         let mut sut = Sut::new(stub_data, &interner);
 
-        sym_test_reader_event!(sut, fail_sym, dim = "X1");
+        sym_test_reader_event!(sut, interner, fail_sym, dim = "X1");
 
         match sut.read_event() {
             Err(XmloError::InvalidDim(msg)) => assert!(msg.contains("X1")),
@@ -1735,7 +1824,7 @@ mod test {
         let interner = DefaultInterner::new();
         let mut sut = Sut::new(stub_data, &interner);
 
-        sym_test_reader_event!(sut, fail_sym, dim = "11");
+        sym_test_reader_event!(sut, interner, fail_sym, dim = "11");
 
         match sut.read_event() {
             Err(XmloError::InvalidDim(msg)) => assert!(msg.contains("11")),
@@ -1749,7 +1838,7 @@ mod test {
         let interner = DefaultInterner::new();
         let mut sut = Sut::new(stub_data, &interner);
 
-        sym_test_reader_event!(sut, fail_sym, type = "foo");
+        sym_test_reader_event!(sut, interner, fail_sym, type = "foo");
 
         match sut.read_event() {
             Err(XmloError::InvalidType(msg)) => assert!(msg.contains("foo")),
@@ -1763,7 +1852,7 @@ mod test {
         let interner = DefaultInterner::new();
         let mut sut = Sut::new(stub_data, &interner);
 
-        sym_test_reader_event!(sut, fail_sym, dtype = "foo");
+        sym_test_reader_event!(sut, interner, fail_sym, dtype = "foo");
 
         match sut.read_event() {
             Err(XmloError::InvalidDtype(msg)) => assert!(msg.contains("foo")),
@@ -1777,7 +1866,7 @@ mod test {
         let interner = DefaultInterner::new();
         let mut sut = Sut::new(stub_data, &interner);
 
-        sym_test_reader_event!(sut, fail_sym, dtype = "foo");
+        sym_test_reader_event!(sut, interner, fail_sym, dtype = "foo");
 
         match sut.read_event() {
             Err(XmloError::InvalidDtype(msg)) => assert!(msg.contains("foo")),

@@ -115,6 +115,18 @@ where
 
         self.index[i] = node;
     }
+
+    /// Lookup `ident` or add an [`Object::Missing`] to the graph and
+    ///   return a reference to it.
+    #[inline]
+    fn lookup_or_missing(&mut self, ident: &'i Symbol<'i>) -> ObjectRef<Ix> {
+        self.lookup(ident).unwrap_or_else(|| {
+            let index = self.graph.add_node(Some(Object::Missing(ident)));
+
+            self.index_identifier(ident, index);
+            ObjectRef(index)
+        })
+    }
 }
 
 impl<'i, Ix> Asg<'i, Ix> for BaseAsg<'i, Ix>
@@ -129,7 +141,14 @@ where
     ) -> AsgResult<ObjectRef<Ix>> {
         // TODO: src check
         if let Some(existing) = self.lookup(name) {
-            return Ok(existing);
+            match self.graph.node_weight_mut(existing.0) {
+                Some(node @ Some(Object::Missing(_))) => {
+                    node.replace(Object::Ident(name, kind, src));
+                    return Ok(existing);
+                }
+                Some(_) => return Ok(existing),
+                _ => (),
+            }
         }
 
         let node = self.graph.add_node(Some(Object::Ident(name, kind, src)));
@@ -217,6 +236,19 @@ where
     #[inline]
     fn has_dep(&self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>) -> bool {
         self.graph.contains_edge(ident.0, dep.0)
+    }
+
+    fn add_dep_lookup(
+        &mut self,
+        ident: &'i Symbol<'i>,
+        dep: &'i Symbol<'i>,
+    ) -> (ObjectRef<Ix>, ObjectRef<Ix>) {
+        let identi = self.lookup_or_missing(ident);
+        let depi = self.lookup_or_missing(dep);
+
+        self.graph.update_edge(identi.0, depi.0, Default::default());
+
+        (identi, depi)
     }
 }
 
@@ -461,6 +493,68 @@ mod test {
         // sanity check if we re-add a dep
         sut.add_dep(symnode, depnode);
         assert!(sut.has_dep(symnode, depnode));
+
+        Ok(())
+    }
+
+    // same as above test
+    #[test]
+    fn add_dep_lookup_existing() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        let _ = sut.declare(&sym, IdentKind::Meta, Source::default())?;
+        let _ = sut.declare(&dep, IdentKind::Meta, Source::default())?;
+
+        let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
+        assert!(sut.has_dep(symnode, depnode));
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_dep_lookup_missing() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        // both of these are missing
+        let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
+        assert!(sut.has_dep(symnode, depnode));
+
+        assert_eq!(Some(&Object::Missing(&sym)), sut.get(symnode));
+        assert_eq!(Some(&Object::Missing(&dep)), sut.get(depnode));
+
+        Ok(())
+    }
+
+    #[test]
+    fn declare_return_missing_symbol() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        // both of these are missing, see add_dep_lookup_missing
+        let (symnode, _) = sut.add_dep_lookup(&sym, &dep);
+
+        let src = Source {
+            desc: Some("Tamer is NOT lamer.".to_string()),
+            ..Default::default()
+        };
+
+        // Check with a declared value
+        let declared = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+
+        assert_eq!(symnode, declared);
+
+        assert_eq!(
+            Some(&Object::Ident(&sym, IdentKind::Meta, src)),
+            sut.get(declared),
+        );
 
         Ok(())
     }

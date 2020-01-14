@@ -29,6 +29,9 @@ use crate::sym::Symbol;
 /// These types represent object states:
 ///
 /// ```text
+///       ,-> (Missing) -------.
+///      /         \            \
+///     /           v            v
 /// ((Empty)) -> (Extern) -> ((Ident)) -> ((IdentFragment)).
 ///     \                        ^
 ///      \                      /
@@ -37,10 +40,21 @@ use crate::sym::Symbol;
 ///
 /// The [`Empty`][Object::Empty] state is never directly accessable
 ///   through [`Asg`][super::Asg]'s public API,
-///     as it represents the absence of an object at that node within the
+///     as it represents the _absence_ of an object at that node within the
 ///     ASG.
 #[derive(Debug, PartialEq)]
 pub enum Object<'i> {
+    /// An identifier is expected to be defined but is not yet available.
+    ///
+    /// This variant contains the symbol representing the name of the
+    ///   expected identifier.
+    /// By defining an object as missing,
+    ///   this allows the graph to be built incrementally as objects are
+    ///   discovered.
+    ///
+    /// Note that this is different than [`Empty`][Object::Empty].
+    Missing(&'i Symbol<'i>),
+
     /// A resolved identifier.
     ///
     /// This represents an identifier that has been declared with certain
@@ -67,6 +81,8 @@ pub enum Object<'i> {
     /// The empty node (default value for indexer).
     ///
     /// This is not a valid state accessible via [`Asg`][super::Asg].
+    ///
+    /// Note that this is different than [`Missing`][Object::Missing].
     Empty,
 }
 
@@ -86,6 +102,13 @@ pub type FragmentText = String;
 ///     this will provide that information in the future.
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct Source<'i> {
+    /// Name of package containing reference to this object.
+    pub pkg_name: Option<&'i Symbol<'i>>,
+
+    /// Relative path to the source of this object,
+    ///   if not present in the current package.
+    pub src: Option<&'i Symbol<'i>>,
+
     /// The identifier from which this one is derived.
     ///
     /// See [`IdentKind`] for more information on parents.
@@ -134,6 +157,8 @@ impl<'i> From<SymAttrs<'i>> for Source<'i> {
     /// This simply extracts a subset of fields from the source attributes.
     fn from(attrs: SymAttrs<'i>) -> Self {
         Source {
+            pkg_name: attrs.pkg_name,
+            src: attrs.src,
             generated: attrs.generated,
             parent: attrs.parent,
             yields: attrs.yields,
@@ -150,11 +175,15 @@ mod test {
 
     #[test]
     fn source_from_sym_attrs() {
-        let psym = Symbol::new_dummy(SymbolIndex::from_u32(1), "parent");
-        let ysym = Symbol::new_dummy(SymbolIndex::from_u32(2), "yields");
-        let fsym = Symbol::new_dummy(SymbolIndex::from_u32(2), "from");
+        let nsym = Symbol::new_dummy(SymbolIndex::from_u32(1), "name");
+        let ssym = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+        let psym = Symbol::new_dummy(SymbolIndex::from_u32(3), "parent");
+        let ysym = Symbol::new_dummy(SymbolIndex::from_u32(4), "yields");
+        let fsym = Symbol::new_dummy(SymbolIndex::from_u32(5), "from");
 
         let attrs = SymAttrs {
+            pkg_name: Some(&nsym),
+            src: Some(&ssym),
             generated: true,
             parent: Some(&psym),
             yields: Some(&ysym),
@@ -165,6 +194,8 @@ mod test {
 
         assert_eq!(
             Source {
+                pkg_name: Some(&nsym),
+                src: Some(&ssym),
                 generated: attrs.generated,
                 parent: attrs.parent,
                 yields: attrs.yields,

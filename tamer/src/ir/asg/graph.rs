@@ -123,10 +123,33 @@ pub trait Asg<'i, Ix: IndexType> {
     /// An object must be declared as a dependency if its value must be
     ///   computed before computing the value of `ident`.
     /// The [linker][crate::ld] will ensure this ordering.
+    ///
+    /// See [`add_dep_lookup`][Asg::add_dep_lookup] if identifiers have to
+    ///   be looked up by [`Symbol`] or if they may not yet have been
+    ///   declared.
     fn add_dep(&mut self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>);
 
     /// Check whether `dep` is a dependency of `ident`.
     fn has_dep(&self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>) -> bool;
+
+    /// Declare that `dep` is a dependency of `ident`,
+    ///   regardless of whether they are known.
+    ///
+    /// In contrast to [`add_dep`][Asg::add_dep],
+    ///   this method will add the dependency even if one or both of `ident`
+    ///   or `dep` have not yet been declared.
+    /// In such a case,
+    ///   an [`Object::Missing`] will be added as a placeholder for the
+    ///   missing identifier,
+    ///     allowing the ASG to be built with partial information as
+    ///     identifiers continue to be discovered.
+    ///
+    /// References to both identifiers are returned in argument order.
+    fn add_dep_lookup(
+        &mut self,
+        ident: &'i Symbol<'i>,
+        dep: &'i Symbol<'i>,
+    ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
 }
 
 /// A [`Result`] with a hard-coded [`AsgError`] error type.

@@ -80,7 +80,8 @@
                           $displays )" />
 
   <lv:package name="{@name}"
-               lvmc:type="worksheet">
+              __rootpath="{$__relroot}"
+              lvmc:type="worksheet">
     <!-- we provide one special symbol -->
     <preproc:symtable>
       <preproc:sym name="___worksheet"

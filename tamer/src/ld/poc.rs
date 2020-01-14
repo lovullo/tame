@@ -20,9 +20,9 @@
 
 use crate::global;
 use crate::ir::asg::IdentKind;
-use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef};
+use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef, Source};
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
-use crate::sym::{DefaultInterner, Interner};
+use crate::sym::{DefaultInterner, Interner, Symbol};
 use petgraph::visit::DfsPostOrder;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
@@ -47,14 +47,15 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     println!("WARNING: This is proof-of-concept; do not use!");
 
-    load_xmlo(
+    let (name, relroot) = load_xmlo(
         &abs_path.to_str().unwrap().to_string(),
         &mut pkgs_seen,
         &mut fragments,
         &mut depgraph,
         &interner,
         &mut roots,
-    )?;
+    )?
+    .expect("missing root package information");
 
     //    println!(
     //        "Graph {:?}",
@@ -77,7 +78,13 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     //println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
-    output_xmle(&depgraph, &interner, sorted)?;
+    output_xmle(
+        &depgraph,
+        &interner,
+        sorted,
+        name.expect("missing root package name"),
+        relroot.expect("missing root package relroot"),
+    )?;
 
     Ok(())
 }
@@ -89,12 +96,14 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     roots: &mut Vec<LinkerObjectRef>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>> {
     let path = fs::canonicalize(path_str)?;
     let path_str = path.to_str().unwrap();
 
+    let first = pkgs_seen.len() == 0;
+
     if !pkgs_seen.insert(path_str.to_string()) {
-        return Ok(());
+        return Ok(None);
     }
 
     //println!("processing {}", path_str);
@@ -106,33 +115,28 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     let mut xmlo = XmloReader::new(reader, interner);
     let mut elig = None;
 
+    let mut name: Option<&'i Symbol<'i>> = None;
+    let mut relroot: Option<String> = None;
+
     loop {
         match xmlo.read_event() {
             Ok(XmloEvent::Package(attrs)) => {
+                if first {
+                    name = attrs.name;
+                    relroot = attrs.relroot;
+                }
                 elig = attrs.elig;
             }
 
             Ok(XmloEvent::SymDeps(sym, deps)) => {
                 // TODO: API needs to expose whether a symbol is already
                 // known so that we can warn on them
-                //
-                // note: using from_utf8_unchecked here did _not_ improve
-                // performance
-                let sym_node = depgraph
-                    .lookup(sym)
-                    .expect(&format!("missing sym for deps: `{}`", sym));
 
                 // Maps should not pull in symbols since we may end up
                 // mapping to params that are never actually used
                 if !sym.starts_with(":map:") {
                     for dep_sym in deps {
-                        let dep_node =
-                            depgraph.lookup(dep_sym).expect(&format!(
-                                "missing dep sym for deps: `{}` -> `{}`",
-                                sym, dep_sym
-                            ));
-
-                        depgraph.add_dep(sym_node, dep_node);
+                        depgraph.add_dep_lookup(sym, dep_sym);
                     }
                 }
             }
@@ -140,33 +144,43 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
             Ok(XmloEvent::SymDecl(sym, attrs)) => {
                 if let Some(sym_src) = attrs.src {
                     found.insert(sym_src);
-                }
+                } else if attrs.extern_ {
+                    // TODO: externs (they're implicitly handled, without
+                    // checks, by Missing)
+                    // depgraph.declare_extern(sym, kind);
+                } else {
+                    let owned = attrs.src.is_none();
 
-                let owned = attrs.src.is_none();
+                    let kind = (&attrs).try_into().map_err(|err| {
+                        format!("sym `{}` attrs error: {}", sym, err)
+                    });
 
-                let kind = (&attrs).try_into().map_err(|err| {
-                    format!("sym `{}` attrs error: {}", sym, err)
-                });
+                    let mut src: Source = attrs.into();
 
-                let src = attrs.into();
-
-                // TODO: should probably track these down in the XSLT linker...
-                match kind {
-                    Ok(kindval) => {
-                        // TODO: inefficient
-                        let link_root = owned
-                            && (kindval == IdentKind::Meta
-                                || kindval == IdentKind::Map
-                                || kindval == IdentKind::RetMap);
-
-                        let node = depgraph.declare(sym, kindval, src)?;
-
-                        if link_root {
-                            roots.push(node);
-                        }
+                    // Existing convention is to omit @src of local package
+                    // (in this case, the program being linked)
+                    if first {
+                        src.pkg_name = None;
                     }
-                    Err(e) => println!("{:?}; skipping...", e),
-                };
+
+                    // TODO: should probably track these down in the XSLT linker...
+                    match kind {
+                        Ok(kindval) => {
+                            // TODO: inefficient
+                            let link_root = owned
+                                && (kindval == IdentKind::Meta
+                                    || kindval == IdentKind::Map
+                                    || kindval == IdentKind::RetMap);
+
+                            let node = depgraph.declare(sym, kindval, src)?;
+
+                            if link_root {
+                                roots.push(node);
+                            }
+                        }
+                        Err(e) => println!("{:?}; skipping...", e),
+                    };
+                }
             }
 
             Ok(XmloEvent::Fragment(sym, text)) => {
@@ -210,14 +224,18 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         path_buf.push(relpath);
         path_buf.set_extension("xmlo");
 
-        //println!("Trying {:?}", path_buf);
+        // println!("Trying {:?}", path_buf);
         let path_abs = path_buf.canonicalize().unwrap();
         let path = path_abs.to_str().unwrap();
 
         load_xmlo(path, pkgs_seen, fragments, depgraph, interner, roots)?;
     }
 
-    Ok(())
+    if first {
+        Ok(Some((name, relroot)))
+    } else {
+        Ok(None)
+    }
 }
 
 type ObjectVec<'a, 'i> = Vec<&'a Object<'i>>;
@@ -288,6 +306,8 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
     depgraph: &'a LinkerAsg<'i>,
     interner: &'i I,
     sorted: SortedDeps<'a, 'i>,
+    name: &'i Symbol<'i>,
+    relroot: String,
 ) -> Result<(), Box<dyn Error>> {
     use std::io::Cursor;
 
@@ -299,9 +319,10 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
             ("xmlns", "http://www.lovullo.com/rater"),
             ("xmlns:preproc", "http://www.lovullo.com/rater/preproc"),
             ("xmlns:l", "http://www.lovullo.com/rater/linker"),
-            ("title", "Title TODO"), // TODO
+            ("title", &name), // TODO
             ("program", "true"),
-            ("name", "name/todo"), // TODO
+            ("name", &name),
+            ("__rootpath", &relroot),
         ]);
 
     writer.write_event(Event::Start(root))?;
@@ -384,6 +405,11 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
                     attrs.push(("preproc:generated", "true"));
                 }
 
+                let srcpath: String;
+                if let Some(pkg_name) = src.pkg_name {
+                    srcpath = relroot.clone() + pkg_name;
+                    attrs.push(("src", &srcpath));
+                }
                 if let Some(parent) = src.parent {
                     attrs.push(("parent", parent));
                 }
