@@ -141,13 +141,29 @@ where
     ) -> AsgResult<ObjectRef<Ix>> {
         // TODO: src check
         if let Some(existing) = self.lookup(name) {
-            match self.graph.node_weight_mut(existing.0) {
-                Some(node @ Some(Object::Missing(_))) => {
+            let node = self.graph.node_weight_mut(existing.0).unwrap();
+
+            match node {
+                Some(Object::Missing(_)) => {
                     node.replace(Object::Ident(name, kind, src));
                     return Ok(existing);
                 }
-                Some(_) => return Ok(existing),
-                _ => (),
+                // TODO: no override-override
+                Some(Object::Ident(_, _, orig_src))
+                    if orig_src.virtual_ && src.override_ =>
+                {
+                    *orig_src = src;
+                    return Ok(existing);
+                }
+                // TODO: no override-override
+                Some(Object::IdentFragment(_, _, orig_src, _))
+                    if orig_src.virtual_ && src.override_ =>
+                {
+                    // clears fragment, which is no longer applicable
+                    node.replace(Object::Ident(name, kind, src));
+                    return Ok(existing);
+                }
+                _ => return Ok(existing),
             }
         }
 
@@ -411,6 +427,81 @@ mod test {
             sut.declare(&sym, IdentKind::Meta, Source::default())?;
 
         assert_eq!(node, redeclare);
+        Ok(())
+    }
+
+    // TODO: incompatible
+    #[test]
+    fn declare_override_virtual_ident() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
+        let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+
+        let virt_node = sut.declare(
+            &sym,
+            IdentKind::Meta,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let over_src = Source {
+            override_: true,
+            src: Some(&over_src),
+            ..Default::default()
+        };
+
+        let over_node = sut.declare(&sym, IdentKind::Meta, over_src.clone())?;
+
+        assert_eq!(virt_node, over_node);
+
+        assert_eq!(
+            sut.get(over_node),
+            Some(&Object::Ident(&sym, IdentKind::Meta, over_src,))
+        );
+
+        Ok(())
+    }
+
+    // TODO: incompatible
+    #[test]
+    fn declare_override_virtual_ident_fragment() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
+        let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+
+        let virt_node = sut.declare(
+            &sym,
+            IdentKind::Meta,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(virt_node, FragmentText::from("remove me"))?;
+
+        let over_src = Source {
+            override_: true,
+            src: Some(&over_src),
+            ..Default::default()
+        };
+
+        let over_node = sut.declare(&sym, IdentKind::Meta, over_src.clone())?;
+
+        assert_eq!(virt_node, over_node);
+
+        // The act of overriding the node should have cleared any existing
+        // fragment, making way for a new fragment to take its place as soon
+        // as it is discovered.  (So, back to an Object::Ident.)
+        assert_eq!(
+            sut.get(over_node),
+            Some(&Object::Ident(&sym, IdentKind::Meta, over_src,))
+        );
+
         Ok(())
     }
 

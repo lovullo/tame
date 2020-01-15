@@ -61,6 +61,12 @@ pub trait Asg<'i, Ix: IndexType> {
     ///       [`Object::Extern`] into a [`Object::Ident`].
     /// When this happens,
     ///   the extern is said to be _resolved_.
+    ///
+    /// If a virtual identifier of type [`Object::IdentFragment`] is
+    ///   overridden,
+    ///     then its fragment is cleared
+    ///     (it returns to a [`Object::Ident`])
+    ///     to make way for the fragment of the override.
     fn declare(
         &mut self,
         name: &'i Symbol<'i>,

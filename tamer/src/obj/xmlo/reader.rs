@@ -469,6 +469,14 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                     });
                 }
 
+                b"virtual" => {
+                    sym_attrs.virtual_ = &*attr.value == b"true";
+                }
+
+                b"isoverride" => {
+                    sym_attrs.override_ = &*attr.value == b"true";
+                }
+
                 // As this reader evolves, we may wish to provide an error
                 // for unknown attributes so that we can be sure that we've
                 // handled them all.
@@ -1748,6 +1756,16 @@ mod test {
 
         desc: [desc="Description"] => SymAttrs {
             desc: Some("Description".to_string()),
+            ..Default::default()
+        }
+
+        r#virtual: [virtual="true"] => SymAttrs {
+            virtual_: true,
+            ..Default::default()
+        }
+
+        r#override: [isoverride="true"] => SymAttrs {
+            override_: true,
             ..Default::default()
         }
 

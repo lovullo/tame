@@ -33,9 +33,9 @@ use crate::sym::Symbol;
 ///      /         \            \
 ///     /           v            v
 /// ((Empty)) -> (Extern) -> ((Ident)) -> ((IdentFragment)).
-///     \                        ^
-///      \                      /
-///       `--------------------`
+///     \                        ^               /
+///      \                      / \             /
+///       `--------------------`   `-----------'
 /// ```
 ///
 /// The [`Empty`][Object::Empty] state is never directly accessable
@@ -149,6 +149,22 @@ pub struct Source<'i> {
     /// TODO: We have `parent`, `yields`, and `from`.
     ///   We should begin to consolodate.
     pub from: Option<Vec<&'i Symbol<'i>>>,
+
+    /// Whether identifier is virtual (can be overridden).
+    ///
+    /// This feature adds complexity and will ideally be removed in the
+    ///   future.
+    ///
+    /// See also [`override`][Source::override_].
+    pub virtual_: bool,
+
+    /// Whether identifier overrides a virtual identifier.
+    ///
+    /// This feature adds complexity and will ideally be removed in the
+    ///   future.
+    ///
+    /// See also [`virtual_`][Source::virtual_].
+    pub override_: bool,
 }
 
 impl<'i> From<SymAttrs<'i>> for Source<'i> {
@@ -164,6 +180,8 @@ impl<'i> From<SymAttrs<'i>> for Source<'i> {
             yields: attrs.yields,
             desc: attrs.desc,
             from: attrs.from,
+            virtual_: attrs.virtual_,
+            override_: attrs.override_,
         }
     }
 }
@@ -189,6 +207,8 @@ mod test {
             yields: Some(&ysym),
             desc: Some("sym desc".to_string()),
             from: Some(vec![&fsym]),
+            virtual_: true,
+            override_: true,
             ..Default::default()
         };
 
@@ -201,6 +221,8 @@ mod test {
                 yields: attrs.yields,
                 desc: Some("sym desc".to_string()),
                 from: Some(vec![&fsym]),
+                virtual_: true,
+                override_: true,
             },
             attrs.into(),
         );

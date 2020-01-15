@@ -158,6 +158,16 @@ pub struct SymAttrs<'i> {
     ///  - [`SymType::Func`] lists params in order (so that the compiler
     ///    knows application order).
     pub from: Option<Vec<&'i Symbol<'i>>>,
+
+    /// Whether symbol can be overridden.
+    ///
+    /// See also [`override`][SymAttrs::override_].
+    pub virtual_: bool,
+
+    /// Whether symbol is an override of a virtual symbol.
+    ///
+    /// See also [`virtual`][SymAttrs::virtual_].
+    pub override_: bool,
 }
 
 /// Legacy symbol types.
