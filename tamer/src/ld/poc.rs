@@ -23,10 +23,10 @@ use crate::ir::asg::IdentKind;
 use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef, Source};
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
+use fxhash::{FxHashMap, FxHashSet};
 use petgraph::visit::DfsPostOrder;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
-use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
@@ -36,8 +36,8 @@ type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
 pub fn main() -> Result<(), Box<dyn Error>> {
-    let mut pkgs_seen = HashSet::<String>::new();
-    let mut fragments = HashMap::<&str, String>::new();
+    let mut pkgs_seen: FxHashSet<String> = Default::default();
+    let mut fragments: FxHashMap<&str, String> = Default::default();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let mut roots = Vec::new();
     let interner = DefaultInterner::new();
@@ -91,8 +91,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
 fn load_xmlo<'a, 'i, I: Interner<'i>>(
     path_str: &'a str,
-    pkgs_seen: &mut HashSet<String>,
-    fragments: &mut HashMap<&'i str, String>,
+    pkgs_seen: &mut FxHashSet<String>,
+    fragments: &mut FxHashMap<&'i str, String>,
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     roots: &mut Vec<LinkerObjectRef>,
@@ -108,7 +108,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
     //println!("processing {}", path_str);
 
-    let mut found = HashSet::<&str>::new();
+    let mut found: FxHashSet<&str> = Default::default();
 
     let file = fs::File::open(&path)?;
     let reader = BufReader::new(file);
@@ -437,7 +437,7 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
     writer
         .write_event(Event::Start(BytesStart::borrowed_name(b"l:map-from")))?;
 
-    let mut map_froms = HashSet::<&str>::new();
+    let mut map_froms: FxHashSet<&str> = Default::default();
 
     for map_ident in &sorted.map {
         match map_ident {
