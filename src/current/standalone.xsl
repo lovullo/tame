@@ -54,8 +54,8 @@
     <!-- (moved from linker during TAMER POC linker) -->
     <call-template name="compiler:entry" />
     <call-template name="compiler:classifier" />
+    <value-of disable-output-escaping="yes" select="/lv:package/l:static/text()" />
     <call-template name="compiler:entry-rater" />
-
     <value-of disable-output-escaping="yes" select="/lv:package/l:exec/text()" />
   <text>; </text>
 

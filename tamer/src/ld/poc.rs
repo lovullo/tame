@@ -512,13 +512,17 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
     }
 
     writer.write_event(Event::End(BytesEnd::borrowed(b"l:retmap-exec")))?;
-    writer.write_event(Event::Start(BytesStart::borrowed_name(b"l:exec")))?;
+    writer.write_event(Event::Start(BytesStart::borrowed_name(b"l:static")))?;
 
     write_fragments(&mut writer, &sorted.meta)?;
     write_fragments(&mut writer, &sorted.worksheet)?;
     write_fragments(&mut writer, &sorted.params)?;
     write_fragments(&mut writer, &sorted.types)?;
     write_fragments(&mut writer, &sorted.funcs)?;
+
+    writer.write_event(Event::End(BytesEnd::borrowed(b"l:static")))?;
+    writer.write_event(Event::Start(BytesStart::borrowed_name(b"l:exec")))?;
+
     write_fragments(&mut writer, &sorted.rater)?;
 
     writer.write_event(Event::End(BytesEnd::borrowed(b"l:exec")))?;
