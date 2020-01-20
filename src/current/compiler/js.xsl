@@ -65,11 +65,11 @@
     <!-- to store debug information for equations (we have to put this out here
          so that functions also have access to it...yes, it's stateful, yes it's
          bullshit, but oh well) -->
-    <text>var consts = {};</text>
-    <text>var debug = {};</text>
-    <text>var params = {};</text>
-    <text>var types = {};</text>
-    <text>var meta = {};</text>
+    <text>/**@expose*/var consts = {};</text>
+    <text>/**@expose*/var debug = {};</text>
+    <text>/**@expose*/var params = {};</text>
+    <text>/**@expose*/var types = {};</text>
+    <text>/**@expose*/var meta = {};</text>
 </template>
 
 
@@ -100,8 +100,8 @@
       <text>init_defaults( args, params );</text>
 
       <value-of select="$compiler:nl" />
-      <text>var classes = {};</text>
-      <text>var genclasses = {};</text>
+      <text>/**@expose*/var classes = {};</text>
+      <text>/**@expose*/var genclasses = {};</text>
 </template>
 
 <template match="lv:package" mode="compiler:entry-classifier">
@@ -123,8 +123,8 @@
         for ( var c in rater.classify.classmap )
         {
           ret[ c ] = {
-            is: !!result.classes[ c ],
-            indexes: result.vars[ rater.classify.classmap[ c ] ]
+            /**@expose*/ is: !!result.classes[ c ],
+            /**@expose*/ indexes: result.vars[ rater.classify.classmap[ c ] ]
           };
         }
       </text>
@@ -139,25 +139,25 @@
       <value-of select="$compiler:nl" />
       <text>return { </text>
         <!-- round the premium (special symbol ___yield) to max of 2 decimal places -->
-        <text>premium: ( Math.round( args.___yield * 100 ) / 100 ), </text>
-        <text>classes: classes, </text>
-        <text>vars: args, </text>
-        <text>reqParams: req_params, </text>
-        <text>debug: debug </text>
+        <text>/**@expose*/premium: ( Math.round( args.___yield * 100 ) / 100 ), </text>
+        <text>/**@expose*/classes: classes, </text>
+        <text>/**@expose*/vars: args, </text>
+        <text>/**@expose*/reqParams: req_params, </text>
+        <text>/**@expose*/debug: debug </text>
       <text>}; </text>
     <text>}</text>
 
     <!-- make the name of the supplier available -->
-    <text>rater.supplier = '</text>
+    <text>/**@expose*/rater.supplier = '</text>
       <value-of select="substring-after( @name, '/' )" />
     <text>'; </text>
 
-    <text>rater.meta = meta;</text>
-    <text>rater.consts = consts;</text>
+    <text>/**@expose*/rater.meta = meta;</text>
+    <text>/**@expose*/rater.consts = consts;</text>
 
     <!-- provide classification -> yields mapping -->
     <value-of select="$compiler:nl" />
-    <text>rater.classify.classmap = { </text>
+    <text>/**@expose*/rater.classify.classmap = { </text>
       <apply-templates select="." mode="compiler:classifier-yields-map">
         <with-param name="symbols" select="$symbols" />
       </apply-templates>
@@ -165,7 +165,7 @@
 
     <!-- provide classification descriptions -->
     <value-of select="$compiler:nl" />
-    <text>rater.classify.desc = { </text>
+    <text>/**@expose*/rater.classify.desc = { </text>
     <sequence select="
         compiler:class-desc(
           $symbols[ @type='class' ] )" />
@@ -185,7 +185,7 @@
       " />
 
     <!-- mapped fields (external names) -->
-    <text>rater.knownFields = {</text>
+    <text>/**@expose*/rater.knownFields = {</text>
       <for-each select="$mapfrom">
         <if test="position() > 1">
           <text>, </text>
@@ -197,7 +197,7 @@
       </for-each>
     <text>}; </text>
 
-    <text>rater.params = params;</text>
+    <text>/**@expose*/rater.params = params;</text>
 
     <!-- the rater has been generated; return it -->
     <text>return rater;</text>
