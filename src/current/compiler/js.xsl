@@ -1135,7 +1135,7 @@
 
   <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
        the classifications -->
-  <text>consts._CMATCH_ = </text>
+  <text>consts['_CMATCH_'] = </text>
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
 
