@@ -1089,12 +1089,9 @@
     </if>
   </variable>
 
+  <text>function </text>
+    <value-of select="$fname" />
   <text>( </text>
-    <if test="@name">
-      <value-of select="$fname" />
-      <text> = </text>
-    </if>
-  <text>function( </text>
     <!-- generate arguments -->
     <for-each select="$values">
       <if test="position() > 1">
@@ -1109,7 +1106,7 @@
     <text>return </text>
       <apply-templates select="./c:*[2]" mode="compile" />
     <text>;</text>
-  <text>} )</text>
+  <text>}</text>
 
   <!-- assign the arguments according to the calculations -->
   <text>( </text>
