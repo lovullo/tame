@@ -48,6 +48,9 @@
 <!-- newline -->
 <variable name="compiler:nl" select="'&#10;'" />
 
+<!-- output additional information on the stack for debugging -->
+<variable name="debug-id-on-stack" select="false()" />
+
 
 <!--
   Generates rater function
@@ -901,9 +904,11 @@
   </choose>
 
   <!-- for debugging -->
-  <text>,"</text>
-  <value-of select="$input" />
-  <text>"</text>
+  <if test="$debug-id-on-stack">
+    <text>/*!+*/,"</text>
+    <value-of select="$input" />
+    <text>"/*!-*/</text>
+  </if>
 
   <!-- end of anyValue() call -->
   <text> ) </text>
