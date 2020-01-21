@@ -26,6 +26,7 @@ declare -ri EX_STALLED=2  # runner stalled and could not recover
 declare -ri EX_NORUN=3    # no available runners
 declare -ri EX_DLOCK=4    # failed to get a lock to start tamed
 declare -ri EX_BLOCK=5    # failed to get a lock for busy runner check
+declare -ri EX_NODONE=6   # tamed did not provide a DONE with exit code
 declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
 
 # maximum amount of time in seconds to wait for runner to ack
@@ -111,6 +112,10 @@ command-runner()
 
     echo "$line"
   done < "$base/1"
+
+  # We should have returned as soon as we received DONE.  If this was not
+  # provided, then something probably went wrong (e.g. JVM crash).
+  return "$EX_NODONE"
 }
 
 
