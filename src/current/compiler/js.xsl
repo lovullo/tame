@@ -560,7 +560,15 @@
 
   <value-of select="$compiler:nl" />
 
+  <variable name="dest">
+    <text>args['</text>
+    <value-of select="@yields" />
+    <text>']</text>
+  </variable>
+
   <if test="not( $noclass )">
+    <sequence select="concat( $dest, '=[];', $compiler:nl )" />
+
     <if test="@preproc:generated='true'">
       <text>gen</text>
     </if>
@@ -581,12 +589,6 @@
   <variable name="criteria-syms" as="element( preproc:sym )*"
             select="for $match in $criteria
                       return $symtable-map( $match/@on )" />
-
-  <variable name="dest">
-    <text>args['</text>
-    <value-of select="@yields" />
-    <text>']</text>
-  </variable>
 
   <!-- generate boolean value from match expressions -->
   <choose>
@@ -852,11 +854,9 @@
     </otherwise>
   </choose>
 
-  <text>, ( </text>
+  <text>, </text>
   <value-of select="$yieldto" />
-  <text> || ( </text>
-  <value-of select="$yieldto" />
-  <text> = [] ) ), </text>
+  <text>, </text>
 
   <!-- if this match is part of a classification that should yield a matrix,
        then force a matrix set -->
