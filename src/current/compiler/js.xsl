@@ -549,15 +549,11 @@
   result of a boolean expression performing the classification using global
   arguments.
 
-  TODO: Refactor; both @yields and $result-set checks are unneeded; they can be
-  combined (@yields as the default, which may or may not exist)
-
   @return generated classification expression
 -->
 <template match="lv:classify" mode="compile">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="noclass" />
-  <param name="result-set" />
   <param name="ignores" />
 
   <variable name="self" select="." />
@@ -587,17 +583,9 @@
                       return $symtable-map( $match/@on )" />
 
   <variable name="dest">
-    <choose>
-      <when test="$result-set">
-        <value-of select="$result-set" />
-      </when>
-
-      <otherwise>
-        <text>args['</text>
-          <value-of select="@yields" />
-        <text>']</text>
-      </otherwise>
-    </choose>
+    <text>args['</text>
+    <value-of select="@yields" />
+    <text>']</text>
   </variable>
 
   <!-- generate boolean value from match expressions -->
@@ -616,7 +604,6 @@
                          select="$criteria[
                                    @on = $criteria-syms[
                                             @dim = current() ]/@name ]">
-          <with-param name="result-set" select="$result-set" />
           <with-param name="ignores" select="$ignores" />
           <with-param name="operator" select="$op" />
         </apply-templates>
@@ -642,7 +629,7 @@
 
       <!-- if @yields was provided, then store the value in a variable of their
            choice as well (since cmatch will not be done) -->
-      <if test="@yields or $result-set">
+      <if test="@yields">
         <value-of select="$dest" />
         <choose>
           <!-- universal -->
@@ -686,7 +673,7 @@
          not( @set ) here, since that may have ill effects as it implies that
          the node is not preprocessed -->
   <!-- TODO: this can be simplified, since @yields is always provided -->
-  <if test="$criteria and ( @yields or $result-set ) and ( $sym/@dim='0' )">
+  <if test="$criteria and @yields and ( $sym/@dim='0' )">
     <value-of select="$dest" />
     <text> = </text>
       <value-of select="$dest" />
@@ -711,7 +698,6 @@
   <!-- default to all matches being required -->
   <param name="operator" select="'&amp;&amp;'" />
   <param name="yields" select="../@yields" />
-  <param name="result-set" />
 
   <variable name="name" select="@on" />
 
@@ -748,19 +734,9 @@
   <!-- yields (if not set, generate one so that cmatches still works properly)
        -->
   <variable name="yieldto">
-    <choose>
-      <!-- if we were given a result set to use, then use it -->
-      <when test="$result-set">
-        <value-of select="$result-set" />
-      </when>
-
-      <!-- store directly into the destination result set -->
-      <otherwise>
-        <call-template name="compiler:gen-match-yieldto">
-          <with-param name="yields" select="$yields" />
-        </call-template>
-      </otherwise>
-    </choose>
+    <call-template name="compiler:gen-match-yieldto">
+      <with-param name="yields" select="$yields" />
+    </call-template>
   </variable>
 
   <!-- the input value -->
