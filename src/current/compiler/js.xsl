@@ -48,6 +48,9 @@
 <!-- newline -->
 <variable name="compiler:nl" select="'&#10;'" />
 
+<!-- output additional information on the stack for debugging -->
+<variable name="debug-id-on-stack" select="false()" />
+
 
 <!--
   Generates rater function
@@ -65,11 +68,11 @@
     <!-- to store debug information for equations (we have to put this out here
          so that functions also have access to it...yes, it's stateful, yes it's
          bullshit, but oh well) -->
-    <text>var consts = {};</text>
-    <text>var debug = {};</text>
-    <text>var params = {};</text>
-    <text>var types = {};</text>
-    <text>var meta = {};</text>
+    <text>/**@expose*/var consts = {};</text>
+    <text>/**@expose*/var debug = {};</text>
+    <text>/**@expose*/var params = {};</text>
+    <text>/**@expose*/var types = {};</text>
+    <text>/**@expose*/var meta = {};</text>
 </template>
 
 
@@ -100,8 +103,8 @@
       <text>init_defaults( args, params );</text>
 
       <value-of select="$compiler:nl" />
-      <text>var classes = {};</text>
-      <text>var genclasses = {};</text>
+      <text>/**@expose*/var classes = {};</text>
+      <text>/**@expose*/var genclasses = {};</text>
 </template>
 
 <template match="lv:package" mode="compiler:entry-classifier">
@@ -123,8 +126,8 @@
         for ( var c in rater.classify.classmap )
         {
           ret[ c ] = {
-            is: !!result.classes[ c ],
-            indexes: result.vars[ rater.classify.classmap[ c ] ]
+            /**@expose*/ is: !!result.classes[ c ],
+            /**@expose*/ indexes: result.vars[ rater.classify.classmap[ c ] ]
           };
         }
       </text>
@@ -139,25 +142,25 @@
       <value-of select="$compiler:nl" />
       <text>return { </text>
         <!-- round the premium (special symbol ___yield) to max of 2 decimal places -->
-        <text>premium: ( Math.round( args.___yield * 100 ) / 100 ), </text>
-        <text>classes: classes, </text>
-        <text>vars: args, </text>
-        <text>reqParams: req_params, </text>
-        <text>debug: debug </text>
+        <text>/**@expose*/premium: ( Math.round( args.___yield * 100 ) / 100 ), </text>
+        <text>/**@expose*/classes: classes, </text>
+        <text>/**@expose*/vars: args, </text>
+        <text>/**@expose*/reqParams: req_params, </text>
+        <text>/**@expose*/debug: debug </text>
       <text>}; </text>
     <text>}</text>
 
     <!-- make the name of the supplier available -->
-    <text>rater.supplier = '</text>
+    <text>/**@expose*/rater.supplier = '</text>
       <value-of select="substring-after( @name, '/' )" />
     <text>'; </text>
 
-    <text>rater.meta = meta;</text>
-    <text>rater.consts = consts;</text>
+    <text>/**@expose*/rater.meta = meta;</text>
+    <text>/**@expose*/rater.consts = consts;</text>
 
     <!-- provide classification -> yields mapping -->
     <value-of select="$compiler:nl" />
-    <text>rater.classify.classmap = { </text>
+    <text>/**@expose*/rater.classify.classmap = { </text>
       <apply-templates select="." mode="compiler:classifier-yields-map">
         <with-param name="symbols" select="$symbols" />
       </apply-templates>
@@ -165,7 +168,7 @@
 
     <!-- provide classification descriptions -->
     <value-of select="$compiler:nl" />
-    <text>rater.classify.desc = { </text>
+    <text>/**@expose*/rater.classify.desc = { </text>
     <sequence select="
         compiler:class-desc(
           $symbols[ @type='class' ] )" />
@@ -185,7 +188,7 @@
       " />
 
     <!-- mapped fields (external names) -->
-    <text>rater.knownFields = {</text>
+    <text>/**@expose*/rater.knownFields = {</text>
       <for-each select="$mapfrom">
         <if test="position() > 1">
           <text>, </text>
@@ -197,7 +200,7 @@
       </for-each>
     <text>}; </text>
 
-    <text>rater.params = params;</text>
+    <text>/**@expose*/rater.params = params;</text>
 
     <!-- the rater has been generated; return it -->
     <text>return rater;</text>
@@ -546,22 +549,26 @@
   result of a boolean expression performing the classification using global
   arguments.
 
-  TODO: Refactor; both @yields and $result-set checks are unneeded; they can be
-  combined (@yields as the default, which may or may not exist)
-
   @return generated classification expression
 -->
 <template match="lv:classify" mode="compile">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="noclass" />
-  <param name="result-set" />
   <param name="ignores" />
 
   <variable name="self" select="." />
 
   <value-of select="$compiler:nl" />
 
+  <variable name="dest">
+    <text>args['</text>
+    <value-of select="@yields" />
+    <text>']</text>
+  </variable>
+
   <if test="not( $noclass )">
+    <sequence select="concat( $dest, '=[];', $compiler:nl )" />
+
     <if test="@preproc:generated='true'">
       <text>gen</text>
     </if>
@@ -583,20 +590,6 @@
             select="for $match in $criteria
                       return $symtable-map( $match/@on )" />
 
-  <variable name="dest">
-    <choose>
-      <when test="$result-set">
-        <value-of select="$result-set" />
-      </when>
-
-      <otherwise>
-        <text>args['</text>
-          <value-of select="@yields" />
-        <text>']</text>
-      </otherwise>
-    </choose>
-  </variable>
-
   <!-- generate boolean value from match expressions -->
   <choose>
     <!-- if classification criteria were provided, then use them -->
@@ -613,7 +606,6 @@
                          select="$criteria[
                                    @on = $criteria-syms[
                                             @dim = current() ]/@name ]">
-          <with-param name="result-set" select="$result-set" />
           <with-param name="ignores" select="$ignores" />
           <with-param name="operator" select="$op" />
         </apply-templates>
@@ -639,7 +631,7 @@
 
       <!-- if @yields was provided, then store the value in a variable of their
            choice as well (since cmatch will not be done) -->
-      <if test="@yields or $result-set">
+      <if test="@yields">
         <value-of select="$dest" />
         <choose>
           <!-- universal -->
@@ -683,7 +675,7 @@
          not( @set ) here, since that may have ill effects as it implies that
          the node is not preprocessed -->
   <!-- TODO: this can be simplified, since @yields is always provided -->
-  <if test="$criteria and ( @yields or $result-set ) and ( $sym/@dim='0' )">
+  <if test="$criteria and @yields and ( $sym/@dim='0' )">
     <value-of select="$dest" />
     <text> = </text>
       <value-of select="$dest" />
@@ -691,38 +683,6 @@
 
     <value-of select="$compiler:nl" />
   </if>
-</template>
-
-
-<!--
-  Generate domain checks for require-param nodes
-
-  The resulting code will cause an exception to be thrown if the domain check
-  fails.
-
-  FIXME: remove
-
-  @return generated domain check code
--->
-<template match="lv:required-param" mode="compile">
-  <!--
-  <variable name="name" select="@ref" />
-
-  <text>vocalDomainCheck( '</text>
-    <value-of select="$name" />
-  <text>', '</text>
-    <value-of select="root(.)//lv:param[ @name=$name ]/@type" />
-  <text>', args['</text>
-    <value-of select="$name" />
-  <text>'] ); </text>
-  -->
-
-  <!-- record that this param was required -->
-  <!--
-  <text>req_params['</text>
-    <value-of select="$name" />
-  <text>'] = true; </text>
-  -->
 </template>
 
 
@@ -740,7 +700,6 @@
   <!-- default to all matches being required -->
   <param name="operator" select="'&amp;&amp;'" />
   <param name="yields" select="../@yields" />
-  <param name="result-set" />
 
   <variable name="name" select="@on" />
 
@@ -777,19 +736,9 @@
   <!-- yields (if not set, generate one so that cmatches still works properly)
        -->
   <variable name="yieldto">
-    <choose>
-      <!-- if we were given a result set to use, then use it -->
-      <when test="$result-set">
-        <value-of select="$result-set" />
-      </when>
-
-      <!-- store directly into the destination result set -->
-      <otherwise>
-        <call-template name="compiler:gen-match-yieldto">
-          <with-param name="yields" select="$yields" />
-        </call-template>
-      </otherwise>
-    </choose>
+    <call-template name="compiler:gen-match-yieldto">
+      <with-param name="yields" select="$yields" />
+    </call-template>
   </variable>
 
   <!-- the input value -->
@@ -905,11 +854,9 @@
     </otherwise>
   </choose>
 
-  <text>, ( </text>
+  <text>, </text>
   <value-of select="$yieldto" />
-  <text> || ( </text>
-  <value-of select="$yieldto" />
-  <text> = [] ) ), </text>
+  <text>, </text>
 
   <!-- if this match is part of a classification that should yield a matrix,
        then force a matrix set -->
@@ -933,9 +880,11 @@
   </choose>
 
   <!-- for debugging -->
-  <text>,"</text>
-  <value-of select="$input" />
-  <text>"</text>
+  <if test="$debug-id-on-stack">
+    <text>/*!+*/,"</text>
+    <value-of select="$input" />
+    <text>"/*!-*/</text>
+  </if>
 
   <!-- end of anyValue() call -->
   <text> ) </text>
@@ -1167,7 +1116,7 @@
 
   <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
        the classifications -->
-  <text>consts._CMATCH_ = </text>
+  <text>consts['_CMATCH_'] = </text>
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
 
@@ -1403,104 +1352,6 @@
             return true;
         }
     };
-
-
-    function argCheck( args, params )
-    {
-        var req = {};
-
-        for ( var name in params )
-        {
-            // if the argument is not required, then we do not yet need to deal
-            // with it
-            if ( !( params[ name ].required ) )
-            {
-                continue;
-            }
-
-            // first, ensure that required arguments have been provided (note
-            // the strict check for .length; this is important, since it won't
-            // have a length property if it's not an array, in which case we do
-            // not want to trigger an error)
-            if ( !( args[ name ] ) || ( args[ name ].length === 0 ) )
-            {
-                throw Error( "argument required: " + name );
-            }
-
-            var value = args[ name ];
-
-            // next, ensure that the argument is within the domain of its type
-            vocalDomainCheck( name, params[ name ].type, deepClone( value ) );
-
-            // record that we required this param
-            req[ name ] = true;
-        }
-
-        return req;
-    }
-
-
-    function vocalDomainCheck( name, domain, value )
-    {
-        var default_val = ( rater.params[ name ] || {} )['default'];
-
-        if ( !( domainCheck( domain, value, default_val ) ) )
-        {
-            throw Error(
-                "argument '" + name + "' value outside domain of '" +
-                domain + "': " + JSON.stringify( value )
-            );
-        }
-
-        return true;
-    }
-
-
-    function domainCheck( domain, value, default_val )
-    {
-        var type;
-
-        // if it's an object, then the value is assumed to be an array
-        if ( typeof value === 'object' )
-        {
-            if ( value.length < 1 )
-            {
-                return true;
-            }
-
-            // clone before popping so that we don't wipe out any values that
-            // will be used
-            value = Array.prototype.slice.call( value );
-
-            // check each value recursively
-            return domainCheck( domain, value.pop(), default_val )
-                && domainCheck( domain, value, default_val );
-        }
-
-        if ( ( ( value === undefined ) || ( value === '' ) )
-          && ( default_val !== undefined )
-        )
-        {
-            value = +default_val;
-        }
-
-        if ( domains[ domain ] )
-        {
-            return domains[ domain ]( value );
-        }
-        else if ( type = types[ domain ] ) /** XXX: types global **/
-        {
-            // custom type checks are two-fold: ensure that the value is within
-            // the domain of its base type and that it is within its list of
-            // acceptable values
-            return !!( domainCheck( type.type, value )
-                && type.values[ value ]
-            );
-        }
-
-        // no domain found
-        return false;
-    }
 
 
     /**
