@@ -28,7 +28,7 @@ all:
 doc: html
 html-am:
 	@CARGO@ test --doc
-	@CARGO@ @CARGO_DOC_FLAGS@ doc
+	@CARGO@ @CARGO_DOC_FLAGS@ doc --document-private-items
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
