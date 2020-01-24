@@ -148,6 +148,16 @@ mod interner {
             });
         }
 
+        #[bench]
+        fn with_one_new_1000_utf8_unchecked(bench: &mut Bencher) {
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher>::new();
+                (0..1000)
+                    .map(|_| unsafe { sut.intern_utf8_unchecked(b"first") })
+                    .for_each(drop);
+            });
+        }
+
         /// Since Fx is the best-performing, let's build upon it to demonstrate
         /// the benefits of with_capacity
         #[bench]

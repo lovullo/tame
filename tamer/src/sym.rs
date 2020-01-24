@@ -427,6 +427,20 @@ pub trait Interner<'i> {
     /// This count will increase each time a unique string is interned.
     /// It does not increase when a string is already interned.
     fn len(&self) -> usize;
+
+    /// Intern an assumed-UTF8 slice of bytes or return an existing
+    ///   [`Symbol`].
+    ///
+    /// Safety
+    /// ======
+    /// This function is unsafe because it uses
+    ///   [`std::str::from_utf8_unchecked`].
+    /// It is provided for convenience when interning from trusted binary
+    ///   data
+    ///     (such as object files).
+    unsafe fn intern_utf8_unchecked(&'i self, value: &[u8]) -> &'i Symbol<'i> {
+        self.intern(std::str::from_utf8_unchecked(value))
+    }
 }
 
 /// An interner backed by an [arena](bumpalo).
@@ -771,6 +785,16 @@ mod test {
 
             // note that this is not publicly available
             assert!(sut.map.borrow().capacity() >= n);
+        }
+
+        #[test]
+        fn intern_utf8_unchecked() {
+            let sut = Sut::new();
+
+            let a = sut.intern("foo");
+            let b = unsafe { sut.intern_utf8_unchecked(b"foo") };
+
+            assert_eq!(a, b);
         }
     }
 }
