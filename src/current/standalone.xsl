@@ -92,10 +92,10 @@
   <text>; </text>
 
   <!-- we'll export a version that automatically performs the mapping -->
-  <text>module.exports = function( args_base ) { </text>
+  <text>module.exports = function( args_base, _canterm ) { </text>
     <text>var ret; rater.fromMap( args_base, function( args ) {</text>
     <text>
-      var rater_result = rater( args );
+      var rater_result = rater( args, _canterm );
 
       // perf counter
       var start = ( new Date() ).getTime();
