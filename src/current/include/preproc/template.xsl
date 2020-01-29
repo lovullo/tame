@@ -1149,6 +1149,10 @@
         <value-of select="translate( $str, '-', '' )" />
       </when>
 
+      <when test="@rmunderscore">
+        <value-of select="translate( $str, '_', '' )" />
+      </when>
+
       <!-- do nothing -->
       <otherwise>
         <value-of select="$str" />
