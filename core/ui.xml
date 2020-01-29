@@ -109,7 +109,6 @@
         <set cmp="lte" />
       </for-each>
 
-
       <template name="_match-ui-{@cmp@}_"
                 desc="Match UI value {@cmp@}">
         <param name="@on@" desc="Question id" />
@@ -127,6 +126,31 @@
           </match>
         </all>
       </template>
+
+      <template name="_match-extern-ui-{@cmp@}_"
+                desc="Match UI value {@cmp@} - using externs">
+        <param name="@on@" desc="Question id" />
+        <param name="@value@" desc="Match against variable" />
+
+        <param name="@__yields@" desc="Generated visibility yields name">
+          <text>__isvis</text>
+          <param-value name="@on@" rmunderscore="true" lower="true" />
+        </param>
+
+        <extern name="ui_q_{@on@}" type="param" dtype="integer" dim="1" />
+        <extern name="@__yields@" type="cgen" dtype="boolean" dim="1" />
+
+        <all>
+          <match on="@__yields@" />
+
+          <match on="ui_q_{@on@}">
+            <dyn-node name="c:{@cmp@}">
+              <c:value-of name="@value@" />
+            </dyn-node>
+          </match>
+        </all>
+      </template>
     </inline-template>
   </section>
 </package>
+
