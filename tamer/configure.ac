@@ -43,14 +43,15 @@ AC_CHECK_PROGS(CARGO, [cargo])
 
 test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 
-rustc_ver_req=1.39.0
+rustc_ver_req=1.41.0
 
 AC_CHECK_PROGS(RUSTC, [rustc])
 AC_MSG_CHECKING([rustc version >= $rustc_ver_req])
 rustc_version=$("$RUSTC" --version | cut -d' ' -f2)
 AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
                    [AC_MSG_RESULT([yes ($rustc_version)])],
-                   [AC_MSG_ERROR([no ($rustc_version)])])
+                   [AC_MSG_RESULT([no ($rustc_version)])
+                    AC_MSG_ERROR([If using rustup, run `rustup update'])])
 
 AC_ARG_VAR([CARGO_BUILD_FLAGS],
            [Flags to be passed to `cargo build' when invoked via Make])
