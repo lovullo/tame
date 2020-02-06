@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+  xmlns:c="http://www.lovullo.com/calc"
+  xmlns:t="http://www.lovullo.com/rater/apply-template"
+  title="Retry rating state">
+
+  <import package="assert" export="true" />
+  <import package="base" />
+  <import package="extern" />
+  <import package="vector/cmatch" export="true" />
+
+  <t:classify-extern yields="__retry" />
+
+  <template name="_suggest-retry-when_" desc="Retry Rating">
+    <param name="@values@" desc="Rule matches" />
+
+    <classify as="__retry" yields="__retry"
+              desc="Retry state for a supplier">
+      <param-copy name="@values@" />
+    </classify>
+
+    <t:assert failure="Retrying suppliers are ineligible">
+      <t:match-eq on="__retry" value="FALSE" />
+    </t:assert>
+  </template>
+
+</package>

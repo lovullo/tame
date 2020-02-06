@@ -20,38 +20,30 @@
 <package xmlns="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
-  desc="Core test suite"
-  program="true">
+  desc="Retry definition specs">
 
-  <import package="../../base" />
   <import package="../spec" />
 
-  <import package="numeric/convert" />
-  <import package="numeric/percent" />
-  <import package="numeric/round" />
-
-  <import package="vector/define" />
-  <import package="vector/filter" />
-  <import package="vector/fold" />
-  <import package="vector/interpolate" />
-  <import package="vector/length" />
-  <import package="vector/minmax" />
-  <import package="vector/table" />
-
-  <import package="aggregate" />
-  <import package="insurance" />
-  <import package="retry" />
-  <import package="symbol" />
-  <import package="tplgen" />
-
-  <!-- XXX broken!
-  <import package="ui" />
-  -->
+  <import package="../../base" />
+  <import package="../../retry" />
 
 
-  <t:verify-specs result="expectOk" />
+  <t:describe name="_suggest-retry-when_">
+    <!-- Due to the assertion nature of this template, positive cases aren't
+         testable-->
+    <t:it desc="retry is never allowed">
+      <t:suggest-retry-when>
+        <t:match-class name="never" />
+      </t:suggest-retry-when>
 
-  <yield>
-    <c:value-of name="expectOk" />
-  </yield>
+      <t:given>
+        <c:value-of name="__retry" />
+      </t:given>
+
+      <t:expect>
+        <t:match-result eq="0" />
+      </t:expect>
+    </t:it>
+  </t:describe>
+
 </package>

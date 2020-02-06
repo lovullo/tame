@@ -62,6 +62,24 @@ $ export HOXSL=/path/to/hoxsl/root
 $ ./boostrap
 ```
 
+## Running Test Cases
+To run the test cases, invoke `make check` (or its alias, `make test`).
+
+##### Testing Core Features
+In order to run tests located at `core/test/core/**`, a supporting environment
+is required. (e.g. mega rater). Inside a supporting rater, either check out a
+submodule containing the core tests, or temporarily add them into the
+submodule.
+
+Build the core test suite summary page using:
+
+```bash
+$ make rater/core/test/core/suite.html
+```
+
+Visit the summary page in a web browser and click the __Calculate Premium__
+button. If all test cases pass, it will yield a value of __$1__.
+
 
 ## Hacking
 Information for TAME developers can be found in the file `HACKING`.
