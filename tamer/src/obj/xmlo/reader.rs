@@ -132,9 +132,9 @@
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
 use crate::sym::{Interner, Symbol};
 #[cfg(test)]
-use mock::MockBytesStart as BytesStart;
+use crate::test::quick_xml::MockBytesStart as BytesStart;
 #[cfg(test)]
-use mock::MockXmlEvent as XmlEvent;
+use crate::test::quick_xml::MockXmlEvent as XmlEvent;
 #[cfg(test)]
 use mock::MockXmlReader as XmlReader;
 #[cfg(not(test))]
@@ -826,8 +826,6 @@ impl std::error::Error for XmloError {
 mod mock {
     use super::*;
     use quick_xml::Result as XmlResult;
-    use std::borrow::Cow;
-    use std::cell::Cell;
 
     pub struct MockXmlReader<B: BufRead> {
         _reader: B,
@@ -908,119 +906,14 @@ mod mock {
             Ok(())
         }
     }
-
-    pub enum MockXmlEvent<'a> {
-        Start(MockBytesStart<'a>),
-        End(MockBytesEnd<'a>),
-        Empty(MockBytesStart<'a>),
-        #[allow(dead_code)]
-        Text(MockBytesText<'a>),
-    }
-
-    pub struct MockBytesStart<'a> {
-        name: &'a [u8],
-        attrs: Cell<Option<MockAttributes<'a>>>,
-    }
-
-    impl<'a> MockBytesStart<'a> {
-        pub fn new(name: &'a [u8], attrs: Option<MockAttributes<'a>>) -> Self {
-            Self {
-                name,
-                attrs: Cell::new(attrs),
-            }
-        }
-
-        pub fn name(&self) -> &[u8] {
-            self.name
-        }
-
-        pub fn attributes(&self) -> MockAttributes {
-            self.attrs.take().expect("missing mock attributes")
-        }
-    }
-
-    pub struct MockBytesEnd<'a> {
-        name: Cow<'a, [u8]>,
-    }
-
-    impl<'a> MockBytesEnd<'a> {
-        pub fn new(name: &'a [u8]) -> Self {
-            Self {
-                name: Cow::Borrowed(name),
-            }
-        }
-
-        pub fn name(&self) -> &[u8] {
-            &*self.name
-        }
-    }
-
-    pub struct MockBytesText<'a> {
-        #[allow(dead_code)]
-        content: Cow<'a, [u8]>,
-    }
-
-    impl<'a> MockBytesText<'a> {
-        pub fn new(content: &'a [u8]) -> Self {
-            Self {
-                content: Cow::Borrowed(content),
-            }
-        }
-    }
-
-    pub struct MockAttributes<'a> {
-        attrs: Vec<MockAttribute<'a>>,
-        with_checks: Option<bool>,
-    }
-
-    impl<'a> MockAttributes<'a> {
-        pub fn new(attrs: Vec<MockAttribute<'a>>) -> Self {
-            Self {
-                attrs,
-                with_checks: None,
-            }
-        }
-
-        pub fn with_checks(&mut self, val: bool) -> &mut Self {
-            self.with_checks = Some(val);
-            self
-        }
-    }
-
-    impl<'a> Iterator for MockAttributes<'a> {
-        type Item = XmlResult<MockAttribute<'a>>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            // We read output from Saxon, which will always be valid
-            if self.with_checks != Some(false) {
-                panic!("MockAttributes expected with_checks false")
-            }
-
-            self.attrs.pop().map(|attr| Ok(attr))
-        }
-    }
-
-    pub struct MockAttribute<'a> {
-        pub key: &'a [u8],
-        pub value: Cow<'a, [u8]>,
-    }
-
-    impl<'a> MockAttribute<'a> {
-        pub fn new(key: &'a [u8], value: &'a [u8]) -> Self {
-            Self {
-                key,
-                value: Cow::Borrowed(&value[..]),
-            }
-        }
-    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::mock::*;
     use super::*;
     use crate::ir::legacyir::{SymDtype, SymType};
     use crate::sym::DefaultInterner;
+    use crate::test::quick_xml::*;
 
     type Sut<'i, B, I> = XmloReader<'i, B, I>;
 
