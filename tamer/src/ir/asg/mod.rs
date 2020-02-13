@@ -185,7 +185,7 @@ mod ident;
 mod object;
 
 pub use graph::{Asg, AsgResult, ObjectRef};
-pub use ident::IdentKind;
+pub use ident::{Dim, IdentKind};
 pub use object::{FragmentText, Object, Source};
 
 /// Default concrete ASG implementation.

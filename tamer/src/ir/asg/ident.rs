@@ -214,7 +214,7 @@ impl<'i> TryFrom<&SymAttrs<'i>> for IdentKind {
 ///   a value of `2` indicates a matrix;
 ///   and a value of `n` indicates a multi-dimensional array of
 ///     depth `n`.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct Dim(u8);
 
 /// Underlying datatype of identifier.

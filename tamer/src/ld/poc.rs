@@ -21,16 +21,16 @@
 use crate::global;
 use crate::ir::asg::IdentKind;
 use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef, Source};
+use crate::obj::xmle::writer::{Sections, XmleWriter};
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::{FxHashMap, FxHashSet};
 use petgraph::visit::DfsPostOrder;
-use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::Writer;
 use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
-use std::io::{BufReader, Write};
+use std::io::BufReader;
+use std::io::Cursor;
 
 type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
@@ -74,14 +74,14 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let sorted = sort_deps(&depgraph, &roots);
+    let mut sorted = sort_deps(&depgraph, &roots);
 
     //println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
     output_xmle(
         &depgraph,
         &interner,
-        sorted,
+        &mut sorted,
         name.expect("missing root package name"),
         relroot.expect("missing root package relroot"),
     )?;
@@ -185,10 +185,9 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
             Ok(XmloEvent::Fragment(sym, text)) => {
                 let result = depgraph.set_fragment(
-                    depgraph.lookup(sym).expect(&format!(
-                        "missing symbol for fragment: {}",
-                        sym
-                    )),
+                    depgraph.lookup(sym).unwrap_or_else(|| {
+                        panic!("missing symbol for fragment: {}", sym)
+                    }),
                     text,
                 );
 
@@ -238,30 +237,14 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     }
 }
 
-type ObjectVec<'a, 'i> = Vec<&'a Object<'i>>;
-
-// Note that the classifier has nothing in it anymore; it's only there for
-// API compability, so we don't include it here.
-#[derive(Default)]
-struct SortedDeps<'a, 'i> {
-    map: ObjectVec<'a, 'i>,
-    retmap: ObjectVec<'a, 'i>,
-    meta: ObjectVec<'a, 'i>,
-    worksheet: ObjectVec<'a, 'i>,
-    params: ObjectVec<'a, 'i>,
-    types: ObjectVec<'a, 'i>,
-    funcs: ObjectVec<'a, 'i>,
-    rater: ObjectVec<'a, 'i>,
-}
-
 fn sort_deps<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
     roots: &Vec<LinkerObjectRef>,
-) -> SortedDeps<'a, 'i> {
+) -> Sections<'a, 'i> {
     // @type=meta, @preproc:elig-class-yields
     // @type={ret}map{,:head,:tail}
 
-    let mut deps: SortedDeps = Default::default();
+    let mut deps: Sections = Sections::new();
 
     // This is technically a topological sort, but functions have
     // cycles.  Once we have more symbol metadata, we can filter them out
@@ -282,18 +265,18 @@ fn sort_deps<'a, 'i>(
         match ident {
             Object::Ident(_, kind, _)
             | Object::IdentFragment(_, kind, _, _) => match kind {
-                IdentKind::Meta => deps.meta.push(ident),
-                IdentKind::Worksheet => deps.worksheet.push(ident),
-                IdentKind::Param(_, _) => deps.params.push(ident),
-                IdentKind::Type(_) => deps.types.push(ident),
-                IdentKind::Func(_, _) => deps.funcs.push(ident),
+                IdentKind::Meta => deps.meta.push_body(ident),
+                IdentKind::Worksheet => deps.worksheet.push_body(ident),
+                IdentKind::Param(_, _) => deps.params.push_body(ident),
+                IdentKind::Type(_) => deps.types.push_body(ident),
+                IdentKind::Func(_, _) => deps.funcs.push_body(ident),
                 IdentKind::MapHead | IdentKind::Map | IdentKind::MapTail => {
-                    deps.map.push(ident)
+                    deps.map.push_body(ident)
                 }
                 IdentKind::RetMapHead
                 | IdentKind::RetMap
-                | IdentKind::RetMapTail => deps.retmap.push(ident),
-                _ => deps.rater.push(ident),
+                | IdentKind::RetMapTail => deps.retmap.push_body(ident),
+                _ => deps.rater.push_body(ident),
             },
             _ => panic!("unexpected node: {:?}", ident),
         }
@@ -302,251 +285,63 @@ fn sort_deps<'a, 'i>(
     deps
 }
 
+fn get_interner_value<'a, 'i, I: Interner<'i>>(
+    depgraph: &'a LinkerAsg<'i>,
+    interner: &'i I,
+    name: &str,
+) -> &'a Object<'i> {
+    depgraph
+        .get(
+            depgraph
+                .lookup(interner.intern(name))
+                .unwrap_or_else(|| panic!("missing identifier: {}", name)),
+        )
+        .expect("Could not get interner value")
+}
+
 fn output_xmle<'a, 'i, I: Interner<'i>>(
     depgraph: &'a LinkerAsg<'i>,
     interner: &'i I,
-    sorted: SortedDeps<'a, 'i>,
+    sorted: &mut Sections<'a, 'i>,
     name: &'i Symbol<'i>,
     relroot: String,
 ) -> Result<(), Box<dyn Error>> {
-    use std::io::Cursor;
-
-    let mut writer =
-        Writer::new_with_indent(Cursor::new(Vec::new()), ' ' as u8, 2);
-
-    let root =
-        BytesStart::owned_name(b"package".to_vec()).with_attributes(vec![
-            ("xmlns", "http://www.lovullo.com/rater"),
-            ("xmlns:preproc", "http://www.lovullo.com/rater/preproc"),
-            ("xmlns:l", "http://www.lovullo.com/rater/linker"),
-            ("title", &name), // TODO
-            ("program", "true"),
-            ("name", &name),
-            ("__rootpath", &relroot),
-        ]);
-
-    writer.write_event(Event::Start(root))?;
-
-    // All of the other namespaces output in the existing xmle files are
-    // unneeded.
-    writer.write_event(Event::Start(BytesStart::borrowed_name(b"l:dep")))?;
-
-    let all = sorted
-        .meta
-        .iter()
-        .chain(sorted.map.iter())
-        .chain(sorted.retmap.iter())
-        .chain(sorted.worksheet.iter())
-        .chain(sorted.params.iter())
-        .chain(sorted.types.iter())
-        .chain(sorted.funcs.iter())
-        .chain(sorted.rater.iter());
-
-    for ident in all {
-        // TODO: we're doing this in two places!
-        match ident {
-            Object::Ident(sym, kind, src)
-            | Object::IdentFragment(sym, kind, src, _) => {
-                let name: &str = sym;
-
-                // this'll be formalized more sanely
-                let mut attrs = match kind {
-                    IdentKind::Cgen(dim) => {
-                        vec![("type", "cgen"), ("dim", dim.as_ref())]
-                    }
-                    IdentKind::Class(dim) => {
-                        vec![("type", "class"), ("dim", dim.as_ref())]
-                    }
-                    IdentKind::Const(dim, dtype) => vec![
-                        ("type", "const"),
-                        ("dim", dim.as_ref()),
-                        ("dtype", dtype.as_ref()),
-                    ],
-                    IdentKind::Func(dim, dtype) => vec![
-                        ("type", "func"),
-                        ("dim", dim.as_ref()),
-                        ("dtype", dtype.as_ref()),
-                    ],
-                    IdentKind::Gen(dim, dtype) => vec![
-                        ("type", "gen"),
-                        ("dim", dim.as_ref()),
-                        ("dtype", dtype.as_ref()),
-                    ],
-                    IdentKind::Lparam(dim, dtype) => vec![
-                        ("type", "lparam"),
-                        ("dim", dim.as_ref()),
-                        ("dtype", dtype.as_ref()),
-                    ],
-                    IdentKind::Param(dim, dtype) => vec![
-                        ("type", "param"),
-                        ("dim", dim.as_ref()),
-                        ("dtype", dtype.as_ref()),
-                    ],
-                    IdentKind::Rate(dtype) => {
-                        vec![("type", "rate"), ("dtype", dtype.as_ref())]
-                    }
-                    IdentKind::Tpl => vec![("type", "tpl")],
-                    IdentKind::Type(dtype) => {
-                        vec![("type", "type"), ("dtype", dtype.as_ref())]
-                    }
-                    IdentKind::MapHead => vec![("type", "map:head")],
-                    IdentKind::Map => vec![("type", "map")],
-                    IdentKind::MapTail => vec![("type", "map:tail")],
-                    IdentKind::RetMapHead => vec![("type", "retmap:head")],
-                    IdentKind::RetMap => vec![("type", "retmap")],
-                    IdentKind::RetMapTail => vec![("type", "retmap:tail")],
-                    IdentKind::Meta => vec![("type", "meta")],
-                    IdentKind::Worksheet => vec![("type", "worksheet")],
-                };
-
-                attrs.push(("name", name));
-
-                if src.generated {
-                    attrs.push(("preproc:generated", "true"));
-                }
-
-                let srcpath: String;
-                if let Some(pkg_name) = src.pkg_name {
-                    srcpath = relroot.clone() + pkg_name;
-                    attrs.push(("src", &srcpath));
-                }
-                if let Some(parent) = src.parent {
-                    attrs.push(("parent", parent));
-                }
-                if let Some(yields) = src.yields {
-                    attrs.push(("yields", yields));
-                }
-                if let Some(desc) = &src.desc {
-                    attrs.push(("desc", &desc));
-                }
-
-                let sym = BytesStart::owned_name(b"preproc:sym".to_vec())
-                    .with_attributes(attrs);
-
-                writer.write_event(Event::Empty(sym))?;
-            }
-            _ => unreachable!("filtered out during sorting"),
-        }
+    if !sorted.map.is_empty() {
+        sorted.map.push_head(get_interner_value(
+            depgraph,
+            interner,
+            &String::from(":map:___head"),
+        ));
+        sorted.map.push_tail(get_interner_value(
+            depgraph,
+            interner,
+            &String::from(":map:___tail"),
+        ));
     }
 
-    writer.write_event(Event::End(BytesEnd::borrowed(b"l:dep")))?;
-
-    // This was not in the original linker, but we need to be able to convey
-    // this information for `standalones` (which has received some logic
-    // from the old linker for the time being).
-    writer
-        .write_event(Event::Start(BytesStart::borrowed_name(b"l:map-from")))?;
-
-    let mut map_froms: FxHashSet<&str> = Default::default();
-
-    for map_ident in &sorted.map {
-        match map_ident {
-            Object::Ident(_, _, src) | Object::IdentFragment(_, _, src, _) => {
-                if let Some(froms) = &src.from {
-                    for from in froms {
-                        map_froms.insert(from);
-                    }
-                }
-            }
-
-            _ => unreachable!("filtered out during sorting"),
-        }
+    if !sorted.retmap.is_empty() {
+        sorted.retmap.push_head(get_interner_value(
+            depgraph,
+            interner,
+            &String::from(":retmap:___head"),
+        ));
+        sorted.retmap.push_tail(get_interner_value(
+            depgraph,
+            interner,
+            &String::from(":retmap:___tail"),
+        ));
     }
 
-    for from in map_froms {
-        let name: &str = from;
+    let writer = Cursor::new(Vec::new());
+    let mut xmle_writer = XmleWriter::new(writer);
+    xmle_writer
+        .write(&sorted, name, &relroot)
+        .expect("Could not write xmle output");
 
-        writer.write_event(Event::Empty(
-            BytesStart::borrowed_name(b"l:from")
-                .with_attributes(vec![("name", name)]),
-        ))?;
-    }
-
-    writer.write_event(Event::End(BytesEnd::borrowed(b"l:map-from")))?;
-    writer
-        .write_event(Event::Start(BytesStart::borrowed_name(b"l:map-exec")))?;
-
-    if sorted.map.len() > 0 {
-        write_fragments(
-            &mut writer,
-            &vec![depgraph
-                .get(depgraph.lookup(interner.intern(":map:___head")).unwrap())
-                .unwrap()],
-        )?;
-        write_fragments(&mut writer, &sorted.map)?;
-        write_fragments(
-            &mut writer,
-            &vec![depgraph
-                .get(depgraph.lookup(interner.intern(":map:___tail")).unwrap())
-                .unwrap()],
-        )?;
-    }
-
-    writer.write_event(Event::End(BytesEnd::borrowed(b"l:map-exec")))?;
-    writer.write_event(Event::Start(BytesStart::borrowed_name(
-        b"l:retmap-exec",
-    )))?;
-
-    if sorted.retmap.len() > 0 {
-        write_fragments(
-            &mut writer,
-            &vec![depgraph
-                .get(
-                    depgraph
-                        .lookup(interner.intern(":retmap:___head"))
-                        .unwrap(),
-                )
-                .unwrap()],
-        )?;
-        write_fragments(&mut writer, &sorted.retmap)?;
-        write_fragments(
-            &mut writer,
-            &vec![depgraph
-                .get(
-                    depgraph
-                        .lookup(interner.intern(":retmap:___tail"))
-                        .unwrap(),
-                )
-                .unwrap()],
-        )?;
-    }
-
-    writer.write_event(Event::End(BytesEnd::borrowed(b"l:retmap-exec")))?;
-    writer.write_event(Event::Start(BytesStart::borrowed_name(b"l:static")))?;
-
-    write_fragments(&mut writer, &sorted.meta)?;
-    write_fragments(&mut writer, &sorted.worksheet)?;
-    write_fragments(&mut writer, &sorted.params)?;
-    write_fragments(&mut writer, &sorted.types)?;
-    write_fragments(&mut writer, &sorted.funcs)?;
-
-    writer.write_event(Event::End(BytesEnd::borrowed(b"l:static")))?;
-    writer.write_event(Event::Start(BytesStart::borrowed_name(b"l:exec")))?;
-
-    write_fragments(&mut writer, &sorted.rater)?;
-
-    writer.write_event(Event::End(BytesEnd::borrowed(b"l:exec")))?;
-    writer.write_event(Event::End(BytesEnd::borrowed(b"package")))?;
-
-    print!("{}", String::from_utf8(writer.into_inner().into_inner())?);
-
-    Ok(())
-}
-
-fn write_fragments<W: Write>(
-    writer: &mut Writer<W>,
-    idents: &ObjectVec,
-) -> Result<(), Box<dyn Error>> {
-    for ident in idents {
-        match ident {
-            Object::IdentFragment(_, _, _, frag) => {
-                writer.write_event(Event::Text(BytesText::from_plain_str(
-                    frag,
-                )))?;
-            }
-            _ => (),
-        }
-    }
+    print!(
+        "{}",
+        String::from_utf8(xmle_writer.into_inner().into_inner())?
+    );
 
     Ok(())
 }
