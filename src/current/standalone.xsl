@@ -41,9 +41,12 @@
 <include href="include/dslc-base.xsl" />
 
 <!-- compiler -> JS -->
-<include href="compiler/linker.xsl" />
 <include href="compiler/map.xsl" />
+<include href="compiler/js.xsl" />
 <include href="include/depgen.xsl" />
+<include href="include/preproc/symtable.xsl" />
+<include href="include/util.xsl" />
+
 
 <!-- path to program XML -->
 <param name="path-program-ui" />
