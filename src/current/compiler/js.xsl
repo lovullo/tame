@@ -62,7 +62,7 @@
 
   @return compiled JS
 -->
-<template match="lv:package" mode="compiler:entry">
+<template name="compiler:entry">
   <!-- enclose everything in a self-executing function to sandbox our data -->
   <text>( function() { </text>
     <!-- to store debug information for equations (we have to put this out here
@@ -76,7 +76,7 @@
 </template>
 
 
-<template match="lv:package" mode="compiler:entry-rater">
+<template name="compiler:entry-rater">
     <!-- the rater itself -->
     <value-of select="$compiler:nl" />
     <text>function rater( arglist, _canterm ) {</text>
@@ -107,16 +107,13 @@
       <text>/**@expose*/var genclasses = {};</text>
 </template>
 
-<template match="lv:package" mode="compiler:entry-classifier">
+<template name="compiler:classifier">
   <!-- allow classification of any arbitrary dataset -->
   <value-of select="$compiler:nl" />
   <text>rater.classify = function( args, _canterm ) {</text>
     return rater( args, _canterm ).classes;
   <text> };</text>
-</template>
 
-<template match="lv:package" mode="compiler:exit-classifier">
-  <!-- TODO: make sure fromMap has actually been compiled -->
   <text>rater.classify.fromMap = function( args_base, _canterm ) { </text>
     <text>var ret = {}; </text>
     <text>rater.fromMap( args_base, function( args ) {</text>
@@ -136,8 +133,10 @@
   <text> }; </text>
 </template>
 
-<template match="lv:package" mode="compiler:exit-rater">
+<template name="compiler:exit-rater">
+  <param name="name" as="xs:string "/>
   <param name="symbols" as="element( preproc:sym )*" />
+  <param name="mapfrom" as="element()*" />
 
       <value-of select="$compiler:nl" />
       <text>return { </text>
@@ -152,7 +151,7 @@
 
     <!-- make the name of the supplier available -->
     <text>/**@expose*/rater.supplier = '</text>
-      <value-of select="substring-after( @name, '/' )" />
+      <value-of select="substring-after( $name, '/' )" />
     <text>'; </text>
 
     <text>/**@expose*/rater.meta = meta;</text>
@@ -174,20 +173,8 @@
           $symbols[ @type='class' ] )" />
     <text> }; </text>
 
-    <variable name="mapfrom" select="
-        preproc:symtable/preproc:sym[
-          @type='map'
-        ]/preproc:from[
-          not(
-            @name = parent::preproc:sym
-              /preceding-sibling::preproc:sym[
-                @type='map'
-              ]/preproc:from/@name
-          )
-        ]
-      " />
-
     <!-- mapped fields (external names) -->
+    <value-of select="$compiler:nl" />
     <text>/**@expose*/rater.knownFields = {</text>
       <for-each select="$mapfrom">
         <if test="position() > 1">
@@ -221,6 +208,7 @@
     <text>'</text>
       <value-of select="substring-after( @name, ':class:' )" />
     <text>':'</text>
+      <!-- yields -->
       <value-of select="@yields" />
     <text>'</text>
   </for-each>
@@ -239,7 +227,7 @@
       <value-of select="substring-after( @name, ':class:' )" />
     <text>':'</text>
       <!-- todo: escape -->
-      <value-of select="translate( @desc, &quot;'&quot;, '' )" />
+      <value-of select="translate( normalize-space(@desc), &quot;'&quot;, '' )" />
     <text>'</text>
   </for-each>
 </function>

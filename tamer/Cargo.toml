@@ -17,8 +17,15 @@ opt-level = 3
 [profile.release]
 lto = true
 
+[profile.bench]
+# We want our benchmarks to be representative of how well TAME will perform
+# in a release.
+lto = true
+
 [dependencies]
-quick-xml = ">= 0.17.0"
-petgraph = ">= 0.4.13"
+bumpalo = ">= 2.6.0"
 # used by petgraph
 fixedbitset = ">= 0.1"
+fxhash = ">= 0.2.1"
+petgraph = ">= 0.4.13"
+quick-xml = ">= 0.17.0"

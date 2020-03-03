@@ -514,10 +514,18 @@
           <!-- overridden; we're obsolete :( -->
         </when>
 
-        <!-- if we've gotten this far, then the override is good; clear it -->
+        <!-- if we've gotten this far, then the override is good; clear it
+             so as not to trigger override errors  -->
         <when test="@override='true'">
           <copy>
-            <sequence select="@*[ not( name()='override' ) ], *" />
+            <sequence select="@*[ not( name()='override' ) ]" />
+
+            <!-- mark this has having been overridden for the linker (see
+                 TAMER; we'll hopefully be getting rid of overrides in the
+                 future) -->
+            <attribute name="isoverride" select="'true'" />
+
+            <sequence select="*" />
           </copy>
         </when>
 

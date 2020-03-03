@@ -47,3 +47,51 @@ $ ./configure CARGO_BUILD_FLAGS=--release && make
 $ ./configure && make
 $ ./configure CARGO_BUILD_FLAGS=--release && make CARGO_BUILD_FLAGS=
 ```
+
+
+## Hacking
+This section contains advice for those developing TAMER.
+
+
+### Running Tests
+Developers should be using test-driven development (TDD).  `make check` will
+run all necessary tests.
+
+
+### Code Format
+Rust provides `rustfmt` that can automatically format code for you.  This
+project mandates its use and therefore eliminates personal preference in
+code style (for better or worse).
+
+Formatting checks are run during `make check` and, on failure, will output
+the diff that would be applied if you ran `make fmt` (or `make fix`); this
+will run `cargo fmt` for you (and will use the binaries configured via
+`configure`).
+
+Since developers should be doing test-driven development (TDD) and therefore
+should be running `make check` frequently, the hope is that frequent
+feedback on formatting issues will allow developers to quickly adjust their
+habits to avoid triggering formatting errors at all.
+
+If you want to automatically fix formatting errors and then run tests:
+
+```sh
+$ make fmt check
+```
+
+
+## Benchmarking
+Benchmarks serve two purposes: external integration tests (which are subject
+to module visibility constraints) and actual benchmarking.  To run
+benchmarks, invoke `make bench`.
+
+Note that link-time optimizations (LTO) are performed on the binary for
+benchmarking so that its performance reflects release builds that will be
+used in production.
+
+The `configure` script will automatically detect whether the `test` feature
+is unstable (as it was as of the time of writing) and, if so, will
+automatically fall back to invoking nightly (by running `cargo +nightly
+bench`).
+
+If you do not have nightly, run you install it via `rustup install nightly`.

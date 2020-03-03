@@ -36,17 +36,17 @@
             xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 
-<output
-  indent="yes"
-  omit-xml-declaration="yes"
-  />
+<output method="text" />
 
 <include href="include/dslc-base.xsl" />
 
 <!-- compiler -> JS -->
-<include href="compiler/linker.xsl" />
 <include href="compiler/map.xsl" />
+<include href="compiler/js.xsl" />
 <include href="include/depgen.xsl" />
+<include href="include/preproc/symtable.xsl" />
+<include href="include/util.xsl" />
+
 
 <!-- path to program XML -->
 <param name="path-program-ui" />
@@ -54,8 +54,21 @@
 <template match="/" priority="5">
   <!-- the rater itself -->
   <text>var rater = </text>
+    <!-- (moved from linker during TAMER POC linker) -->
+    <call-template name="compiler:entry" />
+    <call-template name="compiler:classifier" />
+    <value-of disable-output-escaping="yes" select="/lv:package/l:static/text()" />
+    <call-template name="compiler:entry-rater" />
     <value-of disable-output-escaping="yes" select="/lv:package/l:exec/text()" />
   <text>; </text>
+
+  <!--(moved from linker during TAMER POC linker) -->
+  <call-template name="compiler:exit-rater">
+    <with-param name="name" select="/*/@name" />
+    <with-param name="symbols" select="/*/l:dep/preproc:sym" />
+    <with-param name="mapfrom" select="/*/l:map-from/l:from" />
+  </call-template>
+  <call-template name="compiler:static" />
 
   <!-- maps may or may not exist -->
   <variable name="map" select="/lv:package/l:map-exec" />
@@ -64,7 +77,7 @@
   <!-- store a reference to the mapper in rater.fromMap() -->
   <text>rater.fromMap = </text>
     <choose>
-      <when test="$map">
+      <when test="/lv:package/l:dep/preproc:sym[@type='map'][1]">
         <value-of disable-output-escaping="yes" select="$map/text()" />
       </when>
 
@@ -79,7 +92,7 @@
   <!-- return map -->
   <text>rater._retmap = </text>
     <choose>
-      <when test="$retmap">
+      <when test="/lv:package/l:dep/preproc:sym[@type='retmap'][1]">
         <value-of disable-output-escaping="yes" select="$retmap/text()" />
       </when>
 
