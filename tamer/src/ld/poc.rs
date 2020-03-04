@@ -30,19 +30,17 @@ use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
-use std::io::Cursor;
 
 type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut pkgs_seen: FxHashSet<String> = Default::default();
     let mut fragments: FxHashMap<&str, String> = Default::default();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let mut roots = Vec::new();
     let interner = DefaultInterner::new();
 
-    let package_path = std::env::args().nth(1).expect("Missing argument");
     let abs_path = fs::canonicalize(package_path).unwrap();
 
     println!("WARNING: This is proof-of-concept; do not use!");
@@ -84,6 +82,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         &mut sorted,
         name.expect("missing root package name"),
         relroot.expect("missing root package relroot"),
+        output,
     )?;
 
     Ok(())
@@ -305,6 +304,7 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
     sorted: &mut Sections<'a, 'i>,
     name: &'i Symbol<'i>,
     relroot: String,
+    output: &str,
 ) -> Result<(), Box<dyn Error>> {
     if !sorted.map.is_empty() {
         sorted.map.push_head(get_interner_value(
@@ -332,16 +332,11 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
         ));
     }
 
-    let writer = Cursor::new(Vec::new());
-    let mut xmle_writer = XmleWriter::new(writer);
+    let file = fs::File::create(output)?;
+    let mut xmle_writer = XmleWriter::new(file);
     xmle_writer
         .write(&sorted, name, &relroot)
         .expect("Could not write xmle output");
-
-    print!(
-        "{}",
-        String::from_utf8(xmle_writer.into_inner().into_inner())?
-    );
 
     Ok(())
 }

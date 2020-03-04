@@ -22,6 +22,10 @@ lto = true
 # in a release.
 lto = true
 
+[dev-dependencies]
+assert_cmd = "0.10"
+predicates = "1"
+
 [dependencies]
 bumpalo = ">= 2.6.0"
 # used by petgraph
@@ -29,3 +33,6 @@ fixedbitset = ">= 0.1"
 fxhash = ">= 0.2.1"
 petgraph = ">= 0.4.13"
 quick-xml = ">= 0.17.0"
+getopts = "0.2"
+exitcode = "1.1.2"
+
