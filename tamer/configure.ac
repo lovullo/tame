@@ -91,10 +91,11 @@ AC_MSG_CHECKING([whether cargo-doc is available for toolchain])
 AS_IF([cargo $CARGO_DOC_FLAGS doc --help &>/dev/null],
       [AC_MSG_RESULT(yes)],
       [AC_MSG_RESULT(no)
-       cargo $CARGO_DOC_FLAGS doc --help  # run again so user can see output
-       AC_MSG_ERROR([missing cargo-doc for toolchain])])
+       # run again so user can see output
+       cargo $CARGO_DOC_FLAGS doc --help 2>&1 | sed 's/^.*: //'
+       AC_MSG_WARN([missing cargo-doc for toolchain])
+       AC_MSG_WARN([`make html` will not work])])
 
 AC_CONFIG_FILES([Makefile])
 
 AC_OUTPUT
-
