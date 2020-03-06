@@ -225,7 +225,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         path_buf.set_extension("xmlo");
 
         // println!("Trying {:?}", path_buf);
-        let path_abs = path_buf.canonicalize().unwrap();
+        let path_abs = path_buf.canonicalize()?;
         let path = path_abs.to_str().unwrap();
 
         load_xmlo(path, pkgs_seen, fragments, depgraph, interner, roots)?;
