@@ -133,7 +133,7 @@ strip: $(dest_standalone_strip) ui/package.strip.js
 %.xmle: %.xmlo $(path_tame)/.rev-xmle
 	$(TAME_TS)
 	@echo "WARNING: using WIP proof-of-concept linker!"
-	set -o pipefail; $(path_tame)/tamer/target/release/tameld $< | awk '/^<package/{p=1};p' > $@
+	$(path_tame)/tamer/target/release/tameld -o $@ $<
 %.js: %.xmle
 	$(TAME_TS)
 	$(TAME) standalone $< $@
