@@ -167,7 +167,6 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                         src.pkg_name = None;
                     }
 
-                    // TODO: should probably track these down in the XSLT linker...
                     match kind {
                         Ok(kindval) => {
                             // TODO: inefficient
@@ -182,7 +181,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                                 roots.push(node);
                             }
                         }
-                        Err(e) => println!("{:?}; skipping...", e),
+                        Err(e) => return Err(e.into()),
                     };
                 }
             }
