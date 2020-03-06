@@ -204,11 +204,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
             // header (symtable, sym-deps, fragments)
             Ok(XmloEvent::Eoh) => break,
 
-            Err(err @ XmloError::UnassociatedFragment) => {
-                println!("{:?}; skipping...", err);
-            }
-
-            err @ Err(_) => err.map(|_| ())?,
+            Err(e) => return Err(e.into()),
         }
     }
 
