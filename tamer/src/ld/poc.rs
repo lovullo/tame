@@ -43,7 +43,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut roots = Vec::new();
     let interner = DefaultInterner::new();
 
-    let abs_path = fs::canonicalize(package_path).unwrap();
+    let abs_path = fs::canonicalize(package_path)?;
 
     println!("WARNING: This is proof-of-concept; do not use!");
 
