@@ -1,7 +1,7 @@
 /**
  * Console test reporter
  *
- *  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
+ *  Copyright (C) 2014-2020 Ryan Specialty Group, LLC.
  *
  *  This file is part of TAME.
  *

@@ -1,5 +1,7 @@
 <!---
-  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
+  Copyright (C) 2014-2020 Ryan Specialty Group, LLC.
+
+  This file is part of TAME.
 
   Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License,

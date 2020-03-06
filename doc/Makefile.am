@@ -2,7 +2,7 @@
 #
 # Responsible for building the project documentation.
 #
-#  Copyright (C) 2014-2019 Ryan Specialty Group, LLC.
+#  Copyright (C) 2014-2020 Ryan Specialty Group, LLC.
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
