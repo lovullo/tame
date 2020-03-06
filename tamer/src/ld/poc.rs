@@ -36,6 +36,9 @@ use std::io::BufReader;
 type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
+type LoadResult<'i> =
+    Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>>;
+
 pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut pkgs_seen: FxHashSet<String> = Default::default();
     let mut fragments: FxHashMap<&str, String> = Default::default();
@@ -97,7 +100,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     roots: &mut Vec<LinkerObjectRef>,
-) -> Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>> {
+) -> LoadResult<'i> {
     let path = fs::canonicalize(path_str)?;
     let path_str = path.to_str().unwrap();
 
