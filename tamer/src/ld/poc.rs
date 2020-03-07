@@ -21,8 +21,7 @@
 //! banished to its own file to try to make that more clear.
 
 use crate::global;
-use crate::ir::asg::IdentKind;
-use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef, Source};
+use crate::ir::asg::{Asg, DefaultAsg, IdentKind, Object, ObjectRef, Source};
 use crate::obj::xmle::writer::{Sections, XmleWriter};
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
@@ -187,16 +186,17 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
             }
 
             Ok(XmloEvent::Fragment(sym, text)) => {
-                let result = depgraph.set_fragment(
-                    depgraph.lookup(sym).unwrap_or_else(|| {
-                        panic!("missing symbol for fragment: {}", sym)
-                    }),
-                    text,
-                );
-
-                match result {
-                    Ok(_) => (),
-                    Err(e) => println!("{:?}; skipping...", e),
+                match depgraph.lookup(sym) {
+                    Some(frag) => match depgraph.set_fragment(frag, text) {
+                        Ok(_) => (),
+                        Err(e) => return Err(e.into()),
+                    },
+                    None => {
+                        return Err(XmloError::MissingFragment(String::from(
+                            "missing fragment",
+                        ))
+                        .into());
+                    }
                 };
             }
 
