@@ -294,14 +294,14 @@ fn get_interner_value<'a, 'i, I: Interner<'i>>(
     depgraph: &'a LinkerAsg<'i>,
     interner: &'i I,
     name: &str,
-) -> &'a Object<'i> {
-    depgraph
-        .get(
-            depgraph
-                .lookup(interner.intern(name))
-                .unwrap_or_else(|| panic!("missing identifier: {}", name)),
-        )
-        .expect("Could not get interner value")
+) -> Result<&'a Object<'i>, Box<dyn Error>> {
+    match depgraph.lookup(interner.intern(name)) {
+        Some(frag) => match depgraph.get(frag) {
+            Some(result) => Ok(result),
+            None => Err(XmloError::MissingFragment(String::from(name)).into()),
+        },
+        None => Err(XmloError::MissingFragment(String::from(name)).into()),
+    }
 }
 
 fn output_xmle<'a, 'i, I: Interner<'i>>(
@@ -317,12 +317,12 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
             depgraph,
             interner,
             &String::from(":map:___head"),
-        ));
+        )?);
         sorted.map.push_tail(get_interner_value(
             depgraph,
             interner,
             &String::from(":map:___tail"),
-        ));
+        )?);
     }
 
     if !sorted.retmap.is_empty() {
@@ -330,19 +330,17 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
             depgraph,
             interner,
             &String::from(":retmap:___head"),
-        ));
+        )?);
         sorted.retmap.push_tail(get_interner_value(
             depgraph,
             interner,
             &String::from(":retmap:___tail"),
-        ));
+        )?);
     }
 
     let file = fs::File::create(output)?;
     let mut xmle_writer = XmleWriter::new(file);
-    xmle_writer
-        .write(&sorted, name, &relroot)
-        .expect("Could not write xmle output");
+    xmle_writer.write(&sorted, name, &relroot)?;
 
     Ok(())
 }
