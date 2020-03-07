@@ -21,7 +21,9 @@
 //! banished to its own file to try to make that more clear.
 
 use crate::global;
-use crate::ir::asg::{Asg, DefaultAsg, IdentKind, Object, ObjectRef, Source};
+use crate::ir::asg::{
+    Asg, AsgError, DefaultAsg, IdentKind, Object, ObjectRef, Source,
+};
 use crate::obj::xmle::writer::{Sections, XmleWriter};
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
@@ -76,7 +78,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let mut sorted = sort_deps(&depgraph, &roots);
+    let mut sorted = sort_deps(&depgraph, &roots)?;
 
     //println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
@@ -239,7 +241,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 fn sort_deps<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
     roots: &Vec<LinkerObjectRef>,
-) -> Sections<'a, 'i> {
+) -> Result<Sections<'a, 'i>, Box<dyn Error>> {
     // @type=meta, @preproc:elig-class-yields
     // @type={ret}map{,:head,:tail}
 
@@ -259,7 +261,7 @@ fn sort_deps<'a, 'i>(
 
     // TODO: can we encapsulate NodeIndex?
     while let Some(index) = dfs.next(&depgraph) {
-        let ident = depgraph.get(index).unwrap();
+        let ident = depgraph.get(index).expect("missing node");
 
         match ident {
             Object::Ident(_, kind, _)
@@ -277,11 +279,15 @@ fn sort_deps<'a, 'i>(
                 | IdentKind::RetMapTail => deps.retmap.push_body(ident),
                 _ => deps.rater.push_body(ident),
             },
-            _ => panic!("unexpected node: {:?}", ident),
+            _ => {
+                return Err(
+                    AsgError::UnexpectedNode(format!("{:?}", ident)).into()
+                )
+            }
         }
     }
 
-    deps
+    Ok(deps)
 }
 
 fn get_interner_value<'a, 'i, I: Interner<'i>>(

@@ -214,6 +214,8 @@ pub enum AsgError {
     ///
     /// See [`Asg::set_fragment`] for more information.
     BadFragmentDest(String),
+    /// The node was not expected in the current context
+    UnexpectedNode(String),
 }
 
 impl std::fmt::Display for AsgError {
@@ -221,6 +223,9 @@ impl std::fmt::Display for AsgError {
         match self {
             Self::BadFragmentDest(msg) => {
                 write!(fmt, "bad fragment destination: {}", msg)
+            }
+            Self::UnexpectedNode(msg) => {
+                write!(fmt, "unexpected node: {}", msg)
             }
         }
     }

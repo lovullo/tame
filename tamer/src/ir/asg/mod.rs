@@ -186,7 +186,7 @@ mod graph;
 mod ident;
 mod object;
 
-pub use graph::{Asg, AsgResult, ObjectRef};
+pub use graph::{Asg, AsgError, AsgResult, ObjectRef};
 pub use ident::{Dim, IdentKind};
 pub use object::{FragmentText, Object, Source};
 
