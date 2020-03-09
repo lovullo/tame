@@ -21,8 +21,9 @@
 //! banished to its own file to try to make that more clear.
 
 use crate::global;
-use crate::ir::asg::IdentKind;
-use crate::ir::asg::{Asg, DefaultAsg, Object, ObjectRef, Source};
+use crate::ir::asg::{
+    Asg, AsgError, DefaultAsg, IdentKind, Object, ObjectRef, Source,
+};
 use crate::obj::xmle::writer::{Sections, XmleWriter};
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
@@ -36,6 +37,9 @@ use std::io::BufReader;
 type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
+type LoadResult<'i> =
+    Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>>;
+
 pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut pkgs_seen: FxHashSet<String> = Default::default();
     let mut fragments: FxHashMap<&str, String> = Default::default();
@@ -43,7 +47,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut roots = Vec::new();
     let interner = DefaultInterner::new();
 
-    let abs_path = fs::canonicalize(package_path).unwrap();
+    let abs_path = fs::canonicalize(package_path)?;
 
     println!("WARNING: This is proof-of-concept; do not use!");
 
@@ -74,7 +78,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let mut sorted = sort_deps(&depgraph, &roots);
+    let mut sorted = sort_deps(&depgraph, &roots)?;
 
     //println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
@@ -97,7 +101,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     roots: &mut Vec<LinkerObjectRef>,
-) -> Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>> {
+) -> LoadResult<'i> {
     let path = fs::canonicalize(path_str)?;
     let path_str = path.to_str().unwrap();
 
@@ -164,7 +168,6 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                         src.pkg_name = None;
                     }
 
-                    // TODO: should probably track these down in the XSLT linker...
                     match kind {
                         Ok(kindval) => {
                             // TODO: inefficient
@@ -179,22 +182,23 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                                 roots.push(node);
                             }
                         }
-                        Err(e) => println!("{:?}; skipping...", e),
+                        Err(e) => return Err(e.into()),
                     };
                 }
             }
 
             Ok(XmloEvent::Fragment(sym, text)) => {
-                let result = depgraph.set_fragment(
-                    depgraph.lookup(sym).unwrap_or_else(|| {
-                        panic!("missing symbol for fragment: {}", sym)
-                    }),
-                    text,
-                );
-
-                match result {
-                    Ok(_) => (),
-                    Err(e) => println!("{:?}; skipping...", e),
+                match depgraph.lookup(sym) {
+                    Some(frag) => match depgraph.set_fragment(frag, text) {
+                        Ok(_) => (),
+                        Err(e) => return Err(e.into()),
+                    },
+                    None => {
+                        return Err(XmloError::MissingFragment(String::from(
+                            "missing fragment",
+                        ))
+                        .into());
+                    }
                 };
             }
 
@@ -202,11 +206,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
             // header (symtable, sym-deps, fragments)
             Ok(XmloEvent::Eoh) => break,
 
-            Err(err @ XmloError::UnassociatedFragment) => {
-                println!("{:?}; skipping...", err);
-            }
-
-            err @ Err(_) => err.map(|_| ())?,
+            Err(e) => return Err(e.into()),
         }
     }
 
@@ -225,7 +225,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         path_buf.set_extension("xmlo");
 
         // println!("Trying {:?}", path_buf);
-        let path_abs = path_buf.canonicalize().unwrap();
+        let path_abs = path_buf.canonicalize()?;
         let path = path_abs.to_str().unwrap();
 
         load_xmlo(path, pkgs_seen, fragments, depgraph, interner, roots)?;
@@ -241,7 +241,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 fn sort_deps<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
     roots: &Vec<LinkerObjectRef>,
-) -> Sections<'a, 'i> {
+) -> Result<Sections<'a, 'i>, Box<dyn Error>> {
     // @type=meta, @preproc:elig-class-yields
     // @type={ret}map{,:head,:tail}
 
@@ -261,7 +261,7 @@ fn sort_deps<'a, 'i>(
 
     // TODO: can we encapsulate NodeIndex?
     while let Some(index) = dfs.next(&depgraph) {
-        let ident = depgraph.get(index).unwrap();
+        let ident = depgraph.get(index).expect("missing node");
 
         match ident {
             Object::Ident(_, kind, _)
@@ -279,25 +279,29 @@ fn sort_deps<'a, 'i>(
                 | IdentKind::RetMapTail => deps.retmap.push_body(ident),
                 _ => deps.rater.push_body(ident),
             },
-            _ => panic!("unexpected node: {:?}", ident),
+            _ => {
+                return Err(
+                    AsgError::UnexpectedNode(format!("{:?}", ident)).into()
+                )
+            }
         }
     }
 
-    deps
+    Ok(deps)
 }
 
 fn get_interner_value<'a, 'i, I: Interner<'i>>(
     depgraph: &'a LinkerAsg<'i>,
     interner: &'i I,
     name: &str,
-) -> &'a Object<'i> {
-    depgraph
-        .get(
-            depgraph
-                .lookup(interner.intern(name))
-                .unwrap_or_else(|| panic!("missing identifier: {}", name)),
-        )
-        .expect("Could not get interner value")
+) -> Result<&'a Object<'i>, Box<dyn Error>> {
+    match depgraph.lookup(interner.intern(name)) {
+        Some(frag) => match depgraph.get(frag) {
+            Some(result) => Ok(result),
+            None => Err(XmloError::MissingFragment(String::from(name)).into()),
+        },
+        None => Err(XmloError::MissingFragment(String::from(name)).into()),
+    }
 }
 
 fn output_xmle<'a, 'i, I: Interner<'i>>(
@@ -313,12 +317,12 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
             depgraph,
             interner,
             &String::from(":map:___head"),
-        ));
+        )?);
         sorted.map.push_tail(get_interner_value(
             depgraph,
             interner,
             &String::from(":map:___tail"),
-        ));
+        )?);
     }
 
     if !sorted.retmap.is_empty() {
@@ -326,19 +330,17 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
             depgraph,
             interner,
             &String::from(":retmap:___head"),
-        ));
+        )?);
         sorted.retmap.push_tail(get_interner_value(
             depgraph,
             interner,
             &String::from(":retmap:___tail"),
-        ));
+        )?);
     }
 
     let file = fs::File::create(output)?;
     let mut xmle_writer = XmleWriter::new(file);
-    xmle_writer
-        .write(&sorted, name, &relroot)
-        .expect("Could not write xmle output");
+    xmle_writer.write(&sorted, name, &relroot)?;
 
     Ok(())
 }

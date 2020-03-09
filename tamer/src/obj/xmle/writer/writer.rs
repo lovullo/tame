@@ -187,10 +187,33 @@ impl<'a, 'i> Sections<'a, 'i> {
 /// Error implementations for the writer
 #[derive(Debug)]
 pub enum WriterError {
+    /// Propagated IO error
     Io(IoError),
+    /// Propagated UTF8 error
     Utf8(Utf8Error),
+    /// Propagated XML error
     XmlError(XmlError),
+    /// Something other than a fragment was given when a fragment was expected
     ExpectedFragment(String),
+}
+
+impl std::fmt::Display for WriterError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Io(inner) => inner.fmt(fmt),
+            Self::Utf8(inner) => inner.fmt(fmt),
+            Self::XmlError(inner) => inner.fmt(fmt),
+            Self::ExpectedFragment(msg) => {
+                write!(fmt, "expected fragment: {}", msg)
+            }
+        }
+    }
+}
+
+impl std::error::Error for WriterError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
 }
 
 impl From<IoError> for WriterError {

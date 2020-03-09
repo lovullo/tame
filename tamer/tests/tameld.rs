@@ -61,6 +61,7 @@ fn link_input_file_does_not_exist() -> Result<(), Box<dyn std::error::Error>> {
     cmd.arg("-o").arg("tests/data/test-output.xmle");
     cmd.assert()
         .failure()
+        .code(1)
         .stderr(predicate::str::contains("No such file or directory"));
 
     Ok(())
