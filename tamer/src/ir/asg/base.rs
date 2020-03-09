@@ -250,15 +250,10 @@ where
                 );
                 Ok(ty)
             }
-            _ => {
-                let err = Err(AsgError::BadFragmentDest(format!(
-                    "identifier is not a Object::Ident): {:?}",
-                    ty,
-                )));
-
-                node.replace(ty);
-                err
-            }
+            _ => Err(AsgError::BadFragmentDest(format!(
+                "identifier is not a Object::Ident): {:?}",
+                ty,
+            ))),
         }?;
 
         node.replace(result);
@@ -644,17 +639,6 @@ mod test {
             AsgError::BadFragmentDest(str) if str.contains("sym") => (),
             _ => panic!("expected AsgError::BadFragmentDest: {:?}", err),
         }
-
-        // Make sure we didn't leave the node in an inconsistent state
-        assert_eq!(
-            Some(&Object::IdentFragment(
-                &sym,
-                IdentKind::Meta,
-                Default::default(),
-                fragment
-            )),
-            sut.get(node)
-        );
 
         Ok(())
     }
