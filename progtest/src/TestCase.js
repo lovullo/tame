@@ -38,6 +38,11 @@ module.exports = Class( 'TestCase',
         return this._caseData.description || "";
     },
 
+    get allow_failures()
+    {
+        return this._caseData.allow_failures || false;
+    },
+
     get data()
     {
         return this._caseData.data || {};
@@ -72,9 +77,10 @@ module.exports = Class( 'TestCase',
         } );
 
         return module.exports( {
-            description: this.description,
-            data:        new_data,
-            expect:      new_expect,
+            description:    this.description,
+            allow_failures: this.allow_failures,
+            data:           new_data,
+            expect:         new_expect,
         } );
     },
 

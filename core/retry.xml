@@ -20,7 +20,7 @@
     </classify>
 
     <t:assert failure="Retrying suppliers are ineligible"
-              neg-yields="_nassert-supplier-pending">
+              as="-assert-supplier-pending">
       <t:match-eq on="__retry" value="FALSE" />
     </t:assert>
   </template>
