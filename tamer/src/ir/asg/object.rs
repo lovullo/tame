@@ -31,19 +31,11 @@ use crate::sym::Symbol;
 /// These types represent object states:
 ///
 /// ```text
-///       ,-> (Missing) -------.
-///      /         \            \
-///     /           v            v
-/// ((Empty)) -> (Extern) -> ((Ident)) -> ((IdentFragment)).
+/// (Missing) -> (Extern) -> ((Ident)) -> ((IdentFragment)).
 ///     \                        ^               /
 ///      \                      / \             /
 ///       `--------------------`   `-----------'
 /// ```
-///
-/// The [`Empty`][Object::Empty] state is never directly accessable
-///   through [`Asg`][super::Asg]'s public API,
-///     as it represents the _absence_ of an object at that node within the
-///     ASG.
 #[derive(Debug, PartialEq)]
 pub enum Object<'i> {
     /// An identifier is expected to be defined but is not yet available.
@@ -53,8 +45,6 @@ pub enum Object<'i> {
     /// By defining an object as missing,
     ///   this allows the graph to be built incrementally as objects are
     ///   discovered.
-    ///
-    /// Note that this is different than [`Empty`][Object::Empty].
     Missing(&'i Symbol<'i>),
 
     /// A resolved identifier.
@@ -79,13 +69,6 @@ pub enum Object<'i> {
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
     IdentFragment(&'i Symbol<'i>, IdentKind, Source<'i>, FragmentText),
-
-    /// The empty node (default value for indexer).
-    ///
-    /// This is not a valid state accessible via [`Asg`][super::Asg].
-    ///
-    /// Note that this is different than [`Missing`][Object::Missing].
-    Empty,
 }
 
 /// Compiled fragment for identifier.

@@ -546,7 +546,8 @@ mod test {
             panic!("callback should not have been called");
         }));
 
-        let obj = Object::Empty;
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let obj = Object::Missing(&sym);
 
         let mut section = Section::new();
         section.push_body(&obj);

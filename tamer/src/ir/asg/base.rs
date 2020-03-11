@@ -81,7 +81,7 @@ where
         let mut index = Vec::with_capacity(objects);
 
         // Exhaust the first index to be used as a placeholder.
-        let empty_node = graph.add_node(Some(Object::Empty));
+        let empty_node = graph.add_node(None);
         index.push(empty_node);
 
         Self {

@@ -26,4 +26,8 @@ pub mod obj;
 pub mod sym;
 
 #[cfg(test)]
+#[macro_use]
+extern crate lazy_static;
+
+#[cfg(test)]
 pub mod test;
