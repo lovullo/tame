@@ -187,7 +187,7 @@ mod ident;
 mod object;
 mod section;
 
-pub use graph::{Asg, AsgError, AsgResult, ObjectRef};
+pub use graph::{Asg, AsgError, AsgResult, ObjectRef, SortableAsg};
 pub use ident::{Dim, IdentKind};
 pub use object::{FragmentText, Object, Source};
 pub use section::{Section, SectionIterator, Sections};

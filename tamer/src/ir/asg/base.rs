@@ -19,15 +19,18 @@
 
 //! Base concrete [`Asg`] implementation.
 
-use super::graph::{Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef};
+use super::graph::{
+    Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef, SortableAsg,
+};
 use super::ident::IdentKind;
 use super::object::{FragmentText, Object, Source};
+use super::Sections;
 use crate::sym::Symbol;
 use fixedbitset::FixedBitSet;
 use petgraph::graph::{
     DiGraph, EdgeIndex, Graph, IndexType, Neighbors, NodeIndex,
 };
-use petgraph::visit::{GraphBase, IntoNeighbors, Visitable};
+use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
 
 /// Concrete ASG.
 ///
@@ -299,6 +302,54 @@ where
         self.graph.update_edge(identi.0, depi.0, Default::default());
 
         (identi, depi)
+    }
+}
+
+impl<'a, 'i, Ix> SortableAsg<'a, 'i, Ix> for BaseAsg<'i, Ix>
+where
+    Ix: IndexType,
+{
+    fn sort(&'a self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'a, 'i>> {
+        let mut deps: Sections = Sections::new();
+
+        // This is technically a topological sort, but functions have
+        // cycles.  Once we have more symbol metadata, we can filter them out
+        // and actually invoke toposort.
+        let mut dfs = DfsPostOrder::empty(&self.graph);
+
+        for index in roots {
+            dfs.stack.push((*index).into());
+        }
+
+        while let Some(index) = dfs.next(&self.graph) {
+            let ident = self.get(index).expect("missing node");
+
+            match ident {
+                Object::Ident(_, kind, _)
+                | Object::IdentFragment(_, kind, _, _) => match kind {
+                    IdentKind::Meta => deps.meta.push_body(ident),
+                    IdentKind::Worksheet => deps.worksheet.push_body(ident),
+                    IdentKind::Param(_, _) => deps.params.push_body(ident),
+                    IdentKind::Type(_) => deps.types.push_body(ident),
+                    IdentKind::Func(_, _) => deps.funcs.push_body(ident),
+                    IdentKind::MapHead
+                    | IdentKind::Map
+                    | IdentKind::MapTail => deps.map.push_body(ident),
+                    IdentKind::RetMapHead
+                    | IdentKind::RetMap
+                    | IdentKind::RetMapTail => deps.retmap.push_body(ident),
+                    _ => deps.rater.push_body(ident),
+                },
+                _ => {
+                    return Err(AsgError::UnexpectedNode(format!(
+                        "{:?}",
+                        ident
+                    )))
+                }
+            }
+        }
+
+        Ok(deps)
     }
 }
 
@@ -721,6 +772,144 @@ mod test {
             Some(&Object::Ident(&sym, IdentKind::Meta, src)),
             sut.get(declared),
         );
+
+        Ok(())
+    }
+
+    macro_rules! add_sym {
+        ( $sut:expr, $s:ident, $expect:expr, $base:expr, $kind:expr ) => {{
+            let sym_node = $sut.declare(&$s, $kind, Source::default())?;
+
+            let (_, _) = $sut.add_dep_lookup($base, &$s);
+
+            $expect.push($s);
+
+            $sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+        };};
+    }
+
+    macro_rules! assert_section_sym {
+        ( $iter:ident, $s:ident ) => {{
+            let mut pos = 0;
+            for obj in $iter {
+                match obj {
+                    Object::Ident(sym, _, _)
+                    | Object::IdentFragment(sym, _, _, _) => {
+                        assert_eq!($s.get(pos), Some(*sym));
+                    }
+                    _ => panic!("unexpected object"),
+                }
+
+                pos = pos + 1;
+            }
+        };};
+    }
+
+    #[test]
+    fn graph_sort() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let mut meta = vec![];
+        let mut worksheet = vec![];
+        let mut map = vec![];
+        let mut retmap = vec![];
+
+        let base = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let base_node =
+            sut.declare(&base, IdentKind::Map, Source::default())?;
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
+        add_sym!(sut, sym, meta, &base, IdentKind::Meta);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+        add_sym!(sut, sym, worksheet, &base, IdentKind::Worksheet);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(4), "sym4");
+        add_sym!(sut, sym, map, &base, IdentKind::MapHead);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(5), "sym5");
+        add_sym!(sut, sym, map, &base, IdentKind::Map);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(6), "sym6");
+        add_sym!(sut, sym, map, &base, IdentKind::MapTail);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(7), "sym7");
+        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapHead);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(8), "sym8");
+        add_sym!(sut, sym, retmap, &base, IdentKind::RetMap);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(9), "sym9");
+        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapTail);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(10), "sym10");
+        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapTail);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(11), "sym11");
+        add_sym!(sut, sym, retmap, &base, IdentKind::RetMap);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(12), "sym12");
+        add_sym!(sut, sym, map, &base, IdentKind::MapHead);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(13), "sym13");
+        add_sym!(sut, sym, map, &base, IdentKind::Map);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(14), "sym14");
+        add_sym!(sut, sym, meta, &base, IdentKind::Meta);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(15), "sym15");
+        add_sym!(sut, sym, worksheet, &base, IdentKind::Worksheet);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(16), "sym16");
+        add_sym!(sut, sym, map, &base, IdentKind::MapTail);
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(17), "sym17");
+        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapHead);
+
+        map.push(base);
+
+        let sections = sut.sort(&vec![base_node])?;
+
+        let iter = sections.meta.iter();
+        assert_section_sym!(iter, meta);
+        let iter = sections.worksheet.iter();
+        assert_section_sym!(iter, worksheet);
+        let iter = sections.map.iter();
+        assert_section_sym!(iter, map);
+        let iter = sections.retmap.iter();
+        assert_section_sym!(iter, retmap);
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_missing_node() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+
+        match sut.sort(&vec![sym_node]) {
+            Ok(_) => panic!("Unexpected success - dependency is not in graph"),
+            Err(AsgError::UnexpectedNode(_)) => (),
+            _ => {
+                panic!("Incorrect error result when dependency is not in graph")
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_no_roots() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+
+        let sections = sut.sort(&vec![])?;
+
+        assert_eq!(Sections::new(), sections);
 
         Ok(())
     }
