@@ -22,9 +22,9 @@
 
 use crate::global;
 use crate::ir::asg::{
-    Asg, AsgError, DefaultAsg, IdentKind, Object, ObjectRef, Source,
+    Asg, AsgError, DefaultAsg, IdentKind, Object, ObjectRef, Sections, Source,
 };
-use crate::obj::xmle::writer::{Sections, XmleWriter};
+use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::{FxHashMap, FxHashSet};

@@ -28,7 +28,8 @@
 //! The example below is incomplete, but shows the general usage.
 //!
 //! ```
-//! use tamer::obj::xmle::writer::{Sections, XmleWriter};
+//! use tamer::obj::xmle::writer::XmleWriter;
+//! use tamer::ir::asg::Sections;
 //! use tamer::sym::{DefaultInterner, Interner, Symbol};
 //! use std::io::Cursor;
 //!
@@ -44,6 +45,6 @@
 mod writer;
 mod xmle;
 
-pub use writer::{Result, Section, Sections, Writer, WriterError};
+pub use writer::{Result, Writer, WriterError};
 
 pub use xmle::XmleWriter;

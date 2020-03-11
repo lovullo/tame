@@ -185,10 +185,12 @@ mod base;
 mod graph;
 mod ident;
 mod object;
+mod section;
 
 pub use graph::{Asg, AsgError, AsgResult, ObjectRef};
 pub use ident::{Dim, IdentKind};
 pub use object::{FragmentText, Object, Source};
+pub use section::{Section, SectionIterator, Sections};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg<'i, Ix> = base::BaseAsg<'i, Ix>;

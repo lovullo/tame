@@ -17,8 +17,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::writer::{Result, SectionIterator, Sections, WriterError};
-use crate::ir::asg::{IdentKind, Object};
+use super::writer::{Result, WriterError};
+use crate::ir::asg::{IdentKind, Object, SectionIterator, Sections};
 use crate::sym::Symbol;
 use fxhash::FxHashSet;
 #[cfg(test)]
@@ -69,7 +69,8 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// ```
     /// use std::io::Cursor;
-    /// use tamer::obj::xmle::writer::{Sections, XmleWriter};
+    /// use tamer::obj::xmle::writer::XmleWriter;
+    /// use tamer::ir::asg::Sections;
     /// use tamer::sym::{Symbol, SymbolIndex};
     /// use tamer::sym::{DefaultInterner, Interner};
     ///
@@ -410,10 +411,8 @@ mod mock {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::Dim;
-    use crate::ir::asg::Source;
+    use crate::ir::asg::{Dim, Section, Source};
     use crate::ir::legacyir::SymAttrs;
-    use crate::obj::xmle::writer::Section;
     use crate::sym::{Symbol, SymbolIndex};
     use std::str;
 
