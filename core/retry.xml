@@ -19,7 +19,8 @@
       <param-copy name="@values@" />
     </classify>
 
-    <t:assert failure="Retrying suppliers are ineligible">
+    <t:assert failure="Retrying suppliers are ineligible"
+              as="-assert-supplier-pending">
       <t:match-eq on="__retry" value="FALSE" />
     </t:assert>
   </template>

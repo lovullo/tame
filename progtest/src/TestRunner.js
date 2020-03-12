@@ -111,10 +111,22 @@ module.exports = Class( 'TestRunner',
      *
      * @return {Object<desc,i,total,failures>} test results
      */
-    'protected runTest'( { description: desc, data, expect }, test_i, total )
-    {
+    'protected runTest'(
+        {
+            description: desc,
+            allow_failures,
+            data,
+            expect,
+        },
+        test_i,
+        total
+    ) {
+        const can_term = ( typeof allow_failures === 'string' )
+                            ? !( allow_failures.toLowerCase() === 'true')
+                            : !allow_failures;
+
         // no input map---#rate uses params directly
-        const result = this._tryRun( data );
+        const result = this._tryRun( data, can_term );
 
         const cmp = Object.keys( expect ).map(
             field => [
@@ -163,14 +175,14 @@ module.exports = Class( 'TestRunner',
      *
      * @return {Object|Error} result or error
      */
-    'private _tryRun'( data )
+    'private _tryRun'( data, can_term )
     {
         // no input map---#rate uses params directly
         try
         {
             this._verifyKnownParams( data );
 
-            return this._program.rater( data ).vars;
+            return this._program.rater( data, can_term ).vars;
         }
         catch( e )
         {
