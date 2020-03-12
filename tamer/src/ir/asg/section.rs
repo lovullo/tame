@@ -27,7 +27,7 @@ pub type ObjectVec<'a, 'i> = Vec<ObjectRef<'a, 'i>>;
 /// Most sections will only need a `body`, but some innlude `head` and `tail`
 ///   information. Rather than dealing with those differently, each `Section`
 ///   will have a `head` and `tail` that are empty by default.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Section<'a, 'i> {
     head: ObjectVec<'a, 'i>,
     body: ObjectVec<'a, 'i>,
@@ -129,7 +129,7 @@ impl<'a, 'i> Iterator for SectionIterator<'a, 'i> {
 ///
 /// All the properties are public [`Section`] objects and will be accessed
 ///   directly by the the objects interacting with them.
-#[derive(Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Sections<'a, 'i> {
     pub map: Section<'a, 'i>,
     pub retmap: Section<'a, 'i>,
