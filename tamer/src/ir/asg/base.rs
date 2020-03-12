@@ -144,32 +144,25 @@ where
         kind: IdentKind,
         src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>> {
-        // TODO: src check
         if let Some(existing) = self.lookup(name) {
             let node = self.graph.node_weight_mut(existing.0).unwrap();
 
-            match node {
-                Some(Object::Missing(_)) => {
-                    node.replace(Object::Ident(name, kind, src));
-                    return Ok(existing);
-                }
-                // TODO: no override-override
-                Some(Object::Ident(_, _, orig_src))
-                    if orig_src.virtual_ && src.override_ =>
-                {
-                    *orig_src = src;
-                    return Ok(existing);
-                }
-                // TODO: no override-override
-                Some(Object::IdentFragment(_, _, orig_src, _))
-                    if orig_src.virtual_ && src.override_ =>
-                {
-                    // clears fragment, which is no longer applicable
-                    node.replace(Object::Ident(name, kind, src));
-                    return Ok(existing);
-                }
-                _ => return Ok(existing),
-            }
+            let obj = node.take().expect(&format!(
+                "internal error: missing object for {}",
+                name
+            ));
+
+            // TODO: test inconsistent state (fixed)
+            return obj
+                .redeclare(kind, src)
+                .and_then(|obj| {
+                    node.replace(obj);
+                    Ok(existing)
+                })
+                .or_else(|(orig, err)| {
+                    node.replace(orig);
+                    Err(err.into())
+                });
         }
 
         let node = self.graph.add_node(Some(Object::Ident(name, kind, src)));
@@ -212,56 +205,17 @@ where
             .take()
             .expect("internal error: BaseAsg::set_fragment missing Node data");
 
-        let result = match ty {
-            Object::Ident(sym, kind, src) => {
-                Ok(Object::IdentFragment(sym, kind, src, text))
-            }
-            Object::IdentFragment(_, IdentKind::MapHead, _, _) => Ok(ty),
-            Object::IdentFragment(_, IdentKind::MapTail, _, _) => Ok(ty),
-            Object::IdentFragment(_, IdentKind::RetMapHead, _, _) => Ok(ty),
-            Object::IdentFragment(_, IdentKind::RetMapTail, _, _) => Ok(ty),
-            // TODO remove these ignores when fixed
-            Object::IdentFragment(
-                sym,
-                IdentKind::Map,
-                Source {
-                    virtual_: true,
-                    override_: true,
-                    ..
-                },
-                _,
-            ) => {
-                eprintln!(
-                    "ignoring virtual and overridden map object: {}",
-                    sym
-                );
-                Ok(ty)
-            }
-            Object::IdentFragment(
-                sym,
-                IdentKind::RetMap,
-                Source {
-                    virtual_: true,
-                    override_: true,
-                    ..
-                },
-                _,
-            ) => {
-                eprintln!(
-                    "ignoring virtual and overridden retmap object: {}",
-                    sym
-                );
-                Ok(ty)
-            }
-            _ => Err(AsgError::BadFragmentDest(format!(
-                "identifier is not a Object::Ident): {:?}",
-                ty,
-            ))),
-        }?;
-
-        node.replace(result);
-
-        Ok(identi)
+        // Be sure to restore the previous node if the transition fails,
+        // otherwise we'll be left in an inconsistent internal state.
+        ty.set_fragment(text)
+            .and_then(|obj| {
+                node.replace(obj);
+                Ok(identi)
+            })
+            .or_else(|(orig, err)| {
+                node.replace(orig);
+                Err(err.into())
+            })
     }
 
     #[inline]
@@ -390,6 +344,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::super::graph::AsgError;
     use super::*;
     use crate::sym::SymbolIndex;
 
@@ -699,7 +654,7 @@ mod test {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(1), "dep");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
 
         let symnode = sut.declare(&sym, IdentKind::Meta, Source::default())?;
         let depnode = sut.declare(&dep, IdentKind::Meta, Source::default())?;

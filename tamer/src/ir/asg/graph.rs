@@ -20,7 +20,7 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{FragmentText, Object, Source};
+use super::object::{FragmentText, Object, Source, TransitionError};
 use super::Sections;
 use crate::sym::Symbol;
 use petgraph::graph::{IndexType, NodeIndex};
@@ -223,6 +223,14 @@ pub enum AsgError {
     ///
     /// See [`Asg::set_fragment`] for more information.
     BadFragmentDest(String),
+
+    /// An attempt to redeclare an identifier with additional information
+    ///   has failed because the provided information was not compatible
+    ///   with the original declaration.
+    ///
+    /// See [`Asg::declare`] for more information.
+    IncompatibleIdent(String),
+
     /// The node was not expected in the current context
     UnexpectedNode(String),
 }
@@ -232,6 +240,9 @@ impl std::fmt::Display for AsgError {
         match self {
             Self::BadFragmentDest(msg) => {
                 write!(fmt, "bad fragment destination: {}", msg)
+            }
+            Self::IncompatibleIdent(msg) => {
+                write!(fmt, "identifier redeclaration failed: {}", msg)
             }
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
@@ -243,6 +254,15 @@ impl std::fmt::Display for AsgError {
 impl std::error::Error for AsgError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
+    }
+}
+
+impl From<TransitionError> for AsgError {
+    fn from(e: TransitionError) -> Self {
+        match e {
+            TransitionError::Incompatible(msg) => Self::IncompatibleIdent(msg),
+            TransitionError::BadFragmentDest(msg) => Self::BadFragmentDest(msg),
+        }
     }
 }
 

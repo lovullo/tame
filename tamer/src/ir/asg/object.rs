@@ -25,6 +25,10 @@
 use super::ident::IdentKind;
 use crate::ir::legacyir::SymAttrs;
 use crate::sym::Symbol;
+use std::result::Result;
+
+pub type TransitionResult<'i> =
+    Result<Object<'i>, (Object<'i>, TransitionError)>;
 
 /// Type of object.
 ///
@@ -69,6 +73,135 @@ pub enum Object<'i> {
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
     IdentFragment(&'i Symbol<'i>, IdentKind, Source<'i>, FragmentText),
+}
+
+impl<'i> Object<'i> {
+    /// Attempt to redeclare an identifier with additional information.
+    ///
+    /// _TODO: Compatibility information._
+    ///
+    /// The kind if identifier cannot change,
+    ///   but the argument is provided here for convenience so that the
+    ///   caller does not need to perform such a check itself.
+    pub fn redeclare(
+        mut self,
+        kind: IdentKind,
+        src: Source<'i>,
+    ) -> TransitionResult<'i> {
+        match self {
+            Object::Ident(_, _, ref mut orig_src)
+                if orig_src.virtual_ && src.override_ =>
+            {
+                *orig_src = src;
+                Ok(self)
+            }
+
+            // TODO: no override-override
+            Object::IdentFragment(name, _, orig_src, _)
+                if orig_src.virtual_ && src.override_ =>
+            {
+                // clears fragment, which is no longer applicable
+                Ok(Object::Ident(name, kind, src))
+            }
+
+            Object::Missing(name) | Object::Ident(name, _, _) => {
+                Ok(Object::Ident(name, kind, src))
+            }
+
+            // TODO: incompatible (check now-dangling commits)
+            _ => Ok(self),
+        }
+    }
+
+    /// Attach a code fragment (compiled text) to an identifier.
+    ///
+    /// Only [`Object::Ident`] may receive a fragment.
+    pub fn set_fragment(self, text: FragmentText) -> TransitionResult<'i> {
+        match self {
+            Object::Ident(sym, kind, src) => {
+                Ok(Object::IdentFragment(sym, kind, src, text))
+            }
+
+            Object::IdentFragment(_, IdentKind::MapHead, _, _)
+            | Object::IdentFragment(_, IdentKind::MapTail, _, _)
+            | Object::IdentFragment(_, IdentKind::RetMapHead, _, _)
+            | Object::IdentFragment(_, IdentKind::RetMapTail, _, _) => Ok(self),
+
+            // TODO remove these ignores when fixed
+            Object::IdentFragment(
+                sym,
+                IdentKind::Map,
+                Source {
+                    virtual_: true,
+                    override_: true,
+                    ..
+                },
+                _,
+            ) => {
+                eprintln!(
+                    "ignoring virtual and overridden map object: {}",
+                    sym
+                );
+                Ok(self)
+            }
+            Object::IdentFragment(
+                sym,
+                IdentKind::RetMap,
+                Source {
+                    virtual_: true,
+                    override_: true,
+                    ..
+                },
+                _,
+            ) => {
+                eprintln!(
+                    "ignoring virtual and overridden retmap object: {}",
+                    sym
+                );
+                Ok(self)
+            }
+
+            _ => {
+                let msg =
+                    format!("identifier is not a Object::Ident): {:?}", self,);
+
+                Err((self, TransitionError::BadFragmentDest(msg)))
+            }
+        }
+    }
+}
+
+/// An error attempting to transition from one [`Object`] state to another.
+///
+/// TODO: Provide enough information to construct a useful message.
+#[derive(Debug, PartialEq)]
+pub enum TransitionError {
+    /// An attempt to redeclare an identifier with additional information
+    ///   has failed because the provided information was not compatible
+    ///   with the original declaration.
+    ///
+    /// See [`Object::redeclare`].
+    Incompatible(String),
+
+    /// The provided identifier is not in a state that is permitted to
+    ///   receive a fragment.
+    ///
+    /// See [`Object::set_fragment`].
+    BadFragmentDest(String),
+}
+
+impl std::fmt::Display for TransitionError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Incompatible(msg) => {
+                write!(fmt, "object incompatible: {}", msg)
+            }
+
+            Self::BadFragmentDest(msg) => {
+                write!(fmt, "bad fragment destination: {}", msg)
+            }
+        }
+    }
 }
 
 /// Compiled fragment for identifier.
