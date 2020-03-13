@@ -238,18 +238,14 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     }
 }
 
-fn get_interner_value<'a, 'i, I: Interner<'i>>(
+fn get_ident<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
-    interner: &'i I,
-    name: &str,
-) -> Result<&'a Object<'i>, Box<dyn Error>> {
-    match depgraph.lookup(interner.intern(name)) {
-        Some(frag) => match depgraph.get(frag) {
-            Some(result) => Ok(result),
-            None => Err(XmloError::MissingFragment(String::from(name)).into()),
-        },
-        None => Err(XmloError::MissingFragment(String::from(name)).into()),
-    }
+    name: &'i Symbol<'i>,
+) -> Result<&'a Object<'i>, XmloError> {
+    depgraph
+        .lookup(name)
+        .and_then(|id| depgraph.get(id))
+        .ok_or(XmloError::MissingFragment(String::from(name as &str)))
 }
 
 fn output_xmle<'a, 'i, I: Interner<'i>>(
@@ -261,28 +257,22 @@ fn output_xmle<'a, 'i, I: Interner<'i>>(
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
     if !sorted.map.is_empty() {
-        sorted.map.push_head(get_interner_value(
-            depgraph,
-            interner,
-            &String::from(":map:___head"),
-        )?);
-        sorted.map.push_tail(get_interner_value(
-            depgraph,
-            interner,
-            &String::from(":map:___tail"),
-        )?);
+        sorted
+            .map
+            .push_head(get_ident(depgraph, interner.intern(":map:___head"))?);
+        sorted
+            .map
+            .push_tail(get_ident(depgraph, interner.intern(":map:___tail"))?);
     }
 
     if !sorted.retmap.is_empty() {
-        sorted.retmap.push_head(get_interner_value(
+        sorted.retmap.push_head(get_ident(
             depgraph,
-            interner,
-            &String::from(":retmap:___head"),
+            interner.intern(":retmap:___head"),
         )?);
-        sorted.retmap.push_tail(get_interner_value(
+        sorted.retmap.push_tail(get_ident(
             depgraph,
-            interner,
-            &String::from(":retmap:___tail"),
+            interner.intern(":retmap:___tail"),
         )?);
     }
 
