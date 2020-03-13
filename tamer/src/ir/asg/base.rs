@@ -776,20 +776,8 @@ mod test {
         Ok(())
     }
 
-    macro_rules! add_sym {
-        ( $sut:expr, $s:ident, $expect:expr, $base:expr, $kind:expr ) => {{
-            let sym_node = $sut.declare(&$s, $kind, Source::default())?;
-
-            let (_, _) = $sut.add_dep_lookup($base, &$s);
-
-            $expect.push($s);
-
-            $sut.set_fragment(sym_node, FragmentText::from("foo"))?;
-        };};
-    }
-
     macro_rules! assert_section_sym {
-        ( $iter:ident, $s:ident ) => {{
+        ( $iter:expr, $s:ident ) => {{
             let mut pos = 0;
             for obj in $iter {
                 match obj {
@@ -805,6 +793,26 @@ mod test {
         };};
     }
 
+    macro_rules! add_syms {
+        ($sut:ident, $base:expr, {$($dest:ident <- $name:ident: $kind:path,)*}) => {
+            let mut i = 1;
+
+            $(
+                i += 1;
+
+                let sym = Symbol::new_dummy(
+                    SymbolIndex::from_u32(i),
+                    stringify!($name)
+                );
+
+                $sut.declare(&sym, $kind, Source::default())?;
+                let (_, _) = $sut.add_dep_lookup($base, &sym);
+
+                $dest.push(sym);
+            )*
+        };
+    }
+
     #[test]
     fn graph_sort() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
@@ -818,51 +826,33 @@ mod test {
         let base_node =
             sut.declare(&base, IdentKind::Map, Source::default())?;
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
-        add_sym!(sut, sym, meta, &base, IdentKind::Meta);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
-        add_sym!(sut, sym, worksheet, &base, IdentKind::Worksheet);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(4), "sym4");
-        add_sym!(sut, sym, map, &base, IdentKind::MapHead);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(5), "sym5");
-        add_sym!(sut, sym, map, &base, IdentKind::Map);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(6), "sym6");
-        add_sym!(sut, sym, map, &base, IdentKind::MapTail);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(7), "sym7");
-        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapHead);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(8), "sym8");
-        add_sym!(sut, sym, retmap, &base, IdentKind::RetMap);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(9), "sym9");
-        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapTail);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(10), "sym10");
-        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapTail);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(11), "sym11");
-        add_sym!(sut, sym, retmap, &base, IdentKind::RetMap);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(12), "sym12");
-        add_sym!(sut, sym, map, &base, IdentKind::MapHead);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(13), "sym13");
-        add_sym!(sut, sym, map, &base, IdentKind::Map);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(14), "sym14");
-        add_sym!(sut, sym, meta, &base, IdentKind::Meta);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(15), "sym15");
-        add_sym!(sut, sym, worksheet, &base, IdentKind::Worksheet);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(16), "sym16");
-        add_sym!(sut, sym, map, &base, IdentKind::MapTail);
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(17), "sym17");
-        add_sym!(sut, sym, retmap, &base, IdentKind::RetMapHead);
+        add_syms!(sut, &base, {
+            meta <- meta1: IdentKind::Meta,
+            worksheet <- work1: IdentKind::Worksheet,
+            map <- map1: IdentKind::MapHead,
+            map <- map2: IdentKind::Map,
+            map <- map3: IdentKind::MapTail,
+            retmap <- retmap1: IdentKind::RetMapHead,
+            retmap <- retmap2: IdentKind::RetMap,
+            retmap <- retmap3: IdentKind::RetMapTail,
+            retmap <- retmap4: IdentKind::RetMapTail,
+            retmap <- retmap5: IdentKind::RetMap,
+            map <- map4: IdentKind::MapHead,
+            map <- map5: IdentKind::Map,
+            meta <- meta2: IdentKind::Meta,
+            worksheet <- work2: IdentKind::Worksheet,
+            map <- map6: IdentKind::MapTail,
+            retmap <- retmap6: IdentKind::RetMapHead,
+        });
 
         map.push(base);
 
         let sections = sut.sort(&vec![base_node])?;
 
-        let iter = sections.meta.iter();
-        assert_section_sym!(iter, meta);
-        let iter = sections.worksheet.iter();
-        assert_section_sym!(iter, worksheet);
-        let iter = sections.map.iter();
-        assert_section_sym!(iter, map);
-        let iter = sections.retmap.iter();
-        assert_section_sym!(iter, retmap);
+        assert_section_sym!(sections.meta.iter(), meta);
+        assert_section_sym!(sections.worksheet.iter(), worksheet);
+        assert_section_sym!(sections.map.iter(), map);
+        assert_section_sym!(sections.retmap.iter(), retmap);
 
         Ok(())
     }
