@@ -67,7 +67,10 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Be sure to choose size and initial capacities appropriate for your
 //! // situation.
-//! let mut asg = DefaultAsg::<global::PkgIdentSize>::with_capacity(1024, 1024);
+//! let mut asg = DefaultAsg::<Object, global::PkgIdentSize>::with_capacity(
+//!     1024,
+//!     1024,
+//! );
 //!
 //! let interner = DefaultInterner::new();
 //! let identa_sym = interner.intern("identa");
@@ -111,7 +114,10 @@
 //! # use tamer::sym::{Interner, DefaultInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<global::PkgIdentSize>::with_capacity(1024, 1024);
+//! # let mut asg = DefaultAsg::<Object, global::PkgIdentSize>::with_capacity(
+//! #     1024,
+//! #     1024,
+//! # );
 //! # let interner = DefaultInterner::new();
 //! #
 //! let identa_sym = interner.intern("identa");
@@ -154,7 +160,10 @@
 //! # use tamer::sym::{Interner, DefaultInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<global::PkgIdentSize>::with_capacity(1024, 1024);
+//! # let mut asg = DefaultAsg::<Object, global::PkgIdentSize>::with_capacity(
+//! #     1024,
+//! #     1024,
+//! # );
 //! # let interner = DefaultInterner::new();
 //! #
 //! // Fragments can be attached to resolved identifiers.
@@ -189,8 +198,8 @@ mod section;
 
 pub use graph::{Asg, AsgError, AsgResult, ObjectRef, SortableAsg};
 pub use ident::{Dim, IdentKind};
-pub use object::{FragmentText, Object, Source};
+pub use object::{FragmentText, Object, ObjectData, Source};
 pub use section::{Section, SectionIterator, Sections};
 
 /// Default concrete ASG implementation.
-pub type DefaultAsg<'i, Ix> = base::BaseAsg<'i, Ix>;
+pub type DefaultAsg<'i, O, Ix> = base::BaseAsg<O, Ix>;

@@ -30,9 +30,9 @@ pub type Result<T = ()> = result::Result<T, WriterError>;
 ///
 /// This is used to take the [`Sections`] and write out the xmle files.
 pub trait Writer<W: Write> {
-    fn write(
+    fn write<T>(
         &mut self,
-        sections: &Sections,
+        sections: &Sections<T>,
         name: Symbol,
         relroot: &str,
     ) -> Result<()>

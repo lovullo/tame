@@ -17,31 +17,20 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::ir::asg::Object;
-
-type ObjectRef<'a, 'i> = &'a Object<'i>;
-pub type ObjectVec<'a, 'i> = Vec<ObjectRef<'a, 'i>>;
-
-/// A Section that needs to be written to the buffer
+/// A section of an [object file](crate::obj).
 ///
 /// Most sections will only need a `body`, but some innlude `head` and `tail`
 ///   information. Rather than dealing with those differently, each `Section`
 ///   will have a `head` and `tail` that are empty by default.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Section<'a, 'i> {
-    head: ObjectVec<'a, 'i>,
-    body: ObjectVec<'a, 'i>,
-    tail: ObjectVec<'a, 'i>,
+pub struct Section<'a, T> {
+    head: Vec<&'a T>,
+    body: Vec<&'a T>,
+    tail: Vec<&'a T>,
 }
 
-impl<'a, 'i> Section<'a, 'i> {
-    /// Constructor for Sections
-    ///
-    /// ```
-    /// use tamer::ir::asg::Section;
-    ///
-    /// let section = Section::new();
-    /// ```
+impl<'a, T> Section<'a, T> {
+    /// New empty section.
     pub fn new() -> Self {
         Self {
             head: Vec::new(),
@@ -61,18 +50,18 @@ impl<'a, 'i> Section<'a, 'i> {
     }
 
     /// Push an `Object` into a `Section`'s head
-    pub fn push_head(&mut self, obj: ObjectRef<'a, 'i>) {
-        self.head.push(&obj)
+    pub fn push_head(&mut self, obj: &'a T) {
+        self.head.push(obj)
     }
 
     /// Push an `Object` into a `Section`'s body
-    pub fn push_body(&mut self, obj: ObjectRef<'a, 'i>) {
-        self.body.push(&obj)
+    pub fn push_body(&mut self, obj: &'a T) {
+        self.body.push(obj)
     }
 
     /// Push an `Object` into a `Section`'s tail
-    pub fn push_tail(&mut self, obj: ObjectRef<'a, 'i>) {
-        self.tail.push(&obj)
+    pub fn push_tail(&mut self, obj: &'a T) {
+        self.tail.push(obj)
     }
 
     /// Merge the parts of a `Section` into one [`SectionIterator`]
@@ -99,7 +88,7 @@ impl<'a, 'i> Section<'a, 'i> {
     ///     assert_eq!(&obj, object);
     /// }
     /// ```
-    pub fn iter(&self) -> SectionIterator {
+    pub fn iter(&self) -> SectionIterator<T> {
         SectionIterator {
             inner: Box::new(
                 self.head
@@ -115,12 +104,12 @@ impl<'a, 'i> Section<'a, 'i> {
 /// Wrapper for an Iterator
 ///
 /// This allows us to iterate over all parts of a [`Section`].
-pub struct SectionIterator<'a, 'i> {
-    inner: Box<dyn Iterator<Item = &'a Object<'i>> + 'a>,
+pub struct SectionIterator<'a, T> {
+    inner: Box<dyn Iterator<Item = &'a T> + 'a>,
 }
 
-impl<'a, 'i> Iterator for SectionIterator<'a, 'i> {
-    type Item = &'a Object<'i>;
+impl<'a, T> Iterator for SectionIterator<'a, T> {
+    type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
@@ -132,25 +121,19 @@ impl<'a, 'i> Iterator for SectionIterator<'a, 'i> {
 /// All the properties are public [`Section`] objects and will be accessed
 ///   directly by the the objects interacting with them.
 #[derive(Debug, Default, PartialEq)]
-pub struct Sections<'a, 'i> {
-    pub map: Section<'a, 'i>,
-    pub retmap: Section<'a, 'i>,
-    pub meta: Section<'a, 'i>,
-    pub worksheet: Section<'a, 'i>,
-    pub params: Section<'a, 'i>,
-    pub types: Section<'a, 'i>,
-    pub funcs: Section<'a, 'i>,
-    pub rater: Section<'a, 'i>,
+pub struct Sections<'a, T> {
+    pub map: Section<'a, T>,
+    pub retmap: Section<'a, T>,
+    pub meta: Section<'a, T>,
+    pub worksheet: Section<'a, T>,
+    pub params: Section<'a, T>,
+    pub types: Section<'a, T>,
+    pub funcs: Section<'a, T>,
+    pub rater: Section<'a, T>,
 }
 
-impl<'a, 'i> Sections<'a, 'i> {
-    /// Constructor for Sections
-    ///
-    /// ```
-    /// use tamer::ir::asg::Sections;
-    ///
-    /// let sections = Sections::new();
-    /// ```
+impl<'a, T> Sections<'a, T> {
+    /// New collection of empty sections.
     pub fn new() -> Self {
         Self {
             map: Section::new(),
@@ -168,6 +151,7 @@ impl<'a, 'i> Sections<'a, 'i> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ir::asg::Object;
     use crate::sym::{Symbol, SymbolIndex};
 
     lazy_static! {
@@ -175,9 +159,11 @@ mod test {
             Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
     }
 
+    type Sut<'a, 'i> = Section<'a, Object<'i>>;
+
     #[test]
     fn section_empty() {
-        let section = Section::new();
+        let section = Sut::new();
 
         assert!(section.head.is_empty());
         assert!(section.body.is_empty());
@@ -186,7 +172,7 @@ mod test {
 
     #[test]
     fn section_head() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert!(section.head.is_empty());
@@ -198,7 +184,7 @@ mod test {
 
     #[test]
     fn section_body() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert!(section.body.is_empty());
@@ -211,7 +197,7 @@ mod test {
 
     #[test]
     fn section_tail() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert!(section.tail.is_empty());
@@ -223,7 +209,7 @@ mod test {
 
     #[test]
     fn section_len() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert_eq!(0, section.len());
@@ -237,7 +223,7 @@ mod test {
 
     #[test]
     fn section_is_empty_head() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert!(section.is_empty());
@@ -247,7 +233,7 @@ mod test {
 
     #[test]
     fn section_is_empty_body() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert!(section.is_empty());
@@ -257,7 +243,7 @@ mod test {
 
     #[test]
     fn section_is_empty_tail() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
 
         assert!(section.is_empty());
@@ -267,7 +253,7 @@ mod test {
 
     #[test]
     fn section_iterator() {
-        let mut section = Section::new();
+        let mut section = Sut::new();
         let obj = Object::Missing(&SYM);
         let expect = vec![&obj, &obj, &obj];
 

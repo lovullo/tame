@@ -20,24 +20,31 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{FragmentText, Object, Source, TransitionError};
+use super::object::{
+    FragmentText, ObjectData, ObjectState, Source, TransitionError,
+};
 use super::Sections;
 use crate::sym::Symbol;
 use petgraph::graph::{IndexType, NodeIndex};
 use std::result::Result;
 
-/// An abstract semantic graph of [objects][Object].
+/// An abstract semantic graph of [objects][super::object].
 ///
 /// This IR focuses on the definition and manipulation of objects and their
 ///   dependencies.
-/// See [`Object`] for a summary of valid object state transitions.
+/// See [`Object`](super::object::Object) for a summary of valid object
+///   state transitions.
 ///
 /// Objects are never deleted from the graph,
 ///   so [`ObjectRef`]s will remain valid for the lifetime of the ASG.
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-pub trait Asg<'i, Ix: IndexType> {
+pub trait Asg<'i, O, Ix>
+where
+    Ix: IndexType,
+    O: ObjectState<'i, O>,
+{
     /// Declare a concrete identifier.
     ///
     /// An identifier declaration is similar to a declaration in a header
@@ -54,22 +61,12 @@ pub trait Asg<'i, Ix: IndexType> {
     ///       then the operation will fail;
     ///     otherwise,
     ///       the existing identifier will be returned.
-    /// A successful declaration will add a [`Object::Ident`] to the graph
+    /// For more information on state transitions that can occur when
+    ///   redeclaring an identifier that already exists,
+    ///     see [`ObjectState::redeclare`].
+    ///
+    /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
-    ///
-    /// If an existing identifier is an extern (see
-    ///   [`Asg::declare_extern`]),
-    ///     then the declaration will be compared just the same,
-    ///       but the identifier will be converted from a
-    ///       [`Object::Extern`] into a [`Object::Ident`].
-    /// When this happens,
-    ///   the extern is said to be _resolved_.
-    ///
-    /// If a virtual identifier of type [`Object::IdentFragment`] is
-    ///   overridden,
-    ///     then its fragment is cleared
-    ///     (it returns to a [`Object::Ident`])
-    ///     to make way for the fragment of the override.
     fn declare(
         &mut self,
         name: &'i Symbol<'i>,
@@ -81,7 +78,7 @@ pub trait Asg<'i, Ix: IndexType> {
     ///
     /// An _extern_ declaration declares an identifier the same as
     ///   [`Asg::declare`],
-    ///     but instead as [`Object::Extern`].
+    ///     but omits source information.
     /// Externs are identifiers that are expected to be defined somewhere
     ///   else ("externally"),
     ///     and are resolved at [link-time][crate::ld].
@@ -93,6 +90,9 @@ pub trait Asg<'i, Ix: IndexType> {
     ///       the identifier will be immediately _resolved_ and the object
     ///         on the graph will not be altered.
     /// Resolution will otherwise fail in error.
+    ///
+    /// See [`ObjectState::extern_`] and [`ObjectState::redeclare`] for more
+    ///   information on compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
         name: &'i Symbol<'i>,
@@ -101,9 +101,9 @@ pub trait Asg<'i, Ix: IndexType> {
 
     /// Set the fragment associated with a concrete identifier.
     ///
-    /// This changes the type of the identifier from [`Object::Ident`]
-    ///   into [`Object::IdentFragment`],
-    ///     which is intended for use by the [linker][crate::ld].
+    /// Fragments are intended for use by the [linker][crate::ld].
+    /// For more information,
+    ///   see [`ObjectState::set_fragment`].
     fn set_fragment(
         &mut self,
         identi: ObjectRef<Ix>,
@@ -117,7 +117,7 @@ pub trait Asg<'i, Ix: IndexType> {
     ///   this should never fail so long as references are not shared
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
-    fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&Object<'i>>;
+    fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&O>;
 
     /// Attempt to retrieve an identifier from the graph by name.
     ///
@@ -148,10 +148,10 @@ pub trait Asg<'i, Ix: IndexType> {
     ///   this method will add the dependency even if one or both of `ident`
     ///   or `dep` have not yet been declared.
     /// In such a case,
-    ///   an [`Object::Missing`] will be added as a placeholder for the
-    ///   missing identifier,
+    ///   a missing identifier will be added as a placeholder,
     ///     allowing the ASG to be built with partial information as
     ///     identifiers continue to be discovered.
+    /// See [`ObjectState::missing`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(
@@ -165,8 +165,12 @@ pub trait Asg<'i, Ix: IndexType> {
 ///
 /// Allow a graph to be partitioned into different [`Sections`] that can be
 ///   used as an `Intermediate Representation`.
-pub trait SortableAsg<'a, 'i, Ix: IndexType> {
-    fn sort(&'a self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'a, 'i>>;
+pub trait SortableAsg<'i, O, Ix>
+where
+    O: ObjectData<'i>,
+    Ix: IndexType,
+{
+    fn sort(&'i self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'i, O>>;
 }
 
 /// A [`Result`] with a hard-coded [`AsgError`] error type.
@@ -175,7 +179,7 @@ pub trait SortableAsg<'a, 'i, Ix: IndexType> {
 ///   fail in error.
 pub type AsgResult<T> = Result<T, AsgError>;
 
-/// Reference to an [object][Object] stored within the [`Asg`].
+/// Reference to an [object][super::object] stored within the [`Asg`].
 ///
 /// Object references are integer offsets,
 ///   not pointers.
@@ -208,7 +212,7 @@ pub type AsgEdge = ();
 ///
 /// Enclosed in an [`Option`] to permit moving owned values out of the
 ///   graph.
-pub type Node<'i> = Option<Object<'i>>;
+pub type Node<O> = Option<O>;
 
 /// An error from an ASG operation.
 ///

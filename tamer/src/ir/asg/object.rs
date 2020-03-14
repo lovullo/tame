@@ -27,8 +27,7 @@ use crate::ir::legacyir::SymAttrs;
 use crate::sym::Symbol;
 use std::result::Result;
 
-pub type TransitionResult<'i> =
-    Result<Object<'i>, (Object<'i>, TransitionError)>;
+pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 
 /// Type of object.
 ///
@@ -75,19 +74,165 @@ pub enum Object<'i> {
     IdentFragment(&'i Symbol<'i>, IdentKind, Source<'i>, FragmentText),
 }
 
-impl<'i> Object<'i> {
+/// Retrieve information about an [`Object`].
+///
+/// APIs should adhere to this trait rather than a concrete object type such
+///   as [`Object`];
+///     this allows other representations to be used,
+///       while still permitting the use of matching on [`Object`] through
+///       the use of [`ident`](ObjectData::ident).
+///
+/// Since an object implementing this trait may not be an identifier
+///   (e.g. an expression),
+///   even [`name`](ObjectData::name)---which
+///     is used by all [`Object`] variants---returns
+///     an [`Option`].
+/// These methods also provide a convenient alternative to `match`ing on
+///   data that may not be present in all variants.
+pub trait ObjectData<'i> {
+    /// Identifier name.
+    ///
+    /// If the object is not an identifier,
+    ///   [`None`] is returned.
+    fn name(&self) -> Option<&'i Symbol<'i>>;
+
+    /// Identifier [`IdentKind`].
+    ///
+    /// If the object does not have a kind
+    ///   (as is the case with [`Object::Missing`]),
+    ///     [`None`] is returned.
+    fn kind(&self) -> Option<&IdentKind>;
+
+    /// Identifier [`Source`].
+    ///
+    /// If the object does not have source information
+    ///   (as is the case with [`Object::Extern`]),
+    ///     [`None`] is returned.
+    fn src(&self) -> Option<&Source<'i>>;
+
+    /// Object as an identifier ([`Object`]).
+    ///
+    /// If the object is not or cannot be faithfully converted into an
+    ///   [`Object`],
+    ///     [`None`] is returned.
+    /// For example,
+    ///   expressions will always yield [`None`].
+    ///
+    /// This allows pattern matching on [`Object`] variants regardless of
+    ///   the underlying object type.
+    fn ident(&self) -> Option<&Object<'i>>;
+}
+
+impl<'i> ObjectData<'i> for Object<'i> {
+    fn name(&self) -> Option<&'i Symbol<'i>> {
+        match self {
+            Self::Missing(name)
+            | Self::Ident(name, _, _)
+            | Self::Extern(name, _)
+            | Self::IdentFragment(name, _, _, _) => Some(name),
+        }
+    }
+
+    fn kind(&self) -> Option<&IdentKind> {
+        match self {
+            Self::Missing(_) => None,
+            Self::Ident(_, kind, _)
+            | Self::Extern(_, kind)
+            | Self::IdentFragment(_, kind, _, _) => Some(kind),
+        }
+    }
+
+    fn src(&self) -> Option<&Source<'i>> {
+        match self {
+            Self::Missing(_) | Self::Extern(_, _) => None,
+            Self::Ident(_, _, src) | Self::IdentFragment(_, _, src, _) => {
+                Some(src)
+            }
+        }
+    }
+
+    /// Expose underlying [`Object`].
+    ///
+    /// This will never be [`None`] for this implementation.
+    /// However,
+    ///   other [`ObjectData`] implementations may still result in [`None`],
+    ///   so it's important _not_ to rely on this as an excuse to be lazy
+    ///     with unwrapping.
+    #[inline]
+    fn ident(&self) -> Option<&Object<'i>> {
+        Some(&self)
+    }
+}
+
+/// Objects as a state machine.
+pub trait ObjectState<'i, T>
+where
+    T: ObjectState<'i, T>,
+{
+    /// Produce an object representing a missing identifier.
+    fn missing(ident: &'i Symbol<'i>) -> T;
+
+    /// Produce an object representing a concrete identifier.
+    fn ident(name: &'i Symbol<'i>, kind: IdentKind, src: Source<'i>) -> T;
+
+    /// Produce an object representing an extern.
+    fn extern_(name: &'i Symbol<'i>, kind: IdentKind) -> T;
+
     /// Attempt to redeclare an identifier with additional information.
     ///
-    /// _TODO: Compatibility information._
+    /// For specific information on compatibility rules,
+    ///   see implementers of this trait,
+    ///   since rules may vary between implementations.
+    fn redeclare(self, kind: IdentKind, src: Source<'i>)
+        -> TransitionResult<T>;
+
+    /// Attach a code fragment (compiled text) to an identifier.
     ///
-    /// The kind if identifier cannot change,
+    /// This will fail if an identifier already has a fragment,
+    ///   since only the owner of the identifier should be producing
+    ///   compiled code.
+    /// Note, however, that an identifier's fragment may be cleared under
+    ///   certain circumstances (such as symbol overrides),
+    ///     making way for a new fragment to be set.
+    fn set_fragment(self, text: FragmentText) -> TransitionResult<T>;
+}
+
+impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
+    fn missing(ident: &'i Symbol<'i>) -> Self {
+        Object::Missing(ident)
+    }
+
+    fn ident(name: &'i Symbol<'i>, kind: IdentKind, src: Source<'i>) -> Self {
+        Object::Ident(name, kind, src)
+    }
+
+    fn extern_(name: &'i Symbol<'i>, kind: IdentKind) -> Self {
+        Object::Extern(name, kind)
+    }
+
+    /// Attempt to redeclare an identifier with additional information.
+    ///
+    /// If an existing identifier is an [`Object::Extern`],
+    ///   then the declaration will be compared just the same,
+    ///     but the identifier will be converted from an extern into an
+    ///     identifier.
+    /// When this happens,
+    ///   the extern is said to be _resolved_.
+    ///
+    /// If a virtual identifier of type [`Object::IdentFragment`] is
+    ///   overridden,
+    ///     then its fragment is cleared
+    ///     (it returns to a [`Object::Ident`])
+    ///     to make way for the fragment of the override.
+    ///
+    /// The kind of identifier cannot change,
     ///   but the argument is provided here for convenience so that the
     ///   caller does not need to perform such a check itself.
-    pub fn redeclare(
+    fn redeclare(
         mut self,
         kind: IdentKind,
         src: Source<'i>,
-    ) -> TransitionResult<'i> {
+    ) -> TransitionResult<Object<'i>> {
         match self {
             Object::Ident(_, _, ref mut orig_src)
                 if orig_src.virtual_ && src.override_ =>
@@ -113,10 +258,7 @@ impl<'i> Object<'i> {
         }
     }
 
-    /// Attach a code fragment (compiled text) to an identifier.
-    ///
-    /// Only [`Object::Ident`] may receive a fragment.
-    pub fn set_fragment(self, text: FragmentText) -> TransitionResult<'i> {
+    fn set_fragment(self, text: FragmentText) -> TransitionResult<Object<'i>> {
         match self {
             Object::Ident(sym, kind, src) => {
                 Ok(Object::IdentFragment(sym, kind, src, text))
@@ -180,13 +322,13 @@ pub enum TransitionError {
     ///   has failed because the provided information was not compatible
     ///   with the original declaration.
     ///
-    /// See [`Object::redeclare`].
+    /// See [`ObjectState::redeclare`].
     Incompatible(String),
 
     /// The provided identifier is not in a state that is permitted to
     ///   receive a fragment.
     ///
-    /// See [`Object::set_fragment`].
+    /// See [`ObjectState::set_fragment`].
     BadFragmentDest(String),
 }
 

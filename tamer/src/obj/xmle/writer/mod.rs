@@ -29,14 +29,14 @@
 //!
 //! ```
 //! use tamer::obj::xmle::writer::XmleWriter;
-//! use tamer::ir::asg::Sections;
+//! use tamer::ir::asg::{Object, Sections};
 //! use tamer::sym::{DefaultInterner, Interner, Symbol};
 //! use std::io::Cursor;
 //!
 //! let interner = DefaultInterner::new();
 //! let name = interner.intern(&String::from("foo"));
 //!
-//! let sections = Sections::new();
+//! let sections = Sections::<Object>::new();
 //! let writer = Cursor::new(Vec::new());
 //! let mut xmle_writer = XmleWriter::new(writer);
 //! xmle_writer.write(&sections, name, &String::from(""));

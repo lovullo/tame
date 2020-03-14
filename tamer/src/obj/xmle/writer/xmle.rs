@@ -18,7 +18,9 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::writer::{Result, WriterError};
-use crate::ir::asg::{IdentKind, Object, SectionIterator, Sections};
+use crate::ir::asg::{
+    IdentKind, Object, ObjectData, SectionIterator, Sections,
+};
 use crate::sym::Symbol;
 use fxhash::FxHashSet;
 #[cfg(test)]
@@ -70,13 +72,12 @@ impl<W: Write> XmleWriter<W> {
     /// ```
     /// use std::io::Cursor;
     /// use tamer::obj::xmle::writer::XmleWriter;
-    /// use tamer::ir::asg::Sections;
-    /// use tamer::sym::{Symbol, SymbolIndex};
-    /// use tamer::sym::{DefaultInterner, Interner};
+    /// use tamer::ir::asg::{Sections, Object};
+    /// use tamer::sym::{Symbol, SymbolIndex, DefaultInterner, Interner};
     ///
     /// let writer = Cursor::new(Vec::new());
     /// let mut xmle_writer = XmleWriter::new(writer);
-    /// let sections = Sections::new();
+    /// let sections = Sections::<Object>::new();
     /// let a = "foo";
     /// let interner = DefaultInterner::new();
     /// let name = interner.intern(&a);
@@ -88,9 +89,9 @@ impl<W: Write> XmleWriter<W> {
     /// let buf = xmle_writer.into_inner().into_inner();
     /// assert!(!buf.is_empty(), "something was written to the buffer");
     /// ```
-    pub fn write(
+    pub fn write<'i, T: ObjectData<'i>>(
         &mut self,
-        sections: &Sections,
+        sections: &Sections<T>,
         name: &Symbol,
         relroot: &str,
     ) -> Result {
@@ -191,9 +192,9 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// All the [`Sections`] found need to be written out using the `writer`
     ///   object.
-    fn write_sections(
+    fn write_sections<'i, T: ObjectData<'i>>(
         &mut self,
-        sections: &Sections,
+        sections: &Sections<T>,
         relroot: &str,
     ) -> Result<&mut XmleWriter<W>> {
         let all = sections
@@ -207,7 +208,11 @@ impl<W: Write> XmleWriter<W> {
             .chain(sections.funcs.iter())
             .chain(sections.rater.iter());
 
-        for ident in all {
+        for obj in all {
+            let ident = obj
+                .ident()
+                .expect("internal error: encountered non-identifier object");
+
             match ident {
                 Object::Ident(sym, kind, src)
                 | Object::IdentFragment(sym, kind, src, _) => {
@@ -300,25 +305,21 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// If a `map` object has a `from` attribute in its source, we need to
     ///   write them using the `writer`'s `write_event`.
-    fn write_froms(
+    fn write_froms<'i, T: ObjectData<'i>>(
         &mut self,
-        sections: &Sections,
+        sections: &Sections<T>,
     ) -> Result<&mut XmleWriter<W>> {
         let mut map_froms: FxHashSet<&str> = Default::default();
 
         let map_iter = sections.map.iter();
 
         for map_ident in map_iter {
-            match map_ident {
-                Object::Ident(_, _, src)
-                | Object::IdentFragment(_, _, src, _) => {
-                    if let Some(froms) = &src.from {
-                        for from in froms {
-                            map_froms.insert(from);
-                        }
-                    }
+            let src = map_ident.src().expect("internal error: missing map src");
+
+            if let Some(froms) = &src.from {
+                for from in froms {
+                    map_froms.insert(from);
                 }
-                _ => unreachable!("filtered out during sorting"),
             }
         }
 
@@ -338,11 +339,15 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// Iterates through the parts of a `Section` and writes them using the
     ///   `writer`'s 'write_event`.
-    fn write_section(
+    fn write_section<'i, T: ObjectData<'i>>(
         &mut self,
-        idents: SectionIterator,
+        idents: SectionIterator<T>,
     ) -> Result<&mut XmleWriter<W>> {
-        for ident in idents {
+        for obj in idents {
+            let ident = obj
+                .ident()
+                .expect("internal error: encountered non-identifier object");
+
             match ident {
                 Object::IdentFragment(_, _, _, frag) => {
                     self.writer.write_event(Event::Text(

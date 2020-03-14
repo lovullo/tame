@@ -23,7 +23,7 @@ use super::graph::{
     Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef, SortableAsg,
 };
 use super::ident::IdentKind;
-use super::object::{FragmentText, Object, Source};
+use super::object::{FragmentText, ObjectData, ObjectState, Source};
 use super::Sections;
 use crate::sym::Symbol;
 use fixedbitset::FixedBitSet;
@@ -42,9 +42,12 @@ use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
 ///
 /// For more information,
 ///   see [`Asg`].
-pub struct BaseAsg<'i, Ix: IndexType> {
+pub struct BaseAsg<O, Ix>
+where
+    Ix: IndexType,
+{
     /// Directed graph on which objects are stored.
-    graph: DiGraph<Node<'i>, AsgEdge, Ix>,
+    graph: DiGraph<Node<O>, AsgEdge, Ix>,
 
     /// Map of [`SymbolIndex`][crate::sym::SymbolIndex] to node indexes.
     ///
@@ -58,9 +61,10 @@ pub struct BaseAsg<'i, Ix: IndexType> {
     empty_node: NodeIndex<Ix>,
 }
 
-impl<'i, Ix> BaseAsg<'i, Ix>
+impl<'i, O, Ix> BaseAsg<O, Ix>
 where
     Ix: IndexType,
+    O: ObjectState<'i, O>,
 {
     /// Create an ASG with the provided initial capacity.
     ///
@@ -121,12 +125,14 @@ where
         self.index[i] = node;
     }
 
-    /// Lookup `ident` or add an [`Object::Missing`] to the graph and
-    ///   return a reference to it.
+    /// Lookup `ident` or add a missing identifier to the graph and return a
+    ///   reference to it.
+    ///
+    /// See [`ObjectState::missing`] for more information.
     #[inline]
     fn lookup_or_missing(&mut self, ident: &'i Symbol<'i>) -> ObjectRef<Ix> {
         self.lookup(ident).unwrap_or_else(|| {
-            let index = self.graph.add_node(Some(Object::Missing(ident)));
+            let index = self.graph.add_node(Some(O::missing(ident)));
 
             self.index_identifier(ident, index);
             ObjectRef(index)
@@ -134,9 +140,10 @@ where
     }
 }
 
-impl<'i, Ix> Asg<'i, Ix> for BaseAsg<'i, Ix>
+impl<'i, O, Ix> Asg<'i, O, Ix> for BaseAsg<O, Ix>
 where
     Ix: IndexType,
+    O: ObjectState<'i, O>,
 {
     fn declare(
         &mut self,
@@ -165,7 +172,7 @@ where
                 });
         }
 
-        let node = self.graph.add_node(Some(Object::Ident(name, kind, src)));
+        let node = self.graph.add_node(Some(O::ident(name, kind, src)));
 
         self.index_identifier(name, node);
 
@@ -178,9 +185,7 @@ where
         expected_kind: IdentKind,
     ) -> AsgResult<ObjectRef<Ix>> {
         // TODO: resolution!
-        let node = self
-            .graph
-            .add_node(Some(Object::Extern(name, expected_kind)));
+        let node = self.graph.add_node(Some(O::extern_(name, expected_kind)));
 
         self.index_identifier(name, node);
 
@@ -219,7 +224,7 @@ where
     }
 
     #[inline]
-    fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&Object<'i>> {
+    fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&O> {
         self.graph.node_weight(index.into().0).map(|node| {
             node.as_ref()
                 .expect("internal error: BaseAsg::get missing Node data")
@@ -259,12 +264,13 @@ where
     }
 }
 
-impl<'a, 'i, Ix> SortableAsg<'a, 'i, Ix> for BaseAsg<'i, Ix>
+impl<'i, O, Ix> SortableAsg<'i, O, Ix> for BaseAsg<O, Ix>
 where
     Ix: IndexType,
+    O: ObjectData<'i> + ObjectState<'i, O>,
 {
-    fn sort(&'a self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'a, 'i>> {
-        let mut deps: Sections = Sections::new();
+    fn sort(&'i self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'i, O>> {
+        let mut deps = Sections::new();
 
         // This is technically a topological sort, but functions have
         // cycles.  Once we have more symbol metadata, we can filter them out
@@ -278,9 +284,8 @@ where
         while let Some(index) = dfs.next(&self.graph) {
             let ident = self.get(index).expect("missing node");
 
-            match ident {
-                Object::Ident(_, kind, _)
-                | Object::IdentFragment(_, kind, _, _) => match kind {
+            match ident.kind() {
+                Some(kind) => match kind {
                     IdentKind::Meta => deps.meta.push_body(ident),
                     IdentKind::Worksheet => deps.worksheet.push_body(ident),
                     IdentKind::Param(_, _) => deps.params.push_body(ident),
@@ -294,10 +299,10 @@ where
                     | IdentKind::RetMapTail => deps.retmap.push_body(ident),
                     _ => deps.rater.push_body(ident),
                 },
-                _ => {
+                None => {
                     return Err(AsgError::UnexpectedNode(format!(
                         "{:?}",
-                        ident
+                        ident.ident()
                     )))
                 }
             }
@@ -308,7 +313,7 @@ where
 }
 
 // TODO: encapsulate Petgraph API (N.B. this is untested!)
-impl<'i, Ix> Visitable for BaseAsg<'i, Ix>
+impl<'i, O, Ix> Visitable for BaseAsg<O, Ix>
 where
     Ix: IndexType,
 {
@@ -323,7 +328,7 @@ where
     }
 }
 
-impl<'i, Ix> GraphBase for BaseAsg<'i, Ix>
+impl<'i, O, Ix> GraphBase for BaseAsg<O, Ix>
 where
     Ix: IndexType,
 {
@@ -331,7 +336,7 @@ where
     type EdgeId = EdgeIndex<Ix>;
 }
 
-impl<'a, 'i, Ix> IntoNeighbors for &'a BaseAsg<'i, Ix>
+impl<'a, 'i, O, Ix> IntoNeighbors for &'a BaseAsg<O, Ix>
 where
     Ix: IndexType,
 {
@@ -346,9 +351,11 @@ where
 mod test {
     use super::super::graph::AsgError;
     use super::*;
+    use crate::ir::asg::Object;
     use crate::sym::SymbolIndex;
 
-    type Sut<'i> = BaseAsg<'i, u8>;
+    // TODO: mock Object
+    type Sut<'i> = BaseAsg<Object<'i>, u8>;
 
     #[test]
     fn create_with_capacity() {
