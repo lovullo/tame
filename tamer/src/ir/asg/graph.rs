@@ -21,7 +21,7 @@
 
 use super::ident::IdentKind;
 use super::object::{
-    FragmentText, ObjectData, ObjectState, Source, TransitionError,
+    FragmentText, IdentObjectData, IdentObjectState, Source, TransitionError,
 };
 use super::Sections;
 use crate::sym::Symbol;
@@ -32,8 +32,8 @@ use std::result::Result;
 ///
 /// This IR focuses on the definition and manipulation of objects and their
 ///   dependencies.
-/// See [`Object`](super::object::Object) for a summary of valid object
-///   state transitions.
+/// See [`IdentObject`](super::object::IdentObject) for a summary of valid
+///   identifier object state transitions.
 ///
 /// Objects are never deleted from the graph,
 ///   so [`ObjectRef`]s will remain valid for the lifetime of the ASG.
@@ -43,7 +43,7 @@ use std::result::Result;
 pub trait Asg<'i, O, Ix>
 where
     Ix: IndexType,
-    O: ObjectState<'i, O>,
+    O: IdentObjectState<'i, O>,
 {
     /// Declare a concrete identifier.
     ///
@@ -63,7 +63,7 @@ where
     ///       the existing identifier will be returned.
     /// For more information on state transitions that can occur when
     ///   redeclaring an identifier that already exists,
-    ///     see [`ObjectState::redeclare`].
+    ///     see [`IdentObjectState::redeclare`].
     ///
     /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
@@ -91,8 +91,9 @@ where
     ///         on the graph will not be altered.
     /// Resolution will otherwise fail in error.
     ///
-    /// See [`ObjectState::extern_`] and [`ObjectState::redeclare`] for more
-    ///   information on compatibility related to extern resolution.
+    /// See [`IdentObjectState::extern_`] and
+    ///   [`IdentObjectState::redeclare`] for more information on
+    ///   compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
         name: &'i Symbol<'i>,
@@ -103,7 +104,7 @@ where
     ///
     /// Fragments are intended for use by the [linker][crate::ld].
     /// For more information,
-    ///   see [`ObjectState::set_fragment`].
+    ///   see [`IdentObjectState::set_fragment`].
     fn set_fragment(
         &mut self,
         identi: ObjectRef<Ix>,
@@ -151,7 +152,7 @@ where
     ///   a missing identifier will be added as a placeholder,
     ///     allowing the ASG to be built with partial information as
     ///     identifiers continue to be discovered.
-    /// See [`ObjectState::missing`] for more information.
+    /// See [`IdentObjectState::missing`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(
@@ -167,7 +168,7 @@ where
 ///   used as an `Intermediate Representation`.
 pub trait SortableAsg<'i, O, Ix>
 where
-    O: ObjectData<'i>,
+    O: IdentObjectData<'i>,
     Ix: IndexType,
 {
     fn sort(&'i self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'i, O>>;
@@ -181,7 +182,7 @@ pub type AsgResult<T> = Result<T, AsgError>;
 
 /// Reference to an [object][super::object] stored within the [`Asg`].
 ///
-/// Object references are integer offsets,
+/// IdentObject references are integer offsets,
 ///   not pointers.
 /// See the [module-level documentation][self] for more information.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]

@@ -37,7 +37,7 @@
 //!
 //! Graph Structure
 //! ===============
-//! Each node (vector) in the graph represents an [object][Object],
+//! Each node (vector) in the graph represents an [object][IdentObject],
 //!   such as an identifier or an expression.
 //! Each directed edge `(A->B)` represents that `A` depends upon `B`.
 //!
@@ -51,7 +51,7 @@
 //! [scc]: https://en.wikipedia.org/wiki/Strongly_connected_component
 //!
 //! Each object may have a number of valid states;
-//!   see [`Object`] for valid object states and transitions.
+//!   see [`IdentObject`] for valid object states and transitions.
 //!
 //!
 //! How To Use
@@ -61,13 +61,13 @@
 //!
 //! ```
 //! use tamer::global;
-//! use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, Source};
+//! use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
 //! use tamer::sym::{Interner, DefaultInterner};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Be sure to choose size and initial capacities appropriate for your
 //! // situation.
-//! let mut asg = DefaultAsg::<Object, global::PkgIdentSize>::with_capacity(
+//! let mut asg = DefaultAsg::<IdentObject, global::PkgIdentSize>::with_capacity(
 //!     1024,
 //!     1024,
 //! );
@@ -80,7 +80,7 @@
 //! let identb = asg.declare_extern(identb_sym, IdentKind::Meta)?;
 //!
 //! assert_eq!(
-//!     Some(&Object::Extern(identb_sym, IdentKind::Meta)),
+//!     Some(&IdentObject::Extern(identb_sym, IdentKind::Meta)),
 //!     asg.get(identb),
 //! );
 //!
@@ -105,16 +105,16 @@
 //!     it is often the case that a dependency will have to be added to the
 //!     graph before it is resolved.
 //! For example,
-//!   [`Asg::add_dep_lookup`] will add an [`Object::Missing`] to the graph
+//!   [`Asg::add_dep_lookup`] will add an [`IdentObject::Missing`] to the graph
 //!     if either identifier has not yet been declared.
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, FragmentText, Source};
+//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<Object, global::PkgIdentSize>::with_capacity(
+//! # let mut asg = DefaultAsg::<IdentObject, global::PkgIdentSize>::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
@@ -124,8 +124,8 @@
 //! let identb_sym = interner.intern("identb");
 //! let (identa, identb) = asg.add_dep_lookup(identa_sym, identb_sym);
 //!
-//! assert_eq!(Some(&Object::Missing(identa_sym)), asg.get(identa));
-//! assert_eq!(Some(&Object::Missing(identb_sym)), asg.get(identb));
+//! assert_eq!(Some(&IdentObject::Missing(identa_sym)), asg.get(identa));
+//! assert_eq!(Some(&IdentObject::Missing(identb_sym)), asg.get(identb));
 //!
 //! // The identifiers returned above are proper objects on the graph.
 //! assert_eq!(Some(identa), asg.lookup(identa_sym));
@@ -136,7 +136,7 @@
 //! asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
 //!
 //! assert_eq!(
-//!     Some(&Object::Ident(identa_sym, IdentKind::Meta, Source::default())),
+//!     Some(&IdentObject::Ident(identa_sym, IdentKind::Meta, Source::default())),
 //!     asg.get(identa),
 //! );
 //!
@@ -149,18 +149,18 @@
 //! Fragments
 //! ---------
 //! A compiled fragment can be attached to any resolved identifier (see
-//!   [`Object::Ident`]) using [`Asg::set_fragment`].
-//! Doing so changes the state of the identifier to [`Object::IdentFragment`],
+//!   [`IdentObject::Ident`]) using [`Asg::set_fragment`].
+//! Doing so changes the state of the identifier to [`IdentObject::IdentFragment`],
 //!   and it is an error to attempt to overwrite that fragment once it is
 //!   set.
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, Object, FragmentText, Source};
+//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<Object, global::PkgIdentSize>::with_capacity(
+//! # let mut asg = DefaultAsg::<IdentObject, global::PkgIdentSize>::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
@@ -173,7 +173,7 @@
 //! asg.set_fragment(ident, FragmentText::from("test fragment"))?;
 //!
 //! assert_eq!(
-//!     Some(&Object::IdentFragment(
+//!     Some(&IdentObject::IdentFragment(
 //!         interner.intern("ident"),
 //!         IdentKind::Meta,
 //!         Source::default(),
@@ -198,7 +198,10 @@ mod section;
 
 pub use graph::{Asg, AsgError, AsgResult, ObjectRef, SortableAsg};
 pub use ident::{Dim, IdentKind};
-pub use object::{FragmentText, Object, ObjectData, Source};
+pub use object::{
+    FragmentText, IdentObject, IdentObjectData, Source, TransitionError,
+    TransitionResult,
+};
 pub use section::{Section, SectionIterator, Sections};
 
 /// Default concrete ASG implementation.

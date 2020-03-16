@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Identifiers (a type of [object][super::object::Object]).
+//! Identifiers (a type of [object][super::object::IdentObject]).
 
 use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
 use std::convert::TryFrom;
@@ -29,7 +29,7 @@ use std::convert::TryFrom;
 ///
 /// These are derived from [`legacyir::SymType`][crate::ir::legacyir::SymType]
 ///   and will be generalized in the future.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IdentKind {
     /// Classification generator.
     ///
@@ -219,6 +219,13 @@ impl<'i> TryFrom<&SymAttrs<'i>> for IdentKind {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct Dim(u8);
 
+impl Dim {
+    pub fn from_u8(value: u8) -> Self {
+        // TODO: 0≤n<10
+        Self(value)
+    }
+}
+
 /// Underlying datatype of identifier.
 ///
 /// TODO: This will always be 0≤n≤9, so let's introduce a newtype for it.
@@ -247,6 +254,13 @@ pub type DataType = SymDtype;
 mod test {
     use super::*;
     use std::convert::TryInto;
+
+    #[test]
+    fn dim_from_u8() {
+        let n = 5u8;
+
+        assert_eq!(Dim(n), Dim::from_u8(n));
+    }
 
     #[test]
     fn dim_to_str() {

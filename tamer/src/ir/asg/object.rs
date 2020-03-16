@@ -39,8 +39,8 @@ pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 ///      \                      / \             /
 ///       `--------------------`   `-----------'
 /// ```
-#[derive(Debug, PartialEq)]
-pub enum Object<'i> {
+#[derive(Debug, PartialEq, Clone)]
+pub enum IdentObject<'i> {
     /// An identifier is expected to be defined but is not yet available.
     ///
     /// This variant contains the symbol representing the name of the
@@ -58,7 +58,7 @@ pub enum Object<'i> {
 
     /// An identifier that has not yet been resolved.
     ///
-    /// Externs are upgraded to [`Object::Ident`] once an identifier of
+    /// Externs are upgraded to [`IdentObject::Ident`] once an identifier of
     ///   the same name is loaded.
     /// It is an error if the loaded identifier does not have a compatible
     ///   [`IdentKind`].
@@ -74,22 +74,22 @@ pub enum Object<'i> {
     IdentFragment(&'i Symbol<'i>, IdentKind, Source<'i>, FragmentText),
 }
 
-/// Retrieve information about an [`Object`].
+/// Retrieve information about an [`IdentObject`].
 ///
 /// APIs should adhere to this trait rather than a concrete object type such
-///   as [`Object`];
+///   as [`IdentObject`];
 ///     this allows other representations to be used,
-///       while still permitting the use of matching on [`Object`] through
-///       the use of [`ident`](ObjectData::ident).
+///       while still permitting the use of matching on [`IdentObject`]
+///       through the use of [`ident`](IdentObjectState::ident).
 ///
 /// Since an object implementing this trait may not be an identifier
 ///   (e.g. an expression),
-///   even [`name`](ObjectData::name)---which
-///     is used by all [`Object`] variants---returns
+///   even [`name`](IdentObjectData::name)---which
+///     is used by all [`IdentObject`] variants---returns
 ///     an [`Option`].
 /// These methods also provide a convenient alternative to `match`ing on
 ///   data that may not be present in all variants.
-pub trait ObjectData<'i> {
+pub trait IdentObjectData<'i> {
     /// Identifier name.
     ///
     /// If the object is not an identifier,
@@ -99,31 +99,37 @@ pub trait ObjectData<'i> {
     /// Identifier [`IdentKind`].
     ///
     /// If the object does not have a kind
-    ///   (as is the case with [`Object::Missing`]),
+    ///   (as is the case with [`IdentObject::Missing`]),
     ///     [`None`] is returned.
     fn kind(&self) -> Option<&IdentKind>;
 
     /// Identifier [`Source`].
     ///
     /// If the object does not have source information
-    ///   (as is the case with [`Object::Extern`]),
+    ///   (as is the case with [`IdentObject::Extern`]),
     ///     [`None`] is returned.
     fn src(&self) -> Option<&Source<'i>>;
 
-    /// Object as an identifier ([`Object`]).
+    /// Identifier [`FragmentText`].
+    ///
+    /// If the object does not have an associated code fragment,
+    ///   [`None`] is returned.
+    fn fragment(&self) -> Option<&FragmentText>;
+
+    /// IdentObject as an identifier ([`IdentObject`]).
     ///
     /// If the object is not or cannot be faithfully converted into an
-    ///   [`Object`],
+    ///   [`IdentObject`],
     ///     [`None`] is returned.
     /// For example,
     ///   expressions will always yield [`None`].
     ///
-    /// This allows pattern matching on [`Object`] variants regardless of
-    ///   the underlying object type.
-    fn ident(&self) -> Option<&Object<'i>>;
+    /// This allows pattern matching on [`IdentObject`] variants regardless
+    ///   of the underlying object type.
+    fn as_ident(&self) -> Option<&IdentObject<'i>>;
 }
 
-impl<'i> ObjectData<'i> for Object<'i> {
+impl<'i> IdentObjectData<'i> for IdentObject<'i> {
     fn name(&self) -> Option<&'i Symbol<'i>> {
         match self {
             Self::Missing(name)
@@ -151,23 +157,33 @@ impl<'i> ObjectData<'i> for Object<'i> {
         }
     }
 
-    /// Expose underlying [`Object`].
+    fn fragment(&self) -> Option<&FragmentText> {
+        match self {
+            Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _) => {
+                None
+            }
+            Self::IdentFragment(_, _, _, text) => Some(text),
+        }
+    }
+
+    /// Expose underlying [`IdentObject`].
     ///
     /// This will never be [`None`] for this implementation.
     /// However,
-    ///   other [`ObjectData`] implementations may still result in [`None`],
-    ///   so it's important _not_ to rely on this as an excuse to be lazy
-    ///     with unwrapping.
+    ///   other [`IdentObjectData`] implementations may still result in
+    ///   [`None`],
+    ///     so it's important _not_ to rely on this as an excuse to be lazy
+    ///       with unwrapping.
     #[inline]
-    fn ident(&self) -> Option<&Object<'i>> {
+    fn as_ident(&self) -> Option<&IdentObject<'i>> {
         Some(&self)
     }
 }
 
 /// Objects as a state machine.
-pub trait ObjectState<'i, T>
+pub trait IdentObjectState<'i, T>
 where
-    T: ObjectState<'i, T>,
+    T: IdentObjectState<'i, T>,
 {
     /// Produce an object representing a missing identifier.
     fn missing(ident: &'i Symbol<'i>) -> T;
@@ -197,32 +213,32 @@ where
     fn set_fragment(self, text: FragmentText) -> TransitionResult<T>;
 }
 
-impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
+impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     fn missing(ident: &'i Symbol<'i>) -> Self {
-        Object::Missing(ident)
+        IdentObject::Missing(ident)
     }
 
     fn ident(name: &'i Symbol<'i>, kind: IdentKind, src: Source<'i>) -> Self {
-        Object::Ident(name, kind, src)
+        IdentObject::Ident(name, kind, src)
     }
 
     fn extern_(name: &'i Symbol<'i>, kind: IdentKind) -> Self {
-        Object::Extern(name, kind)
+        IdentObject::Extern(name, kind)
     }
 
     /// Attempt to redeclare an identifier with additional information.
     ///
-    /// If an existing identifier is an [`Object::Extern`],
+    /// If an existing identifier is an [`IdentObject::Extern`],
     ///   then the declaration will be compared just the same,
     ///     but the identifier will be converted from an extern into an
     ///     identifier.
     /// When this happens,
     ///   the extern is said to be _resolved_.
     ///
-    /// If a virtual identifier of type [`Object::IdentFragment`] is
+    /// If a virtual identifier of type [`IdentObject::IdentFragment`] is
     ///   overridden,
     ///     then its fragment is cleared
-    ///     (it returns to a [`Object::Ident`])
+    ///     (it returns to a [`IdentObject::Ident`])
     ///     to make way for the fragment of the override.
     ///
     /// The kind of identifier cannot change,
@@ -232,9 +248,9 @@ impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
         mut self,
         kind: IdentKind,
         src: Source<'i>,
-    ) -> TransitionResult<Object<'i>> {
+    ) -> TransitionResult<IdentObject<'i>> {
         match self {
-            Object::Ident(_, _, ref mut orig_src)
+            IdentObject::Ident(_, _, ref mut orig_src)
                 if orig_src.virtual_ && src.override_ =>
             {
                 *orig_src = src;
@@ -242,15 +258,15 @@ impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
             }
 
             // TODO: no override-override
-            Object::IdentFragment(name, _, orig_src, _)
+            IdentObject::IdentFragment(name, _, orig_src, _)
                 if orig_src.virtual_ && src.override_ =>
             {
                 // clears fragment, which is no longer applicable
-                Ok(Object::Ident(name, kind, src))
+                Ok(IdentObject::Ident(name, kind, src))
             }
 
-            Object::Missing(name) | Object::Ident(name, _, _) => {
-                Ok(Object::Ident(name, kind, src))
+            IdentObject::Missing(name) | IdentObject::Ident(name, _, _) => {
+                Ok(IdentObject::Ident(name, kind, src))
             }
 
             // TODO: incompatible (check now-dangling commits)
@@ -258,19 +274,24 @@ impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
         }
     }
 
-    fn set_fragment(self, text: FragmentText) -> TransitionResult<Object<'i>> {
+    fn set_fragment(
+        self,
+        text: FragmentText,
+    ) -> TransitionResult<IdentObject<'i>> {
         match self {
-            Object::Ident(sym, kind, src) => {
-                Ok(Object::IdentFragment(sym, kind, src, text))
+            IdentObject::Ident(sym, kind, src) => {
+                Ok(IdentObject::IdentFragment(sym, kind, src, text))
             }
 
-            Object::IdentFragment(_, IdentKind::MapHead, _, _)
-            | Object::IdentFragment(_, IdentKind::MapTail, _, _)
-            | Object::IdentFragment(_, IdentKind::RetMapHead, _, _)
-            | Object::IdentFragment(_, IdentKind::RetMapTail, _, _) => Ok(self),
+            IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::RetMapTail, _, _) => {
+                Ok(self)
+            }
 
             // TODO remove these ignores when fixed
-            Object::IdentFragment(
+            IdentObject::IdentFragment(
                 sym,
                 IdentKind::Map,
                 Source {
@@ -286,7 +307,7 @@ impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
                 );
                 Ok(self)
             }
-            Object::IdentFragment(
+            IdentObject::IdentFragment(
                 sym,
                 IdentKind::RetMap,
                 Source {
@@ -304,8 +325,10 @@ impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
             }
 
             _ => {
-                let msg =
-                    format!("identifier is not a Object::Ident): {:?}", self,);
+                let msg = format!(
+                    "identifier is not a IdentObject::Ident): {:?}",
+                    self,
+                );
 
                 Err((self, TransitionError::BadFragmentDest(msg)))
             }
@@ -313,7 +336,8 @@ impl<'i> ObjectState<'i, Object<'i>> for Object<'i> {
     }
 }
 
-/// An error attempting to transition from one [`Object`] state to another.
+/// An error attempting to transition from one [`IdentObject`] state to
+///   another.
 ///
 /// TODO: Provide enough information to construct a useful message.
 #[derive(Debug, PartialEq)]
@@ -322,13 +346,13 @@ pub enum TransitionError {
     ///   has failed because the provided information was not compatible
     ///   with the original declaration.
     ///
-    /// See [`ObjectState::redeclare`].
+    /// See [`IdentObjectState::redeclare`].
     Incompatible(String),
 
     /// The provided identifier is not in a state that is permitted to
     ///   receive a fragment.
     ///
-    /// See [`ObjectState::set_fragment`].
+    /// See [`IdentObjectState::set_fragment`].
     BadFragmentDest(String),
 }
 
@@ -448,8 +472,354 @@ impl<'i> From<SymAttrs<'i>> for Source<'i> {
 
 #[cfg(test)]
 mod test {
+    use super::super::ident::Dim;
     use super::*;
     use crate::sym::SymbolIndex;
+
+    mod ident_object_data {
+        use super::*;
+
+        // Note that IdentObject has no variants capable of None
+        #[test]
+        fn ident_object_name() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+
+            assert_eq!(Some(&sym), IdentObject::Missing(&sym).name());
+
+            assert_eq!(
+                Some(&sym),
+                IdentObject::Ident(&sym, IdentKind::Meta, Source::default())
+                    .name()
+            );
+
+            assert_eq!(
+                Some(&sym),
+                IdentObject::Extern(&sym, IdentKind::Meta).name()
+            );
+
+            assert_eq!(
+                Some(&sym),
+                IdentObject::IdentFragment(
+                    &sym,
+                    IdentKind::Meta,
+                    Source::default(),
+                    FragmentText::default(),
+                )
+                .name()
+            );
+        }
+
+        #[test]
+        fn ident_object_kind() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let kind = IdentKind::Class(Dim::from_u8(5));
+
+            assert_eq!(None, IdentObject::Missing(&sym).kind());
+
+            assert_eq!(
+                Some(&kind),
+                IdentObject::Ident(&sym, kind.clone(), Source::default())
+                    .kind()
+            );
+
+            assert_eq!(
+                Some(&kind),
+                IdentObject::Extern(&sym, kind.clone()).kind()
+            );
+
+            assert_eq!(
+                Some(&kind),
+                IdentObject::IdentFragment(
+                    &sym,
+                    kind.clone(),
+                    Source::default(),
+                    FragmentText::default()
+                )
+                .kind()
+            );
+        }
+
+        #[test]
+        fn ident_object_src() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let src = Source {
+                desc: Some("test source".into()),
+                ..Default::default()
+            };
+
+            assert_eq!(None, IdentObject::Missing(&sym).src());
+
+            assert_eq!(
+                Some(&src),
+                IdentObject::Ident(&sym, IdentKind::Meta, src.clone()).src()
+            );
+
+            assert_eq!(None, IdentObject::Extern(&sym, IdentKind::Meta).src());
+
+            assert_eq!(
+                Some(&src),
+                IdentObject::IdentFragment(
+                    &sym,
+                    IdentKind::Meta,
+                    src.clone(),
+                    FragmentText::default()
+                )
+                .src()
+            );
+        }
+
+        #[test]
+        fn ident_object_fragment() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let text: FragmentText = "foo".into();
+
+            assert_eq!(None, IdentObject::Missing(&sym).fragment());
+
+            assert_eq!(
+                None,
+                IdentObject::Ident(&sym, IdentKind::Meta, Source::default())
+                    .fragment()
+            );
+
+            assert_eq!(
+                None,
+                IdentObject::Extern(&sym, IdentKind::Meta).fragment()
+            );
+
+            assert_eq!(
+                Some(&text),
+                IdentObject::IdentFragment(
+                    &sym,
+                    IdentKind::Meta,
+                    Source::default(),
+                    text.clone(),
+                )
+                .fragment()
+            );
+        }
+
+        #[test]
+        fn ident_object_as_ident() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let ident = IdentObject::Missing(&sym);
+
+            // Since we _are_ an IdentObject, we should return a reference
+            // to ourselves.  We want this, not a clone.
+            assert!(std::ptr::eq(
+                &ident as *const _,
+                ident.as_ident().unwrap() as *const _,
+            ));
+        }
+    }
+
+    mod ident_object_state {
+        use super::*;
+
+        #[test]
+        fn ident_object_missing() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "missing");
+            assert_eq!(IdentObject::Missing(&sym), IdentObject::missing(&sym));
+        }
+
+        #[test]
+        fn ident_object_ident() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "missing");
+            let kind = IdentKind::Meta;
+            let src = Source {
+                desc: Some("ident ctor".into()),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                IdentObject::Ident(&sym, kind.clone(), src.clone()),
+                IdentObject::ident(&sym, kind.clone(), src.clone()),
+            );
+        }
+
+        #[test]
+        fn ident_object_extern() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "missing");
+            let kind = IdentKind::Class(Dim::from_u8(1));
+
+            assert_eq!(
+                IdentObject::Extern(&sym, kind.clone()),
+                IdentObject::extern_(&sym, kind.clone()),
+            );
+        }
+
+        // TODO: incompatible
+        #[test]
+        fn redeclare_returns_existing_compatible() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
+
+            let first =
+                IdentObject::ident(&sym, IdentKind::Meta, Source::default());
+
+            // Same declaration a second time
+            assert_eq!(
+                Ok(first.clone()),
+                first.clone().redeclare(
+                    first.kind().unwrap().clone(),
+                    first.src().unwrap().clone(),
+                )
+            );
+        }
+
+        #[test]
+        fn add_fragment_to_ident() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
+            let src = Source {
+                generated: true,
+                ..Default::default()
+            };
+
+            let kind = IdentKind::Meta;
+            let ident = IdentObject::ident(&sym, kind.clone(), src.clone());
+            let text = FragmentText::from("a fragment");
+            let ident_with_frag = ident.set_fragment(text.clone());
+
+            assert_eq!(
+                Ok(IdentObject::IdentFragment(&sym, kind, src, text)),
+                ident_with_frag,
+            );
+        }
+
+        #[test]
+        fn add_fragment_to_fragment_fails() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "badsym");
+            let ident =
+                IdentObject::ident(&sym, IdentKind::Meta, Source::default());
+
+            let ident_with_frag = ident
+                .set_fragment("orig fragment".into())
+                .expect("set_fragment failed");
+
+            // Since it's already a fragment, this should fail.
+            let err = ident_with_frag
+                .clone()
+                .set_fragment("replacement".to_string())
+                .expect_err("Expected failure");
+
+            match err {
+                (orig, TransitionError::BadFragmentDest(str))
+                    if str.contains("badsym") =>
+                {
+                    assert_eq!(ident_with_frag, orig);
+                }
+                _ => panic!(
+                    "expected TransitionError::BadFragmentDest: {:?}",
+                    err
+                ),
+            }
+        }
+
+        // TODO: incompatible
+        #[test]
+        fn declare_override_virtual_ident() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
+            let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+            let kind = IdentKind::Meta;
+
+            let virt = IdentObject::ident(
+                &sym,
+                kind.clone(),
+                Source {
+                    virtual_: true,
+                    ..Default::default()
+                },
+            );
+
+            let over_src = Source {
+                override_: true,
+                src: Some(&over_src),
+                ..Default::default()
+            };
+
+            let result = virt.redeclare(kind.clone(), over_src.clone());
+
+            assert_eq!(Ok(IdentObject::Ident(&sym, kind, over_src)), result);
+        }
+
+        // TODO: incompatible
+        #[test]
+        fn declare_override_virtual_ident_fragment() {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
+            let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+            let kind = IdentKind::Meta;
+
+            let virt_src = Source {
+                virtual_: true,
+                ..Default::default()
+            };
+
+            let virt = IdentObject::ident(&sym, kind.clone(), virt_src.clone());
+            let text = FragmentText::from("remove me");
+            let virt_frag = virt.set_fragment(text.clone());
+
+            assert_eq!(
+                Ok(IdentObject::IdentFragment(
+                    &sym,
+                    kind.clone(),
+                    virt_src,
+                    text
+                )),
+                virt_frag,
+            );
+
+            let over_src = Source {
+                override_: true,
+                src: Some(&over_src),
+                ..Default::default()
+            };
+
+            let result =
+                virt_frag.unwrap().redeclare(kind.clone(), over_src.clone());
+
+            // The act of overriding the object should have cleared any
+            // existing fragment, making way for a new fragment to take its
+            // place as soon as it is discovered.  (So, back to an
+            // IdentObject::Ident.)
+            assert_eq!(Ok(IdentObject::Ident(&sym, kind, over_src)), result);
+        }
+
+        fn add_ident_kind_ignores(given: IdentKind, expected: IdentKind) {
+            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
+            let src = Source {
+                generated: true,
+                ..Default::default()
+            };
+
+            let obj = IdentObject::ident(&sym, given, src.clone());
+
+            let fragment = "a fragment".to_string();
+            let obj_with_frag = obj.set_fragment(fragment.clone());
+
+            assert_eq!(
+                Ok(IdentObject::IdentFragment(&sym, expected, src, fragment)),
+                obj_with_frag,
+            );
+        }
+
+        #[test]
+        fn add_fragment_to_ident_map_head() {
+            add_ident_kind_ignores(IdentKind::MapHead, IdentKind::MapHead)
+        }
+
+        #[test]
+        fn add_fragment_to_ident_map_tail() {
+            add_ident_kind_ignores(IdentKind::MapTail, IdentKind::MapTail)
+        }
+
+        #[test]
+        fn add_fragment_to_ident_retmap_head() {
+            add_ident_kind_ignores(IdentKind::RetMapHead, IdentKind::RetMapHead)
+        }
+
+        #[test]
+        fn add_fragment_to_ident_retmap_tail() {
+            add_ident_kind_ignores(IdentKind::RetMapTail, IdentKind::RetMapTail)
+        }
+    }
 
     #[test]
     fn source_from_sym_attrs() {

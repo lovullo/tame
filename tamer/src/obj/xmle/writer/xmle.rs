@@ -19,7 +19,7 @@
 
 use super::writer::{Result, WriterError};
 use crate::ir::asg::{
-    IdentKind, Object, ObjectData, SectionIterator, Sections,
+    IdentKind, IdentObject, IdentObjectData, SectionIterator, Sections,
 };
 use crate::sym::Symbol;
 use fxhash::FxHashSet;
@@ -72,12 +72,12 @@ impl<W: Write> XmleWriter<W> {
     /// ```
     /// use std::io::Cursor;
     /// use tamer::obj::xmle::writer::XmleWriter;
-    /// use tamer::ir::asg::{Sections, Object};
+    /// use tamer::ir::asg::{Sections, IdentObject};
     /// use tamer::sym::{Symbol, SymbolIndex, DefaultInterner, Interner};
     ///
     /// let writer = Cursor::new(Vec::new());
     /// let mut xmle_writer = XmleWriter::new(writer);
-    /// let sections = Sections::<Object>::new();
+    /// let sections = Sections::<IdentObject>::new();
     /// let a = "foo";
     /// let interner = DefaultInterner::new();
     /// let name = interner.intern(&a);
@@ -89,7 +89,7 @@ impl<W: Write> XmleWriter<W> {
     /// let buf = xmle_writer.into_inner().into_inner();
     /// assert!(!buf.is_empty(), "something was written to the buffer");
     /// ```
-    pub fn write<'i, T: ObjectData<'i>>(
+    pub fn write<'i, T: IdentObjectData<'i>>(
         &mut self,
         sections: &Sections<T>,
         name: &Symbol,
@@ -192,7 +192,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// All the [`Sections`] found need to be written out using the `writer`
     ///   object.
-    fn write_sections<'i, T: ObjectData<'i>>(
+    fn write_sections<'i, T: IdentObjectData<'i>>(
         &mut self,
         sections: &Sections<T>,
         relroot: &str,
@@ -210,12 +210,12 @@ impl<W: Write> XmleWriter<W> {
 
         for obj in all {
             let ident = obj
-                .ident()
+                .as_ident()
                 .expect("internal error: encountered non-identifier object");
 
             match ident {
-                Object::Ident(sym, kind, src)
-                | Object::IdentFragment(sym, kind, src, _) => {
+                IdentObject::Ident(sym, kind, src)
+                | IdentObject::IdentFragment(sym, kind, src, _) => {
                     let name: &str = sym;
 
                     // this'll be formalized more sanely
@@ -305,7 +305,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// If a `map` object has a `from` attribute in its source, we need to
     ///   write them using the `writer`'s `write_event`.
-    fn write_froms<'i, T: ObjectData<'i>>(
+    fn write_froms<'i, T: IdentObjectData<'i>>(
         &mut self,
         sections: &Sections<T>,
     ) -> Result<&mut XmleWriter<W>> {
@@ -339,26 +339,26 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// Iterates through the parts of a `Section` and writes them using the
     ///   `writer`'s 'write_event`.
-    fn write_section<'i, T: ObjectData<'i>>(
+    fn write_section<'i, T: IdentObjectData<'i>>(
         &mut self,
         idents: SectionIterator<T>,
     ) -> Result<&mut XmleWriter<W>> {
         for obj in idents {
             let ident = obj
-                .ident()
+                .as_ident()
                 .expect("internal error: encountered non-identifier object");
 
             match ident {
-                Object::IdentFragment(_, _, _, frag) => {
+                IdentObject::IdentFragment(_, _, _, frag) => {
                     self.writer.write_event(Event::Text(
                         BytesText::from_plain_str(frag),
                     ))?;
                 }
                 // Cgen, Gen, and Lparam are not expected to be present, so we
                 //   can ignore them when we determeing when to return an Err.
-                Object::Ident(_, IdentKind::Cgen(_), _)
-                | Object::Ident(_, IdentKind::Gen(_, _), _)
-                | Object::Ident(_, IdentKind::Lparam(_, _), _) => (),
+                IdentObject::Ident(_, IdentKind::Cgen(_), _)
+                | IdentObject::Ident(_, IdentKind::Gen(_, _), _)
+                | IdentObject::Ident(_, IdentKind::Lparam(_, _), _) => (),
                 obj => {
                     return Err(WriterError::ExpectedFragment(format!(
                         "fragment expected: {:?}",
@@ -509,7 +509,7 @@ mod test {
         }));
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let obj = Object::IdentFragment(
+        let obj = IdentObject::IdentFragment(
             &sym,
             IdentKind::Meta,
             Source::default(),
@@ -531,7 +531,7 @@ mod test {
         }));
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let obj = Object::Ident(
+        let obj = IdentObject::Ident(
             &sym,
             IdentKind::Cgen(Dim::default()),
             Source::default(),
@@ -552,7 +552,7 @@ mod test {
         }));
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let obj = Object::Missing(&sym);
+        let obj = IdentObject::Missing(&sym);
 
         let mut section = Section::new();
         section.push_body(&obj);
@@ -592,7 +592,7 @@ mod test {
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "random_symbol");
         let object =
-            Object::Ident(&sym, IdentKind::Worksheet, Source::default());
+            IdentObject::Ident(&sym, IdentKind::Worksheet, Source::default());
         let mut sections = Sections::new();
         sections.map.push_body(&object);
         sut.write_sections(&sections, &String::from(""))?;
@@ -662,7 +662,8 @@ mod test {
             virtual_: true,
             ..Default::default()
         };
-        let object = Object::Ident(&nsym, IdentKind::Worksheet, attrs.into());
+        let object =
+            IdentObject::Ident(&nsym, IdentKind::Worksheet, attrs.into());
         let mut sections = Sections::new();
         sections.map.push_body(&object);
         sut.write_sections(&sections, &String::from("root"))?;
@@ -696,7 +697,7 @@ mod test {
 
         let mut src = Source::default();
         src.from = Some(vec![&symb]);
-        let object = Object::Ident(&sym, IdentKind::Worksheet, src);
+        let object = IdentObject::Ident(&sym, IdentKind::Worksheet, src);
         let mut sections = Sections::new();
         sections.map.push_body(&object);
         sut.write_froms(&sections)?;
@@ -715,7 +716,7 @@ mod test {
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "random_symbol");
 
         let object =
-            Object::Ident(&sym, IdentKind::Worksheet, Source::default());
+            IdentObject::Ident(&sym, IdentKind::Worksheet, Source::default());
         let mut sections = Sections::new();
         sections.map.push_body(&object);
         sut.write_froms(&sections)?;

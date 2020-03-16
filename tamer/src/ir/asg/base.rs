@@ -23,7 +23,7 @@ use super::graph::{
     Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef, SortableAsg,
 };
 use super::ident::IdentKind;
-use super::object::{FragmentText, ObjectData, ObjectState, Source};
+use super::object::{FragmentText, IdentObjectData, IdentObjectState, Source};
 use super::Sections;
 use crate::sym::Symbol;
 use fixedbitset::FixedBitSet;
@@ -64,7 +64,7 @@ where
 impl<'i, O, Ix> BaseAsg<O, Ix>
 where
     Ix: IndexType,
-    O: ObjectState<'i, O>,
+    O: IdentObjectState<'i, O>,
 {
     /// Create an ASG with the provided initial capacity.
     ///
@@ -128,7 +128,7 @@ where
     /// Lookup `ident` or add a missing identifier to the graph and return a
     ///   reference to it.
     ///
-    /// See [`ObjectState::missing`] for more information.
+    /// See [`IdentObjectState::missing`] for more information.
     #[inline]
     fn lookup_or_missing(&mut self, ident: &'i Symbol<'i>) -> ObjectRef<Ix> {
         self.lookup(ident).unwrap_or_else(|| {
@@ -143,7 +143,7 @@ where
 impl<'i, O, Ix> Asg<'i, O, Ix> for BaseAsg<O, Ix>
 where
     Ix: IndexType,
-    O: ObjectState<'i, O>,
+    O: IdentObjectState<'i, O>,
 {
     fn declare(
         &mut self,
@@ -267,7 +267,7 @@ where
 impl<'i, O, Ix> SortableAsg<'i, O, Ix> for BaseAsg<O, Ix>
 where
     Ix: IndexType,
-    O: ObjectData<'i> + ObjectState<'i, O>,
+    O: IdentObjectData<'i> + IdentObjectState<'i, O>,
 {
     fn sort(&'i self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'i, O>> {
         let mut deps = Sections::new();
@@ -302,7 +302,7 @@ where
                 None => {
                     return Err(AsgError::UnexpectedNode(format!(
                         "{:?}",
-                        ident.ident()
+                        ident.as_ident()
                     )))
                 }
             }
@@ -351,11 +351,99 @@ where
 mod test {
     use super::super::graph::AsgError;
     use super::*;
-    use crate::ir::asg::Object;
+    use crate::ir::asg::{Dim, IdentObject, TransitionError, TransitionResult};
     use crate::sym::SymbolIndex;
+    use std::cell::RefCell;
 
-    // TODO: mock Object
-    type Sut<'i> = BaseAsg<Object<'i>, u8>;
+    #[derive(Debug, Default, PartialEq)]
+    struct StubIdentObject<'i> {
+        given_missing: Option<&'i Symbol<'i>>,
+        given_ident: Option<(&'i Symbol<'i>, IdentKind, Source<'i>)>,
+        given_extern: Option<(&'i Symbol<'i>, IdentKind)>,
+        given_redeclare: Option<(IdentKind, Source<'i>)>,
+        given_set_fragment: Option<FragmentText>,
+        fail_redeclare: RefCell<Option<TransitionError>>,
+    }
+
+    impl<'i> IdentObjectData<'i> for StubIdentObject<'i> {
+        fn name(&self) -> Option<&'i Symbol<'i>> {
+            self.given_missing
+                .or(self.given_ident.as_ref().map(|args| args.0))
+                .or(self.given_extern.as_ref().map(|args| args.0))
+        }
+
+        fn kind(&self) -> Option<&IdentKind> {
+            self.given_ident
+                .as_ref()
+                .map(|args| &args.1)
+                .or(self.given_extern.as_ref().map(|args| &args.1))
+                .or(self.given_redeclare.as_ref().map(|args| &args.0))
+        }
+
+        fn src(&self) -> Option<&Source<'i>> {
+            None
+        }
+
+        fn fragment(&self) -> Option<&FragmentText> {
+            None
+        }
+
+        fn as_ident(&self) -> Option<&IdentObject<'i>> {
+            None
+        }
+    }
+
+    impl<'i> IdentObjectState<'i, StubIdentObject<'i>> for StubIdentObject<'i> {
+        fn missing(ident: &'i Symbol<'i>) -> Self {
+            Self {
+                given_missing: Some(ident),
+                ..Default::default()
+            }
+        }
+
+        fn ident(
+            name: &'i Symbol<'i>,
+            kind: IdentKind,
+            src: Source<'i>,
+        ) -> Self {
+            Self {
+                given_ident: Some((name, kind, src)),
+                ..Default::default()
+            }
+        }
+
+        fn extern_(name: &'i Symbol<'i>, kind: IdentKind) -> Self {
+            Self {
+                given_extern: Some((name, kind)),
+                ..Default::default()
+            }
+        }
+
+        fn redeclare(
+            mut self,
+            kind: IdentKind,
+            src: Source<'i>,
+        ) -> TransitionResult<StubIdentObject<'i>> {
+            if self.fail_redeclare.borrow().is_some() {
+                let err = self.fail_redeclare.replace(None).unwrap();
+                return Err((self, err));
+            }
+
+            self.given_redeclare = Some((kind, src));
+            Ok(self)
+        }
+
+        fn set_fragment(
+            mut self,
+            text: FragmentText,
+        ) -> TransitionResult<StubIdentObject<'i>> {
+            self.given_set_fragment.replace(text);
+            Ok(self)
+        }
+    }
+
+    // TODO: mock IdentObject
+    type Sut<'i> = BaseAsg<StubIdentObject<'i>, u8>;
 
     #[test]
     fn create_with_capacity() {
@@ -404,7 +492,7 @@ mod test {
         assert_ne!(nodea, nodeb);
 
         assert_eq!(
-            Some(&Object::Ident(
+            Some((
                 &syma,
                 IdentKind::Meta,
                 Source {
@@ -412,11 +500,11 @@ mod test {
                     ..Default::default()
                 },
             )),
-            sut.get(nodea),
+            sut.get(nodea).unwrap().given_ident
         );
 
         assert_eq!(
-            Some(&Object::Ident(
+            Some((
                 &symb,
                 IdentKind::Worksheet,
                 Source {
@@ -424,7 +512,7 @@ mod test {
                     ..Default::default()
                 },
             )),
-            sut.get(nodeb),
+            sut.get(nodeb).unwrap().given_ident
         );
 
         Ok(())
@@ -456,100 +544,74 @@ mod test {
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "extern");
         let node = sut.declare_extern(&sym, IdentKind::Meta)?;
 
-        assert_eq!(Some(&Object::Extern(&sym, IdentKind::Meta)), sut.get(node),);
+        assert_eq!(
+            Some((&sym, IdentKind::Meta)),
+            sut.get(node).unwrap().given_extern,
+        );
 
         Ok(())
     }
 
-    // TODO: incompatible
     #[test]
-    fn declare_returns_existing_compatible() -> AsgResult<()> {
+    fn declare_returns_existing() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
-        let node = sut.declare(&sym, IdentKind::Meta, Source::default())?;
+        let src = Source::default();
+        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
 
-        // Same declaration a second time
-        let redeclare =
-            sut.declare(&sym, IdentKind::Meta, Source::default())?;
+        // Remember that our stub does not care about compatibility.
+        let rekind = IdentKind::Class(Dim::from_u8(3));
+        let resrc = Source {
+            desc: Some("redeclare".into()),
+            ..Default::default()
+        };
+        let redeclare = sut.declare(&sym, rekind.clone(), resrc.clone())?;
 
+        // We don't care what the objects are for this test, just that the
+        // same node is referenced.
         assert_eq!(node, redeclare);
-        Ok(())
-    }
-
-    // TODO: incompatible
-    #[test]
-    fn declare_override_virtual_ident() -> AsgResult<()> {
-        let mut sut = Sut::with_capacity(0, 0);
-
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
-        let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
-
-        let virt_node = sut.declare(
-            &sym,
-            IdentKind::Meta,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )?;
-
-        let over_src = Source {
-            override_: true,
-            src: Some(&over_src),
-            ..Default::default()
-        };
-
-        let over_node = sut.declare(&sym, IdentKind::Meta, over_src.clone())?;
-
-        assert_eq!(virt_node, over_node);
 
         assert_eq!(
-            sut.get(over_node),
-            Some(&Object::Ident(&sym, IdentKind::Meta, over_src,))
+            Some((rekind, resrc)),
+            sut.get(node).unwrap().given_redeclare,
         );
 
         Ok(())
     }
 
-    // TODO: incompatible
+    // Builds upon declare_returns_existing.
     #[test]
-    fn declare_override_virtual_ident_fragment() -> AsgResult<()> {
+    fn declare_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
-        let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
-
-        let virt_node = sut.declare(
-            &sym,
-            IdentKind::Meta,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )?;
-
-        sut.set_fragment(virt_node, FragmentText::from("remove me"))?;
-
-        let over_src = Source {
-            override_: true,
-            src: Some(&over_src),
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
+        let src = Source {
+            desc: Some("orig".into()),
             ..Default::default()
         };
 
-        let over_node = sut.declare(&sym, IdentKind::Meta, over_src.clone())?;
+        // Set up an object to fail redeclaration.
+        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+        let obj = sut.get(node).unwrap();
+        let msg = String::from("test fail");
+        obj.fail_redeclare
+            .replace(Some(TransitionError::Incompatible(msg.clone())));
 
-        assert_eq!(virt_node, over_node);
+        // Should invoke StubIdentObject::redeclare on the above `obj`.
+        let result = sut.declare(&sym, IdentKind::Meta, Source::default());
 
-        // The act of overriding the node should have cleared any existing
-        // fragment, making way for a new fragment to take its place as soon
-        // as it is discovered.  (So, back to an Object::Ident.)
-        assert_eq!(
-            sut.get(over_node),
-            Some(&Object::Ident(&sym, IdentKind::Meta, over_src,))
-        );
+        if let Err(err) = result {
+            // The node should have been restored.
+            let obj = sut.get(node).unwrap();
+            assert_eq!(src, obj.given_ident.as_ref().unwrap().2);
 
-        Ok(())
+            assert_eq!(AsgError::IncompatibleIdent(msg), err);
+
+            Ok(())
+        } else {
+            panic!("failure expected: {:?}", result);
+        }
     }
 
     #[test]
@@ -573,88 +635,15 @@ mod test {
             "fragment node does not match original node"
         );
 
-        assert_eq!(
-            Some(&Object::IdentFragment(&sym, IdentKind::Meta, src, fragment)),
-            sut.get(node)
-        );
+        let obj = sut.get(node).unwrap();
+
+        assert_eq!(Some((&sym, IdentKind::Meta, src,)), obj.given_ident);
+        assert_eq!(Some(fragment), obj.given_set_fragment);
 
         Ok(())
     }
 
-    fn add_ident_kind_ignores(
-        given: IdentKind,
-        expected: IdentKind,
-    ) -> AsgResult<()> {
-        let mut sut = Sut::with_capacity(0, 0);
-
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
-        let src = Source {
-            generated: true,
-            ..Default::default()
-        };
-
-        let node = sut.declare(&sym, given, src.clone())?;
-
-        let fragment = "a fragment".to_string();
-        let node_with_frag = sut.set_fragment(node, fragment.clone())?;
-
-        // Attaching a fragment should _replace_ the node, not create a
-        // new one
-        assert_eq!(
-            node, node_with_frag,
-            "fragment node does not match original node"
-        );
-
-        assert_eq!(
-            Some(&Object::IdentFragment(&sym, expected, src, fragment)),
-            sut.get(node)
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn add_fragment_to_ident_map_head() -> AsgResult<()> {
-        add_ident_kind_ignores(IdentKind::MapHead, IdentKind::MapHead)
-    }
-
-    #[test]
-    fn add_fragment_to_ident_map_tail() -> AsgResult<()> {
-        add_ident_kind_ignores(IdentKind::MapTail, IdentKind::MapTail)
-    }
-
-    #[test]
-    fn add_fragment_to_ident_retmap_head() -> AsgResult<()> {
-        add_ident_kind_ignores(IdentKind::RetMapHead, IdentKind::RetMapHead)
-    }
-
-    #[test]
-    fn add_fragment_to_ident_retmap_tail() -> AsgResult<()> {
-        add_ident_kind_ignores(IdentKind::RetMapTail, IdentKind::RetMapTail)
-    }
-
-    #[test]
-    fn add_fragment_to_fragment_fails() -> AsgResult<()> {
-        let mut sut = Sut::with_capacity(0, 0);
-
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let node = sut.declare(&sym, IdentKind::Meta, Source::default())?;
-        let fragment = "orig fragment".to_string();
-
-        sut.set_fragment(node, fragment.clone())?;
-
-        // Since it's already a fragment, this should fail.
-        let err = sut
-            .set_fragment(node, "replacement".to_string())
-            .expect_err("Expected failure");
-
-        match err {
-            AsgError::BadFragmentDest(str) if str.contains("sym") => (),
-            _ => panic!("expected AsgError::BadFragmentDest: {:?}", err),
-        }
-
-        Ok(())
-    }
+    // TODO: fragment fail
 
     #[test]
     fn add_ident_dep_to_ident() -> AsgResult<()> {
@@ -704,8 +693,8 @@ mod test {
         let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
         assert!(sut.has_dep(symnode, depnode));
 
-        assert_eq!(Some(&Object::Missing(&sym)), sut.get(symnode));
-        assert_eq!(Some(&Object::Missing(&dep)), sut.get(depnode));
+        assert_eq!(Some(&sym), sut.get(symnode).unwrap().given_missing);
+        assert_eq!(Some(&dep), sut.get(depnode).unwrap().given_missing);
 
         Ok(())
     }
@@ -721,7 +710,7 @@ mod test {
         let (symnode, _) = sut.add_dep_lookup(&sym, &dep);
 
         let src = Source {
-            desc: Some("Tamer is NOT lamer.".to_string()),
+            desc: Some("redeclare missing".into()),
             ..Default::default()
         };
 
@@ -730,10 +719,10 @@ mod test {
 
         assert_eq!(symnode, declared);
 
-        assert_eq!(
-            Some(&Object::Ident(&sym, IdentKind::Meta, src)),
-            sut.get(declared),
-        );
+        let obj = sut.get(declared).unwrap();
+
+        assert_eq!(Some(&sym), obj.given_missing);
+        assert_eq!(Some((IdentKind::Meta, src)), obj.given_redeclare);
 
         Ok(())
     }
@@ -742,13 +731,8 @@ mod test {
         ( $iter:expr, $s:ident ) => {{
             let mut pos = 0;
             for obj in $iter {
-                match obj {
-                    Object::Ident(sym, _, _)
-                    | Object::IdentFragment(sym, _, _, _) => {
-                        assert_eq!($s.get(pos), Some(*sym));
-                    }
-                    _ => panic!("unexpected object"),
-                }
+                let sym = obj.name().expect("missing object");
+                assert_eq!($s.get(pos), Some(sym));
 
                 pos = pos + 1;
             }

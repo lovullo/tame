@@ -22,7 +22,7 @@
 
 use crate::global;
 use crate::ir::asg::{
-    Asg, DefaultAsg, IdentKind, Object, ObjectRef, Sections, SortableAsg,
+    Asg, DefaultAsg, IdentKind, IdentObject, ObjectRef, Sections, SortableAsg,
     Source,
 };
 use crate::obj::xmle::writer::XmleWriter;
@@ -34,7 +34,7 @@ use std::error::Error;
 use std::fs;
 use std::io::BufReader;
 
-type LinkerAsg<'i> = DefaultAsg<'i, Object<'i>, global::ProgIdentSize>;
+type LinkerAsg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
 type LoadResult<'i> =
@@ -241,7 +241,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 fn get_ident<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
     name: &'i Symbol<'i>,
-) -> Result<&'a Object<'i>, XmloError> {
+) -> Result<&'a IdentObject<'i>, XmloError> {
     depgraph
         .lookup(name)
         .and_then(|id| depgraph.get(id))
@@ -251,7 +251,7 @@ fn get_ident<'a, 'i>(
 fn output_xmle<'a, 'i, I: Interner<'i>>(
     depgraph: &'a LinkerAsg<'i>,
     interner: &'i I,
-    sorted: &mut Sections<'a, Object<'i>>,
+    sorted: &mut Sections<'a, IdentObject<'i>>,
     name: &'i Symbol<'i>,
     relroot: String,
     output: &str,

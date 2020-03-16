@@ -49,17 +49,17 @@ impl<'a, T> Section<'a, T> {
         self.len() == 0
     }
 
-    /// Push an `Object` into a `Section`'s head
+    /// Push an `IdentObject` into a `Section`'s head
     pub fn push_head(&mut self, obj: &'a T) {
         self.head.push(obj)
     }
 
-    /// Push an `Object` into a `Section`'s body
+    /// Push an `IdentObject` into a `Section`'s body
     pub fn push_body(&mut self, obj: &'a T) {
         self.body.push(obj)
     }
 
-    /// Push an `Object` into a `Section`'s tail
+    /// Push an `IdentObject` into a `Section`'s tail
     pub fn push_tail(&mut self, obj: &'a T) {
         self.tail.push(obj)
     }
@@ -71,12 +71,12 @@ impl<'a, T> Section<'a, T> {
     ///   method allows us to access the iterator.
     ///
     /// ```
-    /// use tamer::ir::asg::{Object, Section};
+    /// use tamer::ir::asg::{IdentObject, Section};
     /// use tamer::sym::{DefaultInterner, Interner};
     ///
     /// let interner = DefaultInterner::new();
     /// let mut section = Section::new();
-    /// let obj = Object::Missing(interner.intern("ident"));
+    /// let obj = IdentObject::Missing(interner.intern("ident"));
     /// let expect = vec![&obj, &obj, &obj];
     ///
     /// section.push_head(&obj);
@@ -151,7 +151,7 @@ impl<'a, T> Sections<'a, T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::Object;
+    use crate::ir::asg::IdentObject;
     use crate::sym::{Symbol, SymbolIndex};
 
     lazy_static! {
@@ -159,7 +159,7 @@ mod test {
             Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
     }
 
-    type Sut<'a, 'i> = Section<'a, Object<'i>>;
+    type Sut<'a, 'i> = Section<'a, IdentObject<'i>>;
 
     #[test]
     fn section_empty() {
@@ -173,7 +173,7 @@ mod test {
     #[test]
     fn section_head() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert!(section.head.is_empty());
 
@@ -185,7 +185,7 @@ mod test {
     #[test]
     fn section_body() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert!(section.body.is_empty());
 
@@ -198,7 +198,7 @@ mod test {
     #[test]
     fn section_tail() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert!(section.tail.is_empty());
 
@@ -210,7 +210,7 @@ mod test {
     #[test]
     fn section_len() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert_eq!(0, section.len());
         section.push_head(&obj);
@@ -224,7 +224,7 @@ mod test {
     #[test]
     fn section_is_empty_head() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert!(section.is_empty());
         section.push_head(&obj);
@@ -234,7 +234,7 @@ mod test {
     #[test]
     fn section_is_empty_body() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert!(section.is_empty());
         section.push_body(&obj);
@@ -244,7 +244,7 @@ mod test {
     #[test]
     fn section_is_empty_tail() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
 
         assert!(section.is_empty());
         section.push_tail(&obj);
@@ -254,7 +254,7 @@ mod test {
     #[test]
     fn section_iterator() {
         let mut section = Sut::new();
-        let obj = Object::Missing(&SYM);
+        let obj = IdentObject::Missing(&SYM);
         let expect = vec![&obj, &obj, &obj];
 
         section.push_head(&obj);
