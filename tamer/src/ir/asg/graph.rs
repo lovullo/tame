@@ -238,6 +238,8 @@ pub enum AsgError {
 
     /// The node was not expected in the current context
     UnexpectedNode(String),
+    /// The graph has a cyclic dependency
+    Cycle(String),
 }
 
 impl std::fmt::Display for AsgError {
@@ -251,6 +253,9 @@ impl std::fmt::Display for AsgError {
             }
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
+            }
+            Self::Cycle(msg) => {
+                write!(fmt, "Cyclic dependency detected: {}", msg)
             }
         }
     }
