@@ -22,20 +22,20 @@
 
 use crate::global;
 use crate::ir::asg::{
-    Asg, AsgError, DefaultAsg, IdentKind, Object, ObjectRef, Source,
+    Asg, DefaultAsg, IdentKind, Object, ObjectRef, Sections, SortableAsg,
+    Source,
 };
-use crate::obj::xmle::writer::{Sections, XmleWriter};
+use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::{FxHashMap, FxHashSet};
-use petgraph::visit::DfsPostOrder;
 use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
 
-type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
+type LinkerAsg<'i> = DefaultAsg<'i, global::ProgIdentSize>;
 
 type LoadResult<'i> =
     Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>>;
@@ -78,7 +78,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let mut sorted = sort_deps(&depgraph, &roots)?;
+    let mut sorted = depgraph.sort(&roots)?;
 
     //println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
@@ -236,58 +236,6 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     } else {
         Ok(None)
     }
-}
-
-fn sort_deps<'a, 'i>(
-    depgraph: &'a LinkerAsg<'i>,
-    roots: &Vec<LinkerObjectRef>,
-) -> Result<Sections<'a, 'i>, Box<dyn Error>> {
-    // @type=meta, @preproc:elig-class-yields
-    // @type={ret}map{,:head,:tail}
-
-    let mut deps: Sections = Sections::new();
-
-    // This is technically a topological sort, but functions have
-    // cycles.  Once we have more symbol metadata, we can filter them out
-    // and actually invoke toposort.
-    let mut dfs = DfsPostOrder::empty(&depgraph);
-
-    //println!("discovered roots: {:?}", roots);
-
-    // TODO: we'll be processing various roots separately
-    for index in roots {
-        dfs.stack.push((*index).into());
-    }
-
-    // TODO: can we encapsulate NodeIndex?
-    while let Some(index) = dfs.next(&depgraph) {
-        let ident = depgraph.get(index).expect("missing node");
-
-        match ident {
-            Object::Ident(_, kind, _)
-            | Object::IdentFragment(_, kind, _, _) => match kind {
-                IdentKind::Meta => deps.meta.push_body(ident),
-                IdentKind::Worksheet => deps.worksheet.push_body(ident),
-                IdentKind::Param(_, _) => deps.params.push_body(ident),
-                IdentKind::Type(_) => deps.types.push_body(ident),
-                IdentKind::Func(_, _) => deps.funcs.push_body(ident),
-                IdentKind::MapHead | IdentKind::Map | IdentKind::MapTail => {
-                    deps.map.push_body(ident)
-                }
-                IdentKind::RetMapHead
-                | IdentKind::RetMap
-                | IdentKind::RetMapTail => deps.retmap.push_body(ident),
-                _ => deps.rater.push_body(ident),
-            },
-            _ => {
-                return Err(
-                    AsgError::UnexpectedNode(format!("{:?}", ident)).into()
-                )
-            }
-        }
-    }
-
-    Ok(deps)
 }
 
 fn get_interner_value<'a, 'i, I: Interner<'i>>(

@@ -19,15 +19,18 @@
 
 //! Base concrete [`Asg`] implementation.
 
-use super::graph::{Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef};
+use super::graph::{
+    Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef, SortableAsg,
+};
 use super::ident::IdentKind;
 use super::object::{FragmentText, Object, Source};
+use super::Sections;
 use crate::sym::Symbol;
 use fixedbitset::FixedBitSet;
 use petgraph::graph::{
     DiGraph, EdgeIndex, Graph, IndexType, Neighbors, NodeIndex,
 };
-use petgraph::visit::{GraphBase, IntoNeighbors, Visitable};
+use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
 
 /// Concrete ASG.
 ///
@@ -299,6 +302,54 @@ where
         self.graph.update_edge(identi.0, depi.0, Default::default());
 
         (identi, depi)
+    }
+}
+
+impl<'a, 'i, Ix> SortableAsg<'a, 'i, Ix> for BaseAsg<'i, Ix>
+where
+    Ix: IndexType,
+{
+    fn sort(&'a self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'a, 'i>> {
+        let mut deps: Sections = Sections::new();
+
+        // This is technically a topological sort, but functions have
+        // cycles.  Once we have more symbol metadata, we can filter them out
+        // and actually invoke toposort.
+        let mut dfs = DfsPostOrder::empty(&self.graph);
+
+        for index in roots {
+            dfs.stack.push((*index).into());
+        }
+
+        while let Some(index) = dfs.next(&self.graph) {
+            let ident = self.get(index).expect("missing node");
+
+            match ident {
+                Object::Ident(_, kind, _)
+                | Object::IdentFragment(_, kind, _, _) => match kind {
+                    IdentKind::Meta => deps.meta.push_body(ident),
+                    IdentKind::Worksheet => deps.worksheet.push_body(ident),
+                    IdentKind::Param(_, _) => deps.params.push_body(ident),
+                    IdentKind::Type(_) => deps.types.push_body(ident),
+                    IdentKind::Func(_, _) => deps.funcs.push_body(ident),
+                    IdentKind::MapHead
+                    | IdentKind::Map
+                    | IdentKind::MapTail => deps.map.push_body(ident),
+                    IdentKind::RetMapHead
+                    | IdentKind::RetMap
+                    | IdentKind::RetMapTail => deps.retmap.push_body(ident),
+                    _ => deps.rater.push_body(ident),
+                },
+                _ => {
+                    return Err(AsgError::UnexpectedNode(format!(
+                        "{:?}",
+                        ident
+                    )))
+                }
+            }
+        }
+
+        Ok(deps)
     }
 }
 
@@ -721,6 +772,134 @@ mod test {
             Some(&Object::Ident(&sym, IdentKind::Meta, src)),
             sut.get(declared),
         );
+
+        Ok(())
+    }
+
+    macro_rules! assert_section_sym {
+        ( $iter:expr, $s:ident ) => {{
+            let mut pos = 0;
+            for obj in $iter {
+                match obj {
+                    Object::Ident(sym, _, _)
+                    | Object::IdentFragment(sym, _, _, _) => {
+                        assert_eq!($s.get(pos), Some(*sym));
+                    }
+                    _ => panic!("unexpected object"),
+                }
+
+                pos = pos + 1;
+            }
+        };};
+    }
+
+    macro_rules! add_syms {
+        ($sut:ident, $base:expr, {$($dest:ident <- $name:ident: $kind:path,)*}) => {
+            let mut i = 1;
+
+            $(
+                i += 1;
+
+                let sym = Symbol::new_dummy(
+                    SymbolIndex::from_u32(i),
+                    stringify!($name)
+                );
+
+                $sut.declare(&sym, $kind, Source::default())?;
+                let (_, _) = $sut.add_dep_lookup($base, &sym);
+
+                $dest.push(sym);
+            )*
+        };
+    }
+
+    #[test]
+    fn graph_sort() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let mut meta = vec![];
+        let mut worksheet = vec![];
+        let mut map = vec![];
+        let mut retmap = vec![];
+
+        let base = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let base_node =
+            sut.declare(&base, IdentKind::Map, Source::default())?;
+
+        add_syms!(sut, &base, {
+            meta <- meta1: IdentKind::Meta,
+            worksheet <- work1: IdentKind::Worksheet,
+            map <- map1: IdentKind::MapHead,
+            map <- map2: IdentKind::Map,
+            map <- map3: IdentKind::MapTail,
+            retmap <- retmap1: IdentKind::RetMapHead,
+            retmap <- retmap2: IdentKind::RetMap,
+            retmap <- retmap3: IdentKind::RetMapTail,
+            retmap <- retmap4: IdentKind::RetMapTail,
+            retmap <- retmap5: IdentKind::RetMap,
+            map <- map4: IdentKind::MapHead,
+            map <- map5: IdentKind::Map,
+            meta <- meta2: IdentKind::Meta,
+            worksheet <- work2: IdentKind::Worksheet,
+            map <- map6: IdentKind::MapTail,
+            retmap <- retmap6: IdentKind::RetMapHead,
+        });
+
+        map.push(base);
+
+        let sections = sut.sort(&vec![base_node])?;
+
+        assert_section_sym!(sections.meta.iter(), meta);
+        assert_section_sym!(sections.worksheet.iter(), worksheet);
+        assert_section_sym!(sections.map.iter(), map);
+        assert_section_sym!(sections.retmap.iter(), retmap);
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_missing_node() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+
+        match sut.sort(&vec![sym_node]) {
+            Ok(_) => panic!("Unexpected success - dependency is not in graph"),
+            Err(AsgError::UnexpectedNode(_)) => (),
+            _ => {
+                panic!("Incorrect error result when dependency is not in graph")
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_no_roots() -> AsgResult<()> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+
+        let sections = sut.sort(&vec![])?;
+
+        assert_eq!(Sections::new(), sections);
 
         Ok(())
     }

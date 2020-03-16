@@ -21,6 +21,7 @@
 
 use super::ident::IdentKind;
 use super::object::{FragmentText, Object, Source};
+use super::Sections;
 use crate::sym::Symbol;
 use petgraph::graph::{IndexType, NodeIndex};
 use std::result::Result;
@@ -158,6 +159,14 @@ pub trait Asg<'i, Ix: IndexType> {
         ident: &'i Symbol<'i>,
         dep: &'i Symbol<'i>,
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
+}
+
+/// Sort a graph into different [`Sections`]
+///
+/// Allow a graph to be partitioned into different [`Sections`] that can be
+///   used as an `Intermediate Representation`.
+pub trait SortableAsg<'a, 'i, Ix: IndexType> {
+    fn sort(&'a self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'a, 'i>>;
 }
 
 /// A [`Result`] with a hard-coded [`AsgError`] error type.
