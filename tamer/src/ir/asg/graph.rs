@@ -26,6 +26,7 @@ use super::object::{
 use super::Sections;
 use crate::sym::Symbol;
 use petgraph::graph::{IndexType, NodeIndex};
+use std::fmt::Debug;
 use std::result::Result;
 
 /// An abstract semantic graph of [objects][super::object].
@@ -72,7 +73,7 @@ where
         name: &'i Symbol<'i>,
         kind: IdentKind,
         src: Source<'i>,
-    ) -> AsgResult<ObjectRef<Ix>>;
+    ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Declare an abstract identifier.
     ///
@@ -98,7 +99,7 @@ where
         &mut self,
         name: &'i Symbol<'i>,
         expected_kind: IdentKind,
-    ) -> AsgResult<ObjectRef<Ix>>;
+    ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Set the fragment associated with a concrete identifier.
     ///
@@ -109,7 +110,7 @@ where
         &mut self,
         identi: ObjectRef<Ix>,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef<Ix>>;
+    ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Retrieve an object from the graph by [`ObjectRef`].
     ///
@@ -171,14 +172,17 @@ where
     O: IdentObjectData<'i>,
     Ix: IndexType,
 {
-    fn sort(&'i self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'i, O>>;
+    fn sort(
+        &'i self,
+        roots: &[ObjectRef<Ix>],
+    ) -> AsgResult<Sections<'i, O>, Ix>;
 }
 
 /// A [`Result`] with a hard-coded [`AsgError`] error type.
 ///
 /// This is the result of every [`Asg`] operation that could potentially
 ///   fail in error.
-pub type AsgResult<T> = Result<T, AsgError>;
+pub type AsgResult<T, Ix> = Result<T, AsgError<Ix>>;
 
 /// Reference to an [object][super::object] stored within the [`Asg`].
 ///
@@ -222,7 +226,7 @@ pub type Node<O> = Option<O>;
 ///   so this stores only owned values.
 /// The caller will know the problem values.
 #[derive(Debug, PartialEq)]
-pub enum AsgError {
+pub enum AsgError<Ix: Debug> {
     /// The provided identifier is not in a state that is permitted to
     ///   receive a fragment.
     ///
@@ -238,11 +242,12 @@ pub enum AsgError {
 
     /// The node was not expected in the current context
     UnexpectedNode(String),
+
     /// The graph has a cyclic dependency
-    Cycle(String),
+    Cycles(Vec<Vec<ObjectRef<Ix>>>),
 }
 
-impl std::fmt::Display for AsgError {
+impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::BadFragmentDest(msg) => {
@@ -254,20 +259,21 @@ impl std::fmt::Display for AsgError {
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
             }
-            Self::Cycle(msg) => {
-                write!(fmt, "Cyclic dependency detected: {}", msg)
+            Self::Cycles(path) => {
+                write!(fmt, "Cyclic dependencies detected: {:?}", path)
+                // write!(fmt, "Cyclic dependencies detected:")
             }
         }
     }
 }
 
-impl std::error::Error for AsgError {
+impl<Ix: Debug> std::error::Error for AsgError<Ix> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
 }
 
-impl From<TransitionError> for AsgError {
+impl<Ix: Debug> From<TransitionError> for AsgError<Ix> {
     fn from(e: TransitionError) -> Self {
         match e {
             TransitionError::Incompatible(msg) => Self::IncompatibleIdent(msg),
