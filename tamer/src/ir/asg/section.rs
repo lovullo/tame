@@ -155,8 +155,7 @@ mod test {
     use crate::sym::{Symbol, SymbolIndex};
 
     lazy_static! {
-        static ref SYM: Symbol<'static> =
-            Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        static ref SYM: Symbol<'static> = symbol_dummy!(1, "sym");
     }
 
     type Sut<'a, 'i> = Section<'a, IdentObject<'i>>;

@@ -482,7 +482,7 @@ mod test {
         // Note that IdentObject has no variants capable of None
         #[test]
         fn ident_object_name() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let sym = symbol_dummy!(1, "sym");
 
             assert_eq!(Some(&sym), IdentObject::Missing(&sym).name());
 
@@ -511,7 +511,7 @@ mod test {
 
         #[test]
         fn ident_object_kind() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let sym = symbol_dummy!(1, "sym");
             let kind = IdentKind::Class(Dim::from_u8(5));
 
             assert_eq!(None, IdentObject::Missing(&sym).kind());
@@ -541,7 +541,7 @@ mod test {
 
         #[test]
         fn ident_object_src() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let sym = symbol_dummy!(1, "sym");
             let src = Source {
                 desc: Some("test source".into()),
                 ..Default::default()
@@ -570,7 +570,7 @@ mod test {
 
         #[test]
         fn ident_object_fragment() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let sym = symbol_dummy!(1, "sym");
             let text: FragmentText = "foo".into();
 
             assert_eq!(None, IdentObject::Missing(&sym).fragment());
@@ -600,7 +600,7 @@ mod test {
 
         #[test]
         fn ident_object_as_ident() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+            let sym = symbol_dummy!(1, "sym");
             let ident = IdentObject::Missing(&sym);
 
             // Since we _are_ an IdentObject, we should return a reference
@@ -617,13 +617,13 @@ mod test {
 
         #[test]
         fn ident_object_missing() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "missing");
+            let sym = symbol_dummy!(1, "missing");
             assert_eq!(IdentObject::Missing(&sym), IdentObject::missing(&sym));
         }
 
         #[test]
         fn ident_object_ident() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "missing");
+            let sym = symbol_dummy!(1, "missing");
             let kind = IdentKind::Meta;
             let src = Source {
                 desc: Some("ident ctor".into()),
@@ -638,7 +638,7 @@ mod test {
 
         #[test]
         fn ident_object_extern() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "missing");
+            let sym = symbol_dummy!(1, "missing");
             let kind = IdentKind::Class(Dim::from_u8(1));
 
             assert_eq!(
@@ -650,7 +650,7 @@ mod test {
         // TODO: incompatible
         #[test]
         fn redeclare_returns_existing_compatible() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
+            let sym = symbol_dummy!(1, "symdup");
 
             let first =
                 IdentObject::ident(&sym, IdentKind::Meta, Source::default());
@@ -667,7 +667,7 @@ mod test {
 
         #[test]
         fn add_fragment_to_ident() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
+            let sym = symbol_dummy!(1, "tofrag");
             let src = Source {
                 generated: true,
                 ..Default::default()
@@ -686,7 +686,7 @@ mod test {
 
         #[test]
         fn add_fragment_to_fragment_fails() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "badsym");
+            let sym = symbol_dummy!(1, "badsym");
             let ident =
                 IdentObject::ident(&sym, IdentKind::Meta, Source::default());
 
@@ -716,8 +716,8 @@ mod test {
         // TODO: incompatible
         #[test]
         fn declare_override_virtual_ident() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
-            let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+            let sym = symbol_dummy!(1, "virtual");
+            let over_src = symbol_dummy!(2, "src");
             let kind = IdentKind::Meta;
 
             let virt = IdentObject::ident(
@@ -743,8 +743,8 @@ mod test {
         // TODO: incompatible
         #[test]
         fn declare_override_virtual_ident_fragment() {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "virtual");
-            let over_src = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
+            let sym = symbol_dummy!(1, "virtual");
+            let over_src = symbol_dummy!(2, "src");
             let kind = IdentKind::Meta;
 
             let virt_src = Source {
@@ -783,7 +783,7 @@ mod test {
         }
 
         fn add_ident_kind_ignores(given: IdentKind, expected: IdentKind) {
-            let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
+            let sym = symbol_dummy!(1, "tofrag");
             let src = Source {
                 generated: true,
                 ..Default::default()
@@ -823,11 +823,11 @@ mod test {
 
     #[test]
     fn source_from_sym_attrs() {
-        let nsym = Symbol::new_dummy(SymbolIndex::from_u32(1), "name");
-        let ssym = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
-        let psym = Symbol::new_dummy(SymbolIndex::from_u32(3), "parent");
-        let ysym = Symbol::new_dummy(SymbolIndex::from_u32(4), "yields");
-        let fsym = Symbol::new_dummy(SymbolIndex::from_u32(5), "from");
+        let nsym = symbol_dummy!(1, "name");
+        let ssym = symbol_dummy!(2, "src");
+        let psym = symbol_dummy!(3, "parent");
+        let ysym = symbol_dummy!(4, "yields");
+        let fsym = symbol_dummy!(5, "from");
 
         let attrs = SymAttrs {
             pkg_name: Some(&nsym),

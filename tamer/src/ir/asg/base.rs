@@ -468,8 +468,8 @@ mod test {
         // index to create a gap, and then use an index within that gap
         // to ensure that it's not considered an already-defined
         // identifier.
-        let syma = Symbol::new_dummy(SymbolIndex::from_u32(5), "syma");
-        let symb = Symbol::new_dummy(SymbolIndex::from_u32(1), "symab");
+        let syma = symbol_dummy!(5, "syma");
+        let symb = symbol_dummy!(1, "symab");
 
         let nodea = sut.declare(
             &syma,
@@ -522,7 +522,7 @@ mod test {
     fn lookup_by_symbol() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "lookup");
+        let sym = symbol_dummy!(1, "lookup");
         let node = sut.declare(
             &sym,
             IdentKind::Meta,
@@ -541,7 +541,7 @@ mod test {
     fn declare_extern() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "extern");
+        let sym = symbol_dummy!(1, "extern");
         let node = sut.declare_extern(&sym, IdentKind::Meta)?;
 
         assert_eq!(
@@ -556,7 +556,7 @@ mod test {
     fn declare_returns_existing() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
+        let sym = symbol_dummy!(1, "symdup");
         let src = Source::default();
         let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
 
@@ -585,7 +585,7 @@ mod test {
     fn declare_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "symdup");
+        let sym = symbol_dummy!(1, "symdup");
         let src = Source {
             desc: Some("orig".into()),
             ..Default::default()
@@ -618,7 +618,7 @@ mod test {
     fn add_fragment_to_ident() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "tofrag");
+        let sym = symbol_dummy!(1, "tofrag");
         let src = Source {
             generated: true,
             ..Default::default()
@@ -649,8 +649,8 @@ mod test {
     fn add_ident_dep_to_ident() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+        let sym = symbol_dummy!(1, "sym");
+        let dep = symbol_dummy!(2, "dep");
 
         let symnode = sut.declare(&sym, IdentKind::Meta, Source::default())?;
         let depnode = sut.declare(&dep, IdentKind::Meta, Source::default())?;
@@ -670,8 +670,8 @@ mod test {
     fn add_dep_lookup_existing() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+        let sym = symbol_dummy!(1, "sym");
+        let dep = symbol_dummy!(2, "dep");
 
         let _ = sut.declare(&sym, IdentKind::Meta, Source::default())?;
         let _ = sut.declare(&dep, IdentKind::Meta, Source::default())?;
@@ -686,8 +686,8 @@ mod test {
     fn add_dep_lookup_missing() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+        let sym = symbol_dummy!(1, "sym");
+        let dep = symbol_dummy!(2, "dep");
 
         // both of these are missing
         let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
@@ -703,8 +703,8 @@ mod test {
     fn declare_return_missing_symbol() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+        let sym = symbol_dummy!(1, "sym");
+        let dep = symbol_dummy!(2, "dep");
 
         // both of these are missing, see add_dep_lookup_missing
         let (symnode, _) = sut.add_dep_lookup(&sym, &dep);
@@ -746,10 +746,7 @@ mod test {
             $(
                 i += 1;
 
-                let sym = Symbol::new_dummy(
-                    SymbolIndex::from_u32(i),
-                    stringify!($name)
-                );
+                let sym = symbol_dummy!(i, stringify!($name));
 
                 $sut.declare(&sym, $kind, Source::default())?;
                 let (_, _) = $sut.add_dep_lookup($base, &sym);
@@ -768,7 +765,7 @@ mod test {
         let mut map = vec![];
         let mut retmap = vec![];
 
-        let base = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let base = symbol_dummy!(1, "sym1");
         let base_node =
             sut.declare(&base, IdentKind::Map, Source::default())?;
 
@@ -807,8 +804,8 @@ mod test {
     fn graph_sort_missing_node() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+        let sym = symbol_dummy!(1, "sym");
+        let dep = symbol_dummy!(2, "dep");
 
         let sym_node = sut.declare(
             &sym,
@@ -838,8 +835,8 @@ mod test {
     fn graph_sort_no_roots() -> AsgResult<()> {
         let mut sut = Sut::with_capacity(0, 0);
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(2), "dep");
+        let sym = symbol_dummy!(1, "sym");
+        let dep = symbol_dummy!(2, "dep");
 
         let (_, _) = sut.add_dep_lookup(&sym, &dep);
 

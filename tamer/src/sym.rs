@@ -371,6 +371,8 @@ impl<'i> Symbol<'i> {
     ///   builds.
     /// This separate name is meant to strongly imply that you should not be
     ///   doing this otherwise.
+    ///
+    /// See also `dummy_symbol!`.
     #[cfg(test)]
     #[inline(always)]
     pub fn new_dummy(index: SymbolIndex, str: &'i str) -> Symbol<'i> {
@@ -614,6 +616,14 @@ pub type FxArenaInterner<'i> = ArenaInterner<'i, FxBuildHasher>;
 /// For more information on the hashing algorithm,
 ///   see [`FxArenaInterner`].
 pub type DefaultInterner<'i> = FxArenaInterner<'i>;
+
+/// Concisely define dummy symbols for testing.
+#[cfg(test)]
+macro_rules! symbol_dummy {
+    ($id:expr, $name:expr) => {
+        Symbol::new_dummy(SymbolIndex::from_u32($id), $name);
+    };
+}
 
 #[cfg(test)]
 mod test {

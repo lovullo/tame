@@ -20,10 +20,13 @@
 //! An incremental rewrite of TAME in Rust.
 
 pub mod global;
+
+#[macro_use]
+pub mod sym;
+
 pub mod ir;
 pub mod ld;
 pub mod obj;
-pub mod sym;
 
 #[cfg(test)]
 #[macro_use]

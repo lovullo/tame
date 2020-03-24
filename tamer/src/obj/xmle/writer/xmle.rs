@@ -453,7 +453,7 @@ mod test {
             _ => panic!("did not match expected event"),
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let sym = symbol_dummy!(1, "sym");
 
         sut.write_start_package(&sym, &String::from(""))?;
 
@@ -508,7 +508,7 @@ mod test {
             _ => panic!("did not trigger event"),
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let sym = symbol_dummy!(1, "sym");
         let obj = IdentObject::IdentFragment(
             &sym,
             IdentKind::Meta,
@@ -530,7 +530,7 @@ mod test {
             panic!("callback should not have been called");
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let sym = symbol_dummy!(1, "sym");
         let obj = IdentObject::Ident(
             &sym,
             IdentKind::Cgen(Dim::default()),
@@ -551,7 +551,7 @@ mod test {
             panic!("callback should not have been called");
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym");
+        let sym = symbol_dummy!(1, "sym");
         let obj = IdentObject::Missing(&sym);
 
         let mut section = Section::new();
@@ -590,7 +590,7 @@ mod test {
             _ => panic!("unexpected event"),
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "random_symbol");
+        let sym = symbol_dummy!(1, "random_symbol");
         let object =
             IdentObject::Ident(&sym, IdentKind::Worksheet, Source::default());
         let mut sections = Sections::new();
@@ -645,11 +645,11 @@ mod test {
             _ => panic!("unexpected event"),
         }));
 
-        let nsym = Symbol::new_dummy(SymbolIndex::from_u32(1), "name");
-        let ssym = Symbol::new_dummy(SymbolIndex::from_u32(2), "src");
-        let psym = Symbol::new_dummy(SymbolIndex::from_u32(3), "parent");
-        let ysym = Symbol::new_dummy(SymbolIndex::from_u32(4), "yields");
-        let fsym = Symbol::new_dummy(SymbolIndex::from_u32(5), "from");
+        let nsym = symbol_dummy!(1, "name");
+        let ssym = symbol_dummy!(2, "src");
+        let psym = symbol_dummy!(3, "parent");
+        let ysym = symbol_dummy!(4, "yields");
+        let fsym = symbol_dummy!(5, "from");
 
         let attrs = SymAttrs {
             pkg_name: Some(&nsym),
@@ -692,8 +692,8 @@ mod test {
             _ => panic!("unexpected event"),
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "source symbol");
-        let symb = Symbol::new_dummy(SymbolIndex::from_u32(2), "dest symbol");
+        let sym = symbol_dummy!(1, "source symbol");
+        let symb = symbol_dummy!(2, "dest symbol");
 
         let mut src = Source::default();
         src.from = Some(vec![&symb]);
@@ -713,7 +713,7 @@ mod test {
             _ => panic!("unexpected write"),
         }));
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(1), "random_symbol");
+        let sym = symbol_dummy!(1, "random_symbol");
 
         let object =
             IdentObject::Ident(&sym, IdentKind::Worksheet, Source::default());
