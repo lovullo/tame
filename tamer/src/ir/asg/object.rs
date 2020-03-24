@@ -340,7 +340,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
 ///   another.
 ///
 /// TODO: Provide enough information to construct a useful message.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TransitionError {
     /// An attempt to redeclare an identifier with additional information
     ///   has failed because the provided information was not compatible
@@ -367,6 +367,12 @@ impl std::fmt::Display for TransitionError {
                 write!(fmt, "bad fragment destination: {}", msg)
             }
         }
+    }
+}
+
+impl std::error::Error for TransitionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
     }
 }
 

@@ -648,9 +648,8 @@ mod test {
         // Set up an object to fail redeclaration.
         let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
         let obj = sut.get(node).unwrap();
-        let msg = String::from("test fail");
-        obj.fail_redeclare
-            .replace(Some(TransitionError::Incompatible(msg.clone())));
+        let terr = TransitionError::Incompatible(String::from("test fail"));
+        obj.fail_redeclare.replace(Some(terr.clone()));
 
         // Should invoke StubIdentObject::redeclare on the above `obj`.
         let result = sut.declare(&sym, IdentKind::Meta, Source::default());
@@ -660,7 +659,7 @@ mod test {
             let obj = sut.get(node).unwrap();
             assert_eq!(src, obj.given_ident.as_ref().unwrap().2);
 
-            assert_eq!(AsgError::IncompatibleIdent(msg), err);
+            assert_eq!(AsgError::ObjectTransition(terr), err);
 
             Ok(())
         } else {

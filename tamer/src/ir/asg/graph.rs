@@ -227,18 +227,12 @@ pub type Node<O> = Option<O>;
 /// The caller will know the problem values.
 #[derive(Debug, PartialEq)]
 pub enum AsgError<Ix: Debug> {
-    /// The provided identifier is not in a state that is permitted to
-    ///   receive a fragment.
+    /// An object could not change state in the manner requested.
     ///
-    /// See [`Asg::set_fragment`] for more information.
-    BadFragmentDest(String),
-
-    /// An attempt to redeclare an identifier with additional information
-    ///   has failed because the provided information was not compatible
-    ///   with the original declaration.
-    ///
-    /// See [`Asg::declare`] for more information.
-    IncompatibleIdent(String),
+    /// See [`Asg::declare`] and [`Asg::set_fragment`] for more
+    ///   information.
+    /// See also [`TransitionError`].
+    ObjectTransition(TransitionError),
 
     /// The node was not expected in the current context
     UnexpectedNode(String),
@@ -250,12 +244,7 @@ pub enum AsgError<Ix: Debug> {
 impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::BadFragmentDest(msg) => {
-                write!(fmt, "bad fragment destination: {}", msg)
-            }
-            Self::IncompatibleIdent(msg) => {
-                write!(fmt, "identifier redeclaration failed: {}", msg)
-            }
+            Self::ObjectTransition(err) => std::fmt::Display::fmt(&err, fmt),
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
             }
@@ -268,16 +257,16 @@ impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
 
 impl<Ix: Debug> std::error::Error for AsgError<Ix> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+        match self {
+            Self::ObjectTransition(err) => err.source(),
+            _ => None,
+        }
     }
 }
 
 impl<Ix: Debug> From<TransitionError> for AsgError<Ix> {
-    fn from(e: TransitionError) -> Self {
-        match e {
-            TransitionError::Incompatible(msg) => Self::IncompatibleIdent(msg),
-            TransitionError::BadFragmentDest(msg) => Self::BadFragmentDest(msg),
-        }
+    fn from(err: TransitionError) -> Self {
+        Self::ObjectTransition(err)
     }
 }
 
