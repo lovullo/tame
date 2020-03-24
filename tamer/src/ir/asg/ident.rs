@@ -144,6 +144,42 @@ pub enum IdentKind {
     Worksheet,
 }
 
+impl std::fmt::Display for IdentKind {
+    /// Format identifier type for display to the user.
+    ///
+    /// TODO: We have not yet finalized how we will represent types in the
+    ///   new type system,
+    ///     so for now this just uses a syntax similar to Rust.
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Cgen(dim) => {
+                write!(fmt, "cgen[{}; {}]", DataType::Boolean, dim)
+            }
+            Self::Class(dim) => {
+                write!(fmt, "class[{}; {}]", DataType::Boolean, dim)
+            }
+            Self::Const(dim, dtype) => write!(fmt, "const[{}; {}]", dtype, dim),
+            Self::Func(dim, dtype) => write!(fmt, "func[{}; {}]", dtype, dim),
+            Self::Gen(dim, dtype) => write!(fmt, "gen[{}; {}]", dtype, dim),
+            Self::Lparam(dim, dtype) => {
+                write!(fmt, "lparam[{}; {}]", dtype, dim)
+            }
+            Self::Param(dim, dtype) => write!(fmt, "param[{}; {}]", dtype, dim),
+            Self::Rate(dtype) => write!(fmt, "rate[{}; 0]", dtype),
+            Self::Tpl => write!(fmt, "tpl"),
+            Self::Type(dtype) => write!(fmt, "type[{}]", dtype),
+            Self::MapHead => write!(fmt, "map:head"),
+            Self::Map => write!(fmt, "map"),
+            Self::MapTail => write!(fmt, "map:tail"),
+            Self::RetMapHead => write!(fmt, "retmap:head"),
+            Self::RetMap => write!(fmt, "retmap"),
+            Self::RetMapTail => write!(fmt, "retmap:tail"),
+            Self::Meta => write!(fmt, "meta"),
+            Self::Worksheet => write!(fmt, "worksheet"),
+        }
+    }
+}
+
 impl<'i> TryFrom<SymAttrs<'i>> for IdentKind {
     type Error = &'static str;
 
@@ -244,6 +280,12 @@ impl AsRef<str> for Dim {
             9 => &"9",
             _ => unreachable!(),
         }
+    }
+}
+
+impl std::fmt::Display for Dim {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        (self.0).fmt(fmt)
     }
 }
 

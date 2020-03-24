@@ -257,6 +257,20 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 Ok(self)
             }
 
+            IdentObject::Extern(name, ref orig_kind) => {
+                if orig_kind != &kind {
+                    let err = TransitionError::ExternResolution {
+                        name: name.to_string(),
+                        expected: orig_kind.clone(),
+                        given: kind.clone(),
+                    };
+
+                    return Err((self, err));
+                }
+
+                Ok(IdentObject::Ident(name, kind, src))
+            }
+
             // TODO: no override-override
             IdentObject::IdentFragment(name, _, orig_src, _)
                 if orig_src.virtual_ && src.override_ =>
@@ -349,6 +363,16 @@ pub enum TransitionError {
     /// See [`IdentObjectState::redeclare`].
     Incompatible(String),
 
+    /// Extern resolution failure.
+    ///
+    /// An extern could not be resolved because the provided identifier had
+    ///   a type that is incompatible with the extern definition.
+    ExternResolution {
+        name: String,
+        expected: IdentKind,
+        given: IdentKind,
+    },
+
     /// The provided identifier is not in a state that is permitted to
     ///   receive a fragment.
     ///
@@ -362,6 +386,17 @@ impl std::fmt::Display for TransitionError {
             Self::Incompatible(msg) => {
                 write!(fmt, "object incompatible: {}", msg)
             }
+
+            // TODO
+            Self::ExternResolution {
+                name,
+                expected,
+                given,
+            } => write!(
+                fmt,
+                "extern `{}` of type `{}` is incompatible with type `{}`",
+                name, expected, given,
+            ),
 
             Self::BadFragmentDest(msg) => {
                 write!(fmt, "bad fragment destination: {}", msg)
@@ -642,15 +677,76 @@ mod test {
             );
         }
 
-        #[test]
-        fn ident_object_extern() {
-            let sym = symbol_dummy!(1, "missing");
-            let kind = IdentKind::Class(Dim::from_u8(1));
+        mod extern_ {
+            use super::*;
 
-            assert_eq!(
-                IdentObject::Extern(&sym, kind.clone()),
-                IdentObject::extern_(&sym, kind.clone()),
-            );
+            #[test]
+            fn ident_object() {
+                let sym = symbol_dummy!(1, "missing");
+                let kind = IdentKind::Class(Dim::from_u8(1));
+
+                assert_eq!(
+                    IdentObject::Extern(&sym, kind.clone()),
+                    IdentObject::extern_(&sym, kind.clone()),
+                );
+            }
+
+            #[test]
+            fn redeclare_compatible_resolves() {
+                let sym = symbol_dummy!(1, "extern_re");
+                let kind = IdentKind::Class(Dim::from_u8(10));
+                let src = Source {
+                    desc: Some("okay".into()),
+                    ..Default::default()
+                };
+
+                // Compatible kind, should resolve.
+                let result = IdentObject::extern_(&sym, kind.clone())
+                    .redeclare(kind.clone(), src.clone());
+
+                assert_eq!(Ok(IdentObject::Ident(&sym, kind, src)), result,);
+            }
+
+            #[test]
+            fn redeclare_incompatible_kind() {
+                let sym = symbol_dummy!(1, "extern_re_bad");
+                let kind = IdentKind::Class(Dim::from_u8(10));
+                let src = Source {
+                    desc: Some("bad kind".into()),
+                    ..Default::default()
+                };
+
+                let orig = IdentObject::extern_(&sym, kind.clone());
+
+                // Incompatible kind
+                let kind_bad = IdentKind::Meta;
+                let result = orig.clone().redeclare(kind_bad.clone(), src);
+
+                match result {
+                    Err((given_orig, err @ _)) => {
+                        assert_eq!(orig, given_orig);
+
+                        if let TransitionError::ExternResolution {
+                            name: e_name,
+                            expected: e_expected,
+                            given: e_given,
+                        } = err.clone()
+                        {
+                            assert_eq!(sym.to_string(), e_name);
+                            assert_eq!(kind, e_expected);
+                            assert_eq!(kind_bad, e_given);
+                        }
+
+                        // Formatted error
+                        let msg = format!("{}", err);
+
+                        assert!(msg.contains(&format!("{}", sym)));
+                        assert!(msg.contains(&format!("{}", kind)));
+                        assert!(msg.contains(&format!("{}", kind_bad)));
+                    }
+                    _ => panic!("expected failure: {:?}", result),
+                }
+            }
         }
 
         // TODO: incompatible
