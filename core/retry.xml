@@ -9,7 +9,7 @@
   <import package="extern" />
   <import package="vector/cmatch" export="true" />
 
-  <t:classify-extern yields="__retry" />
+  <t:classify-extern yields="__retry" dim="0" />
 
   <template name="_suggest-retry-when_" desc="Retry Rating">
     <param name="@values@" desc="Rule matches" />
