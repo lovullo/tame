@@ -76,8 +76,8 @@
 //! let identa_sym = interner.intern("identa");
 //! let identb_sym = interner.intern("identb");
 //!
-//! let identa = asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
-//! let identb = asg.declare_extern(identb_sym, IdentKind::Meta)?;
+//! let identa = asg.declare(identa_sym, IdentKind::Meta, Some(Source::default()))?;
+//! let identb = asg.declare(identb_sym, IdentKind::Meta, None)?;
 //!
 //! assert_eq!(
 //!     Some(&IdentObject::Extern(identb_sym, IdentKind::Meta)),
