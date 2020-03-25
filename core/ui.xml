@@ -137,8 +137,14 @@
           <param-value name="@on@" rmunderscore="true" lower="true" />
         </param>
 
+        <!-- TODO: this default is transitionary, since there's no
+             meaningful default -->
+        <param name="@vis-dim@" desc="Classification dimensions (default 2)">
+          <text>2</text>
+        </param>
+
         <extern name="ui_q_{@on@}" type="param" dtype="integer" dim="1" />
-        <extern name="@__yields@" type="cgen" dtype="boolean" dim="1" />
+        <extern name="@__yields@" type="cgen" dtype="boolean" dim="@vis-dim@" />
 
         <all>
           <match on="@__yields@" />
