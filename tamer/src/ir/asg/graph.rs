@@ -62,6 +62,21 @@ where
     ///       then the operation will fail;
     ///     otherwise,
     ///       the existing identifier will be returned.
+    ///
+    /// If `src` is omitted,
+    ///   then an abstract identifier (an _extern_) is declared.
+    /// Externs are identifiers that are expected to be defined somewhere
+    ///   else ("externally"),
+    ///     and are resolved at [link-time][crate::ld].
+    ///
+    /// If a concrete identifier has already been declared (see
+    ///   [`Asg::declare`]),
+    ///     then extern declarations will be compared and,
+    ///       if compatible,
+    ///       the identifier will be immediately _resolved_ and the object
+    ///         on the graph will not be altered.
+    /// Resolution will otherwise fail in error.
+    ///
     /// For more information on state transitions that can occur when
     ///   redeclaring an identifier that already exists,
     ///     see [`IdentObjectState::redeclare`].
@@ -72,34 +87,10 @@ where
         &mut self,
         name: &'i Symbol<'i>,
         kind: IdentKind,
-        src: Source<'i>,
+        src: Option<Source<'i>>,
     ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Declare an abstract identifier.
-    ///
-    /// An _extern_ declaration declares an identifier the same as
-    ///   [`Asg::declare`],
-    ///     but omits source information.
-    /// Externs are identifiers that are expected to be defined somewhere
-    ///   else ("externally"),
-    ///     and are resolved at [link-time][crate::ld].
-    ///
-    /// If a concrete identifier has already been declared (see
-    ///   [`Asg::declare`]),
-    ///     then the declarations will be compared and,
-    ///       if compatible,
-    ///       the identifier will be immediately _resolved_ and the object
-    ///         on the graph will not be altered.
-    /// Resolution will otherwise fail in error.
-    ///
-    /// See [`IdentObjectState::extern_`] and
-    ///   [`IdentObjectState::redeclare`] for more information on
-    ///   compatibility related to extern resolution.
-    fn declare_extern(
-        &mut self,
-        name: &'i Symbol<'i>,
-        expected_kind: IdentKind,
-    ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Set the fragment associated with a concrete identifier.
     ///

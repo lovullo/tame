@@ -199,7 +199,7 @@ where
         &mut self,
         name: &'i Symbol<'i>,
         kind: IdentKind,
-        src: Source<'i>,
+        src: Option<Source<'i>>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
         if let Some(existing) = self.lookup(name) {
             let node = self.graph.node_weight_mut(existing.0).unwrap();
@@ -223,19 +223,6 @@ where
         }
 
         let node = self.graph.add_node(Some(O::ident(name, kind, src)));
-
-        self.index_identifier(name, node);
-
-        Ok(ObjectRef(node))
-    }
-
-    fn declare_extern(
-        &mut self,
-        name: &'i Symbol<'i>,
-        expected_kind: IdentKind,
-    ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        // TODO: resolution!
-        let node = self.graph.add_node(Some(O::extern_(name, expected_kind)));
 
         self.index_identifier(name, node);
 
@@ -412,9 +399,8 @@ mod test {
     #[derive(Debug, Default, PartialEq)]
     struct StubIdentObject<'i> {
         given_missing: Option<&'i Symbol<'i>>,
-        given_ident: Option<(&'i Symbol<'i>, IdentKind, Source<'i>)>,
-        given_extern: Option<(&'i Symbol<'i>, IdentKind)>,
-        given_redeclare: Option<(IdentKind, Source<'i>)>,
+        given_ident: Option<(&'i Symbol<'i>, IdentKind, Option<Source<'i>>)>,
+        given_redeclare: Option<(IdentKind, Option<Source<'i>>)>,
         given_set_fragment: Option<FragmentText>,
         fail_redeclare: RefCell<Option<TransitionError>>,
     }
@@ -423,14 +409,12 @@ mod test {
         fn name(&self) -> Option<&'i Symbol<'i>> {
             self.given_missing
                 .or(self.given_ident.as_ref().map(|args| args.0))
-                .or(self.given_extern.as_ref().map(|args| args.0))
         }
 
         fn kind(&self) -> Option<&IdentKind> {
             self.given_ident
                 .as_ref()
                 .map(|args| &args.1)
-                .or(self.given_extern.as_ref().map(|args| &args.1))
                 .or(self.given_redeclare.as_ref().map(|args| &args.0))
         }
 
@@ -458,7 +442,7 @@ mod test {
         fn ident(
             name: &'i Symbol<'i>,
             kind: IdentKind,
-            src: Source<'i>,
+            src: Option<Source<'i>>,
         ) -> Self {
             Self {
                 given_ident: Some((name, kind, src)),
@@ -466,17 +450,10 @@ mod test {
             }
         }
 
-        fn extern_(name: &'i Symbol<'i>, kind: IdentKind) -> Self {
-            Self {
-                given_extern: Some((name, kind)),
-                ..Default::default()
-            }
-        }
-
         fn redeclare(
             mut self,
             kind: IdentKind,
-            src: Source<'i>,
+            src: Option<Source<'i>>,
         ) -> TransitionResult<StubIdentObject<'i>> {
             if self.fail_redeclare.borrow().is_some() {
                 let err = self.fail_redeclare.replace(None).unwrap();
@@ -528,19 +505,19 @@ mod test {
         let nodea = sut.declare(
             &syma,
             IdentKind::Meta,
-            Source {
+            Some(Source {
                 desc: Some("a".to_string()),
                 ..Default::default()
-            },
+            }),
         )?;
 
         let nodeb = sut.declare(
             &symb,
             IdentKind::Worksheet,
-            Source {
+            Some(Source {
                 desc: Some("b".to_string()),
                 ..Default::default()
-            },
+            }),
         )?;
 
         assert_ne!(nodea, nodeb);
@@ -549,10 +526,10 @@ mod test {
             Some((
                 &syma,
                 IdentKind::Meta,
-                Source {
+                Some(Source {
                     desc: Some("a".to_string()),
                     ..Default::default()
-                },
+                }),
             )),
             sut.get(nodea).unwrap().given_ident
         );
@@ -561,10 +538,10 @@ mod test {
             Some((
                 &symb,
                 IdentKind::Worksheet,
-                Source {
+                Some(Source {
                     desc: Some("b".to_string()),
                     ..Default::default()
-                },
+                }),
             )),
             sut.get(nodeb).unwrap().given_ident
         );
@@ -580,28 +557,13 @@ mod test {
         let node = sut.declare(
             &sym,
             IdentKind::Meta,
-            Source {
+            Some(Source {
                 generated: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         assert_eq!(Some(node), sut.lookup(&sym));
-
-        Ok(())
-    }
-
-    #[test]
-    fn declare_extern() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
-
-        let sym = symbol_dummy!(1, "extern");
-        let node = sut.declare_extern(&sym, IdentKind::Meta)?;
-
-        assert_eq!(
-            Some((&sym, IdentKind::Meta)),
-            sut.get(node).unwrap().given_extern,
-        );
 
         Ok(())
     }
@@ -612,7 +574,7 @@ mod test {
 
         let sym = symbol_dummy!(1, "symdup");
         let src = Source::default();
-        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+        let node = sut.declare(&sym, IdentKind::Meta, Some(src.clone()))?;
 
         // Remember that our stub does not care about compatibility.
         let rekind = IdentKind::Class(Dim::from_u8(3));
@@ -620,14 +582,15 @@ mod test {
             desc: Some("redeclare".into()),
             ..Default::default()
         };
-        let redeclare = sut.declare(&sym, rekind.clone(), resrc.clone())?;
+        let redeclare =
+            sut.declare(&sym, rekind.clone(), Some(resrc.clone()))?;
 
         // We don't care what the objects are for this test, just that the
         // same node is referenced.
         assert_eq!(node, redeclare);
 
         assert_eq!(
-            Some((rekind, resrc)),
+            Some((rekind, Some(resrc))),
             sut.get(node).unwrap().given_redeclare,
         );
 
@@ -646,18 +609,19 @@ mod test {
         };
 
         // Set up an object to fail redeclaration.
-        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+        let node = sut.declare(&sym, IdentKind::Meta, Some(src.clone()))?;
         let obj = sut.get(node).unwrap();
         let terr = TransitionError::Incompatible(String::from("test fail"));
         obj.fail_redeclare.replace(Some(terr.clone()));
 
         // Should invoke StubIdentObject::redeclare on the above `obj`.
-        let result = sut.declare(&sym, IdentKind::Meta, Source::default());
+        let result =
+            sut.declare(&sym, IdentKind::Meta, Some(Source::default()));
 
         if let Err(err) = result {
             // The node should have been restored.
             let obj = sut.get(node).unwrap();
-            assert_eq!(src, obj.given_ident.as_ref().unwrap().2);
+            assert_eq!(Some(src), obj.given_ident.as_ref().unwrap().2);
 
             assert_eq!(AsgError::ObjectTransition(terr), err);
 
@@ -676,7 +640,7 @@ mod test {
             generated: true,
             ..Default::default()
         };
-        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+        let node = sut.declare(&sym, IdentKind::Meta, Some(src.clone()))?;
 
         let fragment = "a fragment".to_string();
         let node_with_frag = sut.set_fragment(node, fragment.clone())?;
@@ -690,7 +654,7 @@ mod test {
 
         let obj = sut.get(node).unwrap();
 
-        assert_eq!(Some((&sym, IdentKind::Meta, src,)), obj.given_ident);
+        assert_eq!(Some((&sym, IdentKind::Meta, Some(src))), obj.given_ident);
         assert_eq!(Some(fragment), obj.given_set_fragment);
 
         Ok(())
@@ -705,8 +669,10 @@ mod test {
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
 
-        let symnode = sut.declare(&sym, IdentKind::Meta, Source::default())?;
-        let depnode = sut.declare(&dep, IdentKind::Meta, Source::default())?;
+        let symnode =
+            sut.declare(&sym, IdentKind::Meta, Some(Source::default()))?;
+        let depnode =
+            sut.declare(&dep, IdentKind::Meta, Some(Source::default()))?;
 
         sut.add_dep(symnode, depnode);
         assert!(sut.has_dep(symnode, depnode));
@@ -726,8 +692,8 @@ mod test {
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
 
-        let _ = sut.declare(&sym, IdentKind::Meta, Source::default())?;
-        let _ = sut.declare(&dep, IdentKind::Meta, Source::default())?;
+        let _ = sut.declare(&sym, IdentKind::Meta, Some(Source::default()))?;
+        let _ = sut.declare(&dep, IdentKind::Meta, Some(Source::default()))?;
 
         let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
         assert!(sut.has_dep(symnode, depnode));
@@ -768,14 +734,14 @@ mod test {
         };
 
         // Check with a declared value
-        let declared = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+        let declared = sut.declare(&sym, IdentKind::Meta, Some(src.clone()))?;
 
         assert_eq!(symnode, declared);
 
         let obj = sut.get(declared).unwrap();
 
         assert_eq!(Some(&sym), obj.given_missing);
-        assert_eq!(Some((IdentKind::Meta, src)), obj.given_redeclare);
+        assert_eq!(Some((IdentKind::Meta, Some(src))), obj.given_redeclare);
 
         Ok(())
     }
@@ -801,7 +767,7 @@ mod test {
 
                 let sym = symbol_dummy!(i, stringify!($name));
 
-                $sut.declare(&sym, $kind, Source::default())?;
+                $sut.declare(&sym, $kind, Some(Source::default()))?;
                 let (_, _) = $sut.add_dep_lookup($base, &sym);
 
                 $dest.push(sym);
@@ -820,7 +786,7 @@ mod test {
 
         let base = symbol_dummy!(1, "sym1");
         let base_node =
-            sut.declare(&base, IdentKind::Map, Source::default())?;
+            sut.declare(&base, IdentKind::Map, Some(Source::default()))?;
 
         add_syms!(sut, &base, {
             meta <- meta1: IdentKind::Meta,
@@ -863,10 +829,10 @@ mod test {
         let sym_node = sut.declare(
             &sym,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym_node, FragmentText::from("foo"))?;
@@ -910,19 +876,19 @@ mod test {
         let sym_node = sut.declare(
             &sym,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let dep_node = sut.declare(
             &dep,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym_node, FragmentText::from("foo"))?;
@@ -956,37 +922,37 @@ mod test {
         let sym_node = sut.declare(
             &sym,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym2_node = sut.declare(
             &sym2,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let dep_node = sut.declare(
             &dep,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let dep2_node = sut.declare(
             &dep2,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym_node, FragmentText::from("foo"))?;
@@ -1024,19 +990,19 @@ mod test {
         let sym_node = sut.declare(
             &sym,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let dep_node = sut.declare(
             &dep,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym_node, FragmentText::from("foo"))?;
@@ -1066,28 +1032,28 @@ mod test {
         let sym1_node = sut.declare(
             &sym1,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym2_node = sut.declare(
             &sym2,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym3_node = sut.declare(
             &sym3,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
@@ -1123,28 +1089,28 @@ mod test {
         let sym1_node = sut.declare(
             &sym1,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym2_node = sut.declare(
             &sym2,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym3_node = sut.declare(
             &sym3,
             IdentKind::Func(Dim::default(), SymDtype::Empty),
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
@@ -1179,28 +1145,28 @@ mod test {
         let sym1_node = sut.declare(
             &sym1,
             IdentKind::Func(Dim::default(), SymDtype::Empty),
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym2_node = sut.declare(
             &sym2,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym3_node = sut.declare(
             &sym3,
             IdentKind::Func(Dim::default(), SymDtype::Empty),
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
@@ -1234,19 +1200,19 @@ mod test {
         let sym_node = sut.declare(
             &sym,
             IdentKind::Func(Dim::default(), SymDtype::Empty),
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let dep_node = sut.declare(
             &dep,
             IdentKind::Func(Dim::default(), SymDtype::Empty),
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym_node, FragmentText::from("foo"))?;
@@ -1276,28 +1242,28 @@ mod test {
         let sym1_node = sut.declare(
             &sym1,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym2_node = sut.declare(
             &sym2,
             IdentKind::Func(Dim::default(), SymDtype::Empty),
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let sym3_node = sut.declare(
             &sym3,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
@@ -1332,28 +1298,28 @@ mod test {
         let sym_node = sut.declare(
             &sym,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let dep_node = sut.declare(
             &dep,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         let ignored_node = sut.declare(
             &ignored,
             IdentKind::Tpl,
-            Source {
+            Some(Source {
                 virtual_: true,
                 ..Default::default()
-            },
+            }),
         )?;
 
         sut.set_fragment(sym_node, FragmentText::from("foo"))?;

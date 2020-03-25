@@ -174,10 +174,6 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
             Ok(XmloEvent::SymDecl(sym, attrs)) => {
                 if let Some(sym_src) = attrs.src {
                     found.insert(sym_src);
-                } else if attrs.extern_ {
-                    // TODO: externs (they're implicitly handled, without
-                    // checks, by Missing)
-                    // depgraph.declare_extern(sym, kind);
                 } else {
                     let owned = attrs.src.is_none();
 
@@ -185,13 +181,19 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                         format!("sym `{}` attrs error: {}", sym, err)
                     });
 
-                    let mut src: Source = attrs.into();
+                    let src = if attrs.extern_ {
+                        None
+                    } else {
+                        let mut s: Source = attrs.into();
 
-                    // Existing convention is to omit @src of local package
-                    // (in this case, the program being linked)
-                    if first {
-                        src.pkg_name = None;
-                    }
+                        // Existing convention is to omit @src of local package
+                        // (in this case, the program being linked)
+                        if first {
+                            s.pkg_name = None;
+                        }
+
+                        Some(s)
+                    };
 
                     match kind {
                         Ok(kindval) => {
