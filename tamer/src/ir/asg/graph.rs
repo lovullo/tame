@@ -259,9 +259,8 @@ impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
             }
-            Self::Cycles(path) => {
-                write!(fmt, "Cyclic dependencies detected: {:?}", path)
-                // write!(fmt, "Cyclic dependencies detected:")
+            Self::Cycles(cycles) => {
+                write!(fmt, "Cyclic dependencies detected: {:?}", cycles)
             }
         }
     }

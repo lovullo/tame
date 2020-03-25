@@ -22,8 +22,8 @@
 
 use crate::global;
 use crate::ir::asg::{
-    Asg, DefaultAsg, IdentKind, IdentObject, ObjectRef, Sections, SortableAsg,
-    Source,
+    Asg, AsgError, DefaultAsg, IdentKind, IdentObject, IdentObjectData,
+    ObjectRef, Sections, SortableAsg, Source,
 };
 use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
@@ -78,7 +78,32 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let mut sorted = depgraph.sort(&roots)?;
+    let mut sorted = match depgraph.sort(&roots) {
+        Ok(sections) => sections,
+        Err(AsgError::Cycles(cycles)) => {
+            let msg: Vec<String> = cycles
+                .into_iter()
+                .map(|cycle| {
+                    let mut path: Vec<String> = cycle
+                        .into_iter()
+                        .map(|obj| {
+                            format!(
+                                "{}",
+                                depgraph.get(obj).unwrap().name().unwrap()
+                            )
+                        })
+                        .collect();
+
+                    path.reverse();
+                    path.push(path[0].clone());
+                    format!("cycle: {}", path.join(" -> "))
+                })
+                .collect();
+
+            return Err(msg.join("\n").into());
+        }
+        Err(e) => return Err(e.into()),
+    };
 
     //println!("Sorted ({}): {:?}", sorted.len(), sorted);
 
