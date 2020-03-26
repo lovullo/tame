@@ -23,7 +23,9 @@ use super::graph::{
     Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef, SortableAsg,
 };
 use super::ident::IdentKind;
-use super::object::{FragmentText, IdentObjectData, IdentObjectState, Source};
+use super::object::{
+    FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
+};
 use super::Sections;
 use crate::sym::Symbol;
 use fixedbitset::FixedBitSet;
@@ -129,7 +131,6 @@ where
     ///   reference to it.
     ///
     /// See [`IdentObjectState::missing`] for more information.
-    #[inline]
     fn lookup_or_missing(&mut self, ident: &'i Symbol<'i>) -> ObjectRef<Ix> {
         self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(O::missing(ident)));
@@ -137,6 +138,41 @@ where
             self.index_identifier(ident, index);
             ObjectRef(index)
         })
+    }
+
+    /// Perform a state transition on an identifier.
+    ///
+    /// Look up `ident` or add a missing identifier if it does not yet exist
+    ///   (see `lookup_or_missing`).
+    /// Then invoke `f` with the located identifier and replace the
+    ///   identifier on the graph with the result.
+    ///
+    /// This will safely restore graph state to the original identifier
+    ///   value on transition failure.
+    fn with_ident<F>(
+        &mut self,
+        name: &'i Symbol<'i>,
+        f: F,
+    ) -> AsgResult<ObjectRef<Ix>, Ix>
+    where
+        F: FnOnce(O) -> TransitionResult<O>,
+    {
+        let identi = self.lookup_or_missing(name);
+        let node = self.graph.node_weight_mut(identi.0).unwrap();
+
+        let obj = node
+            .take()
+            .expect(&format!("internal error: missing object for {}", name));
+
+        f(obj)
+            .and_then(|obj| {
+                node.replace(obj);
+                Ok(identi)
+            })
+            .or_else(|(orig, err)| {
+                node.replace(orig);
+                Err(err.into())
+            })
     }
 
     /// Check graph for cycles
@@ -201,22 +237,7 @@ where
         kind: IdentKind,
         src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        let identi = self.lookup_or_missing(name);
-        let node = self.graph.node_weight_mut(identi.0).unwrap();
-
-        let obj = node
-            .take()
-            .expect(&format!("internal error: missing object for {}", name));
-
-        obj.redeclare(kind, src)
-            .and_then(|obj| {
-                node.replace(obj);
-                Ok(identi)
-            })
-            .or_else(|(orig, err)| {
-                node.replace(orig);
-                Err(err.into())
-            })
+        self.with_ident(name, |obj| obj.redeclare(kind, src))
     }
 
     fn declare_extern(
@@ -225,22 +246,7 @@ where
         kind: IdentKind,
         src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        let identi = self.lookup_or_missing(name);
-        let node = self.graph.node_weight_mut(identi.0).unwrap();
-
-        let obj = node
-            .take()
-            .expect(&format!("internal error: missing object for {}", name));
-
-        obj.extern_(kind, src)
-            .and_then(|obj| {
-                node.replace(obj);
-                Ok(identi)
-            })
-            .or_else(|(orig, err)| {
-                node.replace(orig);
-                Err(err.into())
-            })
+        self.with_ident(name, |obj| obj.extern_(kind, src))
     }
 
     fn set_fragment(
