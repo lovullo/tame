@@ -62,7 +62,13 @@ pub enum IdentObject<'i> {
     ///   the same name is loaded.
     /// It is an error if the loaded identifier does not have a compatible
     ///   [`IdentKind`].
-    Extern(&'i Symbol<'i>, IdentKind),
+    ///
+    /// The source location of an extern represents the location of the
+    ///   extern declaration.
+    /// Once resolved, however,
+    ///   the source will instead represent the location of the concrete
+    ///   identifier.
+    Extern(&'i Symbol<'i>, IdentKind, Source<'i>),
 
     /// Identifier with associated text.
     ///
@@ -134,7 +140,7 @@ impl<'i> IdentObjectData<'i> for IdentObject<'i> {
         match self {
             Self::Missing(name)
             | Self::Ident(name, _, _)
-            | Self::Extern(name, _)
+            | Self::Extern(name, _, _)
             | Self::IdentFragment(name, _, _, _) => Some(name),
         }
     }
@@ -143,14 +149,14 @@ impl<'i> IdentObjectData<'i> for IdentObject<'i> {
         match self {
             Self::Missing(_) => None,
             Self::Ident(_, kind, _)
-            | Self::Extern(_, kind)
+            | Self::Extern(_, kind, _)
             | Self::IdentFragment(_, kind, _, _) => Some(kind),
         }
     }
 
     fn src(&self) -> Option<&Source<'i>> {
         match self {
-            Self::Missing(_) | Self::Extern(_, _) => None,
+            Self::Missing(_) | Self::Extern(_, _, _) => None,
             Self::Ident(_, _, src) | Self::IdentFragment(_, _, src, _) => {
                 Some(src)
             }
@@ -159,7 +165,7 @@ impl<'i> IdentObjectData<'i> for IdentObject<'i> {
 
     fn fragment(&self) -> Option<&FragmentText> {
         match self {
-            Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _) => {
+            Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _, _) => {
                 None
             }
             Self::IdentFragment(_, _, _, text) => Some(text),
@@ -261,7 +267,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 Ok(self)
             }
 
-            IdentObject::Extern(name, ref orig_kind) => {
+            IdentObject::Extern(name, ref orig_kind, _) => {
                 if orig_kind != &kind {
                     let err = TransitionError::ExternResolution {
                         name: name.to_string(),
@@ -295,10 +301,10 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     fn extern_(
         self,
         kind: IdentKind,
-        _src: Source<'i>,
+        src: Source<'i>,
     ) -> TransitionResult<IdentObject<'i>> {
         match self.kind() {
-            None => Ok(IdentObject::Extern(self.name().unwrap(), kind)),
+            None => Ok(IdentObject::Extern(self.name().unwrap(), kind, src)),
             Some(cur_kind) => {
                 if cur_kind != &kind {
                     let err = TransitionError::ExternResolution {
@@ -562,7 +568,8 @@ mod test {
 
             assert_eq!(
                 Some(&sym),
-                IdentObject::Extern(&sym, IdentKind::Meta).name()
+                IdentObject::Extern(&sym, IdentKind::Meta, Source::default())
+                    .name()
             );
 
             assert_eq!(
@@ -592,7 +599,8 @@ mod test {
 
             assert_eq!(
                 Some(&kind),
-                IdentObject::Extern(&sym, kind.clone()).kind()
+                IdentObject::Extern(&sym, kind.clone(), Source::default())
+                    .kind()
             );
 
             assert_eq!(
@@ -622,7 +630,10 @@ mod test {
                 IdentObject::Ident(&sym, IdentKind::Meta, src.clone()).src()
             );
 
-            assert_eq!(None, IdentObject::Extern(&sym, IdentKind::Meta).src());
+            assert_eq!(
+                None,
+                IdentObject::Extern(&sym, IdentKind::Meta, src.clone()).src()
+            );
 
             assert_eq!(
                 Some(&src),
@@ -651,7 +662,8 @@ mod test {
 
             assert_eq!(
                 None,
-                IdentObject::Extern(&sym, IdentKind::Meta).fragment()
+                IdentObject::Extern(&sym, IdentKind::Meta, Source::default())
+                    .fragment()
             );
 
             assert_eq!(
@@ -719,7 +731,7 @@ mod test {
                 };
 
                 assert_eq!(
-                    Ok(IdentObject::Extern(&sym, kind.clone())),
+                    Ok(IdentObject::Extern(&sym, kind.clone(), src.clone())),
                     IdentObject::declare(&sym).extern_(kind, src),
                 );
             }
@@ -764,12 +776,25 @@ mod test {
             fn redeclare_another_extern() {
                 let sym = symbol_dummy!(1, "extern_extern");
                 let kind = IdentKind::Class(Dim::from_u8(20));
+                let src_first = Source {
+                    desc: Some("first src".into()),
+                    ..Default::default()
+                };
+                let src_second = Source {
+                    desc: Some("second src".into()),
+                    ..Default::default()
+                };
 
                 let result = IdentObject::declare(&sym)
-                    .extern_(kind.clone(), Source::default())
-                    .and_then(|o| o.extern_(kind.clone(), Source::default()));
+                    .extern_(kind.clone(), src_first.clone())
+                    .and_then(|o| o.extern_(kind.clone(), src_second));
 
-                assert_eq!(Ok(IdentObject::Extern(&sym, kind)), result);
+                // Note that, if it resolves, it should keep what is
+                // _existing_, meaning that it must keep the first src.
+                assert_eq!(
+                    Ok(IdentObject::Extern(&sym, kind, src_first)),
+                    result
+                );
             }
 
             // Extern first, then identifier

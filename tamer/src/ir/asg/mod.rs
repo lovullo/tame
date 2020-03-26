@@ -80,7 +80,7 @@
 //! let identb = asg.declare_extern(identb_sym, IdentKind::Meta, Source::default())?;
 //!
 //! assert_eq!(
-//!     Some(&IdentObject::Extern(identb_sym, IdentKind::Meta)),
+//!     Some(&IdentObject::Extern(identb_sym, IdentKind::Meta, Source::default())),
 //!     asg.get(identb),
 //! );
 //!
