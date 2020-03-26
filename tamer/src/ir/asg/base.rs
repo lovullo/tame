@@ -64,7 +64,7 @@ where
 impl<'i, O, Ix> BaseAsg<O, Ix>
 where
     Ix: IndexType,
-    O: IdentObjectState<'i, O>,
+    O: IdentObjectState<'i, O> + IdentObjectData<'i>,
 {
     /// Create an ASG with the provided initial capacity.
     ///
@@ -138,19 +138,69 @@ where
             ObjectRef(index)
         })
     }
+
+    /// Check graph for cycles
+    ///
+    /// We want to catch any cycles before we start using the graph.
+    ///   Unfortunately, we need to allow cycles for our [`IdentKind::Func`]
+    ///   so we cannot use the typical algorithms in a straightforward manner.
+    ///
+    /// We loop through all SCCs and check that they are not all functions. If
+    ///   they are, we ignore the cycle, otherwise we will return an error.
+    fn check_cycles(&self) -> AsgResult<(), Ix> {
+        // While `tarjan_scc` does do a topological sort, it does not suit our
+        // needs because we need to filter out some allowed cycles. It would
+        // still be possible to use this, but we also need to only check nodes
+        // that are attached to our "roots". We are doing our own sort and as of
+        // the initial writing, this does not have a significant performance
+        // impact.
+        let sccs = petgraph::algo::tarjan_scc(&self.graph);
+
+        let cycles: Vec<_> = sccs
+            .into_iter()
+            .filter_map(|scc| {
+                // For single-node SCCs, we just need to make sure they are
+                // not neighbors with themselves.
+                if scc.len() == 1
+                    && !self.graph.neighbors(scc[0]).any(|nx| nx == scc[0])
+                {
+                    return None;
+                }
+
+                let is_all_funcs = scc.iter().all(|nx| {
+                    let ident = self.get(*nx).expect("missing node");
+                    matches!(ident.kind(), Some(IdentKind::Func(_, _)))
+                });
+
+                if is_all_funcs {
+                    None
+                } else {
+                    let cycles =
+                        scc.iter().map(|nx| ObjectRef::from(*nx)).collect();
+                    Some(cycles)
+                }
+            })
+            .collect();
+
+        if cycles.is_empty() {
+            Ok(())
+        } else {
+            Err(AsgError::Cycles(cycles))
+        }
+    }
 }
 
 impl<'i, O, Ix> Asg<'i, O, Ix> for BaseAsg<O, Ix>
 where
     Ix: IndexType,
-    O: IdentObjectState<'i, O>,
+    O: IdentObjectState<'i, O> + IdentObjectData<'i>,
 {
     fn declare(
         &mut self,
         name: &'i Symbol<'i>,
         kind: IdentKind,
         src: Source<'i>,
-    ) -> AsgResult<ObjectRef<Ix>> {
+    ) -> AsgResult<ObjectRef<Ix>, Ix> {
         if let Some(existing) = self.lookup(name) {
             let node = self.graph.node_weight_mut(existing.0).unwrap();
 
@@ -183,7 +233,7 @@ where
         &mut self,
         name: &'i Symbol<'i>,
         expected_kind: IdentKind,
-    ) -> AsgResult<ObjectRef<Ix>> {
+    ) -> AsgResult<ObjectRef<Ix>, Ix> {
         // TODO: resolution!
         let node = self.graph.add_node(Some(O::extern_(name, expected_kind)));
 
@@ -196,7 +246,7 @@ where
         &mut self,
         identi: ObjectRef<Ix>,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef<Ix>> {
+    ) -> AsgResult<ObjectRef<Ix>, Ix> {
         // This should _never_ happen as long as you're only using ObjectRef
         // values produced by these methods.
         let node = self
@@ -269,12 +319,15 @@ where
     Ix: IndexType,
     O: IdentObjectData<'i> + IdentObjectState<'i, O>,
 {
-    fn sort(&'i self, roots: &[ObjectRef<Ix>]) -> AsgResult<Sections<'i, O>> {
+    fn sort(
+        &'i self,
+        roots: &[ObjectRef<Ix>],
+    ) -> AsgResult<Sections<'i, O>, Ix> {
         let mut deps = Sections::new();
 
-        // This is technically a topological sort, but functions have
-        // cycles.  Once we have more symbol metadata, we can filter them out
-        // and actually invoke toposort.
+        self.check_cycles()?;
+
+        // This is technically a topological sort, but functions have cycles.
         let mut dfs = DfsPostOrder::empty(&self.graph);
 
         for index in roots {
@@ -352,6 +405,7 @@ mod test {
     use super::super::graph::AsgError;
     use super::*;
     use crate::ir::asg::{Dim, IdentObject, TransitionError, TransitionResult};
+    use crate::ir::legacyir::SymDtype;
     use crate::sym::SymbolIndex;
     use std::cell::RefCell;
 
@@ -461,7 +515,7 @@ mod test {
     }
 
     #[test]
-    fn declare_new_unique_idents() -> AsgResult<()> {
+    fn declare_new_unique_idents() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         // NB: The index ordering is important!  We first use a larger
@@ -519,7 +573,7 @@ mod test {
     }
 
     #[test]
-    fn lookup_by_symbol() -> AsgResult<()> {
+    fn lookup_by_symbol() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "lookup");
@@ -538,7 +592,7 @@ mod test {
     }
 
     #[test]
-    fn declare_extern() -> AsgResult<()> {
+    fn declare_extern() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "extern");
@@ -553,7 +607,7 @@ mod test {
     }
 
     #[test]
-    fn declare_returns_existing() -> AsgResult<()> {
+    fn declare_returns_existing() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "symdup");
@@ -582,7 +636,7 @@ mod test {
 
     // Builds upon declare_returns_existing.
     #[test]
-    fn declare_fails_if_transition_fails() -> AsgResult<()> {
+    fn declare_fails_if_transition_fails() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "symdup");
@@ -615,7 +669,7 @@ mod test {
     }
 
     #[test]
-    fn add_fragment_to_ident() -> AsgResult<()> {
+    fn add_fragment_to_ident() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "tofrag");
@@ -646,7 +700,7 @@ mod test {
     // TODO: fragment fail
 
     #[test]
-    fn add_ident_dep_to_ident() -> AsgResult<()> {
+    fn add_ident_dep_to_ident() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "sym");
@@ -667,7 +721,7 @@ mod test {
 
     // same as above test
     #[test]
-    fn add_dep_lookup_existing() -> AsgResult<()> {
+    fn add_dep_lookup_existing() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "sym");
@@ -683,7 +737,7 @@ mod test {
     }
 
     #[test]
-    fn add_dep_lookup_missing() -> AsgResult<()> {
+    fn add_dep_lookup_missing() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "sym");
@@ -700,7 +754,7 @@ mod test {
     }
 
     #[test]
-    fn declare_return_missing_symbol() -> AsgResult<()> {
+    fn declare_return_missing_symbol() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "sym");
@@ -757,7 +811,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort() -> AsgResult<()> {
+    fn graph_sort() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let mut meta = vec![];
@@ -801,7 +855,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_missing_node() -> AsgResult<()> {
+    fn graph_sort_missing_node() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "sym");
@@ -832,7 +886,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_no_roots() -> AsgResult<()> {
+    fn graph_sort_no_roots() -> AsgResult<(), u8> {
         let mut sut = Sut::with_capacity(0, 0);
 
         let sym = symbol_dummy!(1, "sym");
@@ -843,6 +897,479 @@ mod test {
         let sections = sut.sort(&vec![])?;
 
         assert_eq!(Sections::new(), sections);
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_simple_cycle() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let dep_node = sut.declare(
+            &dep,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+        sut.set_fragment(dep_node, FragmentText::from("bar"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+        let (_, _) = sut.add_dep_lookup(&dep, &sym);
+
+        let result = sut.sort(&vec![sym_node]);
+
+        let expected: Vec<Vec<ObjectRef<u8>>> =
+            vec![vec![dep_node.into(), sym_node.into()]];
+        match result {
+            Ok(_) => panic!("sort did not detect cycle"),
+            Err(AsgError::Cycles(scc)) => assert_eq!(expected, scc),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_two_simple_cycles() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
+        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym2");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(4), "dep");
+        let dep2 = Symbol::new_dummy(SymbolIndex::from_u32(5), "dep2");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym2_node = sut.declare(
+            &sym2,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let dep_node = sut.declare(
+            &dep,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let dep2_node = sut.declare(
+            &dep2,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+        sut.set_fragment(sym2_node, FragmentText::from("bar"))?;
+        sut.set_fragment(dep_node, FragmentText::from("baz"))?;
+        sut.set_fragment(dep2_node, FragmentText::from("huh"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+        let (_, _) = sut.add_dep_lookup(&dep, &sym);
+        let (_, _) = sut.add_dep_lookup(&sym2, &dep2);
+        let (_, _) = sut.add_dep_lookup(&dep2, &sym2);
+
+        let result = sut.sort(&vec![sym_node]);
+
+        let expected: Vec<Vec<ObjectRef<u8>>> = vec![
+            vec![dep_node.into(), sym_node.into()],
+            vec![dep2_node.into(), sym2_node.into()],
+        ];
+        match result {
+            Ok(_) => panic!("sort did not detect cycle"),
+            Err(AsgError::Cycles(scc)) => assert_eq!(expected, scc),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_no_cycle_with_edge_to_same_node() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let dep_node = sut.declare(
+            &dep,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+        sut.set_fragment(dep_node, FragmentText::from("bar"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+
+        let result = sut.sort(&vec![sym_node]);
+
+        match result {
+            Ok(_) => (),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_cycle_with_a_few_steps() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
+        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+
+        let sym1_node = sut.declare(
+            &sym1,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym2_node = sut.declare(
+            &sym2,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym3_node = sut.declare(
+            &sym3,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
+        sut.set_fragment(sym2_node, FragmentText::from("bar"))?;
+        sut.set_fragment(sym3_node, FragmentText::from("baz"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym1, &sym2);
+        let (_, _) = sut.add_dep_lookup(&sym2, &sym3);
+        let (_, _) = sut.add_dep_lookup(&sym3, &sym1);
+
+        let result = sut.sort(&vec![sym1_node]);
+
+        let expected: Vec<Vec<ObjectRef<u8>>> =
+            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        match result {
+            Ok(_) => panic!("sort did not detect cycle"),
+            Err(AsgError::Cycles(scc)) => assert_eq!(expected, scc),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_cyclic_function_with_non_function_with_a_few_steps(
+    ) -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
+        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+
+        let sym1_node = sut.declare(
+            &sym1,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym2_node = sut.declare(
+            &sym2,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym3_node = sut.declare(
+            &sym3,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
+        sut.set_fragment(sym2_node, FragmentText::from("bar"))?;
+        sut.set_fragment(sym3_node, FragmentText::from("baz"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym1, &sym2);
+        let (_, _) = sut.add_dep_lookup(&sym2, &sym3);
+        let (_, _) = sut.add_dep_lookup(&sym3, &sym1);
+
+        let result = sut.sort(&vec![sym1_node]);
+
+        let expected: Vec<Vec<ObjectRef<u8>>> =
+            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        match result {
+            Ok(_) => panic!("sort did not detect cycle"),
+            Err(AsgError::Cycles(scc)) => assert_eq!(expected, scc),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_cyclic_bookended_by_functions() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
+        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+
+        let sym1_node = sut.declare(
+            &sym1,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym2_node = sut.declare(
+            &sym2,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym3_node = sut.declare(
+            &sym3,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
+        sut.set_fragment(sym2_node, FragmentText::from("bar"))?;
+        sut.set_fragment(sym3_node, FragmentText::from("baz"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym1, &sym2);
+        let (_, _) = sut.add_dep_lookup(&sym2, &sym3);
+        let (_, _) = sut.add_dep_lookup(&sym3, &sym1);
+
+        let result = sut.sort(&vec![sym1_node]);
+
+        let expected: Vec<Vec<ObjectRef<u8>>> =
+            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        match result {
+            Ok(_) => panic!("sort did not detect cycle"),
+            Err(AsgError::Cycles(scc)) => assert_eq!(expected, scc),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_cyclic_function_ignored() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let dep_node = sut.declare(
+            &dep,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+        sut.set_fragment(dep_node, FragmentText::from("bar"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+        let (_, _) = sut.add_dep_lookup(&dep, &sym);
+
+        let result = sut.sort(&vec![sym_node]);
+
+        match result {
+            Ok(_) => (),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_cyclic_function_is_bookended() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
+        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
+        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+
+        let sym1_node = sut.declare(
+            &sym1,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym2_node = sut.declare(
+            &sym2,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let sym3_node = sut.declare(
+            &sym3,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym1_node, FragmentText::from("foo"))?;
+        sut.set_fragment(sym2_node, FragmentText::from("bar"))?;
+        sut.set_fragment(sym3_node, FragmentText::from("baz"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym1, &sym2);
+        let (_, _) = sut.add_dep_lookup(&sym2, &sym3);
+        let (_, _) = sut.add_dep_lookup(&sym3, &sym1);
+
+        let result = sut.sort(&vec![sym1_node]);
+
+        let expected: Vec<Vec<ObjectRef<u8>>> =
+            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        match result {
+            Ok(_) => panic!("sort did not detect cycle"),
+            Err(AsgError::Cycles(scc)) => assert_eq!(expected, scc),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn graph_sort_ignore_non_linked() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
+        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+        let ignored = Symbol::new_dummy(SymbolIndex::from_u32(4), "ignored");
+
+        let sym_node = sut.declare(
+            &sym,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let dep_node = sut.declare(
+            &dep,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        let ignored_node = sut.declare(
+            &ignored,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )?;
+
+        sut.set_fragment(sym_node, FragmentText::from("foo"))?;
+        sut.set_fragment(dep_node, FragmentText::from("bar"))?;
+        sut.set_fragment(ignored_node, FragmentText::from("baz"))?;
+
+        let (_, _) = sut.add_dep_lookup(&sym, &dep);
+        let (_, _) = sut.add_dep_lookup(&ignored, &sym);
+
+        let result = sut.sort(&vec![sym_node]);
+
+        match result {
+            Ok(_) => (),
+            Err(e) => panic!("unexpected error: {}", e),
+        }
 
         Ok(())
     }

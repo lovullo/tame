@@ -332,9 +332,7 @@
   <variable name="fname" as="xs:string"
                 select="parent::lv:function/@name" />
 
-  <preproc:sym-dep name=":{$fname}:{@name}">
-    <preproc:sym-ref name="{$fname}" />
-  </preproc:sym-dep>
+  <preproc:sym-dep name=":{$fname}:{@name}" />
 </template>
 
 <template mode="preproc:depgen" priority="7"
