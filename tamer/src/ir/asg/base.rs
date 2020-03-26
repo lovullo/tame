@@ -201,6 +201,10 @@ where
         kind: IdentKind,
         src: Option<Source<'i>>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
+        if src.is_none() {
+            panic!("TODO: remove optional src");
+        }
+
         if let Some(existing) = self.lookup(name) {
             let node = self.graph.node_weight_mut(existing.0).unwrap();
 
@@ -227,6 +231,30 @@ where
         self.index_identifier(name, node);
 
         Ok(ObjectRef(node))
+    }
+
+    fn declare_extern(
+        &mut self,
+        name: &'i Symbol<'i>,
+        kind: IdentKind,
+        src: Source<'i>,
+    ) -> AsgResult<ObjectRef<Ix>, Ix> {
+        let identi = self.lookup_or_missing(name);
+        let node = self.graph.node_weight_mut(identi.0).unwrap();
+
+        let obj = node
+            .take()
+            .expect(&format!("internal error: missing object for {}", name));
+
+        obj.extern_(kind, src)
+            .and_then(|obj| {
+                node.replace(obj);
+                Ok(identi)
+            })
+            .or_else(|(orig, err)| {
+                node.replace(orig);
+                Err(err.into())
+            })
     }
 
     fn set_fragment(
@@ -400,9 +428,11 @@ mod test {
     struct StubIdentObject<'i> {
         given_missing: Option<&'i Symbol<'i>>,
         given_ident: Option<(&'i Symbol<'i>, IdentKind, Option<Source<'i>>)>,
+        given_extern: Option<(IdentKind, Source<'i>)>,
         given_redeclare: Option<(IdentKind, Option<Source<'i>>)>,
         given_set_fragment: Option<FragmentText>,
         fail_redeclare: RefCell<Option<TransitionError>>,
+        fail_extern: RefCell<Option<TransitionError>>,
     }
 
     impl<'i> IdentObjectData<'i> for StubIdentObject<'i> {
@@ -465,10 +495,16 @@ mod test {
         }
 
         fn extern_(
-            self,
-            _kind: IdentKind,
-            _src: Source<'i>,
+            mut self,
+            kind: IdentKind,
+            src: Source<'i>,
         ) -> TransitionResult<StubIdentObject<'i>> {
+            if self.fail_extern.borrow().is_some() {
+                let err = self.fail_extern.replace(None).unwrap();
+                return Err((self, err));
+            }
+
+            self.given_extern = Some((kind, src));
             Ok(self)
         }
 
@@ -631,6 +667,68 @@ mod test {
             let obj = sut.get(node).unwrap();
             assert_eq!(Some(src), obj.given_ident.as_ref().unwrap().2);
 
+            assert_eq!(AsgError::ObjectTransition(terr), err);
+
+            Ok(())
+        } else {
+            panic!("failure expected: {:?}", result);
+        }
+    }
+
+    #[test]
+    fn declare_extern_returns_existing() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = symbol_dummy!(1, "symext");
+        let src = Source::default();
+        let node = sut.declare_extern(&sym, IdentKind::Meta, src.clone())?;
+
+        // Remember that our stub does not care about compatibility.
+        let rekind = IdentKind::Class(Dim::from_u8(3));
+        let resrc = Source {
+            desc: Some("redeclare".into()),
+            ..Default::default()
+        };
+        let redeclare =
+            sut.declare_extern(&sym, rekind.clone(), resrc.clone())?;
+
+        // We don't care what the objects are for this test, just that the
+        // same node is referenced.
+        assert_eq!(node, redeclare);
+        assert_eq!(Some((rekind, resrc)), sut.get(node).unwrap().given_extern);
+
+        Ok(())
+    }
+
+    // Builds upon declare_returns_existing.
+    #[test]
+    fn declare_extern_fails_if_transition_fails() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = symbol_dummy!(1, "symdup");
+        let src = Source {
+            desc: Some("orig".into()),
+            ..Default::default()
+        };
+
+        // Set up an object to fail redeclaration.
+        let node = sut.declare_extern(&sym, IdentKind::Meta, src.clone())?;
+        let obj = sut.get(node).unwrap();
+
+        // It doesn't matter that this isn't the error that'll actually be
+        // returned, as long as it's some sort of TransitionError.
+        let terr = TransitionError::Incompatible(String::from("test fail"));
+        obj.fail_extern.replace(Some(terr.clone()));
+
+        // Should invoke StubIdentObject::extern_ on the above `obj`.
+        let result =
+            sut.declare_extern(&sym, IdentKind::Meta, Source::default());
+
+        if let Err(err) = result {
+            // The node should have been restored.
+            let obj = sut.get(node).unwrap();
+
+            assert_eq!(src, obj.given_extern.as_ref().unwrap().1);
             assert_eq!(AsgError::ObjectTransition(terr), err);
 
             Ok(())

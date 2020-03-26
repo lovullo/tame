@@ -176,24 +176,19 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                     found.insert(sym_src);
                 } else {
                     let owned = attrs.src.is_none();
+                    let extern_ = attrs.extern_;
 
                     let kind = (&attrs).try_into().map_err(|err| {
                         format!("sym `{}` attrs error: {}", sym, err)
                     });
 
-                    let src = if attrs.extern_ {
-                        None
-                    } else {
-                        let mut s: Source = attrs.into();
+                    let mut src: Source = attrs.into();
 
-                        // Existing convention is to omit @src of local package
-                        // (in this case, the program being linked)
-                        if first {
-                            s.pkg_name = None;
-                        }
-
-                        Some(s)
-                    };
+                    // Existing convention is to omit @src of local package
+                    // (in this case, the program being linked)
+                    if first {
+                        src.pkg_name = None;
+                    }
 
                     match kind {
                         Ok(kindval) => {
@@ -203,10 +198,18 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                                     || kindval == IdentKind::Map
                                     || kindval == IdentKind::RetMap);
 
-                            let node = depgraph.declare(sym, kindval, src)?;
+                            if extern_ {
+                                depgraph.declare_extern(sym, kindval, src)?;
+                            } else {
+                                let node = depgraph.declare(
+                                    sym,
+                                    kindval,
+                                    Some(src),
+                                )?;
 
-                            if link_root {
-                                roots.push(node);
+                                if link_root {
+                                    roots.push(node);
+                                }
                             }
                         }
                         Err(e) => return Err(e.into()),
