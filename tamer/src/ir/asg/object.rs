@@ -206,6 +206,22 @@ where
         src: Option<Source<'i>>,
     ) -> TransitionResult<T>;
 
+    /// Resolve identifier against an extern declaration.
+    ///
+    /// If the existing identifier has an assigned [`IdentKind`],
+    ///   then it will be compared for equality against the given `kind`.
+    /// If it matches,
+    ///   then the current identifier will be returned as-is.
+    /// This represents an extern resolution that occurs when a concrete
+    ///   identifier is located before an extern that requires it,
+    ///     or my represent a duplicate (but compatible) extern
+    ///     declaration.
+    ///
+    /// If no kind is assigned (such as [`IdentObject::Missing`]),
+    ///   then a new extern is produced.
+    /// See for example [`IdentObject::Extern`].
+    fn extern_(self, kind: IdentKind, src: Source<'i>) -> TransitionResult<T>;
+
     /// Attach a code fragment (compiled text) to an identifier.
     ///
     /// This will fail if an identifier already has a fragment,
@@ -257,23 +273,8 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
         src: Option<Source<'i>>,
     ) -> TransitionResult<IdentObject<'i>> {
         match src {
-            None => match self.kind() {
-                None => Ok(IdentObject::Extern(self.name().unwrap(), kind)),
-                Some(cur_kind) => {
-                    if cur_kind != &kind {
-                        let err = TransitionError::ExternResolution {
-                            name: self.name().unwrap().to_string(),
-                            expected: kind.clone(),
-                            given: cur_kind.clone(),
-                        };
-
-                        return Err((self, err));
-                    }
-
-                    // Resolved successfully, so keep what we already have.
-                    Ok(self)
-                }
-            },
+            // TODO: remove
+            None => self.extern_(kind, Source::default()),
             Some(new_src) => match self {
                 IdentObject::Ident(_, _, ref mut orig_src)
                     if orig_src.virtual_ && new_src.override_ =>
@@ -311,6 +312,30 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 // TODO
                 _ => Ok(self),
             },
+        }
+    }
+
+    fn extern_(
+        self,
+        kind: IdentKind,
+        _src: Source<'i>,
+    ) -> TransitionResult<IdentObject<'i>> {
+        match self.kind() {
+            None => Ok(IdentObject::Extern(self.name().unwrap(), kind)),
+            Some(cur_kind) => {
+                if cur_kind != &kind {
+                    let err = TransitionError::ExternResolution {
+                        name: self.name().unwrap().to_string(),
+                        expected: kind.clone(),
+                        given: cur_kind.clone(),
+                    };
+
+                    return Err((self, err));
+                }
+
+                // Resolved successfully, so keep what we already have.
+                Ok(self)
+            }
         }
     }
 
@@ -709,10 +734,14 @@ mod test {
             fn ident_object() {
                 let sym = symbol_dummy!(1, "missing");
                 let kind = IdentKind::Class(Dim::from_u8(1));
+                let src = Source {
+                    desc: Some("extern".into()),
+                    ..Default::default()
+                };
 
                 assert_eq!(
-                    IdentObject::Extern(&sym, kind.clone()),
-                    IdentObject::ident(&sym, kind.clone(), None),
+                    Ok(IdentObject::Extern(&sym, kind.clone())),
+                    IdentObject::missing(&sym).extern_(kind, src),
                 );
             }
 
@@ -727,8 +756,9 @@ mod test {
                 };
 
                 // Compatible kind, should resolve.
-                let result = IdentObject::ident(&sym, kind.clone(), None)
-                    .redeclare(kind.clone(), Some(src.clone()));
+                let result = IdentObject::missing(&sym)
+                    .extern_(kind.clone(), Source::default())
+                    .and_then(|o| o.redeclare(kind.clone(), Some(src.clone())));
 
                 assert_eq!(Ok(IdentObject::Ident(&sym, kind, src)), result,);
             }
@@ -746,20 +776,9 @@ mod test {
                 // Compatible kind, should resolve.
                 let result =
                     IdentObject::ident(&sym, kind.clone(), Some(src.clone()))
-                        .redeclare(kind.clone(), None);
+                        .extern_(kind.clone(), Source::default());
 
                 assert_eq!(Ok(IdentObject::Ident(&sym, kind, src)), result,);
-            }
-
-            #[test]
-            fn redeclare_missing() {
-                let sym = symbol_dummy!(1, "extern_missing");
-                let kind = IdentKind::Class(Dim::from_u8(7));
-
-                let result =
-                    IdentObject::missing(&sym).redeclare(kind.clone(), None);
-
-                assert_eq!(Ok(IdentObject::Extern(&sym, kind)), result);
             }
 
             #[test]
@@ -767,8 +786,9 @@ mod test {
                 let sym = symbol_dummy!(1, "extern_extern");
                 let kind = IdentKind::Class(Dim::from_u8(20));
 
-                let result = IdentObject::ident(&sym, kind.clone(), None)
-                    .redeclare(kind.clone(), None);
+                let result = IdentObject::missing(&sym)
+                    .extern_(kind.clone(), Source::default())
+                    .and_then(|o| o.extern_(kind.clone(), Source::default()));
 
                 assert_eq!(Ok(IdentObject::Extern(&sym, kind)), result);
             }
@@ -783,7 +803,9 @@ mod test {
                     ..Default::default()
                 };
 
-                let orig = IdentObject::ident(&sym, kind.clone(), None);
+                let orig = IdentObject::missing(&sym)
+                    .extern_(kind.clone(), Source::default())
+                    .unwrap();
 
                 // Incompatible kind
                 let kind_bad = IdentKind::Meta;
@@ -834,7 +856,9 @@ mod test {
 
                 // Extern with incompatible kind.
                 let kind_extern = IdentKind::Meta;
-                let result = orig.clone().redeclare(kind_extern.clone(), None);
+                let result = orig
+                    .clone()
+                    .extern_(kind_extern.clone(), Source::default());
 
                 match result {
                     Err((given_orig, err @ _)) => {

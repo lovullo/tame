@@ -464,6 +464,14 @@ mod test {
             Ok(self)
         }
 
+        fn extern_(
+            self,
+            _kind: IdentKind,
+            _src: Source<'i>,
+        ) -> TransitionResult<StubIdentObject<'i>> {
+            Ok(self)
+        }
+
         fn set_fragment(
             mut self,
             text: FragmentText,
