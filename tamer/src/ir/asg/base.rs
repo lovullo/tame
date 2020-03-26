@@ -130,10 +130,10 @@ where
     /// Lookup `ident` or add a missing identifier to the graph and return a
     ///   reference to it.
     ///
-    /// See [`IdentObjectState::missing`] for more information.
+    /// See [`IdentObjectState::declare`] for more information.
     fn lookup_or_missing(&mut self, ident: &'i Symbol<'i>) -> ObjectRef<Ix> {
         self.lookup(ident).unwrap_or_else(|| {
-            let index = self.graph.add_node(Some(O::missing(ident)));
+            let index = self.graph.add_node(Some(O::declare(ident)));
 
             self.index_identifier(ident, index);
             ObjectRef(index)
@@ -237,7 +237,7 @@ where
         kind: IdentKind,
         src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        self.with_ident(name, |obj| obj.redeclare(kind, src))
+        self.with_ident(name, |obj| obj.resolve(kind, src))
     }
 
     fn declare_extern(
@@ -418,10 +418,9 @@ mod test {
 
     #[derive(Debug, Default, PartialEq)]
     struct StubIdentObject<'i> {
-        given_missing: Option<&'i Symbol<'i>>,
-        given_ident: Option<(&'i Symbol<'i>, IdentKind, Source<'i>)>,
+        given_declare: Option<&'i Symbol<'i>>,
         given_extern: Option<(IdentKind, Source<'i>)>,
-        given_redeclare: Option<(IdentKind, Source<'i>)>,
+        given_resolve: Option<(IdentKind, Source<'i>)>,
         given_set_fragment: Option<FragmentText>,
         fail_redeclare: RefCell<Option<TransitionError>>,
         fail_extern: RefCell<Option<TransitionError>>,
@@ -429,15 +428,11 @@ mod test {
 
     impl<'i> IdentObjectData<'i> for StubIdentObject<'i> {
         fn name(&self) -> Option<&'i Symbol<'i>> {
-            self.given_missing
-                .or(self.given_ident.as_ref().map(|args| args.0))
+            self.given_declare
         }
 
         fn kind(&self) -> Option<&IdentKind> {
-            self.given_ident
-                .as_ref()
-                .map(|args| &args.1)
-                .or(self.given_redeclare.as_ref().map(|args| &args.0))
+            self.given_resolve.as_ref().map(|args| &args.0)
         }
 
         fn src(&self) -> Option<&Source<'i>> {
@@ -454,25 +449,14 @@ mod test {
     }
 
     impl<'i> IdentObjectState<'i, StubIdentObject<'i>> for StubIdentObject<'i> {
-        fn missing(ident: &'i Symbol<'i>) -> Self {
+        fn declare(ident: &'i Symbol<'i>) -> Self {
             Self {
-                given_missing: Some(ident),
+                given_declare: Some(ident),
                 ..Default::default()
             }
         }
 
-        fn ident(
-            name: &'i Symbol<'i>,
-            kind: IdentKind,
-            src: Source<'i>,
-        ) -> Self {
-            Self {
-                given_ident: Some((name, kind, src)),
-                ..Default::default()
-            }
-        }
-
-        fn redeclare(
+        fn resolve(
             mut self,
             kind: IdentKind,
             src: Source<'i>,
@@ -482,7 +466,7 @@ mod test {
                 return Err((self, err));
             }
 
-            self.given_redeclare = Some((kind, src));
+            self.given_resolve = Some((kind, src));
             Ok(self)
         }
 
@@ -558,7 +542,7 @@ mod test {
 
         assert_ne!(nodea, nodeb);
 
-        assert_eq!(Some(&syma), sut.get(nodea).unwrap().given_missing);
+        assert_eq!(Some(&syma), sut.get(nodea).unwrap().given_declare);
         assert_eq!(
             Some((
                 IdentKind::Meta,
@@ -567,10 +551,10 @@ mod test {
                     ..Default::default()
                 },
             )),
-            sut.get(nodea).unwrap().given_redeclare
+            sut.get(nodea).unwrap().given_resolve
         );
 
-        assert_eq!(Some(&symb), sut.get(nodeb).unwrap().given_missing);
+        assert_eq!(Some(&symb), sut.get(nodeb).unwrap().given_declare);
         assert_eq!(
             Some((
                 IdentKind::Worksheet,
@@ -579,7 +563,7 @@ mod test {
                     ..Default::default()
                 },
             )),
-            sut.get(nodeb).unwrap().given_redeclare
+            sut.get(nodeb).unwrap().given_resolve
         );
 
         Ok(())
@@ -624,10 +608,7 @@ mod test {
         // same node is referenced.
         assert_eq!(node, redeclare);
 
-        assert_eq!(
-            Some((rekind, resrc)),
-            sut.get(node).unwrap().given_redeclare,
-        );
+        assert_eq!(Some((rekind, resrc)), sut.get(node).unwrap().given_resolve,);
 
         Ok(())
     }
@@ -655,7 +636,7 @@ mod test {
         if let Err(err) = result {
             // The node should have been restored.
             let obj = sut.get(node).unwrap();
-            assert_eq!(src, obj.given_redeclare.as_ref().unwrap().1);
+            assert_eq!(src, obj.given_resolve.as_ref().unwrap().1);
 
             assert_eq!(AsgError::ObjectTransition(terr), err);
 
@@ -750,8 +731,8 @@ mod test {
 
         let obj = sut.get(node).unwrap();
 
-        assert_eq!(Some(&sym), obj.given_missing);
-        assert_eq!(Some((IdentKind::Meta, src)), obj.given_redeclare);
+        assert_eq!(Some(&sym), obj.given_declare);
+        assert_eq!(Some((IdentKind::Meta, src)), obj.given_resolve);
         assert_eq!(Some(fragment), obj.given_set_fragment);
 
         Ok(())
@@ -807,8 +788,8 @@ mod test {
         let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
         assert!(sut.has_dep(symnode, depnode));
 
-        assert_eq!(Some(&sym), sut.get(symnode).unwrap().given_missing);
-        assert_eq!(Some(&dep), sut.get(depnode).unwrap().given_missing);
+        assert_eq!(Some(&sym), sut.get(symnode).unwrap().given_declare);
+        assert_eq!(Some(&dep), sut.get(depnode).unwrap().given_declare);
 
         Ok(())
     }
@@ -835,8 +816,8 @@ mod test {
 
         let obj = sut.get(declared).unwrap();
 
-        assert_eq!(Some(&sym), obj.given_missing);
-        assert_eq!(Some((IdentKind::Meta, src)), obj.given_redeclare);
+        assert_eq!(Some(&sym), obj.given_declare);
+        assert_eq!(Some((IdentKind::Meta, src)), obj.given_resolve);
 
         Ok(())
     }

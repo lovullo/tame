@@ -73,7 +73,7 @@ where
     ///
     /// For more information on state transitions that can occur when
     ///   redeclaring an identifier that already exists,
-    ///     see [`IdentObjectState::redeclare`].
+    ///     see [`IdentObjectState::resolve`].
     ///
     /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
@@ -102,7 +102,7 @@ where
     /// Resolution will otherwise fail in error.
     ///
     /// See [`IdentObjectState::extern_`] and
-    ///   [`IdentObjectState::redeclare`] for more information on
+    ///   [`IdentObjectState::resolve`] for more information on
     ///   compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
@@ -163,7 +163,7 @@ where
     ///   a missing identifier will be added as a placeholder,
     ///     allowing the ASG to be built with partial information as
     ///     identifiers continue to be discovered.
-    /// See [`IdentObjectState::missing`] for more information.
+    /// See [`IdentObjectState::declare`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(

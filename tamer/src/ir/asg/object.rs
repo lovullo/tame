@@ -80,7 +80,7 @@ pub enum IdentObject<'i> {
 ///   as [`IdentObject`];
 ///     this allows other representations to be used,
 ///       while still permitting the use of matching on [`IdentObject`]
-///       through the use of [`ident`](IdentObjectState::ident).
+///       through the use of [`ident`](IdentObjectData::as_ident).
 ///
 /// Since an object implementing this trait may not be an identifier
 ///   (e.g. an expression),
@@ -186,20 +186,19 @@ where
     T: IdentObjectState<'i, T>,
 {
     /// Produce an object representing a missing identifier.
-    fn missing(ident: &'i Symbol<'i>) -> T;
+    ///
+    /// This is the base state for all identifiers.
+    fn declare(ident: &'i Symbol<'i>) -> T;
 
-    /// Produce an object representing a concrete identifier.
-    fn ident(name: &'i Symbol<'i>, kind: IdentKind, src: Source<'i>) -> T;
-
-    /// Attempt to redeclare an identifier with additional information.
+    /// Attempt to transition to a concrete identifier.
     ///
     /// For specific information on compatibility rules,
     ///   see implementers of this trait,
     ///   since rules may vary between implementations.
-    fn redeclare(self, kind: IdentKind, src: Source<'i>)
-        -> TransitionResult<T>;
+    fn resolve(self, kind: IdentKind, src: Source<'i>) -> TransitionResult<T>;
 
-    /// Resolve identifier against an extern declaration.
+    /// Resolve identifier against an extern declaration or produce an
+    ///   extern.
     ///
     /// If the existing identifier has an assigned [`IdentKind`],
     ///   then it will be compared for equality against the given `kind`.
@@ -227,12 +226,8 @@ where
 }
 
 impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
-    fn missing(ident: &'i Symbol<'i>) -> Self {
+    fn declare(ident: &'i Symbol<'i>) -> Self {
         IdentObject::Missing(ident)
-    }
-
-    fn ident(name: &'i Symbol<'i>, kind: IdentKind, src: Source<'i>) -> Self {
-        IdentObject::Ident(name, kind, src)
     }
 
     /// Attempt to redeclare an identifier with additional information.
@@ -253,7 +248,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     /// The kind of identifier cannot change,
     ///   but the argument is provided here for convenience so that the
     ///   caller does not need to perform such a check itself.
-    fn redeclare(
+    fn resolve(
         mut self,
         kind: IdentKind,
         src: Source<'i>,
@@ -393,7 +388,7 @@ pub enum TransitionError {
     ///   has failed because the provided information was not compatible
     ///   with the original declaration.
     ///
-    /// See [`IdentObjectState::redeclare`].
+    /// See [`IdentObjectState::resolve`].
     Incompatible(String),
 
     /// Extern resolution failure.
@@ -691,7 +686,7 @@ mod test {
         #[test]
         fn ident_object_missing() {
             let sym = symbol_dummy!(1, "missing");
-            assert_eq!(IdentObject::Missing(&sym), IdentObject::missing(&sym));
+            assert_eq!(IdentObject::Missing(&sym), IdentObject::declare(&sym));
         }
 
         #[test]
@@ -705,7 +700,9 @@ mod test {
 
             assert_eq!(
                 IdentObject::Ident(&sym, kind.clone(), src.clone()),
-                IdentObject::ident(&sym, kind.clone(), src.clone()),
+                IdentObject::declare(&sym)
+                    .resolve(kind.clone(), src.clone())
+                    .unwrap(),
             );
         }
 
@@ -723,7 +720,7 @@ mod test {
 
                 assert_eq!(
                     Ok(IdentObject::Extern(&sym, kind.clone())),
-                    IdentObject::missing(&sym).extern_(kind, src),
+                    IdentObject::declare(&sym).extern_(kind, src),
                 );
             }
 
@@ -738,9 +735,9 @@ mod test {
                 };
 
                 // Compatible kind, should resolve.
-                let result = IdentObject::missing(&sym)
+                let result = IdentObject::declare(&sym)
                     .extern_(kind.clone(), Source::default())
-                    .and_then(|o| o.redeclare(kind.clone(), src.clone()));
+                    .and_then(|o| o.resolve(kind.clone(), src.clone()));
 
                 assert_eq!(Ok(IdentObject::Ident(&sym, kind, src)), result,);
             }
@@ -756,9 +753,9 @@ mod test {
                 };
 
                 // Compatible kind, should resolve.
-                let result =
-                    IdentObject::ident(&sym, kind.clone(), src.clone())
-                        .extern_(kind.clone(), Source::default());
+                let result = IdentObject::declare(&sym)
+                    .resolve(kind.clone(), src.clone())
+                    .and_then(|o| o.extern_(kind.clone(), Source::default()));
 
                 assert_eq!(Ok(IdentObject::Ident(&sym, kind, src)), result,);
             }
@@ -768,7 +765,7 @@ mod test {
                 let sym = symbol_dummy!(1, "extern_extern");
                 let kind = IdentKind::Class(Dim::from_u8(20));
 
-                let result = IdentObject::missing(&sym)
+                let result = IdentObject::declare(&sym)
                     .extern_(kind.clone(), Source::default())
                     .and_then(|o| o.extern_(kind.clone(), Source::default()));
 
@@ -785,13 +782,13 @@ mod test {
                     ..Default::default()
                 };
 
-                let orig = IdentObject::missing(&sym)
+                let orig = IdentObject::declare(&sym)
                     .extern_(kind.clone(), Source::default())
                     .unwrap();
 
                 // Incompatible kind
                 let kind_bad = IdentKind::Meta;
-                let result = orig.clone().redeclare(kind_bad.clone(), src);
+                let result = orig.clone().resolve(kind_bad.clone(), src);
 
                 match result {
                     Err((given_orig, err @ _)) => {
@@ -829,8 +826,9 @@ mod test {
                     ..Default::default()
                 };
 
-                let orig =
-                    IdentObject::ident(&sym, kind_given.clone(), src.clone());
+                let orig = IdentObject::declare(&sym)
+                    .resolve(kind_given.clone(), src.clone())
+                    .unwrap();
 
                 // Extern with incompatible kind.
                 let kind_extern = IdentKind::Meta;
@@ -870,13 +868,14 @@ mod test {
         fn redeclare_returns_existing_compatible() {
             let sym = symbol_dummy!(1, "symdup");
 
-            let first =
-                IdentObject::ident(&sym, IdentKind::Meta, Source::default());
+            let first = IdentObject::declare(&sym)
+                .resolve(IdentKind::Meta, Source::default())
+                .unwrap();
 
             // Same declaration a second time
             assert_eq!(
                 Ok(first.clone()),
-                first.clone().redeclare(
+                first.clone().resolve(
                     first.kind().unwrap().clone(),
                     first.src().unwrap().clone(),
                 )
@@ -892,7 +891,9 @@ mod test {
             };
 
             let kind = IdentKind::Meta;
-            let ident = IdentObject::ident(&sym, kind.clone(), src.clone());
+            let ident = IdentObject::declare(&sym)
+                .resolve(kind.clone(), src.clone())
+                .unwrap();
             let text = FragmentText::from("a fragment");
             let ident_with_frag = ident.set_fragment(text.clone());
 
@@ -905,8 +906,9 @@ mod test {
         #[test]
         fn add_fragment_to_fragment_fails() {
             let sym = symbol_dummy!(1, "badsym");
-            let ident =
-                IdentObject::ident(&sym, IdentKind::Meta, Source::default());
+            let ident = IdentObject::declare(&sym)
+                .resolve(IdentKind::Meta, Source::default())
+                .unwrap();
 
             let ident_with_frag = ident
                 .set_fragment("orig fragment".into())
@@ -938,14 +940,15 @@ mod test {
             let over_src = symbol_dummy!(2, "src");
             let kind = IdentKind::Meta;
 
-            let virt = IdentObject::ident(
-                &sym,
-                kind.clone(),
-                Source {
-                    virtual_: true,
-                    ..Default::default()
-                },
-            );
+            let virt = IdentObject::declare(&sym)
+                .resolve(
+                    kind.clone(),
+                    Source {
+                        virtual_: true,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
 
             let over_src = Source {
                 override_: true,
@@ -953,7 +956,7 @@ mod test {
                 ..Default::default()
             };
 
-            let result = virt.redeclare(kind.clone(), over_src.clone());
+            let result = virt.resolve(kind.clone(), over_src.clone());
 
             assert_eq!(Ok(IdentObject::Ident(&sym, kind, over_src)), result);
         }
@@ -970,7 +973,9 @@ mod test {
                 ..Default::default()
             };
 
-            let virt = IdentObject::ident(&sym, kind.clone(), virt_src.clone());
+            let virt = IdentObject::declare(&sym)
+                .resolve(kind.clone(), virt_src.clone())
+                .unwrap();
             let text = FragmentText::from("remove me");
             let virt_frag = virt.set_fragment(text.clone());
 
@@ -991,7 +996,7 @@ mod test {
             };
 
             let result =
-                virt_frag.unwrap().redeclare(kind.clone(), over_src.clone());
+                virt_frag.unwrap().resolve(kind.clone(), over_src.clone());
 
             // The act of overriding the object should have cleared any
             // existing fragment, making way for a new fragment to take its
@@ -1007,7 +1012,9 @@ mod test {
                 ..Default::default()
             };
 
-            let obj = IdentObject::ident(&sym, given, src.clone());
+            let obj = IdentObject::declare(&sym)
+                .resolve(given, src.clone())
+                .unwrap();
 
             let fragment = "a fragment".to_string();
             let obj_with_frag = obj.set_fragment(fragment.clone());
