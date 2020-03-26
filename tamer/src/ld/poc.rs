@@ -174,12 +174,9 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
             Ok(XmloEvent::SymDecl(sym, attrs)) => {
                 if let Some(sym_src) = attrs.src {
                     found.insert(sym_src);
-                } else if attrs.extern_ {
-                    // TODO: externs (they're implicitly handled, without
-                    // checks, by Missing)
-                    // depgraph.declare_extern(sym, kind);
                 } else {
                     let owned = attrs.src.is_none();
+                    let extern_ = attrs.extern_;
 
                     let kind = (&attrs).try_into().map_err(|err| {
                         format!("sym `{}` attrs error: {}", sym, err)
@@ -201,10 +198,15 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                                     || kindval == IdentKind::Map
                                     || kindval == IdentKind::RetMap);
 
-                            let node = depgraph.declare(sym, kindval, src)?;
+                            if extern_ {
+                                depgraph.declare_extern(sym, kindval, src)?;
+                            } else {
+                                let node =
+                                    depgraph.declare(sym, kindval, src)?;
 
-                            if link_root {
-                                roots.push(node);
+                                if link_root {
+                                    roots.push(node);
+                                }
                             }
                         }
                         Err(e) => return Err(e.into()),

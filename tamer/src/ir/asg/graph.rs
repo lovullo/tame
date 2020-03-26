@@ -62,9 +62,18 @@ where
     ///       then the operation will fail;
     ///     otherwise,
     ///       the existing identifier will be returned.
+    ///
+    /// If a concrete identifier has already been declared (see
+    ///   [`Asg::declare`]),
+    ///     then extern declarations will be compared and,
+    ///       if compatible,
+    ///       the identifier will be immediately _resolved_ and the object
+    ///         on the graph will not be altered.
+    /// Resolution will otherwise fail in error.
+    ///
     /// For more information on state transitions that can occur when
     ///   redeclaring an identifier that already exists,
-    ///     see [`IdentObjectState::redeclare`].
+    ///     see [`IdentObjectState::resolve`].
     ///
     /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
@@ -93,12 +102,13 @@ where
     /// Resolution will otherwise fail in error.
     ///
     /// See [`IdentObjectState::extern_`] and
-    ///   [`IdentObjectState::redeclare`] for more information on
+    ///   [`IdentObjectState::resolve`] for more information on
     ///   compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
         name: &'i Symbol<'i>,
-        expected_kind: IdentKind,
+        kind: IdentKind,
+        src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Set the fragment associated with a concrete identifier.
@@ -153,7 +163,7 @@ where
     ///   a missing identifier will be added as a placeholder,
     ///     allowing the ASG to be built with partial information as
     ///     identifiers continue to be discovered.
-    /// See [`IdentObjectState::missing`] for more information.
+    /// See [`IdentObjectState::declare`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(
@@ -227,18 +237,12 @@ pub type Node<O> = Option<O>;
 /// The caller will know the problem values.
 #[derive(Debug, PartialEq)]
 pub enum AsgError<Ix: Debug> {
-    /// The provided identifier is not in a state that is permitted to
-    ///   receive a fragment.
+    /// An object could not change state in the manner requested.
     ///
-    /// See [`Asg::set_fragment`] for more information.
-    BadFragmentDest(String),
-
-    /// An attempt to redeclare an identifier with additional information
-    ///   has failed because the provided information was not compatible
-    ///   with the original declaration.
-    ///
-    /// See [`Asg::declare`] for more information.
-    IncompatibleIdent(String),
+    /// See [`Asg::declare`] and [`Asg::set_fragment`] for more
+    ///   information.
+    /// See also [`TransitionError`].
+    ObjectTransition(TransitionError),
 
     /// The node was not expected in the current context
     UnexpectedNode(String),
@@ -250,12 +254,7 @@ pub enum AsgError<Ix: Debug> {
 impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::BadFragmentDest(msg) => {
-                write!(fmt, "bad fragment destination: {}", msg)
-            }
-            Self::IncompatibleIdent(msg) => {
-                write!(fmt, "identifier redeclaration failed: {}", msg)
-            }
+            Self::ObjectTransition(err) => std::fmt::Display::fmt(&err, fmt),
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
             }
@@ -268,16 +267,16 @@ impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
 
 impl<Ix: Debug> std::error::Error for AsgError<Ix> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+        match self {
+            Self::ObjectTransition(err) => err.source(),
+            _ => None,
+        }
     }
 }
 
 impl<Ix: Debug> From<TransitionError> for AsgError<Ix> {
-    fn from(e: TransitionError) -> Self {
-        match e {
-            TransitionError::Incompatible(msg) => Self::IncompatibleIdent(msg),
-            TransitionError::BadFragmentDest(msg) => Self::BadFragmentDest(msg),
-        }
+    fn from(err: TransitionError) -> Self {
+        Self::ObjectTransition(err)
     }
 }
 

@@ -45,7 +45,15 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let usage = opts.usage(&format!("Usage: {} -o OUTPUT FILE", program));
 
     match parse_options(opts, args) {
-        Ok(Command::Link(input, output)) => poc::main(&input, &output),
+        Ok(Command::Link(input, output)) => match poc::main(&input, &output) {
+            Err(e) => {
+                eprintln!("error: {}", e);
+                eprintln!("fatal: failed to link `{}`", output);
+
+                std::process::exit(1);
+            }
+            ok => ok,
+        },
         Ok(Command::Usage) => {
             println!("{}", usage);
             std::process::exit(exitcode::OK);

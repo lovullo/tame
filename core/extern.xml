@@ -46,7 +46,7 @@
       <text>1</text>
     </param>
 
-    <extern name=":class:{@as@}" type="class" dim="0"
+    <extern name=":class:{@as@}" type="class" dim="@dim@"
             yields="@yields@" />
 
     <if name="@yields@">

@@ -305,6 +305,17 @@ impl TryFrom<&[u8]> for SymDtype {
     }
 }
 
+impl std::fmt::Display for SymDtype {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Boolean => write!(fmt, "boolean"),
+            Self::Integer => write!(fmt, "integer"),
+            Self::Float => write!(fmt, "float"),
+            Self::Empty => write!(fmt, "(unknown)"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
