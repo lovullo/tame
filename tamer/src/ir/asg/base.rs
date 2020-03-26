@@ -493,7 +493,6 @@ mod test {
         }
     }
 
-    // TODO: mock IdentObject
     type Sut<'i> = BaseAsg<StubIdentObject<'i>, u8>;
 
     #[test]
