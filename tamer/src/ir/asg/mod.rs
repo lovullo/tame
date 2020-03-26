@@ -197,10 +197,10 @@ mod object;
 mod section;
 
 pub use graph::{Asg, AsgError, AsgResult, ObjectRef, SortableAsg};
-pub use ident::{Dim, IdentKind};
+pub use ident::{DataType, Dim, IdentKind};
 pub use object::{
-    FragmentText, IdentObject, IdentObjectData, Source, TransitionError,
-    TransitionResult,
+    FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
+    TransitionError, TransitionResult,
 };
 pub use section::{Section, SectionIterator, Sections};
 
