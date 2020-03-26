@@ -201,11 +201,8 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
                             if extern_ {
                                 depgraph.declare_extern(sym, kindval, src)?;
                             } else {
-                                let node = depgraph.declare(
-                                    sym,
-                                    kindval,
-                                    Some(src),
-                                )?;
+                                let node =
+                                    depgraph.declare(sym, kindval, src)?;
 
                                 if link_root {
                                     roots.push(node);

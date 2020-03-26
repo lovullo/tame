@@ -76,7 +76,7 @@
 //! let identa_sym = interner.intern("identa");
 //! let identb_sym = interner.intern("identb");
 //!
-//! let identa = asg.declare(identa_sym, IdentKind::Meta, Some(Source::default()))?;
+//! let identa = asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
 //! let identb = asg.declare_extern(identb_sym, IdentKind::Meta, Source::default())?;
 //!
 //! assert_eq!(
@@ -133,7 +133,7 @@
 //!
 //! // Once declared, the missing identifier changes state and dependencies
 //! // are retained.
-//! asg.declare(identa_sym, IdentKind::Meta, Some(Source::default()))?;
+//! asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
 //!
 //! assert_eq!(
 //!     Some(&IdentObject::Ident(identa_sym, IdentKind::Meta, Source::default())),
@@ -168,7 +168,7 @@
 //! #
 //! // Fragments can be attached to resolved identifiers.
 //! let ident = asg.declare(
-//!     interner.intern("ident"), IdentKind::Meta, Some(Source::default())
+//!     interner.intern("ident"), IdentKind::Meta, Source::default()
 //! )?;
 //! asg.set_fragment(ident, FragmentText::from("test fragment"))?;
 //!

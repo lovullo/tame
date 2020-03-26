@@ -63,12 +63,6 @@ where
     ///     otherwise,
     ///       the existing identifier will be returned.
     ///
-    /// If `src` is omitted,
-    ///   then an abstract identifier (an _extern_) is declared.
-    /// Externs are identifiers that are expected to be defined somewhere
-    ///   else ("externally"),
-    ///     and are resolved at [link-time][crate::ld].
-    ///
     /// If a concrete identifier has already been declared (see
     ///   [`Asg::declare`]),
     ///     then extern declarations will be compared and,
@@ -87,7 +81,7 @@ where
         &mut self,
         name: &'i Symbol<'i>,
         kind: IdentKind,
-        src: Option<Source<'i>>,
+        src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix>;
 
     /// Declare an abstract identifier.
