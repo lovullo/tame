@@ -140,7 +140,7 @@ where
         })
     }
 
-    /// Perform a state transition on an identifier.
+    /// Perform a state transition on an identifier by name.
     ///
     /// Look up `ident` or add a missing identifier if it does not yet exist
     ///   (see `lookup_or_missing`).
@@ -149,7 +149,7 @@ where
     ///
     /// This will safely restore graph state to the original identifier
     ///   value on transition failure.
-    fn with_ident<F>(
+    fn with_ident_lookup<F>(
         &mut self,
         name: &'i Symbol<'i>,
         f: F,
@@ -158,11 +158,29 @@ where
         F: FnOnce(O) -> TransitionResult<O>,
     {
         let identi = self.lookup_or_missing(name);
+        self.with_ident(identi, f)
+    }
+
+    /// Perform a state transition on an identifier by [`ObjectRef`].
+    ///
+    /// Invoke `f` with the located identifier and replace the identifier on
+    ///   the graph with the result.
+    ///
+    /// This will safely restore graph state to the original identifier
+    ///   value on transition failure.
+    fn with_ident<F>(
+        &mut self,
+        identi: ObjectRef<Ix>,
+        f: F,
+    ) -> AsgResult<ObjectRef<Ix>, Ix>
+    where
+        F: FnOnce(O) -> TransitionResult<O>,
+    {
         let node = self.graph.node_weight_mut(identi.0).unwrap();
 
         let obj = node
             .take()
-            .expect(&format!("internal error: missing object for {}", name));
+            .expect(&format!("internal error: missing object"));
 
         f(obj)
             .and_then(|obj| {
@@ -237,7 +255,7 @@ where
         kind: IdentKind,
         src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        self.with_ident(name, |obj| obj.resolve(kind, src))
+        self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
     }
 
     fn declare_extern(
@@ -246,7 +264,7 @@ where
         kind: IdentKind,
         src: Source<'i>,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        self.with_ident(name, |obj| obj.extern_(kind, src))
+        self.with_ident_lookup(name, |obj| obj.extern_(kind, src))
     }
 
     fn set_fragment(
@@ -254,30 +272,7 @@ where
         identi: ObjectRef<Ix>,
         text: FragmentText,
     ) -> AsgResult<ObjectRef<Ix>, Ix> {
-        // This should _never_ happen as long as you're only using ObjectRef
-        // values produced by these methods.
-        let node = self
-            .graph
-            .node_weight_mut(identi.0)
-            .expect("internal error: BaseAsg::set_fragment bogus identi");
-
-        // This should also never happen, since we immediately repopulate
-        // the node below.
-        let ty = node
-            .take()
-            .expect("internal error: BaseAsg::set_fragment missing Node data");
-
-        // Be sure to restore the previous node if the transition fails,
-        // otherwise we'll be left in an inconsistent internal state.
-        ty.set_fragment(text)
-            .and_then(|obj| {
-                node.replace(obj);
-                Ok(identi)
-            })
-            .or_else(|(orig, err)| {
-                node.replace(orig);
-                Err(err.into())
-            })
+        self.with_ident(identi, |obj| obj.set_fragment(text))
     }
 
     #[inline]
