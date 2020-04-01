@@ -621,7 +621,11 @@ mod test {
         // Set up an object to fail redeclaration.
         let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
         let obj = sut.get(node).unwrap();
-        let terr = TransitionError::Incompatible(String::from("test fail"));
+        let terr = TransitionError::ExternResolution {
+            name: String::from("test fail"),
+            expected: IdentKind::Meta,
+            given: IdentKind::Meta,
+        };
         obj.fail_redeclare.replace(Some(terr.clone()));
 
         // Should invoke StubIdentObject::redeclare on the above `obj`.
@@ -682,7 +686,11 @@ mod test {
 
         // It doesn't matter that this isn't the error that'll actually be
         // returned, as long as it's some sort of TransitionError.
-        let terr = TransitionError::Incompatible(String::from("test fail"));
+        let terr = TransitionError::ExternResolution {
+            name: String::from("test fail"),
+            expected: IdentKind::Meta,
+            given: IdentKind::Meta,
+        };
         obj.fail_extern.replace(Some(terr.clone()));
 
         // Should invoke StubIdentObject::extern_ on the above `obj`.

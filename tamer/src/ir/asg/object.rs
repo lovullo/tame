@@ -390,13 +390,6 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
 /// TODO: Provide enough information to construct a useful message.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransitionError {
-    /// An attempt to redeclare an identifier with additional information
-    ///   has failed because the provided information was not compatible
-    ///   with the original declaration.
-    ///
-    /// See [`IdentObjectState::resolve`].
-    Incompatible(String),
-
     /// Extern resolution failure.
     ///
     /// An extern could not be resolved because the provided identifier had
@@ -417,10 +410,6 @@ pub enum TransitionError {
 impl std::fmt::Display for TransitionError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Incompatible(msg) => {
-                write!(fmt, "object incompatible: {}", msg)
-            }
-
             Self::ExternResolution {
                 name,
                 expected,
