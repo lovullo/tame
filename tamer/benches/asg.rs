@@ -461,6 +461,65 @@ mod object {
         }
 
         #[bench]
+        fn resolve_1_000_override(bench: &mut Bencher) {
+            let interner = DefaultInterner::new();
+            let sym = interner.intern("sym");
+
+            bench.iter(|| {
+                (0..1000)
+                    .map(|_| {
+                        Sut::declare(&sym)
+                            .resolve(
+                                IdentKind::Meta,
+                                Source {
+                                    virtual_: true,
+                                    ..Default::default()
+                                },
+                            )
+                            .unwrap()
+                            .resolve(
+                                IdentKind::Meta,
+                                Source {
+                                    override_: true,
+                                    ..Default::default()
+                                },
+                            )
+                    })
+                    .for_each(drop);
+            });
+        }
+
+        // Override encountered before virtual
+        #[bench]
+        fn resolve_1_000_override_virt_after_override(bench: &mut Bencher) {
+            let interner = DefaultInterner::new();
+            let sym = interner.intern("sym");
+
+            bench.iter(|| {
+                (0..1000)
+                    .map(|_| {
+                        Sut::declare(&sym)
+                            .resolve(
+                                IdentKind::Meta,
+                                Source {
+                                    override_: true,
+                                    ..Default::default()
+                                },
+                            )
+                            .unwrap()
+                            .resolve(
+                                IdentKind::Meta,
+                                Source {
+                                    virtual_: true,
+                                    ..Default::default()
+                                },
+                            )
+                    })
+                    .for_each(drop);
+            });
+        }
+
+        #[bench]
         fn set_fragment_1_000_resolved_with_new_str(bench: &mut Bencher) {
             let interner = DefaultInterner::new();
             let sym = interner.intern("sym");
