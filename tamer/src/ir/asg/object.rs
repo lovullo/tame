@@ -261,6 +261,9 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     /// The kind of identifier cannot change,
     ///   but the argument is provided here for convenience so that the
     ///   caller does not need to perform such a check itself.
+    ///
+    /// If no extern or virtual override is possible,
+    ///   an identifier cannot be redeclared and this operation will fail.
     fn resolve(
         self,
         kind: IdentKind,
@@ -338,12 +341,26 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 Ok(IdentObject::Ident(name, kind, src))
             }
 
-            IdentObject::Missing(name) | IdentObject::Ident(name, _, _) => {
+            // These represent the prolog and epilogue of maps. This
+            // situation will be resolved in the future.
+            IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::RetMapTail, _, _) => {
+                Ok(self)
+            }
+
+            IdentObject::Missing(name) => {
                 Ok(IdentObject::Ident(name, kind, src))
             }
 
-            // TODO
-            _ => Ok(self),
+            _ => {
+                let err = TransitionError::Redeclare {
+                    name: self.name().unwrap().to_string(),
+                };
+
+                Err((self, err))
+            }
         }
     }
 
@@ -393,6 +410,8 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 Ok(self)
             }
 
+            // These represent the prolog and epilogue of maps. This
+            // situation will be resolved in the future.
             IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
             | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
             | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
@@ -414,10 +433,12 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
 
 /// An error attempting to transition from one [`IdentObject`] state to
 ///   another.
-///
-/// TODO: Provide enough information to construct a useful message.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransitionError {
+    /// Attempted to redeclare a concrete, non-virtual identifier without an
+    ///   override.
+    Redeclare { name: String },
+
     /// Extern resolution failure.
     ///
     /// An extern could not be resolved because the provided identifier had
@@ -449,6 +470,12 @@ pub enum TransitionError {
 impl std::fmt::Display for TransitionError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Self::Redeclare { name } => write!(
+                fmt,
+                "cannot redeclare identifier `{}`",
+                name,
+            ),
+
             Self::ExternResolution {
                 name,
                 expected,
@@ -762,6 +789,37 @@ mod test {
             );
         }
 
+        // Note that we don't care about similar sources.  It's expected
+        // that the system populating the ASG will only resolve local
+        // symbols, and so redeclarations should represent that multiple
+        // packages have the same local symbol.
+        #[test]
+        fn ident_object_redeclare_same_src() {
+            let sym = symbol_dummy!(1, "redecl");
+            let kind = IdentKind::Meta;
+            let src = Source::default();
+
+            let first = IdentObject::declare(&sym)
+                .resolve(kind.clone(), src.clone())
+                .unwrap();
+
+            // Resolve twice, as if we encountered two local symbols.
+            let result = first
+                .clone()
+                .resolve(kind.clone(), src.clone())
+                .expect_err("expected error redeclaring identifier");
+
+            match result {
+                (orig, TransitionError::Redeclare { name }) => {
+                    assert_eq!(first, orig);
+                    assert_eq!(*sym, name);
+                }
+                _ => {
+                    panic!("expected TransitionError::Redeclare: {:?}", result)
+                }
+            }
+        }
+
         mod extern_ {
             use super::*;
 
@@ -930,25 +988,6 @@ mod test {
                     _ => panic!("expected failure: {:?}", result),
                 }
             }
-        }
-
-        // TODO: incompatible
-        #[test]
-        fn redeclare_returns_existing_compatible() {
-            let sym = symbol_dummy!(1, "symdup");
-
-            let first = IdentObject::declare(&sym)
-                .resolve(IdentKind::Meta, Source::default())
-                .unwrap();
-
-            // Same declaration a second time
-            assert_eq!(
-                Ok(first.clone()),
-                first.clone().resolve(
-                    first.kind().unwrap().clone(),
-                    first.src().unwrap().clone(),
-                )
-            );
         }
 
         #[test]
