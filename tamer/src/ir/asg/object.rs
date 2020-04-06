@@ -425,7 +425,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                     self,
                 );
 
-                Err((self, TransitionError::BadFragmentDest(msg)))
+                Err((self, TransitionError::BadFragmentDest { name: msg }))
             }
         }
     }
@@ -464,7 +464,7 @@ pub enum TransitionError {
     ///   receive a fragment.
     ///
     /// See [`IdentObjectState::set_fragment`].
-    BadFragmentDest(String),
+    BadFragmentDest { name: String },
 }
 
 impl std::fmt::Display for TransitionError {
@@ -502,7 +502,7 @@ impl std::fmt::Display for TransitionError {
                 name, existing, given,
             ),
 
-            Self::BadFragmentDest(msg) => {
+            Self::BadFragmentDest{name: msg} => {
                 write!(fmt, "bad fragment destination: {}", msg)
             }
         }
@@ -1029,7 +1029,7 @@ mod test {
                 .expect_err("Expected failure");
 
             match err {
-                (orig, TransitionError::BadFragmentDest(str))
+                (orig, TransitionError::BadFragmentDest { name: str })
                     if str.contains("badsym") =>
                 {
                     assert_eq!(ident_with_frag, orig);
