@@ -251,21 +251,81 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     ///     (it returns to a [`IdentObject::Ident`])
     ///     to make way for the fragment of the override.
     ///
+    /// Overrides will always have their virtual flag cleared,
+    ///   even if set.
+    /// The compiler will hopefully have done this for us,
+    ///   since the user may be confused with subsequent
+    ///   [`TransitionError::NonVirtualOverride`] errors if they try to
+    ///   override an override.
+    ///
     /// The kind of identifier cannot change,
     ///   but the argument is provided here for convenience so that the
     ///   caller does not need to perform such a check itself.
+    ///
+    /// If no extern or virtual override is possible,
+    ///   an identifier cannot be redeclared and this operation will fail.
     fn resolve(
-        mut self,
+        self,
         kind: IdentKind,
-        src: Source<'i>,
+        mut src: Source<'i>,
     ) -> TransitionResult<IdentObject<'i>> {
         match self {
-            IdentObject::Ident(_, _, ref mut orig_src)
-                if orig_src.virtual_ && src.override_ =>
-            {
-                *orig_src = src;
-                Ok(self)
+            IdentObject::Ident(name, ref orig_kind, ref orig_src)
+            | IdentObject::IdentFragment(
+                name,
+                ref orig_kind,
+                ref orig_src,
+                _,
+            ) if src.override_ => {
+                if !orig_src.virtual_ {
+                    let err = TransitionError::NonVirtualOverride {
+                        name: name.to_string(),
+                    };
+
+                    return Err((self, err));
+                }
+
+                if orig_kind != &kind {
+                    let err = TransitionError::VirtualOverrideKind {
+                        name: name.to_string(),
+                        existing: orig_kind.clone(),
+                        given: kind.clone(),
+                    };
+
+                    return Err((self, err));
+                }
+
+                // Ensure that virtual flags are cleared to prohibit
+                // override-overrides.  The compiler should do this; this is
+                // just an extra layer of defense.
+                src.virtual_ = false;
+
+                // Note that this has the effect of clearing fragments if we
+                // originally were in state `IdentObject::IdentFragment`.
+                Ok(IdentObject::Ident(name, kind, src))
             }
+
+            // If we encountered the override _first_, flip the context by
+            // declaring a new identifier and trying to override that.
+            IdentObject::Ident(name, orig_kind, orig_src)
+                if orig_src.override_ =>
+            {
+                Self::declare(name)
+                    .resolve(kind, src)?
+                    .resolve(orig_kind, orig_src)
+            }
+
+            // Same as above, but for fragments, we want to keep the
+            // _original override_ fragment.
+            IdentObject::IdentFragment(
+                name,
+                orig_kind,
+                orig_src,
+                orig_text,
+            ) if orig_src.override_ => Self::declare(name)
+                .resolve(kind, src)?
+                .resolve(orig_kind, orig_src)?
+                .set_fragment(orig_text),
 
             IdentObject::Extern(name, ref orig_kind, _) => {
                 if orig_kind != &kind {
@@ -281,20 +341,26 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 Ok(IdentObject::Ident(name, kind, src))
             }
 
-            // TODO: no override-override
-            IdentObject::IdentFragment(name, _, orig_src, _)
-                if orig_src.virtual_ && src.override_ =>
-            {
-                // clears fragment, which is no longer applicable
+            // These represent the prolog and epilogue of maps. This
+            // situation will be resolved in the future.
+            IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
+            | IdentObject::IdentFragment(_, IdentKind::RetMapTail, _, _) => {
+                Ok(self)
+            }
+
+            IdentObject::Missing(name) => {
                 Ok(IdentObject::Ident(name, kind, src))
             }
 
-            IdentObject::Missing(name) | IdentObject::Ident(name, _, _) => {
-                Ok(IdentObject::Ident(name, kind, src))
-            }
+            _ => {
+                let err = TransitionError::Redeclare {
+                    name: self.name().unwrap().to_string(),
+                };
 
-            // TODO
-            _ => Ok(self),
+                Err((self, err))
+            }
         }
     }
 
@@ -331,44 +397,25 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                 Ok(IdentObject::IdentFragment(sym, kind, src, text))
             }
 
+            // If we get to this point in a properly functioning program (at
+            // least as of the time of writing), then we have encountered a
+            // fragment for a virtual identifier _after_ we have already
+            // encountered the fragment for its _override_.  We therefore
+            // want to keep the override.
+            //
+            // If this is not permissable, then we should have already
+            // prevented the `resolve` transition before this fragment was
+            // encountered.
+            IdentObject::IdentFragment(_, _, ref src, _) if src.override_ => {
+                Ok(self)
+            }
+
+            // These represent the prolog and epilogue of maps. This
+            // situation will be resolved in the future.
             IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
             | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
             | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
             | IdentObject::IdentFragment(_, IdentKind::RetMapTail, _, _) => {
-                Ok(self)
-            }
-
-            // TODO remove these ignores when fixed
-            IdentObject::IdentFragment(
-                sym,
-                IdentKind::Map,
-                Source {
-                    virtual_: true,
-                    override_: true,
-                    ..
-                },
-                _,
-            ) => {
-                eprintln!(
-                    "ignoring virtual and overridden map object: {}",
-                    sym
-                );
-                Ok(self)
-            }
-            IdentObject::IdentFragment(
-                sym,
-                IdentKind::RetMap,
-                Source {
-                    virtual_: true,
-                    override_: true,
-                    ..
-                },
-                _,
-            ) => {
-                eprintln!(
-                    "ignoring virtual and overridden retmap object: {}",
-                    sym
-                );
                 Ok(self)
             }
 
@@ -378,7 +425,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
                     self,
                 );
 
-                Err((self, TransitionError::BadFragmentDest(msg)))
+                Err((self, TransitionError::BadFragmentDest { name: msg }))
             }
         }
     }
@@ -386,16 +433,11 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
 
 /// An error attempting to transition from one [`IdentObject`] state to
 ///   another.
-///
-/// TODO: Provide enough information to construct a useful message.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransitionError {
-    /// An attempt to redeclare an identifier with additional information
-    ///   has failed because the provided information was not compatible
-    ///   with the original declaration.
-    ///
-    /// See [`IdentObjectState::resolve`].
-    Incompatible(String),
+    /// Attempted to redeclare a concrete, non-virtual identifier without an
+    ///   override.
+    Redeclare { name: String },
 
     /// Extern resolution failure.
     ///
@@ -407,19 +449,32 @@ pub enum TransitionError {
         given: IdentKind,
     },
 
+    /// Attempt to override a non-virtual identifier.
+    NonVirtualOverride { name: String },
+
+    /// Overriding a virtual identifier failed due to an incompatible
+    ///   [`IdentKind`].
+    VirtualOverrideKind {
+        name: String,
+        existing: IdentKind,
+        given: IdentKind,
+    },
+
     /// The provided identifier is not in a state that is permitted to
     ///   receive a fragment.
     ///
     /// See [`IdentObjectState::set_fragment`].
-    BadFragmentDest(String),
+    BadFragmentDest { name: String },
 }
 
 impl std::fmt::Display for TransitionError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Incompatible(msg) => {
-                write!(fmt, "object incompatible: {}", msg)
-            }
+            Self::Redeclare { name } => write!(
+                fmt,
+                "cannot redeclare identifier `{}`",
+                name,
+            ),
 
             Self::ExternResolution {
                 name,
@@ -431,7 +486,23 @@ impl std::fmt::Display for TransitionError {
                 name, expected, given,
             ),
 
-            Self::BadFragmentDest(msg) => {
+            Self::NonVirtualOverride { name } => write!(
+                fmt,
+                "non-virtual identifier `{}` cannot be overridden",
+                name,
+            ),
+
+            Self::VirtualOverrideKind {
+                name,
+                existing,
+                given,
+            } => write!(
+                fmt,
+                "virtual identifier `{}` of type `{}` cannot be overridden with type `{}`",
+                name, existing, given,
+            ),
+
+            Self::BadFragmentDest{name: msg} => {
                 write!(fmt, "bad fragment destination: {}", msg)
             }
         }
@@ -718,6 +789,37 @@ mod test {
             );
         }
 
+        // Note that we don't care about similar sources.  It's expected
+        // that the system populating the ASG will only resolve local
+        // symbols, and so redeclarations should represent that multiple
+        // packages have the same local symbol.
+        #[test]
+        fn ident_object_redeclare_same_src() {
+            let sym = symbol_dummy!(1, "redecl");
+            let kind = IdentKind::Meta;
+            let src = Source::default();
+
+            let first = IdentObject::declare(&sym)
+                .resolve(kind.clone(), src.clone())
+                .unwrap();
+
+            // Resolve twice, as if we encountered two local symbols.
+            let result = first
+                .clone()
+                .resolve(kind.clone(), src.clone())
+                .expect_err("expected error redeclaring identifier");
+
+            match result {
+                (orig, TransitionError::Redeclare { name }) => {
+                    assert_eq!(first, orig);
+                    assert_eq!(*sym, name);
+                }
+                _ => {
+                    panic!("expected TransitionError::Redeclare: {:?}", result)
+                }
+            }
+        }
+
         mod extern_ {
             use super::*;
 
@@ -888,25 +990,6 @@ mod test {
             }
         }
 
-        // TODO: incompatible
-        #[test]
-        fn redeclare_returns_existing_compatible() {
-            let sym = symbol_dummy!(1, "symdup");
-
-            let first = IdentObject::declare(&sym)
-                .resolve(IdentKind::Meta, Source::default())
-                .unwrap();
-
-            // Same declaration a second time
-            assert_eq!(
-                Ok(first.clone()),
-                first.clone().resolve(
-                    first.kind().unwrap().clone(),
-                    first.src().unwrap().clone(),
-                )
-            );
-        }
-
         #[test]
         fn add_fragment_to_ident() {
             let sym = symbol_dummy!(1, "tofrag");
@@ -946,7 +1029,7 @@ mod test {
                 .expect_err("Expected failure");
 
             match err {
-                (orig, TransitionError::BadFragmentDest(str))
+                (orig, TransitionError::BadFragmentDest { name: str })
                     if str.contains("badsym") =>
                 {
                     assert_eq!(ident_with_frag, orig);
@@ -958,76 +1041,376 @@ mod test {
             }
         }
 
-        // TODO: incompatible
-        #[test]
-        fn declare_override_virtual_ident() {
-            let sym = symbol_dummy!(1, "virtual");
-            let over_src = symbol_dummy!(2, "src");
-            let kind = IdentKind::Meta;
+        mod override_ {
+            use super::*;
 
-            let virt = IdentObject::declare(&sym)
-                .resolve(
-                    kind.clone(),
-                    Source {
-                        virtual_: true,
-                        ..Default::default()
-                    },
-                )
-                .unwrap();
+            #[test]
+            fn declare_virtual_ident_first() {
+                let sym = symbol_dummy!(1, "virtual");
+                let over_src = symbol_dummy!(2, "src");
+                let kind = IdentKind::Meta;
 
-            let over_src = Source {
-                override_: true,
-                src: Some(&over_src),
-                ..Default::default()
-            };
+                let virt = IdentObject::declare(&sym)
+                    .resolve(
+                        kind.clone(),
+                        Source {
+                            virtual_: true,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
 
-            let result = virt.resolve(kind.clone(), over_src.clone());
+                let over_src = Source {
+                    virtual_: true, // this needn't be set, but see below
+                    override_: true,
+                    src: Some(&over_src),
+                    ..Default::default()
+                };
 
-            assert_eq!(Ok(IdentObject::Ident(&sym, kind, over_src)), result);
-        }
+                let result = virt.resolve(kind.clone(), over_src.clone());
 
-        // TODO: incompatible
-        #[test]
-        fn declare_override_virtual_ident_fragment() {
-            let sym = symbol_dummy!(1, "virtual");
-            let over_src = symbol_dummy!(2, "src");
-            let kind = IdentKind::Meta;
+                // Overriding should clear any virtual flag that may have
+                // been set to prevent override-overrides.
+                let expected_src = Source {
+                    virtual_: false,
+                    ..over_src
+                };
 
-            let virt_src = Source {
-                virtual_: true,
-                ..Default::default()
-            };
+                assert_eq!(
+                    Ok(IdentObject::Ident(&sym, kind, expected_src)),
+                    result
+                );
+            }
 
-            let virt = IdentObject::declare(&sym)
-                .resolve(kind.clone(), virt_src.clone())
-                .unwrap();
-            let text = FragmentText::from("remove me");
-            let virt_frag = virt.set_fragment(text.clone());
+            // Override is encountered before the virtual
+            #[test]
+            fn declare_virtual_ident_after_override() {
+                let sym = symbol_dummy!(1, "virtual_second");
+                let virt_src = symbol_dummy!(2, "virt_src");
+                let kind = IdentKind::Meta;
 
-            assert_eq!(
-                Ok(IdentObject::IdentFragment(
-                    &sym,
-                    kind.clone(),
-                    virt_src,
-                    text
-                )),
-                virt_frag,
-            );
+                let over_src = Source {
+                    virtual_: true, // this needn't be set, but see below
+                    override_: true,
+                    ..Default::default()
+                };
 
-            let over_src = Source {
-                override_: true,
-                src: Some(&over_src),
-                ..Default::default()
-            };
+                let over = IdentObject::declare(&sym)
+                    .resolve(kind.clone(), over_src.clone())
+                    .unwrap();
 
-            let result =
-                virt_frag.unwrap().resolve(kind.clone(), over_src.clone());
+                let virt_src = Source {
+                    virtual_: true,
+                    src: Some(&virt_src),
+                    ..Default::default()
+                };
 
-            // The act of overriding the object should have cleared any
-            // existing fragment, making way for a new fragment to take its
-            // place as soon as it is discovered.  (So, back to an
-            // IdentObject::Ident.)
-            assert_eq!(Ok(IdentObject::Ident(&sym, kind, over_src)), result);
+                let result = over.resolve(kind.clone(), virt_src.clone());
+
+                // Overriding should clear any virtual flag that may have
+                // been set to prevent override-overrides.  We should also
+                // take the override source even though virtual was second.
+                let expected_src = Source {
+                    virtual_: false,
+                    ..over_src
+                };
+
+                assert_eq!(
+                    Ok(IdentObject::Ident(&sym, kind, expected_src)),
+                    result
+                );
+            }
+
+            #[test]
+            fn declare_override_non_virtual() {
+                let sym = symbol_dummy!(1, "non_virtual");
+                let kind = IdentKind::Meta;
+
+                let non_virt = IdentObject::declare(&sym)
+                    .resolve(
+                        kind.clone(),
+                        Source {
+                            virtual_: false,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                let over_src = Source {
+                    override_: true,
+                    ..Default::default()
+                };
+
+                // This isn't the purpose of the test, but we want to make
+                // sure that the non-virtual override error occurs before
+                // the kind error.
+                let bad_kind = IdentKind::Cgen(Dim::from_u8(1));
+
+                let result = non_virt
+                    .clone()
+                    .resolve(bad_kind, over_src.clone())
+                    .expect_err("expected error");
+
+                match result {
+                    (
+                        ref orig,
+                        TransitionError::NonVirtualOverride { ref name },
+                    ) => {
+                        assert_eq!(orig, &non_virt);
+                        assert_eq!(*sym, *name);
+
+                        // Formatted error
+                        let (_, err) = result;
+                        let msg = format!("{}", err);
+
+                        assert!(msg.contains(&format!("{}", sym)));
+                    }
+                    (_, TransitionError::VirtualOverrideKind { .. }) => {
+                        panic!("kind check must happen _after_ virtual check")
+                    }
+                    _ => panic!(
+                        "expected TransitionError::VirtualOverrideKind {:?}",
+                        result
+                    ),
+                }
+            }
+
+            #[test]
+            fn declare_virtual_ident_incompatible_kind() {
+                let sym = symbol_dummy!(1, "virtual");
+                let src_sym = symbol_dummy!(2, "src");
+                let kind = IdentKind::Meta;
+
+                let virt = IdentObject::declare(&sym)
+                    .resolve(
+                        kind.clone(),
+                        Source {
+                            virtual_: true,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                let over_src = Source {
+                    override_: true,
+                    src: Some(&src_sym),
+                    ..Default::default()
+                };
+
+                let bad_kind = IdentKind::Cgen(Dim::from_u8(1));
+                let result = virt
+                    .clone()
+                    .resolve(bad_kind.clone(), over_src.clone())
+                    .expect_err("expected error");
+
+                match result {
+                    (
+                        ref orig,
+                        TransitionError::VirtualOverrideKind {
+                            ref name,
+                            ref existing,
+                            ref given,
+                        },
+                    ) => {
+                        assert_eq!(orig, &virt);
+
+                        assert_eq!(*sym, *name);
+                        assert_eq!(&kind, existing);
+                        assert_eq!(&bad_kind, given);
+
+                        // Formatted error
+                        let (_, err) = result;
+                        let msg = format!("{}", err);
+
+                        assert!(msg.contains(&format!("{}", sym)));
+                        assert!(msg.contains(&format!("{}", kind)));
+                        assert!(msg.contains(&format!("{}", bad_kind)));
+                    }
+                    _ => panic!(
+                        "expected TransitionError::VirtualOverrideKind {:?}",
+                        result
+                    ),
+                }
+            }
+
+            // Encounter virtual first and override second should cause the
+            // fragment to be cleared to make way for the new fragment.
+            #[test]
+            fn declare_override_virtual_ident_fragment_virtual_first() {
+                let sym = symbol_dummy!(1, "virtual");
+                let over_src = symbol_dummy!(2, "src");
+                let kind = IdentKind::Meta;
+
+                // Remember: override is going to come first...
+                let over_src = Source {
+                    override_: true,
+                    src: Some(&over_src),
+                    ..Default::default()
+                };
+
+                // ...and virt second.
+                let virt_src = Source {
+                    virtual_: true,
+                    ..Default::default()
+                };
+
+                let over = IdentObject::declare(&sym)
+                    .resolve(kind.clone(), over_src.clone())
+                    .unwrap();
+
+                // So we should _keep_ this fragment, since it represent the
+                // override, even though it's appearing first.
+                let text = FragmentText::from("keep me");
+                let over_frag = over.set_fragment(text.clone());
+
+                assert_eq!(
+                    Ok(IdentObject::IdentFragment(
+                        &sym,
+                        kind.clone(),
+                        over_src.clone(),
+                        text.clone(),
+                    )),
+                    over_frag,
+                );
+
+                let result =
+                    over_frag.unwrap().resolve(kind.clone(), virt_src.clone());
+
+                // Overriding should _not_ have cleared the fragment since
+                // the override was encountered _first_, so we want to keep
+                // its fragment.
+                assert_eq!(
+                    Ok(IdentObject::IdentFragment(
+                        &sym,
+                        kind.clone(),
+                        over_src.clone(),
+                        text.clone()
+                    )),
+                    result
+                );
+
+                // Finally, after performing this transition, we will
+                // inevitably encounter the fragment for the virtual
+                // identifier, which we must ignore.  So we must make sure
+                // that encountering it will not cause an error, because we
+                // still have an IdentFragment at this point.
+                assert_eq!(
+                    Ok(IdentObject::IdentFragment(
+                        &sym,
+                        kind,
+                        over_src.clone(),
+                        text.clone()
+                    )),
+                    result.unwrap().set_fragment("virt fragment".into()),
+                );
+            }
+
+            // Encountering _override_ first and virtual second should _not_
+            // clear the fragment, otherwise the virtual fragment will take
+            // precedence over the override.
+            #[test]
+            fn declare_override_virtual_ident_fragment_override_first() {
+                let sym = symbol_dummy!(1, "virtual");
+                let over_src = symbol_dummy!(2, "src");
+                let kind = IdentKind::Meta;
+
+                let virt_src = Source {
+                    virtual_: true,
+                    ..Default::default()
+                };
+
+                let virt = IdentObject::declare(&sym)
+                    .resolve(kind.clone(), virt_src.clone())
+                    .unwrap();
+                let text = FragmentText::from("remove me");
+                let virt_frag = virt.set_fragment(text.clone());
+
+                assert_eq!(
+                    Ok(IdentObject::IdentFragment(
+                        &sym,
+                        kind.clone(),
+                        virt_src,
+                        text
+                    )),
+                    virt_frag,
+                );
+
+                let over_src = Source {
+                    override_: true,
+                    src: Some(&over_src),
+                    ..Default::default()
+                };
+
+                let result =
+                    virt_frag.unwrap().resolve(kind.clone(), over_src.clone());
+
+                // The act of overriding the object should have cleared any
+                // existing fragment, making way for a new fragment to take its
+                // place as soon as it is discovered.  (So, back to an
+                // IdentObject::Ident.)
+                assert_eq!(
+                    Ok(IdentObject::Ident(&sym, kind, over_src)),
+                    result
+                );
+            }
+
+            #[test]
+            fn declare_override_virtual_ident_fragment_incompatible_type() {
+                let sym = symbol_dummy!(1, "virtual");
+                let over_src = symbol_dummy!(2, "src");
+                let kind = IdentKind::Meta;
+
+                let virt_src = Source {
+                    virtual_: true,
+                    ..Default::default()
+                };
+
+                let virt = IdentObject::declare(&sym)
+                    .resolve(kind.clone(), virt_src.clone())
+                    .unwrap();
+                let virt_frag = virt.set_fragment("".into()).unwrap();
+
+                let over_src = Source {
+                    override_: true,
+                    src: Some(&over_src),
+                    ..Default::default()
+                };
+
+                let bad_kind = IdentKind::Cgen(Dim::from_u8(1));
+                let result = virt_frag
+                    .clone()
+                    .resolve(bad_kind.clone(), over_src.clone())
+                    .expect_err("expected error");
+
+                match result {
+                    (
+                        ref orig,
+                        TransitionError::VirtualOverrideKind {
+                            ref name,
+                            ref existing,
+                            ref given,
+                        },
+                    ) => {
+                        assert_eq!(orig, &virt_frag);
+
+                        assert_eq!(*sym, *name);
+                        assert_eq!(&kind, existing);
+                        assert_eq!(&bad_kind, given);
+
+                        // Formatted error
+                        let (_, err) = result;
+                        let msg = format!("{}", err);
+
+                        assert!(msg.contains(&format!("{}", sym)));
+                        assert!(msg.contains(&format!("{}", kind)));
+                        assert!(msg.contains(&format!("{}", bad_kind)));
+                    }
+                    _ => panic!(
+                        "expected TransitionError::VirtualOverrideKind {:?}",
+                        result
+                    ),
+                }
+            }
         }
 
         fn add_ident_kind_ignores(given: IdentKind, expected: IdentKind) {
