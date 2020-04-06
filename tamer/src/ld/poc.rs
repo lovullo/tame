@@ -49,8 +49,6 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
     let abs_path = fs::canonicalize(package_path)?;
 
-    println!("WARNING: This is proof-of-concept; do not use!");
-
     let (name, relroot) = load_xmlo(
         &abs_path.to_str().unwrap().to_string(),
         &mut pkgs_seen,
