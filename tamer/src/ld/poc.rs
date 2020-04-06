@@ -140,7 +140,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
     let file = fs::File::open(&path)?;
     let reader = BufReader::new(file);
-    let mut xmlo = XmloReader::new(reader, interner);
+    let mut xmlo: XmloReader<'_, _, _> = (reader, interner).into();
     let mut elig = None;
 
     let mut name: Option<&'i Symbol<'i>> = None;

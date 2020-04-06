@@ -684,6 +684,16 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     }
 }
 
+impl<'i, B, I> From<(B, &'i I)> for XmloReader<'i, B, I>
+where
+    B: BufRead,
+    I: Interner<'i>,
+{
+    fn from(args: (B, &'i I)) -> Self {
+        Self::new(args.0, args.1)
+    }
+}
+
 /// `xmlo` reader events.
 ///
 /// All data are parsed rather than being returned as [`u8`] slices,
