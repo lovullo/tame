@@ -20,6 +20,7 @@
 //! **This is a poorly-written proof of concept; do not use!**  It has been
 //! banished to its own file to try to make that more clear.
 
+use crate::fs::{Filesystem, VisitOnceFile, VisitOnceFilesystem};
 use crate::global;
 use crate::ir::asg::{
     Asg, AsgError, DefaultAsg, IdentKind, IdentObject, IdentObjectData,
@@ -28,7 +29,7 @@ use crate::ir::asg::{
 use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
-use fxhash::{FxHashMap, FxHashSet};
+use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
@@ -41,7 +42,7 @@ type LoadResult<'i> =
     Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>>;
 
 pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
-    let mut pkgs_seen: FxHashSet<String> = Default::default();
+    let mut fs = VisitOnceFilesystem::new();
     let mut fragments: FxHashMap<&str, String> = Default::default();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let mut roots = Vec::new();
@@ -51,7 +52,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
     let (name, relroot) = load_xmlo(
         &abs_path.to_str().unwrap().to_string(),
-        &mut pkgs_seen,
+        &mut fs,
         &mut fragments,
         &mut depgraph,
         &interner,
@@ -119,26 +120,22 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
 fn load_xmlo<'a, 'i, I: Interner<'i>>(
     path_str: &'a str,
-    pkgs_seen: &mut FxHashSet<String>,
+    fs: &mut VisitOnceFilesystem<FxBuildHasher>,
     fragments: &mut FxHashMap<&'i str, String>,
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     roots: &mut Vec<LinkerObjectRef>,
 ) -> LoadResult<'i> {
     let path = fs::canonicalize(path_str)?;
-    let path_str = path.to_str().unwrap();
-
-    let first = pkgs_seen.len() == 0;
-
-    if !pkgs_seen.insert(path_str.to_string()) {
-        return Ok(None);
-    }
-
-    //println!("processing {}", path_str);
+    let first = fs.visit_len() == 0;
 
     let mut found: FxHashSet<&str> = Default::default();
 
-    let file = fs::File::open(&path)?;
+    let file: fs::File = match fs.open(&path)? {
+        VisitOnceFile::FirstVisit(file) => file,
+        VisitOnceFile::Visited => return Ok(None),
+    };
+
     let reader = BufReader::new(file);
     let mut xmlo: XmloReader<'_, _, _> = (reader, interner).into();
     let mut elig = None;
@@ -253,7 +250,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         let path_abs = path_buf.canonicalize()?;
         let path = path_abs.to_str().unwrap();
 
-        load_xmlo(path, pkgs_seen, fragments, depgraph, interner, roots)?;
+        load_xmlo(path, fs, fragments, depgraph, interner, roots)?;
     }
 
     if first {

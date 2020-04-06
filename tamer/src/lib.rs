@@ -24,6 +24,7 @@ pub mod global;
 #[macro_use]
 pub mod sym;
 
+pub mod fs;
 pub mod ir;
 pub mod ld;
 pub mod obj;
