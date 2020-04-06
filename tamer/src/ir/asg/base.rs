@@ -419,6 +419,7 @@ mod test {
         given_set_fragment: Option<FragmentText>,
         fail_redeclare: RefCell<Option<TransitionError>>,
         fail_extern: RefCell<Option<TransitionError>>,
+        fail_set_fragment: RefCell<Option<TransitionError>>,
     }
 
     impl<'i> IdentObjectData<'i> for StubIdentObject<'i> {
@@ -483,6 +484,11 @@ mod test {
             mut self,
             text: FragmentText,
         ) -> TransitionResult<StubIdentObject<'i>> {
+            if self.fail_set_fragment.borrow().is_some() {
+                let err = self.fail_set_fragment.replace(None).unwrap();
+                return Err((self, err));
+            }
+
             self.given_set_fragment.replace(text);
             Ok(self)
         }
@@ -740,7 +746,39 @@ mod test {
         Ok(())
     }
 
-    // TODO: fragment fail
+    #[test]
+    fn add_fragment_to_ident_fails_if_transition_fails() -> AsgResult<(), u8> {
+        let mut sut = Sut::with_capacity(0, 0);
+
+        let sym = symbol_dummy!(1, "failfrag");
+        let src = Source {
+            generated: true,
+            ..Default::default()
+        };
+
+        // The failure will come from terr below, not this.
+        let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
+        let obj = sut.get(node).unwrap();
+
+        // It doesn't matter that this isn't the error that'll actually be
+        // returned, as long as it's some sort of TransitionError.
+        let terr = TransitionError::BadFragmentDest {
+            name: String::from("test fail"),
+        };
+        obj.fail_set_fragment.replace(Some(terr.clone()));
+
+        let result = sut
+            .set_fragment(node, "".into())
+            .expect_err("error expected");
+
+        // The node should have been restored.
+        let obj = sut.get(node).unwrap();
+
+        assert_eq!(&sym, *obj.given_declare.as_ref().unwrap());
+        assert_eq!(AsgError::ObjectTransition(terr), result);
+
+        Ok(())
+    }
 
     #[test]
     fn add_ident_dep_to_ident() -> AsgResult<(), u8> {
