@@ -32,7 +32,7 @@ use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::reader::{XmloError, XmloReader};
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState};
 use crate::sym::{DefaultInterner, Interner, Symbol};
-use fxhash::{FxBuildHasher, FxHashMap};
+use fxhash::FxBuildHasher;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
@@ -45,14 +45,12 @@ type LinkerAsgBuilderState<'i> =
 
 pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
-    let mut fragments: FxHashMap<&str, String> = Default::default();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let interner = DefaultInterner::new();
 
     let state = load_xmlo(
         package_path,
         &mut fs,
-        &mut fragments,
         &mut depgraph,
         &interner,
         Default::default(),
@@ -116,7 +114,6 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 fn load_xmlo<'a, 'i, I: Interner<'i>>(
     path_str: &'a str,
     fs: &mut VisitOnceFilesystem<FxBuildHasher>,
-    fragments: &mut FxHashMap<&'i str, String>,
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     state: LinkerAsgBuilderState<'i>,
@@ -146,7 +143,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         let path_abs = path_buf.canonicalize()?;
         let path = path_abs.to_str().unwrap();
 
-        state = load_xmlo(path, fs, fragments, depgraph, interner, state)?;
+        state = load_xmlo(path, fs, depgraph, interner, state)?;
     }
 
     Ok(state)
