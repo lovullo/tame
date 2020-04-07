@@ -49,10 +49,8 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let interner = DefaultInterner::new();
 
-    let abs_path = fs::canonicalize(package_path)?;
-
     let state = load_xmlo(
-        &abs_path.to_str().unwrap().to_string(),
+        package_path,
         &mut fs,
         &mut fragments,
         &mut depgraph,
