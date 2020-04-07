@@ -113,8 +113,12 @@ common: $(xmlo_common)
 
 program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 
+# Handle an intermediate step as we transition to the new compiler
+%.xmli: %.xml
+	cp $< $@
+
 # Individual dependencies appear in suppliers.mk (see below)
-%.xmlo: %.xml $(path_tame)/.rev-xmlo
+%.xmlo: %.xmli $(path_tame)/.rev-xmlo
 	$(TAME_TS)
 	$(TAME) compile $< $@
 
@@ -207,6 +211,7 @@ clean:
 	find -L $(path_suppliers) $(path_map) $(path_c1map) common/ rater/core rater/lv \( \
 		-name '*.xmlo' \
 		-o -name '*.xmle' \
+		-o -name '*.xmli' \
 		-o -name '*.js' \
 		-o -name '*.html' \
 		-o -name '*.dep' \
