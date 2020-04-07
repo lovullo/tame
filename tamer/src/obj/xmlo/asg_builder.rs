@@ -21,10 +21,10 @@ use super::reader::{XmloError, XmloEvent, XmloReader};
 use crate::ir::asg::{Asg, IdentKind, IdentObjectState, ObjectRef, Source};
 use crate::sym::{Interner, Symbol};
 use petgraph::graph::IndexType;
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::error::Error;
 use std::hash::BuildHasher;
-use std::collections::HashSet;
 use std::io::BufRead;
 
 // TODO error type

@@ -42,6 +42,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::hash::BuildHasher;
 use std::io::{BufReader, Read, Result};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 /// A file.
@@ -65,20 +66,21 @@ impl<F: File + Read> File for BufReader<F> {
     }
 }
 
-pub struct CanonicalFile<F: File>(PathBuf, F);
+#[derive(Debug, PartialEq)]
+pub struct PathFile<F: File>(PathBuf, F);
 
-impl<F: File> Into<(PathBuf, F)> for CanonicalFile<F> {
+impl<F: File> Into<(PathBuf, F)> for PathFile<F> {
     fn into(self) -> (PathBuf, F) {
         (self.0, self.1)
     }
 }
 
-impl<F: File> File for CanonicalFile<F> {
+impl<F: File> File for PathFile<F> {
     fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let cpath = fs::canonicalize(path)?;
-        let file = F::open(&cpath)?;
+        let buf = path.as_ref().to_path_buf();
+        let file = F::open(&buf)?;
 
-        Ok(Self(cpath, file))
+        Ok(Self(buf, file))
     }
 }
 
@@ -122,21 +124,25 @@ impl<F: File> File for VisitOnceFile<F> {
 ///   [`VisitOnceFile::Visited`] without attempting to open the file.
 ///
 /// A file will not be marked as visited if it fails to be opened.
-pub struct VisitOnceFilesystem<S = RandomState>
+pub struct VisitOnceFilesystem<C, S = RandomState>
 where
+    C: Canonicalizer,
     S: BuildHasher,
 {
     visited: HashSet<OsString, S>,
+    _c: PhantomData<C>,
 }
 
-impl<S> VisitOnceFilesystem<S>
+impl<C, S> VisitOnceFilesystem<C, S>
 where
+    C: Canonicalizer,
     S: BuildHasher + Default,
 {
     /// New filesystem with no recorded paths.
     pub fn new() -> Self {
         Self {
             visited: Default::default(),
+            _c: PhantomData,
         }
     }
 
@@ -146,8 +152,9 @@ where
     }
 }
 
-impl<S, F> Filesystem<VisitOnceFile<F>> for VisitOnceFilesystem<S>
+impl<C, S, F> Filesystem<VisitOnceFile<F>> for VisitOnceFilesystem<C, S>
 where
+    C: Canonicalizer,
     S: BuildHasher,
     F: File,
 {
@@ -158,7 +165,8 @@ where
     ///
     /// `path` will not be marked as visited if opening fails.
     fn open<P: AsRef<Path>>(&mut self, path: P) -> Result<VisitOnceFile<F>> {
-        let ostr = path.as_ref().as_os_str();
+        let cpath = C::canonicalize(path)?;
+        let ostr = cpath.as_os_str();
 
         if self.visited.contains(ostr) {
             return Ok(VisitOnceFile::Visited);
@@ -168,6 +176,18 @@ where
             self.visited.insert(ostr.to_os_string());
             Ok(file)
         })
+    }
+}
+
+pub trait Canonicalizer {
+    fn canonicalize<P: AsRef<Path>>(path: P) -> Result<PathBuf>;
+}
+
+pub struct FsCanonicalizer;
+
+impl Canonicalizer for FsCanonicalizer {
+    fn canonicalize<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
+        std::fs::canonicalize(path)
     }
 }
 
@@ -200,16 +220,49 @@ mod test {
     }
 
     #[test]
-    fn vist_once() {
-        let mut fs = VisitOnceFilesystem::<RandomState>::new();
-        let path: PathBuf = "foo/bar".into();
-        let result = fs.open(path.clone()).unwrap();
+    fn path_file() {
+        let path: PathBuf = "buf/path".into();
+        let result: PathFile<DummyFile> = File::open(path.clone()).unwrap();
 
-        // First time, return file.
-        assert_eq!(VisitOnceFile::FirstVisit(DummyFile(path.clone())), result);
+        assert_eq!(PathFile(path.clone(), DummyFile(path.clone())), result);
 
-        // Second time, already visited.
-        let result_2: VisitOnceFile<DummyFile> = fs.open(path).unwrap();
-        assert_eq!(VisitOnceFile::Visited, result_2);
+        // Tuple conversion.
+        assert_eq!((path.clone(), DummyFile(path.clone())), result.into());
+    }
+
+    mod canonicalizer {
+        use super::*;
+
+        struct StubCanonicalizer;
+
+        impl Canonicalizer for StubCanonicalizer {
+            fn canonicalize<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
+                let mut buf = path.as_ref().to_path_buf();
+                buf.push("CANONICALIZED");
+
+                Ok(buf)
+            }
+        }
+
+        #[test]
+        fn vist_once() {
+            let mut fs =
+                VisitOnceFilesystem::<StubCanonicalizer, RandomState>::new();
+            let path: PathBuf = "foo/bar".into();
+            let result = fs.open(path.clone()).unwrap();
+
+            let mut expected_path = path.clone().to_path_buf();
+            expected_path.push("CANONICALIZED");
+
+            // First time, return file.
+            assert_eq!(
+                VisitOnceFile::FirstVisit(DummyFile(expected_path)),
+                result
+            );
+
+            // Second time, already visited.
+            let result_2: VisitOnceFile<DummyFile> = fs.open(path).unwrap();
+            assert_eq!(VisitOnceFile::Visited, result_2);
+        }
     }
 }

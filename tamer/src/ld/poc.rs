@@ -21,7 +21,7 @@
 //! banished to its own file to try to make that more clear.
 
 use crate::fs::{
-    CanonicalFile, Filesystem, VisitOnceFile, VisitOnceFilesystem,
+    Filesystem, FsCanonicalizer, PathFile, VisitOnceFile, VisitOnceFilesystem,
 };
 use crate::global;
 use crate::ir::asg::{
@@ -36,7 +36,7 @@ use fxhash::FxBuildHasher;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 type LinkerAsg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
 
@@ -111,14 +111,14 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_xmlo<'a, 'i, I: Interner<'i>>(
-    path_str: &'a str,
-    fs: &mut VisitOnceFilesystem<FxBuildHasher>,
+fn load_xmlo<'a, 'i, I: Interner<'i>, P: AsRef<Path>>(
+    path_str: P,
+    fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
     state: LinkerAsgBuilderState<'i>,
 ) -> Result<LinkerAsgBuilderState<'i>, Box<dyn Error>> {
-    let cfile: CanonicalFile<BufReader<fs::File>> = match fs.open(path_str)? {
+    let cfile: PathFile<BufReader<fs::File>> = match fs.open(path_str)? {
         VisitOnceFile::FirstVisit(file) => file,
         VisitOnceFile::Visited => return Ok(state),
     };
@@ -139,11 +139,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         path_buf.push(relpath);
         path_buf.set_extension("xmlo");
 
-        // println!("Trying {:?}", path_buf);
-        let path_abs = path_buf.canonicalize()?;
-        let path = path_abs.to_str().unwrap();
-
-        state = load_xmlo(path, fs, depgraph, interner, state)?;
+        state = load_xmlo(path_buf, fs, depgraph, interner, state)?;
     }
 
     Ok(state)
