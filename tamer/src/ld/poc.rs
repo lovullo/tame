@@ -25,14 +25,14 @@ use crate::fs::{
 };
 use crate::global;
 use crate::ir::asg::{
-    Asg, AsgError, DefaultAsg, IdentKind, IdentObject, IdentObjectData,
-    ObjectRef, Sections, SortableAsg, Source,
+    Asg, AsgError, DefaultAsg, IdentObject, IdentObjectData, ObjectRef,
+    Sections, SortableAsg,
 };
 use crate::obj::xmle::writer::XmleWriter;
-use crate::obj::xmlo::reader::{XmloError, XmloEvent, XmloReader};
+use crate::obj::xmlo::reader::{XmloError, XmloReader};
+use crate::obj::xmlo::{AsgBuilder, AsgBuilderResult};
 use crate::sym::{DefaultInterner, Interner, Symbol};
-use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
-use std::convert::TryInto;
+use fxhash::{FxBuildHasher, FxHashMap};
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
@@ -131,8 +131,6 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 ) -> LoadResult<'i> {
     let first = fs.visit_len() == 0;
 
-    let mut found: FxHashSet<&str> = Default::default();
-
     let cfile: CanonicalFile<BufReader<fs::File>> = match fs.open(path_str)? {
         VisitOnceFile::FirstVisit(file) => file,
         VisitOnceFile::Visited => return Ok(None),
@@ -140,106 +138,16 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
     let (path, file) = cfile.into();
 
-    let mut xmlo: XmloReader<'_, _, _> = (file, interner).into();
-    let mut elig = None;
+    let xmlo: XmloReader<'_, _, _> = (file, interner).into();
 
-    let mut name: Option<&'i Symbol<'i>> = None;
-    let mut relroot: Option<String> = None;
+    let AsgBuilderResult::<'i, FxBuildHasher, _> {
+        found,
+        roots: mut pkgroots,
+        name,
+        relroot,
+    } = xmlo.build(depgraph, first)?;
 
-    loop {
-        match xmlo.read_event() {
-            Ok(XmloEvent::Package(attrs)) => {
-                if first {
-                    name = attrs.name;
-                    relroot = attrs.relroot;
-                }
-                elig = attrs.elig;
-            }
-
-            Ok(XmloEvent::SymDeps(sym, deps)) => {
-                // TODO: API needs to expose whether a symbol is already
-                // known so that we can warn on them
-
-                // Maps should not pull in symbols since we may end up
-                // mapping to params that are never actually used
-                if !sym.starts_with(":map:") {
-                    for dep_sym in deps {
-                        depgraph.add_dep_lookup(sym, dep_sym);
-                    }
-                }
-            }
-
-            Ok(XmloEvent::SymDecl(sym, attrs)) => {
-                if let Some(sym_src) = attrs.src {
-                    found.insert(sym_src);
-                } else {
-                    let owned = attrs.src.is_none();
-                    let extern_ = attrs.extern_;
-
-                    let kind = (&attrs).try_into().map_err(|err| {
-                        format!("sym `{}` attrs error: {}", sym, err)
-                    });
-
-                    let mut src: Source = attrs.into();
-
-                    // Existing convention is to omit @src of local package
-                    // (in this case, the program being linked)
-                    if first {
-                        src.pkg_name = None;
-                    }
-
-                    match kind {
-                        Ok(kindval) => {
-                            // TODO: inefficient
-                            let link_root = owned
-                                && (kindval == IdentKind::Meta
-                                    || kindval == IdentKind::Map
-                                    || kindval == IdentKind::RetMap);
-
-                            if extern_ {
-                                depgraph.declare_extern(sym, kindval, src)?;
-                            } else {
-                                let node =
-                                    depgraph.declare(sym, kindval, src)?;
-
-                                if link_root {
-                                    roots.push(node);
-                                }
-                            }
-                        }
-                        Err(e) => return Err(e.into()),
-                    };
-                }
-            }
-
-            Ok(XmloEvent::Fragment(sym, text)) => {
-                match depgraph.lookup(sym) {
-                    Some(frag) => match depgraph.set_fragment(frag, text) {
-                        Ok(_) => (),
-                        Err(e) => return Err(e.into()),
-                    },
-                    None => {
-                        return Err(XmloError::MissingFragment(String::from(
-                            "missing fragment",
-                        ))
-                        .into());
-                    }
-                };
-            }
-
-            // We don't need to read any further than the end of the
-            // header (symtable, sym-deps, fragments)
-            Ok(XmloEvent::Eoh) => break,
-
-            Err(e) => return Err(e.into()),
-        }
-    }
-
-    if let Some(elig_sym) = elig {
-        roots.push(depgraph.lookup(elig_sym).expect(
-            "internal error: package elig references nonexistant symbol",
-        ));
-    }
+    roots.append(&mut pkgroots);
 
     let mut dir: PathBuf = path.clone();
     dir.pop();
