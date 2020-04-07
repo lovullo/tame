@@ -25,12 +25,12 @@ use crate::fs::{
 };
 use crate::global;
 use crate::ir::asg::{
-    Asg, AsgError, DefaultAsg, IdentObject, IdentObjectData, ObjectRef,
-    Sections, SortableAsg,
+    Asg, AsgError, DefaultAsg, IdentObject, IdentObjectData, Sections,
+    SortableAsg,
 };
 use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::reader::{XmloError, XmloReader};
-use crate::obj::xmlo::{AsgBuilder, AsgBuilderResult};
+use crate::obj::xmlo::{AsgBuilder, AsgBuilderState};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::{FxBuildHasher, FxHashMap};
 use std::error::Error;
@@ -39,39 +39,33 @@ use std::io::BufReader;
 use std::path::PathBuf;
 
 type LinkerAsg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
-type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
 
-type LoadResult<'i> =
-    Result<Option<(Option<&'i Symbol<'i>>, Option<String>)>, Box<dyn Error>>;
+type LinkerAsgBuilderState<'i> =
+    AsgBuilderState<'i, FxBuildHasher, global::ProgIdentSize>;
 
 pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut fragments: FxHashMap<&str, String> = Default::default();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
-    let mut roots = Vec::new();
     let interner = DefaultInterner::new();
 
     let abs_path = fs::canonicalize(package_path)?;
 
-    let (name, relroot) = load_xmlo(
+    let state = load_xmlo(
         &abs_path.to_str().unwrap().to_string(),
         &mut fs,
         &mut fragments,
         &mut depgraph,
         &interner,
-        &mut roots,
-    )?
-    .expect("missing root package information");
+        Default::default(),
+    )?;
 
-    //    println!(
-    //        "Graph {:?}",
-    //        depgraph
-    //            .graph
-    //            .raw_nodes()
-    //            .iter()
-    //            .map(|node| &node.weight)
-    //            .collect::<Vec<_>>()
-    //    );
+    let AsgBuilderState {
+        mut roots,
+        name,
+        relroot,
+        found: _,
+    } = state;
 
     roots.extend(
         vec!["___yield", "___worksheet"]
@@ -127,30 +121,23 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     fragments: &mut FxHashMap<&'i str, String>,
     depgraph: &mut LinkerAsg<'i>,
     interner: &'i I,
-    roots: &mut Vec<LinkerObjectRef>,
-) -> LoadResult<'i> {
-    let first = fs.visit_len() == 0;
-
+    state: LinkerAsgBuilderState<'i>,
+) -> Result<LinkerAsgBuilderState<'i>, Box<dyn Error>> {
     let cfile: CanonicalFile<BufReader<fs::File>> = match fs.open(path_str)? {
         VisitOnceFile::FirstVisit(file) => file,
-        VisitOnceFile::Visited => return Ok(None),
+        VisitOnceFile::Visited => return Ok(state),
     };
 
     let (path, file) = cfile.into();
 
     let xmlo: XmloReader<'_, _, _> = (file, interner).into();
 
-    let AsgBuilderResult::<'i, FxBuildHasher, _> {
-        found,
-        roots: mut pkgroots,
-        name,
-        relroot,
-    } = xmlo.build(depgraph, first)?;
-
-    roots.append(&mut pkgroots);
+    let mut state = xmlo.build(depgraph, state)?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();
+
+    let found = state.found.take().unwrap_or_default();
 
     for relpath in found.iter() {
         let mut path_buf = dir.clone();
@@ -161,14 +148,10 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         let path_abs = path_buf.canonicalize()?;
         let path = path_abs.to_str().unwrap();
 
-        load_xmlo(path, fs, fragments, depgraph, interner, roots)?;
+        state = load_xmlo(path, fs, fragments, depgraph, interner, state)?;
     }
 
-    if first {
-        Ok(Some((name, relroot)))
-    } else {
-        Ok(None)
-    }
+    Ok(state)
 }
 
 fn get_ident<'a, 'i>(

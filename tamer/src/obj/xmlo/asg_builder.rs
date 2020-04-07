@@ -29,15 +29,16 @@ use std::io::BufRead;
 
 // TODO error type
 pub type Result<'i, S, Ix> =
-    std::result::Result<AsgBuilderResult<'i, S, Ix>, Box<dyn Error>>;
+    std::result::Result<AsgBuilderState<'i, S, Ix>, Box<dyn Error>>;
 
-pub struct AsgBuilderResult<'i, S, Ix>
+#[derive(Debug, Default)]
+pub struct AsgBuilderState<'i, S, Ix>
 where
-    S: BuildHasher + Default,
+    S: BuildHasher,
     Ix: IndexType,
 {
     pub roots: Vec<ObjectRef<Ix>>,
-    pub found: HashSet<&'i str, S>,
+    pub found: Option<HashSet<&'i str, S>>,
     pub name: Option<&'i Symbol<'i>>,
     pub relroot: Option<String>,
 }
@@ -45,13 +46,13 @@ where
 pub trait AsgBuilder<'i, O, S, Ix>
 where
     O: IdentObjectState<'i, O>,
-    S: BuildHasher + Default,
+    S: BuildHasher,
     Ix: IndexType,
 {
     fn build<G: Asg<'i, O, Ix>>(
         self,
         graph: &mut G,
-        first: bool,
+        state: AsgBuilderState<'i, S, Ix>,
     ) -> Result<'i, S, Ix>;
 }
 
@@ -63,27 +64,22 @@ where
     S: BuildHasher + Default,
     Ix: IndexType,
 {
-    // TOOD: remove first
     fn build<G: Asg<'i, O, Ix>>(
         mut self,
         graph: &mut G,
-        first: bool,
+        mut state: AsgBuilderState<'i, S, Ix>,
     ) -> Result<'i, S, Ix> {
-        // TODO
-        let mut found: HashSet<&'i str, S> = Default::default();
-
-        let mut roots = Vec::new();
         let mut elig = None;
+        let first = state.name.is_none();
 
-        let mut name: Option<&'i Symbol<'i>> = None;
-        let mut relroot: Option<String> = None;
+        let found = state.found.get_or_insert(Default::default());
 
         loop {
             match self.read_event() {
                 Ok(XmloEvent::Package(attrs)) => {
                     if first {
-                        name = attrs.name;
-                        relroot = attrs.relroot;
+                        state.name = attrs.name;
+                        state.relroot = attrs.relroot;
                     }
                     elig = attrs.elig;
                 }
@@ -135,7 +131,7 @@ where
                                         graph.declare(sym, kindval, src)?;
 
                                     if link_root {
-                                        roots.push(node);
+                                        state.roots.push(node);
                                     }
                                 }
                             }
@@ -168,16 +164,11 @@ where
         }
 
         if let Some(elig_sym) = elig {
-            roots.push(graph.lookup(elig_sym).expect(
+            state.roots.push(graph.lookup(elig_sym).expect(
                 "internal error: package elig references nonexistant symbol",
             ));
         }
 
-        Ok(AsgBuilderResult {
-            roots,
-            found,
-            name,
-            relroot,
-        })
+        Ok(state)
     }
 }
