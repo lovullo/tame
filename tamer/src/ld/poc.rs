@@ -20,7 +20,9 @@
 //! **This is a poorly-written proof of concept; do not use!**  It has been
 //! banished to its own file to try to make that more clear.
 
-use crate::fs::{Filesystem, VisitOnceFile, VisitOnceFilesystem};
+use crate::fs::{
+    CanonicalFile, Filesystem, VisitOnceFile, VisitOnceFilesystem,
+};
 use crate::global;
 use crate::ir::asg::{
     Asg, AsgError, DefaultAsg, IdentKind, IdentObject, IdentObjectData,
@@ -34,6 +36,7 @@ use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
+use std::path::PathBuf;
 
 type LinkerAsg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
 type LinkerObjectRef = ObjectRef<global::ProgIdentSize>;
@@ -126,15 +129,16 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
     interner: &'i I,
     roots: &mut Vec<LinkerObjectRef>,
 ) -> LoadResult<'i> {
-    let path = fs::canonicalize(path_str)?;
     let first = fs.visit_len() == 0;
 
     let mut found: FxHashSet<&str> = Default::default();
 
-    let file: fs::File = match fs.open(&path)? {
+    let cfile: CanonicalFile<fs::File> = match fs.open(path_str)? {
         VisitOnceFile::FirstVisit(file) => file,
         VisitOnceFile::Visited => return Ok(None),
     };
+
+    let (path, file) = cfile.into();
 
     let reader = BufReader::new(file);
     let mut xmlo: XmloReader<'_, _, _> = (reader, interner).into();
@@ -238,7 +242,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
         ));
     }
 
-    let mut dir = path.clone();
+    let mut dir: PathBuf = path.clone();
     dir.pop();
 
     for relpath in found.iter() {

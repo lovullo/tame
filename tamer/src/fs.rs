@@ -42,7 +42,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::hash::BuildHasher;
 use std::io::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// A file.
 pub trait File
@@ -55,6 +55,23 @@ where
 impl File for fs::File {
     fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::open(path)
+    }
+}
+
+pub struct CanonicalFile<F: File>(PathBuf, F);
+
+impl<F: File> Into<(PathBuf, F)> for CanonicalFile<F> {
+    fn into(self) -> (PathBuf, F) {
+        (self.0, self.1)
+    }
+}
+
+impl<F: File> File for CanonicalFile<F> {
+    fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let cpath = fs::canonicalize(path)?;
+        let file = F::open(&cpath)?;
+
+        Ok(Self(cpath, file))
     }
 }
 
