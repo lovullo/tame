@@ -133,15 +133,14 @@ fn load_xmlo<'a, 'i, I: Interner<'i>>(
 
     let mut found: FxHashSet<&str> = Default::default();
 
-    let cfile: CanonicalFile<fs::File> = match fs.open(path_str)? {
+    let cfile: CanonicalFile<BufReader<fs::File>> = match fs.open(path_str)? {
         VisitOnceFile::FirstVisit(file) => file,
         VisitOnceFile::Visited => return Ok(None),
     };
 
     let (path, file) = cfile.into();
 
-    let reader = BufReader::new(file);
-    let mut xmlo: XmloReader<'_, _, _> = (reader, interner).into();
+    let mut xmlo: XmloReader<'_, _, _> = (file, interner).into();
     let mut elig = None;
 
     let mut name: Option<&'i Symbol<'i>> = None;

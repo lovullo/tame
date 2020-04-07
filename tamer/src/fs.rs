@@ -41,7 +41,7 @@ use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs;
 use std::hash::BuildHasher;
-use std::io::Result;
+use std::io::{BufReader, Read, Result};
 use std::path::{Path, PathBuf};
 
 /// A file.
@@ -55,6 +55,13 @@ where
 impl File for fs::File {
     fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::open(path)
+    }
+}
+
+impl<F: File + Read> File for BufReader<F> {
+    /// Open the file at `path` and construct a [`BufReader`] from it.
+    fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        Ok(BufReader::new(F::open(path)?))
     }
 }
 
@@ -176,6 +183,20 @@ mod test {
         fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
             Ok(Self(path.as_ref().to_path_buf()))
         }
+    }
+
+    impl Read for DummyFile {
+        fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn buf_reader_file() {
+        let path: PathBuf = "buf/path".into();
+        let result: BufReader<DummyFile> = File::open(path.clone()).unwrap();
+
+        assert_eq!(DummyFile(path), result.into_inner());
     }
 
     #[test]
