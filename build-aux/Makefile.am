@@ -115,7 +115,7 @@ program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 
 # Handle an intermediate step as we transition to the new compiler
 %.xmli: %.xml
-	cp $< $@
+	$(path_tame)/tamer/target/release/tamec --emit xmlo -o $@ $<
 
 # Individual dependencies appear in suppliers.mk (see below)
 %.xmlo: %.xmli $(path_tame)/.rev-xmlo
