@@ -72,23 +72,20 @@ where
     ) -> Result<'i, S, Ix> {
         let mut elig = None;
         let first = state.name.is_none();
-
         let found = state.found.get_or_insert(Default::default());
 
         loop {
-            match self.read_event() {
-                Ok(XmloEvent::Package(attrs)) => {
+            match self.read_event()? {
+                XmloEvent::Package(attrs) => {
                     if first {
                         state.name = attrs.name;
                         state.relroot = attrs.relroot;
                     }
+
                     elig = attrs.elig;
                 }
 
-                Ok(XmloEvent::SymDeps(sym, deps)) => {
-                    // TODO: API needs to expose whether a symbol is already
-                    // known so that we can warn on them
-
+                XmloEvent::SymDeps(sym, deps) => {
                     // Maps should not pull in symbols since we may end up
                     // mapping to params that are never actually used
                     if !sym.starts_with(":map:") {
@@ -98,16 +95,16 @@ where
                     }
                 }
 
-                Ok(XmloEvent::SymDecl(sym, attrs)) => {
+                XmloEvent::SymDecl(sym, attrs) => {
                     if let Some(sym_src) = attrs.src {
                         found.insert(sym_src);
                     } else {
                         let owned = attrs.src.is_none();
                         let extern_ = attrs.extern_;
 
-                        let kind = (&attrs).try_into().map_err(|err| {
+                        let kindval = (&attrs).try_into().map_err(|err| {
                             format!("sym `{}` attrs error: {}", sym, err)
-                        });
+                        })?;
 
                         let mut src: Source = attrs.into();
 
@@ -117,50 +114,38 @@ where
                             src.pkg_name = None;
                         }
 
-                        match kind {
-                            Ok(kindval) => {
-                                // TODO: inefficient
-                                let link_root = owned
-                                    && (kindval == IdentKind::Meta
-                                        || kindval == IdentKind::Map
-                                        || kindval == IdentKind::RetMap);
+                        let link_root = owned
+                            && matches!(
+                                kindval,
+                                IdentKind::Meta
+                                    | IdentKind::Map
+                                    | IdentKind::RetMap
+                            );
 
-                                if extern_ {
-                                    graph.declare_extern(sym, kindval, src)?;
-                                } else {
-                                    let node =
-                                        graph.declare(sym, kindval, src)?;
+                        if extern_ {
+                            graph.declare_extern(sym, kindval, src)?;
+                        } else {
+                            let node = graph.declare(sym, kindval, src)?;
 
-                                    if link_root {
-                                        state.roots.push(node);
-                                    }
-                                }
+                            if link_root {
+                                state.roots.push(node);
                             }
-                            Err(e) => return Err(e.into()),
-                        };
+                        }
                     }
                 }
 
-                Ok(XmloEvent::Fragment(sym, text)) => {
-                    match graph.lookup(sym) {
-                        Some(frag) => match graph.set_fragment(frag, text) {
-                            Ok(_) => (),
-                            Err(e) => return Err(e.into()),
-                        },
-                        None => {
-                            return Err(XmloError::MissingFragment(
-                                String::from("missing fragment"),
-                            )
-                            .into());
-                        }
-                    };
+                XmloEvent::Fragment(sym, text) => {
+                    let frag =
+                        graph.lookup(sym).ok_or(XmloError::MissingFragment(
+                            String::from("missing fragment"),
+                        ))?;
+
+                    graph.set_fragment(frag, text)?;
                 }
 
                 // We don't need to read any further than the end of the
                 // header (symtable, sym-deps, fragments)
-                Ok(XmloEvent::Eoh) => break,
-
-                Err(e) => return Err(e.into()),
+                XmloEvent::Eoh => break,
             }
         }
 
