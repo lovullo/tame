@@ -196,7 +196,7 @@ mod ident;
 mod object;
 mod section;
 
-pub use graph::{Asg, AsgError, AsgResult, ObjectRef, SortableAsg};
+pub use graph::{Asg, AsgError, AsgResult, IndexType, ObjectRef, SortableAsg};
 pub use ident::{DataType, Dim, IdentKind};
 pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,

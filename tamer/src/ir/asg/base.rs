@@ -20,7 +20,7 @@
 //! Base concrete [`Asg`] implementation.
 
 use super::graph::{
-    Asg, AsgEdge, AsgError, AsgResult, Node, ObjectRef, SortableAsg,
+    Asg, AsgEdge, AsgError, AsgResult, IndexType, Node, ObjectRef, SortableAsg,
 };
 use super::ident::IdentKind;
 use super::object::{
@@ -28,11 +28,8 @@ use super::object::{
 };
 use super::Sections;
 use crate::sym::Symbol;
-use fixedbitset::FixedBitSet;
-use petgraph::graph::{
-    DiGraph, EdgeIndex, Graph, IndexType, Neighbors, NodeIndex,
-};
-use petgraph::visit::{DfsPostOrder, GraphBase, IntoNeighbors, Visitable};
+use petgraph::graph::{DiGraph, Graph, NodeIndex};
+use petgraph::visit::DfsPostOrder;
 
 /// Concrete ASG.
 ///
@@ -136,7 +133,7 @@ where
             let index = self.graph.add_node(Some(O::declare(ident)));
 
             self.index_identifier(ident, index);
-            ObjectRef(index)
+            ObjectRef::new(index)
         })
     }
 
@@ -176,7 +173,7 @@ where
     where
         F: FnOnce(O) -> TransitionResult<O>,
     {
-        let node = self.graph.node_weight_mut(identi.0).unwrap();
+        let node = self.graph.node_weight_mut(identi.into()).unwrap();
 
         let obj = node
             .take()
@@ -277,7 +274,7 @@ where
 
     #[inline]
     fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&O> {
-        self.graph.node_weight(index.into().0).map(|node| {
+        self.graph.node_weight(index.into().into()).map(|node| {
             node.as_ref()
                 .expect("internal error: BaseAsg::get missing Node data")
         })
@@ -290,16 +287,17 @@ where
         self.index
             .get(i)
             .filter(|ni| ni.index() > 0)
-            .map(|ni| ObjectRef(*ni))
+            .map(|ni| ObjectRef::new(*ni))
     }
 
     fn add_dep(&mut self, identi: ObjectRef<Ix>, depi: ObjectRef<Ix>) {
-        self.graph.update_edge(identi.0, depi.0, Default::default());
+        self.graph
+            .update_edge(identi.into(), depi.into(), Default::default());
     }
 
     #[inline]
     fn has_dep(&self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>) -> bool {
-        self.graph.contains_edge(ident.0, dep.0)
+        self.graph.contains_edge(ident.into(), dep.into())
     }
 
     fn add_dep_lookup(
@@ -310,7 +308,8 @@ where
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
 
-        self.graph.update_edge(identi.0, depi.0, Default::default());
+        self.graph
+            .update_edge(identi.into(), depi.into(), Default::default());
 
         (identi, depi)
     }
@@ -364,41 +363,6 @@ where
         }
 
         Ok(deps)
-    }
-}
-
-// TODO: encapsulate Petgraph API (N.B. this is untested!)
-impl<'i, O, Ix> Visitable for BaseAsg<O, Ix>
-where
-    Ix: IndexType,
-{
-    type Map = FixedBitSet;
-
-    fn visit_map(&self) -> Self::Map {
-        self.graph.visit_map()
-    }
-
-    fn reset_map(&self, map: &mut Self::Map) {
-        self.graph.reset_map(map)
-    }
-}
-
-impl<'i, O, Ix> GraphBase for BaseAsg<O, Ix>
-where
-    Ix: IndexType,
-{
-    type NodeId = NodeIndex<Ix>;
-    type EdgeId = EdgeIndex<Ix>;
-}
-
-impl<'a, 'i, O, Ix> IntoNeighbors for &'a BaseAsg<O, Ix>
-where
-    Ix: IndexType,
-{
-    type Neighbors = Neighbors<'a, AsgEdge, Ix>;
-
-    fn neighbors(self, n: Self::NodeId) -> Self::Neighbors {
-        self.graph.neighbors(n)
     }
 }
 

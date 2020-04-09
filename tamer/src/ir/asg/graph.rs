@@ -25,9 +25,13 @@ use super::object::{
 };
 use super::Sections;
 use crate::sym::Symbol;
-use petgraph::graph::{IndexType, NodeIndex};
+use petgraph::graph::NodeIndex;
 use std::fmt::Debug;
 use std::result::Result;
+
+/// Datatype representing node and edge indexes.
+pub trait IndexType: petgraph::graph::IndexType {}
+impl<T: petgraph::graph::IndexType> IndexType for T {}
 
 /// An abstract semantic graph of [objects][super::object].
 ///
@@ -200,7 +204,13 @@ pub type AsgResult<T, Ix> = Result<T, AsgError<Ix>>;
 ///   not pointers.
 /// See the [module-level documentation][self] for more information.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub struct ObjectRef<Ix>(pub NodeIndex<Ix>);
+pub struct ObjectRef<Ix>(NodeIndex<Ix>);
+
+impl<Ix: IndexType> ObjectRef<Ix> {
+    pub fn new(index: NodeIndex<Ix>) -> Self {
+        Self(index)
+    }
+}
 
 impl<Ix> From<NodeIndex<Ix>> for ObjectRef<Ix>
 where

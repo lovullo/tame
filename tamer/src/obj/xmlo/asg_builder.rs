@@ -18,9 +18,10 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::reader::{XmloError, XmloEvent, XmloReader};
-use crate::ir::asg::{Asg, IdentKind, IdentObjectState, ObjectRef, Source};
+use crate::ir::asg::{
+    Asg, IdentKind, IdentObjectState, IndexType, ObjectRef, Source,
+};
 use crate::sym::{Interner, Symbol};
-use petgraph::graph::IndexType;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::error::Error;
