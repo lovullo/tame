@@ -88,8 +88,8 @@
       </xs:documentation>
     </xs:annotation>
 
-    <xs:restriction base="xs:NCName">
-      <xs:pattern value="[a-z]" />
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z]|\{?@[a-z][a-zA-Z0-9_]*@\}?" />
     </xs:restriction>
   </xs:simpleType>
 

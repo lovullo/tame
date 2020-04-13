@@ -358,119 +358,15 @@
   </t:yield>
 </template>
 
-
-<!-- this situation may occur both manually and from lv:rate-each-template -->
-<template match="lv:rate-each[ lv:apply-template ]" mode="preproc:macros" priority="9">
-  <variable name="apply">
-    <preproc:apply>
-      <apply-templates select="lv:apply-template" mode="preproc:macros" />
-    </preproc:apply>
-  </variable>
-
-  <choose>
-    <!-- did the template apply? (note that we only check for a single one,
-         since that's all that we should have) -->
-    <when test="$apply/preproc:apply/lv:apply-template">
-      <sequence select="." />
-
-      <message>
-        <text>[preproc] waiting to expand rate-each </text>
-        <value-of select="@yields" />
-        <text> (immediate template(s) need expansion)...</text>
-      </message>
-    </when>
-
-    <otherwise>
-      <!-- it applied! -->
-      <copy>
-        <sequence select="@*, *[ not( local-name()='apply-template' ) ]" />
-        <sequence select="$apply/preproc:apply/*" />
-      </copy>
-
-      <!-- we'll process this block next time around -->
-      <preproc:repass src="lv:rate-each lv:apply-template" />
-    </otherwise>
-  </choose>
-</template>
-
-
 <!--
-  Convenience macro that expands to a lv:rate block summing over the magic
-  _CMATCH_ set with the product of its value
-
-  The intent here is to reduce highly repetitive code.
+  wrapper around `<t:rate-each />`
 -->
 <template match="lv:rate-each" mode="preproc:macros" priority="5">
-  <!-- TODO: debug flag
-  <message>
-    <text>[preproc] expanding rate-each </text>
-    <value-of select="@yields" />
-    <text>...</text>
-  </message>
-  -->
-
-  <lv:rate preproc:gentle-no="true">
-    <sequence select="@*[
-        not( local-name() = 'index' )
-        and not( local-name() = 'generates' )
-      ]" />
-
-    <if test="not( @yields )">
-      <!-- if @generates is not supplied either, then we cannot continue -->
-      <choose>
-        <when test="not( @generates )">
-          <!-- TODO: some means of identifying this...the error isn't terribly
-               helpful... :x -->
-          <preproc:error>
-            <text>rate-each must provide either @yields or @generates</text>
-          </preproc:error>
-        </when>
-
-        <otherwise>
-          <attribute name="yields"
-                         select="concat( '_', @generates )" />
-          <attribute name="preproc:yields-generated"
-                         select="'true'" />
-        </otherwise>
-      </choose>
-    </if>
-
-    <sequence select="./lv:class" />
-
-    <c:sum of="_CMATCH_" index="{@index}" sym="{@gensym}">
-      <if test="@dim">
-        <copy-of select="@dim" />
-      </if>
-
-      <!-- copy @generates, if it exists (has the benefit of copying nothing
-           if it does not exist) -->
-      <sequence select="@generates" />
-
-      <attribute name="desc">
-        <text>Set of individual </text>
-        <value-of select="@yields" />
-        <text> premiums</text>
-      </attribute>
-
-      <c:product>
-        <c:value-of name="_CMATCH_" index="{@index}">
-          <attribute name="label">
-            <text>Zero if not </text>
-              <value-of select="@class" />
-            <text>, otherwise one</text>
-          </attribute>
-        </c:value-of>
-
-        <apply-templates
-          select="*[
-              not(
-                local-name() = 'class'
-              )
-            ]"
-            mode="preproc:macros" />
-      </c:product>
-    </c:sum>
-  </lv:rate>
+  <t:rate-each>
+    <copy-of select="@*" />
+    <apply-templates mode="preproc:expand"
+                     select="*[ not( local-name() = 'class' ) ]" />
+  </t:rate-each>
 </template>
 
 </stylesheet>
