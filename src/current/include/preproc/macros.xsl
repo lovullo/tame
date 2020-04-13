@@ -348,13 +348,14 @@
 
 
 <!--
-  lv:yield is simply another rate block with a special name that is recognized
-  by the linker
+  wrapper around `<t:yield />`
 -->
 <template match="lv:yield" mode="preproc:macros" priority="5">
-  <lv:rate yields="___yield" local="true">
-    <apply-templates mode="preproc:macros" />
-  </lv:rate>
+  <t:yield>
+    <copy-of select="@*" />
+
+    <apply-templates mode="preproc:expand" />
+  </t:yield>
 </template>
 
 

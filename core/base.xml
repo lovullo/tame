@@ -216,5 +216,14 @@
       <warning>Ignored block!</warning>
     </template>
   </section>
+
+  <template name="_yield_"
+            desc="Final scalar result provided to caller">
+    <param name="@values@" desc="Yield calculation" />
+
+    <rate yields="___yield" local="true">
+      <param-copy name="@values@" />
+    </rate>
+  </template>
 </package>
 
