@@ -127,7 +127,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>, P: AsRef<Path>>(
 
     let xmlo: XmloReader<'_, _, _> = (file, interner).into();
 
-    let mut state = xmlo.build(depgraph, state)?;
+    let mut state = depgraph.import_xmlo(xmlo, state)?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();

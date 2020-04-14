@@ -149,6 +149,7 @@ use quick_xml::Reader as XmlReader;
 use std::convert::TryInto;
 use std::fmt::Display;
 use std::io::BufRead;
+use std::iter::Iterator;
 use std::result::Result;
 
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
@@ -681,6 +682,27 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
         }
 
         Ok(value[0] - b'0')
+    }
+}
+
+impl<'i, B, I> Iterator for XmloReader<'i, B, I>
+where
+    B: BufRead,
+    I: Interner<'i>,
+{
+    type Item = XmloResult<XmloEvent<'i>>;
+
+    /// Invoke [`XmloReader::read_event`] and yield the result via an
+    ///   [`Iterator`] API.
+    ///
+    /// *Warning*: This will always return [`Some`] for now.
+    /// Future changes may alter this behavior.
+    /// To terminate the iterator,
+    ///   it's recommended that you use [`Iterator::take_while`] to filter
+    ///   on the desired predicate,
+    ///     such as [`XmloEvent::Eoh`].
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.read_event())
     }
 }
 
@@ -1520,6 +1542,25 @@ mod test {
                 Err(XmloError::InvalidMapFrom(_)) => (),
                 bad => panic!("expected XmloError: {:?}", bad),
             }
+        }
+
+        fn read_events_via_iterator(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"package",
+                    Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            let result = sut.next().unwrap()?;
+
+            assert_eq!(
+                XmloEvent::Package(PackageAttrs {
+                    program: false,
+                    ..Default::default()
+                }),
+                result
+            );
         }
     }
 
