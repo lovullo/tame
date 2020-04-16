@@ -65,6 +65,13 @@ where
     Ix: IndexType,
     O: IdentObjectState<'i, O> + IdentObjectData<'i>,
 {
+    /// Create a new ASG.
+    ///
+    /// See also [`with_capacity`](BaseAsg::with_capacity).
+    pub fn new() -> Self {
+        Self::with_capacity(0, 0)
+    }
+
     /// Create an ASG with the provided initial capacity.
     ///
     /// The value for `objects` will be used as the capacity for the nodes
@@ -75,10 +82,6 @@ where
     ///   different types of objects,
     ///     but it's safe to say that each object will have at least one
     ///     edge to another object.
-    ///
-    /// A basic `new` method is not provided to ensure that callers consider
-    ///   capacity during construction,
-    ///     since graphs can get quite large.
     pub fn with_capacity(objects: usize, edges: usize) -> Self {
         let mut graph = Graph::with_capacity(objects, edges);
         let mut index = Vec::with_capacity(objects);
@@ -477,7 +480,7 @@ mod test {
 
     #[test]
     fn declare_new_unique_idents() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         // NB: The index ordering is important!  We first use a larger
         // index to create a gap, and then use an index within that gap
@@ -535,7 +538,7 @@ mod test {
 
     #[test]
     fn lookup_by_symbol() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "lookup");
         let node = sut.declare(
@@ -554,7 +557,7 @@ mod test {
 
     #[test]
     fn declare_returns_existing() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "symdup");
         let src = Source::default();
@@ -580,7 +583,7 @@ mod test {
     // Builds upon declare_returns_existing.
     #[test]
     fn declare_fails_if_transition_fails() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "symdup");
         let src = Source {
@@ -616,7 +619,7 @@ mod test {
 
     #[test]
     fn declare_extern_returns_existing() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "symext");
         let src = Source::default();
@@ -642,7 +645,7 @@ mod test {
     // Builds upon declare_returns_existing.
     #[test]
     fn declare_extern_fails_if_transition_fails() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "symdup");
         let src = Source {
@@ -682,7 +685,7 @@ mod test {
 
     #[test]
     fn add_fragment_to_ident() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "tofrag");
         let src = Source {
@@ -712,7 +715,7 @@ mod test {
 
     #[test]
     fn add_fragment_to_ident_fails_if_transition_fails() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "failfrag");
         let src = Source {
@@ -746,7 +749,7 @@ mod test {
 
     #[test]
     fn add_ident_dep_to_ident() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
@@ -767,7 +770,7 @@ mod test {
     // same as above test
     #[test]
     fn add_dep_lookup_existing() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
@@ -783,7 +786,7 @@ mod test {
 
     #[test]
     fn add_dep_lookup_missing() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
@@ -800,7 +803,7 @@ mod test {
 
     #[test]
     fn declare_return_missing_symbol() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
@@ -857,7 +860,7 @@ mod test {
 
     #[test]
     fn graph_sort() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let mut meta = vec![];
         let mut worksheet = vec![];
@@ -901,7 +904,7 @@ mod test {
 
     #[test]
     fn graph_sort_missing_node() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
@@ -932,7 +935,7 @@ mod test {
 
     #[test]
     fn graph_sort_no_roots() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = symbol_dummy!(1, "sym");
         let dep = symbol_dummy!(2, "dep");
@@ -948,7 +951,7 @@ mod test {
 
     #[test]
     fn graph_sort_simple_cycle() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
         let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
@@ -992,7 +995,7 @@ mod test {
 
     #[test]
     fn graph_sort_two_simple_cycles() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
         let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym2");
@@ -1062,7 +1065,7 @@ mod test {
 
     #[test]
     fn graph_sort_no_cycle_with_edge_to_same_node() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
         let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
@@ -1103,7 +1106,7 @@ mod test {
 
     #[test]
     fn graph_sort_cycle_with_a_few_steps() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
         let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
@@ -1160,7 +1163,7 @@ mod test {
     #[test]
     fn graph_sort_cyclic_function_with_non_function_with_a_few_steps(
     ) -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
         let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
@@ -1216,7 +1219,7 @@ mod test {
 
     #[test]
     fn graph_sort_cyclic_bookended_by_functions() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
         let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
@@ -1272,7 +1275,7 @@ mod test {
 
     #[test]
     fn graph_sort_cyclic_function_ignored() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
         let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
@@ -1313,7 +1316,7 @@ mod test {
 
     #[test]
     fn graph_sort_cyclic_function_is_bookended() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
         let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
@@ -1369,7 +1372,7 @@ mod test {
 
     #[test]
     fn graph_sort_ignore_non_linked() -> AsgResult<(), u8> {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
 
         let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
         let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
