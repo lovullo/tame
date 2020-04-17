@@ -1131,6 +1131,25 @@
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
 
+  <!-- preempt expensive logic, but still return a vector of the proper
+       length -->
+  <!-- TODO: when writing TAMER, note that this must be improved upon: it
+       only detects iterators of immedite children -->
+  <text>if (!predmatch) {</text>
+    <for-each select="c:sum[@generates]|c:product[@generates]">
+      <variable name="value">
+        <apply-templates mode="js-name-ref"
+                         select="." />
+      </variable>
+
+      <text>args['</text>
+        <value-of select="@generates" />
+      <text>']=(new Array(</text>
+        <value-of select="$value" />
+      <text>.length)).fill(0);</text>
+    </for-each>
+  <text>return 0;}</text>
+
   <!-- return the result of the calculation for this rate block -->
   <text>return (+( </text>
     <!-- yield 0 if there are no calculations (rather than a syntax error!) -->

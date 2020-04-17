@@ -139,6 +139,60 @@
 </template>
 
 
+<template mode="js-name-ref" priority="5"
+          match="c:sum[@of]|c:product[@of]">
+  <variable name="of" select="@of" />
+  <variable name="func" select="ancestor::lv:function" />
+
+  <!-- XXX: this needs to use compile-calc-value, but can't right now
+       beacuse it's not a c:value-of! -->
+  <choose>
+    <!-- is @of a function param? -->
+    <when test="
+        $func
+        and root(.)/preproc:symtable/preproc:sym[
+          @type='lparam'
+          and @name=concat( ':', $func/@name, ':', $of )
+        ]
+      ">
+
+      <value-of select="@of" />
+    </when>
+
+    <!-- let expression -->
+    <when test="$of = ancestor::c:let/c:values/c:value/@name">
+      <value-of select="$of" />
+    </when>
+
+    <!-- maybe a constant? -->
+    <when test="
+        root(.)/preproc:symtable/preproc:sym[
+          @type='const'
+          and @name=$of
+        ]
+      ">
+
+      <text>consts['</text>
+        <value-of select="@of" />
+      <text>']</text>
+    </when>
+
+    <otherwise>
+      <text>args['</text>
+        <value-of select="@of" />
+      <text>']</text>
+    </otherwise>
+  </choose>
+</template>
+
+
+<template mode="js-name-ref" priority="1"
+          match="*">
+  <message select="'internal error: invalid js-name-ref src'"
+           terminate="yes" />
+</template>
+
+
 
 <!--
   Generates code for the sum or product of a set
@@ -199,50 +253,11 @@
     <!-- will store result of the summation/product -->
     <text>var sum = 0;</text>
 
-    <variable name="of" select="@of" />
-
-    <variable name="func" select="ancestor::lv:function" />
-
     <!-- XXX: this needs to use compile-calc-value, but can't right now
          beacuse it's not a c:value-of! -->
     <variable name="value">
-      <choose>
-        <!-- is @of a function param? -->
-        <when test="
-            $func
-            and root(.)/preproc:symtable/preproc:sym[
-              @type='lparam'
-              and @name=concat( ':', $func/@name, ':', $of )
-            ]
-          ">
-
-          <value-of select="@of" />
-        </when>
-
-        <!-- let expression -->
-        <when test="$of = ancestor::c:let/c:values/c:value/@name">
-          <value-of select="$of" />
-        </when>
-
-        <!-- maybe a constant? -->
-        <when test="
-            root(.)/preproc:symtable/preproc:sym[
-              @type='const'
-              and @name=$of
-            ]
-          ">
-
-          <text>consts['</text>
-            <value-of select="@of" />
-          <text>']</text>
-        </when>
-
-        <otherwise>
-          <text>args['</text>
-            <value-of select="@of" />
-          <text>']</text>
-        </otherwise>
-      </choose>
+      <apply-templates mode="js-name-ref"
+                       select="." />
     </variable>
 
     <!-- if we're looking to generate a set, initialize it -->
