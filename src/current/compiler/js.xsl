@@ -1137,7 +1137,7 @@
   <variable name="rate" select="." />
 
   <!-- Generate expression for class list (leave the @no check to the cmatch
-       algorithm, since we want per-index @no's).  If @preproc:gentle-no is
+       algorithm, since we want per-index @no's).  If @gentle-no is
        set by rate-each expansion, then we want to ignore them entirely,
        since we do not want it to clear our the final yield (generators take
        care of this using _CMATCH_). -->
@@ -1145,7 +1145,7 @@
     <variable name="class-set"
               select="./lv:class[
                         ( @no = 'true'
-                          and not( $rate/@preproc:gentle-no = 'true' ) )
+                          and not( $rate/@gentle-no = 'true' ) )
                         or not( @no = 'true' ) ]" />
 
     <choose>

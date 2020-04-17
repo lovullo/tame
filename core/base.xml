@@ -216,5 +216,69 @@
       <warning>Ignored block!</warning>
     </template>
   </section>
+
+  <template name="_yield_"
+            desc="Final scalar result provided to caller">
+    <param name="@values@" desc="Yield calculation" />
+
+    <rate yields="___yield" local="true">
+      <param-copy name="@values@" />
+    </rate>
+  </template>
+
+  <template name="_rate-each_"
+            desc="Convenience template that expands to a lv:rate block summing over
+                  the magic _CMATCH_ set with the product of its value">
+    <param name="@values@"
+           desc="Yield calculation" />
+
+    <param name="@generates@" desc="Generator name (optional)">
+      <text></text>
+    </param>
+
+    <param name="@yields@" desc="Yield (optional)">
+      <text>_</text>
+      <param-value name="@generates@" />
+    </param>
+
+    <!-- at least one of generates or yields is required -->
+    <if name="@yields@" eq="">
+      <if name="@generates@" eq="">
+        <error>must provide at least one of @generates or @yields</error>
+      </if>
+    </if>
+
+    <param name="@class@"
+           desc="Space-delimited classifications for predicated iteration" />
+    <param name="@no@"
+           desc="Space-delimited classifications for predicated iteration to prevent matches">
+      <text></text>
+    </param>
+
+    <param name="@index@"
+           desc="Generator index" />
+
+    <param name="@dim@" desc="Dim (optional)">
+      <text></text>
+    </param>
+
+    <param name="@gensym@" desc="Generator TeX symbol">
+      <text></text>
+    </param>
+
+    <rate class="@class@" no="@no@" yields="@yields@"
+          gentle-no="true"
+          desc="Total {@yields@} premium">
+      <c:sum of="_CMATCH_" dim="@dim@" sym="@gensym@"
+             generates="@generates@" index="@index@"
+             desc="Set of individual {@yields@} premiums">
+        <c:product>
+          <c:value-of name="_CMATCH_" index="@index@"
+                      label="One if {@class@} and not {@no@} (if provided), otherwise zero" />
+          <param-copy name="@values@" />
+        </c:product>
+      </c:sum>
+    </rate>
+  </template>
 </package>
 
