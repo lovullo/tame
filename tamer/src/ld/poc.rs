@@ -29,7 +29,7 @@ use crate::ir::asg::{
     SortableAsg,
 };
 use crate::obj::xmle::writer::XmleWriter;
-use crate::obj::xmlo::reader::{XmloError, XmloReader};
+use crate::obj::xmlo::reader::XmloReader;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::FxBuildHasher;
@@ -148,11 +148,11 @@ fn load_xmlo<'a, 'i, I: Interner<'i>, P: AsRef<Path>>(
 fn get_ident<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
     name: &'i Symbol<'i>,
-) -> Result<&'a IdentObject<'i>, XmloError> {
+) -> Result<&'a IdentObject<'i>, String> {
     depgraph
         .lookup(name)
         .and_then(|id| depgraph.get(id))
-        .ok_or(XmloError::MissingFragment(String::from(name as &str)))
+        .ok_or(format!("missing identifier: {}", name))
 }
 
 fn output_xmle<'a, 'i, I: Interner<'i>>(

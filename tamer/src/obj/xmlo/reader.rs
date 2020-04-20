@@ -796,8 +796,6 @@ pub enum XmloError {
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
     MissingFragmentText(String),
-    /// A `preproc:fragment` element was not found
-    MissingFragment(String),
 }
 
 impl From<XmlError> for XmloError {
@@ -845,9 +843,6 @@ impl Display for XmloError {
                 "fragment found, but missing text for symbol `{}`",
                 symname,
             ),
-            XmloError::MissingFragment(symname) => {
-                write!(fmt, "fragment not found `{}`", symname,)
-            }
         }
     }
 }
