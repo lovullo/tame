@@ -659,7 +659,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                     XmlError::TextNotFound => {
                         XmloError::MissingFragmentText(id.to_string())
                     }
-                    err => XmloError::XmlError(err),
+                    _ => err.into(),
                 })?;
 
         Ok(XmloEvent::Fragment(id, text))
@@ -771,10 +771,10 @@ pub enum XmloEvent<'i> {
 /// This drastically simplifies the reader and [`Result`] chaining.
 ///
 /// TODO: These errors provide no context (byte offset).
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum XmloError {
     /// XML parsing error.
-    XmlError(XmlError),
+    XmlError(XmlParseError),
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
@@ -800,7 +800,7 @@ pub enum XmloError {
 
 impl From<XmlError> for XmloError {
     fn from(e: XmlError) -> Self {
-        XmloError::XmlError(e)
+        XmloError::XmlError(e.into())
     }
 }
 
@@ -853,6 +853,40 @@ impl std::error::Error for XmloError {
             Self::XmlError(e) => Some(e),
             _ => None,
         }
+    }
+}
+
+/// Thin wrapper around [`XmlError`] to implement [`PartialEq`].
+///
+/// This will always yield `false`,
+///   but allows us to derive the trait on types using [`XmloError`];
+///     otherwise, this madness propagates indefinitely.
+#[derive(Debug)]
+pub struct XmlParseError(XmlError);
+
+impl PartialEq for XmlParseError {
+    /// [`XmlError`] does not implement [`PartialEq`] and so this will
+    ///   always yield `false`.
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl From<XmlError> for XmlParseError {
+    fn from(e: XmlError) -> Self {
+        Self(e)
+    }
+}
+
+impl Display for XmlParseError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(fmt)
+    }
+}
+
+impl std::error::Error for XmlParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
     }
 }
 
@@ -985,7 +1019,7 @@ mod test {
                 Some(Box::new(|_, _| Err(XmlError::UnexpectedEof("test".into()))));
 
             match sut.read_event() {
-                Err(XmloError::XmlError(XmlError::UnexpectedEof(_))) => (),
+                Err(XmloError::XmlError(XmlParseError(XmlError::UnexpectedEof(_)))) => (),
                 bad => panic!("expected XmlError: {:?}", bad),
             }
         }
