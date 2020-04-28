@@ -28,8 +28,6 @@ predicates = "1"
 
 [dependencies]
 bumpalo = ">= 2.6.0"
-# used by petgraph
-fixedbitset = ">= 0.1"
 fxhash = ">= 0.2.1"
 petgraph = ">= 0.4.13"
 quick-xml = ">= 0.17.0"
