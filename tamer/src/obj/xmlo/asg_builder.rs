@@ -87,9 +87,14 @@ where
 
 impl<'i, S, Ix> AsgBuilderState<'i, S, Ix>
 where
-    S: BuildHasher,
+    S: BuildHasher + Default,
     Ix: IndexType,
 {
+    /// Create a new, empty state.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     /// Whether this is the first discovered package.
     ///
     /// This is true if [`name`](AsgBuilderState::name) is [`None`].
@@ -330,7 +335,7 @@ mod test {
         }))];
 
         let state = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect("parsing of proper PackageAttrs must succeed");
 
         assert_eq!(Some(&name), state.name);
@@ -342,7 +347,7 @@ mod test {
         let mut sut = Sut::new();
 
         let evs = vec![Err(XmloError::UnexpectedRoot)];
-        let result = sut.import_xmlo(evs.into_iter(), SutState::default());
+        let result = sut.import_xmlo(evs.into_iter(), SutState::new());
 
         assert_eq!(
             AsgBuilderError::XmloError(XmloError::UnexpectedRoot),
@@ -365,9 +370,7 @@ mod test {
             ..Default::default()
         }))];
 
-        let state = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
-            .unwrap();
+        let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
         assert!(state.roots.contains(&elig_node));
     }
@@ -384,7 +387,7 @@ mod test {
             vec![Ok(XmloEvent::SymDeps(&sym_from, vec![&sym_to1, &sym_to2]))];
 
         let _ = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect("unexpected failure");
 
         let node_from = sut.lookup(&sym_from).expect("from node not added");
@@ -405,7 +408,7 @@ mod test {
         let evs = vec![Ok(XmloEvent::SymDeps(&sym_from, vec![&sym_to]))];
 
         let _ = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect("unexpected failure");
 
         assert!(sut.lookup(&sym_from).is_none());
@@ -437,7 +440,7 @@ mod test {
         ];
 
         let mut founds = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect("unexpected failure")
             .found
             .unwrap()
@@ -505,9 +508,7 @@ mod test {
             )),
         ];
 
-        let state = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
-            .unwrap();
+        let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
         // Both above symbols were local (no `src`).
         assert!(state.found.unwrap().len() == 0);
@@ -623,7 +624,7 @@ mod test {
         let evs = vec![Ok(XmloEvent::SymDecl(&sym, bad_attrs))];
 
         let result = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected IdentKind conversion error");
 
         assert!(matches!(result, AsgBuilderError::IdentKindError(_)));
@@ -656,7 +657,7 @@ mod test {
         ];
 
         let result = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected extern error");
 
         assert!(matches!(result, AsgBuilderError::AsgError(_)));
@@ -687,7 +688,7 @@ mod test {
         ];
 
         let result = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected declare error");
 
         assert!(matches!(result, AsgBuilderError::AsgError(_)));
@@ -711,9 +712,7 @@ mod test {
             Ok(XmloEvent::Fragment(&sym, frag.clone())),
         ];
 
-        let _ = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
-            .unwrap();
+        let _ = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
         let node = sut
             .lookup(&sym)
@@ -740,7 +739,7 @@ mod test {
         let evs = vec![Ok(XmloEvent::Fragment(&sym, "foo".into()))];
 
         let result = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected error for fragment without ident");
 
         assert_eq!(
@@ -770,7 +769,7 @@ mod test {
         ];
 
         let result = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
+            .import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected fragment set failure");
 
         assert!(matches!(
@@ -805,9 +804,7 @@ mod test {
             })),
         ];
 
-        let state = sut
-            .import_xmlo(evs.into_iter(), SutState::default())
-            .unwrap();
+        let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
         // Should still be true because we didn't get to the `PackageAttrs`
         // event.

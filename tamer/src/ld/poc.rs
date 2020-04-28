@@ -53,7 +53,7 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
         &mut fs,
         &mut depgraph,
         &interner,
-        Default::default(),
+        AsgBuilderState::new(),
     )?;
 
     let AsgBuilderState {
