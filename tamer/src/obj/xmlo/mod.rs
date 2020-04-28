@@ -75,6 +75,7 @@
 //! ```
 
 mod asg_builder;
-pub mod reader;
+mod reader;
 
 pub use asg_builder::{AsgBuilder, AsgBuilderState};
+pub use reader::{XmloError, XmloEvent, XmloReader};

@@ -29,8 +29,7 @@ use crate::ir::asg::{
     SortableAsg,
 };
 use crate::obj::xmle::writer::XmleWriter;
-use crate::obj::xmlo::reader::XmloReader;
-use crate::obj::xmlo::{AsgBuilder, AsgBuilderState};
+use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::FxBuildHasher;
 use std::error::Error;

@@ -50,7 +50,7 @@
 //!
 //! ```
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use tamer::obj::xmlo::reader::{XmloReader, XmloEvent};
+//! use tamer::obj::xmlo::{XmloEvent, XmloReader};
 //! use tamer::ir::legacyir::SymType;
 //! use tamer::sym::{DefaultInterner, Interner};
 //!
