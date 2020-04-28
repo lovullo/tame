@@ -17,6 +17,57 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Lower [Legacy IR](crate::ir::legacyir) derived from [`XmloEvent`]
+//!   into [`Asg`].
+//!
+//! [`AsgBuilder`] is exclusively responsible for this lowering operation
+//!   within the context of [`xmlo` object files](super).
+//!
+//! Usage
+//! =====
+//! [`AsgBuilder`] accepts any [`Iterator`] of [`XmloEvent`]s,
+//!   but is intended to be paired with [`XmloReader`](super::XmloReader).
+//!
+//! To fully load an `xmlo` file and its dependencies,
+//!   begin with [`AsgBuilder::import_xmlo`] and an empty
+//!   [`AsgBuilderState`].
+//! Each call accepts the previous state and returns a new state that may be
+//!   used both for introspection and for the next call to `import_xmlo`.
+//! [`AsgBuilderState::found`] can be used to recursively load relative
+//!   package paths;
+//!     it is wrapped in an [`Option`] so that [`take`](Option::take) can be
+//!       used to take ownership over the data.
+//!
+//! ```
+//! use tamer::global;
+//! use tamer::ir::asg::{DefaultAsg, IdentObject};
+//! use tamer::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
+//! use tamer::sym::{DefaultInterner, Interner};
+//! use fxhash::FxBuildHasher;
+//! use std::io::BufReader;
+//!
+//! let src_xmlo: &[u8] = br#"<package>
+//!     <preproc:symtable>
+//!       <preproc:sym name="foo" type="cgen" src="dep/package" />
+//!     </preproc:symtable>
+//!     <preproc:fragments>
+//!     </preproc:fragments>
+//!   </package>"#;
+//!
+//! let interner = DefaultInterner::new();
+//! let xmlo = XmloReader::new(src_xmlo, &interner);
+//! let mut asg = DefaultAsg::<'_, IdentObject, global::ProgIdentSize>::new();
+//!
+//! let state = asg.import_xmlo(xmlo, AsgBuilderState::<'_, FxBuildHasher, _>::new());
+//!
+//! // Use `state.found` to recursively load dependencies.
+//! let AsgBuilderState { found, .. } = state.expect("unexpected failure");
+//! assert_eq!(
+//!     vec![&"dep/package"],
+//!     found.unwrap().iter().collect::<Vec<_>>(),
+//! );
+//! ```
+
 use super::reader::{XmloError, XmloEvent, XmloResult};
 use crate::ir::asg::{
     Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, IndexType,
@@ -109,6 +160,7 @@ where
 ///
 /// For more information on what data are processed,
 ///   see [`AsgBuilderState`].
+/// See the [module-level documentation](self) for example usage.
 pub trait AsgBuilder<'i, O, S, Ix>
 where
     O: IdentObjectState<'i, O>,

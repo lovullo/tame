@@ -59,6 +59,17 @@
 //!        a graph data structure,
 //!          and is capable of representing entire programs composed of many
 //!          different packages.
+//!
+//! Lowering
+//! ========
+//! IRs are progressively _lowered_ to other IRs that are closer to the
+//!   final representation emitted by the compiler ("lower"-level).
+//!
+//! - [`xmlo::reader`](crate::obj::xmlo::reader) produces
+//!     [`XmloEvent`](crate::obj::xmlo::XmloEvent)s containing
+//!     [`legacyir`].
+//!   - [`xmlo::asg_builder`](crate::obj::xmlo::asg_builder) immediately lowers
+//!       those into [`asg`].
 
 pub mod asg;
 pub mod legacyir;
