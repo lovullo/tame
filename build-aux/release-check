@@ -1,0 +1,80 @@
+#!/bin/bash
+# Determine whether a release looks okay.
+#
+#  Copyright (C) 2014-2020 Ryan Specialty Group, LLC.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This should be run as part of a CI system to prohibit bad tags.
+
+declare -r RELEASE_FILE="${RELEASE_FILE:-RELEASES.md}"
+
+
+tag-date()
+{
+  local -r tag="${1?Missing tag}"
+
+  git show "$tag" --date=short \
+    | awk '/^Date: / { print $2; exit }'
+}
+
+
+declare -r tag=$(git describe --abbrev=0)
+declare -r tagdate=$(tag-date "$tag")
+
+
+suggest-fix()
+{
+  echo
+  echo "Here are the commands you should use to correct this"
+  echo "bad tag:"
+  echo "  \$ git tag -d $tag"
+  echo "  \$ tools/mkrelease $tag"
+  echo "  \$ git push -f --tags $tag"
+}
+
+
+# Check for NEXT heading first so that we can provide more clear guidance
+# for what to do.
+echo -n "checking $RELEASE_FILE for missing 'NEXT' heading... "
+! grep -q '^NEXT$' "$RELEASE_FILE" || {
+  echo "FAIL"
+  echo "error: $RELEASE_FILE contains 'NEXT' heading" >&2
+  echo
+  echo "$RELEASE_FILE must be updated to replace the 'NEXT'"
+  echo "heading with the version and date being deployed."
+  echo
+  echo "The script in tools/mkrelease will do this for you."
+
+  suggest-fix
+  exit 1
+}
+echo "OK"
+
+# A missing NEXT heading could also mean that no release notes exist at all
+# for this tag.  Check.
+echo -n "checking $RELEASE_FILE for '$tag' heading... "
+grep -q "^$tag ($tagdate)\$" "$RELEASE_FILE" || {
+  echo "FAIL"
+  echo "error: $RELEASE_FILE does not contain heading for $tag" >&2
+  echo
+  echo "$RELEASE_FILE has not been updated with release notes"
+  echo "for $tag."
+  echo
+  echo "The heading should read: '$tag ($tagdate)'"
+
+  suggest-fix
+  exit 1
+}
+echo "OK"

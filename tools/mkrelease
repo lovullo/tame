@@ -1,0 +1,118 @@
+#!/bin/bash
+# Update release notes and tag a release
+#
+#  Copyright (C) 2014-2020 Ryan Specialty Group, LLC.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+set -euo pipefail
+
+declare -r RELEASE_FILE="${RELEASE_FILE:-RELEASES.md}"
+
+
+assert-valid-tag()
+{
+  local -r tag="${1?Missing tag}"
+
+  # Note that '$' is intentionally omitted to permit suffixes
+  if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    echo "error: tag '$tag' must be of the form 'vM.m.r'" >&2
+    return 1
+  fi
+
+  # Compare with the most recent tag and make sure this is greater
+  local -r prev=$(git describe --abbrev=0)
+  local -r gt=$(echo -e "$tag\n$prev" | sort -V | tail -n1)
+
+  test "$tag" == "$gt" || {
+    echo "error: tag '$tag' is not greater than previous tag '$prev'" >&2
+    return 1
+  }
+}
+
+
+extract-next()
+{
+  local -r file="${1?Missing file}"
+
+  awk '
+    /^NEXT$/ { out = 1; getline; next }
+    /^====/ && out { nextfile }
+    out { print }
+    ' "$file" \
+      | head -n-1
+}
+
+
+main()
+{
+  local tag="${1?Missing new tag name}"
+
+  assert-valid-tag "$tag" || return
+
+  # We don't want to tag anything bad!
+  make check || return
+
+  local -r notes=$(extract-next "$RELEASE_FILE")
+
+  test -n "$notes" || {
+    echo "error: missing NEXT heading in $RELEASE_FILE" >&2
+    return 1
+  }
+
+  local -r date=$(date +%Y-%m-%d)
+  local -r heading="$tag ($date)"
+  local -r hline="${heading//?/=}"
+
+  echo
+  echo "$heading"
+  echo "$hline"
+  echo "$notes"
+
+  echo
+  read -p "Accept above release notes and tag $tag? (y/N): "
+  if [[ ! "$REPLY" =~ ^y(es?)? ]]; then
+    echo "error: aborted by user" >&2
+    return 2
+  fi
+
+  # Note that this also runs the release-check after tagging to ensure that
+  # we've addressed all issues that would cause the CI job to blow up.
+  set -x
+  sed -i "/^NEXT\$/ {
+      s|^NEXT$|$heading\n$hline|
+      n;d
+    }" "$RELEASE_FILE" \
+    && git add "$RELEASE_FILE" \
+    && git commit -m "RELEASES.md: Update for $tag" \
+    && git tag "$tag" -m "$notes" \
+    && build-aux/release-check
+  set +x
+
+  echo
+  echo "Please review the above and then push your changes."
+  echo
+  echo "To reverse these actions, run:"
+  echo "  \$ git reset HEAD^"
+  echo "  \$ git checkout $RELEASE_FILE"
+  echo "  \$ git tag -d $tag"
+}
+
+
+main "$@" || {
+  set +x
+  code=$?
+  echo "release failed" >&2
+  exit $code
+}

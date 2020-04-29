@@ -1,8 +1,16 @@
 image: $BUILD_IMAGE
 
 stages:
+    - check
     - build
     - deploy
+
+release_check:
+    stage: check
+    script:
+        - build-aux/release-check
+    only:
+        - tags
 
 build:
     stage: build
