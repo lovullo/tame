@@ -19,7 +19,9 @@ NEXT
 
 Miscellaneous
 -------------
-- `RELEASES.md`: Add missing link to semver.org.
+- `RELEASES.md`
+  - Add missing link to semver.org.
+  - Fix `tame-core` heading, which was erroneously Org-mode-styled.
 
 
 v17.4.1 (2020-04-29)
@@ -48,7 +50,7 @@ compiler so that the functionality does not need to be re-implemented in
 TAMER.  There are no user-facing changes aside form the introduction of two
 new templates, which are not yet expected to be used directly.
 
-=tame-core=
+`tame-core`
 -----------
 - New `rate-each` template to replace XSLT template in compiler.
 - New `yields` template to replace XSLT template in compiler.
