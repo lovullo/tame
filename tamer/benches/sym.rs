@@ -107,6 +107,21 @@ mod interner {
         });
     }
 
+    #[bench]
+    fn index_lookup_unique_1000(bench: &mut Bencher) {
+        let sut = ArenaInterner::<RandomState>::new();
+        let strs = gen_strs(1000);
+
+        let syms = strs
+            .iter()
+            .map(|s| sut.intern(s).index())
+            .collect::<Vec<_>>();
+
+        bench.iter(|| {
+            syms.iter().map(|si| sut.index_lookup(*si)).for_each(drop);
+        });
+    }
+
     mod fx {
         use super::*;
         use fxhash::FxBuildHasher;

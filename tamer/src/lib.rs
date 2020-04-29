@@ -22,16 +22,15 @@
 pub mod global;
 
 #[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
 pub mod sym;
 
 pub mod fs;
 pub mod ir;
 pub mod ld;
 pub mod obj;
-
-#[cfg(test)]
-#[macro_use]
-extern crate lazy_static;
 
 #[cfg(test)]
 pub mod test;

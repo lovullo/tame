@@ -74,6 +74,9 @@
 //! assert_eq!(SymbolIndex::from_u32(1), ib.index());
 //! assert_eq!(SymbolIndex::from_u32(2), ic.index());
 //! assert_eq!(SymbolIndex::from_u32(1), id.index());
+//!
+//! // Symbols can also be looked up by index.
+//! assert_eq!(Some(ia), interner.index_lookup(ia.index()));
 //! ```
 //!
 //! What Is String Interning?
@@ -126,6 +129,8 @@
 //!   (see [`Symbol::index`]),
 //!     which provides a dense range of values suitable for use in vectors
 //!       as an alternative to [`HashMap`] for mapping symbol data.
+//! A [`SymbolIndex`] can be mapped back into its associated [`Symbol`]
+//!   using [`Interner::index_lookup`].
 //!
 //! Since a reference to the same [`Symbol`] is returned for each
 //!   [`Interner::intern`] and [`Interner::intern_soft`] call,
@@ -264,7 +269,7 @@
 use crate::global;
 use bumpalo::Bump;
 use fxhash::FxBuildHasher;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
@@ -285,12 +290,6 @@ use std::ops::Deref;
 ///   which allows us to have `Option<SymbolIndex>` at no space cost.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SymbolIndex(global::NonZeroProgSymSize);
-
-impl From<SymbolIndex> for usize {
-    fn from(value: SymbolIndex) -> usize {
-        value.0.get().try_into().unwrap()
-    }
-}
 
 impl SymbolIndex {
     /// Construct index from a non-zero `u32` value.
@@ -313,6 +312,18 @@ impl SymbolIndex {
     }
 }
 
+impl From<SymbolIndex> for usize {
+    fn from(value: SymbolIndex) -> usize {
+        value.0.get() as usize
+    }
+}
+
+impl<'i> From<&Symbol<'i>> for SymbolIndex {
+    fn from(sym: &Symbol<'i>) -> Self {
+        sym.index()
+    }
+}
+
 /// Interned string.
 ///
 /// A reference to this symbol is returned each time the same string is
@@ -330,6 +341,8 @@ impl SymbolIndex {
 ///       this is especially beneficial for portions of the system that make
 ///         use of nearly all interned symbols,
 ///           like the ASG.
+/// A [`SymbolIndex`] can be mapped back into its [`Symbol`] by calling
+///   [`Interner::index_lookup`] on the same interner that produced it.
 ///
 /// The symbol also stores a string slice referencing the interned string
 ///   itself,
@@ -456,6 +469,21 @@ pub trait Interner<'i> {
     /// It does not increase when a string is already interned.
     fn len(&self) -> usize;
 
+    /// Look up a previously interned [`Symbol`] by its [`SymbolIndex`].
+    ///
+    /// This will always return a [`Symbol`] as long as the provided `index`
+    ///   represents a symbol interned with this interner.
+    /// If the index is not found,
+    ///   the result is [`None`].
+    ///
+    /// This method is most useful when storing [`Symbol`] is not possible
+    ///   or desirable.
+    /// For example,
+    ///   borrowed [`Symbol`] references require lifetimes,
+    ///   whereas [`SymbolIndex`] is both owned _and_ [`Copy`].
+    /// [`SymbolIndex`] is also much smaller than [`Symbol`].
+    fn index_lookup(&'i self, index: SymbolIndex) -> Option<&'i Symbol<'i>>;
+
     /// Intern an assumed-UTF8 slice of bytes or return an existing
     ///   [`Symbol`].
     ///
@@ -492,17 +520,30 @@ where
     /// String and [`Symbol`] storage.
     arena: Bump,
 
-    /// Next available symbol index.
+    /// Symbol references by index.
     ///
-    /// This must always be ≥1.
-    /// It is not defined as `NonZeroProgSymSize` because
-    ///   `intern` enforces the invariant.
-    next_index: Cell<global::ProgSymSize>,
+    /// This vector enables looking up a [`Symbol`] using its
+    ///   [`SymbolIndex`].
+    ///
+    /// The first index must always be populated during initialization to
+    ///   ensure that [`SymbolIndex`] will never be `0`.
+    indexes: RefCell<Vec<&'i Symbol<'i>>>,
 
     /// Map of interned strings to their respective [`Symbol`].
     ///
     /// Both strings and symbols are allocated within `arena`.
     map: RefCell<HashMap<&'i str, &'i Symbol<'i>, S>>,
+}
+
+lazy_static! {
+    /// Dummy [`Symbol`] for use at index `0`.
+    ///
+    /// A symbol must never have an index of `0`,
+    ///   so this can be used as a placeholder.
+    /// The chosen [`SymbolIndex`] here does not matter since this will
+    ///   never be referenced.
+    static ref DUMMY_SYM: Symbol<'static> =
+        Symbol::new(SymbolIndex::from_u32(1), "!BADSYMREF!");
 }
 
 impl<'i, S> ArenaInterner<'i, S>
@@ -534,9 +575,14 @@ where
     /// [consistent]: https://en.wikipedia.org/wiki/Consistent_hashing
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
+        let mut indexes = Vec::<&'i Symbol<'i>>::with_capacity(capacity);
+
+        // The first index is not used since SymbolIndex cannot be 0.
+        indexes.push(&DUMMY_SYM);
+
         Self {
             arena: Bump::new(),
-            next_index: Cell::new(1),
+            indexes: RefCell::new(indexes),
             map: RefCell::new(HashMap::with_capacity_and_hasher(
                 capacity,
                 Default::default(),
@@ -556,9 +602,15 @@ where
             return sym;
         }
 
-        let next_index = self.next_index.get();
+        let mut syms = self.indexes.borrow_mut();
 
-        // Next_index should always be initialized to at least 1.
+        let next_index: u32 = syms
+            .len()
+            .try_into()
+            .expect("internal error: SymbolIndex range exhausted");
+
+        // This is not actually unsafe because next_index is always >0
+        // from initialization.
         debug_assert!(next_index != 0);
         let id = unsafe { SymbolIndex::from_u32_unchecked(next_index) };
 
@@ -571,10 +623,10 @@ where
 
         // Symbols are also stored within the arena, adjacent to the
         // string.  This ensures that both have stable locations in memory.
-        let sym: &'i Symbol<'i> = self.arena.alloc(Symbol::new(id, &clone));
+        let sym: &'i Symbol<'i> = self.arena.alloc(Symbol::new(id, clone));
 
         map.insert(clone, sym);
-        self.next_index.set(next_index + 1);
+        syms.push(sym);
 
         sym
     }
@@ -592,6 +644,13 @@ where
     #[inline]
     fn len(&self) -> usize {
         self.map.borrow().len()
+    }
+
+    fn index_lookup(&'i self, index: SymbolIndex) -> Option<&'i Symbol<'i>> {
+        self.indexes
+            .borrow()
+            .get(index.0.get() as usize)
+            .map(|sym| *sym)
     }
 }
 
@@ -833,6 +892,18 @@ mod test {
             let b = unsafe { sut.intern_utf8_unchecked(b"foo") };
 
             assert_eq!(a, b);
+        }
+
+        #[test]
+        fn lookup_symbol_by_index() {
+            let sut = Sut::new();
+
+            // Symbol does not yet exist.
+            assert!(sut.index_lookup(SymbolIndex::from_u32(1)).is_none());
+
+            let sym = sut.intern("foo");
+            assert_eq!(Some(sym), sut.index_lookup(sym.index()));
+            assert_eq!(Some(sym), sut.index_lookup(sym.into()));
         }
     }
 }
