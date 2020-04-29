@@ -11,8 +11,8 @@ commits that introduce the changes.  To make a new release, run
 =tools/mkrelease=, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.4.1 (2020-04-29)
+====================
 This release refactors the linker, adds additional tests, and improves
 errors slightly.  There are otherwise no functional changes.
 
