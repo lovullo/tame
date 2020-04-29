@@ -25,9 +25,13 @@ use super::object::{
 };
 use super::Sections;
 use crate::sym::Symbol;
-use petgraph::graph::{IndexType, NodeIndex};
+use petgraph::graph::NodeIndex;
 use std::fmt::Debug;
 use std::result::Result;
+
+/// Datatype representing node and edge indexes.
+pub trait IndexType: petgraph::graph::IndexType {}
+impl<T: petgraph::graph::IndexType> IndexType for T {}
 
 /// An abstract semantic graph of [objects][super::object].
 ///
@@ -200,21 +204,21 @@ pub type AsgResult<T, Ix> = Result<T, AsgError<Ix>>;
 ///   not pointers.
 /// See the [module-level documentation][self] for more information.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub struct ObjectRef<Ix>(pub NodeIndex<Ix>);
+pub struct ObjectRef<Ix>(NodeIndex<Ix>);
 
-impl<Ix> From<NodeIndex<Ix>> for ObjectRef<Ix>
-where
-    Ix: IndexType,
-{
+impl<Ix: IndexType> ObjectRef<Ix> {
+    pub fn new(index: NodeIndex<Ix>) -> Self {
+        Self(index)
+    }
+}
+
+impl<Ix: IndexType> From<NodeIndex<Ix>> for ObjectRef<Ix> {
     fn from(index: NodeIndex<Ix>) -> Self {
         Self(index)
     }
 }
 
-impl<Ix> From<ObjectRef<Ix>> for NodeIndex<Ix>
-where
-    Ix: IndexType,
-{
+impl<Ix: IndexType> From<ObjectRef<Ix>> for NodeIndex<Ix> {
     fn from(objref: ObjectRef<Ix>) -> Self {
         objref.0
     }
@@ -236,7 +240,7 @@ pub type Node<O> = Option<O>;
 ///   so this stores only owned values.
 /// The caller will know the problem values.
 #[derive(Debug, PartialEq)]
-pub enum AsgError<Ix: Debug> {
+pub enum AsgError<Ix: IndexType> {
     /// An object could not change state in the manner requested.
     ///
     /// See [`Asg::declare`] and [`Asg::set_fragment`] for more
@@ -251,21 +255,19 @@ pub enum AsgError<Ix: Debug> {
     Cycles(Vec<Vec<ObjectRef<Ix>>>),
 }
 
-impl<Ix: Debug> std::fmt::Display for AsgError<Ix> {
+impl<Ix: IndexType> std::fmt::Display for AsgError<Ix> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::ObjectTransition(err) => std::fmt::Display::fmt(&err, fmt),
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
             }
-            Self::Cycles(cycles) => {
-                write!(fmt, "Cyclic dependencies detected: {:?}", cycles)
-            }
+            Self::Cycles(_) => write!(fmt, "cyclic dependencies"),
         }
     }
 }
 
-impl<Ix: Debug> std::error::Error for AsgError<Ix> {
+impl<Ix: IndexType> std::error::Error for AsgError<Ix> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::ObjectTransition(err) => err.source(),
@@ -274,7 +276,7 @@ impl<Ix: Debug> std::error::Error for AsgError<Ix> {
     }
 }
 
-impl<Ix: Debug> From<TransitionError> for AsgError<Ix> {
+impl<Ix: IndexType> From<TransitionError> for AsgError<Ix> {
     fn from(err: TransitionError) -> Self {
         Self::ObjectTransition(err)
     }

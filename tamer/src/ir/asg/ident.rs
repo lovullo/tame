@@ -21,6 +21,7 @@
 
 use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
 use std::convert::TryFrom;
+use std::error::Error;
 
 /// Types of identifiers.
 ///
@@ -181,7 +182,7 @@ impl std::fmt::Display for IdentKind {
 }
 
 impl<'i> TryFrom<SymAttrs<'i>> for IdentKind {
-    type Error = &'static str;
+    type Error = IdentKindError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
@@ -193,29 +194,29 @@ impl<'i> TryFrom<SymAttrs<'i>> for IdentKind {
 }
 
 impl<'i> TryFrom<&SymAttrs<'i>> for IdentKind {
-    type Error = &'static str;
+    type Error = IdentKindError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
     fn try_from(attrs: &SymAttrs<'i>) -> Result<Self, Self::Error> {
-        let ty = attrs.ty.as_ref().ok_or("missing symbol type")?;
+        let ty = attrs.ty.as_ref().ok_or(Self::Error::MissingType)?;
 
         macro_rules! ident {
             ($to:expr) => {
                 Ok($to)
             };
             ($to:expr, dim) => {
-                Ok($to(Dim(attrs.dim.ok_or("missing dim")?)))
+                Ok($to(Dim(attrs.dim.ok_or(Self::Error::MissingDim)?)))
             };
             ($to:expr, dtype) => {
-                Ok($to(attrs.dtype.ok_or("missing dtype")?))
+                Ok($to(attrs.dtype.ok_or(Self::Error::MissingDtype)?))
             };
             ($to:expr, dim, dtype) => {
                 Ok($to(
-                    Dim(attrs.dim.ok_or("missing dim")?),
-                    attrs.dtype.ok_or("missing dtype")?,
+                    Dim(attrs.dim.ok_or(Self::Error::MissingDim)?),
+                    attrs.dtype.ok_or(Self::Error::MissingDtype)?,
                 ))
             };
         }
@@ -240,6 +241,34 @@ impl<'i> TryFrom<&SymAttrs<'i>> for IdentKind {
             SymType::Meta => ident!(IdentKind::Meta),
             SymType::Worksheet => ident!(IdentKind::Worksheet),
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum IdentKindError {
+    /// Symbol type was not provided.
+    MissingType,
+
+    /// Number of symbol dimensions were not provided.
+    MissingDim,
+
+    /// Symbol dtype was not provided.
+    MissingDtype,
+}
+
+impl std::fmt::Display for IdentKindError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::MissingType => write!(fmt, "missing symbol type"),
+            Self::MissingDim => write!(fmt, "missing dim"),
+            Self::MissingDtype => write!(fmt, "missing dtype"),
+        }
+    }
+}
+
+impl Error for IdentKindError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
     }
 }
 
@@ -345,11 +374,13 @@ mod test {
                 );
 
                 // no dim
-                IdentKind::try_from(SymAttrs {
+                let result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     ..Default::default()
                 })
                 .expect_err("must fail when missing dim");
+
+                assert_eq!(IdentKindError::MissingDim, result);
             }
         };
 
@@ -369,11 +400,13 @@ mod test {
                 );
 
                 // no dtype
-                IdentKind::try_from(SymAttrs {
+                let result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     ..Default::default()
                 })
                 .expect_err("must fail when missing dtype");
+
+                assert_eq!(IdentKindError::MissingDtype, result);
             }
         };
 
@@ -395,20 +428,24 @@ mod test {
                 );
 
                 // no dim
-                IdentKind::try_from(SymAttrs {
+                let dim_result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     dtype: Some(dtype),
                     ..Default::default()
                 })
                 .expect_err("must fail when missing dim");
 
+                assert_eq!(IdentKindError::MissingDim, dim_result);
+
                 // no dtype
-                IdentKind::try_from(SymAttrs {
+                let dtype_result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     dim: Some(dim),
                     ..Default::default()
                 })
                 .expect_err("must fail when missing dtype");
+
+                assert_eq!(IdentKindError::MissingDtype, dtype_result);
             }
         };
     }

@@ -73,5 +73,20 @@
 //!   <!-- Expanded src -->
 //! </package>
 //! ```
+//!
+//! IR Lowering
+//! ===========
+//! `xmlo` files are represented by the [Legacy IR](crate::ir::legacyir),
+//!   which is emitted during read by [`AsgBuilder`].
+//! For more information about how they are lowered into the
+//!   [ASG](crate::ir::asg),
+//!     see [`asg_builder`].
+//!
+//! For a summary of IRs and how they interact,
+//!   see [`crate::ir`].
 
-pub mod reader;
+mod asg_builder;
+mod reader;
+
+pub use asg_builder::{AsgBuilder, AsgBuilderState};
+pub use reader::{XmloError, XmloEvent, XmloReader};

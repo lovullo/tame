@@ -50,7 +50,7 @@
 //!
 //! ```
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use tamer::obj::xmlo::reader::{XmloReader, XmloEvent};
+//! use tamer::obj::xmlo::{XmloEvent, XmloReader};
 //! use tamer::ir::legacyir::SymType;
 //! use tamer::sym::{DefaultInterner, Interner};
 //!
@@ -149,6 +149,7 @@ use quick_xml::Reader as XmlReader;
 use std::convert::TryInto;
 use std::fmt::Display;
 use std::io::BufRead;
+use std::iter::Iterator;
 use std::result::Result;
 
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
@@ -658,7 +659,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
                     XmlError::TextNotFound => {
                         XmloError::MissingFragmentText(id.to_string())
                     }
-                    err => XmloError::XmlError(err),
+                    _ => err.into(),
                 })?;
 
         Ok(XmloEvent::Fragment(id, text))
@@ -681,6 +682,37 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
         }
 
         Ok(value[0] - b'0')
+    }
+}
+
+impl<'i, B, I> Iterator for XmloReader<'i, B, I>
+where
+    B: BufRead,
+    I: Interner<'i>,
+{
+    type Item = XmloResult<XmloEvent<'i>>;
+
+    /// Invoke [`XmloReader::read_event`] and yield the result via an
+    ///   [`Iterator`] API.
+    ///
+    /// *Warning*: This will always return [`Some`] for now.
+    /// Future changes may alter this behavior.
+    /// To terminate the iterator,
+    ///   it's recommended that you use [`Iterator::take_while`] to filter
+    ///   on the desired predicate,
+    ///     such as [`XmloEvent::Eoh`].
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.read_event())
+    }
+}
+
+impl<'i, B, I> From<(B, &'i I)> for XmloReader<'i, B, I>
+where
+    B: BufRead,
+    I: Interner<'i>,
+{
+    fn from(args: (B, &'i I)) -> Self {
+        Self::new(args.0, args.1)
     }
 }
 
@@ -739,10 +771,10 @@ pub enum XmloEvent<'i> {
 /// This drastically simplifies the reader and [`Result`] chaining.
 ///
 /// TODO: These errors provide no context (byte offset).
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum XmloError {
     /// XML parsing error.
-    XmlError(XmlError),
+    XmlError(XmlParseError),
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
@@ -764,13 +796,11 @@ pub enum XmloError {
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
     MissingFragmentText(String),
-    /// A `preproc:fragment` element was not found
-    MissingFragment(String),
 }
 
 impl From<XmlError> for XmloError {
     fn from(e: XmlError) -> Self {
-        XmloError::XmlError(e)
+        XmloError::XmlError(e.into())
     }
 }
 
@@ -813,9 +843,6 @@ impl Display for XmloError {
                 "fragment found, but missing text for symbol `{}`",
                 symname,
             ),
-            XmloError::MissingFragment(symname) => {
-                write!(fmt, "fragment not found `{}`", symname,)
-            }
         }
     }
 }
@@ -826,6 +853,40 @@ impl std::error::Error for XmloError {
             Self::XmlError(e) => Some(e),
             _ => None,
         }
+    }
+}
+
+/// Thin wrapper around [`XmlError`] to implement [`PartialEq`].
+///
+/// This will always yield `false`,
+///   but allows us to derive the trait on types using [`XmloError`];
+///     otherwise, this madness propagates indefinitely.
+#[derive(Debug)]
+pub struct XmlParseError(XmlError);
+
+impl PartialEq for XmlParseError {
+    /// [`XmlError`] does not implement [`PartialEq`] and so this will
+    ///   always yield `false`.
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl From<XmlError> for XmlParseError {
+    fn from(e: XmlError) -> Self {
+        Self(e)
+    }
+}
+
+impl Display for XmlParseError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(fmt)
+    }
+}
+
+impl std::error::Error for XmlParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
     }
 }
 
@@ -958,7 +1019,7 @@ mod test {
                 Some(Box::new(|_, _| Err(XmlError::UnexpectedEof("test".into()))));
 
             match sut.read_event() {
-                Err(XmloError::XmlError(XmlError::UnexpectedEof(_))) => (),
+                Err(XmloError::XmlError(XmlParseError(XmlError::UnexpectedEof(_)))) => (),
                 bad => panic!("expected XmlError: {:?}", bad),
             }
         }
@@ -1510,6 +1571,25 @@ mod test {
                 Err(XmloError::InvalidMapFrom(_)) => (),
                 bad => panic!("expected XmloError: {:?}", bad),
             }
+        }
+
+        fn read_events_via_iterator(sut, interner) {
+            sut.reader.next_event = Some(Box::new(|_, _| {
+                Ok(XmlEvent::Start(MockBytesStart::new(
+                    b"package",
+                    Some(MockAttributes::new(vec![])),
+                )))
+            }));
+
+            let result = sut.next().unwrap()?;
+
+            assert_eq!(
+                XmloEvent::Package(PackageAttrs {
+                    program: false,
+                    ..Default::default()
+                }),
+                result
+            );
         }
     }
 

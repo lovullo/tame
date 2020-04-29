@@ -48,7 +48,7 @@ mod base {
 
     #[bench]
     fn declare_1_000(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -75,7 +75,7 @@ mod base {
     // The Ix size affects memory, but how about performance?
     #[bench]
     fn declare_1_000_prog_ident_size(bench: &mut Bencher) {
-        let mut sut = SutProg::with_capacity(0, 0);
+        let mut sut = SutProg::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -88,7 +88,7 @@ mod base {
 
     #[bench]
     fn declare_extern_1_000(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -103,7 +103,7 @@ mod base {
 
     #[bench]
     fn resolve_extern_1_000(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -124,7 +124,7 @@ mod base {
     // strings for each call.
     #[bench]
     fn set_fragment_1_000_with_new_str(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -147,7 +147,7 @@ mod base {
 
     #[bench]
     fn lookup_1_000(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -162,7 +162,7 @@ mod base {
 
     #[bench]
     fn get_1_000(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -186,7 +186,7 @@ mod base {
     // supernodes at the time of writing, relatively speaking.
     #[bench]
     fn add_dep_1_000_to_single_node(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -212,7 +212,7 @@ mod base {
     // Same as above but only one edge per node.
     #[bench]
     fn add_dep_1_000_one_edge_per_node(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -235,7 +235,7 @@ mod base {
 
     #[bench]
     fn has_dep_1_000_single_node(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -264,7 +264,7 @@ mod base {
     // Same as above but only one edge per node.
     #[bench]
     fn has_dep_1_000_one_edge_per_node(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -293,7 +293,7 @@ mod base {
 
     #[bench]
     fn add_dep_lookup_1_000_missing_one_edge_per_node(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -307,7 +307,7 @@ mod base {
 
     #[bench]
     fn add_dep_lookup_1_000_existing_one_edge_per_node(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -325,7 +325,7 @@ mod base {
 
     #[bench]
     fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
@@ -357,7 +357,7 @@ mod base {
     fn sort_1_with_1_000_existing_one_edge_per_node_one_path(
         bench: &mut Bencher,
     ) {
-        let mut sut = Sut::with_capacity(0, 0);
+        let mut sut = Sut::new();
         let interner = DefaultInterner::new();
         let xs = interned_n(&interner, 1_000);
 
