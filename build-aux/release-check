@@ -23,9 +23,9 @@ declare -r RELEASE_FILE="${RELEASE_FILE:-RELEASES.md}"
 
 tag-date()
 {
-  local -r tag="${1?Missing tag}"
+  local -r t="${1?Missing tag}"
 
-  git show "$tag" --date=short \
+  git show "$t" --date=short \
     | awk '/^Date: / { print $2; exit }'
 }
 
