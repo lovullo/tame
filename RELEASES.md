@@ -2,16 +2,16 @@ TAME Release Notes
 ==================
 This file contains notes for each release of TAME since v17.4.0.
 
-TAME uses [semantic versioning][].  Any major version number change
-represents backwards-incompatible changes.  Each such version will be
-accompanied by notes that provide a migration path to resolve
-incompatibilities.
+TAME uses [semantic versioning][].  Any major version number increment
+indicates that backwards-incompatible changes have been introduced in that
+version.  Each such version will be accompanied by notes that provide a
+migration path to resolve incompatibilities.
 
 [semantic versioning]: https://semver.org/
 
 TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
-=tools/mkrelease=, which will handle updating the heading for you.
+`tools/mkrelease`, which will handle updating the heading for you.
 
 
 NEXT
@@ -22,6 +22,7 @@ Miscellaneous
 - `RELEASES.md`
   - Add missing link to semver.org.
   - Fix `tame-core` heading, which was erroneously Org-mode-styled.
+  - Rephrase and correct formatting of an introduction paragraph.
 
 
 v17.4.1 (2020-04-29)
