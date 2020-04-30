@@ -33,8 +33,20 @@ use tamer::ld::poc;
 
 /// Types of commands
 enum Command {
-    Link(String, String),
+    Link(String, String, Emit),
     Usage,
+}
+
+/// Ways to emit the linked objects
+enum Emit {
+    /// The typical desired `Emit`
+    ///
+    /// Outputs the linked object files in a format that can be used in an
+    ///   application.
+    Xmle,
+
+    /// Used for exploring the linked graph
+    Graphml,
 }
 
 /// Entrypoint for the linker
@@ -42,18 +54,20 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
     let program = &args[0];
     let opts = get_opts();
-    let usage = opts.usage(&format!("Usage: {} -o OUTPUT FILE", program));
+    let usage =
+        opts.usage(&format!("Usage: {} [OPTIONS] -o OUTPUT FILE", program));
 
     match parse_options(opts, args) {
-        Ok(Command::Link(input, output)) => match poc::main(&input, &output) {
-            Err(e) => {
-                eprintln!("error: {}", e);
-                eprintln!("fatal: failed to link `{}`", output);
+        Ok(Command::Link(input, output, emit)) => match emit {
+            Emit::Xmle => poc::xmle(&input, &output),
+            Emit::Graphml => poc::graphml(&input, &output),
+        }
+        .or_else(|e| {
+            eprintln!("error: {}", e);
+            eprintln!("fatal: failed to link `{}`", output);
 
-                std::process::exit(1);
-            }
-            ok => ok,
-        },
+            std::process::exit(1);
+        }),
         Ok(Command::Usage) => {
             println!("{}", usage);
             std::process::exit(exitcode::OK);
@@ -77,6 +91,12 @@ fn get_opts() -> Options {
     let mut opts = Options::new();
     opts.optopt("o", "output", "set output file name", "NAME");
     opts.optflag("h", "help", "print this help menu");
+    opts.optopt(
+        "",
+        "emit",
+        "set the output to be emitted",
+        "--emit xmle|graphml",
+    );
 
     opts
 }
@@ -107,7 +127,16 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
         }
     };
 
-    Ok(Command::Link(input, output))
+    let emit = match matches.opt_str("emit") {
+        Some(m) => match &m[..] {
+            "xmle" => Emit::Xmle,
+            "graphml" => Emit::Graphml,
+            em => return Err(Fail::ArgumentMissing(format!("--emit {}", em))),
+        },
+        None => Emit::Xmle,
+    };
+
+    Ok(Command::Link(input, output, emit))
 }
 
 #[cfg(test)]
@@ -208,6 +237,29 @@ mod test {
     }
 
     #[test]
+    fn parse_options_valid_long_emit_invalid() {
+        let opts = get_opts();
+        let result = parse_options(
+            opts,
+            vec![
+                String::from("program"),
+                String::from("foo"),
+                String::from("--output"),
+                String::from("bar"),
+                String::from("--emit"),
+                String::from("foo"),
+            ],
+        );
+
+        match result {
+            Err(Fail::ArgumentMissing(message)) => {
+                assert_eq!("--emit foo", message);
+            }
+            _ => panic!("Extra option not caught"),
+        }
+    }
+
+    #[test]
     fn parse_options_valid() {
         let opts = get_opts();
         let result = parse_options(
@@ -221,7 +273,7 @@ mod test {
         );
 
         match result {
-            Ok(Command::Link(infile, outfile)) => {
+            Ok(Command::Link(infile, outfile, Emit::Xmle)) => {
                 assert_eq!("foo", infile);
                 assert_eq!("bar", outfile);
             }
@@ -239,11 +291,37 @@ mod test {
                 String::from("foo"),
                 String::from("--output"),
                 String::from("bar"),
+                String::from("--emit"),
+                String::from("xmle"),
             ],
         );
 
         match result {
-            Ok(Command::Link(infile, outfile)) => {
+            Ok(Command::Link(infile, outfile, Emit::Xmle)) => {
+                assert_eq!("foo", infile);
+                assert_eq!("bar", outfile);
+            }
+            _ => panic!("Unexpected result"),
+        }
+    }
+
+    #[test]
+    fn parse_options_valid_long_emit_graphml() {
+        let opts = get_opts();
+        let result = parse_options(
+            opts,
+            vec![
+                String::from("program"),
+                String::from("foo"),
+                String::from("--output"),
+                String::from("bar"),
+                String::from("--emit"),
+                String::from("graphml"),
+            ],
+        );
+
+        match result {
+            Ok(Command::Link(infile, outfile, Emit::Graphml)) => {
                 assert_eq!("foo", infile);
                 assert_eq!("bar", outfile);
             }

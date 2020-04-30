@@ -145,6 +145,31 @@ pub enum IdentKind {
     Worksheet,
 }
 
+impl AsRef<str> for IdentKind {
+    fn as_ref(&self) -> &'static str {
+        match self {
+            Self::Cgen(_) => "cgen",
+            Self::Class(_) => "class",
+            Self::Const(_, _) => "const",
+            Self::Func(_, _) => "func",
+            Self::Gen(_, _) => "gen",
+            Self::Lparam(_, _) => "lparam",
+            Self::Param(_, _) => "param",
+            Self::Rate(_) => "rate",
+            Self::Tpl => "tpl",
+            Self::Type(_) => "type",
+            Self::MapHead => "map:head",
+            Self::Map => "map",
+            Self::MapTail => "map:tail",
+            Self::RetMapHead => "retmap:head",
+            Self::RetMap => "retmap",
+            Self::RetMapTail => "retmap:tail",
+            Self::Meta => "meta",
+            Self::Worksheet => "worksheet",
+        }
+    }
+}
+
 impl std::fmt::Display for IdentKind {
     /// Format identifier type for display to the user.
     ///
@@ -152,31 +177,33 @@ impl std::fmt::Display for IdentKind {
     ///   new type system,
     ///     so for now this just uses a syntax similar to Rust.
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let name = self.as_ref();
+
         match self {
             Self::Cgen(dim) => {
-                write!(fmt, "cgen[{}; {}]", DataType::Boolean, dim)
+                write!(fmt, "{}[{}; {}]", name, DataType::Boolean, dim)
             }
             Self::Class(dim) => {
-                write!(fmt, "class[{}; {}]", DataType::Boolean, dim)
+                write!(fmt, "{}[{}; {}]", name, DataType::Boolean, dim)
             }
-            Self::Const(dim, dtype) => write!(fmt, "const[{}; {}]", dtype, dim),
-            Self::Func(dim, dtype) => write!(fmt, "func[{}; {}]", dtype, dim),
-            Self::Gen(dim, dtype) => write!(fmt, "gen[{}; {}]", dtype, dim),
+            Self::Const(dim, dtype) => {
+                write!(fmt, "{}[{}; {}]", name, dtype, dim)
+            }
+            Self::Func(dim, dtype) => {
+                write!(fmt, "{}[{}; {}]", name, dtype, dim)
+            }
+            Self::Gen(dim, dtype) => {
+                write!(fmt, "{}[{}; {}]", name, dtype, dim)
+            }
             Self::Lparam(dim, dtype) => {
-                write!(fmt, "lparam[{}; {}]", dtype, dim)
+                write!(fmt, "{}[{}; {}]", name, dtype, dim)
             }
-            Self::Param(dim, dtype) => write!(fmt, "param[{}; {}]", dtype, dim),
-            Self::Rate(dtype) => write!(fmt, "rate[{}; 0]", dtype),
-            Self::Tpl => write!(fmt, "tpl"),
-            Self::Type(dtype) => write!(fmt, "type[{}]", dtype),
-            Self::MapHead => write!(fmt, "map:head"),
-            Self::Map => write!(fmt, "map"),
-            Self::MapTail => write!(fmt, "map:tail"),
-            Self::RetMapHead => write!(fmt, "retmap:head"),
-            Self::RetMap => write!(fmt, "retmap"),
-            Self::RetMapTail => write!(fmt, "retmap:tail"),
-            Self::Meta => write!(fmt, "meta"),
-            Self::Worksheet => write!(fmt, "worksheet"),
+            Self::Param(dim, dtype) => {
+                write!(fmt, "{}[{}; {}]", name, dtype, dim)
+            }
+            Self::Rate(dtype) => write!(fmt, "{}[{}; 0]", name, dtype),
+            Self::Type(dtype) => write!(fmt, "{}[{}]", name, dtype),
+            _ => write!(fmt, "{}", name),
         }
     }
 }

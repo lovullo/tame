@@ -16,6 +16,21 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This release adds GraphML output for linked objects to allow us to
+easily inspect the graph.
+
+Linker
+------
+- Add `--emit` oprion to `tamer/src/bin/tameld.rs` that allows us to specify
+  the type of output we want.
+- Slight refactor of `tamer/src/ld/poc.rs` to reuse code.
+- Added `IdentKind::name` method to allow access to the type of `IdentKind`
+  being used.
+- Added `BaseAsg::into_inner` to allow access to internal graph representation.
+
+Miscellaneous
+-------------
+- Dependency on `petgraph-graphml` added to facilitate the creation of GraphML.
 
 Miscellaneous
 -------------
