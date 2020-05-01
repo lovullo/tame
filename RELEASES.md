@@ -31,6 +31,8 @@ Linker
 Miscellaneous
 -------------
 - Dependency on `petgraph-graphml` added to facilitate the creation of GraphML.
+- Added `make` target to build linked GraphML files.
+- Updated `make *.xmle` target to explicitly state it is emitting `xmle`.
 
 Miscellaneous
 -------------
