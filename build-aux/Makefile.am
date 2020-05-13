@@ -154,6 +154,12 @@ c1map: $(dest_c1map)
 	$(TAME_TS)
 	$(TAME) dot $< $@
 
+%.neo4j: %.xmlo
+	$(TAME) neo4j $< $@
+%.neo4je: %.xmle
+	$(TAME) neo4j $< $@
+
+
 %.svg: %.dote
 	dot -Tsvg "$<" > "$@"
 %.svg: %.dot
