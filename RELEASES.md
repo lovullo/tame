@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.4.2 (2020-05-13)
+====================
 This release adds GraphML output for linked objects to allow us to
 inspect the graph.
 
