@@ -68,6 +68,19 @@ fn link_input_file_does_not_exist() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn link_invalid_emit() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = Command::cargo_bin("tameld")?;
+    cmd.arg("foobar");
+    cmd.arg("--emit").arg("notgood");
+    cmd.arg("-o").arg("tests/data/test-output.xmle");
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("--emit notgood"));
+
+    Ok(())
+}
+
+#[test]
 fn link_empty_input_file() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("tameld")?;
     cmd.arg("tests/data/empty.xmlo");

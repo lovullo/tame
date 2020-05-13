@@ -32,6 +32,7 @@ use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::{DefaultInterner, Interner, Symbol};
 use fxhash::FxBuildHasher;
+use petgraph_graphml::GraphMl;
 use std::error::Error;
 use std::fs;
 use std::io::BufReader;
@@ -42,7 +43,7 @@ type LinkerAsg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
 type LinkerAsgBuilderState<'i> =
     AsgBuilderState<'i, FxBuildHasher, global::ProgIdentSize>;
 
-pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
+pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let interner = DefaultInterner::new();
@@ -96,8 +97,6 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
         Err(e) => return Err(e.into()),
     };
 
-    //println!("Sorted ({}): {:?}", sorted.len(), sorted);
-
     output_xmle(
         &depgraph,
         &interner,
@@ -106,6 +105,59 @@ pub fn main(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
         relroot.expect("missing root package relroot"),
         output,
     )?;
+
+    Ok(())
+}
+
+pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
+    let mut fs = VisitOnceFilesystem::new();
+    let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
+    let interner = DefaultInterner::new();
+
+    let _ = load_xmlo(
+        package_path,
+        &mut fs,
+        &mut depgraph,
+        &interner,
+        AsgBuilderState::new(),
+    )?;
+
+    // if we move away from petgraph, we will need to abstract this away
+    let g = depgraph.into_inner();
+    let graphml =
+        GraphMl::new(&g)
+            .pretty_print(true)
+            .export_node_weights(Box::new(|node| {
+                // eprintln!("{:?}", node);
+
+                let (name, kind, generated) = match node {
+                    Some(n) => {
+                        let generated = match n.src() {
+                            Some(src) => src.generated,
+                            None => false,
+                        };
+
+                        (
+                            format!("{}", n),
+                            n.kind().unwrap().as_ref(),
+                            format!("{}", generated),
+                        )
+                    }
+                    None => (
+                        String::from("missing"),
+                        "missing",
+                        format!("{}", false),
+                    ),
+                };
+
+                vec![
+                    ("label".into(), name.into()),
+                    ("kind".into(), kind.into()),
+                    ("generated".into(), generated.into()),
+                ]
+            }));
+
+    fs::write(output, graphml.to_string())?;
 
     Ok(())
 }

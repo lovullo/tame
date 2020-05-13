@@ -117,6 +117,10 @@ program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 %.xmli: %.xml
 	$(path_tame)/tamer/target/release/tamec --emit xmlo -o $@ $<
 
+%.graphml: %.xmlo
+	$(TAME_TS)
+	$(path_tame)/tamer/target/release/tameld --emit graphml -o $@ $<
+
 # Individual dependencies appear in suppliers.mk (see below)
 %.xmlo: %.xmli $(path_tame)/.rev-xmlo
 	$(TAME_TS)
@@ -136,7 +140,7 @@ standalones: $(dest_standalone)
 strip: $(dest_standalone_strip) ui/package.strip.js
 %.xmle: %.xmlo $(path_tame)/.rev-xmle
 	$(TAME_TS)
-	$(path_tame)/tamer/target/release/tameld -o $@ $<
+	$(path_tame)/tamer/target/release/tameld --emit xmle -o $@ $<
 %.js: %.xmle
 	$(TAME_TS)
 	$(TAME) standalone $< $@

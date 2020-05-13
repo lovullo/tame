@@ -135,6 +135,15 @@ pub trait IdentObjectData<'i> {
     fn as_ident(&self) -> Option<&IdentObject<'i>>;
 }
 
+impl<'i> std::fmt::Display for IdentObject<'i> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.name() {
+            Some(n) => write!(f, "{}", n),
+            _ => write!(f, "missing"),
+        }
+    }
+}
+
 impl<'i> IdentObjectData<'i> for IdentObject<'i> {
     fn name(&self) -> Option<&'i Symbol<'i>> {
         match self {

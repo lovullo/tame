@@ -97,6 +97,11 @@ where
         }
     }
 
+    /// Get the underlying Graph
+    pub fn into_inner(self) -> DiGraph<Node<O>, AsgEdge, Ix> {
+        self.graph
+    }
+
     /// Index the provided symbol `name` as representing the identifier `node`.
     ///
     /// This index permits `O(1)` identifier lookups.

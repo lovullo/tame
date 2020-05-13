@@ -16,9 +16,20 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This release adds GraphML output for linked objects to allow us to
+inspect the graph.
+
+Linker
+------
+- Add `--emit` oprion to `tamer/src/bin/tameld.rs` that allows us to specify
+  the type of output we want.
+- Minor refactoring.
 
 Miscellaneous
 -------------
+- Added `make` target to build linked GraphML files.
+- Updated `make *.xmle` target to explicitly state it is emitting `xmle`.
+- Added Cypher script to use in Neo4J after a GraphML file is imported.
 - `RELEASES.md`
   - Add missing link to semver.org.
   - Fix `tame-core` heading, which was erroneously Org-mode-styled.
