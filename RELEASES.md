@@ -17,26 +17,19 @@ commits that introduce the changes.  To make a new release, run
 NEXT
 ====
 This release adds GraphML output for linked objects to allow us to
-easily inspect the graph.
+inspect the graph.
 
 Linker
 ------
 - Add `--emit` oprion to `tamer/src/bin/tameld.rs` that allows us to specify
   the type of output we want.
-- Slight refactor of `tamer/src/ld/poc.rs` to reuse code.
-- Added `IdentKind::name` method to allow access to the type of `IdentKind`
-  being used.
-- Added `BaseAsg::into_inner` to allow access to internal graph representation.
+- Minor refactoring.
 
 Miscellaneous
 -------------
-- Dependency on `petgraph-graphml` added to facilitate the creation of GraphML.
 - Added `make` target to build linked GraphML files.
 - Updated `make *.xmle` target to explicitly state it is emitting `xmle`.
 - Added Cypher script to use in Neo4J after a GraphML file is imported.
-
-Miscellaneous
--------------
 - `RELEASES.md`
   - Add missing link to semver.org.
   - Fix `tame-core` heading, which was erroneously Org-mode-styled.
