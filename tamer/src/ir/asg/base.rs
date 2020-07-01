@@ -970,8 +970,8 @@ mod test {
     fn graph_sort_simple_cycle() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+        let sym = symbol_dummy!(2, "sym");
+        let dep = symbol_dummy!(3, "dep");
 
         let sym_node = sut
             .declare(
@@ -1020,10 +1020,10 @@ mod test {
     fn graph_sort_two_simple_cycles() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
-        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym2");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(4), "dep");
-        let dep2 = Symbol::new_dummy(SymbolIndex::from_u32(5), "dep2");
+        let sym = symbol_dummy!(2, "sym");
+        let sym2 = symbol_dummy!(3, "sym2");
+        let dep = symbol_dummy!(4, "dep");
+        let dep2 = symbol_dummy!(5, "dep2");
 
         let sym_node = sut
             .declare(
@@ -1103,8 +1103,8 @@ mod test {
     {
         let mut sut = Sut::new();
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+        let sym = symbol_dummy!(2, "sym");
+        let dep = symbol_dummy!(3, "dep");
 
         let sym_node = sut
             .declare(
@@ -1150,9 +1150,9 @@ mod test {
     fn graph_sort_cycle_with_a_few_steps() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
-        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
-        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+        let sym1 = symbol_dummy!(1, "sym1");
+        let sym2 = symbol_dummy!(2, "sym2");
+        let sym3 = symbol_dummy!(3, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1216,9 +1216,9 @@ mod test {
     ) -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
-        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
-        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+        let sym1 = symbol_dummy!(1, "sym1");
+        let sym2 = symbol_dummy!(2, "sym2");
+        let sym3 = symbol_dummy!(3, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1281,9 +1281,9 @@ mod test {
     fn graph_sort_cyclic_bookended_by_functions() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
-        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
-        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+        let sym1 = symbol_dummy!(1, "sym1");
+        let sym2 = symbol_dummy!(2, "sym2");
+        let sym3 = symbol_dummy!(3, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1346,8 +1346,8 @@ mod test {
     fn graph_sort_cyclic_function_ignored() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
+        let sym = symbol_dummy!(2, "sym");
+        let dep = symbol_dummy!(3, "dep");
 
         let sym_node = sut
             .declare(
@@ -1393,9 +1393,9 @@ mod test {
     fn graph_sort_cyclic_function_is_bookended() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = Symbol::new_dummy(SymbolIndex::from_u32(1), "sym1");
-        let sym2 = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym2");
-        let sym3 = Symbol::new_dummy(SymbolIndex::from_u32(3), "sym3");
+        let sym1 = symbol_dummy!(1, "sym1");
+        let sym2 = symbol_dummy!(2, "sym2");
+        let sym3 = symbol_dummy!(3, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1458,9 +1458,9 @@ mod test {
     fn graph_sort_ignore_non_linked() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = Symbol::new_dummy(SymbolIndex::from_u32(2), "sym");
-        let dep = Symbol::new_dummy(SymbolIndex::from_u32(3), "dep");
-        let ignored = Symbol::new_dummy(SymbolIndex::from_u32(4), "ignored");
+        let sym = symbol_dummy!(2, "sym");
+        let dep = symbol_dummy!(3, "dep");
+        let ignored = symbol_dummy!(4, "ignored");
 
         let sym_node = sut
             .declare(
