@@ -25,8 +25,8 @@ use crate::fs::{
 };
 use crate::global;
 use crate::ir::asg::{
-    Asg, AsgError, DefaultAsg, IdentObject, IdentObjectData, Sections,
-    SortableAsg,
+    Asg, DefaultAsg, IdentObject, IdentObjectData, Sections, SortableAsg,
+    SortableAsgError,
 };
 use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
@@ -72,7 +72,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
     let mut sorted = match depgraph.sort(&roots) {
         Ok(sections) => sections,
-        Err(AsgError::Cycles(cycles)) => {
+        Err(SortableAsgError::Cycles(cycles)) => {
             let msg: Vec<String> = cycles
                 .into_iter()
                 .map(|cycle| {

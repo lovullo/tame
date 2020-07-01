@@ -86,7 +86,7 @@ where
         name: &'i Symbol<'i>,
         kind: IdentKind,
         src: Source<'i>,
-    ) -> AsgResult<ObjectRef<Ix>, Ix>;
+    ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Declare an abstract identifier.
     ///
@@ -113,7 +113,7 @@ where
         name: &'i Symbol<'i>,
         kind: IdentKind,
         src: Source<'i>,
-    ) -> AsgResult<ObjectRef<Ix>, Ix>;
+    ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Set the fragment associated with a concrete identifier.
     ///
@@ -124,7 +124,7 @@ where
         &mut self,
         identi: ObjectRef<Ix>,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef<Ix>, Ix>;
+    ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Retrieve an object from the graph by [`ObjectRef`].
     ///
@@ -189,14 +189,20 @@ where
     fn sort(
         &'i self,
         roots: &[ObjectRef<Ix>],
-    ) -> AsgResult<Sections<'i, O>, Ix>;
+    ) -> SortableAsgResult<Sections<'i, O>, Ix>;
 }
 
 /// A [`Result`] with a hard-coded [`AsgError`] error type.
 ///
 /// This is the result of every [`Asg`] operation that could potentially
 ///   fail in error.
-pub type AsgResult<T, Ix> = Result<T, AsgError<Ix>>;
+pub type AsgResult<T> = Result<T, AsgError>;
+
+/// A [`Result`] with a hard-coded [`SortableAsgError`] error type.
+///
+/// This is the result of every [`SortableAsg`] operation that could
+///   potentially fail in error.
+pub type SortableAsgResult<T, Ix> = Result<T, SortableAsgError<Ix>>;
 
 /// Reference to an [object][super::object] stored within the [`Asg`].
 ///
@@ -240,7 +246,7 @@ pub type Node<O> = Option<O>;
 ///   so this stores only owned values.
 /// The caller will know the problem values.
 #[derive(Debug, PartialEq)]
-pub enum AsgError<Ix: IndexType> {
+pub enum AsgError {
     /// An object could not change state in the manner requested.
     ///
     /// See [`Asg::declare`] and [`Asg::set_fragment`] for more
@@ -250,24 +256,20 @@ pub enum AsgError<Ix: IndexType> {
 
     /// The node was not expected in the current context
     UnexpectedNode(String),
-
-    /// The graph has a cyclic dependency
-    Cycles(Vec<Vec<ObjectRef<Ix>>>),
 }
 
-impl<Ix: IndexType> std::fmt::Display for AsgError<Ix> {
+impl std::fmt::Display for AsgError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::ObjectTransition(err) => std::fmt::Display::fmt(&err, fmt),
             Self::UnexpectedNode(msg) => {
                 write!(fmt, "unexpected node: {}", msg)
             }
-            Self::Cycles(_) => write!(fmt, "cyclic dependencies"),
         }
     }
 }
 
-impl<Ix: IndexType> std::error::Error for AsgError<Ix> {
+impl std::error::Error for AsgError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::ObjectTransition(err) => err.source(),
@@ -276,9 +278,49 @@ impl<Ix: IndexType> std::error::Error for AsgError<Ix> {
     }
 }
 
-impl<Ix: IndexType> From<TransitionError> for AsgError<Ix> {
+impl From<TransitionError> for AsgError {
     fn from(err: TransitionError) -> Self {
         Self::ObjectTransition(err)
+    }
+}
+
+/// Error during graph sorting.
+///
+/// These errors reflect barriers to meaningfully understanding the
+///   properties of the data in the graph with respect to sorting.
+/// It does not represent bad underlying data that does not affect the
+///   sorting process.
+#[derive(Debug, PartialEq)]
+pub enum SortableAsgError<Ix: IndexType> {
+    /// The kind of an object encountered during sorting could not be
+    ///   determined.
+    ///
+    /// Sorting uses the object kind to place objects into their appropriate
+    ///   sections.
+    /// It should never be the case that a resolved object has no kind,
+    ///   so this likely represents a compiler bug.
+    MissingObjectKind(String),
+
+    /// The graph has a cyclic dependency.
+    Cycles(Vec<Vec<ObjectRef<Ix>>>),
+}
+
+impl<Ix: IndexType> std::fmt::Display for SortableAsgError<Ix> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::MissingObjectKind(name) => write!(
+                fmt,
+                "internal error: missing object kind for object `{}` (this may be a compiler bug!)",
+                name,
+            ),
+            Self::Cycles(_) => write!(fmt, "cyclic dependencies"),
+        }
+    }
+}
+
+impl<Ix: IndexType> std::error::Error for SortableAsgError<Ix> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
     }
 }
 
