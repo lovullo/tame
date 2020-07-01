@@ -197,56 +197,6 @@ where
                 Err(err.into())
             })
     }
-
-    /// Check graph for cycles
-    ///
-    /// We want to catch any cycles before we start using the graph.
-    ///   Unfortunately, we need to allow cycles for our [`IdentKind::Func`]
-    ///   so we cannot use the typical algorithms in a straightforward manner.
-    ///
-    /// We loop through all SCCs and check that they are not all functions. If
-    ///   they are, we ignore the cycle, otherwise we will return an error.
-    fn check_cycles(&self) -> AsgResult<(), Ix> {
-        // While `tarjan_scc` does do a topological sort, it does not suit our
-        // needs because we need to filter out some allowed cycles. It would
-        // still be possible to use this, but we also need to only check nodes
-        // that are attached to our "roots". We are doing our own sort and as of
-        // the initial writing, this does not have a significant performance
-        // impact.
-        let sccs = petgraph::algo::tarjan_scc(&self.graph);
-
-        let cycles: Vec<_> = sccs
-            .into_iter()
-            .filter_map(|scc| {
-                // For single-node SCCs, we just need to make sure they are
-                // not neighbors with themselves.
-                if scc.len() == 1
-                    && !self.graph.neighbors(scc[0]).any(|nx| nx == scc[0])
-                {
-                    return None;
-                }
-
-                let is_all_funcs = scc.iter().all(|nx| {
-                    let ident = self.get(*nx).expect("missing node");
-                    matches!(ident.kind(), Some(IdentKind::Func(_, _)))
-                });
-
-                if is_all_funcs {
-                    None
-                } else {
-                    let cycles =
-                        scc.iter().map(|nx| ObjectRef::from(*nx)).collect();
-                    Some(cycles)
-                }
-            })
-            .collect();
-
-        if cycles.is_empty() {
-            Ok(())
-        } else {
-            Err(AsgError::Cycles(cycles))
-        }
-    }
 }
 
 impl<'i, O, Ix> Asg<'i, O, Ix> for BaseAsg<O, Ix>
@@ -334,7 +284,7 @@ where
     ) -> AsgResult<Sections<'i, O>, Ix> {
         let mut deps = Sections::new();
 
-        self.check_cycles()?;
+        check_cycles(self)?;
 
         // This is technically a topological sort, but functions have cycles.
         let mut dfs = DfsPostOrder::empty(&self.graph);
@@ -371,6 +321,60 @@ where
         }
 
         Ok(deps)
+    }
+}
+
+/// Check graph for cycles
+///
+/// We want to catch any cycles before we start using the graph.
+///   Unfortunately, we need to allow cycles for our [`IdentKind::Func`]
+///   so we cannot use the typical algorithms in a straightforward manner.
+///
+/// We loop through all SCCs and check that they are not all functions. If
+///   they are, we ignore the cycle, otherwise we will return an error.
+fn check_cycles<'i, O, Ix>(asg: &BaseAsg<O, Ix>) -> AsgResult<(), Ix>
+where
+    Ix: IndexType,
+    O: IdentObjectData<'i> + IdentObjectState<'i, O>,
+{
+    // While `tarjan_scc` does do a topological sort, it does not suit our
+    // needs because we need to filter out some allowed cycles. It would
+    // still be possible to use this, but we also need to only check nodes
+    // that are attached to our "roots". We are doing our own sort and as of
+    // the initial writing, this does not have a significant performance
+    // impact.
+    let sccs = petgraph::algo::tarjan_scc(&asg.graph);
+
+    let cycles: Vec<_> = sccs
+        .into_iter()
+        .filter_map(|scc| {
+            // For single-node SCCs, we just need to make sure they are
+            // not neighbors with themselves.
+            if scc.len() == 1
+                && !asg.graph.neighbors(scc[0]).any(|nx| nx == scc[0])
+            {
+                return None;
+            }
+
+            let is_all_funcs = scc.iter().all(|nx| {
+                let ident = Asg::get(asg, *nx).expect("missing node");
+                matches!(ident.kind(), Some(IdentKind::Func(_, _)))
+            });
+
+            if is_all_funcs {
+                None
+            } else {
+                let cycles =
+                    scc.iter().map(|nx| ObjectRef::from(*nx)).collect();
+                Some(cycles)
+            }
+        })
+        .collect();
+
+    if cycles.is_empty() {
+        Ok(())
+    } else {
+        Err(AsgError::Cycles(cycles))
     }
 }
 
