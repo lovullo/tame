@@ -22,6 +22,7 @@
 use super::ident::IdentKind;
 use super::object::{
     FragmentText, IdentObjectData, IdentObjectState, Source, TransitionError,
+    UnresolvedError,
 };
 use super::Sections;
 use crate::sym::Symbol;
@@ -186,6 +187,11 @@ where
     O: IdentObjectData<'i>,
     Ix: IndexType,
 {
+    /// Sort graph into [`Sections`].
+    ///
+    /// Sorting will fail if the graph contains unresolved objects,
+    ///   or identifiers whose kind cannot be determined
+    ///   (see [`UnresolvedError`]).
     fn sort(
         &'i self,
         roots: &[ObjectRef<Ix>],
@@ -292,6 +298,16 @@ impl From<TransitionError> for AsgError {
 ///   sorting process.
 #[derive(Debug, PartialEq)]
 pub enum SortableAsgError<Ix: IndexType> {
+    /// An unresolved object was encountered during sorting.
+    ///
+    /// An unresolved object means that the graph has an incomplete picture
+    ///   of the program,
+    ///     and so sorting cannot be reliably performed.
+    /// Since all objects are supposed to be resolved prior to sorting,
+    ///   this represents either a problem with the program being compiled
+    ///   or a bug in the compiler itself.
+    UnresolvedObject(UnresolvedError),
+
     /// The kind of an object encountered during sorting could not be
     ///   determined.
     ///
@@ -305,9 +321,16 @@ pub enum SortableAsgError<Ix: IndexType> {
     Cycles(Vec<Vec<ObjectRef<Ix>>>),
 }
 
+impl<Ix: IndexType> From<UnresolvedError> for SortableAsgError<Ix> {
+    fn from(err: UnresolvedError) -> Self {
+        Self::UnresolvedObject(err)
+    }
+}
+
 impl<Ix: IndexType> std::fmt::Display for SortableAsgError<Ix> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Self::UnresolvedObject(err) => std::fmt::Display::fmt(err, fmt),
             Self::MissingObjectKind(name) => write!(
                 fmt,
                 "internal error: missing object kind for object `{}` (this may be a compiler bug!)",
@@ -320,7 +343,10 @@ impl<Ix: IndexType> std::fmt::Display for SortableAsgError<Ix> {
 
 impl<Ix: IndexType> std::error::Error for SortableAsgError<Ix> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+        match self {
+            Self::UnresolvedObject(err) => Some(err),
+            _ => None,
+        }
     }
 }
 

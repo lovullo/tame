@@ -203,7 +203,7 @@ pub use graph::{
 pub use ident::{DataType, Dim, IdentKind, IdentKindError};
 pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
-    TransitionError, TransitionResult,
+    TransitionError, TransitionResult, UnresolvedError,
 };
 pub use section::{Section, SectionIterator, Sections};
 

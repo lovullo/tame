@@ -294,7 +294,10 @@ impl<W: Write> XmleWriter<W> {
 
                     self.writer.write_event(Event::Empty(sym))?;
                 }
-                _ => unreachable!("filtered out during sorting"),
+                _ => unreachable!(
+                    "identifier should have been filtered out during sorting: {:?}",
+                    ident,
+                ),
             }
         }
 

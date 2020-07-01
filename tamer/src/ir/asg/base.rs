@@ -295,7 +295,7 @@ where
         }
 
         while let Some(index) = dfs.next(&self.graph) {
-            let ident = self.get(index).expect("missing node");
+            let ident = self.get(index).expect("missing node").resolved()?;
 
             match ident.kind() {
                 Some(kind) => match kind {
@@ -386,7 +386,9 @@ where
 mod test {
     use super::super::graph::AsgError;
     use super::*;
-    use crate::ir::asg::{Dim, IdentObject, TransitionError, TransitionResult};
+    use crate::ir::asg::{
+        Dim, IdentObject, TransitionError, TransitionResult, UnresolvedError,
+    };
     use crate::ir::legacyir::SymDtype;
     use crate::sym::SymbolIndex;
     use std::cell::RefCell;
@@ -400,6 +402,7 @@ mod test {
         fail_redeclare: RefCell<Option<TransitionError>>,
         fail_extern: RefCell<Option<TransitionError>>,
         fail_set_fragment: RefCell<Option<TransitionError>>,
+        fail_resolved: RefCell<Option<UnresolvedError>>,
     }
 
     impl<'i> IdentObjectData<'i> for StubIdentObject<'i> {
@@ -443,6 +446,14 @@ mod test {
             }
 
             self.given_resolve = Some((kind, src));
+            Ok(self)
+        }
+
+        fn resolved(&self) -> Result<&StubIdentObject<'i>, UnresolvedError> {
+            if self.fail_resolved.borrow().is_some() {
+                return Err(self.fail_resolved.replace(None).unwrap());
+            }
+
             Ok(self)
         }
 
@@ -1510,6 +1521,38 @@ mod test {
         match result {
             Ok(_) => (),
             Err(e) => panic!("unexpected error: {}", e),
+        }
+
+        Ok(())
+    }
+
+    /// A graph containing unresolved objects cannot be sorted.
+    #[test]
+    fn graph_sort_fail_unresolved() -> SortableAsgResult<(), u8> {
+        let mut sut = Sut::new();
+
+        let sym = symbol_dummy!(1, "unresolved");
+        let node = sut
+            .declare(&sym, IdentKind::Meta, Default::default())
+            .unwrap();
+        let ident = sut.get(node).unwrap();
+
+        let expected = UnresolvedError::Missing {
+            name: sym.to_string(),
+        };
+
+        // Cause resolved() to fail.
+        ident.fail_resolved.replace(Some(expected.clone()));
+
+        let result = sut
+            .sort(&vec![node])
+            .expect_err("expected sort failure due to unresolved identifier");
+
+        match result {
+            SortableAsgError::UnresolvedObject(err) => {
+                assert_eq!(expected, err);
+            }
+            _ => panic!("expected SortableAsgError::Unresolved: {:?}", result),
         }
 
         Ok(())
