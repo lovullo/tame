@@ -16,6 +16,10 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This release fixes a bug caused by previous refactoring that caused
+unresolved externs to product an obscure and useless error for the end
+user.
+
 Linker
 ------
 - Provide useful error for unresolved identifiers.
