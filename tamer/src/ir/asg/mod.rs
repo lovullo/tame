@@ -196,11 +196,14 @@ mod ident;
 mod object;
 mod section;
 
-pub use graph::{Asg, AsgError, AsgResult, IndexType, ObjectRef, SortableAsg};
+pub use graph::{
+    Asg, AsgError, AsgResult, IndexType, ObjectRef, SortableAsg,
+    SortableAsgError,
+};
 pub use ident::{DataType, Dim, IdentKind, IdentKindError};
 pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
-    TransitionError, TransitionResult,
+    TransitionError, TransitionResult, UnresolvedError,
 };
 pub use section::{Section, SectionIterator, Sections};
 

@@ -81,7 +81,7 @@ use std::fmt::Display;
 use std::hash::BuildHasher;
 
 pub type Result<'i, S, Ix> =
-    std::result::Result<AsgBuilderState<'i, S, Ix>, AsgBuilderError<Ix>>;
+    std::result::Result<AsgBuilderState<'i, S, Ix>, AsgBuilderError>;
 
 /// Builder state between imports.
 ///
@@ -289,7 +289,7 @@ where
 
 /// Error populating graph with [`XmloResult`]-derived data.
 #[derive(Debug, PartialEq)]
-pub enum AsgBuilderError<Ix: IndexType> {
+pub enum AsgBuilderError {
     /// Error with the source `xmlo` file.
     XmloError(XmloError),
 
@@ -297,7 +297,7 @@ pub enum AsgBuilderError<Ix: IndexType> {
     IdentKindError(IdentKindError),
 
     /// [`Asg`] operation error.
-    AsgError(AsgError<Ix>),
+    AsgError(AsgError),
 
     /// Fragment encountered for an unknown identifier.
     MissingFragmentIdent(String),
@@ -309,7 +309,7 @@ pub enum AsgBuilderError<Ix: IndexType> {
     BadEligRef(String),
 }
 
-impl<Ix: IndexType> Display for AsgBuilderError<Ix> {
+impl Display for AsgBuilderError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::XmloError(e) => e.fmt(fmt),
@@ -331,25 +331,25 @@ impl<Ix: IndexType> Display for AsgBuilderError<Ix> {
     }
 }
 
-impl<Ix: IndexType> From<XmloError> for AsgBuilderError<Ix> {
+impl From<XmloError> for AsgBuilderError {
     fn from(src: XmloError) -> Self {
         Self::XmloError(src)
     }
 }
 
-impl<Ix: IndexType> From<IdentKindError> for AsgBuilderError<Ix> {
+impl From<IdentKindError> for AsgBuilderError {
     fn from(src: IdentKindError) -> Self {
         Self::IdentKindError(src)
     }
 }
 
-impl<Ix: IndexType> From<AsgError<Ix>> for AsgBuilderError<Ix> {
-    fn from(src: AsgError<Ix>) -> Self {
+impl From<AsgError> for AsgBuilderError {
+    fn from(src: AsgError) -> Self {
         Self::AsgError(src)
     }
 }
 
-impl<Ix: IndexType> Error for AsgBuilderError<Ix> {
+impl Error for AsgBuilderError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::XmloError(e) => Some(e),

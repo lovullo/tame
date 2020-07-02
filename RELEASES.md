@@ -14,6 +14,15 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+Linker
+------
+- Provide useful error for unresolved identifiers.
+  - This was previously falling through to an `unreachable!` block,
+    producing a very opaque and useless internal error message.
+
+
 v17.4.2 (2020-05-13)
 ====================
 This release adds GraphML output for linked objects to allow us to

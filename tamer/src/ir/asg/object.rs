@@ -212,6 +212,23 @@ where
     ///   since rules may vary between implementations.
     fn resolve(self, kind: IdentKind, src: Source<'i>) -> TransitionResult<T>;
 
+    /// Assertion to return self if identifier is resolved,
+    ///   otherwise failing with [`UnresolvedError`].
+    ///
+    /// This simplifies working with identifiers without having to match on
+    ///   specific variants,
+    ///     and will continue to work if new variants are added in the
+    ///     future that are considered to be unresolved.
+    ///
+    /// Since this does not cause a state transition and is useful in
+    ///   contexts where ownership over the identifier is not possible,
+    ///     this accepts and returns a reference to the identifier.
+    ///
+    /// At present,
+    ///   both [`IdentObject::Missing`] and [`IdentObject::Extern`] are
+    ///   considered to be unresolved.
+    fn resolved(&self) -> Result<&T, UnresolvedError>;
+
     /// Resolve identifier against an extern declaration or produce an
     ///   extern.
     ///
@@ -373,6 +390,25 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
         }
     }
 
+    fn resolved(&self) -> Result<&IdentObject<'i>, UnresolvedError> {
+        match self {
+            IdentObject::Missing(name) => Err(UnresolvedError::Missing {
+                name: name.to_string(),
+            }),
+
+            IdentObject::Extern(name, ref kind, ref src) => {
+                Err(UnresolvedError::Extern {
+                    name: name.to_string(),
+                    kind: kind.clone(),
+                    pkg_name: src.pkg_name.map(|s| s.to_string()),
+                })
+            }
+
+            IdentObject::Ident(_, _, _)
+            | IdentObject::IdentFragment(_, _, _, _) => Ok(self),
+        }
+    }
+
     fn extern_(
         self,
         kind: IdentKind,
@@ -519,6 +555,52 @@ impl std::fmt::Display for TransitionError {
 }
 
 impl std::error::Error for TransitionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+/// Resolved identifier was expected.
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnresolvedError {
+    /// Expected identifier is missing and nothing about it is known.
+    Missing { name: String },
+
+    /// Expected identifier has not yet been resolved with a concrete
+    ///   definition.
+    Extern {
+        /// Identifier name.
+        name: String,
+        /// Expected identifier type.
+        kind: IdentKind,
+        /// Name of package where the extern was defined.
+        pkg_name: Option<String>,
+    },
+}
+
+impl std::fmt::Display for UnresolvedError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            UnresolvedError::Missing { name } => {
+                write!(fmt, "missing expected identifier `{}`", name,)
+            }
+
+            UnresolvedError::Extern {
+                name,
+                kind,
+                pkg_name,
+            } => write!(
+                fmt,
+                "unresolved extern `{}` of type `{}`, declared in `{}`",
+                name,
+                kind,
+                pkg_name.as_ref().unwrap_or(&"<unknown>".into()),
+            ),
+        }
+    }
+}
+
+impl std::error::Error for UnresolvedError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -782,8 +864,24 @@ mod test {
         }
 
         #[test]
-        fn ident_object_ident() {
+        fn resolved_on_missing() {
             let sym = symbol_dummy!(1, "missing");
+
+            let result = IdentObject::declare(&sym)
+                .resolved()
+                .expect_err("expected error asserting resolved() on missing");
+
+            match result {
+                UnresolvedError::Missing { name: e_name } => {
+                    assert_eq!(sym.to_string(), e_name);
+                }
+                _ => panic!("expected UnresolvedError {:?}", result),
+            }
+        }
+
+        #[test]
+        fn ident_object_ident() {
+            let sym = symbol_dummy!(1, "ident");
             let kind = IdentKind::Meta;
             let src = Source {
                 desc: Some("ident ctor".into()),
@@ -794,6 +892,25 @@ mod test {
                 IdentObject::Ident(&sym, kind.clone(), src.clone()),
                 IdentObject::declare(&sym)
                     .resolve(kind.clone(), src.clone())
+                    .unwrap(),
+            );
+        }
+
+        #[test]
+        fn resolved_on_ident() {
+            let sym = symbol_dummy!(1, "ident resolve");
+            let kind = IdentKind::Meta;
+            let src = Source {
+                desc: Some("ident ctor".into()),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                &IdentObject::Ident(&sym, kind.clone(), src.clone()),
+                IdentObject::declare(&sym)
+                    .resolve(kind.clone(), src.clone())
+                    .unwrap()
+                    .resolved()
                     .unwrap(),
             );
         }
@@ -834,7 +951,7 @@ mod test {
 
             #[test]
             fn ident_object() {
-                let sym = symbol_dummy!(1, "missing");
+                let sym = symbol_dummy!(1, "extern");
                 let kind = IdentKind::Class(Dim::from_u8(1));
                 let src = Source {
                     desc: Some("extern".into()),
@@ -845,6 +962,72 @@ mod test {
                     Ok(IdentObject::Extern(&sym, kind.clone(), src.clone())),
                     IdentObject::declare(&sym).extern_(kind, src),
                 );
+            }
+
+            #[test]
+            fn resolved_on_extern() {
+                let sym = symbol_dummy!(1, "extern resolved");
+                let kind = IdentKind::Class(Dim::from_u8(1));
+                let pkg_name = symbol_dummy!(2, "pkg/name");
+                let src = Source {
+                    pkg_name: Some(&pkg_name),
+                    desc: Some("extern".into()),
+                    ..Default::default()
+                };
+
+                let result =
+                    IdentObject::Extern(&sym, kind.clone(), src.clone())
+                        .resolved()
+                        .expect_err(
+                            "expected error asserting resolved() on extern",
+                        );
+
+                match result {
+                    UnresolvedError::Extern {
+                        name: e_name,
+                        kind: e_kind,
+                        pkg_name: e_pkg_name,
+                    } => {
+                        assert_eq!(sym.to_string(), e_name);
+                        assert_eq!(kind, e_kind);
+                        assert_eq!(Some(pkg_name.to_string()), e_pkg_name);
+                    }
+                    _ => panic!("expected UnresolvedError: {:?}", result),
+                }
+            }
+
+            #[test]
+            fn resolved_on_extern_error_fmt_without_pkg() {
+                let meta = IdentKind::Meta;
+                let err = UnresolvedError::Extern {
+                    name: "foo".into(),
+                    kind: IdentKind::Meta,
+                    pkg_name: None,
+                };
+
+                let msg = format!("{}", err);
+
+                assert!(msg.contains("`foo`"));
+                assert!(msg.contains("in `<unknown>`"));
+                assert!(msg.contains(&format!("`{}`", meta)));
+            }
+
+            #[test]
+            fn resolved_on_extern_error_fmt_with_pkg() {
+                let meta = IdentKind::Meta;
+                let pkg = "pkg".to_string();
+
+                let err = UnresolvedError::Extern {
+                    name: "foo".into(),
+                    kind: IdentKind::Meta,
+                    pkg_name: Some(pkg.clone()),
+                };
+
+                let msg = format!("{}", err);
+
+                assert!(msg.contains("`foo`"));
+                assert!(msg.contains(&format!("in `{}`", pkg)));
+                assert!(msg.contains(&format!("`{}`", meta)));
             }
 
             // Extern first, then identifier
@@ -1017,6 +1200,27 @@ mod test {
             assert_eq!(
                 Ok(IdentObject::IdentFragment(&sym, kind, src, text)),
                 ident_with_frag,
+            );
+        }
+
+        #[test]
+        fn resolved_on_fragment() {
+            let sym = symbol_dummy!(1, "tofrag resolved");
+            let src = Source {
+                generated: true,
+                ..Default::default()
+            };
+
+            let kind = IdentKind::Meta;
+            let ident = IdentObject::declare(&sym)
+                .resolve(kind.clone(), src.clone())
+                .unwrap();
+            let text = FragmentText::from("a fragment for resolved()");
+            let ident_with_frag = ident.set_fragment(text.clone());
+
+            assert_eq!(
+                Ok(&IdentObject::IdentFragment(&sym, kind, src, text)),
+                ident_with_frag.unwrap().resolved(),
             );
         }
 
