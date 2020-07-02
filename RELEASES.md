@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.4.3 (2020-07-02)
+====================
 This release fixes a bug caused by previous refactoring that caused
 unresolved externs to product an obscure and useless error for the end
 user.
