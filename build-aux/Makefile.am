@@ -198,7 +198,7 @@ ui/program.expanded.xml: ui/program.xml $(program_fragments)
 	$(TAME) progui-expand $< $@
 ui/Program.js: ui/program.expanded.xml ui/package.js
 	$(TAME_TS)
-	$(TAME) progui-class $< $@ include-path=../../../ui/
+	$(TAME) progui-class $< $@ include-path=$$(pwd)/ui/
 ui/html/index.phtml: ui/program.expanded.xml
 	$(TAME_TS)
 	$(TAME) progui-html $< $@ out-path=./
