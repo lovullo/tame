@@ -246,6 +246,8 @@
       <param name="seq" type="boolean" desc="Is data sequential?" />
       <param name="op" type="integer" desc="Comparison operator" />
 
+      <param name="__experimental_guided_tco" type="float" desc="Experimental guided TCO" />
+
       <c:let>
         <c:values>
           <c:value name="curval" type="float" desc="Current value">
@@ -386,9 +388,12 @@
                     </c:case>
 
 
-                    <!-- no match, continue recursion -->
+                    <!-- no match, continue recursion using TCO so that we
+                         do not exhaust the stack (this is an undocumented,
+                         experimental feature that requires explicitly
+                         stating that a recursive call is in tail position) -->
                     <c:otherwise>
-                      <c:recurse>
+                      <c:recurse __experimental_guided_tco="TRUE">
                         <c:arg name="start">
                           <c:sum>
                             <c:value-of name="start" />
