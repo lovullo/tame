@@ -247,6 +247,7 @@
           not(
             @name=$overrides/@name
             or @name=$self/@*/local-name()
+            or starts-with( @name, '__experimental_' )
           )
         ]
       ">

@@ -854,7 +854,7 @@
 
   @return generated function application
 -->
-<template match="c:apply" mode="compile-calc">
+<template match="c:apply" mode="compile-calc" priority="5">
   <variable name="name" select="@name" />
   <variable name="self" select="." />
 
@@ -900,6 +900,92 @@
   <if test="./c:when">
     <text> * </text>
     <apply-templates select="./c:when" mode="compile" />
+  </if>
+</template>
+
+
+<!--
+  Whether the given function supports tail call optimizations (TCO)
+
+  This is an experimental feature that must be explicitly requested.
+-->
+<function name="compiler:function-supports-tco" as="xs:boolean">
+  <param name="func" as="element( lv:function )" />
+
+  <sequence select="exists( $func/lv:param[
+                              @name='__experimental_guided_tco' ] )" />
+</function>
+
+
+<!--
+  Whether a recursive function application is marked as being in tail
+  position within a function supporting TCO
+
+  A human must determined if a recursive call is in tail position, and
+  hopefully the human is not wrong.
+-->
+<function name="compiler:apply-uses-tco" as="xs:boolean">
+  <param name="apply" as="element( c:apply )" />
+
+  <variable name="ancestor-func" as="element( lv:function )?"
+            select="$apply/ancestor::lv:function" />
+
+  <sequence select="exists( $apply/c:arg[ @name='__experimental_guided_tco' ] )
+                   and $apply/@name = $ancestor-func/@name
+                   and compiler:function-supports-tco( $ancestor-func ) " />
+</function>
+
+
+<!--
+  Experimental guided tail call optimization (TCO)
+
+  When the special param `__experimental_guided_tco' is defined and set to a
+  true value, the recursive call instead overwrites the original function
+  arguments and returns a dummy value.  The function's trampoline is then
+  responsible for re-invoking the function's body.
+
+  Note that this only applies to self-recursive functions; mutual recursion
+  is not recognized.
+
+  By forcing a human to specify whether a recursive call is in tail
+  position, we free ourselves from having to track tail position within this
+  nightmare of a compiler; we can figure this out properly in TAMER.
+-->
+<template mode="compile-calc" priority="7"
+          match="c:apply[ compiler:apply-uses-tco( . ) ]">
+  <variable name="name" select="@name" />
+  <variable name="self" select="." />
+
+  <message select="concat('warning: ', $name, ' recursing with experimental guided TCO')" />
+
+  <variable name="arg-prefix" select="concat( ':', $name, ':' )" />
+
+  <!-- reassign function arguments -->
+  <for-each select="
+      root(.)/preproc:symtable/preproc:sym[
+        @type='func'
+        and @name=$name
+      ]/preproc:sym-ref
+    ">
+
+    <variable name="pname" select="substring-after( @name, $arg-prefix )" />
+    <variable name="arg" select="$self/c:arg[@name=$pname]" />
+
+    <!-- if the call specified this argument, then use it -->
+    <if test="$arg">
+      <sequence select="concat( '/*TCO*/', $pname, '=' )" />
+      <apply-templates select="$arg/c:*[1]" mode="compile" />
+      <text>,</text>
+    </if>
+  </for-each>
+
+  <!-- return value, which doesn't matter since it won't be used -->
+  <text>0</text>
+
+  <!-- don't support c:when here; not worth the effort -->
+  <if test="./c:when">
+    <message terminate="yes"
+             select="'c:when unsupported on TCO c:apply: ', ." />
   </if>
 </template>
 

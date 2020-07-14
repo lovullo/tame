@@ -1022,6 +1022,10 @@
   will return the result of its expression (represented by a calculation in the
   XML).
 
+  If the special param __experimental_guided_tco is defined, recursive calls
+  to the same function can set it to a true value to perform tail call
+  optimization (TCO).  See js-calc.xsl for more information.
+
   @return generated function
 -->
 <template match="lv:function" mode="compile">
@@ -1041,13 +1045,32 @@
 
   <text>) {</text>
 
-  <text>return ( </text>
+  <variable name="tco" as="xs:boolean"
+            select="compiler:function-supports-tco( . )" />
+
+  <if test="$tco">
+    <message select="concat('warning: ', @name, ' enabled experimental guided TCO')" />
+  </if>
+
+  <!-- top of this function's trampoline, if TCO was requested -->
+  <if test="$tco">
+      <text>do{__experimental_guided_tco=0;</text>
+  </if>
+
+  <text>var fresult = ( </text>
     <!-- begin calculation generation (there should be only one calculation node
          as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
   <text> );</text>
 
-  <text>} </text>
+  <!-- bottom of this function's trampoline, if TCO was requested; if the
+       flag is set (meaning a relevant tail call was hit), jump back to
+       the beginning of the function  -->
+  <if test="$tco">
+    <text>}while(__experimental_guided_tco);</text>
+  </if>
+
+  <text>return fresult;} </text>
 </template>
 
 

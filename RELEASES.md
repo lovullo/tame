@@ -14,6 +14,20 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+Compiler
+--------
+- Experimental guided tail call optimizations (TCO) added to XSLT-based
+  compiler, allowing a human to manually indicate recursive calls in tail
+  position.
+  - This is undocumented and should only be used by `tame-core`.  The
+    experimental warning will be removed in future releases if the behavior
+    proves to be sound.
+  - TAMER will add support for proper tail calls that will be detected
+    automatically.
+
+
 v17.4.3 (2020-07-02)
 ====================
 This release fixes a bug caused by previous refactoring that caused
