@@ -14,6 +14,34 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+This release adds support for experimental human-guided tail call
+optimizations (TCO) to resolve issues of stack exhaustion during runtime for
+tables with a large number of rows after having applied the first
+predicate.  This feature should not be used outside of `tame-core`, and will
+be done automatically by TAMER in the future.
+
+`tame-core`
+-----------
+- `vector/filter/mrange`, used by the table lookup system, has had its
+  mutually recursive function inlined and now uses TCO.
+  - This was the source of stack exhaustion on tables whose predicates were
+    unable to filter rows sufficiently.
+
+----
+Compiler
+--------
+- Experimental guided tail call optimizations (TCO) added to XSLT-based
+  compiler, allowing a human to manually indicate recursive calls in tail
+  position.
+  - This is undocumented and should only be used by `tame-core`.  The
+    experimental warning will be removed in future releases if the behavior
+    proves to be sound.
+  - TAMER will add support for proper tail calls that will be detected
+    automatically.
+
+
 v17.4.3 (2020-07-02)
 ====================
 This release fixes a bug caused by previous refactoring that caused

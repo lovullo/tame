@@ -246,6 +246,8 @@
       <param name="seq" type="boolean" desc="Is data sequential?" />
       <param name="op" type="integer" desc="Comparison operator" />
 
+      <param name="__experimental_guided_tco" type="float" desc="Experimental guided TCO" />
+
       <c:let>
         <c:values>
           <c:value name="curval" type="float" desc="Current value">
@@ -296,127 +298,116 @@
 
 
             <c:otherwise>
-              <c:apply name="_mrange_cmp" matrix="matrix" col="col" val="val"
-                       start="start" end="end" seq="seq" op="op">
-                <c:arg name="cur">
-                  <c:value-of name="matrix">
-                    <!-- current row -->
-                    <c:index>
-                      <c:value-of name="start" />
-                    </c:index>
+              <c:let>
+                <c:values>
+                  <c:value name="cur" type="float"
+                           desc="Current value">
+                    <c:value-of name="matrix">
+                      <!-- current row -->
+                      <c:index>
+                        <c:value-of name="start" />
+                      </c:index>
 
-                    <!-- requested column -->
-                    <c:index>
-                      <c:value-of name="col" />
-                    </c:index>
-                  </c:value-of>
-                </c:arg>
-              </c:apply>
+                      <!-- requested column -->
+                      <c:index>
+                        <c:value-of name="col" />
+                      </c:index>
+                    </c:value-of>
+                  </c:value>
+                </c:values>
+
+                <c:let>
+                  <c:values>
+                    <c:value name="found" type="boolean"
+                             desc="Whether comparison matches">
+                      <c:cases>
+                        <c:case label="Equal">
+                          <t:when-eq name="op" value="CMP_OP_EQ" />
+
+                          <c:value-of name="TRUE">
+                            <t:when-eq name="cur" value="val" />
+                          </c:value-of>
+                        </c:case>
+
+                        <c:case label="Less than">
+                          <t:when-eq name="op" value="CMP_OP_LT" />
+
+                          <c:value-of name="TRUE">
+                            <t:when-lt name="cur" value="val" />
+                          </c:value-of>
+                        </c:case>
+
+                        <c:case label="Less than or equal to">
+                          <t:when-eq name="op" value="CMP_OP_LTE" />
+
+                          <c:value-of name="TRUE">
+                            <t:when-lte name="cur" value="val" />
+                          </c:value-of>
+                        </c:case>
+
+                        <c:case label="Greater than">
+                          <t:when-eq name="op" value="CMP_OP_GT" />
+
+                          <c:value-of name="TRUE">
+                            <t:when-gt name="cur" value="val" />
+                          </c:value-of>
+                        </c:case>
+
+                        <c:case label="Greater than or equal to">
+                          <t:when-eq name="op" value="CMP_OP_GTE" />
+
+                          <c:value-of name="TRUE">
+                            <t:when-gte name="cur" value="val" />
+                          </c:value-of>
+                        </c:case>
+                      </c:cases>
+                    </c:value>
+                  </c:values>
+
+                  <c:cases>
+                    <!-- if values matches, cons it -->
+                    <c:case>
+                      <t:when-eq name="found" value="TRUE" />
+
+                      <c:cons>
+                        <c:value-of name="matrix">
+                          <c:index>
+                            <c:value-of name="start" />
+                          </c:index>
+                        </c:value-of>
+
+                        <c:recurse>
+                          <c:arg name="start">
+                            <c:sum>
+                              <c:value-of name="start" />
+                              <c:const value="1" desc="Check next element" />
+                            </c:sum>
+                          </c:arg>
+                        </c:recurse>
+                      </c:cons>
+                    </c:case>
+
+
+                    <!-- no match, continue recursion using TCO so that we
+                         do not exhaust the stack (this is an undocumented,
+                         experimental feature that requires explicitly
+                         stating that a recursive call is in tail position) -->
+                    <c:otherwise>
+                      <c:recurse __experimental_guided_tco="TRUE">
+                        <c:arg name="start">
+                          <c:sum>
+                            <c:value-of name="start" />
+                            <c:const value="1" desc="Check next element" />
+                          </c:sum>
+                        </c:arg>
+                      </c:recurse>
+                    </c:otherwise>
+                  </c:cases>
+                </c:let>
+              </c:let>
             </c:otherwise>
           </c:cases>
         </c:let>
-      </c:let>
-    </function>
-
-
-    <!-- mutually recursive with _mrange -->
-    <function name="_mrange_cmp" desc="mrange helper for value comparison">
-      <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
-      <param name="col" type="integer"               desc="Column index to filter on" />
-      <param name="val" type="float"                 desc="Column value to filter on" />
-      <param name="start" type="integer"             desc="Starting index (aka current index)" />
-      <param name="end" type="integer"               desc="Ending index" />
-      <param name="seq" type="integer"               desc="Is data sequential?" />
-      <param name="op" type="integer"                desc="Comparison operator" />
-      <param name="cur" type="float"                 desc="Current value" />
-
-
-      <c:let>
-        <c:values>
-          <c:value name="found" type="boolean"
-                   desc="Whether comparison matches">
-            <c:cases>
-              <c:case label="Equal">
-                <t:when-eq name="op" value="CMP_OP_EQ" />
-
-                <c:value-of name="TRUE">
-                  <t:when-eq name="cur" value="val" />
-                </c:value-of>
-              </c:case>
-
-              <c:case label="Less than">
-                <t:when-eq name="op" value="CMP_OP_LT" />
-
-                <c:value-of name="TRUE">
-                  <t:when-lt name="cur" value="val" />
-                </c:value-of>
-              </c:case>
-
-              <c:case label="Less than or equal to">
-                <t:when-eq name="op" value="CMP_OP_LTE" />
-
-                <c:value-of name="TRUE">
-                  <t:when-lte name="cur" value="val" />
-                </c:value-of>
-              </c:case>
-
-              <c:case label="Greater than">
-                <t:when-eq name="op" value="CMP_OP_GT" />
-
-                <c:value-of name="TRUE">
-                  <t:when-gt name="cur" value="val" />
-                </c:value-of>
-              </c:case>
-
-              <c:case label="Greater than or equal to">
-                <t:when-eq name="op" value="CMP_OP_GTE" />
-
-                <c:value-of name="TRUE">
-                  <t:when-gte name="cur" value="val" />
-                </c:value-of>
-              </c:case>
-            </c:cases>
-          </c:value>
-        </c:values>
-
-        <c:cases>
-          <!-- if values matches, cons it -->
-          <c:case>
-            <t:when-eq name="found" value="TRUE" />
-
-            <c:cons>
-              <c:value-of name="matrix">
-                <c:index>
-                  <c:value-of name="start" />
-                </c:index>
-              </c:value-of>
-
-              <c:apply name="mrange" matrix="matrix" col="col" val="val"
-                       end="end" seq="seq" op="op">
-                <c:arg name="start">
-                  <c:sum>
-                    <c:value-of name="start" />
-                    <c:const value="1" desc="Check next element" />
-                  </c:sum>
-                </c:arg>
-              </c:apply>
-            </c:cons>
-          </c:case>
-
-
-          <!-- no match, continue (mutual) recursion -->
-          <c:otherwise>
-            <c:apply name="mrange" matrix="matrix" col="col" val="val"
-                     end="end" seq="seq" op="op">
-              <c:arg name="start">
-                <c:sum>
-                  <c:value-of name="start" />
-                  <c:const value="1" desc="Check next element" />
-                </c:sum>
-              </c:arg>
-            </c:apply>
-          </c:otherwise>
-        </c:cases>
       </c:let>
     </function>
 
