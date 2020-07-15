@@ -29,7 +29,6 @@ be done automatically by TAMER in the future.
   - This was the source of stack exhaustion on tables whose predicates were
     unable to filter rows sufficiently.
 
-----
 Compiler
 --------
 - Experimental guided tail call optimizations (TCO) added to XSLT-based
