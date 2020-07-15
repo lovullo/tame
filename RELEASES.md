@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.5.0 (2020-07-15)
+====================
 This release adds support for experimental human-guided tail call
 optimizations (TCO) to resolve issues of stack exhaustion during runtime for
 tables with a large number of rows after having applied the first
