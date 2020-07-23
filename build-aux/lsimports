@@ -39,7 +39,7 @@ grep -H '<\([a-z]\+:\)\?import \+\(package\|path\)=' "$@" \
 
       # otherwise concatenate import with package directory
       {
-        dir  = gensub( /[^/]+.xml/, "", "", $1 )
+        dir  = gensub( /[^/]+.xml/, "", 1, $1 )
         path = "/" dir $3
 
         # resolve parent references
