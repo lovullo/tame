@@ -14,6 +14,15 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+
+Miscellaneous
+-------------
+- `build-aux/lsimports` was causing Gawk to complain about the third
+  argument to `gensub`; fixed.
+
+
 v17.5.0 (2020-07-15)
 ====================
 This release adds support for experimental human-guided tail call
