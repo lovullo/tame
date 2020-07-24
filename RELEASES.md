@@ -21,6 +21,8 @@ Miscellaneous
 -------------
 - `build-aux/lsimports` was causing Gawk to complain about the third
   argument to `gensub`; fixed.
+- `bootstrap` will test explicitly whether `hoxsl` is a symbol link, since
+  `-e` fails if the symlink is broken.
 
 
 v17.5.0 (2020-07-15)

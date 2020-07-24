@@ -31,7 +31,7 @@ test "${1:-}" = -n || git submodule update --init --recursive
     && ./autogen.sh && ./configure
 ) \
   && ( cd tamer && ./bootstrap && ./configure ) \
-  && { test -e hoxsl || ln -s ../hoxsl; } \
+  && { test -L hoxsl || ln -s ../hoxsl; } \
   && autoreconf -fvi \
   && ./configure \
   && make all
