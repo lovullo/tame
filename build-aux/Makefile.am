@@ -95,6 +95,7 @@ SHELL = /bin/bash -O extglob -O nullglob
 # propagate to tame{,d}
 export TAME_CMD_WAITTIME
 export TAMED_STALL_SECONDS
+export TAMED_JAVA_OPTS
 
 TAMED_SPAWNER_PID=$(shell echo $$PPID)
 export TAMED_SPAWNER_PID

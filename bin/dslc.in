@@ -37,6 +37,6 @@ rater-path()
 
 
 CLASSPATH="$CLASSPATH:@DSLC_CLASSPATH@:$dslc_jar" \
-  "@JAVA@" @JAVA_OPTS@ \
+  "@JAVA@" @JAVA_OPTS@ $JAVA_OPTS \
   com.lovullo.dslc.DslCompiler \
   "$( rater-path )"

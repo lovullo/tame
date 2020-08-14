@@ -36,6 +36,7 @@ declare -ri TAME_CMD_WAITTIME="${TAME_CMD_WAITTIME:-3}"
 # propagate to daemon
 export TAMED_STALL_SECONDS
 export TAMED_SPAWNER_PID
+export TAMED_JAVA_OPTS
 
 
 # Send a single command to the next available runner and

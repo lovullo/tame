@@ -16,6 +16,15 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This release provides a new environment variable for JVM tuning.  It does
+not provide any new compiler features or performance enhancements in itself,
+though it enables optimizations through JVM tuning.
+
+Compiler
+--------
+- The new environment variable `TAMED_JAVA_OPTS` can now be used to provide
+  arguments to the JVM.  This feature was added to support heap ratio
+  tuning.
 
 Miscellaneous
 -------------

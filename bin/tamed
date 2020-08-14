@@ -32,6 +32,10 @@ declare -ri TAMED_STALL_SECONDS="${TAMED_STALL_SECONDS:-1}"
 # id of process that indirectly spawned tamed (default $PPID)
 declare -ri TAMED_SPAWNER_PID="${TAMED_SPAWNER_PID:-$PPID}"
 
+# options to pass to JVM via dslc
+declare -r TAMED_JAVA_OPTS="${TAMED_JAVA_OPTS:-}"
+export JAVA_OPTS="$TAMED_JAVA_OPTS"
+
 # set by `main', global for `cleanup'
 declare root=
 
@@ -258,6 +262,7 @@ Environment Variables:
                         runner is automatically killed (default 1)
   TAMED_SPAWNER_PID     inhibit stalling while this process is running
                         (default PPID)
+  TAMED_JAVA_OPTS       opts to pass to dslc, and in turn, the JVM
 EOF
 
   exit $EX_USAGE
