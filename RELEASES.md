@@ -14,6 +14,14 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+
+Miscellaneous
+-------------
+- `package-lock.json` additions.
+
+
 v17.6.0 (2020-08-19)
 ====================
 This release provides a new environment variable for JVM tuning.  It does
