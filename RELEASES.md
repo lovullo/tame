@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.6.0 (2020-08-19)
+====================
 This release provides a new environment variable for JVM tuning.  It does
 not provide any new compiler features or performance enhancements in itself,
 though it enables optimizations through JVM tuning.
