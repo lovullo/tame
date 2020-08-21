@@ -36,7 +36,7 @@
     </param>
 
 
-    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="k">
+    <rate-each class="@class@" yields="@yields@" generates="@generates@" index="k">
       <c:const value="@code@" type="integer" desc="Territory code" />
     </rate-each>
   </template>
