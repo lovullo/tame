@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.6.1 (2020-09-23)
+====================
 Compiler
 --------
 - `lv:param-class-to-yields` will now trigger a failure rather than relying
