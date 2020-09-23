@@ -1264,16 +1264,11 @@
 
   <choose>
     <when test="not( $yields ) or $yields=''">
-      <message>
+      <preproc:error>
         <text>error: unable to determine @yields for class `</text>
         <value-of select="$as" />
         <text>' (has the class been imported?)</text>
-      </message>
-
-      <!-- just retain the name; it'll be used for an error message,
-           since it won't be foudn -->
-      <!-- TODO: this is dangerous; find a way to propagate the error -->
-      <value-of select="$as" />
+      </preproc:error>
     </when>
 
     <otherwise>

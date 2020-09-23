@@ -16,6 +16,11 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+Compiler
+--------
+- `lv:param-class-to-yields` will now trigger a failure rather than relying
+  on propagating bad values, which may not result in failure if the symbol
+  is represented by another type (non-class) of object.
 
 Miscellaneous
 -------------
