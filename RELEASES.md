@@ -13,6 +13,10 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+NEXT
+====
+- Optionally include a "program.mk" file if it is present in the project's root
+  directory. This allows us to move program specific tasks outside of TAME.
 
 v17.6.1 (2020-09-23)
 ====================

@@ -344,3 +344,8 @@ me-a-sandwich:
 	  || echo 'Make it yourself.'
 
 FORCE: ;
+
+# optionally include a "program.mk" file if it is
+# present in the project's root directory
+-include program.mk
+
