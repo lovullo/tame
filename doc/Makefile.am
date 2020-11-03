@@ -45,7 +45,7 @@ xsltexis: $(stexi)
 html-local:
 	find tame.html/ -name '*.html' -type f \
 		| xargs sed -i \
-		's#\(<script.*\)\?</body>#<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script></body>#'
+		's#\(<script.*\)\?</body>#<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML" integrity="sha512-tOav5w1OjvsSJzePRtt2uQPFwBoHt1VZcUq8l8nm5284LEKE9FSJBQryzMBzHxY5P0zRdNqEcpLIRVYFNgu1jw==" crossorigin="anonymous"></script></body>#'
 
 clean-local:
 	-rm -f $(stexi)
