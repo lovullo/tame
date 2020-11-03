@@ -13,7 +13,7 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
-NEXT
+v17.6.3 (2020-11-03)
 ====================
 - Update the CDN used to get MathJax.
 
