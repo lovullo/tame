@@ -13,14 +13,26 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+
+NEXT
+====
+This release tolerates invalid map inputs in certain circumstances.
+
+Compiler
+--------
+- Tolerate non-string inputs to `uppercase` and `hash` map methods.
+
+
 v17.6.3 (2020-11-03)
 ====================
 - Update the CDN used to get MathJax.
+
 
 v17.6.2 (2020-10-01)
 ====================
 - Optionally include a "program.mk" file if it is present in the project's root
   directory. This allows us to move program specific tasks outside of TAME.
+
 
 v17.6.1 (2020-09-23)
 ====================

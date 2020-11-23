@@ -1824,7 +1824,7 @@
             return input.map( map_method_uppercase );
         }
 
-        return input.toUpperCase();
+        return ( ''+input ).toUpperCase();
     }
 
 
@@ -1845,7 +1845,7 @@
             return input.map( map_method_hash );
         }
 
-        const hash = sha256( input ).substr( 0, 8 );
+        const hash = sha256( ''+input ).substr( 0, 8 );
         return parseInt( hash, 16 );
     }
 ]]>
