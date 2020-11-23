@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.6.4 (2020-11-23)
+====================
 This release tolerates invalid map inputs in certain circumstances.
 
 Compiler
