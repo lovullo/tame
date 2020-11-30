@@ -1422,7 +1422,7 @@ var client = ( function()
             if ( !( Array.isArray( fdata ) ) )
             {
                 var element = document.querySelector(
-                    '[name="' + field + '"]'
+                    '#param-input-' + field + ' [name="' + field + '"]'
                 );
 
                 if ( element )
@@ -1434,7 +1434,7 @@ var client = ( function()
             }
 
             var elements = document.querySelectorAll(
-                '[name="' + field + '[]"]'
+                '#param-input-' + field + ' [name="' + field + '[]"]'
             );
 
             var total = 0;
