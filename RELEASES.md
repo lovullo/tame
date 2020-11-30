@@ -13,6 +13,10 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+NEXT
+====================
+Improve summary page performance with new element queries.
+
 
 v17.6.4 (2020-11-23)
 ====================
