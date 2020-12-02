@@ -246,6 +246,102 @@
       <param name="seq" type="boolean" desc="Is data sequential?" />
       <param name="op" type="integer" desc="Comparison operator" />
 
+      <c:let>
+        <c:values>
+          <c:value name="matches" type="integer" set="vector"
+                   desc="Matching row indexes of matrix">
+            <c:apply name="mrange_accum"
+                     matrix="matrix" col="col" val="val"
+                     start="start" end="end" seq="seq" op="op">
+              <!-- Matchines indexes will be accumulated into a vector (in
+                   reverse) to permit TCO -->
+              <c:arg name="accum">
+                <c:vector />
+              </c:arg>
+            </c:apply>
+          </c:value>
+        </c:values>
+
+        <c:apply name="_mextract_rows" matrix="matrix" indexes="matches" i="#0">
+          <!-- Pre-compute so _mextract_rows doesn't have to -->
+          <c:arg name="length">
+            <c:length-of>
+              <c:value-of name="matches" />
+            </c:length-of>
+          </c:arg>
+
+          <!-- The final matrix will be accumulated to permit TCO (note that
+               this reverse the original reversal mentioned above, so the
+               final matrix is in the right order) -->
+          <c:arg name="accum">
+            <c:vector />
+          </c:arg>
+        </c:apply>
+      </c:let>
+    </function>
+
+
+    <function name="_mextract_rows"
+              desc="Pull rows from a matrix by index">
+      <param name="matrix" type="float" set="matrix" desc="Source matrix" />
+      <param name="indexes" type="integer" set="vector" desc="Indexes to extract" />
+      <param name="length" type="integer" desc="Length of indexes vector" />
+      <param name="i" type="integer" desc="Current index offset" />
+      <param name="accum"  type="float" set="matrix" desc="Accumulator (matrix)" />
+
+      <param name="__experimental_guided_tco" type="float" desc="Experimental guided TCO" />
+
+      <c:cases>
+        <!-- When we're done, yield the accumulated value, representign our
+             final matrix -->
+        <c:case>
+          <t:when-eq name="i" value="length" />
+          <c:value-of name="accum" />
+        </c:case>
+
+        <c:otherwise>
+          <c:recurse __experimental_guided_tco="TRUE">
+            <c:arg name="i">
+              <c:sum>
+                <c:value-of name="i" />
+                <c:const value="1" desc="Proceed to next index" />
+              </c:sum>
+            </c:arg>
+
+            <c:arg name="accum">
+              <c:cons>
+                <!-- Add the row identified by the current index to the
+                     accumulator.  Note that this uses cons, so it adds it
+                     to the head, but since the original mrange results are
+                     reversed, this is precisely what we want—to reverse the
+                     reversal -->
+                <c:value-of name="matrix">
+                  <c:index>
+                    <c:value-of name="indexes" index="i" />
+                  </c:index>
+                </c:value-of>
+
+                <c:value-of name="accum" />
+              </c:cons>
+            </c:arg>
+          </c:recurse>
+        </c:otherwise>
+      </c:cases>
+    </function>
+
+
+    <function name="mrange_accum"
+              desc="Filter matrix rows by column value within a certain
+                    range of indexes (inclusive)">
+      <param name="matrix" type="float" set="matrix" desc="Matrix to filter" />
+      <param name="col" type="integer" desc="Column index to filter on" />
+      <param name="val" type="float" desc="Column value to filter on" />
+      <param name="start" type="integer" desc="Starting index (inclusive)" />
+      <param name="end" type="integer" desc="Ending index (inclusive)" />
+      <param name="seq" type="boolean" desc="Is data sequential?" />
+      <param name="op" type="integer" desc="Comparison operator" />
+      <param name="accum"  type="integer" set="vector" desc="Accumulator (row indexes)" />
+
       <param name="__experimental_guided_tco" type="float" desc="Experimental guided TCO" />
 
       <c:let>
@@ -283,7 +379,7 @@
             <c:case>
               <t:when-gt name="start" value="end" />
 
-              <c:vector />
+              <c:value-of name="accum" />
             </c:case>
 
             <!-- if the data is sequential and the next element is over the
@@ -293,7 +389,7 @@
               <t:when-lte name="op" value="CMP_OP_LTE" />
               <t:when-eq name="over" value="TRUE" />
 
-              <c:vector />
+              <c:value-of name="accum" />
             </c:case>
 
 
@@ -364,45 +460,39 @@
                     </c:value>
                   </c:values>
 
-                  <c:cases>
-                    <!-- if values matches, cons it -->
-                    <c:case>
-                      <t:when-eq name="found" value="TRUE" />
+                  <!-- continue recursion using TCO so that we do not
+                       exhaust the stack (this is an undocumented,
+                       experimental feature that requires explicitly stating
+                       that a recursive call is in tail position)  -->
+                  <c:recurse __experimental_guided_tco="TRUE">
+                    <c:arg name="accum">
+                      <c:cases>
+                        <!-- If match, add the current row index to the
+                             accumulator (cons, so note that it is added
+                             in reverse) -->
+                        <c:case>
+                          <t:when-eq name="found" value="TRUE" />
 
-                      <c:cons>
-                        <c:value-of name="matrix">
-                          <c:index>
+                          <c:cons>
                             <c:value-of name="start" />
-                          </c:index>
-                        </c:value-of>
+                            <c:value-of name="accum" />
+                          </c:cons>
+                        </c:case>
 
-                        <c:recurse>
-                          <c:arg name="start">
-                            <c:sum>
-                              <c:value-of name="start" />
-                              <c:const value="1" desc="Check next element" />
-                            </c:sum>
-                          </c:arg>
-                        </c:recurse>
-                      </c:cons>
-                    </c:case>
+                        <!-- If no match, no change to accumulator -->
+                        <c:otherwise>
+                          <c:value-of name="accum" />
+                        </c:otherwise>
+                      </c:cases>
+                    </c:arg>
 
-
-                    <!-- no match, continue recursion using TCO so that we
-                         do not exhaust the stack (this is an undocumented,
-                         experimental feature that requires explicitly
-                         stating that a recursive call is in tail position) -->
-                    <c:otherwise>
-                      <c:recurse __experimental_guided_tco="TRUE">
-                        <c:arg name="start">
-                          <c:sum>
-                            <c:value-of name="start" />
-                            <c:const value="1" desc="Check next element" />
-                          </c:sum>
-                        </c:arg>
-                      </c:recurse>
-                    </c:otherwise>
-                  </c:cases>
+                    <c:arg name="start">
+                      <c:sum>
+                        <c:value-of name="start" />
+                        <c:const value="1" desc="Check next element" />
+                      </c:sum>
+                    </c:arg>
+                  </c:recurse>
                 </c:let>
               </c:let>
             </c:otherwise>

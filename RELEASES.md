@@ -24,6 +24,12 @@ Compiler
   arguments until all expressions calculating the new argument values have
   completed.
 
+`tame-core`
+-----------
+- `mrange` is now fully tail-recursive and has experimental TCO applied.
+  - It was previously only recursive for non-matching rows.
+
+
 v17.6.5 (2020-12-03)
 ====================
 This release improves Summary Page performance when populating the page with
