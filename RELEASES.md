@@ -13,6 +13,17 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+NEXT
+====
+This release provides tail-call optimizations aimed at the query system in
+core.
+
+Compiler
+--------
+- [bugfix] Recursive calls using TCO will wait to overwrite their function
+  arguments until all expressions calculating the new argument values have
+  completed.
+
 v17.6.5 (2020-12-03)
 ====================
 This release improves Summary Page performance when populating the page with

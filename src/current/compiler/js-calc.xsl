@@ -960,27 +960,42 @@
 
   <variable name="arg-prefix" select="concat( ':', $name, ':' )" />
 
+  <text>(/*TCO*/function(){</text>
+
   <!-- reassign function arguments -->
-  <for-each select="
-      root(.)/preproc:symtable/preproc:sym[
-        @type='func'
-        and @name=$name
-      ]/preproc:sym-ref
-    ">
+  <variable name="args" as="element(c:arg)*">
+    <for-each select="
+        root(.)/preproc:symtable/preproc:sym[
+          @type='func'
+          and @name=$name
+        ]/preproc:sym-ref
+      ">
 
-    <variable name="pname" select="substring-after( @name, $arg-prefix )" />
-    <variable name="arg" select="$self/c:arg[@name=$pname]" />
+      <variable name="pname" select="substring-after( @name, $arg-prefix )" />
+      <variable name="arg" select="$self/c:arg[@name=$pname]" />
 
-    <!-- if the call specified this argument, then use it -->
-    <if test="$arg">
-      <sequence select="concat( '/*TCO*/', $pname, '=' )" />
-      <apply-templates select="$arg/c:*[1]" mode="compile" />
-      <text>,</text>
-    </if>
+      <!-- if the call specified this argument, then use it -->
+      <sequence select="$arg" />
+    </for-each>
+  </variable>
+
+  <!-- store reassignments first in a temporary variable, since the
+       expressions may reference the original arguments and we do not want
+       to overwrite yet -->
+  <for-each select="$args">
+    <sequence select="concat( 'const __tco_', @name, '=' )" />
+    <apply-templates select="c:*[1]" mode="compile" />
+    <text>;</text>
+  </for-each>
+
+  <!-- perform final reassignments, now that expressions no longer need the
+       original values  -->
+  <for-each select="$args">
+    <sequence select="concat( @name, '=__tco_', @name, ';' )" />
   </for-each>
 
   <!-- return value, which doesn't matter since it won't be used -->
-  <text>0</text>
+  <text>return 0;})()</text>
 
   <!-- don't support c:when here; not worth the effort -->
   <if test="./c:when">
