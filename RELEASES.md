@@ -13,8 +13,8 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
-NEXT
-====
+v17.7.0 (2020-12-09)
+====================
 This release provides tail-call optimizations aimed at the query system in
 core.
 
