@@ -13,9 +13,31 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+NEXT
+====
+This release provides tail-call optimizations aimed at the query system in
+core.
+
+Compiler
+--------
+- [bugfix] Recursive calls using TCO will wait to overwrite their function
+  arguments until all expressions calculating the new argument values have
+  completed.
+
+`tame-core`
+-----------
+- `mrange` is now fully tail-recursive and has experimental TCO applied.
+  - It was previously only recursive for non-matching rows.
+
+
 v17.6.5 (2020-12-03)
 ====================
-Improve summary page performance with new element queries.
+This release improves Summary Page performance when populating the page with
+data loaded from an external source.
+
+Summary Page
+------------
+- Populating the DOM with loaded data now runs in linear time.
 
 
 v17.6.4 (2020-11-23)
