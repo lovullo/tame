@@ -15,7 +15,12 @@ commits that introduce the changes.  To make a new release, run
 
 v17.6.5 (2020-12-03)
 ====================
-Improve summary page performance with new element queries.
+This release improves Summary Page performance when populating the page with
+data loaded from an external source.
+
+Summary Page
+------------
+- Populating the DOM with loaded data now runs in linear time.
 
 
 v17.6.4 (2020-11-23)
