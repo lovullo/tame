@@ -106,8 +106,8 @@
       <text>/**@expose*/var classes = {};</text>
       <text>/**@expose*/var genclasses = {};</text>
 
-      <!-- used for classifications -->
-      <text>var result, tmp;</text>
+      <!-- temporaries used in computations -->
+      <text>var result, tmp, predmatch;</text>
 </template>
 
 <template name="compiler:classifier">
@@ -1107,24 +1107,7 @@
     </choose>
   </variable>
 
-  <variable name="store">
-    <!-- TODO: escape single quotes (even though there should never be any) -->
-    <text>args['</text>
-      <value-of select="@yields" />
-    <text>']</text>
-  </variable>
-
-  <!-- store the premium -->
-  <value-of select="$store" />
-  <text> = </text>
-
-  <text>( function rate_</text>
-    <!-- dashes, which may end up in generated code from templates, must be
-         removed -->
-    <value-of select="translate( @yields, '-', '_' )" />
-  <text>() {</text>
-
-  <text>var predmatch = ( </text>
+  <text>predmatch = ( </text>
     <apply-templates select="." mode="compile-class-condition" />
   <text> ); </text>
 
@@ -1133,6 +1116,14 @@
   <text>consts['_CMATCH_'] = </text>
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
+
+  <!-- destination var -->
+  <variable name="store">
+    <!-- TODO: escape single quotes (even though there should never be any) -->
+    <text>args['</text>
+      <value-of select="@yields" />
+    <text>']</text>
+  </variable>
 
   <!-- preempt expensive logic, but still return a vector of the proper
        length -->
@@ -1151,10 +1142,19 @@
         <value-of select="$value" />
       <text>.length)).fill(0);</text>
     </for-each>
-  <text>return 0;}</text>
+  <value-of select="$store" />
+  <text> = </text>
+  <text> 0;</text>
+
+  <!-- predicate matches -->
+  <text>} else {</text>
+
+  <!-- store the premium -->
+  <value-of select="$store" />
+  <text> = </text>
 
   <!-- return the result of the calculation for this rate block -->
-  <text>return (+( </text>
+  <text>(+( </text>
     <!-- yield 0 if there are no calculations (rather than a syntax error!) -->
     <if test="empty( c:* )">
       <message>
@@ -1171,7 +1171,7 @@
     <apply-templates select="./c:*[1]" mode="compile" />
   <text> )).toFixed(</text>
     <value-of select="$precision" />
-  <text>) * predmatch; } )() </text>
+  <text>) * predmatch; }</text>
 
   <text>; </text>
 </template>
