@@ -216,11 +216,11 @@
   <variable name="precision">
     <choose>
       <when test="@precision">
-        <value-of select="@precision" />
+        <value-of select="concat( '1e', @precision )" />
       </when>
 
       <otherwise>
-        <text>8</text>
+        <text>1e8</text>
       </otherwise>
     </choose>
   </variable>
@@ -275,7 +275,7 @@
     <text>var result = </text>
     <!-- if caller wants to yield a vector, don't cast -->
     <sequence select="if ( not( $dim gt 0 ) ) then
-                          '+(+( '
+                          concat( 'precision(', $precision, ', +(+( ')
                         else
                           '(( '" />
       <choose>
@@ -296,8 +296,6 @@
 
     <!-- if caller wants to yield a vector, don't truncate -->
     <if test="not( $dim gt 0 )">
-      <text>.toFixed(</text>
-        <value-of select="$precision" />
       <text>)</text>
     </if>
 
@@ -436,25 +434,25 @@
     <choose>
       <!-- if a precision was explicitly provided, then use that -->
       <when test="@precision">
-        <value-of select="@precision" />
+        <value-of select="concat( '1e', @precision )" />
       </when>
 
       <!-- ECMAScript uses a default precision of 24; by reducing the
            precision to 8 decimal places, we can drastically reduce the affect
            of precision errors on the calculations -->
       <otherwise>
-        <text>8</text>
+        <text>1e8</text>
       </otherwise>
     </choose>
   </variable>
 
   <text>Math.</text>
   <value-of select="local-name()" />
-  <text>( +(</text>
-    <apply-templates select="./c:*" mode="compile" />
-  <text> ).toFixed( </text>
+  <text>(precision(</text>
     <value-of select="$precision" />
-  <text> ) )</text>
+  <text>, +(</text>
+    <apply-templates select="./c:*" mode="compile" />
+  <text>)))</text>
 </template>
 
 

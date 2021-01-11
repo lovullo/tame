@@ -1098,11 +1098,11 @@
   <variable name="precision">
     <choose>
       <when test="@precision">
-        <value-of select="@precision" />
+        <value-of select="concat( '1e', @precision )" />
       </when>
 
       <otherwise>
-        <text>8</text>
+        <text>1e8</text>
       </otherwise>
     </choose>
   </variable>
@@ -1151,10 +1151,10 @@
 
   <!-- store the premium -->
   <value-of select="$store" />
-  <text> = </text>
-
+  <text> = precision(</text>
+    <value-of select="$precision" />
   <!-- return the result of the calculation for this rate block -->
-  <text>(+( </text>
+  <text>, +(</text>
     <!-- yield 0 if there are no calculations (rather than a syntax error!) -->
     <if test="empty( c:* )">
       <message>
@@ -1169,11 +1169,7 @@
     <!-- begin calculation generation (there should be only one calculation
          node as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
-  <text> )).toFixed(</text>
-    <value-of select="$precision" />
-  <text>) * predmatch; }</text>
-
-  <text>; </text>
+  <text>)); }</text>
 </template>
 
 <template match="lv:rate" mode="compile-class-condition">
@@ -1385,6 +1381,13 @@
             return true;
         }
     };
+
+
+    function precision(p, x)
+    {
+        if (x % 1 === 0) return x;
+        return Math.round(x * p) / p;
+    }
 
 
     /**
