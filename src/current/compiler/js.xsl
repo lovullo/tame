@@ -105,6 +105,9 @@
       <value-of select="$compiler:nl" />
       <text>/**@expose*/var classes = {};</text>
       <text>/**@expose*/var genclasses = {};</text>
+
+      <!-- used for classifications -->
+      <text>var result, tmp;</text>
 </template>
 
 <template name="compiler:classifier">
@@ -556,14 +559,6 @@
 
   <if test="not( $noclass )">
     <sequence select="concat( $dest, '=[];', $compiler:nl )" />
-
-    <if test="@preproc:generated='true'">
-      <text>gen</text>
-    </if>
-
-    <text>classes['</text>
-      <value-of select="@as" />
-    <text>'] = (function(){var result,tmp; </text>
   </if>
 
   <!-- locate classification predicates (since lv:any and lv:all are split
@@ -636,7 +631,15 @@
     </otherwise>
   </choose>
 
-  <text> return tmp;})();</text>
+  <if test="not( $noclass )">
+    <if test="@preproc:generated='true'">
+      <text>gen</text>
+    </if>
+
+    <text>classes['</text>
+      <value-of select="@as" />
+    <text>'] = tmp;</text>
+  </if>
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
