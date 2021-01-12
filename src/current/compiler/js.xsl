@@ -534,6 +534,56 @@
 
 
 <!--
+  Single-TRUE-match classifications are effectively aliases
+-->
+<template mode="compile" priority="7"
+          match="lv:classify[ count( lv:match ) = 1
+                                and lv:match/@value='TRUE' ]">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <variable name="src" as="xs:string"
+            select="lv:match/@on" />
+  <variable name="src-sym" as="element( preproc:sym )"
+            select="$symtable-map( $src )" />
+
+  <choose>
+    <!-- we only handle aliasing of other classifications -->
+    <when test="$src-sym/@type = 'cgen'">
+      <sequence select="$compiler:nl" />
+
+      <!-- simply alias the @yields -->
+      <sequence select="concat( 'args[''', @yields, '''] = ',
+                                'args[''', $src, ''']; ')" />
+
+      <variable name="class-sym" as="element( preproc:sym )"
+                select="$symtable-map( $src-sym/@parent )" />
+
+      <variable name="cdest" as="xs:string"
+                select="if ( @preproc:generated = 'true' ) then
+                            'genclasses'
+                          else
+                            'classes'" />
+
+      <variable name="cdest-src" as="xs:string"
+                select="if ( $class-sym/@preproc:generated = 'true' ) then
+                            'genclasses'
+                          else
+                            'classes'" />
+
+      <sequence select="concat( $cdest, '[''', @as, '''] = ',
+                                  $cdest-src, '[''',
+                                    $class-sym/@orig-name, '''];' )" />
+    </when>
+
+    <!-- they must otherwise undergo the usual computation -->
+    <otherwise>
+      <next-match />
+    </otherwise>
+  </choose>
+</template>
+
+
+<!--
   Generate code to perform a classification
 
   Based on the criteria provided by the classification, generate and store the
@@ -542,7 +592,7 @@
 
   @return generated classification expression
 -->
-<template match="lv:classify" mode="compile">
+<template match="lv:classify" mode="compile" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="noclass" />
   <param name="ignores" />
