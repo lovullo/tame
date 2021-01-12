@@ -942,21 +942,6 @@
   <text>'] || ( debug['</text>
     <value-of select="@_id" />
   <text>'] = [] ) ).push( tmp );/*!-*/ </text>
-
-
-  <text>result = </text>
-  <choose>
-    <!-- join with operator if not first in set -->
-    <when test="position() > 1">
-      <text>result </text>
-      <value-of select="$operator" />
-      <text> tmp;</text>
-    </when>
-
-    <otherwise>
-      <text>tmp;</text>
-    </otherwise>
-  </choose>
 </template>
 
 <template name="compiler:gen-match-yieldto">
