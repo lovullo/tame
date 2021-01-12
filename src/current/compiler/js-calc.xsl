@@ -69,21 +69,19 @@
 <template mode="compile" priority="1"
           match="c:*">
   <if test="$calcc-debug = 'yes'">
-    <text>( function() { var result = </text>
+    <text>(/*!+*/result = /*!-*/</text>
   </if>
 
   <apply-templates select="." mode="compile-pre" />
 
   <if test="$calcc-debug = 'yes'">
-    <text>; </text>
-    <text>/*!+*/( debug['</text>
+    <text>/*!+*/,( debug['</text>
       <value-of select="@_id" />
     <text>'] || ( debug['</text>
       <value-of select="@_id" />
-    <text>'] = [] ) ).push( result );/*!-*/ </text>
+    <text>'] = [] ) ).push( result ),result/*!-*/ </text>
 
-    <text>return result; </text>
-    <text>} )() </text>
+    <text>)</text>
   </if>
 </template>
 
