@@ -1411,14 +1411,7 @@
         // convert everything to an array if needed (we'll assume all objects to
         // be arrays; Array.isArray() is ES5-only) to make them easier to work
         // with
-        if ( ( param === undefined ) || ( param === null ) )
-        {
-            // according to the specification, an undefined input vector should
-            // yield an empty result set, which in turn will be interpreted as
-            // false (yield_to is the result vector)
-            param = [];
-        }
-        else if ( typeof param !== 'object' )
+        if ( !Array.isArray( param ) )
         {
             param = [ param ];
         }
@@ -1459,10 +1452,10 @@
                 v = returnOrReduceOr( store[ i ], u );
 
             // recurse on vectors
-            if ( typeof param[ i ] === 'object' || typeof store[ i ] === 'object' )
+            if ( Array.isArray( param[ i ] ) || Array.isArray( store[ i ] ) )
             {
                 var r = deepClone( store[ i ] || [] );
-                if ( typeof r !== 'object' )
+                if ( !Array.isArray( r ) )
                 {
                     r = [ r ];
                 }
@@ -1470,7 +1463,7 @@
                 var rfound = !!anyValue( param[ i ], values_orig, r, false, clear, _id );
                 found = ( found || rfound );
 
-                if ( ( typeof store[ i ] === 'object' )
+                if ( Array.isArray( store[ i ] )
                   || ( store[ i ] === undefined )
                 )
                 {
@@ -1535,24 +1528,11 @@
 
     function anyPredicate( preds, value, index )
     {
-        for ( var i in preds )
-        {
-            var p = preds[ i ];
-
-            if ( ( typeof p === 'function' )
-              && p( value, index )
-            )
-            {
-                return true;
-            }
-            // lazy equality intentional
-            else if ( p == value )
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return preds.some( function( p ) {
+            return (typeof p === 'function')
+                ? p(value, index)
+                : p == value;
+        } );
     }
 
 
@@ -1567,9 +1547,8 @@
             return arr;
         }
 
-        return reduce( arr, function( a, b )
-        {
-            return returnOrReduceOr( a, c ) || returnOrReduceOr( b, c );
+        return arr.reduce( function( a, b ) {
+            return a || returnOrReduceOr( b, c );
         } );
     }
 
@@ -1585,32 +1564,16 @@
             return arr;
         }
 
-        return reduce( arr, function( a, b )
-        {
-            return returnOrReduceAnd( a, c ) && returnOrReduceAnd( b, c );
+        return arr.reduce( function( a, b ) {
+            return a && returnOrReduceAnd( b, c );
         } );
     }
 
 
-    function deepClone( obj )
+    function deepClone( arr )
     {
-        var objnew = [];
-
-        // if we were not given an object, then do nothing
-        if ( typeof obj !== 'object' )
-        {
-            return obj;
-        }
-
-        for ( var i in obj )
-        {
-            // deep-clone for matrices
-            objnew[ i ] = ( typeof obj[ i ] === 'object' )
-              ? deepClone( obj[ i ] )
-              : obj[ i ];
-        }
-
-        return objnew;
+        if ( !Array.isArray( arr ) ) return arr;
+        return arr.map( deepClone );
     }
 
 
@@ -1632,10 +1595,9 @@
     {
         if ( Array.isArray( match ) )
         {
-            return reduce( match, function( a, b )
-            {
+            return match.reduce( function( a, b ) {
                 return a + b;
-            } );
+            }, 0);
         }
 
         return +match;
@@ -1676,7 +1638,7 @@
             {
                 // if we're dealing with a scalar, then it should be used for
                 // every index
-                var mdata = ( ( typeof match[ i ] !== 'object' )
+                var mdata = ( !Array.isArray( match[ i ] )
                   ? match[ i ]
                   : ( match[ i ] || [] )[ len ]
                 );
@@ -1692,7 +1654,7 @@
             {
                 // if we're dealing with a scalar, then it should be used for
                 // every index
-                var mdata = ( ( typeof nomatch[ i ] !== 'object' )
+                var mdata = ( !Array.isArray( nomatch[ i ] )
                   ? nomatch[ i ]
                   : ( nomatch[ i ] || [] )[ len ]
                 );
@@ -1735,33 +1697,11 @@
     }
 
 
-    /**
-     * Some browsers don't support Array.reduce(), and adding to the prototype
-     * causes problems since we cannot make it non-enumerable in those browsers
-     * due to broken Object.defineProperty implementations (IE8).
-     */
-    function reduce( arr, c )
-    {
-        var ret = arr[ 0 ],
-            i = 0, // skip first
-            l = arr.length;
-
-        while ( ++i < l )
-        {
-            ret = c( ret, arr[ i ] );
-        }
-
-        // note that this will have the effet of returning the first element if
-        // there are none/no more than 1
-        return ret;
-    }
-
-
     /* scalar to vector */
     function stov( s, n )
     {
         // already a vector
-        if ( typeof s === 'object' )
+        if ( Array.isArray( s ) )
         {
             // if the length is only one, then we can pretend that it is a
             // scalar (unless the requested length is one, in which case it is
