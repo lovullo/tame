@@ -1020,18 +1020,16 @@
   <!-- note that if we have multiple c:whens, they'll be multiplied together by
        whatever calls this, so we're probably fine -->
 
-  <text>( function() {</text>
     <!-- return a 1 or a 0 depending on the result of the expression -->
-    <text>return ( </text>
-      <text>( </text>
+    <text>+( </text>
+      <text>(</text>
         <!-- get the value associated with this node -->
         <apply-templates select="." mode="compile-calc-value" />
-      <text> ) </text>
+      <text>) </text>
 
       <!-- generate remainder of expression -->
       <apply-templates select="./c:*[1]" mode="compile-calc-when" />
-    <text>) ? 1 : 0; </text>
-  <text>} )()</text>
+    <text>)</text>
 </template>
 
 
