@@ -519,8 +519,6 @@
   <apply-templates select="." mode="compile-calc-index">
     <with-param name="value" select="@name" />
   </apply-templates>
-
-  <text> || 0</text>
 </template>
 
 
@@ -534,8 +532,6 @@
   <apply-templates select="." mode="compile-calc-index">
     <with-param name="value" select="@name" />
   </apply-templates>
-
-  <text> || 0</text>
 </template>
 
 
@@ -612,9 +608,6 @@
   <apply-templates select="." mode="compile-calc-index">
     <with-param name="value" select="$value" />
   </apply-templates>
-
-  <!-- undefined values in sets are considered to be 0 -->
-  <text> || 0</text>
 </template>
 
 
@@ -697,11 +690,6 @@
   <apply-templates select="." mode="compile-calc-index">
     <with-param name="value" select="$value" />
   </apply-templates>
-
-  <!-- default to 0 if nothing is set (see notes on bottom of summary page; we
-       assume all undefined values in a set to be implicitly 0, which greatly
-       simplifies things) -->
-  <text> || 0</text>
 </template>
 
 
@@ -730,11 +718,8 @@
 
   <choose>
     <when test="@index">
-      <!-- output the value, falling back on an empty array to prevent errors
-           when attempting to access undefined values -->
       <text>(</text>
-        <value-of select="$value" />
-      <text>||[])</text>
+      <value-of select="$value" />
 
       <text>[</text>
 
@@ -769,7 +754,8 @@
         </otherwise>
       </choose>
 
-      <text>]</text>
+      <!-- be sure to default to 0 if the index is missing -->
+      <text>]||0)</text>
     </when>
 
     <!-- if index node(s) were provided, then recursively generate -->
@@ -795,7 +781,7 @@
   <variable name="value">
     <value-of select="$wrap" />
 
-    <!-- generate index -->
+    <!-- generate index, with a default in case the lookup fails -->
     <text>[</text>
     <apply-templates select="./c:*[1]" mode="compile" />
     <text>]</text>
@@ -806,24 +792,20 @@
       <!-- recurse on any sibling indexes, wrapping with default value -->
       <apply-templates select="$next" mode="compile-calc-index">
         <with-param name="wrap">
-          <!-- wrap the value in parenthesis so that we can provide a default value if
-               the index lookup fails -->
           <text>(</text>
-
           <value-of disable-output-escaping="yes" select="$value" />
 
-          <!-- using 0 as the default is fine, even if we have $next; accessing an index
-               of 0 is perfectly fine, since it will be cast to an object; we just must
-               make sure that it is not undefined -->
-          <text> || 0 )</text>
+          <!-- note that this default differs from ||0, since we're going to
+               be treating it as an array with this next index -->
+          <text>||[])</text>
         </with-param>
       </apply-templates>
     </when>
 
-    <!-- if there is no sibling, just output our value with the index, unwrapped
-         (since the caller will handle its default value for us -->
     <otherwise>
+      <text>(</text>
       <value-of disable-output-escaping="yes" select="$value" />
+      <text>||0)</text>
     </otherwise>
   </choose>
 </template>
