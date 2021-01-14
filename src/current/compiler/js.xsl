@@ -107,7 +107,7 @@
       <text>/**@expose*/var genclasses = {};</text>
 
       <!-- temporaries used in computations -->
-      <text>var result, tmp, predmatch;</text>
+      <text>var result, tmp;</text>
 </template>
 
 <template name="compiler:classifier">
@@ -1142,53 +1142,59 @@
     </choose>
   </variable>
 
-  <text>predmatch=</text>
-    <apply-templates select="." mode="compile-class-condition" />
-  <text>; </text>
-
   <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
-       the classifications -->
+       the classifications (note: this has to be calculated even on a
+       non-match, since it is often referenced by c:sum/c:product) -->
   <text>consts['_CMATCH_']=</text>
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
 
-  <!-- destination var -->
-  <variable name="store">
-    <!-- TODO: escape single quotes (even though there should never be any) -->
-    <text>args['</text>
-      <value-of select="@yields" />
-    <text>']</text>
+  <variable name="predmatch">
+    <apply-templates select="." mode="compile-class-condition" />
   </variable>
 
-  <!-- preempt expensive logic, but still return a vector of the proper
-       length -->
-  <!-- TODO: when writing TAMER, note that this must be improved upon: it
-       only detects iterators of immedite children -->
-  <text>if (!predmatch) {</text>
-    <for-each select="c:sum[@generates]|c:product[@generates]">
-      <variable name="value">
-        <apply-templates mode="js-name-ref"
-                         select="." />
-      </variable>
+   <!-- destination var -->
+   <variable name="store">
+     <!-- TODO: escape single quotes (even though there should never be any) -->
+     <text>args['</text>
+       <value-of select="@yields" />
+     <text>']</text>
+   </variable>
 
-      <text>args['</text>
-        <value-of select="@generates" />
-      <text>']=(new Array(</text>
-        <value-of select="$value" />
-      <text>.length)).fill(0);</text>
-    </for-each>
-  <value-of select="$store" />
-  <text>=0;</text>
+  <if test="$predmatch != 'true'">
+    <!-- preempt expensive logic, but still return a vector of the proper
+         length -->
+    <!-- TODO: when writing TAMER, note that this must be improved upon: it
+         only detects iterators of immedite children -->
+    <text>if(!</text>
+    <value-of select="$predmatch" />
+    <text>){</text>
+      <for-each select="c:sum[@generates]|c:product[@generates]">
+        <variable name="value">
+          <apply-templates mode="js-name-ref"
+                           select="." />
+        </variable>
 
-  <!-- predicate matches -->
-  <text>} else {</text>
+        <text>args['</text>
+          <value-of select="@generates" />
+        <text>']=stov(0,</text>
+          <value-of select="$value" />
+        <text>.length);</text>
+      </for-each>
+
+      <value-of select="$store" />
+      <text>=0;</text>
+
+    <!-- predicate matches -->
+    <text>}else{</text>
+  </if>
 
   <!-- store the premium -->
   <value-of select="$store" />
   <text>=precision(</text>
     <value-of select="$precision" />
   <!-- return the result of the calculation for this rate block -->
-  <text>, +(</text>
+  <text>,+(</text>
     <!-- yield 0 if there are no calculations (rather than a syntax error!) -->
     <if test="empty( c:* )">
       <message>
@@ -1203,7 +1209,11 @@
     <!-- begin calculation generation (there should be only one calculation
          node as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
-  <text>)); }</text>
+  <text>));</text>
+
+  <if test="$predmatch != 'true'">
+    <text>}</text>
+  </if>
 </template>
 
 <template match="lv:rate" mode="compile-class-condition">
@@ -1216,45 +1226,51 @@
        set by rate-each expansion, then we want to ignore them entirely,
        since we do not want it to clear our the final yield (generators take
        care of this using _CMATCH_). -->
-  <text>(</text>
-    <variable name="class-set"
-              select="./lv:class[
-                        ( @no = 'true'
-                          and not( $rate/@gentle-no = 'true' ) )
-                        or not( @no = 'true' ) ]" />
+  <variable name="class-set"
+            select="./lv:class[
+                      ( @no = 'true'
+                        and not( $rate/@gentle-no = 'true' ) )
+                      or not( @no = 'true' ) ]" />
 
-    <choose>
-      <when test="$class-set">
-        <for-each select="$class-set">
-          <!-- join class expressions with AND operator -->
-          <if test="position() > 1">
-            <text disable-output-escaping="yes"> &amp;&amp; </text>
-          </if>
+  <choose>
+    <when test="$class-set">
+      <if test="count( $class-set ) > 1">
+        <text>(</text>
+      </if>
 
-          <!-- negate if @no -->
-          <if test="@no='true'">
-            <text>!</text>
-          </if>
+      <for-each select="$class-set">
+        <!-- join class expressions with AND operator -->
+        <if test="position() > 1">
+          <text disable-output-escaping="yes"> &amp;&amp; </text>
+        </if>
 
-          <variable name="ref" select="@ref" />
+        <!-- negate if @no -->
+        <if test="@no='true'">
+          <text>!</text>
+        </if>
 
-          <if test="$symtable-map( concat( ':class:', $ref ) )
-                      /@preproc:generated='true'">
-            <text>gen</text>
-          </if>
+        <variable name="ref" select="@ref" />
 
-          <text>classes['</text>
-            <value-of select="@ref" />
-          <text>']</text>
-        </for-each>
-      </when>
+        <if test="$symtable-map( concat( ':class:', $ref ) )
+                    /@preproc:generated='true'">
+          <text>gen</text>
+        </if>
 
-      <!-- well, we need to output something -->
-      <otherwise>
-        <text>true</text>
-      </otherwise>
-    </choose>
-  <text>)</text>
+        <text>classes['</text>
+          <value-of select="@ref" />
+        <text>']</text>
+      </for-each>
+
+      <if test="count( $class-set ) > 1">
+        <text>)</text>
+      </if>
+    </when>
+
+    <!-- well, we need to output something -->
+    <otherwise>
+      <text>true</text>
+    </otherwise>
+  </choose>
 </template>
 
 
@@ -1748,13 +1764,7 @@
             s = s[ 0 ];
         }
 
-        var v = [];
-        for ( var i = 0; i < n; i++ )
-        {
-            v.push( s );
-        }
-
-        return v;
+        return (new Array(n)).fill(s);
     }
 
 
