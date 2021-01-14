@@ -584,6 +584,40 @@
 
 
 <!--
+  Classification with no predicates always yields true/false, depending on
+  whether it's conjunctive or disjunctive
+-->
+<template mode="compile" priority="7"
+          match="lv:classify[ empty( lv:match ) ]">
+  <variable name="val" as="xs:string"
+            select="if ( not( @any = 'true' ) ) then '1' else '0'" />
+
+  <value-of select="$compiler:nl" />
+  <sequence select="concat( compiler:class-var(.), '=!!', $val, ';' )" />
+
+  <if test="@yields">
+    <sequence select="concat( 'args[''', @yields, ''']=', $val, ';' )" />
+  </if>
+</template>
+
+
+<!--
+  JS variable to which boolean class result will be assigned
+-->
+<function name="compiler:class-var" as="xs:string">
+  <param name="class" as="element( lv:classify )" />
+
+  <variable name="prefix" as="xs:string"
+            select="if ( $class/@preproc:generated='true' ) then
+                        'gen'
+                      else
+                        ''" />
+
+  <sequence select="concat( $prefix, 'classes[''', $class/@as, ''']' )" />
+</function>
+
+
+<!--
   Generate code to perform a classification
 
   Based on the criteria provided by the classification, generate and store the
@@ -618,93 +652,46 @@
                       return $symtable-map( $match/@on )" />
 
   <!-- generate boolean value from match expressions -->
-  <choose>
-    <!-- if classification criteria were provided, then use them -->
-    <when test="$criteria">
-      <variable name="op" as="xs:string"
-                select="compiler:match-group-op( $self )" />
+  <variable name="op" as="xs:string"
+            select="compiler:match-group-op( $self )" />
 
-      <text></text>
-      <!-- order matches from highest to lowest dimensions (required for
-           the cmatch algorithm)-->
-      <for-each select="reverse( xs:integer( min( $criteria-syms/@dim ) )
-                          to xs:integer( max( $criteria-syms/@dim ) ) )">
-        <apply-templates mode="compile"
-                         select="$criteria[
-                                   @on = $criteria-syms[
-                                            @dim = current() ]/@name ]">
-          <with-param name="operator" select="$op" />
-        </apply-templates>
-      </for-each>
-    </when>
+  <!-- order matches from highest to lowest dimensions (required for
+       the cmatch algorithm)-->
+  <for-each select="reverse( xs:integer( min( $criteria-syms/@dim ) )
+                      to xs:integer( max( $criteria-syms/@dim ) ) )">
+    <apply-templates mode="compile"
+                     select="$criteria[
+                               @on = $criteria-syms[
+                                        @dim = current() ]/@name ]">
+      <with-param name="operator" select="$op" />
+    </apply-templates>
+  </for-each>
 
-    <!-- if no classification criteria, then always true/false -->
-    <otherwise>
-      <choose>
-        <!-- universal -->
-        <when test="not( @any='true' )">
-          <text>tmp=true; </text>
-        </when>
+  <variable name="var" as="xs:string"
+            select="compiler:class-var( . )" />
 
-        <!-- existential -->
-        <otherwise>
-          <text>tmp=false; </text>
-        </otherwise>
-      </choose>
-
-      <!-- if @yields was provided, then store the value in a variable of their
-           choice as well (since cmatch will not be done) -->
-      <if test="@yields">
-        <value-of select="$dest" />
-        <choose>
-          <!-- universal -->
-          <when test="not( @any='true' )">
-            <text>=1;</text>
-          </when>
-
-          <!-- existential -->
-          <otherwise>
-            <text>=0;</text>
-          </otherwise>
-        </choose>
-      </if>
-    </otherwise>
-  </choose>
-
-  <if test="@preproc:generated='true'">
-    <text>gen</text>
-  </if>
-
-  <text>classes['</text>
-    <value-of select="@as" />
-  <text>']=tmp;</text>
+  <sequence select="concat( $var, '=tmp;' )" />
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
   <if test="@terminate = 'true'">
     <text>if (_canterm &amp;&amp; </text>
-
-    <if test="@preproc:generated='true'">
-      <text>gen</text>
-    </if>
-    <text>classes['</text>
-      <value-of select="@as" />
-    <text>']) throw Error( '</text>
+    <value-of select="$var" />
+    <text>) throw Error( '</text>
       <value-of select="replace( @desc, '''', '\\''' )" />
     <text>');</text>
-
     <value-of select="$compiler:nl" />
   </if>
 
-    <variable name="sym"
-      select="$symtable-map( $self/@yields )" />
+  <variable name="sym"
+    select="$symtable-map( $self/@yields )" />
 
   <!-- if we are not any type of set, then yield the value of the first
          index (note the $criteria check; see above); note that we do not do
          not( @set ) here, since that may have ill effects as it implies that
          the node is not preprocessed -->
   <!-- TODO: this can be simplified, since @yields is always provided -->
-  <if test="$criteria and @yields and ( $sym/@dim='0' )">
+  <if test="@yields and ( $sym/@dim='0' )">
     <value-of select="$dest" />
     <text>=</text>
       <value-of select="$dest" />
