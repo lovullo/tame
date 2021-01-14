@@ -1117,12 +1117,7 @@
     </choose>
   </variable>
 
-  <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
-       the classifications (note: this has to be calculated even on a
-       non-match, since it is often referenced by c:sum/c:product) -->
-  <text>C['_CMATCH_']=</text>
-    <apply-templates select="." mode="compile-cmatch" />
-  <text>;</text>
+  <apply-templates select="." mode="compile-cmatch" />
 
   <variable name="predmatch">
     <apply-templates select="." mode="compile-class-condition" />
@@ -1249,13 +1244,44 @@
 </template>
 
 
-<template match="lv:rate" mode="compile-cmatch">
+<!-- Non-predicated lv:rate -->
+<template mode="compile-cmatch" priority="7"
+          match="lv:rate[ count( lv:class ) = 0 ]">
+  <!-- nothing (but the body must not reference it, or the body will have an
+       old value!) -->
+</template>
+
+
+<!--
+  Single-predicate lv:rate can be aliased
+
+  @no is excluded for simplicity (and it's also generally used with a
+  non-@no, and it's uncommon).
+-->
+<template mode="compile-cmatch" priority="7"
+          match="lv:rate[ count( lv:class ) = 1
+                          and not( lv:class/@no ) ]">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <text>C['_CMATCH_']=</text>
+    <call-template name="compiler:get-class-yield">
+      <with-param name="symtable-map" select="$symtable-map" />
+      <with-param name="name" select="@ref" />
+      <with-param name="search" select="root(.)" />
+    </call-template>
+  <text>;</text>
+</template>
+
+
+<template match="lv:rate" mode="compile-cmatch" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
   <variable name="root" select="root(.)" />
 
-  <!-- generate cmatch call that will generate the cmatch set -->
-  <text>cmatch([</text>
+  <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
+       the classifications (note: this has to be calculated even on a
+       non-match, since it is often referenced by c:sum/c:product) -->
+  <text>C['_CMATCH_']=cmatch([</text>
     <for-each select="lv:class[ not( @no='true' ) ]">
       <if test="position() > 1">
         <text>, </text>
@@ -1283,7 +1309,7 @@
         </call-template>
       <text>']</text>
     </for-each>
-  <text>])</text>
+  <text>]);</text>
 </template>
 
 
