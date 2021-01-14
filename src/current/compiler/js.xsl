@@ -594,7 +594,6 @@
 -->
 <template match="lv:classify" mode="compile" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
-  <param name="noclass" />
 
   <variable name="self" select="." />
 
@@ -606,9 +605,7 @@
     <text>']</text>
   </variable>
 
-  <if test="not( $noclass )">
-    <sequence select="concat( $dest, '=[];', $compiler:nl )" />
-  </if>
+  <sequence select="concat( $dest, '=[];', $compiler:nl )" />
 
   <!-- locate classification predicates (since lv:any and lv:all are split
        into their own classifications, matching on any depth ensures we get
@@ -643,20 +640,17 @@
 
     <!-- if no classification criteria, then always true/false -->
     <otherwise>
-      <!-- this is only useful if $noclass is *not* set -->
-      <if test="not( $noclass )">
-        <choose>
-          <!-- universal -->
-          <when test="not( @any='true' )">
-            <text>tmp=true; </text>
-          </when>
+      <choose>
+        <!-- universal -->
+        <when test="not( @any='true' )">
+          <text>tmp=true; </text>
+        </when>
 
-          <!-- existential -->
-          <otherwise>
-            <text>tmp=false; </text>
-          </otherwise>
-        </choose>
-      </if>
+        <!-- existential -->
+        <otherwise>
+          <text>tmp=false; </text>
+        </otherwise>
+      </choose>
 
       <!-- if @yields was provided, then store the value in a variable of their
            choice as well (since cmatch will not be done) -->
@@ -677,15 +671,13 @@
     </otherwise>
   </choose>
 
-  <if test="not( $noclass )">
-    <if test="@preproc:generated='true'">
-      <text>gen</text>
-    </if>
-
-    <text>classes['</text>
-      <value-of select="@as" />
-    <text>']=tmp;</text>
+  <if test="@preproc:generated='true'">
+    <text>gen</text>
   </if>
+
+  <text>classes['</text>
+    <value-of select="@as" />
+  <text>']=tmp;</text>
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
