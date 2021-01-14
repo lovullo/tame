@@ -552,10 +552,8 @@
       <sequence select="$compiler:nl" />
 
       <!-- simply alias the @yields -->
-      <sequence select="concat( compiler:class-yields-var(., false()), '=',
-                                compiler:sym-class-yields-var(
-                                  $symtable-map( $src-sym/@parent ) ),
-                                '; ')" />
+      <sequence select="concat( 'A[''', @yields, '''] = ',
+                                'A[''', $src, ''']; ')" />
 
       <variable name="class-sym" as="element( preproc:sym )"
                 select="$symtable-map( $src-sym/@parent )" />
@@ -598,8 +596,7 @@
   <sequence select="concat( compiler:class-var(.), '=!!', $val, ';' )" />
 
   <if test="@yields">
-    <sequence select="concat( compiler:class-yields-var(., true()), '=',
-                              $val, ';' )" />
+    <sequence select="concat( compiler:class-yields-var(.), '=', $val, ';' )" />
   </if>
 </template>
 
@@ -625,27 +622,8 @@
 -->
 <function name="compiler:class-yields-var" as="xs:string">
   <param name="class" as="element( lv:classify )" />
-  <param name="define" as="xs:boolean" />
 
-  <variable name="prefix" as="xs:string"
-            select="if ( $define ) then 'var ' else ''" />
-
-  <sequence select="if ( $class/@preproc:generated='true' ) then
-                        concat( $prefix, '_cgen', $class/@yields )
-                      else
-                        concat( 'A[''', $class/@yields, ''']' )" />
-</function>
-
-<function name="compiler:sym-class-yields-var" as="xs:string">
-  <param name="sym" as="element( preproc:sym )" />
-
-  <variable name="yields" as="xs:string"
-            select="$sym/@yields" />
-
-  <sequence select="if ( $sym/@preproc:generated = 'true' ) then
-                        concat( '_cgen', $yields )
-                      else
-                        concat( 'A[''', $yields, ''']' )" />
+  <sequence select="concat( 'A[''', $class/@yields, ''']' )" />
 </function>
 
 
@@ -666,7 +644,7 @@
   <value-of select="$compiler:nl" />
 
   <variable name="dest" as="xs:string"
-            select="compiler:class-yields-var(., true())" />
+            select="compiler:class-yields-var(.)" />
 
   <sequence select="concat( $dest, '=[];', $compiler:nl )" />
 
@@ -721,11 +699,9 @@
          the node is not preprocessed -->
   <!-- TODO: this can be simplified, since @yields is always provided -->
   <if test="@yields and ( $sym/@dim='0' )">
-    <variable name="dest-ref" as="xs:string"
-              select="compiler:class-yields-var(., false())" />
-    <value-of select="$dest-ref" />
+    <value-of select="$dest" />
     <text>=</text>
-      <value-of select="$dest-ref" />
+      <value-of select="$dest" />
     <text>[0];</text>
 
     <value-of select="$compiler:nl" />
@@ -758,31 +734,25 @@
   <variable name="input-raw">
     <choose>
       <when test="$sym-on/@type = 'const'">
-        <text>C['</text>
-          <value-of select="translate( @on, &quot;'&quot;, '' )" />
-        <text>']</text>
+        <text>C</text>
       </when>
-
-      <!-- lv:match generates these and so is the only thing capable of
-           referencing them -->
-      <when test="$sym-on/@type = 'cgen'">
-        <value-of select="compiler:sym-class-yields-var(
-                            $symtable-map( $sym-on/@parent ) )" />
-      </when>
-
       <otherwise>
-        <text>A['</text>
-          <value-of select="translate( @on, &quot;'&quot;, '' )" />
-        <text>']</text>
+        <text>A</text>
       </otherwise>
     </choose>
 
+    <text>['</text>
+      <value-of select="translate( @on, &quot;'&quot;, '' )" />
+    <text>']</text>
   </variable>
 
-  <variable name="yieldto" as="xs:string"
-            select="compiler:class-yields-var(
-                      parent::lv:classify,
-                      false() )" />
+  <!-- yields (if not set, generate one so that cmatches still works properly)
+       -->
+  <variable name="yieldto">
+    <call-template name="compiler:gen-match-yieldto">
+      <with-param name="yields" select="$yields" />
+    </call-template>
+  </variable>
 
   <!-- the input value -->
   <variable name="input">
@@ -921,6 +891,24 @@
   <text>']||(D['</text>
     <value-of select="@_id" />
   <text>']=[])).push(tmp);/*!-*/ </text>
+</template>
+
+<template name="compiler:gen-match-yieldto">
+  <param name="yields" />
+
+  <text>A['</text>
+    <choose>
+      <when test="$yields">
+        <value-of select="$yields" />
+      </when>
+
+      <otherwise>
+        <call-template name="compiler:gen-default-yield">
+          <with-param name="name" select="ancestor::lv:classify/@as" />
+        </call-template>
+      </otherwise>
+    </choose>
+  <text>']</text>
 </template>
 
 <!--
@@ -1273,11 +1261,13 @@
         <text>, </text>
       </if>
 
-      <call-template name="compiler:get-class-yield">
-        <with-param name="symtable-map" select="$symtable-map" />
-        <with-param name="name" select="@ref" />
-        <with-param name="search" select="$root" />
-      </call-template>
+      <text>A['</text>
+        <call-template name="compiler:get-class-yield">
+          <with-param name="symtable-map" select="$symtable-map" />
+          <with-param name="name" select="@ref" />
+          <with-param name="search" select="$root" />
+        </call-template>
+      <text>']</text>
     </for-each>
   <text>], [</text>
     <for-each select="lv:class[ @no='true' ]">
@@ -1285,11 +1275,13 @@
         <text>, </text>
       </if>
 
-      <call-template name="compiler:get-class-yield">
-        <with-param name="symtable-map" select="$symtable-map" />
-        <with-param name="name" select="@ref" />
-        <with-param name="search" select="$root" />
-      </call-template>
+      <text>A['</text>
+        <call-template name="compiler:get-class-yield">
+          <with-param name="symtable-map" select="$symtable-map" />
+          <with-param name="name" select="@ref" />
+          <with-param name="search" select="$root" />
+        </call-template>
+      <text>']</text>
     </for-each>
   <text>]);</text>
 </template>
@@ -1300,8 +1292,31 @@
   <param name="name" />
   <param name="search" />
 
-  <sequence select="compiler:sym-class-yields-var(
-                      $symtable-map( concat( ':class:', $name ) ) )" />
+  <variable name="yields"
+            select="$symtable-map(
+                      concat( ':class:', $name ) )/@yields" />
+
+  <choose>
+    <when test="$yields != ''">
+      <value-of select="$yields" />
+    </when>
+
+    <otherwise>
+      <call-template name="compiler:gen-default-yield">
+        <with-param name="name" select="$name" />
+      </call-template>
+    </otherwise>
+  </choose>
+</template>
+
+
+<template name="compiler:gen-default-yield">
+  <param name="name" />
+
+  <!-- a random name that would be invalid to reference from the XML -->
+  <text>___$$</text>
+  <value-of select="$name" />
+  <text>$$</text>
 </template>
 
 
