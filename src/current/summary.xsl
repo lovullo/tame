@@ -1193,41 +1193,7 @@
     <xsl:text> must </xsl:text>
 
     <xsl:apply-templates select="." mode="match-desc" />
-
-    <xsl:if test="lv:assuming">
-      <xsl:text>, assuming that:</xsl:text>
-
-      <ul>
-        <xsl:for-each select="lv:assuming/lv:that">
-          <li>
-            <!-- link to the ref -->
-            <a>
-              <xsl:attribute name="href">
-                <xsl:text>#</xsl:text>
-                <xsl:value-of select="@name" />
-              </xsl:attribute>
-
-              <xsl:value-of select="@name" />
-            </a>
-
-            <xsl:text> </xsl:text>
-            <xsl:apply-templates select="." />
-          </li>
-        </xsl:for-each>
-      </ul>
-    </xsl:if>
   </p>
-</xsl:template>
-
-
-<xsl:template match="lv:assuming/lv:that[ @ignored ]" priority="5">
-  <xsl:text>is ignored during classification</xsl:text>
-</xsl:template>
-
-<!-- we only do consts right now -->
-<xsl:template match="lv:assuming/lv:that" priority="1">
-  <xsl:text>has the value </xsl:text>
-  <xsl:value-of select="@const" />
 </xsl:template>
 
 

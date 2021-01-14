@@ -304,33 +304,6 @@
   <apply-templates mode="lvv:validate-match" />
 </template>
 
-<!--
-  Classification match assumptions must operate only on other classifiers and
-  must assume values that the referenced classifier actually matches on
--->
-<template match="lv:match/lv:assuming" mode="lvv:validate-match" priority="5">
-  <variable name="on" select="../@on" />
-  <variable name="ref" select="root(.)//lv:classify[ @yields=$on ]" />
-
-  <!-- assumptions must only operate on variables mentioned in the referenced
-       classification -->
-  <for-each select="
-      .//lv:that[
-        not( @name=$ref//lv:match/@on )
-      ]
-    ">
-
-    <call-template name="lvv:error">
-      <with-param name="desc" select="'Invalid classification assumption'" />
-      <with-param name="refnode" select="." />
-      <with-param name="content">
-        <value-of select="@name" />
-        <text> is not used to classify </text>
-        <value-of select="$on" />
-      </with-param>
-    </call-template>
-  </for-each>
-</template>
 
 <template match="c:*" mode="lvv:validate-match" priority="2">
   <apply-templates select="." mode="lvv:validate" />

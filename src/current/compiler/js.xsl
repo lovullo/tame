@@ -733,27 +733,17 @@
 
   <variable name="input-raw">
     <choose>
-      <!-- if we have assumptions, then we'll be recalculating (rather than
-           referencing) an existing classification -->
-      <when test="lv:assuming">
-        <text>_cassume</text>
+      <when test="$sym-on/@type = 'const'">
+        <text>C</text>
       </when>
-
       <otherwise>
-        <choose>
-          <when test="$sym-on/@type = 'const'">
-            <text>C</text>
-          </when>
-          <otherwise>
-            <text>A</text>
-          </otherwise>
-        </choose>
-
-        <text>['</text>
-          <value-of select="translate( @on, &quot;'&quot;, '' )" />
-        <text>']</text>
+        <text>A</text>
       </otherwise>
     </choose>
+
+    <text>['</text>
+      <value-of select="translate( @on, &quot;'&quot;, '' )" />
+    <text>']</text>
   </variable>
 
   <!-- yields (if not set, generate one so that cmatches still works properly)
@@ -787,22 +777,6 @@
       </otherwise>
     </choose>
   </variable>
-
-  <if test="lv:assuming">
-    <text>(function(){</text>
-      <!-- initialize variable (ensuring that the closure we're about to generate
-           will properly assign the value rather than encapsulate it) -->
-      <text>var </text>
-      <value-of select="$input-raw" />
-      <text>; </text>
-
-      <!-- generate assumptions and recursively generate the referenced
-           classification -->
-      <apply-templates select="." mode="compile-match-assumptions">
-        <with-param name="result-var" select="$input-raw" />
-      </apply-templates>
-      <text>; return </text>
-  </if>
 
   <!-- invoke the classification matcher on this input -->
   <text>anyValue( </text>
@@ -910,14 +884,7 @@
   </if>
 
   <!-- end of anyValue() call -->
-  <text>)</text>
-
-  <!-- end of assuming function call -->
-  <if test="lv:assuming">
-    <text>})()</text>
-  </if>
-
-  <text>;</text>
+  <text>);</text>
 
   <text>/*!+*/(D['</text>
     <value-of select="@_id" />
