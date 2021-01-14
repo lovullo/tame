@@ -75,9 +75,9 @@
   <apply-templates select="." mode="compile-pre" />
 
   <if test="$calcc-debug = 'yes'">
-    <text>/*!+*/,(debug['</text>
+    <text>/*!+*/,(D['</text>
       <value-of select="@_id" />
-    <text>']||(debug['</text>
+    <text>']||(D['</text>
       <value-of select="@_id" />
     <text>']=[])).push(result),result)/*!-*/</text>
   </if>
@@ -164,13 +164,13 @@
         ]
       ">
 
-      <text>consts['</text>
+      <text>C['</text>
         <value-of select="@of" />
       <text>']</text>
     </when>
 
     <otherwise>
-      <text>args['</text>
+      <text>A['</text>
         <value-of select="@of" />
       <text>']</text>
     </otherwise>
@@ -308,7 +308,7 @@
 
     <!-- if a set has been generated, store it -->
     <if test="@generates">
-      <text>args['</text>
+      <text>A['</text>
         <value-of select="@generates" />
       <text>']=G;</text>
     </if>
@@ -562,7 +562,7 @@
   <choose>
     <!-- "magic" constants should not have their values inlined -->
     <when test="$sym/@magic='true'">
-      <text>consts['</text>
+      <text>C['</text>
         <value-of select="@name" />
       <text>']</text>
     </when>
@@ -596,7 +596,7 @@
   ">
 
   <variable name="value">
-    <text>consts['</text>
+    <text>C['</text>
       <value-of select="@name" />
     <text>']</text>
   </variable>
@@ -643,7 +643,7 @@
        string concatenation bugs instead of integer/floating point arithmetic)
        as long as we're either not a set, or provide an index for the set -->
   <variable name="value">
-    <text>args['</text>
+    <text>A['</text>
       <value-of select="@name" />
     <text>']</text>
   </variable>
@@ -744,7 +744,7 @@
 
         <!-- otherwise, it's a variable -->
         <otherwise>
-          <text>args['</text>
+          <text>A['</text>
             <value-of select="@index" />
           <text>']</text>
         </otherwise>

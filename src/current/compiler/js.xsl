@@ -68,9 +68,9 @@
     <!-- to store debug information for equations (we have to put this out here
          so that functions also have access to it...yes, it's stateful, yes it's
          bullshit, but oh well) -->
-    <text>/**@expose*/var consts = {};</text>
-    <text>/**@expose*/var debug = {};</text>
-    <text>/**@expose*/var params = {};</text>
+    <text>/**@expose*/var consts = C = {};</text>
+    <text>/**@expose*/var debug = D = {};</text>
+    <text>/**@expose*/var params = P = {};</text>
     <text>/**@expose*/var types = {};</text>
     <text>/**@expose*/var meta = {};</text>
 </template>
@@ -83,7 +83,7 @@
       <text>_canterm = ( _canterm == undefined ) ? true : !!_canterm;</text>
 
       <!-- XXX: fix; clear debug from any previous runs -->
-      <text>debug = {};</text>
+      <text>debug = D = {};</text>
 
       <!-- magic constants (N.B. these ones must be re-calculated with each
            call, otherwise the data may be incorrect!) -->
@@ -94,7 +94,7 @@
 
       <!-- clone the object so as not to modify the one that was passed
            (ES5 feature); also adds constants -->
-      <text>var args = Object.create( arglist );</text>
+      <text>var args = A = Object.create( arglist );</text>
 
       <!-- will store the global params that we ended up requiring -->
       <text>var req_params = {};</text>
@@ -243,7 +243,7 @@
 -->
 <template match="lv:param" mode="compile">
   <!-- generate key using param name -->
-  <text>params['</text>
+  <text>P['</text>
   <value-of select="@name" />
   <text>']={</text>
 
@@ -395,7 +395,7 @@
 
   <!-- we are only interest in its value; its constant is an internal value -->
   <sequence select="if ( $as-const ) then
-                      concat( 'consts[''', @name, '''] = ', $value, ';' )
+                      concat( 'C[''', @name, '''] = ', $value, ';' )
                     else
                       concat( '''', $value, ''': true' )" />
 </template>
@@ -411,7 +411,7 @@
 -->
 <template mode="compile" priority="2"
           match="lv:const[ element() or @values ]">
-  <text>consts['</text>
+  <text>C['</text>
     <value-of select="@name" />
   <text>']=[</text>
 
@@ -450,7 +450,7 @@
 -->
 <template mode="compile" priority="1"
           match="lv:const">
-  <text>consts['</text>
+  <text>C['</text>
     <value-of select="@name" />
   <text>']=</text>
     <value-of select="compiler:js-number( @value )" />
@@ -552,8 +552,8 @@
       <sequence select="$compiler:nl" />
 
       <!-- simply alias the @yields -->
-      <sequence select="concat( 'args[''', @yields, '''] = ',
-                                'args[''', $src, ''']; ')" />
+      <sequence select="concat( 'A[''', @yields, '''] = ',
+                                'A[''', $src, ''']; ')" />
 
       <variable name="class-sym" as="element( preproc:sym )"
                 select="$symtable-map( $src-sym/@parent )" />
@@ -596,7 +596,7 @@
   <sequence select="concat( compiler:class-var(.), '=!!', $val, ';' )" />
 
   <if test="@yields">
-    <sequence select="concat( 'args[''', @yields, ''']=', $val, ';' )" />
+    <sequence select="concat( 'A[''', @yields, ''']=', $val, ';' )" />
   </if>
 </template>
 
@@ -634,7 +634,7 @@
   <value-of select="$compiler:nl" />
 
   <variable name="dest">
-    <text>args['</text>
+    <text>A['</text>
     <value-of select="@yields" />
     <text>']</text>
   </variable>
@@ -735,10 +735,10 @@
       <otherwise>
         <choose>
           <when test="$sym-on/@type = 'const'">
-            <text>consts</text>
+            <text>C</text>
           </when>
           <otherwise>
-            <text>args</text>
+            <text>A</text>
           </otherwise>
         </choose>
 
@@ -912,9 +912,9 @@
 
   <text>;</text>
 
-  <text>/*!+*/(debug['</text>
+  <text>/*!+*/(D['</text>
     <value-of select="@_id" />
-  <text>']||(debug['</text>
+  <text>']||(D['</text>
     <value-of select="@_id" />
   <text>']=[])).push(tmp);/*!-*/ </text>
 </template>
@@ -922,7 +922,7 @@
 <template name="compiler:gen-match-yieldto">
   <param name="yields" />
 
-  <text>args['</text>
+  <text>A['</text>
     <choose>
       <when test="$yields">
         <value-of select="$yields" />
@@ -1120,7 +1120,7 @@
   <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
        the classifications (note: this has to be calculated even on a
        non-match, since it is often referenced by c:sum/c:product) -->
-  <text>consts['_CMATCH_']=</text>
+  <text>C['_CMATCH_']=</text>
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
 
@@ -1131,7 +1131,7 @@
    <!-- destination var -->
    <variable name="store">
      <!-- TODO: escape single quotes (even though there should never be any) -->
-     <text>args['</text>
+     <text>A['</text>
        <value-of select="@yields" />
      <text>']</text>
    </variable>
@@ -1150,7 +1150,7 @@
                            select="." />
         </variable>
 
-        <text>args['</text>
+        <text>A['</text>
           <value-of select="@generates" />
         <text>']=stov(0,</text>
           <value-of select="$value" />
@@ -1261,7 +1261,7 @@
         <text>, </text>
       </if>
 
-      <text>args['</text>
+      <text>A['</text>
         <call-template name="compiler:get-class-yield">
           <with-param name="symtable-map" select="$symtable-map" />
           <with-param name="name" select="@ref" />
@@ -1275,7 +1275,7 @@
         <text>, </text>
       </if>
 
-      <text>args['</text>
+      <text>A['</text>
         <call-template name="compiler:get-class-yield">
           <with-param name="symtable-map" select="$symtable-map" />
           <with-param name="name" select="@ref" />
