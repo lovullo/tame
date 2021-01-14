@@ -596,7 +596,7 @@
   <sequence select="concat( compiler:class-var(.), '=!!', $val, ';' )" />
 
   <if test="@yields">
-    <sequence select="concat( 'A[''', @yields, ''']=', $val, ';' )" />
+    <sequence select="concat( compiler:class-yields-var(.), '=', $val, ';' )" />
   </if>
 </template>
 
@@ -618,6 +618,16 @@
 
 
 <!--
+  JS variable to which class @yields will be assigned
+-->
+<function name="compiler:class-yields-var" as="xs:string">
+  <param name="class" as="element( lv:classify )" />
+
+  <sequence select="concat( 'A[''', $class/@yields, ''']' )" />
+</function>
+
+
+<!--
   Generate code to perform a classification
 
   Based on the criteria provided by the classification, generate and store the
@@ -633,11 +643,8 @@
 
   <value-of select="$compiler:nl" />
 
-  <variable name="dest">
-    <text>A['</text>
-    <value-of select="@yields" />
-    <text>']</text>
-  </variable>
+  <variable name="dest" as="xs:string"
+            select="compiler:class-yields-var(.)" />
 
   <sequence select="concat( $dest, '=[];', $compiler:nl )" />
 
