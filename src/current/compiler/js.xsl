@@ -595,7 +595,6 @@
 <template match="lv:classify" mode="compile" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="noclass" />
-  <param name="ignores" />
 
   <variable name="self" select="." />
 
@@ -615,9 +614,7 @@
        into their own classifications, matching on any depth ensures we get
        into any preproc:* nodes as well) -->
   <variable name="criteria" as="element( lv:match )*"
-            select="./lv:match[
-                      not( $ignores )
-                      or not( @on=$ignores/@ref ) ]" />
+            select="lv:match" />
 
   <variable name="criteria-syms" as="element( preproc:sym )*"
             select="for $match in $criteria
@@ -639,7 +636,6 @@
                          select="$criteria[
                                    @on = $criteria-syms[
                                             @dim = current() ]/@name ]">
-          <with-param name="ignores" select="$ignores" />
           <with-param name="operator" select="$op" />
         </apply-templates>
       </for-each>
