@@ -1254,11 +1254,8 @@
   @return self-executing anonymous error function
 -->
 <template match="c:*" mode="compile-calc">
-  <text>( function () {</text>
-    <text>throw Error( "Unknown calculation: </text>
-      <value-of select="name()" />
-    <text>" ); </text>
-  <text>} )() </text>
+  <message terminate="yes"
+           select="'unknown calculation type:', name()" />
 </template>
 
 </stylesheet>
