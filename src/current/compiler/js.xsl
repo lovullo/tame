@@ -245,7 +245,7 @@
   <!-- generate key using param name -->
   <text>params['</text>
   <value-of select="@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- param properties -->
   <text>type: '</text>
@@ -292,7 +292,7 @@
   <!-- generate key using type name -->
   <text>types['</text>
   <value-of select="../@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- its type will be the type of its first enum (all must share the same
        domain) -->
@@ -324,7 +324,7 @@
   <!-- generate key using type name -->
   <text>types['</text>
   <value-of select="../@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- domain of all values -->
   <text>type: '</text>
@@ -349,7 +349,7 @@
 <template match="lv:typedef/lv:base-type" mode="compile" priority="5">
   <text>types['</text>
   <value-of select="../@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- base types are their own type -->
   <text>type: '</text>
@@ -413,7 +413,7 @@
           match="lv:const[ element() or @values ]">
   <text>consts['</text>
     <value-of select="@name" />
-  <text>'] = [ </text>
+  <text>']=[</text>
 
     <!-- matrices -->
     <for-each select="compiler:const-sets( . )[ not( . = '' ) ]">
@@ -421,7 +421,7 @@
         <text>, </text>
       </if>
 
-      <text>[ </text>
+      <text>[</text>
         <for-each select="compiler:set-items( ., true() )">
           <if test="position() > 1">
             <text>, </text>
@@ -429,7 +429,7 @@
 
           <value-of select="compiler:js-number( . )" />
         </for-each>
-      <text> ]</text>
+      <text>]</text>
     </for-each>
 
     <!-- vectors -->
@@ -441,7 +441,7 @@
       <value-of select="compiler:js-number( . )" />
     </for-each>
 
-  <text> ]; </text>
+  <text>];</text>
 </template>
 
 
@@ -452,7 +452,7 @@
           match="lv:const">
   <text>consts['</text>
     <value-of select="@name" />
-  <text>'] = </text>
+  <text>']=</text>
     <value-of select="compiler:js-number( @value )" />
   <text>;</text>
 </template>
@@ -652,12 +652,12 @@
         <choose>
           <!-- universal -->
           <when test="not( @any='true' )">
-            <text>tmp = true; </text>
+            <text>tmp=true; </text>
           </when>
 
           <!-- existential -->
           <otherwise>
-            <text>tmp = false; </text>
+            <text>tmp=false; </text>
           </otherwise>
         </choose>
       </if>
@@ -669,12 +669,12 @@
         <choose>
           <!-- universal -->
           <when test="not( @any='true' )">
-            <text> = 1;</text>
+            <text>=1;</text>
           </when>
 
           <!-- existential -->
           <otherwise>
-            <text> = 0;</text>
+            <text>=0;</text>
           </otherwise>
         </choose>
       </if>
@@ -688,22 +688,22 @@
 
     <text>classes['</text>
       <value-of select="@as" />
-    <text>'] = tmp;</text>
+    <text>']=tmp;</text>
   </if>
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
   <if test="@terminate = 'true'">
-    <text>if ( _canterm &amp;&amp; </text>
+    <text>if (_canterm &amp;&amp; </text>
 
     <if test="@preproc:generated='true'">
       <text>gen</text>
     </if>
     <text>classes['</text>
       <value-of select="@as" />
-    <text>'] ) throw Error( '</text>
+    <text>']) throw Error( '</text>
       <value-of select="replace( @desc, '''', '\\''' )" />
-    <text>' );</text>
+    <text>');</text>
 
     <value-of select="$compiler:nl" />
   </if>
@@ -718,7 +718,7 @@
   <!-- TODO: this can be simplified, since @yields is always provided -->
   <if test="$criteria and @yields and ( $sym/@dim='0' )">
     <value-of select="$dest" />
-    <text> = </text>
+    <text>=</text>
       <value-of select="$dest" />
     <text>[0];</text>
 
@@ -747,7 +747,7 @@
   <variable name="sym-on" as="element( preproc:sym )"
             select="$symtable-map( $name )" />
 
-  <text> tmp = </text>
+  <text> tmp=</text>
 
   <variable name="input-raw">
     <choose>
@@ -788,7 +788,7 @@
       <when test="@scalar = 'true'">
         <text>stov( </text>
           <value-of select="$input-raw" />
-        <text>, ( ( </text>
+        <text>, ((</text>
           <value-of select="$yieldto" />
         <!-- note that we default to 1 so that there is at least a single
              element (which will be the case of the scalar is the first match)
@@ -797,7 +797,7 @@
              happen, and the length is checked on the inner grouping rather than
              on the outside of the entire expression to ensure that it will
              yield the intended result if yieldto.length === 0 -->
-        <text> || [] ).length || 1 ) )</text>
+        <text>||[]).length||1))</text>
       </when>
 
       <otherwise>
@@ -867,24 +867,24 @@
     </when>
 
     <when test="@pattern">
-      <text>function( val ) { </text>
+      <text>function(val) {</text>
         <text>return /</text>
           <value-of select="@pattern" />
-        <text>/.test( val );</text>
-      <text> }</text>
+        <text>/.test(val);</text>
+      <text>}</text>
     </when>
 
     <when test="./c:*">
-      <text>function( val, __$$i ) { </text>
-        <text>return ( </text>
+      <text>function(val, __$$i) { </text>
+        <text>return (</text>
           <for-each select="./c:*">
             <if test="position() > 1">
               <text disable-output-escaping="yes"> &amp;&amp; </text>
             </if>
 
-            <text>( val </text>
+            <text>(val </text>
               <apply-templates select="." mode="compile-calc-when" />
-            <text> ) </text>
+            <text>)</text>
           </for-each>
         <text>);</text>
       <text>}</text>
@@ -928,7 +928,7 @@
   </if>
 
   <!-- end of anyValue() call -->
-  <text> ) </text>
+  <text>)</text>
 
   <!-- end of assuming function call -->
   <if test="lv:assuming">
@@ -937,11 +937,11 @@
 
   <text>;</text>
 
-  <text>/*!+*/( debug['</text>
+  <text>/*!+*/(debug['</text>
     <value-of select="@_id" />
-  <text>'] || ( debug['</text>
+  <text>']||(debug['</text>
     <value-of select="@_id" />
-  <text>'] = [] ) ).push( tmp );/*!-*/ </text>
+  <text>']=[])).push(tmp);/*!-*/ </text>
 </template>
 
 <template name="compiler:gen-match-yieldto">
@@ -974,12 +974,12 @@
 -->
 <template match="lv:match[ @anyOf='float' ]" mode="compiler:match-anyof" priority="5">
   <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function( val ) {</text>
-    <text>return ( typeof +val === 'number' ) </text>
+  <text>function(val) {</text>
+    <text>return (typeof +val === 'number') </text>
       <text disable-output-escaping="yes">&amp;&amp; </text>
       <!-- note: greater than or equal to, since we want to permit integers as
            well -->
-      <text disable-output-escaping="yes">( Math.ceil( val ) >= Math.floor( val ) )</text>
+      <text disable-output-escaping="yes">(Math.ceil(val) >= Math.floor(val))</text>
     <text>;</text>
   <text>}</text>
 </template>
@@ -996,10 +996,10 @@
 -->
 <template match="lv:match[ @anyOf='integer' ]" mode="compiler:match-anyof" priority="5">
   <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function( val ) {</text>
-    <text>return ( typeof +val === 'number' ) </text>
+  <text>function(val) {</text>
+    <text>return (typeof +val === 'number') </text>
       <text disable-output-escaping="yes">&amp;&amp; </text>
-      <text>( Math.floor( val ) === Math.ceil( val ) )</text>
+      <text>( Math.floor(val) === Math.ceil(val))</text>
     <text>;</text>
   <text>}</text>
 </template>
@@ -1012,9 +1012,9 @@
 -->
 <template match="lv:match[ @anyOf='empty' ]" mode="compiler:match-anyof" priority="5">
   <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function( val ) {</text>
-    <text>return ( val === '' ) </text>
-      <text>|| ( val === undefined ) || ( val === null )</text>
+  <text>function(val) {</text>
+    <text>return (val==='')</text>
+      <text>||(val===undefined)||(val===null)</text>
     <text>;</text>
   <text>}</text>
 </template>
@@ -1026,10 +1026,10 @@
 <template match="lv:match[ @anyOf=root(.)//lv:typedef[ ./lv:base-type ]/@name ]"
   mode="compiler:match-anyof" priority="3">
 
-  <text>function( val ) {</text>
+  <text>function(val){</text>
     <text>throw Error( 'CRITICAL: Unhandled base type: </text>
       <value-of select="@anyOf" />
-    <text>' );</text>
+    <text>');</text>
   <text>}</text>
 </template>
 
@@ -1095,11 +1095,11 @@
       <text>do{__experimental_guided_tco=0;</text>
   </if>
 
-  <text>var fresult = ( </text>
+  <text>var fresult=(</text>
     <!-- begin calculation generation (there should be only one calculation node
          as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
-  <text> );</text>
+  <text>);</text>
 
   <!-- bottom of this function's trampoline, if TCO was requested; if the
        flag is set (meaning a relevant tail call was hit), jump back to
@@ -1142,13 +1142,13 @@
     </choose>
   </variable>
 
-  <text>predmatch = ( </text>
+  <text>predmatch=</text>
     <apply-templates select="." mode="compile-class-condition" />
-  <text> ); </text>
+  <text>; </text>
 
   <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
        the classifications -->
-  <text>consts['_CMATCH_'] = </text>
+  <text>consts['_CMATCH_']=</text>
     <apply-templates select="." mode="compile-cmatch" />
   <text>;</text>
 
@@ -1178,15 +1178,14 @@
       <text>.length)).fill(0);</text>
     </for-each>
   <value-of select="$store" />
-  <text> = </text>
-  <text> 0;</text>
+  <text>=0;</text>
 
   <!-- predicate matches -->
   <text>} else {</text>
 
   <!-- store the premium -->
   <value-of select="$store" />
-  <text> = precision(</text>
+  <text>=precision(</text>
     <value-of select="$precision" />
   <!-- return the result of the calculation for this rate block -->
   <text>, +(</text>
@@ -1217,7 +1216,7 @@
        set by rate-each expansion, then we want to ignore them entirely,
        since we do not want it to clear our the final yield (generators take
        care of this using _CMATCH_). -->
-  <text>( </text>
+  <text>(</text>
     <variable name="class-set"
               select="./lv:class[
                         ( @no = 'true'
@@ -1255,7 +1254,7 @@
         <text>true</text>
       </otherwise>
     </choose>
-  <text> )</text>
+  <text>)</text>
 </template>
 
 
@@ -1265,7 +1264,7 @@
   <variable name="root" select="root(.)" />
 
   <!-- generate cmatch call that will generate the cmatch set -->
-  <text>cmatch( [</text>
+  <text>cmatch([</text>
     <for-each select="lv:class[ not( @no='true' ) ]">
       <if test="position() > 1">
         <text>, </text>
@@ -1293,7 +1292,7 @@
         </call-template>
       <text>']</text>
     </for-each>
-  <text>] )</text>
+  <text>])</text>
 </template>
 
 
@@ -1345,7 +1344,7 @@
 <template match="lv:meta/lv:prop" mode="compile">
   <text>meta['</text>
   <value-of select="@name" />
-  <text>'] = </text>
+  <text>']=</text>
 
   <call-template name="util:json">
     <with-param name="array">

@@ -69,19 +69,17 @@
 <template mode="compile" priority="1"
           match="c:*">
   <if test="$calcc-debug = 'yes'">
-    <text>(/*!+*/result = /*!-*/</text>
+    <text>/*!+*/(result=/*!-*/</text>
   </if>
 
   <apply-templates select="." mode="compile-pre" />
 
   <if test="$calcc-debug = 'yes'">
-    <text>/*!+*/,( debug['</text>
+    <text>/*!+*/,(debug['</text>
       <value-of select="@_id" />
-    <text>'] || ( debug['</text>
+    <text>']||(debug['</text>
       <value-of select="@_id" />
-    <text>'] = [] ) ).push( result ),result/*!-*/ </text>
-
-    <text>)</text>
+    <text>']=[])).push(result),result)/*!-*/</text>
   </if>
 </template>
 
@@ -110,30 +108,26 @@
 <template match="c:*" mode="compile-pre" priority="1">
   <!-- ensure everything is grouped (for precedence) and converted to a
        number -->
-  <text>( </text>
   <apply-templates select="." mode="compile-calc" />
-  <text> )</text>
 </template>
 
 
 <template match="c:const[ ./c:when ]|c:value-of[ ./c:when ]" mode="compile-pre" priority="5">
-  <text>( </text>
+  <text>(</text>
     <!-- first, do what we normally would do (compile the value) -->
-    <text>( </text>
-      <apply-templates select="." mode="compile-calc" />
-    <text> )</text>
+    <apply-templates select="." mode="compile-calc" />
 
     <!-- then multiply by the c:when result -->
-    <text> * ( </text>
-      <for-each select="./c:when">
-        <if test="position() > 1">
-          <text> * </text>
-        </if>
+    <text> * </text>
 
-        <apply-templates select="." mode="compile" />
-      </for-each>
-    <text> )</text>
-  <text> )</text>
+    <for-each select="./c:when">
+      <if test="position() > 1">
+        <text> * </text>
+      </if>
+
+      <apply-templates select="." mode="compile" />
+    </for-each>
+  <text>)</text>
 </template>
 
 
@@ -246,10 +240,10 @@
 
   <!-- introduce scope both to encapsulate values and so we can insert this as
        part of a larger expression (will return a value) -->
-  <text>( function() {</text>
+  <text>(function() {</text>
 
     <!-- will store result of the summation/product -->
-    <text>var sum = 0;</text>
+    <text>var sum=0;</text>
 
     <!-- XXX: this needs to use compile-calc-value, but can't right now
          beacuse it's not a c:value-of! -->
@@ -260,22 +254,22 @@
 
     <!-- if we're looking to generate a set, initialize it -->
     <if test="@generates">
-      <text>var G = []; </text>
+      <text>var G=[];</text>
     </if>
 
     <!-- loop through each value -->
-    <text>for ( var </text>
+    <text>for (var </text>
       <value-of select="$index" />
     <text> in </text>
       <value-of select="$value" />
-    <text> ) {</text>
+    <text>) {</text>
 
-    <text>var result = </text>
+    <text>var result=</text>
     <!-- if caller wants to yield a vector, don't cast -->
     <sequence select="if ( not( $dim gt 0 ) ) then
-                          concat( 'precision(', $precision, ', +(+( ')
+                          concat( 'precision(', $precision, ', +(')
                         else
-                          '(( '" />
+                          '('" />
       <choose>
         <!-- if there are child nodes, use that as the summand/expression -->
         <when test="./c:*">
@@ -290,7 +284,7 @@
           <text>]</text>
         </otherwise>
       </choose>
-    <text> ))</text>
+    <text>)</text>
 
     <!-- if caller wants to yield a vector, don't truncate -->
     <if test="not( $dim gt 0 )">
@@ -301,13 +295,13 @@
 
     <!-- if generating a set, store this result -->
     <if test="@generates">
-      <text>G.push( result ); </text>
+      <text>G.push(result); </text>
     </if>
 
     <!-- generate summand -->
     <text>sum </text>
       <value-of select="$operator" />
-    <text>= +result;</text>
+    <text>=+result;</text>
 
     <!-- end of loop -->
     <text>}</text>
@@ -316,11 +310,11 @@
     <if test="@generates">
       <text>args['</text>
         <value-of select="@generates" />
-      <text>'] = G; </text>
+      <text>']=G;</text>
     </if>
 
     <text>return sum;</text>
-  <text>} )()</text>
+  <text>})()</text>
 </template>
 
 
@@ -333,12 +327,12 @@
   validator, then the result is undefined.
 -->
 <template match="c:product[@dot]" mode="compile-calc" priority="5">
-  <text>( function() { </text>
+  <text>(function() { </text>
 
   <!-- we need to determine which vector is the longest to ensure that we
        properly compute every value (remember, undefined will be equivalent to
        0, so the vectors needn't be of equal length *gasp* blasphemy!) -->
-  <text>var _$dlen$ = longerOf( </text>
+  <text>var _$dlen$=longerOf(</text>
     <for-each select=".//c:value-of">
       <if test="position() > 1">
         <text>, </text>
@@ -348,30 +342,30 @@
            compile)-->
       <apply-templates select="." mode="compile-calc" />
     </for-each>
-  <text> ); </text>
+  <text>); </text>
 
   <!-- will store the total sum -->
-  <text>var _$dsum$ = 0;</text>
+  <text>var _$dsum$=0;</text>
 
   <!-- sum the product of each -->
-  <text disable-output-escaping="yes">for ( var _$d$ = 0; _$d$ &lt; _$dlen$; _$d$++ ) {</text>
-    <text>_$dsum$ += </text>
+  <text disable-output-escaping="yes">for(var _$d$=0; _$d$ &lt; _$dlen$; _$d$++) {</text>
+    <text>_$dsum$ +=</text>
       <!-- product of each -->
       <for-each select=".//c:value-of">
         <if test="position() > 1">
           <text> * </text>
         </if>
 
-        <text>( ( </text>
+        <text>((</text>
           <apply-templates select="." mode="compile" />
-        <text> || [] )[ _$d$ ] || 0 )</text>
+        <text>||[])[_$d$]||0)</text>
       </for-each>
     <text>; </text>
   <text>}</text>
 
   <text>return _$dsum$;</text>
 
-  <text> } )()</text>
+  <text>})()</text>
 </template>
 
 
@@ -392,6 +386,7 @@
     <apply-templates select="." mode="compile-getop" />
   </variable>
 
+  <text>(</text>
   <for-each select="./c:*">
     <!-- add operator between each expression -->
     <if test="position() > 1">
@@ -402,6 +397,7 @@
 
     <apply-templates select="." mode="compile" />
   </for-each>
+  <text>)</text>
 </template>
 
 
@@ -855,7 +851,7 @@
     <with-param name="name" select="@name" />
   </call-template>
 
-  <text>( args</text>
+  <text>(args</text>
 
   <variable name="arg-prefix" select="concat( ':', $name, ':' )" />
 
@@ -886,7 +882,7 @@
     </choose>
   </for-each>
 
-  <text> )</text>
+  <text>)</text>
 
   <!-- if c:when was provided, compile it in such a way that we retain the
        function call (we want the result for providing debug information) -->
@@ -1003,11 +999,8 @@
        whatever calls this, so we're probably fine -->
 
     <!-- return a 1 or a 0 depending on the result of the expression -->
-    <text>+( </text>
-      <text>(</text>
-        <!-- get the value associated with this node -->
-        <apply-templates select="." mode="compile-calc-value" />
-      <text>) </text>
+    <text>+(</text>
+      <apply-templates select="." mode="compile-calc-value" />
 
       <!-- generate remainder of expression -->
       <apply-templates select="./c:*[1]" mode="compile-calc-when" />
@@ -1028,6 +1021,7 @@
     <calc-compiler:c id="lte">&lt;=</calc-compiler:c>
   </variable>
 
+  <text> </text>
   <value-of disable-output-escaping="yes" select="$map/*[ @id=$name ]" />
   <text> </text>
 
@@ -1041,7 +1035,7 @@
 
 
 <template match="c:cases" mode="compile-calc">
-  <text>( function() {</text>
+  <text>((function() {</text>
 
     <for-each select="./c:case">
       <!-- turn "if" into an "else if" if needed -->
@@ -1058,10 +1052,10 @@
 
           <apply-templates select="." mode="compile" />
         </for-each>
-      <text> ) { return </text>
+      <text>){return </text>
         <!-- process on its own so that we can debug its final value -->
         <apply-templates select="." mode="compile" />
-      <text>; } </text>
+      <text>;}</text>
     </for-each>
 
     <!-- check for the existence of an "otherwise" clause, which should be
@@ -1076,7 +1070,7 @@
         </when>
 
         <otherwise>
-          <text>if ( true )</text>
+          <text>if (true)</text>
         </otherwise>
       </choose>
 
@@ -1085,7 +1079,7 @@
       <text>; } </text>
     </if>
 
-  <text> } )() || 0</text>
+  <text> })()||0)</text>
 </template>
 
 <template match="c:case" mode="compile-calc">
@@ -1133,12 +1127,12 @@
   <text>(function(){</text>
     <!-- duplicate the array just in case...if we notice a performance impact,
          then we can determine if such a duplication is necessary -->
-    <text>var cdr = Array.prototype.slice.call(</text>
+    <text>var cdr=Array.prototype.slice.call(</text>
       <apply-templates select="$cdr" mode="compile" />
     <text>, 0);</text>
     <text>cdr.unshift( </text>
       <apply-templates select="$car" mode="compile" />
-    <text> ); </text>
+    <text>); </text>
     <!-- no longer the cdr -->
     <text>return cdr; </text>
   <text>})()</text>
@@ -1161,9 +1155,9 @@
   Returns the length of any type of set (not just a vector)
 -->
 <template match="c:length-of" mode="compile-calc">
-  <text>( </text>
+  <text>(</text>
   <apply-templates select="./c:*[1]" mode="compile" />
-  <text>.length || 0 )</text>
+  <text>.length||0)</text>
 </template>
 
 
@@ -1181,9 +1175,9 @@
     </if>
   </variable>
 
-  <text>function </text>
+  <text>(function </text>
     <value-of select="$fname" />
-  <text>( </text>
+  <text>(</text>
     <!-- generate arguments -->
     <for-each select="$values">
       <if test="position() > 1">
@@ -1192,28 +1186,25 @@
 
       <value-of select="@name" />
     </for-each>
-  <text> ) { </text>
+  <text>){</text>
 
     <!-- the second node is the body -->
     <text>return </text>
       <apply-templates select="./c:*[2]" mode="compile" />
     <text>;</text>
-  <text>}</text>
+  <text>})</text>
 
   <!-- assign the arguments according to the calculations -->
-  <text>( </text>
+  <text>(</text>
     <for-each select="$values">
       <if test="position() > 1">
         <text>,</text>
       </if>
 
-      <!-- compile the argument value (the parenthesis are just to make it
-           easier to read the compiled code) -->
-      <text>(</text>
-        <apply-templates select="./c:*[1]" mode="compile" />
-      <text>)</text>
+      <!-- compile the argument value -->
+      <apply-templates select="./c:*[1]" mode="compile" />
     </for-each>
-  <text> ) </text>
+  <text>)</text>
 </template>
 
 
@@ -1233,20 +1224,20 @@
 
 <template match="c:debug-to-console" mode="compile-calc">
   <text>(function(){</text>
-    <text>var result = </text>
+    <text>var result=</text>
       <apply-templates select="./c:*[1]" mode="compile" />
     <text>;</text>
 
     <!-- log the result and return it so that we do not inhibit the calculation
          (allowing it to be inlined anywhere) -->
-    <text>console.log( </text>
+    <text>console.log(</text>
       <if test="@label">
         <text>'</text>
           <value-of select="@label" />
         <text>', </text>
       </if>
 
-      <text>result ); </text>
+      <text>result); </text>
     <text>return result; </text>
   <text>})()</text>
 </template>
