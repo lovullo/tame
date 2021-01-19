@@ -27,6 +27,7 @@
 <stylesheet version="2.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
             xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:map="http://www.w3.org/2005/xpath-functions/map"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:lvp="http://www.lovullo.com"
             xmlns:c="http://www.lovullo.com/calc"
@@ -646,38 +647,87 @@
   <variable name="dest" as="xs:string"
             select="compiler:class-yields-var(.)" />
 
-  <sequence select="concat( $dest, '=[];', $compiler:nl )" />
-
   <!-- locate classification predicates (since lv:any and lv:all are split
        into their own classifications, matching on any depth ensures we get
        into any preproc:* nodes as well) -->
   <variable name="criteria" as="element( lv:match )*"
             select="lv:match" />
 
-  <variable name="criteria-syms" as="element( preproc:sym )*"
-            select="for $match in $criteria
-                      return $symtable-map( $match/@on )" />
+  <variable name="criteria-syms"
+            as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $match in $criteria
+                        return map{ string( $match/@on ) :
+                                    $symtable-map( $match/@on ) } )" />
 
   <!-- generate boolean value from match expressions -->
   <variable name="op" as="xs:string"
             select="compiler:match-group-op( $self )" />
 
-  <!-- order matches from highest to lowest dimensions (required for
-       the cmatch algorithm)-->
-  <for-each select="reverse( xs:integer( min( $criteria-syms/@dim ) )
-                      to xs:integer( max( $criteria-syms/@dim ) ) )">
-    <apply-templates mode="compile"
-                     select="$criteria[
-                               @on = $criteria-syms[
-                                        @dim = current() ]/@name ]">
-      <with-param name="operator" select="$op" />
-    </apply-templates>
-  </for-each>
+  <variable name="scalars" as="element( lv:match  )*"
+            select="$criteria[ $criteria-syms( @on )/@dim = '0' ]" />
+  <variable name="vectors" as="element( lv:match  )*"
+            select="$criteria[ $criteria-syms( @on )/@dim = '1' ]" />
+  <variable name="matrices" as="element( lv:match  )*"
+            select="$criteria[ $criteria-syms( @on )/@dim = '2' ]" />
+
+  <variable name="ns" select="count( $scalars )" />
+  <variable name="nv" select="count( $vectors )" />
+  <variable name="nm" select="count( $matrices )" />
 
   <variable name="var" as="xs:string"
             select="compiler:class-var( . )" />
 
-  <sequence select="concat( $var, '=tmp;' )" />
+  <variable name="m1" as="element( lv:match )?" select="$matrices[1]" />
+  <variable name="v1" as="element( lv:match )?" select="$vectors[1]" />
+
+  <variable name="yield-to">
+    <call-template name="compiler:gen-match-yieldto">
+      <with-param name="yields" select="@yields" />
+    </call-template>
+  </variable>
+
+  <!-- existential, universal -->
+  <variable name="ctype" as="xs:string"
+            select="if ( @any='true' ) then 'e' else 'u'" />
+
+  <!-- optimize for very specific, common cases -->
+  <choose>
+    <when test="$nm = 1 and $nv = 1 and $ns = 0 and $m1/@value and $v1/@value">
+      <variable name="input-matrix" as="xs:string"
+                select="compiler:match-name-on( $symtable-map, $m1 )" />
+      <variable name="input-vector" as="xs:string"
+                select="compiler:match-name-on( $symtable-map, $v1 )" />
+
+      <sequence select="concat( '[', $yield-to, ',', $var, ']=m1v1',
+                          $ctype,  '(',
+                          $input-matrix, ',', $input-vector,
+                          ',', compiler:match-value( $symtable-map, $m1 ),
+                          ',', compiler:match-value( $symtable-map, $v1 ),
+                          ');' )" />
+
+      <message select="concat( 'notice: optimize m1v1', $ctype, ' ', @as )" />
+    </when>
+
+    <!-- the terribly ineffeient way -->
+    <otherwise>
+      <if test="$nm = 1 and $nv = 1 and $ns = 0">
+        <message select="concat( 'notice: skip optimize m1v1 ', @as )" />
+      </if>
+
+      <sequence select="concat( $dest, '=[];', $compiler:nl )" />
+
+      <!-- order matches from highest to lowest dimensions (required for
+           the cmatch algorithm)-->
+      <for-each select="( $matrices, $vectors, $scalars )">
+        <apply-templates mode="compile" select=".">
+          <with-param name="operator" select="$op" />
+        </apply-templates>
+      </for-each>
+
+      <sequence select="concat( $var, '=tmp;' )" />
+    </otherwise>
+  </choose>
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
@@ -710,6 +760,65 @@
 
 
 <!--
+  JS variable to serve as the source for a match (@on)
+-->
+<function name="compiler:match-name-on" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="match" as="element( lv:match )" />
+
+  <variable name="sym" as="element( preproc:sym )"
+            select="$symtable-map( $match/@on )" />
+
+
+  <variable name="var" as="xs:string"
+            select="if ( $sym/@type = 'const' ) then 'C' else 'A'" />
+
+  <sequence select="concat( $var, '[''', $match/@on, ''']' )" />
+</function>
+
+
+<function name="compiler:match-value" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="match" as="element( lv:match )" />
+
+  <variable name="value" select="$match/@value" />
+  <variable name="sym" as="element( preproc:sym )?"
+            select="$symtable-map( $value )" />
+
+  <choose>
+    <!-- value unavailable -->
+    <when test="$sym and not( $sym/@value )">
+      <message>
+        <text>[jsc] !!! bad classification match: `</text>
+        <value-of select="$value" />
+        <text>' is not a scalar constant</text>
+      </message>
+    </when>
+
+    <!-- simple constant -->
+    <when test="$sym">
+      <value-of select="$sym/@value" />
+    </when>
+
+    <otherwise>
+      <text>'</text>
+      <!-- TODO: Should we disallow entirely? -->
+      <message>
+        <text>[jsc] warning: static classification match '</text>
+        <value-of select="$value" />
+        <text>' in </text>
+        <value-of select="$match/ancestor::lv:classify[1]/@as" />
+        <text>; use calculation predicate or constant instead</text>
+      </message>
+
+      <value-of select="$value" />
+      <text>'</text>
+    </otherwise>
+  </choose>
+</function>
+
+
+<!--
   Generate code asserting a match
 
   Siblings are joined by default with ampersands to denote an AND relationship,
@@ -726,25 +835,10 @@
 
   <variable name="name" select="@on" />
 
-  <variable name="sym-on" as="element( preproc:sym )"
-            select="$symtable-map( $name )" />
-
   <text> tmp=</text>
 
-  <variable name="input-raw">
-    <choose>
-      <when test="$sym-on/@type = 'const'">
-        <text>C</text>
-      </when>
-      <otherwise>
-        <text>A</text>
-      </otherwise>
-    </choose>
-
-    <text>['</text>
-      <value-of select="translate( @on, &quot;'&quot;, '' )" />
-    <text>']</text>
-  </variable>
+  <variable name="input-raw" as="xs:string"
+            select="compiler:match-name-on( $symtable-map, . )" />
 
   <!-- yields (if not set, generate one so that cmatches still works properly)
        -->
@@ -786,40 +880,7 @@
   <!-- TODO: error if multiple; also, refactor -->
   <choose>
     <when test="@value">
-      <variable name="value" select="@value" />
-      <variable name="sym" as="element( preproc:sym )?"
-                select="$symtable-map( $value )" />
-
-      <choose>
-        <!-- value unavailable (TODO: vector/matrix support) -->
-        <when test="$sym and not( $sym/@value )">
-            <message>
-              <text>[jsc] !!! bad classification match: `</text>
-                <value-of select="$value" />
-              <text>' is not a scalar constant</text>
-            </message>
-        </when>
-
-        <!-- simple constant -->
-        <when test="$sym and @value">
-          <value-of select="$sym/@value" />
-        </when>
-
-        <otherwise>
-          <text>'</text>
-            <!-- TODO: Should we disallow entirely? -->
-            <message>
-              <text>[jsc] warning: static classification match '</text>
-                <value-of select="$value" />
-              <text>' in </text>
-              <value-of select="ancestor::lv:classify[1]/@as" />
-              <text>; use calculation predicate or constant instead</text>
-            </message>
-
-            <value-of select="$value" />
-          <text>'</text>
-        </otherwise>
-      </choose>
+      <value-of select="compiler:match-value( $symtable-map, . )" />
     </when>
 
     <when test="@pattern">
@@ -1412,6 +1473,32 @@
     {
         if (x % 1 === 0) return x;
         return Math.round(x * p) / p;
+    }
+
+    // one matrix, one vector, universal quantification
+    function m1v1u(m, v, mcmp, vcmp)
+    {
+        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => +(ms === mcmp && v[i] === vcmp)));
+        const any = result.some(mv => mv.some(x => x === 1));
+
+        for (let i = result.length; i < v.length; i++) {
+            result[i] = [0];
+        }
+
+        return [result, any];
+    }
+
+    // one matrix, one vector, existential quantification
+    function m1v1e(m, v, mcmp, vcmp)
+    {
+        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => +(ms === mcmp || v[i] === vcmp)));
+        const any = result.some(mv => mv.some(x => x === 1));
+
+        for (let i = result.length; i < v.length; i++) {
+            result[i] = [v[i] === vcmp];
+        }
+
+        return [result, any];
     }
 
 
