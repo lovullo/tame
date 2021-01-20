@@ -705,8 +705,20 @@
                           ',', compiler:match-value( $symtable-map, $m1 ),
                           ',', compiler:match-value( $symtable-map, $v1 ),
                           ');' )" />
+    </when>
 
-      <message select="concat( 'notice: optimize m1v1', $ctype, ' ', @as )" />
+    <!-- all vectors with @value -->
+    <when test="$nm = 0 and $nv > 0 and $ns = 0 and empty( $vectors[not(@value)] )">
+      <sequence select="concat( '[', $yield-to, ',', $var, ']=v', $ctype,  '([',
+                          string-join(
+                            for $v in $vectors
+                              return compiler:match-name-on( $symtable-map, $v ),
+                            ','), '], [',
+                          string-join(
+                            for $v in $vectors
+                              return compiler:match-value( $symtable-map, $v ),
+                            ','),
+                          ']);' )" />
     </when>
 
     <!-- the terribly ineffeient way -->
@@ -1497,6 +1509,32 @@
         }
 
         return [result, any];
+    }
+
+    function vu(vs, cmps)
+    {
+        const longest = Math.max.apply(null, vs.map(v => v.length));
+        const base = new Array(longest).fill(1);
+
+        const result = vs.reduce(
+            (final, v, vi) => final.map((x, i) => +(x && ((v[i]||0) === cmps[vi]))),
+            base
+        );
+
+        return [result, result.some(s => s === 1)];
+    }
+
+    function ve(vs, cmps)
+    {
+        const longest = Math.max.apply(null, vs.map(v => v.length));
+        const base = new Array(longest).fill(0);
+
+        const result = vs.reduce(
+            (final, v, vi) => final.map((x, i) => +(x || ((v[i]||0) === cmps[vi]))),
+            base
+        );
+
+        return [result, result.some(s => s === 1)];
     }
 
 
