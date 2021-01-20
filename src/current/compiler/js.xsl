@@ -690,6 +690,9 @@
   <!-- existential, universal -->
   <variable name="ctype" as="xs:string"
             select="if ( @any='true' ) then 'e' else 'u'" />
+  <variable name="cop" as="xs:string"
+            select="if ( @any = 'true' ) then '||' else '&amp;&amp;'" />
+
 
   <!-- optimize for very specific, common cases -->
   <choose>
@@ -709,23 +712,45 @@
 
     <!-- all vectors with @value -->
     <when test="$nm = 0 and $nv > 0 and $ns = 0 and empty( $vectors[not(@value)] )">
-      <sequence select="concat( '[', $yield-to, ',', $var, ']=v', $ctype,  '([',
-                          string-join(
-                            for $v in $vectors
-                              return compiler:match-name-on( $symtable-map, $v ),
-                            ','), '], [',
-                          string-join(
-                            for $v in $vectors
-                              return compiler:match-value( $symtable-map, $v ),
-                            ','),
-                          ']);' )" />
+      <choose>
+        <!-- if all the matches are on the same @on, we can optimize even
+             further (unless it's a single match, in which case the fallback
+             is the optimal way to proceed) -->
+        <when test="$nv > 1 and count( distinct-values( $vectors/@on ) ) = 1">
+          <!-- if this is not @any, then it's nonsense -->
+          <if test="not( @any = 'true' )">
+            <message terminate="yes"
+                     select="concat( 'error: ', @as, ' match ', $vectors[0]/@on,
+                                     'will never succeed' )" />
+          </if>
+
+          <sequence select="concat( $var, '=E(', $yield-to, '=',
+                              compiler:match-name-on( $symtable-map, $vectors[1] ),
+                              '.map(s => +[',
+                              string-join(
+                                for $v in $vectors
+                                  return compiler:match-value( $symtable-map, $v ),
+                                ','),
+                              '].includes(s)));' )" />
+        </when>
+
+        <otherwise>
+          <sequence select="concat( '[', $yield-to, ',', $var, ']=v', $ctype,  '([',
+                              string-join(
+                                for $v in $vectors
+                                  return compiler:match-name-on( $symtable-map, $v ),
+                                ','), '], [',
+                              string-join(
+                                for $v in $vectors
+                                  return compiler:match-value( $symtable-map, $v ),
+                                ','),
+                              ']);' )" />
+        </otherwise>
+      </choose>
     </when>
 
     <!-- all scalars with @value -->
     <when test="$nm = 0 and $nv = 0 and $ns > 0 and empty( $scalars[not(@value)] )">
-      <variable name="cop" as="xs:string"
-                select="if ( @any = 'true' ) then '||' else '&amp;&amp;'" />
-
       <choose>
         <!-- if all the matches are on the same @on, we can optimize even
              further (unless it's a single match, in which case the fallback
@@ -1577,6 +1602,13 @@
         );
 
         return [result, result.some(s => s === 1)];
+    }
+
+
+    // existential (any)
+    function E(v)
+    {
+        return v.some(s => s === 1);
     }
 
 
