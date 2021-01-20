@@ -711,9 +711,7 @@
 
     <!-- the terribly ineffeient way -->
     <otherwise>
-      <if test="$nm = 1 and $nv = 1 and $ns = 0">
-        <message select="concat( 'notice: skip optimize m1v1 ', @as )" />
-      </if>
+      <sequence select="concat('/*m', $nm, 'v', $nv, 's', $ns, '*/')" />
 
       <sequence select="concat( $dest, '=[];', $compiler:nl )" />
 
