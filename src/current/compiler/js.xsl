@@ -735,7 +735,7 @@
         </when>
 
         <otherwise>
-          <sequence select="concat( '[', $yield-to, ',', $var, ']=v', $ctype,  '([',
+          <sequence select="concat( $var, '=E(', $yield-to, '=v', $ctype, '([',
                               string-join(
                                 for $v in $vectors
                                   return compiler:match-name-on( $symtable-map, $v ),
@@ -744,7 +744,7 @@
                                 for $v in $vectors
                                   return compiler:match-value( $symtable-map, $v ),
                                 ','),
-                              ']);' )" />
+                              ']));' )" />
         </otherwise>
       </choose>
     </when>
@@ -1588,7 +1588,7 @@
             base
         );
 
-        return [result, result.some(s => s === 1)];
+        return result;
     }
 
     function ve(vs, cmps)
@@ -1601,7 +1601,7 @@
             base
         );
 
-        return [result, result.some(s => s === 1)];
+        return result;
     }
 
 
