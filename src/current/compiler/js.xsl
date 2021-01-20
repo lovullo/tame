@@ -104,8 +104,8 @@
       <text>init_defaults( args, params );</text>
 
       <value-of select="$compiler:nl" />
-      <text>/**@expose*/var classes = {};</text>
-      <text>/**@expose*/var genclasses = {};</text>
+      <text>/**@expose*/var classes = c = {};</text>
+      <text>/**@expose*/var genclasses = gc = {};</text>
 
       <!-- temporaries used in computations -->
       <text>var result, tmp;</text>
@@ -561,15 +561,15 @@
 
       <variable name="cdest" as="xs:string"
                 select="if ( @preproc:generated = 'true' ) then
-                            'genclasses'
+                            'gc'
                           else
-                            'classes'" />
+                            'c'" />
 
       <variable name="cdest-src" as="xs:string"
                 select="if ( $class-sym/@preproc:generated = 'true' ) then
-                            'genclasses'
+                            'gc'
                           else
-                            'classes'" />
+                            'c'" />
 
       <sequence select="concat( $cdest, '[''', @as, '''] = ',
                                   $cdest-src, '[''',
@@ -610,11 +610,11 @@
 
   <variable name="prefix" as="xs:string"
             select="if ( $class/@preproc:generated='true' ) then
-                        'gen'
+                        'g'
                       else
                         ''" />
 
-  <sequence select="concat( $prefix, 'classes[''', $class/@as, ''']' )" />
+  <sequence select="concat( $prefix, 'c[''', $class/@as, ''']' )" />
 </function>
 
 
@@ -1310,10 +1310,10 @@
 
         <if test="$symtable-map( concat( ':class:', $ref ) )
                     /@preproc:generated='true'">
-          <text>gen</text>
+          <text>g</text>
         </if>
 
-        <text>classes['</text>
+        <text>c['</text>
           <value-of select="@ref" />
         <text>']</text>
       </for-each>
