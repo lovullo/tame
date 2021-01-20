@@ -702,12 +702,12 @@
       <variable name="input-vector" as="xs:string"
                 select="compiler:match-name-on( $symtable-map, $v1 )" />
 
-      <sequence select="concat( '[', $yield-to, ',', $var, ']=m1v1',
+      <sequence select="concat( $var, '=Em(', $yield-to, '=m1v1',
                           $ctype,  '(',
                           $input-matrix, ',', $input-vector,
                           ',', compiler:match-value( $symtable-map, $m1 ),
                           ',', compiler:match-value( $symtable-map, $v1 ),
-                          ');' )" />
+                          '));' )" />
     </when>
 
     <!-- all vectors with @value -->
@@ -1556,26 +1556,24 @@
     function m1v1u(m, v, mcmp, vcmp)
     {
         const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => +(ms === mcmp && v[i] === vcmp)));
-        const any = result.some(mv => mv.some(x => x === 1));
 
         for (let i = result.length; i < v.length; i++) {
             result[i] = [0];
         }
 
-        return [result, any];
+        return result;
     }
 
     // one matrix, one vector, existential quantification
     function m1v1e(m, v, mcmp, vcmp)
     {
         const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => +(ms === mcmp || v[i] === vcmp)));
-        const any = result.some(mv => mv.some(x => x === 1));
 
         for (let i = result.length; i < v.length; i++) {
             result[i] = [v[i] === vcmp];
         }
 
-        return [result, any];
+        return result;
     }
 
     function vu(vs, cmps)
@@ -1609,6 +1607,12 @@
     function E(v)
     {
         return v.some(s => s === 1);
+    }
+
+    // existential (any) for matrices
+    function Em(m)
+    {
+        return m.some(E);
     }
 
 
