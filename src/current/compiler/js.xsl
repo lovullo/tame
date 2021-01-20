@@ -721,6 +721,22 @@
                           ']);' )" />
     </when>
 
+    <!-- all scalars with @value -->
+    <when test="$nm = 0 and $nv = 0 and $ns > 0 and empty( $scalars[not(@value)] )">
+      <variable name="cop" as="xs:string"
+                select="if ( @any = 'true' ) then '||' else '&amp;&amp;'" />
+
+      <sequence select="concat( $var, '=!!(', $yield-to, '=+(',
+                          string-join(
+                            for $s in $scalars
+                              return concat(
+                                compiler:match-name-on( $symtable-map, $s ),
+                                '===',
+                                compiler:match-value( $symtable-map, $s ) ),
+                            $cop ),
+                          '));' )" />
+    </when>
+
     <!-- the terribly ineffeient way -->
     <otherwise>
       <sequence select="concat('/*m', $nm, 'v', $nv, 's', $ns, '*/')" />
@@ -736,6 +752,23 @@
       </for-each>
 
       <sequence select="concat( $var, '=tmp;' )" />
+
+      <variable name="sym"
+                select="$symtable-map( $self/@yields )" />
+
+      <!-- if we are not any type of set, then yield the value of the first
+             index (note the $criteria check; see above); note that we do not do
+             not( @set ) here, since that may have ill effects as it implies that
+             the node is not preprocessed -->
+      <!-- TODO: this can be simplified, since @yields is always provided -->
+      <if test="@yields and ( $sym/@dim='0' )">
+        <value-of select="$dest" />
+        <text>=</text>
+          <value-of select="$dest" />
+        <text>[0];</text>
+
+        <value-of select="$compiler:nl" />
+      </if>
     </otherwise>
   </choose>
 
@@ -747,23 +780,6 @@
     <text>) throw Error( '</text>
       <value-of select="replace( @desc, '''', '\\''' )" />
     <text>');</text>
-    <value-of select="$compiler:nl" />
-  </if>
-
-  <variable name="sym"
-    select="$symtable-map( $self/@yields )" />
-
-  <!-- if we are not any type of set, then yield the value of the first
-         index (note the $criteria check; see above); note that we do not do
-         not( @set ) here, since that may have ill effects as it implies that
-         the node is not preprocessed -->
-  <!-- TODO: this can be simplified, since @yields is always provided -->
-  <if test="@yields and ( $sym/@dim='0' )">
-    <value-of select="$dest" />
-    <text>=</text>
-      <value-of select="$dest" />
-    <text>[0];</text>
-
     <value-of select="$compiler:nl" />
   </if>
 </template>
