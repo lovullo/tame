@@ -252,9 +252,9 @@
     <value-of select="@type" />
   <text>',</text>
 
-  <text>'default': '</text>
-    <value-of select="@default" />
-  <text>',</text>
+  <text>'default':</text>
+    <value-of select="if ( @default ) then number(@default) else '0'" />
+  <text>,</text>
 
   <text>depth: </text>
     <!-- TODO: this logic is duplicated multiple places -->
@@ -1776,21 +1776,26 @@
         // scalar
         if ( depth === 0 )
         {
-            return ( input === '' || input === undefined ) ? value : input;
+            // TODO: error
+            if ( Array.isArray( input ) ) input = input[0];
+            return ( input === '' || input === undefined ) ? value : +input;
         }
 
-        input = input || [];
+        // TODO: error for both
+        if (!Array.isArray(input)) input = [input];
+        if (depth === 1 && Array.isArray(input[0])) input = input[0];
 
-        // vector or matrix
-        var i = input.length || 1;
-        var ret = [];
-        var value = ( depth === 2 ) ? [ value ] : value;
+        // TODO: this maintains old behavior, but maybe should be an error;
+        // we cannot have empty index sets (see design/tpl).
+        if (input.length === 0) input = [value];
 
-        while ( i-- ) {
-            ret[i] = ( input[i] === '' || input[i] === undefined ) ? value : input[i];
-        }
-
-        return ret;
+        return input.map( function( x ) {
+            return ( depth === 2 )
+              ? Array.isArray( x )
+                  ? x.map( function(s) { return +s; } )
+                  : [ x ]
+              : ( x === '' || x === undefined ) ? value : +x;
+        } );
     }
 
 
