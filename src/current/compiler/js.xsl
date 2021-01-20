@@ -726,15 +726,41 @@
       <variable name="cop" as="xs:string"
                 select="if ( @any = 'true' ) then '||' else '&amp;&amp;'" />
 
-      <sequence select="concat( $var, '=!!(', $yield-to, '=+(',
-                          string-join(
-                            for $s in $scalars
-                              return concat(
-                                compiler:match-name-on( $symtable-map, $s ),
-                                '===',
-                                compiler:match-value( $symtable-map, $s ) ),
-                            $cop ),
-                          '));' )" />
+      <choose>
+        <!-- if all the matches are on the same @on, we can optimize even
+             further (unless it's a single match, in which case the fallback
+             is the optimal way to proceed) -->
+        <when test="$ns > 1 and count( distinct-values( $scalars/@on ) ) = 1">
+          <!-- if this is not @any, then it's nonsense -->
+          <if test="not( @any = 'true' )">
+            <message terminate="yes"
+                     select="concat( 'error: ', @as, ' match ', $scalars[0]/@on,
+                                     'will never succeed' )" />
+          </if>
+
+          <sequence select="concat( $var, '=!!(', $yield-to, '=+[',
+                              string-join(
+                                for $s in $scalars
+                                    return compiler:match-value( $symtable-map, $s ),
+                                ',' ),
+                              '].includes(',
+                              compiler:match-name-on( $symtable-map, $scalars[1] ),
+                              '));' )" />
+        </when>
+
+        <!-- either a single match or matches on >1 distinct @on -->
+        <otherwise>
+          <sequence select="concat( $var, '=!!(', $yield-to, '=+(',
+                              string-join(
+                                for $s in $scalars
+                                  return concat(
+                                    compiler:match-name-on( $symtable-map, $s ),
+                                    '===',
+                                    compiler:match-value( $symtable-map, $s ) ),
+                                $cop ),
+                              '));' )" />
+        </otherwise>
+      </choose>
     </when>
 
     <!-- the terribly ineffeient way -->
