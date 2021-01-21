@@ -119,10 +119,6 @@
     <sequence select="@*" />
 
     <variable name="new">
-      <message>
-        <text>[preproc/symtable] discovering symbols...</text>
-      </message>
-
       <preproc:syms>
         <apply-templates mode="preproc:symtable">
           <!-- we only need this param for the root children, so this is the only
@@ -309,8 +305,6 @@
       </apply-templates>
     </preproc:symtable>
 
-    <message select="'[preproc/symtable] done.'" />
-
     <!-- copy all of the original elements after the symbol table; we're not
          outputting them as we go, so we need to make sure that we don't get
          rid of them; discard any existing symbol table -->
@@ -456,10 +450,6 @@
   <param name="new"        as="element( preproc:syms )" />
   <param name="this-pkg"   as="element( lv:package )" />
 
-  <message>
-    <text>[preproc/symtable] processing symbol table...</text>
-  </message>
-
   <variable name="cursym" as="element( preproc:sym )*"
                 select="preproc:symtable/preproc:sym[
                           not( @held = 'true' ) ]" />
@@ -549,8 +539,6 @@
       </choose>
     </for-each>
   </preproc:syms>
-
-  <message select="'[preproc/symtable] done processing symbol table.'" />
 </template>
 
 
@@ -605,12 +593,6 @@
   <!-- to keep everything consistent and to simplify package equality
        assertions, resolve relative paths -->
   <variable name="import-default-path" select="$import-path" />
-
-  <message>
-    <text>[preproc/symtable] importing symbol table of </text>
-    <value-of select="$import-path" />
-    <text>...</text>
-  </message>
 
   <!-- attempt to import symbols from the processed package -->
   <if test="not( $syms )">

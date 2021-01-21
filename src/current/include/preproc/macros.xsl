@@ -68,7 +68,9 @@
       <preproc:repass-record />
       -->
 
+      <!-- output is slow and this happens a lot
       <message>[preproc] *REPASS*</message>
+      -->
 
       <!-- perform the repass -->
       <apply-templates select="$nodeset" mode="preproc:macropass">
