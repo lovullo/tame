@@ -187,7 +187,7 @@
 
         <text>'</text>
           <value-of select="@name" />
-        <text>': true</text>
+        <text>': !1</text>
       </for-each>
     <text>}; </text>
 
@@ -396,9 +396,9 @@
 
   <!-- we are only interest in its value; its constant is an internal value -->
   <sequence select="if ( $as-const ) then
-                      concat( 'C[''', @name, '''] = ', $value, ';' )
+                      concat( 'C[''', @name, ''']=', $value, ';' )
                     else
-                      concat( '''', $value, ''': true' )" />
+                      concat( '''', $value, ''':1' )" />
 </template>
 
 
@@ -1099,58 +1099,19 @@
 <!--
   Handles the special "float" domain
 
-  Rather than the impossible task of calculating all possible floats and
-  asserting that the given values is within that set, the obvious task is to
-  assert whether or not the value is logically capable of existing in such a
-  set based on a definition of such a set.
-
-  See also "integer"
+  Every possible value is a float, so this is always true.
 -->
 <template match="lv:match[ @anyOf='float' ]" mode="compiler:match-anyof" priority="5">
-  <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function(val) {</text>
-    <text>return (typeof +val === 'number') </text>
-      <text disable-output-escaping="yes">&amp;&amp; </text>
-      <!-- note: greater than or equal to, since we want to permit integers as
-           well -->
-      <text disable-output-escaping="yes">(Math.ceil(val) >= Math.floor(val))</text>
-    <text>;</text>
-  <text>}</text>
+  <text>Tf</text>
 </template>
 
 <!--
-  Handles the special "float" domain
+  Whether the provided value is an integer
 
-  Rather than the impossible task of calculating all possible integers and
-  asserting that the given values is within that set, the obvious task is to
-  assert whether or not the value is logically capable of existing in such a
-  set based on a definition of such a set.
-
-  See also "float"
+  Everything is a number, so we need only check that it has no remainer mod 1.
 -->
 <template match="lv:match[ @anyOf='integer' ]" mode="compiler:match-anyof" priority="5">
-  <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function(val) {</text>
-    <text>return (typeof +val === 'number') </text>
-      <text disable-output-escaping="yes">&amp;&amp; </text>
-      <text>( Math.floor(val) === Math.ceil(val))</text>
-    <text>;</text>
-  <text>}</text>
-</template>
-
-<!--
-  Handles matching on an empty set
-
-  This is useful for asserting against fields that may have default values,
-  since in such a case an empty value would be permitted.
--->
-<template match="lv:match[ @anyOf='empty' ]" mode="compiler:match-anyof" priority="5">
-  <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function(val) {</text>
-    <text>return (val==='')</text>
-      <text>||(val===undefined)||(val===null)</text>
-    <text>;</text>
-  <text>}</text>
+  <text>Ti</text>
 </template>
 
 <!--
@@ -1160,20 +1121,18 @@
 <template match="lv:match[ @anyOf=root(.)//lv:typedef[ ./lv:base-type ]/@name ]"
   mode="compiler:match-anyof" priority="3">
 
-  <text>function(val){</text>
-    <text>throw Error( 'CRITICAL: Unhandled base type: </text>
-      <value-of select="@anyOf" />
-    <text>');</text>
-  <text>}</text>
+  <message terminate="yes"
+           select="concat( 'internal error: unhandled base type: ',
+                           @anyOf )" />
 </template>
 
 <!--
   Used for user-defined domains
 -->
 <template match="lv:match[ @anyOf ]" mode="compiler:match-anyof" priority="1">
-  <text>types['</text>
+  <text>TE(types['</text>
     <value-of select="@anyOf" />
-  <text>'].values</text>
+  <text>'].values)</text>
 </template>
 
 
@@ -1660,6 +1619,16 @@
     function Em(m)
     {
         return m.some(E);
+    }
+
+
+    // types
+    function Tf(x) { return 1; }
+    function Ti(x) { return +(x % 1 === 0); }
+    function TE(xs) {
+        return function(x) {
+            return xs[x] === 1;
+        }
     }
 
 
