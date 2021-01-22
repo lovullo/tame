@@ -717,7 +717,8 @@
     </when>
 
     <!-- all scalars with @value -->
-    <when test="$nm = 0 and $nv = 0 and $ns > 0 and empty( $scalars[not(@value)] )">
+    <when test="$nm = 0 and $nv = 0 and $ns > 0
+                  and empty( $scalars[ not( @value or @anyOf ) ] )">
       <sequence select="concat( $var, '=!!(', $yield-to, '=',
                           compiler:optimized-scalar-matches(
                             $symtable-map, ., $scalars ),
@@ -795,11 +796,21 @@
       <sequence select="$inner" />
     </when>
 
-    <when test="$match/@anyOf and $dim = 1">
+    <when test="$match/@anyOf and $dim lt 2">
       <variable name="anyof" as="xs:string"
                 select="compiler:compile-anyof( $symtable-map, $match )" />
 
-      <sequence select="concat( 'M(', $inner, ',', $anyof, ')' )" />
+      <choose>
+        <!-- vector, so map -->
+        <when test="$dim = 1">
+          <sequence select="concat( 'M(', $inner, ',', $anyof, ')' )" />
+        </when>
+
+        <!-- scalar, simply apply -->
+        <otherwise>
+          <sequence select="concat( $anyof, '(', $inner, ')' )" />
+        </otherwise>
+      </choose>
     </when>
 
     <otherwise>
@@ -908,10 +919,12 @@
             select="if ( $classify/@any = 'true' ) then '||' else '&amp;&amp;'" />
 
   <choose>
-    <!-- if all the matches are on the same @on, we can optimize even
-         further (unless it's a single match, in which case the fallback
-         is the optimal way to proceed) -->
-    <when test="$ns > 1 and count( distinct-values( $scalars/@on ) ) = 1">
+    <!-- if all the matches are basic equality on the same @on, we can
+         optimize even further (unless it's a single match, in which case
+         the fallback is the optimal way to proceed) -->
+    <when test="$ns > 1
+                  and count( distinct-values( $scalars/@on ) ) = 1
+                  and empty( $scalars[ not( @value ) ] )">
       <!-- if this is not @any, then it's nonsense -->
       <if test="not( $classify/@any = 'true' )">
         <message terminate="yes"
@@ -935,7 +948,7 @@
                           string-join(
                             for $s in $scalars
                               return concat(
-                                compiler:match-name-on( $symtable-map, $s ),
+                                compiler:match-on( $symtable-map, $s ),
                                 '===',
                                 compiler:match-value( $symtable-map, $s ) ),
                             $cop ),
