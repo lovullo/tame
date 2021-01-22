@@ -709,7 +709,7 @@
 
     <!-- all vectors with @value/@anyOf -->
     <when test="$nm = 0 and $nv > 0 and $ns = 0
-                  and empty( $vectors[ not( @value or @anyOf ) ] )">
+                  and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
       <sequence select="concat( $var, '=E(', $yield-to, '=',
                           compiler:optimized-vec-matches(
                             $symtable-map, ., $vectors ),
@@ -718,7 +718,7 @@
 
     <!-- all scalars with @value -->
     <when test="$nm = 0 and $nv = 0 and $ns > 0
-                  and empty( $scalars[ not( @value or @anyOf ) ] )">
+                  and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
       <sequence select="concat( $var, '=!!(', $yield-to, '=',
                           compiler:optimized-scalar-matches(
                             $symtable-map, ., $scalars ),
@@ -813,6 +813,44 @@
       </choose>
     </when>
 
+    <!-- TODO: this would be better handled in a validation phase -->
+    <when test="$match[count(c:*) gt 1]">
+      <message terminate="yes"
+               select="concat( 'error: multi-c:* expression not supported: ',
+                               $match/parent::lv:classify/@as)" />
+    </when>
+
+    <when test="$match[c:eq|c:ne|c:gt|c:lt|c:gte|c:lte]">
+      <variable name="c" as="element()"
+                select="$match/c:*" />
+      <variable name="name" as="xs:string"
+                select="$c/local-name()" />
+      <variable name="f" as="xs:string"
+                select="concat( 'c', $name )" />
+
+      <!-- should only be _one_ -->
+      <variable name="expr" as="element()" select="$c/c:*" />
+      <!-- TODO: remove generation of useless debug output! -->
+      <variable name="exprjs" as="xs:string"
+                select="compiler:compile( $symtable-map, $expr )" />
+      <variable name="transform" as="xs:string"
+                select="concat( $f, '(', $exprjs, ')' )" />
+
+      <message select="concat( 'notice: c:* ', $match/parent::lv:classify/@as )" />
+
+      <choose>
+        <!-- vector, so map -->
+        <when test="$dim = 1">
+          <sequence select="concat( 'M(', $inner, ',', $transform, ')' )" />
+        </when>
+
+        <!-- scalar, simply apply -->
+        <otherwise>
+          <sequence select="concat( $transform, '(', $inner, ')' )" />
+        </otherwise>
+      </choose>
+    </when>
+
     <otherwise>
       <message terminate="yes" select="'not yet handled', $match" />
     </otherwise>
@@ -824,10 +862,14 @@
   <param name="symtable-map" as="map(*)" />
   <param name="element" as="element()" />
 
-  <apply-templates select="$element" mode="compile">
-    <with-param name="symtable-map" select="$symtable-map"
-                tunnel="true" />
-  </apply-templates>
+  <variable name="result">
+    <apply-templates select="$element" mode="compile">
+      <with-param name="symtable-map" select="$symtable-map"
+                  tunnel="true" />
+    </apply-templates>
+  </variable>
+
+  <sequence select="string-join( $result, '' )" />
 </function>
 
 
@@ -1709,6 +1751,13 @@
     }
 
     function M(xs, f) { return xs.map(f); }
+
+    function ceq(y) { return function(x) { return +(x === y); }; }
+    function cne(y) { return function (x) { return +(x !== y); }; }
+    function cgt(y) { return function (x) { return +(x > y); }; }
+    function clt(y) { return function (x) { return +(x < y); }; }
+    function cgte(y) { return function (x) { return +(x >= y); }; }
+    function clte(y) { return function (x) { return +(x <= y); }; }
 
     /**
      * Checks for matches against values for any param value
