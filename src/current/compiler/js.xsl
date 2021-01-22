@@ -707,8 +707,9 @@
                           '));' )" />
     </when>
 
-    <!-- all vectors with @value -->
-    <when test="$nm = 0 and $nv > 0 and $ns = 0 and empty( $vectors[not(@value)] )">
+    <!-- all vectors with @value/@anyOf -->
+    <when test="$nm = 0 and $nv > 0 and $ns = 0
+                  and empty( $vectors[ not( @value or @anyOf ) ] )">
       <sequence select="concat( $var, '=E(', $yield-to, '=',
                           compiler:optimized-vec-matches(
                             $symtable-map, ., $vectors ),
@@ -772,6 +773,65 @@
 
 
 <!--
+  Generate JS suitable for a value match
+
+  If the value is _not_ a basic @value equality match, then it will be
+  wrapped in the necessary expression to transform it into a binary result
+  that can then be matched against `TRUE`.
+-->
+<function name="compiler:match-on" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="match" as="element( lv:match )" />
+
+  <variable name="dim" as="xs:integer"
+            select="$symtable-map( $match/@on )/@dim" />
+
+  <variable name="inner" as="xs:string"
+            select="compiler:match-name-on( $symtable-map, $match )" />
+
+  <choose>
+    <!-- basic equality -->
+    <when test="$match/@value">
+      <sequence select="$inner" />
+    </when>
+
+    <when test="$match/@anyOf and $dim = 1">
+      <variable name="anyof" as="xs:string"
+                select="compiler:compile-anyof( $symtable-map, $match )" />
+
+      <sequence select="concat( 'M(', $inner, ',', $anyof, ')' )" />
+    </when>
+
+    <otherwise>
+      <message terminate="yes" select="'not yet handled', $match" />
+    </otherwise>
+  </choose>
+</function>
+
+
+<function name="compiler:compile" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="element" as="element()" />
+
+  <apply-templates select="$element" mode="compile">
+    <with-param name="symtable-map" select="$symtable-map"
+                tunnel="true" />
+  </apply-templates>
+</function>
+
+
+<function name="compiler:compile-anyof" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="element" as="element()" />
+
+  <apply-templates select="$element" mode="compiler:match-anyof">
+    <with-param name="symtable-map" select="$symtable-map"
+                tunnel="true" />
+  </apply-templates>
+</function>
+
+
+<!--
   Output optmized vector matching
 
   This should only be called in contexts where the compiler is absolutely
@@ -790,10 +850,12 @@
             select="if ( $classify/@any='true' ) then 'e' else 'u'" />
 
   <choose>
-    <!-- if all the matches are on the same @on, we can optimize even
-         further (unless it's a single match, in which case the fallback
-         is the optimal way to proceed) -->
-    <when test="$nv > 1 and count( distinct-values( $vectors/@on ) ) = 1">
+    <!-- if all the matches are basic equality on the same @on, we can
+         optimize even further (unless it's a single match, in which case
+         the fallback is the optimal way to proceed) -->
+    <when test="$nv > 1
+                  and count( distinct-values( $vectors/@on ) ) = 1
+                  and empty( $vectors[ not( @value ) ] )">
       <!-- if this is not @any, then it's nonsense -->
       <if test="not( $classify/@any = 'true' )">
         <message terminate="yes"
@@ -815,7 +877,7 @@
       <sequence select="concat( 'v', $ctype, '([',
                           string-join(
                             for $v in $vectors
-                              return compiler:match-name-on( $symtable-map, $v ),
+                              return compiler:match-on( $symtable-map, $v ),
                             ','), '], [',
                           string-join(
                             for $v in $vectors
@@ -905,7 +967,11 @@
   <param name="symtable-map" as="map(*)" />
   <param name="match" as="element( lv:match )" />
 
-  <variable name="value" select="$match/@value" />
+  <!-- non-@value matches are transformed prior to matching against
+       (see compiler:match-on) -->
+  <variable name="value" as="xs:string"
+            select="if ( $match/@value ) then $match/@value else 'TRUE'" />
+
   <variable name="sym" as="element( preproc:sym )?"
             select="$symtable-map( $value )" />
 
@@ -1130,9 +1196,7 @@
   Used for user-defined domains
 -->
 <template match="lv:match[ @anyOf ]" mode="compiler:match-anyof" priority="1">
-  <text>TE(types['</text>
-    <value-of select="@anyOf" />
-  <text>'].values)</text>
+  <sequence select="concat( 'TE(types[''', @anyOf, '''].values)' )" />
 </template>
 
 
@@ -1627,10 +1691,11 @@
     function Ti(x) { return +(x % 1 === 0); }
     function TE(xs) {
         return function(x) {
-            return xs[x] === 1;
+            return +(xs[x] === 1);
         }
     }
 
+    function M(xs, f) { return xs.map(f); }
 
     /**
      * Checks for matches against values for any param value
