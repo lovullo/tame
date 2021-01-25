@@ -1740,6 +1740,11 @@
         return m.some(E);
     }
 
+    function div(x, y)
+    {
+        return x / y;
+    }
+
 
     // types
     function Tf(x) { return 1; }

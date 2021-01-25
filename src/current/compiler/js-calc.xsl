@@ -817,9 +817,11 @@
 -->
 <template match="c:quotient" mode="compile-calc">
   <!-- we only accept a numerator and a denominator -->
+  <text>div(</text>
   <apply-templates select="./c:*[1]" mode="compile" />
-  <text> / </text>
+  <text>,</text>
   <apply-templates select="./c:*[2]" mode="compile" />
+  <text>)</text>
 </template>
 
 
