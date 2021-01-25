@@ -477,13 +477,16 @@
 <!-- TODO: this should really be decoupled -->
 <!-- TODO: does not properly support matrices -->
 <template match="c:value-of[ ancestor::lv:match ]" mode="compile-calc" priority="5">
+  <param name="noindex" as="xs:boolean" tunnel="yes"
+         select="false()" />
+
   <variable name="name" select="@name" />
 
   <choose>
     <!-- scalar -->
     <when test="
-        root(.)/preproc:symtable/preproc:sym[ @name=$name ]
-          /@dim = '0'
+        $noindex
+          or root(.)/preproc:symtable/preproc:sym[ @name=$name ]/@dim = '0'
       ">
       <apply-templates select="." mode="compile-calc-value" />
     </when>

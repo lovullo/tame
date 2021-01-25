@@ -300,7 +300,64 @@
   <apply-templates mode="lvv:validate-match" />
 </template>
 
+
+<!-- simplify optimizations -->
+<template match="lv:match[ count(c:*) gt 1 ]" mode="lvv:validate-match" priority="4">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'Multi-c:* match expression'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>`</text>
+      <value-of select="@on" />
+      <text>' must include separate matches for each c:* in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
+
+  <apply-templates mode="lvv:validate-match" />
+</template>
+
+
 <template match="lv:match" mode="lvv:validate-match" priority="2">
+  <apply-templates mode="lvv:validate-match" />
+</template>
+
+
+<!-- simplify optimizations -->
+<template mode="lvv:validate-match" priority="5"
+          match="c:*[ not( c:value-of or c:const ) ]">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'invalid lv:match/c:*/c:*'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>`</text>
+      <value-of select="@on" />
+      <text>' must contain only c:value of or c:const in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
+
+  <apply-templates mode="lvv:validate-match" />
+</template>
+
+
+<!-- simplify optimizations -->
+<template mode="lvv:validate-match" priority="4"
+          match="c:*[ c:const[ c:* ] ]">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'non-scalar lv:match/c:*/c:*'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>`</text>
+      <value-of select="@on" />
+      <text>' must contain only scalar c:const in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
+
   <apply-templates mode="lvv:validate-match" />
 </template>
 

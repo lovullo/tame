@@ -813,30 +813,43 @@
       </choose>
     </when>
 
-    <!-- TODO: this would be better handled in a validation phase -->
-    <when test="$match[count(c:*) gt 1]">
-      <message terminate="yes"
-               select="concat( 'error: multi-c:* expression not supported: ',
-                               $match/parent::lv:classify/@as)" />
-    </when>
-
     <when test="$match[c:eq|c:ne|c:gt|c:lt|c:gte|c:lte]">
       <variable name="c" as="element()"
                 select="$match/c:*" />
       <variable name="name" as="xs:string"
                 select="$c/local-name()" />
-      <variable name="f" as="xs:string"
-                select="concat( 'c', $name )" />
 
-      <!-- should only be _one_ -->
+      <!-- should only be _one_ (@as validates this) -->
       <variable name="expr" as="element()" select="$c/c:*" />
+
+      <!-- if it's not c:value-of, it must be scalar c:const (see lv:match
+           in validator) -->
+      <variable name="cdim" as="xs:integer"
+                select="if ( $c/c:value-of ) then
+                            $symtable-map( $c/c:value-of/@name )/@dim
+                          else
+                            0" />
+
+      <variable name="indexed" as="xs:boolean" select="$cdim gt 0" />
+
+      <variable name="f" as="xs:string"
+                select="concat( 'c', $name,
+                                ( if ( $indexed ) then 'i' else '' ) )" />
+
       <!-- TODO: remove generation of useless debug output! -->
       <variable name="exprjs" as="xs:string"
                 select="compiler:compile( $symtable-map, $expr )" />
       <variable name="transform" as="xs:string"
                 select="concat( $f, '(', $exprjs, ')' )" />
 
-      <message select="concat( 'notice: c:* ', $match/parent::lv:classify/@as )" />
+      <!-- scalars should have already been caught during validation, but we
+           do not support matrices -->
+      <if test="$indexed and $dim = 2">
+        <message terminate="yes"
+                 select="concat( 'error: lv:match/c:*/c:index unsupported ',
+                                 'for matrix `',
+                                 $match/parent::lv/classify/@as, '''' )" />
+      </if>
 
       <choose>
         <!-- vector, so map -->
@@ -865,6 +878,11 @@
   <variable name="result">
     <apply-templates select="$element" mode="compile">
       <with-param name="symtable-map" select="$symtable-map"
+                  tunnel="true" />
+
+      <!-- suppress match index generation, since we handle it ourselves now
+           (in a different way) -->
+      <with-param name="noindex" select="true()"
                   tunnel="true" />
     </apply-templates>
   </variable>
@@ -1757,12 +1775,19 @@
 
     function M(xs, f) { return xs.map(f); }
 
-    function ceq(y) { return function(x) { return +(x === y); }; }
-    function cne(y) { return function (x) { return +(x !== y); }; }
-    function cgt(y) { return function (x) { return +(x > y); }; }
-    function clt(y) { return function (x) { return +(x < y); }; }
+    function ceq(y)  { return function (x) { return +(x === y); }; }
+    function cne(y)  { return function (x) { return +(x !== y); }; }
+    function cgt(y)  { return function (x) { return +(x > y); }; }
+    function clt(y)  { return function (x) { return +(x < y); }; }
     function cgte(y) { return function (x) { return +(x >= y); }; }
     function clte(y) { return function (x) { return +(x <= y); }; }
+
+    function ceqi(y)  { return function (x, i) { return +(x === (y[i]||0)); }; }
+    function cnei(y)  { return function (x, i) { return +(x !== (y[i]||0)); }; }
+    function cgti(y)  { return function (x, i) { return +(x > (y[i]||0)); }; }
+    function clti(y)  { return function (x, i) { return +(x < (y[i]||0)); }; }
+    function cgtei(y) { return function (x, i) { return +(x >= (y[i]||0)); }; }
+    function cltei(y) { return function (x, i) { return +(x <= (y[i]||0)); }; }
 
     /**
      * Checks for matches against values for any param value
