@@ -596,6 +596,21 @@
 </template>
 
 
+<!-- expand lv:match/@value != 'TRUE' into a c:* expression to simpliy
+     optimizations  -->
+<template match="lv:match[ @value and @value != 'TRUE' ]"
+  mode="preproc:expand" priority="7">
+
+  <copy>
+    <copy-of select="@*[ not( local-name() = 'value' ) ]" />
+
+    <c:eq>
+      <c:value-of name="{@value}" />
+    </c:eq>
+  </copy>
+</template>
+
+
 <template mode="preproc:expand"
               match="lv:join[ @all='true' ]"
               priority="8">

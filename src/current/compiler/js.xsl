@@ -791,8 +791,8 @@
             select="compiler:match-name-on( $symtable-map, $match )" />
 
   <choose>
-    <!-- basic equality -->
-    <when test="$match/@value">
+    <!-- only basic TRUE equality can be used verbatim -->
+    <when test="$match/@value = 'TRUE'">
       <sequence select="$inner" />
     </when>
 
@@ -829,6 +829,11 @@
                             $symtable-map( $c/c:value-of/@name )/@dim
                           else
                             0" />
+      <variable name="cval" as="xs:float?"
+                select="if ( $c/c:value-of ) then
+                            $symtable-map( $c/c:value-of/@name )/@value
+                          else
+                            $c/c:const/@value" />
 
       <variable name="indexed" as="xs:boolean" select="$cdim gt 0" />
 
@@ -854,12 +859,30 @@
       <choose>
         <!-- vector, so map -->
         <when test="$dim = 1">
-          <sequence select="concat( 'M(', $inner, ',', $transform, ')' )" />
+          <choose>
+            <!-- negation, very common, so save some bytes -->
+            <when test="$match/c:eq and $cval = 0">
+              <sequence select="concat( 'N(', $inner, ')' )" />
+            </when>
+
+            <otherwise>
+              <sequence select="concat( 'M(', $inner, ',', $transform, ')' )" />
+            </otherwise>
+          </choose>
         </when>
 
         <!-- scalar, simply apply -->
         <otherwise>
-          <sequence select="concat( $transform, '(', $inner, ')' )" />
+          <choose>
+            <!-- negation, very common, so save some bytes -->
+            <when test="$match/c:eq and $cval = 0">
+              <sequence select="concat( 'n(', $inner, ')' )" />
+            </when>
+
+            <otherwise>
+              <sequence select="concat( $transform, '(', $inner, ')' )" />
+            </otherwise>
+          </choose>
         </otherwise>
       </choose>
     </when>
@@ -949,10 +972,6 @@
                           string-join(
                             for $v in $vectors
                               return compiler:match-on( $symtable-map, $v ),
-                            ','), '], [',
-                          string-join(
-                            for $v in $vectors
-                              return compiler:match-value( $symtable-map, $v ),
                             ','),
                           '])' )" />
     </otherwise>
@@ -976,7 +995,7 @@
 
   <!-- existential, universal -->
   <variable name="cop" as="xs:string"
-            select="if ( $classify/@any = 'true' ) then '||' else '&amp;&amp;'" />
+            select="if ( $classify/@any = 'true' ) then '|' else '&amp;'" />
 
   <choose>
     <!-- if all the matches are basic equality on the same @on, we can
@@ -1004,15 +1023,10 @@
 
     <!-- either a single match or matches on >1 distinct @on -->
     <otherwise>
-      <sequence select="concat( '+(',
-                          string-join(
-                            for $s in $scalars
-                              return concat(
-                                compiler:match-on( $symtable-map, $s ),
-                                '===',
-                                compiler:match-value( $symtable-map, $s ) ),
-                            $cop ),
-                          ')' )" />
+      <sequence select="string-join(
+                          for $s in $scalars
+                            return compiler:match-on( $symtable-map, $s ),
+                          $cop )" />
     </otherwise>
   </choose>
 </function>
@@ -1719,26 +1733,26 @@
         return result;
     }
 
-    function vu(vs, cmps)
+    function vu(vs)
     {
         const longest = Math.max.apply(null, vs.map(v => v.length));
         const base = new Array(longest).fill(1);
 
         const result = vs.reduce(
-            (final, v, vi) => final.map((x, i) => +(x && ((v[i]||0) === cmps[vi]))),
+            (final, v, vi) => final.map((x, i) => x & v[i]),
             base
         );
 
         return result;
     }
 
-    function ve(vs, cmps)
+    function ve(vs)
     {
         const longest = Math.max.apply(null, vs.map(v => v.length));
         const base = new Array(longest).fill(0);
 
         const result = vs.reduce(
-            (final, v, vi) => final.map((x, i) => +(x || ((v[i]||0) === cmps[vi]))),
+            (final, v, vi) => final.map((x, i) => x | v[i]),
             base
         );
 
@@ -1774,6 +1788,8 @@
     }
 
     function M(xs, f) { return xs.map(f); }
+    var n = ceq(0);
+    function N(xs) { return xs.map(n); }
 
     function ceq(y)  { return function (x) { return +(x === y); }; }
     function cne(y)  { return function (x) { return +(x !== y); }; }
