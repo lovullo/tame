@@ -716,7 +716,50 @@
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
 
-    <!-- all vectors with @value/@anyOf -->
+    <when test="$nm > 0 and $nv = 0 and $ns > 0
+                  and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
+                  and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
+      <variable name="js-matrix" as="xs:string"
+                select="compiler:optimized-matrix-matches(
+                          $symtable-map, ., $matrices )" />
+
+      <variable name="js-scalar" as="xs:string"
+                select="compiler:optimized-scalar-matches(
+                          $symtable-map, ., $scalars )" />
+
+      <variable name="js" as="xs:string"
+                select="concat( 'sm', $ctype, '(',
+                                $js-matrix, ',', $js-scalar, ')' )" />
+
+      <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
+    </when>
+
+    <when test="$nm > 0 and $nv > 0 and $ns > 0
+                  and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
+                  and empty( $vectors[ not( @value or @anyOf or c:* ) ] )
+                  and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
+      <variable name="js-matrix" as="xs:string"
+                select="compiler:optimized-matrix-matches(
+                          $symtable-map, ., $matrices )" />
+
+      <variable name="js-vec" as="xs:string"
+                select="compiler:optimized-vec-matches(
+                          $symtable-map, ., $vectors )" />
+
+      <variable name="js-scalar" as="xs:string"
+                select="compiler:optimized-scalar-matches(
+                          $symtable-map, ., $scalars )" />
+
+      <variable name="js" as="xs:string"
+                select="concat( 'sm', $ctype, '(',
+                                  'vm', $ctype, '(',
+                                    $js-matrix, ',', $js-vec, '),',
+                                  $js-scalar,
+                                ')' )" />
+
+      <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
+    </when>
+
     <when test="$nm = 0 and $nv > 0
                   and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
       <variable name="jsvec" as="xs:string"
@@ -739,7 +782,6 @@
                           $js, ');' )" />
     </when>
 
-    <!-- all scalars with @value -->
     <when test="$nm = 0 and $nv = 0 and $ns > 0
                   and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
       <sequence select="concat( $var, '=!!(', $yield-to, '=',
@@ -1838,6 +1880,16 @@
     function sve(v, s)
     {
         return v.map(x => x | s);
+    }
+
+    // apply scalar to matrix
+    function smu(m, s)
+    {
+        return m.map(v => v.map(x => x & s));
+    }
+    function sme(m, s)
+    {
+        return m.map(v => v.map(x => x | s));
     }
 
 
