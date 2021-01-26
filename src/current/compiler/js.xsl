@@ -693,17 +693,17 @@
 
   <!-- optimize for very specific, common cases -->
   <choose>
-    <when test="$nm = 1 and $nv = 1 and $ns = 0 and $m1/@value and $v1/@value">
+    <when test="$nm = 1 and $nv = 1 and $ns = 0
+                  and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
+                  and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
       <variable name="input-matrix" as="xs:string"
-                select="compiler:match-name-on( $symtable-map, $m1 )" />
+                select="compiler:match-on( $symtable-map, $m1 )" />
       <variable name="input-vector" as="xs:string"
-                select="compiler:match-name-on( $symtable-map, $v1 )" />
+                select="compiler:match-on( $symtable-map, $v1 )" />
 
       <sequence select="concat( $var, '=Em(', $yield-to, '=m1v1',
                           $ctype,  '(',
                           $input-matrix, ',', $input-vector,
-                          ',', compiler:match-value( $symtable-map, $m1 ),
-                          ',', compiler:match-value( $symtable-map, $v1 ),
                           '));' )" />
     </when>
 
@@ -804,23 +804,23 @@
   <variable name="inner" as="xs:string"
             select="compiler:match-name-on( $symtable-map, $match )" />
 
+  <variable name="mf" as="xs:string"
+            select="if ( $dim = 2 ) then 'MM' else 'M'" />
+
   <choose>
     <!-- only basic TRUE equality can be used verbatim -->
     <when test="$match/@value = 'TRUE'">
       <sequence select="$inner" />
     </when>
 
-    <when test="$match/@anyOf and $dim lt 2">
+    <when test="$match/@anyOf">
       <variable name="anyof" as="xs:string"
                 select="compiler:compile-anyof( $symtable-map, $match )" />
 
       <choose>
-        <!-- vector, so map -->
-        <when test="$dim = 1">
-          <sequence select="concat( 'M(', $inner, ',', $anyof, ')' )" />
+        <when test="$dim > 0">
+          <sequence select="concat( $mf, '(', $inner, ',', $anyof, ')' )" />
         </when>
-
-        <!-- scalar, simply apply -->
         <otherwise>
           <sequence select="concat( $anyof, '(', $inner, ')' )" />
         </otherwise>
@@ -871,8 +871,7 @@
       </if>
 
       <choose>
-        <!-- vector, so map -->
-        <when test="$dim = 1">
+        <when test="$dim > 0">
           <choose>
             <!-- negation, very common, so save some bytes -->
             <when test="$match/c:eq and $cval = 0">
@@ -880,7 +879,7 @@
             </when>
 
             <otherwise>
-              <sequence select="concat( 'M(', $inner, ',', $transform, ')' )" />
+              <sequence select="concat( $mf, '(', $inner, ',', $transform, ')' )" />
             </otherwise>
           </choose>
         </when>
@@ -902,7 +901,7 @@
     </when>
 
     <otherwise>
-      <message terminate="yes" select="'not yet handled', $match" />
+      <message terminate="yes" select="'error: not yet handled', $match" />
     </otherwise>
   </choose>
 </function>
@@ -1724,9 +1723,9 @@
     }
 
     // one matrix, one vector, universal quantification
-    function m1v1u(m, v, mcmp, vcmp)
+    function m1v1u(m, v)
     {
-        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => +(ms === mcmp && v[i] === vcmp)));
+        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => ms & v[i]));
 
         for (let i = result.length; i < v.length; i++) {
             result[i] = [0];
@@ -1736,12 +1735,12 @@
     }
 
     // one matrix, one vector, existential quantification
-    function m1v1e(m, v, mcmp, vcmp)
+    function m1v1e(m, v)
     {
-        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => +(ms === mcmp || v[i] === vcmp)));
+        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => ms | v[i]));
 
         for (let i = result.length; i < v.length; i++) {
-            result[i] = [v[i] === vcmp];
+            result[i] = [v[i]];
         }
 
         return result;
@@ -1811,7 +1810,8 @@
         }
     }
 
-    function M(xs, f) { return xs.map(f); }
+    function M(vs, f) { return vs.map(f); }
+    function MM(ms, f) { return ms.map(vs => vs.map(f)); }
     var n = ceq(0);
     function N(xs) { return xs.map(n); }
 
