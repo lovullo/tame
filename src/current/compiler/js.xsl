@@ -708,12 +708,26 @@
     </when>
 
     <!-- all vectors with @value/@anyOf -->
-    <when test="$nm = 0 and $nv > 0 and $ns = 0
+    <when test="$nm = 0 and $nv > 0
                   and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
+      <variable name="jsvec" as="xs:string"
+                select="compiler:optimized-vec-matches(
+                          $symtable-map, ., $vectors )" />
+
+      <!-- handle scalars, if any -->
+      <variable name="js" as="xs:string"
+                select="if ( $ns != 0 ) then
+                            concat( 'sv', $ctype,
+                                    '(',
+                                    $jsvec, ',',
+                                    compiler:optimized-scalar-matches(
+                                      $symtable-map, ., $scalars ),
+                                    ')' )
+                          else
+                            $jsvec" />
+
       <sequence select="concat( $var, '=E(', $yield-to, '=',
-                          compiler:optimized-vec-matches(
-                            $symtable-map, ., $vectors ),
-                          ');' )" />
+                          $js, ');' )" />
     </when>
 
     <!-- all scalars with @value -->
@@ -1757,6 +1771,16 @@
         );
 
         return result;
+    }
+
+    // apply scalar to vector
+    function svu(v, s)
+    {
+        return v.map(x => x & s);
+    }
+    function sve(v, s)
+    {
+        return v.map(x => x | s);
     }
 
 
