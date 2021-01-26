@@ -693,19 +693,27 @@
 
   <!-- optimize for very specific, common cases -->
   <choose>
-    <when test="$nm = 1 and $nv > 0 and $ns = 0
+    <when test="$nm > 0 and $ns = 0
                   and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
                   and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
-      <variable name="input-matrix" as="xs:string"
-                select="compiler:match-on( $symtable-map, $m1 )" />
+      <variable name="jsmatrix" as="xs:string"
+                select="compiler:optimized-matrix-matches(
+                          $symtable-map, ., $matrices )" />
 
       <variable name="jsvec" as="xs:string"
                 select="compiler:optimized-vec-matches(
                           $symtable-map, ., $vectors )" />
 
-      <sequence select="concat( $var, '=Em(', $yield-to, '=vm', $ctype, '(',
-                          $input-matrix, ',', $jsvec,
-                          '));' )" />
+      <variable name="js" as="xs:string"
+                select="if ( $nv != 0 ) then
+                            concat( 'vm', $ctype, '(',
+                                    $jsmatrix,
+                                    ',', $jsvec,
+                                    ')' )
+                          else
+                            $jsmatrix" />
+
+      <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
 
     <!-- all vectors with @value/@anyOf -->
@@ -938,6 +946,41 @@
     <with-param name="symtable-map" select="$symtable-map"
                 tunnel="true" />
   </apply-templates>
+</function>
+
+
+<!--
+  Output optmized matrix matching
+
+  This should only be called in contexts where the compiler is absolutely
+  certain that the optimzation ought to be applied.
+-->
+<function name="compiler:optimized-matrix-matches" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+  <param name="matrices" as="element( lv:match )+" />
+
+  <variable name="nm" as="xs:integer"
+            select="count( $matrices )" />
+
+  <!-- existential, universal -->
+  <variable name="ctype" as="xs:string"
+            select="if ( $classify/@any='true' ) then 'e' else 'u'" />
+
+  <choose>
+    <when test="$nm = 1">
+      <sequence select="compiler:match-on( $symtable-map, $matrices[1] )" />
+    </when>
+
+    <otherwise>
+      <sequence select="concat( 'm', $ctype, '([',
+                          string-join(
+                            for $m in $matrices
+                              return compiler:match-on( $symtable-map, $m ),
+                            ','),
+                          '])' )" />
+    </otherwise>
+  </choose>
 </function>
 
 
@@ -1747,6 +1790,20 @@
         return result;
     }
 
+    function mu(ms)
+    {
+        return ms.reduce(
+            (final, m) => final.map((v, i) => vu([v, m[i]||[0]]))
+        );
+    }
+
+    function me(ms)
+    {
+        return ms.reduce(
+            (final, m) => final.map((v, i) => ve([v, m[i]||[0]]))
+        );
+    }
+
     function vu(vs)
     {
         const longest = Math.max.apply(null, vs.map(v => v.length));
@@ -1815,7 +1872,7 @@
     function MM(ms, f) { return ms.map(vs => vs.map(f)); }
     var n = ceq(0);
     function N(vs) { return vs.map(n); }
-    function NN(ms) { return ms.map(vs => vs.map(n)); }
+    function NN(ms) { return ms.map(N); }
 
     function ceq(y)  { return function (x) { return +(x === y); }; }
     function cne(y)  { return function (x) { return +(x !== y); }; }
