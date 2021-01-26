@@ -693,17 +693,18 @@
 
   <!-- optimize for very specific, common cases -->
   <choose>
-    <when test="$nm = 1 and $nv = 1 and $ns = 0
+    <when test="$nm = 1 and $nv > 0 and $ns = 0
                   and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
                   and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
       <variable name="input-matrix" as="xs:string"
                 select="compiler:match-on( $symtable-map, $m1 )" />
-      <variable name="input-vector" as="xs:string"
-                select="compiler:match-on( $symtable-map, $v1 )" />
 
-      <sequence select="concat( $var, '=Em(', $yield-to, '=m1v1',
-                          $ctype,  '(',
-                          $input-matrix, ',', $input-vector,
+      <variable name="jsvec" as="xs:string"
+                select="compiler:optimized-vec-matches(
+                          $symtable-map, ., $vectors )" />
+
+      <sequence select="concat( $var, '=Em(', $yield-to, '=vm', $ctype, '(',
+                          $input-matrix, ',', $jsvec,
                           '));' )" />
     </when>
 
@@ -806,6 +807,8 @@
 
   <variable name="mf" as="xs:string"
             select="if ( $dim = 2 ) then 'MM' else 'M'" />
+  <variable name="nf" as="xs:string"
+            select="if ( $dim = 2 ) then 'NN' else 'N'" />
 
   <choose>
     <!-- only basic TRUE equality can be used verbatim -->
@@ -875,7 +878,7 @@
           <choose>
             <!-- negation, very common, so save some bytes -->
             <when test="$match/c:eq and $cval = 0">
-              <sequence select="concat( 'N(', $inner, ')' )" />
+              <sequence select="concat( $nf, '(', $inner, ')' )" />
             </when>
 
             <otherwise>
@@ -1722,8 +1725,8 @@
         return Math.round(x * p) / p;
     }
 
-    // one matrix, one vector, universal quantification
-    function m1v1u(m, v)
+    // apply vector to matrix
+    function vmu(m, v)
     {
         const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => ms & v[i]));
 
@@ -1733,9 +1736,7 @@
 
         return result;
     }
-
-    // one matrix, one vector, existential quantification
-    function m1v1e(m, v)
+    function vme(m, v)
     {
         const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => ms | v[i]));
 
@@ -1813,7 +1814,8 @@
     function M(vs, f) { return vs.map(f); }
     function MM(ms, f) { return ms.map(vs => vs.map(f)); }
     var n = ceq(0);
-    function N(xs) { return xs.map(n); }
+    function N(vs) { return vs.map(n); }
+    function NN(ms) { return ms.map(vs => vs.map(n)); }
 
     function ceq(y)  { return function (x) { return +(x === y); }; }
     function cne(y)  { return function (x) { return +(x !== y); }; }
