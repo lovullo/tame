@@ -419,13 +419,13 @@
     <!-- matrices -->
     <for-each select="compiler:const-sets( . )[ not( . = '' ) ]">
       <if test="position() > 1">
-        <text>, </text>
+        <text>,</text>
       </if>
 
       <text>[</text>
         <for-each select="compiler:set-items( ., true() )">
           <if test="position() > 1">
-            <text>, </text>
+            <text>,</text>
           </if>
 
           <value-of select="compiler:js-number( . )" />
@@ -436,7 +436,7 @@
     <!-- vectors -->
     <for-each select="compiler:set-items( ., false() )">
       <if test="position() > 1">
-        <text>, </text>
+        <text>,</text>
       </if>
 
       <value-of select="compiler:js-number( . )" />
