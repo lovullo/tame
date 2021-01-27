@@ -267,6 +267,21 @@
   <apply-templates select="." mode="lvv:validate-match" />
 </template>
 
+
+<!-- @pattern support removed -->
+<template match="lv:match[@pattern]" mode="lvv:validate-match" priority="9">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'lv:match[@pattern] support removed'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>use lookup tables in place of @pattern in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
+</template>
+
+
 <!--
   Validate that non-numeric value matches actually exist and are constants
 -->

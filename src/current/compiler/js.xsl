@@ -691,7 +691,7 @@
   <variable name="ctype" as="xs:string"
             select="if ( @any='true' ) then 'e' else 'u'" />
 
-  <!-- optimize for very specific, common cases -->
+  <!-- TODO: generalize -->
   <choose>
     <when test="$nm > 0 and $ns = 0
                   and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
@@ -790,38 +790,11 @@
                           ');' )" />
     </when>
 
-    <!-- the terribly ineffeient way -->
     <otherwise>
-      <sequence select="concat('/*m', $nm, 'v', $nv, 's', $ns, '*/')" />
-
-      <sequence select="concat( $dest, '=[];', $compiler:nl )" />
-
-      <!-- order matches from highest to lowest dimensions (required for
-           the cmatch algorithm)-->
-      <for-each select="( $matrices, $vectors, $scalars )">
-        <apply-templates mode="compile" select=".">
-          <with-param name="operator" select="$op" />
-        </apply-templates>
-      </for-each>
-
-      <sequence select="concat( $var, '=tmp;' )" />
-
-      <variable name="sym"
-                select="$symtable-map( $self/@yields )" />
-
-      <!-- if we are not any type of set, then yield the value of the first
-             index (note the $criteria check; see above); note that we do not do
-             not( @set ) here, since that may have ill effects as it implies that
-             the node is not preprocessed -->
-      <!-- TODO: this can be simplified, since @yields is always provided -->
-      <if test="@yields and ( $sym/@dim='0' )">
-        <value-of select="$dest" />
-        <text>=</text>
-          <value-of select="$dest" />
-        <text>[0];</text>
-
-        <value-of select="$compiler:nl" />
-      </if>
+      <!-- TODO: can remove once we generalize the above -->
+      <message terminate="yes"
+               select="concat( 'internal error: cannot compile class: ',
+                               @as )" />
     </otherwise>
   </choose>
 
@@ -1195,142 +1168,6 @@
   </choose>
 </function>
 
-
-<!--
-  Generate code asserting a match
-
-  Siblings are joined by default with ampersands to denote an AND relationship,
-  unless overridden.
-
-  @return generated match code
--->
-<template match="lv:match" mode="compile" priority="1">
-  <param name="symtable-map" as="map(*)" tunnel="yes" />
-
-  <!-- default to all matches being required -->
-  <param name="operator" select="'&amp;&amp;'" />
-  <param name="yields" select="../@yields" />
-
-  <variable name="name" select="@on" />
-
-  <text> tmp=</text>
-
-  <variable name="input-raw" as="xs:string"
-            select="compiler:match-name-on( $symtable-map, . )" />
-
-  <!-- yields (if not set, generate one so that cmatches still works properly)
-       -->
-  <variable name="yieldto">
-    <call-template name="compiler:gen-match-yieldto">
-      <with-param name="yields" select="$yields" />
-    </call-template>
-  </variable>
-
-  <!-- the input value -->
-  <variable name="input">
-    <choose>
-      <when test="@scalar = 'true'">
-        <text>stov( </text>
-          <value-of select="$input-raw" />
-        <text>, ((</text>
-          <value-of select="$yieldto" />
-        <!-- note that we default to 1 so that there is at least a single
-             element (which will be the case of the scalar is the first match)
-             in a given classification; the awkward inner [] is to protect
-             against potentially undefined values and will hopefully never
-             happen, and the length is checked on the inner grouping rather than
-             on the outside of the entire expression to ensure that it will
-             yield the intended result if yieldto.length === 0 -->
-        <text>||[]).length||1))</text>
-      </when>
-
-      <otherwise>
-        <value-of select="$input-raw" />
-      </otherwise>
-    </choose>
-  </variable>
-
-  <!-- invoke the classification matcher on this input -->
-  <text>anyValue( </text>
-    <value-of select="$input" />
-  <text>, </text>
-
-  <!-- TODO: error if multiple; also, refactor -->
-  <choose>
-    <when test="@value">
-      <value-of select="compiler:match-value( $symtable-map, . )" />
-    </when>
-
-    <when test="@pattern">
-      <text>function(val) {</text>
-        <text>return /</text>
-          <value-of select="@pattern" />
-        <text>/.test(val);</text>
-      <text>}</text>
-    </when>
-
-    <when test="./c:*">
-      <text>function(val, __$$i) { </text>
-        <text>return (</text>
-          <for-each select="./c:*">
-            <if test="position() > 1">
-              <text disable-output-escaping="yes"> &amp;&amp; </text>
-            </if>
-
-            <text>(val </text>
-              <apply-templates select="." mode="compile-calc-when" />
-            <text>)</text>
-          </for-each>
-        <text>);</text>
-      <text>}</text>
-    </when>
-
-    <otherwise>
-      <apply-templates select="." mode="compiler:match-anyof" />
-    </otherwise>
-  </choose>
-
-  <text>, </text>
-  <value-of select="$yieldto" />
-  <text>, </text>
-
-  <!-- if this match is part of a classification that should yield a matrix,
-       then force a matrix set -->
-  <choose>
-    <when test="ancestor::lv:classify/@set = 'matrix'">
-      <text>true</text>
-    </when>
-    <otherwise>
-      <text>false</text>
-    </otherwise>
-  </choose>
-
-  <text>, </text>
-  <choose>
-    <when test="parent::lv:classify/@any='true'">
-      <text>false</text>
-    </when>
-    <otherwise>
-      <text>true</text>
-    </otherwise>
-  </choose>
-
-  <!-- for debugging -->
-  <if test="$debug-id-on-stack">
-    <text>/*!+*/,"</text>
-    <value-of select="$input" />
-    <text>"/*!-*/</text>
-  </if>
-
-  <!-- end of anyValue() call -->
-  <text>);</text>
-
-  <text>/*!+*/(D['</text>
-    <value-of select="@_id" />
-  <text>']||(D['</text>
-    <value-of select="@_id" />
-  <text>']=[])).push(tmp);/*!-*/ </text>
-</template>
 
 <template name="compiler:gen-match-yieldto">
   <param name="yields" />
@@ -1940,190 +1777,29 @@
     function cgtei(y) { return function (x, i) { return +(x >= (y[i]||0)); }; }
     function cltei(y) { return function (x, i) { return +(x <= (y[i]||0)); }; }
 
+
     /**
-     * Checks for matches against values for any param value
+     * Return the length of the longest set
      *
-     * A single successful match will result in a successful classification.
+     * Provide each set as its own argument.
      *
-     * For an explanation and formal definition of this algorithm, please see
-     * the section entitled "Classification Match (cmatch) Algorithm" in the
-     * manual.
-     *
-     * @param {Array|string} param    value or set of values to check
-     * @param {Array|string} values   or set of values to match against
-     * @param {Object}       yield_to object to yield into
-     * @param {boolean}      clear    when true, AND results; otherwise, OR
-     *
-     * @return {boolean} true if any match is found, otherwise false
+     * @return number length of longest set
      */
-    function anyValue( param, values, yield_to, ismatrix, clear, _id )
+    function longerOf()
     {
-        // convert everything to an array if needed (we'll assume all objects to
-        // be arrays; Array.isArray() is ES5-only) to make them easier to work
-        // with
-        if ( !Array.isArray( param ) )
-        {
-            param = [ param ];
-        }
-
-        var values_orig = values;
-        if ( typeof values !== 'object' )
-        {
-            // the || 0 here ensures that non-values are treated as 0, as
-            // mentioned in the specification
-            values = [ values || 0 ];
-        }
-        else
-        {
-            var tmp = [];
-            for ( var v in values )
-            {
-                tmp.push( v );
-            }
-
-            values = tmp;
-        }
-
-        // if no yield var name was provided, we'll just be storing in a
-        // temporary array which will be discarded when it goes out of scope
-        // (this is the result vector in the specification)
-        var store = yield_to || [];
-
-        var i      = param.length,
-            found  = false,
-            scalar = ( i === 0 ),
-            u      = ( store.length === 0 ) ? clear : false;
-
+        var i   = arguments.length,
+            len = 0;
         while ( i-- )
         {
-            // these var names are as they appear in the algorithm---temporary,
-            // and value
-            var t,
-                v = returnOrReduceOr( store[ i ], u );
+            var thislen = arguments[ i ].length;
 
-            // recurse on vectors
-            if ( Array.isArray( param[ i ] ) || Array.isArray( store[ i ] ) )
+            if ( thislen > len )
             {
-                var r = deepClone( store[ i ] || [] );
-                if ( !Array.isArray( r ) )
-                {
-                    r = [ r ];
-                }
-
-                var rfound = !!anyValue( param[ i ], values_orig, r, false, clear, _id );
-                found = ( found || rfound );
-
-                if ( Array.isArray( store[ i ] )
-                  || ( store[ i ] === undefined )
-                )
-                {
-                    // we do not want to reduce; this is the match that we are
-                    // interested in
-                    store[ i ] = r;
-                    continue;
-                }
-                else
-                {
-                    t = returnOrReduceOr( r, clear );
-                }
-            }
-            else
-            {
-                // we have a scalar, folks!
-                scalar = true;
-                t = anyPredicate( values, ( param[ i ] || 0 ), i );
-            }
-
-            store[ i ] = +( ( clear )
-                ? ( v && t )
-                : ( v || t )
-            );
-
-            // equivalent of "Boolean Classification Match" section of manual
-            found = ( found || !!store[ i ] );
-        }
-
-        if ( store.length > param.length )
-        {
-            var sval = ( scalar ) ? anyPredicate( values, param[0] ) : null;
-            if ( typeof sval === 'function' )
-            {
-                // pass the scalar value to the function
-                sval = values[0]( param[0] );
-            }
-
-            // XXX: review the algorithm; this is a mess
-            for ( var k = param.length, l = store.length; k < l; k++ )
-            {
-                // note that this has the same effect as initializing (in the
-                // case of a scalar) the scalar to the length of the store
-                var v = +(
-                  ( returnOrReduceOr( store[ k ], clear )
-                    || ( !clear && ( scalar && sval ) )
-                  )
-                  && ( !clear || ( scalar && sval ) )
-                );
-
-                store[ k ] = ( scalar )
-                  ? v
-                  : [ v ];
-
-                found = ( found || !!v );
+                len = thislen;
             }
         }
 
-        return found;
-    }
-
-
-    function anyPredicate( preds, value, index )
-    {
-        return preds.some( function( p ) {
-            return (typeof p === 'function')
-                ? p(value, index)
-                : p == value;
-        } );
-    }
-
-
-    function returnOrReduceOr( arr, c )
-    {
-        if ( arr === undefined )
-        {
-            return !!c;
-        }
-        else if ( !( arr.length ) )
-        {
-            return arr;
-        }
-
-        return arr.reduce( function( a, b ) {
-            return a || returnOrReduceOr( b, c );
-        } );
-    }
-
-
-    function returnOrReduceAnd( arr, c )
-    {
-        if ( arr === undefined )
-        {
-            return !!c;
-        }
-        else if ( !( arr.length ) )
-        {
-            return arr;
-        }
-
-        return arr.reduce( function( a, b ) {
-            return a && returnOrReduceAnd( b, c );
-        } );
-    }
-
-
-    function deepClone( arr )
-    {
-        if ( !Array.isArray( arr ) ) return arr;
-        return arr.map( deepClone );
+        return len;
     }
 
 
@@ -2222,31 +1898,6 @@
     }
 
 
-    /**
-     * Return the length of the longest set
-     *
-     * Provide each set as its own argument.
-     *
-     * @return number length of longest set
-     */
-    function longerOf()
-    {
-        var i   = arguments.length,
-            len = 0;
-        while ( i-- )
-        {
-            var thislen = arguments[ i ].length;
-
-            if ( thislen > len )
-            {
-                len = thislen;
-            }
-        }
-
-        return len;
-    }
-
-
     /* scalar to vector */
     function stov( s, n )
     {
@@ -2265,21 +1916,6 @@
         }
 
         return (new Array(n)).fill(s);
-    }
-
-
-    function argreplace( orig, value )
-    {
-        if ( !( typeof orig === 'object' ) )
-        {
-            return value;
-        }
-
-        // we have an object; recurse
-        for ( var i in orig )
-        {
-            return argreplace( orig[ i ], value );
-        }
     }
 
 
