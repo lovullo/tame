@@ -1654,30 +1654,6 @@
 <template name="compiler:static">
 <text>
 <![CDATA[
-    var domains = {
-        'integer': function( value )
-        {
-            return ( value == +value );
-        },
-
-        'float': function( value )
-        {
-            return ( value == +value );
-        },
-
-        'boolean': function( value )
-        {
-            return ( ( +value === 1 ) || ( +value === 0 ) );
-        },
-
-        'string': function( value )
-        {
-            // well, everything is a string
-            return true;
-        }
-    };
-
-
     function precision(p, x)
     {
         if (x % 1 === 0) return x;
