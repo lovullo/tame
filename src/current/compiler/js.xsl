@@ -1631,6 +1631,9 @@
 </template>
 
 
+<template match="text()" mode="compile" priority="1">
+  <!-- do not output e.g. whitespace between nodes -->
+</template>
 
 <template match="lvp:*" mode="compile" priority="1">
   <!-- do nothing with UI nodes -->
