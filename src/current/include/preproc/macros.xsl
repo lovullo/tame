@@ -343,7 +343,8 @@
  number of wasteful intermediate classifications that are generated.
 -->
 <template mode="preproc:class-groupgen" priority="6"
-    match="lv:any[ count( lv:all[ count(lv:*) = 2 ] ) = count(lv:*) ]">
+    match="(lv:classify[ @any='true' ] | lv:any)
+             [ count( lv:all[ count(lv:*) = 2 ] ) = count(lv:*) ]">
 
   <!-- TODO: missing @value may not have been expanded yet...! -->
   <variable name="ons" as="element( lv:match )*"
@@ -364,17 +365,38 @@
     <when test="count( $distinct-ons ) = 1
                   and count( $ons ) = $nall
                   and count( $ons/parent::lv:all ) = $nall">
-      <!-- they're all the same, so hoist the first one out of the <any>,
-           which must be in a universal context -->
-      <sequence select="$ons[1]" />
-
       <!-- then replace the <alls> with their remaining predicate (which is
            either before or after) -->
-      <copy>
-        <apply-templates mode="preproc:class-groupgen"
-                         select="$ons/preceding-sibling::lv:match
-                                   | $ons/following-sibling::lv:match"/>
-      </copy>
+      <choose>
+        <when test="@any = 'true'">
+          <copy>
+            <sequence select="@*[ not( local-name() = 'any' ) ]" />
+
+            <!-- they're all the same, so hoist the first one out of the <any>,
+                 which is now in a universal context because we omitted @any
+                 above -->
+            <sequence select="$ons[1]" />
+
+            <lv:any>
+              <apply-templates mode="preproc:class-groupgen"
+                               select="$ons/preceding-sibling::lv:match
+                                       | $ons/following-sibling::lv:match"/>
+            </lv:any>
+          </copy>
+        </when>
+
+        <otherwise>
+          <!-- they're all the same, so hoist the first one out of the <any>,
+               which must be in a universal context -->
+          <sequence select="$ons[1]" />
+
+          <copy>
+            <apply-templates mode="preproc:class-groupgen"
+                             select="$ons/preceding-sibling::lv:match
+                                     | $ons/following-sibling::lv:match"/>
+          </copy>
+        </otherwise>
+      </choose>
     </when>
 
     <!-- none, or more than one -->
