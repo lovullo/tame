@@ -965,6 +965,56 @@
 
 
 <!--
+  Whether a set of matches is matching against a list of values and can be
+  optimized as such
+-->
+<function name="compiler:is-value-list" as="xs:boolean">
+  <param name="symtable-map" as="map(*)" />
+  <param name="matches" as="element( lv:match )+" />
+
+  <sequence select="
+    count( $matches ) > 1
+      and count( distinct-values( $matches/@on ) ) = 1
+      and empty(
+            $matches[
+              not( c:eq )
+              or (
+                c:eq/c:value-of
+                and $symtable-map( c:eq/c:value-of/@name )/@dim != '0' ) ] )" />
+</function>
+
+
+<!--
+  Output an optimized match against a list of values.
+
+  This must only be used if compiler:is-value-list is `true()`.
+-->
+<function name="compiler:value-list" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+  <param name="matches" as="element( lv:match )+" />
+
+  <!-- if this is not @any, then it's nonsense -->
+  <if test="not( $classify/@any = 'true' )">
+    <message terminate="yes"
+             select="concat( 'error: ', $classify/@as, ' match ',
+                     $matches[1]/@on, 'will never succeed' )" />
+  </if>
+
+
+  <variable name="values" as="xs:string+"
+            select="$matches/c:eq/c:const/@value,
+                    for $name in $matches/c:eq/c:value-of/@name
+                      return if ( $symtable-map( $name )/@value ) then
+                                 $symtable-map( $name )/@value
+                               else
+                                 concat( 'A[''', $name, ''']' )" />
+
+  <sequence select="concat( 'new Set([', string-join( $values, ',' ), '])' )" />
+</function>
+
+
+<!--
   Output optmized matrix matching
 
   This should only be called in contexts where the compiler is absolutely
@@ -985,6 +1035,16 @@
   <choose>
     <when test="$nm = 1">
       <sequence select="compiler:match-on( $symtable-map, $matrices[1] )" />
+    </when>
+
+    <when test="$nm > 1 and compiler:is-value-list( $symtable-map, $matrices )">
+      <variable name="values" as="xs:string+"
+                select="compiler:value-list(
+                          $symtable-map, $classify, $matrices )" />
+
+      <sequence select="concat( 'II(',
+                          compiler:match-name-on( $symtable-map, $matrices[1] ),
+                          ',', $values, ')' )" />
     </when>
 
     <otherwise>
@@ -1018,27 +1078,14 @@
             select="if ( $classify/@any='true' ) then 'e' else 'u'" />
 
   <choose>
-    <!-- if all the matches are basic equality on the same @on, we can
-         optimize even further (unless it's a single match, in which case
-         the fallback is the optimal way to proceed) -->
-    <when test="$nv > 1
-                  and count( distinct-values( $vectors/@on ) ) = 1
-                  and empty( $vectors[ not( @value ) ] )">
-      <!-- if this is not @any, then it's nonsense -->
-      <if test="not( $classify/@any = 'true' )">
-        <message terminate="yes"
-                 select="concat( 'error: ', $classify/@as, ' match ',
-                                 $vectors[0]/@on, 'will never succeed' )" />
-      </if>
+    <when test="$nv > 1 and compiler:is-value-list( $symtable-map, $vectors )">
+      <variable name="values" as="xs:string+"
+                select="compiler:value-list(
+                          $symtable-map, $classify, $vectors )" />
 
-      <sequence select="concat(
+      <sequence select="concat( 'I(',
                           compiler:match-name-on( $symtable-map, $vectors[1] ),
-                          '.map(s => +[',
-                          string-join(
-                            for $v in $vectors
-                              return compiler:match-value( $symtable-map, $v ),
-                            ','),
-                          '].includes(s))' )" />
+                          ',', $values, ')' )" />
     </when>
 
     <otherwise>
@@ -1072,27 +1119,14 @@
             select="if ( $classify/@any = 'true' ) then '|' else '&amp;'" />
 
   <choose>
-    <!-- if all the matches are basic equality on the same @on, we can
-         optimize even further (unless it's a single match, in which case
-         the fallback is the optimal way to proceed) -->
-    <when test="$ns > 1
-                  and count( distinct-values( $scalars/@on ) ) = 1
-                  and empty( $scalars[ not( @value ) ] )">
-      <!-- if this is not @any, then it's nonsense -->
-      <if test="not( $classify/@any = 'true' )">
-        <message terminate="yes"
-                 select="concat( 'error: ', $classify/@as, ' match ',
-                                 $scalars[0]/@on, 'will never succeed' )" />
-      </if>
+    <when test="$ns > 1 and compiler:is-value-list( $symtable-map, $scalars )">
+      <variable name="values" as="xs:string+"
+                select="compiler:value-list(
+                          $symtable-map, $classify, $scalars )" />
 
-      <sequence select="concat( '+[',
-                          string-join(
-                            for $s in $scalars
-                                return compiler:match-value( $symtable-map, $s ),
-                            ',' ),
-                          '].includes(',
+      <sequence select="concat( 'i(',
                           compiler:match-name-on( $symtable-map, $scalars[1] ),
-                          ')' )" />
+                          ',', $values, ')' )" />
     </when>
 
     <!-- either a single match or matches on >1 distinct @on -->
@@ -1762,6 +1796,10 @@
     var n = ceq(0);
     function N(vs) { return vs.map(n); }
     function NN(ms) { return ms.map(N); }
+
+    function i(s, xs) { return +xs.has(s) };
+    function I(v, xs)  { return v.map(s => +xs.has(s)); }
+    function II(m, xs) { return m.map(v => v.map(s => +xs.has(s))); }
 
     function ceq(y)  { return function (x) { return +(x === y); }; }
     function cne(y)  { return function (x) { return +(x !== y); }; }
