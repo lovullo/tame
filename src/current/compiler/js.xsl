@@ -1402,7 +1402,7 @@
 
   <!-- store the premium -->
   <value-of select="$store" />
-  <text>=precision(</text>
+  <text>=p(</text>
     <value-of select="$precision" />
   <!-- return the result of the calculation for this rate block -->
   <text>,+(</text>
@@ -1654,7 +1654,8 @@
 <template name="compiler:static">
 <text>
 <![CDATA[
-    function precision(p, x)
+    // precision
+    function p(p, x)
     {
         if (x % 1 === 0) return x;
         return Math.round(x * p) / p;

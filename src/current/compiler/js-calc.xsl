@@ -267,7 +267,7 @@
     <text>var result=</text>
     <!-- if caller wants to yield a vector, don't cast -->
     <sequence select="if ( not( $dim gt 0 ) ) then
-                          concat( 'precision(', $precision, ', +(')
+                          concat( 'p(', $precision, ', +(')
                         else
                           '('" />
       <choose>
@@ -442,7 +442,7 @@
 
   <text>Math.</text>
   <value-of select="local-name()" />
-  <text>(precision(</text>
+  <text>(p(</text>
     <value-of select="$precision" />
   <text>, +(</text>
     <apply-templates select="./c:*" mode="compile" />
