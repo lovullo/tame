@@ -611,49 +611,6 @@
 </template>
 
 
-<template mode="preproc:expand"
-              match="lv:join[ @all='true' ]"
-              priority="8">
-  <call-template name="preproc:mk-class-join-contents" />
-</template>
-
-
-<template mode="preproc:expand"
-              match="lv:join"
-              priority="7">
-  <lv:any>
-    <call-template name="preproc:mk-class-join-contents" />
-  </lv:any>
-</template>
-
-
-<template name="preproc:mk-class-join-contents">
-  <variable name="prefix" select="@prefix" />
-
-  <!-- TODO: remove lv:template nodes in a pass before this so that this
-       check is not necessary -->
-  <for-each select="root(.)/lv:classify[
-                        starts-with( @as, $prefix )
-                        and not( ancestor::lv:template )
-                        ]">
-    <lv:match value="TRUE">
-      <attribute name="on">
-        <choose>
-          <when test="@yields">
-            <value-of select="@yields" />
-          </when>
-
-          <otherwise>
-            <text>__is</text>
-            <value-of select="@as" />
-          </otherwise>
-        </choose>
-      </attribute>
-    </lv:match>
-  </for-each>
-</template>
-
-
 <!-- enums have implicit values (as they are, well, enumerated; @value overrides) -->
 <!-- TODO: should @value set the next implicit index? -->
 <template match="lv:item[ not( @value ) ]" mode="preproc:expand" priority="5">
