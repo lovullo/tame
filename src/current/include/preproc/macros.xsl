@@ -27,6 +27,7 @@
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:t="http://www.lovullo.com/rater/apply-template"
             xmlns:c="http://www.lovullo.com/calc"
+            xmlns:eseq="http://www.lovullo.com/tame/preproc/expand/eseq"
             xmlns:ext="http://www.lovullo.com/ext">
 
 
@@ -245,7 +246,46 @@
 </template>
 
 
-<template match="lv:classify[ .//lv:any|.//lv:all ]" mode="preproc:macros" priority="6">
+<!--
+  Strip template barriers after expansion is complete.
+
+  These barriers really frustrate static analysis, and serve no use after
+  templates have been expanded, aside from indicating _what_ templates were
+  expanded.  The benefits there do not outweigh the optimization
+  opportunities.
+-->
+<template mode="preproc:macros" priority="8"
+          match="lv:classify[
+                   .//preproc:tpl-barrier
+                     and not( eseq:is-expandable(.) ) ]">
+  <copy>
+    <sequence select="@*" />
+
+    <apply-templates mode="preproc:strip-tpl-barrier" />
+    <preproc:repass src="lv:classify tpl barrier strip" />
+  </copy>
+</template>
+
+
+<!-- strip preproc:* nodes -->
+<template mode="preproc:strip-tpl-barrier" priority="5"
+          match="preproc:*">
+  <apply-templates mode="preproc:strip-tpl-barrier" />
+</template>
+
+<template mode="preproc:strip-tpl-barrier" priority="1"
+          match="element()">
+  <copy>
+    <sequence select="@*" />
+    <apply-templates mode="preproc:strip-tpl-barrier" />
+  </copy>
+</template>
+
+
+<template mode="preproc:macros" priority="6"
+          match="lv:classify[
+                   ( lv:any | lv:all )
+                     and not( eseq:is-expandable(.) ) ]">
   <variable name="result">
     <apply-templates select="." mode="preproc:class-groupgen" />
   </variable>
