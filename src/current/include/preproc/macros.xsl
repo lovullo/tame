@@ -314,6 +314,77 @@
 </template>
 
 
+<!--
+  A very specific optimization targeting a common scenario from template
+  expansions.
+
+  If there is an <any> expression of this form:
+
+    <any>
+      <all>
+        <match on="foo" />
+        <match on="bar" value="BAZ" />
+      </all>
+      <all>
+        <match on="foo" />
+        <match on="bar" value="QUUX" />
+      </all>
+    </any>
+
+ Then the common "foo" will be hoisted out and the expression will become:
+
+   <match on="foo" />
+   <any>
+     <match on="bar" value="BAZ" />
+     <match on="bar" value="QUUX" />
+   </any>
+
+ The goal of this optimization is primarily to significantly reduce the
+ number of wasteful intermediate classifications that are generated.
+-->
+<template mode="preproc:class-groupgen" priority="6"
+    match="lv:any[ count( lv:all[ count(lv:*) = 2 ] ) = count(lv:*) ]">
+
+  <!-- TODO: missing @value may not have been expanded yet...! -->
+  <variable name="ons" as="element( lv:match )*"
+            select="lv:all/lv:match[
+                      @value = 'TRUE'
+                      or (
+                        not( @value )
+                        and not( @anyOf )
+                        and not( c:* ) ) ]" />
+
+  <variable name="distinct-ons" as="xs:string*"
+            select="distinct-values( $ons/@on )" />
+
+  <variable name="nall" as="xs:integer"
+            select="count( lv:all )" />
+
+  <choose>
+    <when test="count( $distinct-ons ) = 1
+                  and count( $ons ) = $nall
+                  and count( $ons/parent::lv:all ) = $nall">
+      <!-- they're all the same, so hoist the first one out of the <any>,
+           which must be in a universal context -->
+      <sequence select="$ons[1]" />
+
+      <!-- then replace the <alls> with their remaining predicate (which is
+           either before or after) -->
+      <copy>
+        <apply-templates mode="preproc:class-groupgen"
+                         select="$ons/preceding-sibling::lv:match
+                                   | $ons/following-sibling::lv:match"/>
+      </copy>
+    </when>
+
+    <!-- none, or more than one -->
+    <otherwise>
+      <next-match />
+    </otherwise>
+  </choose>
+</template>
+
+
 <template match="lv:any|lv:all" mode="preproc:class-groupgen" priority="5">
   <!-- this needs to be unique enough that there is unlikely to be a conflict
        between generated ids in various packages; generate-id is not enough for
