@@ -304,10 +304,13 @@
 </template>
 
 
-<template mode="preproc:class-groupgen" priority="9"
-    match="lv:any[ not( element() ) ]
-           |lv:all[ not( element() ) ]">
-  <!-- useless; remove -->
+<!--
+  Not only should we not generate a group for single-predicate any/all, but
+  we should remove it entirely.
+-->
+<template mode="preproc:class-groupgen" priority="7"
+    match="(lv:any|lv:all)[ count( lv:* ) lt 2 ]">
+  <apply-templates mode="preproc:class-groupgen" />
 </template>
 
 
