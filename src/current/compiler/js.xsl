@@ -628,6 +628,12 @@
 </function>
 
 
+<template match="lv:classify" mode="compile" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <sequence select="compiler:compile-classify( $symtable-map, . )" />
+</template>
+
 <!--
   Generate code to perform a classification
 
@@ -637,21 +643,20 @@
 
   @return generated classification expression
 -->
-<template match="lv:classify" mode="compile" priority="5">
-  <param name="symtable-map" as="map(*)" tunnel="yes" />
-
-  <variable name="self" select="." />
+<function name="compiler:compile-classify" as="xs:string+">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
 
   <value-of select="$compiler:nl" />
 
   <variable name="dest" as="xs:string"
-            select="compiler:class-yields-var(.)" />
+            select="compiler:class-yields-var( $classify )" />
 
   <!-- locate classification predicates (since lv:any and lv:all are split
        into their own classifications, matching on any depth ensures we get
        into any preproc:* nodes as well) -->
   <variable name="criteria" as="element( lv:match )*"
-            select="lv:match" />
+            select="$classify/lv:match" />
 
   <variable name="criteria-syms"
             as="map( xs:string, element( preproc:sym ) )"
@@ -662,7 +667,7 @@
 
   <!-- generate boolean value from match expressions -->
   <variable name="op" as="xs:string"
-            select="compiler:match-group-op( $self )" />
+            select="compiler:match-group-op( $classify )" />
 
   <variable name="scalars" as="element( lv:match  )*"
             select="$criteria[ $criteria-syms( @on )/@dim = '0' ]" />
@@ -676,20 +681,20 @@
   <variable name="nm" select="count( $matrices )" />
 
   <variable name="var" as="xs:string"
-            select="compiler:class-var( . )" />
+            select="compiler:class-var( $classify )" />
 
   <variable name="m1" as="element( lv:match )?" select="$matrices[1]" />
   <variable name="v1" as="element( lv:match )?" select="$vectors[1]" />
 
   <variable name="yield-to">
     <call-template name="compiler:gen-match-yieldto">
-      <with-param name="yields" select="@yields" />
+      <with-param name="yields" select="$classify/@yields" />
     </call-template>
   </variable>
 
   <!-- existential, universal -->
   <variable name="ctype" as="xs:string"
-            select="if ( @any='true' ) then 'e' else 'u'" />
+            select="if ( $classify/@any='true' ) then 'e' else 'u'" />
 
   <!-- TODO: generalize -->
   <choose>
@@ -698,11 +703,11 @@
                   and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
       <variable name="jsmatrix" as="xs:string"
                 select="compiler:optimized-matrix-matches(
-                          $symtable-map, ., $matrices )" />
+                          $symtable-map, $classify, $matrices )" />
 
       <variable name="jsvec" as="xs:string"
                 select="compiler:optimized-vec-matches(
-                          $symtable-map, ., $vectors )" />
+                          $symtable-map, $classify, $vectors )" />
 
       <variable name="js" as="xs:string"
                 select="if ( $nv != 0 ) then
@@ -721,11 +726,11 @@
                   and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
       <variable name="js-matrix" as="xs:string"
                 select="compiler:optimized-matrix-matches(
-                          $symtable-map, ., $matrices )" />
+                          $symtable-map, $classify, $matrices )" />
 
       <variable name="js-scalar" as="xs:string"
                 select="compiler:optimized-scalar-matches(
-                          $symtable-map, ., $scalars )" />
+                          $symtable-map, $classify, $scalars )" />
 
       <variable name="js" as="xs:string"
                 select="concat( 'sm', $ctype, '(',
@@ -740,15 +745,15 @@
                   and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
       <variable name="js-matrix" as="xs:string"
                 select="compiler:optimized-matrix-matches(
-                          $symtable-map, ., $matrices )" />
+                          $symtable-map, $classify, $matrices )" />
 
       <variable name="js-vec" as="xs:string"
                 select="compiler:optimized-vec-matches(
-                          $symtable-map, ., $vectors )" />
+                          $symtable-map, $classify, $vectors )" />
 
       <variable name="js-scalar" as="xs:string"
                 select="compiler:optimized-scalar-matches(
-                          $symtable-map, ., $scalars )" />
+                          $symtable-map, $classify, $scalars )" />
 
       <variable name="js" as="xs:string"
                 select="concat( 'sm', $ctype, '(',
@@ -764,7 +769,7 @@
                   and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
       <variable name="jsvec" as="xs:string"
                 select="compiler:optimized-vec-matches(
-                          $symtable-map, ., $vectors )" />
+                          $symtable-map, $classify, $vectors )" />
 
       <!-- handle scalars, if any -->
       <variable name="js" as="xs:string"
@@ -773,7 +778,7 @@
                                     '(',
                                     $jsvec, ',',
                                     compiler:optimized-scalar-matches(
-                                      $symtable-map, ., $scalars ),
+                                      $symtable-map, $classify, $scalars ),
                                     ')' )
                           else
                             $jsvec" />
@@ -786,7 +791,7 @@
                   and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
       <sequence select="concat( $var, '=!!(', $yield-to, '=',
                           compiler:optimized-scalar-matches(
-                            $symtable-map, ., $scalars ),
+                            $symtable-map, $classify, $scalars ),
                           ');' )" />
     </when>
 
@@ -794,21 +799,21 @@
       <!-- TODO: can remove once we generalize the above -->
       <message terminate="yes"
                select="concat( 'internal error: cannot compile class: ',
-                               @as )" />
+                               $classify/@as )" />
     </otherwise>
   </choose>
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
-  <if test="@terminate = 'true'">
+  <if test="$classify/@terminate = 'true'">
     <text>if (_canterm &amp;&amp; </text>
     <value-of select="$var" />
     <text>) throw Error( '</text>
-      <value-of select="replace( @desc, '''', '\\''' )" />
+      <value-of select="replace( $classify/@desc, '''', '\\''' )" />
     <text>');</text>
     <value-of select="$compiler:nl" />
   </if>
-</template>
+</function>
 
 
 <!--
