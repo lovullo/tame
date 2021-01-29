@@ -716,9 +716,7 @@
 
   <!-- TODO: generalize -->
   <choose>
-    <when test="$nm > 0 and $ns = 0
-                  and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
-                  and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
+    <when test="$nm > 0 and $ns = 0">
       <variable name="jsmatrix" as="xs:string"
                 select="compiler:optimized-matrix-matches(
                           $symtable-map, $classify, $matrices )" />
@@ -736,9 +734,7 @@
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
 
-    <when test="$nm > 0 and $nv = 0 and $ns > 0
-                  and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
-                  and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
+    <when test="$nm > 0 and $nv = 0 and $ns > 0">
       <variable name="js-matrix" as="xs:string"
                 select="compiler:optimized-matrix-matches(
                           $symtable-map, $classify, $matrices )" />
@@ -756,10 +752,7 @@
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
 
-    <when test="$nm > 0 and $nv > 0 and $ns > 0
-                  and empty( $matrices[ not( @value or @anyOf or c:* ) ] )
-                  and empty( $vectors[ not( @value or @anyOf or c:* ) ] )
-                  and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
+    <when test="$nm > 0 and $nv > 0 and $ns > 0">
       <variable name="js-matrix" as="xs:string"
                 select="compiler:optimized-matrix-matches(
                           $symtable-map, $classify, $matrices )" />
@@ -784,8 +777,7 @@
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
 
-    <when test="$nm = 0 and $nv > 0
-                  and empty( $vectors[ not( @value or @anyOf or c:* ) ] )">
+    <when test="$nm = 0 and $nv > 0">
       <variable name="jsvec" as="xs:string"
                 select="compiler:optimized-vec-matches(
                           $symtable-map, $classify, $vectors )" />
@@ -802,8 +794,7 @@
                           $js, ');' )" />
     </when>
 
-    <when test="$nm = 0 and $nv = 0 and $ns > 0
-                  and empty( $scalars[ not( @value or @anyOf or c:* ) ] )">
+    <when test="$nm = 0 and $nv = 0 and $ns > 0">
       <sequence select="concat( $var, '=!!(', $yield-to, '=',
                           compiler:optimized-scalar-matches(
                             $symtable-map, $classify, $scalars ),
