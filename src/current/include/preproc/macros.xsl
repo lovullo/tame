@@ -422,6 +422,7 @@
   <lv:classify as="{$id}" yields="{$yields}"
                preproc:generated="true"
                preproc:generated-from="{$parent-name}"
+               preproc:inline="true"
                desc="(generated from predicate group of {$parent-name}">
     <if test="local-name() = 'any'">
       <attribute name="any" select="'true'" />
@@ -431,7 +432,9 @@
   </lv:classify>
 
   <!-- this will remain in its place -->
-  <lv:match on="{$yields}" value="TRUE" preproc:generated="true" />
+  <lv:match on="{$yields}" value="TRUE"
+            preproc:generated="true"
+            preproc:inline="true" />
 </template>
 
 

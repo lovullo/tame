@@ -539,7 +539,8 @@
 -->
 <template mode="compile" priority="7"
           match="lv:classify[ count( lv:match ) = 1
-                                and lv:match/@value='TRUE' ]">
+                                and lv:match/@value='TRUE'
+                                and not( lv:match/@preproc:inline ) ]">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
   <variable name="src" as="xs:string"
@@ -631,7 +632,13 @@
 <template match="lv:classify" mode="compile" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
-  <sequence select="compiler:compile-classify( $symtable-map, . )" />
+  <sequence select="compiler:compile-classify-assign( $symtable-map, . )" />
+</template>
+
+
+<template mode="compile" priority="8"
+          match="lv:classify[ @preproc:inline='true' ]">
+  <!-- emit nothing; it'll be inlined at the match site -->
 </template>
 
 
@@ -672,20 +679,43 @@
                                 $outer, ',', $inner, ')' )" />
 </function>
 
+
+<function name="compiler:compile-classify-assign" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+
+  <sequence select="string-join(
+                      ( $compiler:nl,
+                        compiler:compile-classify(
+                          $symtable-map, $classify ) ) )" />
+</function>
+
+
+<function name="compiler:compile-classify-inline" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+
+  <!-- keep only the JS expression, grouping to ensure that surrounding
+       expressions (scalars, specifically, that lack grouping) maintain
+       their precedence  -->
+  <sequence select="concat(
+                      '(',
+                      compiler:compile-classify(
+                        $symtable-map, $classify )[ 2 ],
+                      ')' )" />
+</function>
+
 <!--
   Generate code to perform a classification
 
-  Based on the criteria provided by the classification, generate and store the
-  result of a boolean expression performing the classification using global
-  arguments.
-
-  @return generated classification expression
+  This return a sequence of (assignment prefix, compiled js, assignment
+  suffix); the caller should keep the assignment prefix and suffix for
+  normal compilation, but should keep only the JS portion (which is a
+  standalone expression) for inlining.
 -->
 <function name="compiler:compile-classify" as="xs:string+">
   <param name="symtable-map" as="map(*)" />
   <param name="classify" as="element( lv:classify )" />
-
-  <value-of select="$compiler:nl" />
 
   <variable name="dest" as="xs:string"
             select="compiler:class-yields-var( $classify )" />
@@ -769,8 +799,12 @@
                           $js-vec,
                           $js-matrix ) )" />
 
+  <!-- sequence of (assignment prefix, js, assignment suffix); it's up to
+       the caller to determine which of these to keep -->
   <sequence select="concat( $var, '=', $reduce,
-                            '(', $yield-to, '=', $js, ');' )" />
+                            '(', $yield-to, '=' ),
+                    $js,
+                    ');'" />
 </function>
 
 
@@ -1122,14 +1156,32 @@
   <param name="symtable-map" as="map(*)" />
   <param name="match" as="element( lv:match )" />
 
-  <variable name="sym" as="element( preproc:sym )"
-            select="$symtable-map( $match/@on )" />
+  <choose>
+    <when test="$match/@preproc:inline='true'">
+      <variable name="classify" as="element( lv:classify )?"
+                select="( $match/parent::lv:classify
+                          /preceding-sibling::lv:classify[ @yields=$match/@on ] )[1]" />
 
+      <if test="empty( $classify )">
+        <message terminate="yes"
+                 select="concat( 'internal error: inline: ',
+                                 'cannot locate class `', $match/@on, '''' )" />
+      </if>
 
-  <variable name="var" as="xs:string"
-            select="if ( $sym/@type = 'const' ) then 'C' else 'A'" />
+      <sequence select="compiler:compile-classify-inline(
+                          $symtable-map, $classify )" />
+    </when>
 
-  <sequence select="concat( $var, '[''', $match/@on, ''']' )" />
+    <otherwise>
+      <variable name="sym" as="element( preproc:sym )"
+                select="$symtable-map( $match/@on )" />
+
+      <variable name="var" as="xs:string"
+                select="if ( $sym/@type = 'const' ) then 'C' else 'A'" />
+
+      <sequence select="concat( $var, '[''', $match/@on, ''']' )" />
+    </otherwise>
+  </choose>
 </function>
 
 
