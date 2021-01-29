@@ -634,6 +634,24 @@
   <sequence select="compiler:compile-classify( $symtable-map, . )" />
 </template>
 
+
+<!--
+  Wrap $outer in a function named $fname if there is an $inner.
+
+  The purpose of this is to raise a value into another type, but only if
+  that inner value is present.
+-->
+<function name="compiler:wrap-nonempty" as="xs:string">
+  <param name="fname" as="xs:string" />
+  <param name="outer" as="xs:string" />
+  <param name="inner" as="xs:string" />
+
+  <sequence select="if ( $inner = '' ) then
+                        $outer
+                      else
+                        concat( $fname, '(', $outer, ',', $inner, ')' )" />
+</function>
+
 <!--
   Generate code to perform a classification
 
@@ -710,13 +728,10 @@
                           $symtable-map, $classify, $vectors )" />
 
       <variable name="js" as="xs:string"
-                select="if ( $nv != 0 ) then
-                            concat( 'vm', $ctype, '(',
-                                    $jsmatrix,
-                                    ',', $jsvec,
-                                    ')' )
-                          else
-                            $jsmatrix" />
+                select="compiler:wrap-nonempty(
+                          concat( 'vm', $ctype ),
+                          $jsmatrix,
+                          $jsvec )" />
 
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
@@ -733,8 +748,10 @@
                           $symtable-map, $classify, $scalars )" />
 
       <variable name="js" as="xs:string"
-                select="concat( 'sm', $ctype, '(',
-                                $js-matrix, ',', $js-scalar, ')' )" />
+                select="compiler:wrap-nonempty(
+                          concat( 'sm', $ctype ),
+                          $js-matrix,
+                          $js-scalar )" />
 
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
@@ -756,11 +773,13 @@
                           $symtable-map, $classify, $scalars )" />
 
       <variable name="js" as="xs:string"
-                select="concat( 'sm', $ctype, '(',
-                                  'vm', $ctype, '(',
-                                    $js-matrix, ',', $js-vec, '),',
-                                  $js-scalar,
-                                ')' )" />
+                select="compiler:wrap-nonempty(
+                          concat( 'sm', $ctype ),
+                            compiler:wrap-nonempty(
+                              concat( 'vm', $ctype ),
+                              $js-matrix,
+                              $js-vec ),
+                            $js-scalar )" />
 
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
@@ -773,15 +792,11 @@
 
       <!-- handle scalars, if any -->
       <variable name="js" as="xs:string"
-                select="if ( $ns != 0 ) then
-                            concat( 'sv', $ctype,
-                                    '(',
-                                    $jsvec, ',',
-                                    compiler:optimized-scalar-matches(
-                                      $symtable-map, $classify, $scalars ),
-                                    ')' )
-                          else
-                            $jsvec" />
+                select="compiler:wrap-nonempty(
+                          concat( 'sv', $ctype ),
+                          $jsvec,
+                          compiler:optimized-scalar-matches(
+                            $symtable-map, $classify, $scalars ) )" />
 
       <sequence select="concat( $var, '=E(', $yield-to, '=',
                           $js, ');' )" />
@@ -1028,7 +1043,7 @@
 <function name="compiler:optimized-matrix-matches" as="xs:string">
   <param name="symtable-map" as="map(*)" />
   <param name="classify" as="element( lv:classify )" />
-  <param name="matrices" as="element( lv:match )+" />
+  <param name="matrices" as="element( lv:match )*" />
 
   <variable name="nm" as="xs:integer"
             select="count( $matrices )" />
@@ -1038,6 +1053,10 @@
             select="if ( $classify/@any='true' ) then 'e' else 'u'" />
 
   <choose>
+    <when test="$nm = 0">
+      <sequence select="''" />
+    </when>
+
     <when test="$nm = 1">
       <sequence select="compiler:match-on( $symtable-map, $matrices[1] )" />
     </when>
@@ -1073,7 +1092,7 @@
 <function name="compiler:optimized-vec-matches" as="xs:string">
   <param name="symtable-map" as="map(*)" />
   <param name="classify" as="element( lv:classify )" />
-  <param name="vectors" as="element( lv:match )+" />
+  <param name="vectors" as="element( lv:match )*" />
 
   <variable name="nv" as="xs:integer"
             select="count( $vectors )" />
@@ -1083,6 +1102,10 @@
             select="if ( $classify/@any='true' ) then 'e' else 'u'" />
 
   <choose>
+    <when test="$nv = 0">
+      <sequence select="''" />
+    </when>
+
     <when test="$nv > 1 and compiler:is-value-list( $symtable-map, $vectors )">
       <variable name="values" as="xs:string+"
                 select="compiler:value-list(
@@ -1114,7 +1137,7 @@
 <function name="compiler:optimized-scalar-matches" as="xs:string">
   <param name="symtable-map" as="map(*)" />
   <param name="classify" as="element( lv:classify )" />
-  <param name="scalars" as="element( lv:match )+" />
+  <param name="scalars" as="element( lv:match )*" />
 
   <variable name="ns" as="xs:integer"
             select="count( $scalars )" />
@@ -1124,6 +1147,10 @@
             select="if ( $classify/@any = 'true' ) then '|' else '&amp;'" />
 
   <choose>
+    <when test="$ns = 0">
+      <sequence select="''" />
+    </when>
+
     <when test="$ns > 1 and compiler:is-value-list( $symtable-map, $scalars )">
       <variable name="values" as="xs:string+"
                 select="compiler:value-list(
