@@ -635,6 +635,21 @@
 </template>
 
 
+<template mode="compile" priority="7"
+          match="lv:classify[ @terminate='true' ]">
+  <next-match />
+
+  <variable name="var" as="xs:string"
+            select="compiler:class-var( . )" />
+
+  <text>if (_canterm &amp;&amp; </text>
+  <value-of select="$var" />
+  <text>) throw Error( '</text>
+    <value-of select="replace( @desc, '''', '\\''' )" />
+  <text>');</text>
+</template>
+
+
 <!--
   Raise $inner of type $from to $outer of type $to with universal or
   existential ($ue) quantification
@@ -756,17 +771,6 @@
 
   <sequence select="concat( $var, '=', $reduce,
                             '(', $yield-to, '=', $js, ');' )" />
-
-  <!-- support termination on certain classifications (useful for eligibility
-       and error conditions) -->
-  <if test="$classify/@terminate = 'true'">
-    <text>if (_canterm &amp;&amp; </text>
-    <value-of select="$var" />
-    <text>) throw Error( '</text>
-      <value-of select="replace( $classify/@desc, '''', '\\''' )" />
-    <text>');</text>
-    <value-of select="$compiler:nl" />
-  </if>
 </function>
 
 
