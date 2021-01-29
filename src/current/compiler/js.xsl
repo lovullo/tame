@@ -636,20 +636,23 @@
 
 
 <!--
-  Wrap $outer in a function named $fname if there is an $inner.
+  Raise $inner of type $from to $outer of type $to with universal or
+  existential ($ue) quantification
 
-  The purpose of this is to raise a value into another type, but only if
-  that inner value is present.
+  If the inner value is empty, simply return the outer without any action.
 -->
-<function name="compiler:wrap-nonempty" as="xs:string">
-  <param name="fname" as="xs:string" />
-  <param name="outer" as="xs:string" />
+<function name="compiler:lift-match" as="xs:string">
+  <param name="from" as="xs:string" />
+  <param name="to" as="xs:string" />
+  <param name="ue" as="xs:string" />
   <param name="inner" as="xs:string" />
+  <param name="outer" as="xs:string" />
 
   <sequence select="if ( $inner = '' ) then
                         $outer
                       else
-                        concat( $fname, '(', $outer, ',', $inner, ')' )" />
+                        concat( $from, $to, $ue, '(',
+                                $outer, ',', $inner, ')' )" />
 </function>
 
 <!--
@@ -730,13 +733,13 @@
                           $symtable-map, $classify, $scalars )" />
 
       <variable name="js" as="xs:string"
-                select="compiler:wrap-nonempty(
-                          concat( 'sm', $ctype ),
-                            compiler:wrap-nonempty(
-                              concat( 'vm', $ctype ),
-                              $js-matrix,
-                              $js-vec ),
-                            $js-scalar )" />
+                select="compiler:lift-match(
+                          's', 'm', $ctype,
+                            $js-scalar,
+                            compiler:lift-match(
+                              'v', 'm', $ctype,
+                              $js-vec,
+                              $js-matrix ) )" />
 
       <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
     </when>
@@ -748,11 +751,11 @@
 
       <!-- handle scalars, if any -->
       <variable name="js" as="xs:string"
-                select="compiler:wrap-nonempty(
-                          concat( 'sv', $ctype ),
-                          $jsvec,
+                select="compiler:lift-match(
+                          's', 'v', $ctype,
                           compiler:optimized-scalar-matches(
-                            $symtable-map, $classify, $scalars ) )" />
+                            $symtable-map, $classify, $scalars ),
+                          $jsvec )" />
 
       <sequence select="concat( $var, '=E(', $yield-to, '=',
                           $js, ');' )" />
