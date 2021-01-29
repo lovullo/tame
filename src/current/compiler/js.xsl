@@ -650,6 +650,8 @@
 
   <sequence select="if ( $inner = '' ) then
                         $outer
+                      else if ( $outer = '' ) then
+                        $inner
                       else
                         concat( $from, $to, $ue, '(',
                                 $outer, ',', $inner, ')' )" />
@@ -717,64 +719,43 @@
   <variable name="ctype" as="xs:string"
             select="if ( $classify/@any='true' ) then 'e' else 'u'" />
 
-  <!-- TODO: generalize -->
-  <choose>
-    <when test="$nm > 0">
-      <variable name="js-matrix" as="xs:string"
-                select="compiler:optimized-matrix-matches(
-                          $symtable-map, $classify, $matrices )" />
+  <variable name="js-matrix" as="xs:string"
+            select="compiler:optimized-matrix-matches(
+                      $symtable-map, $classify, $matrices )" />
+  <variable name="js-vec" as="xs:string"
+            select="compiler:optimized-vec-matches(
+                      $symtable-map, $classify, $vectors )" />
+  <variable name="js-scalar" as="xs:string"
+            select="compiler:optimized-scalar-matches(
+                      $symtable-map, $classify, $scalars )" />
 
-      <variable name="js-vec" as="xs:string"
-                select="compiler:optimized-vec-matches(
-                          $symtable-map, $classify, $vectors )" />
+  <variable name="reduce" as="xs:string"
+            select="if ( $nm > 0 ) then
+                        'Em'
+                      else if ( $nv > 0 ) then
+                        'E'
+                      else
+                        '!!'" />
 
-      <variable name="js-scalar" as="xs:string"
-                select="compiler:optimized-scalar-matches(
-                          $symtable-map, $classify, $scalars )" />
+  <variable name="outer-type" as="xs:string"
+            select="if ( $nm > 0 ) then
+                        'm'
+                      else if ( $nv > 0 ) then
+                        'v'
+                      else
+                        's'" />
 
-      <variable name="js" as="xs:string"
-                select="compiler:lift-match(
-                          's', 'm', $ctype,
-                            $js-scalar,
-                            compiler:lift-match(
-                              'v', 'm', $ctype,
-                              $js-vec,
-                              $js-matrix ) )" />
+  <variable name="js" as="xs:string"
+            select="compiler:lift-match(
+                      's', $outer-type, $ctype,
+                        $js-scalar,
+                        compiler:lift-match(
+                          'v', $outer-type, $ctype,
+                          $js-vec,
+                          $js-matrix ) )" />
 
-      <sequence select="concat( $var, '=Em(', $yield-to, '=', $js, ');' )" />
-    </when>
-
-    <when test="$nm = 0 and $nv > 0">
-      <variable name="jsvec" as="xs:string"
-                select="compiler:optimized-vec-matches(
-                          $symtable-map, $classify, $vectors )" />
-
-      <!-- handle scalars, if any -->
-      <variable name="js" as="xs:string"
-                select="compiler:lift-match(
-                          's', 'v', $ctype,
-                          compiler:optimized-scalar-matches(
-                            $symtable-map, $classify, $scalars ),
-                          $jsvec )" />
-
-      <sequence select="concat( $var, '=E(', $yield-to, '=',
-                          $js, ');' )" />
-    </when>
-
-    <when test="$nm = 0 and $nv = 0 and $ns > 0">
-      <sequence select="concat( $var, '=!!(', $yield-to, '=',
-                          compiler:optimized-scalar-matches(
-                            $symtable-map, $classify, $scalars ),
-                          ');' )" />
-    </when>
-
-    <otherwise>
-      <!-- TODO: can remove once we generalize the above -->
-      <message terminate="yes"
-               select="concat( 'internal error: cannot compile class: ',
-                               $classify/@as )" />
-    </otherwise>
-  </choose>
+  <sequence select="concat( $var, '=', $reduce,
+                            '(', $yield-to, '=', $js, ');' )" />
 
   <!-- support termination on certain classifications (useful for eligibility
        and error conditions) -->
