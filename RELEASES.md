@@ -24,6 +24,9 @@ Compiler
 - `rater.xsd`, used for certain validations of TAME's grammar, has been
   updated to an out-of-tree version; it had inadvertently gotten out of
   date, and the discrepency won't happen again in the future.
+  - Further, limits on the length of `@yields` identifiers have been
+    removed; the lack of namespacing and generation of identifiers from
+    templates can yield longer identifier names.
 
 Build System
 ------------
