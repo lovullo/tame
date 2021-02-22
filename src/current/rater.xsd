@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- TODO: Remove @keep -->
+
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
   targetNamespace="http://www.lovullo.com/rater"
   xmlns="http://www.lovullo.com/rater"
@@ -15,6 +15,11 @@
 <xs:import
   namespace="http://www.lovullo.com/rater/map"
   schemaLocation="map.xsd" />
+
+<!-- C1 map -->
+<xs:import
+  namespace="http://www.lovullo.com/rater/map/c1"
+  schemaLocation="c1map.xsd" />
 
 <!-- worksheets -->
 <xs:import
@@ -83,7 +88,7 @@
     </xs:annotation>
 
     <xs:restriction base="xs:NCName">
-      <xs:pattern value="[a-z_]+" />
+      <xs:pattern value="[a-z_-]+" />
       <xs:minLength value="1" />
       <xs:maxLength value="15" />
     </xs:restriction>
@@ -288,6 +293,13 @@
         </xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:attribute name="values" type="xs:token">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Short-hand GNU Octave / MATLAB Style matrix specification.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="type" type="typeNameType">
       <xs:annotation>
         <xs:documentation xml:lang="en">
@@ -333,7 +345,7 @@
     </xs:annotation>
 
     <xs:restriction base="xs:string">
-      <xs:pattern value="[a-z./][a-z0-9./-]+" />
+      <xs:pattern value="[a-z./][a-zA-Z0-9./-]+" />
       <xs:minLength value="2" />
       <xs:maxLength value="100" />
     </xs:restriction>
@@ -423,6 +435,17 @@
       <xs:annotation>
         <xs:documentation xml:lang="en">
           Strip @keep flag from all imported symbols.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+
+    <xs:attribute name="no-extclass" type="xs:boolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          Do not import symbols flagged as external to the classifier.
+
+          This is of limited use outside of specialized settings, such as the
+          UI classifier.
         </xs:documentation>
       </xs:annotation>
     </xs:attribute>
@@ -729,7 +752,7 @@
   </xs:complexType>
 
 
-  <xs:complexType name="inlineTemplateType">
+  <xs:complexType name="inlineTemplateType" mixed="true">
     <xs:annotation>
       <xs:documentation xml:lang="en">
         This node will be replaced with the processed template.
@@ -740,7 +763,12 @@
       <xs:element name="for-each" minOccurs="0" maxOccurs="1">
         <xs:complexType>
           <xs:sequence>
-            <xs:element name="set" minOccurs="1" maxOccurs="unbounded">
+            <xs:element name="sym-set" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:anyAttribute namespace="##any" processContents="lax" />
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="set" minOccurs="0" maxOccurs="unbounded">
               <xs:complexType>
                 <xs:anyAttribute namespace="##any" processContents="lax" />
               </xs:complexType>
@@ -952,6 +980,14 @@
             </xs:documentation>
           </xs:annotation>
         </xs:attribute>
+
+        <xs:attribute name="dim" type="xs:string">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              Number of dimensions as integer or alias.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -1100,6 +1136,14 @@
             </xs:annotation>
           </xs:attribute>
 
+          <xs:attribute name="rmunderscore" type="xs:boolean">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Converts '_' to ''
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+
           <xs:attribute name="dash" type="xs:boolean">
             <xs:annotation>
               <xs:documentation xml:lang="en">
@@ -1108,7 +1152,7 @@
             </xs:annotation>
           </xs:attribute>
 
-          <xs:attribute name="identifier" type="xs:boolean">
+          <xs:attribute name="identifier" type="xs:string">
             <xs:annotation>
               <xs:documentation xml:lang="en">
                 Strip all characters that do not constitute a valid
@@ -1160,7 +1204,7 @@
 
         <xs:complexType>
           <xs:attribute name="name" type="xs:string" use="required" />
-          <xs:attribute name="value" type="xs:string" use="required" />
+          <xs:anyAttribute namespace="##any" processContents="lax" />
         </xs:complexType>
       </xs:element>
 
@@ -1211,14 +1255,12 @@
 
   <!-- TODO: if -->
   <xs:element name="unless">
-    <xs:complexType>
+    <xs:complexType mixed="true">
       <xs:sequence>
         <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
       </xs:sequence>
 
-      <xs:attribute name="name" type="xs:string" use="required" />
-      <!-- TODO support others -->
-      <xs:attribute name="eq" type="xs:string" />
+      <xs:anyAttribute namespace="##any" processContents="lax" />
     </xs:complexType>
   </xs:element>
 
@@ -1821,6 +1863,10 @@
         </xs:documentation>
       </xs:annotation>
     </xs:element>
+
+    <!-- with how dynamic the system is, maintaining this XSD is becoming
+         cumbersome; we need to generate one -->
+    <xs:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
   </xs:choice>
 
   <xs:attribute name="name" type="packageNameType">
@@ -1907,6 +1953,15 @@
             <xs:documentation xml:lang="en">
               Setting this to "true" will enable pretty sweet debugging features that
               will make your life more tolerable (and perhaps even pleasant).
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+
+        <xs:attribute name="no-extclass-keeps" type="xs:boolean">
+          <xs:annotation>
+            <xs:documentation xml:lang="en">
+              When importing @keep symbols from packages, ignore those flagged
+              as @extclass
             </xs:documentation>
           </xs:annotation>
         </xs:attribute>

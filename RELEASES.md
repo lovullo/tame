@@ -19,6 +19,12 @@ This release contains changes to the build system to accommodate
 liza-proguic's introduction of step-based packages (in place of a monolithic
 `package-dfns.xml`), as well as miscellaneous improvements.
 
+Compiler
+--------
+- `rater.xsd`, used for certain validations of TAME's grammar, has been
+  updated to an out-of-tree version; it had inadvertently gotten out of
+  date, and the discrepency won't happen again in the future.
+
 Build System
 ------------
 - Only modify `.version.xml` timestamp when hash changes.  This allows
