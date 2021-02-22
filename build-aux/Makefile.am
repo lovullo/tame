@@ -190,9 +190,14 @@ c1map: $(dest_c1map)
 %.xml: %.csvo rater/core/vector/table.xmlo
 	rater/tools/csv2xml $< > $@
 
+# This target is always run, but only update the file (and thus its
+# timestamp) if the hash actually changes, so that we do not rebuild any
+# dependencies unnecessarily.
 version: .version.xml
 .version.xml: FORCE
-	git log HEAD^.. -1 --pretty=format:'<version>%h</version>' > .version.xml
+	git log HEAD^.. -1 --pretty=format:'<version>%h</version>' > $@.new
+	cmp $@ $@.new || mv $@.new $@
+	$(RM) $@.new
 
 ui/program.expanded.xml: ui/program.xml $(program_fragments)
 	$(TAME_TS)
