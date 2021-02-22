@@ -65,11 +65,22 @@ dest_c1map := $(patsubst \
 	$(path_c1map)/%.php, \
 	$(src_c1map))
 
+# Program fragments combined to form one large program.expanded.xml
+# TODO: Move into liza-proguic
 program_fragments=$(shell \
   find $(path_ui)/program/ -name '*.xml' 2>/dev/null \
     | LC_ALL=C sort \
     | tr '\n' ' ' \
 )
+
+# Packages associated with each program step.
+# TODO: Move into liza-proguic
+package_dfns_pkgs = $(shell \
+  find $(path_ui)/package/ -name 'progui-pkg-*.xml' 2>/dev/null 2>/dev/null \
+    | LC_ALL=C sort \
+    | tr '\n' ' ' \
+)
+package_dfns_xmlos = $(patsubst %.xml, %.xmlo, $(package_dfns_pkgs))
 
 compiled_suppliers := $(src_suppliers:.xml=.xmlo)
 linked_suppliers   := $(src_suppliers:.xml=.xmle)
@@ -201,7 +212,7 @@ version: .version.xml
 	cmp $@ $@.new || mv $@.new $@
 	$(RM) $@.new
 
-ui/program.expanded.xml: ui/program.xml $(program_fragments)
+ui/program.expanded.xml: ui/program.xml $(program_fragments) .version.xml
 	$(TAME_TS)
 	$(TAME) progui-expand $< $@
 ui/Program.js: ui/program.expanded.xml ui/package.js
@@ -210,11 +221,12 @@ ui/Program.js: ui/program.expanded.xml ui/package.js
 ui/html/index.phtml: ui/program.expanded.xml
 	$(TAME_TS)
 	$(TAME) progui-html $< $@ out-path=./
-ui/package-dfns.xmlo: ui/package-dfns.xml
+ui/package-dfns.xmlo: ui/package-dfns.xml $(package_dfns_xmlos)
 ui/package-dfns.xml: ui/program.expanded.xml
 	$(TAME_TS)
 	$(TAME) progui-pkg $< $@
-ui/package-map.xmlo: ui/package-map.xml ui/package-dfns.xmlo
+$(package_dfns_pkgs): ui/package-dfns.xml
+ui/package-map.xmlo: ui/package-map.xml ui/package-dfns.xmlo $(package_dfns_xmlos)
 ui/package-map.xml: ui/program.expanded.xml ui/package-dfns.xml
 	$(TAME_TS)
 	$(TAME) progui-pkg-map $< $@
@@ -249,9 +261,11 @@ clean:
 # generates a Makefile that will properly build all package dependencies; note
 # that territory and rate packages also have includes; see top of this file for
 # an explanation
-suppliers.mk:
+suppliers.mk: $(path_ui)/package-dfns.xml
 	$(ant) pkg-dep
-	test ! -f $(path_ui)/program.dep || mv $(path_ui)/program.dep $(path_ui)/package-dfns.dep
+	find $(path_ui)/program/ -name '*.dep' | xargs cat $(path_ui)/program.dep | sort -u \
+	  > $(path_ui)/package-dfns.dep
+	$(RM) $(path_ui)/program.dep
 	$(path_dsl)/tame/build-aux/gen-make $(SRCPATHS) > $@
 	test ! -d $(path_c1map) || $(path_dsl)/tame/build-aux/gen-c1make $(path_c1map)/*.xml >> $@
 

@@ -28,6 +28,8 @@ Build System
     until now, was removed in favor of generic rules in `Makefile.am`.
 - Step-level imports in program definitions are now recognized to
   accommodate liza-proguic's step-level package generation.
+- Step-level program packages are now properly accounted for as dependencies
+  for builds.
 
 
 v17.7.0 (2020-12-09)
