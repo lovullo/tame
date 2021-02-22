@@ -88,11 +88,3 @@ AC_CONFIG_FILES(Makefile:m4_defn(`calc_root')/build-aux/Makefile.in)
 
 # Generate configure script
 AC_OUTPUT
-
-# we want this to run as part of the configure script, not during M4
-# expansion
-"$CALCROOT/build-aux/suppmk-gen" $SRCPATHS || exit
-
-AC_MSG_NOTICE([complete
-
-You may now run `make` to build.])

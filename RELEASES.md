@@ -23,6 +23,9 @@ Build System
 ------------
 - Only modify `.version.xml` timestamp when hash changes.  This allows
   its use as a dependency without forcefully rebuilding each and every time.
+- `configure` will no longer immediately generate `suppliers.mk`.
+  - Additionally, `build-aux/suppmk-gen`, which `configure` directly invoked
+    until now, was removed in favor of generic rules in `Makefile.am`.
 
 
 v17.7.0 (2020-12-09)

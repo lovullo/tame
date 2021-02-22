@@ -170,7 +170,9 @@ c1map: $(dest_c1map)
 %.svg: %.dot
 	dot -Tsvg "$<" > "$@"
 
-%.xml: %.dat
+# These are deprecated and will be removed in a future version of TAME (in
+# favor of CSVM tables).
+%.xml: %.dat rater/core/tdat.xmlo
 	rater/tools/tdat2xml $< > $@
 
 %.xml: %.typelist
