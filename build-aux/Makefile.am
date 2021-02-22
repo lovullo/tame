@@ -82,6 +82,13 @@ package_dfns_pkgs = $(shell \
 )
 package_dfns_xmlos = $(patsubst %.xml, %.xmlo, $(package_dfns_pkgs))
 
+# Dependencies for suppliers.mk.
+src_suppliersmk = $(src_common) \
+                  $(shell find $(path_suppliers) ui/package ui/map rater/core -name '*.xml') \
+                  $(program_fragments) \
+                  ui/program.xml \
+                  ui/package-dfns.xml
+
 compiled_suppliers := $(src_suppliers:.xml=.xmlo)
 linked_suppliers   := $(src_suppliers:.xml=.xmle)
 
@@ -258,11 +265,12 @@ clean:
 		| sed 's/\.csvm$$/\.xml/; s/\.dat$$/\.xml/' \
 		| xargs rm -fv
 
-# generates a Makefile that will properly build all package dependencies; note
-# that territory and rate packages also have includes; see top of this file for
-# an explanation
-suppliers.mk: $(path_ui)/package-dfns.xml
-	$(ant) -q pkg-dep
+# Generates a Makefile that will properly build all package
+# dependencies.  The redirect of ant to /dev/null is because it's still too
+# noisy even with -q---the "BUILD SUCCESSFUL" line is confusing, considering
+# it's merely a small part of a broader build.
+suppliers.mk: $(src_suppliersmk)
+	$(ant) -q pkg-dep >/dev/null
 	find $(path_ui)/program/ -name '*.dep' | xargs cat $(path_ui)/program.dep | sort -u \
 	  > $(path_ui)/package-dfns.dep
 	$(RM) $(path_ui)/program.dep
