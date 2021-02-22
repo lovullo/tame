@@ -262,7 +262,7 @@ clean:
 # that territory and rate packages also have includes; see top of this file for
 # an explanation
 suppliers.mk: $(path_ui)/package-dfns.xml
-	$(ant) pkg-dep
+	$(ant) -q pkg-dep
 	find $(path_ui)/program/ -name '*.dep' | xargs cat $(path_ui)/program.dep | sort -u \
 	  > $(path_ui)/package-dfns.dep
 	$(RM) $(path_ui)/program.dep

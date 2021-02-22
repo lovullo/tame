@@ -39,6 +39,8 @@ Build System
   accommodate liza-proguic's step-level package generation.
 - Step-level program packages are now properly accounted for as dependencies
   for builds.
+- `supplier.mk` generation will no longer be verbose (it'll instead be only
+  one line), which makes it more amenable to more frequent regeneration.
 
 
 v17.7.0 (2020-12-09)

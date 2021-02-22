@@ -60,7 +60,6 @@ resolv-path()
 
 until [ $# -eq 0 ]; do (
   path="${1%%/}"
-  echo "[gen-make] scanning $path" >&2
 
   cd "$path" || exit $?
 
@@ -71,8 +70,6 @@ until [ $# -eq 0 ]; do (
     # windoze is slow as shit (originally we did find -exec bashename)
     d="${dpath##*/}"
     sansext="${d%.*}"
-
-    echo "[gen-make] found $path/$d" >&2
 
     # this might be derived from another file
     # TODO: handle all cases, not just typelists!
