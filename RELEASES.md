@@ -26,6 +26,8 @@ Build System
 - `configure` will no longer immediately generate `suppliers.mk`.
   - Additionally, `build-aux/suppmk-gen`, which `configure` directly invoked
     until now, was removed in favor of generic rules in `Makefile.am`.
+- Step-level imports in program definitions are now recognized to
+  accommodate liza-proguic's step-level package generation.
 
 
 v17.7.0 (2020-12-09)

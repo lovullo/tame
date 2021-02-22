@@ -42,9 +42,9 @@
   </xsl:for-each>
 </xsl:template>
 
-<xsl:template match="lvp:program">
+<xsl:template match="lvp:program|lvp:program-fragment">
   <!-- output deps, one per line -->
-  <xsl:for-each select="lvp:import[ @package ]">
+  <xsl:for-each select="( . | lvp:step )/lvp:import[ @package ]">
     <xsl:value-of select="concat( @package, $nl )" />
   </xsl:for-each>
 </xsl:template>
