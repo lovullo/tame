@@ -13,8 +13,8 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
-NEXT
-====
+v17.8.0 (2021-02-23)
+====================
 This release contains changes to the build system to accommodate
 liza-proguic's introduction of step-based packages (in place of a monolithic
 `package-dfns.xml`), as well as miscellaneous improvements.
