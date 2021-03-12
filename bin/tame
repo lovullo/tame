@@ -378,23 +378,23 @@ kill-tamed()
 # output rather than wasting cycles doing this filtering.
 saneout()
 {
-  awk ' \
-    /^~~~~\[begin /,/^~~~~\[end / { next } \
-    /^rm / { next } \
-    /^COMMAND / { next } \
-    /^Exception|^\t+at / { \
-      if ( /^E/ ) { \
-        print; \
-        print "Stack trace written to run-*.log"; \
-      } \
-      next; \
-     } \
-    /([Ww]arning|[Nn]otice)[: ]/ { printf "\033[0;33m"; w++; out=1; } \
-    /[Ff]atal:/ { printf "\033[0;31m"; out=1; } \
-    /!|[Ee]rror:/ { printf "\033[0;31m"; e++; out=1; } \
-    /internal:/ { printf "\033[0;35m"; out=1; } \
-    /internal error:/ { printf "\033[1m"; out=1; } \
-    /^[^[]/ || out { print; printf "\033[0;0m"; out=0; } \
+  awk '
+    /^~~~~\[begin /,/^~~~~\[end / { next }
+    /^rm / { next }
+    /^COMMAND / { next }
+    /^Exception|^\t+at / {
+      if ( /^E/ ) {
+        print;
+        print "Stack trace written to run-*.log";
+      }
+      next;
+     }
+    /([Ww]arning|[Nn]otice)[: ]/ { printf "\033[0;33m"; w++; out=1; }
+    /[Ff]atal:/ { printf "\033[0;31m"; out=1; }
+    /!|[Ee]rror:/ { printf "\033[0;31m"; e++; out=1; }
+    /internal:/ { printf "\033[0;35m"; out=1; }
+    /internal error:/ { printf "\033[1m"; out=1; }
+    /^[^[]/ || out { print; printf "\033[0;0m"; out=0; }
   '
 }
 
