@@ -75,7 +75,7 @@ command-runner()
   local -r base="$root/$id"
   local -ri pid=$( cat "$base/pid" )
 
-  verify-runner "$base" "$pid"
+  verify-runner "$base" "$id" "$pid"
 
   # forward signals to runner so that build is actually halted
   # (rather than continuing in background after we die)
@@ -239,7 +239,8 @@ mark-available()
 verify-runner()
 {
   local -r base="${1?Missing base}"
-  local -ri pid="${2?Missing pid}"
+  local -ri id="${2?Missing id}"
+  local -ri pid="${3?Missing pid}"
 
   ps "$pid" &>/dev/null || {
     echo "error: runner $id ($pid) is offline!" >&2
