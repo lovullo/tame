@@ -19,7 +19,8 @@
 
 set -euo pipefail
 
-declare -r mypath=$( dirname "$( readlink -f "$0" )" )
+declare mypath; mypath=$( dirname "$( readlink -f "$0" )" )
+readonly mypath
 
 declare -ri EX_RUNNING=1
 declare -ri EX_USAGE=64      # incorrect usage; sysexits.h
@@ -145,9 +146,10 @@ stall-monitor()
 
   # monitor output FIFO modification time
   while true; do
-    local -i since=$( date +%s )
+    local -i since last
+    since=$( date +%s )
     sleep "$TAMED_STALL_SECONDS"
-    local -i last=$( stat -c%Y "$base/1" )
+    last=$( stat -c%Y "$base/1" )
 
     # keep waiting if there has been activity since $since
     test "$last" -le "$since" || continue

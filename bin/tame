@@ -19,7 +19,8 @@
 
 set -euo pipefail
 
-declare -r mypath=$( dirname "$( readlink -f "$0" )" )
+declare mypath; mypath=$( dirname "$( readlink -f "$0" )" )
+readonly mypath
 
 declare -ri EX_NOTAMED=1  # tried to start tamed or runner but failed
 declare -ri EX_STALLED=2  # runner stalled and could not recover
@@ -142,7 +143,7 @@ reserve-runner()
     }
 
     # grab the first available or request a new one
-    local id=$( get-available-runner-id "$root" )
+    local id; id=$( get-available-runner-id "$root" )
     if [ -z "$id" ]; then
       id=$( spawn-runner-and-wait "$root" ) || {
         echo "error: failed to reserve runner at $root" >&2
