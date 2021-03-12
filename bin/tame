@@ -101,11 +101,11 @@ command-runner()
   }
 
   # output lines from runner until we reach a line stating "DONE"
-  while read line; do
+  while read -r line; do
     # don't parse words in the initial read because we may be
     # dealing with a lot of lines
     if [ "${line:0:5}" == "DONE " ]; then
-      read _ code _ <<< "$line"
+      read -r _ code _ <<< "$line"
 
       mark-available "$base"
       return "$code"
