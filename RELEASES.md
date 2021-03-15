@@ -13,6 +13,13 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+NEXT
+====
+Build System
+------------
+- Minor improvements to `tame` and `tamed` scripts to ensure that certain
+  unlikely failures are not ignored.
+
 v17.8.0 (2021-02-23)
 ====================
 This release contains changes to the build system to accommodate
