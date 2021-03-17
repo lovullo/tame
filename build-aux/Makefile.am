@@ -203,12 +203,18 @@ c1map: $(dest_c1map)
 %.csvo: %.csv
 	cp $< $@
 
+%.xml: %.csvo
+	rater/tools/csv2xml $< > $@
+
+# All lookup tables rely on rater/core/vector/package.  This rule applies to
+# xmlo files only when there is a corresponding csvo file.  Note that this
+# relies on .SECONDARY above to work properly.
+#
 # TODO: This is necessary right now because of the current depgen
 # process.  Once that is eliminated in favor of individual dependency files
 # (e.g. the %.d convention), this can go away since dependency generation
 # can properly take place for the various file formats.
-%.xml: %.csvo rater/core/vector/table.xmlo
-	rater/tools/csv2xml $< > $@
+%.xmlo: %.csvo rater/core/vector/table.xmlo
 
 # This target is always run, but only update the file (and thus its
 # timestamp) if the hash actually changes, so that we do not rebuild any

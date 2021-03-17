@@ -17,6 +17,11 @@ NEXT
 ====
 Build System
 ------------
+- Lookup tables will no longer build `rater/core/vector/table` when
+  geneating the `xml` package.
+  - This was causing problems during `suppliers.mk` dependency generation.
+    The dependency is still in place for the corresponding `xmlo` file.
+  - This was broken by v17.8.0.
 - Minor improvements to `tame` and `tamed` scripts to ensure that certain
   unlikely failures are not ignored.
 
