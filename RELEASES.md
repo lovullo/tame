@@ -13,17 +13,23 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+
 NEXT
 ====
+This release contains a bufix for recent build changes in v17.8.0 that were
+causing, under some circumstances, builds to fail during dependency
+generation.  It also contains minor improvements and cleanup.
+
 Build System
 ------------
-- Lookup tables will no longer build `rater/core/vector/table` when
+- [bugfix] Lookup tables will no longer build `rater/core/vector/table` when
   geneating the `xml` package.
   - This was causing problems during `suppliers.mk` dependency generation.
     The dependency is still in place for the corresponding `xmlo` file.
   - This was broken by v17.8.0.
 - Minor improvements to `tame` and `tamed` scripts to ensure that certain
   unlikely failures are not ignored.
+
 
 v17.8.0 (2021-02-23)
 ====================
