@@ -1,0 +1,65 @@
+% The TAME Programming Language Living Document
+%
+%  Copyright (C) 2021 Ryan Specialty Group, LLC.
+%
+%  Licensed under the Creative Commons Attribution-ShareAlike 4.0
+%  International License.
+%%
+
+\documentclass[draft,toc=index]{scrartcl}
+\usepackage[draft=false]{scrlayer-scrpage}
+\usepackage{tpl}
+
+\title{The TAME Programming Language}
+\subtitle{Design and Implementation (Living Document)}
+
+\author{Mike Gerwitz}
+\date{April 2021}% TODO dynamic
+
+% Copyright notice for bottom of first page
+\cfoot[%
+  \tiny Copyright \textcopyright{} 2021 Ryan Specialty Group, LLC.
+  CC-BY-SA 4.0.]{\thepage}
+
+% Begin section numbering at 0 to emphasize that it's foundational material
+% not directly related to TAME itself
+\setcounter{section}{-1}
+
+\makeindex
+\input{glossary.tex}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+  \tame{} is The Algebraic Metalanguage, a programming language and
+  collection of tools designed to aid in the development, understanding,
+  and maintenance of systems performing numerous calculations on a
+  complex graph of dependencies, conditions, and a large number of
+  inputs.  \tame{} has existed for over a decade, and while its initial
+  design was successful and still in active use today, it does suffer
+  from inconsistencies and tradeoffs that introduce certain impediments
+  to users of the language, and compromise future optimizations and
+  language evolution.  It also lacks documentation not just of the
+  language itself, but also of the underlying principles and
+  implementation.
+
+  This document is an attempt to formally consider certain parts of
+  \tame{} as it undergoes redesign and reimplementation as part of the
+  \tamer{} project.  It is considered a living document---it is not
+  likely to ever be a finished work.
+\end{abstract}
+
+
+\tableofcontents
+
+\input{sec/notation.tex}
+\input{sec/class.tex}
+
+\clearpage
+\printglossary[style=altlong4col]
+\printindex
+
+\end{document}
+

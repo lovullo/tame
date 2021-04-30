@@ -1,0 +1,125 @@
+% The TAME Programming Language glossary
+%
+%  Copyright (C) 2021 Ryan Specialty Group, LLC.
+%
+%  Licensed under the Creative Commons Attribution-ShareAlike 4.0
+%  International License.
+%%
+
+% Concrete Mathematics fonts
+\usepackage[amsfonts,amssymb]{concmath}
+
+\usepackage{makeidx}
+\usepackage[toc]{glossaries}
+
+% Note that we force draft=false so hyperlinks always appear
+\usepackage[colorlinks=true,linkcolor=href,draft=false]{hyperref}
+
+% For displaying source code (e.g. XML)
+\usepackage{listings}
+
+% Definitions, theorems, proofs, etc
+\usepackage{amsthm}
+
+% Line spacing instead of indentation for paragraphs
+%\usepackage[parfill]{parskip}
+
+\usepackage{xcolor}
+
+% To aid in defining star commands
+\usepackage{suffix}
+
+% Creating custom symbols
+\usepackage{stackengine}
+
+% Colors from Tango Icon Theme
+% https://en.wikipedia.org/wiki/Tango_Desktop_Project
+\definecolor{href}{HTML}{204a87}
+
+% TAME is typeset in smallcaps
+\newcommand{\tame}{\textsc{Tame}}
+\newcommand{\tamer}{\gls{tamer}}
+
+% TODO: highlighting
+\lstset{
+  language=XML,
+  basicstyle=\ttfamily,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+}
+
+
+\newcommand\xpath[1]{\texttt{#1}}
+\newcommand\xmlnode[1]{\texttt{#1}}
+\newcommand\xmlattr[1]{@\texttt{#1}}
+
+\newcommand\tameparam[1]{\texttt{#1}}
+\newcommand\tameclass[1]{\texttt{#1}}
+\newcommand\tameconst[1]{\texttt{#1}}
+
+\newcommand\true{\ensuremath{\top}}
+\newcommand\false{\ensuremath{\bot}}
+\newcommand\Bool{\ensuremath{\{\false,\true\}}}
+
+\newcommand\logand{\ensuremath{\wedge}}
+\newcommand\logor{\ensuremath{\vee}}
+
+\newcommand\tametrue{\tameconst{TRUE}}
+\newcommand\tamefalse{\tameconst{FALSE}}
+
+\newcommand\Int{\ensuremath{\mathbb{Z}}}
+\newcommand\Real{\ensuremath{\mathbb{R}}}
+
+\newcommand\Set[1]{\ensuremath{\left\{#1\right\}}}
+\newcommand\Fam[3]{\ensuremath{\left\{#1_{#2}\right\}_{#2\in #3}}}
+
+\newcommand\Vectors{\ensuremath{\mathcal{V}}}
+\newcommand\Vector[1]{\ensuremath{\left\langle#1\right\rangle}}
+\newcommand\VFam[3]{\ensuremath{\Vector{#1_{#2}}_{#2\in #3}}}
+\newcommand\Matrices{\ensuremath{\Vectors^{\Vectors^\Real}}}
+
+\let\union\cup
+
+\newcommand\len[1]{\ensuremath{\left|#1\right|}}
+
+\numberwithin{equation}{section}
+
+% Allows us to switch between styles, if need be
+% (e.g. I used the colon style before adopting notation from type theory
+% where the colon became ambiguous)
+\newcommand\Forall{\@ifstar\@Forallstar\@Forall}
+\newcommand\@Forall[2]{\forall #1\left(#2\right)}
+\newcommand\@Forallstar[2]{\forall #1 #2}
+
+\newcommand\Exists{\@ifstar\@Existsstar\@Exists}
+\newcommand\@Exists[2]{\exists #1\left(#2\right)}
+% Without \left and \right.  You'll also need this if you use `&' in an
+% `align' environment within an argument.
+\newcommand\@Existsstar[2]{\exists #1 #2}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newcommand\dfnlabel[1]{\label{dfn:#1}}
+\newcommand\dfnref[1]{Definition~\ref{dfn:#1}}
+\newcommand\dfnpref[1]{Definition~\pref{dfn:#1}}
+
+\theoremstyle{plain}
+\newtheorem{corollary}{Corollary}[section]
+\newcommand\corlabel[1]{\label{cor:#1}}
+\newcommand\corref[1]{Corollary~\ref{cor:#1}}
+\newcommand\corpref[1]{Corollary~\pref{cor:#1}}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[section]
+
+\newcommand\pref[1]{\ref{#1} on page~\pageref{#1}}
+\newcommand\seclabel[1]{\label{sec:#1}}
+\newcommand\secref[1]{Section~\ref{sec:#1}}
+\newcommand\secpref[1]{Section~\pref{sec:#1}}
+
+% Binary function composition
+\newcommand\bicomp[1]{\ensurestackMath{\stackon[1pt]{#1}{{}_\circ}}}
+\newcommand\bicompi[1]{\ensurestackMath{\stackon[1pt]{#1}{{}_\bullet}}}
+
+\let\xml\texttt

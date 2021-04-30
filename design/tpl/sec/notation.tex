@@ -1,0 +1,319 @@
+
+\section{Notational Conventions}
+This section provides a fairly terse overview of the foundational
+  mathematical concepts used in this paper.
+While we try to reason about \tame{} in terms of algebra,
+  first-order logic;
+  and set theory;
+    notation varies even within those branches.
+To avoid ambiguity,
+  especially while introducing our own notation,
+  core operators and concepts are explicitly defined below.
+
+This section begins its numbering at~0.
+This is not only a hint that \tame{} (and this paper) use 0-indexing,
+  but also because equations; definitions; theorems; corollaries; and the
+  like are all numbered relative to their section.
+When you see any of these prefixed with ``0.'',
+  this sets those references aside as foundational mathematical concepts
+    that are not part of the theory and operation of \tame{} itself.
+
+
+\subsection{Propositional Logic}
+\index{boolean!false@\false{}}%
+\index{boolean!true@\true{}}%
+\index{boolean!FALSE@\tamefalse{}}%
+\index{boolean!TRUE@\tametrue{}}%
+\index{integer (\Int)}%
+We reproduce here certain axioms and corollaries of propositional logic for
+  convenience and to clarify our interpretation of certain concepts.
+The use of the symbols $\logand$, $\logor$, and~$\neg$ are standard.
+The symbol $\vdash$ means ``infer''.
+We use $\implies$ in place of $\rightarrow$ for implication,
+  since the latter is used to denote the mapping of a domain to a codomain
+  in reference to functions.
+We further use $\equiv$ in place of $\leftrightarrow$ to represent material
+  equivalence.
+
+\begin{definition}[Logical Conjunction]
+  $p,q \vdash (p\logand q)$.
+\end{definition}
+
+\begin{definition}[Logical Disjunction]
+  $p \vdash (p\logor q)$ and $q \vdash (p\logor q)$.
+\end{definition}
+
+\begin{definition}[Law of Excluded Middle]
+  $\vdash (p \logor \neg p)$.
+\end{definition}
+
+\begin{definition}[Law of Non-Contradiction]
+  $\vdash \neg(p \logand \neg p)$.
+\end{definition}
+
+\begin{definition}[De Morgan's Theorem]
+  $\neg(p \logand q) \vdash (\neg p \logor \neg q)$
+    and $\neg(p \logor q) \vdash (\neg p \logand \neg q)$.
+\end{definition}
+
+\index{equivalence!material (\ensuremath{\equiv})}
+\begin{definition}[Material Equivalence]
+  $p\equiv q \vdash \big((p \logand q) \logor (\neg p \logand \neg q)\big)$.
+\end{definition}
+
+$\equiv$ denotes a logical identity.
+Consequently,
+  it'll often be used as a definition operator.
+
+\begin{definition}[Logical Implication]
+  $p\implies q \vdash (\neg p \logor q)$.
+\end{definition}
+
+\begin{definition}[Truth Values]\dfnlabel{truth-values}
+  $\vdash\true$ and $\vdash\neg\false$.
+\end{definition}
+
+
+\subsection{First-Order Logic and Set Theory}
+The symbol $\emptyset$ represents the empty set---%
+  the set of zero elements.
+We assume that the axioms of ZFC~set theory hold,
+  but define $\in$ here for clarity.
+
+\index{set!membership@membership (\ensuremath{\in})}
+\begin{definition}[Set Membership]
+  $x \in S \equiv \Set{x} \cap S \not= \emptyset.$
+\end{definition}
+
+\index{quantification|see {fist-order logic}}
+\index{first-order logic!quantification (\ensuremath{\forall, \exists})}
+$\forall$ denotes first-order universal quantification (``for all''),
+  and $\exists$ first-order existential quantification (``there exists''),
+  over some \gls{domain}.
+
+\index{disjunction|see {first-order logic}}
+\index{first-order logic!disjunction (\ensuremath{\logor})}
+\begin{definition}[Existential Quantification]\dfnlabel{exists}
+  $\Exists{x\in X}{P(x)} \equiv
+    \true \in \Set{P(x) \mid x\in X}$.
+\end{definition}
+
+\index{conjunction|see {first-order logic}}
+\index{first-order logic!conjunction (\ensuremath{\logand})}
+\begin{definition}[Universal Quantification]\dfnlabel{forall}
+  $\Forall{x\in X}{P(x)} \equiv \neg\Exists{x\in X}{\neg P(x)}$.
+\end{definition}
+
+\index{set!empty (\ensuremath{\emptyset, \{\}})}
+\begin{remark}[Vacuous Truth]
+  By Definition~7, $\Exists{x\in\emptyset}P \equiv \false$
+    and by \dfnref{forall}, $\Forall{x\in\emptyset}P \equiv \true$.
+  And so we also have the tautologies $\vdash \neg\Exists{x\in\emptyset}P$
+    and $\vdash \Forall{x\in\emptyset}P$.
+\end{remark}
+
+\begin{definition}[Boolean/Integer Equivalency]\dfnlabel{bool-int}
+  $\Set{0,1}\in\Int, \false \equiv 0$ and $\true \equiv 1$.
+\end{definition}
+
+\tamefalse{} and~\tametrue{} are constants in \tame{} mapping to the
+  \gls{integer} values $\{0,1\}\in\Int$.
+\dfnref{bool-int} relates these constants to their
+  \gls{boolean} counterparts so that they may be used in numeric contexts
+  and vice-versa.
+
+
+\subsection{Functions}
+The notation $f = x \mapsto x' : A\rightarrow B$ represents a function~$f$
+  that maps from~$x$ to~$x'$,
+    where $x\in A$ (the domain of~$f$) and $x'\in B$ (the co-domain of~$f$).
+
+A function $A\rightarrow B$ can be represented as the Cartesian
+  product of its domain and codomain, $A\times B$.
+For example,
+  $x\mapsto x^2 : \Int\rightarrow\Int$ is represented by the set of ordered
+  pairs $\Set{(x,x^2) \mid x\in\Int}$, which looks something like
+
+\begin{equation*}
+  \Set{\ldots,\,(0,0),\,(1,1),\,(2,4),\,(3,9),\,\ldots}.
+\end{equation*}
+
+The set of values over which some function~$f$ ranges is its \emph{image},
+  which is a subset of its codomain.
+In the example above,
+  both the domain and codomain are the set of integers~$\Int$,
+  but the image is $\Set{x^2 \mid x\in\Int}$,
+    which is clearly a subset of~$\Int$.
+
+We therefore have
+
+\begin{align}
+  A \rightarrow B &\subset A\times B, \\
+  f : A \rightarrow B &\vdash f \subset A\times B, \\
+  f = \alpha \mapsto \alpha' : A \rightarrow B
+                  &= \Set{(\alpha,\alpha')
+                            \mid \alpha\in A \logand \alpha'\in B}, \\
+  f[D\subseteq A] &= \Set{f(\alpha) \mid \alpha\in D} \subset B, \\
+  f[] &= f[A].
+\end{align}
+
+And ordered pair $(x,y)$ is also called a \emph{$2$-tuple}.
+Generally,
+  an \emph{$n$-tuple} is used to represent an $n$-ary function,
+    where by convention we have $(x)=x$.
+So $f(x,y) = f((x,y)) = x+y$.
+If we let $t=(x,y)$,
+  then we also have $f(x,y) = ft$.
+Binary functions are often written using \emph{infix} notation;
+  for example, we have $x+y$ rather than $+(x,y)$.
+
+\begin{equation}
+  fx \in \Set{b \mid (x,b) \in f}
+\end{equation}
+
+
+\subsubsection{Binary Operations On Functions}
+Consider two unary functions $f$ and~$g$,
+  and a binary relation~$R$.
+We introduce a notation~$\bicomp R$ to denote the composition of a binary
+  function with two unary functions.\footnote{%
+    The notation originates from~$\circ$ to denote ordinary function
+      composition,
+        as in $(f\circ g)(x) = f(g(x))$.}
+
+\begin{align}
+  f &: A \rightarrow B \\
+  g &: A \rightarrow D \\
+  R &: B\times D \rightarrow F \\
+  f \bicomp{R} g &= \alpha \mapsto f(\alpha)Rg(\alpha) : A \rightarrow F
+\end{align}
+
+Note that $f$ and~$g$ must share the same domain~$A$.
+In that sense,
+  this is the mapping of the operation~$R$ over the domain~$A$.
+This is analogous to unary function composition~$f\circ g$.
+
+A scalar value~$x$ can be mapped onto some function~$f$ using a constant
+  function.
+For example,
+  consider adding some number~$x$ to each element in the image of~$f$:
+
+\begin{equation*}
+  f \bicomp+ (\_\mapsto x) = \alpha \mapsto f(\alpha) + x.
+\end{equation*}
+
+The symbol~$\_$ is used to denote a variable that is never referenced.
+
+For convenience,
+  we also define $\bicompi{R}$,
+  which recursively handles combinations of function and scalar values.
+This notation is used to simplify definitions of the classification system
+  (see \secpref{class})
+  when dealing with vectors
+    (see \secref{vec}).
+
+\begin{equation}\label{eq:bicompi}
+  \alpha \bicompi{R} \beta =
+    \begin{cases}
+      \gamma \mapsto \alpha(\gamma) \bicompi{R} \beta(\gamma)
+        &\text{if } (\alpha : A\rightarrow B) \logand (\beta : A\rightarrow D),\\
+      \gamma \mapsto \alpha(\gamma) \bicompi{R} (\_ \mapsto \beta)
+        &\text{if } (\alpha : A\rightarrow B) \logand (\beta \in\Real),\\
+      \alpha R \beta &\text{otherwise}.
+    \end{cases}
+\end{equation}
+
+Note that we consider the bracket notation for the image of a function
+  $(f:A\rightarrow B)[A]$ to itself be a binary function.
+Given that, we have $f\bicomp{[]} = f\bicomp{[A]}$ for functions returning
+  functions (such as vectors of vectors in \secref{vec}),
+    noting that $\bicompi{[]}$ is \emph{not} a sensible construction.
+
+
+\subsection{Vectors and Index Sets}\seclabel{vec}
+\tame{} supports scalar, vector, and matrix values.
+Unfortunately,
+  its implementation history leaves those concepts a bit tortured.
+
+A vector is a sequence of values, defined as a function of
+  an~\gls{index set}.
+
+\begin{definition}[Vector]\dfnlabel{vec}
+  Let $J\subset\Int$ represent an index set.
+  A \emph{vector}~$v\in\Vectors^\Real$ is a totally ordered sequence of
+   elements represented as a function of an element of its index set:
+  \begin{equation}\label{vec}
+    v = \Vector{v_0,\ldots,v_j}^{\Real}_{j\in J}
+      = j \mapsto v_j : J \rightarrow \Real.
+  \end{equation}
+\end{definition}
+
+This definition means that $v_j = v(j)$,
+  making the subscript a notational convenience.
+We may omit the superscript such that $\Vectors^\Real=\Vectors$
+  and $\Vector{\ldots}^\Real=\Vector{\ldots}$.
+
+\begin{definition}[Matrix]\dfnlabel{matrix}
+  Let $J\subset\Int$ represent an index set.
+  A \emph{matrix}~$M\in\Matrices$ is a totally ordered sequence of
+   elements represented as a function of an element of its index set:
+  \begin{equation}
+    M = \Vector{M_0,\ldots,M_j}^{\Vectors^\Real}_{j\in J}
+      = j \mapsto M_j : J \rightarrow \Vectors^\Real.
+  \end{equation}
+\end{definition}
+
+The consequences of \dfnref{matrix}---%
+  defining a matrix as a vector of independent vectors---%
+  are important.
+This defines a matrix to be more like a multidimensional array,
+  with no requirement that the lengths of the vectors be equal.
+
+\begin{corollary}[Matrix Row Length Variance]\corlabel{matrix-row-len}
+  $\vdash \Exists{M\in\Matrices}{\neg\Forall*{j}{\Forall{k}{\len{M_j} = \len{M_k}}}}$.
+\end{corollary}
+
+\corref{matrix-row-len} can be read ``there exists some matrix~$M$ such that
+  not all row lengths of~$M$ are equal''.
+In other words---%
+  the inner vectors of a matrix can vary in length.
+
+Since a vector is a function,
+  a vector or matrix can be converted into a set of unique elements like so:
+
+\begin{alignat*}{2}
+  \bigcup\Vector{\Vector{0,1},\Vector{2,2},\Vector{2,0}}\!\bicomp{[]}
+    &\mapsto &&\bigcup\Vector{\Vector{0,1}\![],\Vector{2,2}\![],\Vector{2,0}[]}\![] \\
+    &\mapsto &&\bigcup\Vector{\Set{0,1},\Set{2},\Set{2,0}}\![] \\
+    &\mapsto &&\bigcup\Set{\Set{0,1},\Set{2},\Set{2,0}} \\
+    &=       &&\Set{0,1,2}.
+\end{alignat*}
+
+We can also add two vectors, and scale them:
+
+\begin{align*}
+  1 \bicomp{+} \Vector{1,2,3} \bicomp{+} \Vector{4,5,6}
+    &= \Vector{1+1,\, 2+1,\, 3+1} \bicomp{+} \Vector{4,5,6} \\
+    &= \Vector{2,3,4} \bicomp{+} \Vector{4,5,6} \\
+    &= \Vector{2+4,\, 3+5,\, 4+6} \\
+    &= \Vector{6, 8, 10}.
+\end{align*}
+
+
+\subsection{XML Notation}
+\index{XML}
+The grammar of \tame{} is XML.
+Equivalence relations will be used to map source expressions to an
+  underlying mathematical expression.
+For example,
+
+\begin{equation*}
+  \xml{<match on="$x$" value="$y$" />} \equiv x = y
+\end{equation*}
+
+\noindent
+defines that pattern of \xmlnode{match} expression to be materially
+  equivalent to~$x=y$---%
+    anywhere an equality relation appears,
+      you could equivalently replace it with that XML representation without
+        changing the meaning of the mathematical expression.

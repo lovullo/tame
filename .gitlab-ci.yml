@@ -27,12 +27,25 @@ build:
             - tamer/target
         expire_in: 30 min
 
+build:doc:tpl:
+    image: $BUILD_IMAGE_TEXLIVE
+    stage: build
+    script:
+        - cd design/tpl/
+        - make
+    artifacts:
+        paths:
+            - design/tpl/tpl.pdf
+        expire_in: 30 min
+
 pages:
     stage: deploy
     script:
         - mkdir -p public/doc
         - mv doc/tame.html/* doc/tame.pdf doc/tame.info public/
         - mv tamer/target/doc public/tamer/
+        - mkdir -p public/design
+        - mv design/tpl/tpl.pdf public/design/
     artifacts:
         paths:
             - public/

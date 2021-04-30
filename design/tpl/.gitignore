@@ -1,0 +1,26 @@
+# Ignored files for The TAME Programming Language Git repository
+
+# Targets
+*.pdf
+*.dvi
+
+# (La)TeX
+*.aux
+*.fls
+*.log
+*.out
+*.toc
+
+# Glossary
+*.glg
+*.glo
+*.gls
+*.ist
+
+# Index
+*.idx
+*.ilg
+*.ind
+
+# latexmk
+*.fdb_latexmk

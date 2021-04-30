@@ -1,0 +1,169 @@
+% The TAME Programming Language glossary
+%
+%  Copyright (C) 2021 Ryan Specialty Group, LLC.
+%
+%  Licensed under the Creative Commons Attribution-ShareAlike 4.0
+%  International License.
+%%
+
+\makeglossaries
+
+\newacronym{tamer}{\textsc{Tamer}}{\tame{} in Rust}
+
+\newglossaryentry{classification}
+{
+  name={classification},
+  description={TODO}
+}
+
+\newglossaryentry{free variable}
+{
+  name={free variable},
+  description={a variable that is not a \gls{bound variable}}
+}
+
+\newglossaryentry{bound variable}
+{
+  name={bound variable},
+  description={}
+}
+
+\newglossaryentry{predicate}
+{
+  name={predicate},
+  description={}
+}
+
+\newglossaryentry{boolean}
+{
+  name={boolean},
+  description={a value of \gls{true} or \gls{false}},
+  symbol={\Bool},
+}
+
+\newglossaryentry{true}
+{
+  name={true},
+  description={boolean value representing ``true''},
+  symbol={\true},
+}
+
+\newglossaryentry{false}
+{
+  name={false},
+  description={boolean value representing ``false''},
+  symbol={\false},
+}
+
+\newglossaryentry{conjunction}
+{
+  name={conjunction},
+  description={logical conjunction (``and'')},
+  symbol={\ensuremath{\logand}},
+}
+\newglossaryentry{disjunction}
+{
+  name={disjunction},
+  description={logical disjunction (``or'')},
+  symbol={\ensuremath{\logor}},
+}
+
+\newglossaryentry{cardinality}
+{
+  name={cardinality},
+  description={number of elements in some set~$S$},
+  symbol={\ensuremath{|S|}}
+}
+
+\newglossaryentry{family}
+{
+  name={family},
+  description={a set sharing the same \gls{index set}},
+  symbol={\ensuremath{\{A_j\}_{j\in J}}}
+}
+
+\newglossaryentry{index set}
+{
+  name={index set},
+  description={a set whose members index members of another set; see also
+               \gls{family}},
+}
+
+\newglossaryentry{castable}
+{
+  name={castable},
+  description={type $A$ is castable to type $B$ if there exists some
+               \gls{surjective} function $A\rightarrow B$}
+}
+
+\newglossaryentry{surjective}
+{
+  name={surjective},
+  description={$\forall y\in Y : \exists x\in X : f(x) = y$},
+}
+
+\newglossaryentry{equivalent}
+{
+  name={equivalent},
+  description={an equivalence relation is a reflexive, symmetric, and
+               transitive binary operation},
+}
+
+\newglossaryentry{logical equivalence}
+{
+  name={logical equivalence},
+  description={$p$ and $q$ are logically equivalent ($p\equiv q$) \gls{iff}
+               both $q$ and~$p$ are~\true or both are~\false},
+  symbol={\ensuremath{\equiv}},
+}
+
+\newglossaryentry{logical implication}
+{
+  name={logical implication},
+  description={},
+  symbol={\ensuremath{\implies}},
+}
+
+\newglossaryentry{iff}
+{
+  name={iff},
+  description={if and only if},
+  symbol={\ensuremath{\iff}},
+}
+
+\newglossaryentry{forall}
+{
+  name={universal quantification},
+  description={expresses a predicate that must be satisfied for every
+               element in a \gls{domain}},
+  symbol={\ensuremath{\forall}},
+}
+
+\newglossaryentry{exists}
+{
+  name={existential quantification},
+  description={expresses a predicate that must be satisfied for some
+               element in a \gls{domain}},
+  symbol={\ensuremath{\exists}},
+}
+
+\newglossaryentry{domain}
+{
+  name={domain of discourse},
+  description={set of elements over which variables of interest may range},
+  symbol={\ensuremath{\mathbb{D}}},
+}
+
+\newglossaryentry{integer}
+{
+  name={integer},
+  description={set of all integers},
+  symbol={\ensuremath{\mathbb{Z}}},
+}
+
+\newglossaryentry{empty set}
+{
+  name={empty set},
+  description={set of zero elements},
+  symbol={\ensuremath{\emptyset}}
+}

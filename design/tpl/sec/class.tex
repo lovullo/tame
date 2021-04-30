@@ -1,0 +1,132 @@
+
+\section{Classification System}\seclabel{class}
+\index{classification}
+A \gls{classification} is a user-defined abstraction that describes
+  (``classifies'') arbitrary data.
+Classifications can be used as predicates, generating functions, and can be
+  composed into more complex classifications.
+Nearly all conditions in \tame{} are specified using classifications.
+
+\index{first-order logic!sentence}
+\index{classification!coupling}
+All classifications represent \emph{first-order sentences}---%
+  that is,
+    they contain no \glspl{free variable}.
+Intuitively,
+  this means that all variables within a~classification are
+  \emph{tightly coupled} to the classification itself.
+This limitation is mitigated through use of the template system.
+
+For example,
+  consider the following classification \tameclass{cost-exceeded}.
+Let~\tameparam{cost} be a scalar parameter.
+
+\index{classification!classify@\xmlnode{classify}}
+\begin{lstlisting}
+  <classify as="cost-exceeded" desc="Cost of item is too expensive">
+    <t:match-gt on="cost" value="100.00" />
+  </classify>
+\end{lstlisting}
+
+\noindent
+is then equivalent to the proposition
+
+\begin{equation*}
+  \tameclass{cost-exceeded} \equiv \tameparam{cost} > 100.00.
+\end{equation*}
+
+\index{classification!domain}
+A classification is either \glssymbol{true} or~\glssymbol{false}.
+Let $\tameparam{cost}=150.00$.
+Then,
+
+\begin{align*}
+  \tameclass{cost-exceeded} & \equiv \tameparam{cost} > 100.00 \\
+                            & \equiv 150.00 > 100.00 \\
+                            & \equiv \true.
+\end{align*}
+
+Each \xmlnode{match} of a classification is a~\gls{predicate}.
+Multiple predicates are by default joined by \gls{conjunction}:
+
+\begin{lstlisting}
+  <classify as="pool-hazard" desc="Hazardous pool">
+    <match on="diving_board" />
+    <t:match-lt on="pool_depth_ft" value="8" />
+  </classify>
+\end{lstlisting}
+
+\noindent
+is equivalent to the proposition
+
+\begin{equation*}
+  \tameclass{pool-hazard} \equiv \tameparam{diving\_board}
+    \logand \tameparam{pool\_depth\_ft} < 8.
+\end{equation*}
+
+\index{classification!universal}
+\begin{definition}[Universal Classification]\dfnlabel{classu}
+  A classification~$c$ by default performs \gls{conjunction} on its match
+    expressions $M_0\ldots M_n$.
+
+  \begin{alignat*}{2}
+    &\xml{<classify as="}&&c\xml{" desc="$\ldots$">} \\
+    &\quad M_0 \\
+    &\quad \vdots \\
+    &\quad M_n \\
+    &\xml{</classify>}
+      &&\equiv c\in\Bool \\
+    & &&\equiv \exists\left( M_0 \logand \ldots \logand M_n \right).
+  \end{alignat*}
+\end{definition}
+
+\index{classification!existential}
+\begin{definition}[Existential Classification]\dfnlabel{classe}
+  A classification~$c$ with the attribute \xpath{@any="true"} performs
+    \gls{disjunction} on its match expressions $M_0\ldots M_n$.
+
+  \begin{alignat*}{2}
+    &\xml{<classify as="} &&c\xml{" any="true" desc="$\ldots$">} \\
+    &\quad M_0 \\
+    &\quad \vdots \\
+    &\quad M_n \\
+    &\texttt{</classify>}
+      &&\equiv c\in\Bool \\
+    & &&\equiv \exists\left( M_0 \logor \ldots \logor M_n \right).
+  \end{alignat*}
+\end{definition}
+
+
+\subsection{Matches}
+\begin{definition}[Match Equality]
+  \begin{equation*}
+    \xml{<match on="$x$" value="$y$" />} \equiv x = y.
+  \end{equation*}
+\end{definition}
+
+\begin{definition}[Match Equality Short Form]
+  \begin{equation*}
+    \xml{<match on="$x$" />}
+      \equiv \xml{<match on="$x$" value="TRUE" />}.
+  \end{equation*}
+\end{definition}
+
+\begin{definition}[Match Equality Long Form]
+  \begin{alignat*}{2}
+    \xml{<match on="$x$" value="$y$" />}
+      &\equiv {}&&\xml{<match on="$x$">} \\
+      &         &&\quad \xml{<c:eq>} \\
+      &         &&\quad\quad \xml{<c:value-of name="$y$">} \\
+      &         &&\quad \xml{</c:eq>} \\
+      &         &&\xml{</match>} \\
+      &\equiv {}&&\xml{<t:match-eq on="$x$" value="$y$" />}.
+  \end{alignat*}
+\end{definition}
+
+\begin{definition}[Match Membership Equivalence]
+  When $T$ is a type defined with \xmlnode{typedef},
+
+  \begin{equation*}
+    \xml{<match on="$x$" anyOf="$T$" />} \equiv x \in T.
+  \end{equation*}
+\end{definition}

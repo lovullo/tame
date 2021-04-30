@@ -10,12 +10,12 @@
 /bin/dslc
 /build-aux/install-sh
 /build-aux/missing
-confdefs.h
-Makefile.in
-Makefile
-aclocal.m4
-*.cache/
-configure
+/confdefs.h
+/Makefile.in
+/Makefile
+/aclocal.m4
+/*.cache/
+/configure
 /config.*
 
 # should be added using autoreconf -i
