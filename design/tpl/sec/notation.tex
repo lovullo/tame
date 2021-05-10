@@ -28,7 +28,9 @@ When you see any of these prefixed with ``0.'',
 We reproduce here certain axioms and corollaries of propositional logic for
   convenience and to clarify our interpretation of certain concepts.
 The use of the symbols $\logand$, $\logor$, and~$\neg$ are standard.
-The symbol $\vdash$ means ``infer''.
+\indexsym\infer{infer}
+\index{infer (\ensuremath\infer)}
+The symbol $\infer$ means ``infer''.
 We use $\implies$ in place of $\rightarrow$ for implication,
   since the latter is used to denote the mapping of a domain to a codomain
   in reference to functions.
@@ -36,30 +38,30 @@ We further use $\equiv$ in place of $\leftrightarrow$ to represent material
   equivalence.
 
 \begin{definition}[Logical Conjunction]
-  $p,q \vdash (p\logand q)$.
+  $p,q \infer (p\logand q)$.
 \end{definition}
 
 \begin{definition}[Logical Disjunction]
-  $p \vdash (p\logor q)$ and $q \vdash (p\logor q)$.
+  $p \infer (p\logor q)$ and $q \infer (p\logor q)$.
 \end{definition}
 
 \begin{definition}[Law of Excluded Middle]
-  $\vdash (p \logor \neg p)$.
+  $\infer (p \logor \neg p)$.
 \end{definition}
 
 \begin{definition}[Law of Non-Contradiction]
-  $\vdash \neg(p \logand \neg p)$.
+  $\infer \neg(p \logand \neg p)$.
 \end{definition}
 
 \begin{definition}[De Morgan's Theorem]
-  $\neg(p \logand q) \vdash (\neg p \logor \neg q)$
-    and $\neg(p \logor q) \vdash (\neg p \logand \neg q)$.
+  $\neg(p \logand q) \infer (\neg p \logor \neg q)$
+    and $\neg(p \logor q) \infer (\neg p \logand \neg q)$.
 \end{definition}
 
 \indexsym\equiv{equivalence}
 \index{equivalence!material (\ensuremath{\equiv})}
 \begin{definition}[Material Equivalence]
-  $p\equiv q \vdash \big((p \logand q) \logor (\neg p \logand \neg q)\big)$.
+  $p\equiv q \infer \big((p \logand q) \logor (\neg p \logand \neg q)\big)$.
 \end{definition}
 
 $\equiv$ denotes a logical identity.
@@ -67,11 +69,11 @@ Consequently,
   it'll often be used as a definition operator.
 
 \begin{definition}[Logical Implication]
-  $p\implies q \vdash (\neg p \logor q)$.
+  $p\implies q \infer (\neg p \logor q)$.
 \end{definition}
 
 \begin{definition}[Truth Values]\dfnlabel{truth-values}
-  $\vdash\true$ and $\vdash\neg\false$.
+  $\infer\true$ and $\infer\neg\false$.
 \end{definition}
 
 
@@ -115,8 +117,8 @@ $\forall$ denotes first-order universal quantification (``for all''),
 \begin{remark}[Vacuous Truth]
   By Definition~7, $\Exists{x\in\emptyset}P \equiv \false$
     and by \dfnref{forall}, $\Forall{x\in\emptyset}P \equiv \true$.
-  And so we also have the tautologies $\vdash \neg\Exists{x\in\emptyset}P$
-    and $\vdash \Forall{x\in\emptyset}P$.
+  And so we also have the tautologies $\infer \neg\Exists{x\in\emptyset}P$
+    and $\infer \Forall{x\in\emptyset}P$.
 \end{remark}
 
 \begin{definition}[Boolean/Integer Equivalency]\dfnlabel{bool-int}
@@ -156,7 +158,7 @@ We therefore have
 
 \begin{align}
   A \rightarrow B &\subset A\times B, \\
-  f : A \rightarrow B &\vdash f \subset A\times B, \\
+  f : A \rightarrow B &\infer f \subset A\times B, \\
   f = \alpha \mapsto \alpha' : A \rightarrow B
                   &= \Set{(\alpha,\alpha')
                             \mid \alpha\in A \logand \alpha'\in B}, \\
@@ -281,7 +283,7 @@ This defines a matrix to be more like a multidimensional array,
   with no requirement that the lengths of the vectors be equal.
 
 \begin{corollary}[Matrix Row Length Variance]\corlabel{matrix-row-len}
-  $\vdash \Exists{M\in\Matrices}{\neg\Forall*{j}{\Forall{k}{\len{M_j} = \len{M_k}}}}$.
+  $\infer \Exists{M\in\Matrices}{\neg\Forall*{j}{\Forall{k}{\len{M_j} = \len{M_k}}}}$.
 \end{corollary}
 
 \corref{matrix-row-len} can be read ``there exists some matrix~$M$ such that
