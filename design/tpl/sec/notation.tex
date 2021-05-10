@@ -20,10 +20,10 @@ When you see any of these prefixed with ``0.'',
 
 
 \subsection{Propositional Logic}
-\index{boolean!false@\false{}}%
-\index{boolean!true@\true{}}%
-\index{boolean!FALSE@\tamefalse{}}%
-\index{boolean!TRUE@\tametrue{}}%
+\indexsym{\true,\false}{boolean}
+\index{boolean!FALSE@\tamefalse{} (\false)}%
+\index{boolean!TRUE@\tametrue{} (\true)}%
+\indexsym\Int{integer}
 \index{integer (\Int)}%
 We reproduce here certain axioms and corollaries of propositional logic for
   convenience and to clarify our interpretation of certain concepts.
@@ -56,6 +56,7 @@ We further use $\equiv$ in place of $\leftrightarrow$ to represent material
     and $\neg(p \logor q) \vdash (\neg p \logand \neg q)$.
 \end{definition}
 
+\indexsym\equiv{equivalence}
 \index{equivalence!material (\ensuremath{\equiv})}
 \begin{definition}[Material Equivalence]
   $p\equiv q \vdash \big((p \logand q) \logor (\neg p \logand \neg q)\big)$.
@@ -75,35 +76,41 @@ Consequently,
 
 
 \subsection{First-Order Logic and Set Theory}
+\index{first-order logic}
 The symbol $\emptyset$ represents the empty set---%
   the set of zero elements.
 We assume that the axioms of ZFC~set theory hold,
   but define $\in$ here for clarity.
 
+\indexsym\in{set membership}
 \index{set!membership@membership (\ensuremath{\in})}
 \begin{definition}[Set Membership]
   $x \in S \equiv \Set{x} \cap S \not= \emptyset.$
 \end{definition}
 
-\index{quantification|see {fist-order logic}}
-\index{first-order logic!quantification (\ensuremath{\forall, \exists})}
+\indexsym\forall{quantification, universal}
+\indexsym\exists{quantification, existential}
+\index{quantification!universal (\ensuremath{\forall})}
+\index{quantification!existential (\ensuremath{\exists})}
 $\forall$ denotes first-order universal quantification (``for all''),
   and $\exists$ first-order existential quantification (``there exists''),
   over some domain.
 
-\index{disjunction|see {first-order logic}}
-\index{first-order logic!disjunction (\ensuremath{\logor})}
+\indexsym\logor{disjunction}
+\index{disjunction (\ensuremath{\logor})}
 \begin{definition}[Existential Quantification]\dfnlabel{exists}
   $\Exists{x\in X}{P(x)} \equiv
     \true \in \Set{P(x) \mid x\in X}$.
 \end{definition}
 
-\index{conjunction|see {first-order logic}}
-\index{first-order logic!conjunction (\ensuremath{\logand})}
+\indexsym\logand{conjunction}
+\index{conjunction (\ensuremath{\logand})}
 \begin{definition}[Universal Quantification]\dfnlabel{forall}
   $\Forall{x\in X}{P(x)} \equiv \neg\Exists{x\in X}{\neg P(x)}$.
 \end{definition}
 
+\indexsym\emptyset{set empty}
+\indexsym{\Set{}}{set}
 \index{set!empty (\ensuremath{\emptyset, \{\}})}
 \begin{remark}[Vacuous Truth]
   By Definition~7, $\Exists{x\in\emptyset}P \equiv \false$
