@@ -163,12 +163,16 @@ Generally,
     where by convention we have $(x)=x$.
 So $f(x,y) = f((x,y)) = x+y$.
 If we let $t=(x,y)$,
-  then we also have $f(x,y) = ft$.
+  then we also have $f(x,y) = ft$,
+    which we'll sometimes write as a subscript~$f_t$ where disambiguation is
+      necessary and where parenthesis may add too much noise;
+        this notation is especially well-suited to indexes,
+          as in $f_1$.
 Binary functions are often written using \emph{infix} notation;
   for example, we have $x+y$ rather than $+(x,y)$.
 
 \begin{equation}
-  fx \in \Set{b \mid (x,b) \in f}
+  f_x = f(x) \in \Set{b \mid (x,b) \in f}
 \end{equation}
 
 
@@ -185,7 +189,7 @@ We introduce a notation~$\bicomp R$ to denote the composition of a binary
   f &: A \rightarrow B \\
   g &: A \rightarrow D \\
   R &: B\times D \rightarrow F \\
-  f \bicomp{R} g &= \alpha \mapsto f(\alpha)Rg(\alpha) : A \rightarrow F
+  f \bicomp{R} g &= \alpha \mapsto f_\alpha R g_\alpha : A \rightarrow F
 \end{align}
 
 Note that $f$ and~$g$ must share the same domain~$A$.
@@ -199,7 +203,7 @@ For example,
   consider adding some number~$x$ to each element in the image of~$f$:
 
 \begin{equation*}
-  f \bicomp+ (\_\mapsto x) = \alpha \mapsto f(\alpha) + x.
+  f \bicomp+ (\_\mapsto x) = \alpha \mapsto f_\alpha + x.
 \end{equation*}
 
 The symbol~$\_$ is used to denote a variable that is never referenced.
@@ -215,9 +219,9 @@ This notation is used to simplify definitions of the classification system
 \begin{equation}\label{eq:bicompi}
   \alpha \bicompi{R} \beta =
     \begin{cases}
-      \gamma \mapsto \alpha(\gamma) \bicompi{R} \beta(\gamma)
+      \gamma \mapsto \alpha_\gamma \bicompi{R} \beta_\gamma
         &\text{if } (\alpha : A\rightarrow B) \logand (\beta : A\rightarrow D),\\
-      \gamma \mapsto \alpha(\gamma) \bicompi{R} (\_ \mapsto \beta)
+      \gamma \mapsto \alpha_\gamma \bicompi{R} (\_ \mapsto \beta)
         &\text{if } (\alpha : A\rightarrow B) \logand (\beta \in\Real),\\
       \alpha R \beta &\text{otherwise}.
     \end{cases}
