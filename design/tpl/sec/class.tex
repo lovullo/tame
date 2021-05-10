@@ -1,7 +1,7 @@
 
 \section{Classification System}\seclabel{class}
 \index{classification}
-A \gls{classification} is a user-defined abstraction that describes
+A \emph{classification} is a user-defined abstraction that describes
   (``classifies'') arbitrary data.
 Classifications can be used as predicates, generating functions, and can be
   composed into more complex classifications.
@@ -11,7 +11,7 @@ Nearly all conditions in \tame{} are specified using classifications.
 \index{classification!coupling}
 All classifications represent \emph{first-order sentences}---%
   that is,
-    they contain no \glspl{free variable}.
+    they contain no \emph{free variables}.
 Intuitively,
   this means that all variables within a~classification are
   \emph{tightly coupled} to the classification itself.
@@ -36,7 +36,7 @@ is then equivalent to the proposition
 \end{equation*}
 
 \index{classification!domain}
-A classification is either \glssymbol{true} or~\glssymbol{false}.
+A classification is either \true or~\false.
 Let $\tameparam{cost}=150.00$.
 Then,
 
@@ -46,8 +46,8 @@ Then,
                             & \equiv \true.
 \end{align*}
 
-Each \xmlnode{match} of a classification is a~\gls{predicate}.
-Multiple predicates are by default joined by \gls{conjunction}:
+Each \xmlnode{match} of a classification is a~\emph{predicate}.
+Multiple predicates are by default joined by conjunction:
 
 \begin{lstlisting}
   <classify as="pool-hazard" desc="Hazardous pool">
@@ -66,7 +66,7 @@ is equivalent to the proposition
 
 \index{classification!universal}
 \begin{definition}[Universal Classification]\dfnlabel{classu}
-  A classification~$c$ by default performs \gls{conjunction} on its match
+  A classification~$c$ by default performs conjunction on its match
     expressions $M_0\ldots M_n$.
 
   \begin{alignat*}{2}
@@ -83,7 +83,7 @@ is equivalent to the proposition
 \index{classification!existential}
 \begin{definition}[Existential Classification]\dfnlabel{classe}
   A classification~$c$ with the attribute \xpath{@any="true"} performs
-    \gls{disjunction} on its match expressions $M_0\ldots M_n$.
+    disjunction on its match expressions $M_0\ldots M_n$.
 
   \begin{alignat*}{2}
     &\xml{<classify as="} &&c\xml{" any="true" desc="$\ldots$">} \\

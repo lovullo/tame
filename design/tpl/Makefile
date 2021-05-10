@@ -1,5 +1,5 @@
 
-inputs := tpl.tex tpl.sty glossary.tex \
+inputs := tpl.tex tpl.sty \
           $(wildcard sec/*.tex)
 
 
