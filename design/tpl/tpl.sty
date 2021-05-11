@@ -30,6 +30,8 @@
 % To aid in defining star commands
 \usepackage{suffix}
 
+\usepackage{marginnote}
+
 % Colors from Tango Icon Theme
 % https://en.wikipedia.org/wiki/Tango_Desktop_Project
 \definecolor{href}{HTML}{204a87}
@@ -126,3 +128,5 @@
 
 % Symbols appear at the beginning of the index
 \newcommand\indexsym[2]{\index{__sym_#2@{\ensuremath{#1}}|see {#2}}}
+
+\newcommand\todo[1]{\marginnote{\underline{\textsc{Todo:}}\\ \textsl{#1}}}
