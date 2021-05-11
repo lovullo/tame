@@ -64,10 +64,22 @@ is equivalent to the proposition
     \logand \tameparam{pool\_depth\_ft} < 8.
 \end{equation*}
 
-\index{classification!universal}
-\begin{definition}[Universal Classification]\dfnlabel{classu}
-  A classification~$c$ by default performs conjunction on its match
-    expressions $M_0\ldots M_n$.
+\goodbreak
+\index{classification!conjunctive}
+\begin{definition}[\logand-Classification]\dfnlabel{classu}
+  A conjunctive\footnote{%
+    Conjunctive and disjunctive classifications used to be referred to,
+      respectively,
+      as \emph{universal} and \emph{existential},
+        referring to fact that
+          $\forall\Set{a_0,\ldots a_n}(a) \equiv a_0\logand\ldots\logand a_n$,
+            and similarly for $\exists$.
+    This terminology has changed since all classifications are in fact
+      existential over their matches' index sets,
+        and so the terminology would otherwise lead to confusion.
+    }
+    classification~$c$ performs conjunction on its match expressions
+      $M_0\ldots M_n$.
 
   \begin{alignat*}{2}
     &\xml{<classify as="}&&c\xml{" desc="$\ldots$">} \\
@@ -80,18 +92,26 @@ is equivalent to the proposition
   \end{alignat*}
 \end{definition}
 
-\index{classification!existential}
-\begin{definition}[Existential Classification]\dfnlabel{classe}
-  A classification~$c$ with the attribute \xpath{@any="true"} performs
-    disjunction on its match expressions $M_0\ldots M_n$.
+\index{classification!disjunctive}
+\begin{definition}[\logor-Classification]\dfnlabel{classe}
+  A disjunctive classification~$d$\footnote{%
+    It is notationally convenient that~$c$ is a common prefix for both
+      \underline{c}lassification \emph{and} \underline{c}onjunction,
+        and also that~$d$ happens to follow~$c$ \emph{and} be the prefix for
+        \underline{d}isjunction.
+    This notation will only be used where such a distinction is relevant,
+      and $c$~will otherwise refer generically to any type of
+      classification.}
+    with the attribute \xpath{@any="true"} performs disjunction on its match
+      expressions $M_0\ldots M_n$.
 
   \begin{alignat*}{2}
-    &\xml{<classify as="} &&c\xml{" any="true" desc="$\ldots$">} \\
+    &\xml{<classify as="} &&d\xml{" any="true" desc="$\ldots$">} \\
     &\quad M_0 \\
     &\quad \vdots \\
     &\quad M_n \\
     &\texttt{</classify>}
-      &&\equiv c\in\Bool \\
+      &&\equiv d\in\Bool \\
     & &&\equiv \exists\left( M_0 \logor \ldots \logor M_n \right).
   \end{alignat*}
 \end{definition}
