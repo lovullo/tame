@@ -20,11 +20,7 @@ When you see any of these prefixed with ``0.'',
 
 
 \subsection{Propositional Logic}
-\indexsym{\true,\false}{boolean}
-\index{boolean!FALSE@\tamefalse{} (\false)}%
-\index{boolean!TRUE@\tametrue{} (\true)}%
-\indexsym\Int{integer}
-\index{integer (\Int)}%
+\index{logic!propositional}
 We reproduce here certain axioms and corollaries of propositional logic for
   convenience and to clarify our interpretation of certain concepts.
 The use of the symbols $\logand$, $\logor$, and~$\neg$ are standard.
@@ -49,14 +45,19 @@ We further use $\equiv$ in place of $\leftrightarrow$ to represent material
   $p \infer (p\logor q)$ and $q \infer (p\logor q)$.
 \end{definition}
 
+\indexsym\neg{negation}
+\index{negation (\ensuremath{\neg})}
+\index{law of excluded middle}
 \begin{definition}[Law of Excluded Middle]
   $\infer (p \logor \neg p)$.
 \end{definition}
 
+\index{law of non-contradiction}
 \begin{definition}[Law of Non-Contradiction]
   $\infer \neg(p \logand \neg p)$.
 \end{definition}
 
+\index{De Morgan's theorem}
 \begin{definition}[De Morgan's Theorem]
   $\neg(p \logand q) \infer (\neg p \logor \neg q)$
     and $\neg(p \logor q) \infer (\neg p \logand \neg q)$.
@@ -72,59 +73,69 @@ $\equiv$ denotes a logical identity.
 Consequently,
   it'll often be used as a definition operator.
 
-\begin{definition}[Logical Implication]
+\indexsym{\!\!\implies\!\!}{implication}
+\index{implication (\ensuremath{\implies})}
+\begin{definition}[Implication]
   $p\implies q \infer (\neg p \logor q)$.
 \end{definition}
 
+\indexsym{\true}{boolean, true}
+\indexsym{\false}{boolean, false}
+\index{boolean!FALSE@\tamefalse{} (\false)}%
+\index{boolean!TRUE@\tametrue{} (\true)}%
 \begin{definition}[Truth Values]\dfnlabel{truth-values}
   $\infer\true$ and $\infer\neg\false$.
 \end{definition}
 
 
 \subsection{First-Order Logic and Set Theory}
-\index{first-order logic}
+\index{logic!first-order}
+\indexsym\emptyset{set empty}
+\indexsym{\Set{}}{set}
+\index{set!empty (\ensuremath{\emptyset, \{\}})}
 The symbol $\emptyset$ represents the empty set---%
   the set of zero elements.
 We assume that the axioms of ZFC~set theory hold,
   but define $\in$ here for clarity.
 
+% TODO: set-builder notation, union, intersection
 \indexsym\in{set membership}
-\index{set!membership@membership (\ensuremath{\in})}
+\indexsym\union{set, union}
+\indexsym\intersect{set, intersection}
+\index{set!membership@membership (\ensuremath\in)}
+\index{set!union (\ensuremath\union)}
+\index{set!intersection (\ensuremath\intersect)}
 \begin{definition}[Set Membership]
-  $x \in S \equiv \Set{x} \cap S \not= \emptyset.$
+  $x \in S \equiv \Set{x} \intersect S \not= \emptyset.$
 \end{definition}
 
-\indexsym\forall{quantification, universal}
-\indexsym\exists{quantification, existential}
-\index{quantification!universal (\ensuremath{\forall})}
-\index{quantification!existential (\ensuremath{\exists})}
 $\forall$ denotes first-order universal quantification (``for all''),
   and $\exists$ first-order existential quantification (``there exists''),
   over some domain.
 
-\indexsym\logor{disjunction}
-\index{disjunction (\ensuremath{\logor})}
+\indexsym\exists{quantification, existential}
+\index{quantification!existential (\ensuremath\exists)}
 \begin{definition}[Existential Quantification]\dfnlabel{exists}
   $\Exists{x\in X}{P(x)} \equiv
     \true \in \Set{P(x) \mid x\in X}$.
 \end{definition}
 
-\indexsym\logand{conjunction}
-\index{conjunction (\ensuremath{\logand})}
+\indexsym\forall{quantification, universal}
+\index{quantification!universal (\ensuremath\forall)}
 \begin{definition}[Universal Quantification]\dfnlabel{forall}
   $\Forall{x\in X}{P(x)} \equiv \neg\Exists{x\in X}{\neg P(x)}$.
 \end{definition}
 
-\indexsym\emptyset{set empty}
-\indexsym{\Set{}}{set}
-\index{set!empty (\ensuremath{\emptyset, \{\}})}
+\index{quantification!vacuous truth}
 \begin{remark}[Vacuous Truth]
-  By Definition~7, $\Exists{x\in\emptyset}P \equiv \false$
+  By \dfnref{exists}, $\Exists{x\in\emptyset}P \equiv \false$
     and by \dfnref{forall}, $\Forall{x\in\emptyset}P \equiv \true$.
   And so we also have the tautologies $\infer \neg\Exists{x\in\emptyset}P$
     and $\infer \Forall{x\in\emptyset}P$.
 \end{remark}
 
+\indexsym\Int{integer}
+\index{integer (\Int)}%
 \begin{definition}[Boolean/Integer Equivalency]\dfnlabel{bool-int}
   $\Set{0,1}\in\Int, \false \equiv 0$ and $\true \equiv 1$.
 \end{definition}
@@ -137,10 +148,22 @@ $\forall$ denotes first-order universal quantification (``for all''),
 
 
 \subsection{Functions}
+\indexsym{f, g}{function}
+\indexsym\mapsto{function, map}
+\indexsym\rightarrow{function, domain map}
+\index{function}
+\index{function!map (\ensuremath\mapsto)}
+\index{map|see {function}}
+\index{function!domain}
+\index{function!codomain}
+\index{domain|see {function, domain}}
+\index{function!domain map (\ensuremath\rightarrow)}
 The notation $f = x \mapsto x' : A\rightarrow B$ represents a function~$f$
   that maps from~$x$ to~$x'$,
     where $x\in A$ (the domain of~$f$) and $x'\in B$ (the co-domain of~$f$).
 
+\indexsym\times{set, Cartesian product}
+\index{set!Cartesian product (\ensuremath\times)}
 A function $A\rightarrow B$ can be represented as the Cartesian
   product of its domain and codomain, $A\times B$.
 For example,
@@ -151,6 +174,9 @@ For example,
   \Set{\ldots,\,(0,0),\,(1,1),\,(2,4),\,(3,9),\,\ldots}.
 \end{equation*}
 
+\indexsym{[\,]}{function, image}
+\index{function!image (\ensuremath{[\,]})}
+\index{function!as a set}
 The set of values over which some function~$f$ ranges is its \emph{image},
   which is a subset of its codomain.
 In the example above,
@@ -170,6 +196,9 @@ We therefore have
   f[] &= f[A].
 \end{align}
 
+\indexsym{()}{tuple}
+\index{tuple (\ensuremath{()})}
+\index{relation|see {function}}
 And ordered pair $(x,y)$ is also called a \emph{$2$-tuple}.
 Generally,
   an \emph{$n$-tuple} is used to represent an $n$-ary function,
@@ -190,13 +219,13 @@ Binary functions are often written using \emph{infix} notation;
 
 
 \subsubsection{Binary Operations On Functions}
+\indexsym{R}{relation}
 Consider two unary functions $f$ and~$g$,
   and a binary relation~$R$.
+\indexsym{\bicomp{R}}{function, binary composition}
+\index{function!binary composition (\ensuremath{\bicomp{R}})}
 We introduce a notation~$\bicomp R$ to denote the composition of a binary
-  function with two unary functions.\footnote{%
-    The notation originates from~$\circ$ to denote ordinary function
-      composition,
-        as in $(f\circ g)(x) = f(g(x))$.}
+  function with two unary functions.
 
 \begin{align}
   f &: A \rightarrow B \\
@@ -205,11 +234,14 @@ We introduce a notation~$\bicomp R$ to denote the composition of a binary
   f \bicomp{R} g &= \alpha \mapsto f_\alpha R g_\alpha : A \rightarrow F
 \end{align}
 
+\indexsym\circ{function, composition}
+\index{function!composition (\ensuremath\circ)}
 Note that $f$ and~$g$ must share the same domain~$A$.
 In that sense,
   this is the mapping of the operation~$R$ over the domain~$A$.
 This is analogous to unary function composition~$f\circ g$.
 
+\index{function!constant}
 A scalar value~$x$ can be mapped onto some function~$f$ using a constant
   function.
 For example,
@@ -219,8 +251,12 @@ For example,
   f \bicomp+ (\_\mapsto x) = \alpha \mapsto f_\alpha + x.
 \end{equation*}
 
+\indexsym{\_}{variable, wildcard}
+\index{variable!wildcard/hole (\ensuremath{\_})}
 The symbol~$\_$ is used to denote a variable that is never referenced.
 
+\indexsym{\bicompi{R}}{function, binary composition, recursive}
+\index{function!binary composition (\ensuremath{\bicomp{R}})!recursive (\ensuremath{\bicompi{R}})}
 For convenience,
   we also define $\bicompi{R}$,
   which recursively handles combinations of function and scalar values.
@@ -255,6 +291,16 @@ Unfortunately,
 A vector is a sequence of values, defined as a function of
   an index~set.
 
+% TODO: font changes in index, making langle unavailable
+%\indexsym{\Vector{}}{vector}
+\index{vector!definition (\ensuremath{\Vector{}})}
+\index{sequence|see vector}
+\indexsym\Vectors{vector}
+\index{real number (\ensuremath\Real)}
+\indexsym\Real{real number}
+\indexsym{\Fam{a}jJ}{index set}
+\index{family|see {index set}}
+\index{index set (\ensuremath{\Fam{a}jJ})}
 \begin{definition}[Vector]\dfnlabel{vec}
   Let $J\subset\Int$ represent an index set.
   A \emph{vector}~$v\in\Vectors^\Real$ is a totally ordered sequence of
@@ -270,6 +316,7 @@ This definition means that $v_j = v(j)$,
 We may omit the superscript such that $\Vectors^\Real=\Vectors$
   and $\Vector{\ldots}^\Real=\Vector{\ldots}$.
 
+\index{vector!matrix}
 \begin{definition}[Matrix]\dfnlabel{matrix}
   Let $J\subset\Int$ represent an index set.
   A \emph{matrix}~$M\in\Matrices$ is a totally ordered sequence of
@@ -318,7 +365,8 @@ We can also add two vectors, and scale them:
 
 
 \subsection{XML Notation}
-\index{XML}
+\indexsym{\xml{<>}}{XML}
+\index{XML!notation (\xml{<>})}
 The grammar of \tame{} is XML.
 Equivalence relations will be used to map source expressions to an
   underlying mathematical expression.
