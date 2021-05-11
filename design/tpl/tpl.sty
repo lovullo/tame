@@ -14,8 +14,9 @@
 % Note that we force draft=false so hyperlinks always appear
 \usepackage[colorlinks=true,linkcolor=href,draft=false]{hyperref}
 
-% For displaying source code (e.g. XML)
-\usepackage{listings}
+% For displaying source code (e.g. XML); `final' needed in draft mode,
+% otherwise no listings display.
+\usepackage[final]{listings}
 
 % Definitions, theorems, proofs, etc
 \usepackage{amsmath}
