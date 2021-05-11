@@ -52,7 +52,7 @@
 
 \newcommand\xpath[1]{\texttt{#1}}
 \newcommand\xmlnode[1]{\texttt{#1}}
-\newcommand\xmlattr[1]{@\texttt{#1}}
+\newcommand\xmlattr[1]{{@\texttt{#1}}}
 
 \newcommand\tameparam[1]{\texttt{#1}}
 \newcommand\tameclass[1]{\texttt{#1}}
@@ -128,5 +128,12 @@
 
 % Symbols appear at the beginning of the index
 \newcommand\indexsym[2]{\index{__sym_#2@{\ensuremath{#1}}|see {#2}}}
+
+\DeclareMathOperator*\Classify{%
+  \mathchoice{\vcenter{\hbox{\huge$\mathfrak{C}$}}}
+             {\vcenter{\hbox{\Large$\mathfrak{C}$}}}
+             {\frak{C}}
+             {\frak{C}}
+}
 
 \newcommand\todo[1]{\marginnote{\underline{\textsc{Todo:}}\\ \textsl{#1}}}

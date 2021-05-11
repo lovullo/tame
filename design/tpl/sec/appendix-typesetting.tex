@@ -1,0 +1,92 @@
+
+\section{Meta: Typesetting}
+This appendix is a meta-document describing typographic considerations for
+  this document.
+It is intended to be included in debug/developer builds,
+  not to be included as official documentation for the software.
+
+\subsection{$\Classify$}
+\index{classification!\ensuremath{\Classify} design}
+The symbol representing classification is defined in \secref{class}.
+It uses the capital Fraktur letter~`C',
+  typeset as~$\Classify\!\!$.
+Compare this side-by-side with the summation operator Sigma:
+
+\def\EXSUM{\sum_k^n k}
+\def\EXCLASS{\Classify^\texttt{as}_\texttt{yields} P}
+
+\begin{equation*}
+ \EXSUM \mspace{50mu} \EXCLASS.
+\end{equation*}
+
+These are both written inline, respectively, as
+  $\EXSUM$ and $\EXCLASS$.
+
+Classifications are canonically referred to by their \xmlattr{as}~name,
+  which makes for a bit of an awkward-looking construction when the
+  superscript is provided but not the subscript.
+For example, consider the classification $\tameclass{foo-bar}$ inline,
+  compared to~$\Classify_\texttt{foo-bar}$.
+Now compare the display style
+
+\begin{equation*}
+  \tameclass{foo-bar}
+  \mspace{25mu}\text{vs.}\mspace{25mu}
+  \Classify_\texttt{foo-bar}.
+\end{equation*}
+
+Of course,
+  referring to the \xmlattr{yields}~name will use the subscript,
+    which (at least to the author) feels more natural.
+Why not swap them, then?
+
+The superscript always denotes a scalar Boolean value.
+The subscript,
+  however,
+  has a more complex type that's dependent on the predicates of the classification.
+Let's say we wanted to denote a classification with a dimensionality of~$2$:
+  $\Classify^\texttt{foo-bar}_{\texttt{fooBar}^2}$ versus
+  $\Classify_\texttt{foo-bar}^{\texttt{fooBar}^2}$,
+    typeset in display style as
+
+\begin{equation*}
+  \Classify^\texttt{foo-bar}_{\texttt{fooBar}^2}
+  \mspace{25mu}\text{vs.}\mspace{25mu}
+  \Classify_\texttt{foo-bar}^{\texttt{fooBar}^2}.
+\end{equation*}
+
+The amount of vertical space taken up by the first style is unchanged by the
+  superscript on the subscript,
+    but that's not true of the second style.
+
+The final consideration is that the subscript of the summation,
+  when the superscript is omitted,
+  denotes the range or set of values for the sum.
+For example,
+  one may have $\sum_{0\leq k \leq n}$ or
+  $\sum_{a\in A}$.
+Having the subscript of $\Classify$ represent the more complex set of values
+  is therefore more analogous to the sum,
+    and better fits readers' intuitive notational expectations.
+
+It is also worth noting that the distinction between the two is historical---%
+  \xmlattr{as} used to represent an accumulator,
+    which is a long-removed feature;
+      references to~\xmlattr{as} in \tame{} today end up resolving
+      to~\xmlattr{yields} anyway.
+If that name is repurposed,
+  one potential option is to have it take the place of~\xmlattr{yields},
+    in which case the superscript in~$\Classify$ goes away and the
+      notational awkwardness is removed.
+
+A final note on the choice of character:
+Admittedly, $\Classify$ does look a bit threatening,
+  but one could also interpret it as ``bold and distinguished''.
+$\mathcal{C}$ was considered,
+  but it looks too childish (and perhaps Comic Sans-like) when typeset large:
+
+\begin{equation*}
+  \displaystyle\mathop{\hbox{\huge$\mathcal{C}$}}^\texttt{rejected}_\texttt{style}.
+\end{equation*}
+
+It's easy enough to change in the future if we change our minds.

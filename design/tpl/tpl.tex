@@ -56,6 +56,14 @@
 \input{sec/notation.tex}
 \input{sec/class.tex}
 
+% Flag is on for now
+\let\WITHAPPENDIX1
+
+\ifx\WITHAPPENDIX1
+\appendix
+\input{sec/appendix-typesetting.tex}
+\fi
+
 % Ensure Copyright line does not show for Index
 \cfoot[\thepage]{\thepage}
 \clearpage

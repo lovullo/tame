@@ -17,8 +17,58 @@ Intuitively,
   \emph{tightly coupled} to the classification itself.
 This limitation is mitigated through use of the template system.
 
+\index{classification!conjunctive}
+\begin{definition}[\logand-Classification]\dfnlabel{classu}
+  A conjunctive\footnote{%
+    Conjunctive and disjunctive classifications used to be referred to,
+      respectively,
+      as \emph{universal} and \emph{existential},
+        referring to fact that
+          $\forall\Set{a_0,\ldots,a_n}(a) \equiv a_0\logand\ldots\logand a_n$,
+            and similarly for $\exists$.
+    This terminology has changed since all classifications are in fact
+      existential over their matches' index sets,
+        and so the terminology would otherwise lead to confusion.
+    }
+    classification~$c$ performs conjunction on its match expressions
+      $M_0\ldots M_n$.
+
+  \begin{align*}
+    &\xml{<classify as="$c$" yields="$\gamma$" desc="$\ldots$">} \\
+    &\quad M_0 \\
+    &\quad \vdots \\
+    &\quad M_n \\
+    &\xml{</classify>}
+      \equiv \Classify^c_\gamma M_0 \logand \ldots \logand M_n.
+  \end{align*}
+\end{definition}
+
+\index{classification!disjunctive}
+\begin{definition}[\logor-Classification]\dfnlabel{classe}
+  A disjunctive classification~$d$ with \xpath{@any="true"}
+    performs disjunction on its match expressions
+    $M_0\ldots M_n$.\footnote{%
+      It is notationally convenient that~$c$ is a common prefix for both
+        \underline{c}lassification \emph{and} \underline{c}onjunction,
+          and also that~$d$ happens to follow~$c$ \emph{and} be the prefix for
+          \underline{d}isjunction.
+      This notation will only be used where such a distinction is relevant,
+        and $c$~will otherwise refer generically to any type of
+        classification.}
+
+  \begin{align*}
+    &\xml{<classify as="$d$" yields="$\gamma$" any="true" desc="$\ldots$">} \\
+    &\quad M_0 \\
+    &\quad \vdots \\
+    &\quad M_n \\
+    &\texttt{</classify>}
+      \equiv \Classify^d_\gamma M_0 \logor \ldots \logor M_n.
+  \end{align*}
+\end{definition}
+
+\todo{$\Classify$ itself has not yet been defined.}
 For example,
-  consider the following classification \tameclass{cost-exceeded}.
+  consider the following classification $\Classify^\texttt{cost-exceeded}$.
 Let~\tameparam{cost} be a scalar parameter.
 
 \index{classification!classify@\xmlnode{classify}}
@@ -63,58 +113,6 @@ is equivalent to the proposition
   \tameclass{pool-hazard} \equiv \tameparam{diving\_board}
     \logand \tameparam{pool\_depth\_ft} < 8.
 \end{equation*}
-
-\goodbreak
-\index{classification!conjunctive}
-\begin{definition}[\logand-Classification]\dfnlabel{classu}
-  A conjunctive\footnote{%
-    Conjunctive and disjunctive classifications used to be referred to,
-      respectively,
-      as \emph{universal} and \emph{existential},
-        referring to fact that
-          $\forall\Set{a_0,\ldots,a_n}(a) \equiv a_0\logand\ldots\logand a_n$,
-            and similarly for $\exists$.
-    This terminology has changed since all classifications are in fact
-      existential over their matches' index sets,
-        and so the terminology would otherwise lead to confusion.
-    }
-    classification~$c$ performs conjunction on its match expressions
-      $M_0\ldots M_n$.
-
-  \begin{alignat*}{2}
-    &\xml{<classify as="}&&c\xml{" desc="$\ldots$">} \\
-    &\quad M_0 \\
-    &\quad \vdots \\
-    &\quad M_n \\
-    &\xml{</classify>}
-      &&\equiv c\in\Bool \\
-    & &&\equiv M_0 \logand \ldots \logand M_n.
-  \end{alignat*}
-\end{definition}
-
-\index{classification!disjunctive}
-\begin{definition}[\logor-Classification]\dfnlabel{classe}
-  A disjunctive classification~$d$ with \xpath{@any="true"}
-    performs disjunction on its match expressions
-    $M_0\ldots M_n$.\footnote{%
-      It is notationally convenient that~$c$ is a common prefix for both
-        \underline{c}lassification \emph{and} \underline{c}onjunction,
-          and also that~$d$ happens to follow~$c$ \emph{and} be the prefix for
-          \underline{d}isjunction.
-      This notation will only be used where such a distinction is relevant,
-        and $c$~will otherwise refer generically to any type of
-        classification.}
-
-  \begin{alignat*}{2}
-    &\xml{<classify as="} &&d\xml{" any="true" desc="$\ldots$">} \\
-    &\quad M_0 \\
-    &\quad \vdots \\
-    &\quad M_n \\
-    &\texttt{</classify>}
-      &&\equiv d\in\Bool \\
-    & &&\equiv M_0 \logor \ldots \logor M_n.
-  \end{alignat*}
-\end{definition}
 
 
 \subsection{Matches}
