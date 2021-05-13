@@ -19,13 +19,13 @@ This limitation is mitigated through use of the template system.
 
 \todo{$\Classify$ itself has not yet been defined.}
 \index{classification!conjunctive}
-\begin{definition}[\logand-Classification]\dfnlabel{classu}
+\begin{definition}[$\land$-Classification]\dfnlabel{classu}
   A conjunctive\footnote{%
     Conjunctive and disjunctive classifications used to be referred to,
       respectively,
       as \emph{universal} and \emph{existential},
         referring to fact that
-          $\forall\Set{a_0,\ldots,a_n}(a) \equiv a_0\logand\ldots\logand a_n$,
+          $\forall\Set{a_0,\ldots,a_n}(a) \equiv a_0\land\ldots\land a_n$,
             and similarly for $\exists$.
     This terminology has changed since all classifications are in fact
       existential over their matches' index sets,
@@ -40,12 +40,12 @@ This limitation is mitigated through use of the template system.
     &\quad \vdots \\
     &\quad M_n \\
     &\xml{</classify>}
-      \equiv \Classify^c_\gamma M_0 \logand \ldots \logand M_n.
+      \equiv \Classify^c_\gamma M_0 \land \ldots \land M_n.
   \end{align*}
 \end{definition}
 
 \index{classification!disjunctive}
-\begin{definition}[\logor-Classification]\dfnlabel{classe}
+\begin{definition}[$\lor$-Classification]\dfnlabel{classe}
   A disjunctive classification~$d$ with \xpath{@any="true"}
     performs disjunction on its match expressions
     $M_0\ldots M_n$.\footnote{%
@@ -63,7 +63,7 @@ This limitation is mitigated through use of the template system.
     &\quad \vdots \\
     &\quad M_n \\
     &\texttt{</classify>}
-      \equiv \Classify^d_\gamma M_0 \logor \ldots \logor M_n.
+      \equiv \Classify^d_\gamma M_0 \lor \ldots \lor M_n.
   \end{align*}
 \end{definition}
 
@@ -112,7 +112,7 @@ is equivalent to the proposition
 
 \begin{equation*}
   \tameclass{pool-hazard} \equiv \tameparam{diving\_board}
-    \logand \tameparam{pool\_depth\_ft} < 8.
+    \land \tameparam{pool\_depth\_ft} < 8.
 \end{equation*}
 
 

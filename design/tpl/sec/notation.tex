@@ -23,7 +23,7 @@ When you see any of these prefixed with ``0.'',
 \index{logic!propositional}
 We reproduce here certain axioms and corollaries of propositional logic for
   convenience and to clarify our interpretation of certain concepts.
-The use of the symbols $\logand$, $\logor$, and~$\neg$ are standard.
+The use of the symbols $\land$, $\lor$, and~$\neg$ are standard.
 \indexsym\infer{infer}
 \index{infer (\ensuremath\infer)}
 The symbol $\infer$ means ``infer''.
@@ -33,40 +33,40 @@ We use $\implies$ in place of $\rightarrow$ for implication,
 We further use $\equiv$ in place of $\leftrightarrow$ to represent material
   equivalence.
 
-\indexsym\logand{conjunction}
-\index{conjunction (\ensuremath{\logand})}
+\indexsym\land{conjunction}
+\index{conjunction (\ensuremath{\land})}
 \begin{definition}[Logical Conjunction]
-  $p,q \infer (p\logand q)$.
+  $p,q \infer (p\land q)$.
 \end{definition}
 
-\indexsym\logor{disjunction}
-\index{disjunction (\ensuremath{\logor})}
+\indexsym\lor{disjunction}
+\index{disjunction (\ensuremath{\lor})}
 \begin{definition}[Logical Disjunction]
-  $p \infer (p\logor q)$ and $q \infer (p\logor q)$.
+  $p \infer (p\lor q)$ and $q \infer (p\lor q)$.
 \end{definition}
 
 \indexsym\neg{negation}
 \index{negation (\ensuremath{\neg})}
 \index{law of excluded middle}
 \begin{definition}[Law of Excluded Middle]
-  $\infer (p \logor \neg p)$.
+  $\infer (p \lor \neg p)$.
 \end{definition}
 
 \index{law of non-contradiction}
 \begin{definition}[Law of Non-Contradiction]
-  $\infer \neg(p \logand \neg p)$.
+  $\infer \neg(p \land \neg p)$.
 \end{definition}
 
 \index{De Morgan's theorem}
 \begin{definition}[De Morgan's Theorem]
-  $\neg(p \logand q) \infer (\neg p \logor \neg q)$
-    and $\neg(p \logor q) \infer (\neg p \logand \neg q)$.
+  $\neg(p \land q) \infer (\neg p \lor \neg q)$
+    and $\neg(p \lor q) \infer (\neg p \land \neg q)$.
 \end{definition}
 
 \indexsym\equiv{equivalence}
 \index{equivalence!material (\ensuremath{\equiv})}
 \begin{definition}[Material Equivalence]
-  $p\equiv q \infer \big((p \logand q) \logor (\neg p \logand \neg q)\big)$.
+  $p\equiv q \infer \big((p \land q) \lor (\neg p \land \neg q)\big)$.
 \end{definition}
 
 $\equiv$ denotes a logical identity.
@@ -76,7 +76,7 @@ Consequently,
 \indexsym{\!\!\implies\!\!}{implication}
 \index{implication (\ensuremath{\implies})}
 \begin{definition}[Implication]
-  $p\implies q \infer (\neg p \logor q)$.
+  $p\implies q \infer (\neg p \lor q)$.
 \end{definition}
 
 \indexsym{\true}{boolean, true}
@@ -191,7 +191,7 @@ We therefore have
   f : A \rightarrow B &\infer f \subset A\times B, \\
   f = \alpha \mapsto \alpha' : A \rightarrow B
                   &= \Set{(\alpha,\alpha')
-                            \mid \alpha\in A \logand \alpha'\in B}, \\
+                            \mid \alpha\in A \land \alpha'\in B}, \\
   f[D\subseteq A] &= \Set{f(\alpha) \mid \alpha\in D} \subset B, \\
   f[] &= f[A].
 \end{align}
@@ -273,9 +273,9 @@ This notation is used to simplify definitions of the classification system
   \alpha \bicompi{R} \beta =
     \begin{cases}
       \gamma \mapsto \alpha_\gamma \bicompi{R} \beta_\gamma
-        &\text{if } (\alpha : A\rightarrow B) \logand (\beta : A\rightarrow D),\\
+        &\text{if } (\alpha : A\rightarrow B) \land (\beta : A\rightarrow D),\\
       \gamma \mapsto \alpha_\gamma \bicompi{R} (\_ \mapsto \beta)
-        &\text{if } (\alpha : A\rightarrow B) \logand (\beta \in\Real),\\
+        &\text{if } (\alpha : A\rightarrow B) \land (\beta \in\Real),\\
       \alpha R \beta &\text{otherwise}.
     \end{cases}
 \end{equation}
