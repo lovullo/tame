@@ -45,6 +45,30 @@ We further use $\equiv$ in place of $\leftrightarrow$ to represent material
   $p \infer (p\lor q)$ and $q \infer (p\lor q)$.
 \end{definition}
 
+\begin{definition}[$\land$-Associativity]\dfnlabel{conj-assoc}
+  $(p \land (q \land r)) \infer ((p \land q) \land r)$.
+\end{definition}
+
+\begin{definition}[$\lor$-Associativity]\dfnlabel{disj-assoc}
+  $(p \lor (q \lor r)) \infer ((p \lor q) \lor r)$.
+\end{definition}
+
+\begin{definition}[$\land$-Commutativity]\dfnlabel{conj-commut}
+  $(p \land q) \infer (q \land p)$.
+\end{definition}
+
+\begin{definition}[$\lor$-Commutativity]\dfnlabel{disj-commut}
+  $(p \lor q) \infer (q \lor p)$.
+\end{definition}
+
+\begin{definition}[$\land$-Simplification]\dfnlabel{conj-simpl}
+  $p \land q \infer p$.
+\end{definition}
+
+\begin{definition}[Double Negation]\dfnlabel{double-neg}
+  $\neg\neg p \infer p$.
+\end{definition}
+
 \indexsym\neg{negation}
 \index{negation (\ensuremath{\neg})}
 \index{law of excluded middle}
@@ -58,7 +82,7 @@ We further use $\equiv$ in place of $\leftrightarrow$ to represent material
 \end{definition}
 
 \index{De Morgan's theorem}
-\begin{definition}[De Morgan's Theorem]
+\begin{definition}[De Morgan's Theorem]\dfnlabel{demorgan}
   $\neg(p \land q) \infer (\neg p \lor \neg q)$
     and $\neg(p \lor q) \infer (\neg p \land \neg q)$.
 \end{definition}
@@ -133,6 +157,17 @@ $\forall$ denotes first-order universal quantification (``for all''),
   And so we also have the tautologies $\infer \neg\Exists{x\in\emptyset}P$
     and $\infer \Forall{x\in\emptyset}P$.
 \end{remark}
+
+We also have this shorthand notation:
+
+\index{quantification!\ensuremath{\forall x,y,z}}
+\index{quantification!\ensuremath{\exists x,y,z}}
+\begin{align}
+  \Forall{x,y,z\in S}P \equiv
+    \Forall{x\in S}{\Forall{y\in S}{\Forall{z\in S}P}}, \\
+  \Exists{x,y,z\in S}P \equiv
+    \Exists{x\in S}{\Exists{y\in S}{\Exists{z\in S}P}}.
+\end{align}
 
 \indexsym\Int{integer}
 \index{integer (\Int)}%
@@ -285,6 +320,89 @@ Note that we consider the bracket notation for the image of a function
 Given that, we have $f\bicomp{[]} = f\bicomp{[A]}$ for functions returning
   functions (such as vectors of vectors in \secref{vec}),
     noting that $\bicompi{[]}$ is \emph{not} a sensible construction.
+
+
+\subsection{Monoids and Sequences}
+\begin{definition}[Monoid]\dfnlabel{monoid}
+  Let $S$ be some set.  A \emph{monoid} is a triple $\Monoid S\bullet e$
+    with the axioms
+
+  \begin{align}
+    \bullet &: S\times S \rightarrow S
+      \tag{Binary Closure} \\
+    \Forall{a,b,c\in S&}{a\bullet(b\bullet c) = (a\bullet b)\bullet c)},
+      \tag{Associativity} \\
+    \Exists{e\in S&}{\Forall{a\in S}{e\bullet a = a\bullet e = a}}.
+      \tag{Commutativity}
+  \end{align}
+\end{definition}
+
+Monoids originate from abstract algebra.
+A monoid is a semigroup with an added identity element~$e$.
+
+Consider some sequence of operations
+  $x_0 \bullet\cdots\bullet x_n \in S$.
+Intuitively,
+  a monoid tells us how to combine that sequence into a single element
+  of~$S$.
+When the sequence has one or zero elements,
+  we then use the identity element $e\in S$:
+    as $x_0 \bullet e = x_0$ in the case of one element
+    or $e \bullet e = e$ in the case of zero.
+
+Generally,
+  given some monoid $\Monoid S\bullet e$ and a sequence $\Fam{x}jJ\in S$
+  where $n<|J|$,
+    we have
+    $x_0\bullet x_1\bullet\cdots\bullet x_{n-1}\bullet x_n$
+    represent the successive binary operation on all indexed elements
+    of~$x$.
+When it's clear from context that the index is increasing by a constant
+  of~$1$,
+    that notation is shortened to $x_0\bullet\cdots\bullet x_n$ to save
+    space.
+When $|J|=1$, then $n=0$ and we have the sequence $x_0$.
+When $|J|=0$, then $n=-1$,
+  and no such sequence exists,
+  in which case we expand into the identity element~$e$.
+
+For example,
+  given the monoid~$\Monoid\Int+0$,
+  the sequence $1+2+\cdots+4+5$ can be shortened to
+    $1+\cdots+5$ and represents the arithmetic progression
+    $1+2+3+4+5=15$.
+If $x=\Set{1,2,3,4,5}$,
+  $x_0+\cdots+x_n$ represents the same sequence.
+If $x=\Set{1}$,
+  that sequence evaluates to $1=1$.
+If $x=\Set{}$,
+  we have $0$.
+
+\begin{lemma}
+  $\Monoid\Bool\land\true$ is a monoid.
+\end{lemma}
+\begin{proof}
+  $\Monoid\Bool\land\true$ is associative by \dfnref{conj-assoc}.
+  The identity element is~$\true\in\Bool$ by \dfnref{conj-commut} and
+    \dfnref{conj-simpl},
+      as in $\true \land p \equiv p \land \true \equiv p$.
+\end{proof}
+
+\begin{lemma}
+  $\Monoid\Bool\lor\false$ is a monoid.
+\end{lemma}
+\begin{proof}
+  $\Monoid\Bool\lor\false$ is associative by \dfnref{disj-assoc}.
+  The identity $\false\in\Bool$ follows from
+
+  \begin{alignat*}{3}
+    \false \lor p &\equiv p \lor \false &&\text{by \dfnref{disj-commut}} \\
+                  &\equiv \neg(\neg p \land \neg\false)\qquad
+                    &&\text{by \dfnref{demorgan}} \\
+                  &\equiv \neg(\neg p) &&\text{by \dfnref{conj-simpl}} \\
+                  &\equiv p. &&\text{by \dfnref{double-neg}} \tag*\qedhere
+  \end{alignat*}
+\end{proof}
 
 
 \goodbreak% Fits well on its own page, if we're near a page boundary

@@ -63,7 +63,7 @@
 
 \newcommand\true{\ensuremath{\top}}
 \newcommand\false{\ensuremath{\bot}}
-\newcommand\Bool{\ensuremath{\{\false,\true\}}}
+\newcommand\Bool{\ensuremath{\mathbb{B}}}
 
 \newcommand\tametrue{\tameconst{TRUE}}
 \newcommand\tamefalse{\tameconst{FALSE}}
@@ -112,6 +112,11 @@
 \newcommand\corref[1]{Corollary~\ref{cor:#1}}
 \newcommand\corpref[1]{Corollary~\pref{cor:#1}}
 
+\newtheorem{lemma}{Lemma}[section]
+\newcommand\lemlabel[1]{\label{lem:#1}}
+\newcommand\lemref[1]{Lemma~\ref{lem:#1}}
+\newcommand\lempref[1]{Lemma~\pref{lem:#1}}
+
 \theoremstyle{remark}
 \newtheorem{remark}{Remark}[section]
 
@@ -138,3 +143,5 @@
 
 \newcommand\todo[1]{\marginnote{\underline{\textsc{Todo:}}\\ \textsl{#1}}}
 \newcommand\mremark[1]{\marginnote{\textsl{#1}}}
+
+\newcommand\Monoid[3]{\left({#1},{#2},{#3}\right)}
