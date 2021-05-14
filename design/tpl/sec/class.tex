@@ -17,10 +17,59 @@ Intuitively,
   \emph{tightly coupled} to the classification itself.
 This limitation is mitigated through use of the template system.
 
-\todo{$\Classify$ itself has not yet been defined.}
-\index{classification!conjunctive}
-\begin{definition}[$\land$-Classification]\dfnlabel{classu}
-  A conjunctive\footnote{%
+\begin{definition}[Classification Introduction]
+\todo{Symbol in place of $=$ here ($\equiv$ not appropriate).}
+\begin{alignat}{3}
+    &\xml{<classify as="$c$" }&&\xml{yields="$\gamma$" desc}&&\xml{="$\_$"
+          $\alpha$>}\label{eq:xml-classify} \\
+    &\quad \VFam{M^0}jJ   &&\VFam{v^0}jJ   &&\quad s^0    \nonumber\\
+    &\quad \quad\vdots    &&\quad\vdots    &&\quad \vdots \nonumber\\
+    &\quad \VFam{M^l}jJ   &&\VFam{v^m}jJ   &&\quad s^n    \nonumber\\
+    &\xml{</classify>}
+      % NB: This -50mu needs adjustment if you change the alignment above!
+      &&\mspace{-50mu}= \Classify^c_\gamma\left(\odot,M,v,s\right), \nonumber
+\end{alignat}
+
+\noindent
+where
+
+\begin{align}
+    J &\subset\Int, \\
+    \forall{k}\Big(M^k &: J \rightarrow \Int \rightarrow \Real\Big),
+                                            \label{eq:class-matrix} \\
+    \forall{k}\Big(v^k &: J \rightarrow \Real\Big), \\
+    \forall{k}\Big(s^k &\in\Real\Big), \\
+    l+m+n &\geq 0, \label{eq:mvs-opt} \\
+    \alpha &\in\Set{\epsilon,\, \texttt{any="true"}}, \label{eq:xml-any-domain}
+\end{align}
+\end{definition}
+
+\noindent
+and the monoid~$\odot$ is defined as
+
+\begin{equation}\label{eq:classify-rel}
+  \odot = \begin{cases}
+        \Monoid\Bool\land\true &\alpha = \epsilon,\\
+        \Monoid\Bool\lor\false &\alpha = \texttt{any="true"}.
+      \end{cases}
+\end{equation}
+
+
+We use a $4$-tuple $\Classify\left(\odot,M,v,s\right)$ to represent a
+  $\odot_1$-classification
+    (a classification with the binary operation $\land$ or~$\lor$)
+  consisting of a combination of matrix~($M$), vector~($v$), and
+    scalar~($s$) matches,
+      rendered above in columns.\footnote{%
+        The symbol~$\odot$ was chosen since the binary operation for a monoid
+          is~$\bullet$
+            (see \secref{monoids})
+          and~$\odot$ looks vaguely like~$(\bullet)$,
+            representing a portion of the monoid triple.}
+The sum~\eqref{eq:mvs-opt} emphasizes that there may be zero or more of each
+  (see also \remref{vacuous-truth}).
+A $\land$-classification is pronounced ``conjunctive classification'',
+  and $\lor$ ``disjunctive''.\footnote{%
     Conjunctive and disjunctive classifications used to be referred to,
       respectively,
       as \emph{universal} and \emph{existential},
@@ -29,47 +78,115 @@ This limitation is mitigated through use of the template system.
             and similarly for $\exists$.
     This terminology has changed since all classifications are in fact
       existential over their matches' index sets,
-        and so the terminology would otherwise lead to confusion.
-    }
-    classification~$c$ performs conjunction on its match expressions
-      $M_0\ldots M_n$.
+        and so the terminology would otherwise lead to confusion.}
 
-  \begin{align*}
-    &\xml{<classify as="$c$" yields="$\gamma$" desc="$\ldots$">} \\
-    &\quad M_0 \\
-    &\quad \vdots \\
-    &\quad M_n \\
-    &\xml{</classify>}
-      \equiv \Classify^c_\gamma M_0 \land \ldots \land M_n.
-  \end{align*}
+The variables~$c$ and~$\gamma$ are required in~\tame{} but are both optional
+  in our notation~$\Classify^c_\gamma$,
+    and can be used to identify the two different data representations of
+    the classification.\footnote{%
+      \xpath{classify/@yields} is optional in the grammar of \tame{},
+        but the compiler will generate one for us if one is not provided.
+      As such,
+        we will for simplicity consider it to be required here.}
+
+% This TODO was the initial motivation for this paper!
+\todo{Describe what \tame{} does when this is not the case.}
+Each $M^k$ and~$v^k$ share the same index set~$J$.
+Intuitively,
+  this means that all vectors must be the same length,
+  that their length must match the number of rows in each matrix,
+  and that each matrix must have the same number of rows.
+But it leaves \emph{unbounded} the lengths of each inner vector of a matrix
+  (its columns; see \secref{vec}),
+    as emphasized by~\eqref{eq:class-matrix}.
+This is further constrained by~\dfnref{class-pred}.
+
+$\alpha$~serves as a placeholder for an optional \xml{any="true"},
+  with $\emptystr$~representing the empty string in~\eqref{eq:xml-any-domain}.
+Note the wildcard variable matching \xmlattr{desc}---%
+  its purpose is only to provide documentation.
+
+\def\cpredscalar{s^0\bullet\cdots\bullet s^n}
+
+\begin{definition}[Classification-Predicate Equivalence]\dfnlabel{class-pred}
+  Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
+    classification by~\eqref{eq:xml-classify}.
+  We then have the first-order sentence
+  \begin{equation*}
+    c \equiv
+      {} \Exists{j\in J}{
+            \Exists{k}{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
+            \bullet v^0_j \bullet\cdots\bullet v^m_j}
+        \bullet \cpredscalar.
+  \end{equation*}
 \end{definition}
 
-\index{classification!disjunctive}
-\begin{definition}[$\lor$-Classification]\dfnlabel{classe}
-  A disjunctive classification~$d$ with \xpath{@any="true"}
-    performs disjunction on its match expressions
-    $M_0\ldots M_n$.\footnote{%
-      It is notationally convenient that~$c$ is a common prefix for both
-        \underline{c}lassification \emph{and} \underline{c}onjunction,
-          and also that~$d$ happens to follow~$c$ \emph{and} be the prefix for
-          \underline{d}isjunction.
-      This notation will only be used where such a distinction is relevant,
-        and $c$~will otherwise refer generically to any type of
-        classification.}
+\begin{corollary}[Classification As Proposition]
+  Classifications with $M\union v=\emptyset$ or with constant index sets can
+    be represented by propositional logic
+      (that is---without first-order logic).
+\end{corollary}
+\begin{proof}
+  These facts follow clearly from \dfnref{class-pred}.
+  Since the length of vectors and matrices are unknown until runtime,
+    first-order logic is required to quantify over their index sets.
+  If, however, we restrict ourselves to scalar inputs,
+    we have
 
-  \begin{align*}
-    &\xml{<classify as="$d$" yields="$\gamma$" any="true" desc="$\ldots$">} \\
-    &\quad M_0 \\
-    &\quad \vdots \\
-    &\quad M_n \\
-    &\texttt{</classify>}
-      \equiv \Classify^d_\gamma M_0 \lor \ldots \lor M_n.
-  \end{align*}
-\end{definition}
+    \begin{align*}
+      c &\equiv \Exists{j\in J}{\Exists{k}{e}\bullet e}
+                 \bullet\cpredscalar \\
+        &\equiv \Exists{j\in J}{e \bullet e}
+                 \bullet\cpredscalar \\
+        &\equiv \Exists{j\in J}{e}
+                 \bullet\cpredscalar \\
+        &\equiv e \bullet\cpredscalar \\
+        &\equiv \cpredscalar,
+    \end{align*}
+
+    \noindent
+    which is a propositional formula.
+
+  Similarly,
+    if we define our index set~$J$ to be constant
+      (such that it is known at compile-time)\footnote{%
+        Alternatively,
+          we could set an upper bound for~$J$,
+          always expand into that upper bound,
+          and then let undefined values of $v^m_j$ be~$\false$.},
+        we are then able to eliminate existential quantification over~$J$
+        as follows:
+  Let $j=|J|-1$.
+  Then,
+
+  % Better to have this on another page than to have the sentence that
+  % follows be a widow.
+  \goodbreak
+  \begin{equation}\label{eq:class-vexpand}
+    c \equiv (v^0_0 \lor\cdots\lor v^0_j)
+             \bullet\cdots\bullet
+             (v^m_0 \lor\cdots\lor v^0_j),
+  \end{equation}
+  \noindent
+  which is a propositional formula.
+
+  We can extend the same concept to the index set of the inner vector of
+    each matrix and proceed inductively on~\eqref{eq:class-vexpand} above
+    with the inner vector's index set in place of~$J$.
+\end{proof}
+
+\INCOMPLETE{The classification definitions are incomplete!}
+
+These definitions may also be used as a form of pattern matching to look up
+  a corresponding variable.
+For example,
+  if we have $\Classify^\texttt{foo}$ and want to know its \xmlattr{yields},
+    we can write~$\Classify^\texttt{foo}_\gamma$ to bind the
+    \xmlattr{yields} to~$\gamma$.\footnote{%
+      This is conceptually like a symbol table lookup in the compiler.}
 
 \mremark{Note that these illustrate \emph{scalar} values only.}
-For example,
-  consider the following classification $\Classify^\texttt{cost-exceeded}$.
+Consider the following classification $\Classify^\texttt{cost-exceeded}$.
 Let~\tameparam{cost} be a scalar parameter.
 
 \index{classification!classify@\xmlnode{classify}}

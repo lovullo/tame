@@ -35,6 +35,9 @@
 % Creative Commons icons
 \usepackage{ccicons}
 
+% Dangerous Bend, from TeXbook
+\usepackage{manfnt}
+
 % Colors from Tango Icon Theme
 % https://en.wikipedia.org/wiki/Tango_Desktop_Project
 \definecolor{href}{HTML}{204a87}
@@ -80,8 +83,10 @@
 \newcommand\Matrices{\ensuremath{\Vectors^{\Vectors^\Real}}}
 
 \let\union\cup
+\let\Union\bigcup
 \let\intersect\cap
 \let\infer\vdash
+\let\emptystr\epsilon
 
 \newcommand\len[1]{\ensuremath{\left|#1\right|}}
 
@@ -144,3 +149,16 @@
 \newcommand\mremark[1]{\marginnote{\textsl{#1}}}
 
 \newcommand\Monoid[3]{\left({#1},{#2},{#3}\right)}
+
+% A really obnoxious notice making clear to the reader that this portion of
+% the work is unfinished, to the point where it's probably even
+% incorrect.  Uses dangerous bend symbol from manfnt, which is admittedly a
+% misuse given that it's often used to represent difficult problems.  Though
+% I suppose an unfinished work is a difficult problem.
+\newcommand\INCOMPLETE[1]{%
+  \bigskip
+  \par
+  \todo{This is incomplete!}
+  \hfill\textdbend\textbf{\textsl{#1}}\textdbend\hfill
+  \bigskip
+}
