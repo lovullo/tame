@@ -100,25 +100,24 @@
 % `align' environment within an argument.
 \newcommand\@Existsstar[2]{\exists #1 #2}
 
+% Create a new theorem environment along with a set of label/ref/pref
+% commands.
+\newcommand\newtheoremwithlabel[3]{%
+  \newtheorem{#1}{#2}[section]
+  \expandafter\newcommand\csname #3label\endcsname[1]{\label{#3:##1}}
+  \expandafter\newcommand\csname #3ref\endcsname[1]{#2~\ref{#3:##1}}
+  \expandafter\newcommand\csname #3pref\endcsname[1]{#2~\pref{#3:##1}}
+}
+
 \theoremstyle{definition}
-\newtheorem{definition}{Definition}[section]
-\newcommand\dfnlabel[1]{\label{dfn:#1}}
-\newcommand\dfnref[1]{Definition~\ref{dfn:#1}}
-\newcommand\dfnpref[1]{Definition~\pref{dfn:#1}}
+\newtheoremwithlabel{definition}{Definition}{dfn}
 
 \theoremstyle{plain}
-\newtheorem{corollary}{Corollary}[section]
-\newcommand\corlabel[1]{\label{cor:#1}}
-\newcommand\corref[1]{Corollary~\ref{cor:#1}}
-\newcommand\corpref[1]{Corollary~\pref{cor:#1}}
-
-\newtheorem{lemma}{Lemma}[section]
-\newcommand\lemlabel[1]{\label{lem:#1}}
-\newcommand\lemref[1]{Lemma~\ref{lem:#1}}
-\newcommand\lempref[1]{Lemma~\pref{lem:#1}}
+\newtheoremwithlabel{corollary}{Corollary}{cor}
+\newtheoremwithlabel{lemma}{Lemma}{lem}
 
 \theoremstyle{remark}
-\newtheorem{remark}{Remark}[section]
+\newtheoremwithlabel{remark}{Remark}{rem}
 
 \newcommand\pref[1]{\ref{#1} on page~\pageref{#1}}
 \newcommand\seclabel[1]{\label{sec:#1}}
