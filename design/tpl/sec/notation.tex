@@ -323,6 +323,8 @@ Given that, we have $f\bicomp{[]} = f\bicomp{[A]}$ for functions returning
 
 
 \subsection{Monoids and Sequences}
+\index{abstract algebra!monoid}
+\index{monoid|see abstract algebra, monoid}
 \begin{definition}[Monoid]\dfnlabel{monoid}
   Let $S$ be some set.  A \emph{monoid} is a triple $\Monoid S\bullet e$
     with the axioms
@@ -337,6 +339,8 @@ Given that, we have $f\bicomp{[]} = f\bicomp{[A]}$ for functions returning
   \end{align}
 \end{definition}
 
+\index{abstract algebra}
+\index{abstract algebra!semigroup}
 Monoids originate from abstract algebra.
 A monoid is a semigroup with an added identity element~$e$.
 
@@ -350,6 +354,8 @@ When the sequence has one or zero elements,
     as $x_0 \bullet e = x_0$ in the case of one element
     or $e \bullet e = e$ in the case of zero.
 
+\indexsym\cdots{sequence}
+\index{sequence}
 Generally,
   given some monoid $\Monoid S\bullet e$ and a sequence $\Fam{x}jJ\in S$
   where $n<|J|$,
@@ -378,6 +384,7 @@ If $x=\Set{1}$,
 If $x=\Set{}$,
   we have $0$.
 
+\index{conjunction!monoid}
 \begin{lemma}
   $\Monoid\Bool\land\true$ is a monoid.
 \end{lemma}
@@ -388,6 +395,7 @@ If $x=\Set{}$,
       as in $\true \land p \equiv p \land \true \equiv p$.
 \end{proof}
 
+\index{disjunction!monoid}
 \begin{lemma}
   $\Monoid\Bool\lor\false$ is a monoid.
 \end{lemma}
