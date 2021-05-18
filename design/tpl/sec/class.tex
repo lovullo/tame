@@ -122,6 +122,14 @@ This is due to the commutativity of~$\odot$ as proved by
     and not only affords great ease of use to users of~\tame{},
       but also great flexibility to compiler writers.
 
+For notational convenience,
+  we will let
+
+\begin{align}
+  \odot^\land &= \Monoid\Bool\land\true, \\
+  \odot^\lor &= \Monoid\Bool\lor\false.
+\end{align}
+
 
 \def\cpredmatseq{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
 \def\cpredvecseq{v^0_j\bullet\cdots\bullet v^m_j}
@@ -249,6 +257,36 @@ This is due to the commutativity of~$\odot$ as proved by
       $\gamma=\Gamma^r=e$.
   Therefore $c\equiv e$.
 \end{proof}
+
+
+\begin{figure}[h]\label{fig:always-never}
+  \begin{alignat*}{3}
+    \begin{aligned}
+      \xml{<classify }&\xml{as="always" yields="alwaysTrue"} \xmlnl
+                      &\xml{desc="Always true" />}
+    \end{aligned}
+      \quad&=\quad
+      \Classify^\texttt{always}_\texttt{alwaysTrue}
+        &&\left(\odot^\land,\emptyset,\emptyset,\emptyset\right). \\
+    %
+    \begin{aligned}
+      \xml{<classify }&\xml{as="never" yields="neverTrue"} \xmlnl
+                      &\xml{any="true"} \xmlnl
+                      &\xml{desc="Never true" />}
+    \end{aligned}
+      \quad&=\quad
+      \Classify^\texttt{never}_\texttt{neverTrue}
+        &&\left(\odot^\lor,\emptyset,\emptyset,\emptyset\right).
+  \end{alignat*}
+  \caption{\tameclass{always} and \tameclass{never} from package
+             \tamepkg{core/base}.}
+\end{figure}
+
+Figure~\ref{fig:always-never} demonstrates \lemref{class-pred-vacu} in the
+  definitions of the classifications \tameclass{always} and~\tameclass{never}.
+These classifications are typically referenced directly for clarity rather
+  than creating other vacuous classifications,
+    encapsulating \lemref{class-pred-vacu}.
 
 
 \begin{theorem}[Classification Rank Independence]\thmlabel{class-rank-indep}
