@@ -172,3 +172,15 @@
   \hfill\textdbend\textbf{\textsl{#1}}\textdbend\hfill
   \bigskip
 }
+
+
+%
+% Dynamic Configuration
+%
+\newif\iftplappendix
+
+\InputIfFileExists{./conf.tex}%
+  {\message{Loaded `./conf.tex'.}}%
+  {\message{`./conf.tex' not found (did you run `./configure'?).
+            Using defaults.}%
+}

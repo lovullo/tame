@@ -18,3 +18,11 @@
 
 # latexmk
 *.fdb_latexmk
+
+# configure
+conf.tex
+aclocal.m4
+autom4te.cache
+config.status
+configure
+
