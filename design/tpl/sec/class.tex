@@ -1,7 +1,7 @@
 
 \section{Classification System}\seclabel{class}
 \index{classification}
-A \emph{classification} is a user-defined abstraction that describes
+A \dfn{classification} is a user-defined abstraction that describes
   (``classifies'') arbitrary data.
 Classifications can be used as predicates, generating functions, and can be
   composed into more complex classifications.
@@ -9,12 +9,12 @@ Nearly all conditions in \tame{} are specified using classifications.
 
 \index{first-order logic!sentence}
 \index{classification!coupling}
-All classifications represent \emph{first-order sentences}---%
+All classifications represent \dfn{first-order sentences}---%
   that is,
-    they contain no \emph{free variables}.
+    they contain no \dfn{free variables}.
 Intuitively,
   this means that all variables within a~classification are
-  \emph{tightly coupled} to the classification itself.
+  \dfn{tightly coupled} to the classification itself.
 This limitation is mitigated through use of the template system.
 
 \begin{axiom}[Classification Introduction]\axmlabel{class-intro}
@@ -74,7 +74,7 @@ A $\land$-classification is pronounced ``conjunctive classification'',
   and $\lor$ ``disjunctive''.\footnote{%
     Conjunctive and disjunctive classifications used to be referred to,
       respectively,
-      as \emph{universal} and \emph{existential},
+      as \dfn{universal} and \dfn{existential},
         referring to fact that
           $\forall\Set{a_0,\ldots,a_n}(a) \equiv a_0\land\ldots\land a_n$,
             and similarly for $\exists$.
@@ -392,7 +392,7 @@ Then,
                             & \equiv \true.
 \end{align*}
 
-Each \xmlnode{match} of a classification is a~\emph{predicate}.
+Each \xmlnode{match} of a classification is a~\dfn{predicate}.
 Multiple predicates are by default joined by conjunction:
 
 \begin{lstlisting}
