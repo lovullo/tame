@@ -339,6 +339,12 @@ Given that, we have $f\bicomp{[]} = f\bicomp{[A]}$ for functions returning
 \index{abstract algebra!semigroup}
 Monoids originate from abstract algebra.
 A monoid is a semigroup with an added identity element~$e$.
+Only the identity element must be commutative,
+  but if the binary operation~$\bullet$ is \emph{also} commutative,
+    then the monoid is a \dfn{commutative monoid}.\footnote{%
+      A commutative monoid is less frequently referred to as an
+        \dfn{abelian monoid},
+          related to the common term \dfn{abelian group}.}
 
 Consider some sequence of operations
   $x_0 \bullet\cdots\bullet x_n \in S$.
@@ -384,21 +390,21 @@ If $x=\Set{}$,
 
 \index{conjunction!monoid}
 \begin{lemma}\lemlabel{monoid-land}
-  $\Monoid\Bool\land\true$ is a monoid.
+  $\Monoid\Bool\land\true$ is a commutative monoid.
 \end{lemma}
 \begin{proof}
-  $\Monoid\Bool\land\true$ is associative by \dfnref{conj-assoc}.
-  The identity element is~$\true\in\Bool$ by \dfnref{conj-commut} and
-    \dfnref{conj-simpl},
-      as in $\true \land p \equiv p \land \true \equiv p$.
+  $\Monoid\Bool\land\true$ is associative by \dfnref{conj-assoc}
+    and commutative by \dfnref{conj-commut}.
+  The identity element is~$\true\in\Bool$ by \dfnref{conj-simpl}.
 \end{proof}
 
 \index{disjunction!monoid}
 \begin{lemma}\lemlabel{monoid-lor}
-  $\Monoid\Bool\lor\false$ is a monoid.
+  $\Monoid\Bool\lor\false$ is a commutative monoid.
 \end{lemma}
 \begin{proof}
-  $\Monoid\Bool\lor\false$ is associative by \dfnref{disj-assoc}.
+  $\Monoid\Bool\lor\false$ is associative by \dfnref{disj-assoc}
+    and commutative by \dfnref{disj-commut}.
   The identity $\false\in\Bool$ follows from
 
   \begin{alignat*}{3}

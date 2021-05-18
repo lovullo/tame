@@ -96,8 +96,8 @@ $\alpha$~serves as a placeholder for an optional \xml{any="true"},
 Note the wildcard variable matching \xmlattr{desc}---%
   its purpose is only to provide documentation.
 
-\begin{corollary}[$\odot$ Monoid]\corlabel{odot-monoid}
-  $\odot$ is a monoid in \axmref{class-intro}.
+\begin{corollary}[$\odot$ Commutative Monoid]\corlabel{odot-monoid}
+  $\odot$ is a commutative monoid in \axmref{class-intro}.
 \end{corollary}
 \begin{proof}
   By \axmref{class-intro},
@@ -112,6 +112,15 @@ Note the wildcard variable matching \xmlattr{desc}---%
       which is proved by \lemref{monoid-land}.
 \end{proof}
 
+\index{classification!commutativity}
+\index{compiler!classification commutativity}
+While \axmref{class-intro} seems to imply an ordering to matches,
+  users of the language are free to specify matches in any order
+    and the compiler will rearrange matches as it sees fit.
+This is due to the commutativity of~$\odot$ as proved by
+  \corref{odot-monoid},
+    and not only affords great ease of use to users of~\tame{},
+      but also great flexibility to compiler writers.
 
 
 \def\cpredmatseq{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
