@@ -17,14 +17,16 @@ Intuitively,
   \emph{tightly coupled} to the classification itself.
 This limitation is mitigated through use of the template system.
 
-\begin{definition}[Classification Introduction]
+\begin{axiom}[Classification Introduction]\axmlabel{class-intro}
 \todo{Symbol in place of $=$ here ($\equiv$ not appropriate).}
 \begin{alignat}{3}
     &\xml{<classify as="$c$" }&&\xml{yields="$\gamma$" desc}&&\xml{="$\_$"
           $\alpha$>}\label{eq:xml-classify} \\
-    &\quad \VFam{M^0}jJ   &&\VFam{v^0}jJ   &&\quad s^0    \nonumber\\
+    &\quad \MFam{M^0}jJkK   &&\VFam{v^0}jJ   &&\quad s^0    \nonumber\\
+    % TODO: offset these dots vertically (negative); MFam stacking is
+    % pushing them down too far and it's visually jarring
     &\quad \quad\vdots    &&\quad\vdots    &&\quad \vdots \nonumber\\
-    &\quad \VFam{M^l}jJ   &&\VFam{v^m}jJ   &&\quad s^n    \nonumber\\
+    &\quad \MFam{M^l}jJkK   &&\VFam{v^m}jJ   &&\quad s^n    \nonumber\\
     &\xml{</classify>}
       % NB: This -50mu needs adjustment if you change the alignment above!
       &&\mspace{-50mu}= \Classify^c_\gamma\left(\odot,M,v,s\right), \nonumber
@@ -34,15 +36,14 @@ This limitation is mitigated through use of the template system.
 where
 
 \begin{align}
-    J &\subset\Int, \\
-    \forall{k}\Big(M^k &: J \rightarrow \Int \rightarrow \Real\Big),
+    J &\subset\Int \neq\emptyset, \\
+    \forall{j\in J}\Big(K_j &\subset\Int \neq\emptyset\Big), \\
+    \forall{k}\Big(M^k &: J \rightarrow K_{j\in J} \rightarrow \Real\Big),
                                             \label{eq:class-matrix} \\
     \forall{k}\Big(v^k &: J \rightarrow \Real\Big), \\
     \forall{k}\Big(s^k &\in\Real\Big), \\
-    l+m+n &\geq 0, \label{eq:mvs-opt} \\
     \alpha &\in\Set{\epsilon,\, \texttt{any="true"}}, \label{eq:xml-any-domain}
 \end{align}
-\end{definition}
 
 \noindent
 and the monoid~$\odot$ is defined as
@@ -53,8 +54,11 @@ and the monoid~$\odot$ is defined as
         \Monoid\Bool\lor\false &\alpha = \texttt{any="true"}.
       \end{cases}
 \end{equation}
+\end{axiom}
 
 
+% This TODO was the initial motivation for this paper!
+\todo{Emphasize index sets, both relationships and nonempty.}
 We use a $4$-tuple $\Classify\left(\odot,M,v,s\right)$ to represent a
   $\odot_1$-classification
     (a classification with the binary operation $\land$ or~$\lor$)
@@ -66,8 +70,6 @@ We use a $4$-tuple $\Classify\left(\odot,M,v,s\right)$ to represent a
             (see \secref{monoids})
           and~$\odot$ looks vaguely like~$(\bullet)$,
             representing a portion of the monoid triple.}
-The sum~\eqref{eq:mvs-opt} emphasizes that there may be zero or more of each
-  (see also \remref{vacuous-truth}).
 A $\land$-classification is pronounced ``conjunctive classification'',
   and $\lor$ ``disjunctive''.\footnote{%
     Conjunctive and disjunctive classifications used to be referred to,
@@ -89,37 +91,207 @@ The variables~$c$ and~$\gamma$ are required in~\tame{} but are both optional
       As such,
         we will for simplicity consider it to be required here.}
 
-% This TODO was the initial motivation for this paper!
-\todo{Describe what \tame{} does when this is not the case.}
-Each $M^k$ and~$v^k$ share the same index set~$J$.
-Intuitively,
-  this means that all vectors must be the same length,
-  that their length must match the number of rows in each matrix,
-  and that each matrix must have the same number of rows.
-But it leaves \emph{unbounded} the lengths of each inner vector of a matrix
-  (its columns; see \secref{vec}),
-    as emphasized by~\eqref{eq:class-matrix}.
-This is further constrained by~\dfnref{class-pred}.
-
 $\alpha$~serves as a placeholder for an optional \xml{any="true"},
   with $\emptystr$~representing the empty string in~\eqref{eq:xml-any-domain}.
 Note the wildcard variable matching \xmlattr{desc}---%
   its purpose is only to provide documentation.
 
-\def\cpredscalar{s^0\bullet\cdots\bullet s^n}
+\begin{corollary}[$\odot$ Monoid]\corlabel{odot-monoid}
+  $\odot$ is a monoid in \axmref{class-intro}.
+\end{corollary}
+\begin{proof}
+  By \axmref{class-intro},
+    $\odot$ must be a monoid.
+  Assume $\alpha=\epsilon$.
+  Then,
+    $\odot = \Monoid\Bool\land\true$,
+      which is proved by \lemref{monoid-land}.
+  Next, assume $\alpha=\texttt{any="true"}$.
+  Then,
+    $\odot = \Monoid\Bool\lor\false$,
+      which is proved by \lemref{monoid-land}.
+\end{proof}
 
-\begin{definition}[Classification-Predicate Equivalence]\dfnlabel{class-pred}
+
+
+\def\cpredmatseq{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
+\def\cpredvecseq{v^0_j\bullet\cdots\bullet v^m_j}
+\def\cpredscalarseq{s^0\bullet\cdots\bullet s^n}
+
+
+\begin{axiom}[Classification-Predicate Equivalence]\axmlabel{class-pred}
   Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
-    classification by~\eqref{eq:xml-classify}.
+    classification by~\axmref{class-intro}.
   We then have the first-order sentence
   \begin{equation*}
     c \equiv
-      {} \Exists{j\in J}{
-            \Exists{k}{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
-            \bullet v^0_j \bullet\cdots\bullet v^m_j}
-        \bullet \cpredscalar.
+      {} \Exists{j\in J}{\Exists{k\in K_j}\cpredmatseq\bullet\cpredvecseq}
+        \bullet\cpredscalarseq.
   \end{equation*}
-\end{definition}
+\end{axiom}
+
+
+\begin{axiom}[Classification Yield]\axmlabel{class-yield}
+  Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
+    classification by~\axmref{class-intro}.
+  Then,
+  \begin{align}
+    r &= \begin{cases}
+           2 &M\neq\emptyset, \\
+           1 &M=\emptyset \land v\neq\emptyset, \\
+           0 &M\union v = \emptyset,
+         \end{cases} \\
+    \exists{j\in J}\Big(\exists{k\in K_j}\Big(
+      \Gamma^2_{j_k} &= \cpredmatseq\bullet\cpredvecseq\bullet\cpredscalarseq
+    \Big)\Big), \\
+    %
+    \exists{j\in J}\Big(
+      \Gamma^1_j &= \cpredvecseq\bullet\cpredscalarseq
+    \Big), \\
+    %
+    \Gamma^0 &= \cpredscalarseq. \\
+    %
+    \gamma &= \Gamma^r.
+  \end{align}
+\end{axiom}
+
+\begin{theorem}[Classification Composition]\thmlabel{class-compose}
+  Classifications may be composed to create more complex classifications
+    using the classification yield~$\gamma$ as in~\axmref{class-yield}.
+  This interpretation is equivalent to \axmref{class-pred} by
+  \begin{equation}
+    c \equiv \Exists{j\in J}{
+               \Exists{k\in K_j}{\Gamma^2_{j_k}}
+               \bullet \Gamma^1_j
+             }
+             \bullet \Gamma^0.
+  \end{equation}
+\end{theorem}
+
+\def\eejJ{\equiv \exists{j\in J}\Big(}
+
+\begin{proof}
+  Expanding each~$\Gamma$ in \axmref{class-yield},
+    we have
+
+  \begin{alignat*}{3}
+    c &\eejJ\Exists{k\in K_j}{\Gamma^2_{j_k}}
+              \bullet \Gamma^1_j
+            \Big)
+            \bullet \Gamma^0
+        &&\text{by \axmref{class-yield}} \\
+      %
+      &\eejJ\exists{k\in K_j}\Big(
+              \cpredmatseq \bullet \cpredvecseq \bullet \cpredscalarseq
+            \Big) \\
+      &\hphantom{\eejJ}\;\cpredvecseq \bullet \cpredscalarseq \Big)
+                \bullet \cpredscalarseq, \\
+      %
+      &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
+            \bullet \cpredvecseq \bullet \cpredscalarseq \\
+      &\hphantom{\eejJ}\;\cpredvecseq \bullet \cpredscalarseq \Big)
+                \bullet \cpredscalarseq,
+        &&\text{by \dfnref{quant-conn}} \\
+      %
+      &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
+        &&\text{by \dfnref{prop-taut}} \\
+      &\hphantom{\eejJ}\;\cpredvecseq \bullet \cpredscalarseq \Big)
+                \bullet \cpredscalarseq, \\
+      %
+      &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
+        &&\text{by \dfnref{quant-conn}} \\
+      &\hphantom{\eejJ}\;\cpredvecseq\Big) \bullet \cpredscalarseq
+                \bullet \cpredscalarseq, \\
+      %
+      &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
+        &&\text{by \dfnref{prop-taut}} \\
+      &\hphantom{\eejJ}\;\cpredvecseq\Big)
+                \bullet \cpredscalarseq.
+        \tag*{\qedhere} \\
+  \end{alignat*}
+\end{proof}
+
+
+\begin{lemma}[Classification Predicate Vacuity]\lemlabel{class-pred-vacu}
+  \todo{Ex: \texttt{always} and \texttt{never} classifications from \texttt{base}.}
+  Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,\emptyset,\emptyset,\emptyset\right)$
+    be a classification by~\axmref{class-intro}.
+  $\odot$ is a monoid by \corref{odot-monoid}.
+  Then $c \equiv \gamma \equiv e$.
+\end{lemma}
+\begin{proof}
+  First consider $c$.
+  \begin{alignat}{3}
+    c &\equiv \Exists{j\in J}{\Exists{k}{e}\bullet e} \bullet e
+        \qquad&&\text{by \dfnref{monoid-seq}} \label{p:cri-c} \\
+      &\equiv \Exists{j\in J}{e \bullet e} \bullet e
+        &&\text{by \dfnref{quant-elim}} \\
+      &\equiv \Exists{j\in J}{e} \bullet e
+        &&\text{by \ref{eq:monoid-identity}} \\
+      &\equiv e \bullet e
+        &&\text{by \dfnref{quant-elim}} \\
+      &\equiv e.
+        &&\text{by \ref{eq:monoid-identity}}
+  \end{alignat}
+
+  For $\gamma$,
+    we have $r=0$ by \axmref{class-yield},
+    and so by similar steps as~$c$,
+      $\gamma=\Gamma^r=e$.
+  Therefore $c\equiv e$.
+\end{proof}
+
+
+\begin{theorem}[Classification Rank Independence]\thmlabel{class-rank-indep}
+  Let $\odot=\Monoid\Bool\bullet e$.
+  Then,
+  \begin{equation}
+    \Classify_\gamma\left(\odot,M,v,s\right)
+      \equiv \Classify\left(
+        \odot,
+        \Classify_{\gamma'''}\left(\odot,M,\emptyset,\emptyset\right),
+        \Classify_{\gamma''}\left(\odot,\emptyset,v,\emptyset\right),
+        \Classify_{\gamma'}\left(\odot,\emptyset,\emptyset,s\right)
+      \right).
+  \end{equation}
+\end{theorem}
+
+\begin{proof}
+  First,
+    by \axmref{class-yield},
+    observe these special cases following from \lemref{class-pred-vacu}:
+
+  \begin{alignat}{3}
+    \Gamma'''^2 &= \cpredmatseq, \qquad&&\text{assuming $v\union s=\emptyset$} \\
+    \Gamma''^1 &= \cpredvecseq,        &&\text{assuming $M\union s=\emptyset$}\\
+    \Gamma'^0 &= \cpredscalarseq.      &&\text{assuming $M\union v=\emptyset$}
+  \end{alignat}
+
+  By \thmref{class-compose},
+    we must prove
+
+  \begin{align}
+    \Exists{j\in J}{
+        \Exists{k\in K_j}{\cpredmatseq}
+        \bullet \cpredvecseq
+      }
+      \bullet \cpredscalarseq \nonumber\\
+    \equiv c \equiv
+    \Exists{j\in J}{
+        \Exists{k\in K_j}{\gamma'''_{j_k}}
+        \bullet \gamma''_j
+      }
+      \bullet \gamma'. \label{eq:rank-indep-goal}
+  \end{align}
+
+  By \axmref{class-yield},
+    we have $r'''=2$, $r''=1$, and $r'=0$,
+    and so $\gamma'''=\Gamma'''^2$,
+      $\gamma''=\Gamma''^1$,
+      and $\gamma'=\Gamma'^0$.
+  By substituting these values in~\ref{eq:rank-indep-goal},
+    the theorem is proved.
+\end{proof}
 
 \begin{corollary}[Classification As Proposition]
   Classifications with $M\union v=\emptyset$ or with constant index sets can
@@ -127,25 +299,15 @@ Note the wildcard variable matching \xmlattr{desc}---%
       (that is---without first-order logic).
 \end{corollary}
 \begin{proof}
-  These facts follow clearly from \dfnref{class-pred}.
-  Since the length of vectors and matrices are unknown until runtime,
-    first-order logic is required to quantify over their index sets.
-  If, however, we restrict ourselves to scalar inputs,
-    we have
+  Assume $M\union v=\emptyset$.
+  By \thmref{class-rank-indep},
 
-    \begin{align*}
-      c &\equiv \Exists{j\in J}{\Exists{k}{e}\bullet e}
-                 \bullet\cpredscalar \\
-        &\equiv \Exists{j\in J}{e \bullet e}
-                 \bullet\cpredscalar \\
-        &\equiv \Exists{j\in J}{e}
-                 \bullet\cpredscalar \\
-        &\equiv e \bullet\cpredscalar \\
-        &\equiv \cpredscalar,
-    \end{align*}
+  \begin{align*}
+    c &\equiv \cpredscalarseq,
+  \end{align*}
 
-    \noindent
-    which is a propositional formula.
+  \noindent
+  which is a propositional formula.
 
   Similarly,
     if we define our index set~$J$ to be constant
@@ -153,26 +315,33 @@ Note the wildcard variable matching \xmlattr{desc}---%
         Alternatively,
           we could set an upper bound for~$J$,
           always expand into that upper bound,
-          and then let undefined values of $v^m_j$ be~$\false$.},
+          and then let undefined values of $v^m_j$ be~$e$.},
         we are then able to eliminate existential quantification over~$J$
         as follows:
-  Let $j=|J|-1$.
   Then,
 
-  % Better to have this on another page than to have the sentence that
-  % follows be a widow.
-  \goodbreak
-  \begin{equation}\label{eq:class-vexpand}
-    c \equiv (v^0_0 \lor\cdots\lor v^0_j)
-             \bullet\cdots\bullet
-             (v^m_0 \lor\cdots\lor v^0_j),
-  \end{equation}
+  \begin{align}\label{eq:prop-vec}
+    c &\equiv \Exists{j\in J}{\cpredvecseq}, \nonumber\\
+      &\equiv \left(v^0_0\bullet\cdots\bullet v^m_0\right)
+              \lor\cdots\lor
+              \left(v^0_{|J|-1}\bullet\cdots\bullet v^m_{|J|-1}\right),
+  \end{align}
   \noindent
   which is a propositional formula.
 
-  We can extend the same concept to the index set of the inner vector of
-    each matrix and proceed inductively on~\eqref{eq:class-vexpand} above
-    with the inner vector's index set in place of~$J$.
+  Similarly,
+    for matrices,
+
+  \begin{align}
+    c &\equiv \Exists{j\in J}{\Exists{k\in K_j}{\cpredmatseq}}, \nonumber\\
+      &\equiv \Exists{j\in J}{
+                \left({M^0_j}_0\bullet\cdots\bullet{M^0_j}_{|K_j|-1}\right)
+                \lor\cdots\lor
+                \left({M^l_j}_0\bullet\cdots\bullet{M^l_j}_{|K_j|-1}\right)
+              },
+  \end{align}
+  \noindent
+  and then proceed as in~\ref{eq:prop-vec}.
 \end{proof}
 
 \INCOMPLETE{The classification definitions are incomplete!}

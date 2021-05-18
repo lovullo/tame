@@ -81,6 +81,9 @@
 \newcommand\Vector[1]{\ensuremath{\left\langle#1\right\rangle}}
 \newcommand\VFam[3]{\ensuremath{\Vector{#1_{#2}}_{#2\in #3}}}
 \newcommand\Matrices{\ensuremath{\Vectors^{\Vectors^\Real}}}
+\newcommand\MFam[5]{\ensuremath{%
+  \Vector{{#1_{#2}}_#4}_{\underset{#4\in {#5_#2}}{#2\in #3}}
+}}
 
 \let\union\cup
 \let\Union\bigcup
@@ -117,10 +120,12 @@
 
 \theoremstyle{definition}
 \newtheoremwithlabel{definition}{Definition}{dfn}
+\newtheoremwithlabel{axiom}{Axiom}{axm}
 
 \theoremstyle{plain}
 \newtheoremwithlabel{corollary}{Corollary}{cor}
 \newtheoremwithlabel{lemma}{Lemma}{lem}
+\newtheoremwithlabel{theorem}{Theorem}{thm}
 
 \theoremstyle{remark}
 \newtheoremwithlabel{remark}{Remark}{rem}

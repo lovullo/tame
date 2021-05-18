@@ -103,12 +103,22 @@ Consequently,
   $p\implies q \infer (\neg p \lor q)$.
 \end{definition}
 
+\begin{definition}[Tautologies]\dfnlabel{prop-taut}
+  $p\equiv (p\land p)$ and $p\equiv (p\lor p)$.
+\end{definition}
+
 \indexsym{\true}{boolean, true}
 \indexsym{\false}{boolean, false}
 \index{boolean!FALSE@\tamefalse{} (\false)}%
 \index{boolean!TRUE@\tametrue{} (\true)}%
 \begin{definition}[Truth Values]\dfnlabel{truth-values}
   $\infer\true$ and $\infer\neg\false$.
+\end{definition}
+
+\indexsym\Int{integer}
+\index{integer (\Int)}%
+\begin{definition}[Boolean/Integer Equivalency]\dfnlabel{bool-int}
+  $\Set{0,1}\in\Int, \false \equiv 0$ and $\true \equiv 1$.
 \end{definition}
 
 
@@ -133,9 +143,10 @@ We assume that the axioms of ZFC~set theory hold,
   $x \in S \equiv \Set{x} \intersect S \not= \emptyset.$
 \end{definition}
 
+\index{domain of discourse}
 $\forall$ denotes first-order universal quantification (``for all''),
   and $\exists$ first-order existential quantification (``there exists''),
-  over some domain.
+  over some domain of discourse.
 
 \indexsym\exists{quantification, existential}
 \index{quantification!existential (\ensuremath\exists)}
@@ -156,6 +167,10 @@ $\forall$ denotes first-order universal quantification (``for all''),
     and by \dfnref{forall}, $\Forall{x\in\emptyset}P \equiv \true$.
   And so we also have the tautologies $\infer \neg\Exists{x\in\emptyset}P$
     and $\infer \Forall{x\in\emptyset}P$.
+  Empty domains lead to undesirable consequences---%
+    in particular,
+      we must carefully guard against them in \dfnref{quant-conn} and
+        \dfnref{quant-elim} to maintain soundness.
 \end{remark}
 
 We also have this shorthand notation:
@@ -169,17 +184,21 @@ We also have this shorthand notation:
     \Exists{x\in S}{\Exists{y\in S}{\Exists{z\in S}P}}.
 \end{align}
 
-\indexsym\Int{integer}
-\index{integer (\Int)}%
-\begin{definition}[Boolean/Integer Equivalency]\dfnlabel{bool-int}
-  $\Set{0,1}\in\Int, \false \equiv 0$ and $\true \equiv 1$.
+\begin{definition}[Quantifiers Over Connectives]\dfnlabel{quant-conn}
+  Assuming that $x$ is not free in $\varphi$,
+  \begin{alignat*}{3}
+    \varphi\land\Exists{x\in X}{P(x)}
+      &\equiv \Exists{x\in X}{\varphi\land P(x)}, \\
+    \varphi\lor\Exists{x\in X}{P(x)}
+      &\equiv \Exists{x\in X}{\varphi\lor P(x)}
+      \qquad&&\text{assuming $X\neq\emptyset$}.
+  \end{alignat*}
 \end{definition}
 
-\tamefalse{} and~\tametrue{} are constants in \tame{} mapping to the
-  integer values $\{0,1\}\in\Int$.
-\dfnref{bool-int} relates these constants to their
-  boolean counterparts so that they may be used in numeric contexts
-  and vice-versa.
+\begin{definition}[Quantifier Elimination]\dfnlabel{quant-elim}
+  $\Exists{x\in X}{\varphi} \equiv \varphi$ assuming $X\neq\emptyset$
+    and $x$ is not free in~$\varphi$.
+\end{definition}
 
 
 \subsection{Functions}
@@ -331,11 +350,11 @@ Given that, we have $f\bicomp{[]} = f\bicomp{[A]}$ for functions returning
 
   \begin{align}
     \bullet &: S\times S \rightarrow S
-      \tag{Binary Closure} \\
+      \tag{Monoid Binary Closure} \\
     \Forall{a,b,c\in S&}{a\bullet(b\bullet c) = (a\bullet b)\bullet c)},
-      \tag{Associativity} \\
+      \tag{Monoid Associativity} \\
     \Exists{e\in S&}{\Forall{a\in S}{e\bullet a = a\bullet e = a}}.
-      \tag{Commutativity}
+      \tag{Monoid Identity}\label{eq:monoid-identity}
   \end{align}
 \end{definition}
 
@@ -356,6 +375,7 @@ When the sequence has one or zero elements,
 
 \indexsym\cdots{sequence}
 \index{sequence}
+\begin{definition}[Monoidic Sequence]\dfnlabel{monoid-seq}
 Generally,
   given some monoid $\Monoid S\bullet e$ and a sequence $\Fam{x}jJ\in S$
   where $n<|J|$,
@@ -371,6 +391,7 @@ When $|J|=1$, then $n=0$ and we have the sequence $x_0$.
 When $|J|=0$, then $n=-1$,
   and no such sequence exists,
   in which case we expand into the identity element~$e$.
+\end{definition}
 
 For example,
   given the monoid~$\Monoid\Int+0$,
@@ -385,7 +406,7 @@ If $x=\Set{}$,
   we have $0$.
 
 \index{conjunction!monoid}
-\begin{lemma}
+\begin{lemma}\lemlabel{monoid-land}
   $\Monoid\Bool\land\true$ is a monoid.
 \end{lemma}
 \begin{proof}
@@ -396,7 +417,7 @@ If $x=\Set{}$,
 \end{proof}
 
 \index{disjunction!monoid}
-\begin{lemma}
+\begin{lemma}\lemlabel{monoid-lor}
   $\Monoid\Bool\lor\false$ is a monoid.
 \end{lemma}
 \begin{proof}
