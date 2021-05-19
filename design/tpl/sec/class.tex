@@ -7,7 +7,7 @@
 %%
 
 \section{Classification System}\seclabel{class}
-\index{classification}
+\index{classification|textbf}
 A \dfn{classification} is a user-defined abstraction that describes
   (``classifies'') arbitrary data.
 Classifications can be used as predicates, generating functions, and can be
@@ -25,6 +25,13 @@ Intuitively,
 This limitation is mitigated through use of the template system.
 
 \begin{axiom}[Classification Introduction]\axmlabel{class-intro}
+\indexsym\Classify{classification}
+\indexsym\gamma{classification, yield}
+\index{classification!index set}
+\index{index set!classification}
+\index{classification!classify@\xmlnode{classify}}
+\index{classification!as@\xmlattr{as}}
+\index{classification!yields@\xmlattr{yields}}
 \todo{Symbol in place of $=$ here ($\equiv$ not appropriate).}
 \begin{alignat}{3}
     &\xml{<classify as="$c$" }&&\xml{yields="$\gamma$" desc}&&\xml{="$\_$"
@@ -40,6 +47,8 @@ This limitation is mitigated through use of the template system.
 \noindent
 where
 
+\indexsym\emptystr{empty string}
+\index{empty string (\ensuremath\emptystr)}
 \begin{align}
     J &\subset\Int \neq\emptyset, \\
     \forall{j\in J}\Big(K_j &\subset\Int \neq\emptyset\Big), \\
@@ -47,15 +56,18 @@ where
                                             \label{eq:class-matrix} \\
     \forall{k}\Big(v^k &: J \rightarrow \Bool\Big), \\
     \forall{k}\Big(s^k &\in\Bool\Big), \\
-    \alpha &\in\Set{\epsilon,\, \texttt{any="true"}}, \label{eq:xml-any-domain}
+    \alpha &\in\Set{\emptystr,\, \texttt{any="true"}}, \label{eq:xml-any-domain}
 \end{align}
 
 \noindent
 and the monoid~$\odot$ is defined as
 
+\indexsym\odot{classification, monoid}
+\index{classification!any@\xmlattr{any}}
+\index{classification!monoid|(}
 \begin{equation}\label{eq:classify-rel}
   \odot = \begin{cases}
-        \Monoid\Bool\land\true &\alpha = \epsilon,\\
+        \Monoid\Bool\land\true &\alpha = \emptystr,\\
         \Monoid\Bool\lor\false &\alpha = \texttt{any="true"}.
       \end{cases}
 \end{equation}
@@ -77,6 +89,7 @@ We use a $4$-tuple $\Classify\left(\odot,M,v,s\right)$ to represent a
             representing a portion of the monoid triple.}
 A $\land$-classification is pronounced ``conjunctive classification'',
   and $\lor$ ``disjunctive''.\footnote{%
+    \index{classification!terminology history}
     Conjunctive and disjunctive classifications used to be referred to,
       respectively,
       as \dfn{universal} and \dfn{existential},
@@ -102,12 +115,13 @@ Note the wildcard variable matching \xmlattr{desc}---%
   its purpose is only to provide documentation.
 
 \begin{corollary}[$\odot$ Commutative Monoid]\corlabel{odot-monoid}
+\index{classification!commutativity|(}
   $\odot$ is a commutative monoid in \axmref{class-intro}.
 \end{corollary}
 \begin{proof}
   By \axmref{class-intro},
     $\odot$ must be a monoid.
-  Assume $\alpha=\epsilon$.
+  Assume $\alpha=\emptystr$.
   Then,
     $\odot = \Monoid\Bool\land\true$,
       which is proved by \lemref{monoid-land}.
@@ -117,19 +131,20 @@ Note the wildcard variable matching \xmlattr{desc}---%
       which is proved by \lemref{monoid-land}.
 \end{proof}
 
-\index{classification!commutativity}
-\index{compiler!classification commutativity}
 While \axmref{class-intro} seems to imply an ordering to matches,
   users of the language are free to specify matches in any order
     and the compiler will rearrange matches as it sees fit.
+\index{compiler!classification commutativity}
 This is due to the commutativity of~$\odot$ as proved by
   \corref{odot-monoid},
     and not only affords great ease of use to users of~\tame{},
       but also great flexibility to compiler writers.
+\index{classification!commutativity|)}
 
 For notational convenience,
   we will let
 
+\index{classification!monoid|)}
 \begin{align}
   \odot^\land &= \Monoid\Bool\land\true, \\
   \odot^\lor &= \Monoid\Bool\lor\false.
@@ -142,6 +157,7 @@ For notational convenience,
 
 
 \begin{axiom}[Classification-Predicate Equivalence]\axmlabel{class-pred}
+\index{classification!as predicate}
   Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
     classification by~\axmref{class-intro}.
   We then have the first-order sentence
@@ -154,6 +170,8 @@ For notational convenience,
 
 
 \begin{axiom}[Classification Yield]\axmlabel{class-yield}
+\indexsym\Gamma{classification, yield}
+\index{classification!yield (\ensuremath\gamma, \ensuremath\Gamma)}
   Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
     classification by~\axmref{class-intro}.
   Then,
@@ -179,6 +197,7 @@ For notational convenience,
 \end{axiom}
 
 \begin{theorem}[Classification Composition]\thmlabel{class-compose}
+\index{classification!composition|(}
   Classifications may be composed to create more complex classifications
     using the classification yield~$\gamma$ as in~\axmref{class-yield}.
   This interpretation is equivalent to \axmref{class-pred} by
@@ -233,9 +252,11 @@ For notational convenience,
         \tag*{\qedhere} \\
   \end{alignat*}
 \end{proof}
+\index{classification!composition|)}
 
 
 \begin{lemma}[Classification Predicate Vacuity]\lemlabel{class-pred-vacu}
+\index{classification!vacuity|(}
   Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,\emptyset,\emptyset,\emptyset\right)$
     be a classification by~\axmref{class-intro}.
   $\odot$ is a monoid by \corref{odot-monoid}.
@@ -293,9 +314,11 @@ Figure~\ref{fig:always-never} demonstrates \lemref{class-pred-vacu} in the
 These classifications are typically referenced directly for clarity rather
   than creating other vacuous classifications,
     encapsulating \lemref{class-pred-vacu}.
+\index{classification!vacuity|)}
 
 
 \begin{theorem}[Classification Rank Independence]\thmlabel{class-rank-indep}
+\index{classification!rank|(}
   Let $\odot=\Monoid\Bool\bullet e$.
   Then,
   \begin{equation}
@@ -345,8 +368,10 @@ These classifications are typically referenced directly for clarity rather
   By substituting these values in~\ref{eq:rank-indep-goal},
     the theorem is proved.
 \end{proof}
+\index{classification!rank|)}
 
 \begin{corollary}[Classification As Proposition]
+\index{classification!as proposition|(}
   Classifications with $M\union v=\emptyset$ or with constant index sets can
     be represented by propositional logic
       (that is---without first-order logic).
@@ -396,6 +421,7 @@ These classifications are typically referenced directly for clarity rather
   \noindent
   and then proceed as in~\ref{eq:prop-vec}.
 \end{proof}
+\index{classification!as proposition|)}
 
 \INCOMPLETE{The classification definitions are incomplete!}
 
@@ -411,7 +437,6 @@ For example,
 Consider the following classification $\Classify^\texttt{cost-exceeded}$.
 Let~\tameparam{cost} be a scalar parameter.
 
-\index{classification!classify@\xmlnode{classify}}
 \begin{lstlisting}
   <classify as="cost-exceeded" desc="Cost of item is too expensive">
     <t:match-gt on="cost" value="100.00" />
