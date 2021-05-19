@@ -495,6 +495,31 @@ Since a vector is a function,
     &=       &&\Set{0,1,2}.
 \end{alignat*}
 
+% TODO: symbol does not render properly in index
+\begin{definition}[Rank]
+\index{rank}
+  The \dfn{rank} of some variable~$x$ is an integer value
+
+  \begin{equation*}
+    \|x\| =
+      \begin{cases}
+        2 &x\in\Matrices, \\
+        1 &x\in\Vectors^\Real, \\
+        0 &x\in\Real.
+      \end{cases}
+  \end{equation*}
+\end{definition}
+
+Intuitively, the rank represents the number of dimensions of some variable~$x$.
+A scalar has zero dimensions (a point);
+  a vector has one (a line);
+  and a matrix has two (a plane).
+\index{dimensions@see {rank}}
+\index{rank!dimensions}
+In \tame{},
+  the rank is referred to as \dfn{dimensions} using the attribute
+  \xmlattr{dim}.
+
 
 \subsection{XML Notation}
 \indexsym{\xml{<>}}{XML}
