@@ -1,4 +1,4 @@
-% The TAME Programming Language glossary
+% The TAME Programming Language LaTeX style and macros
 %
 %  Copyright (C) 2021 Ryan Specialty Group, LLC.
 %
@@ -6,50 +6,38 @@
 %  International License.
 %%
 
-\usepackage[letterpaper]{geometry}
+%%
+% Package Imports
+%%
+\usepackage[letterpaper]{geometry}       % US Letter paper
+\usepackage[amsfonts,amssymb]{concmath}  % Fonts used by the text
+\usepackage{euler}                       %   Concrete Mathematics
+\usepackage{makeidx}                     % Indexing
+\usepackage[colorlinks=true,
+            linkcolor=href,
+            draft=false]{hyperref}       % Hyperlinks (even in draft mode)
+\usepackage{xcolor}                      % Colors (for hyperlinks)
+\usepackage[final]{listings}             % Displaying code (even in draft)
+\usepackage{amsmath,amsthm}              % AMS macros, including theorems
+\usepackage{suffix}                      % To aid in defining star macros
+\usepackage{marginnote}                  % Notes in the margin
+\usepackage{ccicons}                     % CC license icons
+\usepackage{manfnt}                      % Dangerous Bend symbols
 
-% Concrete Mathematics fonts
-\usepackage[amsfonts,amssymb]{concmath}
-\usepackage{euler}
 
-\usepackage{makeidx}
-
-% Note that we force draft=false so hyperlinks always appear
-\usepackage[colorlinks=true,linkcolor=href,draft=false]{hyperref}
-
-% For displaying source code (e.g. XML); `final' needed in draft mode,
-% otherwise no listings display.
-\usepackage[final]{listings}
-
-% Definitions, theorems, proofs, etc
-\usepackage{amsmath}
-\usepackage{amsthm}
-
-% Line spacing instead of indentation for paragraphs
-%\usepackage[parfill]{parskip}
-
-\usepackage{xcolor}
-
-% To aid in defining star commands
-\usepackage{suffix}
-
-\usepackage{marginnote}
-
-% Creative Commons icons
-\usepackage{ccicons}
-
-% Dangerous Bend, from TeXbook
-\usepackage{manfnt}
-
+
+%%
+% Colors
+%
 % Colors from Tango Icon Theme
 % https://en.wikipedia.org/wiki/Tango_Desktop_Project
 \definecolor{href}{HTML}{204a87}
 
-% TAME is typeset in smallcaps
-\newcommand{\tame}{\textsc{Tame}}
-\newcommand{\tamer}{\textsc{Tamer}}
 
-% TODO: highlighting
+
+%%
+% Listing language
+%%
 \lstset{
   language=XML,
   basicstyle=\ttfamily,
@@ -59,27 +47,50 @@
 }
 
 
+
+%%
+% Common typesetting
+%%
+% TAME
+\newcommand\tame{\textsc{Tame}}
+\newcommand\tamer{\textsc{Tamer}}
+\newcommand\tameparam[1]{\texttt{#1}}
+\newcommand\tameclass[1]{\texttt{#1}}
+\newcommand\tameconst[1]{\texttt{#1}}
+\newcommand\tametrue{\tameconst{TRUE}}
+\newcommand\tamefalse{\tameconst{FALSE}}
+\let\tamepkg\texttt
+
+% XML
+\let\xml\texttt
+\newcommand\xmlnl{\\[-3mm]}
 \newcommand\xpath[1]{\texttt{#1}}
 \newcommand\xmlnode[1]{\texttt{#1}}
 \newcommand\xmlattr[1]{{@\texttt{#1}}}
 
-\newcommand\tameparam[1]{\texttt{#1}}
-\newcommand\tameclass[1]{\texttt{#1}}
-\newcommand\tameconst[1]{\texttt{#1}}
 
-\newcommand\true{\ensuremath{\top}}
-\newcommand\false{\ensuremath{\bot}}
+
+%%
+% Mathematics
+%%
+% Boolean
+\newcommand\true{\ensuremath\top}
+\newcommand\false{\ensuremath\bot}
 \newcommand\Bool{\ensuremath{\mathbb{B}}}
 
-\newcommand\tametrue{\tameconst{TRUE}}
-\newcommand\tamefalse{\tameconst{FALSE}}
-
+% Numbers
 \newcommand\Int{\ensuremath{\mathbb{Z}}}
 \newcommand\Real{\ensuremath{\mathbb{R}}}
 
+% Sets and families
 \newcommand\Set[1]{\ensuremath{\left\{#1\right\}}}
 \newcommand\Fam[3]{\ensuremath{\left\{#1_{#2}\right\}_{#2\in #3}}}
+\newcommand\len[1]{\ensuremath{\left|#1\right|}}
+\let\union\cup
+\let\Union\bigcup
+\let\intersect\cap
 
+% Vectors and matrices with family notations
 \newcommand\Vectors{\ensuremath{\mathcal{V}}}
 \newcommand\Vector[1]{\ensuremath{\left\langle#1\right\rangle}}
 \newcommand\VFam[3]{\ensuremath{\Vector{#1_{#2}}_{#2\in #3}}}
@@ -88,28 +99,38 @@
   \Vector{{#1_{#2}}_#4}_{\underset{#4\in {#5_#2}}{#2\in #3}}
 }}
 
-\let\union\cup
-\let\Union\bigcup
-\let\intersect\cap
+% Logic
 \let\infer\vdash
-\let\emptystr\epsilon
-
-\newcommand\len[1]{\ensuremath{\left|#1\right|}}
-
-\numberwithin{equation}{section}
-
-% Allows us to switch between styles, if need be
-% (e.g. I used the colon style before adopting notation from type theory
-% where the colon became ambiguous)
 \newcommand\Forall{\@ifstar\@Forallstar\@Forall}
 \newcommand\@Forall[2]{\forall #1\left(#2\right)}
 \newcommand\@Forallstar[2]{\forall #1 #2}
-
 \newcommand\Exists{\@ifstar\@Existsstar\@Exists}
 \newcommand\@Exists[2]{\exists #1\left(#2\right)}
-% Without \left and \right.  You'll also need this if you use `&' in an
-% `align' environment within an argument.
 \newcommand\@Existsstar[2]{\exists #1 #2}
+
+% Group theory
+\newcommand\Monoid[3]{\left({#1},{#2},{#3}\right)}
+
+% Binary function composition
+\newcommand\bicomp[1]{{#1}^\circ}
+
+% Grammar
+\let\emptystr\epsilon
+
+% TAME Classification
+\DeclareMathOperator*\Classify{%
+  \mathchoice{\vcenter{\hbox{\huge$\mathfrak{C}$}}}
+             {\vcenter{\hbox{\Large$\mathfrak{C}$}}}
+             {\frak{C}}
+             {\frak{C}}
+}
+
+
+
+%%
+% Theorem environments
+%%
+\numberwithin{equation}{section}   % number by section
 
 % Create a new theorem environment along with a set of label/ref/pref
 % commands.
@@ -133,35 +154,23 @@
 \theoremstyle{remark}
 \newtheoremwithlabel{remark}{Remark}{rem}
 
+
+
+%%
+% General typesetting
+%%
 \newcommand\pref[1]{\ref{#1} on page~\pageref{#1}}
 \newcommand\seclabel[1]{\label{sec:#1}}
 \newcommand\secref[1]{Section~\ref{sec:#1}}
 \newcommand\secpref[1]{Section~\pref{sec:#1}}
 
-% Binary function composition
-\newcommand\bicomp[1]{{#1}^\circ}
-
-\let\xml\texttt
-\newcommand\xmlnl{\\[-3mm]}
-\let\tamepkg\texttt
-
 % Definitions (introduction of terms)
 \let\dfn\textsl
-
-% Symbols appear at the beginning of the index
-\newcommand\indexsym[2]{\index{__sym_#2@{\ensuremath{#1}}|see {#2}}}
-
-\DeclareMathOperator*\Classify{%
-  \mathchoice{\vcenter{\hbox{\huge$\mathfrak{C}$}}}
-             {\vcenter{\hbox{\Large$\mathfrak{C}$}}}
-             {\frak{C}}
-             {\frak{C}}
+\newcommand\todo[1]{%
+  \marginnote{\underline{\textsc{Todo:}}\\
+  \textsl{#1}}%
 }
-
-\newcommand\todo[1]{\marginnote{\underline{\textsc{Todo:}}\\ \textsl{#1}}}
 \newcommand\mremark[1]{\marginnote{\textsl{#1}}}
-
-\newcommand\Monoid[3]{\left({#1},{#2},{#3}\right)}
 
 % A really obnoxious notice making clear to the reader that this portion of
 % the work is unfinished, to the point where it's probably even
@@ -177,9 +186,18 @@
 }
 
 
-%
+
+%%
+% Indexing
+%%
+% Symbols appear at the beginning of the index
+\newcommand\indexsym[2]{\index{__sym_#2@{\ensuremath{#1}}|see {#2}}}
+
+
+
+%%
 % Dynamic Configuration
-%
+%%
 \newif\iftplappendix
 
 \InputIfFileExists{./conf.tex}%
