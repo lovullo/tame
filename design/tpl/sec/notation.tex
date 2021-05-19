@@ -530,12 +530,26 @@ Equivalence relations will be used to map source expressions to an
 For example,
 
 \begin{equation*}
-  \xml{<match on="$x$" value="$y$" />} \equiv x = y
+  \xml{<foo bar="$x$" baz="$y$" />} \equiv x = y
 \end{equation*}
 
 \noindent
-defines that pattern of \xmlnode{match} expression to be materially
+defines that pattern of \xmlnode{foo} expression to be materially
   equivalent to~$x=y$---%
     anywhere an equality relation appears,
       you could equivalently replace it with that XML representation without
         changing the meaning of the mathematical expression.
+
+Variables may also bind to literals in an XML expression.
+For example,
+
+\begin{equation*}
+  \xml{<quux $\alpha$ />},\qquad\alpha\in\Set{\emptystr, \xml{bar="baz"}}
+\end{equation*}
+
+\noindent
+can represent either \xml{<quux />} or \xml{<quux bar="baz" />}.
+\index{empty string}
+$\emptystr$~represents the empty string.
+Any text typeset in \texttt{typewriter} represents a literal
+  string of characters.
