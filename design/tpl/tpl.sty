@@ -64,6 +64,7 @@
 % XML
 \let\xml\texttt
 \newcommand\xmlnl{\\[-3mm]}
+\newcommand\xmlnll{\\[-1mm]}
 \newcommand\xpath[1]{\texttt{#1}}
 \newcommand\xmlnode[1]{\texttt{#1}}
 \newcommand\xmlattr[1]{{@\texttt{#1}}}
@@ -99,6 +100,10 @@
   \Vector{{#1_{#2}}_#4}_{\underset{#4\in {#5_#2}}{#2\in #3}}
 }}
 
+% Variable subscripts
+\let\varsubscript\imath
+\newcommand\varsub[1]{{#1}_{\varsubscript}}
+
 % Logic
 \let\infer\vdash
 \newcommand\Forall{\@ifstar\@Forallstar\@Forall}
@@ -108,8 +113,15 @@
 \newcommand\@Exists[2]{\exists #1\left(#2\right)}
 \newcommand\@Existsstar[2]{\exists #1 #2}
 
+% Equivalent, but some syntatic inference involved (e.g. equivalent by
+% index, as in classification matches).
+\newcommand\equivish{\Vvdash}
+
 % Group theory
 \newcommand\Monoid[3]{\left({#1},{#2},{#3}\right)}
+
+% Closed binary function
+\newcommand\cbif[1]{#1\times#1\rightarrow#1}
 
 % Binary function composition
 \newcommand\bicomp[1]{{#1}^\circ}

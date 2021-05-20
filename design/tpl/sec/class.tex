@@ -7,6 +7,8 @@
 %%
 
 \section{Classification System}\seclabel{class}
+\INCOMPLETE{This section is a work-in-progress.}
+
 \index{classification|textbf}
 A \dfn{classification} is a user-defined abstraction that describes
   (``classifies'') arbitrary data.
@@ -370,13 +372,190 @@ These classifications are typically referenced directly for clarity rather
 \end{proof}
 \index{classification!rank|)}
 
-\begin{corollary}[Classification As Proposition]
-\index{classification!as proposition|(}
-  Classifications with $M\union v=\emptyset$ or with constant index sets can
-    be represented by propositional logic
-      (that is---without first-order logic).
-\end{corollary}
+These definitions may also be used as a form of pattern matching to look up
+  a corresponding variable.
+For example,
+  if we have $\Classify^\texttt{foo}$ and want to know its \xmlattr{yields},
+    we can write~$\Classify^\texttt{foo}_\gamma$ to bind the
+    \xmlattr{yields} to~$\gamma$.\footnote{%
+      This is conceptually like a symbol table lookup in the compiler.}
+
+
+\subsection{Matches}
+\begin{axiom}[Match Input Translation]\axmlabel{match-input}
+  Let $j$ and $k$ be free variables intended to be bound in the
+    context of \axmref{class-pred}.
+  Let $J$ and $K$ be defined by \axmref{class-intro}.
+  Given some input~$x$,
+
+  \begin{equation*}
+    \varsub x =
+      \begin{cases}
+        x_{j_k} &\|x\| = 2; \\
+        x_j     &\|x\| = 1; \\
+        x       &\|x\| = 0,
+      \end{cases}
+    \qquad\qquad
+    \begin{aligned}
+      j&\in J, \\
+      k&\in K_j.
+    \end{aligned}
+  \end{equation*}
+\end{axiom}
+
+\begin{axiom}[Match Rank]\axmlabel{match-rank}
+  Let~$\sim{} : \Real\times\Real\rightarrow\Real$ be some binary relation.
+  Then,
+
+  \begin{equation*}
+    \|\varsub x \sim \varsub y\| =
+      \begin{cases}
+        \|x\| &\|x\| \geq \|y\|, \\
+        \|y\| &\text{otherwise}.
+      \end{cases}
+  \end{equation*}
+\end{axiom}
+
+\def\xyequivish{\varsub x\equivish \varsub y}
+
+\begin{axiom}[Element-Wise Equivalence ($\equivish$)]
+\indexsym\equivish{equivalence, element-wise}
+\index{equivalence!element-wise (\ensuremath\equivish)}
+  \begin{align*}
+    \|\varsub x\|=\|\varsub y\|=2,\,
+      (\xyequivish) &\infer \Forall{j,k}{x_{j_k} \equiv y_{j_k}}, \\
+    \|\varsub x\|=\|\varsub y\|=1,\,
+      (\xyequivish) &\infer \Forall{j}{x_j \equiv y_j}, \\
+    \|\varsub x\|=\|\varsub y\|=0,\,
+      (\xyequivish) &\infer (x\equiv y).
+  \end{align*}
+\end{axiom}
+
+\index{classification!match@\xmlnode{match}}
+\begin{axiom}[Match Introduction]\axmlabel{match-intro}
+  \begin{alignat*}{2}
+    \begin{aligned}[b]
+      \xml{<t:match-$\zeta$ }&\xml{on="$x$"} \xmlnll
+                             &\xml{value="$y$" />}
+    \end{aligned}
+    {}&\equivish{}
+    \begin{aligned}
+      &\xml{<match on="$x$">} \xmlnll
+      &\quad \xml{<c:$\zeta$>} \xmlnll
+      &\quad\quad \xml{<c:value-of name="$y$">} \xmlnll
+      &\quad \xml{</c:$\zeta$>} \xmlnll
+      &\xml{</match>}
+    \end{aligned}
+    \qquad
+    \sim{} = \smash{\begin{cases}
+             =    &\zeta=\xml{eq},  \\
+             <    &\zeta=\xml{lt},  \\
+             >    &\zeta=\xml{gt},  \\
+             \leq &\zeta=\xml{leq}, \\
+             \geq &\zeta=\xml{geq}.
+           \end{cases}} \\
+  &\equivish \varsub x \sim \varsub y,
+  \end{alignat*}
+\end{axiom}
+
+\begin{axiom}[Match Equality Short Form]
+  \begin{equation*}
+    \xml{<match on="$x$" />}
+      \equivish \xml{<match on="$x$" value="TRUE" />}.
+  \end{equation*}
+\end{axiom}
+
+\todo{Define types and \xml{typedef}.}
+\begin{axiom}[Match Membership]
+  When $T$ is a type defined with \xmlnode{typedef},
+
+  \begin{equation*}
+    \xml{<match on="$x$" anyOf="$T$" />} \equivish \varsub x \in T.
+  \end{equation*}
+\end{axiom}
+
+\begin{theorem}[Classification Match Element-Wise Binary Relation]
+\thmlabel{class-match}
+  Within the context of \axmref{class-pred},
+    all \xmlnode{match} forms represent binary relations
+      $\Real\times\Real\rightarrow\Bool$
+    ranging over individual elements of all index sets $J$ and $K_j\in K$.
+\end{theorem}
 \begin{proof}
+  First,
+    observe that each of $=$, $<$, $>$, $\leq$, $\geq$, and $\in$
+    have type $\Real\times\Real\rightarrow\Bool$.
+  We must then prove that $\varsub x$ and $\varsub y$ are able to be
+    interpreted as~$\Real$ within the context of \axmref{class-pred}.
+
+  When $x,y\in\Real$,
+    we have the trivial case $\varsub x=x\in\Real$ and $\varsub y=y\in\Real$
+    by \axmref{match-input}.
+  Otherwise,
+    variables $j$ and $k$ are free.
+
+  Consider $\|\varsub x \sim \varsub y\| = 2$;
+    then $\|\varsub x \sim \varsub y\| \in\Matrices$ by \dfnref{rank},
+      and so by \thmref{class-rank-indep} we have
+
+  \begin{equation}\label{p:match-rel}
+    \Forall{j\in J}{\Forall{k\in K_j}{\cpredmatseq}}
+      \equiv
+      \Forall{j\in J}{\Forall{k\in K_j}{\varsub x \sim \varsub y}},
+  \end{equation}
+
+  \noindent
+  which binds $j$ and $k$ to the variables of their respective quantifiers.
+  Proceed similarly for $\|\varsub x \sim \varsub y\| = 1$ and observe that
+    $j$ becomes bound.
+
+  Assume $x\in\Matrices$;
+    then $x_{j_k}\in\Real$ by \dfnref{matrix}.
+  Assume $y\in\Vectors^\Real$;
+    then $y_j\in\Real$ by \dfnref{vec}.
+  Finally,
+    observe that $j$ ranges over $J$ in \ref{p:match-rel},
+      and $k$ over $K_j$.
+\end{proof}
+
+\todo{Example.}
+\thmref{class-match} is responsible for proving that matches range over each
+  individual index.
+More subtly,
+  it also shows that matches work with any combination of rank.
+This is perhaps best illustrated with an example.
+
+\index{classification!as proposition|(}
+\begin{lemma}[Match As Proposition]\lemlabel{match-prop}
+  Matches can be represented using propositional logic provided that
+    binary operators of \axmref{match-intro} are restricted to $\cbif\Bool$.
+\end{lemma}
+\begin{proof}
+  \begin{alignat*}{4}
+    x = \true  &\equiv x,               &&\quad=    &&: \cbif\Bool; \\
+    x = \false &\equiv \neg x,          &&\quad=    &&: \cbif\Bool; \\
+    x < y      &\equiv \neg x \land y,  &&\quad<    &&: \cbif\Bool; \\
+    x > y      &\equiv x \land \neg y,  &&\quad>    &&: \cbif\Bool; \\
+    x \leq y   &\equiv \neg x \lor y,   &&\quad\leq &&: \cbif\Bool; \\
+    x \geq y   &\equiv x \lor \neg y,   &&\quad\geq &&: \cbif\Bool; \\
+    x \in\Bool &\equiv \true,           &&\quad\in  &&: \cbif\Bool.\tag*{\qedhere}
+  \end{alignat*}
+\end{proof}
+
+\begin{theorem}[Classification As Proposition]
+\index{classification!as proposition|(}
+  Classifications with either $M\union v=\emptyset$ or with constant index
+    sets can be represented by propositional logic provided that the domains
+    of the binary operators of \axmref{match-intro} are restricted to
+    $\cbif\Bool$.
+\end{theorem}
+\begin{proof}
+  Propositional logic does not include quantifiers or relations.
+  Matches of the domain $\cbif\Bool$ are proved to be propositions by
+    \lemref{match-prop}.
+  Having eliminated relations,
+    we must now eliminate quantifiers.
+
   Assume $M\union v=\emptyset$.
   By \thmref{class-rank-indep},
 
@@ -388,15 +567,9 @@ These classifications are typically referenced directly for clarity rather
   which is a propositional formula.
 
   Similarly,
-    if we define our index set~$J$ to be constant
-      (such that it is known at compile-time)\footnote{%
-        Alternatively,
-          we could set an upper bound for~$J$,
-          always expand into that upper bound,
-          and then let undefined values of $v^m_j$ be~$e$.},
-        we are then able to eliminate existential quantification over~$J$
-        as follows:
-  Then,
+    if we define our index set~$J$ to be constant,
+      we are then able to eliminate existential quantification over~$J$
+      as follows:
 
   \begin{align}\label{eq:prop-vec}
     c &\equiv \Exists{j\in J}{\cpredvecseq}, \nonumber\\
@@ -422,95 +595,3 @@ These classifications are typically referenced directly for clarity rather
   and then proceed as in~\ref{eq:prop-vec}.
 \end{proof}
 \index{classification!as proposition|)}
-
-\INCOMPLETE{The classification definitions are incomplete!}
-
-These definitions may also be used as a form of pattern matching to look up
-  a corresponding variable.
-For example,
-  if we have $\Classify^\texttt{foo}$ and want to know its \xmlattr{yields},
-    we can write~$\Classify^\texttt{foo}_\gamma$ to bind the
-    \xmlattr{yields} to~$\gamma$.\footnote{%
-      This is conceptually like a symbol table lookup in the compiler.}
-
-\mremark{Note that these illustrate \emph{scalar} values only.}
-Consider the following classification $\Classify^\texttt{cost-exceeded}$.
-Let~\tameparam{cost} be a scalar parameter.
-
-\begin{lstlisting}
-  <classify as="cost-exceeded" desc="Cost of item is too expensive">
-    <t:match-gt on="cost" value="100.00" />
-  </classify>
-\end{lstlisting}
-
-\noindent
-is then equivalent to the proposition
-
-\begin{equation*}
-  \tameclass{cost-exceeded} \equiv \tameparam{cost} > 100.00.
-\end{equation*}
-
-\index{classification!domain}
-A classification is either \true or~\false.
-Let $\tameparam{cost}=150.00$.
-Then,
-
-\begin{align*}
-  \tameclass{cost-exceeded} & \equiv \tameparam{cost} > 100.00 \\
-                            & \equiv 150.00 > 100.00 \\
-                            & \equiv \true.
-\end{align*}
-
-Each \xmlnode{match} of a classification is a~\dfn{predicate}.
-Multiple predicates are by default joined by conjunction:
-
-\begin{lstlisting}
-  <classify as="pool-hazard" desc="Hazardous pool">
-    <match on="diving_board" />
-    <t:match-lt on="pool_depth_ft" value="8" />
-  </classify>
-\end{lstlisting}
-
-\noindent
-is equivalent to the proposition
-
-\begin{equation*}
-  \tameclass{pool-hazard} \equiv \tameparam{diving\_board}
-    \land \tameparam{pool\_depth\_ft} < 8.
-\end{equation*}
-
-
-\subsection{Matches}
-\todo{Non-scalar values.}
-\begin{definition}[Match Equality]
-  \begin{equation*}
-    \xml{<match on="$x$" value="$y$" />} \equiv x = y.
-  \end{equation*}
-\end{definition}
-
-\begin{definition}[Match Equality Short Form]
-  \begin{equation*}
-    \xml{<match on="$x$" />}
-      \equiv \xml{<match on="$x$" value="TRUE" />}.
-  \end{equation*}
-\end{definition}
-
-\begin{definition}[Match Equality Long Form]
-  \begin{alignat*}{2}
-    \xml{<match on="$x$" value="$y$" />}
-      &\equiv {}&&\xml{<match on="$x$">} \\
-      &         &&\quad \xml{<c:eq>} \\
-      &         &&\quad\quad \xml{<c:value-of name="$y$">} \\
-      &         &&\quad \xml{</c:eq>} \\
-      &         &&\xml{</match>} \\
-      &\equiv {}&&\xml{<t:match-eq on="$x$" value="$y$" />}.
-  \end{alignat*}
-\end{definition}
-
-\begin{definition}[Match Membership Equivalence]
-  When $T$ is a type defined with \xmlnode{typedef},
-
-  \begin{equation*}
-    \xml{<match on="$x$" anyOf="$T$" />} \equiv x \in T.
-  \end{equation*}
-\end{definition}
