@@ -401,9 +401,9 @@ For example,
   \begin{equation*}
     \varsub x =
       \begin{cases}
-        x_{j_k} &\|x\| = 2; \\
-        x_j     &\|x\| = 1; \\
-        x       &\|x\| = 0,
+        x_{j_k} &\rank{x} = 2; \\
+        x_j     &\rank{x} = 1; \\
+        x       &\rank{x} = 0,
       \end{cases}
     \qquad\qquad
     \begin{aligned}
@@ -418,10 +418,10 @@ For example,
   Then,
 
   \begin{equation*}
-    \|\varsub x \sim \varsub y\| =
+    \rank{\varsub x \sim \varsub y} =
       \begin{cases}
-        \|x\| &\|x\| \geq \|y\|, \\
-        \|y\| &\text{otherwise}.
+        \rank{x} &\rank{x} \geq \rank{y}, \\
+        \rank{y} &\text{otherwise}.
       \end{cases}
   \end{equation*}
 \end{axiom}
@@ -432,11 +432,11 @@ For example,
 \indexsym\equivish{equivalence, element-wise}
 \index{equivalence!element-wise (\ensuremath\equivish)}
   \begin{align*}
-    \|\varsub x\|=\|\varsub y\|=2,\,
+    \rank{\varsub x}=\rank{\varsub y}=2,\,
       (\xyequivish) &\infer \Forall{j,k}{x_{j_k} \equiv y_{j_k}}, \\
-    \|\varsub x\|=\|\varsub y\|=1,\,
+    \rank{\varsub x}=\rank{\varsub y}=1,\,
       (\xyequivish) &\infer \Forall{j}{x_j \equiv y_j}, \\
-    \|\varsub x\|=\|\varsub y\|=0,\,
+    \rank{\varsub x}=\rank{\varsub y}=0,\,
       (\xyequivish) &\infer (x\equiv y).
   \end{align*}
 \end{axiom}
@@ -504,8 +504,8 @@ For example,
   Otherwise,
     variables $j$ and $k$ are free.
 
-  Consider $\|\varsub x \sim \varsub y\| = 2$;
-    then $\|\varsub x \sim \varsub y\| \in\Matrices$ by \dfnref{rank},
+  Consider $\rank{\varsub x \sim \varsub y} = 2$;
+    then $\rank{\varsub x \sim \varsub y} \in\Matrices$ by \dfnref{rank},
       and so by \thmref{class-rank-indep} we have
 
   \begin{equation}\label{p:match-rel}
@@ -516,7 +516,7 @@ For example,
 
   \noindent
   which binds $j$ and $k$ to the variables of their respective quantifiers.
-  Proceed similarly for $\|\varsub x \sim \varsub y\| = 1$ and observe that
+  Proceed similarly for $\rank{\varsub x \sim \varsub y} = 1$ and observe that
     $j$ becomes bound.
 
   Assume $x\in\Matrices$;
