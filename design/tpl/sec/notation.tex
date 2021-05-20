@@ -484,17 +484,6 @@ This defines a matrix to be more like a multidimensional array,
 In other words---%
   the inner vectors of a matrix can vary in length.
 
-Since a vector is a function,
-  a vector or matrix can be converted into a set of unique elements like so:
-
-\begin{alignat*}{2}
-  \bigcup\Vector{\Vector{0,1},\Vector{2,2},\Vector{2,0}}\!\bicomp{[]}
-    &\mapsto &&\bigcup\Vector{\Vector{0,1}\![],\Vector{2,2}\![],\Vector{2,0}[]}\![] \\
-    &\mapsto &&\bigcup\Vector{\Set{0,1},\Set{2},\Set{2,0}}\![] \\
-    &\mapsto &&\bigcup\Set{\Set{0,1},\Set{2},\Set{2,0}} \\
-    &=       &&\Set{0,1,2}.
-\end{alignat*}
-
 % TODO: symbol does not render properly in index
 \begin{definition}[Rank]\dfnlabel{rank}
 \index{rank}
