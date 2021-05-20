@@ -35,16 +35,19 @@ This limitation is mitigated through use of the template system.
 \index{classification!as@\xmlattr{as}}
 \index{classification!yields@\xmlattr{yields}}
 \todo{Symbol in place of $=$ here ($\equiv$ not appropriate).}
-\begin{alignat}{3}
+\begin{subequations}
+\begin{gather}
+\begin{alignedat}{3}
     &\xml{<classify as="$c$" }&&\xml{yields="$\gamma$" desc}&&\xml{="$\_$"
           $\alpha$>}\label{eq:xml-classify} \\
-    &\quad \MFam{M^0}jJkK   &&\VFam{v^0}jJ   &&\quad s^0    \nonumber\\[-4mm]
-    &\quad \quad\vdots      &&\quad\vdots    &&\quad \vdots \nonumber\\
-    &\quad \MFam{M^l}jJkK   &&\VFam{v^m}jJ   &&\quad s^n    \nonumber\\[-3mm]
+    &\quad \MFam{M^0}jJkK   &&\VFam{v^0}jJ   &&\quad s^0    \\[-4mm]
+    &\quad \quad\vdots      &&\quad\vdots    &&\quad \vdots \\
+    &\quad \MFam{M^l}jJkK   &&\VFam{v^m}jJ   &&\quad s^n    \\[-3mm]
     &\xml{</classify>}
       % NB: This -50mu needs adjustment if you change the alignment above!
-      &&\mspace{-50mu}= \Classify^c_\gamma\left(\odot,M,v,s\right), \nonumber
-\end{alignat}
+      &&\mspace{-50mu}= \Classify^c_\gamma\left(\odot,M,v,s\right),
+\end{alignedat}
+\end{gather}
 
 \noindent
 where
@@ -73,6 +76,7 @@ and the monoid~$\odot$ is defined as
         \Monoid\Bool\lor\false &\alpha = \texttt{any="true"}.
       \end{cases}
 \end{equation}
+\end{subequations}
 \end{axiom}
 
 
@@ -147,10 +151,12 @@ For notational convenience,
   we will let
 
 \index{classification!monoid|)}
-\begin{align}
+\begin{equation}
+\begin{aligned}
   \odot^\land &= \Monoid\Bool\land\true, \\
   \odot^\lor &= \Monoid\Bool\lor\false.
-\end{align}
+\end{aligned}
+\end{equation}
 
 
 \def\cpredmatseq{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
@@ -178,6 +184,7 @@ For notational convenience,
     classification by~\axmref{class-intro}.
   Then,
 
+  \begin{subequations}
   \begin{align}
     r &= \begin{cases}
            2 &M\neq\emptyset, \\
@@ -196,6 +203,7 @@ For notational convenience,
     %
     \gamma &= \Gamma^r.
   \end{align}
+  \end{subequations}
 \end{axiom}
 
 \begin{theorem}[Classification Composition]\thmlabel{class-compose}
@@ -266,7 +274,7 @@ For notational convenience,
 \end{lemma}
 \begin{proof}
   First consider $c$.
-  \begin{alignat}{3}
+  \begin{alignat*}{3}
     c &\equiv \Exists{j\in J}{\Exists{k}{e}\bullet e} \bullet e
         \qquad&&\text{by \dfnref{monoid-seq}} \label{p:cri-c} \\
       &\equiv \Exists{j\in J}{e \bullet e} \bullet e
@@ -277,7 +285,7 @@ For notational convenience,
         &&\text{by \dfnref{quant-elim}} \\
       &\equiv e.
         &&\text{by \ref{eq:monoid-identity}}
-  \end{alignat}
+  \end{alignat*}
 
   For $\gamma$,
     we have $r=0$ by \axmref{class-yield},
@@ -339,28 +347,30 @@ These classifications are typically referenced directly for clarity rather
     by \axmref{class-yield},
     observe these special cases following from \lemref{class-pred-vacu}:
 
-  \begin{alignat}{3}
+  \begin{equation}
+  \begin{alignedat}{3}
     \Gamma'''^2 &= \cpredmatseq, \qquad&&\text{assuming $v\union s=\emptyset$} \\
-    \Gamma''^1 &= \cpredvecseq,        &&\text{assuming $M\union s=\emptyset$}\\
+    \Gamma''^1 &= \cpredvecseq,        &&\text{assuming $M\union s=\emptyset$} \\
     \Gamma'^0 &= \cpredscalarseq.      &&\text{assuming $M\union v=\emptyset$}
-  \end{alignat}
+  \end{alignedat}
+  \end{equation}
 
   By \thmref{class-compose},
     we must prove
 
-  \begin{align}
+  \begin{multline}\label{eq:rank-indep-goal}
     \Exists{j\in J}{
         \Exists{k\in K_j}{\cpredmatseq}
         \bullet \cpredvecseq
       }
-      \bullet \cpredscalarseq \nonumber\\
+      \bullet \cpredscalarseq \\
     \equiv c \equiv
     \Exists{j\in J}{
         \Exists{k\in K_j}{\gamma'''_{j_k}}
         \bullet \gamma''_j
       }
-      \bullet \gamma'. \label{eq:rank-indep-goal}
-  \end{align}
+      \bullet \gamma'.
+  \end{multline}
 
   By \axmref{class-yield},
     we have $r'''=2$, $r''=1$, and $r'=0$,
@@ -571,27 +581,26 @@ This is perhaps best illustrated with an example.
       we are then able to eliminate existential quantification over~$J$
       as follows:
 
-  \begin{align}\label{eq:prop-vec}
-    c &\equiv \Exists{j\in J}{\cpredvecseq}, \nonumber\\
+  \begin{equation}\label{eq:prop-vec}
+  \begin{aligned}
+    c &\equiv \Exists{j\in J}{\cpredvecseq}, \\
       &\equiv \left(v^0_0\bullet\cdots\bullet v^m_0\right)
               \lor\cdots\lor
               \left(v^0_{|J|-1}\bullet\cdots\bullet v^m_{|J|-1}\right),
-  \end{align}
-  \noindent
+  \end{aligned}
+  \end{equation}
   which is a propositional formula.
-
   Similarly,
     for matrices,
 
-  \begin{align}
+  \begin{align*}
     c &\equiv \Exists{j\in J}{\Exists{k\in K_j}{\cpredmatseq}}, \nonumber\\
       &\equiv \Exists{j\in J}{
                 \left({M^0_j}_0\bullet\cdots\bullet{M^0_j}_{|K_j|-1}\right)
                 \lor\cdots\lor
                 \left({M^l_j}_0\bullet\cdots\bullet{M^l_j}_{|K_j|-1}\right)
               },
-  \end{align}
-  \noindent
+  \end{align*}
   and then proceed as in~\ref{eq:prop-vec}.
 \end{proof}
 \index{classification!as proposition|)}
