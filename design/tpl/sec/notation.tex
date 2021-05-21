@@ -106,7 +106,7 @@ Consequently,
 
 \indexsym{\!\!\implies\!\!}{implication}
 \index{implication (\ensuremath{\implies})}
-\begin{definition}[Implication]
+\begin{definition}[Implication]\dfnlabel{implication}
   $p\implies q \infer (\neg p \lor q)$.
 \end{definition}
 
@@ -431,7 +431,27 @@ Unfortunately,
   its implementation history leaves those concepts a bit tortured.
 
 A vector is a sequence of values, defined as a function of
-  an index~set.
+  an index.
+An \dfn{index~set} is a set that is used to index values from another set;
+  they are usually subscripts of another set.
+A \dfn{family} is a set that is indexed by the same index set.
+In this paper,
+  we assume that an index set represents a range of integer values from $0$
+  to some number.
+
+\begin{definition}[Family and Index Set]
+  Let $S$ be a family indexed by index set~$J$.
+  Then,
+
+  \begin{align}
+    \Fam{S}jJ,\qquad J = \Set{0,1,\dots,\len{J}-1}\in\PSet\Int.
+  \end{align}
+\end{definition}
+
+\indexsym{\PSet{S}}{set, power set}
+\index{set!power set (\ensuremath{\PSet{S}})}
+$\PSet{S}$ denotes the \dfn{power set} of $S$---%
+  the set of all subsets of~$S$ including $\emptyset$ and $S$~itself.
 
 % TODO: font changes in index, making langle unavailable
 %\indexsym{\Vector{}}{vector}
@@ -458,6 +478,26 @@ This definition means that $v_j = v(j)$,
 We may omit the superscript such that $\Vectors^\Real=\Vectors$
   and $\Vector{\ldots}^\Real=\Vector{\ldots}$.
 
+When appropriate,
+  a vector may also be styled in a manner similar to linear algebra,
+    noting that our indexes begin at $0$ instead of~$1$:
+
+\begin{equation}
+  \Vector{v_0,\dots,v_j}^\Real_{j\in J} =
+  \begin{bmatrix}
+    v_0 \\
+    \vdots \\
+    v_j
+  \end{bmatrix}_{j\in J}
+  =
+  \begin{bmatrix}
+    v_0 \\
+    \vdots \\
+    v_j
+  \end{bmatrix}.
+\end{equation}
+
+\index{matrix@see {vector}}
 \index{vector!matrix}
 \begin{definition}[Matrix]\dfnlabel{matrix}
   Let $J\subset\Int$ represent an index set.
@@ -483,12 +523,69 @@ This defines a matrix to be more like a multidimensional array,
   not all row lengths of~$M$ are equal''.
 In other words---%
   the inner vectors of a matrix can vary in length.
+However,
+  certain systems (such as that of \axmref{class-intro}) may place
+  restrictions by specifying the inner index set as a dependent type:
+
+\begin{equation}
+  \MFam{M}jJkK : J \rightarrow K_j \rightarrow \Real, \quad K : J \rightarrow \PSet\Int.
+\end{equation}
+
+\index{vector!matrix!rectangular}
+This makes $K$ a set of index sets.
+When $\len{K[J]}=1$
+  (that is---all $K_j$ are the same index set),
+  the matrix is \dfn{rectangular},
+    and can be written in a manner similar to linear algebra,
+      noting that our indexes begin at $0$ instead of~$1$;
+      that we use double-subscripts
+        (since matrices are functions returning functions);
+      and that we use $j,k$ in place of~$m,n$.
+
+\begin{equation}
+  \begin{bmatrix}
+    M_{0_0} & M_{0_1} & \dots & M_{0_k} \\
+    M_{1_0} & M_{0_1} & \dots & M_{0_k} \\
+    \vdots  & \vdots  & \ddots & \vdots \\
+    M_{j_0} & M_{j_1} & \dots & M_{j_k} \\
+  \end{bmatrix}_{\underset{k\in K_0}{j\in J}}
+  \qquad
+  \text{if $|K[J]|=1$}.
+\end{equation}
+We may optionally omit the domains as in the vector notation.
+
+\indexsym\undef{undefined}
+\index{undefined}
+If a matrix is \emph{not} rectangular,
+  the symbol~$\undef$ can be used to explicitly denote that specific scalar
+    values are undefined;
+    this is useful when the matrix representation is desirable when
+      describing the transformation of non-rectangular data \emph{into}
+      rectangular data.
+For example,
+
+\begin{equation}
+  \begin{bmatrix}
+    0 & 1 & 2 \\
+    3 & 4 & \undef \\
+    5 & \undef & \undef
+  \end{bmatrix}_{\underset{k\in K_j}{j\in J}}
+  =
+  \Vector{\Vector{0,1,2},\Vector{3,4},\Vector{5}},
+  \qquad
+  \begin{aligned}
+    J &= \Set{0,1,2}, \\
+    K &= \Set{(0,\Set{0,1,2}),\,
+              (1,\Set{0,1}),\,
+              (2,\Set{0})}.
+  \end{aligned}
+\end{equation}
+
 
 % TODO: symbol does not render properly in index
 \begin{definition}[Rank]\dfnlabel{rank}
 \index{rank}
   The \dfn{rank} of some variable~$x$ is an integer value
-
   \begin{equation*}
     \rank{x} =
       \begin{cases}
