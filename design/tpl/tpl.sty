@@ -171,6 +171,43 @@
 \newtheoremwithlabel{remark}{Remark}{rem}
 
 
+%%
+% Optional page reference
+%%
+% "Smart" page reference changing the text depending on what page the
+% reference appears relative to the current.
+\newcount\@sprefn
+\newcommand\spref[1]{%
+  % We use labels to get the current page from the previous run, since
+  % \thepage can be inaccurate except right after a \newpage.
+  \advance\@sprefn by 1\relax%
+  \label{__:#1SELF\the\@sprefn}%
+  \xdef\@@realp{\getpagerefnumber{__:#1SELF\the\@sprefn}}%
+  \autoref{#1}%
+  \xdef\@pref{\getpagerefnumber{#1}}%
+  \ifnum\@pref=\@@realp
+    % Output nothing; it'd read really awkwardly, for example, if we output
+    % a figure using [h] and then say "Figure X on this page" in the
+    % paragraph that's _right_ below it.  Even if we didn't use [h].  I
+    % noticed this awkward effect in Specifying Systems.
+  \else
+    \space
+    \newcount\@p\@p=\@@realp
+    \advance\@p by 1\relax
+    \ifnum\@p=\@pref
+      on the next page%
+    \else
+      \advance\@p by -2\relax
+      \ifnum\@p=\@pref
+        on the previous page%
+      \else
+        on \autopageref{#1}%
+      \fi
+    \fi
+  \fi
+}
+
+
 
 %%
 % General typesetting
