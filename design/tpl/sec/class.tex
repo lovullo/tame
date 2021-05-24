@@ -7,8 +7,6 @@
 %%
 
 \section{Classification System}\seclabel{class}
-\INCOMPLETE{This section is a work-in-progress.}
-
 \index{classification|textbf}
 A \dfn{classification} is a user-defined abstraction that describes
   (``classifies'') arbitrary data.
@@ -191,6 +189,7 @@ For notational convenience,
            1 &M=\emptyset \land v\neq\emptyset, \\
            0 &M\union v = \emptyset,
          \end{cases} \\
+    \displaybreak[0]
     \exists{j\in J}\Big(\exists{k\in K_j}\Big(
       \Gamma^2_{j_k} &= \cpredmatseq\bullet\cpredvecseq\bullet\cpredscalarseq
     \Big)\Big), \\
@@ -347,7 +346,6 @@ These classifications are typically referenced directly for clarity rather
   First,
     by \axmref{class-yield},
     observe these special cases following from \lemref{class-pred-vacu}:
-
   \begin{equation}
   \begin{alignedat}{3}
     \Gamma'''^2 &= \cpredmatseq, \qquad&&\text{assuming $v\union s=\emptyset$} \\
@@ -358,7 +356,6 @@ These classifications are typically referenced directly for clarity rather
 
   By \thmref{class-compose},
     we must prove
-
   \begin{multline}\label{eq:rank-indep-goal}
     \Exists{j\in J}{
         \Exists{k\in K_j}{\cpredmatseq}
@@ -479,7 +476,6 @@ For example,
 \todo{Define types and \xml{typedef}.}
 \begin{axiom}[Match Membership]
   When $T$ is a type defined with \xmlnode{typedef},
-
   \begin{equation*}
     \xml{<match on="$x$" anyOf="$T$" />} \equivish \varsub x \in T.
   \end{equation*}
@@ -508,14 +504,11 @@ For example,
   Consider $\rank{\varsub x \sim \varsub y} = 2$;
     then $\rank{\varsub x \sim \varsub y} \in\Matrices$ by \dfnref{rank},
       and so by \thmref{class-rank-indep} we have
-
   \begin{equation}\label{p:match-rel}
     \Forall{j\in J}{\Forall{k\in K_j}{\cpredmatseq}}
       \equiv
       \Forall{j\in J}{\Forall{k\in K_j}{\varsub x \sim \varsub y}},
   \end{equation}
-
-  \noindent
   which binds $j$ and $k$ to the variables of their respective quantifiers.
   Proceed similarly for $\rank{\varsub x \sim \varsub y} = 1$ and observe that
     $j$ becomes bound.
@@ -621,7 +614,6 @@ More subtly,
     if we define our index set~$J$ to be constant,
       we are then able to eliminate existential quantification over~$J$
       as follows:
-
   \begin{equation}\label{eq:prop-vec}
   \begin{aligned}
     c &\equiv \Exists{j\in J}{\cpredvecseq}, \\
