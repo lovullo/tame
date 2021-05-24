@@ -528,12 +528,52 @@ For example,
       and $k$ over $K_j$.
 \end{proof}
 
-\todo{Example.}
 \thmref{class-match} is responsible for proving that matches range over each
   individual index.
 More subtly,
   it also shows that matches work with any combination of rank.
-This is perhaps best illustrated with an example.
+\spref{f:ex:class-match-all-ranks} demonstrates a complete translation of
+  source \tame{}~XML using all ranks.
+
+\begin{figure}[ht]
+\begin{align}
+  &\begin{aligned}
+    &\xml{<classify as="fullrank" desc="Example of all ranks">} \xmlnl
+    &\quad\begin{aligned}
+      &\xml{<match on="$A$" value="$u$" />}
+        \quad&&\equivish \varsub A = \varsub u \xmlnll
+      &\xml{<match on="$A$" value="$t$" />}
+        \quad&&\equivish \varsub A = \varsub t \xmlnll
+      &\xml{<match on="$u$" value="$t$" />}
+        \quad&&\equivish \varsub u = \varsub t \xmlnll
+      &\xml{<match on="$t$" />}
+        \quad&&\equivish \varsub t = \true
+    \end{aligned} \xmlnll
+    &\xml{</classify>}
+  \end{aligned}
+    &\text{by \axmref{match-intro}} \\
+  &= \Classify^\texttt{fullrank}\left(
+       \odot^\land,
+       \Big(\left({A_j}_k = u_j\right),
+             \left({A_j}_k = t \right)
+       \Big),
+       \left(u_j = t\right),
+       t
+     \right)
+    &\text{by \axmref{class-intro}} \\
+  &\equiv \Exists{j\in J}{
+            \Exists*{k\in K_j}{\Big(
+              \left({A_j}_k = u_j\right)
+              \land \left({A_j}_k = t \right)
+            \Big)}
+            \land u_j = t
+          }
+          \land t.
+    &\text{by \thmref{class-match}}.
+\end{align}
+\caption{Example demonstrating \thmref{class-match} using all ranks.}
+\label{f:ex:class-match-all-ranks}
+\end{figure}
 
 \index{classification!as proposition|(}
 \begin{lemma}[Match As Proposition]\lemlabel{match-prop}
