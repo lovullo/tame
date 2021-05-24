@@ -12,3 +12,4 @@ tpl.pdf: tpl.tex $(inputs)
 
 clean:
 	latexmk -c
+	rm -f tpl.pdf
