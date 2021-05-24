@@ -1214,6 +1214,7 @@
   <variable name="knowns" as="xs:string*"
             select="$ui//lvp:question/@id,
                     $ui//lvp:external/@id,
+                    $ui//lvp:flag/@id,
                     $ui//lvp:calc/@id,
                     for $id in $ui//lvp:meta/lvp:field/@id
                       return concat( 'meta:', $id )" />
