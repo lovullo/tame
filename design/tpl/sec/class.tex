@@ -151,8 +151,10 @@ For notational convenience,
 \index{classification!monoid|)}
 \begin{equation}
 \begin{aligned}
-  \odot^\land &= \Monoid\Bool\land\true, \\
-  \odot^\lor &= \Monoid\Bool\lor\false.
+  \Classifyland(M,v,s)
+    &= \Classify\left(\Monoid\Bool\land\true,M,v,s\right), \\
+  \Classifylor(M,v,s)
+    &= \Classify\left(\Monoid\Bool\lor\true,M,v,s\right). \\
 \end{aligned}
 \end{equation}
 
@@ -301,8 +303,8 @@ For notational convenience,
                       &\xml{desc="Always true" />}
     \end{aligned}
       \quad&=\quad
-      \Classify^\texttt{always}_\texttt{alwaysTrue}
-        &&\left(\odot^\land,\emptyset,\emptyset,\emptyset\right). \\
+      \Classifyland^\texttt{always}_\texttt{alwaysTrue}
+        &&\left(\emptyset,\emptyset,\emptyset\right). \\
     %
     \begin{aligned}
       \xml{<classify }&\xml{as="never" yields="neverTrue"} \xmlnl
@@ -310,8 +312,8 @@ For notational convenience,
                       &\xml{desc="Never true" />}
     \end{aligned}
       \quad&=\quad
-      \Classify^\texttt{never}_\texttt{neverTrue}
-        &&\left(\odot^\lor,\emptyset,\emptyset,\emptyset\right).
+      \Classifylor^\texttt{never}_\texttt{neverTrue}
+        &&\left(\emptyset,\emptyset,\emptyset\right).
   \end{alignat*}
   \caption{\tameclass{always} and \tameclass{never} from package
              \tamepkg{core/base}.}
@@ -546,8 +548,7 @@ More subtly,
     &\xml{</classify>}
   \end{aligned}
     &\text{by \axmref{match-intro}} \\
-  &= \Classify^\texttt{fullrank}\left(
-       \odot^\land,
+  &= \Classifyland^\texttt{fullrank}\left(
        \Big(\left({A_j}_k = u_j\right),
              \left({A_j}_k = t \right)
        \Big),
