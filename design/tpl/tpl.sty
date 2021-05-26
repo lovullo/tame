@@ -13,8 +13,11 @@
 \usepackage[amsfonts,amssymb]{concmath}  % Fonts used by the text
 \usepackage{euler}                       %   Concrete Mathematics
 \usepackage{makeidx}                     % Indexing
+\usepackage[backend=biber]{biblatex}     % BibTeX replacement
 \usepackage[colorlinks=true,
             linkcolor=href,
+            citecolor=cite,
+            urlcolor=href,
             draft=false]{hyperref}       % Hyperlinks (even in draft mode)
 \usepackage{xcolor}                      % Colors (for hyperlinks)
 \usepackage{amsmath,amsthm}              % AMS macros, including theorems
@@ -24,6 +27,8 @@
 \usepackage{manfnt}                      % Dangerous Bend symbols
 \usepackage{rotating}                    % Rotating objects
 
+\addbibresource{tpl.bib}
+
 
 
 %%
@@ -32,6 +37,7 @@
 % Colors from Tango Icon Theme
 % https://en.wikipedia.org/wiki/Tango_Desktop_Project
 \definecolor{href}{HTML}{204a87}
+\definecolor{cite}{HTML}{4e9a06}
 
 
 
@@ -89,7 +95,7 @@
 \newcommand\MFam[5]{\ensuremath{%
   \Vector{{#1_{#2}}_#4}_{\underset{#4\in {#5_#2}}{#2\in #3}}
 }}
-\newcommand\undef{\boxtimes}
+\newcommand\eleundef{\boxtimes}
 
 % Variable subscripts
 \let\varsubscript\imath

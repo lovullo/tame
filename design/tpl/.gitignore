@@ -11,6 +11,12 @@
 *.out
 *.toc
 
+# BibLaTeX
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+
 # Index
 *.idx
 *.ilg

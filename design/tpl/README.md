@@ -10,8 +10,9 @@ sufficient to install all necessary dependencies:
 
 ```
 $ apt install --no-recommends \
-    make latexmk \
-    texlive-latex-extra texlive-fonts-extra texlive-science
+    make latexmk biber \
+    texlive-latex-extra texlive-fonts-extra texlive-bibtex-extra \
+    texlive-science
 ```
 
 ## Building
