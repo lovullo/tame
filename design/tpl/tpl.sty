@@ -168,7 +168,7 @@
   \expandafter\def\csname #1autorefname\endcsname{#2}
   \expandafter\newcommand\csname #3label\endcsname[1]{\label{#1:##1}}
   \expandafter\newcommand\csname #3ref\endcsname[1]{\autoref{#1:##1}}
-  \expandafter\newcommand\csname #3pref\endcsname[1]{\autopref{#1:##1}}
+  \expandafter\newcommand\csname #3pref\endcsname[1]{\spref{#1:##1}}
 }
 
 \theoremstyle{definition}
