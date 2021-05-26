@@ -23,6 +23,7 @@
 \usepackage{marginnote}                  % Notes in the margin
 \usepackage{ccicons}                     % CC license icons
 \usepackage{manfnt}                      % Dangerous Bend symbols
+\usepackage{rotating}                    % Rotating objects
 
 
 
@@ -123,6 +124,8 @@
 
 % Group theory
 \newcommand\Monoid[3]{\left({#1},{#2},{#3}\right)}
+\let\monoidop\bullet
+\newcommand\monoidops{\monoidop\cdots\monoidop}
 
 % Closed binary function
 \newcommand\cbif[1]{#1\times#1\rightarrow#1}

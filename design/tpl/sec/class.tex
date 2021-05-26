@@ -570,6 +570,117 @@ More subtly,
 \label{f:ex:class-match-all-ranks}
 \end{figure}
 
+Visually,
+  the one-dimensional construction of \axmref{class-pred} does not lend
+  itself well to how intuitive the behavior of the system actually is.
+We therefore establish a relationship to the notation of linear algebra
+  to emphasize the relationship between each of the inputs.
+
+\newcommand\matseqsup[1]{%
+  \begin{bmatrix}
+    M^{#1}_{0_0} & \dots  & M^{#1}_{0_k} \\
+    \vdots       & \ddots & \vdots \\
+    M^{#1}_{j_0} & \dots  & M^{#1}_{j_k} \\
+  \end{bmatrix}%
+}
+\newcommand\vecseqsup[1]{%
+  \begin{bmatrix}
+    v^{#1}_0 \\
+    \vdots       \\
+    v^{#1}_j \\
+  \end{bmatrix}%
+}
+
+% This must be an axiom because it defines how the connectives operate; see
+% the remark.
+\begin{axiom}[Classification Matrix Notation]\axmlabel{class-mat-not}
+  Let $\Gamma^2$ be defined by \axmref{class-yield}.
+  Then,
+  \begin{equation*}
+    \Gamma^2 =
+    \matseqsup{0}\monoidops\matseqsup{l}
+    \monoidop
+    \vecseqsup{0}\monoidops\vecseqsup{m}
+    \monoidop
+    s^0\monoidops s^n,
+  \end{equation*}
+  from which $\Gamma^1$, $\Gamma^0$, and $\gamma$ can be derived.
+\end{axiom}
+
+\begin{remark}[Logical Connectives With Matrix Notation]
+  From the definition of \axmref{class-mat-not},
+    it should be clear that the logical connective $\monoidop$ necessarily
+    acts like a Hadamard product with regards to how individual elements are
+    combined.
+\end{remark}
+
+\axmref{class-mat-not} makes it easy to visualize classification
+  operations simply by drawing horizontal boxes across the predicates,
+    as demonstrated by \spref{f:class-mat-boxes}.
+
+% NB: Give this formatting extra attention if the document's formatting is
+% substantially changed, since it's not exactly responsible with it's
+% hard-coded units.
+\begingroup
+\begin{figure}[ht]
+  \def\classmatraise#1{%
+    \begin{aligned}
+    #1 \\ {} \\ #1
+    \end{aligned}
+  }
+  \def\classmateq{%
+    \matseqsup{0}
+      \classmatraise{\monoidop\cdots\monoidop}
+    \matseqsup{l}
+      \classmatraise\monoidop
+    \vecseqsup{0}
+      \classmatraise{\monoidop\cdots\monoidop}
+    \vecseqsup{m}
+      \classmatraise{%
+        {}\monoidop s^0\monoidop\cdots\monoidop s^n%
+      }
+  }
+
+  \begin{align*}
+    &\;\raisebox{-3mm}[0mm]{%
+       \begin{turn}{45}
+         $\equiv$
+       \end{turn}%
+     } \;\fbox{$
+        \left(M^0_{0_0} \monoidops M^0_{0_k}\right)
+        \monoidops
+        \left(M^l_{0_0} \monoidops M^l_{0_k}\right)
+        \monoidop
+        v^0_0 \monoidops v^m_0
+        \monoidop
+        s^0 \monoidops s^n
+      $} &\Gamma^2_0 \\[-2mm]
+    &\fbox{\raisebox{0mm}[0mm][6mm]{\hphantom{$\classmateq$}}} \\[-8mm]
+    %
+    &\classmateq &\vdots\; \\[-10mm]
+    %
+    &\fbox{\raisebox{0mm}[0mm][6mm]{\hphantom{$\classmateq$}}} \\
+    &\;\raisebox{3mm}[0mm]{%
+       \begin{turn}{-45}
+         $\equiv$
+       \end{turn}%
+     } \;\fbox{$
+        \left(M^0_{j_0} \monoidops M^0_{j_k}\right)
+        \monoidops
+        \left(M^l_{j_0} \monoidops M^l_{j_k}\right)
+        \monoidop
+        v^0_j \monoidops v^m_j
+        \monoidop
+        s^0 \monoidops s^n
+      $} &\Gamma^2_j
+  \end{align*}
+\caption{Visual interpretation of classification by \axmref{class-mat-not}.
+         The adjacent frames represent equivalencies between the first-order
+           logic of \axmref{class-yield} and the matrix notation.}
+\label{f:class-mat-boxes}
+\end{figure}
+\endgroup
+
 \index{classification!as proposition|(}
 \begin{lemma}[Match As Proposition]\lemlabel{match-prop}
   Matches can be represented using propositional logic provided that
