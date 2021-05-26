@@ -87,9 +87,9 @@ We use a $4$-tuple $\Classify\left(\odot,M,v,s\right)$ to represent a
     scalar~($s$) matches,
       rendered above in columns.\footnote{%
         The symbol~$\odot$ was chosen since the binary operation for a monoid
-          is~$\bullet$
+          is~$\monoidop$
             (see \secref{monoids})
-          and~$\odot$ looks vaguely like~$(\bullet)$,
+          and~$\odot$ looks vaguely like~$(\monoidop)$,
             representing a portion of the monoid triple.}
 A $\land$-classification is pronounced ``conjunctive classification'',
   and $\lor$ ``disjunctive''.\footnote{%
@@ -159,20 +159,20 @@ For notational convenience,
 \end{equation}
 
 
-\def\cpredmatseq{{M^0_j}_k \bullet\cdots\bullet {M^l_j}_k}
-\def\cpredvecseq{v^0_j\bullet\cdots\bullet v^m_j}
-\def\cpredscalarseq{s^0\bullet\cdots\bullet s^n}
+\def\cpredmatseq{{M^0_j}_k \monoidops {M^l_j}_k}
+\def\cpredvecseq{v^0_j\monoidops v^m_j}
+\def\cpredscalarseq{s^0\monoidops s^n}
 
 
 \begin{axiom}[Classification-Predicate Equivalence]\axmlabel{class-pred}
 \index{classification!as predicate}
-  Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
+  Let $\Classify^c_\gamma\left(\Monoid\Bool\monoidop e,M,v,s\right)$ be a
     classification by~\axmref{class-intro}.
   We then have the first-order sentence
   \begin{equation*}
     c \equiv
-      {} \Exists{j\in J}{\Exists{k\in K_j}\cpredmatseq\bullet\cpredvecseq}
-        \bullet\cpredscalarseq.
+      {} \Exists{j\in J}{\Exists{k\in K_j}\cpredmatseq\monoidop\cpredvecseq}
+        \monoidop\cpredscalarseq.
   \end{equation*}
 \end{axiom}
 
@@ -180,7 +180,7 @@ For notational convenience,
 \begin{axiom}[Classification Yield]\axmlabel{class-yield}
 \indexsym\Gamma{classification, yield}
 \index{classification!yield (\ensuremath\gamma, \ensuremath\Gamma)}
-  Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,M,v,s\right)$ be a
+  Let $\Classify^c_\gamma\left(\Monoid\Bool\monoidop e,M,v,s\right)$ be a
     classification by~\axmref{class-intro}.
   Then,
 
@@ -193,11 +193,11 @@ For notational convenience,
          \end{cases} \\
     \displaybreak[0]
     \exists{j\in J}\Big(\exists{k\in K_j}\Big(
-      \Gamma^2_{j_k} &= \cpredmatseq\bullet\cpredvecseq\bullet\cpredscalarseq
+      \Gamma^2_{j_k} &= \cpredmatseq\monoidop\cpredvecseq\monoidop\cpredscalarseq
     \Big)\Big), \\
     %
     \exists{j\in J}\Big(
-      \Gamma^1_j &= \cpredvecseq\bullet\cpredscalarseq
+      \Gamma^1_j &= \cpredvecseq\monoidop\cpredscalarseq
     \Big), \\
     %
     \Gamma^0 &= \cpredscalarseq. \\
@@ -215,9 +215,9 @@ For notational convenience,
   \begin{equation}
     c \equiv \Exists{j\in J}{
                \Exists{k\in K_j}{\Gamma^2_{j_k}}
-               \bullet \Gamma^1_j
+               \monoidop \Gamma^1_j
              }
-             \bullet \Gamma^0.
+             \monoidop \Gamma^0.
   \end{equation}
 \end{theorem}
 
@@ -229,37 +229,37 @@ For notational convenience,
 
   \begin{alignat*}{3}
     c &\eejJ\Exists{k\in K_j}{\Gamma^2_{j_k}}
-              \bullet \Gamma^1_j
+              \monoidop \Gamma^1_j
             \Big)
-            \bullet \Gamma^0
+            \monoidop \Gamma^0
         &&\text{by \axmref{class-yield}} \\
       %
       &\eejJ\exists{k\in K_j}\Big(
-              \cpredmatseq \bullet \cpredvecseq \bullet \cpredscalarseq
+              \cpredmatseq \monoidop \cpredvecseq \monoidop \cpredscalarseq
             \Big) \\
-      &\hphantom{\eejJ}\;\cpredvecseq \bullet \cpredscalarseq \Big)
-                \bullet \cpredscalarseq, \\
+      &\hphantom{\eejJ}\;\cpredvecseq \monoidop \cpredscalarseq \Big)
+                \monoidop \cpredscalarseq, \\
       %
       &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
-            \bullet \cpredvecseq \bullet \cpredscalarseq \\
-      &\hphantom{\eejJ}\;\cpredvecseq \bullet \cpredscalarseq \Big)
-                \bullet \cpredscalarseq,
+            \monoidop \cpredvecseq \monoidop \cpredscalarseq \\
+      &\hphantom{\eejJ}\;\cpredvecseq \monoidop \cpredscalarseq \Big)
+                \monoidop \cpredscalarseq,
         &&\text{by \dfnref{quant-conn}} \\
       %
       &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
         &&\text{by \dfnref{prop-taut}} \\
-      &\hphantom{\eejJ}\;\cpredvecseq \bullet \cpredscalarseq \Big)
-                \bullet \cpredscalarseq, \\
+      &\hphantom{\eejJ}\;\cpredvecseq \monoidop \cpredscalarseq \Big)
+                \monoidop \cpredscalarseq, \\
       %
       &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
         &&\text{by \dfnref{quant-conn}} \\
-      &\hphantom{\eejJ}\;\cpredvecseq\Big) \bullet \cpredscalarseq
-                \bullet \cpredscalarseq, \\
+      &\hphantom{\eejJ}\;\cpredvecseq\Big) \monoidop \cpredscalarseq
+                \monoidop \cpredscalarseq, \\
       %
       &\eejJ\exists{k\in K_j}\Big(\cpredmatseq\Big)
         &&\text{by \dfnref{prop-taut}} \\
       &\hphantom{\eejJ}\;\cpredvecseq\Big)
-                \bullet \cpredscalarseq.
+                \monoidop \cpredscalarseq.
         \tag*{\qedhere} \\
   \end{alignat*}
 \end{proof}
@@ -268,7 +268,7 @@ For notational convenience,
 
 \begin{lemma}[Classification Predicate Vacuity]\lemlabel{class-pred-vacu}
 \index{classification!vacuity|(}
-  Let $\Classify^c_\gamma\left(\Monoid\Bool\bullet e,\emptyset,\emptyset,\emptyset\right)$
+  Let $\Classify^c_\gamma\left(\Monoid\Bool\monoidop e,\emptyset,\emptyset,\emptyset\right)$
     be a classification by~\axmref{class-intro}.
   $\odot$ is a monoid by \corref{odot-monoid}.
   Then $c \equiv \gamma \equiv e$.
@@ -276,13 +276,13 @@ For notational convenience,
 \begin{proof}
   First consider $c$.
   \begin{alignat*}{3}
-    c &\equiv \Exists{j\in J}{\Exists{k}{e}\bullet e} \bullet e
+    c &\equiv \Exists{j\in J}{\Exists{k}{e}\monoidop e} \monoidop e
         \qquad&&\text{by \dfnref{monoid-seq}} \label{p:cri-c} \\
-      &\equiv \Exists{j\in J}{e \bullet e} \bullet e
+      &\equiv \Exists{j\in J}{e \monoidop e} \monoidop e
         &&\text{by \dfnref{quant-elim}} \\
-      &\equiv \Exists{j\in J}{e} \bullet e
+      &\equiv \Exists{j\in J}{e} \monoidop e
         &&\text{by \ref{eq:monoid-identity}} \\
-      &\equiv e \bullet e
+      &\equiv e \monoidop e
         &&\text{by \dfnref{quant-elim}} \\
       &\equiv e.
         &&\text{by \ref{eq:monoid-identity}}
@@ -331,7 +331,7 @@ These classifications are typically referenced directly for clarity rather
 
 \begin{theorem}[Classification Rank Independence]\thmlabel{class-rank-indep}
 \index{classification!rank|(}
-  Let $\odot=\Monoid\Bool\bullet e$.
+  Let $\odot=\Monoid\Bool\monoidop e$.
   Then,
   \begin{equation}
     \Classify_\gamma\left(\odot,M,v,s\right)
@@ -361,15 +361,15 @@ These classifications are typically referenced directly for clarity rather
   \begin{multline}\label{eq:rank-indep-goal}
     \Exists{j\in J}{
         \Exists{k\in K_j}{\cpredmatseq}
-        \bullet \cpredvecseq
+        \monoidop \cpredvecseq
       }
-      \bullet \cpredscalarseq \\
+      \monoidop \cpredscalarseq \\
     \equiv c \equiv
     \Exists{j\in J}{
         \Exists{k\in K_j}{\gamma'''_{j_k}}
-        \bullet \gamma''_j
+        \monoidop \gamma''_j
       }
-      \bullet \gamma'.
+      \monoidop \gamma'.
   \end{multline}
 
   By \axmref{class-yield},
@@ -729,9 +729,9 @@ We therefore establish a relationship to the notation of linear algebra
   \begin{equation}\label{eq:prop-vec}
   \begin{aligned}
     c &\equiv \Exists{j\in J}{\cpredvecseq}, \\
-      &\equiv \left(v^0_0\bullet\cdots\bullet v^m_0\right)
+      &\equiv \left(v^0_0\monoidops v^m_0\right)
               \lor\cdots\lor
-              \left(v^0_{|J|-1}\bullet\cdots\bullet v^m_{|J|-1}\right),
+              \left(v^0_{|J|-1}\monoidops v^m_{|J|-1}\right),
   \end{aligned}
   \end{equation}
   which is a propositional formula.
@@ -741,9 +741,9 @@ We therefore establish a relationship to the notation of linear algebra
   \begin{align*}
     c &\equiv \Exists{j\in J}{\Exists{k\in K_j}{\cpredmatseq}}, \nonumber\\
       &\equiv \Exists{j\in J}{
-                \left({M^0_j}_0\bullet\cdots\bullet{M^0_j}_{|K_j|-1}\right)
+                \left({M^0_j}_0\monoidops{M^0_j}_{|K_j|-1}\right)
                 \lor\cdots\lor
-                \left({M^l_j}_0\bullet\cdots\bullet{M^l_j}_{|K_j|-1}\right)
+                \left({M^l_j}_0\monoidops{M^l_j}_{|K_j|-1}\right)
               },
   \end{align*}
   and then proceed as in~\ref{eq:prop-vec}.
