@@ -391,7 +391,20 @@ For example,
       This is conceptually like a symbol table lookup in the compiler.}
 
 
+
 \subsection{Matches}
+A classification consists of a set of binary predicates called
+  \emph{matches}.
+Matches may reference any values,
+  including the results of other classifications
+    (as in \thmpref{class-compose}),
+  allowing for the construction of complex abstractions over the data being
+  classified.
+
+Matches are intended to act intuitively across inputs of different ranks---%
+  that is,
+    one can match on any combination of matrix, vector, and scalar values.
+
 \begin{axiom}[Match Input Translation]\axmlabel{match-input}
   Let $j$ and $k$ be free variables intended to be bound in the
     context of \axmref{class-pred}.
@@ -440,6 +453,14 @@ For example,
       (\xyequivish) &\infer (x\equiv y).
   \end{align*}
 \end{axiom}
+
+
+\index{package!core/match@\tamepkg{core/match}}
+Matches are represented by \xmlnode{match} nodes in \tame{}.
+Since the primitive is rather verbose,
+  \tamepkg{core/match} also defines templates providing a more concise
+    notation
+      (\xmlnode{t:match-$\zeta$} below).
 
 \index{classification!match@\xmlnode{match}}
 \begin{axiom}[Match Introduction]\axmlabel{match-intro}
@@ -593,6 +614,7 @@ We therefore establish a relationship to the notation of linear algebra
 
 % This must be an axiom because it defines how the connectives operate; see
 % the remark.
+\index{classification!matrix notation}
 \begin{axiom}[Classification Matrix Notation]\axmlabel{class-mat-not}
   Let $\Gamma^2$ be defined by \axmref{class-yield}.
   Then,
@@ -614,9 +636,21 @@ We therefore establish a relationship to the notation of linear algebra
     combined.
 \end{remark}
 
+\index{classification!intuition}
 \axmref{class-mat-not} makes it easy to visualize classification
   operations simply by drawing horizontal boxes across the predicates,
     as demonstrated by \spref{f:class-mat-boxes}.
+This visualization helps to show intuitively how the classification system
+  is intended to function,
+    with matrices serving as higher-resolution vectors.\footnote{%
+      For example,
+        with insurance,
+        one may have a vector of data by risk location,
+          and a matrix of chosen class codes by location.
+      Consequently,
+        we expect $M_j$ to be the set of class codes associated with
+        location~$j$ so that it can be easily matched against location-level
+        data~$v_j$.}
 
 % NB: Give this formatting extra attention if the document's formatting is
 % substantially changed, since it's not exactly responsible with it's
