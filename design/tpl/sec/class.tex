@@ -674,43 +674,42 @@ This visualization helps to show intuitively how the classification system
         {}\monoidop s^0\monoidop\cdots\monoidop s^n%
       }
   }
+  \def\classmatlines#1{%
+    \begin{alignedat}{2}
+      \Big( &M^0_{{#1}_0} \monoidops {}&&M^l_{{#1}_0} \Big)
+        \monoidop
+        v^0_{#1} \monoidops v^m_{#1}
+        \monoidop
+        s^0 \monoidops s^n \\
+      &\quad\!\vdots &&\quad\!\vdots \\
+      \Big( &M^0_{{#1}_k} \monoidops {}&&M^l_{{#1}_k} \Big)
+        \monoidop
+        v^0_{#1} \monoidops v^m_{#1}
+        \monoidop
+        s^0 \monoidops s^n
+    \end{alignedat}
+  }
 
   \begin{align*}
-    &\quad\raisebox{-3mm}[0mm]{%
+    &\quad\raisebox{-11mm}[0mm]{%
        \begin{turn}{45}
          $\equiv$
        \end{turn}%
-     }
-     \left(M^0_{0_0} \monoidops M^0_{0_k}\right)
-     \monoidops
-     \left(M^l_{0_0} \monoidops M^l_{0_k}\right)
-     \monoidop
-     v^0_0 \monoidops v^m_0
-     \monoidop
-     s^0 \monoidops s^n
-       &\Gamma^2_0 \\[-2mm]
+     }\; \classmatlines{0} &\Gamma^2_0 \\[-2mm]
     &\fbox{\raisebox{0mm}[0mm][6mm]{\hphantom{$\classmateq$}}} \\[-8mm]
     %
     &\classmateq &\vdots\; \\[-10mm]
     %
     &\fbox{\raisebox{0mm}[0mm][6mm]{\hphantom{$\classmateq$}}} \\
-    &\quad\raisebox{3mm}[0mm]{%
+    &\quad\raisebox{11mm}[0mm]{%
        \begin{turn}{-45}
          $\equiv$
        \end{turn}%
-     }
-     \left(M^0_{j_0} \monoidops M^0_{j_k}\right)
-     \monoidops
-     \left(M^l_{j_0} \monoidops M^l_{j_k}\right)
-     \monoidop
-     v^0_j \monoidops v^m_j
-     \monoidop
-     s^0 \monoidops s^n
-       &\Gamma^2_j
+     }\; \classmatlines{j} &\Gamma^2_j
   \end{align*}
 \caption{Visual interpretation of classification by \axmref{class-mat-not}.
          For each boxed row of the matrix notation there is an equivalence
-           to the first-order logic of \axmref{class-yield}.}
+           to the first-order logic of \thmref{class-compose}.}
 \label{f:class-mat-boxes}
 \end{figure}
 \endgroup
