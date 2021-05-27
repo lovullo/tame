@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v17.9.0 (2021-05-27)
+====================
 This is a documentation/design release, introducing The TAME Programming
 Language in `design/tpl`.
 
@@ -23,6 +23,9 @@ Design
 ------
 - Introduce The TAME Programming Language.
 
+Mapping
+-------
+- Allow the mapping of flag values
 
 
 v17.8.1 (2021-03-18)
