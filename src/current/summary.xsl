@@ -251,7 +251,7 @@
           if ( target.className.match( /\bmath-typeset-hover\b/ ) )
           {
             MathJax.Hub.Queue( [ "Typeset", MathJax.Hub, target ] );
-            client.updateSummaryDebug( rate_result.debug, target );
+            client.updateSummaryDebug( rate_result, target );
           }
         }
 
@@ -1158,7 +1158,10 @@
   <p class="debugid">
     <xsl:attribute name="id">
       <xsl:text>ubd-</xsl:text>
-      <xsl:value-of select="@_id" />
+      <!-- debug collection was removed, for now, during the classification
+           system rewrite; fall back to the name of what we're matching on,
+           which should be plenty good enough -->
+      <xsl:value-of select="@on" />
     </xsl:attribute>
 
     <a class="sym-ref sym-{$sym/@type}">

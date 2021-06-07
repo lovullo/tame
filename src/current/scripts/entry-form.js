@@ -1108,9 +1108,11 @@ var client = ( function()
     }
 
 
-    function updateSummaryDebug( debug, parent, callback )
+    function updateSummaryDebug( results, parent, callback )
     {
         var queue = [];
+        var debug = results.debug;
+        var vars = results.vars || {};
 
         // do nothing if debug data is not yet available
         if ( !debug )
@@ -1149,8 +1151,11 @@ var client = ( function()
 
             try
             {
-                setPlaceholderValue( id, '', ( debug[ did ] )
-                    ? JSON.stringify( debug[ did ] )
+                // accommodate fallback values; see summary.xsl `ubd-*` generation
+                var dval = debug[ did ] || vars[ did ];
+
+                setPlaceholderValue( id, '', ( dval )
+                    ? JSON.stringify( dval )
                     : ''
                 );
             }

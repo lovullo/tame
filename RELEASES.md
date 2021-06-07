@@ -14,6 +14,20 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+
+Compiler
+--------
+- Summary Page now displays values of `lv:match/@on` instead of debug
+  values.
+  - This provides more useful information and is not subject to the
+    confusing reordering behavior of the compiler that is not reflected on
+    the page.
+  - Changes that have not yet been merged will remove debug values for the
+    classification system.
+
+
 v17.9.0 (2021-05-27)
 ====================
 This is a documentation/design release, introducing The TAME Programming
