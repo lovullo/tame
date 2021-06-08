@@ -27,6 +27,15 @@ Compiler
   - Changes that have not yet been merged will remove debug values for the
     classification system.
 
+Core
+----
+- Remove `core/aggregate`.
+  - This package is not currently utilized and is dangerous---it could
+    easily aggregate unintended values if used carelessly.  Those who know
+    what they are doing can use `sym-set` if such a thing is a good thing
+    within the given context, and proper precautions are taken (as many
+    templates already do today).
+
 
 v17.9.0 (2021-05-27)
 ====================

@@ -38,7 +38,6 @@
   <import package="vector/minmax" />
   <import package="vector/table" />
 
-  <import package="aggregate" />
   <import package="insurance" />
   <import package="retry" />
   <import package="symbol" />
