@@ -287,5 +287,35 @@
       </rate>
     </template>
   </section>
+
+
+  <section title="Feature Flags">
+    These templates alter the behavior of the TAME compiler or runtime.
+    They will be removed at some point in the future.
+
+
+    <section title="Classification System">
+      The template \tt{_use-new-classification-system_} sets a compile-time
+        flag that will cause all following sibling classifications to be
+        compiled using the new classification system.
+      Once the feature is enabled by default,
+        this template will become a noop and will begin to emit a warning,
+          before eventually being removed.
+
+      It is possible to mix both old and new classifications within the same
+        package,
+          though such behavior may lead to confusion in certain cases.
+      For more information on where the new and old system differ,
+        see the \tt{core/test/core/class} specification.
+
+      <template name="_use-new-classification-system_"
+                desc="Compile following-sibling::lv:classify using the new
+                      classification system">
+        <!-- Even though this is a template param-meta, it will only affect
+             following-sibling for performance reasons -->
+        <param-meta name="___feature-newclassify" value="1" />
+      </template>
+    </section>
+  </section>
 </package>
 
