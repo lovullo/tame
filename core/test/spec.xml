@@ -256,6 +256,72 @@
 
 
   <!--
+    Describe a classification-based value for expectation groups
+
+    The defined value is available to adjacent expectations through use of
+    `_match-result_`.
+
+    A `_given_` definition is not required; it exists as a convenient and
+    concise way to represent test data in clear terms.
+
+    Permitted children:
+      - Any match
+  -->
+  <template name="_given-classify_"
+            desc="Describe a classification-based value for expectation groups">
+    <param name="@values@" desc="Classification predicates" />
+
+    <param name="@__id@"
+           desc="Unique identifier to avoid symbol conflicts">
+      <text unique="true">given</text>
+    </param>
+
+
+    <param-meta name="spec-given-id"
+                value="{@__id@}Yield" />
+
+    <classify as="@__id@" yields="{@__id@}Yield"
+              desc="Given value generated via _given-clasify_">
+      <param-copy name="@values@" />
+    </classify>
+  </template>
+
+
+  <template name="_given-classify-scalar_"
+            desc="Describe a classification-based value for expectation groups">
+    <param name="@values@" desc="Classification predicates" />
+
+    <param name="@__id@"
+           desc="Unique identifier to avoid symbol conflicts">
+      <text unique="true">given</text>
+    </param>
+
+
+    <param-meta name="spec-given-id"
+                value="{@__id@}Yield" />
+
+    <classify as="{@__id@}-pre" yields="{@__id@}PreYield"
+              desc="Given value generated via _given-clasify-scalar_ pre-scalar">
+      <param-copy name="@values@" />
+    </classify>
+
+    <rate class="{@__id@}-pre" yields="__{@__id@}ScalarSum">
+      <c:sum of="_CMATCH_" />
+    </rate>
+
+    <classify as="@__id@" yields="{@__id@}Yield"
+              desc="Given value generated via _given-classify_">
+      <match on="__{@__id@}ScalarSum">
+        <c:gt>
+          <c:const value="0" desc="Any match" />
+        </c:gt>
+      </match>
+    </classify>
+  </template>
+
+
+
+  <!--
     Describe a feature expectation
 
     An expectation tests the adherence of a feature to its specification. It

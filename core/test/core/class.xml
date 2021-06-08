@@ -1,0 +1,209 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
+
+  This file is part of tame-core.
+
+  tame-core is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
+         desc="Classification System Specs">
+
+  <import package="../../test/spec" />
+  <import package="../../vector/stub" />
+  <import package="../../base" />
+
+  Note that many of these classifications may match on similar values to try
+  to thwart potential optimizations, present or future, but these approaches
+  may need further adjustment to thwart future optimizations (or a way to
+  explicitly inhibit them).
+
+  <t:describe name="classify">
+    <t:describe name="without predicates">
+      <t:it desc="yields TRUE for conjunction">
+        <classify as="conj-no-pred" yields="conjNoPred"
+                  desc="No predicate, conjunction" />
+
+        <t:given name="conjNoPred" />
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields FALSE for disjunction">
+        <classify as="disj-no-pred" yields="disjNoPred"
+                  any="true"
+                  desc="No predicate, disjunction" />
+
+        <t:given name="disjNoPred" />
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with scalar predicates">
+      <t:it desc="yields TRUE when scalar value is TRUE">
+        <t:given-classify>
+          <match on="alwaysTrue" />
+        </t:given-classify>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields FALSE when scalar value is FALSE">
+        <t:given-classify>
+          <match on="neverTrue" />
+        </t:given-classify>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields TRUE for all-true scalar conjunction">
+        <t:given-classify>
+          <match on="alwaysTrue" />
+          <match on="neverTrue" value="FALSE" />
+        </t:given-classify>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields TRUE for all-true scalar disjunction">
+        <t:given-classify>
+          <any>
+            <match on="alwaysTrue" />
+            <match on="neverTrue" value="FALSE" />
+          </any>
+        </t:given-classify>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields TRUE for single-true scalar disjunction">
+        <t:given-classify>
+          <any>
+            <match on="alwaysTrue" />
+            <match on="neverTrue" />
+          </any>
+        </t:given-classify>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+    </t:describe>
+
+
+    <t:describe name="with vector predicates">
+      <t:it desc="yields TRUE for all-true element-wise conjunction">
+        <t:given-classify-scalar>
+          <match on="NVEC3" value="ZERO" />
+          <match on="nClass3" value="TRUE" />
+        </t:given-classify-scalar>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields FALSE for some-true element-wise conjunction">
+        <t:given-classify-scalar>
+          <match on="NVEC3" value="ZERO" />
+          <match on="nClass3" value="FALSE" />
+        </t:given-classify-scalar>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields TRUE for some-true element-wise disjunction">
+        <t:given-classify-scalar>
+          <any>
+            <match on="NVEC3" value="ZERO" />
+            <match on="nClass3" value="FALSE" />
+          </any>
+        </t:given-classify-scalar>
+
+        <t:expect>
+          <t:match-result value="TRUE" />
+        </t:expect>
+      </t:it>
+
+
+      <t:it desc="yields FALSE for all-false element-wise disjunction">
+        <t:given-classify-scalar>
+          <any>
+            <match on="NVEC3" value="TRUE" />
+            <match on="nClass3" value="FALSE" />
+          </any>
+        </t:given-classify-scalar>
+
+        <t:expect>
+          <t:match-result value="FALSE" />
+        </t:expect>
+      </t:it>
+
+
+      The old classification system would interpret missing values as $0$,
+        which could potentially trigger a match.
+      The new classification system will always yield \tparam{FALSE}
+        regardless of predicate when values are undefined.
+
+      <t:describe name="of different lengths">
+        <t:describe name="with legacy classification system">
+          <t:it desc="interprets undefined values as zero during match">
+            <classify as="vec-len-mismatch-conj-legacy"
+                      yields="vecLenMismatchConjLegacy"
+                      desc="Multi vector length mismatch (legacy)">
+              <!-- actually ZERO for all indexes -->
+              <match on="NVEC3" value="ZERO" />
+
+              <!-- legacy system, implicitly zero for match -->
+              <match on="NVEC2" value="ZERO" />
+            </classify>
+
+            <t:given>
+              <c:value-of name="vecLenMismatchConjLegacy" index="#2" />
+            </t:given>
+
+            <t:expect>
+              <t:match-result value="TRUE" />
+            </t:expect>
+          </t:it>
+        </t:describe>
+      </t:describe>
+    </t:describe>
+  </t:describe>
+</package>

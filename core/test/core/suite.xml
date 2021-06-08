@@ -38,6 +38,7 @@
   <import package="vector/minmax" />
   <import package="vector/table" />
 
+  <import package="class" />
   <import package="insurance" />
   <import package="retry" />
   <import package="symbol" />
