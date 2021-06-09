@@ -29,6 +29,9 @@ Compiler
 
 Core
 ----
+- New feature flag template `_use-new-classification-system_`.
+  - This is not yet utilized, but will enable a classification system
+    rewrite once merged.
 - Remove `core/aggregate`.
   - This package is not currently utilized and is dangerous---it could
     easily aggregate unintended values if used carelessly.  Those who know
