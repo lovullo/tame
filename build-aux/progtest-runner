@@ -32,7 +32,7 @@ shift
 for supplier in "$@"; do
   base=$( basename "$supplier" .xml )
   path_suppliers=$( dirname "$supplier" )
-  tests=$( find -L "$path_tests"/"$base"/ -name '*.yml' )
+  tests=$( find -L "$path_tests"/"$base"/ -name '*.yml' | LC_ALL=c sort )
 
   echo
   echo "$path_suppliers/$base"

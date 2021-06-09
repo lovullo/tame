@@ -39,6 +39,11 @@ Core
     within the given context, and proper precautions are taken (as many
     templates already do today).
 
+Miscellaneous
+-------------
+- `build-aux/progtest-runner` will now deterministically concatenate files
+  based on name rather than some unspecified order.
+
 
 v17.9.0 (2021-05-27)
 ====================
