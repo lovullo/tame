@@ -31,179 +31,228 @@
   may need further adjustment to thwart future optimizations (or a way to
   explicitly inhibit them).
 
-  <t:describe name="classify">
-    <t:describe name="without predicates">
-      <t:it desc="yields TRUE for conjunction">
-        <classify as="conj-no-pred" yields="conjNoPred"
-                  desc="No predicate, conjunction" />
 
-        <t:given name="conjNoPred" />
+  <template name="_class-tests_" desc="Classification system tests">
+    <param name="@system@" desc="SUT (lowercase)" />
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
+    <param name="@systemuc@" desc="SUT (title case)">
+      <param-value name="@system@" ucfirst="true" />
+    </param>
 
 
-      <t:it desc="yields FALSE for disjunction">
-        <classify as="disj-no-pred" yields="disjNoPred"
-                  any="true"
-                  desc="No predicate, disjunction" />
+    <t:describe name="{@system@} classify">
+      <t:describe name="without predicates">
+        <t:it desc="yields TRUE for conjunction">
+          <classify as="conj-no-pred-{@system@}"
+                    yields="conjNoPred{@systemuc@}"
+                    desc="No predicate, conjunction" />
 
-        <t:given name="disjNoPred" />
+          <t:given name="conjNoPred{@systemuc@}" />
 
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
-    </t:describe>
-
-
-    <t:describe name="with scalar predicates">
-      <t:it desc="yields TRUE when scalar value is TRUE">
-        <t:given-classify>
-          <match on="alwaysTrue" />
-        </t:given-classify>
-
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
 
-      <t:it desc="yields FALSE when scalar value is FALSE">
-        <t:given-classify>
-          <match on="neverTrue" />
-        </t:given-classify>
+        <t:it desc="yields FALSE for disjunction">
+          <classify as="disj-no-pred-{@system@}"
+                    yields="disjNoPred{@systemuc@}"
+                    any="true"
+                    desc="No predicate, disjunction" />
 
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
+          <t:given name="disjNoPred{@systemuc@}" />
 
-
-      <t:it desc="yields TRUE for all-true scalar conjunction">
-        <t:given-classify>
-          <match on="alwaysTrue" />
-          <match on="neverTrue" value="FALSE" />
-        </t:given-classify>
-
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+      </t:describe>
 
 
-      <t:it desc="yields TRUE for all-true scalar disjunction">
-        <t:given-classify>
-          <any>
+      <t:describe name="with scalar predicates">
+        <t:it desc="yields TRUE when scalar value is TRUE">
+          <t:given-classify>
+            <match on="alwaysTrue" />
+          </t:given-classify>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields FALSE when scalar value is FALSE">
+          <t:given-classify>
+            <match on="neverTrue" />
+          </t:given-classify>
+
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields TRUE for all-true scalar conjunction">
+          <t:given-classify>
             <match on="alwaysTrue" />
             <match on="neverTrue" value="FALSE" />
-          </any>
-        </t:given-classify>
+          </t:given-classify>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-
-
-      <t:it desc="yields TRUE for single-true scalar disjunction">
-        <t:given-classify>
-          <any>
-            <match on="alwaysTrue" />
-            <match on="neverTrue" />
-          </any>
-        </t:given-classify>
-
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-    </t:describe>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
 
-    <t:describe name="with vector predicates">
-      <t:it desc="yields TRUE for all-true element-wise conjunction">
-        <t:given-classify-scalar>
-          <match on="NVEC3" value="ZERO" />
-          <match on="nClass3" value="TRUE" />
-        </t:given-classify-scalar>
+        <t:it desc="yields TRUE for all-true scalar disjunction">
+          <t:given-classify>
+            <any>
+              <match on="alwaysTrue" />
+              <match on="neverTrue" value="FALSE" />
+            </any>
+          </t:given-classify>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-
-
-      <t:it desc="yields FALSE for some-true element-wise conjunction">
-        <t:given-classify-scalar>
-          <match on="NVEC3" value="ZERO" />
-          <match on="nClass3" value="FALSE" />
-        </t:given-classify-scalar>
-
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
 
-      <t:it desc="yields TRUE for some-true element-wise disjunction">
-        <t:given-classify-scalar>
-          <any>
+        <t:it desc="yields TRUE for single-true scalar disjunction">
+          <t:given-classify>
+            <any>
+              <match on="alwaysTrue" />
+              <match on="neverTrue" />
+            </any>
+          </t:given-classify>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+      </t:describe>
+
+
+      <t:describe name="with vector predicates">
+        <t:it desc="yields TRUE for all-true element-wise conjunction">
+          <t:given-classify-scalar>
+            <match on="NVEC3" value="ZERO" />
+            <match on="nClass3" value="TRUE" />
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields FALSE for some-true element-wise conjunction">
+          <t:given-classify-scalar>
             <match on="NVEC3" value="ZERO" />
             <match on="nClass3" value="FALSE" />
-          </any>
-        </t:given-classify-scalar>
+          </t:given-classify-scalar>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-
-
-      <t:it desc="yields FALSE for all-false element-wise disjunction">
-        <t:given-classify-scalar>
-          <any>
-            <match on="NVEC3" value="TRUE" />
-            <match on="nClass3" value="FALSE" />
-          </any>
-        </t:given-classify-scalar>
-
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
 
 
-      The old classification system would interpret missing values as $0$,
-        which could potentially trigger a match.
-      The new classification system will always yield \tparam{FALSE}
-        regardless of predicate when values are undefined.
-
-      <t:describe name="of different lengths">
-        <t:describe name="with legacy classification system">
-          <t:it desc="interprets undefined values as zero during match">
-            <classify as="vec-len-mismatch-conj-legacy"
-                      yields="vecLenMismatchConjLegacy"
-                      desc="Multi vector length mismatch (legacy)">
-              <!-- actually ZERO for all indexes -->
+        <t:it desc="yields TRUE for some-true element-wise disjunction">
+          <t:given-classify-scalar>
+            <any>
               <match on="NVEC3" value="ZERO" />
+              <match on="nClass3" value="FALSE" />
+            </any>
+          </t:given-classify-scalar>
 
-              <!-- legacy system, implicitly zero for match -->
-              <match on="NVEC2" value="ZERO" />
-            </classify>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
-            <t:given>
-              <c:value-of name="vecLenMismatchConjLegacy" index="#2" />
-            </t:given>
 
-            <t:expect>
-              <t:match-result value="TRUE" />
-            </t:expect>
-          </t:it>
+        <t:it desc="yields FALSE for all-false element-wise disjunction">
+          <t:given-classify-scalar>
+            <any>
+              <match on="NVEC3" value="TRUE" />
+              <match on="nClass3" value="FALSE" />
+            </any>
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+
+
+        The old classification system would interpret missing values as $0$,
+          which could potentially trigger a match.
+        The new classification system will always yield \tparam{FALSE}
+          regardless of predicate when values are undefined.
+
+        <t:describe name="of different lengths">
+          <if name="@system@" eq="legacy">
+            <t:describe name="with legacy classification system">
+              <t:it desc="interprets undefined values as zero during match">
+                <classify as="vec-len-mismatch-conj-{@system@}"
+                          yields="vecLenMismatchConj{@systemuc@}"
+                          desc="Multi vector length mismatch (legacy)">
+                  <!-- actually ZERO for all indexes -->
+                  <match on="NVEC3" value="ZERO" />
+
+                  <!-- legacy system, implicitly zero for match -->
+                  <match on="NVEC2" value="ZERO" />
+                </classify>
+
+                <t:given>
+                  <c:value-of name="vecLenMismatchConj{@systemuc@}" index="#2" />
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="TRUE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
+
+
+          <if name="@system@" eq="new">
+            <t:describe name="with new classification system">
+              <t:it desc="yields false for conjunction rather than implicit zero">
+                <classify as="vec-len-mismatch-conj-{@system@}"
+                          yields="vecLenMismatchConj{@systemuc@}"
+                          desc="Multi vector length mismatch (new system)">
+                  <!-- actually ZERO for all indexes -->
+                  <match on="NVEC3" value="ZERO" />
+
+                  <!-- must not be implicitly ZERO for third index -->
+                  <match on="NVEC2" value="ZERO" />
+                </classify>
+
+                <t:given>
+                  <c:value-of name="vecLenMismatchConj{@systemuc@}" index="#2" />
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
         </t:describe>
       </t:describe>
     </t:describe>
-  </t:describe>
+  </template>
+
+
+  <section title="Legacy System Tests">
+    <t:class-tests system="legacy" />
+  </section>
+
+  <section title="New System Tests">
+    <t:use-new-classification-system />
+    <t:class-tests system="new" />
+  </section>
 </package>

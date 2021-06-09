@@ -38,6 +38,7 @@
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:ext="http://www.lovullo.com/ext"
             xmlns:c="http://www.lovullo.com/calc"
+            xmlns:compiler="http://www.lovullo.com/rater/compiler"
             xmlns:lvv="http://www.lovullo.com/rater/validate"
             xmlns:sym="http://www.lovullo.com/rater/symbol-map"
             xmlns:preproc="http://www.lovullo.com/rater/preproc">
@@ -268,17 +269,30 @@
 </template>
 
 
-<!-- @pattern support removed -->
 <template match="lv:match[@pattern]" mode="lvv:validate-match" priority="9">
-  <call-template name="lvv:error">
-    <with-param name="desc" select="'lv:match[@pattern] support removed'" />
-    <with-param name="refnode" select="." />
-    <with-param name="content">
-      <text>use lookup tables in place of @pattern in `</text>
-      <value-of select="parent::lv:classify/@as" />
-      <text>'</text>
-    </with-param>
-  </call-template>
+  <choose>
+    <!-- warn of upcoming removal -->
+    <when test="compiler:use-legacy-classify( ancestor::lv:classify )">
+      <message select="concat( 'warning: ',
+                               ancestor::lv:classify/@as,
+                               ': lv:match[@pattern] support is deprecated ',
+                               'and is removed with the new classification ',
+                               'system; use lookup tables instead' )" />
+    </when>
+
+    <!-- @pattern support removed in the new classification system -->
+    <otherwise>
+      <call-template name="lvv:error">
+        <with-param name="desc" select="'lv:match[@pattern] support removed'" />
+        <with-param name="refnode" select="." />
+        <with-param name="content">
+          <text>use lookup tables in place of @pattern in `</text>
+          <value-of select="parent::lv:classify/@as" />
+          <text>'</text>
+        </with-param>
+      </call-template>
+    </otherwise>
+  </choose>
 </template>
 
 

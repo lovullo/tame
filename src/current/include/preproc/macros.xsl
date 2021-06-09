@@ -27,6 +27,7 @@
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:t="http://www.lovullo.com/rater/apply-template"
             xmlns:c="http://www.lovullo.com/calc"
+            xmlns:compiler="http://www.lovullo.com/rater/compiler"
             xmlns:eseq="http://www.lovullo.com/tame/preproc/expand/eseq"
             xmlns:ext="http://www.lovullo.com/ext">
 
@@ -287,7 +288,11 @@
                    ( lv:any | lv:all )
                      and not( eseq:is-expandable(.) ) ]">
   <variable name="result">
-    <apply-templates select="." mode="preproc:class-groupgen" />
+    <apply-templates select="." mode="preproc:class-groupgen">
+      <with-param name="legacy-classify"
+                  select="compiler:use-legacy-classify( . )"
+                  tunnel="yes" />
+    </apply-templates>
   </variable>
 
   <apply-templates select="$result/lv:classify" mode="preproc:class-extract" />
@@ -408,6 +413,8 @@
 
 
 <template match="lv:any|lv:all" mode="preproc:class-groupgen" priority="5">
+  <param name="legacy-classify" as="xs:boolean" tunnel="yes" />
+
   <!-- this needs to be unique enough that there is unlikely to be a conflict
        between generated ids in various packages; generate-id is not enough for
        cross-package guarantees (indeed, I did witness conflicts), so there is
@@ -422,10 +429,13 @@
   <lv:classify as="{$id}" yields="{$yields}"
                preproc:generated="true"
                preproc:generated-from="{$parent-name}"
-               preproc:inline="true"
                desc="(generated from predicate group of {$parent-name}">
     <if test="local-name() = 'any'">
       <attribute name="any" select="'true'" />
+    </if>
+
+    <if test="not( $legacy-classify )">
+      <attribute name="preproc:inline" select="'true'" />
     </if>
 
     <apply-templates mode="preproc:class-groupgen" />
@@ -433,8 +443,11 @@
 
   <!-- this will remain in its place -->
   <lv:match on="{$yields}" value="TRUE"
-            preproc:generated="true"
-            preproc:inline="true" />
+            preproc:generated="true">
+    <if test="not( $legacy-classify )">
+      <attribute name="preproc:inline" select="'true'" />
+    </if>
+  </lv:match>
 </template>
 
 
