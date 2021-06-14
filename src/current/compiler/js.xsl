@@ -1860,7 +1860,9 @@
     // apply vector to matrix
     function vmu(m, v)
     {
-        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => ms & v[i]));
+        const result = m.map(function(mv, i) {
+            return (mv.length ? mv : [0]).map(function(ms) { return ms & v[i] });
+        });
 
         for (let i = result.length; i < v.length; i++) {
             result[i] = [0];
@@ -1870,7 +1872,9 @@
     }
     function vme(m, v)
     {
-        const result = m.map((mv, i) => (mv.length ? mv : [0]).map(ms => ms | v[i]));
+        const result = m.map(function(mv, i) {
+            return (mv.length ? mv : [0]).map(function(ms) { return ms | v[i] });
+        });
 
         for (let i = result.length; i < v.length; i++) {
             result[i] = [v[i]];
@@ -1881,25 +1885,34 @@
 
     function mu(ms)
     {
-        return ms.reduce(
-            (final, m) => final.map((v, i) => vu([v, m[i]||[0]]))
-        );
+        return ms.reduce(function(final, m) {
+            return final.map(function(v, i) {
+              return vu([v, m[i]||[0]]);
+            });
+        });
     }
 
     function me(ms)
     {
-        return ms.reduce(
-            (final, m) => final.map((v, i) => ve([v, m[i]||[0]]))
-        );
+        return ms.reduce(function(final, m) {
+            return final.map(function(v, i) {
+                return ve([v, m[i]||[0]]);
+            });
+        });
     }
 
     function vu(vs)
     {
-        const longest = Math.max.apply(null, vs.map(v => v.length));
+        const longest = Math.max.apply(null, vs.map(function(v) {
+            return v.length;
+        }));
+
         const base = new Array(longest).fill(1);
 
         const result = vs.reduce(
-            (final, v, vi) => final.map((x, i) => x & v[i]),
+            function(final, v, vi) {
+                return final.map(function(x, i) { return x & v[i] });
+            },
             base
         );
 
@@ -1908,11 +1921,16 @@
 
     function ve(vs)
     {
-        const longest = Math.max.apply(null, vs.map(v => v.length));
+        const longest = Math.max.apply(null, vs.map(function(v) {
+            return v.length;
+        }));
+
         const base = new Array(longest).fill(0);
 
         const result = vs.reduce(
-            (final, v, vi) => final.map((x, i) => x | v[i]),
+            function(final, v, vi) {
+                return final.map(function(x, i) { return x | v[i] });
+            },
             base
         );
 
@@ -1922,28 +1940,32 @@
     // apply scalar to vector
     function svu(v, s)
     {
-        return v.map(x => x & s);
+        return v.map(function(x) { return x & s });
     }
     function sve(v, s)
     {
-        return v.map(x => x | s);
+        return v.map(function(x) { return x | s });
     }
 
     // apply scalar to matrix
     function smu(m, s)
     {
-        return m.map(v => v.map(x => x & s));
+        return m.map(function(v) {
+            return v.map(function(x) { return x & s });
+        });
     }
     function sme(m, s)
     {
-        return m.map(v => v.map(x => x | s));
+        return m.map(function(v) {
+            return v.map(function(x) { return x | s });
+        });
     }
 
 
     // existential (any)
     function E(v)
     {
-        return v.some(s => s === 1);
+        return v.some(function(s) { return s === 1 });
     }
 
     // existential (any) for matrices
@@ -1968,14 +1990,18 @@
     }
 
     function M(vs, f) { return vs.map(f); }
-    function MM(ms, f) { return ms.map(vs => vs.map(f)); }
+    function MM(ms, f) { return ms.map(function(vs) { return vs.map(f) }) }
     var n = ceq(0);
     function N(vs) { return vs.map(n); }
     function NN(ms) { return ms.map(N); }
 
     function i(s, xs) { return +xs.has(s) };
-    function I(v, xs)  { return v.map(s => +xs.has(s)); }
-    function II(m, xs) { return m.map(v => v.map(s => +xs.has(s))); }
+    function I(v, xs)  { return v.map(function(s) { return +xs.has(s) }) }
+    function II(m, xs) {
+        return m.map(function(v) {
+            return v.map(function(s) { return +xs.has(s) });
+        });
+    }
 
     function ceq(y)  { return function (x) { return +(x === y); }; }
     function cne(y)  { return function (x) { return +(x !== y); }; }
