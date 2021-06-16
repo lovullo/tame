@@ -1885,20 +1885,42 @@
 
     function mu(ms)
     {
+        const longest_row = Math.max.apply(null, ms.map(function(m) {
+            return m.length;
+        }));
+        const longest_col = Math.max.apply(null, ms.map(function(m) {
+            return Math.max.apply(null, m.map(function(v) { return v.length; }));
+        }));
+
+        const base = new Array(longest_row).fill(
+            new Array(longest_col).fill(1)
+        );
+
         return ms.reduce(function(final, m) {
             return final.map(function(v, i) {
               return vu([v, m[i]||[0]]);
             });
-        });
+        }, base);
     }
 
     function me(ms)
     {
+        const longest_row = Math.max.apply(null, ms.map(function(m) {
+            return m.length;
+        }));
+        const longest_col = Math.max.apply(null, ms.map(function(m) {
+            return Math.max.apply(null, m.map(function(v) { return v.length; }));
+        }));
+
+        const base = new Array(longest_row).fill(
+            new Array(longest_col).fill(0)
+        );
+
         return ms.reduce(function(final, m) {
             return final.map(function(v, i) {
                 return ve([v, m[i]||[0]]);
             });
-        });
+        }, base);
     }
 
     function vu(vs)
