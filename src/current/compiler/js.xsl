@@ -71,9 +71,9 @@
     <!-- to store debug information for equations (we have to put this out here
          so that functions also have access to it...yes, it's stateful, yes it's
          bullshit, but oh well) -->
-    <text>/**@expose*/var consts = C = {};</text>
-    <text>/**@expose*/var debug = D = {};</text>
-    <text>/**@expose*/var params = P = {};</text>
+    <text>/**@expose*/var C, consts = C = {};</text>
+    <text>/**@expose*/var D, debug = D = {};</text>
+    <text>/**@expose*/var P, params = P = {};</text>
     <text>/**@expose*/var types = {};</text>
     <text>/**@expose*/var meta = {};</text>
 </template>
@@ -97,7 +97,7 @@
 
       <!-- clone the object so as not to modify the one that was passed
            (ES5 feature); also adds constants -->
-      <text>var args = A = Object.create( arglist );</text>
+      <text>var A, args = A = Object.create( arglist );</text>
 
       <!-- will store the global params that we ended up requiring -->
       <text>var req_params = {};</text>
@@ -106,8 +106,8 @@
       <text>init_defaults( args, params );</text>
 
       <value-of select="$compiler:nl" />
-      <text>/**@expose*/var classes = c = {};</text>
-      <text>/**@expose*/var genclasses = gc = {};</text>
+      <text>/**@expose*/var c, classes = c = {};</text>
+      <text>/**@expose*/var gc, genclasses = gc = {};</text>
 
       <!-- temporaries used in computations -->
       <text>var result, tmp;</text>
