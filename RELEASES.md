@@ -39,6 +39,11 @@ Core
     within the given context, and proper precautions are taken (as many
     templates already do today).
 
+Rust
+----
+- Version bump from 1.42.0 to 1.48.0 now that intra-doc links has been
+  stabalized.
+
 Miscellaneous
 -------------
 - `build-aux/progtest-runner` will now deterministically concatenate files

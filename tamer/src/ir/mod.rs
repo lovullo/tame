@@ -65,10 +65,10 @@
 //! IRs are progressively _lowered_ to other IRs that are closer to the
 //!   final representation emitted by the compiler ("lower"-level).
 //!
-//! - [`xmlo::reader`](crate::obj::xmlo::reader) produces
+//! - [`xmlo::XmloReader`](crate::obj::xmlo::XmloReader) produces
 //!     [`XmloEvent`](crate::obj::xmlo::XmloEvent)s containing
 //!     [`legacyir`].
-//!   - [`xmlo::asg_builder`](crate::obj::xmlo::asg_builder) immediately lowers
+//!   - [`xmlo::AsgBuilder`](crate::obj::xmlo::AsgBuilder) immediately lowers
 //!       those into [`asg`].
 
 pub mod asg;

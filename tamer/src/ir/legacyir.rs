@@ -224,7 +224,7 @@ impl TryFrom<&[u8]> for SymType {
     /// Determine symbol type from source `preproc:sym/@type`.
     ///
     /// This raises source `xmlo` data into this IR.
-    /// See [`crate::obj::xmlo::reader`].
+    /// See [`crate::obj::xmlo::XmloReader`].
     fn try_from(value: &[u8]) -> Result<SymType, Self::Error> {
         match value {
             b"cgen" => Ok(SymType::Cgen),
@@ -289,7 +289,7 @@ impl TryFrom<&[u8]> for SymDtype {
     /// Determine data type from source `preproc:sym/@dtype`.
     ///
     /// This raises source `xmlo` data into this IR.
-    /// See [`crate::obj::xmlo::reader`].
+    /// See [`crate::obj::xmlo::XmloReader`].
     fn try_from(value: &[u8]) -> Result<SymDtype, Self::Error> {
         match value {
             b"boolean" => Ok(SymDtype::Boolean),

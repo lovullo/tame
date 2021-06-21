@@ -45,7 +45,7 @@ AC_CHECK_PROGS(CARGO, [cargo])
 
 test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 
-rustc_ver_req=1.42.0
+rustc_ver_req=1.48.0
 
 AC_CHECK_PROGS(RUSTC, [rustc])
 AC_MSG_CHECKING([rustc version >= $rustc_ver_req])
@@ -58,15 +58,9 @@ AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
 AC_ARG_VAR([CARGO_BUILD_FLAGS],
            [Flags to be passed to `cargo build' when invoked via Make])
 
-# The `intra_rustdoc_links` feature is required for building
-# documentation.  If unavailable, then it's still an unstable feature and
-# we'll need to use nightly.  We don't check for nightly here, though---if
-# it's missing, then cargo will tell the user what to do.
-AC_MSG_CHECKING([`intra_rustdoc_links_check` feature support])
-AS_IF(["$RUSTC" --crate-type lib build_aux/intra_rustdoc_links_check.rs &>/dev/null],
-      [AC_MSG_RESULT(available)],
-      [AC_MSG_RESULT([no (nightly required)])
-       AC_SUBST([CARGO_DOC_FLAGS], [+nightly])])
+# All currently-used doc features are stable (this used to be used for
+# intra-doc links)
+AC_SUBST([CARGO_DOC_FLAGS], [])
 
 # The `test` feature is required for benchmarking.  If unavailable, then
 # it's still an unstable feature and we'll need to use nightly.  We don't

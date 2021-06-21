@@ -19,6 +19,9 @@
 
 //! An incremental rewrite of TAME in Rust.
 
+// We build docs for private items
+#![allow(rustdoc::private_intra_doc_links)]
+
 pub mod global;
 
 #[macro_use]
