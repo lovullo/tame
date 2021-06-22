@@ -28,9 +28,7 @@ TAME consists of a macro processor (implementing a metalanguage), numerous
 compilers for various targets (JavaScript, HTML documentation and debugging
 environment, LaTeX, and others), linkers, and supporting tools.  The input
 grammar is XML, and the majority of the project (including the macro processor,
-compilers, and linkers) is written in XSLT. There is a reason for that odd
-choice; until an explanation is provided, know that someone is perverted enough
-to implement a full compiler in XSLT.
+compilers, and linkers) is written in a combination of XSLT and Rust.
 
 
 ## TAMER
