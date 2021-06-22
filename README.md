@@ -1,5 +1,5 @@
 <!---
-  Copyright (C) 2015, 2016, 2017 LoVullo Associates, Inc.
+  Copyright (C) 2015-2021 Ryan Specialty Group, Inc.
 
   Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License,
@@ -33,11 +33,10 @@ choice; until an explanation is provided, know that someone is perverted enough
 to implement a full compiler in XSLT.
 
 
-## "Current"
-The current state of the project as used in production is found in
-`src/current/`.  The environment surrounding the development of this
-project resulted in a bit of a mess, which is being refactored into
-`src/` as it is touched.  Documentation is virtually non-existent.
+## TAMER
+Due to performance requirements, this project is currently being
+reimplemented in Rust.  That project can be found in the [tamer/](./tamer/)
+directory.
 
 
 ## Documentation
