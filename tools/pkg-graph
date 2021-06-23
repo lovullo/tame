@@ -1,0 +1,73 @@
+#!/bin/bash
+# Output DOT file representing package dependencies
+#
+#   Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+
+relpath()
+{
+  while read p; do
+    if [[ ! "$p" =~ \.\. ]]; then
+      echo "$p"
+    else
+      sed 's|[^/]\+/\.\./|/|' | relpath
+    fi
+  done
+}
+
+
+undepify()
+{
+  sed 's|^\(\./\)\?\(.*\)\.dep:|/\2 |'
+}
+
+
+dotify()
+{
+  echo 'digraph {'
+
+  local from to
+  while read -r from to; do
+    printf '"%s" -> "%s";\n' "$from" "$to"
+  done
+
+  echo '}'
+}
+
+
+main()
+{
+  local root="${1?Missing project root}"
+
+  cd "$root"
+
+  find . -name '*.dep' | while read -r depfile; do
+    # Absolute paths can be output verbatim
+    grep -H '^/' "$depfile"
+
+    # Relative paths need processing
+    local dir=$( dirname "$depfile" | sed 's|^\./|/|' )
+    grep -Hv '^/' "$depfile" \
+      | sed "s|:|:$dir/|"
+  done \
+    | grep -v '\$$' \
+    | relpath \
+    | undepify \
+    | dotify
+}
+
+main "$@"

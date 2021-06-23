@@ -27,6 +27,7 @@
 <stylesheet version="2.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
             xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:map="http://www.w3.org/2005/xpath-functions/map"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:lvp="http://www.lovullo.com"
             xmlns:c="http://www.lovullo.com/calc"
@@ -38,6 +39,8 @@
             xmlns:util="http://www.lovullo.com/util"
             xmlns:ext="http://www.lovullo.com/ext">
 
+<!-- legacy classification system -->
+<include href="js-legacy.xsl" />
 
 <!-- calculation compiler -->
 <include href="js-calc.xsl" />
@@ -68,9 +71,9 @@
     <!-- to store debug information for equations (we have to put this out here
          so that functions also have access to it...yes, it's stateful, yes it's
          bullshit, but oh well) -->
-    <text>/**@expose*/var consts = {};</text>
-    <text>/**@expose*/var debug = {};</text>
-    <text>/**@expose*/var params = {};</text>
+    <text>/**@expose*/var C, consts = C = {};</text>
+    <text>/**@expose*/var D, debug = D = {};</text>
+    <text>/**@expose*/var P, params = P = {};</text>
     <text>/**@expose*/var types = {};</text>
     <text>/**@expose*/var meta = {};</text>
 </template>
@@ -83,7 +86,7 @@
       <text>_canterm = ( _canterm == undefined ) ? true : !!_canterm;</text>
 
       <!-- XXX: fix; clear debug from any previous runs -->
-      <text>debug = {};</text>
+      <text>debug = D = {};</text>
 
       <!-- magic constants (N.B. these ones must be re-calculated with each
            call, otherwise the data may be incorrect!) -->
@@ -94,7 +97,7 @@
 
       <!-- clone the object so as not to modify the one that was passed
            (ES5 feature); also adds constants -->
-      <text>var args = Object.create( arglist );</text>
+      <text>var A, args = A = Object.create( arglist );</text>
 
       <!-- will store the global params that we ended up requiring -->
       <text>var req_params = {};</text>
@@ -103,8 +106,11 @@
       <text>init_defaults( args, params );</text>
 
       <value-of select="$compiler:nl" />
-      <text>/**@expose*/var classes = {};</text>
-      <text>/**@expose*/var genclasses = {};</text>
+      <text>/**@expose*/var c, classes = c = {};</text>
+      <text>/**@expose*/var gc, genclasses = gc = {};</text>
+
+      <!-- temporaries used in computations -->
+      <text>var result, tmp;</text>
 </template>
 
 <template name="compiler:classifier">
@@ -183,7 +189,7 @@
 
         <text>'</text>
           <value-of select="@name" />
-        <text>': true</text>
+        <text>': !1</text>
       </for-each>
     <text>}; </text>
 
@@ -240,18 +246,18 @@
 -->
 <template match="lv:param" mode="compile">
   <!-- generate key using param name -->
-  <text>params['</text>
+  <text>P['</text>
   <value-of select="@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- param properties -->
   <text>type: '</text>
     <value-of select="@type" />
   <text>',</text>
 
-  <text>'default': '</text>
-    <value-of select="@default" />
-  <text>',</text>
+  <text>'default':</text>
+    <value-of select="if ( @default ) then number(@default) else '0'" />
+  <text>,</text>
 
   <text>depth: </text>
     <!-- TODO: this logic is duplicated multiple places -->
@@ -289,7 +295,7 @@
   <!-- generate key using type name -->
   <text>types['</text>
   <value-of select="../@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- its type will be the type of its first enum (all must share the same
        domain) -->
@@ -321,7 +327,7 @@
   <!-- generate key using type name -->
   <text>types['</text>
   <value-of select="../@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- domain of all values -->
   <text>type: '</text>
@@ -346,7 +352,7 @@
 <template match="lv:typedef/lv:base-type" mode="compile" priority="5">
   <text>types['</text>
   <value-of select="../@name" />
-  <text>'] = {</text>
+  <text>']={</text>
 
   <!-- base types are their own type -->
   <text>type: '</text>
@@ -392,9 +398,9 @@
 
   <!-- we are only interest in its value; its constant is an internal value -->
   <sequence select="if ( $as-const ) then
-                      concat( 'consts[''', @name, '''] = ', $value, ';' )
+                      concat( 'C[''', @name, ''']=', $value, ';' )
                     else
-                      concat( '''', $value, ''': true' )" />
+                      concat( '''', $value, ''':1' )" />
 </template>
 
 
@@ -408,37 +414,37 @@
 -->
 <template mode="compile" priority="2"
           match="lv:const[ element() or @values ]">
-  <text>consts['</text>
+  <text>C['</text>
     <value-of select="@name" />
-  <text>'] = [ </text>
+  <text>']=[</text>
 
     <!-- matrices -->
     <for-each select="compiler:const-sets( . )[ not( . = '' ) ]">
       <if test="position() > 1">
-        <text>, </text>
+        <text>,</text>
       </if>
 
-      <text>[ </text>
+      <text>[</text>
         <for-each select="compiler:set-items( ., true() )">
           <if test="position() > 1">
-            <text>, </text>
+            <text>,</text>
           </if>
 
           <value-of select="compiler:js-number( . )" />
         </for-each>
-      <text> ]</text>
+      <text>]</text>
     </for-each>
 
     <!-- vectors -->
     <for-each select="compiler:set-items( ., false() )">
       <if test="position() > 1">
-        <text>, </text>
+        <text>,</text>
       </if>
 
       <value-of select="compiler:js-number( . )" />
     </for-each>
 
-  <text> ]; </text>
+  <text>];</text>
 </template>
 
 
@@ -447,9 +453,9 @@
 -->
 <template mode="compile" priority="1"
           match="lv:const">
-  <text>consts['</text>
+  <text>C['</text>
     <value-of select="@name" />
-  <text>'] = </text>
+  <text>']=</text>
     <value-of select="compiler:js-number( @value )" />
   <text>;</text>
 </template>
@@ -531,147 +537,730 @@
 
 
 <!--
-  Generate code to perform a classification
-
-  Based on the criteria provided by the classification, generate and store the
-  result of a boolean expression performing the classification using global
-  arguments.
-
-  @return generated classification expression
+  Single-TRUE-match classifications are effectively aliases
 -->
-<template match="lv:classify" mode="compile">
+<template mode="compile" priority="7"
+          match="lv:classify[ count( lv:match ) = 1
+                                and lv:match/@value='TRUE'
+                                and not( lv:match/@preproc:inline ) ]">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
-  <param name="noclass" />
-  <param name="ignores" />
 
-  <variable name="self" select="." />
+  <variable name="src" as="xs:string"
+            select="lv:match/@on" />
+  <variable name="src-sym" as="element( preproc:sym )"
+            select="$symtable-map( $src )" />
+
+  <choose>
+    <!-- we only handle aliasing of other classifications -->
+    <when test="$src-sym/@type = 'cgen'">
+      <sequence select="$compiler:nl" />
+
+      <!-- simply alias the @yields -->
+      <sequence select="concat( 'A[''', @yields, '''] = ',
+                                'A[''', $src, ''']; ')" />
+
+      <variable name="class-sym" as="element( preproc:sym )"
+                select="$symtable-map( $src-sym/@parent )" />
+
+      <variable name="cdest" as="xs:string"
+                select="if ( @preproc:generated = 'true' ) then
+                            'gc'
+                          else
+                            'c'" />
+
+      <variable name="cdest-src" as="xs:string"
+                select="if ( $class-sym/@preproc:generated = 'true' ) then
+                            'gc'
+                          else
+                            'c'" />
+
+      <sequence select="concat( $cdest, '[''', @as, '''] = ',
+                                  $cdest-src, '[''',
+                                    $class-sym/@orig-name, '''];' )" />
+    </when>
+
+    <!-- they must otherwise undergo the usual computation -->
+    <otherwise>
+      <next-match />
+    </otherwise>
+  </choose>
+</template>
+
+
+<!--
+  Classification with no predicates always yields true/false, depending on
+  whether it's conjunctive or disjunctive
+-->
+<template mode="compile" priority="7"
+          match="lv:classify[ empty( lv:match ) ]">
+  <variable name="val" as="xs:string"
+            select="if ( not( @any = 'true' ) ) then '1' else '0'" />
 
   <value-of select="$compiler:nl" />
+  <sequence select="concat( compiler:class-var(.), '=!!', $val, ';' )" />
 
-  <variable name="dest">
-    <text>args['</text>
-    <value-of select="@yields" />
-    <text>']</text>
-  </variable>
-
-  <if test="not( $noclass )">
-    <sequence select="concat( $dest, '=[];', $compiler:nl )" />
-
-    <if test="@preproc:generated='true'">
-      <text>gen</text>
-    </if>
-
-    <text>classes['</text>
-      <value-of select="@as" />
-    <text>'] = (function(){var result,tmp; </text>
+  <if test="@yields">
+    <sequence select="concat( compiler:class-yields-var(.), '=', $val, ';' )" />
   </if>
+</template>
+
+
+<!--
+  JS variable to which boolean class result will be assigned
+-->
+<function name="compiler:class-var" as="xs:string">
+  <param name="class" as="element( lv:classify )" />
+
+  <variable name="prefix" as="xs:string"
+            select="if ( $class/@preproc:generated='true' ) then
+                        'g'
+                      else
+                        ''" />
+
+  <sequence select="concat( $prefix, 'c[''', $class/@as, ''']' )" />
+</function>
+
+
+<!--
+  JS variable to which class @yields will be assigned
+-->
+<function name="compiler:class-yields-var" as="xs:string">
+  <param name="class" as="element( lv:classify )" />
+
+  <sequence select="concat( 'A[''', $class/@yields, ''']' )" />
+</function>
+
+
+<template mode="compile" priority="6"
+          match="lv:classify[ compiler:use-legacy-classify(.) ]">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <sequence select="concat(
+                      $compiler:nl,
+                      '/*!lc*/',
+                      string-join(
+                        compiler:compile-classify-legacy( $symtable-map, . ),
+                        '' ),
+                      '/*lc!*/' )" />
+</template>
+
+
+<template match="lv:classify" mode="compile" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+
+  <message select="concat( 'internal: new: ', @as )" />
+  <sequence select="compiler:compile-classify-assign( $symtable-map, . )" />
+</template>
+
+
+<template mode="compile" priority="8"
+          match="lv:classify[
+                   @preproc:inline='true'
+                   and not( compiler:use-legacy-classify(.) ) ]">
+  <!-- emit nothing; it'll be inlined at the match site -->
+</template>
+
+
+<template mode="compile" priority="7"
+          match="lv:classify[ @terminate='true' ]">
+  <next-match />
+
+  <variable name="var" as="xs:string"
+            select="compiler:class-var( . )" />
+
+  <text>if (_canterm &amp;&amp; </text>
+  <value-of select="$var" />
+  <text>) throw Error( '</text>
+    <value-of select="replace( @desc, '''', '\\''' )" />
+  <text>');</text>
+</template>
+
+
+<!--
+  Raise $inner of type $from to $outer of type $to with universal or
+  existential ($ue) quantification
+
+  If the inner value is empty, simply return the outer without any action.
+-->
+<function name="compiler:lift-match" as="xs:string">
+  <param name="from" as="xs:string" />
+  <param name="to" as="xs:string" />
+  <param name="ue" as="xs:string" />
+  <param name="inner" as="xs:string" />
+  <param name="outer" as="xs:string" />
+
+  <sequence select="if ( $inner = '' ) then
+                        $outer
+                      else if ( $outer = '' ) then
+                        $inner
+                      else
+                        concat( $from, $to, $ue, '(',
+                                $outer, ',', $inner, ')' )" />
+</function>
+
+
+<function name="compiler:use-legacy-classify" as="xs:boolean">
+  <param name="classify" as="element( lv:classify )" />
+
+  <variable name="flagname" as="xs:string"
+            select="'___feature-newclassify'" />
+
+  <sequence select="empty(
+                      ( $classify | $classify/ancestor::* )
+                        /preceding-sibling::preproc:tpl-meta[
+                          @name=$flagname and @value = '1' ] )" />
+</function>
+
+
+<function name="compiler:compile-classify-assign" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+
+  <sequence select="string-join(
+                      ( $compiler:nl,
+                        compiler:compile-classify(
+                          $symtable-map, $classify ) ) )" />
+</function>
+
+
+<function name="compiler:compile-classify-inline" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+
+  <!-- keep only the JS expression, grouping to ensure that surrounding
+       expressions (scalars, specifically, that lack grouping) maintain
+       their precedence  -->
+  <sequence select="concat(
+                      '(',
+                      compiler:compile-classify(
+                        $symtable-map, $classify )[ 2 ],
+                      ')' )" />
+</function>
+
+<!--
+  Generate code to perform a classification
+
+  This return a sequence of (assignment prefix, compiled js, assignment
+  suffix); the caller should keep the assignment prefix and suffix for
+  normal compilation, but should keep only the JS portion (which is a
+  standalone expression) for inlining.
+-->
+<function name="compiler:compile-classify" as="xs:string+">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+
+  <variable name="dest" as="xs:string"
+            select="compiler:class-yields-var( $classify )" />
 
   <!-- locate classification predicates (since lv:any and lv:all are split
        into their own classifications, matching on any depth ensures we get
        into any preproc:* nodes as well) -->
   <variable name="criteria" as="element( lv:match )*"
-            select="./lv:match[
-                      not( $ignores )
-                      or not( @on=$ignores/@ref ) ]" />
+            select="$classify/lv:match" />
 
-  <variable name="criteria-syms" as="element( preproc:sym )*"
-            select="for $match in $criteria
-                      return $symtable-map( $match/@on )" />
+  <variable name="criteria-syms"
+            as="map( xs:string, element( preproc:sym ) )"
+            select="map:merge(
+                      for $match in $criteria
+                        return map{ string( $match/@on ) :
+                                    $symtable-map( $match/@on ) } )" />
 
   <!-- generate boolean value from match expressions -->
-  <choose>
-    <!-- if classification criteria were provided, then use them -->
-    <when test="$criteria">
-      <variable name="op" as="xs:string"
-                select="compiler:match-group-op( $self )" />
+  <variable name="op" as="xs:string"
+            select="compiler:match-group-op( $classify )" />
 
-      <text></text>
-      <!-- order matches from highest to lowest dimensions (required for
-           the cmatch algorithm)-->
-      <for-each select="reverse( xs:integer( min( $criteria-syms/@dim ) )
-                          to xs:integer( max( $criteria-syms/@dim ) ) )">
-        <apply-templates mode="compile"
-                         select="$criteria[
-                                   @on = $criteria-syms[
-                                            @dim = current() ]/@name ]">
-          <with-param name="ignores" select="$ignores" />
-          <with-param name="operator" select="$op" />
-        </apply-templates>
-      </for-each>
+  <variable name="scalars" as="element( lv:match  )*"
+            select="$criteria[ $criteria-syms( @on )/@dim = '0' ]" />
+  <variable name="vectors" as="element( lv:match  )*"
+            select="$criteria[ $criteria-syms( @on )/@dim = '1' ]" />
+  <variable name="matrices" as="element( lv:match  )*"
+            select="$criteria[ $criteria-syms( @on )/@dim = '2' ]" />
+
+  <variable name="ns" select="count( $scalars )" />
+  <variable name="nv" select="count( $vectors )" />
+  <variable name="nm" select="count( $matrices )" />
+
+  <variable name="var" as="xs:string"
+            select="compiler:class-var( $classify )" />
+
+  <variable name="m1" as="element( lv:match )?" select="$matrices[1]" />
+  <variable name="v1" as="element( lv:match )?" select="$vectors[1]" />
+
+  <variable name="yield-to">
+    <call-template name="compiler:gen-match-yieldto">
+      <with-param name="yields" select="$classify/@yields" />
+    </call-template>
+  </variable>
+
+  <!-- existential, universal -->
+  <variable name="ctype" as="xs:string"
+            select="if ( $classify/@any='true' ) then 'e' else 'u'" />
+
+  <variable name="js-matrix" as="xs:string"
+            select="compiler:optimized-matrix-matches(
+                      $symtable-map, $classify, $matrices )" />
+  <variable name="js-vec" as="xs:string"
+            select="compiler:optimized-vec-matches(
+                      $symtable-map, $classify, $vectors )" />
+  <variable name="js-scalar" as="xs:string"
+            select="compiler:optimized-scalar-matches(
+                      $symtable-map, $classify, $scalars )" />
+
+  <variable name="reduce" as="xs:string"
+            select="if ( $nm > 0 ) then
+                        'Em'
+                      else if ( $nv > 0 ) then
+                        'E'
+                      else
+                        '!!'" />
+
+  <variable name="outer-type" as="xs:string"
+            select="if ( $nm > 0 ) then
+                        'm'
+                      else if ( $nv > 0 ) then
+                        'v'
+                      else
+                        's'" />
+
+  <variable name="js" as="xs:string"
+            select="compiler:lift-match(
+                      's', $outer-type, $ctype,
+                        $js-scalar,
+                        compiler:lift-match(
+                          'v', $outer-type, $ctype,
+                          $js-vec,
+                          $js-matrix ) )" />
+
+  <!-- sequence of (assignment prefix, js, assignment suffix); it's up to
+       the caller to determine which of these to keep -->
+  <sequence select="concat( $var, '=', $reduce,
+                            '(', $yield-to, '=' ),
+                    $js,
+                    ');'" />
+</function>
+
+
+<!--
+  Generate JS suitable for a value match
+
+  If the value is _not_ a basic @value equality match, then it will be
+  wrapped in the necessary expression to transform it into a binary result
+  that can then be matched against `TRUE`.
+-->
+<function name="compiler:match-on" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="match" as="element( lv:match )" />
+
+  <variable name="dim" as="xs:integer"
+            select="$symtable-map( $match/@on )/@dim" />
+
+  <variable name="inner" as="xs:string"
+            select="compiler:match-name-on( $symtable-map, $match )" />
+
+  <variable name="mf" as="xs:string"
+            select="if ( $dim = 2 ) then 'MM' else 'M'" />
+  <variable name="nf" as="xs:string"
+            select="if ( $dim = 2 ) then 'NN' else 'N'" />
+
+  <choose>
+    <!-- only basic TRUE equality can be used verbatim -->
+    <when test="$match/@value = 'TRUE'">
+      <sequence select="$inner" />
     </when>
 
-    <!-- if no classification criteria, then always true/false -->
+    <when test="$match/@anyOf">
+      <variable name="anyof" as="xs:string"
+                select="compiler:compile-anyof( $symtable-map, $match )" />
+
+      <choose>
+        <when test="$dim > 0">
+          <sequence select="concat( $mf, '(', $inner, ',', $anyof, ')' )" />
+        </when>
+        <otherwise>
+          <sequence select="concat( $anyof, '(', $inner, ')' )" />
+        </otherwise>
+      </choose>
+    </when>
+
+    <when test="$match[c:eq|c:ne|c:gt|c:lt|c:gte|c:lte]">
+      <variable name="c" as="element()"
+                select="$match/c:*" />
+      <variable name="name" as="xs:string"
+                select="$c/local-name()" />
+
+      <!-- should only be _one_ (@as validates this) -->
+      <variable name="expr" as="element()" select="$c/c:*" />
+
+      <!-- if it's not c:value-of, it must be scalar c:const (see lv:match
+           in validator) -->
+      <variable name="cdim" as="xs:integer"
+                select="if ( $c/c:value-of ) then
+                            $symtable-map( $c/c:value-of/@name )/@dim
+                          else
+                            0" />
+      <variable name="cval" as="xs:float?"
+                select="if ( $c/c:value-of ) then
+                            $symtable-map( $c/c:value-of/@name )/@value
+                          else
+                            $c/c:const/@value" />
+
+      <variable name="indexed" as="xs:boolean" select="$cdim gt 0" />
+
+      <variable name="f" as="xs:string"
+                select="concat( 'c', $name,
+                                ( if ( $indexed ) then 'i' else '' ) )" />
+
+      <!-- TODO: remove generation of useless debug output! -->
+      <variable name="exprjs" as="xs:string"
+                select="compiler:compile( $symtable-map, $expr )" />
+      <variable name="transform" as="xs:string"
+                select="concat( $f, '(', $exprjs, ')' )" />
+
+      <!-- scalars should have already been caught during validation, but we
+           do not support matrices -->
+      <if test="$indexed and $dim = 2">
+        <message terminate="yes"
+                 select="concat( 'error: lv:match/c:*/c:index unsupported ',
+                                 'for matrix `',
+                                 $match/parent::lv/classify/@as, '''' )" />
+      </if>
+
+      <choose>
+        <when test="$dim > 0">
+          <choose>
+            <!-- negation, very common, so save some bytes -->
+            <when test="$match/c:eq and $cval = 0">
+              <sequence select="concat( $nf, '(', $inner, ')' )" />
+            </when>
+
+            <otherwise>
+              <sequence select="concat( $mf, '(', $inner, ',', $transform, ')' )" />
+            </otherwise>
+          </choose>
+        </when>
+
+        <!-- scalar, simply apply -->
+        <otherwise>
+          <choose>
+            <!-- negation, very common, so save some bytes -->
+            <when test="$match/c:eq and $cval = 0">
+              <sequence select="concat( 'n(', $inner, ')' )" />
+            </when>
+
+            <otherwise>
+              <sequence select="concat( $transform, '(', $inner, ')' )" />
+            </otherwise>
+          </choose>
+        </otherwise>
+      </choose>
+    </when>
+
     <otherwise>
-      <!-- this is only useful if $noclass is *not* set -->
-      <if test="not( $noclass )">
-        <choose>
-          <!-- universal -->
-          <when test="not( @any='true' )">
-            <text>tmp = true; </text>
-          </when>
-
-          <!-- existential -->
-          <otherwise>
-            <text>tmp = false; </text>
-          </otherwise>
-        </choose>
-      </if>
-
-      <!-- if @yields was provided, then store the value in a variable of their
-           choice as well (since cmatch will not be done) -->
-      <if test="@yields">
-        <value-of select="$dest" />
-        <choose>
-          <!-- universal -->
-          <when test="not( @any='true' )">
-            <text> = 1;</text>
-          </when>
-
-          <!-- existential -->
-          <otherwise>
-            <text> = 0;</text>
-          </otherwise>
-        </choose>
-      </if>
+      <message terminate="yes" select="'error: not yet handled', $match" />
     </otherwise>
   </choose>
+</function>
 
-  <text> return tmp;})();</text>
 
-  <!-- support termination on certain classifications (useful for eligibility
-       and error conditions) -->
-  <if test="@terminate = 'true'">
-    <text>if ( _canterm &amp;&amp; </text>
+<function name="compiler:compile" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="element" as="element()" />
 
-    <if test="@preproc:generated='true'">
-      <text>gen</text>
-    </if>
-    <text>classes['</text>
-      <value-of select="@as" />
-    <text>'] ) throw Error( '</text>
-      <value-of select="replace( @desc, '''', '\\''' )" />
-    <text>' );</text>
+  <variable name="result">
+    <apply-templates select="$element" mode="compile">
+      <with-param name="symtable-map" select="$symtable-map"
+                  tunnel="true" />
 
-    <value-of select="$compiler:nl" />
+      <!-- suppress match index generation, since we handle it ourselves now
+           (in a different way) -->
+      <with-param name="noindex" select="true()"
+                  tunnel="true" />
+    </apply-templates>
+  </variable>
+
+  <sequence select="string-join( $result, '' )" />
+</function>
+
+
+<function name="compiler:compile-anyof" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="element" as="element()" />
+
+  <apply-templates select="$element" mode="compiler:match-anyof">
+    <with-param name="symtable-map" select="$symtable-map"
+                tunnel="true" />
+  </apply-templates>
+</function>
+
+
+<!--
+  Whether a set of matches is matching against a list of values and can be
+  optimized as such
+-->
+<function name="compiler:is-value-list" as="xs:boolean">
+  <param name="symtable-map" as="map(*)" />
+  <param name="matches" as="element( lv:match )+" />
+
+  <sequence select="
+    count( $matches ) > 1
+      and count( distinct-values( $matches/@on ) ) = 1
+      and empty(
+            $matches[
+              not( c:eq )
+              or (
+                c:eq/c:value-of
+                and $symtable-map( c:eq/c:value-of/@name )/@dim != '0' ) ] )" />
+</function>
+
+
+<!--
+  Output an optimized match against a list of values.
+
+  This must only be used if compiler:is-value-list is `true()`.
+-->
+<function name="compiler:value-list" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+  <param name="matches" as="element( lv:match )+" />
+
+  <!-- if this is not @any, then it's nonsense -->
+  <if test="not( $classify/@any = 'true' )">
+    <message terminate="yes"
+             select="concat( 'error: ', $classify/@as, ' match ',
+                     $matches[1]/@on, 'will never succeed' )" />
   </if>
 
-    <variable name="sym"
-      select="$symtable-map( $self/@yields )" />
 
-  <!-- if we are not any type of set, then yield the value of the first
-         index (note the $criteria check; see above); note that we do not do
-         not( @set ) here, since that may have ill effects as it implies that
-         the node is not preprocessed -->
-  <!-- TODO: this can be simplified, since @yields is always provided -->
-  <if test="$criteria and @yields and ( $sym/@dim='0' )">
-    <value-of select="$dest" />
-    <text> = </text>
-      <value-of select="$dest" />
-    <text>[0];</text>
+  <variable name="values" as="xs:string+"
+            select="$matches/c:eq/c:const/@value,
+                    for $name in $matches/c:eq/c:value-of/@name
+                      return if ( $symtable-map( $name )/@value ) then
+                                 $symtable-map( $name )/@value
+                               else
+                                 concat( 'A[''', $name, ''']' )" />
 
-    <value-of select="$compiler:nl" />
-  </if>
-</template>
+  <sequence select="concat( 'new Set([', string-join( $values, ',' ), '])' )" />
+</function>
+
+
+<!--
+  Output optmized matrix matching
+
+  This should only be called in contexts where the compiler is absolutely
+  certain that the optimzation ought to be applied.
+-->
+<function name="compiler:optimized-matrix-matches" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+  <param name="matrices" as="element( lv:match )*" />
+
+  <variable name="nm" as="xs:integer"
+            select="count( $matrices )" />
+
+  <!-- existential, universal -->
+  <variable name="ctype" as="xs:string"
+            select="if ( $classify/@any='true' ) then 'e' else 'u'" />
+
+  <choose>
+    <when test="$nm = 0">
+      <sequence select="''" />
+    </when>
+
+    <when test="$nm = 1">
+      <sequence select="compiler:match-on( $symtable-map, $matrices[1] )" />
+    </when>
+
+    <when test="$nm > 1 and compiler:is-value-list( $symtable-map, $matrices )">
+      <variable name="values" as="xs:string+"
+                select="compiler:value-list(
+                          $symtable-map, $classify, $matrices )" />
+
+      <sequence select="concat( 'II(',
+                          compiler:match-name-on( $symtable-map, $matrices[1] ),
+                          ',', $values, ')' )" />
+    </when>
+
+    <otherwise>
+      <sequence select="concat( 'm', $ctype, '([',
+                          string-join(
+                            for $m in $matrices
+                              return compiler:match-on( $symtable-map, $m ),
+                            ','),
+                          '])' )" />
+    </otherwise>
+  </choose>
+</function>
+
+
+<!--
+  Output optmized vector matching
+
+  This should only be called in contexts where the compiler is absolutely
+  certain that the optimzation ought to be applied.
+-->
+<function name="compiler:optimized-vec-matches" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+  <param name="vectors" as="element( lv:match )*" />
+
+  <variable name="nv" as="xs:integer"
+            select="count( $vectors )" />
+
+  <!-- existential, universal -->
+  <variable name="ctype" as="xs:string"
+            select="if ( $classify/@any='true' ) then 'e' else 'u'" />
+
+  <choose>
+    <when test="$nv = 0">
+      <sequence select="''" />
+    </when>
+
+    <when test="$nv > 1 and compiler:is-value-list( $symtable-map, $vectors )">
+      <variable name="values" as="xs:string+"
+                select="compiler:value-list(
+                          $symtable-map, $classify, $vectors )" />
+
+      <sequence select="concat( 'I(',
+                          compiler:match-name-on( $symtable-map, $vectors[1] ),
+                          ',', $values, ')' )" />
+    </when>
+
+    <otherwise>
+      <sequence select="concat( 'v', $ctype, '([',
+                          string-join(
+                            for $v in $vectors
+                              return compiler:match-on( $symtable-map, $v ),
+                            ','),
+                          '])' )" />
+    </otherwise>
+  </choose>
+</function>
+
+
+<!--
+  Output optmized scalar matching
+
+  This should only be called in contexts where the compiler is absolutely
+  certain that the optimzation ought to be applied.
+-->
+<function name="compiler:optimized-scalar-matches" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="classify" as="element( lv:classify )" />
+  <param name="scalars" as="element( lv:match )*" />
+
+  <variable name="ns" as="xs:integer"
+            select="count( $scalars )" />
+
+  <!-- existential, universal -->
+  <variable name="cop" as="xs:string"
+            select="if ( $classify/@any = 'true' ) then '|' else '&amp;'" />
+
+  <choose>
+    <when test="$ns = 0">
+      <sequence select="''" />
+    </when>
+
+    <when test="$ns > 1 and compiler:is-value-list( $symtable-map, $scalars )">
+      <variable name="values" as="xs:string+"
+                select="compiler:value-list(
+                          $symtable-map, $classify, $scalars )" />
+
+      <sequence select="concat( 'i(',
+                          compiler:match-name-on( $symtable-map, $scalars[1] ),
+                          ',', $values, ')' )" />
+    </when>
+
+    <!-- either a single match or matches on >1 distinct @on -->
+    <otherwise>
+      <sequence select="string-join(
+                          for $s in $scalars
+                            return compiler:match-on( $symtable-map, $s ),
+                          $cop )" />
+    </otherwise>
+  </choose>
+</function>
+
+
+<!--
+  JS variable to serve as the source for a match (@on)
+-->
+<function name="compiler:match-name-on" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="match" as="element( lv:match )" />
+
+  <choose>
+    <when test="$match/@preproc:inline='true'">
+      <variable name="classify" as="element( lv:classify )?"
+                select="( $match/parent::lv:classify
+                          /preceding-sibling::lv:classify[ @yields=$match/@on ] )[1]" />
+
+      <if test="empty( $classify )">
+        <message terminate="yes"
+                 select="concat( 'internal error: inline: ',
+                                 'cannot locate class `', $match/@on, '''' )" />
+      </if>
+
+      <sequence select="compiler:compile-classify-inline(
+                          $symtable-map, $classify )" />
+    </when>
+
+    <otherwise>
+      <variable name="sym" as="element( preproc:sym )"
+                select="$symtable-map( $match/@on )" />
+
+      <variable name="var" as="xs:string"
+                select="if ( $sym/@type = 'const' ) then 'C' else 'A'" />
+
+      <sequence select="concat( $var, '[''', $match/@on, ''']' )" />
+    </otherwise>
+  </choose>
+</function>
+
+
+<function name="compiler:match-value" as="xs:string">
+  <param name="symtable-map" as="map(*)" />
+  <param name="match" as="element( lv:match )" />
+
+  <!-- non-@value matches are transformed prior to matching against
+       (see compiler:match-on) -->
+  <variable name="value" as="xs:string"
+            select="if ( $match/@value ) then $match/@value else 'TRUE'" />
+
+  <variable name="sym" as="element( preproc:sym )?"
+            select="$symtable-map( $value )" />
+
+  <choose>
+    <!-- value unavailable -->
+    <when test="$sym and not( $sym/@value )">
+      <message>
+        <text>[jsc] !!! bad classification match: `</text>
+        <value-of select="$value" />
+        <text>' is not a scalar constant</text>
+      </message>
+    </when>
+
+    <!-- simple constant -->
+    <when test="$sym">
+      <value-of select="$sym/@value" />
+    </when>
+
+    <otherwise>
+      <text>'</text>
+      <!-- TODO: Should we disallow entirely? -->
+      <message>
+        <text>[jsc] warning: static classification match '</text>
+        <value-of select="$value" />
+        <text>' in </text>
+        <value-of select="$match/ancestor::lv:classify[1]/@as" />
+        <text>; use calculation predicate or constant instead</text>
+      </message>
+
+      <value-of select="$value" />
+      <text>'</text>
+    </otherwise>
+  </choose>
+</function>
 
 
 <!--
@@ -691,35 +1280,10 @@
 
   <variable name="name" select="@on" />
 
-  <variable name="sym-on" as="element( preproc:sym )"
-            select="$symtable-map( $name )" />
+  <text> tmp=</text>
 
-  <text> tmp = </text>
-
-  <variable name="input-raw">
-    <choose>
-      <!-- if we have assumptions, then we'll be recalculating (rather than
-           referencing) an existing classification -->
-      <when test="lv:assuming">
-        <text>_cassume</text>
-      </when>
-
-      <otherwise>
-        <choose>
-          <when test="$sym-on/@type = 'const'">
-            <text>consts</text>
-          </when>
-          <otherwise>
-            <text>args</text>
-          </otherwise>
-        </choose>
-
-        <text>['</text>
-          <value-of select="translate( @on, &quot;'&quot;, '' )" />
-        <text>']</text>
-      </otherwise>
-    </choose>
-  </variable>
+  <variable name="input-raw" as="xs:string"
+            select="compiler:match-name-on( $symtable-map, . )" />
 
   <!-- yields (if not set, generate one so that cmatches still works properly)
        -->
@@ -735,7 +1299,7 @@
       <when test="@scalar = 'true'">
         <text>stov( </text>
           <value-of select="$input-raw" />
-        <text>, ( ( </text>
+        <text>, ((</text>
           <value-of select="$yieldto" />
         <!-- note that we default to 1 so that there is at least a single
              element (which will be the case of the scalar is the first match)
@@ -744,7 +1308,7 @@
              happen, and the length is checked on the inner grouping rather than
              on the outside of the entire expression to ensure that it will
              yield the intended result if yieldto.length === 0 -->
-        <text> || [] ).length || 1 ) )</text>
+        <text>||[]).length||1))</text>
       </when>
 
       <otherwise>
@@ -752,22 +1316,6 @@
       </otherwise>
     </choose>
   </variable>
-
-  <if test="lv:assuming">
-    <text>(function(){</text>
-      <!-- initialize variable (ensuring that the closure we're about to generate
-           will properly assign the value rather than encapsulate it) -->
-      <text>var </text>
-      <value-of select="$input-raw" />
-      <text>; </text>
-
-      <!-- generate assumptions and recursively generate the referenced
-           classification -->
-      <apply-templates select="." mode="compile-match-assumptions">
-        <with-param name="result-var" select="$input-raw" />
-      </apply-templates>
-      <text>; return </text>
-  </if>
 
   <!-- invoke the classification matcher on this input -->
   <text>anyValue( </text>
@@ -777,61 +1325,28 @@
   <!-- TODO: error if multiple; also, refactor -->
   <choose>
     <when test="@value">
-      <variable name="value" select="@value" />
-      <variable name="sym" as="element( preproc:sym )?"
-                select="$symtable-map( $value )" />
-
-      <choose>
-        <!-- value unavailable (TODO: vector/matrix support) -->
-        <when test="$sym and not( $sym/@value )">
-            <message>
-              <text>[jsc] !!! bad classification match: `</text>
-                <value-of select="$value" />
-              <text>' is not a scalar constant</text>
-            </message>
-        </when>
-
-        <!-- simple constant -->
-        <when test="$sym and @value">
-          <value-of select="$sym/@value" />
-        </when>
-
-        <otherwise>
-          <text>'</text>
-            <!-- TODO: Should we disallow entirely? -->
-            <message>
-              <text>[jsc] warning: static classification match '</text>
-                <value-of select="$value" />
-              <text>' in </text>
-              <value-of select="ancestor::lv:classify[1]/@as" />
-              <text>; use calculation predicate or constant instead</text>
-            </message>
-
-            <value-of select="$value" />
-          <text>'</text>
-        </otherwise>
-      </choose>
+      <value-of select="compiler:match-value( $symtable-map, . )" />
     </when>
 
     <when test="@pattern">
-      <text>function( val ) { </text>
+      <text>function(val) {</text>
         <text>return /</text>
           <value-of select="@pattern" />
-        <text>/.test( val );</text>
-      <text> }</text>
+        <text>/.test(val);</text>
+      <text>}</text>
     </when>
 
     <when test="./c:*">
-      <text>function( val, __$$i ) { </text>
-        <text>return ( </text>
+      <text>function(val, __$$i) { </text>
+        <text>return (</text>
           <for-each select="./c:*">
             <if test="position() > 1">
               <text disable-output-escaping="yes"> &amp;&amp; </text>
             </if>
 
-            <text>( val </text>
+            <text>(val </text>
               <apply-templates select="." mode="compile-calc-when" />
-            <text> ) </text>
+            <text>)</text>
           </for-each>
         <text>);</text>
       <text>}</text>
@@ -875,41 +1390,19 @@
   </if>
 
   <!-- end of anyValue() call -->
-  <text> ) </text>
+  <text>);</text>
 
-  <!-- end of assuming function call -->
-  <if test="lv:assuming">
-    <text>})()</text>
-  </if>
-
-  <text>;</text>
-
-  <text>/*!+*/( debug['</text>
+  <text>/*!+*/(D['</text>
     <value-of select="@_id" />
-  <text>'] || ( debug['</text>
+  <text>']||(D['</text>
     <value-of select="@_id" />
-  <text>'] = [] ) ).push( tmp );/*!-*/ </text>
-
-
-  <text>result = </text>
-  <choose>
-    <!-- join with operator if not first in set -->
-    <when test="position() > 1">
-      <text>result </text>
-      <value-of select="$operator" />
-      <text> tmp;</text>
-    </when>
-
-    <otherwise>
-      <text>tmp;</text>
-    </otherwise>
-  </choose>
+  <text>']=[])).push(tmp);/*!-*/ </text>
 </template>
 
 <template name="compiler:gen-match-yieldto">
   <param name="yields" />
 
-  <text>args['</text>
+  <text>A['</text>
     <choose>
       <when test="$yields">
         <value-of select="$yields" />
@@ -927,58 +1420,19 @@
 <!--
   Handles the special "float" domain
 
-  Rather than the impossible task of calculating all possible floats and
-  asserting that the given values is within that set, the obvious task is to
-  assert whether or not the value is logically capable of existing in such a
-  set based on a definition of such a set.
-
-  See also "integer"
+  Every possible value is a float, so this is always true.
 -->
 <template match="lv:match[ @anyOf='float' ]" mode="compiler:match-anyof" priority="5">
-  <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function( val ) {</text>
-    <text>return ( typeof +val === 'number' ) </text>
-      <text disable-output-escaping="yes">&amp;&amp; </text>
-      <!-- note: greater than or equal to, since we want to permit integers as
-           well -->
-      <text disable-output-escaping="yes">( Math.ceil( val ) >= Math.floor( val ) )</text>
-    <text>;</text>
-  <text>}</text>
+  <text>Tf</text>
 </template>
 
 <!--
-  Handles the special "float" domain
+  Whether the provided value is an integer
 
-  Rather than the impossible task of calculating all possible integers and
-  asserting that the given values is within that set, the obvious task is to
-  assert whether or not the value is logically capable of existing in such a
-  set based on a definition of such a set.
-
-  See also "float"
+  Everything is a number, so we need only check that it has no remainer mod 1.
 -->
 <template match="lv:match[ @anyOf='integer' ]" mode="compiler:match-anyof" priority="5">
-  <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function( val ) {</text>
-    <text>return ( typeof +val === 'number' ) </text>
-      <text disable-output-escaping="yes">&amp;&amp; </text>
-      <text>( Math.floor( val ) === Math.ceil( val ) )</text>
-    <text>;</text>
-  <text>}</text>
-</template>
-
-<!--
-  Handles matching on an empty set
-
-  This is useful for asserting against fields that may have default values,
-  since in such a case an empty value would be permitted.
--->
-<template match="lv:match[ @anyOf='empty' ]" mode="compiler:match-anyof" priority="5">
-  <!-- ceil(x) - floor(x) = [ x is not an integer ] -->
-  <text>function( val ) {</text>
-    <text>return ( val === '' ) </text>
-      <text>|| ( val === undefined ) || ( val === null )</text>
-    <text>;</text>
-  <text>}</text>
+  <text>Ti</text>
 </template>
 
 <!--
@@ -988,20 +1442,16 @@
 <template match="lv:match[ @anyOf=root(.)//lv:typedef[ ./lv:base-type ]/@name ]"
   mode="compiler:match-anyof" priority="3">
 
-  <text>function( val ) {</text>
-    <text>throw Error( 'CRITICAL: Unhandled base type: </text>
-      <value-of select="@anyOf" />
-    <text>' );</text>
-  <text>}</text>
+  <message terminate="yes"
+           select="concat( 'internal error: unhandled base type: ',
+                           @anyOf )" />
 </template>
 
 <!--
   Used for user-defined domains
 -->
 <template match="lv:match[ @anyOf ]" mode="compiler:match-anyof" priority="1">
-  <text>types['</text>
-    <value-of select="@anyOf" />
-  <text>'].values</text>
+  <sequence select="concat( 'TE(types[''', @anyOf, '''].values)' )" />
 </template>
 
 
@@ -1057,11 +1507,11 @@
       <text>do{__experimental_guided_tco=0;</text>
   </if>
 
-  <text>var fresult = ( </text>
+  <text>var fresult=(</text>
     <!-- begin calculation generation (there should be only one calculation node
          as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
-  <text> );</text>
+  <text>);</text>
 
   <!-- bottom of this function's trampoline, if TCO was requested; if the
        flag is set (meaning a relevant tail call was hit), jump back to
@@ -1095,44 +1545,63 @@
   <variable name="precision">
     <choose>
       <when test="@precision">
-        <value-of select="@precision" />
+        <value-of select="concat( '1e', @precision )" />
       </when>
 
       <otherwise>
-        <text>8</text>
+        <text>1e8</text>
       </otherwise>
     </choose>
   </variable>
 
-  <variable name="store">
-    <!-- TODO: escape single quotes (even though there should never be any) -->
-    <text>args['</text>
-      <value-of select="@yields" />
-    <text>']</text>
+  <apply-templates select="." mode="compile-cmatch" />
+
+  <variable name="predmatch">
+    <apply-templates select="." mode="compile-class-condition" />
   </variable>
+
+   <!-- destination var -->
+   <variable name="store">
+     <!-- TODO: escape single quotes (even though there should never be any) -->
+     <text>A['</text>
+       <value-of select="@yields" />
+     <text>']</text>
+   </variable>
+
+  <if test="$predmatch != 'true'">
+    <!-- preempt expensive logic, but still return a vector of the proper
+         length -->
+    <!-- TODO: when writing TAMER, note that this must be improved upon: it
+         only detects iterators of immedite children -->
+    <text>if(!</text>
+    <value-of select="$predmatch" />
+    <text>){</text>
+      <for-each select="c:sum[@generates]|c:product[@generates]">
+        <variable name="value">
+          <apply-templates mode="js-name-ref"
+                           select="." />
+        </variable>
+
+        <text>A['</text>
+          <value-of select="@generates" />
+        <text>']=stov(0,</text>
+          <value-of select="$value" />
+        <text>.length);</text>
+      </for-each>
+
+      <value-of select="$store" />
+      <text>=0;</text>
+
+    <!-- predicate matches -->
+    <text>}else{</text>
+  </if>
 
   <!-- store the premium -->
   <value-of select="$store" />
-  <text> = </text>
-
-  <text>( function rate_</text>
-    <!-- dashes, which may end up in generated code from templates, must be
-         removed -->
-    <value-of select="translate( @yields, '-', '_' )" />
-  <text>() {</text>
-
-  <text>var predmatch = ( </text>
-    <apply-templates select="." mode="compile-class-condition" />
-  <text> ); </text>
-
-  <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
-       the classifications -->
-  <text>consts['_CMATCH_'] = </text>
-    <apply-templates select="." mode="compile-cmatch" />
-  <text>;</text>
-
+  <text>=p(</text>
+    <value-of select="$precision" />
   <!-- return the result of the calculation for this rate block -->
-  <text>return (+( </text>
+  <text>,+(</text>
     <!-- yield 0 if there are no calculations (rather than a syntax error!) -->
     <if test="empty( c:* )">
       <message>
@@ -1147,11 +1616,11 @@
     <!-- begin calculation generation (there should be only one calculation
          node as a child, so only it will be considered) -->
     <apply-templates select="./c:*[1]" mode="compile" />
-  <text> )).toFixed(</text>
-    <value-of select="$precision" />
-  <text>) * predmatch; } )() </text>
+  <text>));</text>
 
-  <text>; </text>
+  <if test="$predmatch != 'true'">
+    <text>}</text>
+  </if>
 </template>
 
 <template match="lv:rate" mode="compile-class-condition">
@@ -1164,61 +1633,98 @@
        set by rate-each expansion, then we want to ignore them entirely,
        since we do not want it to clear our the final yield (generators take
        care of this using _CMATCH_). -->
-  <text>( </text>
-    <variable name="class-set"
-              select="./lv:class[
-                        ( @no = 'true'
-                          and not( $rate/@gentle-no = 'true' ) )
-                        or not( @no = 'true' ) ]" />
+  <variable name="class-set"
+            select="./lv:class[
+                      ( @no = 'true'
+                        and not( $rate/@gentle-no = 'true' ) )
+                      or not( @no = 'true' ) ]" />
 
-    <choose>
-      <when test="$class-set">
-        <for-each select="$class-set">
-          <!-- join class expressions with AND operator -->
-          <if test="position() > 1">
-            <text disable-output-escaping="yes"> &amp;&amp; </text>
-          </if>
+  <choose>
+    <when test="$class-set">
+      <if test="count( $class-set ) > 1">
+        <text>(</text>
+      </if>
 
-          <!-- negate if @no -->
-          <if test="@no='true'">
-            <text>!</text>
-          </if>
+      <for-each select="$class-set">
+        <!-- join class expressions with AND operator -->
+        <if test="position() > 1">
+          <text disable-output-escaping="yes"> &amp;&amp; </text>
+        </if>
 
-          <variable name="ref" select="@ref" />
+        <!-- negate if @no -->
+        <if test="@no='true'">
+          <text>!</text>
+        </if>
 
-          <if test="$symtable-map( concat( ':class:', $ref ) )
-                      /@preproc:generated='true'">
-            <text>gen</text>
-          </if>
+        <variable name="ref" select="@ref" />
 
-          <text>classes['</text>
-            <value-of select="@ref" />
-          <text>']</text>
-        </for-each>
-      </when>
+        <if test="$symtable-map( concat( ':class:', $ref ) )
+                    /@preproc:generated='true'">
+          <text>g</text>
+        </if>
 
-      <!-- well, we need to output something -->
-      <otherwise>
-        <text>true</text>
-      </otherwise>
-    </choose>
-  <text> )</text>
+        <text>c['</text>
+          <value-of select="@ref" />
+        <text>']</text>
+      </for-each>
+
+      <if test="count( $class-set ) > 1">
+        <text>)</text>
+      </if>
+    </when>
+
+    <!-- well, we need to output something -->
+    <otherwise>
+      <text>true</text>
+    </otherwise>
+  </choose>
 </template>
 
 
-<template match="lv:rate" mode="compile-cmatch">
+<!-- Non-predicated lv:rate -->
+<template mode="compile-cmatch" priority="7"
+          match="lv:rate[ count( lv:class ) = 0 ]">
+  <!-- nothing (but the body must not reference it, or the body will have an
+       old value!) -->
+</template>
+
+
+<!--
+  Single-predicate lv:rate can be aliased
+
+  @no is excluded for simplicity (and it's also generally used with a
+  non-@no, and it's uncommon).
+-->
+<template mode="compile-cmatch" priority="7"
+          match="lv:rate[ count( lv:class ) = 1
+                          and not( lv:class/@no ) ]">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <text>C['_CMATCH_']=</text>
+    <call-template name="compiler:get-class-yield">
+      <with-param name="symtable-map" select="$symtable-map" />
+      <with-param name="name" select="@ref" />
+      <with-param name="search" select="root(.)" />
+    </call-template>
+  <text>;</text>
+</template>
+
+
+<template match="lv:rate" mode="compile-cmatch" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
   <variable name="root" select="root(.)" />
 
-  <!-- generate cmatch call that will generate the cmatch set -->
-  <text>cmatch( [</text>
+  <!-- set the magic _CMATCH_ var to represent a list of indexes that meet all
+       the classifications (note: this has to be calculated even on a
+       non-match, since it is often referenced by c:sum/c:product) -->
+  <text>C['_CMATCH_']=cmatch([</text>
     <for-each select="lv:class[ not( @no='true' ) ]">
       <if test="position() > 1">
         <text>, </text>
       </if>
 
-      <text>args['</text>
+      <text>A['</text>
         <call-template name="compiler:get-class-yield">
           <with-param name="symtable-map" select="$symtable-map" />
           <with-param name="name" select="@ref" />
@@ -1232,7 +1738,7 @@
         <text>, </text>
       </if>
 
-      <text>args['</text>
+      <text>A['</text>
         <call-template name="compiler:get-class-yield">
           <with-param name="symtable-map" select="$symtable-map" />
           <with-param name="name" select="@ref" />
@@ -1240,7 +1746,7 @@
         </call-template>
       <text>']</text>
     </for-each>
-  <text>] )</text>
+  <text>]);</text>
 </template>
 
 
@@ -1292,7 +1798,7 @@
 <template match="lv:meta/lv:prop" mode="compile">
   <text>meta['</text>
   <value-of select="@name" />
-  <text>'] = </text>
+  <text>']=</text>
 
   <call-template name="util:json">
     <with-param name="array">
@@ -1321,6 +1827,9 @@
 </template>
 
 
+<template match="text()" mode="compile" priority="1">
+  <!-- do not output e.g. whitespace between nodes -->
+</template>
 
 <template match="lvp:*" mode="compile" priority="1">
   <!-- do nothing with UI nodes -->
@@ -1341,29 +1850,194 @@
 <template name="compiler:static">
 <text>
 <![CDATA[
-    var domains = {
-        'integer': function( value )
-        {
-            return ( value == +value );
-        },
+    // precision
+    function p(p, x)
+    {
+        if (x % 1 === 0) return x;
+        return Math.round(x * p) / p;
+    }
 
-        'float': function( value )
-        {
-            return ( value == +value );
-        },
+    // apply vector to matrix
+    function vmu(m, v)
+    {
+        const result = m.map(function(mv, i) {
+            return (mv.length ? mv : [0]).map(function(ms) { return ms & v[i] });
+        });
 
-        'boolean': function( value )
-        {
-            return ( ( +value === 1 ) || ( +value === 0 ) );
-        },
-
-        'string': function( value )
-        {
-            // well, everything is a string
-            return true;
+        for (let i = result.length; i < v.length; i++) {
+            result[i] = [0];
         }
-    };
 
+        return result;
+    }
+    function vme(m, v)
+    {
+        const result = m.map(function(mv, i) {
+            return (mv.length ? mv : [0]).map(function(ms) { return ms | v[i] });
+        });
+
+        for (let i = result.length; i < v.length; i++) {
+            result[i] = [v[i]];
+        }
+
+        return result;
+    }
+
+    function mu(ms)
+    {
+        const longest_row = Math.max.apply(null, ms.map(function(m) {
+            return m.length;
+        }));
+        const longest_col = Math.max.apply(null, ms.map(function(m) {
+            return Math.max.apply(null, m.map(function(v) { return v.length; }));
+        }));
+
+        const base = new Array(longest_row).fill(
+            new Array(longest_col).fill(1)
+        );
+
+        return ms.reduce(function(final, m) {
+            return final.map(function(v, i) {
+              return vu([v, m[i]||[0]]);
+            });
+        }, base);
+    }
+
+    function me(ms)
+    {
+        const longest_row = Math.max.apply(null, ms.map(function(m) {
+            return m.length;
+        }));
+        const longest_col = Math.max.apply(null, ms.map(function(m) {
+            return Math.max.apply(null, m.map(function(v) { return v.length; }));
+        }));
+
+        const base = new Array(longest_row).fill(
+            new Array(longest_col).fill(0)
+        );
+
+        return ms.reduce(function(final, m) {
+            return final.map(function(v, i) {
+                return ve([v, m[i]||[0]]);
+            });
+        }, base);
+    }
+
+    function vu(vs)
+    {
+        const longest = Math.max.apply(null, vs.map(function(v) {
+            return v.length;
+        }));
+
+        const base = new Array(longest).fill(1);
+
+        const result = vs.reduce(
+            function(final, v, vi) {
+                return final.map(function(x, i) { return x & v[i] });
+            },
+            base
+        );
+
+        return result;
+    }
+
+    function ve(vs)
+    {
+        const longest = Math.max.apply(null, vs.map(function(v) {
+            return v.length;
+        }));
+
+        const base = new Array(longest).fill(0);
+
+        const result = vs.reduce(
+            function(final, v, vi) {
+                return final.map(function(x, i) { return x | v[i] });
+            },
+            base
+        );
+
+        return result;
+    }
+
+    // apply scalar to vector
+    function svu(v, s)
+    {
+        return v.map(function(x) { return x & s });
+    }
+    function sve(v, s)
+    {
+        return v.map(function(x) { return x | s });
+    }
+
+    // apply scalar to matrix
+    function smu(m, s)
+    {
+        return m.map(function(v) {
+            return v.map(function(x) { return x & s });
+        });
+    }
+    function sme(m, s)
+    {
+        return m.map(function(v) {
+            return v.map(function(x) { return x | s });
+        });
+    }
+
+
+    // existential (any)
+    function E(v)
+    {
+        return v.some(function(s) { return s === 1 });
+    }
+
+    // existential (any) for matrices
+    function Em(m)
+    {
+        return m.some(E);
+    }
+
+    function div(x, y)
+    {
+        return x / y;
+    }
+
+
+    // types
+    function Tf(x) { return 1; }
+    function Ti(x) { return +(x % 1 === 0); }
+    function TE(xs) {
+        return function(x) {
+            return +(xs[x] === 1);
+        }
+    }
+
+    function M(vs, f) { return vs.map(f); }
+    function MM(ms, f) { return ms.map(function(vs) { return vs.map(f) }) }
+    var n = ceq(0);
+    function N(vs) { return vs.map(n); }
+    function NN(ms) { return ms.map(N); }
+
+    function i(s, xs) { return +xs.has(s) };
+    function I(v, xs)  { return v.map(function(s) { return +xs.has(s) }) }
+    function II(m, xs) {
+        return m.map(function(v) {
+            return v.map(function(s) { return +xs.has(s) });
+        });
+    }
+
+    function ceq(y)  { return function (x) { return +(x === y); }; }
+    function cne(y)  { return function (x) { return +(x !== y); }; }
+    function cgt(y)  { return function (x) { return +(x > y); }; }
+    function clt(y)  { return function (x) { return +(x < y); }; }
+    function cgte(y) { return function (x) { return +(x >= y); }; }
+    function clte(y) { return function (x) { return +(x <= y); }; }
+
+    function ceqi(y)  { return function (x, i) { return +(x === (y[i]||0)); }; }
+    function cnei(y)  { return function (x, i) { return +(x !== (y[i]||0)); }; }
+    function cgti(y)  { return function (x, i) { return +(x > (y[i]||0)); }; }
+    function clti(y)  { return function (x, i) { return +(x < (y[i]||0)); }; }
+    function cgtei(y) { return function (x, i) { return +(x >= (y[i]||0)); }; }
+    function cltei(y) { return function (x, i) { return +(x <= (y[i]||0)); }; }
 
     /**
      * Checks for matches against values for any param value
@@ -1386,14 +2060,7 @@
         // convert everything to an array if needed (we'll assume all objects to
         // be arrays; Array.isArray() is ES5-only) to make them easier to work
         // with
-        if ( ( param === undefined ) || ( param === null ) )
-        {
-            // according to the specification, an undefined input vector should
-            // yield an empty result set, which in turn will be interpreted as
-            // false (yield_to is the result vector)
-            param = [];
-        }
-        else if ( typeof param !== 'object' )
+        if ( !Array.isArray( param ) )
         {
             param = [ param ];
         }
@@ -1434,10 +2101,10 @@
                 v = returnOrReduceOr( store[ i ], u );
 
             // recurse on vectors
-            if ( typeof param[ i ] === 'object' || typeof store[ i ] === 'object' )
+            if ( Array.isArray( param[ i ] ) || Array.isArray( store[ i ] ) )
             {
                 var r = deepClone( store[ i ] || [] );
-                if ( typeof r !== 'object' )
+                if ( !Array.isArray( r ) )
                 {
                     r = [ r ];
                 }
@@ -1445,7 +2112,7 @@
                 var rfound = !!anyValue( param[ i ], values_orig, r, false, clear, _id );
                 found = ( found || rfound );
 
-                if ( ( typeof store[ i ] === 'object' )
+                if ( Array.isArray( store[ i ] )
                   || ( store[ i ] === undefined )
                 )
                 {
@@ -1510,24 +2177,11 @@
 
     function anyPredicate( preds, value, index )
     {
-        for ( var i in preds )
-        {
-            var p = preds[ i ];
-
-            if ( ( typeof p === 'function' )
-              && p( value, index )
-            )
-            {
-                return true;
-            }
-            // lazy equality intentional
-            else if ( p == value )
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return preds.some( function( p ) {
+            return (typeof p === 'function')
+                ? p(value, index)
+                : p == value;
+        } );
     }
 
 
@@ -1542,9 +2196,8 @@
             return arr;
         }
 
-        return reduce( arr, function( a, b )
-        {
-            return returnOrReduceOr( a, c ) || returnOrReduceOr( b, c );
+        return arr.reduce( function( a, b ) {
+            return a || returnOrReduceOr( b, c );
         } );
     }
 
@@ -1560,32 +2213,16 @@
             return arr;
         }
 
-        return reduce( arr, function( a, b )
-        {
-            return returnOrReduceAnd( a, c ) && returnOrReduceAnd( b, c );
+        return arr.reduce( function( a, b ) {
+            return a && returnOrReduceAnd( b, c );
         } );
     }
 
 
-    function deepClone( obj )
+    function deepClone( arr )
     {
-        var objnew = [];
-
-        // if we were not given an object, then do nothing
-        if ( typeof obj !== 'object' )
-        {
-            return obj;
-        }
-
-        for ( var i in obj )
-        {
-            // deep-clone for matrices
-            objnew[ i ] = ( typeof obj[ i ] === 'object' )
-              ? deepClone( obj[ i ] )
-              : obj[ i ];
-        }
-
-        return objnew;
+        if ( !Array.isArray( arr ) ) return arr;
+        return arr.map( deepClone );
     }
 
 
@@ -1607,10 +2244,9 @@
     {
         if ( Array.isArray( match ) )
         {
-            return reduce( match, function( a, b )
-            {
+            return match.reduce( function( a, b ) {
                 return a + b;
-            } );
+            }, 0);
         }
 
         return +match;
@@ -1651,7 +2287,7 @@
             {
                 // if we're dealing with a scalar, then it should be used for
                 // every index
-                var mdata = ( ( typeof match[ i ] !== 'object' )
+                var mdata = ( !Array.isArray( match[ i ] )
                   ? match[ i ]
                   : ( match[ i ] || [] )[ len ]
                 );
@@ -1667,7 +2303,7 @@
             {
                 // if we're dealing with a scalar, then it should be used for
                 // every index
-                var mdata = ( ( typeof nomatch[ i ] !== 'object' )
+                var mdata = ( !Array.isArray( nomatch[ i ] )
                   ? nomatch[ i ]
                   : ( nomatch[ i ] || [] )[ len ]
                 );
@@ -1710,33 +2346,11 @@
     }
 
 
-    /**
-     * Some browsers don't support Array.reduce(), and adding to the prototype
-     * causes problems since we cannot make it non-enumerable in those browsers
-     * due to broken Object.defineProperty implementations (IE8).
-     */
-    function reduce( arr, c )
-    {
-        var ret = arr[ 0 ],
-            i = 0, // skip first
-            l = arr.length;
-
-        while ( ++i < l )
-        {
-            ret = c( ret, arr[ i ] );
-        }
-
-        // note that this will have the effet of returning the first element if
-        // there are none/no more than 1
-        return ret;
-    }
-
-
     /* scalar to vector */
     function stov( s, n )
     {
         // already a vector
-        if ( typeof s === 'object' )
+        if ( Array.isArray( s ) )
         {
             // if the length is only one, then we can pretend that it is a
             // scalar (unless the requested length is one, in which case it is
@@ -1749,13 +2363,7 @@
             s = s[ 0 ];
         }
 
-        var v = [];
-        for ( var i = 0; i < n; i++ )
-        {
-            v.push( s );
-        }
-
-        return v;
+        return (new Array(n)).fill(s);
     }
 
 
@@ -1792,21 +2400,26 @@
         // scalar
         if ( depth === 0 )
         {
-            return ( input === '' || input === undefined ) ? value : input;
+            // TODO: error
+            if ( Array.isArray( input ) ) input = input[0];
+            return ( input === '' || input === undefined ) ? value : +input;
         }
 
-        input = input || [];
+        // TODO: error for both
+        if (!Array.isArray(input)) input = [input];
+        if (depth === 1 && Array.isArray(input[0])) input = input[0];
 
-        // vector or matrix
-        var i = input.length || 1;
-        var ret = [];
-        var value = ( depth === 2 ) ? [ value ] : value;
+        // TODO: this maintains old behavior, but maybe should be an error;
+        // we cannot have empty index sets (see design/tpl).
+        if (input.length === 0) input = [value];
 
-        while ( i-- ) {
-            ret[i] = ( input[i] === '' || input[i] === undefined ) ? value : input[i];
-        }
-
-        return ret;
+        return input.map( function( x ) {
+            return ( depth === 2 )
+              ? Array.isArray( x )
+                  ? x.map( function(s) { return +s; } )
+                  : [ x ]
+              : ( x === '' || x === undefined ) ? value : +x;
+        } );
     }
 
 

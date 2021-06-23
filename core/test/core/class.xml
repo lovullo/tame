@@ -27,183 +27,707 @@
   <import package="../../base" />
 
   Note that many of these classifications may match on similar values to try
-  to thwart potential optimizations, present or future, but these approaches
-  may need further adjustment to thwart future optimizations (or a way to
-  explicitly inhibit them).
+    to thwart potential optimizations,
+    present or future,
+    but these approaches
+    may need further adjustment to thwart future optimizations (or a way to
+      explicitly inhibit them).
+  These tests are also written a bit lazily,
+    given the difficulties in matching comprehensively;
+      that ought to be fixed in the future.
 
-  <t:describe name="classify">
-    <t:describe name="without predicates">
-      <t:it desc="yields TRUE for conjunction">
-        <classify as="conj-no-pred" yields="conjNoPred"
-                  desc="No predicate, conjunction" />
+  <const name="MAT3X3" desc="3x3 Matrix, Ones">
+    <set desc="Row 0">
+      <item value="1" desc="0,0" />
+      <item value="1" desc="0,1" />
+      <item value="1" desc="0,2" />
+    </set>
+    <set desc="Row 1">
+      <item value="1" desc="1,0" />
+      <item value="1" desc="1,1" />
+      <item value="1" desc="1,2" />
+    </set>
+    <set desc="Row 2">
+      <item value="1" desc="2,0" />
+      <item value="1" desc="2,1" />
+      <item value="1" desc="2,2" />
+    </set>
+  </const>
 
-        <t:given name="conjNoPred" />
+  <const name="MAT3X3Z" desc="3x3 Matrix, Zeroes">
+    <set desc="Row 0">
+      <item value="0" desc="0,0" />
+      <item value="0" desc="0,1" />
+      <item value="0" desc="0,2" />
+    </set>
+    <set desc="Row 1">
+      <item value="0" desc="1,0" />
+      <item value="0" desc="1,1" />
+      <item value="0" desc="1,2" />
+    </set>
+    <set desc="Row 2">
+      <item value="0" desc="2,0" />
+      <item value="0" desc="2,1" />
+      <item value="0" desc="2,2" />
+    </set>
+  </const>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
+  <const name="MAT3X3OOZ" desc="3x3 Matrix, Columns 1, 1, 0">
+    <set desc="Row 0">
+      <item value="1" desc="0,0" />
+      <item value="1" desc="0,1" />
+      <item value="0" desc="0,2" />
+    </set>
+    <set desc="Row 1">
+      <item value="1" desc="1,0" />
+      <item value="1" desc="1,1" />
+      <item value="0" desc="1,2" />
+    </set>
+    <set desc="Row 2">
+      <item value="1" desc="2,0" />
+      <item value="1" desc="2,1" />
+      <item value="0" desc="2,2" />
+    </set>
+  </const>
+
+  <const name="MAT3X1" desc="3x2 Matrix, Ones">
+    <set desc="Row 0">
+      <item value="1" desc="0,0" />
+    </set>
+    <set desc="Row 1">
+      <item value="1" desc="1,0" />
+    </set>
+    <set desc="Row 2">
+      <item value="1" desc="2,0" />
+    </set>
+  </const>
+
+  <const name="MAT3X1Z" desc="3x2 Matrix, Zeroes">
+    <set desc="Row 0">
+      <item value="0" desc="0,0" />
+    </set>
+    <set desc="Row 1">
+      <item value="0" desc="1,0" />
+    </set>
+    <set desc="Row 2">
+      <item value="0" desc="2,0" />
+    </set>
+  </const>
+
+  <const name="MAT1X3Z" desc="1x3 Matrix, Zeroes">
+    <set desc="Row 0">
+      <item value="0" desc="0,0" />
+      <item value="0" desc="0,1" />
+      <item value="0" desc="0,2" />
+    </set>
+  </const>
+
+  <template name="_class-tests_" desc="Classification system tests">
+    <param name="@system@" desc="SUT (lowercase)" />
+
+    <param name="@systemuc@" desc="SUT (title case)">
+      <param-value name="@system@" ucfirst="true" />
+    </param>
 
 
-      <t:it desc="yields FALSE for disjunction">
-        <classify as="disj-no-pred" yields="disjNoPred"
-                  any="true"
-                  desc="No predicate, disjunction" />
+    <t:describe name="{@system@} classify">
+      <t:describe name="without predicates">
+        <t:it desc="yields TRUE for conjunction">
+          <classify as="conj-no-pred-{@system@}"
+                    yields="conjNoPred{@systemuc@}"
+                    desc="No predicate, conjunction" />
 
-        <t:given name="disjNoPred" />
+          <t:given name="conjNoPred{@systemuc@}" />
 
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
-    </t:describe>
-
-
-    <t:describe name="with scalar predicates">
-      <t:it desc="yields TRUE when scalar value is TRUE">
-        <t:given-classify>
-          <match on="alwaysTrue" />
-        </t:given-classify>
-
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
 
-      <t:it desc="yields FALSE when scalar value is FALSE">
-        <t:given-classify>
-          <match on="neverTrue" />
-        </t:given-classify>
+        <t:it desc="yields FALSE for disjunction">
+          <classify as="disj-no-pred-{@system@}"
+                    yields="disjNoPred{@systemuc@}"
+                    any="true"
+                    desc="No predicate, disjunction" />
 
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
+          <t:given name="disjNoPred{@systemuc@}" />
 
-
-      <t:it desc="yields TRUE for all-true scalar conjunction">
-        <t:given-classify>
-          <match on="alwaysTrue" />
-          <match on="neverTrue" value="FALSE" />
-        </t:given-classify>
-
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+      </t:describe>
 
 
-      <t:it desc="yields TRUE for all-true scalar disjunction">
-        <t:given-classify>
-          <any>
+      <t:describe name="with scalar predicates">
+        <t:it desc="yields TRUE when scalar value is TRUE">
+          <t:given-classify>
+            <match on="alwaysTrue" />
+          </t:given-classify>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields FALSE when scalar value is FALSE">
+          <t:given-classify>
+            <match on="neverTrue" />
+          </t:given-classify>
+
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields TRUE for all-true scalar conjunction">
+          <t:given-classify>
             <match on="alwaysTrue" />
             <match on="neverTrue" value="FALSE" />
-          </any>
-        </t:given-classify>
+          </t:given-classify>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-
-
-      <t:it desc="yields TRUE for single-true scalar disjunction">
-        <t:given-classify>
-          <any>
-            <match on="alwaysTrue" />
-            <match on="neverTrue" />
-          </any>
-        </t:given-classify>
-
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-    </t:describe>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
 
-    <t:describe name="with vector predicates">
-      <t:it desc="yields TRUE for all-true element-wise conjunction">
-        <t:given-classify-scalar>
-          <match on="NVEC3" value="ZERO" />
-          <match on="nClass3" value="TRUE" />
-        </t:given-classify-scalar>
+        <t:it desc="yields TRUE for all-true scalar disjunction">
+          <t:given-classify>
+            <any>
+              <match on="alwaysTrue" />
+              <match on="neverTrue" value="FALSE" />
+            </any>
+          </t:given-classify>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-
-
-      <t:it desc="yields FALSE for some-true element-wise conjunction">
-        <t:given-classify-scalar>
-          <match on="NVEC3" value="ZERO" />
-          <match on="nClass3" value="FALSE" />
-        </t:given-classify-scalar>
-
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
 
-      <t:it desc="yields TRUE for some-true element-wise disjunction">
-        <t:given-classify-scalar>
-          <any>
+        <t:it desc="yields TRUE for single-true scalar disjunction">
+          <t:given-classify>
+            <any>
+              <match on="alwaysTrue" />
+              <match on="neverTrue" />
+            </any>
+          </t:given-classify>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+      </t:describe>
+
+
+      <t:describe name="with vector predicates">
+        <t:it desc="yields TRUE for all-true element-wise conjunction">
+          <t:given-classify-scalar>
+            <match on="NVEC3" value="ZERO" />
+            <match on="nClass3" value="TRUE" />
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields FALSE for some-true element-wise conjunction">
+          <t:given-classify-scalar>
             <match on="NVEC3" value="ZERO" />
             <match on="nClass3" value="FALSE" />
-          </any>
-        </t:given-classify-scalar>
+          </t:given-classify-scalar>
 
-        <t:expect>
-          <t:match-result value="TRUE" />
-        </t:expect>
-      </t:it>
-
-
-      <t:it desc="yields FALSE for all-false element-wise disjunction">
-        <t:given-classify-scalar>
-          <any>
-            <match on="NVEC3" value="TRUE" />
-            <match on="nClass3" value="FALSE" />
-          </any>
-        </t:given-classify-scalar>
-
-        <t:expect>
-          <t:match-result value="FALSE" />
-        </t:expect>
-      </t:it>
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
 
 
-      The old classification system would interpret missing values as $0$,
-        which could potentially trigger a match.
-      The new classification system will always yield \tparam{FALSE}
-        regardless of predicate when values are undefined.
-
-      <t:describe name="of different lengths">
-        <t:describe name="with legacy classification system">
-          <t:it desc="interprets undefined values as zero during match">
-            <classify as="vec-len-mismatch-conj-legacy"
-                      yields="vecLenMismatchConjLegacy"
-                      desc="Multi vector length mismatch (legacy)">
-              <!-- actually ZERO for all indexes -->
+        <t:it desc="yields TRUE for some-true element-wise disjunction">
+          <t:given-classify-scalar>
+            <any>
               <match on="NVEC3" value="ZERO" />
+              <match on="nClass3" value="FALSE" />
+            </any>
+          </t:given-classify-scalar>
 
-              <!-- legacy system, implicitly zero for match -->
-              <match on="NVEC2" value="ZERO" />
-            </classify>
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
 
+
+        <t:it desc="yields FALSE for all-false element-wise disjunction">
+          <t:given-classify-scalar>
+            <any>
+              <match on="NVEC3" value="TRUE" />
+              <match on="nClass3" value="FALSE" />
+            </any>
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+
+
+        The old classification system would interpret missing values as $0$,
+          which could potentially trigger a match.
+        The new classification system will always yield \tparam{FALSE}
+          regardless of predicate when values are undefined.
+
+        <t:describe name="of different lengths">
+          <if name="@system@" eq="legacy">
+            <t:describe name="with legacy classification system">
+              <t:it desc="interprets undefined values as zero during match">
+                <classify as="vec-len-mismatch-conj-{@system@}"
+                          yields="vecLenMismatchConj{@systemuc@}"
+                          desc="Multi vector length mismatch (legacy)">
+                  <!-- actually ZERO for all indexes -->
+                  <match on="NVEC3" value="ZERO" />
+
+                  <!-- legacy system, implicitly zero for match -->
+                  <match on="NVEC2" value="ZERO" />
+                </classify>
+
+                <t:given>
+                  <c:value-of name="vecLenMismatchConj{@systemuc@}" index="#2" />
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="TRUE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
+
+
+          <if name="@system@" eq="new">
+            <t:describe name="with new classification system">
+              <t:it desc="yields false for conjunction rather than implicit zero">
+                <classify as="vec-len-mismatch-conj-{@system@}"
+                          yields="vecLenMismatchConj{@systemuc@}"
+                          desc="Multi vector length mismatch (new system)">
+                  <!-- actually ZERO for all indexes -->
+                  <match on="NVEC3" value="ZERO" />
+
+                  <!-- must not be implicitly ZERO for third index -->
+                  <match on="NVEC2" value="ZERO" />
+                </classify>
+
+                <t:given>
+                  <c:value-of name="vecLenMismatchConj{@systemuc@}" index="#2" />
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
+        </t:describe>
+      </t:describe>
+
+
+      <t:describe name="with matrix predicates">
+        <t:it desc="yields TRUE for all-true element-wise conjunction">
+          <t:given-classify-scalar>
+            <match on="MAT3X3Z" value="FALSE" />
+            <match on="MAT3X3" value="TRUE" />
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields FALSE for some-true element-wise conjunction">
+          <t:given-classify-scalar>
+            <match on="MAT3X3Z" value="TRUE" />
+            <match on="MAT3X3" value="TRUE" />
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields TRUE for some-true element-wise disjunction">
+          <t:given-classify-scalar>
+            <any>
+              <match on="MAT3X3Z" value="ZERO" />
+              <match on="MAT3X3" value="ZERO" />
+            </any>
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="TRUE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:it desc="yields FALSE for all-false element-wise disjunction">
+          <t:given-classify-scalar>
+            <any>
+              <match on="MAT3X3Z" value="TRUE" />
+              <match on="MAT3X3" value="FALSE" />
+            </any>
+          </t:given-classify-scalar>
+
+          <t:expect>
+            <t:match-result value="FALSE" />
+          </t:expect>
+        </t:it>
+
+
+        <t:describe name="of different column lengths">
+          Certain behavior is the same between the old and the new system---%
+            in particular,
+              when the match of lower length is first.
+
+          <classify as="mat-len-mismatch-first-conj-{@system@}"
+                    yields="matLenMismatchFirstConj{@systemuc@}"
+                    desc="Multi matrix length mismatch when first match">
+            <!-- fallthrough for undefined (note that this is
+                 intentionally matching on FALSE to test against an
+                 implicit 0 in place of undefined) -->
+            <match on="MAT3X1Z" value="FALSE" />
+
+            <!-- first two columns ones, last column zero -->
+            <match on="MAT3X3OOZ" value="TRUE" />
+          </classify>
+
+          <t:it desc="always yields FALSE when first match (TRUE)">
             <t:given>
-              <c:value-of name="vecLenMismatchConjLegacy" index="#2" />
+              <c:value-of name="matLenMismatchFirstConj{@systemuc@}">
+                <c:index>
+                  <c:value-of name="#1" />
+                </c:index>
+                <c:index>
+                  <c:value-of name="#1" />
+                </c:index>
+              </c:value-of>
             </t:given>
 
             <t:expect>
-              <t:match-result value="TRUE" />
+              <t:match-result value="FALSE" />
             </t:expect>
           </t:it>
+
+          <t:it desc="always yields FALSE when first match (FALSE)">
+            <t:given>
+              <c:value-of name="matLenMismatchFirstConj{@systemuc@}">
+                <c:index>
+                  <c:value-of name="#2" />
+                </c:index>
+                <c:index>
+                  <c:value-of name="#2" />
+                </c:index>
+              </c:value-of>
+            </t:given>
+
+            <t:expect>
+              <t:match-result value="FALSE" />
+            </t:expect>
+          </t:it>
+
+
+          <if name="@system@" eq="legacy">
+            <t:describe name="with legacy classification system">
+              The legacy system is frightenly problematic when the matrix of
+                lesser column length appears after the first match---%
+                  the commutative properites of the system are lost,
+                    and the value from the previous match falls through!
+
+              <classify as="mat-len-mismatch-conj-{@system@}"
+                        yields="matLenMismatchConj{@systemuc@}"
+                        desc="Multi matrix length mismatch (legacy)">
+                <!-- first two columns ones, last column zero -->
+                <match on="MAT3X3OOZ" value="TRUE" />
+
+                <!-- fallthrough for undefined (note that this is
+                     intentionally matching on FALSE to test against an
+                     implicit 0 in place of undefined) -->
+                <match on="MAT3X1Z" value="FALSE" />
+              </classify>
+
+              <!-- which means that it's not cummutatitve! -->
+              <t:it desc="causes values from previous match to fall through
+                          into undefined (TRUE)">
+                <t:given>
+                  <c:value-of name="matLenMismatchConj{@systemuc@}">
+                    <c:index>
+                      <c:value-of name="#1" />
+                    </c:index>
+                    <c:index>
+                      <c:value-of name="#1" />
+                    </c:index>
+                  </c:value-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="TRUE" />
+                </t:expect>
+              </t:it>
+
+              <t:it desc="causes values from previous match to fall through
+                          into undefined (FALSE)">
+                <t:given>
+                  <c:value-of name="matLenMismatchConj{@systemuc@}">
+                    <c:index>
+                      <c:value-of name="#2" />
+                    </c:index>
+                    <c:index>
+                      <c:value-of name="#2" />
+                    </c:index>
+                  </c:value-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
+
+
+          <if name="@system@" eq="new">
+            <t:describe name="with new classification system">
+              <classify as="mat-len-mismatch-conj-{@system@}"
+                        yields="matLenMismatchConj{@systemuc@}"
+                        desc="Multi matrix length mismatch (new)">
+                <!-- first two columns ones, last column zero -->
+                <match on="MAT3X3OOZ" value="TRUE" />
+
+                <!-- must not fall through like legacy (must always be
+                     FALSE; note that this is intentionally matching on
+                     FALSE to test against an implicit 0 in place of
+                     undefined) -->
+                <match on="MAT3X1Z" value="FALSE" />
+              </classify>
+
+              <!-- which means that it's not cummutatitve! -->
+              <t:it desc="is FALSE regardless of previous match or current
+                          value (TRUE)">
+                <t:given>
+                  <c:value-of name="matLenMismatchConj{@systemuc@}">
+                    <c:index>
+                      <c:value-of name="#1" />
+                    </c:index>
+                    <c:index>
+                      <c:value-of name="#1" />
+                    </c:index>
+                  </c:value-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+
+              <t:it desc="is FALSE regardless of previous match or current
+                          value (FALSE)">
+                <t:given>
+                  <c:value-of name="matLenMismatchConj{@systemuc@}">
+                    <c:index>
+                      <c:value-of name="#2" />
+                    </c:index>
+                    <c:index>
+                      <c:value-of name="#2" />
+                    </c:index>
+                  </c:value-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
+        </t:describe>
+
+
+        <t:describe name="of different row lengths">
+          <if name="@system@" eq="legacy">
+            <t:describe name="with legacy classification system">
+              The legacy classification system does something terrible when
+                the second match is the shorter---%
+                  it discards the indexes entirely!
+
+              <classify as="mat-len-mismatch-rows-conj-{@system@}"
+                        yields="matLenMismatchRowsConj{@systemuc@}"
+                        desc="Multi matrix row mismatch (legacy)">
+                <!-- we _should_ have a 3x3 result matrix -->
+                <match on="MAT3X3OOZ" value="TRUE" />
+
+                <!-- but instead we get [[1, 1, 1], [0], [0]] because of
+                     this match being second! -->
+                <match on="MAT1X3Z" value="FALSE" />
+              </classify>
+
+              <classify as="mat-len-mismatch-rows-first-conj-{@system@}"
+                        yields="matLenMismatchRowsFirstConj{@systemuc@}"
+                        desc="Multi matrix row mismatch first match (legacy)">
+                <match on="MAT1X3Z" value="TRUE" />
+                <match on="MAT3X3OOZ" value="TRUE" />
+              </classify>
+
+              <!-- note that this is testing buggy behavior; the new system
+                   corrects it -->
+              <t:it desc="replaces all inner vectors of other rows">
+                <t:given>
+                  <c:length-of>
+                    <c:value-of name="matLenMismatchRowsConj{@systemuc@}">
+                      <c:index>
+                        <c:value-of name="#1" />
+                      </c:index>
+                    </c:value-of>
+                  </c:length-of>
+                </t:given>
+
+                <t:expect>
+                  <!-- were it not for this bug, it should be 3 -->
+                  <t:match-result value="#1" />
+                </t:expect>
+              </t:it>
+
+              <!-- note that this is testing buggy behavior; the new system
+                   corrects it -->
+              <t:it desc="considers only defined rows' values when smaller
+                          is first">
+                <t:given>
+                  <c:value-of name="matLenMismatchRowsFirstConj{@systemuc@}">
+                    <c:index>
+                      <c:value-of name="#1" />
+                    </c:index>
+                    <c:index>
+                      <c:value-of name="#0" />
+                    </c:index>
+                  </c:value-of>
+                </t:given>
+
+                <!-- we get [[0, 0, 0], [1, 1, 0], [1, 1, 0]] -->
+                <!--                     ^ -->
+                <t:expect>
+                  <t:match-result value="#1" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
+
+          <if name="@system@" eq="new">
+            <t:describe name="with new classification system">
+              <classify as="mat-len-mismatch-rows-conj-{@system@}"
+                        yields="matLenMismatchRowsConj{@systemuc@}"
+                        desc="Multi matrix row mismatch (new)">
+                <match on="MAT3X3OOZ" value="TRUE" />
+
+                <!-- must yield FALSE rather than matching on 0 -->
+                <match on="MAT1X3Z" value="FALSE" />
+              </classify>
+
+              <classify as="mat-len-mismatch-rows-first-conj-{@system@}"
+                        yields="matLenMismatchRowsFirstConj{@systemuc@}"
+                        desc="Multi matrix row mismatch first match (new)">
+                <match on="MAT1X3Z" value="TRUE" />
+                <match on="MAT3X3OOZ" value="TRUE" />
+              </classify>
+
+
+              <t:it desc="retains shape of larger matrix">
+                <t:given>
+                  <c:length-of>
+                    <c:value-of name="matLenMismatchRowsConj{@systemuc@}">
+                      <c:index>
+                        <c:value-of name="#2" />
+                      </c:index>
+                    </c:value-of>
+                  </c:length-of>
+                </t:given>
+
+                <t:expect>
+                  <!-- unlike legacy system -->
+                  <t:match-result value="#3" />
+                </t:expect>
+              </t:it>
+
+              <t:it desc="always yields FALSE for each undefined element (TRUE)">
+                <t:given>
+                  <c:length-of>
+                    <c:value-of name="matLenMismatchRowsConj{@systemuc@}">
+                      <c:index>
+                        <c:value-of name="#2" />
+                      </c:index>
+                      <c:index>
+                        <c:value-of name="#1" />
+                      </c:index>
+                    </c:value-of>
+                  </c:length-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+
+              <t:it desc="always yields FALSE for each undefined element (FALSE)">
+                <t:given>
+                  <c:length-of>
+                    <c:value-of name="matLenMismatchRowsConj{@systemuc@}">
+                      <c:index>
+                        <c:value-of name="#1" />
+                      </c:index>
+                      <c:index>
+                        <c:value-of name="#2" />
+                      </c:index>
+                    </c:value-of>
+                  </c:length-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+
+              <!-- unlike legacy -->
+              <t:it desc="is commutative with different row lengths">
+                <t:given>
+                  <c:value-of name="matLenMismatchRowsFirstConj{@systemuc@}">
+                    <c:index>
+                      <c:value-of name="#1" />
+                    </c:index>
+                    <c:index>
+                      <c:value-of name="#2" />
+                    </c:index>
+                  </c:value-of>
+                </t:given>
+
+                <t:expect>
+                  <t:match-result value="FALSE" />
+                </t:expect>
+              </t:it>
+            </t:describe>
+          </if>
         </t:describe>
       </t:describe>
     </t:describe>
-  </t:describe>
+  </template>
+
+
+  <section title="Legacy System Tests">
+    <t:class-tests system="legacy" />
+  </section>
+
+  <section title="New System Tests">
+    <t:use-new-classification-system />
+    <t:class-tests system="new" />
+  </section>
 </package>

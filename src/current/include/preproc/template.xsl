@@ -414,11 +414,6 @@
   <variable name="name" select="concat( '___i', generate-id(.), '___' )" />
   <variable name="inline" select="." />
 
-  <message>
-    <text>[preproc] preparing inline template </text>
-    <value-of select="$name" />
-  </message>
-
   <!-- generate template -->
   <lv:template name="{$name}" desc="Inline template"
                preproc:from-inline="{$name}"

@@ -594,10 +594,6 @@
     <copy>
       <sequence select="@*" />
 
-      <message>
-        <text>[preproc] *resolving symbol attributes...</text>
-      </message>
-
       <apply-templates mode="preproc:resolv-syms">
         <with-param name="orig-root" select="$orig-root" />
         <with-param name="symtable-map" select="$symtable-map" tunnel="yes" />
@@ -612,20 +608,6 @@
   <choose>
     <!-- repass scheduled; go for it -->
     <when test="$repass">
-      <message>[preproc] *SYM REPASS*</message>
-      <message>
-        <text>[preproc] The following </text>
-          <value-of select="count( $repass )" />
-        <text> symbol(s) are still unresolved:</text>
-      </message>
-
-      <for-each select="$repass">
-        <message>
-          <text>[preproc] - </text>
-          <value-of select="@ref" />
-        </message>
-      </for-each>
-
       <apply-templates select="$result" mode="preproc:resolv-syms">
         <with-param name="orig-root" select="$orig-root" />
         <with-param name="rpcount" select="$rpcount + 1" />

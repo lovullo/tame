@@ -312,6 +312,10 @@
   <next-match />
 </template>
 
+<template mode="preproc:depgen" priority="9"
+              match="lv:classify[ preproc:inline='true' ]">
+  <!-- ignore; dependencies will be inlined -->
+</template>
 
 <template mode="preproc:depgen" priority="7"
               match="lv:classify">
@@ -457,6 +461,29 @@
   <call-template name="preproc:depgen-c-normal">
     <with-param name="name" select="$on" />
   </call-template>
+</template>
+
+
+<!--
+  Inlined matches will not be counted as dependencies themselves, but their
+  dependencies are our own
+-->
+<template match="lv:match[ @preproc:inline='true' ]"
+          mode="preproc:depgen" priority="7">
+  <variable name="self" as="element( lv:match )" select="." />
+
+  <variable name="classify" as="element( lv:classify )?"
+            select="( parent::lv:classify
+                      /preceding-sibling::lv:classify[ @yields=$self/@on ] )[1]" />
+
+  <if test="empty( $classify )">
+    <message terminate="yes"
+             select="concat( 'internal error: inline depgen: ',
+                             'cannot locate class `', @on, '''' )" />
+  </if>
+
+  <apply-templates mode="preproc:depgen"
+                   select="$classify/element()" />
 </template>
 
 

@@ -596,46 +596,18 @@
 </template>
 
 
-<template mode="preproc:expand"
-              match="lv:join[ @all='true' ]"
-              priority="8">
-  <call-template name="preproc:mk-class-join-contents" />
-</template>
+<!-- expand lv:match/@value != 'TRUE' into a c:* expression to simpliy
+     optimizations  -->
+<template match="lv:match[ @value and @value != 'TRUE' ]"
+  mode="preproc:expand" priority="7">
 
+  <copy>
+    <copy-of select="@*[ not( local-name() = 'value' ) ]" />
 
-<template mode="preproc:expand"
-              match="lv:join"
-              priority="7">
-  <lv:any>
-    <call-template name="preproc:mk-class-join-contents" />
-  </lv:any>
-</template>
-
-
-<template name="preproc:mk-class-join-contents">
-  <variable name="prefix" select="@prefix" />
-
-  <!-- TODO: remove lv:template nodes in a pass before this so that this
-       check is not necessary -->
-  <for-each select="root(.)/lv:classify[
-                        starts-with( @as, $prefix )
-                        and not( ancestor::lv:template )
-                        ]">
-    <lv:match value="TRUE">
-      <attribute name="on">
-        <choose>
-          <when test="@yields">
-            <value-of select="@yields" />
-          </when>
-
-          <otherwise>
-            <text>__is</text>
-            <value-of select="@as" />
-          </otherwise>
-        </choose>
-      </attribute>
-    </lv:match>
-  </for-each>
+    <c:eq>
+      <c:value-of name="{@value}" />
+    </c:eq>
+  </copy>
 </template>
 
 

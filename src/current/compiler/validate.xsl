@@ -38,6 +38,7 @@
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:ext="http://www.lovullo.com/ext"
             xmlns:c="http://www.lovullo.com/calc"
+            xmlns:compiler="http://www.lovullo.com/rater/compiler"
             xmlns:lvv="http://www.lovullo.com/rater/validate"
             xmlns:sym="http://www.lovullo.com/rater/symbol-map"
             xmlns:preproc="http://www.lovullo.com/rater/preproc">
@@ -267,6 +268,34 @@
   <apply-templates select="." mode="lvv:validate-match" />
 </template>
 
+
+<template match="lv:match[@pattern]" mode="lvv:validate-match" priority="9">
+  <choose>
+    <!-- warn of upcoming removal -->
+    <when test="compiler:use-legacy-classify( ancestor::lv:classify )">
+      <message select="concat( 'warning: ',
+                               ancestor::lv:classify/@as,
+                               ': lv:match[@pattern] support is deprecated ',
+                               'and is removed with the new classification ',
+                               'system; use lookup tables instead' )" />
+    </when>
+
+    <!-- @pattern support removed in the new classification system -->
+    <otherwise>
+      <call-template name="lvv:error">
+        <with-param name="desc" select="'lv:match[@pattern] support removed'" />
+        <with-param name="refnode" select="." />
+        <with-param name="content">
+          <text>use lookup tables in place of @pattern in `</text>
+          <value-of select="parent::lv:classify/@as" />
+          <text>'</text>
+        </with-param>
+      </call-template>
+    </otherwise>
+  </choose>
+</template>
+
+
 <!--
   Validate that non-numeric value matches actually exist and are constants
 -->
@@ -300,37 +329,67 @@
   <apply-templates mode="lvv:validate-match" />
 </template>
 
+
+<!-- simplify optimizations -->
+<template match="lv:match[ count(c:*) gt 1 ]" mode="lvv:validate-match" priority="4">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'Multi-c:* match expression'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>`</text>
+      <value-of select="@on" />
+      <text>' must include separate matches for each c:* in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
+
+  <apply-templates mode="lvv:validate-match" />
+</template>
+
+
 <template match="lv:match" mode="lvv:validate-match" priority="2">
   <apply-templates mode="lvv:validate-match" />
 </template>
 
-<!--
-  Classification match assumptions must operate only on other classifiers and
-  must assume values that the referenced classifier actually matches on
--->
-<template match="lv:match/lv:assuming" mode="lvv:validate-match" priority="5">
-  <variable name="on" select="../@on" />
-  <variable name="ref" select="root(.)//lv:classify[ @yields=$on ]" />
 
-  <!-- assumptions must only operate on variables mentioned in the referenced
-       classification -->
-  <for-each select="
-      .//lv:that[
-        not( @name=$ref//lv:match/@on )
-      ]
-    ">
+<!-- simplify optimizations -->
+<template mode="lvv:validate-match" priority="5"
+          match="c:*[ not( c:value-of or c:const ) ]">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'invalid lv:match/c:*/c:*'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>`</text>
+      <value-of select="@on" />
+      <text>' must contain only c:value of or c:const in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
 
-    <call-template name="lvv:error">
-      <with-param name="desc" select="'Invalid classification assumption'" />
-      <with-param name="refnode" select="." />
-      <with-param name="content">
-        <value-of select="@name" />
-        <text> is not used to classify </text>
-        <value-of select="$on" />
-      </with-param>
-    </call-template>
-  </for-each>
+  <apply-templates mode="lvv:validate-match" />
 </template>
+
+
+<!-- simplify optimizations -->
+<template mode="lvv:validate-match" priority="4"
+          match="c:*[ c:const[ c:* ] ]">
+  <call-template name="lvv:error">
+    <with-param name="desc" select="'non-scalar lv:match/c:*/c:*'" />
+    <with-param name="refnode" select="." />
+    <with-param name="content">
+      <text>`</text>
+      <value-of select="@on" />
+      <text>' must contain only scalar c:const in `</text>
+      <value-of select="parent::lv:classify/@as" />
+      <text>'</text>
+    </with-param>
+  </call-template>
+
+  <apply-templates mode="lvv:validate-match" />
+</template>
+
 
 <template match="c:*" mode="lvv:validate-match" priority="2">
   <apply-templates select="." mode="lvv:validate" />
