@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v18.0.0 (2021-06-23)
+====================
 This release focuses primarily on compiler optimizations that affect runtime
 performance (both CPU and memory).  The classification system has undergone
 a rewrite, but the new system is gated behind a template-based feature flag
