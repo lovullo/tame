@@ -16,9 +16,45 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This release focuses primarily on compiler optimizations that affect runtime
+performance (both CPU and memory).  The classification system has undergone
+a rewrite, but the new system is gated behind a template-based feature flag
+`_use-new-classification-system_` (see Core below).  Many optimizations
+listed below are _not_ affected by this toggle.
 
 Compiler
 --------
+- Numerous compiler optimizations including (but not limited to):
+  - Classification system rewrite with significant correctness and
+    performance improvements, with significantly less generated code.
+    - There is more work to be done in TAMER.
+    - This change is gated behind a feature toggle (see
+      `_use-new-classification-system_` in Core below).
+  - Significant reduction in byte count of JavaScript target output.
+  - Classifications with single-`TRUE` predicate matches are aliases and now
+    compile more efficiently.
+  - Classifications that are a disjunction of conjunctions with a common
+    predicate will have the common predicate hoisted out, resulting in more
+    efficeint code generation.
+  - Classifications with equality matches entirely on a single param are
+    compiled into a `Set` lookup.
+  - Most self-executing functions in target JavaScript code have been
+    eliminated, resulting in a performance improvement.
+  - Floating point truncation now takes place without using `toFixed` in
+    JavaScript target, eliminating expensive number->string->number
+    conversions.
+  - Code paths are entirely skipped if a calculation predicate indicates
+    that it should not be executed, rather than simply multiplying by 0
+    after performing potentially expensive calculations.
+  - A bunch of wasteful casting has been eliminated, supplanted by proper
+    casting of param inputs.
+  - Unnecessary debug output removed, significantly improving performance in
+    certain cases.
+  - Single-predicate any/all blocks stripped rather than being extracted
+    into separate classifications.
+  - Extracted any/all classifications are inlined at the reference site when
+    the new classification system is enabled, reducing the number of
+    temporaries created at runtime in JavaScript.
 - Summary Page now displays values of `lv:match/@on` instead of debug
   values.
   - This provides more useful information and is not subject to the
@@ -30,8 +66,9 @@ Compiler
 Core
 ----
 - New feature flag template `_use-new-classification-system_`.
-  - This is not yet utilized, but will enable a classification system
-    rewrite once merged.
+  - This allows selectively enabling code generation for the new
+    classification system, which has BC breaks in certain buggy situations.
+    See `core/test/core/class` package for more information.
 - Remove `core/aggregate`.
   - This package is not currently utilized and is dangerous---it could
     easily aggregate unintended values if used carelessly.  Those who know
