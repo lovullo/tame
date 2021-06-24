@@ -14,6 +14,17 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+This is a minor maintenance release.
+
+Compiler
+--------
+- Remove internal notice when new system is used to emit code for a
+  particular classification.
+
+
+
 v18.0.0 (2021-06-23)
 ====================
 This release focuses primarily on compiler optimizations that affect runtime

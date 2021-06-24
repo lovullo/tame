@@ -648,8 +648,6 @@
 <template match="lv:classify" mode="compile" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
-
-  <message select="concat( 'internal: new: ', @as )" />
   <sequence select="compiler:compile-classify-assign( $symtable-map, . )" />
 </template>
 
