@@ -14,6 +14,13 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+Compiler
+--------
+- Make Summary Page less chatty.
+
+
 v18.0.1 (2021-06-24)
 ====================
 This is a minor maintenance release.

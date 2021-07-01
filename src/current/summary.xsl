@@ -141,7 +141,6 @@
       <xsl:call-template name="gen-pkg-menu" />
 
       <!-- load preprocessed source file -->
-      <xsl:message>[summary] typsetting self...</xsl:message>
       <xsl:variable name="pkg-self" select="
           document( concat( @__rootpath, @name, '.xmlo' ), . )/lv:*
         " />
@@ -300,8 +299,6 @@
   <xsl:variable name="self" select="." />
   <xsl:variable name="name" select="@name" />
 
-  <xsl:message>[summary] building package list...</xsl:message>
-
   <div class="menu" id="pkgmenu">
     <!-- build our own menu -->
     <h1 id="pkg-{@name}" class="sym-ref sym-pkg">
@@ -329,13 +326,6 @@
           )
         ]
       ">
-
-      <xsl:message>
-        <xsl:text>[summary] </xsl:text>
-        <xsl:value-of select="$name" />
-        <xsl:text> uses </xsl:text>
-        <xsl:value-of select="@src" />
-      </xsl:message>
 
       <!-- build package menu -->
       <xsl:variable name="result">
@@ -545,8 +535,6 @@
   <xsl:param name="path" />
   <xsl:param name="import-path" />
 
-  <xsl:message>[summary] [<xsl:value-of select="@name" />]</xsl:message>
-
   <!-- used as an anchor -->
   <xsl:attribute name="id">
     <xsl:text>pkg-</xsl:text>
@@ -648,13 +636,6 @@
       <xsl:text> classifies</xsl:text>
     </xsl:if>
   </xsl:variable>
-
-  <xsl:call-template name="_debug">
-    <xsl:with-param name="text">
-      <xsl:text>processing </xsl:text>
-      <xsl:value-of select="local-name()" />
-    </xsl:with-param>
-  </xsl:call-template>
 
   <xsl:variable name="name" select="@name" />
 
@@ -872,15 +853,6 @@
 <xsl:template match="lv:typedef[ not( lv:union ) ]">
   <xsl:param name="heading" select="true()" />
 
-  <!-- output heading on first match -->
-  <xsl:if test="( @name = ../lv:typedef[1]/@name ) and $heading">
-    <xsl:call-template name="_debug">
-      <xsl:with-param name="text">
-        <xsl:text>processing typedefs</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
-
   <fieldset class="typedef math-typeset-hover">
     <!-- used as an anchor -->
     <xsl:attribute name="id">
@@ -1030,15 +1002,6 @@
 -->
 <xsl:template match="lv:classify" priority="1">
   <xsl:variable name="as" select="@as" />
-
-  <!-- output heading on first match -->
-  <xsl:if test="@as = ../lv:classify[1]/@as">
-    <xsl:call-template name="_debug">
-      <xsl:with-param name="text">
-        <xsl:text>processing classifications</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
 
   <fieldset class="class math-typeset-hover">
     <!-- used as an anchor -->
@@ -1334,15 +1297,6 @@
 <xsl:template match="lv:function">
   <xsl:variable name="name" select="@name" />
 
-  <!-- output heading on first match -->
-  <xsl:if test="@name = ../lv:function[1]/@name">
-    <xsl:call-template name="_debug">
-      <xsl:with-param name="text">
-        <xsl:text>processing functions</xsl:text>
-      </xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
-
   <xsl:variable name="deps" as="element( preproc:sym-dep )"
                 select="/lv:*/preproc:sym-deps/preproc:sym-dep[
                           @name=$name ]" />
@@ -1568,13 +1522,6 @@
       </xsl:when>
 
       <xsl:when test="not( $tex ) or $tex=''">
-        <xsl:message>
-          <xsl:text>[summary] internal: missing TeX symbol for `</xsl:text>
-            <xsl:value-of select="$name" />
-          <xsl:text>' within the context of `</xsl:text>
-            <xsl:value-of select="$deps/@name" />
-          <xsl:text>'</xsl:text>
-        </xsl:message>
         <xsl:text>?^!</xsl:text>
       </xsl:when>
 
