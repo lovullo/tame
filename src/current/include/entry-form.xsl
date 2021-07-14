@@ -276,9 +276,8 @@
 
   <xsl:variable name="type" select="@type" />
 
-  <!-- the typedef may or may not be in the same package as the param -->
-  <xsl:variable name="typesym" select="
-      $pkg/preproc:symtable/preproc:sym[
+  <xsl:variable name="typesym" as="element( preproc:sym )" select="
+      $program/l:dep/preproc:sym[
         @type='type'
         and @name=$type
       ]
@@ -295,10 +294,11 @@
   <!-- load the typedef from the appropriate package -->
   <xsl:variable name="typepkg" select="
       if ( $typesrc and not( $typesrc='' ) ) then
-        document( concat( $typesrc, '.xmlo' ), $sym )/lv:*
+        document( concat( $typesrc, '.xmlo' ), $program )/lv:*
       else
         $pkg
     " />
+
   <!-- this makes maintinance more difficult, but speeds up searching large
        trees -->
   <xsl:variable name="typedef" select="
@@ -316,15 +316,15 @@
 
     <xsl:otherwise>
       <xsl:message>
-        <xsl:text>[summary] warning: unknown param type `</xsl:text>
-          <xsl:value-of select="$typesym/@src" />
-          <xsl:text>/</xsl:text>
+        <xsl:text>[summary] internal: unhandled type `</xsl:text>
           <xsl:value-of select="@type" />
+        <xsl:text>' for param `</xsl:text>
+          <xsl:value-of select="@name" />
         <xsl:text>'</xsl:text>
       </xsl:message>
 
       <span class="error">
-        <xsl:text>Unknown type: </xsl:text>
+        <xsl:text>Unhandled type: </xsl:text>
         <xsl:value-of select="@type" />
       </span>
     </xsl:otherwise>

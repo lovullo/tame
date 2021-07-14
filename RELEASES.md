@@ -21,6 +21,11 @@ Compiler
 - Make Summary Page less chatty.
 - Fix incorrect package name for generated worksheet packages.
 
+Summary Page
+------------
+- Correctly generate input fields for params using imported types.
+  - This is a long-standing (nearly 10-year-old) bug.
+
 
 v18.0.1 (2021-06-24)
 ====================
