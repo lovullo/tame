@@ -79,8 +79,7 @@
                           _w:load-symbols( $package ),
                           $displays )" />
 
-  <lv:package name="{@name}"
-              __rootpath="{$__relroot}"
+  <lv:package __rootpath="{$__relroot}"
               lvmc:type="worksheet">
     <!-- we provide one special symbol -->
     <preproc:symtable>

@@ -19,6 +19,7 @@ NEXT
 Compiler
 --------
 - Make Summary Page less chatty.
+- Fix incorrect package name for generated worksheet packages.
 
 
 v18.0.1 (2021-06-24)
