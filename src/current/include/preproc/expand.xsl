@@ -596,9 +596,9 @@
 </template>
 
 
-<!-- expand lv:match/@value != 'TRUE' into a c:* expression to simpliy
-     optimizations  -->
-<template match="lv:match[ @value and @value != 'TRUE' ]"
+<!-- expand lv:match/@value into a c:* expression to simplify static
+     analysis -->
+<template match="lv:match[ @value ]"
   mode="preproc:expand" priority="7">
 
   <copy>

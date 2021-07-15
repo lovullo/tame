@@ -541,7 +541,6 @@
 -->
 <template mode="compile" priority="7"
           match="lv:classify[ count( lv:match ) = 1
-                                and lv:match/@value='TRUE'
                                 and not( lv:match/@preproc:inline ) ]">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
@@ -550,9 +549,18 @@
   <variable name="src-sym" as="element( preproc:sym )"
             select="$symtable-map( $src )" />
 
+  <variable name="c" as="element()?"
+            select="lv:match/c:*" />
+
+  <variable name="cmpval" as="xs:float?"
+            select="if ( exists( $c/c:value-of ) ) then
+                        $symtable-map( $c/c:value-of/@name )/@value
+                      else
+                        $c/c:const/@value" />
+
   <choose>
     <!-- we only handle aliasing of other classifications -->
-    <when test="$src-sym/@type = 'cgen'">
+    <when test="$src-sym/@type = 'cgen' and $cmpval = 1">
       <sequence select="$compiler:nl" />
 
       <!-- simply alias the @yields -->
@@ -850,8 +858,10 @@
   <param name="symtable-map" as="map(*)" />
   <param name="match" as="element( lv:match )" />
 
-  <variable name="dim" as="xs:integer"
-            select="$symtable-map( $match/@on )/@dim" />
+  <variable name="sym" as="element( preproc:sym )"
+            select="$symtable-map( $match/@on )" />
+  <variable name="dim" as="xs:integer" select="$sym/@dim" />
+  <variable name="type" as="xs:string" select="$sym/@type" />
 
   <variable name="inner" as="xs:string"
             select="compiler:match-name-on( $symtable-map, $match )" />
@@ -862,11 +872,6 @@
             select="if ( $dim = 2 ) then 'NN' else 'N'" />
 
   <choose>
-    <!-- only basic TRUE equality can be used verbatim -->
-    <when test="$match/@value = 'TRUE'">
-      <sequence select="$inner" />
-    </when>
-
     <when test="$match/@anyOf">
       <variable name="anyof" as="xs:string"
                 select="compiler:compile-anyof( $symtable-map, $match )" />
@@ -924,11 +929,28 @@
                                  $match/parent::lv/classify/@as, '''' )" />
       </if>
 
+      <!-- Note: we currently only check for cgen, that's that's the only
+           type we can guarantee to be boolean; params can have any value
+           passed in and we are not necessarily validating the
+           domain.  Until that is in place, it's too dangerous.  We also
+           need more information in the symbol table. -->
+      <variable name="boolmatch" as="xs:boolean"
+                select="$type = 'cgen'" />
+
       <choose>
+        <!-- Boolean-TRUE matches need no translation; their values can be
+             used without modification.  This allows primarily for
+             lower-cost class composition   However, it's important that we do
+             this only when working with a boolean domain, otherwise we may
+             yield a value that is not in the domain {0,1}. -->
+        <when test="$boolmatch and $match/c:eq and $cval = 1">
+          <sequence select="$inner" />
+        </when>
+
         <when test="$dim > 0">
           <choose>
             <!-- negation, very common, so save some bytes -->
-            <when test="$match/c:eq and $cval = 0">
+            <when test="$boolmatch and $match/c:eq and $cval = 0">
               <sequence select="concat( $nf, '(', $inner, ')' )" />
             </when>
 
@@ -942,7 +964,7 @@
         <otherwise>
           <choose>
             <!-- negation, very common, so save some bytes -->
-            <when test="$match/c:eq and $cval = 0">
+            <when test="$boolmatch and $match/c:eq and $cval = 0">
               <sequence select="concat( 'n(', $inner, ')' )" />
             </when>
 

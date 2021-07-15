@@ -20,6 +20,14 @@ Compiler
 --------
 - Make Summary Page less chatty.
 - Fix incorrect package name for generated worksheet packages.
+- Restrict `TRUE`-match optimization to classification matches (class
+  composition).
+  - This was mistakenly not considering the domain of the match, and
+    therefore was applying the optimization in situations where it should
+    not.  Results of previous classifications are currently the only place
+    we guarantee a boolean value.
+- Apply classification alias optimization to any `1`-valued constant match.
+  - Previously applied only to `TRUE`.
 
 Summary Page
 ------------
