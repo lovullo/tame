@@ -16,6 +16,10 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This is a bugfix release that corrects issues with the Summary Page compiler
+and corrects behavior with the new classification system (that is currently
+off unless explicitly requested).
+
 Compiler
 --------
 - Make Summary Page less chatty.
