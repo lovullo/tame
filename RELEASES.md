@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v18.0.2 (2021-07-15)
+====================
 This is a bugfix release that corrects issues with the Summary Page compiler
 and corrects behavior with the new classification system (that is currently
 off unless explicitly requested).
