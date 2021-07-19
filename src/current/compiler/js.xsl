@@ -1030,7 +1030,8 @@
               not( c:eq )
               or (
                 c:eq/c:value-of
-                and $symtable-map( c:eq/c:value-of/@name )/@dim != '0' ) ] )" />
+                and $symtable-map( c:eq/c:value-of/@name )/@dim != '0' ) ] )
+      and count( distinct-values( $matches/c:eq/c:value-of/@name ) ) > 1" />
 </function>
 
 

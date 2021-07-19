@@ -14,6 +14,16 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+Compiler
+--------
+- Do not report value list optimization error on duplicate conjunctive
+  predicates.
+  - This doesn't emit code any differently, it merely permits the situation,
+    which can occur in generated code.
+
+
 v18.0.2 (2021-07-15)
 ====================
 This is a bugfix release that corrects issues with the Summary Page compiler
