@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v18.0.3 (2021-07-21)
+====================
 This release significantly improves the performance of executables
 containing large constants, and fixes an optimization-related bug introduced
 in v18.0.0.
