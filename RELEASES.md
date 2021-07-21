@@ -16,6 +16,10 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+This release significantly improves the performance of executables
+containing large constants, and fixes an optimization-related bug introduced
+in v18.0.0.
+
 Compiler
 --------
 - Place constants into static section in linked executable.
