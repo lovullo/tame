@@ -18,6 +18,10 @@ NEXT
 ====
 Compiler
 --------
+- Place constants into static section in linked executable.
+  - This was the case in the old linker before the `tameld`
+    proof-of-concept.  The benefits are significant when large constants are
+    used (e.g. for large tables of data).
 - Do not report value list optimization error on duplicate conjunctive
   predicates.
   - This doesn't emit code any differently, it merely permits the situation,

@@ -310,6 +310,7 @@ where
                     IdentKind::RetMapHead
                     | IdentKind::RetMap
                     | IdentKind::RetMapTail => deps.retmap.push_body(ident),
+                    IdentKind::Const(_, _) => deps.consts.push_body(ident),
                     _ => deps.rater.push_body(ident),
                 },
                 None => {
@@ -387,7 +388,8 @@ mod test {
     use super::super::graph::AsgError;
     use super::*;
     use crate::ir::asg::{
-        Dim, IdentObject, TransitionError, TransitionResult, UnresolvedError,
+        DataType, Dim, IdentObject, TransitionError, TransitionResult,
+        UnresolvedError,
     };
     use crate::ir::legacyir::SymDtype;
     use crate::sym::SymbolIndex;
@@ -854,9 +856,10 @@ mod test {
     }
 
     macro_rules! assert_section_sym {
-        ( $iter:expr, $s:ident ) => {{
+        ( $iterable:expr, $s:ident ) => {{
             let mut pos = 0;
-            for obj in $iter {
+            assert_eq!($iterable.len(), $s.len());
+            for obj in $iterable.iter() {
                 let sym = obj.name().expect("missing object");
                 assert_eq!($s.get(pos), Some(sym));
 
@@ -866,7 +869,7 @@ mod test {
     }
 
     macro_rules! add_syms {
-        ($sut:ident, $base:expr, {$($dest:ident <- $name:ident: $kind:path,)*}) => {
+        ($sut:ident, $base:expr, {$($dest:ident <- $name:ident: $kind:expr,)*}) => {
             let mut i = 1;
 
             $(
@@ -890,6 +893,7 @@ mod test {
         let mut worksheet = vec![];
         let mut map = vec![];
         let mut retmap = vec![];
+        let mut consts = vec![];
 
         let base = symbol_dummy!(1, "sym1");
         let base_node = sut
@@ -899,6 +903,7 @@ mod test {
         add_syms!(sut, &base, {
             meta <- meta1: IdentKind::Meta,
             worksheet <- work1: IdentKind::Worksheet,
+            consts <- const1: IdentKind::Const(Dim::from_u8(0), DataType::Float),
             map <- map1: IdentKind::MapHead,
             map <- map2: IdentKind::Map,
             map <- map3: IdentKind::MapTail,
@@ -913,16 +918,18 @@ mod test {
             worksheet <- work2: IdentKind::Worksheet,
             map <- map6: IdentKind::MapTail,
             retmap <- retmap6: IdentKind::RetMapHead,
+            consts <- const2: IdentKind::Const(Dim::from_u8(2), DataType::Float),
         });
 
         map.push(base);
 
         let sections = sut.sort(&vec![base_node])?;
 
-        assert_section_sym!(sections.meta.iter(), meta);
-        assert_section_sym!(sections.worksheet.iter(), worksheet);
-        assert_section_sym!(sections.map.iter(), map);
-        assert_section_sym!(sections.retmap.iter(), retmap);
+        assert_section_sym!(sections.meta, meta);
+        assert_section_sym!(sections.worksheet, worksheet);
+        assert_section_sym!(sections.map, map);
+        assert_section_sym!(sections.retmap, retmap);
+        assert_section_sym!(sections.consts, consts);
 
         Ok(())
     }

@@ -129,6 +129,7 @@ pub struct Sections<'a, T> {
     pub params: Section<'a, T>,
     pub types: Section<'a, T>,
     pub funcs: Section<'a, T>,
+    pub consts: Section<'a, T>,
     pub rater: Section<'a, T>,
 }
 
@@ -143,6 +144,7 @@ impl<'a, T> Sections<'a, T> {
             params: Section::new(),
             types: Section::new(),
             funcs: Section::new(),
+            consts: Section::new(),
             rater: Section::new(),
         }
     }

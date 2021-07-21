@@ -117,7 +117,8 @@ impl<W: Write> XmleWriter<W> {
                     .write_section(sections.worksheet.iter())?
                     .write_section(sections.params.iter())?
                     .write_section(sections.types.iter())?
-                    .write_section(sections.funcs.iter())
+                    .write_section(sections.funcs.iter())?
+                    .write_section(sections.consts.iter())
             })?
             .write_element(b"l:exec", |writer| {
                 writer.write_section(sections.rater.iter())
