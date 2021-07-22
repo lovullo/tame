@@ -212,15 +212,8 @@ where
                 }
 
                 XmloEvent::SymDeps(sym, deps) => {
-                    // Maps should not pull in symbols since we may end up
-                    // mapping to params that are never actually used.
-                    // TODO: Can these just be removed from the xmlo files
-                    //   rather than adding exceptions?
-                    // TODO: No string comparison.
-                    if !sym.starts_with(":map:") {
-                        for dep_sym in deps {
-                            self.add_dep_lookup(sym, dep_sym);
-                        }
+                    for dep_sym in deps {
+                        self.add_dep_lookup(sym, dep_sym);
                     }
                 }
 
@@ -448,22 +441,6 @@ mod test {
 
         assert!(sut.has_dep(node_from, node_to1));
         assert!(sut.has_dep(node_from, node_to2));
-    }
-
-    #[test]
-    fn ignores_map_sym_deps() {
-        let mut sut = Sut::new();
-
-        let sym_from = symbol_dummy!(1, ":map:sym");
-        let sym_to = symbol_dummy!(2, "to");
-
-        let evs = vec![Ok(XmloEvent::SymDeps(&sym_from, vec![&sym_to]))];
-
-        let _ = sut
-            .import_xmlo(evs.into_iter(), SutState::new())
-            .expect("unexpected failure");
-
-        assert!(sut.lookup(&sym_from).is_none());
     }
 
     #[test]

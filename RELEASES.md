@@ -14,6 +14,18 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+Compiler
+--------
+- Input mappings will no longer emit the destination param as a dependency.
+
+Linker
+------
+- Remove exception for input map dependency processing (now that compiler no
+  longer emits such a dependency).
+
+
 v18.0.3 (2021-07-21)
 ====================
 This release significantly improves the performance of executables
