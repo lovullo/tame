@@ -1,6 +1,6 @@
 # Common build configuration for TAME-based build systems
 #
-#   Copyright (C) 2014-2020 Ryan Specialty Group, LLC.
+#   Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
