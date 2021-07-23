@@ -92,6 +92,14 @@ AS_IF([cargo $CARGO_DOC_FLAGS doc --help &>/dev/null],
        AC_MSG_WARN([missing cargo-doc for toolchain])
        AC_MSG_WARN([`make html` will not work])])
 
+AC_ARG_VAR([FEATURES],
+           [Cargo features flags for TAMER, comma-delimited])
+
+test -z "$FEATURES" || {
+  AC_MSG_RESULT([requested features: $FEATURES])
+  FEATURES="--features $FEATURES"
+}
+
 AC_CONFIG_FILES([Makefile])
 
 AC_OUTPUT

@@ -25,7 +25,7 @@
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 
 all:
-	@CARGO@ build $(CARGO_BUILD_FLAGS)
+	@CARGO@ build $(CARGO_BUILD_FLAGS) @FEATURES@
 
 doc: html
 html-am:
@@ -35,13 +35,13 @@ html-am:
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
 check-am: check-fmt
-	@CARGO@ test
+	@CARGO@ test @FEATURES@
 
 check-fmt:
 	@CARGO@ fmt -- --check
 
 bench:
-	@CARGO@ @CARGO_BENCH_FLAGS@ bench
+	@CARGO@ @CARGO_BENCH_FLAGS@ bench @FEATURES@
 
 fix: fmt
 fmt:
