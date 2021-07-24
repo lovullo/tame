@@ -55,10 +55,10 @@ xmlo_tests! {
 
     fn proxies_xml_failures(sut, interner) {
         sut.reader.next_event =
-            Some(Box::new(|_, _| Err(XmlError::UnexpectedEof("test".into()))));
+            Some(Box::new(|_, _| Err(InnerXmlError::UnexpectedEof("test".into()))));
 
         match sut.read_event() {
-            Err(XmloError::XmlError(XmlParseError(XmlError::UnexpectedEof(_)))) => (),
+            Err(XmloError::XmlError(XmlError(InnerXmlError::UnexpectedEof(_)))) => (),
             bad => panic!("expected XmlError: {:?}", bad),
         }
     }
@@ -214,7 +214,7 @@ xmlo_tests! {
                 )])),
             ))),
             3 => Ok(XmlEvent::End(MockBytesEnd::new(b"preproc:sym-dep"))),
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -257,7 +257,7 @@ xmlo_tests! {
                 b"preproc:sym-ref",
                 Some(MockAttributes::new(vec![])),
             ))),
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -287,7 +287,7 @@ xmlo_tests! {
                 b"preproc:unexpected",
                 Some(MockAttributes::new(vec![])),
             ))),
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -372,7 +372,7 @@ xmlo_tests! {
     }
 
     fn fragment_fails_with_missing_text(sut, interner) {
-        sut.reader.next_text = Some(Err(XmlError::TextNotFound));
+        sut.reader.next_text = Some(Err(InnerXmlError::TextNotFound));
 
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
@@ -412,7 +412,7 @@ xmlo_tests! {
                 )])),
             ))),
 
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -515,7 +515,7 @@ xmlo_tests! {
                 b"preproc:sym",
             ))),
 
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -567,7 +567,7 @@ xmlo_tests! {
                 b"preproc:sym",
             ))),
 
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -601,7 +601,7 @@ xmlo_tests! {
                 Some(MockAttributes::new(vec![])),
             ))),
 
-            _ => Err(XmlError::UnexpectedEof(
+            _ => Err(InnerXmlError::UnexpectedEof(
                 format!("MockXmlReader out of events: {}", event_i).into(),
             )),
         }));
@@ -664,7 +664,7 @@ macro_rules! sym_test_reader_event {
                     )),
                 ))),
 
-                _ => Err(XmlError::UnexpectedEof(
+                _ => Err(InnerXmlError::UnexpectedEof(
                     format!("MockXmlReader out of events: {}", event_i).into(),
                 )),
             }

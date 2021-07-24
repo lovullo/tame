@@ -139,11 +139,11 @@ use crate::test::quick_xml::MockBytesStart as BytesStart;
 use crate::test::quick_xml::MockXmlEvent as XmlEvent;
 #[cfg(test)]
 use crate::test::quick_xml::MockXmlReader as XmlReader;
+use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
 #[cfg(not(test))]
 use quick_xml::events::BytesStart;
 #[cfg(not(test))]
 use quick_xml::events::Event as XmlEvent;
-use quick_xml::Error as XmlError;
 #[cfg(not(test))]
 use quick_xml::Reader as XmlReader;
 use std::convert::TryInto;
@@ -656,7 +656,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
             reader
                 .read_text(ele.name(), buffer)
                 .map_err(|err| match err {
-                    XmlError::TextNotFound => {
+                    InnerXmlError::TextNotFound => {
                         XmloError::MissingFragmentText(id.to_string())
                     }
                     _ => err.into(),
@@ -774,7 +774,7 @@ pub enum XmloEvent<'i> {
 #[derive(Debug, PartialEq)]
 pub enum XmloError {
     /// XML parsing error.
-    XmlError(XmlParseError),
+    XmlError(XmlError),
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
@@ -798,8 +798,8 @@ pub enum XmloError {
     MissingFragmentText(String),
 }
 
-impl From<XmlError> for XmloError {
-    fn from(e: XmlError) -> Self {
+impl From<InnerXmlError> for XmloError {
+    fn from(e: InnerXmlError) -> Self {
         XmloError::XmlError(e.into())
     }
 }
@@ -853,40 +853,6 @@ impl std::error::Error for XmloError {
             Self::XmlError(e) => Some(e),
             _ => None,
         }
-    }
-}
-
-/// Thin wrapper around [`XmlError`] to implement [`PartialEq`].
-///
-/// This will always yield `false`,
-///   but allows us to derive the trait on types using [`XmloError`];
-///     otherwise, this madness propagates indefinitely.
-#[derive(Debug)]
-pub struct XmlParseError(XmlError);
-
-impl PartialEq for XmlParseError {
-    /// [`XmlError`] does not implement [`PartialEq`] and so this will
-    ///   always yield `false`.
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
-impl From<XmlError> for XmlParseError {
-    fn from(e: XmlError) -> Self {
-        Self(e)
-    }
-}
-
-impl Display for XmlParseError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.0.fmt(fmt)
-    }
-}
-
-impl std::error::Error for XmlParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.0)
     }
 }
 

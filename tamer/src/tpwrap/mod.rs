@@ -1,4 +1,4 @@
-// TAME in Rust (TAMER)
+// Wrappers around third-party modules
 //
 //  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
 //
@@ -17,27 +17,12 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! An incremental rewrite of TAME in Rust.
+//! Wrappers around third-party modules to make them play nicely with TAMER.
+//!
+//! Some third-party libraries provide interfaces that present integration issues.
+//! Those are often addressed in the context that they are used,
+//!   but sometimes those adapters need to be shared across different parts
+//!     of the system.
+//! They live here.
 
-// We build docs for private items
-#![allow(rustdoc::private_intra_doc_links)]
-
-pub mod global;
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-pub mod sym;
-
-#[cfg(feature = "wip-frontends")]
-pub mod frontend;
-
-pub mod fs;
-pub mod ir;
-pub mod ld;
-pub mod obj;
-pub mod tpwrap;
-
-#[cfg(test)]
-pub mod test;
+pub mod quick_xml;
