@@ -36,3 +36,17 @@ exitcode = "1.1.2"
 lazy_static = ">= 1.4.0"
 petgraph-graphml = ">= 2.0.1"
 
+# Feature flags can be specified using `./configure FEATURES=foo,bar,baz`.
+#
+# Flags beginning with "wip-" are short-lived flags that exist only during
+# development of a particular feature; you should not hard-code them
+# anywhere, since the build will break once they are removed.  Enabling WIP
+# flags should also be expected to cause undesirable behavior in some form
+# or another.  Once WIP features are finalized, they are enabled by default
+# and the flag removed.
+[features]
+# Process source files using available frontends rather than copying
+# the files verbatim to XMLI files.  This begins the process of moving
+# compilation from XSLT into TAMER, and so the XSLT-based compiler must be
+# expecting it so that it can skip those compilation steps.
+wip-frontends = []

@@ -1,4 +1,4 @@
-// TAME in Rust (TAMER)
+// Tests for XML frontend
 //
 //  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
 //
@@ -17,26 +17,16 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! An incremental rewrite of TAME in Rust.
+use super::*;
 
-// We build docs for private items
-#![allow(rustdoc::private_intra_doc_links)]
+type Sut<B> = XmlFrontendParser<B>;
 
-pub mod global;
+#[test]
+fn emits_eof() {
+    let stub_data: &[u8] = &[];
+    let mut sut = Sut::new(stub_data);
 
-#[macro_use]
-extern crate lazy_static;
+    let result = sut.parse_next();
 
-#[macro_use]
-pub mod sym;
-
-#[cfg(feature = "wip-frontends")]
-pub mod frontend;
-
-pub mod fs;
-pub mod ir;
-pub mod ld;
-pub mod obj;
-
-#[cfg(test)]
-pub mod test;
+    assert!(matches!(result, Ok(FrontendEvent::Eof)));
+}

@@ -29,6 +29,13 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
 
+#[cfg(feature = "wip-frontends")]
+use {
+    std::io::BufReader,
+    tamer::frontend::{FrontendParser, XmlFrontendParser},
+    tamer::fs::File,
+};
+
 /// Types of commands
 enum Command {
     Compile(String, String, String),
@@ -50,7 +57,18 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             }
 
             let dest = Path::new(&output);
+
+            // This will eventually replace `fs::copy` below.
+            #[cfg(feature = "wip-frontends")]
+            {
+                let file: BufReader<fs::File> = File::open(source)?;
+                let mut parser = XmlFrontendParser::new(file);
+
+                parser.parse_next()?;
+            }
+
             fs::copy(source, dest)?;
+
             Ok(())
         }
         Ok(Command::Usage) => {
