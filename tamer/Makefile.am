@@ -24,7 +24,12 @@
 
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 
-all:
+.DEFAULT: bin
+
+all: bin doc
+
+.PHONY: bin
+bin:
 	@CARGO@ build $(CARGO_BUILD_FLAGS) @FEATURES@
 
 doc: html
