@@ -49,7 +49,8 @@ mod parser;
 mod xml;
 
 pub use parser::{
-    FrontendError, FrontendEvent, FrontendParser, FrontendResult, Token,
+    ClosedByteInterval, FrontendError, FrontendEvent, FrontendParser,
+    FrontendResult, Token,
 };
 
 pub use xml::XmlFrontendParser;

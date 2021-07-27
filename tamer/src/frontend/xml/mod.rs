@@ -19,8 +19,13 @@
 
 //! XML frontend for the TAME programming language.
 
-use super::{FrontendEvent, FrontendParser, FrontendResult};
-use quick_xml::{Error as XmlError, Reader as XmlReader};
+use super::{
+    ClosedByteInterval, FrontendError, FrontendEvent, FrontendParser,
+    FrontendResult, Token,
+};
+use crate::tpwrap::quick_xml::Error as XmlError;
+use quick_xml::events::Event as XmlEvent;
+use quick_xml::Reader as XmlReader;
 use std::fmt::Display;
 use std::io::BufRead;
 
@@ -29,7 +34,14 @@ pub struct XmlFrontendParser<B>
 where
     B: BufRead,
 {
-    _reader: XmlReader<B>,
+    /// XML parser.
+    reader: XmlReader<B>,
+
+    /// Buffer for all XML data besides namespaces.
+    buf: Vec<u8>,
+
+    /// Buffer for namespace data.
+    nsbuf: Vec<u8>,
 }
 
 impl<B> XmlFrontendParser<B>
@@ -39,11 +51,29 @@ where
     pub fn new(buf_read: B) -> Self {
         let reader = XmlReader::from_reader(buf_read);
 
-        Self { _reader: reader }
+        Self {
+            reader,
+            buf: Vec::new(),
+            nsbuf: Vec::new(),
+        }
+    }
+
+    /// Calculate the closed byte interval representing the bytes associated
+    ///   with a given [`XmlEvent`].
+    fn calc_interval(
+        pos_start: usize,
+        pos_cur: usize,
+        ev: &XmlEvent,
+    ) -> ClosedByteInterval {
+        match ev {
+            XmlEvent::Empty(_) => ClosedByteInterval(pos_start, pos_cur - 1),
+
+            _ => ClosedByteInterval(pos_start, pos_start),
+        }
     }
 }
 
-impl<'l, B> FrontendParser<'l, XmlToken, XmlFrontendError>
+impl<'l, B> FrontendParser<'l, XmlToken<'l>, XmlFrontendError>
     for XmlFrontendParser<B>
 where
     B: BufRead,
@@ -52,29 +82,73 @@ where
         "XML-based package specification language"
     }
 
-    fn parse_next(&mut self) -> XmlFrontendResult<XmlFrontendEvent<'l>> {
-        Ok(FrontendEvent::Eof)
+    fn parse_next(&'l mut self) -> XmlFrontendResult<XmlFrontendEvent<'l>> {
+        let reader = &mut self.reader;
+        let pos_start = reader.buffer_position();
+
+        reader
+            .read_namespaced_event(&mut self.buf, &mut self.nsbuf)
+            .map(|(ns, ev)| match ev {
+                XmlEvent::Eof => FrontendEvent::Eof,
+                _ => {
+                    let interval = Some(Self::calc_interval(
+                        pos_start,
+                        reader.buffer_position(),
+                        &ev,
+                    ));
+
+                    FrontendEvent::Token(Token {
+                        kind: XmlToken::RawXmlEvent((ns, ev)),
+                        lexeme: None,
+                        interval,
+                    })
+                }
+            })
+            .map_err(|e| FrontendError::UnrecoverableError {
+                source: XmlFrontendError::XmlError(e.into()),
+                interval: ClosedByteInterval(
+                    pos_start,
+                    reader.buffer_position(),
+                ),
+            })
     }
 }
 
-pub type XmlFrontendEvent<'l> = FrontendEvent<'l, XmlToken, XmlFrontendError>;
+pub type XmlFrontendEvent<'l> =
+    FrontendEvent<'l, XmlToken<'l>, XmlFrontendError>;
 
-pub enum XmlToken {}
+type Namespace<'a> = &'a [u8];
+type NamespacedXmlEvent<'a> = (Option<Namespace<'a>>, XmlEvent<'a>);
 
 #[derive(Debug)]
+pub enum XmlToken<'l> {
+    RawXmlEvent(NamespacedXmlEvent<'l>),
+}
+
+#[derive(Debug, PartialEq)]
 pub enum XmlFrontendError {
     XmlError(XmlError),
 }
 
 impl Display for XmlFrontendError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "TODO fmt")
+        match self {
+            Self::XmlError(e) => e.fmt(fmt),
+        }
     }
 }
 
 impl std::error::Error for XmlFrontendError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+        match self {
+            Self::XmlError(e) => Some(e),
+        }
+    }
+}
+
+impl<E: Into<XmlError>> From<E> for XmlFrontendError {
+    fn from(err: E) -> Self {
+        Self::XmlError(err.into())
     }
 }
 

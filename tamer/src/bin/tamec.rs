@@ -32,7 +32,7 @@ use std::path::Path;
 #[cfg(feature = "wip-frontends")]
 use {
     std::io::BufReader,
-    tamer::frontend::{FrontendParser, XmlFrontendParser},
+    tamer::frontend::{FrontendEvent, FrontendParser, XmlFrontendParser},
     tamer::fs::File,
 };
 
@@ -64,7 +64,14 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 let file: BufReader<fs::File> = File::open(source)?;
                 let mut parser = XmlFrontendParser::new(file);
 
-                parser.parse_next()?;
+                // Parse all the way through, but don't do anything with it
+                // yet.
+                loop {
+                    match parser.parse_next()? {
+                        FrontendEvent::Eof => break,
+                        _ => continue,
+                    }
+                }
             }
 
             fs::copy(source, dest)?;
