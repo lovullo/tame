@@ -70,10 +70,10 @@
 //!
 //! // Each symbol has an associated, densely-packed integer value
 //! // that can be used for indexing
-//! assert_eq!(SymbolIndex::from_u32(1), ia.index());
-//! assert_eq!(SymbolIndex::from_u32(1), ib.index());
-//! assert_eq!(SymbolIndex::from_u32(2), ic.index());
-//! assert_eq!(SymbolIndex::from_u32(1), id.index());
+//! assert_eq!(SymbolIndex::from_int(1), ia.index());
+//! assert_eq!(SymbolIndex::from_int(1), ib.index());
+//! assert_eq!(SymbolIndex::from_int(2), ic.index());
+//! assert_eq!(SymbolIndex::from_int(1), id.index());
 //!
 //! // Symbols can also be looked up by index.
 //! assert_eq!(Some(ia), interner.index_lookup(ia.index()));
@@ -268,10 +268,11 @@
 
 use crate::global;
 use bumpalo::Bump;
+use core::num;
 use fxhash::FxBuildHasher;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::hash::BuildHasher;
 use std::ops::Deref;
@@ -289,16 +290,57 @@ use std::ops::Deref;
 /// The index `0` is never valid because of [`global::NonZeroProgSymSize`],
 ///   which allows us to have `Option<SymbolIndex>` at no space cost.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SymbolIndex(global::NonZeroProgSymSize);
+pub struct SymbolIndex<Ix: SupportedSymbolIndex = global::NonZeroProgSymSize>(
+    Ix,
+);
 
-impl SymbolIndex {
+impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
+    /// Construct index from a non-zero `u16` value.
+    ///
+    /// Panics
+    /// ------
+    /// Will panic if `n == 0`.
+    pub fn from_int(n: Ix::BaseType) -> SymbolIndex<Ix> {
+        SymbolIndex(Ix::new(n).unwrap())
+    }
+
+    /// Construct index from an unchecked non-zero `u16` value.
+    ///
+    /// This does not verify that `n > 0` and so must only be used in
+    ///   contexts where this invariant is guaranteed to hold.
+    /// Unlike [`from_int`](SymbolIndex::from_int),
+    ///   this never panics.
+    unsafe fn from_int_unchecked(n: Ix::BaseType) -> SymbolIndex<Ix> {
+        SymbolIndex(Ix::new_unchecked(n))
+    }
+
+    /// Construct index from a non-zero `u16` value.
+    ///
+    /// Panics
+    /// ------
+    /// Will panic if `n == 0`.
+    pub fn from_u16(n: u16) -> SymbolIndex<num::NonZeroU16> {
+        SymbolIndex::<num::NonZeroU16>::from_int(n)
+    }
+
+    /// Construct index from an unchecked non-zero `u16` value.
+    ///
+    /// This does not verify that `n > 0` and so must only be used in
+    ///   contexts where this invariant is guaranteed to hold.
+    /// Unlike [`from_u16`](SymbolIndex::from_u16),
+    ///   this never panics.
+    #[allow(dead_code)]
+    unsafe fn from_u16_unchecked(n: u16) -> SymbolIndex<num::NonZeroU16> {
+        SymbolIndex::<num::NonZeroU16>::from_int_unchecked(n)
+    }
+
     /// Construct index from a non-zero `u32` value.
     ///
     /// Panics
     /// ------
     /// Will panic if `n == 0`.
-    pub fn from_u32(n: u32) -> SymbolIndex {
-        SymbolIndex(global::NonZeroProgSymSize::new(n).unwrap())
+    pub fn from_u32(n: u32) -> SymbolIndex<num::NonZeroU32> {
+        SymbolIndex::<num::NonZeroU32>::from_int(n)
     }
 
     /// Construct index from an unchecked non-zero `u32` value.
@@ -307,20 +349,83 @@ impl SymbolIndex {
     ///   contexts where this invariant is guaranteed to hold.
     /// Unlike [`from_u32`](SymbolIndex::from_u32),
     ///   this never panics.
-    unsafe fn from_u32_unchecked(n: u32) -> SymbolIndex {
-        SymbolIndex(global::NonZeroProgSymSize::new_unchecked(n))
+    #[allow(dead_code)]
+    unsafe fn from_u32_unchecked(n: u32) -> SymbolIndex<num::NonZeroU32> {
+        SymbolIndex::<num::NonZeroU32>::from_int_unchecked(n)
     }
 }
 
-impl From<SymbolIndex> for usize {
-    fn from(value: SymbolIndex) -> usize {
-        value.0.get() as usize
+impl<Ix: SupportedSymbolIndex> From<SymbolIndex<Ix>> for usize {
+    fn from(value: SymbolIndex<Ix>) -> usize {
+        value.0.get_usize()
     }
 }
 
-impl<'i> From<&Symbol<'i>> for SymbolIndex {
-    fn from(sym: &Symbol<'i>) -> Self {
+impl<'i, Ix: SupportedSymbolIndex> From<&Symbol<'i, Ix>> for SymbolIndex<Ix> {
+    fn from(sym: &Symbol<'i, Ix>) -> Self {
         sym.index()
+    }
+}
+
+pub trait SupportedSymbolIndex: Sized + Copy + 'static {
+    type BaseType: PartialEq + Eq + TryFrom<usize> + Copy;
+
+    fn dummy_sym() -> &'static Symbol<'static, Self>;
+
+    fn new(n: Self::BaseType) -> Option<Self>;
+
+    unsafe fn new_unchecked(n: Self::BaseType) -> Self;
+
+    fn get(self) -> Self::BaseType;
+
+    fn get_usize(self) -> usize;
+}
+
+impl SupportedSymbolIndex for num::NonZeroU16 {
+    type BaseType = u16;
+
+    fn dummy_sym() -> &'static Symbol<'static, num::NonZeroU16> {
+        &DUMMY_SYM_16
+    }
+
+    fn new(n: Self::BaseType) -> Option<Self> {
+        num::NonZeroU16::new(n)
+    }
+
+    unsafe fn new_unchecked(n: Self::BaseType) -> Self {
+        num::NonZeroU16::new_unchecked(n)
+    }
+
+    fn get(self) -> Self::BaseType {
+        self.get()
+    }
+
+    fn get_usize(self) -> usize {
+        self.get() as usize
+    }
+}
+
+impl SupportedSymbolIndex for num::NonZeroU32 {
+    type BaseType = u32;
+
+    fn new(n: Self::BaseType) -> Option<Self> {
+        num::NonZeroU32::new(n)
+    }
+
+    unsafe fn new_unchecked(n: Self::BaseType) -> Self {
+        num::NonZeroU32::new_unchecked(n)
+    }
+
+    fn dummy_sym() -> &'static Symbol<'static, num::NonZeroU32> {
+        &DUMMY_SYM_32
+    }
+
+    fn get(self) -> Self::BaseType {
+        self.get()
+    }
+
+    fn get_usize(self) -> usize {
+        self.get() as usize
     }
 }
 
@@ -349,12 +454,15 @@ impl<'i> From<&Symbol<'i>> for SymbolIndex {
 ///     whose lifetime is that of the [`Interner`]'s underlying data store.
 /// Dereferencing the symbol will expose the underlying slice.
 #[derive(Copy, Clone, Debug)]
-pub struct Symbol<'i> {
-    index: SymbolIndex,
+pub struct Symbol<'i, Ix = global::NonZeroProgSymSize>
+where
+    Ix: SupportedSymbolIndex,
+{
+    index: SymbolIndex<Ix>,
     str: &'i str,
 }
 
-impl<'i> Symbol<'i> {
+impl<'i, Ix: SupportedSymbolIndex> Symbol<'i, Ix> {
     /// Construct a new interned value.
     ///
     /// _This must only be done by an [`Interner`]._
@@ -364,7 +472,7 @@ impl<'i> Symbol<'i> {
     /// For test builds (when `cfg(test)`),
     ///   `new_dummy` is available to create symbols for tests.
     #[inline]
-    fn new(index: SymbolIndex, str: &'i str) -> Symbol<'i> {
+    fn new(index: SymbolIndex<Ix>, str: &'i str) -> Symbol<'i, Ix> {
         Self { index, str }
     }
 
@@ -374,7 +482,7 @@ impl<'i> Symbol<'i> {
     ///   mapping.
     /// See [`SymbolIndex`] for more information.
     #[inline]
-    pub fn index(&self) -> SymbolIndex {
+    pub fn index(&self) -> SymbolIndex<Ix> {
         self.index
     }
 
@@ -388,7 +496,7 @@ impl<'i> Symbol<'i> {
     /// See also `dummy_symbol!`.
     #[cfg(test)]
     #[inline(always)]
-    pub fn new_dummy(index: SymbolIndex, str: &'i str) -> Symbol<'i> {
+    pub fn new_dummy(index: SymbolIndex<Ix>, str: &'i str) -> Symbol<'i, Ix> {
         Self::new(index, str)
     }
 }
@@ -424,6 +532,26 @@ impl<'i> fmt::Display for Symbol<'i> {
     }
 }
 
+lazy_static! {
+    /// Dummy 16-bit [`Symbol`] for use at index `0`.
+    ///
+    /// A symbol must never have an index of `0`,
+    ///   so this can be used as a placeholder.
+    /// The chosen [`SymbolIndex`] here does not matter since this will
+    ///   never be referenced.
+    static ref DUMMY_SYM_16: Symbol<'static, num::NonZeroU16> =
+        Symbol::new(SymbolIndex::from_int(1), "!BADSYMREF!");
+
+    /// Dummy 32-bit [`Symbol`] for use at index `0`.
+    ///
+    /// A symbol must never have an index of `0`,
+    ///   so this can be used as a placeholder.
+    /// The chosen [`SymbolIndex`] here does not matter since this will
+    ///   never be referenced.
+    static ref DUMMY_SYM_32: Symbol<'static, num::NonZeroU32> =
+        Symbol::new(SymbolIndex::from_int(1), "!BADSYMREF!");
+}
+
 /// Create, store, compare, and retrieve [`Symbol`] values.
 ///
 /// Interners accept string slices and produce values of type [`Symbol`].
@@ -438,7 +566,10 @@ impl<'i> fmt::Display for Symbol<'i> {
 ///     [`contains`](Interner::contains).
 ///
 /// See the [module-level documentation](self) for an example.
-pub trait Interner<'i> {
+pub trait Interner<'i, Ix = global::NonZeroProgSymSize>
+where
+    Ix: SupportedSymbolIndex,
+{
     /// Intern a string slice or return an existing [`Symbol`].
     ///
     /// If the provided string has already been interned,
@@ -451,14 +582,14 @@ pub trait Interner<'i> {
     ///
     /// To retrieve an existing symbol _without_ interning,
     ///   see [`intern_soft`](Interner::intern_soft).
-    fn intern(&'i self, value: &str) -> &'i Symbol<'i>;
+    fn intern(&'i self, value: &str) -> &'i Symbol<'i, Ix>;
 
     /// Retrieve an existing intern for the string slice `s`.
     ///
     /// Unlike [`intern`](Interner::intern),
     ///   this will _not_ intern the string if it has not already been
     ///   interned.
-    fn intern_soft(&'i self, value: &str) -> Option<&'i Symbol<'i>>;
+    fn intern_soft(&'i self, value: &str) -> Option<&'i Symbol<'i, Ix>>;
 
     /// Determine whether the given value has already been interned.
     fn contains(&self, value: &str) -> bool;
@@ -482,7 +613,10 @@ pub trait Interner<'i> {
     ///   borrowed [`Symbol`] references require lifetimes,
     ///   whereas [`SymbolIndex`] is both owned _and_ [`Copy`].
     /// [`SymbolIndex`] is also much smaller than [`Symbol`].
-    fn index_lookup(&'i self, index: SymbolIndex) -> Option<&'i Symbol<'i>>;
+    fn index_lookup(
+        &'i self,
+        index: SymbolIndex<Ix>,
+    ) -> Option<&'i Symbol<'i, Ix>>;
 
     /// Intern an assumed-UTF8 slice of bytes or return an existing
     ///   [`Symbol`].
@@ -496,7 +630,10 @@ pub trait Interner<'i> {
     ///     (such as [object files][]).
     ///
     /// [object files]: crate::obj
-    unsafe fn intern_utf8_unchecked(&'i self, value: &[u8]) -> &'i Symbol<'i> {
+    unsafe fn intern_utf8_unchecked(
+        &'i self,
+        value: &[u8],
+    ) -> &'i Symbol<'i, Ix> {
         self.intern(std::str::from_utf8_unchecked(value))
     }
 }
@@ -513,9 +650,10 @@ pub trait Interner<'i> {
 ///
 /// See the [module-level documentation](self) for examples and more
 ///   information on how to use this interner.
-pub struct ArenaInterner<'i, S>
+pub struct ArenaInterner<'i, S, Ix = global::NonZeroProgSymSize>
 where
     S: BuildHasher + Default,
+    Ix: SupportedSymbolIndex,
 {
     /// String and [`Symbol`] storage.
     arena: Bump,
@@ -527,28 +665,18 @@ where
     ///
     /// The first index must always be populated during initialization to
     ///   ensure that [`SymbolIndex`] will never be `0`.
-    indexes: RefCell<Vec<&'i Symbol<'i>>>,
+    indexes: RefCell<Vec<&'i Symbol<'i, Ix>>>,
 
     /// Map of interned strings to their respective [`Symbol`].
     ///
     /// Both strings and symbols are allocated within `arena`.
-    map: RefCell<HashMap<&'i str, &'i Symbol<'i>, S>>,
+    map: RefCell<HashMap<&'i str, &'i Symbol<'i, Ix>, S>>,
 }
 
-lazy_static! {
-    /// Dummy [`Symbol`] for use at index `0`.
-    ///
-    /// A symbol must never have an index of `0`,
-    ///   so this can be used as a placeholder.
-    /// The chosen [`SymbolIndex`] here does not matter since this will
-    ///   never be referenced.
-    static ref DUMMY_SYM: Symbol<'static> =
-        Symbol::new(SymbolIndex::from_u32(1), "!BADSYMREF!");
-}
-
-impl<'i, S> ArenaInterner<'i, S>
+impl<'i, S, Ix> ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
+    Ix: SupportedSymbolIndex,
 {
     /// Initialize a new interner with no initial capacity.
     ///
@@ -575,10 +703,10 @@ where
     /// [consistent]: https://en.wikipedia.org/wiki/Consistent_hashing
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
-        let mut indexes = Vec::<&'i Symbol<'i>>::with_capacity(capacity);
+        let mut indexes = Vec::<&'i Symbol<'i, Ix>>::with_capacity(capacity);
 
         // The first index is not used since SymbolIndex cannot be 0.
-        indexes.push(&DUMMY_SYM);
+        indexes.push(Ix::dummy_sym());
 
         Self {
             arena: Bump::new(),
@@ -591,11 +719,15 @@ where
     }
 }
 
-impl<'i, S> Interner<'i> for ArenaInterner<'i, S>
+impl<'i, S, Ix> Interner<'i, Ix> for ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
+    Ix: SupportedSymbolIndex,
+    // Associated type bounds are still unstable at the time of writing
+    <<Ix as SupportedSymbolIndex>::BaseType as TryFrom<usize>>::Error:
+        std::fmt::Debug,
 {
-    fn intern(&'i self, value: &str) -> &'i Symbol<'i> {
+    fn intern(&'i self, value: &str) -> &'i Symbol<'i, Ix> {
         let mut map = self.map.borrow_mut();
 
         if let Some(sym) = map.get(value) {
@@ -604,15 +736,15 @@ where
 
         let mut syms = self.indexes.borrow_mut();
 
-        let next_index: u32 = syms
+        let next_index: Ix::BaseType = syms
             .len()
             .try_into()
             .expect("internal error: SymbolIndex range exhausted");
 
         // This is not actually unsafe because next_index is always >0
         // from initialization.
-        debug_assert!(next_index != 0);
-        let id = unsafe { SymbolIndex::from_u32_unchecked(next_index) };
+        debug_assert!(Ix::new(next_index).is_some()); // != 0 check
+        let id = unsafe { SymbolIndex::from_int_unchecked(next_index) };
 
         // Copy string slice into the arena.
         let clone: &'i str = unsafe {
@@ -623,7 +755,7 @@ where
 
         // Symbols are also stored within the arena, adjacent to the
         // string.  This ensures that both have stable locations in memory.
-        let sym: &'i Symbol<'i> = self.arena.alloc(Symbol::new(id, clone));
+        let sym: &'i Symbol<'i, Ix> = self.arena.alloc(Symbol::new(id, clone));
 
         map.insert(clone, sym);
         syms.push(sym);
@@ -632,7 +764,7 @@ where
     }
 
     #[inline]
-    fn intern_soft(&'i self, value: &str) -> Option<&'i Symbol<'i>> {
+    fn intern_soft(&'i self, value: &str) -> Option<&'i Symbol<'i, Ix>> {
         self.map.borrow().get(value).map(|sym| *sym)
     }
 
@@ -646,10 +778,13 @@ where
         self.map.borrow().len()
     }
 
-    fn index_lookup(&'i self, index: SymbolIndex) -> Option<&'i Symbol<'i>> {
+    fn index_lookup(
+        &'i self,
+        index: SymbolIndex<Ix>,
+    ) -> Option<&'i Symbol<'i, Ix>> {
         self.indexes
             .borrow()
-            .get(index.0.get() as usize)
+            .get(index.0.get_usize())
             .map(|sym| *sym)
     }
 }
@@ -664,7 +799,7 @@ where
 ///     (which uses SipHash at the time of writing).
 ///
 /// See intern benchmarks for a comparison.
-pub type FxArenaInterner<'i> = ArenaInterner<'i, FxBuildHasher>;
+pub type FxArenaInterner<'i, Ix> = ArenaInterner<'i, FxBuildHasher, Ix>;
 
 /// Recommended [`Interner`] and configuration.
 ///
@@ -674,13 +809,13 @@ pub type FxArenaInterner<'i> = ArenaInterner<'i, FxBuildHasher>;
 ///
 /// For more information on the hashing algorithm,
 ///   see [`FxArenaInterner`].
-pub type DefaultInterner<'i> = FxArenaInterner<'i>;
+pub type DefaultInterner<'i, Ix = num::NonZeroU32> = FxArenaInterner<'i, Ix>;
 
 /// Concisely define dummy symbols for testing.
 #[cfg(test)]
 macro_rules! symbol_dummy {
     ($id:expr, $name:expr) => {
-        Symbol::new_dummy(SymbolIndex::from_u32($id), $name);
+        Symbol::new_dummy(SymbolIndex::from_int($id), $name);
     };
 }
 
@@ -705,14 +840,14 @@ mod test {
 
         #[test]
         fn self_compares_eq() {
-            let sym = Symbol::new(SymbolIndex::from_u32(1), "str");
+            let sym = Symbol::new(SymbolIndex::from_int(1), "str");
 
             assert_eq!(&sym, &sym);
         }
 
         #[test]
         fn copy_compares_equal() {
-            let sym = Symbol::new(SymbolIndex::from_u32(1), "str");
+            let sym = Symbol::new(SymbolIndex::from_int(1), "str");
             let cpy = sym;
 
             assert_eq!(sym, cpy);
@@ -722,8 +857,8 @@ mod test {
         // used as a unique identifier across different interners.
         #[test]
         fn same_index_different_slices_compare_unequal() {
-            let a = Symbol::new(SymbolIndex::from_u32(1), "a");
-            let b = Symbol::new(SymbolIndex::from_u32(1), "b");
+            let a = Symbol::new(SymbolIndex::from_int(1), "a");
+            let b = Symbol::new(SymbolIndex::from_int(1), "b");
 
             assert_ne!(a, b);
         }
@@ -739,15 +874,15 @@ mod test {
         fn different_index_same_slices_compare_equal() {
             let slice = "str";
 
-            let a = Symbol::new(SymbolIndex::from_u32(1), slice);
-            let b = Symbol::new(SymbolIndex::from_u32(2), slice);
+            let a = Symbol::new(SymbolIndex::from_int(1), slice);
+            let b = Symbol::new(SymbolIndex::from_int(2), slice);
 
             assert_eq!(a, b);
         }
 
         #[test]
         fn cloned_symbols_compare_equal() {
-            let sym = Symbol::new(SymbolIndex::from_u32(1), "foo");
+            let sym = Symbol::new(SymbolIndex::from_int(1), "foo");
 
             assert_eq!(sym, sym.clone());
         }
@@ -757,7 +892,7 @@ mod test {
         #[test]
         fn ref_can_be_used_as_string_slice() {
             let slice = "str";
-            let sym_slice: &str = &Symbol::new(SymbolIndex::from_u32(1), slice);
+            let sym_slice: &str = &Symbol::new(SymbolIndex::from_int(1), slice);
 
             assert_eq!(slice, sym_slice);
         }
@@ -765,21 +900,21 @@ mod test {
         // For use when we can guarantee proper ids.
         #[test]
         fn can_create_index_unchecked() {
-            assert_eq!(SymbolIndex::from_u32(1), unsafe {
-                SymbolIndex::from_u32_unchecked(1)
+            assert_eq!(SymbolIndex::<num::NonZeroU16>::from_int(1), unsafe {
+                SymbolIndex::from_int_unchecked(1)
             });
         }
 
         #[test]
         fn can_retrieve_symbol_index() {
-            let index = SymbolIndex::from_u32(1);
+            let index = SymbolIndex::<num::NonZeroU16>::from_int(1);
 
             assert_eq!(index, Symbol::new(index, "").index());
         }
 
         #[test]
         fn displays_as_interned_value() {
-            let sym = Symbol::new(SymbolIndex::from_u32(1), "foo");
+            let sym = Symbol::new(SymbolIndex::from_int(1), "foo");
 
             assert_eq!(format!("{}", sym), sym.str);
         }
@@ -821,19 +956,19 @@ mod test {
 
             // Remember that identifiers begin at 1
             assert_eq!(
-                SymbolIndex::from_u32(1),
+                SymbolIndex::from_int(1),
                 sut.intern("foo").index(),
                 "First index should be 1"
             );
 
             assert_eq!(
-                SymbolIndex::from_u32(1),
+                SymbolIndex::from_int(1),
                 sut.intern("foo").index(),
                 "Index should not increment for already-interned symbols"
             );
 
             assert_eq!(
-                SymbolIndex::from_u32(2),
+                SymbolIndex::from_int(2),
                 sut.intern("bar").index(),
                 "Index should increment for new symbols"
             );
@@ -899,7 +1034,7 @@ mod test {
             let sut = Sut::new();
 
             // Symbol does not yet exist.
-            assert!(sut.index_lookup(SymbolIndex::from_u32(1)).is_none());
+            assert!(sut.index_lookup(SymbolIndex::from_int(1)).is_none());
 
             let sym = sut.intern("foo");
             assert_eq!(Some(sym), sut.index_lookup(sym.index()));
