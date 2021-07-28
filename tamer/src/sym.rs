@@ -268,14 +268,14 @@
 
 use crate::global;
 use bumpalo::Bump;
-use core::num;
 use fxhash::FxBuildHasher;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::fmt;
 use std::hash::BuildHasher;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Deref;
+use std::{fmt, fmt::Debug};
 
 /// Unique symbol identifier.
 ///
@@ -287,11 +287,12 @@ use std::ops::Deref;
 /// Note, however, that it provides no defense against mixing symbol indexes
 ///   between multiple [`Interner`]s.
 ///
-/// The index `0` is never valid because of [`global::NonZeroProgSymSize`],
-///   which allows us to have `Option<SymbolIndex>` at no space cost.
+/// The index `0` is never valid because of
+///   [`SupportedSymbolIndex::NonZero`],
+///     which allows us to have `Option<SymbolIndex>` at no space cost.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SymbolIndex<Ix: SupportedSymbolIndex = global::NonZeroProgSymSize>(
-    Ix,
+pub struct SymbolIndex<Ix: SupportedSymbolIndex = global::ProgSymSize>(
+    Ix::NonZero,
 );
 
 impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
@@ -300,7 +301,7 @@ impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
     /// Panics
     /// ------
     /// Will panic if `n == 0`.
-    pub fn from_int(n: Ix::BaseType) -> SymbolIndex<Ix> {
+    pub fn from_int(n: Ix) -> SymbolIndex<Ix> {
         SymbolIndex(Ix::new(n).unwrap())
     }
 
@@ -310,7 +311,7 @@ impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
     ///   contexts where this invariant is guaranteed to hold.
     /// Unlike [`from_int`](SymbolIndex::from_int),
     ///   this never panics.
-    unsafe fn from_int_unchecked(n: Ix::BaseType) -> SymbolIndex<Ix> {
+    unsafe fn from_int_unchecked(n: Ix) -> SymbolIndex<Ix> {
         SymbolIndex(Ix::new_unchecked(n))
     }
 
@@ -319,19 +320,8 @@ impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
     /// Panics
     /// ------
     /// Will panic if `n == 0`.
-    pub fn from_u16(n: u16) -> SymbolIndex<num::NonZeroU16> {
-        SymbolIndex::<num::NonZeroU16>::from_int(n)
-    }
-
-    /// Construct index from an unchecked non-zero `u16` value.
-    ///
-    /// This does not verify that `n > 0` and so must only be used in
-    ///   contexts where this invariant is guaranteed to hold.
-    /// Unlike [`from_u16`](SymbolIndex::from_u16),
-    ///   this never panics.
-    #[allow(dead_code)]
-    unsafe fn from_u16_unchecked(n: u16) -> SymbolIndex<num::NonZeroU16> {
-        SymbolIndex::<num::NonZeroU16>::from_int_unchecked(n)
+    pub fn from_u16(n: u16) -> SymbolIndex<u16> {
+        SymbolIndex::from_int(n)
     }
 
     /// Construct index from a non-zero `u32` value.
@@ -339,25 +329,17 @@ impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
     /// Panics
     /// ------
     /// Will panic if `n == 0`.
-    pub fn from_u32(n: u32) -> SymbolIndex<num::NonZeroU32> {
-        SymbolIndex::<num::NonZeroU32>::from_int(n)
-    }
-
-    /// Construct index from an unchecked non-zero `u32` value.
-    ///
-    /// This does not verify that `n > 0` and so must only be used in
-    ///   contexts where this invariant is guaranteed to hold.
-    /// Unlike [`from_u32`](SymbolIndex::from_u32),
-    ///   this never panics.
-    #[allow(dead_code)]
-    unsafe fn from_u32_unchecked(n: u32) -> SymbolIndex<num::NonZeroU32> {
-        SymbolIndex::<num::NonZeroU32>::from_int_unchecked(n)
+    pub fn from_u32(n: u32) -> SymbolIndex<u32> {
+        SymbolIndex::from_int(n)
     }
 }
 
-impl<Ix: SupportedSymbolIndex> From<SymbolIndex<Ix>> for usize {
+impl<Ix: SupportedSymbolIndex> From<SymbolIndex<Ix>> for usize
+where
+    <Ix as TryInto<usize>>::Error: Debug,
+{
     fn from(value: SymbolIndex<Ix>) -> usize {
-        value.0.get_usize()
+        value.0.into().into_usize()
     }
 }
 
@@ -367,67 +349,70 @@ impl<'i, Ix: SupportedSymbolIndex> From<&Symbol<'i, Ix>> for SymbolIndex<Ix> {
     }
 }
 
-pub trait SupportedSymbolIndex: Sized + Copy + 'static {
-    type BaseType: PartialEq + Eq + TryFrom<usize> + Copy;
+/// An integer type paired with its respective `NonZero` type that may be
+///   used to index symbols.
+///
+/// The trait is name as such so that error messages make it clear that a
+///   primitive type has to be explicitly accounted for.
+///
+/// This trait must be implemented on a primitive type like [`u16`].
+pub trait SupportedSymbolIndex:
+    Sized
+    + Copy
+    + Debug
+    + PartialEq
+    + Eq
+    + TryFrom<usize>
+    + TryInto<usize>
+    + 'static
+{
+    /// The associated `NonZero*` type (e.g. [`NonZeroU16`]).
+    type NonZero: Copy + Into<Self> + Debug;
 
+    /// A symbol with a static lifetime suitable for placement at index 0 in
+    ///   the string interment table,
+    ///     which is not a valid [`SymbolIndex`] value.
     fn dummy_sym() -> &'static Symbol<'static, Self>;
 
-    fn new(n: Self::BaseType) -> Option<Self>;
+    /// Construct a new non-zero value from the provided primitive value.
+    ///
+    /// If the value is `0`, the result will be [`None`].
+    fn new(n: Self) -> Option<Self::NonZero>;
 
-    unsafe fn new_unchecked(n: Self::BaseType) -> Self;
+    /// Construct a new non-zero value from the provided primitive value
+    ///   without checking whether the value is non-zero.
+    unsafe fn new_unchecked(n: Self) -> Self::NonZero;
 
-    fn get(self) -> Self::BaseType;
-
-    fn get_usize(self) -> usize;
+    /// Convert primitive value into a [`usize`].
+    fn into_usize(self) -> usize;
 }
 
-impl SupportedSymbolIndex for num::NonZeroU16 {
-    type BaseType = u16;
+macro_rules! supported_symbol_index {
+    ($prim:ty, $nonzero:ty, $dummy:ident) => {
+        impl SupportedSymbolIndex for $prim {
+            type NonZero = $nonzero;
 
-    fn dummy_sym() -> &'static Symbol<'static, num::NonZeroU16> {
-        &DUMMY_SYM_16
-    }
+            fn dummy_sym() -> &'static Symbol<'static, Self> {
+                &$dummy
+            }
 
-    fn new(n: Self::BaseType) -> Option<Self> {
-        num::NonZeroU16::new(n)
-    }
+            fn new(n: Self) -> Option<Self::NonZero> {
+                Self::NonZero::new(n)
+            }
 
-    unsafe fn new_unchecked(n: Self::BaseType) -> Self {
-        num::NonZeroU16::new_unchecked(n)
-    }
+            unsafe fn new_unchecked(n: Self) -> Self::NonZero {
+                Self::NonZero::new_unchecked(n)
+            }
 
-    fn get(self) -> Self::BaseType {
-        self.get()
-    }
-
-    fn get_usize(self) -> usize {
-        self.get() as usize
-    }
+            fn into_usize(self) -> usize {
+                self as usize
+            }
+        }
+    };
 }
 
-impl SupportedSymbolIndex for num::NonZeroU32 {
-    type BaseType = u32;
-
-    fn new(n: Self::BaseType) -> Option<Self> {
-        num::NonZeroU32::new(n)
-    }
-
-    unsafe fn new_unchecked(n: Self::BaseType) -> Self {
-        num::NonZeroU32::new_unchecked(n)
-    }
-
-    fn dummy_sym() -> &'static Symbol<'static, num::NonZeroU32> {
-        &DUMMY_SYM_32
-    }
-
-    fn get(self) -> Self::BaseType {
-        self.get()
-    }
-
-    fn get_usize(self) -> usize {
-        self.get() as usize
-    }
-}
+supported_symbol_index!(u16, NonZeroU16, DUMMY_SYM_16);
+supported_symbol_index!(u32, NonZeroU32, DUMMY_SYM_32);
 
 /// Interned string.
 ///
@@ -454,7 +439,7 @@ impl SupportedSymbolIndex for num::NonZeroU32 {
 ///     whose lifetime is that of the [`Interner`]'s underlying data store.
 /// Dereferencing the symbol will expose the underlying slice.
 #[derive(Copy, Clone, Debug)]
-pub struct Symbol<'i, Ix = global::NonZeroProgSymSize>
+pub struct Symbol<'i, Ix = global::ProgSymSize>
 where
     Ix: SupportedSymbolIndex,
 {
@@ -539,7 +524,7 @@ lazy_static! {
     ///   so this can be used as a placeholder.
     /// The chosen [`SymbolIndex`] here does not matter since this will
     ///   never be referenced.
-    static ref DUMMY_SYM_16: Symbol<'static, num::NonZeroU16> =
+    static ref DUMMY_SYM_16: Symbol<'static, u16> =
         Symbol::new(SymbolIndex::from_int(1), "!BADSYMREF!");
 
     /// Dummy 32-bit [`Symbol`] for use at index `0`.
@@ -548,7 +533,7 @@ lazy_static! {
     ///   so this can be used as a placeholder.
     /// The chosen [`SymbolIndex`] here does not matter since this will
     ///   never be referenced.
-    static ref DUMMY_SYM_32: Symbol<'static, num::NonZeroU32> =
+    static ref DUMMY_SYM_32: Symbol<'static, u32> =
         Symbol::new(SymbolIndex::from_int(1), "!BADSYMREF!");
 }
 
@@ -566,7 +551,7 @@ lazy_static! {
 ///     [`contains`](Interner::contains).
 ///
 /// See the [module-level documentation](self) for an example.
-pub trait Interner<'i, Ix = global::NonZeroProgSymSize>
+pub trait Interner<'i, Ix = global::ProgSymSize>
 where
     Ix: SupportedSymbolIndex,
 {
@@ -650,7 +635,7 @@ where
 ///
 /// See the [module-level documentation](self) for examples and more
 ///   information on how to use this interner.
-pub struct ArenaInterner<'i, S, Ix = global::NonZeroProgSymSize>
+pub struct ArenaInterner<'i, S, Ix = global::ProgSymSize>
 where
     S: BuildHasher + Default,
     Ix: SupportedSymbolIndex,
@@ -723,9 +708,7 @@ impl<'i, S, Ix> Interner<'i, Ix> for ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
     Ix: SupportedSymbolIndex,
-    // Associated type bounds are still unstable at the time of writing
-    <<Ix as SupportedSymbolIndex>::BaseType as TryFrom<usize>>::Error:
-        std::fmt::Debug,
+    <Ix as TryFrom<usize>>::Error: Debug,
 {
     fn intern(&'i self, value: &str) -> &'i Symbol<'i, Ix> {
         let mut map = self.map.borrow_mut();
@@ -736,7 +719,7 @@ where
 
         let mut syms = self.indexes.borrow_mut();
 
-        let next_index: Ix::BaseType = syms
+        let next_index: Ix = syms
             .len()
             .try_into()
             .expect("internal error: SymbolIndex range exhausted");
@@ -784,7 +767,7 @@ where
     ) -> Option<&'i Symbol<'i, Ix>> {
         self.indexes
             .borrow()
-            .get(index.0.get_usize())
+            .get(index.0.into().into_usize())
             .map(|sym| *sym)
     }
 }
@@ -809,7 +792,8 @@ pub type FxArenaInterner<'i, Ix> = ArenaInterner<'i, FxBuildHasher, Ix>;
 ///
 /// For more information on the hashing algorithm,
 ///   see [`FxArenaInterner`].
-pub type DefaultInterner<'i, Ix = num::NonZeroU32> = FxArenaInterner<'i, Ix>;
+pub type DefaultInterner<'i, Ix = global::ProgSymSize> =
+    FxArenaInterner<'i, Ix>;
 
 /// Concisely define dummy symbols for testing.
 #[cfg(test)]
@@ -900,14 +884,14 @@ mod test {
         // For use when we can guarantee proper ids.
         #[test]
         fn can_create_index_unchecked() {
-            assert_eq!(SymbolIndex::<num::NonZeroU16>::from_int(1), unsafe {
+            assert_eq!(SymbolIndex::from_int(1u32), unsafe {
                 SymbolIndex::from_int_unchecked(1)
             });
         }
 
         #[test]
         fn can_retrieve_symbol_index() {
-            let index = SymbolIndex::<num::NonZeroU16>::from_int(1);
+            let index = SymbolIndex::from_int(1u16);
 
             assert_eq!(index, Symbol::new(index, "").index());
         }
