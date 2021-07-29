@@ -19,6 +19,9 @@
 
 //! Base concrete [`Asg`] implementation.
 
+use std::convert::TryInto;
+use std::fmt::Debug;
+
 use super::graph::{
     Asg, AsgEdge, AsgResult, IndexType, Node, ObjectRef, SortableAsg,
     SortableAsgError, SortableAsgResult,
@@ -28,7 +31,7 @@ use super::object::{
     FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
 };
 use super::Sections;
-use crate::sym::Symbol;
+use crate::sym::{Symbol, SymbolIndexSize};
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
 use petgraph::visit::DfsPostOrder;
 
@@ -44,7 +47,7 @@ use petgraph::visit::DfsPostOrder;
 ///   see [`Asg`].
 pub struct BaseAsg<O, Ix>
 where
-    Ix: IndexType,
+    Ix: IndexType + SymbolIndexSize,
 {
     /// Directed graph on which objects are stored.
     graph: DiGraph<Node<O>, AsgEdge, Ix>,
@@ -63,8 +66,9 @@ where
 
 impl<'i, O, Ix> BaseAsg<O, Ix>
 where
-    Ix: IndexType,
-    O: IdentObjectState<'i, O> + IdentObjectData<'i>,
+    Ix: IndexType + SymbolIndexSize,
+    <Ix as TryInto<usize>>::Error: Debug,
+    O: IdentObjectState<'i, Ix, O> + IdentObjectData<'i, Ix>,
 {
     /// Create a new ASG.
     ///
@@ -114,7 +118,11 @@ where
     /// Panics
     /// ======
     /// Will panic if unable to allocate more space for the index.
-    fn index_identifier(&mut self, name: &'i Symbol<'i>, node: NodeIndex<Ix>) {
+    fn index_identifier(
+        &mut self,
+        name: &'i Symbol<'i, Ix>,
+        node: NodeIndex<Ix>,
+    ) {
         let i: usize = name.index().into();
 
         if i >= self.index.len() {
@@ -137,7 +145,10 @@ where
     ///   reference to it.
     ///
     /// See [`IdentObjectState::declare`] for more information.
-    fn lookup_or_missing(&mut self, ident: &'i Symbol<'i>) -> ObjectRef<Ix> {
+    fn lookup_or_missing(
+        &mut self,
+        ident: &'i Symbol<'i, Ix>,
+    ) -> ObjectRef<Ix> {
         self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(O::declare(ident)));
 
@@ -157,7 +168,7 @@ where
     ///   value on transition failure.
     fn with_ident_lookup<F>(
         &mut self,
-        name: &'i Symbol<'i>,
+        name: &'i Symbol<'i, Ix>,
         f: F,
     ) -> AsgResult<ObjectRef<Ix>>
     where
@@ -202,23 +213,24 @@ where
 
 impl<'i, O, Ix> Asg<'i, O, Ix> for BaseAsg<O, Ix>
 where
-    Ix: IndexType,
-    O: IdentObjectState<'i, O> + IdentObjectData<'i>,
+    Ix: IndexType + SymbolIndexSize,
+    <Ix as TryInto<usize>>::Error: Debug,
+    O: IdentObjectState<'i, Ix, O> + IdentObjectData<'i, Ix>,
 {
     fn declare(
         &mut self,
-        name: &'i Symbol<'i>,
+        name: &'i Symbol<'i, Ix>,
         kind: IdentKind,
-        src: Source<'i>,
+        src: Source<'i, Ix>,
     ) -> AsgResult<ObjectRef<Ix>> {
         self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
     }
 
     fn declare_extern(
         &mut self,
-        name: &'i Symbol<'i>,
+        name: &'i Symbol<'i, Ix>,
         kind: IdentKind,
-        src: Source<'i>,
+        src: Source<'i, Ix>,
     ) -> AsgResult<ObjectRef<Ix>> {
         self.with_ident_lookup(name, |obj| obj.extern_(kind, src))
     }
@@ -240,7 +252,7 @@ where
     }
 
     #[inline]
-    fn lookup(&self, name: &'i Symbol<'i>) -> Option<ObjectRef<Ix>> {
+    fn lookup(&self, name: &'i Symbol<'i, Ix>) -> Option<ObjectRef<Ix>> {
         let i: usize = name.index().into();
 
         self.index
@@ -261,8 +273,8 @@ where
 
     fn add_dep_lookup(
         &mut self,
-        ident: &'i Symbol<'i>,
-        dep: &'i Symbol<'i>,
+        ident: &'i Symbol<'i, Ix>,
+        dep: &'i Symbol<'i, Ix>,
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>) {
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
@@ -276,8 +288,9 @@ where
 
 impl<'i, O, Ix> SortableAsg<'i, O, Ix> for BaseAsg<O, Ix>
 where
-    Ix: IndexType,
-    O: IdentObjectData<'i> + IdentObjectState<'i, O>,
+    Ix: IndexType + SymbolIndexSize,
+    <Ix as TryInto<usize>>::Error: Debug,
+    O: IdentObjectData<'i, Ix> + IdentObjectState<'i, Ix, O>,
 {
     fn sort(
         &'i self,
@@ -339,8 +352,9 @@ where
 ///   they are, we ignore the cycle, otherwise we will return an error.
 fn check_cycles<'i, O, Ix>(asg: &BaseAsg<O, Ix>) -> SortableAsgResult<(), Ix>
 where
-    Ix: IndexType,
-    O: IdentObjectData<'i> + IdentObjectState<'i, O>,
+    Ix: IndexType + SymbolIndexSize,
+    <Ix as TryInto<usize>>::Error: Debug,
+    O: IdentObjectData<'i, Ix> + IdentObjectState<'i, Ix, O>,
 {
     // While `tarjan_scc` does do a topological sort, it does not suit our
     // needs because we need to filter out some allowed cycles. It would
@@ -395,11 +409,13 @@ mod test {
     use crate::sym::SymbolIndex;
     use std::cell::RefCell;
 
+    type Ix = u8;
+
     #[derive(Debug, Default, PartialEq)]
     struct StubIdentObject<'i> {
-        given_declare: Option<&'i Symbol<'i>>,
-        given_extern: Option<(IdentKind, Source<'i>)>,
-        given_resolve: Option<(IdentKind, Source<'i>)>,
+        given_declare: Option<&'i Symbol<'i, Ix>>,
+        given_extern: Option<(IdentKind, Source<'i, Ix>)>,
+        given_resolve: Option<(IdentKind, Source<'i, Ix>)>,
         given_set_fragment: Option<FragmentText>,
         fail_redeclare: RefCell<Option<TransitionError>>,
         fail_extern: RefCell<Option<TransitionError>>,
@@ -407,8 +423,8 @@ mod test {
         fail_resolved: RefCell<Option<UnresolvedError>>,
     }
 
-    impl<'i> IdentObjectData<'i> for StubIdentObject<'i> {
-        fn name(&self) -> Option<&'i Symbol<'i>> {
+    impl<'i> IdentObjectData<'i, Ix> for StubIdentObject<'i> {
+        fn name(&self) -> Option<&'i Symbol<'i, Ix>> {
             self.given_declare
         }
 
@@ -416,7 +432,7 @@ mod test {
             self.given_resolve.as_ref().map(|args| &args.0)
         }
 
-        fn src(&self) -> Option<&Source<'i>> {
+        fn src(&self) -> Option<&Source<'i, Ix>> {
             None
         }
 
@@ -424,13 +440,13 @@ mod test {
             None
         }
 
-        fn as_ident(&self) -> Option<&IdentObject<'i>> {
+        fn as_ident(&self) -> Option<&IdentObject<'i, Ix>> {
             None
         }
     }
 
-    impl<'i> IdentObjectState<'i, StubIdentObject<'i>> for StubIdentObject<'i> {
-        fn declare(ident: &'i Symbol<'i>) -> Self {
+    impl<'i> IdentObjectState<'i, Ix, StubIdentObject<'i>> for StubIdentObject<'i> {
+        fn declare(ident: &'i Symbol<'i, Ix>) -> Self {
             Self {
                 given_declare: Some(ident),
                 ..Default::default()
@@ -440,7 +456,7 @@ mod test {
         fn resolve(
             mut self,
             kind: IdentKind,
-            src: Source<'i>,
+            src: Source<'i, Ix>,
         ) -> TransitionResult<StubIdentObject<'i>> {
             if self.fail_redeclare.borrow().is_some() {
                 let err = self.fail_redeclare.replace(None).unwrap();
@@ -462,7 +478,7 @@ mod test {
         fn extern_(
             mut self,
             kind: IdentKind,
-            src: Source<'i>,
+            src: Source<'i, Ix>,
         ) -> TransitionResult<StubIdentObject<'i>> {
             if self.fail_extern.borrow().is_some() {
                 let err = self.fail_extern.replace(None).unwrap();
@@ -512,8 +528,8 @@ mod test {
         // index to create a gap, and then use an index within that gap
         // to ensure that it's not considered an already-defined
         // identifier.
-        let syma = symbol_dummy!(5, "syma");
-        let symb = symbol_dummy!(1, "symab");
+        let syma = symbol_dummy!(5u8, "syma");
+        let symb = symbol_dummy!(1u8, "symab");
 
         let nodea = sut.declare(
             &syma,
@@ -566,7 +582,7 @@ mod test {
     fn lookup_by_symbol() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "lookup");
+        let sym = symbol_dummy!(1u8, "lookup");
         let node = sut.declare(
             &sym,
             IdentKind::Meta,
@@ -585,7 +601,7 @@ mod test {
     fn declare_returns_existing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "symdup");
+        let sym = symbol_dummy!(1u8, "symdup");
         let src = Source::default();
         let node = sut.declare(&sym, IdentKind::Meta, src.clone())?;
 
@@ -611,7 +627,7 @@ mod test {
     fn declare_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "symdup");
+        let sym = symbol_dummy!(1u8, "symdup");
         let src = Source {
             desc: Some("orig".into()),
             ..Default::default()
@@ -647,7 +663,7 @@ mod test {
     fn declare_extern_returns_existing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "symext");
+        let sym = symbol_dummy!(1u8, "symext");
         let src = Source::default();
         let node = sut.declare_extern(&sym, IdentKind::Meta, src.clone())?;
 
@@ -673,7 +689,7 @@ mod test {
     fn declare_extern_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "symdup");
+        let sym = symbol_dummy!(1u8, "symdup");
         let src = Source {
             desc: Some("orig".into()),
             ..Default::default()
@@ -713,7 +729,7 @@ mod test {
     fn add_fragment_to_ident() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "tofrag");
+        let sym = symbol_dummy!(1u8, "tofrag");
         let src = Source {
             generated: true,
             ..Default::default()
@@ -743,7 +759,7 @@ mod test {
     fn add_fragment_to_ident_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "failfrag");
+        let sym = symbol_dummy!(1u8, "failfrag");
         let src = Source {
             generated: true,
             ..Default::default()
@@ -777,8 +793,8 @@ mod test {
     fn add_ident_dep_to_ident() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let dep = symbol_dummy!(2, "dep");
+        let sym = symbol_dummy!(1u8, "sym");
+        let dep = symbol_dummy!(2u8, "dep");
 
         let symnode = sut.declare(&sym, IdentKind::Meta, Source::default())?;
         let depnode = sut.declare(&dep, IdentKind::Meta, Source::default())?;
@@ -798,8 +814,8 @@ mod test {
     fn add_dep_lookup_existing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let dep = symbol_dummy!(2, "dep");
+        let sym = symbol_dummy!(1u8, "sym");
+        let dep = symbol_dummy!(2u8, "dep");
 
         let _ = sut.declare(&sym, IdentKind::Meta, Source::default())?;
         let _ = sut.declare(&dep, IdentKind::Meta, Source::default())?;
@@ -814,8 +830,8 @@ mod test {
     fn add_dep_lookup_missing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let dep = symbol_dummy!(2, "dep");
+        let sym = symbol_dummy!(1u8, "sym");
+        let dep = symbol_dummy!(2u8, "dep");
 
         // both of these are missing
         let (symnode, depnode) = sut.add_dep_lookup(&sym, &dep);
@@ -831,8 +847,8 @@ mod test {
     fn declare_return_missing_symbol() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let dep = symbol_dummy!(2, "dep");
+        let sym = symbol_dummy!(1u8, "sym");
+        let dep = symbol_dummy!(2u8, "dep");
 
         // both of these are missing, see add_dep_lookup_missing
         let (symnode, _) = sut.add_dep_lookup(&sym, &dep);
@@ -895,7 +911,7 @@ mod test {
         let mut retmap = vec![];
         let mut consts = vec![];
 
-        let base = symbol_dummy!(1, "sym1");
+        let base = symbol_dummy!(1u8, "sym1");
         let base_node = sut
             .declare(&base, IdentKind::Map, Source::default())
             .unwrap();
@@ -938,8 +954,8 @@ mod test {
     fn graph_sort_missing_node() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let dep = symbol_dummy!(2, "dep");
+        let sym = symbol_dummy!(1u8, "sym");
+        let dep = symbol_dummy!(2u8, "dep");
 
         let sym_node = sut
             .declare(
@@ -972,8 +988,8 @@ mod test {
     fn graph_sort_no_roots() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let dep = symbol_dummy!(2, "dep");
+        let sym = symbol_dummy!(1u8, "sym");
+        let dep = symbol_dummy!(2u8, "dep");
 
         let (_, _) = sut.add_dep_lookup(&sym, &dep);
 
@@ -988,8 +1004,8 @@ mod test {
     fn graph_sort_simple_cycle() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(2, "sym");
-        let dep = symbol_dummy!(3, "dep");
+        let sym = symbol_dummy!(2u8, "sym");
+        let dep = symbol_dummy!(3u8, "dep");
 
         let sym_node = sut
             .declare(
@@ -1038,10 +1054,10 @@ mod test {
     fn graph_sort_two_simple_cycles() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(2, "sym");
-        let sym2 = symbol_dummy!(3, "sym2");
-        let dep = symbol_dummy!(4, "dep");
-        let dep2 = symbol_dummy!(5, "dep2");
+        let sym = symbol_dummy!(2u8, "sym");
+        let sym2 = symbol_dummy!(3u8, "sym2");
+        let dep = symbol_dummy!(4u8, "dep");
+        let dep2 = symbol_dummy!(5u8, "dep2");
 
         let sym_node = sut
             .declare(
@@ -1121,8 +1137,8 @@ mod test {
     {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(2, "sym");
-        let dep = symbol_dummy!(3, "dep");
+        let sym = symbol_dummy!(2u8, "sym");
+        let dep = symbol_dummy!(3u8, "dep");
 
         let sym_node = sut
             .declare(
@@ -1168,9 +1184,9 @@ mod test {
     fn graph_sort_cycle_with_a_few_steps() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = symbol_dummy!(1, "sym1");
-        let sym2 = symbol_dummy!(2, "sym2");
-        let sym3 = symbol_dummy!(3, "sym3");
+        let sym1 = symbol_dummy!(1u8, "sym1");
+        let sym2 = symbol_dummy!(2u8, "sym2");
+        let sym3 = symbol_dummy!(3u8, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1234,9 +1250,9 @@ mod test {
     ) -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = symbol_dummy!(1, "sym1");
-        let sym2 = symbol_dummy!(2, "sym2");
-        let sym3 = symbol_dummy!(3, "sym3");
+        let sym1 = symbol_dummy!(1u8, "sym1");
+        let sym2 = symbol_dummy!(2u8, "sym2");
+        let sym3 = symbol_dummy!(3u8, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1299,9 +1315,9 @@ mod test {
     fn graph_sort_cyclic_bookended_by_functions() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = symbol_dummy!(1, "sym1");
-        let sym2 = symbol_dummy!(2, "sym2");
-        let sym3 = symbol_dummy!(3, "sym3");
+        let sym1 = symbol_dummy!(1u8, "sym1");
+        let sym2 = symbol_dummy!(2u8, "sym2");
+        let sym3 = symbol_dummy!(3u8, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1364,8 +1380,8 @@ mod test {
     fn graph_sort_cyclic_function_ignored() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(2, "sym");
-        let dep = symbol_dummy!(3, "dep");
+        let sym = symbol_dummy!(2u8, "sym");
+        let dep = symbol_dummy!(3u8, "dep");
 
         let sym_node = sut
             .declare(
@@ -1411,9 +1427,9 @@ mod test {
     fn graph_sort_cyclic_function_is_bookended() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym1 = symbol_dummy!(1, "sym1");
-        let sym2 = symbol_dummy!(2, "sym2");
-        let sym3 = symbol_dummy!(3, "sym3");
+        let sym1 = symbol_dummy!(1u8, "sym1");
+        let sym2 = symbol_dummy!(2u8, "sym2");
+        let sym3 = symbol_dummy!(3u8, "sym3");
 
         let sym1_node = sut
             .declare(
@@ -1476,9 +1492,9 @@ mod test {
     fn graph_sort_ignore_non_linked() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(2, "sym");
-        let dep = symbol_dummy!(3, "dep");
-        let ignored = symbol_dummy!(4, "ignored");
+        let sym = symbol_dummy!(2u8, "sym");
+        let dep = symbol_dummy!(3u8, "dep");
+        let ignored = symbol_dummy!(4u8, "ignored");
 
         let sym_node = sut
             .declare(
@@ -1538,7 +1554,7 @@ mod test {
     fn graph_sort_fail_unresolved() -> SortableAsgResult<(), u8> {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "unresolved");
+        let sym = symbol_dummy!(1u8, "unresolved");
         let node = sut
             .declare(&sym, IdentKind::Meta, Default::default())
             .unwrap();

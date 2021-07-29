@@ -20,6 +20,7 @@
 //! Identifiers (a type of [object][super::object::IdentObject]).
 
 use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
+use crate::sym::SymbolIndexSize;
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -208,26 +209,32 @@ impl std::fmt::Display for IdentKind {
     }
 }
 
-impl<'i> TryFrom<SymAttrs<'i>> for IdentKind {
+impl<'i, Ix> TryFrom<SymAttrs<'i, Ix>> for IdentKind
+where
+    Ix: SymbolIndexSize,
+{
     type Error = IdentKindError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
-    fn try_from(attrs: SymAttrs<'i>) -> Result<Self, Self::Error> {
+    fn try_from(attrs: SymAttrs<'i, Ix>) -> Result<Self, Self::Error> {
         Self::try_from(&attrs)
     }
 }
 
-impl<'i> TryFrom<&SymAttrs<'i>> for IdentKind {
+impl<'i, Ix> TryFrom<&SymAttrs<'i, Ix>> for IdentKind
+where
+    Ix: SymbolIndexSize,
+{
     type Error = IdentKindError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
-    fn try_from(attrs: &SymAttrs<'i>) -> Result<Self, Self::Error> {
+    fn try_from(attrs: &SymAttrs<'i, Ix>) -> Result<Self, Self::Error> {
         let ty = attrs.ty.as_ref().ok_or(Self::Error::MissingType)?;
 
         macro_rules! ident {
@@ -353,6 +360,8 @@ mod test {
     use super::*;
     use std::convert::TryInto;
 
+    type Ix = u8;
+
     #[test]
     fn dim_from_u8() {
         let n = 5u8;
@@ -376,7 +385,7 @@ mod test {
             fn $name() {
                 assert_eq!(
                     Ok($dest),
-                    SymAttrs {
+                    SymAttrs::<Ix> {
                         ty: Some($src),
                         ..Default::default()
                     }
@@ -392,7 +401,7 @@ mod test {
 
                 assert_eq!(
                     Ok($dest(Dim(dim))),
-                    SymAttrs {
+                    SymAttrs::<Ix> {
                         ty: Some($src),
                         dim: Some(dim),
                         ..Default::default()
@@ -401,7 +410,7 @@ mod test {
                 );
 
                 // no dim
-                let result = IdentKind::try_from(SymAttrs {
+                let result = IdentKind::try_from(SymAttrs::<Ix> {
                     ty: Some($src),
                     ..Default::default()
                 })
@@ -418,7 +427,7 @@ mod test {
 
                 assert_eq!(
                     Ok($dest(dtype)),
-                    SymAttrs {
+                    SymAttrs::<Ix> {
                         ty: Some($src),
                         dtype: Some(dtype),
                         ..Default::default()
@@ -427,7 +436,7 @@ mod test {
                 );
 
                 // no dtype
-                let result = IdentKind::try_from(SymAttrs {
+                let result = IdentKind::try_from(SymAttrs::<Ix> {
                     ty: Some($src),
                     ..Default::default()
                 })
@@ -445,7 +454,7 @@ mod test {
 
                 assert_eq!(
                     Ok($dest(Dim(dim), dtype)),
-                    SymAttrs {
+                    SymAttrs::<Ix> {
                         ty: Some($src),
                         dim: Some(dim),
                         dtype: Some(dtype),
@@ -455,7 +464,7 @@ mod test {
                 );
 
                 // no dim
-                let dim_result = IdentKind::try_from(SymAttrs {
+                let dim_result = IdentKind::try_from(SymAttrs::<Ix> {
                     ty: Some($src),
                     dtype: Some(dtype),
                     ..Default::default()
@@ -465,7 +474,7 @@ mod test {
                 assert_eq!(IdentKindError::MissingDim, dim_result);
 
                 // no dtype
-                let dtype_result = IdentKind::try_from(SymAttrs {
+                let dtype_result = IdentKind::try_from(SymAttrs::<Ix> {
                     ty: Some($src),
                     dim: Some(dim),
                     ..Default::default()

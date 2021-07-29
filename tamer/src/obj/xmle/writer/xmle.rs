@@ -21,7 +21,7 @@ use super::writer::{Result, WriterError};
 use crate::ir::asg::{
     IdentKind, IdentObject, IdentObjectData, SectionIterator, Sections,
 };
-use crate::sym::Symbol;
+use crate::sym::{Symbol, SymbolIndexSize};
 use fxhash::FxHashSet;
 #[cfg(test)]
 use mock::MockXmlWriter as XmlWriter;
@@ -73,13 +73,13 @@ impl<W: Write> XmleWriter<W> {
     /// use std::io::Cursor;
     /// use tamer::obj::xmle::writer::XmleWriter;
     /// use tamer::ir::asg::{Sections, IdentObject};
-    /// use tamer::sym::{Symbol, SymbolIndex, DefaultInterner, Interner};
+    /// use tamer::sym::{Symbol, SymbolIndex, DefaultProgInterner, Interner};
     ///
     /// let writer = Cursor::new(Vec::new());
     /// let mut xmle_writer = XmleWriter::new(writer);
-    /// let sections = Sections::<IdentObject>::new();
+    /// let sections = Sections::<IdentObject<_>>::new();
     /// let a = "foo";
-    /// let interner = DefaultInterner::new();
+    /// let interner = DefaultProgInterner::new();
     /// let name = interner.intern(&a);
     /// xmle_writer.write(
     ///     &sections,
@@ -89,10 +89,10 @@ impl<W: Write> XmleWriter<W> {
     /// let buf = xmle_writer.into_inner().into_inner();
     /// assert!(!buf.is_empty(), "something was written to the buffer");
     /// ```
-    pub fn write<'i, T: IdentObjectData<'i>>(
+    pub fn write<'i, Ix: SymbolIndexSize, T: IdentObjectData<'i, Ix>>(
         &mut self,
         sections: &Sections<T>,
-        name: &Symbol,
+        name: &Symbol<'i, Ix>,
         relroot: &str,
     ) -> Result {
         self.write_start_package(name, &relroot)?
@@ -152,9 +152,9 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// The `package` element's opening tag needs attributes, so it cannot use
     ///   `write_start_tag` directly.
-    fn write_start_package(
+    fn write_start_package<Ix: SymbolIndexSize>(
         &mut self,
-        name: &Symbol,
+        name: &Symbol<Ix>,
         relroot: &str,
     ) -> Result<&mut XmleWriter<W>> {
         let root =
@@ -193,7 +193,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// All the [`Sections`] found need to be written out using the `writer`
     ///   object.
-    fn write_sections<'i, T: IdentObjectData<'i>>(
+    fn write_sections<'i, Ix: SymbolIndexSize, T: IdentObjectData<'i, Ix>>(
         &mut self,
         sections: &Sections<T>,
         relroot: &str,
@@ -309,7 +309,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// If a `map` object has a `from` attribute in its source, we need to
     ///   write them using the `writer`'s `write_event`.
-    fn write_froms<'i, T: IdentObjectData<'i>>(
+    fn write_froms<'i, Ix: SymbolIndexSize, T: IdentObjectData<'i, Ix>>(
         &mut self,
         sections: &Sections<T>,
     ) -> Result<&mut XmleWriter<W>> {
@@ -343,7 +343,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// Iterates through the parts of a `Section` and writes them using the
     ///   `writer`'s 'write_event`.
-    fn write_section<'i, T: IdentObjectData<'i>>(
+    fn write_section<'i, Ix: SymbolIndexSize, T: IdentObjectData<'i, Ix>>(
         &mut self,
         idents: SectionIterator<T>,
     ) -> Result<&mut XmleWriter<W>> {
@@ -457,7 +457,7 @@ mod test {
             _ => panic!("did not match expected event"),
         }));
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = symbol_dummy!(1u8, "sym");
 
         sut.write_start_package(&sym, &String::from(""))?;
 
@@ -512,7 +512,7 @@ mod test {
             _ => panic!("did not trigger event"),
         }));
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = symbol_dummy!(1u8, "sym");
         let obj = IdentObject::IdentFragment(
             &sym,
             IdentKind::Meta,
@@ -534,7 +534,7 @@ mod test {
             panic!("callback should not have been called");
         }));
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = symbol_dummy!(1u8, "sym");
         let obj = IdentObject::Ident(
             &sym,
             IdentKind::Cgen(Dim::default()),
@@ -555,7 +555,7 @@ mod test {
             panic!("callback should not have been called");
         }));
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = symbol_dummy!(1u8, "sym");
         let obj = IdentObject::Missing(&sym);
 
         let mut section = Section::new();
@@ -594,7 +594,7 @@ mod test {
             _ => panic!("unexpected event"),
         }));
 
-        let sym = symbol_dummy!(1, "random_symbol");
+        let sym = symbol_dummy!(1u8, "random_symbol");
         let object =
             IdentObject::Ident(&sym, IdentKind::Worksheet, Source::default());
         let mut sections = Sections::new();
@@ -649,11 +649,11 @@ mod test {
             _ => panic!("unexpected event"),
         }));
 
-        let nsym = symbol_dummy!(1, "name");
-        let ssym = symbol_dummy!(2, "src");
-        let psym = symbol_dummy!(3, "parent");
-        let ysym = symbol_dummy!(4, "yields");
-        let fsym = symbol_dummy!(5, "from");
+        let nsym = symbol_dummy!(1u8, "name");
+        let ssym = symbol_dummy!(2u8, "src");
+        let psym = symbol_dummy!(3u8, "parent");
+        let ysym = symbol_dummy!(4u8, "yields");
+        let fsym = symbol_dummy!(5u8, "from");
 
         let attrs = SymAttrs {
             pkg_name: Some(&nsym),
@@ -696,8 +696,8 @@ mod test {
             _ => panic!("unexpected event"),
         }));
 
-        let sym = symbol_dummy!(1, "source symbol");
-        let symb = symbol_dummy!(2, "dest symbol");
+        let sym = symbol_dummy!(1u8, "source symbol");
+        let symb = symbol_dummy!(2u8, "dest symbol");
 
         let mut src = Source::default();
         src.from = Some(vec![&symb]);
@@ -717,7 +717,7 @@ mod test {
             _ => panic!("unexpected write"),
         }));
 
-        let sym = symbol_dummy!(1, "random_symbol");
+        let sym = symbol_dummy!(1u8, "random_symbol");
 
         let object =
             IdentObject::Ident(&sym, IdentKind::Worksheet, Source::default());

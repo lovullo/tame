@@ -30,13 +30,13 @@
 //! ```
 //! use tamer::obj::xmle::writer::XmleWriter;
 //! use tamer::ir::asg::{IdentObject, Sections};
-//! use tamer::sym::{DefaultInterner, Interner, Symbol};
+//! use tamer::sym::{DefaultProgInterner, Interner, Symbol};
 //! use std::io::Cursor;
 //!
-//! let interner = DefaultInterner::new();
+//! let interner = DefaultProgInterner::new();
 //! let name = interner.intern(&String::from("foo"));
 //!
-//! let sections = Sections::<IdentObject>::new();
+//! let sections = Sections::<IdentObject<_>>::new();
 //! let writer = Cursor::new(Vec::new());
 //! let mut xmle_writer = XmleWriter::new(writer);
 //! xmle_writer.write(&sections, name, &String::from(""));

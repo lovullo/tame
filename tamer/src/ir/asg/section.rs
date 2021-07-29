@@ -72,9 +72,9 @@ impl<'a, T> Section<'a, T> {
     ///
     /// ```
     /// use tamer::ir::asg::{IdentObject, Section};
-    /// use tamer::sym::{DefaultInterner, Interner};
+    /// use tamer::sym::{DefaultPkgInterner, Interner};
     ///
-    /// let interner = DefaultInterner::new();
+    /// let interner = DefaultPkgInterner::new();
     /// let mut section = Section::new();
     /// let obj = IdentObject::Missing(interner.intern("ident"));
     /// let expect = vec![&obj, &obj, &obj];
@@ -157,10 +157,10 @@ mod test {
     use crate::sym::{Symbol, SymbolIndex};
 
     lazy_static! {
-        static ref SYM: Symbol<'static> = symbol_dummy!(1, "sym");
+        static ref SYM: Symbol<'static, u16> = symbol_dummy!(1, "sym");
     }
 
-    type Sut<'a, 'i> = Section<'a, IdentObject<'i>>;
+    type Sut<'a, 'i> = Section<'a, IdentObject<'i, u16>>;
 
     #[test]
     fn section_empty() {

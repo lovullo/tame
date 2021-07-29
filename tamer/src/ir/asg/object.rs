@@ -24,7 +24,7 @@
 
 use super::ident::IdentKind;
 use crate::ir::legacyir::SymAttrs;
-use crate::sym::Symbol;
+use crate::sym::{Symbol, SymbolIndexSize};
 use std::result::Result;
 
 pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
@@ -40,7 +40,7 @@ pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 ///       `--------------------`   `-----------'
 /// ```
 #[derive(Debug, PartialEq, Clone)]
-pub enum IdentObject<'i> {
+pub enum IdentObject<'i, Ix: SymbolIndexSize> {
     /// An identifier is expected to be defined but is not yet available.
     ///
     /// This variant contains the symbol representing the name of the
@@ -48,13 +48,13 @@ pub enum IdentObject<'i> {
     /// By defining an object as missing,
     ///   this allows the graph to be built incrementally as objects are
     ///   discovered.
-    Missing(&'i Symbol<'i>),
+    Missing(&'i Symbol<'i, Ix>),
 
     /// A resolved identifier.
     ///
     /// This represents an identifier that has been declared with certain
     ///   type information.
-    Ident(&'i Symbol<'i>, IdentKind, Source<'i>),
+    Ident(&'i Symbol<'i, Ix>, IdentKind, Source<'i, Ix>),
 
     /// An identifier that has not yet been resolved.
     ///
@@ -68,7 +68,7 @@ pub enum IdentObject<'i> {
     /// Once resolved, however,
     ///   the source will instead represent the location of the concrete
     ///   identifier.
-    Extern(&'i Symbol<'i>, IdentKind, Source<'i>),
+    Extern(&'i Symbol<'i, Ix>, IdentKind, Source<'i, Ix>),
 
     /// Identifier with associated text.
     ///
@@ -77,7 +77,7 @@ pub enum IdentObject<'i> {
     /// They are produced by the compiler and it is the job of the
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
-    IdentFragment(&'i Symbol<'i>, IdentKind, Source<'i>, FragmentText),
+    IdentFragment(&'i Symbol<'i, Ix>, IdentKind, Source<'i, Ix>, FragmentText),
 }
 
 /// Retrieve information about an [`IdentObject`].
@@ -95,12 +95,12 @@ pub enum IdentObject<'i> {
 ///     an [`Option`].
 /// These methods also provide a convenient alternative to `match`ing on
 ///   data that may not be present in all variants.
-pub trait IdentObjectData<'i> {
+pub trait IdentObjectData<'i, Ix: SymbolIndexSize> {
     /// Identifier name.
     ///
     /// If the object is not an identifier,
     ///   [`None`] is returned.
-    fn name(&self) -> Option<&'i Symbol<'i>>;
+    fn name(&self) -> Option<&'i Symbol<'i, Ix>>;
 
     /// Identifier [`IdentKind`].
     ///
@@ -114,7 +114,7 @@ pub trait IdentObjectData<'i> {
     /// If the object does not have source information
     ///   (as is the case with [`IdentObject::Extern`]),
     ///     [`None`] is returned.
-    fn src(&self) -> Option<&Source<'i>>;
+    fn src(&self) -> Option<&Source<'i, Ix>>;
 
     /// Identifier [`FragmentText`].
     ///
@@ -132,10 +132,10 @@ pub trait IdentObjectData<'i> {
     ///
     /// This allows pattern matching on [`IdentObject`] variants regardless
     ///   of the underlying object type.
-    fn as_ident(&self) -> Option<&IdentObject<'i>>;
+    fn as_ident(&self) -> Option<&IdentObject<'i, Ix>>;
 }
 
-impl<'i> std::fmt::Display for IdentObject<'i> {
+impl<'i, Ix: SymbolIndexSize> std::fmt::Display for IdentObject<'i, Ix> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.name() {
             Some(n) => write!(f, "{}", n),
@@ -144,8 +144,11 @@ impl<'i> std::fmt::Display for IdentObject<'i> {
     }
 }
 
-impl<'i> IdentObjectData<'i> for IdentObject<'i> {
-    fn name(&self) -> Option<&'i Symbol<'i>> {
+impl<'i, Ix> IdentObjectData<'i, Ix> for IdentObject<'i, Ix>
+where
+    Ix: SymbolIndexSize,
+{
+    fn name(&self) -> Option<&'i Symbol<'i, Ix>> {
         match self {
             Self::Missing(name)
             | Self::Ident(name, _, _)
@@ -163,7 +166,7 @@ impl<'i> IdentObjectData<'i> for IdentObject<'i> {
         }
     }
 
-    fn src(&self) -> Option<&Source<'i>> {
+    fn src(&self) -> Option<&Source<'i, Ix>> {
         match self {
             Self::Missing(_) | Self::Extern(_, _, _) => None,
             Self::Ident(_, _, src) | Self::IdentFragment(_, _, src, _) => {
@@ -190,27 +193,32 @@ impl<'i> IdentObjectData<'i> for IdentObject<'i> {
     ///     so it's important _not_ to rely on this as an excuse to be lazy
     ///       with unwrapping.
     #[inline]
-    fn as_ident(&self) -> Option<&IdentObject<'i>> {
+    fn as_ident(&self) -> Option<&IdentObject<'i, Ix>> {
         Some(&self)
     }
 }
 
 /// Objects as a state machine.
-pub trait IdentObjectState<'i, T>
+pub trait IdentObjectState<'i, Ix, T>
 where
-    T: IdentObjectState<'i, T>,
+    T: IdentObjectState<'i, Ix, T>,
+    Ix: SymbolIndexSize,
 {
     /// Produce an object representing a missing identifier.
     ///
     /// This is the base state for all identifiers.
-    fn declare(ident: &'i Symbol<'i>) -> T;
+    fn declare(ident: &'i Symbol<'i, Ix>) -> T;
 
     /// Attempt to transition to a concrete identifier.
     ///
     /// For specific information on compatibility rules,
     ///   see implementers of this trait,
     ///   since rules may vary between implementations.
-    fn resolve(self, kind: IdentKind, src: Source<'i>) -> TransitionResult<T>;
+    fn resolve(
+        self,
+        kind: IdentKind,
+        src: Source<'i, Ix>,
+    ) -> TransitionResult<T>;
 
     /// Assertion to return self if identifier is resolved,
     ///   otherwise failing with [`UnresolvedError`].
@@ -244,7 +252,11 @@ where
     /// If no kind is assigned (such as [`IdentObject::Missing`]),
     ///   then a new extern is produced.
     /// See for example [`IdentObject::Extern`].
-    fn extern_(self, kind: IdentKind, src: Source<'i>) -> TransitionResult<T>;
+    fn extern_(
+        self,
+        kind: IdentKind,
+        src: Source<'i, Ix>,
+    ) -> TransitionResult<T>;
 
     /// Attach a code fragment (compiled text) to an identifier.
     ///
@@ -257,8 +269,12 @@ where
     fn set_fragment(self, text: FragmentText) -> TransitionResult<T>;
 }
 
-impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
-    fn declare(ident: &'i Symbol<'i>) -> Self {
+impl<'i, Ix> IdentObjectState<'i, Ix, IdentObject<'i, Ix>>
+    for IdentObject<'i, Ix>
+where
+    Ix: SymbolIndexSize,
+{
+    fn declare(ident: &'i Symbol<'i, Ix>) -> Self {
         IdentObject::Missing(ident)
     }
 
@@ -293,8 +309,8 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     fn resolve(
         self,
         kind: IdentKind,
-        mut src: Source<'i>,
-    ) -> TransitionResult<IdentObject<'i>> {
+        mut src: Source<'i, Ix>,
+    ) -> TransitionResult<IdentObject<'i, Ix>> {
         match self {
             IdentObject::Ident(name, ref orig_kind, ref orig_src)
             | IdentObject::IdentFragment(
@@ -390,7 +406,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
         }
     }
 
-    fn resolved(&self) -> Result<&IdentObject<'i>, UnresolvedError> {
+    fn resolved(&self) -> Result<&IdentObject<'i, Ix>, UnresolvedError> {
         match self {
             IdentObject::Missing(name) => Err(UnresolvedError::Missing {
                 name: name.to_string(),
@@ -412,8 +428,8 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     fn extern_(
         self,
         kind: IdentKind,
-        src: Source<'i>,
-    ) -> TransitionResult<IdentObject<'i>> {
+        src: Source<'i, Ix>,
+    ) -> TransitionResult<IdentObject<'i, Ix>> {
         match self.kind() {
             None => Ok(IdentObject::Extern(self.name().unwrap(), kind, src)),
             Some(cur_kind) => {
@@ -436,7 +452,7 @@ impl<'i> IdentObjectState<'i, IdentObject<'i>> for IdentObject<'i> {
     fn set_fragment(
         self,
         text: FragmentText,
-    ) -> TransitionResult<IdentObject<'i>> {
+    ) -> TransitionResult<IdentObject<'i, Ix>> {
         match self {
             IdentObject::Ident(sym, kind, src) => {
                 Ok(IdentObject::IdentFragment(sym, kind, src, text))
@@ -621,26 +637,26 @@ pub type FragmentText = String;
 ///   since the original XSLT-based compiler did not have that capability;
 ///     this will provide that information in the future.
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct Source<'i> {
+pub struct Source<'i, Ix: SymbolIndexSize> {
     /// Name of package containing reference to this object.
-    pub pkg_name: Option<&'i Symbol<'i>>,
+    pub pkg_name: Option<&'i Symbol<'i, Ix>>,
 
     /// Relative path to the source of this object,
     ///   if not present in the current package.
-    pub src: Option<&'i Symbol<'i>>,
+    pub src: Option<&'i Symbol<'i, Ix>>,
 
     /// The identifier from which this one is derived.
     ///
     /// See [`IdentKind`] for more information on parents.
     /// For example,
     ///   a [`IdentKind::Cgen`] always has a parent [`IdentKind::Class`].
-    pub parent: Option<&'i Symbol<'i>>,
+    pub parent: Option<&'i Symbol<'i, Ix>>,
 
     /// Child identifier associated with this identifier.
     ///
     /// For [`IdentKind::Class`],
     ///   this represents an associated [`IdentKind::Cgen`].
-    pub yields: Option<&'i Symbol<'i>>,
+    pub yields: Option<&'i Symbol<'i, Ix>>,
 
     /// User-friendly identifier description.
     ///
@@ -668,7 +684,7 @@ pub struct Source<'i> {
     ///
     /// TODO: We have `parent`, `yields`, and `from`.
     ///   We should begin to consolodate.
-    pub from: Option<Vec<&'i Symbol<'i>>>,
+    pub from: Option<Vec<&'i Symbol<'i, Ix>>>,
 
     /// Whether identifier is virtual (can be overridden).
     ///
@@ -687,11 +703,14 @@ pub struct Source<'i> {
     pub override_: bool,
 }
 
-impl<'i> From<SymAttrs<'i>> for Source<'i> {
+impl<'i, Ix> From<SymAttrs<'i, Ix>> for Source<'i, Ix>
+where
+    Ix: SymbolIndexSize,
+{
     /// Raise Legacy IR [`SymAttrs`].
     ///
     /// This simply extracts a subset of fields from the source attributes.
-    fn from(attrs: SymAttrs<'i>) -> Self {
+    fn from(attrs: SymAttrs<'i, Ix>) -> Self {
         Source {
             pkg_name: attrs.pkg_name,
             src: attrs.src,
@@ -718,7 +737,7 @@ mod test {
         // Note that IdentObject has no variants capable of None
         #[test]
         fn ident_object_name() {
-            let sym = symbol_dummy!(1, "sym");
+            let sym = symbol_dummy!(1u8, "sym");
 
             assert_eq!(Some(&sym), IdentObject::Missing(&sym).name());
 
@@ -748,7 +767,7 @@ mod test {
 
         #[test]
         fn ident_object_kind() {
-            let sym = symbol_dummy!(1, "sym");
+            let sym = symbol_dummy!(1u8, "sym");
             let kind = IdentKind::Class(Dim::from_u8(5));
 
             assert_eq!(None, IdentObject::Missing(&sym).kind());
@@ -779,7 +798,7 @@ mod test {
 
         #[test]
         fn ident_object_src() {
-            let sym = symbol_dummy!(1, "sym");
+            let sym = symbol_dummy!(1u8, "sym");
             let src = Source {
                 desc: Some("test source".into()),
                 ..Default::default()
@@ -811,7 +830,7 @@ mod test {
 
         #[test]
         fn ident_object_fragment() {
-            let sym = symbol_dummy!(1, "sym");
+            let sym = symbol_dummy!(1u8, "sym");
             let text: FragmentText = "foo".into();
 
             assert_eq!(None, IdentObject::Missing(&sym).fragment());
@@ -842,7 +861,7 @@ mod test {
 
         #[test]
         fn ident_object_as_ident() {
-            let sym = symbol_dummy!(1, "sym");
+            let sym = symbol_dummy!(1u8, "sym");
             let ident = IdentObject::Missing(&sym);
 
             // Since we _are_ an IdentObject, we should return a reference
@@ -859,13 +878,13 @@ mod test {
 
         #[test]
         fn ident_object_missing() {
-            let sym = symbol_dummy!(1, "missing");
+            let sym = symbol_dummy!(1u8, "missing");
             assert_eq!(IdentObject::Missing(&sym), IdentObject::declare(&sym));
         }
 
         #[test]
         fn resolved_on_missing() {
-            let sym = symbol_dummy!(1, "missing");
+            let sym = symbol_dummy!(1u8, "missing");
 
             let result = IdentObject::declare(&sym)
                 .resolved()
@@ -881,7 +900,7 @@ mod test {
 
         #[test]
         fn ident_object_ident() {
-            let sym = symbol_dummy!(1, "ident");
+            let sym = symbol_dummy!(1u8, "ident");
             let kind = IdentKind::Meta;
             let src = Source {
                 desc: Some("ident ctor".into()),
@@ -898,7 +917,7 @@ mod test {
 
         #[test]
         fn resolved_on_ident() {
-            let sym = symbol_dummy!(1, "ident resolve");
+            let sym = symbol_dummy!(1u8, "ident resolve");
             let kind = IdentKind::Meta;
             let src = Source {
                 desc: Some("ident ctor".into()),
@@ -921,7 +940,7 @@ mod test {
         // packages have the same local symbol.
         #[test]
         fn ident_object_redeclare_same_src() {
-            let sym = symbol_dummy!(1, "redecl");
+            let sym = symbol_dummy!(1u8, "redecl");
             let kind = IdentKind::Meta;
             let src = Source::default();
 
@@ -951,7 +970,7 @@ mod test {
 
             #[test]
             fn ident_object() {
-                let sym = symbol_dummy!(1, "extern");
+                let sym = symbol_dummy!(1u8, "extern");
                 let kind = IdentKind::Class(Dim::from_u8(1));
                 let src = Source {
                     desc: Some("extern".into()),
@@ -966,9 +985,9 @@ mod test {
 
             #[test]
             fn resolved_on_extern() {
-                let sym = symbol_dummy!(1, "extern resolved");
+                let sym = symbol_dummy!(1u8, "extern resolved");
                 let kind = IdentKind::Class(Dim::from_u8(1));
-                let pkg_name = symbol_dummy!(2, "pkg/name");
+                let pkg_name = symbol_dummy!(2u8, "pkg/name");
                 let src = Source {
                     pkg_name: Some(&pkg_name),
                     desc: Some("extern".into()),
@@ -1033,7 +1052,7 @@ mod test {
             // Extern first, then identifier
             #[test]
             fn redeclare_compatible_resolves() {
-                let sym = symbol_dummy!(1, "extern_re_pre");
+                let sym = symbol_dummy!(1u8, "extern_re_pre");
                 let kind = IdentKind::Class(Dim::from_u8(10));
                 let src = Source {
                     desc: Some("okay".into()),
@@ -1051,7 +1070,7 @@ mod test {
             // Identifier first, then extern
             #[test]
             fn redeclare_compatible_resolves_post() {
-                let sym = symbol_dummy!(1, "extern_re_post");
+                let sym = symbol_dummy!(1u8, "extern_re_post");
                 let kind = IdentKind::Class(Dim::from_u8(10));
                 let src = Source {
                     desc: Some("okay".into()),
@@ -1068,7 +1087,7 @@ mod test {
 
             #[test]
             fn redeclare_another_extern() {
-                let sym = symbol_dummy!(1, "extern_extern");
+                let sym = symbol_dummy!(1u8, "extern_extern");
                 let kind = IdentKind::Class(Dim::from_u8(20));
                 let src_first = Source {
                     desc: Some("first src".into()),
@@ -1094,7 +1113,7 @@ mod test {
             // Extern first, then identifier
             #[test]
             fn redeclare_post_incompatible_kind() {
-                let sym = symbol_dummy!(1, "extern_re_bad_post");
+                let sym = symbol_dummy!(1u8, "extern_re_bad_post");
                 let kind = IdentKind::Class(Dim::from_u8(10));
                 let src = Source {
                     desc: Some("bad kind".into()),
@@ -1138,7 +1157,7 @@ mod test {
             // Identifier first, then extern
             #[test]
             fn redeclare_pre_incompatible_kind() {
-                let sym = symbol_dummy!(1, "extern_re_bad_pre");
+                let sym = symbol_dummy!(1u8, "extern_re_bad_pre");
                 let kind_given = IdentKind::Class(Dim::from_u8(10));
                 let src = Source {
                     desc: Some("bad kind".into()),
@@ -1184,7 +1203,7 @@ mod test {
 
         #[test]
         fn add_fragment_to_ident() {
-            let sym = symbol_dummy!(1, "tofrag");
+            let sym = symbol_dummy!(1u8, "tofrag");
             let src = Source {
                 generated: true,
                 ..Default::default()
@@ -1205,7 +1224,7 @@ mod test {
 
         #[test]
         fn resolved_on_fragment() {
-            let sym = symbol_dummy!(1, "tofrag resolved");
+            let sym = symbol_dummy!(1u8, "tofrag resolved");
             let src = Source {
                 generated: true,
                 ..Default::default()
@@ -1226,7 +1245,7 @@ mod test {
 
         #[test]
         fn add_fragment_to_fragment_fails() {
-            let sym = symbol_dummy!(1, "badsym");
+            let sym = symbol_dummy!(1u8, "badsym");
             let ident = IdentObject::declare(&sym)
                 .resolve(IdentKind::Meta, Source::default())
                 .unwrap();
@@ -1259,8 +1278,8 @@ mod test {
 
             #[test]
             fn declare_virtual_ident_first() {
-                let sym = symbol_dummy!(1, "virtual");
-                let over_src = symbol_dummy!(2, "src");
+                let sym = symbol_dummy!(1u8, "virtual");
+                let over_src = symbol_dummy!(2u8, "src");
                 let kind = IdentKind::Meta;
 
                 let virt = IdentObject::declare(&sym)
@@ -1298,8 +1317,8 @@ mod test {
             // Override is encountered before the virtual
             #[test]
             fn declare_virtual_ident_after_override() {
-                let sym = symbol_dummy!(1, "virtual_second");
-                let virt_src = symbol_dummy!(2, "virt_src");
+                let sym = symbol_dummy!(1u8, "virtual_second");
+                let virt_src = symbol_dummy!(2u8, "virt_src");
                 let kind = IdentKind::Meta;
 
                 let over_src = Source {
@@ -1336,7 +1355,7 @@ mod test {
 
             #[test]
             fn declare_override_non_virtual() {
-                let sym = symbol_dummy!(1, "non_virtual");
+                let sym = symbol_dummy!(1u8, "non_virtual");
                 let kind = IdentKind::Meta;
 
                 let non_virt = IdentObject::declare(&sym)
@@ -1390,8 +1409,8 @@ mod test {
 
             #[test]
             fn declare_virtual_ident_incompatible_kind() {
-                let sym = symbol_dummy!(1, "virtual");
-                let src_sym = symbol_dummy!(2, "src");
+                let sym = symbol_dummy!(1u8, "virtual");
+                let src_sym = symbol_dummy!(2u8, "src");
                 let kind = IdentKind::Meta;
 
                 let virt = IdentObject::declare(&sym)
@@ -1450,8 +1469,8 @@ mod test {
             // fragment to be cleared to make way for the new fragment.
             #[test]
             fn declare_override_virtual_ident_fragment_virtual_first() {
-                let sym = symbol_dummy!(1, "virtual");
-                let over_src = symbol_dummy!(2, "src");
+                let sym = symbol_dummy!(1u8, "virtual");
+                let over_src = symbol_dummy!(2u8, "src");
                 let kind = IdentKind::Meta;
 
                 // Remember: override is going to come first...
@@ -1523,8 +1542,8 @@ mod test {
             // precedence over the override.
             #[test]
             fn declare_override_virtual_ident_fragment_override_first() {
-                let sym = symbol_dummy!(1, "virtual");
-                let over_src = symbol_dummy!(2, "src");
+                let sym = symbol_dummy!(1u8, "virtual");
+                let over_src = symbol_dummy!(2u8, "src");
                 let kind = IdentKind::Meta;
 
                 let virt_src = Source {
@@ -1569,8 +1588,8 @@ mod test {
 
             #[test]
             fn declare_override_virtual_ident_fragment_incompatible_type() {
-                let sym = symbol_dummy!(1, "virtual");
-                let over_src = symbol_dummy!(2, "src");
+                let sym = symbol_dummy!(1u8, "virtual");
+                let over_src = symbol_dummy!(2u8, "src");
                 let kind = IdentKind::Meta;
 
                 let virt_src = Source {
@@ -1627,7 +1646,7 @@ mod test {
         }
 
         fn add_ident_kind_ignores(given: IdentKind, expected: IdentKind) {
-            let sym = symbol_dummy!(1, "tofrag");
+            let sym = symbol_dummy!(1u8, "tofrag");
             let src = Source {
                 generated: true,
                 ..Default::default()
@@ -1669,11 +1688,11 @@ mod test {
 
     #[test]
     fn source_from_sym_attrs() {
-        let nsym = symbol_dummy!(1, "name");
-        let ssym = symbol_dummy!(2, "src");
-        let psym = symbol_dummy!(3, "parent");
-        let ysym = symbol_dummy!(4, "yields");
-        let fsym = symbol_dummy!(5, "from");
+        let nsym = symbol_dummy!(1u8, "name");
+        let ssym = symbol_dummy!(2u8, "src");
+        let psym = symbol_dummy!(3u8, "parent");
+        let ysym = symbol_dummy!(4u8, "yields");
+        let fsym = symbol_dummy!(5u8, "from");
 
         let attrs = SymAttrs {
             pkg_name: Some(&nsym),

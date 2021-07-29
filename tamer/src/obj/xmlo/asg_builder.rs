@@ -56,7 +56,7 @@
 //!
 //! let interner = DefaultInterner::new();
 //! let xmlo = XmloReader::new(src_xmlo, &interner);
-//! let mut asg = DefaultAsg::<'_, IdentObject, global::ProgIdentSize>::new();
+//! let mut asg = DefaultAsg::<'_, IdentObject<_>, global::ProgIdentSize>::new();
 //!
 //! let state = asg.import_xmlo(xmlo, AsgBuilderState::<'_, FxBuildHasher, _>::new());
 //!
@@ -73,7 +73,7 @@ use crate::ir::asg::{
     Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, IndexType,
     ObjectRef, Source,
 };
-use crate::sym::Symbol;
+use crate::sym::{Symbol, SymbolIndexSize};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::error::Error;
@@ -106,7 +106,7 @@ pub type Result<'i, S, Ix> =
 pub struct AsgBuilderState<'i, S, Ix>
 where
     S: BuildHasher,
-    Ix: IndexType,
+    Ix: IndexType + SymbolIndexSize,
 {
     /// Discovered roots.
     ///
@@ -128,7 +128,7 @@ where
     /// Program name once discovered.
     ///
     /// This will be set by the first package encountered.
-    pub name: Option<&'i Symbol<'i>>,
+    pub name: Option<&'i Symbol<'i, Ix>>,
 
     /// Relative path to project root once discovered.
     ///
@@ -139,7 +139,7 @@ where
 impl<'i, S, Ix> AsgBuilderState<'i, S, Ix>
 where
     S: BuildHasher + Default,
-    Ix: IndexType,
+    Ix: IndexType + SymbolIndexSize,
 {
     /// Create a new, empty state.
     pub fn new() -> Self {
@@ -163,9 +163,9 @@ where
 /// See the [module-level documentation](self) for example usage.
 pub trait AsgBuilder<'i, O, S, Ix>
 where
-    O: IdentObjectState<'i, O>,
+    O: IdentObjectState<'i, Ix, O>,
     S: BuildHasher,
-    Ix: IndexType,
+    Ix: IndexType + SymbolIndexSize,
 {
     /// Import [`XmloResult`]s into an [`Asg`].
     ///
@@ -179,21 +179,21 @@ where
     /// Its initial value can be provided as [`Default::default`].
     fn import_xmlo(
         &mut self,
-        xmlo: impl Iterator<Item = XmloResult<XmloEvent<'i>>>,
+        xmlo: impl Iterator<Item = XmloResult<XmloEvent<'i, Ix>>>,
         state: AsgBuilderState<'i, S, Ix>,
     ) -> Result<'i, S, Ix>;
 }
 
 impl<'i, O, S, Ix, G> AsgBuilder<'i, O, S, Ix> for G
 where
-    O: IdentObjectState<'i, O>,
+    O: IdentObjectState<'i, Ix, O>,
     S: BuildHasher + Default,
-    Ix: IndexType,
+    Ix: IndexType + SymbolIndexSize,
     G: Asg<'i, O, Ix>,
 {
     fn import_xmlo(
         &mut self,
-        mut xmlo: impl Iterator<Item = XmloResult<XmloEvent<'i>>>,
+        mut xmlo: impl Iterator<Item = XmloResult<XmloEvent<'i, Ix>>>,
         mut state: AsgBuilderState<'i, S, Ix>,
     ) -> Result<'i, S, Ix> {
         let mut elig = None;
@@ -224,7 +224,7 @@ where
                         let extern_ = attrs.extern_;
                         let kindval = (&attrs).try_into()?;
 
-                        let mut src: Source = attrs.into();
+                        let mut src: Source<'i, Ix> = attrs.into();
 
                         // Existing convention is to omit @src of local package
                         // (in this case, the program being linked)
@@ -363,7 +363,7 @@ mod test {
     use std::collections::hash_map::RandomState;
 
     type SutIx = u8;
-    type Sut<'i> = DefaultAsg<'i, IdentObject<'i>, SutIx>;
+    type Sut<'i> = DefaultAsg<'i, IdentObject<'i, SutIx>, SutIx>;
     type SutState<'i> = AsgBuilderState<'i, RandomState, SutIx>;
 
     #[test]

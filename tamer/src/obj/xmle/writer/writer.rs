@@ -18,7 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::ir::asg::Sections;
-use crate::sym::Symbol;
+use crate::sym::ProgSymbol as Symbol;
 use quick_xml::Error as XmlError;
 use std::io::{Error as IoError, Write};
 use std::result;

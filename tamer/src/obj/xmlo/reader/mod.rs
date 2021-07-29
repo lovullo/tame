@@ -29,7 +29,10 @@
 //!     the former is more akin to an identifier.
 //!
 //! For more information on `xmlo` files,
-//!   see the [parent crate][super].
+//!   see the [parent crate][super].A
+//!
+//! This reader will be used by both the compiler and linker,
+//!   and so its [`Symbol`] type is generalized.
 //!
 //!
 //! How To Use
@@ -52,7 +55,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use tamer::obj::xmlo::{XmloEvent, XmloReader};
 //! use tamer::ir::legacyir::SymType;
-//! use tamer::sym::{DefaultInterner, Interner};
+//! use tamer::sym::{DefaultPkgInterner, Interner};
 //!
 //! let xmlo = br#"<package name="foo">
 //!       <preproc:symtable>
@@ -76,7 +79,7 @@
 //!       </preproc:fragments>
 //!     </package>"#;
 //!
-//! let interner = DefaultInterner::new();
+//! let interner = DefaultPkgInterner::new();
 //! let mut reader = XmloReader::new(xmlo as &[u8], &interner);
 //!
 //! let mut pkgname = None;
@@ -132,7 +135,7 @@
 //! ```
 
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
-use crate::sym::{Interner, Symbol};
+use crate::sym::{Interner, Symbol, SymbolIndexSize};
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
 #[cfg(test)]
@@ -172,10 +175,11 @@ pub type XmloResult<T> = Result<T, XmloError>;
 ///
 /// See [module-level documentation](self) for more information and
 ///   examples.
-pub struct XmloReader<'i, B, I>
+pub struct XmloReader<'i, B, I, Ix>
 where
     B: BufRead,
-    I: Interner<'i>,
+    I: Interner<'i, Ix>,
+    Ix: SymbolIndexSize,
 {
     /// Source `xmlo` reader.
     reader: XmlReader<B>,
@@ -202,10 +206,15 @@ where
     ///
     /// This is known after processing the root `package` element,
     ///   provided that it's a proper root node.
-    pkg_name: Option<&'i Symbol<'i>>,
+    pkg_name: Option<&'i Symbol<'i, Ix>>,
 }
 
-impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
+impl<'i, B, I, Ix> XmloReader<'i, B, I, Ix>
+where
+    B: BufRead,
+    I: Interner<'i, Ix>,
+    Ix: SymbolIndexSize,
+{
     /// Construct a new reader.
     pub fn new(reader: B, interner: &'i I) -> Self {
         let mut reader = XmlReader::from_reader(reader);
@@ -245,7 +254,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     ///   See private methods for more information.
     ///
     /// TODO: Augment failures with context
-    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<'i>> {
+    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<'i, Ix>> {
         let event = self.reader.read_event(&mut self.buffer)?;
 
         // Ensure that the first encountered node is something we expect
@@ -346,10 +355,10 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     fn process_package<'a>(
         ele: &'a BytesStart<'a>,
         interner: &'i I,
-    ) -> XmloResult<PackageAttrs<'i>> {
+    ) -> XmloResult<PackageAttrs<'i, Ix>> {
         let mut program = false;
-        let mut elig: Option<&'i Symbol<'i>> = None;
-        let mut name: Option<&'i Symbol<'i>> = None;
+        let mut elig: Option<&'i Symbol<'i, Ix>> = None;
+        let mut name: Option<&'i Symbol<'i, Ix>> = None;
         let mut relroot: Option<String> = None;
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
@@ -403,11 +412,11 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     /// ======
     /// - [`XmloError::UnassociatedSym`] if missing `preproc:sym/@name`.
     fn process_sym<'a>(
-        pkg_name: &Option<&'i Symbol<'i>>,
+        pkg_name: &Option<&'i Symbol<'i, Ix>>,
         ele: &'a BytesStart<'a>,
         interner: &'i I,
-    ) -> XmloResult<XmloEvent<'i>> {
-        let mut name: Option<&'i Symbol<'i>> = None;
+    ) -> XmloResult<XmloEvent<'i, Ix>> {
+        let mut name: Option<&'i Symbol<'i, Ix>> = None;
         let mut sym_attrs = SymAttrs::default();
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
@@ -507,7 +516,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
         interner: &'i I,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<Vec<&'i Symbol<'i>>> {
+    ) -> XmloResult<Vec<&'i Symbol<'i, Ix>>> {
         let mut froms = Vec::new();
 
         loop {
@@ -571,7 +580,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
         interner: &'i I,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<XmloEvent<'i>> {
+    ) -> XmloResult<XmloEvent<'i, Ix>> {
         let name = ele
             .attributes()
             .with_checks(false)
@@ -641,7 +650,7 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
         interner: &'i I,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<XmloEvent<'i>> {
+    ) -> XmloResult<XmloEvent<'i, Ix>> {
         let mut src_attrs = ele.attributes();
         let mut filtered = src_attrs.with_checks(false).filter_map(Result::ok);
 
@@ -685,12 +694,13 @@ impl<'i, B: BufRead, I: Interner<'i>> XmloReader<'i, B, I> {
     }
 }
 
-impl<'i, B, I> Iterator for XmloReader<'i, B, I>
+impl<'i, B, I, Ix> Iterator for XmloReader<'i, B, I, Ix>
 where
     B: BufRead,
-    I: Interner<'i>,
+    I: Interner<'i, Ix>,
+    Ix: SymbolIndexSize,
 {
-    type Item = XmloResult<XmloEvent<'i>>;
+    type Item = XmloResult<XmloEvent<'i, Ix>>;
 
     /// Invoke [`XmloReader::read_event`] and yield the result via an
     ///   [`Iterator`] API.
@@ -706,10 +716,11 @@ where
     }
 }
 
-impl<'i, B, I> From<(B, &'i I)> for XmloReader<'i, B, I>
+impl<'i, B, I, Ix> From<(B, &'i I)> for XmloReader<'i, B, I, Ix>
 where
     B: BufRead,
-    I: Interner<'i>,
+    I: Interner<'i, Ix>,
+    Ix: SymbolIndexSize,
 {
     fn from(args: (B, &'i I)) -> Self {
         Self::new(args.0, args.1)
@@ -726,24 +737,24 @@ where
 ///   we should instead prefer not to put data into object files that won't
 ///   be useful and can't be easily skipped without parsing.
 #[derive(Debug, PartialEq, Eq)]
-pub enum XmloEvent<'i> {
+pub enum XmloEvent<'i, Ix: SymbolIndexSize> {
     /// Package declaration.
     ///
     /// This contains data gathered from the root `lv:package` node.
-    Package(PackageAttrs<'i>),
+    Package(PackageAttrs<'i, Ix>),
 
     /// Symbol declaration.
     ///
     /// This represents an entry in the symbol table,
     ///   which includes a symbol along with its variable metadata as
     ///   [`SymAttrs`].
-    SymDecl(&'i Symbol<'i>, SymAttrs<'i>),
+    SymDecl(&'i Symbol<'i, Ix>, SymAttrs<'i, Ix>),
 
     /// Dependencies of a given symbol.
     ///
     /// Note that, for simplicity, an owned vector is returned rather than a
     ///   slice into an internal buffer.
-    SymDeps(&'i Symbol<'i>, Vec<&'i Symbol<'i>>),
+    SymDeps(&'i Symbol<'i, Ix>, Vec<&'i Symbol<'i, Ix>>),
 
     /// Text (compiled code) fragment for a given symbol.
     ///
@@ -752,7 +763,7 @@ pub enum XmloEvent<'i> {
     /// Given that fragments can be quite large,
     ///   a caller not interested in these data should choose to skip
     ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(&'i Symbol<'i>, String),
+    Fragment(&'i Symbol<'i, Ix>, String),
 
     /// End-of-header.
     ///

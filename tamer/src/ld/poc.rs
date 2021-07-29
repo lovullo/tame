@@ -30,7 +30,7 @@ use crate::ir::asg::{
 };
 use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
-use crate::sym::{DefaultInterner, Interner, Symbol};
+use crate::sym::{DefaultInterner, DefaultProgInterner, Interner, Symbol};
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::error::Error;
@@ -38,7 +38,8 @@ use std::fs;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-type LinkerAsg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
+type LinkerAsg<'i> =
+    DefaultAsg<'i, IdentObject<'i, global::ProgSymSize>, global::ProgIdentSize>;
 
 type LinkerAsgBuilderState<'i> =
     AsgBuilderState<'i, FxBuildHasher, global::ProgIdentSize>;
@@ -112,7 +113,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
-    let interner = DefaultInterner::new();
+    let interner = DefaultProgInterner::new();
 
     let _ = load_xmlo(
         package_path,
@@ -162,7 +163,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_xmlo<'a, 'i, I: Interner<'i>, P: AsRef<Path>>(
+fn load_xmlo<'a, 'i, I: Interner<'i, global::ProgSymSize>, P: AsRef<Path>>(
     path_str: P,
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
     depgraph: &mut LinkerAsg<'i>,
@@ -176,7 +177,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i>, P: AsRef<Path>>(
 
     let (path, file) = cfile.into();
 
-    let xmlo: XmloReader<'_, _, _> = (file, interner).into();
+    let xmlo: XmloReader<'_, _, _, _> = (file, interner).into();
 
     let mut state = depgraph.import_xmlo(xmlo, state)?;
 
@@ -198,19 +199,19 @@ fn load_xmlo<'a, 'i, I: Interner<'i>, P: AsRef<Path>>(
 
 fn get_ident<'a, 'i>(
     depgraph: &'a LinkerAsg<'i>,
-    name: &'i Symbol<'i>,
-) -> Result<&'a IdentObject<'i>, String> {
+    name: &'i Symbol<'i, global::ProgSymSize>,
+) -> Result<&'a IdentObject<'i, global::ProgSymSize>, String> {
     depgraph
         .lookup(name)
         .and_then(|id| depgraph.get(id))
         .ok_or(format!("missing identifier: {}", name))
 }
 
-fn output_xmle<'a, 'i, I: Interner<'i>>(
+fn output_xmle<'a, 'i, I: Interner<'i, global::ProgSymSize>>(
     depgraph: &'a LinkerAsg<'i>,
     interner: &'i I,
-    sorted: &mut Sections<'a, IdentObject<'i>>,
-    name: &'i Symbol<'i>,
+    sorted: &mut Sections<'a, IdentObject<'i, global::ProgSymSize>>,
+    name: &'i Symbol<'i, global::ProgSymSize>,
     relroot: String,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {

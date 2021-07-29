@@ -22,7 +22,7 @@ use crate::ir::legacyir::{SymDtype, SymType};
 use crate::sym::DefaultInterner;
 use crate::test::quick_xml::*;
 
-type Sut<'i, B, I> = XmloReader<'i, B, I>;
+type Sut<'i, B, I> = XmloReader<'i, B, I, u16>;
 
 macro_rules! xmlo_tests {
     ($(fn $fn:ident($sut:ident, $interner:ident) $body:block)*) => {

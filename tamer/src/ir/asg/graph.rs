@@ -25,7 +25,7 @@ use super::object::{
     UnresolvedError,
 };
 use super::Sections;
-use crate::sym::Symbol;
+use crate::sym::{Symbol, SymbolIndexSize};
 use petgraph::graph::NodeIndex;
 use std::fmt::Debug;
 use std::result::Result;
@@ -48,8 +48,8 @@ impl<T: petgraph::graph::IndexType> IndexType for T {}
 ///   see the [module-level documentation][self].
 pub trait Asg<'i, O, Ix>
 where
-    Ix: IndexType,
-    O: IdentObjectState<'i, O>,
+    Ix: IndexType + SymbolIndexSize,
+    O: IdentObjectState<'i, Ix, O>,
 {
     /// Declare a concrete identifier.
     ///
@@ -84,9 +84,9 @@ where
     ///   and return an [`ObjectRef`] reference.
     fn declare(
         &mut self,
-        name: &'i Symbol<'i>,
+        name: &'i Symbol<'i, Ix>,
         kind: IdentKind,
-        src: Source<'i>,
+        src: Source<'i, Ix>,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Declare an abstract identifier.
@@ -111,9 +111,9 @@ where
     ///   compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
-        name: &'i Symbol<'i>,
+        name: &'i Symbol<'i, Ix>,
         kind: IdentKind,
-        src: Source<'i>,
+        src: Source<'i, Ix>,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Set the fragment associated with a concrete identifier.
@@ -142,7 +142,7 @@ where
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
-    fn lookup(&self, name: &'i Symbol<'i>) -> Option<ObjectRef<Ix>>;
+    fn lookup(&self, name: &'i Symbol<'i, Ix>) -> Option<ObjectRef<Ix>>;
 
     /// Declare that `dep` is a dependency of `ident`.
     ///
@@ -173,8 +173,8 @@ where
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(
         &mut self,
-        ident: &'i Symbol<'i>,
-        dep: &'i Symbol<'i>,
+        ident: &'i Symbol<'i, Ix>,
+        dep: &'i Symbol<'i, Ix>,
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
 }
 
@@ -184,8 +184,8 @@ where
 ///   used as an `Intermediate Representation`.
 pub trait SortableAsg<'i, O, Ix>
 where
-    O: IdentObjectData<'i>,
-    Ix: IndexType,
+    O: IdentObjectData<'i, Ix>,
+    Ix: IndexType + SymbolIndexSize,
 {
     /// Sort graph into [`Sections`].
     ///

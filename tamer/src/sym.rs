@@ -70,10 +70,10 @@
 //!
 //! // Each symbol has an associated, densely-packed integer value
 //! // that can be used for indexing
-//! assert_eq!(SymbolIndex::from_int(1), ia.index());
-//! assert_eq!(SymbolIndex::from_int(1), ib.index());
-//! assert_eq!(SymbolIndex::from_int(2), ic.index());
-//! assert_eq!(SymbolIndex::from_int(1), id.index());
+//! assert_eq!(SymbolIndex::from_int(1u16), ia.index());
+//! assert_eq!(SymbolIndex::from_int(1u16), ib.index());
+//! assert_eq!(SymbolIndex::from_int(2u16), ic.index());
+//! assert_eq!(SymbolIndex::from_int(1u16), id.index());
 //!
 //! // Symbols can also be looked up by index.
 //! assert_eq!(Some(ia), interner.index_lookup(ia.index()));
@@ -235,7 +235,7 @@
 //!     - Rustc identifies symbols by integer value encapsulated within a
 //!         `Symbol`.
 //!     - Rustc's [`newtype_index!` macro][rustc-nt] uses
-//!         [`global::NonZeroProgSymSize`] so that [`Option`] uses no
+//!         [`NonZeroU32`] so that [`Option`] uses no
 //!         additional space (see [pull request `53315`][rustc-nt-pr]).
 //!     - Differences between TAMER and Rustc's implementations are outlined
 //!         above.
@@ -273,7 +273,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::hash::BuildHasher;
-use std::num::{NonZeroU16, NonZeroU32};
+use std::num::{NonZeroU16, NonZeroU32, NonZeroU8};
 use std::ops::Deref;
 use std::{fmt, fmt::Debug};
 
@@ -288,14 +288,13 @@ use std::{fmt, fmt::Debug};
 ///   between multiple [`Interner`]s.
 ///
 /// The index `0` is never valid because of
-///   [`SupportedSymbolIndex::NonZero`],
+///   [`SymbolIndexSize::NonZero`],
 ///     which allows us to have `Option<SymbolIndex>` at no space cost.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SymbolIndex<Ix: SupportedSymbolIndex = global::ProgSymSize>(
-    Ix::NonZero,
-);
+pub struct SymbolIndex<Ix: SymbolIndexSize>(Ix::NonZero);
+assert_eq_size!(Option<Symbol<u16>>, Symbol<u16>);
 
-impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
+impl<Ix: SymbolIndexSize> SymbolIndex<Ix> {
     /// Construct index from a non-zero `u16` value.
     ///
     /// Panics
@@ -334,7 +333,7 @@ impl<Ix: SupportedSymbolIndex> SymbolIndex<Ix> {
     }
 }
 
-impl<Ix: SupportedSymbolIndex> From<SymbolIndex<Ix>> for usize
+impl<Ix: SymbolIndexSize> From<SymbolIndex<Ix>> for usize
 where
     <Ix as TryInto<usize>>::Error: Debug,
 {
@@ -343,7 +342,7 @@ where
     }
 }
 
-impl<'i, Ix: SupportedSymbolIndex> From<&Symbol<'i, Ix>> for SymbolIndex<Ix> {
+impl<'i, Ix: SymbolIndexSize> From<&Symbol<'i, Ix>> for SymbolIndex<Ix> {
     fn from(sym: &Symbol<'i, Ix>) -> Self {
         sym.index()
     }
@@ -356,7 +355,7 @@ impl<'i, Ix: SupportedSymbolIndex> From<&Symbol<'i, Ix>> for SymbolIndex<Ix> {
 ///   primitive type has to be explicitly accounted for.
 ///
 /// This trait must be implemented on a primitive type like [`u16`].
-pub trait SupportedSymbolIndex:
+pub trait SymbolIndexSize:
     Sized
     + Copy
     + Debug
@@ -389,7 +388,7 @@ pub trait SupportedSymbolIndex:
 
 macro_rules! supported_symbol_index {
     ($prim:ty, $nonzero:ty, $dummy:ident) => {
-        impl SupportedSymbolIndex for $prim {
+        impl SymbolIndexSize for $prim {
             type NonZero = $nonzero;
 
             fn dummy_sym() -> &'static Symbol<'static, Self> {
@@ -411,6 +410,7 @@ macro_rules! supported_symbol_index {
     };
 }
 
+supported_symbol_index!(u8, NonZeroU8, DUMMY_SYM_8);
 supported_symbol_index!(u16, NonZeroU16, DUMMY_SYM_16);
 supported_symbol_index!(u32, NonZeroU32, DUMMY_SYM_32);
 
@@ -439,15 +439,25 @@ supported_symbol_index!(u32, NonZeroU32, DUMMY_SYM_32);
 ///     whose lifetime is that of the [`Interner`]'s underlying data store.
 /// Dereferencing the symbol will expose the underlying slice.
 #[derive(Copy, Clone, Debug)]
-pub struct Symbol<'i, Ix = global::ProgSymSize>
-where
-    Ix: SupportedSymbolIndex,
-{
+pub struct Symbol<'i, Ix: SymbolIndexSize> {
     index: SymbolIndex<Ix>,
     str: &'i str,
 }
 
-impl<'i, Ix: SupportedSymbolIndex> Symbol<'i, Ix> {
+/// Interned string within a single package.
+///
+/// This type should be preferred to [`ProgSymbol`] when only a single
+///   package's symbols are being processed.
+pub type PkgSymbol<'i> = Symbol<'i, global::PkgSymSize>;
+
+/// Interned string within an entire program.
+///
+/// This symbol type is preconfigured to accommodate a larger number of
+///   symbols than [`PkgSymbol`] and is situable for use in a linker.
+/// Use this type only when necessary.
+pub type ProgSymbol<'i> = Symbol<'i, global::ProgSymSize>;
+
+impl<'i, Ix: SymbolIndexSize> Symbol<'i, Ix> {
     /// Construct a new interned value.
     ///
     /// _This must only be done by an [`Interner`]._
@@ -486,16 +496,16 @@ impl<'i, Ix: SupportedSymbolIndex> Symbol<'i, Ix> {
     }
 }
 
-impl<'i> PartialEq for Symbol<'i> {
+impl<'i, Ix: SymbolIndexSize> PartialEq for Symbol<'i, Ix> {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self as *const _, other as *const _)
             || std::ptr::eq(self.str.as_ptr(), other.str.as_ptr())
     }
 }
 
-impl<'i> Eq for Symbol<'i> {}
+impl<'i, Ix: SymbolIndexSize> Eq for Symbol<'i, Ix> {}
 
-impl<'i> Deref for Symbol<'i> {
+impl<'i, Ix: SymbolIndexSize> Deref for Symbol<'i, Ix> {
     type Target = str;
 
     /// Dereference to interned string slice.
@@ -507,7 +517,7 @@ impl<'i> Deref for Symbol<'i> {
     }
 }
 
-impl<'i> fmt::Display for Symbol<'i> {
+impl<'i, Ix: SymbolIndexSize> fmt::Display for Symbol<'i, Ix> {
     /// Display name of underlying string.
     ///
     /// Since symbols contain pointers to their interned slices,
@@ -518,6 +528,15 @@ impl<'i> fmt::Display for Symbol<'i> {
 }
 
 lazy_static! {
+    /// Dummy 8-bit [`Symbol`] for use at index `0`.
+    ///
+    /// A symbol must never have an index of `0`,
+    ///   so this can be used as a placeholder.
+    /// The chosen [`SymbolIndex`] here does not matter since this will
+    ///   never be referenced.
+    static ref DUMMY_SYM_8: Symbol<'static, u8> =
+        Symbol::new(SymbolIndex::from_int(1), "!BADSYMREF!");
+
     /// Dummy 16-bit [`Symbol`] for use at index `0`.
     ///
     /// A symbol must never have an index of `0`,
@@ -551,10 +570,7 @@ lazy_static! {
 ///     [`contains`](Interner::contains).
 ///
 /// See the [module-level documentation](self) for an example.
-pub trait Interner<'i, Ix = global::ProgSymSize>
-where
-    Ix: SupportedSymbolIndex,
-{
+pub trait Interner<'i, Ix: SymbolIndexSize> {
     /// Intern a string slice or return an existing [`Symbol`].
     ///
     /// If the provided string has already been interned,
@@ -635,10 +651,10 @@ where
 ///
 /// See the [module-level documentation](self) for examples and more
 ///   information on how to use this interner.
-pub struct ArenaInterner<'i, S, Ix = global::ProgSymSize>
+pub struct ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
-    Ix: SupportedSymbolIndex,
+    Ix: SymbolIndexSize,
 {
     /// String and [`Symbol`] storage.
     arena: Bump,
@@ -661,7 +677,7 @@ where
 impl<'i, S, Ix> ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
-    Ix: SupportedSymbolIndex,
+    Ix: SymbolIndexSize,
 {
     /// Initialize a new interner with no initial capacity.
     ///
@@ -707,7 +723,7 @@ where
 impl<'i, S, Ix> Interner<'i, Ix> for ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
-    Ix: SupportedSymbolIndex,
+    Ix: SymbolIndexSize,
     <Ix as TryFrom<usize>>::Error: Debug,
 {
     fn intern(&'i self, value: &str) -> &'i Symbol<'i, Ix> {
@@ -792,8 +808,22 @@ pub type FxArenaInterner<'i, Ix> = ArenaInterner<'i, FxBuildHasher, Ix>;
 ///
 /// For more information on the hashing algorithm,
 ///   see [`FxArenaInterner`].
-pub type DefaultInterner<'i, Ix = global::ProgSymSize> =
-    FxArenaInterner<'i, Ix>;
+pub type DefaultInterner<'i, Ix> = FxArenaInterner<'i, Ix>;
+
+/// Interner for individual packages and their dependencies.
+///
+/// This type should be preferred to [`DefaultPkgInterner`] when only a
+///   single package's symbols are being processed,
+///     since it can be better packed into structs.
+pub type DefaultPkgInterner<'i> = DefaultInterner<'i, global::PkgSymSize>;
+
+/// Interner for entire programs.
+///
+/// This interner holds symbols with a larger underyling datatype than
+///   [`DefaultPkgInterner`].
+/// It is intended for use by linkers or anything else that needs to process
+///   a large number of packages in a program simultaneously.
+pub type DefaultProgInterner<'i> = DefaultInterner<'i, global::ProgSymSize>;
 
 /// Concisely define dummy symbols for testing.
 #[cfg(test)]
@@ -810,28 +840,16 @@ mod test {
     mod symbol {
         use super::*;
 
-        /// Option<Symbol> should have no space cost.
-        #[test]
-        fn symbol_index_option_no_cost() {
-            use std::mem::size_of;
-
-            assert_eq!(
-                size_of::<Option<Symbol>>(),
-                size_of::<Symbol>(),
-                "Option<Symbol> should be the same size as Symbol"
-            );
-        }
-
         #[test]
         fn self_compares_eq() {
-            let sym = Symbol::new(SymbolIndex::from_int(1), "str");
+            let sym = Symbol::new(SymbolIndex::from_int(1u16), "str");
 
             assert_eq!(&sym, &sym);
         }
 
         #[test]
         fn copy_compares_equal() {
-            let sym = Symbol::new(SymbolIndex::from_int(1), "str");
+            let sym = Symbol::new(SymbolIndex::from_int(1u16), "str");
             let cpy = sym;
 
             assert_eq!(sym, cpy);
@@ -841,8 +859,8 @@ mod test {
         // used as a unique identifier across different interners.
         #[test]
         fn same_index_different_slices_compare_unequal() {
-            let a = Symbol::new(SymbolIndex::from_int(1), "a");
-            let b = Symbol::new(SymbolIndex::from_int(1), "b");
+            let a = Symbol::new(SymbolIndex::from_int(1u16), "a");
+            let b = Symbol::new(SymbolIndex::from_int(1u16), "b");
 
             assert_ne!(a, b);
         }
@@ -858,15 +876,15 @@ mod test {
         fn different_index_same_slices_compare_equal() {
             let slice = "str";
 
-            let a = Symbol::new(SymbolIndex::from_int(1), slice);
-            let b = Symbol::new(SymbolIndex::from_int(2), slice);
+            let a = Symbol::new(SymbolIndex::from_int(1u16), slice);
+            let b = Symbol::new(SymbolIndex::from_int(2u16), slice);
 
             assert_eq!(a, b);
         }
 
         #[test]
         fn cloned_symbols_compare_equal() {
-            let sym = Symbol::new(SymbolIndex::from_int(1), "foo");
+            let sym = Symbol::new(SymbolIndex::from_int(1u16), "foo");
 
             assert_eq!(sym, sym.clone());
         }
@@ -876,7 +894,8 @@ mod test {
         #[test]
         fn ref_can_be_used_as_string_slice() {
             let slice = "str";
-            let sym_slice: &str = &Symbol::new(SymbolIndex::from_int(1), slice);
+            let sym_slice: &str =
+                &Symbol::new(SymbolIndex::from_int(1u16), slice);
 
             assert_eq!(slice, sym_slice);
         }
@@ -898,7 +917,7 @@ mod test {
 
         #[test]
         fn displays_as_interned_value() {
-            let sym = Symbol::new(SymbolIndex::from_int(1), "foo");
+            let sym = Symbol::new(SymbolIndex::from_int(1u16), "foo");
 
             assert_eq!(format!("{}", sym), sym.str);
         }
@@ -907,7 +926,7 @@ mod test {
     mod interner {
         use super::*;
 
-        type Sut<'i> = DefaultInterner<'i>;
+        type Sut<'i> = DefaultInterner<'i, global::ProgSymSize>;
 
         #[test]
         fn recognizes_equal_strings() {
