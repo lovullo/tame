@@ -40,7 +40,7 @@ use petgraph::visit::DfsPostOrder;
 /// This implementation is currently based on [`petgraph`].
 ///
 /// Identifiers are cached by name for `O(1)` lookup.
-/// Since [`SymbolIndex`][crate::sym::SymbolIndex] is used for this purpose,
+/// Since [`SymbolId`][crate::sym::SymbolId] is used for this purpose,
 ///   the index may contain more entries than nodes and may contain gaps.
 ///
 /// For more information,
@@ -52,7 +52,7 @@ where
     /// Directed graph on which objects are stored.
     graph: DiGraph<Node<O>, AsgEdge, Ix>,
 
-    /// Map of [`SymbolIndex`][crate::sym::SymbolIndex] to node indexes.
+    /// Map of [`SymbolId`][crate::sym::SymbolId] to node indexes.
     ///
     /// This allows for `O(1)` lookup of identifiers in the graph.
     /// Note that,
@@ -406,7 +406,7 @@ mod test {
         UnresolvedError,
     };
     use crate::ir::legacyir::SymDtype;
-    use crate::sym::SymbolIndex;
+    use crate::sym::SymbolId;
     use std::cell::RefCell;
 
     type Ix = u8;

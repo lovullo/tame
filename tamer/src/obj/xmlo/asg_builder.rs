@@ -359,7 +359,7 @@ mod test {
     use super::*;
     use crate::ir::asg::{DefaultAsg, FragmentText, IdentObject};
     use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
-    use crate::sym::SymbolIndex;
+    use crate::sym::SymbolId;
     use std::collections::hash_map::RandomState;
 
     type SutIx = u8;

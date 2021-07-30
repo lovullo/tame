@@ -73,7 +73,7 @@ impl<W: Write> XmleWriter<W> {
     /// use std::io::Cursor;
     /// use tamer::obj::xmle::writer::XmleWriter;
     /// use tamer::ir::asg::{Sections, IdentObject};
-    /// use tamer::sym::{Symbol, SymbolIndex, DefaultProgInterner, Interner};
+    /// use tamer::sym::{Symbol, SymbolId, DefaultProgInterner, Interner};
     ///
     /// let writer = Cursor::new(Vec::new());
     /// let mut xmle_writer = XmleWriter::new(writer);
@@ -422,7 +422,7 @@ mod test {
     use super::*;
     use crate::ir::asg::{Dim, Section, Source};
     use crate::ir::legacyir::SymAttrs;
-    use crate::sym::{Symbol, SymbolIndex};
+    use crate::sym::{Symbol, SymbolId};
     use std::str;
 
     type Sut<W> = XmleWriter<W>;

@@ -154,7 +154,7 @@ impl<'a, T> Sections<'a, T> {
 mod test {
     use super::*;
     use crate::ir::asg::IdentObject;
-    use crate::sym::{Symbol, SymbolIndex};
+    use crate::sym::{Symbol, SymbolId};
 
     lazy_static! {
         static ref SYM: Symbol<'static, u16> = symbol_dummy!(1, "sym");

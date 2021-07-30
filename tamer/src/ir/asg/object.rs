@@ -729,7 +729,7 @@ where
 mod test {
     use super::super::ident::Dim;
     use super::*;
-    use crate::sym::SymbolIndex;
+    use crate::sym::SymbolId;
 
     mod ident_object_data {
         use super::*;
