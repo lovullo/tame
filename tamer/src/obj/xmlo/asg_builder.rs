@@ -42,7 +42,7 @@
 //! use tamer::global;
 //! use tamer::ir::asg::{DefaultAsg, IdentObject};
 //! use tamer::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
-//! use tamer::sym::{DefaultInterner, Interner};
+//! use tamer::sym::GlobalSymbolIntern;
 //! use fxhash::FxBuildHasher;
 //! use std::io::BufReader;
 //!
@@ -54,16 +54,15 @@
 //!     </preproc:fragments>
 //!   </package>"#;
 //!
-//! let interner = DefaultInterner::new();
-//! let xmlo = XmloReader::new(src_xmlo, &interner);
-//! let mut asg = DefaultAsg::<'_, IdentObject<_>, global::ProgIdentSize>::new();
+//! let xmlo = XmloReader::new(src_xmlo);
+//! let mut asg = DefaultAsg::<IdentObject<_>, global::ProgIdentSize>::new();
 //!
-//! let state = asg.import_xmlo(xmlo, AsgBuilderState::<'_, FxBuildHasher, _>::new());
+//! let state = asg.import_xmlo(xmlo, AsgBuilderState::<FxBuildHasher, _>::new());
 //!
 //! // Use `state.found` to recursively load dependencies.
 //! let AsgBuilderState { found, .. } = state.expect("unexpected failure");
 //! assert_eq!(
-//!     vec![&"dep/package"],
+//!     vec![&"dep/package".intern()],
 //!     found.unwrap().iter().collect::<Vec<_>>(),
 //! );
 //! ```
@@ -73,15 +72,15 @@ use crate::ir::asg::{
     Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, IndexType,
     ObjectRef, Source,
 };
-use crate::sym::{Symbol, SymbolIndexSize};
+use crate::sym::{GlobalSymbolResolve, SymbolId, SymbolIndexSize, SymbolStr};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::error::Error;
 use std::fmt::Display;
 use std::hash::BuildHasher;
 
-pub type Result<'i, S, Ix> =
-    std::result::Result<AsgBuilderState<'i, S, Ix>, AsgBuilderError>;
+pub type Result<S, Ix> =
+    std::result::Result<AsgBuilderState<S, Ix>, AsgBuilderError>;
 
 /// Builder state between imports.
 ///
@@ -103,7 +102,7 @@ pub type Result<'i, S, Ix> =
 /// This is used by the linker to only include dependencies that are
 ///   actually used by a particular program.
 #[derive(Debug, Default)]
-pub struct AsgBuilderState<'i, S, Ix>
+pub struct AsgBuilderState<S, Ix>
 where
     S: BuildHasher,
     Ix: IndexType + SymbolIndexSize,
@@ -123,12 +122,12 @@ where
     ///
     /// See [`AsgBuilder::import_xmlo`] for behavior when this value is
     ///   [`None`].
-    pub found: Option<HashSet<&'i str, S>>,
+    pub found: Option<HashSet<SymbolId<Ix>, S>>,
 
     /// Program name once discovered.
     ///
     /// This will be set by the first package encountered.
-    pub name: Option<&'i Symbol<'i, Ix>>,
+    pub name: Option<SymbolId<Ix>>,
 
     /// Relative path to project root once discovered.
     ///
@@ -136,7 +135,7 @@ where
     pub relroot: Option<String>,
 }
 
-impl<'i, S, Ix> AsgBuilderState<'i, S, Ix>
+impl<S, Ix> AsgBuilderState<S, Ix>
 where
     S: BuildHasher + Default,
     Ix: IndexType + SymbolIndexSize,
@@ -161,9 +160,9 @@ where
 /// For more information on what data are processed,
 ///   see [`AsgBuilderState`].
 /// See the [module-level documentation](self) for example usage.
-pub trait AsgBuilder<'i, O, S, Ix>
+pub trait AsgBuilder<O, S, Ix>
 where
-    O: IdentObjectState<'i, Ix, O>,
+    O: IdentObjectState<Ix, O>,
     S: BuildHasher,
     Ix: IndexType + SymbolIndexSize,
 {
@@ -179,23 +178,23 @@ where
     /// Its initial value can be provided as [`Default::default`].
     fn import_xmlo(
         &mut self,
-        xmlo: impl Iterator<Item = XmloResult<XmloEvent<'i, Ix>>>,
-        state: AsgBuilderState<'i, S, Ix>,
-    ) -> Result<'i, S, Ix>;
+        xmlo: impl Iterator<Item = XmloResult<XmloEvent<Ix>>>,
+        state: AsgBuilderState<S, Ix>,
+    ) -> Result<S, Ix>;
 }
 
-impl<'i, O, S, Ix, G> AsgBuilder<'i, O, S, Ix> for G
+impl<O, S, Ix, G> AsgBuilder<O, S, Ix> for G
 where
-    O: IdentObjectState<'i, Ix, O>,
+    O: IdentObjectState<Ix, O>,
     S: BuildHasher + Default,
     Ix: IndexType + SymbolIndexSize,
-    G: Asg<'i, O, Ix>,
+    G: Asg<O, Ix>,
 {
     fn import_xmlo(
         &mut self,
-        mut xmlo: impl Iterator<Item = XmloResult<XmloEvent<'i, Ix>>>,
-        mut state: AsgBuilderState<'i, S, Ix>,
-    ) -> Result<'i, S, Ix> {
+        mut xmlo: impl Iterator<Item = XmloResult<XmloEvent<Ix>>>,
+        mut state: AsgBuilderState<S, Ix>,
+    ) -> Result<S, Ix> {
         let mut elig = None;
         let first = state.is_first();
         let found = state.found.get_or_insert(Default::default());
@@ -224,7 +223,7 @@ where
                         let extern_ = attrs.extern_;
                         let kindval = (&attrs).try_into()?;
 
-                        let mut src: Source<'i, Ix> = attrs.into();
+                        let mut src: Source<Ix> = attrs.into();
 
                         // Existing convention is to omit @src of local package
                         // (in this case, the program being linked)
@@ -253,7 +252,7 @@ where
 
                 XmloEvent::Fragment(sym, text) => {
                     let frag = self.lookup(sym).ok_or(
-                        AsgBuilderError::MissingFragmentIdent(sym.to_string()),
+                        AsgBuilderError::MissingFragmentIdent(sym.lookup_str()),
                     )?;
 
                     self.set_fragment(frag, text)?;
@@ -269,11 +268,11 @@ where
         }
 
         if let Some(elig_sym) = elig {
-            state
-                .roots
-                .push(self.lookup(elig_sym).ok_or(
-                    AsgBuilderError::BadEligRef(elig_sym.to_string()),
-                )?);
+            state.roots.push(
+                self.lookup(elig_sym).ok_or(AsgBuilderError::BadEligRef(
+                    elig_sym.lookup_str(),
+                ))?,
+            );
         }
 
         Ok(state)
@@ -293,13 +292,13 @@ pub enum AsgBuilderError {
     AsgError(AsgError),
 
     /// Fragment encountered for an unknown identifier.
-    MissingFragmentIdent(String),
+    MissingFragmentIdent(SymbolStr<'static>),
 
     /// Eligibility classification references unknown identifier.
     ///
     /// This is generated by the compiler and so should never happen.
     /// (That's not to say that it won't, but it shouldn't.)
-    BadEligRef(String),
+    BadEligRef(SymbolStr<'static>),
 }
 
 impl Display for AsgBuilderError {
@@ -359,22 +358,22 @@ mod test {
     use super::*;
     use crate::ir::asg::{DefaultAsg, FragmentText, IdentObject};
     use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
-    use crate::sym::SymbolId;
+    use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 
-    type SutIx = u8;
-    type Sut<'i> = DefaultAsg<'i, IdentObject<'i, SutIx>, SutIx>;
-    type SutState<'i> = AsgBuilderState<'i, RandomState, SutIx>;
+    type SutIx = u16;
+    type Sut<'i> = DefaultAsg<IdentObject<SutIx>, SutIx>;
+    type SutState<'i> = AsgBuilderState<RandomState, SutIx>;
 
     #[test]
     fn gets_data_from_package_event() {
         let mut sut = Sut::new();
 
-        let name = symbol_dummy!(1, "name");
+        let name = "name".intern();
         let relroot = "some/path".to_string();
 
         let evs = vec![Ok(XmloEvent::Package(PackageAttrs {
-            name: Some(&name),
+            name: Some(name),
             relroot: Some(relroot.clone()),
             ..Default::default()
         }))];
@@ -383,7 +382,7 @@ mod test {
             .import_xmlo(evs.into_iter(), SutState::new())
             .expect("parsing of proper PackageAttrs must succeed");
 
-        assert_eq!(Some(&name), state.name);
+        assert_eq!(Some(name), state.name);
         assert_eq!(Some(relroot), state.relroot);
     }
 
@@ -403,15 +402,15 @@ mod test {
     #[test]
     fn adds_elig_as_root() {
         let mut sut = Sut::new();
-        let elig_sym = symbol_dummy!(1, "elig");
+        let elig_sym = "elig".intern();
 
         // The symbol must be on the graph, or it'll fail.
         let elig_node = sut
-            .declare(&elig_sym, IdentKind::Meta, Default::default())
+            .declare(elig_sym, IdentKind::Meta, Default::default())
             .unwrap();
 
         let evs = vec![Ok(XmloEvent::Package(PackageAttrs {
-            elig: Some(&elig_sym),
+            elig: Some(elig_sym),
             ..Default::default()
         }))];
 
@@ -424,20 +423,20 @@ mod test {
     fn adds_sym_deps() {
         let mut sut = Sut::new();
 
-        let sym_from = symbol_dummy!(1, "from");
-        let sym_to1 = symbol_dummy!(2, "to1");
-        let sym_to2 = symbol_dummy!(3, "to2");
+        let sym_from = "from".intern();
+        let sym_to1 = "to1".intern();
+        let sym_to2 = "to2".intern();
 
         let evs =
-            vec![Ok(XmloEvent::SymDeps(&sym_from, vec![&sym_to1, &sym_to2]))];
+            vec![Ok(XmloEvent::SymDeps(sym_from, vec![sym_to1, sym_to2]))];
 
         let _ = sut
             .import_xmlo(evs.into_iter(), SutState::new())
             .expect("unexpected failure");
 
-        let node_from = sut.lookup(&sym_from).expect("from node not added");
-        let node_to1 = sut.lookup(&sym_to1).expect("to1 node not added");
-        let node_to2 = sut.lookup(&sym_to2).expect("to2 node not added");
+        let node_from = sut.lookup(sym_from).expect("from node not added");
+        let node_to1 = sut.lookup(sym_to1).expect("to1 node not added");
+        let node_to2 = sut.lookup(sym_to2).expect("to2 node not added");
 
         assert!(sut.has_dep(node_from, node_to1));
         assert!(sut.has_dep(node_from, node_to2));
@@ -447,22 +446,22 @@ mod test {
     fn sym_decl_with_src_not_added_and_populates_found() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let src_a = symbol_dummy!(2, "src_a");
-        let src_b = symbol_dummy!(3, "src_b");
+        let sym = "sym".intern();
+        let src_a = "src_a".intern();
+        let src_b = "src_b".intern();
 
         let evs = vec![
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
-                    src: Some(&src_a),
+                    src: Some(src_a),
                     ..Default::default()
                 },
             )),
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
-                    src: Some(&src_b),
+                    src: Some(src_b),
                     ..Default::default()
                 },
             )),
@@ -481,30 +480,30 @@ mod test {
         // to change (we're using RandomState).
         founds.sort();
 
-        assert_eq!(vec![&src_a as &str, &src_b as &str], founds);
+        assert_eq!(vec![src_a, src_b], founds);
 
         // Symbols with `src` set are external and should not be added to
         // the graph.
-        assert!(sut.lookup(&sym).is_none());
+        assert!(sut.lookup(sym).is_none());
     }
 
     #[test]
     fn sym_decl_added_to_graph() {
         let mut sut = Sut::new();
 
-        let sym_extern = symbol_dummy!(1, "sym_extern");
-        let sym_non_extern = symbol_dummy!(2, "sym_non_extern");
-        let sym_map = symbol_dummy!(3, "sym_map");
-        let sym_retmap = symbol_dummy!(4, "sym_retmap");
-        let pkg_name = symbol_dummy!(5, "pkg name");
+        let sym_extern = "sym_extern".intern();
+        let sym_non_extern = "sym_non_extern".intern();
+        let sym_map = "sym_map".intern();
+        let sym_retmap = "sym_retmap".intern();
+        let pkg_name = "pkg name".intern();
 
         let evs = vec![
             // Note that externs should not be recognized as roots even if
             // their type would be.
             Ok(XmloEvent::SymDecl(
-                &sym_extern,
+                sym_extern,
                 SymAttrs {
-                    pkg_name: Some(&pkg_name),
+                    pkg_name: Some(pkg_name),
                     extern_: true,
                     ty: Some(SymType::Meta),
                     ..Default::default()
@@ -512,25 +511,25 @@ mod test {
             )),
             // These three will be roots
             Ok(XmloEvent::SymDecl(
-                &sym_non_extern,
+                sym_non_extern,
                 SymAttrs {
-                    pkg_name: Some(&pkg_name),
+                    pkg_name: Some(pkg_name),
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
             )),
             Ok(XmloEvent::SymDecl(
-                &sym_map,
+                sym_map,
                 SymAttrs {
-                    pkg_name: Some(&pkg_name),
+                    pkg_name: Some(pkg_name),
                     ty: Some(SymType::Map),
                     ..Default::default()
                 },
             )),
             Ok(XmloEvent::SymDecl(
-                &sym_retmap,
+                sym_retmap,
                 SymAttrs {
-                    pkg_name: Some(&pkg_name),
+                    pkg_name: Some(pkg_name),
                     ty: Some(SymType::RetMap),
                     ..Default::default()
                 },
@@ -544,9 +543,9 @@ mod test {
 
         assert_eq!(
             vec![
-                sut.lookup(&sym_non_extern).unwrap(),
-                sut.lookup(&sym_map).unwrap(),
-                sut.lookup(&sym_retmap).unwrap(),
+                sut.lookup(sym_non_extern).unwrap(),
+                sut.lookup(sym_map).unwrap(),
+                sut.lookup(sym_retmap).unwrap(),
             ],
             state.roots
         );
@@ -556,50 +555,50 @@ mod test {
 
         assert_eq!(
             &IdentObject::Extern(
-                &sym_extern,
+                sym_extern,
                 IdentKind::Meta,
                 Source {
                     pkg_name: None,
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(&sym_extern).unwrap()).unwrap(),
+            sut.get(sut.lookup(sym_extern).unwrap()).unwrap(),
         );
 
         assert_eq!(
             &IdentObject::Ident(
-                &sym_non_extern,
+                sym_non_extern,
                 IdentKind::Meta,
                 Source {
                     pkg_name: None,
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(&sym_non_extern).unwrap()).unwrap(),
+            sut.get(sut.lookup(sym_non_extern).unwrap()).unwrap(),
         );
 
         assert_eq!(
             &IdentObject::Ident(
-                &sym_map,
+                sym_map,
                 IdentKind::Map,
                 Source {
                     pkg_name: None,
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(&sym_map).unwrap()).unwrap(),
+            sut.get(sut.lookup(sym_map).unwrap()).unwrap(),
         );
 
         assert_eq!(
             &IdentObject::Ident(
-                &sym_retmap,
+                sym_retmap,
                 IdentKind::RetMap,
                 Source {
                     pkg_name: None,
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(&sym_retmap).unwrap()).unwrap(),
+            sut.get(sut.lookup(sym_retmap).unwrap()).unwrap(),
         );
     }
 
@@ -608,20 +607,20 @@ mod test {
     fn sym_decl_pkg_name_retained_if_not_first() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
-        let pkg_name = symbol_dummy!(2, "pkg name");
+        let sym = "sym".intern();
+        let pkg_name = "pkg name".intern();
 
         // This is all that's needed to not consider this to be the first
         // package, so that pkg_name is retained below.
-        let state = AsgBuilderState::<'_, RandomState, SutIx> {
-            name: Some(&pkg_name),
+        let state = AsgBuilderState::<RandomState, SutIx> {
+            name: Some(pkg_name),
             ..Default::default()
         };
 
         let evs = vec![Ok(XmloEvent::SymDecl(
-            &sym,
+            sym,
             SymAttrs {
-                pkg_name: Some(&pkg_name),
+                pkg_name: Some(pkg_name),
                 ty: Some(SymType::Meta),
                 ..Default::default()
             },
@@ -632,14 +631,14 @@ mod test {
         assert_eq!(
             // `pkg_name` retained
             &IdentObject::Ident(
-                &sym,
+                sym,
                 IdentKind::Meta,
                 Source {
-                    pkg_name: Some(&pkg_name),
+                    pkg_name: Some(pkg_name),
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(&sym).unwrap()).unwrap(),
+            sut.get(sut.lookup(sym).unwrap()).unwrap(),
         );
     }
 
@@ -647,10 +646,10 @@ mod test {
     fn ident_kind_conversion_error_propagates() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = "sym".intern();
         let bad_attrs = SymAttrs::default();
 
-        let evs = vec![Ok(XmloEvent::SymDecl(&sym, bad_attrs))];
+        let evs = vec![Ok(XmloEvent::SymDecl(sym, bad_attrs))];
 
         let result = sut
             .import_xmlo(evs.into_iter(), SutState::new())
@@ -663,11 +662,11 @@ mod test {
     fn declare_extern_error_propagates() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = "sym".intern();
 
         let evs = vec![
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
                     extern_: true,
                     ty: Some(SymType::Meta),
@@ -676,7 +675,7 @@ mod test {
             )),
             // Incompatible
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
                     extern_: true,
                     ty: Some(SymType::Map),
@@ -696,11 +695,11 @@ mod test {
     fn declare_error_propagates() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = "sym".intern();
 
         let evs = vec![
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
                     ..Default::default()
@@ -708,7 +707,7 @@ mod test {
             )),
             // Redeclare
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
                     ..Default::default()
@@ -727,29 +726,29 @@ mod test {
     fn sets_fragment() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = "sym".intern();
         let frag = FragmentText::from("foo");
 
         let evs = vec![
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
             )),
-            Ok(XmloEvent::Fragment(&sym, frag.clone())),
+            Ok(XmloEvent::Fragment(sym, frag.clone())),
         ];
 
         let _ = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
         let node = sut
-            .lookup(&sym)
+            .lookup(sym)
             .expect("ident/fragment was not added to graph");
 
         assert_eq!(
             Some(&IdentObject::IdentFragment(
-                &sym,
+                sym,
                 IdentKind::Meta,
                 Default::default(),
                 frag
@@ -762,17 +761,17 @@ mod test {
     fn error_missing_ident_for_fragment() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = "sym".intern();
 
         // Note: missing `SymDecl`.
-        let evs = vec![Ok(XmloEvent::Fragment(&sym, "foo".into()))];
+        let evs = vec![Ok(XmloEvent::Fragment(sym, "foo".into()))];
 
         let result = sut
             .import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected error for fragment without ident");
 
         assert_eq!(
-            AsgBuilderError::MissingFragmentIdent(sym.to_string()),
+            AsgBuilderError::MissingFragmentIdent(sym.lookup_str()),
             result,
         );
     }
@@ -781,12 +780,12 @@ mod test {
     fn fragment_error_propagates() {
         let mut sut = Sut::new();
 
-        let sym = symbol_dummy!(1, "sym");
+        let sym = "sym".intern();
         let frag = FragmentText::from("foo");
 
         let evs = vec![
             Ok(XmloEvent::SymDecl(
-                &sym,
+                sym,
                 SymAttrs {
                     // Invalid fragment destination
                     extern_: true,
@@ -794,7 +793,7 @@ mod test {
                     ..Default::default()
                 },
             )),
-            Ok(XmloEvent::Fragment(&sym, frag.clone())),
+            Ok(XmloEvent::Fragment(sym, frag.clone())),
         ];
 
         let result = sut
@@ -807,7 +806,7 @@ mod test {
         ));
 
         let node = sut
-            .lookup(&sym)
+            .lookup(sym)
             .expect("ident/fragment was not added to graph");
 
         // The identifier should not have been modified on failure.
@@ -821,14 +820,14 @@ mod test {
     fn stops_at_eoh() {
         let mut sut = Sut::new();
 
-        let pkg_name = symbol_dummy!(1, "pkg name");
+        let pkg_name = "pkg name".intern();
 
         let evs = vec![
             // Stop here.
             Ok(XmloEvent::Eoh),
             // Shouldn't make it to this one.
             Ok(XmloEvent::Package(PackageAttrs {
-                name: Some(&pkg_name),
+                name: Some(pkg_name),
                 ..Default::default()
             })),
         ];

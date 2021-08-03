@@ -19,79 +19,88 @@
 
 //! String internment system.
 //!
-//! Interned strings are represented by [`Symbol`],
-//!   created by an [`Interner`]:
-//~
+//! Interned strings are represented by an integer [`SymbolId`],
+//!   created by an [`Interner`].
+//!
 //!   - [`ArenaInterner`] - Intern pool backed by an [arena][] for fast
 //!     and stable allocation.
-//!     - [`DefaultInterner`] - The currently recommended intern pool
-//!         configuration for symbol interning.
 //!     - [`FxArenaInterner`] - Intern pool backed by an [arena][] using the
 //!         [Fx Hash][fxhash] hashing algorithm.
+//!     - [`DefaultInterner`] - The currently recommended intern pool
+//!         configuration for symbol interning (size-agnostic).
+//!     - [`DefaultPkgInterner`] - The currently recommended intern pool
+//!         configuration for individual packages and their imports.
+//!     - [`DefaultProgInterner`] - The currently recommended intern pool
+//!         configuration for all packages within a program.
 //!
-//! Interners return symbols by reference which allows for `O(1)` comparison
-//!   by pointer.
+//! Interners represent symbols as integer values which allows for `O(1)`
+//!   comparison of any arbitrary interned value,
+//!     regardless of length.
+//!
+//! The most common way to intern strings is using the global static
+//!   interners,
+//!     which offer several conveniences that are discussed below.
+//! However,
+//!   interners may also be used standalone without requiring global state.
 //!
 //! [arena]: bumpalo
 //!
 //! ```
-//! use tamer::sym::{Interner, DefaultInterner, Symbol, SymbolId};
+//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, PkgSymbolId};
 //!
-//! // Inputs to be interned
-//! let a = "foo";
-//! let b = &"foo".to_string();
-//! let c = "foobar";
-//! let d = &c[0..3];
+//! // Interns are represented by `SymbolId`.  You should choose one of
+//! // `ProgSymbolId` or `PkgSymbolId`, unless both must be supported.
+//! let foo: PkgSymbolId = "foo".intern();
+//! assert_eq!(foo, foo);
 //!
-//! // Interners employ interior mutability and so do not need to be
-//! // declared `mut`
-//! let interner = DefaultInterner::new();
+//! // Interning the same string twice returns the same intern
+//! assert_eq!(foo, "foo".intern());
 //!
-//! let (ia, ib, ic, id) = (
-//!     interner.intern(a),
-//!     interner.intern(b),
-//!     interner.intern(c),
-//!     interner.intern(d),
-//! );
+//! // All interns can be freely copied.
+//! let foo2 = foo;
+//! assert_eq!(foo, foo2);
 //!
-//! assert_eq!(ia, ib);
-//! assert_eq!(ia, id);
-//! assert_eq!(ib, id);
-//! assert_ne!(ia, ic);
+//! // Different strings intern to different values
+//! assert_ne!(foo, "bar".intern());
 //!
-//! // All interns can be cloned and clones are eq
-//! assert_eq!(*ia, ia.clone());
-//!
-//! // Only "foo" and "foobar" are interned
-//! assert_eq!(2, interner.len());
-//! assert!(interner.contains("foo"));
-//! assert!(interner.contains("foobar"));
-//! assert!(!interner.contains("something else"));
-//!
-//! // Each symbol has an associated, densely-packed integer value
-//! // that can be used for indexing
-//! assert_eq!(SymbolId::from_int(1u16), ia.index());
-//! assert_eq!(SymbolId::from_int(1u16), ib.index());
-//! assert_eq!(SymbolId::from_int(2u16), ic.index());
-//! assert_eq!(SymbolId::from_int(1u16), id.index());
-//!
-//! // Symbols can also be looked up by index.
-//! assert_eq!(Some(ia), interner.index_lookup(ia.index()));
+//! // Interned slices can be looked up by their symbol id.
+//! assert_eq!(&"foo", &foo.lookup_str());
 //! ```
 //!
 //! What Is String Interning?
 //! =========================
 //! _[String interning][]_ is a process by which a single copy of a string
 //!   is stored immutably in memory as part of a _pool_.
-//! When the same string is later encountered,
-//!   a reference to the string in the pool is used rather than allocating a
-//!   new string.
-//!  Interned strings are typically referred to as "symbols" or "atoms".
+//! Once a string has been interned,
+//!   attempting to intern it again will always return the same [`SymbolId`].
+//! Interned strings are typically referred to as "symbols" or "atoms".
 //!
-//! String comparison then amounts to comparing pointers (`O(1)`)
+//! String comparison then amounts to comparing integer values (`O(1)`)
 //!     rather than having to scan the string (`O(n)`).
 //! There is, however, a hashing cost of interning strings,
-//!   as well as looking up strings in the intern pool.
+//!   as well as looking up strings in the intern pool (both `O(1)`).
+//!
+//! It is expected that strings are interned as soon as they are encountered,
+//!   which is likely to be from source inputs or previously compiled object
+//!   files.
+//! Processing stages will then hold the interned [`SymbolId`] and use those
+//!   for any needed comparsions,
+//!     without any need to look up the string from the pool.
+//! Strings should only be looked up
+//!   (using [`GlobalSymbolResolve::lookup_str`] or
+//!   [`Interner::index_lookup`]) when they need to be written
+//!     (e.g. into a target or displayed to the user).
+//!
+//! [`SymbolId`] is monotonically increasing from 1,
+//!   making it a useful densely-packed index as an alternative [`HashMap`]
+//!   when most of the symbols will be represented as part of the map.
+//! This also means that strings can be interned in bulk and have a
+//!   predictable relationship to one-another---for
+//!     example,
+//!       if strings are interned in lexographic order,
+//!         their [`SymbolId`]s will reflect that same ordering,
+//!           so long as those strings have not previously been interned.
+//! Bulk insertion should therefore be done before processing user input.
 //!
 //! [string interning]: https://en.wikipedia.org/wiki/String_interning
 //!
@@ -105,78 +114,121 @@
 //! 1. Strings are compared against the existing intern pool using a
 //!      [`HashMap`].
 //! 2. If a string has not yet been interned:
-//!    - The string is copied into the arena-backed pool;
-//!    - A new [`Symbol`] is allocated adjacent to it in the arena holding
-//!       a string slice referencing the arena-allocated string; and
-//!    - The symbol is stored as the value in the [`HashMap`] for that key.
-//! 3. Otherwise, a reference to the existing [`Symbol`] is returned.
+//!    - A new integer [`SymbolId`] index is allocated;
+//!    - The string is copied into the arena-backed pool at that new index;
+//!        and
+//!    - The string is hashed and will resolve to the new [`SymbolId`] for
+//!        future lookups and internment attempts.
+//! 3. Otherwise, the existing [`SymbolId`] associated with the provided
+//!      string is returned.
 //!
-//! Since the arena provides a stable location in memory,
-//!   and all symbols are immutable,
-//!   [`ArenaInterner`] is able to safely return any number of references to
-//!     a single [`Symbol`],
-//!       bound to the lifetime of the arena itself.
-//! Since the [`Symbol`] contains the string slice,
-//!   it also acts as a [smart pointer] for the interned string itself,
-//!     allowing [`Symbol`] to be used in any context where `&str` is
-//!     expected.
-//! Dropping a [`Symbol`] does _not_ affect the underlying arena-allocated
-//!   data.
+//! The string associated with a [`SymbolId`] can be looked up from the pool
+//!   using [`GlobalSymbolResolve::lookup_str`] for global interners,
+//!     or [`Interner::index_lookup`] otherwise.
+//! Interned strings are represented by [`SymbolStr`],
+//!   which can be dereferenced into [`&str`].
+//! Symbols allocated using a global interner will have a `'static`
+//!   lifetime.
 //!
-//! [smart pointer]: https://doc.rust-lang.org/book/ch15-00-smart-pointers.html
-//!
-//! Each symbol also has an associated integer index value
-//!   (see [`Symbol::index`]),
-//!     which provides a dense range of values suitable for use in vectors
-//!       as an alternative to [`HashMap`] for mapping symbol data.
-//! A [`SymbolId`] can be mapped back into its associated [`Symbol`]
-//!   using [`Interner::index_lookup`].
-//!
-//! Since a reference to the same [`Symbol`] is returned for each
-//!   [`Interner::intern`] and [`Interner::intern_soft`] call,
-//!     symbols can be compared by pointer in `O(1)` time.
-//! Symbols also implement [`Copy`],
-//!   and will still compare equal to other symbols referencing the same
-//!   interned value by comparing the underlying string slice pointers.
+//! Since [`SymbolId`] is an integer value,
+//!   it implements [`Copy`] and will still compare equal to other symbols
+//!   referencing the same interned value.
 //!
 //! This implementation was heavily motivated by [Rustc's own internment
-//!   system][rustc-intern],
-//!     but differs in significant ways:
-//!
-//!   - This implementation stores string references in [`Symbol`] rather
-//!       than relying on a global singleton [`Interner`];
-//!   - Consequently, associates the lifetime of interned strings with that
-//!       of the underlying arena rather than casting to `&'static`;
-//!   - Retrieves symbol values by pointer reference without requiring use
-//!       of [`Interner`] or a locking mechanism; and
-//!   - Stores [`Symbol`] objects in the arena rather than within a vector
-//!       indexed by [`SymbolId`].
+//!   system][rustc-intern].
 //!
 //! [`HashMap`]: std::collections::HashMap
 //! [`NonZeroU32`]: std::num::NonZeroU32
 //!
 //!
-//! Name Mangling
-//! =============
-//! Interners do not perform [name mangling][].
-//! For future consideration,
-//!   see [RFC 2603][rfc-2603] and the [Itanium ABI][itanium-abi].
+//! Symbol Index Sizes
+//! ------------------
+//! [`SymbolId`] is generic over [`SymbolIndexSize`],
+//!   which is implemented for
+//!   [`global::PkgSymSize`](crate::global::PkgSymSize) and
+//!   [`global::ProgSymSize`](crate::global::ProgSymSize).
+//! This allows the compiler---which processes far less data than the
+//!   linker---to use a smaller index size.
+//! This is desirable for certain core data structures,
+//!   like spans,
+//!   which try to pack a lot of information into 64-bit structures.
 //!
-//! [name mangling]: https://en.wikipedia.org/wiki/Name_mangling
-//! [rfc-2603]: https://rust-lang.github.io/rfcs/2603-symbol-name-mangling-v2.html
-//! [itanium-abi]: http://refspecs.linuxbase.org/cxxabi-1.86.html#mangling
+//! But the cost is that of another trait bound on any systems that must
+//!   accommodate any [`SymbolIndexSize`]
+//! Systems should therefore favor one of these two types if they are not
+//!   shared between e.g. compilers and linkers:
+//!
+//!   - [`PkgSymbolId`] for individual packages and their imports; and
+//!   - [`ProgSymbolId`] for all packages in a program.
+//!
+//! Note that _it is not permissable to cast between different index sizes_!
+//!   Even though a [`PkgSymbolId`] could fit within the index size of a
+//!     [`ProgSymbolId`],
+//!       for example,
+//!       they use _different_ interners with their own distinct index
+//!       sets.
+//! A system should avoid using multiple interners at the same time,
+//!   and trait bounds will make such a mistake painfully obvious.
+//!
+//! Global Interners
+//! ----------------
+//! TAMER offers two thread-local global interners that intern strings with
+//!   a `'static` lifetime,
+//!     simplifying the handling of lifetimes;
+//!       they produce symbols of type [`PkgSymbolId`] and [`ProgSymbolId`]
+//!       and are intended for packages and entire programs respectively.
+//! These interners are lazily initialized on first use.
+//! Symbols from the two interners cannot be mixed;
+//!   you must use the largest [`SymbolIndexSize`] needed.
+//!
+//! Global interners were introduced because symbols are used by virtually
+//!   every part of the system,
+//!     which polluted everything with interner lifetimes.
+//! This suggested that the interner should be treated instead as if it were
+//!   a part of Rust itself,
+//!     and treated no differently than other core memory allocation.
+//!
+//! All [`SymbolStr`] objects returned from global interners hold a
+//!   `'static` lifetime to simplify lifetime management and borrowing.
+//! However,
+//!   these should not be used in place of [`SymbolId`] if the string value
+//!   is not actually needed.
+//!
+//! Global interners are exposed via friendly APIs using two traits:
+//!
+//!   - [`GlobalSymbolIntern`] provides an `intern` method that can be used
+//!       on any [`&str`] (e.g. `"foo".intern()`); and
+//!   - [`GlobalSymbolResolve`] provides a `lookup_str` method on
+//!       [`SymbolId`] which resolves the symbol using the appropriate
+//!       global interner,
+//!         producing a [`SymbolStr`] holding a reference to the `'static`
+//!         string slice within the pool.
+//!
+//! These traits are intentionally separate so that it is clear how a
+//!   particular package or object makes use of symbols.
+//! If this distinction proves too cumbersome,
+//!   then they may be combined in the future.
+//!
+//! TAMER does not currently utilize threads,
+//!   and global interners are never dropped,
+//!   and so [`SymbolStr`] will always refer to a valid string.
+//!
+//! There is no mechanism preventing [`SymbolId`] from one interner from
+//!   being used with another beyond [`SymbolIndexSize`] bounds;
+//!     if you utilize interners for any other purpose,
+//!       it is advised that you create newtypes for their [`SymbolId`]s.
 //!
 //!
 //! Related Work and Further Reading
 //! ================================
-//! String interning is often tightly coupled with symbols (in the generic
-//!   sense),
-//!     sometimes called atoms.
-//! Symbols can often be either interned,
+//! String interning is used in a variety of systems and languages.
+//! Symbols can typically be either interned,
 //!   and therefore compared for equivalency,
 //!   or _uninterned_,
 //!     which makes them unique even to symbols of the same name.
-//! Interning may also be done automatically by a language for performance.
+//! Interning may also be done automatically by a language as a performance
+//!   optimization,
+//!     or by a compiler for storage in an object file such as ELF.
 //! Languages listed below that allow for explicit interning may also
 //!   perform automatic interning as well
 //!     (for example, `'symbol` in Lisp and `lowercase_vars` as atoms in
@@ -231,12 +283,9 @@
 //!       for Rust developed by Mozilla for Servo.
 //!   - [`string-interner`][rust-string-interner] is another string
 //!       interning library for Rust.
-//!   - [Rustc interns strings as `Symbol`s][rustc-intern] using an
-//!       [arena allocator][rustc-arena] and avoids `Rc` by representing
-//!       symbols as integer values and converting them to strings using a
-//!       global pool and unsafe rust to cast to a `static` slice.
-//!     - Rustc identifies symbols by integer value encapsulated within a
-//!         `Symbol`.
+//!   - [Rustc interns strings as `Symbol`s][rustc-intern] using a
+//!       global [arena allocator][rustc-arena]  and unsafe rust to cast to
+//!       a `static` slice.
 //!     - Rustc's [`newtype_index!` macro][rustc-nt] uses
 //!         [`NonZeroU32`] so that [`Option`] uses no
 //!         additional space (see [pull request `53315`][rustc-nt-pr]).
@@ -247,7 +296,7 @@
 //! [rust-string-cache]: https://github.com/servo/string-cache
 //! [rust-string-interner]: https://github.com/robbepop/string-interner
 //! [rfc-1845]: https://rust-lang.github.io/rfcs/1845-shared-from-slice.html
-//! [rustc-intern]: https://doc.rust-lang.org/nightly/nightly-rustc/syntax/ast/struct.Name.html
+//! [rustc-intern]: https://doc.rust-lang.org/nightly/nightly-rustc/src/rustc_span/symbol.rs.html
 //! [rustc-arena]: https://doc.rust-lang.org/nightly/nightly-rustc/arena/index.html
 //! [rustc-nt]: https://doc.rust-lang.org/nightly/nightly-rustc/rustc_index/macro.newtype_index.html
 //! [rustc-nt-pr]: https://github.com/rust-lang/rust/pull/53315
@@ -276,12 +325,7 @@ pub use interner::{
     ArenaInterner, DefaultInterner, DefaultPkgInterner, DefaultProgInterner,
     FxArenaInterner, Interner,
 };
-pub use symbol::{PkgSymbol, ProgSymbol, Symbol, SymbolId, SymbolIndexSize};
-
-/// Concisely define dummy symbols for testing.
-#[cfg(test)]
-macro_rules! symbol_dummy {
-    ($id:expr, $name:expr) => {
-        Symbol::new_dummy(SymbolId::from_int($id), $name);
-    };
-}
+pub use symbol::{
+    GlobalSymbolIntern, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
+    PkgSymbolId, ProgSymbolId, SymbolId, SymbolIndexSize, SymbolStr,
+};

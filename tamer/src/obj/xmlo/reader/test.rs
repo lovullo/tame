@@ -18,27 +18,27 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::global;
 use crate::ir::legacyir::{SymDtype, SymType};
-use crate::sym::DefaultInterner;
+use crate::sym::GlobalSymbolIntern;
 use crate::test::quick_xml::*;
 
-type Sut<'i, B, I> = XmloReader<'i, B, I, u16>;
+type Sut<B> = XmloReader<B, global::PkgIdentExprSize>;
 
 macro_rules! xmlo_tests {
-    ($(fn $fn:ident($sut:ident, $interner:ident) $body:block)*) => {
+    ($(fn $fn:ident($sut:ident) $body:block)*) => {
         $(
             #[test]
             fn $fn() -> XmloResult<()> {
                 let stub_data: &[u8] = &[];
-                let $interner = DefaultInterner::new();
 
                 #[allow(unused_mut)]
-                let mut $sut = Sut::new(stub_data, &$interner);
+                let mut $sut = Sut::new(stub_data);
 
                 // We don't want to have to output a proper root node
                 // for every one of our tests.
                 $sut.seen_root = true;
-                $sut.pkg_name = Some($interner.intern("pkg/name"));
+                $sut.pkg_name = Some("pkg/name".intern());
 
                 $body;
 
@@ -49,11 +49,11 @@ macro_rules! xmlo_tests {
 }
 
 xmlo_tests! {
-    fn sets_parsing_options(sut, interner) {
+    fn sets_parsing_options(sut) {
         assert_eq!(Some(false), sut.reader.check_end);
     }
 
-    fn proxies_xml_failures(sut, interner) {
+    fn proxies_xml_failures(sut) {
         sut.reader.next_event =
             Some(Box::new(|_, _| Err(InnerXmlError::UnexpectedEof("test".into()))));
 
@@ -63,7 +63,7 @@ xmlo_tests! {
         }
     }
 
-    fn sym_fails_without_name(sut, interner) {
+    fn sym_fails_without_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:sym",
@@ -77,7 +77,7 @@ xmlo_tests! {
         }
     }
 
-    fn fails_on_invalid_root(sut, interner) {
+    fn fails_on_invalid_root(sut) {
         // xmlo_tests macro sets this for us, so we need to clear it to
         // be able to perform the check
         sut.seen_root = false;
@@ -95,7 +95,7 @@ xmlo_tests! {
         }
     }
 
-    fn recognizes_valid_roots(sut, interner) {
+    fn recognizes_valid_roots(sut) {
         // xmlo_tests macro sets this for us, so we need to clear it to
         // be able to perform the check
         sut.seen_root = false;
@@ -125,7 +125,7 @@ xmlo_tests! {
         sut.read_event()?;
     }
 
-    fn package_event_program(sut, interner) {
+    fn package_event_program(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"package",
@@ -143,14 +143,14 @@ xmlo_tests! {
         assert_eq!(
             XmloEvent::Package(PackageAttrs {
                 program: true,
-                elig: Some(interner.intern("eligClassYields")),
+                elig: Some("eligClassYields".intern()),
                 ..Default::default()
             }),
             result
         );
     }
 
-    fn package_event_nonprogram(sut, interner) {
+    fn package_event_nonprogram(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"package",
@@ -169,7 +169,7 @@ xmlo_tests! {
         );
     }
 
-    fn package_event_name(sut, interner) {
+    fn package_event_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"package",
@@ -184,7 +184,7 @@ xmlo_tests! {
 
         assert_eq!(
             XmloEvent::Package(PackageAttrs {
-                name: Some(interner.intern("pkg/name")),
+                name: Some("pkg/name".intern()),
                 relroot: Some("../../".into()),
                 program: false,
                 ..Default::default()
@@ -193,7 +193,7 @@ xmlo_tests! {
         );
     }
 
-    fn sym_dep_event(sut, interner) {
+    fn sym_dep_event(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:sym-dep",
@@ -223,14 +223,14 @@ xmlo_tests! {
 
         assert_eq!(
             XmloEvent::SymDeps(
-                interner.intern("depsym"),
-                vec![interner.intern("dep1"), interner.intern("dep2")]
+                "depsym".intern(),
+                vec!["dep1".intern(), "dep2".intern()]
             ),
             result
         );
     }
 
-    fn sym_dep_fails_with_missing_name(sut, interner) {
+    fn sym_dep_fails_with_missing_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:sym-dep",
@@ -244,7 +244,7 @@ xmlo_tests! {
         }
     }
 
-    fn sym_dep_malformed_ref_missing_name(sut, interner) {
+    fn sym_dep_malformed_ref_missing_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:sym-dep",
@@ -270,7 +270,7 @@ xmlo_tests! {
         }
     }
 
-    fn sym_dep_malformed_ref_unexpected_element(sut, interner) {
+    fn sym_dep_malformed_ref_unexpected_element(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:sym-dep",
@@ -303,7 +303,7 @@ xmlo_tests! {
         assert_eq!(3, sut.reader.event_i, "Did not ignore Text");
     }
 
-    fn eoh_after_fragments(sut, interner) {
+    fn eoh_after_fragments(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::End(MockBytesEnd::new(b"preproc:fragments")))
         }));
@@ -313,7 +313,7 @@ xmlo_tests! {
         assert_eq!(XmloEvent::Eoh, result);
     }
 
-    fn fragment_event(sut, interner) {
+    fn fragment_event(sut) {
         let expected = "fragment text".to_string();
         sut.reader.next_text = Some(Ok(expected.clone()));
 
@@ -329,7 +329,7 @@ xmlo_tests! {
         let result = sut.read_event()?;
 
         assert_eq!(
-            XmloEvent::Fragment(interner.intern("fragsym"), expected),
+            XmloEvent::Fragment("fragsym".intern(), expected),
             result
         );
 
@@ -340,7 +340,7 @@ xmlo_tests! {
         );
     }
 
-    fn fragment_fails_with_missing_id(sut, interner) {
+    fn fragment_fails_with_missing_id(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:fragment",
@@ -355,7 +355,7 @@ xmlo_tests! {
     }
 
     // Yes, this happened.
-    fn fragment_fails_with_empty_id(sut, interner) {
+    fn fragment_fails_with_empty_id(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:fragment",
@@ -371,7 +371,7 @@ xmlo_tests! {
         }
     }
 
-    fn fragment_fails_with_missing_text(sut, interner) {
+    fn fragment_fails_with_missing_text(sut) {
         sut.reader.next_text = Some(Err(InnerXmlError::TextNotFound));
 
         sut.reader.next_event = Some(Box::new(|_, _| {
@@ -385,13 +385,13 @@ xmlo_tests! {
 
         match sut.read_event() {
             Err(XmloError::MissingFragmentText(symname)) => {
-                assert_eq!("fragsym".to_string(), symname)
+                assert_eq!("fragsym", symname)
             }
             bad => panic!("expected XmloError: {:?}", bad),
         }
     }
 
-    fn skips_unneeded_nodes(sut, interner) {
+    fn skips_unneeded_nodes(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             // Skip over this
             0 => Ok(XmlEvent::End(MockBytesEnd::new(
@@ -421,9 +421,9 @@ xmlo_tests! {
 
         assert_eq!(
             XmloEvent::SymDecl(
-                interner.intern("sym-expected"),
+                "sym-expected".intern(),
                 SymAttrs {
-                    pkg_name: Some(interner.intern("pkg/name")),
+                    pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
             ),
@@ -434,7 +434,7 @@ xmlo_tests! {
     // Some preproc:sym nodes have children (`func` symbols,
     // specifically) that we choose to ignore.  See next test for
     // data we do care about.
-    fn sym_nonempty_element(sut, interner) {
+    fn sym_nonempty_element(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             // Notice Start, not Empty
             Ok(XmlEvent::Start(MockBytesStart::new(
@@ -455,10 +455,10 @@ xmlo_tests! {
 
         assert_eq!(
             XmloEvent::SymDecl(
-                interner.intern("sym-nonempty"),
+                "sym-nonempty".intern(),
                 SymAttrs {
                     dim: Some(2),
-                    pkg_name: Some(interner.intern("pkg/name")),
+                    pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
             ),
@@ -473,7 +473,7 @@ xmlo_tests! {
 
     // `map` symbols include information about their source
     // fields.
-    fn sym_map_from(sut, interner) {
+    fn sym_map_from(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             // Notice Start, not Empty
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
@@ -524,14 +524,14 @@ xmlo_tests! {
 
         assert_eq!(
             XmloEvent::SymDecl(
-                interner.intern("sym-map-from"),
+                "sym-map-from".intern(),
                 SymAttrs {
                     ty: Some(SymType::Map),
                     from: Some(vec![
-                        interner.intern("from-a"),
-                        interner.intern("from-b"),
+                        "from-a".intern(),
+                        "from-b".intern(),
                     ]),
-                    pkg_name: Some(interner.intern("pkg/name")),
+                    pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
             ),
@@ -542,7 +542,7 @@ xmlo_tests! {
         assert_eq!(None, sut.reader.read_to_end_name);
     }
 
-    fn sym_map_from_missing_name(sut, interner) {
+    fn sym_map_from_missing_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             // Notice Start, not Empty
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
@@ -580,7 +580,7 @@ xmlo_tests! {
         }
     }
 
-    fn sym_map_from_unexpected_data(sut, interner) {
+    fn sym_map_from_unexpected_data(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             // Notice Start, not Empty
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
@@ -612,7 +612,7 @@ xmlo_tests! {
         }
     }
 
-    fn read_events_via_iterator(sut, interner) {
+    fn read_events_via_iterator(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"package",
@@ -633,7 +633,7 @@ xmlo_tests! {
 }
 
 macro_rules! sym_test_reader_event {
-    ($sut:ident, $interner:ident, $name:ident, $($key:ident=$val:literal),*) => {
+    ($sut:ident, $name:ident, $($key:ident=$val:literal),*) => {
         // See xmlo_tests macro for explanation
         $sut.seen_root = true;
 
@@ -676,24 +676,23 @@ macro_rules! sym_test_reader_event {
 }
 
 macro_rules! sym_tests {
-    (($interner:ident) $($name:ident: [$($key:ident=$val:literal),*] => $expect:expr)*) => {
+    ($($name:ident: [$($key:ident=$val:literal),*] => $expect:expr)*) => {
         $(
             #[test]
             fn $name() -> XmloResult<()> {
                 let stub_data: &[u8] = &[];
-                let $interner = DefaultInterner::new();
-                let mut sut = Sut::new(stub_data, &$interner);
+                let mut sut = Sut::new(stub_data);
 
-                sym_test_reader_event!(sut, $interner, $name, $( $key=$val ),*);
+                sym_test_reader_event!(sut, $name, $( $key=$val ),*);
 
                 let result = sut.read_event()?;
 
                 let mut expected_attrs = $expect;
-                expected_attrs.pkg_name = Some($interner.intern("pkg/name"));
+                expected_attrs.pkg_name = Some("pkg/name".intern());
 
                 assert_eq!(
                     XmloEvent::SymDecl(
-                        $interner.intern(stringify!($name)),
+                        stringify!($name).intern(),
                         expected_attrs
                     ),
                     result
@@ -705,13 +704,11 @@ macro_rules! sym_tests {
 }
 
 sym_tests! {
-    (interner)
-
-        src: [src="foo/bar/baz"] => SymAttrs {
-            // see macro for src relpath
-            src: Some(interner.intern("foo/bar/baz")),
-            ..Default::default()
-        }
+    src: [src="foo/bar/baz"] => SymAttrs {
+        // see macro for src relpath
+        src: Some("foo/bar/baz".intern()),
+        ..Default::default()
+    }
 
     // note that this doesn't test every type; we're not going to
     // duplicate the mapping for all of them here
@@ -764,12 +761,12 @@ sym_tests! {
     }
 
     parent: [parent="foo"] => SymAttrs {
-        parent: Some(interner.intern("foo")),
+        parent: Some("foo".intern()),
         ..Default::default()
     }
 
     yields: [yields="yield"] => SymAttrs {
-        yields: Some(interner.intern("yield")),
+        yields: Some("yield".intern()),
         ..Default::default()
     }
 
@@ -792,7 +789,7 @@ sym_tests! {
     multi: [src="foo", type="class", dim="1", dtype="float", extern="true"]
         => SymAttrs {
             // see macro for src relpath
-            src: Some(interner.intern("foo")),
+            src: Some("foo".intern()),
             ty: Some(SymType::Class),
             dim: Some(1),
             dtype: Some(SymDtype::Float),
@@ -805,12 +802,11 @@ sym_tests! {
 #[test]
 fn generated_true() -> XmloResult<()> {
     let stub_data: &[u8] = &[];
-    let interner = DefaultInterner::new();
-    let mut sut = Sut::new(stub_data, &interner);
+    let mut sut = Sut::new(stub_data);
 
     // See xmlo_tests macro for explanation
     sut.seen_root = true;
-    sut.pkg_name = Some(interner.intern("pkg/name"));
+    sut.pkg_name = Some("pkg/name".intern());
 
     sut.reader.next_event = Some(Box::new(|_, _| {
         Ok(XmlEvent::Empty(MockBytesStart::new(
@@ -826,12 +822,12 @@ fn generated_true() -> XmloResult<()> {
 
     let expected_attrs = SymAttrs {
         generated: true,
-        pkg_name: Some(interner.intern("pkg/name")),
+        pkg_name: Some("pkg/name".intern()),
         ..Default::default()
     };
 
     assert_eq!(
-        XmloEvent::SymDecl(interner.intern("generated_true"), expected_attrs),
+        XmloEvent::SymDecl("generated_true".intern(), expected_attrs),
         result
     );
 
@@ -841,10 +837,9 @@ fn generated_true() -> XmloResult<()> {
 #[test]
 fn fails_on_non_ascii_dim() {
     let stub_data: &[u8] = &[];
-    let interner = DefaultInterner::new();
-    let mut sut = Sut::new(stub_data, &interner);
+    let mut sut = Sut::new(stub_data);
 
-    sym_test_reader_event!(sut, interner, fail_sym, dim = "X1");
+    sym_test_reader_event!(sut, fail_sym, dim = "X1");
 
     match sut.read_event() {
         Err(XmloError::InvalidDim(msg)) => assert!(msg.contains("X1")),
@@ -855,10 +850,9 @@ fn fails_on_non_ascii_dim() {
 #[test]
 fn fails_on_multi_char_dim() {
     let stub_data: &[u8] = &[];
-    let interner = DefaultInterner::new();
-    let mut sut = Sut::new(stub_data, &interner);
+    let mut sut = Sut::new(stub_data);
 
-    sym_test_reader_event!(sut, interner, fail_sym, dim = "11");
+    sym_test_reader_event!(sut, fail_sym, dim = "11");
 
     match sut.read_event() {
         Err(XmloError::InvalidDim(msg)) => assert!(msg.contains("11")),
@@ -869,10 +863,9 @@ fn fails_on_multi_char_dim() {
 #[test]
 fn fails_on_invalid_type() {
     let stub_data: &[u8] = &[];
-    let interner = DefaultInterner::new();
-    let mut sut = Sut::new(stub_data, &interner);
+    let mut sut = Sut::new(stub_data);
 
-    sym_test_reader_event!(sut, interner, fail_sym, type = "foo");
+    sym_test_reader_event!(sut, fail_sym, type = "foo");
 
     match sut.read_event() {
         Err(XmloError::InvalidType(msg)) => assert!(msg.contains("foo")),
@@ -883,10 +876,9 @@ fn fails_on_invalid_type() {
 #[test]
 fn fails_on_invalid_dtype() {
     let stub_data: &[u8] = &[];
-    let interner = DefaultInterner::new();
-    let mut sut = Sut::new(stub_data, &interner);
+    let mut sut = Sut::new(stub_data);
 
-    sym_test_reader_event!(sut, interner, fail_sym, dtype = "foo");
+    sym_test_reader_event!(sut, fail_sym, dtype = "foo");
 
     match sut.read_event() {
         Err(XmloError::InvalidDtype(msg)) => assert!(msg.contains("foo")),
@@ -897,10 +889,9 @@ fn fails_on_invalid_dtype() {
 #[test]
 fn fails_when_missing_sym_name() {
     let stub_data: &[u8] = &[];
-    let interner = DefaultInterner::new();
-    let mut sut = Sut::new(stub_data, &interner);
+    let mut sut = Sut::new(stub_data);
 
-    sym_test_reader_event!(sut, interner, fail_sym, dtype = "foo");
+    sym_test_reader_event!(sut, fail_sym, dtype = "foo");
 
     match sut.read_event() {
         Err(XmloError::InvalidDtype(msg)) => assert!(msg.contains("foo")),

@@ -30,7 +30,8 @@ use crate::ir::asg::{
 };
 use crate::obj::xmle::writer::XmleWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
-use crate::sym::{DefaultInterner, DefaultProgInterner, Interner, Symbol};
+use crate::sym::SymbolId;
+use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::error::Error;
@@ -38,22 +39,20 @@ use std::fs;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-type LinkerAsg<'i> =
-    DefaultAsg<'i, IdentObject<'i, global::ProgSymSize>, global::ProgIdentSize>;
+type LinkerAsg =
+    DefaultAsg<IdentObject<global::ProgSymSize>, global::ProgIdentSize>;
 
-type LinkerAsgBuilderState<'i> =
-    AsgBuilderState<'i, FxBuildHasher, global::ProgIdentSize>;
+type LinkerAsgBuilderState =
+    AsgBuilderState<FxBuildHasher, global::ProgIdentSize>;
 
 pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
-    let interner = DefaultInterner::new();
 
     let state = load_xmlo(
         package_path,
         &mut fs,
         &mut depgraph,
-        &interner,
         AsgBuilderState::new(),
     )?;
 
@@ -67,7 +66,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     roots.extend(
         vec!["___yield", "___worksheet"]
             .iter()
-            .map(|name| interner.intern(name))
+            .map(|name| name.intern())
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
@@ -82,7 +81,12 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
                         .map(|obj| {
                             format!(
                                 "{}",
-                                depgraph.get(obj).unwrap().name().unwrap()
+                                depgraph
+                                    .get(obj)
+                                    .unwrap()
+                                    .name()
+                                    .unwrap()
+                                    .lookup_str(),
                             )
                         })
                         .collect();
@@ -100,7 +104,6 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
     output_xmle(
         &depgraph,
-        &interner,
         &mut sorted,
         name.expect("missing root package name"),
         relroot.expect("missing root package relroot"),
@@ -113,13 +116,11 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
-    let interner = DefaultProgInterner::new();
 
     let _ = load_xmlo(
         package_path,
         &mut fs,
         &mut depgraph,
-        &interner,
         AsgBuilderState::new(),
     )?;
 
@@ -139,7 +140,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
                         };
 
                         (
-                            format!("{}", n),
+                            format!("{}", n.name().unwrap().lookup_str()),
                             n.kind().unwrap().as_ref(),
                             format!("{}", generated),
                         )
@@ -163,13 +164,12 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_xmlo<'a, 'i, I: Interner<'i, global::ProgSymSize>, P: AsRef<Path>>(
+fn load_xmlo<'a, P: AsRef<Path>>(
     path_str: P,
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
-    depgraph: &mut LinkerAsg<'i>,
-    interner: &'i I,
-    state: LinkerAsgBuilderState<'i>,
-) -> Result<LinkerAsgBuilderState<'i>, Box<dyn Error>> {
+    depgraph: &mut LinkerAsg,
+    state: LinkerAsgBuilderState,
+) -> Result<LinkerAsgBuilderState, Box<dyn Error>> {
     let cfile: PathFile<BufReader<fs::File>> = match fs.open(path_str)? {
         VisitOnceFile::FirstVisit(file) => file,
         VisitOnceFile::Visited => return Ok(state),
@@ -177,7 +177,7 @@ fn load_xmlo<'a, 'i, I: Interner<'i, global::ProgSymSize>, P: AsRef<Path>>(
 
     let (path, file) = cfile.into();
 
-    let xmlo: XmloReader<'_, _, _, _> = (file, interner).into();
+    let xmlo: XmloReader<_, _> = file.into();
 
     let mut state = depgraph.import_xmlo(xmlo, state)?;
 
@@ -188,51 +188,49 @@ fn load_xmlo<'a, 'i, I: Interner<'i, global::ProgSymSize>, P: AsRef<Path>>(
 
     for relpath in found.iter() {
         let mut path_buf = dir.clone();
-        path_buf.push(relpath);
+        let str: &str = &relpath.lookup_str();
+        path_buf.push(str);
         path_buf.set_extension("xmlo");
 
-        state = load_xmlo(path_buf, fs, depgraph, interner, state)?;
+        state = load_xmlo(path_buf, fs, depgraph, state)?;
     }
 
     Ok(state)
 }
 
-fn get_ident<'a, 'i>(
-    depgraph: &'a LinkerAsg<'i>,
-    name: &'i Symbol<'i, global::ProgSymSize>,
-) -> Result<&'a IdentObject<'i, global::ProgSymSize>, String> {
+fn get_ident<'a>(
+    depgraph: &'a LinkerAsg,
+    name: SymbolId<global::ProgSymSize>,
+) -> Result<&'a IdentObject<global::ProgSymSize>, String> {
     depgraph
         .lookup(name)
         .and_then(|id| depgraph.get(id))
-        .ok_or(format!("missing identifier: {}", name))
+        .ok_or(format!("missing identifier: {}", name.lookup_str()))
 }
 
-fn output_xmle<'a, 'i, I: Interner<'i, global::ProgSymSize>>(
-    depgraph: &'a LinkerAsg<'i>,
-    interner: &'i I,
-    sorted: &mut Sections<'a, IdentObject<'i, global::ProgSymSize>>,
-    name: &'i Symbol<'i, global::ProgSymSize>,
+fn output_xmle<'a>(
+    depgraph: &'a LinkerAsg,
+    sorted: &mut Sections<'a, IdentObject<global::ProgSymSize>>,
+    name: SymbolId<global::ProgSymSize>,
     relroot: String,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
     if !sorted.map.is_empty() {
         sorted
             .map
-            .push_head(get_ident(depgraph, interner.intern(":map:___head"))?);
+            .push_head(get_ident(depgraph, ":map:___head".intern())?);
         sorted
             .map
-            .push_tail(get_ident(depgraph, interner.intern(":map:___tail"))?);
+            .push_tail(get_ident(depgraph, ":map:___tail".intern())?);
     }
 
     if !sorted.retmap.is_empty() {
-        sorted.retmap.push_head(get_ident(
-            depgraph,
-            interner.intern(":retmap:___head"),
-        )?);
-        sorted.retmap.push_tail(get_ident(
-            depgraph,
-            interner.intern(":retmap:___tail"),
-        )?);
+        sorted
+            .retmap
+            .push_head(get_ident(depgraph, ":retmap:___head".intern())?);
+        sorted
+            .retmap
+            .push_tail(get_ident(depgraph, ":retmap:___tail".intern())?);
     }
 
     let file = fs::File::create(output)?;

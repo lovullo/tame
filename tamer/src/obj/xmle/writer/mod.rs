@@ -28,18 +28,15 @@
 //! The example below is incomplete, but shows the general usage.
 //!
 //! ```
-//! use tamer::obj::xmle::writer::XmleWriter;
 //! use tamer::ir::asg::{IdentObject, Sections};
-//! use tamer::sym::{DefaultProgInterner, Interner, Symbol};
+//! use tamer::obj::xmle::writer::XmleWriter;
+//! use tamer::sym::GlobalSymbolIntern;
 //! use std::io::Cursor;
-//!
-//! let interner = DefaultProgInterner::new();
-//! let name = interner.intern(&String::from("foo"));
 //!
 //! let sections = Sections::<IdentObject<_>>::new();
 //! let writer = Cursor::new(Vec::new());
 //! let mut xmle_writer = XmleWriter::new(writer);
-//! xmle_writer.write(&sections, name, &String::from(""));
+//! xmle_writer.write(&sections, "foo".intern(), &String::from(""));
 //! ```
 
 mod writer;

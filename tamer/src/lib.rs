@@ -25,12 +25,7 @@
 pub mod global;
 
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate static_assertions;
-
-#[macro_use]
-pub mod sym;
 
 #[cfg(feature = "wip-frontends")]
 pub mod frontend;
@@ -39,6 +34,7 @@ pub mod fs;
 pub mod ir;
 pub mod ld;
 pub mod obj;
+pub mod sym;
 pub mod tpwrap;
 
 #[cfg(test)]

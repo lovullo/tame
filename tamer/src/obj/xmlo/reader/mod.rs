@@ -25,14 +25,14 @@
 //!     types of nodes present in the file.
 //!
 //! _Note that a "symbol" in the `xmlo` sense differs slightly from
-//!   [`Symbol`];_
+//!   [`SymbolId`];_
 //!     the former is more akin to an identifier.
 //!
 //! For more information on `xmlo` files,
 //!   see the [parent crate][super].A
 //!
 //! This reader will be used by both the compiler and linker,
-//!   and so its [`Symbol`] type is generalized.
+//!   and so its [`SymbolId`] type is generalized.
 //!
 //!
 //! How To Use
@@ -44,8 +44,6 @@
 //! There is minor overhead incurred from parsing if the emitted events are
 //!   not used,
 //!     but it is quite minimal.
-//! The only lifetime one has to worry about is the lifetime of the
-//!   [`Interner`] used to produce symbols.
 //!
 //! The next [`XmloEvent`] is retrieved using [`XmloReader::read_event`].
 //! _You should stop reading at [`XmloEvent::Eoh`];_
@@ -53,9 +51,10 @@
 //!
 //! ```
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use tamer::obj::xmlo::{XmloEvent, XmloReader};
+//! use tamer::global;
 //! use tamer::ir::legacyir::SymType;
-//! use tamer::sym::{DefaultPkgInterner, Interner};
+//! use tamer::obj::xmlo::{XmloEvent, XmloReader};
+//! use tamer::sym::GlobalSymbolIntern;
 //!
 //! let xmlo = br#"<package name="foo">
 //!       <preproc:symtable>
@@ -79,8 +78,7 @@
 //!       </preproc:fragments>
 //!     </package>"#;
 //!
-//! let interner = DefaultPkgInterner::new();
-//! let mut reader = XmloReader::new(xmlo as &[u8], &interner);
+//! let mut reader = XmloReader::<_, global::PkgSymSize>::new(xmlo as &[u8]);
 //!
 //! let mut pkgname = None;
 //! let mut syms = Vec::new();
@@ -99,24 +97,24 @@
 //!     }
 //! }
 //!
-//! assert_eq!(Some(interner.intern("foo")), pkgname);
+//! assert_eq!(Some("foo".intern()), pkgname);
 //!
 //! assert_eq!(
 //!     vec![
-//!         (interner.intern("syma"), Some(SymType::Class)),
-//!         (interner.intern("symb"), Some(SymType::Cgen)),
+//!         ("syma".intern(), Some(SymType::Class)),
+//!         ("symb".intern(), Some(SymType::Cgen)),
 //!     ],
 //!     syms
 //! );
 //!
 //! assert_eq!(
 //!     vec![
-//!         (interner.intern("syma"), vec![
-//!             interner.intern("depa-1"),
-//!             interner.intern("depa-2"),
+//!         ("syma".intern(), vec![
+//!             "depa-1".intern(),
+//!             "depa-2".intern(),
 //!         ]),
-//!         (interner.intern("symb"), vec![
-//!             interner.intern("depb-1"),
+//!         ("symb".intern(), vec![
+//!             "depb-1".intern(),
 //!         ]),
 //!     ],
 //!     deps
@@ -124,8 +122,8 @@
 //!
 //! assert_eq!(
 //!     vec![
-//!         (interner.intern("syma"), "syma text".into()),
-//!         (interner.intern("symb"), "symb text".into()),
+//!         ("syma".intern(), "syma text".into()),
+//!         ("symb".intern(), "symb text".into()),
 //!     ],
 //!     fragments
 //! );
@@ -135,7 +133,10 @@
 //! ```
 
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
-use crate::sym::{Interner, Symbol, SymbolIndexSize};
+use crate::sym::{
+    GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId,
+    SymbolIndexSize, SymbolStr,
+};
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
 #[cfg(test)]
@@ -164,7 +165,7 @@ pub type XmloResult<T> = Result<T, XmloError>;
 /// Wrapper around [`quick_xml::Reader`] for reading and parsing `xmlo`
 ///   object files.
 ///
-/// This reader performs interning (see [`Interner`]) for data that is
+/// This reader performs interning (see [crate::sym]) for data that is
 ///   expected to be duplicated or compared.
 /// Other data are converted into more concise representations where
 ///   possible,
@@ -175,10 +176,9 @@ pub type XmloResult<T> = Result<T, XmloError>;
 ///
 /// See [module-level documentation](self) for more information and
 ///   examples.
-pub struct XmloReader<'i, B, I, Ix>
+pub struct XmloReader<B, Ix>
 where
     B: BufRead,
-    I: Interner<'i, Ix>,
     Ix: SymbolIndexSize,
 {
     /// Source `xmlo` reader.
@@ -193,9 +193,6 @@ where
     /// TODO: It this worth removing?  If not, remove this TODO.
     sub_buffer: Vec<u8>,
 
-    /// String internment system.
-    interner: &'i I,
-
     /// Whether the root has been validated.
     ///
     /// This is used to ensure that we provide an error early on if we try
@@ -206,17 +203,16 @@ where
     ///
     /// This is known after processing the root `package` element,
     ///   provided that it's a proper root node.
-    pkg_name: Option<&'i Symbol<'i, Ix>>,
+    pkg_name: Option<SymbolId<Ix>>,
 }
 
-impl<'i, B, I, Ix> XmloReader<'i, B, I, Ix>
+impl<B, Ix> XmloReader<B, Ix>
 where
     B: BufRead,
-    I: Interner<'i, Ix>,
     Ix: SymbolIndexSize,
 {
     /// Construct a new reader.
-    pub fn new(reader: B, interner: &'i I) -> Self {
+    pub fn new(reader: B) -> Self {
         let mut reader = XmlReader::from_reader(reader);
 
         // xmlo files are compiler output and should be trusted
@@ -227,7 +223,6 @@ where
             // TODO: option to accept buffer
             buffer: Vec::new(),
             sub_buffer: Vec::new(),
-            interner,
             seen_root: false,
             pkg_name: None,
         }
@@ -254,7 +249,7 @@ where
     ///   See private methods for more information.
     ///
     /// TODO: Augment failures with context
-    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<'i, Ix>> {
+    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<Ix>> {
         let event = self.reader.read_event(&mut self.buffer)?;
 
         // Ensure that the first encountered node is something we expect
@@ -277,12 +272,12 @@ where
 
         match event {
             XmlEvent::Empty(ele) if ele.name() == b"preproc:sym" => {
-                Self::process_sym(&self.pkg_name, &ele, self.interner)
+                Self::process_sym(&self.pkg_name, &ele)
             }
 
             XmlEvent::Start(ele) => match ele.name() {
                 b"package" | b"lv:package" => {
-                    let attrs = Self::process_package(&ele, self.interner)?;
+                    let attrs = Self::process_package(&ele)?;
 
                     self.pkg_name = attrs.name;
 
@@ -291,14 +286,12 @@ where
 
                 b"preproc:sym-dep" => Self::process_dep(
                     &ele,
-                    self.interner,
                     &mut self.reader,
                     &mut self.sub_buffer,
                 ),
 
                 b"preproc:fragment" => Self::process_fragment(
                     &ele,
-                    self.interner,
                     &mut self.reader,
                     &mut self.sub_buffer,
                 ),
@@ -308,15 +301,13 @@ where
                 // source field information which we want to keep.  (We
                 // don't care about `retmap` for our purposes.)
                 b"preproc:sym" => {
-                    let mut event =
-                        Self::process_sym(&self.pkg_name, &ele, self.interner)?;
+                    let mut event = Self::process_sym(&self.pkg_name, &ele)?;
 
                     match &mut event {
                         XmloEvent::SymDecl(_, attrs)
                             if attrs.ty == Some(SymType::Map) =>
                         {
                             attrs.from = Some(Self::process_map_from(
-                                self.interner,
                                 &mut self.reader,
                                 &mut self.sub_buffer,
                             )?);
@@ -354,19 +345,17 @@ where
     ///     parsed.
     fn process_package<'a>(
         ele: &'a BytesStart<'a>,
-        interner: &'i I,
-    ) -> XmloResult<PackageAttrs<'i, Ix>> {
+    ) -> XmloResult<PackageAttrs<Ix>> {
         let mut program = false;
-        let mut elig: Option<&'i Symbol<'i, Ix>> = None;
-        let mut name: Option<&'i Symbol<'i, Ix>> = None;
+        let mut elig: Option<SymbolId<Ix>> = None;
+        let mut name: Option<SymbolId<Ix>> = None;
         let mut relroot: Option<String> = None;
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
             match attr.key {
                 b"name" => {
-                    name = Some(unsafe {
-                        interner.intern_utf8_unchecked(&attr.value)
-                    });
+                    name =
+                        Some(unsafe { (&attr.value).intern_utf8_unchecked() });
                 }
 
                 b"__rootpath" => {
@@ -380,9 +369,8 @@ where
                 }
 
                 b"preproc:elig-class-yields" => {
-                    elig = Some(unsafe {
-                        interner.intern_utf8_unchecked(&attr.value)
-                    });
+                    elig =
+                        Some(unsafe { (&attr.value).intern_utf8_unchecked() });
                 }
 
                 _ => (),
@@ -412,25 +400,21 @@ where
     /// ======
     /// - [`XmloError::UnassociatedSym`] if missing `preproc:sym/@name`.
     fn process_sym<'a>(
-        pkg_name: &Option<&'i Symbol<'i, Ix>>,
+        pkg_name: &Option<SymbolId<Ix>>,
         ele: &'a BytesStart<'a>,
-        interner: &'i I,
-    ) -> XmloResult<XmloEvent<'i, Ix>> {
-        let mut name: Option<&'i Symbol<'i, Ix>> = None;
+    ) -> XmloResult<XmloEvent<Ix>> {
+        let mut name: Option<SymbolId<Ix>> = None;
         let mut sym_attrs = SymAttrs::default();
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
             match attr.key {
                 b"name" => {
-                    name = Some(unsafe {
-                        interner.intern_utf8_unchecked(&attr.value)
-                    });
+                    name = Some(unsafe { attr.value.intern_utf8_unchecked() });
                 }
 
                 b"src" => {
-                    sym_attrs.src = Some(unsafe {
-                        interner.intern_utf8_unchecked(&attr.value)
-                    });
+                    sym_attrs.src =
+                        Some(unsafe { attr.value.intern_utf8_unchecked() });
                 }
 
                 b"type" => {
@@ -464,15 +448,13 @@ where
                 }
 
                 b"parent" => {
-                    sym_attrs.parent = Some(unsafe {
-                        interner.intern_utf8_unchecked(&attr.value)
-                    });
+                    sym_attrs.parent =
+                        Some(unsafe { attr.value.intern_utf8_unchecked() });
                 }
 
                 b"yields" => {
-                    sym_attrs.yields = Some(unsafe {
-                        interner.intern_utf8_unchecked(&attr.value)
-                    });
+                    sym_attrs.yields =
+                        Some(unsafe { attr.value.intern_utf8_unchecked() });
                 }
 
                 b"desc" => {
@@ -513,10 +495,9 @@ where
     ///   data (e.g. elements) are encountered.
     /// - [`XmloError::XmlError`] on XML parsing failure.
     fn process_map_from<'a>(
-        interner: &'i I,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<Vec<&'i Symbol<'i, Ix>>> {
+    ) -> XmloResult<Vec<SymbolId<Ix>>> {
         let mut froms = Vec::new();
 
         loop {
@@ -533,8 +514,7 @@ where
                                 )),
                                 |attr| {
                                     Ok(unsafe {
-                                        interner
-                                            .intern_utf8_unchecked(&attr.value)
+                                        attr.value.intern_utf8_unchecked()
                                     })
                                 },
                             )?,
@@ -566,7 +546,7 @@ where
     /// ```
     ///
     /// This function will read any number of `preproc:sym-ref` nodes and
-    ///   produce a single [`XmloEvent::SymDeps`] containing a [`Symbol`]
+    ///   produce a single [`XmloEvent::SymDeps`] containing a [`SymbolId`]
     ///   for `preproc:sym-dep/@name` and for each `preproc:sym-ref/@name`.
     ///
     /// Errors
@@ -577,17 +557,16 @@ where
     ///  - [`XmloError::XmlError`] on XML parsing failure.
     fn process_dep<'a>(
         ele: &'a BytesStart<'a>,
-        interner: &'i I,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<XmloEvent<'i, Ix>> {
+    ) -> XmloResult<XmloEvent<Ix>> {
         let name = ele
             .attributes()
             .with_checks(false)
             .filter_map(Result::ok)
             .find(|attr| attr.key == b"name")
             .map_or(Err(XmloError::UnassociatedSymDep), |attr| {
-                Ok(unsafe { interner.intern_utf8_unchecked(&attr.value) })
+                Ok(unsafe { attr.value.intern_utf8_unchecked() })
             })?;
 
         let mut deps = Vec::new();
@@ -609,7 +588,7 @@ where
                                 )),
                                 |attr| {
                                     Ok(unsafe {
-                                        interner.intern_utf8_unchecked(&attr.value)
+                                        attr.value.intern_utf8_unchecked()
                                     })
                                 },
                             )?,
@@ -625,7 +604,7 @@ where
 
                 _ => return Err(XmloError::MalformedSymRef(format!(
                     "preproc:sym-dep must contain only preproc:sym-ref children for `{}`",
-                    name,
+                    name.lookup_str(),
                 )))
             }
         }
@@ -647,10 +626,9 @@ where
     /// - [`XmloError::XmlError`] for XML parsing errors.
     fn process_fragment<'a>(
         ele: &'a BytesStart<'a>,
-        interner: &'i I,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<XmloEvent<'i, Ix>> {
+    ) -> XmloResult<XmloEvent<Ix>> {
         let mut src_attrs = ele.attributes();
         let mut filtered = src_attrs.with_checks(false).filter_map(Result::ok);
 
@@ -658,7 +636,7 @@ where
             .find(|attr| attr.key == b"id")
             .filter(|attr| &*attr.value != b"")
             .map_or(Err(XmloError::UnassociatedFragment), |attr| {
-                Ok(unsafe { interner.intern_utf8_unchecked(&attr.value) })
+                Ok(unsafe { attr.value.intern_utf8_unchecked() })
             })?;
 
         let text =
@@ -666,7 +644,7 @@ where
                 .read_text(ele.name(), buffer)
                 .map_err(|err| match err {
                     InnerXmlError::TextNotFound => {
-                        XmloError::MissingFragmentText(id.to_string())
+                        XmloError::MissingFragmentText(id.lookup_str())
                     }
                     _ => err.into(),
                 })?;
@@ -694,13 +672,12 @@ where
     }
 }
 
-impl<'i, B, I, Ix> Iterator for XmloReader<'i, B, I, Ix>
+impl<B, Ix> Iterator for XmloReader<B, Ix>
 where
     B: BufRead,
-    I: Interner<'i, Ix>,
     Ix: SymbolIndexSize,
 {
-    type Item = XmloResult<XmloEvent<'i, Ix>>;
+    type Item = XmloResult<XmloEvent<Ix>>;
 
     /// Invoke [`XmloReader::read_event`] and yield the result via an
     ///   [`Iterator`] API.
@@ -716,14 +693,13 @@ where
     }
 }
 
-impl<'i, B, I, Ix> From<(B, &'i I)> for XmloReader<'i, B, I, Ix>
+impl<B, Ix> From<B> for XmloReader<B, Ix>
 where
     B: BufRead,
-    I: Interner<'i, Ix>,
     Ix: SymbolIndexSize,
 {
-    fn from(args: (B, &'i I)) -> Self {
-        Self::new(args.0, args.1)
+    fn from(buf: B) -> Self {
+        Self::new(buf)
     }
 }
 
@@ -737,24 +713,24 @@ where
 ///   we should instead prefer not to put data into object files that won't
 ///   be useful and can't be easily skipped without parsing.
 #[derive(Debug, PartialEq, Eq)]
-pub enum XmloEvent<'i, Ix: SymbolIndexSize> {
+pub enum XmloEvent<Ix: SymbolIndexSize> {
     /// Package declaration.
     ///
     /// This contains data gathered from the root `lv:package` node.
-    Package(PackageAttrs<'i, Ix>),
+    Package(PackageAttrs<Ix>),
 
     /// Symbol declaration.
     ///
     /// This represents an entry in the symbol table,
     ///   which includes a symbol along with its variable metadata as
     ///   [`SymAttrs`].
-    SymDecl(&'i Symbol<'i, Ix>, SymAttrs<'i, Ix>),
+    SymDecl(SymbolId<Ix>, SymAttrs<Ix>),
 
     /// Dependencies of a given symbol.
     ///
     /// Note that, for simplicity, an owned vector is returned rather than a
     ///   slice into an internal buffer.
-    SymDeps(&'i Symbol<'i, Ix>, Vec<&'i Symbol<'i, Ix>>),
+    SymDeps(SymbolId<Ix>, Vec<SymbolId<Ix>>),
 
     /// Text (compiled code) fragment for a given symbol.
     ///
@@ -763,7 +739,7 @@ pub enum XmloEvent<'i, Ix: SymbolIndexSize> {
     /// Given that fragments can be quite large,
     ///   a caller not interested in these data should choose to skip
     ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(&'i Symbol<'i, Ix>, String),
+    Fragment(SymbolId<Ix>, String),
 
     /// End-of-header.
     ///
@@ -806,7 +782,7 @@ pub enum XmloError {
     /// A `preproc:fragment` element was found, but is missing `@id`.
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
-    MissingFragmentText(String),
+    MissingFragmentText(SymbolStr<'static>),
 }
 
 impl From<InnerXmlError> for XmloError {

@@ -25,7 +25,7 @@ use super::object::{
     UnresolvedError,
 };
 use super::Sections;
-use crate::sym::{Symbol, SymbolIndexSize};
+use crate::sym::{SymbolId, SymbolIndexSize};
 use petgraph::graph::NodeIndex;
 use std::fmt::Debug;
 use std::result::Result;
@@ -46,10 +46,10 @@ impl<T: petgraph::graph::IndexType> IndexType for T {}
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-pub trait Asg<'i, O, Ix>
+pub trait Asg<O, Ix>
 where
     Ix: IndexType + SymbolIndexSize,
-    O: IdentObjectState<'i, Ix, O>,
+    O: IdentObjectState<Ix, O>,
 {
     /// Declare a concrete identifier.
     ///
@@ -59,7 +59,7 @@ where
     /// Once declared,
     ///   this information cannot be changed.
     ///
-    /// Identifiers are uniquely identified by a [`Symbol`] `name`.
+    /// Identifiers are uniquely identified by a [`SymbolId`] `name`.
     /// If an identifier of the same `name` already exists,
     ///   then the provided declaration is compared against the existing
     ///   declaration---should
@@ -84,9 +84,9 @@ where
     ///   and return an [`ObjectRef`] reference.
     fn declare(
         &mut self,
-        name: &'i Symbol<'i, Ix>,
+        name: SymbolId<Ix>,
         kind: IdentKind,
-        src: Source<'i, Ix>,
+        src: Source<Ix>,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Declare an abstract identifier.
@@ -111,9 +111,9 @@ where
     ///   compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
-        name: &'i Symbol<'i, Ix>,
+        name: SymbolId<Ix>,
         kind: IdentKind,
-        src: Source<'i, Ix>,
+        src: Source<Ix>,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Set the fragment associated with a concrete identifier.
@@ -142,7 +142,7 @@ where
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
-    fn lookup(&self, name: &'i Symbol<'i, Ix>) -> Option<ObjectRef<Ix>>;
+    fn lookup(&self, name: SymbolId<Ix>) -> Option<ObjectRef<Ix>>;
 
     /// Declare that `dep` is a dependency of `ident`.
     ///
@@ -151,7 +151,7 @@ where
     /// The [linker][crate::ld] will ensure this ordering.
     ///
     /// See [`add_dep_lookup`][Asg::add_dep_lookup] if identifiers have to
-    ///   be looked up by [`Symbol`] or if they may not yet have been
+    ///   be looked up by [`SymbolId`] or if they may not yet have been
     ///   declared.
     fn add_dep(&mut self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>);
 
@@ -173,8 +173,8 @@ where
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(
         &mut self,
-        ident: &'i Symbol<'i, Ix>,
-        dep: &'i Symbol<'i, Ix>,
+        ident: SymbolId<Ix>,
+        dep: SymbolId<Ix>,
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
 }
 
@@ -182,9 +182,9 @@ where
 ///
 /// Allow a graph to be partitioned into different [`Sections`] that can be
 ///   used as an `Intermediate Representation`.
-pub trait SortableAsg<'i, O, Ix>
+pub trait SortableAsg<O, Ix>
 where
-    O: IdentObjectData<'i, Ix>,
+    O: IdentObjectData<Ix>,
     Ix: IndexType + SymbolIndexSize,
 {
     /// Sort graph into [`Sections`].
@@ -192,7 +192,7 @@ where
     /// Sorting will fail if the graph contains unresolved objects,
     ///   or identifiers whose kind cannot be determined
     ///   (see [`UnresolvedError`]).
-    fn sort(
+    fn sort<'i>(
         &'i self,
         roots: &[ObjectRef<Ix>],
     ) -> SortableAsgResult<Sections<'i, O>, Ix>;
@@ -246,11 +246,6 @@ pub type AsgEdge = ();
 pub type Node<O> = Option<O>;
 
 /// An error from an ASG operation.
-///
-/// Storing [`Symbol`] would require that this have a lifetime,
-///   which is very inconvenient when chaining [`Result`],
-///   so this stores only owned values.
-/// The caller will know the problem values.
 #[derive(Debug, PartialEq)]
 pub enum AsgError {
     /// An object could not change state in the manner requested.

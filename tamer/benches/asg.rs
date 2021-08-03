@@ -37,38 +37,28 @@ mod base {
     use tamer::ir::asg::{
         Asg, DataType, DefaultAsg, IdentKind, IdentObject, SortableAsg, Source,
     };
-    use tamer::sym::{DefaultInterner, Interner, Symbol, SymbolIndexSize};
+    use tamer::sym::{GlobalSymbolIntern, SymbolId, SymbolIndexSize};
 
-    type Sut<'i> = DefaultAsg<
-        'i,
-        IdentObject<'i, global::PkgSymSize>,
-        global::PkgIdentSize,
-    >;
-    type SutProg<'i> = DefaultAsg<
-        'i,
-        IdentObject<'i, global::ProgSymSize>,
-        global::ProgIdentSize,
-    >;
+    type Sut =
+        DefaultAsg<IdentObject<global::PkgSymSize>, global::PkgIdentSize>;
+    type SutProg<'i> =
+        DefaultAsg<IdentObject<global::ProgSymSize>, global::ProgIdentSize>;
 
-    fn interned_n<'i, Ix: SymbolIndexSize>(
-        interner: &'i DefaultInterner<'i, Ix>,
-        n: u16,
-    ) -> Vec<&'i Symbol<'i, Ix>>
+    fn interned_n<Ix: SymbolIndexSize>(n: u16) -> Vec<SymbolId<Ix>>
     where
         <Ix as TryFrom<usize>>::Error: Debug,
     {
-        (0..n).map(|i| interner.intern(&i.to_string())).collect()
+        (0..n).map(|i| i.to_string().intern()).collect()
     }
 
     #[bench]
     fn declare_1_000(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         bench.iter(|| {
             xs.iter()
-                .map(|i| sut.declare(i, IdentKind::Meta, Source::default()))
+                .map(|i| sut.declare(*i, IdentKind::Meta, Source::default()))
                 .for_each(drop);
         });
     }
@@ -76,12 +66,11 @@ mod base {
     #[bench]
     fn declare_1_000_full_inital_capacity(bench: &mut Bencher) {
         let mut sut = Sut::with_capacity(1024, 1024);
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         bench.iter(|| {
             xs.iter()
-                .map(|i| sut.declare(i, IdentKind::Meta, Source::default()))
+                .map(|i| sut.declare(*i, IdentKind::Meta, Source::default()))
                 .for_each(drop);
         });
     }
@@ -90,12 +79,11 @@ mod base {
     #[bench]
     fn declare_1_000_prog_ident_size(bench: &mut Bencher) {
         let mut sut = SutProg::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         bench.iter(|| {
             xs.iter()
-                .map(|i| sut.declare(i, IdentKind::Meta, Source::default()))
+                .map(|i| sut.declare(*i, IdentKind::Meta, Source::default()))
                 .for_each(drop);
         });
     }
@@ -103,13 +91,12 @@ mod base {
     #[bench]
     fn declare_extern_1_000(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         bench.iter(|| {
             xs.iter()
                 .map(|i| {
-                    sut.declare_extern(i, IdentKind::Meta, Source::default())
+                    sut.declare_extern(*i, IdentKind::Meta, Source::default())
                 })
                 .for_each(drop);
         });
@@ -118,17 +105,19 @@ mod base {
     #[bench]
     fn resolve_extern_1_000(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         xs.iter().for_each(|sym| {
-            let _ = sut.declare_extern(sym, IdentKind::Meta, Source::default());
+            let _ =
+                sut.declare_extern(*sym, IdentKind::Meta, Source::default());
         });
 
         // Bench only the resolution, not initial declare.
         bench.iter(|| {
             xs.iter()
-                .map(|sym| sut.declare(sym, IdentKind::Meta, Source::default()))
+                .map(|sym| {
+                    sut.declare(*sym, IdentKind::Meta, Source::default())
+                })
                 .for_each(drop);
         });
     }
@@ -139,13 +128,12 @@ mod base {
     #[bench]
     fn set_fragment_1_000_with_new_str(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(sym, IdentKind::Meta, Source::default())
+                sut.declare(*sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -162,28 +150,28 @@ mod base {
     #[bench]
     fn lookup_1_000(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         xs.iter().for_each(|sym| {
-            let _ = sut.declare(&sym, IdentKind::Meta, Source::default());
+            let _ = sut.declare(*sym, IdentKind::Meta, Source::default());
         });
 
         bench.iter(|| {
-            xs.iter().map(|sym| sut.lookup(sym).unwrap()).for_each(drop);
+            xs.iter()
+                .map(|sym| sut.lookup(*sym).unwrap())
+                .for_each(drop);
         });
     }
 
     #[bench]
     fn get_1_000(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(sym, IdentKind::Meta, Source::default())
+                sut.declare(*sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -201,13 +189,12 @@ mod base {
     #[bench]
     fn add_dep_1_000_to_single_node(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(sym, IdentKind::Meta, Source::default())
+                sut.declare(*sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -227,13 +214,12 @@ mod base {
     #[bench]
     fn add_dep_1_000_one_edge_per_node(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(sym, IdentKind::Meta, Source::default())
+                sut.declare(*sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -250,13 +236,12 @@ mod base {
     #[bench]
     fn has_dep_1_000_single_node(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(sym, IdentKind::Meta, Source::default())
+                sut.declare(*sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -279,13 +264,12 @@ mod base {
     #[bench]
     fn has_dep_1_000_one_edge_per_node(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(sym, IdentKind::Meta, Source::default())
+                sut.declare(*sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -308,13 +292,12 @@ mod base {
     #[bench]
     fn add_dep_lookup_1_000_missing_one_edge_per_node(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         bench.iter(|| {
             xs.iter()
                 .zip(xs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep_lookup(from, to))
+                .map(|(from, to)| sut.add_dep_lookup(*from, *to))
                 .for_each(drop);
         });
     }
@@ -322,17 +305,16 @@ mod base {
     #[bench]
     fn add_dep_lookup_1_000_existing_one_edge_per_node(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         xs.iter().for_each(|sym| {
-            let _ = sut.declare(sym, IdentKind::Meta, Source::default());
+            let _ = sut.declare(*sym, IdentKind::Meta, Source::default());
         });
 
         bench.iter(|| {
             xs.iter()
                 .zip(xs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep_lookup(from, to))
+                .map(|(from, to)| sut.add_dep_lookup(*from, *to))
                 .for_each(drop);
         });
     }
@@ -340,14 +322,13 @@ mod base {
     #[bench]
     fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
                 sut.declare(
-                    sym,
+                    *sym,
                     IdentKind::Rate(DataType::Integer),
                     Source::default(),
                 )
@@ -372,14 +353,13 @@ mod base {
         bench: &mut Bencher,
     ) {
         let mut sut = Sut::new();
-        let interner = DefaultInterner::new();
-        let xs = interned_n(&interner, 1_000);
+        let xs = interned_n(1_000);
 
         let orefs = xs
             .iter()
             .map(|sym| {
                 sut.declare(
-                    sym,
+                    *sym,
                     IdentKind::Rate(DataType::Integer),
                     Source::default(),
                 )
@@ -414,29 +394,27 @@ mod object {
         use tamer::ir::asg::{
             IdentKind, IdentObject, IdentObjectData, IdentObjectState, Source,
         };
-        use tamer::sym::{DefaultInterner, Interner};
+        use tamer::sym::GlobalSymbolIntern;
 
-        type Sut<'i> = IdentObject<'i, global::ProgSymSize>;
+        type Sut = IdentObject<global::ProgSymSize>;
 
         #[bench]
         fn declare_1_000(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
-                (0..1000).map(|_| Sut::declare(&sym)).for_each(drop);
+                (0..1000).map(|_| Sut::declare(sym)).for_each(drop);
             });
         }
 
         #[bench]
         fn resolve_1_000_missing(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(&sym)
+                        Sut::declare(sym)
                             .resolve(IdentKind::Meta, Source::default())
                     })
                     .for_each(drop);
@@ -445,13 +423,12 @@ mod object {
 
         #[bench]
         fn extern_1_000_missing(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(&sym)
+                        Sut::declare(sym)
                             .extern_(IdentKind::Meta, Source::default())
                     })
                     .for_each(drop);
@@ -460,13 +437,12 @@ mod object {
 
         #[bench]
         fn resolve_1_000_extern(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(&sym)
+                        Sut::declare(sym)
                             .extern_(IdentKind::Meta, Source::default())
                             .unwrap()
                             .resolve(IdentKind::Meta, Source::default())
@@ -477,13 +453,12 @@ mod object {
 
         #[bench]
         fn resolve_1_000_override(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(&sym)
+                        Sut::declare(sym)
                             .resolve(
                                 IdentKind::Meta,
                                 Source {
@@ -507,13 +482,12 @@ mod object {
         // Override encountered before virtual
         #[bench]
         fn resolve_1_000_override_virt_after_override(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(&sym)
+                        Sut::declare(sym)
                             .resolve(
                                 IdentKind::Meta,
                                 Source {
@@ -536,13 +510,12 @@ mod object {
 
         #[bench]
         fn set_fragment_1_000_resolved_with_new_str(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(&sym)
+                        Sut::declare(sym)
                             .resolve(IdentKind::Meta, Source::default())
                             .unwrap()
                             .set_fragment("".into())
@@ -554,11 +527,10 @@ mod object {
         // No need to do all of the others, since they're all the same thing.
         #[bench]
         fn declared_name_1_000(bench: &mut Bencher) {
-            let interner = DefaultInterner::new();
-            let sym = interner.intern("sym");
+            let sym = "sym".intern();
 
             bench.iter(|| {
-                (0..1000).map(|_| Sut::declare(&sym).name()).for_each(drop);
+                (0..1000).map(|_| Sut::declare(sym).name()).for_each(drop);
             });
         }
     }

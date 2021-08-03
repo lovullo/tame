@@ -112,10 +112,7 @@ mod interner {
         let sut = ArenaInterner::<RandomState, u32>::new();
         let strs = gen_strs(1000);
 
-        let syms = strs
-            .iter()
-            .map(|s| sut.intern(s).index())
-            .collect::<Vec<_>>();
+        let syms = strs.iter().map(|s| sut.intern(s)).collect::<Vec<_>>();
 
         bench.iter(|| {
             syms.iter().map(|si| sut.index_lookup(*si)).for_each(drop);
@@ -185,6 +182,43 @@ mod interner {
             bench.iter(|| {
                 let sut = ArenaInterner::<FxBuildHasher, u32>::with_capacity(n);
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+            });
+        }
+    }
+
+    // Note that these tests don't drop the global interner in-between.
+    mod global {
+        use super::*;
+        use tamer::sym::GlobalSymbolIntern;
+
+        #[bench]
+        fn with_all_new_1000(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+
+            bench.iter(|| {
+                strs.iter()
+                    .map::<ProgSymbolId, _>(|s| s.intern())
+                    .for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_one_new_1000(bench: &mut Bencher) {
+            bench.iter(|| {
+                (0..1000)
+                    .map::<ProgSymbolId, _>(|_| "onenew".intern())
+                    .for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_one_new_1000_utf8_unchecked(bench: &mut Bencher) {
+            bench.iter(|| {
+                (0..1000)
+                    .map::<ProgSymbolId, _>(|_| unsafe {
+                        (b"onenewu8").intern_utf8_unchecked()
+                    })
+                    .for_each(drop);
             });
         }
     }

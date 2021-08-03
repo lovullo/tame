@@ -208,4 +208,4 @@ pub use object::{
 pub use section::{Section, SectionIterator, Sections};
 
 /// Default concrete ASG implementation.
-pub type DefaultAsg<'i, O, Ix> = base::BaseAsg<O, Ix>;
+pub type DefaultAsg<O, Ix> = base::BaseAsg<O, Ix>;

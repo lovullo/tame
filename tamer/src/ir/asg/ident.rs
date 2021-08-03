@@ -209,7 +209,7 @@ impl std::fmt::Display for IdentKind {
     }
 }
 
-impl<'i, Ix> TryFrom<SymAttrs<'i, Ix>> for IdentKind
+impl<Ix> TryFrom<SymAttrs<Ix>> for IdentKind
 where
     Ix: SymbolIndexSize,
 {
@@ -219,12 +219,12 @@ where
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
-    fn try_from(attrs: SymAttrs<'i, Ix>) -> Result<Self, Self::Error> {
+    fn try_from(attrs: SymAttrs<Ix>) -> Result<Self, Self::Error> {
         Self::try_from(&attrs)
     }
 }
 
-impl<'i, Ix> TryFrom<&SymAttrs<'i, Ix>> for IdentKind
+impl<Ix> TryFrom<&SymAttrs<Ix>> for IdentKind
 where
     Ix: SymbolIndexSize,
 {
@@ -234,7 +234,7 @@ where
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
-    fn try_from(attrs: &SymAttrs<'i, Ix>) -> Result<Self, Self::Error> {
+    fn try_from(attrs: &SymAttrs<Ix>) -> Result<Self, Self::Error> {
         let ty = attrs.ty.as_ref().ok_or(Self::Error::MissingType)?;
 
         macro_rules! ident {
@@ -360,7 +360,7 @@ mod test {
     use super::*;
     use std::convert::TryInto;
 
-    type Ix = u8;
+    type Ix = u16;
 
     #[test]
     fn dim_from_u8() {

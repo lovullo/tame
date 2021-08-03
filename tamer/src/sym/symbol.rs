@@ -17,34 +17,59 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Symbol objects for string internment system.
+//! Symbol objects representing interned strings.
 //!
 //! See the [parent module](super) for more information.
 
+use super::{DefaultPkgInterner, DefaultProgInterner, Interner};
 use crate::global;
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{self, Debug};
-use std::num::{NonZeroU16, NonZeroU32, NonZeroU8};
+use std::fmt::{self, Debug, Display};
+use std::hash::Hash;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Deref;
+use std::thread::LocalKey;
 
-/// Unique symbol identifier.
+/// Unique symbol identifier produced by an [`Interner`].
 ///
-/// _Do not construct this value yourself;_
-///   use an [`Interner`].
+/// Use one of [`PkgSymbolId`] or [`ProgSymbolId`] unless a generic size is
+///   actually needed
+///     (e.g. implementations shared between a compiler and linker).
 ///
 /// This newtype helps to prevent other indexes from being used where a
 ///   symbol index is expected.
 /// Note, however, that it provides no defense against mixing symbol indexes
-///   between multiple [`Interner`]s.
+///   between multiple [`Interner`]s;
+///     you should create your own newtypes to resolve that concern.
 ///
 /// The index `0` is never valid because of
 ///   [`SymbolIndexSize::NonZero`],
 ///     which allows us to have `Option<SymbolId>` at no space cost.
 ///
-/// [`Interner`]: super::Interner
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// Symbol Strings
+/// ==============
+/// [`SymbolId`] intentionally omits the [`Display`] trait to ensure that
+///   compile-time errors occur when symbols are used in contexts where
+///   strings are expected.
+/// To resolve a [`SymbolId`] into the string that it represents,
+///   see either [`GlobalSymbolResolve::lookup_str`] or
+///   [`Interner::index_lookup`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SymbolId<Ix: SymbolIndexSize>(Ix::NonZero);
-assert_eq_size!(Option<Symbol<u16>>, Symbol<u16>);
+assert_eq_size!(Option<SymbolId<u16>>, SymbolId<u16>);
+
+/// Identifier of a symbol within a single package.
+///
+/// This type should be preferred to [`ProgSymbolId`] when only a single
+///   package's symbols are being processed.
+pub type PkgSymbolId = SymbolId<global::PkgSymSize>;
+
+/// Identifier of a symbol within an entire program.
+///
+/// This symbol type is preconfigured to accommodate a larger number of
+///   symbols than [`PkgSymbolId`] and is suitable for use in a linker.
+/// Use this type only when necessary.
+pub type ProgSymbolId = SymbolId<global::ProgSymSize>;
 
 impl<Ix: SymbolIndexSize> SymbolId<Ix> {
     /// Construct index from a non-zero `u16` value.
@@ -66,24 +91,6 @@ impl<Ix: SymbolIndexSize> SymbolId<Ix> {
         SymbolId(Ix::new_unchecked(n))
     }
 
-    /// Construct index from a non-zero `u16` value.
-    ///
-    /// Panics
-    /// ------
-    /// Will panic if `n == 0`.
-    pub fn from_u16(n: u16) -> SymbolId<u16> {
-        SymbolId::from_int(n)
-    }
-
-    /// Construct index from a non-zero `u32` value.
-    ///
-    /// Panics
-    /// ------
-    /// Will panic if `n == 0`.
-    pub fn from_u32(n: u32) -> SymbolId<u32> {
-        SymbolId::from_int(n)
-    }
-
     pub fn as_usize(self) -> usize {
         self.0.into().as_usize()
     }
@@ -95,12 +102,6 @@ where
 {
     fn from(value: SymbolId<Ix>) -> usize {
         value.0.into().as_usize()
-    }
-}
-
-impl<'i, Ix: SymbolIndexSize> From<&Symbol<'i, Ix>> for SymbolId<Ix> {
-    fn from(sym: &Symbol<'i, Ix>) -> Self {
-        sym.index()
     }
 }
 
@@ -119,15 +120,14 @@ pub trait SymbolIndexSize:
     + Eq
     + TryFrom<usize>
     + TryInto<usize>
+    + Hash
     + 'static
 {
     /// The associated `NonZero*` type (e.g. [`NonZeroU16`]).
-    type NonZero: Copy + Into<Self> + Debug;
+    type NonZero: Copy + Into<Self> + Debug + PartialEq + Eq + Hash;
 
-    /// A symbol with a static lifetime suitable for placement at index 0 in
-    ///   the string interment table,
-    ///     which is not a valid [`SymbolId`] value.
-    fn dummy_sym() -> &'static Symbol<'static, Self>;
+    /// Global interner for this index type.
+    type Interner: Interner<'static, Self>;
 
     /// Construct a new non-zero value from the provided primitive value.
     ///
@@ -140,16 +140,26 @@ pub trait SymbolIndexSize:
 
     /// Convert primitive value into a [`usize`].
     fn as_usize(self) -> usize;
+
+    /// Perform an operation using the global interner for this index type.
+    ///
+    /// This solves the problem of determining which global interner must be
+    ///   used for a given [`SymbolIndexSize`] without having to resort to
+    ///   dynamic dispatch.
+    fn with_static_interner<F, R>(f: F) -> R
+    where
+        F: FnOnce(&'static Self::Interner) -> R;
 }
 
 macro_rules! supported_symbol_index {
-    ($prim:ty, $nonzero:ty, $dummy:ident) => {
+    ($prim:ty, $nonzero:ty, $interner:ty, $global:ident) => {
+        thread_local! {
+            pub(super) static $global: $interner = <$interner>::new();
+        }
+
         impl SymbolIndexSize for $prim {
             type NonZero = $nonzero;
-
-            fn dummy_sym() -> &'static Symbol<'static, Self> {
-                &$dummy
-            }
+            type Interner = $interner;
 
             fn new(n: Self) -> Option<Self::NonZero> {
                 Self::NonZero::new(n)
@@ -162,159 +172,206 @@ macro_rules! supported_symbol_index {
             fn as_usize(self) -> usize {
                 self as usize
             }
+
+            fn with_static_interner<F, R>(f: F) -> R
+            where
+                F: FnOnce(&'static Self::Interner) -> R,
+            {
+                with_static_interner(&$global, f)
+            }
         }
     };
 }
 
-supported_symbol_index!(u8, NonZeroU8, DUMMY_SYM_8);
-supported_symbol_index!(u16, NonZeroU16, DUMMY_SYM_16);
-supported_symbol_index!(u32, NonZeroU32, DUMMY_SYM_32);
+type StaticPkgInterner = DefaultPkgInterner<'static>;
+type StaticProgInterner = DefaultProgInterner<'static>;
 
-/// Interned string.
-///
-/// A reference to this symbol is returned each time the same string is
-///   interned with the same [`Interner`];
-///     as such,
-///       symbols can be compared for equality by pointer;
-///         the underlying symbol id need not be used.
-///
-/// Each symbol is identified by a unique integer
-///   (see [`index`](Symbol::index)).
-/// The use of integers creates a more dense range of values than pointers,
-///     which allows callers to use a plain [`Vec`] as a map instead of
-///     something far more expensive like
-///     [`HashSet`](std::collections::HashSet);
-///       this is especially beneficial for portions of the system that make
-///         use of nearly all interned symbols,
-///           like the ASG.
-/// A [`SymbolId`] can be mapped back into its [`Symbol`] by calling
-///   [`Interner::index_lookup`] on the same interner that produced it.
-///
-/// The symbol also stores a string slice referencing the interned string
-///   itself,
-///     whose lifetime is that of the [`Interner`]'s underlying data store.
-/// Dereferencing the symbol will expose the underlying slice.
-///
-/// [`Interner`]: super::Interner
-/// [`Interner::index_lookup`]: super::Interner::index_lookup
-#[derive(Copy, Clone, Debug)]
-pub struct Symbol<'i, Ix: SymbolIndexSize> {
-    index: SymbolId<Ix>,
-    str: &'i str,
-}
+supported_symbol_index!(u16, NonZeroU16, StaticPkgInterner, INTERNER_PKG);
+supported_symbol_index!(u32, NonZeroU32, StaticProgInterner, INTERNER_PROG);
 
-/// Interned string within a single package.
+/// A string retrieved from the intern pool using a [`SymbolId`].
 ///
-/// This type should be preferred to [`ProgSymbol`] when only a single
-///   package's symbols are being processed.
-pub type PkgSymbol<'i> = Symbol<'i, global::PkgSymSize>;
-
-/// Interned string within an entire program.
+/// The lifetime of the inner string is constrained to the lifetime of the
+///   interner itself.
+/// For global interners,
+///   this means that the string slice has a `'static` lifetime.
 ///
-/// This symbol type is preconfigured to accommodate a larger number of
-///   symbols than [`PkgSymbol`] and is situable for use in a linker.
-/// Use this type only when necessary.
-pub type ProgSymbol<'i> = Symbol<'i, global::ProgSymSize>;
+/// [`SymbolStr`] requires significantly more storage than an appropriate
+///   [`SymbolId`] and should only be used when a string value must be
+///   written (e.g. to a file or displayed to the user).
+///
+/// This value is intended to be short-lived.
+#[derive(Debug, Default, Clone)]
+pub struct SymbolStr<'i>(&'i str);
 
-impl<'i, Ix: SymbolIndexSize> Symbol<'i, Ix> {
-    /// Construct a new interned value.
-    ///
-    /// _This must only be done by an [`Interner`]._
-    /// As such,
-    ///   this function is not public.
-    ///
-    /// For test builds (when `cfg(test)`),
-    ///   `new_dummy` is available to create symbols for tests.
-    ///
-    /// [`Interner`]: super::Interner
-    #[inline]
-    pub(super) fn new(index: SymbolId<Ix>, str: &'i str) -> Symbol<'i, Ix> {
-        Self { index, str }
+impl<'i> SymbolStr<'i> {
+    pub fn as_str(&self) -> &'i str {
+        self.0
     }
 
-    /// Retrieve unique symbol index.
+    /// Create a [`SymbolStr`] from a string for testing.
     ///
-    /// This is a densely-packed identifier that can be used as an index for
-    ///   mapping.
-    /// See [`SymbolId`] for more information.
-    #[inline]
-    pub fn index(&self) -> SymbolId<Ix> {
-        self.index
-    }
-
-    /// Construct a new interned value _for testing_.
-    ///
-    /// This is a public version of [`Symbol::new`] available for test
-    ///   builds.
-    /// This separate name is meant to strongly imply that you should not be
-    ///   doing this otherwise.
-    ///
-    /// See also `dummy_symbol!`.
+    /// _This function is only available for tests for convenience!_
+    /// `SymbolStr` must always represent a real, interned string in
+    ///   non-test code.
     #[cfg(test)]
-    #[inline(always)]
-    pub fn new_dummy(index: SymbolId<Ix>, str: &'i str) -> Symbol<'i, Ix> {
-        Self::new(index, str)
+    pub fn test_from_str(s: &'i str) -> Self {
+        SymbolStr(s)
     }
 }
 
-impl<'i, Ix: SymbolIndexSize> PartialEq for Symbol<'i, Ix> {
-    fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self as *const _, other as *const _)
-            || std::ptr::eq(self.str.as_ptr(), other.str.as_ptr())
+impl<'i> SymbolStr<'i> {
+    pub(super) fn from_interned_slice(slice: &'i str) -> SymbolStr<'i> {
+        SymbolStr(slice)
     }
 }
 
-impl<'i, Ix: SymbolIndexSize> Eq for Symbol<'i, Ix> {}
+impl<'i, T: Deref<Target = str>> PartialEq<T> for SymbolStr<'i> {
+    fn eq(&self, other: &T) -> bool {
+        self.0 == other.deref()
+    }
+}
 
-impl<'i, Ix: SymbolIndexSize> Deref for Symbol<'i, Ix> {
+impl PartialEq<SymbolStr<'_>> for &str {
+    fn eq(&self, other: &SymbolStr<'_>) -> bool {
+        *self == other.0
+    }
+}
+
+impl<'i> Display for SymbolStr<'i> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// Once we have unsafe_impls stabalized,
+//   we should prevent `SymbolStr` from crossing threads.
+// TAMER does not use threads at the time of writing,
+//   so this isn't a practical concern.
+// If we _do_ want to pass between threads,
+//   we need to ensure the thread holding the interner lives longer than all
+//   other threads.
+//impl<'i> !Send for SymbolStr<'i> {}
+//impl<'i> !Sync for SymbolStr<'i> {}
+
+impl<'i> Deref for SymbolStr<'i> {
     type Target = str;
 
-    /// Dereference to interned string slice.
-    ///
-    /// This allows for symbols to be used where strings are expected.
     #[inline]
-    fn deref(&self) -> &str {
-        self.str
+    fn deref(&self) -> &'i str {
+        self.as_str()
     }
 }
 
-impl<'i, Ix: SymbolIndexSize> fmt::Display for Symbol<'i, Ix> {
-    /// Display name of underlying string.
+/// Acquire a static reference to a global interner.
+///
+/// Global interners are static and thread-local.
+/// They are created using the [`thread_local!`] macro,
+///   which produces a [`LocalKey`] that provides access with a lifetime
+///     that cannot exceed that of the closure.
+/// This is a problem,
+///   because we must return a value from the interner's storage.
+///
+/// This function transmutes the lifetime of [`LocalKey`] back to
+///   `'static`.
+/// This has the benefit of requiring no further casting of the [`Interner`],
+///   since the lifetime of its storage is already `'static`,
+///     and so the retrieved interner can be used to return a static string
+///     slice without any further unsafe code.
+///
+/// This lifetime transmutation is expected to be safe,
+///   because the thread-local storage is never deallocated,
+///     and the storage is only accessible to one thread.
+fn with_static_interner<F, R, I, Ix>(key: &'static LocalKey<I>, f: F) -> R
+where
+    Ix: SymbolIndexSize,
+    I: Interner<'static, Ix> + 'static,
+    F: FnOnce(&'static I) -> R,
+{
+    key.with(|interner| {
+        f(unsafe {
+            // These type annotations are inferred, but please leave
+            // them here; transmute is especially dangerous, and we want
+            // to be sure reality always matches our expectations.
+            std::mem::transmute::<&I, &'static I>(interner)
+        })
+    })
+}
+
+/// Resolve a [`SymbolId`] to the string value it represents using a global
+///   interner.
+///
+/// This exists as its own trait
+///   (rather than simply adding to [`SymbolId`])
+///   to make it easy to see what systems rely on global state.
+pub trait GlobalSymbolResolve {
+    /// Resolve a [`SymbolId`] allocated using a global interner.
     ///
-    /// Since symbols contain pointers to their interned slices,
-    ///   we effectively get this for free.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.str)
+    /// This name is intended to convey that this operation has a cost---a
+    ///   lookup is performed on the global interner pool,
+    ///     which requires locking and so comes at a (small) cost.
+    /// This shouldn't be done more than is necessary.
+    fn lookup_str(&self) -> SymbolStr<'static>;
+}
+
+impl<Ix: SymbolIndexSize> GlobalSymbolResolve for SymbolId<Ix> {
+    fn lookup_str(&self) -> SymbolStr<'static> {
+        Ix::with_static_interner(|interner| {
+            interner.index_lookup(*self).unwrap()
+        })
     }
 }
 
-lazy_static! {
-    /// Dummy 8-bit [`Symbol`] for use at index `0`.
-    ///
-    /// A symbol must never have an index of `0`,
-    ///   so this can be used as a placeholder.
-    /// The chosen [`SymbolId`] here does not matter since this will
-    ///   never be referenced.
-    static ref DUMMY_SYM_8: Symbol<'static, u8> =
-        Symbol::new(SymbolId::from_int(1), "!BADSYMREF!");
+/// Intern a string using a global interner.
+///
+/// This provides a convenient API that creates the appearance that string
+///   interning is a core Rust language feature
+///   (e.g. `"foo".intern()`).
+/// This speaks to the rationale of introducing global interners to begin
+///   with---mainly
+///     that symbols are so pervasive that they may as well be a language
+///     feature so that they are more natural to work with.
+///
+/// This will automatically intern using the proper global interner based on
+///   the resolved [`SymbolIndexSize`].
+/// In most situations within real (non-test) code,
+///   Rust is able to infer this itself and so it looks quite natural.
+pub trait GlobalSymbolIntern<Ix: SymbolIndexSize> {
+    /// Intern a string using a global interner.
+    fn intern(self) -> SymbolId<Ix>;
+}
 
-    /// Dummy 16-bit [`Symbol`] for use at index `0`.
+/// Intern a byte slice using a global interner.
+///
+/// See also [`GlobalSymbolIntern`].
+/// This uses [`Interner::intern_utf8_unchecked`].
+pub trait GlobalSymbolInternUnchecked<Ix: SymbolIndexSize> {
+    /// Intern a bye slice using a global interner.
     ///
-    /// A symbol must never have an index of `0`,
-    ///   so this can be used as a placeholder.
-    /// The chosen [`SymbolId`] here does not matter since this will
-    ///   never be referenced.
-    static ref DUMMY_SYM_16: Symbol<'static, u16> =
-        Symbol::new(SymbolId::from_int(1), "!BADSYMREF!");
+    /// Safety
+    /// ======
+    /// This function is unsafe because it uses
+    ///   [`Interner::intern_utf8_unchecked`].
+    /// It is provided for convenience when interning from trusted binary
+    ///   data
+    ///     (such as [object files][]).
+    ///
+    /// [object files]: crate::obj
+    unsafe fn intern_utf8_unchecked(self) -> SymbolId<Ix>;
+}
 
-    /// Dummy 32-bit [`Symbol`] for use at index `0`.
-    ///
-    /// A symbol must never have an index of `0`,
-    ///   so this can be used as a placeholder.
-    /// The chosen [`SymbolId`] here does not matter since this will
-    ///   never be referenced.
-    static ref DUMMY_SYM_32: Symbol<'static, u32> =
-        Symbol::new(SymbolId::from_int(1), "!BADSYMREF!");
+impl<Ix: SymbolIndexSize> GlobalSymbolIntern<Ix> for &str {
+    fn intern(self) -> SymbolId<Ix> {
+        Ix::with_static_interner(|interner| interner.intern(self))
+    }
+}
+
+impl<Ix: SymbolIndexSize> GlobalSymbolInternUnchecked<Ix> for &[u8] {
+    unsafe fn intern_utf8_unchecked(self) -> SymbolId<Ix> {
+        Ix::with_static_interner(|interner| {
+            interner.intern_utf8_unchecked(self)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -323,61 +380,17 @@ mod test {
 
     #[test]
     fn self_compares_eq() {
-        let sym = Symbol::new(SymbolId::from_int(1u16), "str");
+        let sym = SymbolId::from_int(1u16);
 
         assert_eq!(&sym, &sym);
     }
 
     #[test]
     fn copy_compares_equal() {
-        let sym = Symbol::new(SymbolId::from_int(1u16), "str");
+        let sym = SymbolId::from_int(1u16);
         let cpy = sym;
 
         assert_eq!(sym, cpy);
-    }
-
-    // Integer values are for convenience, not identity.  They cannot be
-    // used as a unique identifier across different interners.
-    #[test]
-    fn same_index_different_slices_compare_unequal() {
-        let a = Symbol::new(SymbolId::from_int(1u16), "a");
-        let b = Symbol::new(SymbolId::from_int(1u16), "b");
-
-        assert_ne!(a, b);
-    }
-
-    // As mentioned above, ids are _not_ the identity of the symbol.  If
-    // two values point to the same location in memory, they are assumed
-    // to have come from the same interner, and should therefore have
-    // the same index this should never happen unless symbols are
-    // being created without the use of interners, which is unsupported.
-    //
-    // This test is a cautionary tale.
-    #[test]
-    fn different_index_same_slices_compare_equal() {
-        let slice = "str";
-
-        let a = Symbol::new(SymbolId::from_int(1u16), slice);
-        let b = Symbol::new(SymbolId::from_int(2u16), slice);
-
-        assert_eq!(a, b);
-    }
-
-    #[test]
-    fn cloned_symbols_compare_equal() {
-        let sym = Symbol::new(SymbolId::from_int(1u16), "foo");
-
-        assert_eq!(sym, sym.clone());
-    }
-
-    // &Symbol can be used where string slices are expected (this won't
-    // compile otherwise).
-    #[test]
-    fn ref_can_be_used_as_string_slice() {
-        let slice = "str";
-        let sym_slice: &str = &Symbol::new(SymbolId::from_int(1u16), slice);
-
-        assert_eq!(slice, sym_slice);
     }
 
     // For use when we can guarantee proper ids.
@@ -388,17 +401,33 @@ mod test {
         });
     }
 
-    #[test]
-    fn can_retrieve_symbol_index() {
-        let index = SymbolId::from_int(1u16);
+    mod global {
+        use super::*;
 
-        assert_eq!(index, Symbol::new(index, "").index());
-    }
+        #[test]
+        fn str_lookup_using_global_interner() {
+            INTERNER_PKG.with(|interner| {
+                let given = "test global intern";
+                let sym = interner.intern(given);
 
-    #[test]
-    fn displays_as_interned_value() {
-        let sym = Symbol::new(SymbolId::from_int(1u16), "foo");
+                assert_eq!(given, sym.lookup_str());
+            });
+        }
 
-        assert_eq!(format!("{}", sym), sym.str);
+        #[test]
+        fn str_intern_uses_global_interner() {
+            // This creates the illusion of a core Rust language feature
+            let sym = "foo".intern();
+
+            assert_eq!("foo", sym.lookup_str());
+
+            INTERNER_PKG.with(|interner| {
+                assert_eq!(
+                    sym,
+                    interner.intern("foo"),
+                    "GlobalSymbolIntern<&str>::intern must use the global interner"
+                );
+            });
+        }
     }
 }
