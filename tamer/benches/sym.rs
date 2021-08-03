@@ -85,7 +85,7 @@ mod interner {
         let strs = gen_strs(1000);
 
         bench.iter(|| {
-            let sut = ArenaInterner::<RandomState>::new();
+            let sut = ArenaInterner::<RandomState, u32>::new();
             strs.iter().map(|s| sut.intern(&s)).for_each(drop);
         });
     }
@@ -102,14 +102,14 @@ mod interner {
     #[bench]
     fn with_one_new_1000(bench: &mut Bencher) {
         bench.iter(|| {
-            let sut = ArenaInterner::<RandomState>::new();
+            let sut = ArenaInterner::<RandomState, u32>::new();
             (0..1000).map(|_| sut.intern("first")).for_each(drop);
         });
     }
 
     #[bench]
     fn index_lookup_unique_1000(bench: &mut Bencher) {
-        let sut = ArenaInterner::<RandomState>::new();
+        let sut = ArenaInterner::<RandomState, u32>::new();
         let strs = gen_strs(1000);
 
         let syms = strs
@@ -141,7 +141,7 @@ mod interner {
             let strs = gen_strs(1000);
 
             bench.iter(|| {
-                let sut = ArenaInterner::<FxBuildHasher>::new();
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }
@@ -160,7 +160,7 @@ mod interner {
         #[bench]
         fn with_one_new_1000(bench: &mut Bencher) {
             bench.iter(|| {
-                let sut = ArenaInterner::<FxBuildHasher>::new();
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 (0..1000).map(|_| sut.intern("first")).for_each(drop);
             });
         }
@@ -168,7 +168,7 @@ mod interner {
         #[bench]
         fn with_one_new_1000_utf8_unchecked(bench: &mut Bencher) {
             bench.iter(|| {
-                let sut = ArenaInterner::<FxBuildHasher>::new();
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 (0..1000)
                     .map(|_| unsafe { sut.intern_utf8_unchecked(b"first") })
                     .for_each(drop);
@@ -183,7 +183,7 @@ mod interner {
             let strs = gen_strs(n);
 
             bench.iter(|| {
-                let sut = ArenaInterner::<FxBuildHasher>::with_capacity(n);
+                let sut = ArenaInterner::<FxBuildHasher, u32>::with_capacity(n);
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
             });
         }

@@ -29,20 +29,34 @@ extern crate test;
 use test::Bencher;
 
 mod base {
+    use std::convert::TryFrom;
+    use std::fmt::Debug;
+
     use super::*;
     use tamer::global;
     use tamer::ir::asg::{
         Asg, DataType, DefaultAsg, IdentKind, IdentObject, SortableAsg, Source,
     };
-    use tamer::sym::{DefaultInterner, Interner, Symbol};
+    use tamer::sym::{DefaultInterner, Interner, Symbol, SymbolIndexSize};
 
-    type Sut<'i> = DefaultAsg<'i, IdentObject<'i>, global::PkgIdentSize>;
-    type SutProg<'i> = DefaultAsg<'i, IdentObject<'i>, global::ProgIdentSize>;
+    type Sut<'i> = DefaultAsg<
+        'i,
+        IdentObject<'i, global::PkgSymSize>,
+        global::PkgIdentSize,
+    >;
+    type SutProg<'i> = DefaultAsg<
+        'i,
+        IdentObject<'i, global::ProgSymSize>,
+        global::ProgIdentSize,
+    >;
 
-    fn interned_n<'i>(
-        interner: &'i DefaultInterner<'i>,
+    fn interned_n<'i, Ix: SymbolIndexSize>(
+        interner: &'i DefaultInterner<'i, Ix>,
         n: u16,
-    ) -> Vec<&'i Symbol<'i>> {
+    ) -> Vec<&'i Symbol<'i, Ix>>
+    where
+        <Ix as TryFrom<usize>>::Error: Debug,
+    {
         (0..n).map(|i| interner.intern(&i.to_string())).collect()
     }
 
@@ -396,12 +410,13 @@ mod object {
 
     mod ident {
         use super::*;
+        use tamer::global;
         use tamer::ir::asg::{
             IdentKind, IdentObject, IdentObjectData, IdentObjectState, Source,
         };
         use tamer::sym::{DefaultInterner, Interner};
 
-        type Sut<'i> = IdentObject<'i>;
+        type Sut<'i> = IdentObject<'i, global::ProgSymSize>;
 
         #[bench]
         fn declare_1_000(bench: &mut Bencher) {
