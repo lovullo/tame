@@ -33,6 +33,7 @@ petgraph = "0.5.1"  # TODO: petgraph-graphml holds this back
 quick-xml = ">= 0.17.0"
 getopts = "0.2"
 exitcode = "1.1.2"
+lazy_static = ">= 1.4.0"
 petgraph-graphml = ">= 2.0.1"
 static_assertions = ">= 1.1.0"
 
