@@ -361,19 +361,19 @@ mod test {
 
         // Remember that identifiers begin at 1
         assert_eq!(
-            SymbolId::from_int(1),
+            SymbolId::test_from_int(1),
             sut.intern("foo"),
             "First index should be 1"
         );
 
         assert_eq!(
-            SymbolId::from_int(1),
+            SymbolId::test_from_int(1),
             sut.intern("foo"),
             "Index should not increment for already-interned symbols"
         );
 
         assert_eq!(
-            SymbolId::from_int(2),
+            SymbolId::test_from_int(2),
             sut.intern("bar"),
             "Index should increment for new symbols"
         );
@@ -439,7 +439,7 @@ mod test {
         let sut = Sut::new();
 
         // Symbol does not yet exist.
-        assert!(sut.index_lookup(SymbolId::from_int(1)).is_none());
+        assert!(sut.index_lookup(SymbolId::test_from_int(1)).is_none());
 
         let sym = sut.intern("foo");
         assert_eq!("foo", sut.index_lookup(sym).unwrap());

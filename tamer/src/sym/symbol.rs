@@ -72,27 +72,26 @@ pub type PkgSymbolId = SymbolId<global::PkgSymSize>;
 pub type ProgSymbolId = SymbolId<global::ProgSymSize>;
 
 impl<Ix: SymbolIndexSize> SymbolId<Ix> {
-    /// Construct index from a non-zero `u16` value.
-    ///
-    /// Panics
-    /// ------
-    /// Will panic if `n == 0`.
-    pub fn from_int(n: Ix) -> SymbolId<Ix> {
-        SymbolId(Ix::new(n).unwrap())
-    }
-
     /// Construct index from an unchecked non-zero `u16` value.
     ///
     /// This does not verify that `n > 0` and so must only be used in
     ///   contexts where this invariant is guaranteed to hold.
-    /// Unlike [`from_int`](SymbolId::from_int),
-    ///   this never panics.
-    pub unsafe fn from_int_unchecked(n: Ix) -> SymbolId<Ix> {
+    pub(super) unsafe fn from_int_unchecked(n: Ix) -> SymbolId<Ix> {
         SymbolId(Ix::new_unchecked(n))
     }
 
     pub fn as_usize(self) -> usize {
         self.0.into().as_usize()
+    }
+
+    /// Construct index from a non-zero value for testing.
+    ///
+    /// Panics
+    /// ------
+    /// Will panic if `n == 0`.
+    #[cfg(test)]
+    pub fn test_from_int(n: Ix) -> SymbolId<Ix> {
+        SymbolId(Ix::new(n).unwrap())
     }
 }
 
@@ -380,14 +379,14 @@ mod test {
 
     #[test]
     fn self_compares_eq() {
-        let sym = SymbolId::from_int(1u16);
+        let sym = SymbolId::test_from_int(1u16);
 
         assert_eq!(&sym, &sym);
     }
 
     #[test]
     fn copy_compares_equal() {
-        let sym = SymbolId::from_int(1u16);
+        let sym = SymbolId::test_from_int(1u16);
         let cpy = sym;
 
         assert_eq!(sym, cpy);
@@ -396,7 +395,7 @@ mod test {
     // For use when we can guarantee proper ids.
     #[test]
     fn can_create_index_unchecked() {
-        assert_eq!(SymbolId::from_int(1u32), unsafe {
+        assert_eq!(SymbolId::test_from_int(1u32), unsafe {
             SymbolId::from_int_unchecked(1)
         });
     }
