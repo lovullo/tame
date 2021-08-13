@@ -34,6 +34,7 @@ pub mod fs;
 pub mod ir;
 pub mod ld;
 pub mod obj;
+pub mod span;
 pub mod sym;
 pub mod tpwrap;
 

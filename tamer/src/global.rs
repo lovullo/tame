@@ -24,14 +24,20 @@
 //!   and risk incompatibilities or maintenance issues as requirements
 //!   change.
 //!
+//! This package contains static assertions to ensure that certain sizes
+//!   will play well with one-another and provide a clear direction if
+//!   something goes wrong
+//!     (beyond a slew of other type errors).
+//!
 //! By convention,
 //!   import this entire module rather than individual members and reference
 //!   them as `global::foo` to emphasize their nature and risk.
 
-use std::num;
+use std::{mem::size_of, num};
 
 /// A size capable of representing every interned string in a package.
 pub type PkgSymSize = u16;
+const_assert!(size_of::<PkgSymSize>() <= size_of::<ProgSymSize>());
 
 /// A non-zero equivalent of [`PkgSymSize`];
 pub type NonZeroPkgSymSize = num::NonZeroU16;
@@ -41,6 +47,21 @@ pub type ProgSymSize = u32;
 
 /// A non-zero equivalent of [`ProgSymSize`];
 pub type NonZeroProgSymSize = num::NonZeroU32;
+
+/// Size large enough to accommodate the number of bytes in a source file.
+pub type SourceFileSize = u32;
+
+/// Length of tokens derived from source files.
+///
+/// This size should be kept small,
+///   since its principle use is as an alternative to a byte offset
+///   ([`SourceFileSize`]) for struct packing.
+/// It should, however, be large enough to handle comment and
+///   documentation tokens.
+/// Tokens that are too large can potentially be split into multiple
+///   tokens.
+pub type FrontendTokenLength = u16;
+const_assert!(size_of::<FrontendTokenLength>() <= size_of::<SourceFileSize>());
 
 /// A size capable of representing indexes of each individual identifier
 ///   within a single package.
@@ -53,6 +74,7 @@ pub type NonZeroProgSymSize = num::NonZeroU32;
 ///
 /// This must be ≥ [`PkgSymSize`].
 pub type PkgIdentSize = u16;
+const_assert!(size_of::<PkgIdentSize>() >= size_of::<PkgSymSize>());
 
 /// A size capable of representing every individual identifier and
 ///   expression within a single package.
@@ -63,12 +85,14 @@ pub type PkgIdentSize = u16;
 ///   this must accommodate far more than the user's expectations
 ///     working within the provided level of abstraction.
 pub type PkgIdentExprSize = u32;
+const_assert!(size_of::<PkgIdentExprSize>() <= size_of::<ProgIdentExprSize>());
 
 /// A size capable of representing the union of every identifier of every
 ///   package used by an entire program.
 ///
 /// This must be ≥ [`ProgSymSize`].
 pub type ProgIdentSize = u32;
+const_assert!(size_of::<ProgIdentSize>() >= size_of::<ProgSymSize>());
 
 /// A size capable of representing the union of every identifier and every
 ///   expression of every package used by an entire program.
@@ -81,3 +105,4 @@ pub type ProgIdentSize = u32;
 ///
 /// This must be ≥ [`ProgSymSize`].
 pub type ProgIdentExprSize = u32;
+const_assert!(size_of::<ProgIdentExprSize>() >= size_of::<ProgSymSize>());
