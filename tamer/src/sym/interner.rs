@@ -115,6 +115,19 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     ///   interned.
     fn intern_soft(&self, value: &str) -> Option<SymbolId<Ix>>;
 
+    /// Copy the provided slice into the intern pool and produce a symbol,
+    ///   but do not intern the symbol.
+    ///
+    /// The symbol will never compare equal to any other symbol,
+    ///   regardless of the underlying string.
+    /// Consequently,
+    ///   this evades the cost of hashing the string,
+    ///   allowing for a [`SymbolId`] to be used in place of [`String`].
+    ///
+    /// See "Uninterned Symbols" in the documentation of the
+    ///   [`sym` module](super) for more information.
+    fn clone_uninterned(&self, value: &str) -> SymbolId<Ix>;
+
     /// Determine whether the given value has already been interned.
     ///
     /// This is equivalent to `intern_soft(value).is_some()`.
@@ -190,6 +203,7 @@ impl<'i, S, Ix> ArenaInterner<'i, S, Ix>
 where
     S: BuildHasher + Default,
     Ix: SymbolIndexSize,
+    <Ix as TryFrom<usize>>::Error: Debug,
 {
     /// Initialize a new interner with no initial capacity.
     ///
@@ -230,6 +244,28 @@ where
             )),
         }
     }
+
+    #[inline]
+    fn get_next_symbol_id(syms: &mut Vec<&'i str>) -> SymbolId<Ix> {
+        let next_index: Ix = syms
+            .len()
+            .try_into()
+            .expect("internal error: SymbolId range exhausted");
+
+        // This is not actually unsafe because next_index is always >0
+        // from initialization.
+        debug_assert!(Ix::new(next_index).is_some()); // != 0 check
+        unsafe { SymbolId::from_int_unchecked(next_index) }
+    }
+
+    #[inline]
+    fn copy_slice_into_arena(&self, value: &str) -> &'i str {
+        unsafe {
+            &*(std::str::from_utf8_unchecked(
+                self.arena.alloc_slice_clone(value.as_bytes()),
+            ) as *const str)
+        }
+    }
 }
 
 impl<'i, S, Ix> Interner<'i, Ix> for ArenaInterner<'i, S, Ix>
@@ -247,22 +283,8 @@ where
 
         let mut syms = self.strings.borrow_mut();
 
-        let next_index: Ix = syms
-            .len()
-            .try_into()
-            .expect("internal error: SymbolId range exhausted");
-
-        // This is not actually unsafe because next_index is always >0
-        // from initialization.
-        debug_assert!(Ix::new(next_index).is_some()); // != 0 check
-        let id = unsafe { SymbolId::from_int_unchecked(next_index) };
-
-        // Copy string slice into the arena.
-        let clone: &'i str = unsafe {
-            &*(std::str::from_utf8_unchecked(
-                self.arena.alloc_slice_clone(value.as_bytes()),
-            ) as *const str)
-        };
+        let id = Self::get_next_symbol_id(&mut syms);
+        let clone = self.copy_slice_into_arena(value);
 
         map.insert(clone, id);
         syms.push(clone);
@@ -273,6 +295,15 @@ where
     #[inline]
     fn intern_soft(&self, value: &str) -> Option<SymbolId<Ix>> {
         self.map.borrow().get(value).map(|sym| *sym)
+    }
+
+    fn clone_uninterned(&self, value: &str) -> SymbolId<Ix> {
+        let mut syms = self.strings.borrow_mut();
+
+        let id = Self::get_next_symbol_id(&mut syms);
+        syms.push(self.copy_slice_into_arena(value));
+
+        id
     }
 
     #[inline]
@@ -413,6 +444,42 @@ mod test {
 
         let foo = sut.intern("foo");
         assert_eq!(Some(foo), sut.intern_soft("foo"));
+    }
+
+    #[test]
+    fn uninterned_symbol_does_not_compare_equal_to_same_string() {
+        let sut = Sut::new();
+        let s = "foo";
+        let interned = sut.intern(s);
+        let uninterned = sut.clone_uninterned(s);
+
+        // The symbols themselves will never be equal...
+        assert_ne!(uninterned, interned);
+
+        // ...but their underlying strings are.
+        assert_eq!(sut.index_lookup(uninterned), sut.index_lookup(interned));
+    }
+
+    // Unlike the previous test, this makes sure that allocating an
+    // uninterned symbol is actually not being interned, in that interning
+    // another symbol after that won't return an uninterned symbol.
+    #[test]
+    fn allocating_uninterned_symbol_does_not_intern() {
+        let sut = Sut::new();
+        let s = "foo";
+
+        // Alloc unintenrned _first_
+        let uninterned1 = sut.clone_uninterned(s);
+        let uninterned2 = sut.clone_uninterned(s);
+        let interned1 = sut.intern(s);
+        let interned2 = sut.intern(s);
+
+        assert_ne!(uninterned1, interned1);
+        assert_ne!(uninterned2, interned1);
+        assert_ne!(uninterned1, uninterned2);
+
+        // But we shouldn't have tainted normal interner behavior.
+        assert_eq!(interned1, interned2);
     }
 
     #[test]

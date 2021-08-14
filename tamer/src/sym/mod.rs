@@ -218,6 +218,25 @@
 //!     if you utilize interners for any other purpose,
 //!       it is advised that you create newtypes for their [`SymbolId`]s.
 //!
+//! Uninterned Symbols
+//! ------------------
+//! Interners are able to allocate a [`SymbolId`] without interning,
+//!   which will produce a symbol that cannot compare equal to any other
+//!   symbol and avoids the hashing cost required to perform interning.
+//! This is useful for a couple of reasons:
+//!
+//!   1. To create a symbol that is guaranteed to be unique,
+//!        even if the same string value was previously interned; and
+//!   2. To store a string without a hashing cost,
+//!        making [`SymbolId`] a suitable substitute for [`String`] when the
+//!        string will never need the benefits of internment.
+//!
+//!  The second option allows all data structures to consistently carry
+//!    [`SymbolId`] and let the owner of those data decide whether it is
+//!    appropriate to incur a hashing cost;
+//!      using [`String`] forces that decision upon users of the data
+//!      structure,
+//!        and also makes for an awkward and confusing API.
 //!
 //! Related Work and Further Reading
 //! ================================

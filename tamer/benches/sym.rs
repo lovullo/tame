@@ -91,6 +91,16 @@ mod interner {
     }
 
     #[bench]
+    fn with_all_new_uninterned_1000(bench: &mut Bencher) {
+        let strs = gen_strs(1000);
+
+        bench.iter(|| {
+            let sut = ArenaInterner::<RandomState, u32>::new();
+            strs.iter().map(|s| sut.clone_uninterned(&s)).for_each(drop);
+        });
+    }
+
+    #[bench]
     /// This is our baseline with a raw Rc<str>.
     fn with_one_new_rc_str_1000_baseline(bench: &mut Bencher) {
         bench.iter(|| {
@@ -133,6 +143,17 @@ mod interner {
             });
         }
 
+        // For comparison with uninterned symbols.
+        #[bench]
+        fn with_all_new_owned_string_1000_baseline(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                strs.iter().map(|s| String::from(s)).for_each(drop);
+            });
+        }
+
         #[bench]
         fn with_all_new_1000(bench: &mut Bencher) {
             let strs = gen_strs(1000);
@@ -140,6 +161,16 @@ mod interner {
             bench.iter(|| {
                 let sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 strs.iter().map(|s| sut.intern(&s)).for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_all_new_uninterned_1000(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                strs.iter().map(|s| sut.clone_uninterned(&s)).for_each(drop);
             });
         }
 

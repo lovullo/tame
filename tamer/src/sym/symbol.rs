@@ -337,7 +337,16 @@ impl<Ix: SymbolIndexSize> GlobalSymbolResolve for SymbolId<Ix> {
 ///   Rust is able to infer this itself and so it looks quite natural.
 pub trait GlobalSymbolIntern<Ix: SymbolIndexSize> {
     /// Intern a string using a global interner.
+    ///
+    /// See [`crate::sym`] for more information.
     fn intern(self) -> SymbolId<Ix>;
+
+    /// Copy the provided slice into the intern pool and produce a symbol
+    ///   using a global interner,
+    ///     but do not intern the symbol.
+    ///
+    /// See [`crate::sym`] for more information.
+    fn clone_uninterned(self) -> SymbolId<Ix>;
 }
 
 /// Intern a byte slice using a global interner.
@@ -362,6 +371,10 @@ pub trait GlobalSymbolInternUnchecked<Ix: SymbolIndexSize> {
 impl<Ix: SymbolIndexSize> GlobalSymbolIntern<Ix> for &str {
     fn intern(self) -> SymbolId<Ix> {
         Ix::with_static_interner(|interner| interner.intern(self))
+    }
+
+    fn clone_uninterned(self) -> SymbolId<Ix> {
+        Ix::with_static_interner(|interner| interner.clone_uninterned(self))
     }
 }
 
@@ -427,6 +440,12 @@ mod test {
                     "GlobalSymbolIntern<&str>::intern must use the global interner"
                 );
             });
+        }
+
+        #[test]
+        fn clone_uninterned() {
+            let sym: PkgSymbolId = "foo".clone_uninterned();
+            assert_eq!("foo", sym.lookup_str());
         }
     }
 }
