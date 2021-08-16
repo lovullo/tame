@@ -361,7 +361,7 @@ impl<W: Write> XmleWriter<W> {
             match ident {
                 IdentObject::IdentFragment(_, _, _, frag) => {
                     self.writer.write_event(Event::Text(
-                        BytesText::from_plain_str(frag),
+                        BytesText::from_plain_str(&frag.lookup_str()),
                     ))?;
                 }
                 // Cgen, Gen, and Lparam are not expected to be present, so we
@@ -426,7 +426,7 @@ mod mock {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::{Dim, Section, Source};
+    use crate::ir::asg::{Dim, FragmentText, Section, Source};
     use crate::ir::legacyir::SymAttrs;
     use crate::sym::GlobalSymbolIntern;
     use std::str;
@@ -520,7 +520,7 @@ mod test {
             "sym".intern(),
             IdentKind::Meta,
             Source::default(),
-            String::from(""),
+            FragmentText::from(""),
         );
 
         let mut section = Section::new();

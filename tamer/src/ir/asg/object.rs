@@ -77,7 +77,7 @@ pub enum IdentObject<Ix: SymbolIndexSize> {
     /// They are produced by the compiler and it is the job of the
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
-    IdentFragment(SymbolId<Ix>, IdentKind, Source<Ix>, FragmentText),
+    IdentFragment(SymbolId<Ix>, IdentKind, Source<Ix>, FragmentText<Ix>),
 }
 
 /// Retrieve information about an [`IdentObject`].
@@ -120,7 +120,7 @@ pub trait IdentObjectData<Ix: SymbolIndexSize> {
     ///
     /// If the object does not have an associated code fragment,
     ///   [`None`] is returned.
-    fn fragment(&self) -> Option<&FragmentText>;
+    fn fragment(&self) -> Option<&FragmentText<Ix>>;
 
     /// IdentObject as an identifier ([`IdentObject`]).
     ///
@@ -166,7 +166,7 @@ where
         }
     }
 
-    fn fragment(&self) -> Option<&FragmentText> {
+    fn fragment(&self) -> Option<&FragmentText<Ix>> {
         match self {
             Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _, _) => {
                 None
@@ -249,7 +249,7 @@ where
     /// Note, however, that an identifier's fragment may be cleared under
     ///   certain circumstances (such as symbol overrides),
     ///     making way for a new fragment to be set.
-    fn set_fragment(self, text: FragmentText) -> TransitionResult<T>;
+    fn set_fragment(self, text: FragmentText<Ix>) -> TransitionResult<T>;
 }
 
 impl<Ix> IdentObjectState<Ix, IdentObject<Ix>> for IdentObject<Ix>
@@ -434,7 +434,7 @@ where
 
     fn set_fragment(
         self,
-        text: FragmentText,
+        text: FragmentText<Ix>,
     ) -> TransitionResult<IdentObject<Ix>> {
         match self {
             IdentObject::Ident(sym, kind, src) => {
@@ -608,7 +608,7 @@ impl std::error::Error for UnresolvedError {
 /// Compiled fragment for identifier.
 ///
 /// This represents the text associated with an identifier.
-pub type FragmentText = String;
+pub type FragmentText<Ix> = SymbolId<Ix>;
 
 /// Metadata about the source of an object.
 ///
@@ -742,7 +742,7 @@ mod test {
                     sym,
                     IdentKind::Meta,
                     Source::default(),
-                    FragmentText::default(),
+                    "".intern()
                 )
                 .name()
             );
@@ -772,7 +772,7 @@ mod test {
                     sym,
                     kind.clone(),
                     Source::default(),
-                    FragmentText::default()
+                    "".intern()
                 )
                 .kind()
             );
@@ -804,7 +804,7 @@ mod test {
                     sym,
                     IdentKind::Meta,
                     src.clone(),
-                    FragmentText::default()
+                    "".intern()
                 )
                 .src()
             );
@@ -813,7 +813,7 @@ mod test {
         #[test]
         fn ident_object_fragment() {
             let sym: PkgSymbolId = "sym".intern();
-            let text: FragmentText = "foo".into();
+            let text = "foo".into();
 
             assert_eq!(None, IdentObject::Missing(sym).fragment());
 
@@ -835,7 +835,7 @@ mod test {
                     sym,
                     IdentKind::Meta,
                     Source::default(),
-                    text.clone(),
+                    text,
                 )
                 .fragment()
             );
@@ -1239,7 +1239,7 @@ mod test {
             // Since it's already a fragment, this should fail.
             let err = ident_with_frag
                 .clone()
-                .set_fragment("replacement".to_string())
+                .set_fragment("replacement".intern())
                 .expect_err("Expected failure");
 
             match err {
@@ -1633,8 +1633,8 @@ mod test {
                 .resolve(given, src.clone())
                 .unwrap();
 
-            let fragment = "a fragment".to_string();
-            let obj_with_frag = obj.set_fragment(fragment.clone());
+            let fragment = "a fragment".intern();
+            let obj_with_frag = obj.set_fragment(fragment);
 
             assert_eq!(
                 Ok(IdentObject::IdentFragment(sym, expected, src, fragment)),

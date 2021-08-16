@@ -328,10 +328,11 @@ xmlo_tests! {
 
         let result = sut.read_event()?;
 
-        assert_eq!(
-            XmloEvent::Fragment("fragsym".intern(), expected),
-            result
-        );
+        assert!(matches!(
+            result,
+            XmloEvent::Fragment(sym, given)
+                if sym == "fragsym".intern() && given.lookup_str() == expected
+        ));
 
         // argument provided to underlying read_text
         assert_eq!(

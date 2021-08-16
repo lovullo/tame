@@ -231,7 +231,7 @@ where
     fn set_fragment(
         &mut self,
         identi: ObjectRef<Ix>,
-        text: FragmentText,
+        text: FragmentText<Ix>,
     ) -> AsgResult<ObjectRef<Ix>> {
         self.with_ident(identi, |obj| obj.set_fragment(text))
     }
@@ -410,7 +410,7 @@ mod test {
         given_declare: Option<SymbolId<Ix>>,
         given_extern: Option<(IdentKind, Source<Ix>)>,
         given_resolve: Option<(IdentKind, Source<Ix>)>,
-        given_set_fragment: Option<FragmentText>,
+        given_set_fragment: Option<FragmentText<Ix>>,
         fail_redeclare: RefCell<Option<TransitionError>>,
         fail_extern: RefCell<Option<TransitionError>>,
         fail_set_fragment: RefCell<Option<TransitionError>>,
@@ -430,7 +430,7 @@ mod test {
             None
         }
 
-        fn fragment(&self) -> Option<&FragmentText> {
+        fn fragment(&self) -> Option<&FragmentText<Ix>> {
             None
         }
 
@@ -485,7 +485,7 @@ mod test {
 
         fn set_fragment(
             mut self,
-            text: FragmentText,
+            text: FragmentText<Ix>,
         ) -> TransitionResult<StubIdentObject> {
             if self.fail_set_fragment.borrow().is_some() {
                 let err = self.fail_set_fragment.replace(None).unwrap();
@@ -730,8 +730,8 @@ mod test {
         };
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
 
-        let fragment = "a fragment".to_string();
-        let node_with_frag = sut.set_fragment(node, fragment.clone())?;
+        let fragment = "a fragment".intern();
+        let node_with_frag = sut.set_fragment(node, fragment)?;
 
         // Attaching a fragment should _replace_ the node, not create a
         // new one

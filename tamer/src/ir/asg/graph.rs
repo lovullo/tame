@@ -124,7 +124,7 @@ where
     fn set_fragment(
         &mut self,
         identi: ObjectRef<Ix>,
-        text: FragmentText,
+        text: FragmentText<Ix>,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Retrieve an object from the graph by [`ObjectRef`].

@@ -149,7 +149,7 @@ mod interner {
             let strs = gen_strs(1000);
 
             bench.iter(|| {
-                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                let _sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 strs.iter().map(|s| String::from(s)).for_each(drop);
             });
         }

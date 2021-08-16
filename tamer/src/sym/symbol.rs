@@ -386,6 +386,16 @@ impl<Ix: SymbolIndexSize> GlobalSymbolInternUnchecked<Ix> for &[u8] {
     }
 }
 
+impl<T, Ix> From<T> for SymbolId<Ix>
+where
+    T: Deref<Target = str>,
+    Ix: SymbolIndexSize,
+{
+    fn from(value: T) -> Self {
+        value.intern()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

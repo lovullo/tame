@@ -54,7 +54,7 @@
 //! use tamer::global;
 //! use tamer::ir::legacyir::SymType;
 //! use tamer::obj::xmlo::{XmloEvent, XmloReader};
-//! use tamer::sym::GlobalSymbolIntern;
+//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, PkgSymbolId};
 //!
 //! let xmlo = br#"<package name="foo">
 //!       <preproc:symtable>
@@ -90,30 +90,34 @@
 //!         XmloEvent::Package(attrs) => pkgname = attrs.name,
 //!         XmloEvent::SymDecl(sym, attrs) => syms.push((sym, attrs.ty)),
 //!         XmloEvent::SymDeps(sym, symdeps) => deps.push((sym, symdeps)),
-//!         XmloEvent::Fragment(sym, text) => fragments.push((sym, text)),
+//!         XmloEvent::Fragment(sym, text) =>
+//!             fragments.push((sym, text.lookup_str().as_str())),
 //!
 //!         // Do not read past end of header.
 //!         XmloEvent::Eoh => break,
 //!     }
 //! }
 //!
+//! let syma = "syma".intern();
+//! let symb = "symb".intern();
+//!
 //! assert_eq!(Some("foo".intern()), pkgname);
 //!
 //! assert_eq!(
 //!     vec![
-//!         ("syma".intern(), Some(SymType::Class)),
-//!         ("symb".intern(), Some(SymType::Cgen)),
+//!         (syma, Some(SymType::Class)),
+//!         (symb, Some(SymType::Cgen)),
 //!     ],
 //!     syms
 //! );
 //!
 //! assert_eq!(
 //!     vec![
-//!         ("syma".intern(), vec![
+//!         (syma, vec![
 //!             "depa-1".intern(),
 //!             "depa-2".intern(),
 //!         ]),
-//!         ("symb".intern(), vec![
+//!         (symb, vec![
 //!             "depb-1".intern(),
 //!         ]),
 //!     ],
@@ -122,8 +126,8 @@
 //!
 //! assert_eq!(
 //!     vec![
-//!         ("syma".intern(), "syma text".into()),
-//!         ("symb".intern(), "symb text".into()),
+//!         (syma, "syma text"),
+//!         (symb, "symb text"),
 //!     ],
 //!     fragments
 //! );
@@ -134,8 +138,8 @@
 
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
 use crate::sym::{
-    GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId,
-    SymbolIndexSize, SymbolStr,
+    GlobalSymbolIntern, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
+    SymbolId, SymbolIndexSize, SymbolStr,
 };
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
@@ -654,7 +658,7 @@ where
                     _ => err.into(),
                 })?;
 
-        Ok(XmloEvent::Fragment(id, text))
+        Ok(XmloEvent::Fragment(id, text.clone_uninterned()))
     }
 
     /// Convert single-character `@dim` to a [`u8`].
@@ -744,7 +748,7 @@ pub enum XmloEvent<Ix: SymbolIndexSize> {
     /// Given that fragments can be quite large,
     ///   a caller not interested in these data should choose to skip
     ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(SymbolId<Ix>, String),
+    Fragment(SymbolId<Ix>, SymbolId<Ix>),
 
     /// End-of-header.
     ///
