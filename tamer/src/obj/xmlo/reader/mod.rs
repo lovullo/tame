@@ -250,6 +250,11 @@ where
     ///
     /// TODO: Augment failures with context
     pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<Ix>> {
+        // Just to cut down on peak memory usage, cleaning up after a
+        // previous run.  This does not affect behavior.
+        self.buffer.clear();
+        self.sub_buffer.clear();
+
         let event = self.reader.read_event(&mut self.buffer)?;
 
         // Ensure that the first encountered node is something we expect

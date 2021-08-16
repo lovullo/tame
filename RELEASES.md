@@ -24,6 +24,11 @@ Linker
 ------
 - Remove exception for input map dependency processing (now that compiler no
   longer emits such a dependency).
+- Reduce peak memory usage by clearing buffer of `xmlo` reader between
+  events.
+  - How effective this is varies depending on the size of individual
+    entities within the XML document.  In some cases, it can reduce peak
+    memory usage by half.
 
 
 v18.0.3 (2021-07-21)
