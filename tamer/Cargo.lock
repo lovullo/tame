@@ -302,6 +302,7 @@ dependencies = [
  "fxhash",
  "getopts",
  "lazy_static",
+ "memchr",
  "petgraph",
  "petgraph-graphml",
  "predicates",
