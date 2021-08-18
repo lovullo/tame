@@ -138,8 +138,8 @@
 
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
 use crate::sym::{
-    GlobalSymbolIntern, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
-    SymbolId, SymbolIndexSize, SymbolStr,
+    GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId,
+    SymbolIndexSize, SymbolStr,
 };
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
@@ -624,8 +624,13 @@ where
     /// Process `preproc:fragment` element.
     ///
     /// This element represents the compiled code for the given symbol.
-    /// The result is a single [`XmloEvent::Fragment`] with an owned
-    ///   [`String`] fragment and an interned `preproc:fragment/@id`.
+    /// The result is a single [`XmloEvent::Fragment`] with an interned
+    ///   fragment and an interned `preproc:fragment/@id`.
+    /// The fragment is _left escaped_,
+    ///   since it is assumed that it will be written back out verbatim
+    ///   without further modification;
+    ///     this save us from having to spend time re-escaping on output
+    ///     down the line.
     ///
     /// Errors
     /// ======
@@ -648,17 +653,18 @@ where
                 Ok(unsafe { attr.value.intern_utf8_unchecked() })
             })?;
 
-        let text =
-            reader
-                .read_text(ele.name(), buffer)
-                .map_err(|err| match err {
-                    InnerXmlError::TextNotFound => {
-                        XmloError::MissingFragmentText(id.lookup_str())
-                    }
-                    _ => err.into(),
-                })?;
+        let text = match reader.read_event(buffer)? {
+            XmlEvent::Text(ev) => {
+                // It is wasteful to unescape only to have to re-escape
+                // again on write, so keep the text raw (escaped), and also
+                // trust that it's valid UTF-8, having come from the
+                // compiler.
+                Ok(unsafe { ev.escaped().clone_uninterned_utf8_unchecked() })
+            }
+            _ => Err(XmloError::MissingFragmentText(id.lookup_str())),
+        }?;
 
-        Ok(XmloEvent::Fragment(id, text.clone_uninterned()))
+        Ok(XmloEvent::Fragment(id, text))
     }
 
     /// Convert single-character `@dim` to a [`u8`].

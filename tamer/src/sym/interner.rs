@@ -147,7 +147,7 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     ///   the result is [`None`].
     fn index_lookup(&'i self, index: SymbolId<Ix>) -> Option<SymbolStr<'i>>;
 
-    /// Intern an assumed-UTF8 slice of bytes or return an existing
+    /// Intern an assumed-UTF-8 slice of bytes or return an existing
     ///   [`SymbolId`].
     ///
     /// Safety
@@ -161,6 +161,29 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     /// [object files]: crate::obj
     unsafe fn intern_utf8_unchecked(&self, value: &[u8]) -> SymbolId<Ix> {
         self.intern(std::str::from_utf8_unchecked(value))
+    }
+
+    /// Copy the provided assumed-UTF-8 slice of bytes into the intern pool
+    ///   and produce a symbol,
+    ///     but do not intern the symbol.
+    ///
+    /// See [`clone_uninterned`](Interner::clone_uninterned) for more
+    ///   information.
+    ///
+    /// Safety
+    /// ======
+    /// This function is unsafe because it uses
+    ///   [`std::str::from_utf8_unchecked`].
+    /// It is provided for convenience when interning from trusted binary
+    ///   data
+    ///     (such as [object files][]).
+    ///
+    /// [object files]: crate::obj
+    unsafe fn clone_uninterned_utf8_unchecked(
+        &self,
+        value: &[u8],
+    ) -> SymbolId<Ix> {
+        self.clone_uninterned(std::str::from_utf8_unchecked(value))
     }
 }
 

@@ -314,16 +314,21 @@ xmlo_tests! {
     }
 
     fn fragment_event(sut) {
-        let expected = "fragment text".to_string();
-        sut.reader.next_text = Some(Ok(expected.clone()));
+        let expected = "fragment text";
 
-        sut.reader.next_event = Some(Box::new(|_, _| {
-            Ok(XmlEvent::Start(MockBytesStart::new(
+        sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
+            0 => Ok(XmlEvent::Start(MockBytesStart::new(
                 b"preproc:fragment",
                 Some(MockAttributes::new(vec![MockAttribute::new(
                     b"id", b"fragsym",
                 )])),
-            )))
+            ))),
+            1 => Ok(XmlEvent::Text(MockBytesText::new(
+                b"fragment text"
+            ))),
+            _ => Err(InnerXmlError::UnexpectedEof(
+                format!("MockXmlReader out of events: {}", event_i).into(),
+            )),
         }));
 
         let result = sut.read_event()?;
@@ -333,12 +338,6 @@ xmlo_tests! {
             XmloEvent::Fragment(sym, given)
                 if sym == "fragsym".intern() && given.lookup_str() == expected
         ));
-
-        // argument provided to underlying read_text
-        assert_eq!(
-            Some("preproc:fragment".to_string()),
-            sut.reader.given_text_ele
-        );
     }
 
     fn fragment_fails_with_missing_id(sut) {

@@ -79,6 +79,10 @@ impl<'a> MockBytesText<'a> {
             content: Cow::Borrowed(content),
         }
     }
+
+    pub fn escaped(&self) -> &[u8] {
+        self.content.as_ref()
+    }
 }
 
 pub struct MockAttributes<'a> {

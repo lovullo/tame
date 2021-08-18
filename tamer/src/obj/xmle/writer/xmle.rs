@@ -29,6 +29,7 @@ use mock::MockXmlWriter as XmlWriter;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 #[cfg(not(test))]
 use quick_xml::Writer as XmlWriter;
+use std::borrow::Cow;
 use std::io::Write;
 
 /// Responsible for writing to the xmle files
@@ -361,7 +362,9 @@ impl<W: Write> XmleWriter<W> {
             match ident {
                 IdentObject::IdentFragment(_, _, _, frag) => {
                     self.writer.write_event(Event::Text(
-                        BytesText::from_plain_str(&frag.lookup_str()),
+                        BytesText::from_escaped_str(Cow::Borrowed(
+                            &frag.lookup_str() as &str,
+                        )),
                     ))?;
                 }
                 // Cgen, Gen, and Lparam are not expected to be present, so we

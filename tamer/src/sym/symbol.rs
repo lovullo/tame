@@ -354,7 +354,9 @@ pub trait GlobalSymbolIntern<Ix: SymbolIndexSize> {
 /// See also [`GlobalSymbolIntern`].
 /// This uses [`Interner::intern_utf8_unchecked`].
 pub trait GlobalSymbolInternUnchecked<Ix: SymbolIndexSize> {
-    /// Intern a bye slice using a global interner.
+    /// Intern a byte slice using a global interner.
+    ///
+    /// See also [`GlobalSymbolIntern::intern`].
     ///
     /// Safety
     /// ======
@@ -366,6 +368,23 @@ pub trait GlobalSymbolInternUnchecked<Ix: SymbolIndexSize> {
     ///
     /// [object files]: crate::obj
     unsafe fn intern_utf8_unchecked(self) -> SymbolId<Ix>;
+
+    /// Copy the provided assumed-UTF-8 byte slice into the intern pool and
+    ///   produce a symbol using a global interner,
+    ///     but do not intern the symbol.
+    ///
+    /// See also [`GlobalSymbolIntern::clone_uninterned`].
+    ///
+    /// Safety
+    /// ======
+    /// This function is unsafe because it uses
+    ///   [`Interner::intern_utf8_unchecked`].
+    /// It is provided for convenience when interning from trusted binary
+    ///   data
+    ///     (such as [object files][]).
+    ///
+    /// [object files]: crate::obj
+    unsafe fn clone_uninterned_utf8_unchecked(self) -> SymbolId<Ix>;
 }
 
 impl<Ix: SymbolIndexSize> GlobalSymbolIntern<Ix> for &str {
@@ -382,6 +401,12 @@ impl<Ix: SymbolIndexSize> GlobalSymbolInternUnchecked<Ix> for &[u8] {
     unsafe fn intern_utf8_unchecked(self) -> SymbolId<Ix> {
         Ix::with_static_interner(|interner| {
             interner.intern_utf8_unchecked(self)
+        })
+    }
+
+    unsafe fn clone_uninterned_utf8_unchecked(self) -> SymbolId<Ix> {
+        Ix::with_static_interner(|interner| {
+            interner.clone_uninterned_utf8_unchecked(self)
         })
     }
 }
