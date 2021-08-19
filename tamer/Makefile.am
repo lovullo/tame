@@ -46,7 +46,7 @@ check-fmt:
 	@CARGO@ fmt -- --check
 
 bench:
-	@CARGO@ @CARGO_BENCH_FLAGS@ bench @FEATURES@
+	@CARGO@ @CARGO_BENCH_PRE_FLAGS@ bench $(CARGO_BENCH_FLAGS) @FEATURES@
 
 fix: fmt
 fmt:

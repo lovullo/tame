@@ -70,7 +70,7 @@ AC_MSG_CHECKING([`test` feature support])
 AS_IF(["$RUSTC" --crate-type lib build_aux/bench_check.rs &>/dev/null],
       [AC_MSG_RESULT(available)],
       [AC_MSG_RESULT([no (nightly required)])
-       AC_SUBST([CARGO_BENCH_FLAGS], [+nightly])])
+       AC_SUBST([CARGO_BENCH_PRE_FLAGS], [+nightly])])
 
 # Cargo commands may be available but not necessarily installed for the
 # active toolchain.  Let's check that.
