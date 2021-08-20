@@ -142,7 +142,7 @@ pub trait XmlWriter: Sized {
     /// This is intended primarily for testing;
     ///   it is recommended that you use [`write`](XmlWriter::write) instead,
     ///     unless you _really_ need a new owned `Vec<u8>`.
-    #[must_use = "Write operation may fail"]
+    #[must_use]
     fn write_new(
         self,
         prev_state: WriterState,
