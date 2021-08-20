@@ -87,6 +87,7 @@ mod small_str {
             });
         }
 
+        #[bench]
         fn rust_contains_one_byte_mid_match(bench: &mut Bencher) {
             let strs = gen_strs(1000, "foo:bar");
 
