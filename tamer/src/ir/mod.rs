@@ -73,3 +73,4 @@
 
 pub mod asg;
 pub mod legacyir;
+pub mod xir;
