@@ -19,7 +19,7 @@
 
 //! Lower XIR stream into an XML byte stream via [`Write`].
 
-use super::{Error as XirError, NodeStream, QName};
+use super::{Error as XirError, QName, Token};
 use crate::ir::xir::{AttrValue, Text};
 use crate::sym::GlobalSymbolResolve;
 use crate::sym::SymbolIndexSize;
@@ -129,7 +129,7 @@ impl<Ix: SymbolIndexSize> XmlWriter for QName<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize> XmlWriter for NodeStream<Ix> {
+impl<Ix: SymbolIndexSize> XmlWriter for Token<Ix> {
     fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result {
         type S = WriterState; // More concise
 
@@ -249,7 +249,7 @@ impl<Ix: SymbolIndexSize> XmlWriter for NodeStream<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize, I: Iterator<Item = NodeStream<Ix>>> XmlWriter for I {
+impl<Ix: SymbolIndexSize, I: Iterator<Item = Token<Ix>>> XmlWriter for I {
     fn write<W: Write>(
         mut self,
         sink: &mut W,
@@ -287,7 +287,7 @@ mod test {
         let name = QName::<Ix>::new_local("no-prefix".try_into()?);
 
         assert_eq!(
-            NodeStream::Open(name, *S).write(&mut buf, Default::default())?,
+            Token::Open(name, *S).write(&mut buf, Default::default())?,
             WriterState::NodeOpen
         );
 
@@ -302,7 +302,7 @@ mod test {
         let name = QName::<Ix>::try_from(("prefix", "element-name"))?;
 
         assert_eq!(
-            NodeStream::Open(name, *S).write(&mut buf, Default::default())?,
+            Token::Open(name, *S).write(&mut buf, Default::default())?,
             WriterState::NodeOpen
         );
 
@@ -317,8 +317,7 @@ mod test {
         let name = QName::<Ix>::try_from(("p", "another-element"))?;
 
         assert_eq!(
-            NodeStream::Open(name, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
+            Token::Open(name, *S).write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeOpen
         );
 
@@ -332,7 +331,7 @@ mod test {
         let mut buf = vec![];
 
         assert_eq!(
-            NodeStream::<Ix>::SelfClose(*S)
+            Token::<Ix>::SelfClose(*S)
                 .write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeExpected
         );
@@ -347,7 +346,7 @@ mod test {
         let name = QName::<Ix>::try_from(("a", "closed-element"))?;
 
         assert_eq!(
-            NodeStream::Close(name, *S)
+            Token::Close(name, *S)
                 .write(&mut buf, WriterState::NodeExpected)?,
             WriterState::NodeExpected
         );
@@ -365,8 +364,7 @@ mod test {
         let name = QName::<Ix>::try_from(("b", "closed-element"))?;
 
         assert_eq!(
-            NodeStream::Close(name, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
+            Token::Close(name, *S).write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeExpected
         );
 
@@ -381,7 +379,7 @@ mod test {
         let mut buf = vec![];
 
         assert_eq!(
-            NodeStream::<Ix>::Whitespace(Whitespace::try_from(" \t ")?, *S)
+            Token::<Ix>::Whitespace(Whitespace::try_from(" \t ")?, *S)
                 .write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeOpen
         );
@@ -399,7 +397,7 @@ mod test {
 
         // Namespace prefix
         assert_eq!(
-            NodeStream::AttrName(name_ns, *S)
+            Token::AttrName(name_ns, *S)
                 .write(&mut buf, WriterState::NodeOpen)?,
             WriterState::AttrNameAdjacent
         );
@@ -409,7 +407,7 @@ mod test {
 
         // No namespace prefix
         assert_eq!(
-            NodeStream::AttrName(name_local, *S)
+            Token::AttrName(name_local, *S)
                 .write(&mut buf, WriterState::NodeOpen)?,
             WriterState::AttrNameAdjacent
         );
@@ -427,7 +425,7 @@ mod test {
         let value = AttrValue::<Ix>::Escaped("test \" escaped".intern());
 
         assert_eq!(
-            NodeStream::AttrValue(value, *S)
+            Token::AttrValue(value, *S)
                 .write(&mut buf, WriterState::AttrNameAdjacent)?,
             WriterState::NodeOpen
         );
@@ -447,8 +445,7 @@ mod test {
 
         // When a node is expected.
         assert_eq!(
-            NodeStream::Text(text, *S)
-                .write(&mut buf, WriterState::NodeExpected)?,
+            Token::Text(text, *S).write(&mut buf, WriterState::NodeExpected)?,
             WriterState::NodeExpected
         );
         assert_eq!(buf, b"test > escaped");
@@ -457,8 +454,7 @@ mod test {
 
         // When a node is still open.
         assert_eq!(
-            NodeStream::Text(text, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
+            Token::Text(text, *S).write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeExpected
         );
         assert_eq!(buf, b">test > escaped");
@@ -476,7 +472,7 @@ mod test {
 
         // When a node is expected.
         assert_eq!(
-            NodeStream::CData(text, *S)
+            Token::CData(text, *S)
                 .write(&mut buf, WriterState::NodeExpected)?,
             WriterState::NodeExpected
         );
@@ -486,8 +482,7 @@ mod test {
 
         // When a node is still open.
         assert_eq!(
-            NodeStream::CData(text, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
+            Token::CData(text, *S).write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeExpected
         );
         assert_eq!(buf, b"><![CDATA[test > unescaped]]>");
@@ -505,7 +500,7 @@ mod test {
 
         // When a node is expected.
         assert_eq!(
-            NodeStream::Comment(comment, *S)
+            Token::Comment(comment, *S)
                 .write(&mut buf, WriterState::NodeExpected)?,
             WriterState::NodeExpected
         );
@@ -515,7 +510,7 @@ mod test {
 
         // When a node is still open.
         assert_eq!(
-            NodeStream::Comment(comment, *S)
+            Token::Comment(comment, *S)
                 .write(&mut buf, WriterState::NodeOpen)?,
             WriterState::NodeExpected
         );
@@ -527,7 +522,7 @@ mod test {
     #[test]
     fn unsupported_transition_results_in_error() -> TestResult {
         assert!(matches!(
-            NodeStream::AttrValue(AttrValue::<Ix>::Escaped("".into()), *S)
+            Token::AttrValue(AttrValue::<Ix>::Escaped("".into()), *S)
                 .write(&mut vec![], WriterState::NodeExpected),
             Err(Error::UnexpectedToken(_, WriterState::NodeExpected)),
         ));
@@ -543,14 +538,14 @@ mod test {
         let root: QName<Ix> = ("r", "root").try_into()?;
 
         vec![
-            NodeStream::Open(root, *S),
-            NodeStream::AttrName(("an", "attr").try_into()?, *S),
-            NodeStream::AttrValue(AttrValue::Escaped("value".intern()), *S),
-            NodeStream::Text(Text::Escaped("text".intern()), *S),
-            NodeStream::Open(("c", "child").try_into()?, *S),
-            NodeStream::Whitespace(" ".try_into()?, *S),
-            NodeStream::SelfClose(*S),
-            NodeStream::Close(root, *S),
+            Token::Open(root, *S),
+            Token::AttrName(("an", "attr").try_into()?, *S),
+            Token::AttrValue(AttrValue::Escaped("value".intern()), *S),
+            Token::Text(Text::Escaped("text".intern()), *S),
+            Token::Open(("c", "child").try_into()?, *S),
+            Token::Whitespace(" ".try_into()?, *S),
+            Token::SelfClose(*S),
+            Token::Close(root, *S),
         ]
         .into_iter()
         .write(&mut buf, Default::default())?;

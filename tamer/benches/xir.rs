@@ -40,7 +40,7 @@ extern crate tamer;
 extern crate test;
 
 use std::convert::{TryFrom, TryInto};
-use tamer::ir::xir::{NCName, NodeStream, QName};
+use tamer::ir::xir::{NCName, QName, Token};
 use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
 use test::Bencher;
 
@@ -212,12 +212,12 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         bench.iter(|| {
             (0..1000).for_each(|_| {
                 vec![
-                    NodeStream::Open(name, span),
-                    NodeStream::AttrName(attr1, span),
-                    NodeStream::AttrValue(AttrValue::Escaped(val1), span),
-                    NodeStream::AttrName(attr2, span),
-                    NodeStream::AttrValue(AttrValue::Escaped(val2), span),
-                    NodeStream::SelfClose(span),
+                    Token::Open(name, span),
+                    Token::AttrName(attr1, span),
+                    Token::AttrValue(AttrValue::Escaped(val1), span),
+                    Token::AttrName(attr2, span),
+                    Token::AttrValue(AttrValue::Escaped(val2), span),
+                    Token::SelfClose(span),
                 ]
                 .into_iter()
                 .write(&mut buf, Default::default())
@@ -256,7 +256,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
 
         bench.iter(|| {
             (0..500).for_each(|_| {
-                NodeStream::Text(Text::Escaped(frag), span)
+                Token::Text(Text::Escaped(frag), span)
                     .write(&mut buf, Default::default())
                     .unwrap();
             });

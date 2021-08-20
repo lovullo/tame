@@ -319,8 +319,15 @@ pub enum AttrValue<Ix: SymbolIndexSize> {
     Escaped(SymbolId<Ix>),
 }
 
+/// Lightly-structured XML tokens with associated [`Span`]s.
+///
+/// This is a streamable IR for XML.
+/// A writer requires knowledge only of a previous state,
+///   such as whether a node is open,
+///   and so this IR can be processed by a simple state machine
+///     (see [`writer::WriterState`]).
 #[derive(Debug, PartialEq, Eq)]
-pub enum NodeStream<Ix: SymbolIndexSize> {
+pub enum Token<Ix: SymbolIndexSize> {
     /// Opening tag of an element.
     Open(QName<Ix>, Span),
 
@@ -359,12 +366,12 @@ pub enum NodeStream<Ix: SymbolIndexSize> {
 
     /// Character data as part of an element.
     ///
-    /// See also [`CData`](NodeStream::CData) variant.
+    /// See also [`CData`](Token::CData) variant.
     Text(Text<Ix>, Span),
 
     /// CData node (`<![CDATA[...]]>`).
     ///
-    /// See also [`Text`](NodeStream::Text) variant.
+    /// See also [`Text`](Token::Text) variant.
     ///
     /// _Warning: It is up to the caller to ensure that the string `]]>` is
     ///   not present in the text!_
