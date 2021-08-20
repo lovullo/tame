@@ -111,9 +111,47 @@ impl WriterState {
     }
 }
 
-pub trait XmlWriter {
+/// Write an XML representation.
+///
+/// This trait is intended for use with [XIR](super) [`Token`] stream.
+/// It uses a finate state machine (FSM),
+///   where states are represented by [`WriterState`],
+///   to avoid lookahead requirements.
+pub trait XmlWriter: Sized {
+    /// Write XML representation into the provided buffer.
+    ///
+    /// The writer acts as a state machine to determine whether previous
+    ///   output requires closing.
+    /// Each write operation takes a previous [`WriterState`],
+    ///   and transitions to a new [`WriterState`] after performing the
+    ///   write operation
+    ///     (which may be the same as the previous state).
+    /// This returned state must be provided to the next `write` operation
+    ///   to produce valid output.
+    ///
+    /// If you have a series of writes to perform,
+    ///   consider using an [`Iterator`] implementing [`XmlWriter`].
     #[must_use = "Write operation may fail"]
     fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result;
+
+    /// Allocate a new buffer and write into it,
+    ///   returning both the new buffer and the writer state.
+    ///
+    /// See [`write`](XmlWriter::write) for more information.
+    ///
+    /// This is intended primarily for testing;
+    ///   it is recommended that you use [`write`](XmlWriter::write) instead,
+    ///     unless you _really_ need a new owned `Vec<u8>`.
+    #[must_use = "Write operation may fail"]
+    fn write_new(
+        self,
+        prev_state: WriterState,
+    ) -> Result<(Vec<u8>, WriterState)> {
+        let mut buf = Vec::<u8>::new();
+        let state = self.write(&mut buf, prev_state)?;
+
+        Ok((buf, state))
+    }
 }
 
 impl<Ix: SymbolIndexSize> XmlWriter for QName<Ix> {
@@ -283,75 +321,57 @@ mod test {
 
     #[test]
     fn writes_beginning_node_tag_without_prefix() -> TestResult {
-        let mut buf = vec![];
         let name = QName::<Ix>::new_local("no-prefix".try_into()?);
+        let result = Token::Open(name, *S).write_new(Default::default())?;
 
-        assert_eq!(
-            Token::Open(name, *S).write(&mut buf, Default::default())?,
-            WriterState::NodeOpen
-        );
-
-        assert_eq!(buf, b"<no-prefix");
+        assert_eq!(result.0, b"<no-prefix");
+        assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
     }
 
     #[test]
     fn writes_beginning_node_tag_with_prefix() -> TestResult {
-        let mut buf = vec![];
         let name = QName::<Ix>::try_from(("prefix", "element-name"))?;
+        let result = Token::Open(name, *S).write_new(Default::default())?;
 
-        assert_eq!(
-            Token::Open(name, *S).write(&mut buf, Default::default())?,
-            WriterState::NodeOpen
-        );
-
-        assert_eq!(buf, b"<prefix:element-name");
+        assert_eq!(result.0, b"<prefix:element-name");
+        assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
     }
 
     #[test]
     fn closes_open_node_when_opening_another() -> TestResult {
-        let mut buf = vec![];
         let name = QName::<Ix>::try_from(("p", "another-element"))?;
+        let result = Token::Open(name, *S).write_new(WriterState::NodeOpen)?;
 
-        assert_eq!(
-            Token::Open(name, *S).write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeOpen
-        );
-
-        assert_eq!(buf, b"><p:another-element");
+        assert_eq!(result.0, b"><p:another-element");
+        assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
     }
 
     #[test]
     fn closes_open_node_as_empty_element() -> TestResult {
-        let mut buf = vec![];
+        let result =
+            Token::<Ix>::SelfClose(*S).write_new(WriterState::NodeOpen)?;
 
-        assert_eq!(
-            Token::<Ix>::SelfClose(*S)
-                .write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b"/>");
+        assert_eq!(result.0, b"/>");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
 
     #[test]
     fn closing_tag_when_node_expected() -> TestResult {
-        let mut buf = vec![];
         let name = QName::<Ix>::try_from(("a", "closed-element"))?;
 
-        assert_eq!(
-            Token::Close(name, *S)
-                .write(&mut buf, WriterState::NodeExpected)?,
-            WriterState::NodeExpected
-        );
+        let result =
+            Token::Close(name, *S).write_new(WriterState::NodeExpected)?;
 
-        assert_eq!(buf, b"</a:closed-element>");
+        assert_eq!(result.0, b"</a:closed-element>");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
@@ -360,15 +380,12 @@ mod test {
     // to explicitly support outputting malformed XML.
     #[test]
     fn closes_open_node_with_closing_tag() -> TestResult {
-        let mut buf = vec![];
         let name = QName::<Ix>::try_from(("b", "closed-element"))?;
 
-        assert_eq!(
-            Token::Close(name, *S).write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeExpected
-        );
+        let result = Token::Close(name, *S).write_new(WriterState::NodeOpen)?;
 
-        assert_eq!(buf, b"></b:closed-element>");
+        assert_eq!(result.0, b"></b:closed-element>");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
@@ -376,145 +393,107 @@ mod test {
     // Intended for alignment of attributes, primarily.
     #[test]
     fn whitespace_within_open_node() -> TestResult {
-        let mut buf = vec![];
+        let result = Token::<Ix>::Whitespace(Whitespace::try_from(" \t ")?, *S)
+            .write_new(WriterState::NodeOpen)?;
 
-        assert_eq!(
-            Token::<Ix>::Whitespace(Whitespace::try_from(" \t ")?, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeOpen
-        );
-
-        assert_eq!(buf, b" \t ");
+        assert_eq!(result.0, b" \t ");
+        assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
     }
 
     #[test]
     fn writes_attr_name_to_open_node() -> TestResult {
-        let mut buf = vec![];
         let name_ns = QName::<Ix>::try_from(("some", "attr"))?;
         let name_local = QName::<Ix>::new_local("nons".try_into()?);
 
         // Namespace prefix
-        assert_eq!(
-            Token::AttrName(name_ns, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::AttrNameAdjacent
-        );
-        assert_eq!(buf, b" some:attr");
-
-        buf.clear();
+        let result =
+            Token::AttrName(name_ns, *S).write_new(WriterState::NodeOpen)?;
+        assert_eq!(result.0, b" some:attr");
+        assert_eq!(result.1, WriterState::AttrNameAdjacent);
 
         // No namespace prefix
-        assert_eq!(
-            Token::AttrName(name_local, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::AttrNameAdjacent
-        );
-        assert_eq!(buf, b" nons");
+        let result =
+            Token::AttrName(name_local, *S).write_new(WriterState::NodeOpen)?;
+        assert_eq!(result.0, b" nons");
+        assert_eq!(result.1, WriterState::AttrNameAdjacent);
 
         Ok(())
     }
 
     #[test]
     fn writes_escaped_attr_value_when_adjacent_to_attr() -> TestResult {
-        let mut buf = vec![];
-
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
         let value = AttrValue::<Ix>::Escaped("test \" escaped".intern());
 
-        assert_eq!(
-            Token::AttrValue(value, *S)
-                .write(&mut buf, WriterState::AttrNameAdjacent)?,
-            WriterState::NodeOpen
-        );
+        let result = Token::AttrValue(value, *S)
+            .write_new(WriterState::AttrNameAdjacent)?;
 
-        assert_eq!(buf, br#"="test " escaped""#);
+        assert_eq!(result.0, br#"="test " escaped""#);
+        assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
     }
 
     #[test]
     fn writes_escaped_text() -> TestResult {
-        let mut buf = vec![];
-
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
         let text = Text::<Ix>::Escaped("test > escaped".intern());
 
         // When a node is expected.
-        assert_eq!(
-            Token::Text(text, *S).write(&mut buf, WriterState::NodeExpected)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b"test > escaped");
-
-        buf.clear();
+        let result =
+            Token::Text(text, *S).write_new(WriterState::NodeExpected)?;
+        assert_eq!(result.0, b"test > escaped");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        assert_eq!(
-            Token::Text(text, *S).write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b">test > escaped");
+        let result = Token::Text(text, *S).write_new(WriterState::NodeOpen)?;
+        assert_eq!(result.0, b">test > escaped");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
 
     #[test]
     fn writes_unescaped_data() -> TestResult {
-        let mut buf = vec![];
-
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
         let text = Text::<Ix>::Unescaped("test > unescaped".intern());
 
         // When a node is expected.
-        assert_eq!(
-            Token::CData(text, *S)
-                .write(&mut buf, WriterState::NodeExpected)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b"<![CDATA[test > unescaped]]>");
-
-        buf.clear();
+        let result =
+            Token::CData(text, *S).write_new(WriterState::NodeExpected)?;
+        assert_eq!(result.0, b"<![CDATA[test > unescaped]]>");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        assert_eq!(
-            Token::CData(text, *S).write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b"><![CDATA[test > unescaped]]>");
+        let result = Token::CData(text, *S).write_new(WriterState::NodeOpen)?;
+        assert_eq!(result.0, b"><![CDATA[test > unescaped]]>");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
 
     #[test]
     fn writes_escaped_comment() -> TestResult {
-        let mut buf = vec![];
-
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
         let comment = Text::<Ix>::Escaped("comment > escaped".intern());
 
         // When a node is expected.
-        assert_eq!(
-            Token::Comment(comment, *S)
-                .write(&mut buf, WriterState::NodeExpected)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b"<!--comment > escaped-->");
-
-        buf.clear();
+        let result =
+            Token::Comment(comment, *S).write_new(WriterState::NodeExpected)?;
+        assert_eq!(result.0, b"<!--comment > escaped-->");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        assert_eq!(
-            Token::Comment(comment, *S)
-                .write(&mut buf, WriterState::NodeOpen)?,
-            WriterState::NodeExpected
-        );
-        assert_eq!(buf, b"><!--comment > escaped-->");
+        let result =
+            Token::Comment(comment, *S).write_new(WriterState::NodeOpen)?;
+        assert_eq!(result.0, b"><!--comment > escaped-->");
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
@@ -534,10 +513,9 @@ mod test {
     // practice.
     #[test]
     fn test_valid_sequence_of_tokens() -> TestResult {
-        let mut buf = vec![];
         let root: QName<Ix> = ("r", "root").try_into()?;
 
-        vec![
+        let result = vec![
             Token::Open(root, *S),
             Token::AttrName(("an", "attr").try_into()?, *S),
             Token::AttrValue(AttrValue::Escaped("value".intern()), *S),
@@ -548,9 +526,13 @@ mod test {
             Token::Close(root, *S),
         ]
         .into_iter()
-        .write(&mut buf, Default::default())?;
+        .write_new(Default::default())?;
 
-        assert_eq!(buf, br#"<r:root an:attr="value">text<c:child /></r:root>"#);
+        assert_eq!(
+            result.0,
+            br#"<r:root an:attr="value">text<c:child /></r:root>"#
+        );
+        assert_eq!(result.1, WriterState::NodeExpected);
 
         Ok(())
     }
