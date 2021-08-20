@@ -36,7 +36,7 @@ use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::error::Error;
 use std::fs;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 type LinkerAsg =
@@ -234,7 +234,7 @@ fn output_xmle<'a>(
     }
 
     let file = fs::File::create(output)?;
-    let mut xmle_writer = XmleWriter::new(file);
+    let mut xmle_writer = XmleWriter::new(BufWriter::new(file));
     xmle_writer.write(&sorted, name, &relroot)?;
 
     Ok(())
