@@ -36,7 +36,7 @@ TAME
 
 @c insert appropriate em dash for mode
 @ifnottex
-@macro mdash
+@macro mdash{_}
 @inlinefmtifelse{html, @inlineraw{html,&mdash;}, —}
 @end macro
 @end ifnottex

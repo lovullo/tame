@@ -20,6 +20,11 @@ Compiler
 --------
 - Input mappings will no longer emit the destination param as a dependency.
 
+Documentation
+-------------
+- `@mdash` macro now formally defines an argument, correcting errors in
+  newer versions of Texinfo (~v6.7).
+
 Linker
 ------
 - Remove exception for input map dependency processing (now that compiler no
