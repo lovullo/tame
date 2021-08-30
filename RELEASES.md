@@ -16,6 +16,8 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
+Rust 1.53 is now required.
+
 Compiler
 --------
 - Input mappings will no longer emit the destination param as a dependency.
