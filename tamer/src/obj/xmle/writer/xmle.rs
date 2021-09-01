@@ -20,7 +20,7 @@
 use super::writer::{Result, WriterError};
 use crate::global;
 use crate::ir::asg::{
-    IdentKind, IdentObject, IdentObjectData, SectionIter, Sections,
+    IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
 };
 use crate::sym::{GlobalSymbolResolve, ProgSymbolId, SymbolId};
 use fxhash::FxHashSet;
@@ -108,22 +108,16 @@ impl<W: Write> XmleWriter<W> {
                 writer.write_froms(&sections)
             })?
             .write_element(b"l:map-exec", |writer| {
-                writer.write_section(sections.map.iter())
+                writer.write_section(sections.iter_map())
             })?
             .write_element(b"l:retmap-exec", |writer| {
-                writer.write_section(sections.retmap.iter())
+                writer.write_section(sections.iter_retmap())
             })?
             .write_element(b"l:static", |writer| {
-                writer
-                    .write_section(sections.meta.iter())?
-                    .write_section(sections.worksheet.iter())?
-                    .write_section(sections.params.iter())?
-                    .write_section(sections.types.iter())?
-                    .write_section(sections.funcs.iter())?
-                    .write_section(sections.consts.iter())
+                writer.write_section(sections.iter_static())
             })?
             .write_element(b"l:exec", |writer| {
-                writer.write_section(sections.rater.iter())
+                writer.write_section(sections.iter_exec())
             })?
             .write_end_tag(b"package")?;
 
@@ -313,7 +307,7 @@ impl<W: Write> XmleWriter<W> {
     ) -> Result<&mut XmleWriter<W>> {
         let mut map_froms: FxHashSet<ProgSymbolId> = Default::default();
 
-        let map_iter = sections.map.iter();
+        let map_iter = sections.iter_map();
 
         for map_ident in map_iter {
             let src = map_ident.src().expect("internal error: missing map src");
@@ -343,7 +337,7 @@ impl<W: Write> XmleWriter<W> {
     ///   `writer`'s 'write_event`.
     fn write_section<T: IdentObjectData<Ix>>(
         &mut self,
-        idents: SectionIter<T>,
+        idents: SectionsIter<T>,
     ) -> Result<&mut XmleWriter<W>> {
         for obj in idents {
             let ident = obj
@@ -420,7 +414,7 @@ mod mock {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::{Dim, FragmentText, Section, Source};
+    use crate::ir::asg::{Dim, FragmentText, Source};
     use crate::ir::legacyir::SymAttrs;
     use crate::sym::GlobalSymbolIntern;
     use std::str;
@@ -517,9 +511,9 @@ mod test {
             FragmentText::from(""),
         );
 
-        let mut section = Section::new();
-        section.push_body(&obj);
-        sut.write_section(section.iter())?;
+        let mut sections = Sections::new();
+        sections.rater.push_body(&obj);
+        sut.write_section(sections.iter_all())?;
 
         Ok(())
     }
@@ -537,9 +531,9 @@ mod test {
             Source::default(),
         );
 
-        let mut section = Section::new();
-        section.push_body(&obj);
-        sut.write_section(section.iter())?;
+        let mut sections = Sections::new();
+        sections.rater.push_body(&obj);
+        sut.write_section(sections.iter_all())?;
 
         Ok(())
     }
@@ -553,9 +547,9 @@ mod test {
 
         let obj = IdentObject::Missing("missing".intern());
 
-        let mut section = Section::new();
-        section.push_body(&obj);
-        let result = sut.write_section(section.iter());
+        let mut sections = Sections::new();
+        sections.rater.push_body(&obj);
+        let result = sut.write_section(sections.iter_all());
 
         match result {
             Err(WriterError::ExpectedFragment(_)) => {}

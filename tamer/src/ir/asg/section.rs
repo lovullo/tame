@@ -107,6 +107,7 @@ impl<'a, T> Iterator for SectionIter<'a, T> {
 ///
 /// These sections may not necessarily correspond directly to sections of an
 ///   [object file](crate::obj).
+// TODO: Remove pub
 #[derive(Debug, Default, PartialEq)]
 pub struct Sections<'a, T> {
     pub map: Section<'a, T>,
@@ -147,7 +148,7 @@ impl<'a, T> Sections<'a, T> {
     ///   they are chained in the same order in which they are defined
     ///   on the [`Sections`] struct.
     pub fn iter_all(&self) -> SectionsIter<T> {
-        SectionsIter(
+        SectionsIter(SectionsIterType::All(
             self.map
                 .iter()
                 .chain(self.retmap.iter())
@@ -158,7 +159,44 @@ impl<'a, T> Sections<'a, T> {
                 .chain(self.funcs.iter())
                 .chain(self.consts.iter())
                 .chain(self.rater.iter()),
-        )
+        ))
+    }
+
+    /// Construct an iterator over the static sections in arbitrary order.
+    ///
+    /// These sections contain fragments that do not depend on any external
+    ///   inputs and can therefore be executed a single time when the
+    ///   program is loaded into memory.
+    ///
+    /// Each individual section is ordered as stated in [`Section::iter`],
+    ///   but you should not rely on the order that the sections themselves
+    ///   appear in;
+    ///     they may change or be combined in the future.
+    pub fn iter_static(&self) -> SectionsIter<T> {
+        SectionsIter(SectionsIterType::Static(
+            self.meta
+                .iter()
+                .chain(self.worksheet.iter())
+                .chain(self.params.iter())
+                .chain(self.types.iter())
+                .chain(self.funcs.iter())
+                .chain(self.consts.iter()),
+        ))
+    }
+
+    /// Construct an iterator over the map section.
+    pub fn iter_map(&self) -> SectionsIter<T> {
+        SectionsIter(SectionsIterType::Single(self.map.iter()))
+    }
+
+    /// Construct an iterator over the return map section.
+    pub fn iter_retmap(&self) -> SectionsIter<T> {
+        SectionsIter(SectionsIterType::Single(self.retmap.iter()))
+    }
+
+    /// Construct an iterator over the executable `rater` section.
+    pub fn iter_exec(&self) -> SectionsIter<T> {
+        SectionsIter(SectionsIterType::Single(self.rater.iter()))
     }
 }
 
@@ -170,20 +208,33 @@ type CSIter1<'a, T, L> = Chain<L, SIter<'a, T>>;
 type CSIter2<'a, T, L> = CSIter1<'a, T, CSIter1<'a, T, L>>;
 type CSIter4<'a, T, L> = CSIter2<'a, T, CSIter2<'a, T, L>>;
 type CSIter8<'a, T, L> = CSIter4<'a, T, CSIter4<'a, T, L>>;
+
+type SIter6<'a, T> = CSIter4<'a, T, CSIter1<'a, T, SIter<'a, T>>>;
 type SIter9<'a, T> = CSIter8<'a, T, SIter<'a, T>>;
+
+/// Types of iterators encapsulated by [`SectionsIter`].
+enum SectionsIterType<'a, T> {
+    All(SIter9<'a, T>),
+    Static(SIter6<'a, T>),
+    Single(SIter<'a, T>),
+}
 
 /// Iterator over each of the sections.
 ///
 /// This iterator should be created with [`Sections::iter_all`].
 ///
 /// This hides the complex iterator type from callers.
-pub struct SectionsIter<'a, T>(SIter9<'a, T>);
+pub struct SectionsIter<'a, T>(SectionsIterType<'a, T>);
 
 impl<'a, T> Iterator for SectionsIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+        match &mut self.0 {
+            SectionsIterType::All(inner) => inner.next(),
+            SectionsIterType::Static(inner) => inner.next(),
+            SectionsIterType::Single(inner) => inner.next(),
+        }
     }
 }
 

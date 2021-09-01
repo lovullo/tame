@@ -205,7 +205,7 @@ pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
     TransitionError, TransitionResult, UnresolvedError,
 };
-pub use section::{Section, SectionIter, Sections};
+pub use section::{Section, SectionIter, Sections, SectionsIter};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg<O, Ix> = base::BaseAsg<O, Ix>;
