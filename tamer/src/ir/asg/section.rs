@@ -17,6 +17,16 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Ordered sections of ASG object references.
+//!
+//! These sections are the result of an ordering operation from
+//!   [`SortableAsg::sort`].
+//!
+//! [`SortableAsg::sort`]: super::SortableAsg::sort
+
+use std::iter::Chain;
+use std::slice::Iter;
+
 /// A section of an [object file](crate::obj).
 ///
 /// Most sections will only need a `body`, but some innlude `head` and `tail`
@@ -64,62 +74,39 @@ impl<'a, T> Section<'a, T> {
         self.tail.push(obj)
     }
 
-    /// Merge the parts of a `Section` into one [`SectionIterator`]
-    ///
-    /// The `Section` internals need to be iterated as a group so we needed to
-    ///   create a custom iterator, [`SectionIterator`] to do this for us. This
-    ///   method allows us to access the iterator.
-    ///
-    /// ```
-    /// use tamer::ir::asg::{IdentObject, Section};
-    /// use tamer::sym::{DefaultPkgInterner, Interner};
-    ///
-    /// let interner = DefaultPkgInterner::new();
-    /// let mut section = Section::new();
-    /// let obj = IdentObject::Missing(interner.intern("ident"));
-    /// let expect = vec![&obj, &obj, &obj];
-    ///
-    /// section.push_head(&obj);
-    /// section.push_body(&obj);
-    /// section.push_tail(&obj);
-    /// let section_iter = section.iter();
-    ///
-    /// for object in section_iter {
-    ///     assert_eq!(&obj, object);
-    /// }
-    /// ```
-    pub fn iter(&self) -> SectionIterator<T> {
-        SectionIterator {
-            inner: Box::new(
-                self.head
-                    .iter()
-                    .chain(self.body.iter())
-                    .chain(self.tail.iter())
-                    .copied(),
-            ),
-        }
+    /// Construct a new iterator visiting each head, body, and tail object
+    ///   in order.
+    pub fn iter(&self) -> SectionIter<T> {
+        SectionIter(
+            self.head
+                .iter()
+                .chain(self.body.iter())
+                .chain(self.tail.iter()),
+        )
     }
 }
 
-/// Wrapper for an Iterator
+/// Iterator over the head, body, and tail of a [`Section`].
 ///
-/// This allows us to iterate over all parts of a [`Section`].
-pub struct SectionIterator<'a, T> {
-    inner: Box<dyn Iterator<Item = &'a T> + 'a>,
-}
+/// This iterator should be created with [`Section::iter`].
+///
+/// This hides the complex iterator type from callers.
+pub struct SectionIter<'a, T>(
+    Chain<Chain<Iter<'a, &'a T>, Iter<'a, &'a T>>, Iter<'a, &'a T>>,
+);
 
-impl<'a, T> Iterator for SectionIterator<'a, T> {
+impl<'a, T> Iterator for SectionIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        self.0.next().map(|x| *x)
     }
 }
 
-/// Sections that need to be written to a buffer
+/// ASG objects organized into logical sections.
 ///
-/// All the properties are public [`Section`] objects and will be accessed
-///   directly by the the objects interacting with them.
+/// These sections may not necessarily correspond directly to sections of an
+///   [object file](crate::obj).
 #[derive(Debug, Default, PartialEq)]
 pub struct Sections<'a, T> {
     pub map: Section<'a, T>,
@@ -147,6 +134,56 @@ impl<'a, T> Sections<'a, T> {
             consts: Section::new(),
             rater: Section::new(),
         }
+    }
+
+    /// Construct an iterator over each of the individual sections in
+    ///   arbitrary order.
+    ///
+    /// Each individual section is ordered as stated in [`Section::iter`],
+    ///   but you should not rely on the order that the sections themselves
+    ///   appear in;
+    ///     they may change or be combined in the future.
+    /// At the time of writing,
+    ///   they are chained in the same order in which they are defined
+    ///   on the [`Sections`] struct.
+    pub fn iter_all(&self) -> SectionsIter<T> {
+        SectionsIter(
+            self.map
+                .iter()
+                .chain(self.retmap.iter())
+                .chain(self.meta.iter())
+                .chain(self.worksheet.iter())
+                .chain(self.params.iter())
+                .chain(self.types.iter())
+                .chain(self.funcs.iter())
+                .chain(self.consts.iter())
+                .chain(self.rater.iter()),
+        )
+    }
+}
+
+// Compose the chained iterator type for [`SectionsIter`].
+// This could be further abstracted away,
+//   but it's likely that `Sections` will be simplified in the future.
+type SIter<'a, T> = SectionIter<'a, T>;
+type CSIter1<'a, T, L> = Chain<L, SIter<'a, T>>;
+type CSIter2<'a, T, L> = CSIter1<'a, T, CSIter1<'a, T, L>>;
+type CSIter4<'a, T, L> = CSIter2<'a, T, CSIter2<'a, T, L>>;
+type CSIter8<'a, T, L> = CSIter4<'a, T, CSIter4<'a, T, L>>;
+type SIter9<'a, T> = CSIter8<'a, T, SIter<'a, T>>;
+
+/// Iterator over each of the sections.
+///
+/// This iterator should be created with [`Sections::iter_all`].
+///
+/// This hides the complex iterator type from callers.
+pub struct SectionsIter<'a, T>(SIter9<'a, T>);
+
+impl<'a, T> Iterator for SectionsIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
     }
 }
 
@@ -261,5 +298,31 @@ mod test {
         let collection: Vec<_> = section.iter().collect();
 
         assert_eq!(expect, collection);
+    }
+
+    #[test]
+    fn sections_iter_all() {
+        let mut sections = Sections::new();
+
+        let objs = (0..=10)
+            .map(|i| IdentObject::<u16>::Missing(i.to_string().into()))
+            .collect::<Vec<_>>();
+
+        sections.map.head.push(&objs[0]);
+        sections.map.body.push(&objs[1]);
+        sections.map.tail.push(&objs[2]);
+        sections.retmap.body.push(&objs[3]);
+        sections.meta.body.push(&objs[4]);
+        sections.worksheet.body.push(&objs[5]);
+        sections.params.body.push(&objs[6]);
+        sections.types.body.push(&objs[7]);
+        sections.funcs.body.push(&objs[8]);
+        sections.consts.body.push(&objs[9]);
+        sections.rater.body.push(&objs[10]);
+
+        assert_eq!(
+            sections.iter_all().collect::<Vec<_>>(),
+            objs.iter().collect::<Vec<_>>()
+        );
     }
 }

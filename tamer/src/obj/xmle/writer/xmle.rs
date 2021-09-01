@@ -20,7 +20,7 @@
 use super::writer::{Result, WriterError};
 use crate::global;
 use crate::ir::asg::{
-    IdentKind, IdentObject, IdentObjectData, SectionIterator, Sections,
+    IdentKind, IdentObject, IdentObjectData, SectionIter, Sections,
 };
 use crate::sym::{GlobalSymbolResolve, ProgSymbolId, SymbolId};
 use fxhash::FxHashSet;
@@ -202,16 +202,7 @@ impl<W: Write> XmleWriter<W> {
         sections: &Sections<T>,
         relroot: &str,
     ) -> Result<&mut XmleWriter<W>> {
-        let all = sections
-            .meta
-            .iter()
-            .chain(sections.map.iter())
-            .chain(sections.retmap.iter())
-            .chain(sections.worksheet.iter())
-            .chain(sections.params.iter())
-            .chain(sections.types.iter())
-            .chain(sections.funcs.iter())
-            .chain(sections.rater.iter());
+        let all = sections.iter_all();
 
         for obj in all {
             let ident = obj
@@ -352,7 +343,7 @@ impl<W: Write> XmleWriter<W> {
     ///   `writer`'s 'write_event`.
     fn write_section<T: IdentObjectData<Ix>>(
         &mut self,
-        idents: SectionIterator<T>,
+        idents: SectionIter<T>,
     ) -> Result<&mut XmleWriter<W>> {
         for obj in idents {
             let ident = obj
