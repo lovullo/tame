@@ -36,6 +36,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
 use std::ops::Deref;
 
+pub mod tree;
 pub mod writer;
 
 // TODO: Move into crate::sym if this is staying around.
@@ -265,6 +266,35 @@ where
 
     fn try_from(value: (P, L)) -> Result<Self, Self::Error> {
         Ok(Self(Some(value.0.try_into()?), value.1.try_into()?))
+    }
+}
+
+impl<Ix, P, L> TryFrom<(Option<P>, L)> for QName<Ix>
+where
+    Ix: SymbolIndexSize,
+    P: TryInto<Prefix<Ix>>,
+    L: TryInto<LocalPart<Ix>, Error = P::Error>,
+{
+    type Error = P::Error;
+
+    fn try_from(value: (Option<P>, L)) -> Result<Self, Self::Error> {
+        let ns = match value.0 {
+            None => None,
+            Some(ns) => Some(ns.try_into()?),
+        };
+
+        Ok(Self(ns, value.1.try_into()?))
+    }
+}
+
+impl<Ix> TryFrom<&str> for QName<Ix>
+where
+    Ix: SymbolIndexSize,
+{
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(QName(None, value.try_into()?))
     }
 }
 
