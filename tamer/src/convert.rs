@@ -55,10 +55,21 @@ pub trait ExpectFrom<T>: TryFrom<T>
 where
     <Self as TryFrom<T>>::Error: Debug,
 {
+    /// Attempt to convert `value` using `T::try_from`,
+    ///   causing a panic with the given `msg` on failure.
+    ///
+    /// Panics
+    /// ======
+    /// Causes a panic on failure.
     fn expect_from(value: T, msg: &str) -> T {
         T::try_from(value).expect(msg)
     }
 
+    /// Attempt to convert and unwrap `value` using `T::try_from`.
+    ///
+    /// Panics
+    /// ======
+    /// Causes a panic on failure.
     fn unwrap_from(value: T) -> T {
         T::try_from(value).unwrap()
     }
@@ -85,10 +96,21 @@ pub trait ExpectInto<T>: TryInto<T>
 where
     <Self as TryInto<T>>::Error: Debug,
 {
+    /// Attempt to convert a value using `self.try_into()`,
+    ///   causing a panic with the given `msg` on failure.
+    ///
+    /// Panics
+    /// ======
+    /// Causes a panic on failure.
     fn expect_into(self, msg: &str) -> T {
         self.try_into().expect(msg)
     }
 
+    /// Attempt to convert and unwrap a value using `self.try_into()`.
+    ///
+    /// Panics
+    /// ======
+    /// Causes a panic on failure.
     fn unwrap_into(self) -> T {
         self.try_into().unwrap()
     }
