@@ -447,8 +447,8 @@ pub fn parser_from<Ix: SymbolIndexSize>(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::convert::ExpectInto;
     use crate::sym::GlobalSymbolIntern;
-    use std::convert::TryInto;
 
     type Ix = u16;
 
@@ -461,7 +461,7 @@ mod test {
 
     #[test]
     fn attr_from_toks() {
-        let name: QName<Ix> = "attr".try_into().unwrap();
+        let name: QName<Ix> = "attr".unwrap_into();
         let value = AttrValue::Escaped("value".intern());
 
         let toks = std::array::IntoIter::new([
@@ -484,7 +484,7 @@ mod test {
 
     #[test]
     fn empty_element_from_toks() {
-        let name = ("ns", "elem").try_into().unwrap();
+        let name = ("ns", "elem").unwrap_into();
 
         let toks = std::array::IntoIter::new([
             Token::<Ix>::Open(name, *S),
@@ -510,9 +510,9 @@ mod test {
 
     #[test]
     fn empty_element_with_attrs_from_toks() {
-        let name = ("ns", "elem").try_into().unwrap();
-        let attr1 = "a".try_into().unwrap();
-        let attr2 = "b".try_into().unwrap();
+        let name = ("ns", "elem").unwrap_into();
+        let attr1 = "a".unwrap_into();
+        let attr2 = "b".unwrap_into();
         let val1 = AttrValue::Escaped("val1".intern());
         let val2 = AttrValue::Escaped("val2".intern());
 

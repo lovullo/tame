@@ -34,6 +34,7 @@ extern crate lazy_static;
 #[cfg(feature = "wip-frontends")]
 pub mod frontend;
 
+pub mod convert;
 pub mod fs;
 pub mod ir;
 pub mod ld;
