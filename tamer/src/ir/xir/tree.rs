@@ -32,13 +32,55 @@
 //!
 //!# type Ix = u16;
 //!# let token_stream: std::vec::IntoIter<Token<Ix>> = vec![].into_iter();
-//! // Lazily parse a stream of XIR tokens as an iterator.
+//! // Lazily parse a stream of XIR tokens as an iterator, yielding the next
+//! // fully parsed object.  This may consume any number of tokens.
 //! let parser = parser_from(token_stream);
-//!#
+//!
 //!# let token_stream: std::vec::IntoIter<Token<Ix>> = vec![].into_iter();
-//! // The above is equivalent to:
+//! // Consume a single token at a time, yielding either an incomplete state
+//! // or the next parsed object.
 //! let parser = token_stream.scan(ParserState::new(), parse);
 //! ```
+//!
+//! `parser_from` Or `parse`?
+//! =========================
+//! [`parser_from`] is implemented in terms of [`parse`].
+//! They have slightly different use cases and tradeoffs:
+//!
+//! [`parse`] yields a [`Result`] containing [`Parsed`],
+//!   which _may_ contain a [`Parsed::Object`],
+//!   but it's more likely to contain [`Parsed::Incomplete`];
+//!     this is because it typically takes multiple [`Token`]s to complete
+//!     parsing within a given context.
+//!
+//! In return, though, you get some important guarantees:
+//!
+//!   1. [`parse`] consumes only a _single_ token; and
+//!   2. It has a constant upper bound for execution time.
+//!
+//! This means that [`parse`] will never cause the system to hang---you
+//!   are in complete control over how much progress parsing makes,
+//!     and are free to stop and resume it at any time.
+//!
+//! However,
+//!   if you do not care about those things,
+//!   working with [`Parsed`] is verbose and inconvenient;
+//!     sometimes you just want the next [`Tree`] object.
+//! For this,
+//!   we have [`parser_from`],
+//!     which does two things:
+//!
+//!   1. It filters out all [`Parsed::Incomplete`]; and
+//!   2. On [`Parsed::Object`],
+//!        it yields the inner [`Tree`].
+//!
+//! This is a much more convenient API,
+//!   but is not without its downsides:
+//!     if the context is large
+//!       (e.g. the root node of a large XML document),
+//!       parsing can take a considerable amount of time,
+//!         and the [`Iterator`] produced by [`parser_from`] will cause the
+//!         system to process [`Iterator::next`] for that entire duration.
 //!
 //! Cost of Parsing
 //! ===============
@@ -392,8 +434,9 @@ pub enum Parsed<Ix: SymbolIndexSize> {
 /// Wrap [`ParserState::parse_token`] result in [`Some`],
 ///   suitable for use with [`Iterator::scan`].
 ///
-/// _Consider using [`parser_from`] instead,_
-///   as it encapsulates [`ParserState`].
+/// If you do not require a single-step [`Iterator::next`] and simply want
+///   the next parsed object,
+///     use [`parser_from`] instead.
 ///
 /// Note that parsing errors are represented by the wrapped [`Result`],
 ///   _not_ by [`None`].
@@ -417,13 +460,17 @@ pub fn parse<Ix: SymbolIndexSize>(
     Some(ParserState::parse_token(state, tok))
 }
 
-/// Produce a lazy parser from a given [`Token`] iterator.
+/// Produce a lazy parser from a given [`Token`] iterator,
+///   yielding only when an object has been fully parsed.
 ///
-/// This produces a parser using [`parse`],
-///   which uses [`Iterator::scan`].
-/// This will lazily parse a stream of [`Token`],
-///   emitting [`Parsed::Object`] once enough data has been gathered for the
-///   running context.
+/// Unlike [`parse`],
+///   which is intended for use with [`Iterator::scan`],
+///   this will yield /only/ when the underlying parser yields
+///   [`Parsed::Object`],
+///     unwrapping the inner [`Tree`] value.
+/// This interface is far more convenient,
+///   but comes at the cost of not knowing how many parsing steps a single
+///   [`Iterator::next`] call will take.
 ///
 /// For more information on contexts,
 ///   and the parser in general,
@@ -440,8 +487,13 @@ pub fn parse<Ix: SymbolIndexSize>(
 /// ```
 pub fn parser_from<Ix: SymbolIndexSize>(
     toks: impl Iterator<Item = Token<Ix>>,
-) -> impl Iterator<Item = Result<Parsed<Ix>, ParseError>> {
+) -> impl Iterator<Item = Result<Tree<Ix>, ParseError>> {
     toks.scan(ParserState::new(), parse)
+        .filter_map(|parsed| match parsed {
+            Ok(Parsed::Object(tree)) => Some(Ok(tree)),
+            Ok(Parsed::Incomplete) => None,
+            Err(x) => Some(Err(x)),
+        })
 }
 
 #[cfg(test)]
@@ -543,7 +595,7 @@ mod test {
             span: (*S, *S2),
         };
 
-        let mut sut = parser_from(toks);
+        let mut sut = toks.scan(ParserState::new(), parse);
 
         assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
         assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
@@ -554,6 +606,39 @@ mod test {
             sut.next(),
             Some(Ok(Parsed::Object(Tree::Element(expected))))
         );
+        assert_eq!(sut.next(), None);
+    }
+
+    #[test]
+    fn parser_from_filters_incomplete() {
+        let name = ("ns", "elem").unwrap_into();
+        let attr = "a".unwrap_into();
+        let val = AttrValue::Escaped("val1".intern());
+
+        let toks = std::array::IntoIter::new([
+            Token::<Ix>::Open(name, *S),
+            Token::AttrName(attr, *S),
+            Token::AttrValue(val, *S2),
+            Token::SelfClose(*S2),
+        ]);
+
+        let expected = Element {
+            name,
+            attrs: vec![Attr {
+                name: attr,
+                value: val,
+                span: (*S, *S2),
+            }],
+            children: vec![],
+            span: (*S, *S2),
+        };
+
+        let mut sut = parser_from(toks);
+
+        // Unlike the previous tests, we should filter out all the
+        // `Parsed::Incomplete` and yield only when we have a fully parsed
+        // object.
+        assert_eq!(sut.next(), Some(Ok(Tree::Element(expected))));
         assert_eq!(sut.next(), None);
     }
 }
