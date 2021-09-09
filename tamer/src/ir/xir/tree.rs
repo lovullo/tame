@@ -137,26 +137,12 @@
 //! This parser is a [stack machine],
 //!   where the stack represents the [`Tree`] that is under construction.
 //! Parsing operates on /context/.
-//! At present,
-//!   there are two principal /starting contexts/:
-//!
-//!   1. Element parsing; and
-//!   2. Independent attribute parsing.
-//!
-//! The first mode is the most familiar---it
+//! At present, the only parsing context is an element---it
 //!   begins parsing at an opening tag ([`Token::Open`]) and completes
 //!   parsing at a /matching/ [`Token::Close`] or [`Token::SelfClose`].
 //! All attributes and child nodes encountered during parsing of an element
 //!   will automatically be added to the appropriate element,
 //!     recursively.
-//!
-//!
-//! If attribute parsing begins /outside/ of an [`Element`] context,
-//!   it is assumed that the caller is interested only in parsing the
-//!   attributes of an element but is not interested in processing the
-//!   element itself,
-//!     in which case [`Attr`] will be emitted as those attributes are
-//!     encountered.
 //!
 //! [stack machine]: https://en.wikipedia.org/wiki/Stack_machine
 //!
@@ -204,16 +190,45 @@ use std::mem::take;
 pub enum Tree<Ix: SymbolIndexSize> {
     /// XML element.
     Element(Element<Ix>),
+}
 
-    /// Standalone XML attribute.
-    ///
-    /// An attribute is standalone if it is parsed outside the context of an
-    ///   element.
-    /// This may happen,
-    ///   for example,
-    ///   if the attributes of a token stream need further processing,
-    ///     but the surrounding context would not benefit from such parsing.
-    Attr(Attr<Ix>),
+/// List of attributes.
+///
+/// Attributes are ordered in XIR so that this IR will be suitable for code
+///   formatters and linters.
+///
+/// This abstraction will allow us to manipulate the internal data so that
+///   it is suitable for a particular task in the future
+///     (e.g. O(1) lookups by attribute name).
+#[derive(Debug, Eq, PartialEq, Default)]
+pub struct AttrList<Ix: SymbolIndexSize> {
+    attrs: Vec<Attr<Ix>>,
+}
+
+impl<Ix: SymbolIndexSize> AttrList<Ix> {
+    /// Construct a new, empty attribute list.
+    pub fn new() -> Self {
+        Self { attrs: vec![] }
+    }
+
+    /// Add an attribute to the end of the attribute list.
+    pub fn push(&mut self, attr: Attr<Ix>) {
+        self.attrs.push(attr)
+    }
+}
+
+impl<Ix: SymbolIndexSize> From<Vec<Attr<Ix>>> for AttrList<Ix> {
+    fn from(attrs: Vec<Attr<Ix>>) -> Self {
+        AttrList { attrs }
+    }
+}
+
+impl<Ix: SymbolIndexSize, const N: usize> From<[Attr<Ix>; N]> for AttrList<Ix> {
+    fn from(attrs: [Attr<Ix>; N]) -> Self {
+        AttrList {
+            attrs: attrs.into(),
+        }
+    }
 }
 
 /// Element node.
@@ -228,7 +243,7 @@ pub enum Tree<Ix: SymbolIndexSize> {
 pub struct Element<Ix: SymbolIndexSize> {
     name: QName<Ix>,
     /// Zero or more attributes.
-    attrs: Vec<Attr<Ix>>,
+    attrs: AttrList<Ix>,
     /// Zero or more child nodes.
     children: Vec<Tree<Ix>>,
     /// Spans for opening and closing tags respectively.
@@ -358,7 +373,7 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
             (Token::Open(name, span), Stack::Empty) => {
                 self.stack = Stack::BuddingElement(Element {
                     name,
-                    attrs: vec![],
+                    attrs: AttrList::new(),
                     children: vec![],
                     span: (span, span),
                 });
@@ -380,14 +395,6 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
             (Token::AttrName(name, span), Stack::BuddingElement(ele)) => {
                 self.stack = Stack::EleAttrName(ele, name, span);
                 Ok(Parsed::Incomplete)
-            }
-
-            (Token::AttrValue(value, span), Stack::AttrName(name, sname)) => {
-                Ok(Parsed::Object(Tree::Attr(Attr {
-                    name,
-                    value,
-                    span: (sname, span),
-                })))
             }
 
             (
@@ -512,29 +519,6 @@ mod test {
     }
 
     #[test]
-    fn attr_from_toks() {
-        let name: QName<Ix> = "attr".unwrap_into();
-        let value = AttrValue::Escaped("value".intern());
-
-        let toks = std::array::IntoIter::new([
-            Token::<Ix>::AttrName(name, *S),
-            Token::AttrValue(value, *S2),
-        ]);
-
-        let expected = Attr {
-            name,
-            value,
-            span: (*S, *S2),
-        };
-
-        let mut sut = toks.scan(ParserState::new(), parse);
-
-        assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
-        assert_eq!(sut.next(), Some(Ok(Parsed::Object(Tree::Attr(expected)))));
-        assert_eq!(sut.next(), None);
-    }
-
-    #[test]
     fn empty_element_from_toks() {
         let name = ("ns", "elem").unwrap_into();
 
@@ -545,7 +529,7 @@ mod test {
 
         let expected = Element {
             name,
-            attrs: vec![],
+            attrs: AttrList::new(),
             children: vec![],
             span: (*S, *S2),
         };
@@ -579,7 +563,7 @@ mod test {
 
         let expected = Element {
             name,
-            attrs: vec![
+            attrs: AttrList::from(vec![
                 Attr {
                     name: attr1,
                     value: val1,
@@ -590,7 +574,7 @@ mod test {
                     value: val2,
                     span: (*S, *S2),
                 },
-            ],
+            ]),
             children: vec![],
             span: (*S, *S2),
         };
@@ -624,11 +608,11 @@ mod test {
 
         let expected = Element {
             name,
-            attrs: vec![Attr {
+            attrs: AttrList::from([Attr {
                 name: attr,
                 value: val,
                 span: (*S, *S2),
-            }],
+            }]),
             children: vec![],
             span: (*S, *S2),
         };
