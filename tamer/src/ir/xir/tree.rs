@@ -89,10 +89,10 @@
 //!     there are notable downsides:
 //!
 //!   - The context in which parsing began
-//!       (see /Parser Implementation/ below)
-//!       must complete before /any/ token is emitted.
+//!       (see _Parser Implementation_ below)
+//!       must complete before _any_ token is emitted.
 //!     If parsing begins at the root element,
-//!       this means that the /entire XML document/ must be loaded into
+//!       this means that the _entire XML document_ must be loaded into
 //!       memory before it is available for use.
 //!   - While the token stream is capable of operating using constant memory
 //!       (since [`Token`] can be discarded after being consumed),
@@ -136,10 +136,10 @@
 //!
 //! This parser is a [stack machine],
 //!   where the stack represents the [`Tree`] that is under construction.
-//! Parsing operates on /context/.
+//! Parsing operates on _context_.
 //! At present, the only parsing context is an element---it
 //!   begins parsing at an opening tag ([`Token::Open`]) and completes
-//!   parsing at a /matching/ [`Token::Close`] or [`Token::SelfClose`].
+//!   parsing at a _matching_ [`Token::Close`] or [`Token::SelfClose`].
 //! All attributes and child nodes encountered during parsing of an element
 //!   will automatically be added to the appropriate element,
 //!     recursively.
