@@ -181,15 +181,13 @@ impl<Ix: SymbolIndexSize> XmlWriter for Token<Ix> {
                 Ok(S::NodeOpen)
             }
 
-            // TODO: Remove whitespace from here, add to stream, then it can
-            // be used with attrs
-            (Self::SelfClose(_), S::NodeOpen) => {
+            (Self::Close(None, _), S::NodeOpen) => {
                 sink.write(b"/>")?;
 
                 Ok(S::NodeExpected)
             }
 
-            (Self::Close(name, _), S::NodeExpected | S::NodeOpen) => {
+            (Self::Close(Some(name), _), S::NodeExpected | S::NodeOpen) => {
                 // If open, we're going to produce an element of the form
                 // `<foo></foo>`.
                 prev_state.close_tag_if_open(sink)?;
@@ -355,7 +353,7 @@ mod test {
     #[test]
     fn closes_open_node_as_empty_element() -> TestResult {
         let result =
-            Token::<Ix>::SelfClose(*S).write_new(WriterState::NodeOpen)?;
+            Token::<Ix>::Close(None, *S).write_new(WriterState::NodeOpen)?;
 
         assert_eq!(result.0, b"/>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -367,8 +365,8 @@ mod test {
     fn closing_tag_when_node_expected() -> TestResult {
         let name = QName::<Ix>::try_from(("a", "closed-element"))?;
 
-        let result =
-            Token::Close(name, *S).write_new(WriterState::NodeExpected)?;
+        let result = Token::Close(Some(name), *S)
+            .write_new(WriterState::NodeExpected)?;
 
         assert_eq!(result.0, b"</a:closed-element>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -382,7 +380,8 @@ mod test {
     fn closes_open_node_with_closing_tag() -> TestResult {
         let name = QName::<Ix>::try_from(("b", "closed-element"))?;
 
-        let result = Token::Close(name, *S).write_new(WriterState::NodeOpen)?;
+        let result =
+            Token::Close(Some(name), *S).write_new(WriterState::NodeOpen)?;
 
         assert_eq!(result.0, b"></b:closed-element>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -522,8 +521,8 @@ mod test {
             Token::Text(Text::Escaped("text".intern()), *S),
             Token::Open(("c", "child").try_into()?, *S),
             Token::Whitespace(" ".try_into()?, *S),
-            Token::SelfClose(*S),
-            Token::Close(root, *S),
+            Token::Close(None, *S),
+            Token::Close(Some(root), *S),
         ]
         .into_iter()
         .write_new(Default::default())?;

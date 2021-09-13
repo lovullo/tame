@@ -139,7 +139,7 @@
 //! Parsing operates on _context_.
 //! At present, the only parsing context is an element---it
 //!   begins parsing at an opening tag ([`Token::Open`]) and completes
-//!   parsing at a _matching_ [`Token::Close`] or [`Token::SelfClose`].
+//!   parsing at a _matching_ [`Token::Close`].
 //! All attributes and child nodes encountered during parsing of an element
 //!   will automatically be added to the appropriate element,
 //!     recursively.
@@ -386,19 +386,14 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
                 Ok(Parsed::Incomplete)
             }
 
-            (Token::SelfClose(span), Stack::BuddingElement(ele)) => {
-                Ok(Parsed::Object(Tree::Element(Element {
-                    span: (ele.span.0, span),
-                    ..ele
-                })))
-            }
-
-            (Token::Close(name, span), Stack::BuddingElement(ele)) => {
-                if name != ele.name {
-                    return Err(ParseError::UnbalancedTagName {
-                        open: (ele.name, ele.span.0),
-                        close: (name, span),
-                    });
+            (Token::Close(balance_name, span), Stack::BuddingElement(ele)) => {
+                if let Some(name) = balance_name {
+                    if name != ele.name {
+                        return Err(ParseError::UnbalancedTagName {
+                            open: (ele.name, ele.span.0),
+                            close: (name, span),
+                        });
+                    }
                 }
 
                 Ok(Parsed::Object(Tree::Element(Element {
@@ -603,7 +598,7 @@ mod test {
 
         let toks = std::array::IntoIter::new([
             Token::<Ix>::Open(name, *S),
-            Token::<Ix>::SelfClose(*S2),
+            Token::<Ix>::Close(None, *S2),
         ]);
 
         let expected = Element {
@@ -631,7 +626,7 @@ mod test {
 
         let toks = std::array::IntoIter::new([
             Token::<Ix>::Open(name, *S),
-            Token::<Ix>::Close(name, *S2),
+            Token::<Ix>::Close(Some(name), *S2),
         ]);
 
         let expected = Element {
@@ -660,7 +655,7 @@ mod test {
 
         let toks = std::array::IntoIter::new([
             Token::<Ix>::Open(open_name, *S),
-            Token::<Ix>::Close(close_name, *S2),
+            Token::<Ix>::Close(Some(close_name), *S2),
         ]);
 
         let mut sut = toks.scan(ParserState::new(), parse);
@@ -692,7 +687,7 @@ mod test {
             Token::AttrValue(val1, *S2),
             Token::AttrName(attr2, *S),
             Token::AttrValue(val2, *S2),
-            Token::SelfClose(*S2),
+            Token::Close(None, *S2),
         ]);
 
         let expected = Element {
@@ -737,7 +732,7 @@ mod test {
             Token::<Ix>::Open(name, *S),
             Token::AttrName(attr, *S),
             Token::AttrValue(val, *S2),
-            Token::SelfClose(*S2),
+            Token::Close(None, *S2),
         ]);
 
         let expected = Element {

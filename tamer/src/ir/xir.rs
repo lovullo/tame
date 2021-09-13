@@ -363,14 +363,8 @@ pub enum Token<Ix: SymbolIndexSize> {
 
     /// Closing tag of an element.
     ///
-    /// If no child nodes have been encountered since the last `Open`,
-    ///   then the tag is assumed to be self-closing;
-    ///     if this is not desired,
-    ///       emit an empty `Text` variant.
-    Close(QName<Ix>, Span),
-
-    /// End of self-closing tag.
-    ///
+    /// If the name is [`None`],
+    ///   then the tag is self-closing.
     /// This is intended primarily as a safety measure:
     ///   It allows writers to act as simple state machines without having
     ///     to ensure balancing by indicating that a node was intended to
@@ -383,7 +377,13 @@ pub enum Token<Ix: SymbolIndexSize> {
     ///   Instead of losing tags,
     ///     writers can error,
     ///       indicating a bug in the stream.
-    SelfClose(Span),
+    ///
+    /// The reason for using an option here rather than a variant is to
+    ///   simplify pattern matching,
+    ///     given especially that bindings after `@` in patterns have not
+    ///     yet been stabalized at the time of writing (but are very
+    ///     close!).
+    Close(Option<QName<Ix>>, Span),
 
     /// Element attribute name
     AttrName(QName<Ix>, Span),
