@@ -170,7 +170,7 @@
 
 use super::{AttrValue, QName, Token};
 use crate::{span::Span, sym::SymbolIndexSize};
-use std::mem::take;
+use std::{fmt::Display, mem::take};
 
 /// A XIR tree.
 ///
@@ -186,10 +186,19 @@ use std::mem::take;
 ///
 /// For more information,
 ///  see the [module-level documentation](self).
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Tree<Ix: SymbolIndexSize> {
     /// XML element.
     Element(Element<Ix>),
+}
+
+impl<Ix: SymbolIndexSize> Tree<Ix> {
+    /// If the tree object is an [`Element`], retrieve it.
+    pub fn element(self) -> Option<Element<Ix>> {
+        match self {
+            Self::Element(ele) => Some(ele),
+        }
+    }
 }
 
 /// List of attributes.
@@ -200,7 +209,7 @@ pub enum Tree<Ix: SymbolIndexSize> {
 /// This abstraction will allow us to manipulate the internal data so that
 ///   it is suitable for a particular task in the future
 ///     (e.g. O(1) lookups by attribute name).
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct AttrList<Ix: SymbolIndexSize> {
     attrs: Vec<Attr<Ix>>,
 }
@@ -239,7 +248,7 @@ impl<Ix: SymbolIndexSize, const N: usize> From<[Attr<Ix>; N]> for AttrList<Ix> {
 ///   its constituents.
 ///
 /// [XML element]: https://www.w3.org/TR/REC-xml/#sec-starttags
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Element<Ix: SymbolIndexSize> {
     name: QName<Ix>,
     /// Zero or more attributes.
@@ -257,7 +266,7 @@ pub struct Element<Ix: SymbolIndexSize> {
 ///
 /// TODO: This doesn't yet handle whitespace for alignment of attributes;
 ///         deferring this until it's actually needed.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Attr<Ix: SymbolIndexSize> {
     name: QName<Ix>,
     value: AttrValue<Ix>,
@@ -281,7 +290,7 @@ pub struct Attr<Ix: SymbolIndexSize> {
 ///
 /// For more information,
 ///   see the [module-level documentation](self).
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Stack<Ix: SymbolIndexSize> {
     /// Empty stack.
     Empty,
@@ -365,10 +374,7 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
     ///
     /// See the [module-level documentation](self) for more information on
     ///   the implementation of the parser.
-    pub fn parse_token(
-        &mut self,
-        tok: Token<Ix>,
-    ) -> Result<Parsed<Ix>, ParseError> {
+    pub fn parse_token(&mut self, tok: Token<Ix>) -> Result<Parsed<Ix>, Ix> {
         match (tok, take(&mut self.stack)) {
             (Token::Open(name, span), Stack::Empty) => {
                 self.stack = Stack::BuddingElement(Element {
@@ -381,6 +387,20 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
             }
 
             (Token::SelfClose(span), Stack::BuddingElement(ele)) => {
+                Ok(Parsed::Object(Tree::Element(Element {
+                    span: (ele.span.0, span),
+                    ..ele
+                })))
+            }
+
+            (Token::Close(name, span), Stack::BuddingElement(ele)) => {
+                if name != ele.name {
+                    return Err(ParseError::UnbalancedTagName {
+                        open: (ele.name, ele.span.0),
+                        close: (name, span),
+                    });
+                }
+
                 Ok(Parsed::Object(Tree::Element(Element {
                     span: (ele.span.0, span),
                     ..ele
@@ -411,14 +431,55 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
                 Ok(Parsed::Incomplete)
             }
 
-            _ => todo! {},
+            (todo, stack) => Err(ParseError::Todo(todo, stack)),
         }
     }
 }
 
+/// Result of a XIR tree parsing operation.
+pub type Result<T, Ix> = std::result::Result<T, ParseError<Ix>>;
+
 /// Parsing error from [`ParserState`].
 #[derive(Debug, Eq, PartialEq)]
-pub enum ParseError {}
+pub enum ParseError<Ix: SymbolIndexSize> {
+    /// The closing tag does not match the opening tag at the same level of
+    ///   nesting.
+    UnbalancedTagName {
+        open: (QName<Ix>, Span),
+        close: (QName<Ix>, Span),
+    },
+
+    /// Not yet implemented.
+    Todo(Token<Ix>, Stack<Ix>),
+}
+
+impl<Ix: SymbolIndexSize> Display for ParseError<Ix> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // TODO: not a useful error because of symbols and missing span information
+            Self::UnbalancedTagName {
+                open: (open_name, _),
+                close: (close_name, _),
+            } => {
+                write!(
+                    f,
+                    "expected closing tag `{:?}`, found `{:?}`",
+                    open_name, close_name,
+                )
+            }
+
+            Self::Todo(tok, stack) => {
+                write!(
+                    f,
+                    "TODO: `{:?}` unrecognized.  The parser is not yet \
+                        complete, so this could represent either a missing \
+                        feature or a semantic error.  Stack: `{:?}`.",
+                    tok, stack
+                )
+            }
+        }
+    }
+}
 
 /// Either a parsed [`Tree`] or an indication that more tokens are needed to
 ///   complete the active context.
@@ -463,7 +524,7 @@ pub enum Parsed<Ix: SymbolIndexSize> {
 pub fn parse<Ix: SymbolIndexSize>(
     state: &mut ParserState<Ix>,
     tok: Token<Ix>,
-) -> Option<Result<Parsed<Ix>, ParseError>> {
+) -> Option<Result<Parsed<Ix>, Ix>> {
     Some(ParserState::parse_token(state, tok))
 }
 
@@ -494,7 +555,7 @@ pub fn parse<Ix: SymbolIndexSize>(
 /// ```
 pub fn parser_from<Ix: SymbolIndexSize>(
     toks: impl Iterator<Item = Token<Ix>>,
-) -> impl Iterator<Item = Result<Tree<Ix>, ParseError>> {
+) -> impl Iterator<Item = Result<Tree<Ix>, Ix>> {
     toks.scan(ParserState::new(), parse)
         .filter_map(|parsed| match parsed {
             Ok(Parsed::Object(tree)) => Some(Ok(tree)),
@@ -518,8 +579,26 @@ mod test {
             Span::from_byte_interval((0, 0), "test case, 2".intern());
     }
 
+    mod tree {
+        use super::*;
+
+        #[test]
+        fn element_from_tree() {
+            let ele = Element::<Ix> {
+                name: "foo".unwrap_into(),
+                attrs: AttrList::new(),
+                children: vec![],
+                span: (*S, *S2),
+            };
+
+            let tree = Tree::Element(ele.clone());
+
+            assert_eq!(Some(ele), tree.element());
+        }
+    }
+
     #[test]
-    fn empty_element_from_toks() {
+    fn empty_element_self_close_from_toks() {
         let name = ("ns", "elem").unwrap_into();
 
         let toks = std::array::IntoIter::new([
@@ -542,6 +621,61 @@ mod test {
             Some(Ok(Parsed::Object(Tree::Element(expected))))
         );
         assert_eq!(sut.next(), None);
+    }
+
+    // Same as above test, but with balanced closing instead of self
+    // closing.
+    #[test]
+    fn empty_element_balanced_close_from_toks() {
+        let name = ("ns", "openclose").unwrap_into();
+
+        let toks = std::array::IntoIter::new([
+            Token::<Ix>::Open(name, *S),
+            Token::<Ix>::Close(name, *S2),
+        ]);
+
+        let expected = Element {
+            name,
+            attrs: AttrList::new(),
+            children: vec![],
+            span: (*S, *S2),
+        };
+
+        let mut sut = toks.scan(ParserState::new(), parse);
+
+        assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
+        assert_eq!(
+            sut.next(),
+            Some(Ok(Parsed::Object(Tree::Element(expected))))
+        );
+        assert_eq!(sut.next(), None);
+    }
+
+    // Unbalanced should result in error.  This does not test what happens
+    // _after_ the error.
+    #[test]
+    fn empty_element_unbalanced_close_from_toks() {
+        let open_name = "open".unwrap_into();
+        let close_name = "unbalanced_name".unwrap_into();
+
+        let toks = std::array::IntoIter::new([
+            Token::<Ix>::Open(open_name, *S),
+            Token::<Ix>::Close(close_name, *S2),
+        ]);
+
+        let mut sut = toks.scan(ParserState::new(), parse);
+
+        assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
+        assert_eq!(
+            sut.next(),
+            Some(Err(ParseError::UnbalancedTagName {
+                open: (open_name, *S),
+                close: (close_name, *S2),
+            }))
+        );
+
+        // TODO: We need to figure out how to best implement recovery before
+        // continuing with this design.
     }
 
     #[test]
