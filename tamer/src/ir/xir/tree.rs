@@ -274,6 +274,24 @@ pub struct Attr<Ix: SymbolIndexSize> {
     span: (Span, Span),
 }
 
+/// A [`Stack`] representing an element and its (optional) parent's stack.
+///
+/// Storing the parent of an [`Element`] allows it to be manipulated on the
+///   [`Stack`] using the usual operations,
+///     while maintaining the context needed to later add it as a child to
+///     its parent once the element is completed.
+///
+/// This is used to represent a [`Stack::BuddingElement`].
+/// This type exists because enum variants are not their own types,
+///   but we want to nest _only_ element stacks,
+///     not any type of stack.
+#[derive(Debug, Eq, PartialEq)]
+pub struct ElementStack<Ix: SymbolIndexSize>(
+    Element<Ix>,
+    /// Parent element stack, if any.
+    Option<Box<ElementStack<Ix>>>,
+);
+
 /// The state and typed stack of the XIR parser stack machine.
 ///
 /// Since all possible states of the stack are known statically,
@@ -299,7 +317,7 @@ pub enum Stack<Ix: SymbolIndexSize> {
     ///
     /// (This is a tree IR,
     ///    so here's a plant pun).
-    BuddingElement(Element<Ix>),
+    BuddingElement(ElementStack<Ix>),
 
     /// A standalone attribute is awaiting its value.
     ///
@@ -377,16 +395,40 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
     pub fn parse_token(&mut self, tok: Token<Ix>) -> Result<Parsed<Ix>, Ix> {
         match (tok, take(&mut self.stack)) {
             (Token::Open(name, span), Stack::Empty) => {
-                self.stack = Stack::BuddingElement(Element {
-                    name,
-                    attrs: AttrList::new(),
-                    children: vec![],
-                    span: (span, span),
-                });
+                self.stack = Stack::BuddingElement(ElementStack(
+                    Element {
+                        name,
+                        attrs: AttrList::new(),
+                        children: vec![],
+                        span: (span, span),
+                    },
+                    None,
+                ));
                 Ok(Parsed::Incomplete)
             }
 
-            (Token::Close(balance_name, span), Stack::BuddingElement(ele)) => {
+            (Token::Open(name, span), Stack::BuddingElement(pstack)) => {
+                self.stack = Stack::BuddingElement(ElementStack(
+                    Element {
+                        name,
+                        attrs: AttrList::new(),
+                        children: vec![],
+                        span: (span, span),
+                    },
+                    // Set aside the current stack to be restored later on,
+                    //   after we're done parsing the child.
+                    Some(Box::new(pstack)),
+                ));
+                Ok(Parsed::Incomplete)
+            }
+
+            (
+                Token::Close(balance_name, span),
+                Stack::BuddingElement(ElementStack(ele, pstack)),
+            ) => {
+                // Note that self-closing with children is syntactically
+                // invalid and is expected to never make it into a XIR
+                // stream to begin with, so we don't check for it.
                 if let Some(name) = balance_name {
                     if name != ele.name {
                         return Err(ParseError::UnbalancedTagName {
@@ -396,10 +438,20 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
                     }
                 }
 
-                Ok(Parsed::Object(Tree::Element(Element {
+                let tree = Tree::Element(Element {
                     span: (ele.span.0, span),
                     ..ele
-                })))
+                });
+
+                match pstack {
+                    Some(mut stack) => {
+                        stack.0.children.push(tree);
+                        self.stack = Stack::BuddingElement(*stack);
+
+                        Ok(Parsed::Incomplete)
+                    }
+                    None => Ok(Parsed::Object(tree)),
+                }
             }
 
             (Token::AttrName(name, span), Stack::Empty) => {
@@ -407,7 +459,10 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
                 Ok(Parsed::Incomplete)
             }
 
-            (Token::AttrName(name, span), Stack::BuddingElement(ele)) => {
+            (
+                Token::AttrName(name, span),
+                Stack::BuddingElement(ElementStack(ele, _)),
+            ) => {
                 self.stack = Stack::EleAttrName(ele, name, span);
                 Ok(Parsed::Incomplete)
             }
@@ -421,7 +476,7 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
                     value,
                     span: (sname, span),
                 });
-                self.stack = Stack::BuddingElement(ele);
+                self.stack = Stack::BuddingElement(ElementStack(ele, None));
 
                 Ok(Parsed::Incomplete)
             }
@@ -719,6 +774,47 @@ mod test {
             sut.next(),
             Some(Ok(Parsed::Object(Tree::Element(expected))))
         );
+        assert_eq!(sut.next(), None);
+    }
+
+    #[test]
+    fn element_with_empty_sibling_children() {
+        let parent = "parent".unwrap_into();
+        let childa = "childa".unwrap_into();
+        let childb = "childb".unwrap_into();
+
+        let toks = std::array::IntoIter::new([
+            Token::<Ix>::Open(parent, *S),
+            Token::<Ix>::Open(childa, *S),
+            Token::<Ix>::Close(None, *S2),
+            Token::<Ix>::Open(childb, *S),
+            Token::<Ix>::Close(None, *S2),
+            Token::<Ix>::Close(Some(parent), *S2),
+        ]);
+
+        let expected = Element {
+            name: parent,
+            attrs: AttrList::new(),
+            children: vec![
+                Tree::Element(Element {
+                    name: childa,
+                    attrs: AttrList::new(),
+                    children: vec![],
+                    span: (*S, *S2),
+                }),
+                Tree::Element(Element {
+                    name: childb,
+                    attrs: AttrList::new(),
+                    children: vec![],
+                    span: (*S, *S2),
+                }),
+            ],
+            span: (*S, *S2),
+        };
+
+        let mut sut = parser_from(toks);
+
+        assert_eq!(sut.next(), Some(Ok(Tree::Element(expected))));
         assert_eq!(sut.next(), None);
     }
 
