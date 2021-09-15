@@ -259,6 +259,20 @@ pub struct Element<Ix: SymbolIndexSize> {
     span: (Span, Span),
 }
 
+impl<Ix: SymbolIndexSize> Element<Ix> {
+    /// Complete an element's span by setting its ending span.
+    ///
+    /// When elements are still budding (see [`Stack::BuddingElement`]),
+    ///   the ending span is set to the starting span,
+    ///   since the end is not yet known.
+    fn close_span(self, close_span: Span) -> Self {
+        Element {
+            span: (self.span.0, close_span),
+            ..self
+        }
+    }
+}
+
 /// Element attribute.
 ///
 /// Attributes in [`Tree`] may stand alone without an element context to
@@ -286,11 +300,57 @@ pub struct Attr<Ix: SymbolIndexSize> {
 ///   but we want to nest _only_ element stacks,
 ///     not any type of stack.
 #[derive(Debug, Eq, PartialEq)]
-pub struct ElementStack<Ix: SymbolIndexSize>(
-    Element<Ix>,
-    /// Parent element stack, if any.
-    Option<Box<ElementStack<Ix>>>,
-);
+pub struct ElementStack<Ix: SymbolIndexSize> {
+    element: Element<Ix>,
+
+    /// Parent element stack to be restored once element has finished
+    ///   processing.
+    pstack: Option<Box<ElementStack<Ix>>>,
+}
+
+impl<Ix: SymbolIndexSize> ElementStack<Ix> {
+    /// Attempt to close an element,
+    ///   verifying that the closing tag is either self-closing or
+    ///   balanced.
+    ///
+    /// This does not verify that a request to self-close only happens if
+    ///   there are no child elements;
+    ///     that is the responsibility of the parser producing the XIR
+    ///     stream to ensure that self-closing can only happen during
+    ///     attribute parsing.
+    fn try_close(
+        self,
+        close_name: Option<QName<Ix>>,
+        close_span: Span,
+    ) -> Result<Self, Ix> {
+        let Element {
+            name: ele_name,
+            span: (open_span, _),
+            ..
+        } = self.element;
+
+        // Note that self-closing with children is syntactically
+        // invalid and is expected to never make it into a XIR
+        // stream to begin with, so we don't check for it.
+        if let Some(name) = close_name {
+            if name != ele_name {
+                return Err(ParseError::UnbalancedTag {
+                    open: (ele_name, open_span),
+                    close: (name, close_span),
+                });
+            }
+        }
+
+        Ok(Self {
+            element: self.element.close_span(close_span),
+            pstack: self.pstack,
+        })
+    }
+
+    fn store(self) -> Box<Self> {
+        Box::new(self)
+    }
+}
 
 /// The state and typed stack of the XIR parser stack machine.
 ///
@@ -319,6 +379,11 @@ pub enum Stack<Ix: SymbolIndexSize> {
     ///    so here's a plant pun).
     BuddingElement(ElementStack<Ix>),
 
+    /// A completed [`Element`].
+    ///
+    /// This should be consumed and emitted.
+    ClosedElement(Element<Ix>),
+
     /// A standalone attribute is awaiting its value.
     ///
     /// Standalone attributes will be emitted as [`Attr`] _instead_ of being
@@ -337,7 +402,117 @@ impl<Ix: SymbolIndexSize> Default for Stack<Ix> {
     }
 }
 
+impl<Ix: SymbolIndexSize> Stack<Ix> {
+    /// Attempt to open a new element.
+    ///
+    /// If the stack is [`Self::Empty`],
+    ///   then the element will be considered to be a root element,
+    ///     meaning that it will be completed once it is closed.
+    /// If the stack contains [`Self::BuddingElement`],
+    ///   then a child element will be started,
+    ///     which will be consumed by the parent one closed rather than
+    ///     being considered a completed [`Element`].
+    ///
+    /// Attempting to open an element in any other context is an error.
+    fn open_element(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
+        let element = Element {
+            name,
+            attrs: AttrList::new(),
+            children: vec![],
+            span: (span, span), // We do not yet know where the span will end
+        };
+
+        Ok(Self::BuddingElement(ElementStack {
+            element,
+            pstack: match self {
+                // Opening a root element (or lack of context)
+                Self::Empty => Ok(None),
+                // Open a child element
+                Self::BuddingElement(pstack) => Ok(Some(pstack.store())),
+
+                _ => todo! {},
+            }?,
+        }))
+    }
+
+    /// Attempt to close an element.
+    ///
+    /// Elements can be either self-closing
+    ///   (in which case `name` is [`None`]),
+    ///   or have their own independent closing tags.
+    /// If a name is provided,
+    ///   then it _must_ match the name of the element currently being
+    ///     processed---that is,
+    ///       the tree must be _balanced_.
+    /// An unbalanced tree results in a [`ParseError::UnbalancedTag`].
+    fn close_element(
+        self,
+        name: Option<QName<Ix>>,
+        span: Span,
+    ) -> Result<Self, Ix> {
+        match self {
+            Self::BuddingElement(stack) => stack
+                .try_close(name, span)
+                .and_then(|ElementStack { element, pstack }| match pstack {
+                    Some(mut parent_stack) => {
+                        parent_stack
+                            .element
+                            .children
+                            .push(Tree::Element(element));
+                        Ok(Stack::BuddingElement(*parent_stack))
+                    }
+
+                    None => Ok(Stack::ClosedElement(element)),
+                }),
+
+            _ => todo! {},
+        }
+    }
+
+    /// Begin an attribute on an element.
+    ///
+    /// An attribute begins with a [`QName`] representing its name.
+    /// It will be attached to a parent element after being closed with a
+    ///   value via [`Stack::close_attr`].
+    fn open_attr(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
+        Ok(match self {
+            // TODO: this drops the parent stack!
+            Self::BuddingElement(ElementStack { element, pstack }) => {
+                assert!(pstack.is_none(), "TODO: child element attributes");
+                Self::EleAttrName(element, name, span)
+            }
+
+            _ => todo! {},
+        })
+    }
+
+    /// Assigns a value to an opened attribute and attaches to the parent
+    ///   element.
+    fn close_attr(self, value: AttrValue<Ix>, span: Span) -> Result<Self, Ix> {
+        Ok(match self {
+            Self::EleAttrName(mut element, name, open_span) => {
+                element.attrs.push(Attr {
+                    name,
+                    value,
+                    span: (open_span, span),
+                });
+
+                // TODO: ...see (parent stack lost)!
+                Stack::BuddingElement(ElementStack {
+                    element,
+                    pstack: None,
+                })
+            }
+            _ => todo! {},
+        })
+    }
+}
+
 /// State while parsing a XIR token stream into a tree.
+///
+/// [`ParserState`] is responsible only for dispatch and bookkeeping;
+///   state transitions and stack manipulation are handled by the various
+///   methods on [`Stack`].
 ///
 /// This is a stack machine with the interface of a state machine.
 /// The stack is encoded into the variants themselves
@@ -378,7 +553,7 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
     }
 
     /// Consume a single XIR [`Token`] and attempt to parse it within the
-    ///   context of the current [`ParserState`].
+    ///   context of the current [`Stack`].
     ///
     /// Each call to this method represents a [state transition].
     /// Invalid state transitions represent either a semantic error
@@ -390,98 +565,33 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
     ///   [`Token`].
     /// But it does perform semantic analysis on that token stream.
     ///
+    /// All heavy lifting is done by the various methods on [`Stack`].
+    ///
     /// See the [module-level documentation](self) for more information on
     ///   the implementation of the parser.
     pub fn parse_token(&mut self, tok: Token<Ix>) -> Result<Parsed<Ix>, Ix> {
-        match (tok, take(&mut self.stack)) {
-            (Token::Open(name, span), Stack::Empty) => {
-                self.stack = Stack::BuddingElement(ElementStack(
-                    Element {
-                        name,
-                        attrs: AttrList::new(),
-                        children: vec![],
-                        span: (span, span),
-                    },
-                    None,
-                ));
-                Ok(Parsed::Incomplete)
+        let stack = take(&mut self.stack);
+
+        match tok {
+            Token::Open(name, span) => stack.open_element(name, span),
+            Token::Close(name, span) => stack.close_element(name, span),
+            Token::AttrName(name, span) => stack.open_attr(name, span),
+            Token::AttrValue(value, span) => stack.close_attr(value, span),
+
+            todo => Err(ParseError::Todo(todo, stack)),
+        }
+        .map(|new_stack| self.store_or_emit(new_stack))
+    }
+
+    /// Emit a completed object or store the current stack for further processing.
+    fn store_or_emit(&mut self, new_stack: Stack<Ix>) -> Parsed<Ix> {
+        match new_stack {
+            Stack::ClosedElement(ele) => Parsed::Object(Tree::Element(ele)),
+
+            _ => {
+                self.stack = new_stack;
+                Parsed::Incomplete
             }
-
-            (Token::Open(name, span), Stack::BuddingElement(pstack)) => {
-                self.stack = Stack::BuddingElement(ElementStack(
-                    Element {
-                        name,
-                        attrs: AttrList::new(),
-                        children: vec![],
-                        span: (span, span),
-                    },
-                    // Set aside the current stack to be restored later on,
-                    //   after we're done parsing the child.
-                    Some(Box::new(pstack)),
-                ));
-                Ok(Parsed::Incomplete)
-            }
-
-            (
-                Token::Close(balance_name, span),
-                Stack::BuddingElement(ElementStack(ele, pstack)),
-            ) => {
-                // Note that self-closing with children is syntactically
-                // invalid and is expected to never make it into a XIR
-                // stream to begin with, so we don't check for it.
-                if let Some(name) = balance_name {
-                    if name != ele.name {
-                        return Err(ParseError::UnbalancedTagName {
-                            open: (ele.name, ele.span.0),
-                            close: (name, span),
-                        });
-                    }
-                }
-
-                let tree = Tree::Element(Element {
-                    span: (ele.span.0, span),
-                    ..ele
-                });
-
-                match pstack {
-                    Some(mut stack) => {
-                        stack.0.children.push(tree);
-                        self.stack = Stack::BuddingElement(*stack);
-
-                        Ok(Parsed::Incomplete)
-                    }
-                    None => Ok(Parsed::Object(tree)),
-                }
-            }
-
-            (Token::AttrName(name, span), Stack::Empty) => {
-                self.stack = Stack::AttrName(name, span);
-                Ok(Parsed::Incomplete)
-            }
-
-            (
-                Token::AttrName(name, span),
-                Stack::BuddingElement(ElementStack(ele, _)),
-            ) => {
-                self.stack = Stack::EleAttrName(ele, name, span);
-                Ok(Parsed::Incomplete)
-            }
-
-            (
-                Token::AttrValue(value, span),
-                Stack::EleAttrName(mut ele, name, sname),
-            ) => {
-                ele.attrs.push(Attr {
-                    name,
-                    value,
-                    span: (sname, span),
-                });
-                self.stack = Stack::BuddingElement(ElementStack(ele, None));
-
-                Ok(Parsed::Incomplete)
-            }
-
-            (todo, stack) => Err(ParseError::Todo(todo, stack)),
         }
     }
 }
@@ -494,7 +604,7 @@ pub type Result<T, Ix> = std::result::Result<T, ParseError<Ix>>;
 pub enum ParseError<Ix: SymbolIndexSize> {
     /// The closing tag does not match the opening tag at the same level of
     ///   nesting.
-    UnbalancedTagName {
+    UnbalancedTag {
         open: (QName<Ix>, Span),
         close: (QName<Ix>, Span),
     },
@@ -507,7 +617,7 @@ impl<Ix: SymbolIndexSize> Display for ParseError<Ix> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // TODO: not a useful error because of symbols and missing span information
-            Self::UnbalancedTagName {
+            Self::UnbalancedTag {
                 open: (open_name, _),
                 close: (close_name, _),
             } => {
@@ -718,7 +828,7 @@ mod test {
         assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
         assert_eq!(
             sut.next(),
-            Some(Err(ParseError::UnbalancedTagName {
+            Some(Err(ParseError::UnbalancedTag {
                 open: (open_name, *S),
                 close: (close_name, *S2),
             }))
