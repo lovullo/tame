@@ -393,7 +393,7 @@ pub enum Stack<Ix: SymbolIndexSize> {
 
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
-    EleAttrName(Element<Ix>, QName<Ix>, Span),
+    EleAttrName(ElementStack<Ix>, QName<Ix>, Span),
 }
 
 impl<Ix: SymbolIndexSize> Default for Stack<Ix> {
@@ -476,10 +476,8 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///   value via [`Stack::close_attr`].
     fn open_attr(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
         Ok(match self {
-            // TODO: this drops the parent stack!
-            Self::BuddingElement(ElementStack { element, pstack }) => {
-                assert!(pstack.is_none(), "TODO: child element attributes");
-                Self::EleAttrName(element, name, span)
+            Self::BuddingElement(ele_stack) => {
+                Self::EleAttrName(ele_stack, name, span)
             }
 
             _ => todo! {},
@@ -490,18 +488,15 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///   element.
     fn close_attr(self, value: AttrValue<Ix>, span: Span) -> Result<Self, Ix> {
         Ok(match self {
-            Self::EleAttrName(mut element, name, open_span) => {
-                element.attrs.push(Attr {
+            Self::EleAttrName(mut ele_stack, name, open_span) => {
+                // TODO: Demeter
+                ele_stack.element.attrs.push(Attr {
                     name,
                     value,
                     span: (open_span, span),
                 });
 
-                // TODO: ...see (parent stack lost)!
-                Stack::BuddingElement(ElementStack {
-                    element,
-                    pstack: None,
-                })
+                Stack::BuddingElement(ele_stack)
             }
             _ => todo! {},
         })
@@ -737,6 +732,8 @@ mod test {
             Span::from_byte_interval((0, 0), "test case, 1".intern());
         static ref S2: Span =
             Span::from_byte_interval((0, 0), "test case, 2".intern());
+        static ref S3: Span =
+            Span::from_byte_interval((0, 0), "test case, 3".intern());
     }
 
     mod tree {
@@ -920,6 +917,45 @@ mod test {
                 }),
             ],
             span: (*S, *S2),
+        };
+
+        let mut sut = parser_from(toks);
+
+        assert_eq!(sut.next(), Some(Ok(Tree::Element(expected))));
+        assert_eq!(sut.next(), None);
+    }
+
+    // Ensures that attributes do not cause the parent context to be lost.
+    #[test]
+    fn element_with_child_with_attributes() {
+        let parent = "parent".unwrap_into();
+        let child = "child".unwrap_into();
+        let attr = "attr".unwrap_into();
+        let value = AttrValue::Escaped("attr value".into());
+
+        let toks = std::array::IntoIter::new([
+            Token::<Ix>::Open(parent, *S),
+            Token::<Ix>::Open(child, *S),
+            Token::<Ix>::AttrName(attr, *S),
+            Token::<Ix>::AttrValue(value, *S2),
+            Token::<Ix>::Close(None, *S3),
+            Token::<Ix>::Close(Some(parent), *S3),
+        ]);
+
+        let expected = Element {
+            name: parent,
+            attrs: AttrList::new(),
+            children: vec![Tree::Element(Element {
+                name: child,
+                attrs: AttrList::from([Attr {
+                    name: attr,
+                    value,
+                    span: (*S, *S2),
+                }]),
+                children: vec![],
+                span: (*S, *S3),
+            })],
+            span: (*S, *S3),
         };
 
         let mut sut = parser_from(toks);
