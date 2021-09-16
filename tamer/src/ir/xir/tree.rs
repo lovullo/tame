@@ -260,11 +260,28 @@ pub struct Element<Ix: SymbolIndexSize> {
 }
 
 impl<Ix: SymbolIndexSize> Element<Ix> {
+    /// Opens an element for incremental construction.
+    ///
+    /// This is intended for use by the parser to begin building an element.
+    /// It does not represent a completed element and should not be yielded
+    ///   to any outside caller until it is complete.
+    /// This incomplete state is encoded in [`State::BuddingElement`].
+    #[inline]
+    fn open(name: QName<Ix>, span: Span) -> Self {
+        Self {
+            name,
+            attrs: AttrList::new(),
+            children: vec![],
+            span: (span, span), // We do not yet know where the span will end
+        }
+    }
+
     /// Complete an element's span by setting its ending span.
     ///
     /// When elements are still budding (see [`Stack::BuddingElement`]),
     ///   the ending span is set to the starting span,
     ///   since the end is not yet known.
+    #[inline]
     fn close_span(self, close_span: Span) -> Self {
         Element {
             span: (self.span.0, close_span),
@@ -450,12 +467,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///
     /// Attempting to open an element in any other context is an error.
     fn open_element(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
-        let element = Element {
-            name,
-            attrs: AttrList::new(),
-            children: vec![],
-            span: (span, span), // We do not yet know where the span will end
-        };
+        let element = Element::open(name, span);
 
         Ok(Self::BuddingElement(ElementStack {
             element,
