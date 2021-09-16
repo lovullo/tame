@@ -347,6 +347,41 @@ impl<Ix: SymbolIndexSize> ElementStack<Ix> {
         })
     }
 
+    /// Transfer stack element into the parent as a child and return the
+    ///   previous [`Stack`] state,
+    ///     or yield a [`Stack::ClosedElement`] if there is no parent.
+    ///
+    /// If there is a parent element,
+    ///   then the returned [`Stack`] will represent the state of the stack
+    ///   prior to the child element being opened,
+    ///     as stored with [`ElementStack::store`].
+    fn consume_child_or_complete(self) -> Stack<Ix> {
+        match self.pstack {
+            Some(parent_stack) => Stack::BuddingElement(
+                parent_stack.consume_element(self.element),
+            ),
+
+            None => Stack::ClosedElement(self.element),
+        }
+    }
+
+    /// Push the provided [`Element`] onto the child list of the inner
+    ///   [`Element`].
+    fn consume_element(mut self, child: Element<Ix>) -> Self {
+        self.element.children.push(Tree::Element(child));
+        self
+    }
+
+    /// Push the provided [`Attr`] onto the attribute list of the inner
+    ///   [`Element`].
+    fn consume_attr(mut self, attr: Attr<Ix>) -> Self {
+        self.element.attrs.push(attr);
+        self
+    }
+
+    /// Transfer self to the heap to be later restored.
+    ///
+    /// This method simply exists for self-documentation.
     fn store(self) -> Box<Self> {
         Box::new(self)
     }
@@ -453,17 +488,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
         match self {
             Self::BuddingElement(stack) => stack
                 .try_close(name, span)
-                .and_then(|ElementStack { element, pstack }| match pstack {
-                    Some(mut parent_stack) => {
-                        parent_stack
-                            .element
-                            .children
-                            .push(Tree::Element(element));
-                        Ok(Stack::BuddingElement(*parent_stack))
-                    }
-
-                    None => Ok(Stack::ClosedElement(element)),
-                }),
+                .map(ElementStack::consume_child_or_complete),
 
             _ => todo! {},
         }
@@ -488,15 +513,12 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///   element.
     fn close_attr(self, value: AttrValue<Ix>, span: Span) -> Result<Self, Ix> {
         Ok(match self {
-            Self::EleAttrName(mut ele_stack, name, open_span) => {
-                // TODO: Demeter
-                ele_stack.element.attrs.push(Attr {
+            Self::EleAttrName(ele_stack, name, open_span) => {
+                Stack::BuddingElement(ele_stack.consume_attr(Attr {
                     name,
                     value,
                     span: (open_span, span),
-                });
-
-                Stack::BuddingElement(ele_stack)
+                }))
             }
             _ => todo! {},
         })
