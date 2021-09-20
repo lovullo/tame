@@ -19,8 +19,10 @@
 
 //! Identifiers (a type of [object][super::object::IdentObject]).
 
+use crate::global;
 use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
-use crate::sym::SymbolIndexSize;
+use crate::sym::{GlobalSymbolIntern, SymbolId, SymbolIndexSize};
+use paste::paste;
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -146,29 +148,73 @@ pub enum IdentKind {
     Worksheet,
 }
 
-impl AsRef<str> for IdentKind {
-    fn as_ref(&self) -> &'static str {
-        match self {
-            Self::Cgen(_) => "cgen",
-            Self::Class(_) => "class",
-            Self::Const(_, _) => "const",
-            Self::Func(_, _) => "func",
-            Self::Gen(_, _) => "gen",
-            Self::Lparam(_, _) => "lparam",
-            Self::Param(_, _) => "param",
-            Self::Rate(_) => "rate",
-            Self::Tpl => "tpl",
-            Self::Type(_) => "type",
-            Self::MapHead => "map:head",
-            Self::Map => "map",
-            Self::MapTail => "map:tail",
-            Self::RetMapHead => "retmap:head",
-            Self::RetMap => "retmap",
-            Self::RetMapTail => "retmap:tail",
-            Self::Meta => "meta",
-            Self::Worksheet => "worksheet",
+/// Produce [`AsRef`] impls for [`str`], [`global::ProgSymSize`] and
+///   [`global::PkgSymSize`] for identifier kind strings.
+macro_rules! kind_intern {
+    ($($variant:ident $($v:pat)? => $str:expr),*) => {
+        paste! {
+            lazy_static! {
+                $(
+                    static ref [<PROG_KIND_ $variant:upper>]: SymbolId<global::ProgSymSize>
+                        = $str.intern();
+                    static ref [<PKG_KIND_ $variant:upper>]: SymbolId<global::PkgSymSize>
+                        = $str.intern();
+                )*
+            }
+
+            impl AsRef<str> for IdentKind {
+                fn as_ref(&self) -> &'static str {
+                    match self {
+                        $(
+                            Self::$variant$($v)* => $str,
+                        )*
+                    }
+                }
+            }
+
+            impl AsRef<SymbolId<global::ProgSymSize>> for IdentKind {
+                fn as_ref(&self) -> &SymbolId<global::ProgSymSize> {
+                    match self {
+                        $(
+                            Self::$variant$($v)* => &[<PROG_KIND_ $variant:upper>],
+                        )*
+                    }
+                }
+            }
+
+            impl AsRef<SymbolId<global::PkgSymSize>> for IdentKind {
+                fn as_ref(&self) -> &SymbolId<global::PkgSymSize> {
+                    match self {
+                        $(
+                            Self::$variant$($v)* => &[<PKG_KIND_ $variant:upper>],
+                        )*
+                    }
+                }
+            }
         }
     }
+}
+
+// In the future, we'll pre-populate the internment pool, like rustc.
+kind_intern! {
+    Cgen(_) => "cgen",
+    Class(_) => "class",
+    Const(_, _) => "const",
+    Func(_, _) => "func",
+    Gen(_, _) => "gen",
+    Lparam(_, _) => "lparam",
+    Param(_, _) => "param",
+    Rate(_) => "rate",
+    Tpl => "tpl",
+    Type(_) => "type",
+    MapHead => "map:head",
+    Map => "map",
+    MapTail => "map:tail",
+    RetMapHead => "retmap:head",
+    RetMap => "retmap",
+    RetMapTail => "retmap:tail",
+    Meta => "meta",
+    Worksheet => "worksheet"
 }
 
 impl std::fmt::Display for IdentKind {
@@ -178,7 +224,7 @@ impl std::fmt::Display for IdentKind {
     ///   new type system,
     ///     so for now this just uses a syntax similar to Rust.
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let name = self.as_ref();
+        let name: &str = self.as_ref();
 
         match self {
             Self::Cgen(dim) => {

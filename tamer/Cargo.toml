@@ -37,6 +37,7 @@ lazy_static = ">= 1.4.0"
 petgraph-graphml = ">= 2.0.1"
 static_assertions = ">= 1.1.0"
 memchr = ">= 2.3.4"  # quick-xml expects =2.3.4 at the time
+paste = ">= 1.0.5"
 
 # Feature flags can be specified using `./configure FEATURES=foo,bar,baz`.
 #
