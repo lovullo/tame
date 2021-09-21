@@ -151,16 +151,8 @@ fn empty_element_with_attrs_from_toks() {
     let expected = Element {
         name,
         attrs: AttrList::from(vec![
-            Attr {
-                name: attr1,
-                value: val1,
-                span: (*S, *S2),
-            },
-            Attr {
-                name: attr2,
-                value: val2,
-                span: (*S, *S2),
-            },
+            Attr::new(attr1, val1, (*S, *S2)),
+            Attr::new(attr2, val2, (*S, *S2)),
         ]),
         children: vec![],
         span: (*S, *S2),
@@ -243,11 +235,7 @@ fn element_with_child_with_attributes() {
         attrs: AttrList::new(),
         children: vec![Tree::Element(Element {
             name: child,
-            attrs: AttrList::from([Attr {
-                name: attr,
-                value,
-                span: (*S, *S2),
-            }]),
+            attrs: AttrList::from([Attr::new(attr, value, (*S, *S2))]),
             children: vec![],
             span: (*S, *S3),
         })],
@@ -275,11 +263,7 @@ fn parser_from_filters_incomplete() {
 
     let expected = Element {
         name,
-        attrs: AttrList::from([Attr {
-            name: attr,
-            value: val,
-            span: (*S, *S2),
-        }]),
+        attrs: AttrList::from([Attr::new(attr, val, (*S, *S2))]),
         children: vec![],
         span: (*S, *S2),
     };

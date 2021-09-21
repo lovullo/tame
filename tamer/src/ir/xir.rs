@@ -397,8 +397,9 @@ pub enum Token<Ix: SymbolIndexSize> {
     ///   having to copy values.
     /// The last fragment must be a [`Token::AttrValue`].
     ///
-    /// This is intended for writing to a token stream and may not be
-    ///   emitted by readers or supported by [XIR Tree](self::tree).
+    /// Since each fragment contains a span,
+    ///   this also potentially gives higher resolution for the origin of
+    ///   components of generated attribute values.
     AttrValueFragment(AttrValue<Ix>, Span),
 
     /// Comment node.

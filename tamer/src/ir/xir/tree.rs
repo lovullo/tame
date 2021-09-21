@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! XIR token stream parsed into a tree-based IR.
+//! XIR token stream parsed into a tree-based IR (XIRT).
 //!
 //! **This is a work-in-progress implementation.**
 //! It will be augmented only as needed.
@@ -172,7 +172,10 @@ use super::{AttrValue, QName, Token};
 use crate::{span::Span, sym::SymbolIndexSize};
 use std::{fmt::Display, mem::take};
 
-/// A XIR tree.
+mod attr;
+pub use attr::{Attr, AttrList};
+
+/// A XIR tree (XIRT).
 ///
 /// This object represents a XIR token stream parsed into a tree
 ///   representation.
@@ -197,45 +200,6 @@ impl<Ix: SymbolIndexSize> Tree<Ix> {
     pub fn element(self) -> Option<Element<Ix>> {
         match self {
             Self::Element(ele) => Some(ele),
-        }
-    }
-}
-
-/// List of attributes.
-///
-/// Attributes are ordered in XIR so that this IR will be suitable for code
-///   formatters and linters.
-///
-/// This abstraction will allow us to manipulate the internal data so that
-///   it is suitable for a particular task in the future
-///     (e.g. O(1) lookups by attribute name).
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
-pub struct AttrList<Ix: SymbolIndexSize> {
-    attrs: Vec<Attr<Ix>>,
-}
-
-impl<Ix: SymbolIndexSize> AttrList<Ix> {
-    /// Construct a new, empty attribute list.
-    pub fn new() -> Self {
-        Self { attrs: vec![] }
-    }
-
-    /// Add an attribute to the end of the attribute list.
-    pub fn push(&mut self, attr: Attr<Ix>) {
-        self.attrs.push(attr)
-    }
-}
-
-impl<Ix: SymbolIndexSize> From<Vec<Attr<Ix>>> for AttrList<Ix> {
-    fn from(attrs: Vec<Attr<Ix>>) -> Self {
-        AttrList { attrs }
-    }
-}
-
-impl<Ix: SymbolIndexSize, const N: usize> From<[Attr<Ix>; N]> for AttrList<Ix> {
-    fn from(attrs: [Attr<Ix>; N]) -> Self {
-        AttrList {
-            attrs: attrs.into(),
         }
     }
 }
@@ -288,21 +252,6 @@ impl<Ix: SymbolIndexSize> Element<Ix> {
             ..self
         }
     }
-}
-
-/// Element attribute.
-///
-/// Attributes in [`Tree`] may stand alone without an element context to
-///   permit selective parsing of XIR token streams.
-///
-/// TODO: This doesn't yet handle whitespace for alignment of attributes;
-///         deferring this until it's actually needed.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Attr<Ix: SymbolIndexSize> {
-    name: QName<Ix>,
-    value: AttrValue<Ix>,
-    /// Spans for the attribute name and value respectively.
-    span: (Span, Span),
 }
 
 /// A [`Stack`] representing an element and its (optional) parent's stack.
@@ -519,11 +468,11 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     fn close_attr(self, value: AttrValue<Ix>, span: Span) -> Result<Self, Ix> {
         Ok(match self {
             Self::AttrName(ele_stack, name, open_span) => {
-                Stack::BuddingElement(ele_stack.consume_attr(Attr {
+                Stack::BuddingElement(ele_stack.consume_attr(Attr::new(
                     name,
                     value,
-                    span: (open_span, span),
-                }))
+                    (open_span, span),
+                )))
             }
             _ => todo! {},
         })
