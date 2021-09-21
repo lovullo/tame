@@ -229,14 +229,14 @@ This is pretend fragment text.  We need a lot of it.</fragment>
     // The other major thing we do is output large amounts of text (the
     // linked fragments).
     #[bench]
-    fn baseline_quick_xml_text_500(bench: &mut Bencher) {
-        let buf = Vec::<u8>::new();
+    fn baseline_quick_xml_text_50(bench: &mut Bencher) {
+        let buf = Vec::<u8>::with_capacity(FRAGMENT.len() * 50);
         let mut writer = QuickXmlWriter::new(buf);
 
         let frag: SymbolId<Ix> = FRAGMENT.intern();
 
         bench.iter(|| {
-            (0..500).for_each(|_| {
+            (0..50).for_each(|_| {
                 writer
                     .write_event(XmlEvent::Text(BytesText::from_escaped_str(
                         Cow::Borrowed(&frag.lookup_str() as &str),
@@ -249,13 +249,13 @@ This is pretend fragment text.  We need a lot of it.</fragment>
     // This test and the above are expected to perform similarly, and can
     // vary wildy run-to-run.
     #[bench]
-    fn xir_text_500(bench: &mut Bencher) {
-        let mut buf = Vec::<u8>::new();
+    fn xir_text_50(bench: &mut Bencher) {
+        let mut buf = Vec::<u8>::with_capacity(FRAGMENT.len() * 50);
         let frag: SymbolId<Ix> = FRAGMENT.intern();
         let span = Span::from_byte_interval((0, 0), "path".intern());
 
         bench.iter(|| {
-            (0..500).for_each(|_| {
+            (0..50).for_each(|_| {
                 Token::Text(Text::Escaped(frag), span)
                     .write(&mut buf, Default::default())
                     .unwrap();
