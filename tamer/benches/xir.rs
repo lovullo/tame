@@ -217,7 +217,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
                     Token::AttrValue(AttrValue::Escaped(val1), span),
                     Token::AttrName(attr2, span),
                     Token::AttrValue(AttrValue::Escaped(val2), span),
-                    Token::SelfClose(span),
+                    Token::Close(None, span),
                 ]
                 .into_iter()
                 .write(&mut buf, Default::default())
