@@ -385,11 +385,21 @@ pub enum Token<Ix: SymbolIndexSize> {
     ///     close!).
     Close(Option<QName<Ix>>, Span),
 
-    /// Element attribute name
+    /// Element attribute name.
     AttrName(QName<Ix>, Span),
 
-    /// Element attribute value
+    /// Element attribute value.
     AttrValue(AttrValue<Ix>, Span),
+
+    /// A portion of an element attribute value.
+    ///
+    /// This allows for concatenating values into an attribute value without
+    ///   having to copy values.
+    /// The last fragment must be a [`Token::AttrValue`].
+    ///
+    /// This is intended for writing to a token stream and may not be
+    ///   emitted by readers or supported by [XIR Tree](self::tree).
+    AttrValueFragment(AttrValue<Ix>, Span),
 
     /// Comment node.
     Comment(Text<Ix>, Span),

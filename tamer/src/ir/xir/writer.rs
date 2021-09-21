@@ -89,8 +89,10 @@ pub enum WriterState {
     NodeExpected,
     /// A node is currently being output and has not yet been closed.
     NodeOpen,
-    /// Cursor is position adjacent to an attribute name within an element.
+    /// Cursor is adjacent to an attribute name within an element.
     AttrNameAdjacent,
+    /// Cursor is adjacent to an attribute fragment within an element.
+    AttrFragmentAdjacent,
 }
 
 impl Default for WriterState {
@@ -215,6 +217,35 @@ impl<Ix: SymbolIndexSize> XmlWriter for Token<Ix> {
                 sink.write(b"\"")?;
 
                 Ok(S::NodeOpen)
+            }
+
+            (
+                Self::AttrValue(AttrValue::Escaped(value), _),
+                S::AttrFragmentAdjacent,
+            ) => {
+                sink.write(value.lookup_str().as_bytes())?;
+                sink.write(b"\"")?;
+
+                Ok(S::NodeOpen)
+            }
+
+            (
+                Self::AttrValueFragment(AttrValue::Escaped(value), _),
+                S::AttrNameAdjacent,
+            ) => {
+                sink.write(b"=\"")?;
+                sink.write(value.lookup_str().as_bytes())?;
+
+                Ok(S::AttrFragmentAdjacent)
+            }
+
+            (
+                Self::AttrValueFragment(AttrValue::Escaped(value), _),
+                S::AttrFragmentAdjacent,
+            ) => {
+                sink.write(value.lookup_str().as_bytes())?;
+
+                Ok(S::AttrFragmentAdjacent)
             }
 
             // Unescaped not yet supported, but you could use CData.
@@ -431,6 +462,24 @@ mod test {
             .write_new(WriterState::AttrNameAdjacent)?;
 
         assert_eq!(result.0, br#"="test " escaped""#);
+        assert_eq!(result.1, WriterState::NodeOpen);
+
+        Ok(())
+    }
+
+    #[test]
+    fn writes_escaped_attr_value_consisting_of_fragments() -> TestResult {
+        let value_left = AttrValue::<Ix>::Escaped("left ".intern());
+        let value_right = AttrValue::<Ix>::Escaped("right".intern());
+
+        let result = vec![
+            Token::AttrValueFragment(value_left, *S),
+            Token::AttrValue(value_right, *S),
+        ]
+        .into_iter()
+        .write_new(WriterState::AttrNameAdjacent)?;
+
+        assert_eq!(result.0, br#"="left right""#);
         assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
