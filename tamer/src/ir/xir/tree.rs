@@ -265,7 +265,7 @@ impl<Ix: SymbolIndexSize> Element<Ix> {
     /// This is intended for use by the parser to begin building an element.
     /// It does not represent a completed element and should not be yielded
     ///   to any outside caller until it is complete.
-    /// This incomplete state is encoded in [`State::BuddingElement`].
+    /// This incomplete state is encoded in [`Stack::BuddingElement`].
     #[inline]
     fn open(name: QName<Ix>, span: Span) -> Self {
         Self {
