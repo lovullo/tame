@@ -436,16 +436,9 @@ pub enum Stack<Ix: SymbolIndexSize> {
     /// This should be consumed and emitted.
     ClosedElement(Element<Ix>),
 
-    /// A standalone attribute is awaiting its value.
-    ///
-    /// Standalone attributes will be emitted as [`Attr`] _instead_ of being
-    ///   bound to an [`Element`].
-    /// This occurs when attributes are parsed in an independent context.
-    AttrName(QName<Ix>, Span),
-
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
-    EleAttrName(ElementStack<Ix>, QName<Ix>, Span),
+    AttrName(ElementStack<Ix>, QName<Ix>, Span),
 }
 
 impl<Ix: SymbolIndexSize> Default for Stack<Ix> {
@@ -514,7 +507,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     fn open_attr(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
         Ok(match self {
             Self::BuddingElement(ele_stack) => {
-                Self::EleAttrName(ele_stack, name, span)
+                Self::AttrName(ele_stack, name, span)
             }
 
             _ => todo! {},
@@ -525,7 +518,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///   element.
     fn close_attr(self, value: AttrValue<Ix>, span: Span) -> Result<Self, Ix> {
         Ok(match self {
-            Self::EleAttrName(ele_stack, name, open_span) => {
+            Self::AttrName(ele_stack, name, open_span) => {
                 Stack::BuddingElement(ele_stack.consume_attr(Attr {
                     name,
                     value,
