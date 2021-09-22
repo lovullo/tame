@@ -45,7 +45,7 @@ AC_CHECK_PROGS(CARGO, [cargo])
 
 test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 
-rustc_ver_req=1.53.0
+rustc_ver_req=1.54.0
 
 AC_CHECK_PROGS(RUSTC, [rustc])
 AC_MSG_CHECKING([rustc version >= $rustc_ver_req])
