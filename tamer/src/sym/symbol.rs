@@ -55,7 +55,7 @@ use std::thread::LocalKey;
 ///   see either [`GlobalSymbolResolve::lookup_str`] or
 ///   [`Interner::index_lookup`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SymbolId<Ix: SymbolIndexSize>(Ix::NonZero);
+pub struct SymbolId<Ix: SymbolIndexSize>(pub(super) Ix::NonZero);
 assert_eq_size!(Option<SymbolId<u16>>, SymbolId<u16>);
 
 /// Identifier of a symbol within a single package.
@@ -153,7 +153,9 @@ pub trait SymbolIndexSize:
 macro_rules! supported_symbol_index {
     ($prim:ty, $nonzero:ty, $interner:ty, $global:ident) => {
         thread_local! {
-            pub(super) static $global: $interner = <$interner>::new();
+            pub(super) static $global: $interner = super::prefill::fill(
+                <$interner>::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY)
+            );
         }
 
         impl SymbolIndexSize for $prim {

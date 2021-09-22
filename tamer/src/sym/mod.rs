@@ -218,6 +218,23 @@
 //!     if you utilize interners for any other purpose,
 //!       it is advised that you create newtypes for their [`SymbolId`]s.
 //!
+//! Static Symbols
+//! --------------
+//! Since nearly every string in the system is represented by a symbol,
+//!   comparing against static string slices would require awkward interning
+//!   of a static string at each relevant point in the program.
+//! Instead,
+//!   common static strings are pre-interned when the global interner is
+//!   first initialized.
+//!
+//! These symbols are allocated statically,
+//!   so they can be used in `const` expressions and include additional
+//!   metadata allowing for safe type conversions in circumstances that
+//!   aren't typically permitted.
+//! This further allows constructing symbol newtypes at compile-time.
+//!
+//! These symbol constants can be found in the [`st`] module.
+//!
 //! Uninterned Symbols
 //! ------------------
 //! Interners are able to allocate a [`SymbolId`] without interning,
@@ -308,8 +325,7 @@
 //!     - Rustc's [`newtype_index!` macro][rustc-nt] uses
 //!         [`NonZeroU32`] so that [`Option`] uses no
 //!         additional space (see [pull request `53315`][rustc-nt-pr]).
-//!     - Differences between TAMER and Rustc's implementations are outlined
-//!         above.
+//!     - Rustc also [prefills interners][rustc-intern] with common symbols.
 //!
 //! [flyweight pattern]: https://en.wikipedia.org/wiki/Flyweight_pattern
 //! [rust-string-cache]: https://github.com/servo/string-cache
@@ -338,7 +354,10 @@
 //! [hash-rs]: https://github.com/Gankra/hash-rs
 
 mod interner;
+mod prefill;
 mod symbol;
+
+pub use prefill::st;
 
 pub use interner::{
     ArenaInterner, DefaultInterner, DefaultPkgInterner, DefaultProgInterner,

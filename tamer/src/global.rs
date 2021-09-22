@@ -45,6 +45,9 @@ pub type NonZeroPkgSymSize = num::NonZeroU16;
 /// A size capable of representing every interned string in a program.
 pub type ProgSymSize = u32;
 
+/// The initial capacity for global interners.
+pub const INIT_GLOBAL_INTERNER_CAPACITY: usize = 1024;
+
 /// A non-zero equivalent of [`ProgSymSize`];
 pub type NonZeroProgSymSize = num::NonZeroU32;
 
