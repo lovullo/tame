@@ -30,7 +30,63 @@ use super::{Interner, SymbolId, SymbolIndexSize};
 use crate::global;
 use std::array;
 
-type NonZero = <global::ProgSymSize as SymbolIndexSize>::NonZero;
+/// Statically-allocated symbol.
+///
+/// This symbol is generated at compile-time and expected to be available in
+///   any global interner once it has been initialized.
+///
+/// The size of this symbol is as small as possible to hold the necessary
+///   number of values.
+///
+/// This symbol contains a number of `const` methods,
+///   allowing for this symbol to be easily used to construct static
+///   newtypes.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StaticSymbolId(u8);
+
+impl StaticSymbolId {
+    /// Cast static symbol into a [`SymbolId`] suitable for the global
+    ///   program-level interner.
+    ///
+    /// This is safe since global interners will always contain this
+    ///   symbol before it can be read.
+    pub const fn as_prog_sym(self) -> SymbolId<global::ProgSymSize> {
+        SymbolId(unsafe {
+            <global::ProgSymSize as SymbolIndexSize>::NonZero::new_unchecked(
+                self.0 as global::ProgSymSize,
+            )
+        })
+    }
+
+    /// Cast static symbol into a [`SymbolId`] suitable for the global
+    ///   package-level interner.
+    ///
+    /// This is safe since global interners will always contain this
+    ///   symbol before it can be read.
+    pub const fn as_pkg_sym(self) -> SymbolId<global::PkgSymSize> {
+        SymbolId(unsafe {
+            <global::PkgSymSize as SymbolIndexSize>::NonZero::new_unchecked(
+                self.0 as global::PkgSymSize,
+            )
+        })
+    }
+
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl From<StaticSymbolId> for SymbolId<global::ProgSymSize> {
+    fn from(st: StaticSymbolId) -> Self {
+        st.as_prog_sym()
+    }
+}
+
+impl From<StaticSymbolId> for SymbolId<global::PkgSymSize> {
+    fn from(st: StaticSymbolId) -> Self {
+        st.as_pkg_sym()
+    }
+}
 
 /// Generate symbols of size [`global::ProgSymSize`] for preinterned strings.
 ///
@@ -45,9 +101,7 @@ macro_rules! static_symbol_consts {
     (@i $i:expr; $name:ident: $str:expr, $($ti:ident: $ts:expr,)*) => {
         #[doc=concat!("Interned string `\"", $str, "\"`.")]
         #[allow(non_upper_case_globals)]
-        pub const $name: SymbolId<global::ProgSymSize> = unsafe {
-            SymbolId(NonZero::new_unchecked($i))
-        };
+        pub const $name: StaticSymbolId = StaticSymbolId($i);
 
         // Recurse until no tail is left (terminating condition below).
         static_symbol_consts!{
@@ -176,26 +230,40 @@ mod test {
         sym::{GlobalSymbolIntern, SymbolId},
     };
 
-    type Ix = global::ProgSymSize;
+    macro_rules! global_sanity_check {
+        ($name:ident, $ix:ty, $method:ident) => {
+            #[test]
+            fn $name() {
+                type Ix = $ix;
 
-    // The global interners are instantiated with the prefill.
-    #[test]
-    fn global_sanity_check() {
-        // If we _don't_ prefill, make sure we're not starting at the first
-        // offset when interning, otherwise it'll look correct.
-        let new: SymbolId<Ix> = "force offset".intern();
+                // If we _don't_ prefill, make sure we're not starting at the first
+                // offset when interning, otherwise it'll look correct.
+                let new: SymbolId<Ix> = "force offset".intern();
 
-        assert!(
-            new.as_usize() > st::END_STATIC.as_usize(),
-            "a new global symbol allocation was not > END_STATIC, \
-             indicating that prefill is not working!"
-        );
+                assert!(
+                    new.as_usize() > st::END_STATIC.as_usize(),
+                    "a new global symbol allocation was not > END_STATIC, \
+                     indicating that prefill is not working!"
+                );
 
-        // Further sanity check to make sure indexes align as expected,
-        // not that you wouldn't otherwise notice that the whole system is
-        // broken, but this ought to offer a more direct hint as to what
-        // went wrong.
-        assert_eq!(st::True, "true".intern());
-        assert_eq!(st::False, "false".intern());
+                // Further sanity check to make sure indexes align as expected,
+                // not that you wouldn't otherwise notice that the whole system is
+                // broken, but this ought to offer a more direct hint as to what
+                // went wrong.
+                assert_eq!(st::True.$method(), "true".intern());
+                assert_eq!(st::False.$method(), "false".intern());
+            }
+        };
     }
+
+    global_sanity_check!(
+        global_sanity_check_prog,
+        global::ProgSymSize,
+        as_prog_sym
+    );
+    global_sanity_check!(
+        global_sanity_check_pkg,
+        global::PkgSymSize,
+        as_pkg_sym
+    );
 }
