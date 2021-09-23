@@ -29,20 +29,22 @@
 use super::{Interner, SymbolId, SymbolIndexSize};
 use crate::global;
 use std::array;
+use std::ops::Deref;
+
+/// A size that is as small as possible to hold the necessary number of
+///   values.
+type StaticSymbolSize = u8;
 
 /// Statically-allocated symbol.
 ///
 /// This symbol is generated at compile-time and expected to be available in
 ///   any global interner once it has been initialized.
 ///
-/// The size of this symbol is as small as possible to hold the necessary
-///   number of values.
-///
 /// This symbol contains a number of `const` methods,
 ///   allowing for this symbol to be easily used to construct static
 ///   newtypes.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StaticSymbolId(u8);
+pub struct StaticSymbolId(StaticSymbolSize);
 
 impl StaticSymbolId {
     /// Cast static symbol into a [`SymbolId`] suitable for the global
@@ -88,6 +90,55 @@ impl From<StaticSymbolId> for SymbolId<global::PkgSymSize> {
     }
 }
 
+/// Generate a newtype containing a [`StaticSymbolId`] that derefs to its
+///   inner value.
+macro_rules! static_symbol_newtype {
+    ($(#[$attr:meta])* $name:ident) => {
+        $(#[$attr])*
+        #[doc=""]
+        #[doc="This will [`Deref`] into a [`StaticSymbolId`]."]
+        pub struct $name(StaticSymbolId);
+
+        impl $name {
+            const fn new(id: StaticSymbolSize) -> Self {
+                Self(StaticSymbolId(id))
+            }
+        }
+
+        impl Deref for $name {
+            type Target = StaticSymbolId;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+    };
+}
+
+/// Generate a series of newtypes and the macro `static_symbol_ty!` which
+///   can be used to take a short identifier and convert it into its full
+///   type identifier.
+macro_rules! static_symbol_newtypes {
+    ($($(#[$attr:meta])* $short:ident: $ty:ident),*) => {
+        $(
+            static_symbol_newtype!($(#[$attr])* $ty);
+        )*
+
+        macro_rules! static_symbol_ty {
+            $(
+                ($short) => {
+                    $ty
+                };
+            )*
+
+            // Just some string value; a misc case.
+            (str) => {
+                StaticSymbolId
+            };
+        }
+    }
+}
+
 /// Generate symbols of size [`global::ProgSymSize`] for preinterned strings.
 ///
 /// These symbols,
@@ -98,10 +149,17 @@ impl From<StaticSymbolId> for SymbolId<global::PkgSymSize> {
 ///   which is on first access,
 ///   these symbols will reference valid values.
 macro_rules! static_symbol_consts {
-    (@i $i:expr; $name:ident: $str:expr, $($ti:ident: $ts:expr,)*) => {
-        #[doc=concat!("Interned string `\"", $str, "\"`.")]
+    (@i $i:expr; $name:ident: $ty:ident $str:expr, $($tail:tt)*) => {
+        #[doc=concat!(
+            "Interned `",
+            stringify!($ty),
+            "` string `\"",
+            $str,
+            "\"`."
+        )]
         #[allow(non_upper_case_globals)]
-        pub const $name: StaticSymbolId = StaticSymbolId($i);
+        pub const $name: static_symbol_ty!($ty) =
+            <static_symbol_ty!($ty)>::new($i);
 
         // Recurse until no tail is left (terminating condition below).
         static_symbol_consts!{
@@ -110,7 +168,7 @@ macro_rules! static_symbol_consts {
             // which time we may have to switch methodology.
             @i $i + 1;
 
-            $($ti: $ts,)*
+            $($tail)*
         }
     };
 
@@ -128,13 +186,21 @@ macro_rules! static_symbol_consts {
 ///   immediately after initialization,
 ///     /before/ any internment requests.
 macro_rules! static_symbols {
-    ($($name:ident : $str:expr),*) => {
+    ($($name:ident : $ty:ident $str:expr),*) => {
         /// Static symbols (pre-allocated).
         ///
         /// Each of the constants in this module represent a [`SymbolId`]
         ///   statically allocated at compile-time.
         /// The strings that they represent are automatically populated into
         ///   the global interners when the interner is first accessed.
+        ///
+        /// _You should always use the generated constant to reference these
+        ///    symbols!_
+        /// Do not rely upon their integer value,
+        ///   as it _will_ change over time.
+        /// The sole exception is to use marker symbols to identify ranges
+        ///   of symbols;
+        ///     see [`MarkStaticSymbolId`].
         ///
         /// See [`crate::sym`] for more information on static symbols.
         ///
@@ -148,7 +214,7 @@ macro_rules! static_symbols {
                 @i 1;
 
                 $(
-                    $name: $str,
+                    $name: $ty $str,
                 )*
             }
         }
@@ -184,6 +250,19 @@ macro_rules! static_symbols {
     }
 }
 
+static_symbol_newtypes! {
+    /// A symbol suitable as a C-style identifier.
+    ///
+    /// This is the traditional `[a-zA-Z_][a-zA-Z0-9_]*`,
+    ///   common in many programming languages.
+    cid: CIdentStaticSymbolId,
+
+    /// This symbol serves only as a marker in the internment pool to
+    ///   delimit symbol ranges;
+    ///     its string value is incidental and should not be relied upon.
+    mark: MarkStaticSymbolId
+}
+
 // Static symbols that will have their strings interned upon global
 //   interner initialization.
 //
@@ -213,13 +292,13 @@ macro_rules! static_symbols {
 //   which is re-exported by the parent module.
 static_symbols! {
     // Index begins at 1, since 0 is reserved during interner initialization
-    True: "true",
-    False: "false",
+    True: cid "true",
+    False: cid "false",
 
     // [Symbols will be added here as they are needed.]
 
     // Marker indicating the end of the static symbols
-    END_STATIC: "{{end static}}"
+    END_STATIC: mark "{{end static}}"
 }
 
 #[cfg(test)]
