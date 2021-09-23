@@ -38,7 +38,7 @@ type StaticSymbolSize = u8;
 /// Statically-allocated symbol.
 ///
 /// This symbol is generated at compile-time and expected to be available in
-///   any global interner once it has been initialized.
+///   the 32-bit global interner once it has been initialized.
 ///
 /// This symbol contains a number of `const` methods,
 ///   allowing for this symbol to be easily used to construct static
@@ -50,7 +50,7 @@ impl StaticSymbolId {
     /// Cast static symbol into a [`SymbolId`] suitable for the global
     ///   program-level interner.
     ///
-    /// This is safe since global interners will always contain this
+    /// This is safe since global interner will always contain this
     ///   symbol before it can be read.
     pub const fn as_prog_sym(self) -> SymbolId<global::ProgSymSize> {
         SymbolId(unsafe {

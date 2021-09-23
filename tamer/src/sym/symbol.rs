@@ -137,12 +137,6 @@ pub trait SymbolIndexSize:
 
 macro_rules! supported_symbol_index {
     ($prim:ty, $nonzero:ty, $interner:ty, $global:ident) => {
-        thread_local! {
-            pub(super) static $global: $interner = super::prefill::fill(
-                <$interner>::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY)
-            );
-        }
-
         impl SymbolIndexSize for $prim {
             type NonZero = $nonzero;
             type Interner = $interner;
@@ -172,8 +166,19 @@ macro_rules! supported_symbol_index {
 type Static16Interner = DefaultInterner<'static, u16>;
 type Static32Interner = DefaultInterner<'static, u32>;
 
-supported_symbol_index!(u16, NonZeroU16, Static16Interner, INTERNER_PKG);
-supported_symbol_index!(u32, NonZeroU32, Static32Interner, INTERNER_PROG);
+thread_local! {
+    pub(super) static INTERNER_16: Static16Interner =
+        Static16Interner::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY);
+
+    // Only the 32-bit integer, which is the default for `SymbolId`, gets
+    // prefilled with static symbols.
+    pub(super) static INTERNER_32: Static32Interner = super::prefill::fill(
+        Static32Interner::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY)
+    );
+}
+
+supported_symbol_index!(u16, NonZeroU16, Static16Interner, INTERNER_16);
+supported_symbol_index!(u32, NonZeroU32, Static32Interner, INTERNER_32);
 
 /// A string retrieved from the intern pool using a [`SymbolId`].
 ///
@@ -440,7 +445,7 @@ mod test {
 
         #[test]
         fn str_lookup_using_global_interner() {
-            INTERNER_PKG.with(|interner| {
+            INTERNER_32.with(|interner| {
                 let given = "test global intern";
                 let sym = interner.intern(given);
 
@@ -455,7 +460,7 @@ mod test {
 
             assert_eq!("foo", sym.lookup_str());
 
-            INTERNER_PKG.with(|interner| {
+            INTERNER_32.with(|interner| {
                 assert_eq!(
                     sym,
                     interner.intern("foo"),
