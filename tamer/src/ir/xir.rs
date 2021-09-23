@@ -29,9 +29,8 @@
 //!
 //! _This is a work in progress!_
 
-use crate::global;
 use crate::span::Span;
-use crate::sym::{GlobalSymbolIntern, SymbolId, SymbolIndexSize};
+use crate::sym::{GlobalSymbolIntern, SymbolId};
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
 use std::ops::Deref;
@@ -45,18 +44,18 @@ macro_rules! newtype_symbol {
         $(
 		    $(#[$meta])*
                 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub struct $name<Ix: SymbolIndexSize>(SymbolId<Ix>);
+            pub struct $name(SymbolId);
 
-            impl<Ix: SymbolIndexSize> Deref for $name<Ix> {
-                type Target = SymbolId<Ix>;
+            impl Deref for $name {
+                type Target = SymbolId;
 
                 fn deref(&self) -> &Self::Target {
                     &self.0
                 }
             }
 
-            impl<Ix: SymbolIndexSize> PartialEq<SymbolId<Ix>> for $name<Ix> {
-                fn eq(&self, other: &SymbolId<Ix>) -> bool {
+            impl PartialEq<SymbolId> for $name {
+                fn eq(&self, other: &SymbolId) -> bool {
                     self.0 == *other
                 }
             }
@@ -79,7 +78,7 @@ newtype_symbol! {
     pub struct NCName;
 }
 
-impl<Ix: SymbolIndexSize> NCName<Ix> {
+impl NCName {
     /// Create a new NCName from a symbol without validating that the symbol
     ///   is a valid NCName.
     ///
@@ -89,7 +88,7 @@ impl<Ix: SymbolIndexSize> NCName<Ix> {
     ///   it's unsafe in a sense similar to non-UTF-8 `str` slices,
     ///     in that it is expected that an `NCName` means that you do not
     ///     have to worry about whether it's syntatically valid as XML.
-    pub unsafe fn new_unchecked(value: SymbolId<Ix>) -> Self {
+    pub unsafe fn new_unchecked(value: SymbolId) -> Self {
         Self(value)
     }
 }
@@ -122,7 +121,7 @@ impl std::error::Error for Error {
     }
 }
 
-impl<Ix: SymbolIndexSize> TryFrom<&str> for NCName<Ix> {
+impl TryFrom<&str> for NCName {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -135,39 +134,39 @@ impl<Ix: SymbolIndexSize> TryFrom<&str> for NCName<Ix> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Prefix<Ix: SymbolIndexSize>(NCName<Ix>);
+pub struct Prefix(NCName);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LocalPart<Ix: SymbolIndexSize>(NCName<Ix>);
+pub struct LocalPart(NCName);
 
-impl<Ix: SymbolIndexSize> Deref for Prefix<Ix> {
-    type Target = SymbolId<Ix>;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
-
-impl<Ix: SymbolIndexSize> Deref for LocalPart<Ix> {
-    type Target = SymbolId<Ix>;
+impl Deref for Prefix {
+    type Target = SymbolId;
 
     fn deref(&self) -> &Self::Target {
         self.0.deref()
     }
 }
 
-impl<Ix: SymbolIndexSize> From<NCName<Ix>> for Prefix<Ix> {
-    fn from(name: NCName<Ix>) -> Self {
+impl Deref for LocalPart {
+    type Target = SymbolId;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl From<NCName> for Prefix {
+    fn from(name: NCName) -> Self {
         Self(name)
     }
 }
 
-impl<Ix: SymbolIndexSize> From<NCName<Ix>> for LocalPart<Ix> {
-    fn from(name: NCName<Ix>) -> Self {
+impl From<NCName> for LocalPart {
+    fn from(name: NCName) -> Self {
         Self(name)
     }
 }
 
-impl<Ix: SymbolIndexSize> TryFrom<&str> for Prefix<Ix> {
+impl TryFrom<&str> for Prefix {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -175,7 +174,7 @@ impl<Ix: SymbolIndexSize> TryFrom<&str> for Prefix<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize> TryFrom<&str> for LocalPart<Ix> {
+impl TryFrom<&str> for LocalPart {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -184,17 +183,17 @@ impl<Ix: SymbolIndexSize> TryFrom<&str> for LocalPart<Ix> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Whitespace<Ix: SymbolIndexSize>(SymbolId<Ix>);
+pub struct Whitespace(SymbolId);
 
-impl<Ix: SymbolIndexSize> Deref for Whitespace<Ix> {
-    type Target = SymbolId<Ix>;
+impl Deref for Whitespace {
+    type Target = SymbolId;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<Ix: SymbolIndexSize> TryFrom<&str> for Whitespace<Ix> {
+impl TryFrom<&str> for Whitespace {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -210,8 +209,8 @@ impl<Ix: SymbolIndexSize> TryFrom<&str> for Whitespace<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize> From<Whitespace<Ix>> for Text<Ix> {
-    fn from(ws: Whitespace<Ix>) -> Self {
+impl From<Whitespace> for Text {
+    fn from(ws: Whitespace) -> Self {
         // Whitespace needs no escaping
         Self::Escaped(ws.0)
     }
@@ -219,18 +218,15 @@ impl<Ix: SymbolIndexSize> From<Whitespace<Ix>> for Text<Ix> {
 
 /// A qualified name (namespace prefix and local name).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct QName<Ix: SymbolIndexSize>(Option<Prefix<Ix>>, LocalPart<Ix>);
+pub struct QName(Option<Prefix>, LocalPart);
 
 // Since we implement Copy, ensure size matches our expectations:
-const_assert!(
-    std::mem::size_of::<QName<global::ProgSymSize>>()
-        <= std::mem::size_of::<usize>()
-);
+const_assert!(std::mem::size_of::<QName>() <= std::mem::size_of::<usize>());
 
-impl<Ix: SymbolIndexSize> QName<Ix> {
+impl QName {
     /// Create a new fully-qualified name (including both a namespace URI
     ///   and local name).
-    pub fn new(prefix: Prefix<Ix>, local_name: LocalPart<Ix>) -> Self {
+    pub fn new(prefix: Prefix, local_name: LocalPart) -> Self {
         Self(Some(prefix), local_name)
     }
 
@@ -241,26 +237,25 @@ impl<Ix: SymbolIndexSize> QName<Ix> {
     ///
     /// _(If this is ever not true (e.g. due to new targets),
     ///   please update this comment.)_
-    pub fn new_local(local_name: LocalPart<Ix>) -> Self {
+    pub fn new_local(local_name: LocalPart) -> Self {
         Self(None, local_name)
     }
 
     /// Fully qualified namespace associated with a name.
-    pub fn prefix(&self) -> Option<Prefix<Ix>> {
+    pub fn prefix(&self) -> Option<Prefix> {
         self.0
     }
 
     /// Local part of a name (name without namespace).
-    pub fn local_name(&self) -> LocalPart<Ix> {
+    pub fn local_name(&self) -> LocalPart {
         self.1
     }
 }
 
-impl<Ix, P, L> TryFrom<(P, L)> for QName<Ix>
+impl<P, L> TryFrom<(P, L)> for QName
 where
-    Ix: SymbolIndexSize,
-    P: TryInto<Prefix<Ix>>,
-    L: TryInto<LocalPart<Ix>, Error = P::Error>,
+    P: TryInto<Prefix>,
+    L: TryInto<LocalPart, Error = P::Error>,
 {
     type Error = P::Error;
 
@@ -269,11 +264,10 @@ where
     }
 }
 
-impl<Ix, P, L> TryFrom<(Option<P>, L)> for QName<Ix>
+impl<P, L> TryFrom<(Option<P>, L)> for QName
 where
-    Ix: SymbolIndexSize,
-    P: TryInto<Prefix<Ix>>,
-    L: TryInto<LocalPart<Ix>, Error = P::Error>,
+    P: TryInto<Prefix>,
+    L: TryInto<LocalPart, Error = P::Error>,
 {
     type Error = P::Error;
 
@@ -287,10 +281,7 @@ where
     }
 }
 
-impl<Ix> TryFrom<&str> for QName<Ix>
-where
-    Ix: SymbolIndexSize,
-{
+impl TryFrom<&str> for QName {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -307,7 +298,7 @@ where
 /// (TODO: More information on why this burden isn"t all that bad,
 ///    despite the risk.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Text<Ix: SymbolIndexSize> {
+pub enum Text {
     /// Text node that requires escaping.
     ///
     /// Unescaped text requires further processing before writing.
@@ -320,13 +311,13 @@ pub enum Text<Ix: SymbolIndexSize> {
     ///   if escaping is only needed for writing,
     ///   it is likely better to leave it to the writer to escape,
     ///     which does _not_ require interning of the resulting string.
-    Unescaped(SymbolId<Ix>),
+    Unescaped(SymbolId),
 
     /// Text node that either has already been escaped or is known not to
     ///   require escaping.
     ///
     /// Escaped text can be written as-is without any further processing.
-    Escaped(SymbolId<Ix>),
+    Escaped(SymbolId),
 }
 
 /// Represents an attribute value and its escaped contents.
@@ -336,17 +327,17 @@ pub enum Text<Ix: SymbolIndexSize> {
 /// This does, however, put the onus on the caller to ensure that they got
 ///   the escaping status correct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttrValue<Ix: SymbolIndexSize> {
+pub enum AttrValue {
     /// Value that requires escaping.
     ///
     /// Unescaped values require further processing before writing.
-    Unescaped(SymbolId<Ix>),
+    Unescaped(SymbolId),
 
     /// Value that either has already been escaped or is known not to
     ///   require escaping.
     ///
     /// Escaped values can be written as-is without any further processing.
-    Escaped(SymbolId<Ix>),
+    Escaped(SymbolId),
 }
 
 /// Lightly-structured XML tokens with associated [`Span`]s.
@@ -357,9 +348,9 @@ pub enum AttrValue<Ix: SymbolIndexSize> {
 ///   and so this IR can be processed by a simple state machine
 ///     (see [`writer::WriterState`]).
 #[derive(Debug, PartialEq, Eq)]
-pub enum Token<Ix: SymbolIndexSize> {
+pub enum Token {
     /// Opening tag of an element.
-    Open(QName<Ix>, Span),
+    Open(QName, Span),
 
     /// Closing tag of an element.
     ///
@@ -383,13 +374,13 @@ pub enum Token<Ix: SymbolIndexSize> {
     ///     given especially that bindings after `@` in patterns have not
     ///     yet been stabalized at the time of writing (but are very
     ///     close!).
-    Close(Option<QName<Ix>>, Span),
+    Close(Option<QName>, Span),
 
     /// Element attribute name.
-    AttrName(QName<Ix>, Span),
+    AttrName(QName, Span),
 
     /// Element attribute value.
-    AttrValue(AttrValue<Ix>, Span),
+    AttrValue(AttrValue, Span),
 
     /// A portion of an element attribute value.
     ///
@@ -400,15 +391,15 @@ pub enum Token<Ix: SymbolIndexSize> {
     /// Since each fragment contains a span,
     ///   this also potentially gives higher resolution for the origin of
     ///   components of generated attribute values.
-    AttrValueFragment(AttrValue<Ix>, Span),
+    AttrValueFragment(AttrValue, Span),
 
     /// Comment node.
-    Comment(Text<Ix>, Span),
+    Comment(Text, Span),
 
     /// Character data as part of an element.
     ///
     /// See also [`CData`](Token::CData) variant.
-    Text(Text<Ix>, Span),
+    Text(Text, Span),
 
     /// CData node (`<![CDATA[...]]>`).
     ///
@@ -419,21 +410,20 @@ pub enum Token<Ix: SymbolIndexSize> {
     /// This is intended for reading existing XML data where CData is
     ///   already present,
     ///     not for producing new CData safely!
-    CData(Text<Ix>, Span),
+    CData(Text, Span),
 
     /// Similar to `Text`,
     ///   but intended for use where only whitespace is allowed,
     ///     such as alignment of attributes.
-    Whitespace(Whitespace<Ix>, Span),
+    Whitespace(Whitespace, Span),
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{global, sym::GlobalSymbolIntern};
+    use crate::sym::GlobalSymbolIntern;
     use std::convert::TryInto;
 
-    type Ix = global::PkgSymSize;
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     lazy_static! {
@@ -447,12 +437,12 @@ mod test {
         #[test]
         fn ncname_comparable_to_sym() {
             let foo = "foo".intern();
-            assert_eq!(NCName::<Ix>(foo), foo);
+            assert_eq!(NCName(foo), foo);
         }
 
         #[test]
         fn ncname_try_into_from_str_no_colon() -> TestResult {
-            let name: NCName<Ix> = "no-colon".try_into()?;
+            let name: NCName = "no-colon".try_into()?;
             assert_eq!(name, "no-colon".intern());
             Ok(())
         }
@@ -460,14 +450,14 @@ mod test {
         #[test]
         fn ncname_try_into_from_str_fails_with_colon() {
             assert_eq!(
-                NCName::<Ix>::try_from("look:a-colon"),
+                NCName::try_from("look:a-colon"),
                 Err(Error::NCColon("look:a-colon".into()))
             );
         }
 
         #[test]
         fn local_name_from_local_part_only() -> TestResult {
-            let name = QName::<Ix>::new_local("foo".try_into()?);
+            let name = QName::new_local("foo".try_into()?);
 
             assert_eq!(name.local_name(), "foo".try_into()?);
             assert_eq!(None, name.prefix());
@@ -477,7 +467,7 @@ mod test {
 
         #[test]
         fn fully_qualified_name() -> TestResult {
-            let name: QName<Ix> = ("foons", "foo").try_into()?;
+            let name: QName = ("foons", "foo").try_into()?;
 
             assert_eq!(name.prefix(), Some("foons".try_into()?));
             assert_eq!(name.local_name(), "foo".try_into()?);
@@ -488,11 +478,11 @@ mod test {
 
     #[test]
     fn whitespace() -> TestResult {
-        assert_eq!(Whitespace::<Ix>::try_from("  ")?, "  ".try_into()?);
-        assert_eq!(Whitespace::<Ix>::try_from(" \t ")?, " \t ".try_into()?);
+        assert_eq!(Whitespace::try_from("  ")?, "  ".try_into()?);
+        assert_eq!(Whitespace::try_from(" \t ")?, " \t ".try_into()?);
 
         assert_eq!(
-            Whitespace::<Ix>::try_from("not ws!"),
+            Whitespace::try_from("not ws!"),
             Err(Error::NotWhitespace("not ws!".into()))
         );
 
@@ -503,7 +493,7 @@ mod test {
     fn whitespace_as_text() -> TestResult {
         assert_eq!(
             Text::Escaped(" ".intern()),
-            Whitespace::<Ix>::try_from(" ")?.into(),
+            Whitespace::try_from(" ")?.into(),
         );
 
         Ok(())

@@ -44,8 +44,6 @@ use tamer::ir::xir::{NCName, QName, Token};
 use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
 use test::Bencher;
 
-type Ix = tamer::global::PkgSymSize;
-
 fn gen_strs(n: usize, suffix: &str) -> Vec<String> {
     (0..n).map(|n| n.to_string() + suffix).collect()
 }
@@ -62,7 +60,7 @@ mod name {
 
         bench.iter(|| {
             strs.iter()
-                .map(|s| s.as_str().intern() as SymbolId<Ix>)
+                .map(|s| s.as_str().intern() as SymbolId)
                 .for_each(drop);
         });
     }
@@ -74,9 +72,7 @@ mod name {
 
         bench.iter(|| {
             strs.iter()
-                .map(|s| unsafe {
-                    NCName::<Ix>::new_unchecked(s.as_str().intern())
-                })
+                .map(|s| unsafe { NCName::new_unchecked(s.as_str().intern()) })
                 .for_each(drop);
         });
     }
@@ -100,7 +96,7 @@ mod name {
 
         bench.iter(|| {
             strs.iter()
-                .map(|s| NCName::<Ix>::try_from(s.as_str()))
+                .map(|s| NCName::try_from(s.as_str()))
                 .for_each(drop);
         });
     }
@@ -115,7 +111,7 @@ mod name {
             prefixes
                 .iter()
                 .zip(names.iter())
-                .map(|(p, s)| QName::<Ix>::try_from((p.as_str(), s.as_str())))
+                .map(|(p, s)| QName::try_from((p.as_str(), s.as_str())))
                 .for_each(drop);
         });
     }
@@ -129,7 +125,7 @@ mod ws {
     fn whitespace_1000(bench: &mut Bencher) {
         bench.iter(|| {
             (0..1000)
-                .map(|_| Whitespace::<Ix>::try_from("  \t  "))
+                .map(|_| Whitespace::try_from("  \t  "))
                 .for_each(drop);
         });
     }
@@ -203,7 +199,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         // common values such as these (QNames) will be pre-defined and
         // reused.
         let span = Span::from_byte_interval((0, 0), "path".intern());
-        let name = QName::<Ix>::try_from(("test", "foo")).unwrap();
+        let name = QName::try_from(("test", "foo")).unwrap();
         let attr1 = QName::new_local("first".try_into().unwrap());
         let attr2 = QName::new_local("second".try_into().unwrap());
         let val1 = "value".intern();
@@ -233,7 +229,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         let buf = Vec::<u8>::with_capacity(FRAGMENT.len() * 50);
         let mut writer = QuickXmlWriter::new(buf);
 
-        let frag: SymbolId<Ix> = FRAGMENT.intern();
+        let frag: SymbolId = FRAGMENT.intern();
 
         bench.iter(|| {
             (0..50).for_each(|_| {
@@ -251,7 +247,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
     #[bench]
     fn xir_text_50(bench: &mut Bencher) {
         let mut buf = Vec::<u8>::with_capacity(FRAGMENT.len() * 50);
-        let frag: SymbolId<Ix> = FRAGMENT.intern();
+        let frag: SymbolId = FRAGMENT.intern();
         let span = Span::from_byte_interval((0, 0), "path".intern());
 
         bench.iter(|| {

@@ -33,7 +33,7 @@
 //!     as documented in the [parent module](super).
 //!
 //! ```
-//! use tamer::sym::{Interner, DefaultPkgInterner, SymbolId};
+//! use tamer::sym::{DefaultProgInterner, Interner, SymbolId};
 //!
 //! // Inputs to be interned
 //! let a = "foo";
@@ -43,7 +43,7 @@
 //!
 //! // Interners employ interior mutability and so do not need to be
 //! // declared `mut`
-//! let interner = DefaultPkgInterner::new();
+//! let interner = DefaultProgInterner::new();
 //!
 //! let (ia, ib, ic, id) = (
 //!     interner.intern(a),
@@ -199,7 +199,7 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
 ///
 /// See the [module-level documentation](self) for examples and more
 ///   information on how to use this interner.
-pub struct ArenaInterner<'i, S, Ix>
+pub struct ArenaInterner<'i, S, Ix = global::ProgSymSize>
 where
     S: BuildHasher + Default,
     Ix: SymbolIndexSize,
@@ -357,9 +357,10 @@ where
 ///     (which uses SipHash at the time of writing).
 ///
 /// See intern benchmarks for a comparison.
-pub type FxArenaInterner<'i, Ix> = ArenaInterner<'i, FxBuildHasher, Ix>;
+pub type FxArenaInterner<'i, Ix = global::ProgSymSize> =
+    ArenaInterner<'i, FxBuildHasher, Ix>;
 
-/// Recommended [`Interner`] and configuration.
+/// Recommended [`Interner`] and configuration (size-agnostic).
 ///
 /// The choice of this default relies on the assumption that
 ///   denial-of-service attacks against the hash function are not a
@@ -367,21 +368,11 @@ pub type FxArenaInterner<'i, Ix> = ArenaInterner<'i, FxBuildHasher, Ix>;
 ///
 /// For more information on the hashing algorithm,
 ///   see [`FxArenaInterner`].
-pub type DefaultInterner<'i, Ix> = FxArenaInterner<'i, Ix>;
+pub type DefaultInterner<'i, Ix = global::ProgSymSize> =
+    FxArenaInterner<'i, Ix>;
 
-/// Interner for individual packages and their dependencies.
-///
-/// This type should be preferred to [`DefaultPkgInterner`] when only a
-///   single package's symbols are being processed,
-///     since it can be better packed into structs.
-pub type DefaultPkgInterner<'i> = DefaultInterner<'i, global::PkgSymSize>;
-
-/// Interner for entire programs.
-///
-/// This interner holds symbols with a larger underyling datatype than
-///   [`DefaultPkgInterner`].
-/// It is intended for use by linkers or anything else that needs to process
-///   a large number of packages in a program simultaneously.
+/// Recommended [`Interner`] and configuration for compilers and linkers
+///   processing one or more packages.
 pub type DefaultProgInterner<'i> = DefaultInterner<'i, global::ProgSymSize>;
 
 // Note that these tests assert on standalone interners, not on the globals;
@@ -390,7 +381,7 @@ pub type DefaultProgInterner<'i> = DefaultInterner<'i, global::ProgSymSize>;
 mod test {
     use super::*;
 
-    type Sut<'i> = DefaultInterner<'i, global::ProgSymSize>;
+    type Sut<'i> = DefaultInterner<'i>;
 
     #[test]
     fn recognizes_equal_strings() {

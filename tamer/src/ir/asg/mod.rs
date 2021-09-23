@@ -62,17 +62,17 @@
 //! ```
 //! use tamer::global;
 //! use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
-//! use tamer::sym::{Interner, DefaultPkgInterner};
+//! use tamer::sym::{Interner, DefaultProgInterner};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Be sure to choose size and initial capacities appropriate for your
 //! // situation.
-//! let mut asg = DefaultAsg::<IdentObject<_>, global::PkgIdentSize>::with_capacity(
+//! let mut asg = DefaultAsg::<IdentObject>::with_capacity(
 //!     1024,
 //!     1024,
 //! );
 //!
-//! let interner = DefaultPkgInterner::new();
+//! let interner = DefaultProgInterner::new();
 //! let identa_sym = interner.intern("identa");
 //! let identb_sym = interner.intern("identb");
 //!
@@ -111,14 +111,14 @@
 //! ```
 //! # use tamer::global;
 //! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
-//! # use tamer::sym::{Interner, DefaultPkgInterner};
+//! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<IdentObject<_>, global::PkgIdentSize>::with_capacity(
+//! # let mut asg = DefaultAsg::<IdentObject>::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
-//! # let interner = DefaultPkgInterner::new();
+//! # let interner = DefaultProgInterner::new();
 //! #
 //! let identa_sym = interner.intern("identa");
 //! let identb_sym = interner.intern("identb");
@@ -157,14 +157,14 @@
 //! ```
 //! # use tamer::global;
 //! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
-//! # use tamer::sym::{Interner, DefaultPkgInterner};
+//! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<IdentObject<_>, global::PkgIdentSize>::with_capacity(
+//! # let mut asg = DefaultAsg::<IdentObject>::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
-//! # let interner = DefaultPkgInterner::new();
+//! # let interner = DefaultProgInterner::new();
 //! #
 //! // Fragments can be attached to resolved identifiers.
 //! let ident = asg.declare(
@@ -208,4 +208,4 @@ pub use object::{
 pub use section::{Section, SectionIter, Sections, SectionsIter};
 
 /// Default concrete ASG implementation.
-pub type DefaultAsg<O, Ix> = base::BaseAsg<O, Ix>;
+pub type DefaultAsg<O, Ix = crate::global::ProgSymSize> = base::BaseAsg<O, Ix>;

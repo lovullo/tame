@@ -18,12 +18,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::global;
 use crate::ir::legacyir::{SymDtype, SymType};
 use crate::sym::GlobalSymbolIntern;
 use crate::test::quick_xml::*;
 
-type Sut<B> = XmloReader<B, global::PkgIdentExprSize>;
+type Sut<B> = XmloReader<B>;
 
 macro_rules! xmlo_tests {
     ($(fn $fn:ident($sut:ident) $body:block)*) => {

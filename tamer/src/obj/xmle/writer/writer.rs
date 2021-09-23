@@ -18,7 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::ir::asg::Sections;
-use crate::sym::ProgSymbolId;
+use crate::sym::SymbolId;
 use quick_xml::Error as XmlError;
 use std::io::{Error as IoError, Write};
 use std::result;
@@ -33,7 +33,7 @@ pub trait Writer<W: Write> {
     fn write<T>(
         &mut self,
         sections: &Sections<T>,
-        name: ProgSymbolId,
+        name: SymbolId,
         relroot: &str,
     ) -> Result<()>
     where

@@ -22,7 +22,6 @@
 use super::{Error as XirError, QName, Token};
 use crate::ir::xir::{AttrValue, Text};
 use crate::sym::GlobalSymbolResolve;
-use crate::sym::SymbolIndexSize;
 use std::io::{Error as IoError, Write};
 use std::result;
 
@@ -156,7 +155,7 @@ pub trait XmlWriter: Sized {
     }
 }
 
-impl<Ix: SymbolIndexSize> XmlWriter for QName<Ix> {
+impl XmlWriter for QName {
     #[inline]
     fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result {
         if let Some(prefix) = self.prefix() {
@@ -169,7 +168,7 @@ impl<Ix: SymbolIndexSize> XmlWriter for QName<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize> XmlWriter for Token<Ix> {
+impl XmlWriter for Token {
     fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result {
         type S = WriterState; // More concise
 
@@ -316,7 +315,7 @@ impl<Ix: SymbolIndexSize> XmlWriter for Token<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize, I: Iterator<Item = Token<Ix>>> XmlWriter for I {
+impl<I: Iterator<Item = Token>> XmlWriter for I {
     fn write<W: Write>(
         mut self,
         sink: &mut W,
@@ -341,8 +340,6 @@ mod test {
 
     type TestResult = std::result::Result<(), Error>;
 
-    type Ix = u16;
-
     lazy_static! {
         static ref S: Span =
             Span::from_byte_interval((0, 0), "test case".intern());
@@ -350,7 +347,7 @@ mod test {
 
     #[test]
     fn writes_beginning_node_tag_without_prefix() -> TestResult {
-        let name = QName::<Ix>::new_local("no-prefix".try_into()?);
+        let name = QName::new_local("no-prefix".try_into()?);
         let result = Token::Open(name, *S).write_new(Default::default())?;
 
         assert_eq!(result.0, b"<no-prefix");
@@ -361,7 +358,7 @@ mod test {
 
     #[test]
     fn writes_beginning_node_tag_with_prefix() -> TestResult {
-        let name = QName::<Ix>::try_from(("prefix", "element-name"))?;
+        let name = QName::try_from(("prefix", "element-name"))?;
         let result = Token::Open(name, *S).write_new(Default::default())?;
 
         assert_eq!(result.0, b"<prefix:element-name");
@@ -372,7 +369,7 @@ mod test {
 
     #[test]
     fn closes_open_node_when_opening_another() -> TestResult {
-        let name = QName::<Ix>::try_from(("p", "another-element"))?;
+        let name = QName::try_from(("p", "another-element"))?;
         let result = Token::Open(name, *S).write_new(WriterState::NodeOpen)?;
 
         assert_eq!(result.0, b"><p:another-element");
@@ -383,8 +380,7 @@ mod test {
 
     #[test]
     fn closes_open_node_as_empty_element() -> TestResult {
-        let result =
-            Token::<Ix>::Close(None, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::Close(None, *S).write_new(WriterState::NodeOpen)?;
 
         assert_eq!(result.0, b"/>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -394,7 +390,7 @@ mod test {
 
     #[test]
     fn closing_tag_when_node_expected() -> TestResult {
-        let name = QName::<Ix>::try_from(("a", "closed-element"))?;
+        let name = QName::try_from(("a", "closed-element"))?;
 
         let result = Token::Close(Some(name), *S)
             .write_new(WriterState::NodeExpected)?;
@@ -409,7 +405,7 @@ mod test {
     // to explicitly support outputting malformed XML.
     #[test]
     fn closes_open_node_with_closing_tag() -> TestResult {
-        let name = QName::<Ix>::try_from(("b", "closed-element"))?;
+        let name = QName::try_from(("b", "closed-element"))?;
 
         let result =
             Token::Close(Some(name), *S).write_new(WriterState::NodeOpen)?;
@@ -423,7 +419,7 @@ mod test {
     // Intended for alignment of attributes, primarily.
     #[test]
     fn whitespace_within_open_node() -> TestResult {
-        let result = Token::<Ix>::Whitespace(Whitespace::try_from(" \t ")?, *S)
+        let result = Token::Whitespace(Whitespace::try_from(" \t ")?, *S)
             .write_new(WriterState::NodeOpen)?;
 
         assert_eq!(result.0, b" \t ");
@@ -434,8 +430,8 @@ mod test {
 
     #[test]
     fn writes_attr_name_to_open_node() -> TestResult {
-        let name_ns = QName::<Ix>::try_from(("some", "attr"))?;
-        let name_local = QName::<Ix>::new_local("nons".try_into()?);
+        let name_ns = QName::try_from(("some", "attr"))?;
+        let name_local = QName::new_local("nons".try_into()?);
 
         // Namespace prefix
         let result =
@@ -456,7 +452,7 @@ mod test {
     fn writes_escaped_attr_value_when_adjacent_to_attr() -> TestResult {
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
-        let value = AttrValue::<Ix>::Escaped("test \" escaped".intern());
+        let value = AttrValue::Escaped("test \" escaped".intern());
 
         let result = Token::AttrValue(value, *S)
             .write_new(WriterState::AttrNameAdjacent)?;
@@ -469,8 +465,8 @@ mod test {
 
     #[test]
     fn writes_escaped_attr_value_consisting_of_fragments() -> TestResult {
-        let value_left = AttrValue::<Ix>::Escaped("left ".intern());
-        let value_right = AttrValue::<Ix>::Escaped("right".intern());
+        let value_left = AttrValue::Escaped("left ".intern());
+        let value_right = AttrValue::Escaped("right".intern());
 
         let result = vec![
             Token::AttrValueFragment(value_left, *S),
@@ -489,7 +485,7 @@ mod test {
     fn writes_escaped_text() -> TestResult {
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
-        let text = Text::<Ix>::Escaped("test > escaped".intern());
+        let text = Text::Escaped("test > escaped".intern());
 
         // When a node is expected.
         let result =
@@ -509,7 +505,7 @@ mod test {
     fn writes_unescaped_data() -> TestResult {
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
-        let text = Text::<Ix>::Unescaped("test > unescaped".intern());
+        let text = Text::Unescaped("test > unescaped".intern());
 
         // When a node is expected.
         let result =
@@ -529,7 +525,7 @@ mod test {
     fn writes_escaped_comment() -> TestResult {
         // Just to be sure it's not trying to escape when we say it
         // shouldn't, we include a character that must otherwise be escaped.
-        let comment = Text::<Ix>::Escaped("comment > escaped".intern());
+        let comment = Text::Escaped("comment > escaped".intern());
 
         // When a node is expected.
         let result =
@@ -549,7 +545,7 @@ mod test {
     #[test]
     fn unsupported_transition_results_in_error() -> TestResult {
         assert!(matches!(
-            Token::AttrValue(AttrValue::<Ix>::Escaped("".into()), *S)
+            Token::AttrValue(AttrValue::Escaped("".into()), *S)
                 .write(&mut vec![], WriterState::NodeExpected),
             Err(Error::UnexpectedToken(_, WriterState::NodeExpected)),
         ));
@@ -561,7 +557,7 @@ mod test {
     // practice.
     #[test]
     fn test_valid_sequence_of_tokens() -> TestResult {
-        let root: QName<Ix> = ("r", "root").try_into()?;
+        let root: QName = ("r", "root").try_into()?;
 
         let result = vec![
             Token::Open(root, *S),

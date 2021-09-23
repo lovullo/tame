@@ -19,9 +19,8 @@
 
 //! Identifiers (a type of [object][super::object::IdentObject]).
 
-use crate::global;
 use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
-use crate::sym::{GlobalSymbolIntern, SymbolId, SymbolIndexSize};
+use crate::sym::{GlobalSymbolIntern, SymbolId};
 use paste::paste;
 use std::convert::TryFrom;
 use std::error::Error;
@@ -148,16 +147,14 @@ pub enum IdentKind {
     Worksheet,
 }
 
-/// Produce [`AsRef`] impls for [`str`], [`global::ProgSymSize`] and
-///   [`global::PkgSymSize`] for identifier kind strings.
+/// Produce [`AsRef`] impls for [`str`] and [`global::ProgSymSize`] for
+///   identifier kind strings.
 macro_rules! kind_intern {
     ($($variant:ident $($v:pat)? => $str:expr),*) => {
         paste! {
             lazy_static! {
                 $(
-                    static ref [<PROG_KIND_ $variant:upper>]: SymbolId<global::ProgSymSize>
-                        = $str.intern();
-                    static ref [<PKG_KIND_ $variant:upper>]: SymbolId<global::PkgSymSize>
+                    static ref [<PROG_KIND_ $variant:upper>]: SymbolId
                         = $str.intern();
                 )*
             }
@@ -172,21 +169,11 @@ macro_rules! kind_intern {
                 }
             }
 
-            impl AsRef<SymbolId<global::ProgSymSize>> for IdentKind {
-                fn as_ref(&self) -> &SymbolId<global::ProgSymSize> {
+            impl AsRef<SymbolId> for IdentKind {
+                fn as_ref(&self) -> &SymbolId {
                     match self {
                         $(
                             Self::$variant$($v)* => &[<PROG_KIND_ $variant:upper>],
-                        )*
-                    }
-                }
-            }
-
-            impl AsRef<SymbolId<global::PkgSymSize>> for IdentKind {
-                fn as_ref(&self) -> &SymbolId<global::PkgSymSize> {
-                    match self {
-                        $(
-                            Self::$variant$($v)* => &[<PKG_KIND_ $variant:upper>],
                         )*
                     }
                 }
@@ -255,32 +242,26 @@ impl std::fmt::Display for IdentKind {
     }
 }
 
-impl<Ix> TryFrom<SymAttrs<Ix>> for IdentKind
-where
-    Ix: SymbolIndexSize,
-{
+impl TryFrom<SymAttrs> for IdentKind {
     type Error = IdentKindError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
-    fn try_from(attrs: SymAttrs<Ix>) -> Result<Self, Self::Error> {
+    fn try_from(attrs: SymAttrs) -> Result<Self, Self::Error> {
         Self::try_from(&attrs)
     }
 }
 
-impl<Ix> TryFrom<&SymAttrs<Ix>> for IdentKind
-where
-    Ix: SymbolIndexSize,
-{
+impl TryFrom<&SymAttrs> for IdentKind {
     type Error = IdentKindError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
     /// Certain [`IdentKind`] require that certain attributes be present,
     ///   otherwise the conversion will fail.
-    fn try_from(attrs: &SymAttrs<Ix>) -> Result<Self, Self::Error> {
+    fn try_from(attrs: &SymAttrs) -> Result<Self, Self::Error> {
         let ty = attrs.ty.as_ref().ok_or(Self::Error::MissingType)?;
 
         macro_rules! ident {
@@ -406,8 +387,6 @@ mod test {
     use super::*;
     use std::convert::TryInto;
 
-    type Ix = u16;
-
     #[test]
     fn dim_from_u8() {
         let n = 5u8;
@@ -431,7 +410,7 @@ mod test {
             fn $name() {
                 assert_eq!(
                     Ok($dest),
-                    SymAttrs::<Ix> {
+                    SymAttrs {
                         ty: Some($src),
                         ..Default::default()
                     }
@@ -447,7 +426,7 @@ mod test {
 
                 assert_eq!(
                     Ok($dest(Dim(dim))),
-                    SymAttrs::<Ix> {
+                    SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),
                         ..Default::default()
@@ -456,7 +435,7 @@ mod test {
                 );
 
                 // no dim
-                let result = IdentKind::try_from(SymAttrs::<Ix> {
+                let result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     ..Default::default()
                 })
@@ -473,7 +452,7 @@ mod test {
 
                 assert_eq!(
                     Ok($dest(dtype)),
-                    SymAttrs::<Ix> {
+                    SymAttrs {
                         ty: Some($src),
                         dtype: Some(dtype),
                         ..Default::default()
@@ -482,7 +461,7 @@ mod test {
                 );
 
                 // no dtype
-                let result = IdentKind::try_from(SymAttrs::<Ix> {
+                let result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     ..Default::default()
                 })
@@ -500,7 +479,7 @@ mod test {
 
                 assert_eq!(
                     Ok($dest(Dim(dim), dtype)),
-                    SymAttrs::<Ix> {
+                    SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),
                         dtype: Some(dtype),
@@ -510,7 +489,7 @@ mod test {
                 );
 
                 // no dim
-                let dim_result = IdentKind::try_from(SymAttrs::<Ix> {
+                let dim_result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     dtype: Some(dtype),
                     ..Default::default()
@@ -520,7 +499,7 @@ mod test {
                 assert_eq!(IdentKindError::MissingDim, dim_result);
 
                 // no dtype
-                let dtype_result = IdentKind::try_from(SymAttrs::<Ix> {
+                let dtype_result = IdentKind::try_from(SymAttrs {
                     ty: Some($src),
                     dim: Some(dim),
                     ..Default::default()

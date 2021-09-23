@@ -244,7 +244,7 @@ mod test {
     use crate::ir::asg::IdentObject;
     use crate::sym::GlobalSymbolIntern;
 
-    type Sut<'a, 'i> = Section<'a, IdentObject<u16>>;
+    type Sut<'a, 'i> = Section<'a, IdentObject>;
 
     #[test]
     fn section_empty() {
@@ -356,7 +356,7 @@ mod test {
         let mut sections = Sections::new();
 
         let objs = (0..=10)
-            .map(|i| IdentObject::<u16>::Missing(i.to_string().into()))
+            .map(|i| IdentObject::Missing(i.to_string().into()))
             .collect::<Vec<_>>();
 
         sections.map.head.push(&objs[0]);

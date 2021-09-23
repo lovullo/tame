@@ -30,13 +30,12 @@
 //! use tamer::ir::xir::tree::{ParserState, parse, parser_from};
 //!# use tamer::ir::xir::Token;
 //!
-//!# type Ix = u16;
-//!# let token_stream: std::vec::IntoIter<Token<Ix>> = vec![].into_iter();
+//!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 //! // Lazily parse a stream of XIR tokens as an iterator, yielding the next
 //! // fully parsed object.  This may consume any number of tokens.
 //! let parser = parser_from(token_stream);
 //!
-//!# let token_stream: std::vec::IntoIter<Token<Ix>> = vec![].into_iter();
+//!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 //! // Consume a single token at a time, yielding either an incomplete state
 //! // or the next parsed object.
 //! let parser = token_stream.scan(ParserState::new(), parse);
@@ -193,7 +192,7 @@
 //!   see [`AttrParts`].
 
 use super::{AttrValue, QName, Token};
-use crate::{span::Span, sym::SymbolIndexSize};
+use crate::span::Span;
 use std::{fmt::Display, mem::take};
 
 mod attr;
@@ -214,14 +213,14 @@ pub use attr::{Attr, AttrList, AttrParts, SimpleAttr};
 /// For more information,
 ///  see the [module-level documentation](self).
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Tree<Ix: SymbolIndexSize> {
+pub enum Tree {
     /// XML element.
-    Element(Element<Ix>),
+    Element(Element),
 }
 
-impl<Ix: SymbolIndexSize> Tree<Ix> {
+impl Tree {
     /// If the tree object is an [`Element`], retrieve it.
-    pub fn element(self) -> Option<Element<Ix>> {
+    pub fn element(self) -> Option<Element> {
         match self {
             Self::Element(ele) => Some(ele),
         }
@@ -237,17 +236,17 @@ impl<Ix: SymbolIndexSize> Tree<Ix> {
 ///
 /// [XML element]: https://www.w3.org/TR/REC-xml/#sec-starttags
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Element<Ix: SymbolIndexSize> {
-    name: QName<Ix>,
+pub struct Element {
+    name: QName,
     /// Zero or more attributes.
-    attrs: AttrList<Ix>,
+    attrs: AttrList,
     /// Zero or more child nodes.
-    children: Vec<Tree<Ix>>,
+    children: Vec<Tree>,
     /// Spans for opening and closing tags respectively.
     span: (Span, Span),
 }
 
-impl<Ix: SymbolIndexSize> Element<Ix> {
+impl Element {
     /// Opens an element for incremental construction.
     ///
     /// This is intended for use by the parser to begin building an element.
@@ -255,7 +254,7 @@ impl<Ix: SymbolIndexSize> Element<Ix> {
     ///   to any outside caller until it is complete.
     /// This incomplete state is encoded in [`Stack::BuddingElement`].
     #[inline]
-    fn open(name: QName<Ix>, span: Span) -> Self {
+    fn open(name: QName, span: Span) -> Self {
         Self {
             name,
             attrs: AttrList::new(),
@@ -290,15 +289,15 @@ impl<Ix: SymbolIndexSize> Element<Ix> {
 ///   but we want to nest _only_ element stacks,
 ///     not any type of stack.
 #[derive(Debug, Eq, PartialEq)]
-pub struct ElementStack<Ix: SymbolIndexSize> {
-    element: Element<Ix>,
+pub struct ElementStack {
+    element: Element,
 
     /// Parent element stack to be restored once element has finished
     ///   processing.
-    pstack: Option<Box<ElementStack<Ix>>>,
+    pstack: Option<Box<ElementStack>>,
 }
 
-impl<Ix: SymbolIndexSize> ElementStack<Ix> {
+impl ElementStack {
     /// Attempt to close an element,
     ///   verifying that the closing tag is either self-closing or
     ///   balanced.
@@ -310,9 +309,9 @@ impl<Ix: SymbolIndexSize> ElementStack<Ix> {
     ///     attribute parsing.
     fn try_close(
         self,
-        close_name: Option<QName<Ix>>,
+        close_name: Option<QName>,
         close_span: Span,
-    ) -> Result<Self, Ix> {
+    ) -> Result<Self> {
         let Element {
             name: ele_name,
             span: (open_span, _),
@@ -345,7 +344,7 @@ impl<Ix: SymbolIndexSize> ElementStack<Ix> {
     ///   then the returned [`Stack`] will represent the state of the stack
     ///   prior to the child element being opened,
     ///     as stored with [`ElementStack::store`].
-    fn consume_child_or_complete(self) -> Stack<Ix> {
+    fn consume_child_or_complete(self) -> Stack {
         match self.pstack {
             Some(parent_stack) => Stack::BuddingElement(
                 parent_stack.consume_element(self.element),
@@ -357,14 +356,14 @@ impl<Ix: SymbolIndexSize> ElementStack<Ix> {
 
     /// Push the provided [`Element`] onto the child list of the inner
     ///   [`Element`].
-    fn consume_element(mut self, child: Element<Ix>) -> Self {
+    fn consume_element(mut self, child: Element) -> Self {
         self.element.children.push(Tree::Element(child));
         self
     }
 
     /// Push the provided [`Attr`] onto the attribute list of the inner
     ///   [`Element`].
-    fn consume_attr(mut self, attr: Attr<Ix>) -> Self {
+    fn consume_attr(mut self, attr: Attr) -> Self {
         self.element.attrs.push(attr);
         self
     }
@@ -394,7 +393,7 @@ impl<Ix: SymbolIndexSize> ElementStack<Ix> {
 /// For more information,
 ///   see the [module-level documentation](self).
 #[derive(Debug, Eq, PartialEq)]
-pub enum Stack<Ix: SymbolIndexSize> {
+pub enum Stack {
     /// Empty stack.
     Empty,
 
@@ -402,29 +401,29 @@ pub enum Stack<Ix: SymbolIndexSize> {
     ///
     /// (This is a tree IR,
     ///    so here's a plant pun).
-    BuddingElement(ElementStack<Ix>),
+    BuddingElement(ElementStack),
 
     /// A completed [`Element`].
     ///
     /// This should be consumed and emitted.
-    ClosedElement(Element<Ix>),
+    ClosedElement(Element),
 
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
-    AttrName(ElementStack<Ix>, QName<Ix>, Span),
+    AttrName(ElementStack, QName, Span),
 
     /// An attribute whose value is being constructed of value fragments,
     ///   after which it will be attached to an element.
-    AttrFragments(ElementStack<Ix>, AttrParts<Ix>),
+    AttrFragments(ElementStack, AttrParts),
 }
 
-impl<Ix: SymbolIndexSize> Default for Stack<Ix> {
+impl Default for Stack {
     fn default() -> Self {
         Self::Empty
     }
 }
 
-impl<Ix: SymbolIndexSize> Stack<Ix> {
+impl Stack {
     /// Attempt to open a new element.
     ///
     /// If the stack is [`Self::Empty`],
@@ -436,7 +435,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///     being considered a completed [`Element`].
     ///
     /// Attempting to open an element in any other context is an error.
-    fn open_element(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
+    fn open_element(self, name: QName, span: Span) -> Result<Self> {
         let element = Element::open(name, span);
 
         Ok(Self::BuddingElement(ElementStack {
@@ -462,11 +461,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///     processed---that is,
     ///       the tree must be _balanced_.
     /// An unbalanced tree results in a [`ParseError::UnbalancedTag`].
-    fn close_element(
-        self,
-        name: Option<QName<Ix>>,
-        span: Span,
-    ) -> Result<Self, Ix> {
+    fn close_element(self, name: Option<QName>, span: Span) -> Result<Self> {
         match self {
             Self::BuddingElement(stack) => stack
                 .try_close(name, span)
@@ -481,7 +476,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     /// An attribute begins with a [`QName`] representing its name.
     /// It will be attached to a parent element after being closed with a
     ///   value via [`Stack::close_attr`].
-    fn open_attr(self, name: QName<Ix>, span: Span) -> Result<Self, Ix> {
+    fn open_attr(self, name: QName, span: Span) -> Result<Self> {
         Ok(match self {
             Self::BuddingElement(ele_stack) => {
                 Self::AttrName(ele_stack, name, span)
@@ -501,11 +496,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     ///     which is responsible for managing future fragments.
     ///
     /// This will cause heap allocation.
-    fn push_attr_value(
-        self,
-        value: AttrValue<Ix>,
-        span: Span,
-    ) -> Result<Self, Ix> {
+    fn push_attr_value(self, value: AttrValue, span: Span) -> Result<Self> {
         Ok(match self {
             Self::AttrName(ele_stack, name, open_span) => {
                 // This initial capacity can be adjusted after we observe
@@ -532,7 +523,7 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
     /// If the attribute is composed of fragments ([`Stack::AttrFragments`]),
     ///   this serves as the final fragment and will yield an
     ///   [`Attr::Extensible`] with no further processing.
-    fn close_attr(self, value: AttrValue<Ix>, span: Span) -> Result<Self, Ix> {
+    fn close_attr(self, value: AttrValue, span: Span) -> Result<Self> {
         Ok(match self {
             Self::AttrName(ele_stack, name, open_span) => {
                 Stack::BuddingElement(ele_stack.consume_attr(Attr::new(
@@ -578,11 +569,11 @@ impl<Ix: SymbolIndexSize> Stack<Ix> {
 ///   except that a stack is needed to accumulate tokens until we can begin
 ///   emitting a tree.
 #[derive(Debug, Default)]
-pub struct ParserState<Ix: SymbolIndexSize> {
-    stack: Stack<Ix>,
+pub struct ParserState {
+    stack: Stack,
 }
 
-impl<Ix: SymbolIndexSize> ParserState<Ix> {
+impl ParserState {
     /// Create state of a new parser that has not yet seen any input
     ///   tokens.
     ///
@@ -614,7 +605,7 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
     ///
     /// See the [module-level documentation](self) for more information on
     ///   the implementation of the parser.
-    pub fn parse_token(&mut self, tok: Token<Ix>) -> Result<Parsed<Ix>, Ix> {
+    pub fn parse_token(&mut self, tok: Token) -> Result<Parsed> {
         let stack = take(&mut self.stack);
 
         match tok {
@@ -632,7 +623,7 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
     }
 
     /// Emit a completed object or store the current stack for further processing.
-    fn store_or_emit(&mut self, new_stack: Stack<Ix>) -> Parsed<Ix> {
+    fn store_or_emit(&mut self, new_stack: Stack) -> Parsed {
         match new_stack {
             Stack::ClosedElement(ele) => Parsed::Object(Tree::Element(ele)),
 
@@ -645,23 +636,23 @@ impl<Ix: SymbolIndexSize> ParserState<Ix> {
 }
 
 /// Result of a XIR tree parsing operation.
-pub type Result<T, Ix> = std::result::Result<T, ParseError<Ix>>;
+pub type Result<T> = std::result::Result<T, ParseError>;
 
 /// Parsing error from [`ParserState`].
 #[derive(Debug, Eq, PartialEq)]
-pub enum ParseError<Ix: SymbolIndexSize> {
+pub enum ParseError {
     /// The closing tag does not match the opening tag at the same level of
     ///   nesting.
     UnbalancedTag {
-        open: (QName<Ix>, Span),
-        close: (QName<Ix>, Span),
+        open: (QName, Span),
+        close: (QName, Span),
     },
 
     /// Not yet implemented.
-    Todo(Token<Ix>, Stack<Ix>),
+    Todo(Token, Stack),
 }
 
-impl<Ix: SymbolIndexSize> Display for ParseError<Ix> {
+impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // TODO: not a useful error because of symbols and missing span information
@@ -695,12 +686,12 @@ impl<Ix: SymbolIndexSize> Display for ParseError<Ix> {
 /// This has the same structure as [`Option`],
 ///   but is its own type to avoid confusion as to what this type may mean
 ///   when deeply nested within other types
-///     (e.g. `Option<Result<Parsed<Ix>, ParserError>>` reads a bit better
-///       than `Option<Result<Option<Tree<Ix>>, ParserError>>`).
+///     (e.g. `Option<Result<Parsed, ParserError>>` reads a bit better
+///       than `Option<Result<Option<Tree>, ParserError>>`).
 #[derive(Debug, Eq, PartialEq)]
-pub enum Parsed<Ix: SymbolIndexSize> {
+pub enum Parsed {
     /// Parsing of an object is complete.
-    Object(Tree<Ix>),
+    Object(Tree),
 
     /// The parser needs more token data to emit an object
     ///   (the active context is not yet complete).
@@ -724,15 +715,11 @@ pub enum Parsed<Ix: SymbolIndexSize> {
 /// use tamer::ir::xir::tree::{ParserState, parse};
 ///# use tamer::ir::xir::Token;
 ///
-///# type Ix = u16;
-///# let token_stream: std::vec::IntoIter<Token<Ix>> = vec![].into_iter();
+///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // The above is equivalent to:
 /// let parser = token_stream.scan(ParserState::new(), parse);
 /// ```
-pub fn parse<Ix: SymbolIndexSize>(
-    state: &mut ParserState<Ix>,
-    tok: Token<Ix>,
-) -> Option<Result<Parsed<Ix>, Ix>> {
+pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
     Some(ParserState::parse_token(state, tok))
 }
 
@@ -756,14 +743,13 @@ pub fn parse<Ix: SymbolIndexSize>(
 /// use tamer::ir::xir::tree::parser_from;
 ///# use tamer::ir::xir::Token;
 ///
-///# type Ix = u16;
-///# let token_stream: std::vec::IntoIter<Token<Ix>> = vec![].into_iter();
+///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // Lazily parse a stream of XIR tokens as an iterator.
 /// let parser = parser_from(token_stream);
 /// ```
-pub fn parser_from<Ix: SymbolIndexSize>(
-    toks: impl Iterator<Item = Token<Ix>>,
-) -> impl Iterator<Item = Result<Tree<Ix>, Ix>> {
+pub fn parser_from(
+    toks: impl Iterator<Item = Token>,
+) -> impl Iterator<Item = Result<Tree>> {
     toks.scan(ParserState::new(), parse)
         .filter_map(|parsed| match parsed {
             Ok(Parsed::Object(tree)) => Some(Ok(tree)),

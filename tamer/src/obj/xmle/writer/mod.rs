@@ -33,7 +33,7 @@
 //! use tamer::sym::GlobalSymbolIntern;
 //! use std::io::Cursor;
 //!
-//! let sections = Sections::<IdentObject<_>>::new();
+//! let sections = Sections::<IdentObject>::new();
 //! let writer = Cursor::new(Vec::new());
 //! let mut xmle_writer = XmleWriter::new(writer);
 //! xmle_writer.write(&sections, "foo".intern(), &String::from(""));

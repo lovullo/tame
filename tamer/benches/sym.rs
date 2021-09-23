@@ -228,7 +228,7 @@ mod interner {
 
             bench.iter(|| {
                 strs.iter()
-                    .map::<ProgSymbolId, _>(|s| s.intern())
+                    .map::<SymbolId, _>(|s| s.intern())
                     .for_each(drop);
             });
         }
@@ -237,7 +237,7 @@ mod interner {
         fn with_one_new_1000(bench: &mut Bencher) {
             bench.iter(|| {
                 (0..1000)
-                    .map::<ProgSymbolId, _>(|_| "onenew".intern())
+                    .map::<SymbolId, _>(|_| "onenew".intern())
                     .for_each(drop);
             });
         }
@@ -246,7 +246,7 @@ mod interner {
         fn with_one_new_1000_utf8_unchecked(bench: &mut Bencher) {
             bench.iter(|| {
                 (0..1000)
-                    .map::<ProgSymbolId, _>(|_| unsafe {
+                    .map::<SymbolId, _>(|_| unsafe {
                         (b"onenewu8").intern_utf8_unchecked()
                     })
                     .for_each(drop);

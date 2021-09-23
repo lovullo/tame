@@ -35,18 +35,11 @@
 
 use std::{mem::size_of, num};
 
-/// A size capable of representing every interned string in a package.
-pub type PkgSymSize = u16;
-const_assert!(size_of::<PkgSymSize>() <= size_of::<ProgSymSize>());
-
-/// A non-zero equivalent of [`PkgSymSize`];
-pub type NonZeroPkgSymSize = num::NonZeroU16;
+/// The initial capacity for global interners.
+pub const INIT_GLOBAL_INTERNER_CAPACITY: usize = 1024;
 
 /// A size capable of representing every interned string in a program.
 pub type ProgSymSize = u32;
-
-/// The initial capacity for global interners.
-pub const INIT_GLOBAL_INTERNER_CAPACITY: usize = 1024;
 
 /// A non-zero equivalent of [`ProgSymSize`];
 pub type NonZeroProgSymSize = num::NonZeroU32;
@@ -65,30 +58,6 @@ pub type SourceFileSize = u32;
 ///   tokens.
 pub type FrontendTokenLength = u16;
 const_assert!(size_of::<FrontendTokenLength>() <= size_of::<SourceFileSize>());
-
-/// A size capable of representing indexes of each individual identifier
-///   within a single package.
-///
-/// Note that,
-///   since TAME is a metalanguage and can easily expand into a great
-///     deal of code,
-///   this must accommodate far more than the user's expectations
-///     working within the provided level of abstraction.
-///
-/// This must be ≥ [`PkgSymSize`].
-pub type PkgIdentSize = u16;
-const_assert!(size_of::<PkgIdentSize>() >= size_of::<PkgSymSize>());
-
-/// A size capable of representing every individual identifier and
-///   expression within a single package.
-///
-/// Note that,
-///   since TAME is a metalanguage and can easily expand into a great
-///     deal of code,
-///   this must accommodate far more than the user's expectations
-///     working within the provided level of abstraction.
-pub type PkgIdentExprSize = u32;
-const_assert!(size_of::<PkgIdentExprSize>() <= size_of::<ProgIdentExprSize>());
 
 /// A size capable of representing the union of every identifier of every
 ///   package used by an entire program.

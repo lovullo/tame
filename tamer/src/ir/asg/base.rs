@@ -19,9 +19,6 @@
 
 //! Base concrete [`Asg`] implementation.
 
-use std::convert::TryInto;
-use std::fmt::Debug;
-
 use super::graph::{
     Asg, AsgEdge, AsgResult, IndexType, Node, ObjectRef, SortableAsg,
     SortableAsgError, SortableAsgResult,
@@ -31,7 +28,7 @@ use super::object::{
     FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
 };
 use super::Sections;
-use crate::sym::{GlobalSymbolResolve, SymbolId, SymbolIndexSize};
+use crate::sym::{GlobalSymbolResolve, SymbolId};
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
 use petgraph::visit::DfsPostOrder;
 
@@ -47,7 +44,7 @@ use petgraph::visit::DfsPostOrder;
 ///   see [`Asg`].
 pub struct BaseAsg<O, Ix>
 where
-    Ix: IndexType + SymbolIndexSize,
+    Ix: IndexType,
 {
     /// Directed graph on which objects are stored.
     graph: DiGraph<Node<O>, AsgEdge, Ix>,
@@ -66,9 +63,8 @@ where
 
 impl<O, Ix> BaseAsg<O, Ix>
 where
-    Ix: IndexType + SymbolIndexSize,
-    <Ix as TryInto<usize>>::Error: Debug,
-    O: IdentObjectState<Ix, O> + IdentObjectData<Ix>,
+    Ix: IndexType,
+    O: IdentObjectState<O> + IdentObjectData,
 {
     /// Create a new ASG.
     ///
@@ -118,7 +114,7 @@ where
     /// Panics
     /// ======
     /// Will panic if unable to allocate more space for the index.
-    fn index_identifier(&mut self, name: SymbolId<Ix>, node: NodeIndex<Ix>) {
+    fn index_identifier(&mut self, name: SymbolId, node: NodeIndex<Ix>) {
         let i = name.as_usize();
 
         if i >= self.index.len() {
@@ -141,7 +137,7 @@ where
     ///   reference to it.
     ///
     /// See [`IdentObjectState::declare`] for more information.
-    fn lookup_or_missing(&mut self, ident: SymbolId<Ix>) -> ObjectRef<Ix> {
+    fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef<Ix> {
         self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(O::declare(ident)));
 
@@ -161,7 +157,7 @@ where
     ///   value on transition failure.
     fn with_ident_lookup<F>(
         &mut self,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         f: F,
     ) -> AsgResult<ObjectRef<Ix>>
     where
@@ -206,24 +202,23 @@ where
 
 impl<O, Ix> Asg<O, Ix> for BaseAsg<O, Ix>
 where
-    Ix: IndexType + SymbolIndexSize,
-    <Ix as TryInto<usize>>::Error: Debug,
-    O: IdentObjectState<Ix, O> + IdentObjectData<Ix>,
+    Ix: IndexType,
+    O: IdentObjectState<O> + IdentObjectData,
 {
     fn declare(
         &mut self,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         kind: IdentKind,
-        src: Source<Ix>,
+        src: Source,
     ) -> AsgResult<ObjectRef<Ix>> {
         self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
     }
 
     fn declare_extern(
         &mut self,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         kind: IdentKind,
-        src: Source<Ix>,
+        src: Source,
     ) -> AsgResult<ObjectRef<Ix>> {
         self.with_ident_lookup(name, |obj| obj.extern_(kind, src))
     }
@@ -231,7 +226,7 @@ where
     fn set_fragment(
         &mut self,
         identi: ObjectRef<Ix>,
-        text: FragmentText<Ix>,
+        text: FragmentText,
     ) -> AsgResult<ObjectRef<Ix>> {
         self.with_ident(identi, |obj| obj.set_fragment(text))
     }
@@ -245,7 +240,7 @@ where
     }
 
     #[inline]
-    fn lookup(&self, name: SymbolId<Ix>) -> Option<ObjectRef<Ix>> {
+    fn lookup(&self, name: SymbolId) -> Option<ObjectRef<Ix>> {
         let i = name.as_usize();
 
         self.index
@@ -266,8 +261,8 @@ where
 
     fn add_dep_lookup(
         &mut self,
-        ident: SymbolId<Ix>,
-        dep: SymbolId<Ix>,
+        ident: SymbolId,
+        dep: SymbolId,
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>) {
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
@@ -281,9 +276,8 @@ where
 
 impl<O, Ix> SortableAsg<O, Ix> for BaseAsg<O, Ix>
 where
-    Ix: IndexType + SymbolIndexSize,
-    <Ix as TryInto<usize>>::Error: Debug,
-    O: IdentObjectData<Ix> + IdentObjectState<Ix, O>,
+    Ix: IndexType,
+    O: IdentObjectData + IdentObjectState<O>,
 {
     fn sort<'i>(
         &'i self,
@@ -345,9 +339,8 @@ where
 ///   they are, we ignore the cycle, otherwise we will return an error.
 fn check_cycles<O, Ix>(asg: &BaseAsg<O, Ix>) -> SortableAsgResult<(), Ix>
 where
-    Ix: IndexType + SymbolIndexSize,
-    <Ix as TryInto<usize>>::Error: Debug,
-    O: IdentObjectData<Ix> + IdentObjectState<Ix, O>,
+    Ix: IndexType,
+    O: IdentObjectData + IdentObjectState<O>,
 {
     // While `tarjan_scc` does do a topological sort, it does not suit our
     // needs because we need to filter out some allowed cycles. It would
@@ -403,22 +396,20 @@ mod test {
     use crate::sym::{GlobalSymbolIntern, SymbolStr};
     use std::cell::RefCell;
 
-    type Ix = u16;
-
     #[derive(Debug, Default, PartialEq)]
     struct StubIdentObject {
-        given_declare: Option<SymbolId<Ix>>,
-        given_extern: Option<(IdentKind, Source<Ix>)>,
-        given_resolve: Option<(IdentKind, Source<Ix>)>,
-        given_set_fragment: Option<FragmentText<Ix>>,
+        given_declare: Option<SymbolId>,
+        given_extern: Option<(IdentKind, Source)>,
+        given_resolve: Option<(IdentKind, Source)>,
+        given_set_fragment: Option<FragmentText>,
         fail_redeclare: RefCell<Option<TransitionError>>,
         fail_extern: RefCell<Option<TransitionError>>,
         fail_set_fragment: RefCell<Option<TransitionError>>,
         fail_resolved: RefCell<Option<UnresolvedError>>,
     }
 
-    impl<'i> IdentObjectData<Ix> for StubIdentObject {
-        fn name(&self) -> Option<SymbolId<Ix>> {
+    impl<'i> IdentObjectData for StubIdentObject {
+        fn name(&self) -> Option<SymbolId> {
             self.given_declare
         }
 
@@ -426,21 +417,21 @@ mod test {
             self.given_resolve.as_ref().map(|args| &args.0)
         }
 
-        fn src(&self) -> Option<&Source<Ix>> {
+        fn src(&self) -> Option<&Source> {
             None
         }
 
-        fn fragment(&self) -> Option<&FragmentText<Ix>> {
+        fn fragment(&self) -> Option<&FragmentText> {
             None
         }
 
-        fn as_ident(&self) -> Option<&IdentObject<Ix>> {
+        fn as_ident(&self) -> Option<&IdentObject> {
             None
         }
     }
 
-    impl<'i> IdentObjectState<Ix, StubIdentObject> for StubIdentObject {
-        fn declare(ident: SymbolId<Ix>) -> Self {
+    impl<'i> IdentObjectState<StubIdentObject> for StubIdentObject {
+        fn declare(ident: SymbolId) -> Self {
             Self {
                 given_declare: Some(ident),
                 ..Default::default()
@@ -450,7 +441,7 @@ mod test {
         fn resolve(
             mut self,
             kind: IdentKind,
-            src: Source<Ix>,
+            src: Source,
         ) -> TransitionResult<StubIdentObject> {
             if self.fail_redeclare.borrow().is_some() {
                 let err = self.fail_redeclare.replace(None).unwrap();
@@ -472,7 +463,7 @@ mod test {
         fn extern_(
             mut self,
             kind: IdentKind,
-            src: Source<Ix>,
+            src: Source,
         ) -> TransitionResult<StubIdentObject> {
             if self.fail_extern.borrow().is_some() {
                 let err = self.fail_extern.replace(None).unwrap();
@@ -485,7 +476,7 @@ mod test {
 
         fn set_fragment(
             mut self,
-            text: FragmentText<Ix>,
+            text: FragmentText,
         ) -> TransitionResult<StubIdentObject> {
             if self.fail_set_fragment.borrow().is_some() {
                 let err = self.fail_set_fragment.replace(None).unwrap();

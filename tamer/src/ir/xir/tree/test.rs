@@ -21,8 +21,6 @@ use super::*;
 use crate::convert::ExpectInto;
 use crate::sym::GlobalSymbolIntern;
 
-type Ix = u16;
-
 lazy_static! {
     static ref S: Span =
         Span::from_byte_interval((0, 0), "test case, 1".intern());
@@ -37,7 +35,7 @@ mod tree {
 
     #[test]
     fn element_from_tree() {
-        let ele = Element::<Ix> {
+        let ele = Element {
             name: "foo".unwrap_into(),
             attrs: AttrList::new(),
             children: vec![],
@@ -55,8 +53,8 @@ fn empty_element_self_close_from_toks() {
     let name = ("ns", "elem").unwrap_into();
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(name, *S),
-        Token::<Ix>::Close(None, *S2),
+        Token::Open(name, *S),
+        Token::Close(None, *S2),
     ]);
 
     let expected = Element {
@@ -83,8 +81,8 @@ fn empty_element_balanced_close_from_toks() {
     let name = ("ns", "openclose").unwrap_into();
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(name, *S),
-        Token::<Ix>::Close(Some(name), *S2),
+        Token::Open(name, *S),
+        Token::Close(Some(name), *S2),
     ]);
 
     let expected = Element {
@@ -112,8 +110,8 @@ fn empty_element_unbalanced_close_from_toks() {
     let close_name = "unbalanced_name".unwrap_into();
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(open_name, *S),
-        Token::<Ix>::Close(Some(close_name), *S2),
+        Token::Open(open_name, *S),
+        Token::Close(Some(close_name), *S2),
     ]);
 
     let mut sut = toks.scan(ParserState::new(), parse);
@@ -142,7 +140,7 @@ fn empty_element_with_attrs_from_toks() {
     let val2c = AttrValue::Escaped("val2b".intern());
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(name, *S),
+        Token::Open(name, *S),
         Token::AttrName(attr1, *S),
         Token::AttrValue(val1, *S2),
         Token::AttrName(attr2, *S),
@@ -190,12 +188,12 @@ fn element_with_empty_sibling_children() {
     let childb = "childb".unwrap_into();
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(parent, *S),
-        Token::<Ix>::Open(childa, *S),
-        Token::<Ix>::Close(None, *S2),
-        Token::<Ix>::Open(childb, *S),
-        Token::<Ix>::Close(None, *S2),
-        Token::<Ix>::Close(Some(parent), *S2),
+        Token::Open(parent, *S),
+        Token::Open(childa, *S),
+        Token::Close(None, *S2),
+        Token::Open(childb, *S),
+        Token::Close(None, *S2),
+        Token::Close(Some(parent), *S2),
     ]);
 
     let expected = Element {
@@ -233,12 +231,12 @@ fn element_with_child_with_attributes() {
     let value = AttrValue::Escaped("attr value".into());
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(parent, *S),
-        Token::<Ix>::Open(child, *S),
-        Token::<Ix>::AttrName(attr, *S),
-        Token::<Ix>::AttrValue(value, *S2),
-        Token::<Ix>::Close(None, *S3),
-        Token::<Ix>::Close(Some(parent), *S3),
+        Token::Open(parent, *S),
+        Token::Open(child, *S),
+        Token::AttrName(attr, *S),
+        Token::AttrValue(value, *S2),
+        Token::Close(None, *S3),
+        Token::Close(Some(parent), *S3),
     ]);
 
     let expected = Element {
@@ -266,7 +264,7 @@ fn parser_from_filters_incomplete() {
     let val = AttrValue::Escaped("val1".intern());
 
     let toks = std::array::IntoIter::new([
-        Token::<Ix>::Open(name, *S),
+        Token::Open(name, *S),
         Token::AttrName(attr, *S),
         Token::AttrValue(val, *S2),
         Token::Close(None, *S2),

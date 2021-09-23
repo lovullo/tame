@@ -39,8 +39,7 @@ use std::fs;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
-type LinkerAsg =
-    DefaultAsg<IdentObject<global::ProgSymSize>, global::ProgIdentSize>;
+type LinkerAsg = DefaultAsg<IdentObject, global::ProgIdentSize>;
 
 type LinkerAsgBuilderState =
     AsgBuilderState<FxBuildHasher, global::ProgIdentSize>;
@@ -177,7 +176,7 @@ fn load_xmlo<'a, P: AsRef<Path>>(
 
     let (path, file) = cfile.into();
 
-    let xmlo: XmloReader<_, _> = file.into();
+    let xmlo: XmloReader<_> = file.into();
 
     let mut state = depgraph.import_xmlo(xmlo, state)?;
 
@@ -201,7 +200,7 @@ fn load_xmlo<'a, P: AsRef<Path>>(
 fn get_ident<'a>(
     depgraph: &'a LinkerAsg,
     name: SymbolId<global::ProgSymSize>,
-) -> Result<&'a IdentObject<global::ProgSymSize>, String> {
+) -> Result<&'a IdentObject, String> {
     depgraph
         .lookup(name)
         .and_then(|id| depgraph.get(id))
@@ -210,8 +209,8 @@ fn get_ident<'a>(
 
 fn output_xmle<'a>(
     depgraph: &'a LinkerAsg,
-    sorted: &mut Sections<'a, IdentObject<global::ProgSymSize>>,
-    name: SymbolId<global::ProgSymSize>,
+    sorted: &mut Sections<'a, IdentObject>,
+    name: SymbolId,
     relroot: String,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {

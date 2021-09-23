@@ -28,10 +28,9 @@
 //!         [Fx Hash][fxhash] hashing algorithm.
 //!     - [`DefaultInterner`] - The currently recommended intern pool
 //!         configuration for symbol interning (size-agnostic).
-//!     - [`DefaultPkgInterner`] - The currently recommended intern pool
-//!         configuration for individual packages and their imports.
-//!     - [`DefaultProgInterner`] - The currently recommended intern pool
-//!         configuration for all packages within a program.
+//!     - [`DefaultProgInterner`] - The currently recommended
+//!         general-purpose intern pool configuration for compilers and
+//!         linkers processing symbols from one or more packages.
 //!
 //! Interners represent symbols as integer values which allows for `O(1)`
 //!   comparison of any arbitrary interned value,
@@ -46,11 +45,10 @@
 //! [arena]: bumpalo
 //!
 //! ```
-//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, PkgSymbolId};
+//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
 //!
-//! // Interns are represented by `SymbolId`.  You should choose one of
-//! // `ProgSymbolId` or `PkgSymbolId`, unless both must be supported.
-//! let foo: PkgSymbolId = "foo".intern();
+//! // Interns are represented by `SymbolId`.
+//! let foo: SymbolId = "foo".intern();
 //! assert_eq!(foo, foo);
 //!
 //! // Interning the same string twice returns the same intern
@@ -64,7 +62,7 @@
 //! assert_ne!(foo, "bar".intern());
 //!
 //! // Interned slices can be looked up by their symbol id.
-//! assert_eq!(&"foo", &foo.lookup_str());
+//! assert_eq!("foo", foo.lookup_str().as_str());
 //! ```
 //!
 //! What Is String Interning?
@@ -144,42 +142,25 @@
 //! Symbol Index Sizes
 //! ------------------
 //! [`SymbolId`] is generic over [`SymbolIndexSize`],
-//!   which is implemented for
-//!   [`global::PkgSymSize`](crate::global::PkgSymSize) and
-//!   [`global::ProgSymSize`](crate::global::ProgSymSize).
-//! This allows the compiler---which processes far less data than the
-//!   linker---to use a smaller index size.
-//! This is desirable for certain core data structures,
-//!   like spans,
-//!   which try to pack a lot of information into 64-bit structures.
+//!   defaulting to[`global::ProgSymSize`](crate::global::ProgSymSize).
+//! The generic size allows for specialized interners in situations where a
+//!   a larger index size is undesirable,
+//!     such as [`Span`](crate::span::Span),
+//!     which tries to pack a lot of information into 64-bit structures.
 //!
-//! But the cost is that of another trait bound on any systems that must
-//!   accommodate any [`SymbolIndexSize`]
-//! Systems should therefore favor one of these two types if they are not
-//!   shared between e.g. compilers and linkers:
-//!
-//!   - [`PkgSymbolId`] for individual packages and their imports; and
-//!   - [`ProgSymbolId`] for all packages in a program.
-//!
-//! Note that _it is not permissable to cast between different index sizes_!
-//!   Even though a [`PkgSymbolId`] could fit within the index size of a
-//!     [`ProgSymbolId`],
-//!       for example,
-//!       they use _different_ interners with their own distinct index
-//!       sets.
-//! A system should avoid using multiple interners at the same time,
-//!   and trait bounds will make such a mistake painfully obvious.
+//! Note that _it is not permissable to cast between different index sizes_
+//!   because they use _different_ interners with their own distinct index
+//!   sets.
 //!
 //! Global Interners
 //! ----------------
 //! TAMER offers two thread-local global interners that intern strings with
 //!   a `'static` lifetime,
 //!     simplifying the handling of lifetimes;
-//!       they produce symbols of type [`PkgSymbolId`] and [`ProgSymbolId`]
-//!       and are intended for packages and entire programs respectively.
+//!       they produce 16-bit and 32-bit symbols.
 //! These interners are lazily initialized on first use.
-//! Symbols from the two interners cannot be mixed;
-//!   you must use the largest [`SymbolIndexSize`] needed.
+//! Symbols from the two interners are independently allocated cannot be
+//!   mixed.
 //!
 //! Global interners were introduced because symbols are used by virtually
 //!   every part of the system,
@@ -360,10 +341,10 @@ mod symbol;
 pub use prefill::{st, StaticSymbolId};
 
 pub use interner::{
-    ArenaInterner, DefaultInterner, DefaultPkgInterner, DefaultProgInterner,
-    FxArenaInterner, Interner,
+    ArenaInterner, DefaultInterner, DefaultProgInterner, FxArenaInterner,
+    Interner,
 };
 pub use symbol::{
     GlobalSymbolIntern, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
-    PkgSymbolId, ProgSymbolId, SymbolId, SymbolIndexSize, SymbolStr,
+    SymbolId, SymbolIndexSize, SymbolStr,
 };

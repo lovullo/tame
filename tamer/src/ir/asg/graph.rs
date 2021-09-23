@@ -25,7 +25,7 @@ use super::object::{
     UnresolvedError,
 };
 use super::Sections;
-use crate::sym::{SymbolId, SymbolIndexSize};
+use crate::sym::SymbolId;
 use petgraph::graph::NodeIndex;
 use std::fmt::Debug;
 use std::result::Result;
@@ -48,8 +48,8 @@ impl<T: petgraph::graph::IndexType> IndexType for T {}
 ///   see the [module-level documentation][self].
 pub trait Asg<O, Ix>
 where
-    Ix: IndexType + SymbolIndexSize,
-    O: IdentObjectState<Ix, O>,
+    Ix: IndexType,
+    O: IdentObjectState<O>,
 {
     /// Declare a concrete identifier.
     ///
@@ -84,9 +84,9 @@ where
     ///   and return an [`ObjectRef`] reference.
     fn declare(
         &mut self,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         kind: IdentKind,
-        src: Source<Ix>,
+        src: Source,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Declare an abstract identifier.
@@ -111,9 +111,9 @@ where
     ///   compatibility related to extern resolution.
     fn declare_extern(
         &mut self,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         kind: IdentKind,
-        src: Source<Ix>,
+        src: Source,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Set the fragment associated with a concrete identifier.
@@ -124,7 +124,7 @@ where
     fn set_fragment(
         &mut self,
         identi: ObjectRef<Ix>,
-        text: FragmentText<Ix>,
+        text: FragmentText,
     ) -> AsgResult<ObjectRef<Ix>>;
 
     /// Retrieve an object from the graph by [`ObjectRef`].
@@ -142,7 +142,7 @@ where
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
-    fn lookup(&self, name: SymbolId<Ix>) -> Option<ObjectRef<Ix>>;
+    fn lookup(&self, name: SymbolId) -> Option<ObjectRef<Ix>>;
 
     /// Declare that `dep` is a dependency of `ident`.
     ///
@@ -173,8 +173,8 @@ where
     /// References to both identifiers are returned in argument order.
     fn add_dep_lookup(
         &mut self,
-        ident: SymbolId<Ix>,
-        dep: SymbolId<Ix>,
+        ident: SymbolId,
+        dep: SymbolId,
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
 }
 
@@ -184,8 +184,8 @@ where
 ///   used as an `Intermediate Representation`.
 pub trait SortableAsg<O, Ix>
 where
-    O: IdentObjectData<Ix>,
-    Ix: IndexType + SymbolIndexSize,
+    O: IdentObjectData,
+    Ix: IndexType,
 {
     /// Sort graph into [`Sections`].
     ///

@@ -18,11 +18,10 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::writer::{Result, WriterError};
-use crate::global;
 use crate::ir::asg::{
     IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
 };
-use crate::sym::{GlobalSymbolResolve, ProgSymbolId, SymbolId};
+use crate::sym::{GlobalSymbolResolve, SymbolId};
 use fxhash::FxHashSet;
 #[cfg(test)]
 use mock::MockXmlWriter as XmlWriter;
@@ -36,8 +35,6 @@ use std::io::Write;
 pub struct XmleWriter<W: Write> {
     writer: XmlWriter<W>,
 }
-
-type Ix = global::ProgSymSize;
 
 impl<W: Write> XmleWriter<W> {
     /// Create a new instance of `XmleWriter`
@@ -81,7 +78,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// let writer = Cursor::new(Vec::new());
     /// let mut xmle_writer = XmleWriter::new(writer);
-    /// let sections = Sections::<IdentObject<_>>::new();
+    /// let sections = Sections::<IdentObject>::new();
     /// let name = "foo".intern();
     /// xmle_writer.write(
     ///     &sections,
@@ -91,10 +88,10 @@ impl<W: Write> XmleWriter<W> {
     /// let buf = xmle_writer.into_inner().into_inner();
     /// assert!(!buf.is_empty(), "something was written to the buffer");
     /// ```
-    pub fn write<T: IdentObjectData<Ix>>(
+    pub fn write<T: IdentObjectData>(
         &mut self,
         sections: &Sections<T>,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         relroot: &str,
     ) -> Result {
         self.write_start_package(name, &relroot)?
@@ -150,7 +147,7 @@ impl<W: Write> XmleWriter<W> {
     ///   `write_start_tag` directly.
     fn write_start_package(
         &mut self,
-        name: SymbolId<Ix>,
+        name: SymbolId,
         relroot: &str,
     ) -> Result<&mut XmleWriter<W>> {
         let name_str = name.lookup_str();
@@ -191,7 +188,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// All the [`Sections`] found need to be written out using the `writer`
     ///   object.
-    fn write_sections<T: IdentObjectData<Ix>>(
+    fn write_sections<T: IdentObjectData>(
         &mut self,
         sections: &Sections<T>,
         relroot: &str,
@@ -301,11 +298,11 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// If a `map` object has a `from` attribute in its source, we need to
     ///   write them using the `writer`'s `write_event`.
-    fn write_froms<T: IdentObjectData<Ix>>(
+    fn write_froms<T: IdentObjectData>(
         &mut self,
         sections: &Sections<T>,
     ) -> Result<&mut XmleWriter<W>> {
-        let mut map_froms: FxHashSet<ProgSymbolId> = Default::default();
+        let mut map_froms: FxHashSet<SymbolId> = Default::default();
 
         let map_iter = sections.iter_map();
 
@@ -335,7 +332,7 @@ impl<W: Write> XmleWriter<W> {
     ///
     /// Iterates through the parts of a `Section` and writes them using the
     ///   `writer`'s 'write_event`.
-    fn write_section<T: IdentObjectData<Ix>>(
+    fn write_section<T: IdentObjectData>(
         &mut self,
         idents: SectionsIter<T>,
     ) -> Result<&mut XmleWriter<W>> {

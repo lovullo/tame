@@ -29,25 +29,15 @@ extern crate test;
 use test::Bencher;
 
 mod base {
-    use std::convert::TryFrom;
-    use std::fmt::Debug;
-
     use super::*;
-    use tamer::global;
     use tamer::ir::asg::{
         Asg, DataType, DefaultAsg, IdentKind, IdentObject, SortableAsg, Source,
     };
-    use tamer::sym::{GlobalSymbolIntern, SymbolId, SymbolIndexSize};
+    use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
-    type Sut =
-        DefaultAsg<IdentObject<global::PkgSymSize>, global::PkgIdentSize>;
-    type SutProg<'i> =
-        DefaultAsg<IdentObject<global::ProgSymSize>, global::ProgIdentSize>;
+    type Sut = DefaultAsg<IdentObject>;
 
-    fn interned_n<Ix: SymbolIndexSize>(n: u16) -> Vec<SymbolId<Ix>>
-    where
-        <Ix as TryFrom<usize>>::Error: Debug,
-    {
+    fn interned_n(n: u16) -> Vec<SymbolId> {
         (0..n).map(|i| i.to_string().intern()).collect()
     }
 
@@ -75,10 +65,9 @@ mod base {
         });
     }
 
-    // The Ix size affects memory, but how about performance?
     #[bench]
     fn declare_1_000_prog_ident_size(bench: &mut Bencher) {
-        let mut sut = SutProg::new();
+        let mut sut = Sut::new();
         let xs = interned_n(1_000);
 
         bench.iter(|| {
@@ -390,13 +379,12 @@ mod object {
 
     mod ident {
         use super::*;
-        use tamer::global;
         use tamer::ir::asg::{
             IdentKind, IdentObject, IdentObjectData, IdentObjectState, Source,
         };
         use tamer::sym::GlobalSymbolIntern;
 
-        type Sut = IdentObject<global::ProgSymSize>;
+        type Sut = IdentObject;
 
         #[bench]
         fn declare_1_000(bench: &mut Bencher) {

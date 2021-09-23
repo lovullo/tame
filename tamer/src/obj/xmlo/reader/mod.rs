@@ -54,7 +54,7 @@
 //! use tamer::global;
 //! use tamer::ir::legacyir::SymType;
 //! use tamer::obj::xmlo::{XmloEvent, XmloReader};
-//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, PkgSymbolId};
+//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 //!
 //! let xmlo = br#"<package name="foo">
 //!       <preproc:symtable>
@@ -78,7 +78,7 @@
 //!       </preproc:fragments>
 //!     </package>"#;
 //!
-//! let mut reader = XmloReader::<_, global::PkgSymSize>::new(xmlo as &[u8]);
+//! let mut reader = XmloReader::<_>::new(xmlo as &[u8]);
 //!
 //! let mut pkgname = None;
 //! let mut syms = Vec::new();
@@ -138,8 +138,7 @@
 
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
 use crate::sym::{
-    GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId,
-    SymbolIndexSize, SymbolStr,
+    GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId, SymbolStr,
 };
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
@@ -180,10 +179,9 @@ pub type XmloResult<T> = Result<T, XmloError>;
 ///
 /// See [module-level documentation](self) for more information and
 ///   examples.
-pub struct XmloReader<B, Ix>
+pub struct XmloReader<B>
 where
     B: BufRead,
-    Ix: SymbolIndexSize,
 {
     /// Source `xmlo` reader.
     reader: XmlReader<B>,
@@ -207,13 +205,12 @@ where
     ///
     /// This is known after processing the root `package` element,
     ///   provided that it's a proper root node.
-    pkg_name: Option<SymbolId<Ix>>,
+    pkg_name: Option<SymbolId>,
 }
 
-impl<B, Ix> XmloReader<B, Ix>
+impl<B> XmloReader<B>
 where
     B: BufRead,
-    Ix: SymbolIndexSize,
 {
     /// Construct a new reader.
     pub fn new(reader: B) -> Self {
@@ -253,7 +250,7 @@ where
     ///   See private methods for more information.
     ///
     /// TODO: Augment failures with context
-    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent<Ix>> {
+    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent> {
         // Just to cut down on peak memory usage, cleaning up after a
         // previous run.  This does not affect behavior.
         self.buffer.clear();
@@ -354,10 +351,10 @@ where
     ///     parsed.
     fn process_package<'a>(
         ele: &'a BytesStart<'a>,
-    ) -> XmloResult<PackageAttrs<Ix>> {
+    ) -> XmloResult<PackageAttrs> {
         let mut program = false;
-        let mut elig: Option<SymbolId<Ix>> = None;
-        let mut name: Option<SymbolId<Ix>> = None;
+        let mut elig: Option<SymbolId> = None;
+        let mut name: Option<SymbolId> = None;
         let mut relroot: Option<String> = None;
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
@@ -409,10 +406,10 @@ where
     /// ======
     /// - [`XmloError::UnassociatedSym`] if missing `preproc:sym/@name`.
     fn process_sym<'a>(
-        pkg_name: &Option<SymbolId<Ix>>,
+        pkg_name: &Option<SymbolId>,
         ele: &'a BytesStart<'a>,
-    ) -> XmloResult<XmloEvent<Ix>> {
-        let mut name: Option<SymbolId<Ix>> = None;
+    ) -> XmloResult<XmloEvent> {
+        let mut name: Option<SymbolId> = None;
         let mut sym_attrs = SymAttrs::default();
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
@@ -506,7 +503,7 @@ where
     fn process_map_from<'a>(
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<Vec<SymbolId<Ix>>> {
+    ) -> XmloResult<Vec<SymbolId>> {
         let mut froms = Vec::new();
 
         loop {
@@ -568,7 +565,7 @@ where
         ele: &'a BytesStart<'a>,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<XmloEvent<Ix>> {
+    ) -> XmloResult<XmloEvent> {
         let name = ele
             .attributes()
             .with_checks(false)
@@ -642,7 +639,7 @@ where
         ele: &'a BytesStart<'a>,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<XmloEvent<Ix>> {
+    ) -> XmloResult<XmloEvent> {
         let mut src_attrs = ele.attributes();
         let mut filtered = src_attrs.with_checks(false).filter_map(Result::ok);
 
@@ -687,12 +684,11 @@ where
     }
 }
 
-impl<B, Ix> Iterator for XmloReader<B, Ix>
+impl<B> Iterator for XmloReader<B>
 where
     B: BufRead,
-    Ix: SymbolIndexSize,
 {
-    type Item = XmloResult<XmloEvent<Ix>>;
+    type Item = XmloResult<XmloEvent>;
 
     /// Invoke [`XmloReader::read_event`] and yield the result via an
     ///   [`Iterator`] API.
@@ -708,10 +704,9 @@ where
     }
 }
 
-impl<B, Ix> From<B> for XmloReader<B, Ix>
+impl<B> From<B> for XmloReader<B>
 where
     B: BufRead,
-    Ix: SymbolIndexSize,
 {
     fn from(buf: B) -> Self {
         Self::new(buf)
@@ -728,24 +723,24 @@ where
 ///   we should instead prefer not to put data into object files that won't
 ///   be useful and can't be easily skipped without parsing.
 #[derive(Debug, PartialEq, Eq)]
-pub enum XmloEvent<Ix: SymbolIndexSize> {
+pub enum XmloEvent {
     /// Package declaration.
     ///
     /// This contains data gathered from the root `lv:package` node.
-    Package(PackageAttrs<Ix>),
+    Package(PackageAttrs),
 
     /// Symbol declaration.
     ///
     /// This represents an entry in the symbol table,
     ///   which includes a symbol along with its variable metadata as
     ///   [`SymAttrs`].
-    SymDecl(SymbolId<Ix>, SymAttrs<Ix>),
+    SymDecl(SymbolId, SymAttrs),
 
     /// Dependencies of a given symbol.
     ///
     /// Note that, for simplicity, an owned vector is returned rather than a
     ///   slice into an internal buffer.
-    SymDeps(SymbolId<Ix>, Vec<SymbolId<Ix>>),
+    SymDeps(SymbolId, Vec<SymbolId>),
 
     /// Text (compiled code) fragment for a given symbol.
     ///
@@ -754,7 +749,7 @@ pub enum XmloEvent<Ix: SymbolIndexSize> {
     /// Given that fragments can be quite large,
     ///   a caller not interested in these data should choose to skip
     ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(SymbolId<Ix>, SymbolId<Ix>),
+    Fragment(SymbolId, SymbolId),
 
     /// End-of-header.
     ///

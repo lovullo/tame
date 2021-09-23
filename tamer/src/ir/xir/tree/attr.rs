@@ -24,7 +24,7 @@
 //! See [parent module](super) for additional documentation.
 
 use super::{AttrValue, QName};
-use crate::{span::Span, sym::SymbolIndexSize};
+use crate::span::Span;
 
 /// An attribute.
 ///
@@ -36,12 +36,12 @@ use crate::{span::Span, sym::SymbolIndexSize};
 /// If you do not care about the distinction between the two types,
 ///   use the API provided by this enum for common functionality.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Attr<Ix: SymbolIndexSize> {
-    Simple(SimpleAttr<Ix>),
-    Extensible(AttrParts<Ix>),
+pub enum Attr {
+    Simple(SimpleAttr),
+    Extensible(AttrParts),
 }
 
-impl<Ix: SymbolIndexSize> Attr<Ix> {
+impl Attr {
     /// Construct a new simple attribute with a name, value, and respective
     ///   [`Span`]s.
     ///
@@ -49,11 +49,7 @@ impl<Ix: SymbolIndexSize> Attr<Ix> {
     ///   but it can be cheaply converted into [`Attr::Extensible`] via
     ///   [`Attr::parts`] or [`From`].
     #[inline]
-    pub fn new(
-        name: QName<Ix>,
-        value: AttrValue<Ix>,
-        span: (Span, Span),
-    ) -> Self {
+    pub fn new(name: QName, value: AttrValue, span: (Span, Span)) -> Self {
         Self::Simple(SimpleAttr::new(name, value, span))
     }
 
@@ -66,7 +62,7 @@ impl<Ix: SymbolIndexSize> Attr<Ix> {
     ///     [`Span`] resolution and being zero-copy.
     #[inline]
     pub fn new_extensible_with_capacity(
-        name: QName<Ix>,
+        name: QName,
         name_span: Span,
         capacity: usize,
     ) -> Self {
@@ -80,9 +76,9 @@ impl<Ix: SymbolIndexSize> Attr<Ix> {
     ///   or re-using them in conjunction with [`AttrParts::into_fragments`].
     #[inline]
     pub fn from_fragments(
-        name: QName<Ix>,
+        name: QName,
         name_span: Span,
-        frags: Vec<(AttrValue<Ix>, Span)>,
+        frags: Vec<(AttrValue, Span)>,
     ) -> Self {
         Self::Extensible(AttrParts {
             name,
@@ -101,7 +97,7 @@ impl<Ix: SymbolIndexSize> Attr<Ix> {
     ///   it will be converted into an extensible attribute with one value
     ///   fragment and then returned.
     #[inline]
-    pub fn parts(self) -> AttrParts<Ix> {
+    pub fn parts(self) -> AttrParts {
         match self {
             Self::Simple(attr) => attr.into(),
             Self::Extensible(parts) => parts,
@@ -114,22 +110,18 @@ impl<Ix: SymbolIndexSize> Attr<Ix> {
 /// This should be used in place of [`AttrParts`] whenever the attribute is
 ///   a simple [`QName`]/[`AttrValue`] pair.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct SimpleAttr<Ix: SymbolIndexSize> {
-    name: QName<Ix>,
-    value: AttrValue<Ix>,
+pub struct SimpleAttr {
+    name: QName,
+    value: AttrValue,
     /// Spans for the attribute name and value respectively.
     span: (Span, Span),
 }
 
-impl<Ix: SymbolIndexSize> SimpleAttr<Ix> {
+impl SimpleAttr {
     /// Construct a new simple attribute with a name, value, and respective
     ///   [`Span`]s.
     #[inline]
-    pub fn new(
-        name: QName<Ix>,
-        value: AttrValue<Ix>,
-        span: (Span, Span),
-    ) -> Self {
+    pub fn new(name: QName, value: AttrValue, span: (Span, Span)) -> Self {
         Self { name, value, span }
     }
 }
@@ -142,23 +134,23 @@ impl<Ix: SymbolIndexSize> SimpleAttr<Ix> {
 ///   3. You need to parse a XIR stream with
 ///        [`Token::AttrValueFragment`](super::Token::AttrValueFragment).
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct AttrParts<Ix: SymbolIndexSize> {
-    name: QName<Ix>,
+pub struct AttrParts {
+    name: QName,
     name_span: Span,
 
     /// Ordered value fragments and their associated [`Span`]s.
     ///
     /// When writing,
     ///   fragments will be concatenated in order without any delimiters.
-    value_frags: Vec<(AttrValue<Ix>, Span)>,
+    value_frags: Vec<(AttrValue, Span)>,
 }
 
-impl<Ix: SymbolIndexSize> AttrParts<Ix> {
+impl AttrParts {
     /// Construct a new simple attribute with a name, value, and respective
     ///   [`Span`]s.
     #[inline]
     pub fn with_capacity(
-        name: QName<Ix>,
+        name: QName,
         name_span: Span,
         capacity: usize,
     ) -> Self {
@@ -170,7 +162,7 @@ impl<Ix: SymbolIndexSize> AttrParts<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize> AttrParts<Ix> {
+impl AttrParts {
     /// Append a new value fragment and its associated span.
     ///
     /// Value fragments are intended to be concatenated on write without a
@@ -178,7 +170,7 @@ impl<Ix: SymbolIndexSize> AttrParts<Ix> {
     ///     and are associated with
     ///     [`Token::AttrValueFragment`](super::Token::AttrValueFragment).
     #[inline]
-    pub fn push_value(&mut self, value: AttrValue<Ix>, span: Span) {
+    pub fn push_value(&mut self, value: AttrValue, span: Span) {
         self.value_frags.push((value, span));
     }
 
@@ -189,7 +181,7 @@ impl<Ix: SymbolIndexSize> AttrParts<Ix> {
     ///   [`AttrParts`],
     ///     see [`into_fragments`](AttrParts::into_fragments).
     #[inline]
-    pub fn value_fragments(&self) -> &Vec<(AttrValue<Ix>, Span)> {
+    pub fn value_fragments(&self) -> &Vec<(AttrValue, Span)> {
         &self.value_frags
     }
 
@@ -199,13 +191,13 @@ impl<Ix: SymbolIndexSize> AttrParts<Ix> {
     /// This allows the buffer to be re-used for future [`AttrParts`],
     ///   avoiding additional heap allocations.
     #[inline]
-    pub fn into_fragments(self) -> Vec<(AttrValue<Ix>, Span)> {
+    pub fn into_fragments(self) -> Vec<(AttrValue, Span)> {
         self.value_frags
     }
 }
 
-impl<Ix: SymbolIndexSize> From<SimpleAttr<Ix>> for AttrParts<Ix> {
-    fn from(attr: SimpleAttr<Ix>) -> Self {
+impl From<SimpleAttr> for AttrParts {
+    fn from(attr: SimpleAttr) -> Self {
         Self {
             name: attr.name,
             name_span: attr.span.0,
@@ -214,8 +206,8 @@ impl<Ix: SymbolIndexSize> From<SimpleAttr<Ix>> for AttrParts<Ix> {
     }
 }
 
-impl<Ix: SymbolIndexSize> From<Attr<Ix>> for AttrParts<Ix> {
-    fn from(attr: Attr<Ix>) -> Self {
+impl From<Attr> for AttrParts {
+    fn from(attr: Attr) -> Self {
         match attr {
             Attr::Simple(inner) => inner.into(),
             Attr::Extensible(inner) => inner,
@@ -232,30 +224,30 @@ impl<Ix: SymbolIndexSize> From<Attr<Ix>> for AttrParts<Ix> {
 ///   it is suitable for a particular task in the future
 ///     (e.g. O(1) lookups by attribute name).
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
-pub struct AttrList<Ix: SymbolIndexSize> {
-    attrs: Vec<Attr<Ix>>,
+pub struct AttrList {
+    attrs: Vec<Attr>,
 }
 
-impl<Ix: SymbolIndexSize> AttrList<Ix> {
+impl AttrList {
     /// Construct a new, empty attribute list.
     pub fn new() -> Self {
         Self { attrs: vec![] }
     }
 
     /// Add an attribute to the end of the attribute list.
-    pub fn push(&mut self, attr: Attr<Ix>) {
+    pub fn push(&mut self, attr: Attr) {
         self.attrs.push(attr)
     }
 }
 
-impl<Ix: SymbolIndexSize> From<Vec<Attr<Ix>>> for AttrList<Ix> {
-    fn from(attrs: Vec<Attr<Ix>>) -> Self {
+impl From<Vec<Attr>> for AttrList {
+    fn from(attrs: Vec<Attr>) -> Self {
         AttrList { attrs }
     }
 }
 
-impl<Ix: SymbolIndexSize, const N: usize> From<[Attr<Ix>; N]> for AttrList<Ix> {
-    fn from(attrs: [Attr<Ix>; N]) -> Self {
+impl<const N: usize> From<[Attr; N]> for AttrList {
+    fn from(attrs: [Attr; N]) -> Self {
         AttrList {
             attrs: attrs.into(),
         }
@@ -267,8 +259,6 @@ impl<Ix: SymbolIndexSize, const N: usize> From<[Attr<Ix>; N]> for AttrList<Ix> {
 mod test {
     use super::*;
     use crate::{convert::ExpectInto, sym::GlobalSymbolIntern};
-
-    type Ix = crate::global::ProgSymSize;
 
     lazy_static! {
         static ref S: Span =
@@ -282,7 +272,7 @@ mod test {
         let name = "attr".unwrap_into();
         let value = AttrValue::Escaped("value".intern());
 
-        let attr = SimpleAttr::<Ix> {
+        let attr = SimpleAttr {
             name,
             value,
             span: (*S, *S2),
@@ -310,8 +300,7 @@ mod test {
         let value1 = AttrValue::Escaped("first".intern());
         let value2 = AttrValue::Escaped("second".intern());
 
-        let mut attr =
-            Attr::<Ix>::new_extensible_with_capacity(name, *S, 2).parts();
+        let mut attr = Attr::new_extensible_with_capacity(name, *S, 2).parts();
 
         attr.push_value(value1, *S);
         attr.push_value(value2, *S2);
@@ -325,12 +314,9 @@ mod test {
         let value1 = AttrValue::Escaped("first".intern());
         let value2 = AttrValue::Escaped("second".intern());
 
-        let attr = Attr::<Ix>::from_fragments(
-            name,
-            *S,
-            vec![(value1, *S), (value2, *S2)],
-        )
-        .parts();
+        let attr =
+            Attr::from_fragments(name, *S, vec![(value1, *S), (value2, *S2)])
+                .parts();
 
         assert_eq!(&vec![(value1, *S), (value2, *S2)], attr.value_fragments());
     }
@@ -344,7 +330,7 @@ mod test {
 
         let frags = vec![(value1, *S2), (value2, *S)];
 
-        let mut attr1 = Attr::<Ix>::from_fragments(name, *S, frags).parts();
+        let mut attr1 = Attr::from_fragments(name, *S, frags).parts();
         attr1.push_value(value3, *S2);
 
         // Notice that the value is owned, and so we can call

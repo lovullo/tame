@@ -171,8 +171,10 @@
 //! Related Work
 //! ============
 //! This span is motivated by [rustc's compressed `Span`](rustc-span).
-//! TAMER's span size relies on [`global::PkgSymSize`] being 16 bits in length,
-//!   which _should_ be a reasonable assumption.
+//! TAMER's span size relies on 16 bits being sufficient for holding
+//!   interned paths,
+//!     which _should_ be a very reasonable assumption unless the interner
+//!     ends up being shared with too many different things.
 //! If ever that assumption becomes violated,
 //!   and it is deemed that packages containing so many symbols should be permitted,
 //!   TAMER's [`Span`] can accommodate in a similar with to rustc's by
@@ -181,10 +183,11 @@
 //!
 //! [rustc-span]: https://doc.rust-lang.org/stable/nightly-rustc/rustc_span/struct.Span.html
 
+use crate::{global, sym::SymbolId};
 use std::convert::TryInto;
 
-use crate::global;
-use crate::sym::PkgSymbolId;
+/// A symbol size sufficient for holding interned paths.
+pub type PathSymbolId = SymbolId<u16>;
 
 /// Description of a source location and byte interval for some object.
 ///
@@ -351,22 +354,22 @@ impl<P: Into<PathIndex>> From<P> for Context {
 
 /// An interned path.
 ///
-/// This is interned as a string slice ([`PkgSymbolId`]),
+/// This is interned as a string slice ([`SymbolId`]),
 ///   not a `PathBuf`.
 /// Consequently,
 ///   it is not an `OsStr`.
 ///
 /// This newtype emphasizes that it differs from typical symbol usage,
-///   especially given that it'll always use the [`PkgSymbolId`] interner,
+///   especially given that it'll always use the 16-bit interner,
 ///   _not_ necessarily whatever global interner is used for all other
 ///   symbols.
 /// In the future,
 ///   these may be interned separately.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct PathIndex(PkgSymbolId);
+pub struct PathIndex(PathSymbolId);
 
-impl From<PkgSymbolId> for PathIndex {
-    fn from(sym: PkgSymbolId) -> Self {
+impl From<PathSymbolId> for PathIndex {
+    fn from(sym: PathSymbolId) -> Self {
         Self(sym)
     }
 }
@@ -409,7 +412,7 @@ mod test {
     #[test]
     fn span_pack_le() {
         let span =
-            Span::new(0xA3A2A1A0, 0xB1B0, PkgSymbolId::test_from_int(0xC1C0));
+            Span::new(0xA3A2A1A0, 0xB1B0, SymbolId::test_from_int(0xC1C0));
 
         assert_eq!(
             0xC1C0_A3A2A1A0_B1B0,

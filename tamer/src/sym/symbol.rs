@@ -21,7 +21,7 @@
 //!
 //! See the [parent module](super) for more information.
 
-use super::{DefaultPkgInterner, DefaultProgInterner, Interner};
+use super::{DefaultInterner, Interner};
 use crate::global;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Debug, Display};
@@ -31,10 +31,6 @@ use std::ops::Deref;
 use std::thread::LocalKey;
 
 /// Unique symbol identifier produced by an [`Interner`].
-///
-/// Use one of [`PkgSymbolId`] or [`ProgSymbolId`] unless a generic size is
-///   actually needed
-///     (e.g. implementations shared between a compiler and linker).
 ///
 /// This newtype helps to prevent other indexes from being used where a
 ///   symbol index is expected.
@@ -55,21 +51,10 @@ use std::thread::LocalKey;
 ///   see either [`GlobalSymbolResolve::lookup_str`] or
 ///   [`Interner::index_lookup`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SymbolId<Ix: SymbolIndexSize>(pub(super) Ix::NonZero);
+pub struct SymbolId<Ix: SymbolIndexSize = global::ProgSymSize>(
+    pub(super) Ix::NonZero,
+);
 assert_eq_size!(Option<SymbolId<u16>>, SymbolId<u16>);
-
-/// Identifier of a symbol within a single package.
-///
-/// This type should be preferred to [`ProgSymbolId`] when only a single
-///   package's symbols are being processed.
-pub type PkgSymbolId = SymbolId<global::PkgSymSize>;
-
-/// Identifier of a symbol within an entire program.
-///
-/// This symbol type is preconfigured to accommodate a larger number of
-///   symbols than [`PkgSymbolId`] and is suitable for use in a linker.
-/// Use this type only when necessary.
-pub type ProgSymbolId = SymbolId<global::ProgSymSize>;
 
 impl<Ix: SymbolIndexSize> SymbolId<Ix> {
     /// Construct index from an unchecked non-zero `u16` value.
@@ -184,11 +169,11 @@ macro_rules! supported_symbol_index {
     };
 }
 
-type StaticPkgInterner = DefaultPkgInterner<'static>;
-type StaticProgInterner = DefaultProgInterner<'static>;
+type Static16Interner = DefaultInterner<'static, u16>;
+type Static32Interner = DefaultInterner<'static, u32>;
 
-supported_symbol_index!(u16, NonZeroU16, StaticPkgInterner, INTERNER_PKG);
-supported_symbol_index!(u32, NonZeroU32, StaticProgInterner, INTERNER_PROG);
+supported_symbol_index!(u16, NonZeroU16, Static16Interner, INTERNER_PKG);
+supported_symbol_index!(u32, NonZeroU32, Static32Interner, INTERNER_PROG);
 
 /// A string retrieved from the intern pool using a [`SymbolId`].
 ///
@@ -481,7 +466,7 @@ mod test {
 
         #[test]
         fn clone_uninterned() {
-            let sym: PkgSymbolId = "foo".clone_uninterned();
+            let sym: SymbolId = "foo".clone_uninterned();
             assert_eq!("foo", sym.lookup_str());
         }
     }
