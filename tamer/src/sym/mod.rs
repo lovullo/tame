@@ -71,12 +71,15 @@
 //!   is stored immutably in memory as part of a _pool_.
 //! Once a string has been interned,
 //!   attempting to intern it again will always return the same [`SymbolId`].
-//! Interned strings are typically referred to as "symbols" or "atoms".
+//! Interned strings are represented by integer values known as "symbols" or
+//!   "atoms".
 //!
-//! String comparison then amounts to comparing integer values (`O(1)`)
-//!     rather than having to scan the string (`O(n)`).
-//! There is, however, a hashing cost of interning strings,
-//!   as well as looking up strings in the intern pool (both `O(1)`).
+//! String comparison using symbols amounts to comparing integer
+//!     values (`O(1)`) rather than having to scan the string (`O(n)`).
+//! However,
+//!   both internment and symbol lookup
+//!     (mapping a symbol to its string)
+//!   incur a minor hashing cost.
 //!
 //! It is expected that strings are interned as soon as they are encountered,
 //!   which is likely to be from source inputs or previously compiled object
@@ -84,10 +87,11 @@
 //! Processing stages will then hold the interned [`SymbolId`] and use those
 //!   for any needed comparsions,
 //!     without any need to look up the string from the pool.
-//! Strings should only be looked up
+//! Symbols should only be looked up
 //!   (using [`GlobalSymbolResolve::lookup_str`] or
-//!   [`Interner::index_lookup`]) when they need to be written
-//!     (e.g. into a target or displayed to the user).
+//!     [`Interner::index_lookup`])
+//!   when the string representation is necessary,
+//!     such as to write to a file or display to the user.
 //!
 //! [`SymbolId`] is monotonically increasing from 1,
 //!   making it a useful densely-packed index as an alternative [`HashMap`]
@@ -99,6 +103,10 @@
 //!         their [`SymbolId`]s will reflect that same ordering,
 //!           so long as those strings have not previously been interned.
 //! Bulk insertion should therefore be done before processing user input.
+//!
+//! With the exception of pre-interned static symbols
+//!   (see Static Symbols below),
+//!     [`SymbolId`]s are _not_ stable between runs.
 //!
 //! [string interning]: https://en.wikipedia.org/wiki/String_interning
 //!
@@ -212,9 +220,11 @@
 //!   so they can be used in `const` expressions and include additional
 //!   metadata allowing for safe type conversions in circumstances that
 //!   aren't typically permitted.
-//! This further allows constructing symbol newtypes at compile-time.
+//! Since static symbols are constants,
+//!   symbol newtypes and objects composed of symbols are able to be
+//!   statically constructed as well.
 //!
-//! These symbol constants can be found in the [`st`] module.
+//! These generated symbol constants can be found in the [`st`] module.
 //!
 //! Uninterned Symbols
 //! ------------------
@@ -227,7 +237,7 @@
 //!        even if the same string value was previously interned; and
 //!   2. To store a string without a hashing cost,
 //!        making [`SymbolId`] a suitable substitute for [`String`] when the
-//!        string will never need the benefits of internment.
+//!        string will never benefit from internment.
 //!
 //!  The second option allows all data structures to consistently carry
 //!    [`SymbolId`] and let the owner of those data decide whether it is
