@@ -338,7 +338,7 @@ mod interner;
 mod prefill;
 mod symbol;
 
-pub use prefill::{st, StaticSymbolId};
+pub use prefill::*;
 
 pub use interner::{
     ArenaInterner, DefaultInterner, DefaultProgInterner, FxArenaInterner,

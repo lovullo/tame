@@ -29,68 +29,50 @@
 use super::{Interner, SymbolId, SymbolIndexSize};
 use crate::global;
 use std::array;
-use std::ops::Deref;
 
 /// A size that is as small as possible to hold the necessary number of
 ///   values.
 type StaticSymbolSize = u8;
 
-/// Statically-allocated symbol.
-///
-/// This symbol is generated at compile-time and expected to be available in
-///   the 32-bit global interner once it has been initialized.
-///
-/// This symbol contains a number of `const` methods,
-///   allowing for this symbol to be easily used to construct static
-///   newtypes.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StaticSymbolId(StaticSymbolSize);
-
-impl StaticSymbolId {
-    /// Cast static symbol into a [`SymbolId`] suitable for the global
-    ///   program-level interner.
-    ///
-    /// This is safe since global interner will always contain this
-    ///   symbol before it can be read.
-    pub const fn as_prog_sym(self) -> SymbolId<global::ProgSymSize> {
-        SymbolId(unsafe {
-            <global::ProgSymSize as SymbolIndexSize>::NonZero::new_unchecked(
-                self.0 as global::ProgSymSize,
-            )
-        })
-    }
-
-    pub const fn as_usize(self) -> usize {
-        self.0 as usize
-    }
-}
-
-impl From<StaticSymbolId> for SymbolId<global::ProgSymSize> {
-    fn from(st: StaticSymbolId) -> Self {
-        st.as_prog_sym()
-    }
-}
-
-/// Generate a newtype containing a [`StaticSymbolId`] that derefs to its
-///   inner value.
+/// Generate a newtype containing a condensed [`SymbolId`].
 macro_rules! static_symbol_newtype {
     ($(#[$attr:meta])* $name:ident) => {
         $(#[$attr])*
         #[doc=""]
-        #[doc="This will [`Deref`] into a [`StaticSymbolId`]."]
-        pub struct $name(StaticSymbolId);
+        /// This is a statically-allocated symbol.
+        ///
+        /// This symbol is generated at compile-time and expected to be
+        ///   available in the 32-bit global interner once it has been
+        ///   initialized.
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(StaticSymbolSize);
 
         impl $name {
             const fn new(id: StaticSymbolSize) -> Self {
-                Self(StaticSymbolId(id))
+                Self(id)
+            }
+
+            /// Cast static symbol into a [`SymbolId`] suitable for the global
+            ///   program-level interner.
+            ///
+            /// This is safe since global interner will always contain this
+            ///   symbol before it can be read.
+            pub const fn as_sym(self) -> SymbolId<global::ProgSymSize> {
+                SymbolId(unsafe {
+                    <global::ProgSymSize as SymbolIndexSize>::NonZero::new_unchecked(
+                        self.0 as global::ProgSymSize,
+                    )
+                })
+            }
+
+            pub const fn as_usize(self) -> usize {
+                self.0 as usize
             }
         }
 
-        impl Deref for $name {
-            type Target = StaticSymbolId;
-
-            fn deref(&self) -> &Self::Target {
-                &self.0
+        impl From<$name> for SymbolId<global::ProgSymSize> {
+            fn from(st: $name) -> Self {
+                st.as_sym()
             }
         }
     };
@@ -303,7 +285,7 @@ mod test {
         // not that you wouldn't otherwise notice that the whole system is
         // broken, but this ought to offer a more direct hint as to what
         // went wrong.
-        assert_eq!(st::True.as_prog_sym(), "true".intern());
-        assert_eq!(st::False.as_prog_sym(), "false".intern());
+        assert_eq!(st::True.as_sym(), "true".intern());
+        assert_eq!(st::False.as_sym(), "false".intern());
     }
 }
