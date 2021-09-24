@@ -269,7 +269,8 @@ mod test {
         assert!(
             new.as_usize() > st::END_STATIC.as_usize(),
             "a new global symbol allocation was not > END_STATIC, \
-             indicating that prefill is not working!"
+             indicating that prefill is either not working or that \
+             the prefill contains duplicate strings!"
         );
 
         // Further sanity check to make sure indexes align as expected,
