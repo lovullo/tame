@@ -120,7 +120,6 @@ macro_rules! static_symbol_consts {
             $str,
             "\"`."
         )]
-        #[allow(non_upper_case_globals)]
         pub const $name: static_symbol_ty!($ty) =
             <static_symbol_ty!($ty)>::new($i);
 
@@ -238,16 +237,8 @@ static_symbol_newtypes! {
 //   this constant will always represent a valid global symbol within the
 //   context of reads.
 //
-// The constants are not all-uppercase,
-//   which creates the illusion that the symbols were dynamically generated;
-//     this isn't entirely false,
-//       given that internment _is_ a runtime operation even for these
-//       symbols.
-//
-// Certain symbols are Rust identifiers,
-//   and therefore begin with a capital letter;
-//     this is also done by rustc
-//       (see https://doc.rust-lang.org/nightly/nightly-rustc/src/rustc_span/symbol.rs.html).
+// The constants follow a naming convention:
+//   - `L_` indicates that the identifier is all-lowercase.
 //
 // See parent documentation for more information.
 //
@@ -255,8 +246,8 @@ static_symbol_newtypes! {
 //   which is re-exported by the parent module.
 static_symbols! {
     // Index begins at 1, since 0 is reserved during interner initialization
-    True: cid "true",
-    False: cid "false",
+    L_TRUE: cid "true",
+    L_FALSE: cid "false",
 
     // [Symbols will be added here as they are needed.]
 
@@ -285,7 +276,7 @@ mod test {
         // not that you wouldn't otherwise notice that the whole system is
         // broken, but this ought to offer a more direct hint as to what
         // went wrong.
-        assert_eq!(st::True.as_sym(), "true".intern());
-        assert_eq!(st::False.as_sym(), "false".intern());
+        assert_eq!(st::L_TRUE.as_sym(), "true".intern());
+        assert_eq!(st::L_FALSE.as_sym(), "false".intern());
     }
 }
