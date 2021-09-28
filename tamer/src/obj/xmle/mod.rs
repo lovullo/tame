@@ -69,3 +69,4 @@
 //! ```
 
 pub mod writer;
+pub mod xir;

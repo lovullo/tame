@@ -30,13 +30,41 @@
 //! _This is a work in progress!_
 
 use crate::span::Span;
-use crate::sym::{GlobalSymbolIntern, SymbolId};
+use crate::sym::{
+    CIdentStaticSymbolId, GlobalSymbolIntern, SymbolId, UriStaticSymbolId,
+};
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
 use std::ops::Deref;
 
+pub mod pred;
 pub mod tree;
 pub mod writer;
+
+macro_rules! qname_const_inner {
+    ($name:ident = :$local:ident) => {
+        const $name: QName = QName::st_cid_local($local);
+    };
+
+    ($name:ident = $prefix:ident:$local:ident) => {
+        const $name: QName = QName::st_cid($prefix, $local);
+    };
+}
+
+/// Construct a series of [`QName`] constants.
+///
+/// The syntax for each constant is `NAME: [PREFIX]:LOCAL`,
+///   where `PREFIX` is optional.
+///
+/// See [`crate::sym::st`] for usable symbol constants.
+#[macro_export]
+macro_rules! qname_const {
+    ($($name:ident: $($prefix:ident)? : $local:ident,)*) => {
+        $(
+            qname_const_inner!($name = $($prefix)?:$local);
+        )*
+    }
+}
 
 // TODO: Move into crate::sym if this is staying around.
 macro_rules! newtype_symbol {
@@ -250,6 +278,23 @@ impl QName {
     pub fn local_name(&self) -> LocalPart {
         self.1
     }
+
+    /// Construct a constant QName from static C-style symbols.
+    pub const fn st_cid(
+        prefix_sym: CIdentStaticSymbolId,
+        local_sym: CIdentStaticSymbolId,
+    ) -> Self {
+        Self(
+            Some(Prefix(NCName(prefix_sym.as_sym()))),
+            LocalPart(NCName(local_sym.as_sym())),
+        )
+    }
+
+    /// Construct a constant QName with a local name only from a static
+    ///   C-style symbol.
+    pub const fn st_cid_local(local_sym: CIdentStaticSymbolId) -> Self {
+        Self(None, LocalPart(NCName(local_sym.as_sym())))
+    }
 }
 
 impl<P, L> TryFrom<(P, L)> for QName
@@ -338,6 +383,20 @@ pub enum AttrValue {
     ///
     /// Escaped values can be written as-is without any further processing.
     Escaped(SymbolId),
+}
+
+impl AttrValue {
+    /// Construct a constant escaped attribute from a static C-style symbol.
+    pub const fn st_cid(sym: CIdentStaticSymbolId) -> Self {
+        Self::Escaped(sym.as_sym())
+    }
+
+    /// Construct a constant escaped attribute from a static URI symbol.
+    ///
+    /// URIs are expected _not_ to contain quotes.
+    pub const fn st_uri(sym: UriStaticSymbolId) -> Self {
+        Self::Escaped(sym.as_sym())
+    }
 }
 
 /// Lightly-structured XML tokens with associated [`Span`]s.
@@ -458,6 +517,16 @@ mod test {
         #[test]
         fn local_name_from_local_part_only() -> TestResult {
             let name = QName::new_local("foo".try_into()?);
+
+            assert_eq!(name.local_name(), "foo".try_into()?);
+            assert_eq!(None, name.prefix());
+
+            Ok(())
+        }
+
+        #[test]
+        fn local_name_from_option_tuple() -> TestResult {
+            let name: QName = (Option::<&str>::None, "foo").try_into()?;
 
             assert_eq!(name.local_name(), "foo".try_into()?);
             assert_eq!(None, name.prefix());

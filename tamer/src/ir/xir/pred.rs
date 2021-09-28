@@ -1,4 +1,4 @@
-// TAME in Rust (TAMER)
+// XIR predicates
 //
 //  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
 //
@@ -17,30 +17,21 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! An incremental rewrite of TAME in Rust.
+//! Functional predicates for XIR token streams.
 
-// We build docs for private items
-#![allow(rustdoc::private_intra_doc_links)]
+use super::{QName, Token};
 
-pub mod global;
+#[inline]
+pub fn not<T>(mut f: impl FnMut(&T) -> bool) -> impl FnMut(&T) -> bool {
+    move |x| !f(x)
+}
 
-#[macro_use]
-extern crate static_assertions;
-#[macro_use]
-extern crate lazy_static;
+#[inline]
+pub fn open(name: QName) -> impl FnMut(&Token) -> bool {
+    move |tok| matches!(tok, Token::Open(tokname, _) if *tokname == name)
+}
 
-#[cfg(feature = "wip-frontends")]
-pub mod frontend;
-
-pub mod convert;
-pub mod fs;
-#[macro_use]
-pub mod ir;
-pub mod ld;
-pub mod obj;
-pub mod span;
-pub mod sym;
-pub mod tpwrap;
-
-#[cfg(test)]
-pub mod test;
+#[inline]
+pub fn close(name: QName) -> impl FnMut(&Token) -> bool {
+    move |tok| matches!(tok, Token::Close(Some(tokname), _) if *tokname == name)
+}

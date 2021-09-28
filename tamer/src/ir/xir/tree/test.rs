@@ -44,7 +44,29 @@ mod tree {
 
         let tree = Tree::Element(ele.clone());
 
-        assert_eq!(Some(ele), tree.element());
+        assert_eq!(Some(&ele), tree.as_element());
+    }
+}
+
+mod attrs {
+    use super::*;
+
+    #[test]
+    fn linear_search_for_attr_name_in_list() {
+        let a = "a".unwrap_into();
+        let b = "b".unwrap_into();
+
+        let attra =
+            Attr::new(a, AttrValue::Escaped("a value".into()), (*S, *S2));
+        let attrb =
+            Attr::new(b, AttrValue::Escaped("b value".into()), (*S, *S2));
+
+        let attrs = AttrList::from([attra.clone(), attrb.clone()]);
+
+        assert_eq!(attrs.find(a), Some(&attra));
+        assert_eq!(attrs.find(b), Some(&attrb));
+
+        assert_eq!(attrs.find("unknown".unwrap_into()), None);
     }
 }
 

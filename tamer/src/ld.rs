@@ -109,4 +109,13 @@
 //!     which is especially important since templates may expand into many
 //!     identifiers.
 
+use crate::span::Span;
+use crate::sym::st16;
+
 pub mod poc;
+
+/// Span denoting a general linker operation.
+///
+/// This span may be used when the source of a given object is the linker
+///   and it is not possible to derive a more useful span.
+pub const LSPAN: Span = Span::st_ctx(st16::CTX_LINKER);

@@ -103,6 +103,38 @@ impl Attr {
             Self::Extensible(parts) => parts,
         }
     }
+
+    /// Attribute name.
+    #[inline]
+    pub fn name(&self) -> QName {
+        match self {
+            Self::Simple(attr) => attr.name,
+            Self::Extensible(attr) => attr.name,
+        }
+    }
+
+    /// Attempt to retrieve a cost-free atom from the attribute.
+    ///
+    /// An atom is available if either
+    ///   (a) this is [`Attr::Simple`]; or
+    ///   (b) this is [`Attr::Extensible`] with one fragment.
+    /// Otherwise,
+    ///   rather than assuming what the caller may want to do,
+    ///   return [`None`] and let the caller decide how to proceed with
+    ///   deriving an atom.
+    ///
+    /// Since [`AttrValue`] implements [`Copy`],
+    ///   this returns an owned value.
+    #[inline]
+    pub fn value_atom(&self) -> Option<AttrValue> {
+        match self {
+            Self::Simple(attr) => Some(attr.value),
+            Self::Extensible(attr) if attr.value_frags.len() == 1 => {
+                Some(attr.value_frags[0].0)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Element attribute with an atomic value.
@@ -237,6 +269,18 @@ impl AttrList {
     /// Add an attribute to the end of the attribute list.
     pub fn push(&mut self, attr: Attr) {
         self.attrs.push(attr)
+    }
+
+    /// Search for an attribute of the given `name`.
+    ///
+    /// _You should use this method only when a linear search makes sense._
+    ///
+    /// This performs an `O(n)` linear search in the worst case.
+    /// Future implementations may perform an `O(1)` lookup under certain
+    ///   circumstances,
+    ///     but this should not be expected.
+    pub fn find(&self, name: QName) -> Option<&Attr> {
+        self.attrs.iter().find(|attr| attr.name() == name)
     }
 }
 

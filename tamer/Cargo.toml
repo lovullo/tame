@@ -27,6 +27,7 @@ assert_cmd = "0.10"
 predicates = "1"
 
 [dependencies]
+arrayvec = ">= 0.7.1"
 bumpalo = ">= 2.6.0"
 fxhash = ">= 0.2.1"
 petgraph = "0.5.1"  # TODO: petgraph-graphml holds this back
@@ -53,3 +54,6 @@ paste = ">= 1.0.5"
 # compilation from XSLT into TAMER, and so the XSLT-based compiler must be
 # expecting it so that it can skip those compilation steps.
 wip-frontends = []
+
+# Write xmle files using the new XIR-based writer.
+wip-xir-xmle-writer = []

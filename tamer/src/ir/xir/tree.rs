@@ -216,14 +216,49 @@ pub use attr::{Attr, AttrList, AttrParts, SimpleAttr};
 pub enum Tree {
     /// XML element.
     Element(Element),
+
+    /// This variant exists purely because `#[non_exhaustive]` has no effect
+    ///   within the crate.
+    ///
+    /// This ensures that matches must account for other variants that will
+    ///   be introduced in the future,
+    ///     easing the maintenance burden
+    ///       (for both implementation and unit tests).
+    _NonExhaustive,
+}
+
+impl Into<Option<Element>> for Tree {
+    #[inline]
+    fn into(self) -> Option<Element> {
+        match self {
+            Self::Element(ele) => Some(ele),
+            _ => None,
+        }
+    }
 }
 
 impl Tree {
-    /// If the tree object is an [`Element`], retrieve it.
-    pub fn element(self) -> Option<Element> {
+    /// Yield a reference to the inner value if it is an [`Element`],
+    ///   otherwise [`None`].
+    #[inline]
+    pub fn as_element<'a>(&'a self) -> Option<&'a Element> {
         match self {
             Self::Element(ele) => Some(ele),
+            _ => None,
         }
+    }
+
+    /// Yield the inner value if it is an [`Element`],
+    ///   otherwise [`None`].
+    #[inline]
+    pub fn into_element(self) -> Option<Element> {
+        self.into()
+    }
+
+    /// Whether the inner value is an [`Element`].
+    #[inline]
+    pub fn is_element(&self) -> bool {
+        matches!(self, Self::Element(_))
     }
 }
 
@@ -247,6 +282,24 @@ pub struct Element {
 }
 
 impl Element {
+    /// Element name.
+    #[inline]
+    pub fn name(&self) -> QName {
+        self.name
+    }
+
+    /// Child [`Tree`] objects of this element.
+    #[inline]
+    pub fn children(&self) -> &Vec<Tree> {
+        &self.children
+    }
+
+    /// Attributes of this element.
+    #[inline]
+    pub fn attrs(&self) -> &AttrList {
+        &self.attrs
+    }
+
     /// Opens an element for incremental construction.
     ///
     /// This is intended for use by the parser to begin building an element.

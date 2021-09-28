@@ -73,4 +73,5 @@
 
 pub mod asg;
 pub mod legacyir;
+#[macro_use]
 pub mod xir;

@@ -192,6 +192,13 @@ static_symbol_newtypes! {
     ///     its string value is incidental and should not be relied upon.
     mark: MarkStaticSymbolId<global::ProgSymSize>,
 
+    /// Symbol representing a URI.
+    ///
+    /// This is intended for use primarily as an XML namespace.
+    /// URIs are expected to _not_ contain quotes and other characters that
+    ///   may need escaping in XML attributes.
+    uri: UriStaticSymbolId<global::ProgSymSize>,
+
     /// Static 16-bit [`Span`](crate::span::Span) context.
     ///
     /// These contexts are intended for use in generated code where a better
@@ -227,8 +234,28 @@ pub mod st {
     static_symbols! {
         <global::ProgSymSize>;
 
-        L_TRUE: cid "true",
+        L_DEP: cid "dep",
+        L_DESC: cid "desc",
         L_FALSE: cid "false",
+        L_GENERATED: cid "generated",
+        L_L: cid "l",
+        L_NAME: cid "name",
+        L_PACKAGE: cid "package",
+        L_PARENT: cid "parent",
+        L_PREPROC: cid "preproc",
+        L_PROGRAM: cid "program",
+        L_SRC: cid "src",
+        L_SYM: cid "sym",
+        L_TITLE: cid "title",
+        L_TRUE: cid "true",
+        L_TYPE: cid "type",
+        L_UUROOTPATH: cid "__rootpath",
+        L_XMLNS: cid "xmlns",
+        L_YIELDS: cid "yields",
+
+        URI_LV_RATER: uri "http://www.lovullo.com/rater",
+        URI_LV_PREPROC: uri "http://www.lovullo.com/preproc",
+        URI_LV_LINKER: uri "http://www.lovullo.com/linker",
 
         // [Symbols will be added here as they are needed.]
 

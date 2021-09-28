@@ -183,7 +183,10 @@
 //!
 //! [rustc-span]: https://doc.rust-lang.org/stable/nightly-rustc/rustc_span/struct.Span.html
 
-use crate::{global, sym::SymbolId};
+use crate::{
+    global,
+    sym::{ContextStaticSymbolId, SymbolId},
+};
 use std::convert::TryInto;
 
 /// A symbol size sufficient for holding interned paths.
@@ -225,6 +228,15 @@ impl Span {
             ctx: ctx.into(),
             offset,
             len,
+        }
+    }
+
+    /// Create a constant span from a static context.
+    pub const fn st_ctx(sym: ContextStaticSymbolId) -> Self {
+        Self {
+            ctx: Context(PathIndex(sym.as_sym())),
+            offset: 0,
+            len: 0,
         }
     }
 
