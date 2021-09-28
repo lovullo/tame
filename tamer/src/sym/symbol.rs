@@ -167,12 +167,11 @@ type Static16Interner = DefaultInterner<'static, u16>;
 type Static32Interner = DefaultInterner<'static, u32>;
 
 thread_local! {
-    pub(super) static INTERNER_16: Static16Interner =
-        Static16Interner::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY);
+    pub(super) static INTERNER_16: Static16Interner = super::prefill::st16::fill(
+        Static16Interner::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY)
+    );
 
-    // Only the 32-bit integer, which is the default for `SymbolId`, gets
-    // prefilled with static symbols.
-    pub(super) static INTERNER_32: Static32Interner = super::prefill::fill(
+    pub(super) static INTERNER_32: Static32Interner = super::prefill::st::fill(
         Static32Interner::with_capacity(global::INIT_GLOBAL_INTERNER_CAPACITY)
     );
 }

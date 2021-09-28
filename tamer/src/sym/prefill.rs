@@ -30,13 +30,9 @@ use super::{Interner, SymbolId, SymbolIndexSize};
 use crate::global;
 use std::array;
 
-/// A size that is as small as possible to hold the necessary number of
-///   values.
-type StaticSymbolSize = u8;
-
 /// Generate a newtype containing a condensed [`SymbolId`].
 macro_rules! static_symbol_newtype {
-    ($(#[$attr:meta])* $name:ident) => {
+    ($(#[$attr:meta])* $name:ident<$size:ty>) => {
         $(#[$attr])*
         #[doc=""]
         /// This is a statically-allocated symbol.
@@ -45,11 +41,13 @@ macro_rules! static_symbol_newtype {
         ///   available in the 32-bit global interner once it has been
         ///   initialized.
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name(StaticSymbolSize);
+        pub struct $name(<$size as SymbolIndexSize>::NonZero);
 
         impl $name {
-            const fn new(id: StaticSymbolSize) -> Self {
-                Self(id)
+            const fn new(id: $size) -> Self {
+                Self(unsafe {
+                    <$size as SymbolIndexSize>::NonZero::new_unchecked(id)
+                })
             }
 
             /// Cast static symbol into a [`SymbolId`] suitable for the global
@@ -57,20 +55,16 @@ macro_rules! static_symbol_newtype {
             ///
             /// This is safe since global interner will always contain this
             ///   symbol before it can be read.
-            pub const fn as_sym(self) -> SymbolId<global::ProgSymSize> {
-                SymbolId(unsafe {
-                    <global::ProgSymSize as SymbolIndexSize>::NonZero::new_unchecked(
-                        self.0 as global::ProgSymSize,
-                    )
-                })
+            pub const fn as_sym(self) -> SymbolId<$size> {
+                SymbolId(self.0)
             }
 
             pub const fn as_usize(self) -> usize {
-                self.0 as usize
+                self.0.get() as usize
             }
         }
 
-        impl From<$name> for SymbolId<global::ProgSymSize> {
+        impl From<$name> for SymbolId<$size> {
             fn from(st: $name) -> Self {
                 st.as_sym()
             }
@@ -82,9 +76,9 @@ macro_rules! static_symbol_newtype {
 ///   can be used to take a short identifier and convert it into its full
 ///   type identifier.
 macro_rules! static_symbol_newtypes {
-    ($($(#[$attr:meta])* $short:ident: $ty:ident),*) => {
+    ($($(#[$attr:meta])* $short:ident: $ty:ident<$size:ty>,)*) => {
         $(
-            static_symbol_newtype!($(#[$attr])* $ty);
+            static_symbol_newtype!($(#[$attr])* $ty<$size>);
         )*
 
         macro_rules! static_symbol_ty {
@@ -93,11 +87,6 @@ macro_rules! static_symbol_newtypes {
                     $ty
                 };
             )*
-
-            // Just some string value; a misc case.
-            (str) => {
-                StaticSymbolId
-            };
         }
     }
 }
@@ -112,7 +101,7 @@ macro_rules! static_symbol_newtypes {
 ///   which is on first access,
 ///   these symbols will reference valid values.
 macro_rules! static_symbol_consts {
-    (@i $i:expr; $name:ident: $ty:ident $str:expr, $($tail:tt)*) => {
+    (@i $i:expr; <$size:ty> $name:ident: $ty:ident $str:expr, $($tail:tt)*) => {
         #[doc=concat!(
             "Interned `",
             stringify!($ty),
@@ -129,13 +118,14 @@ macro_rules! static_symbol_consts {
             // the recursion limit if we have too many static symbols, after
             // which time we may have to switch methodology.
             @i $i + 1;
+            <$size>
 
             $($tail)*
         }
     };
 
     // Terminating condition.
-    (@i $i:expr;) => {}
+    (@i $i:expr; <$size:ty>) => {}
 }
 
 /// Statically allocate [`SymbolId`]s for the provided symbols,
@@ -148,37 +138,15 @@ macro_rules! static_symbol_consts {
 ///   immediately after initialization,
 ///     /before/ any internment requests.
 macro_rules! static_symbols {
-    ($($name:ident : $ty:ident $str:expr),*) => {
-        /// Static symbols (pre-allocated).
-        ///
-        /// Each of the constants in this module represent a [`SymbolId`]
-        ///   statically allocated at compile-time.
-        /// The strings that they represent are automatically populated into
-        ///   the global interners when the interner is first accessed.
-        ///
-        /// _You should always use the generated constant to reference these
-        ///    symbols!_
-        /// Do not rely upon their integer value,
-        ///   as it _will_ change over time.
-        /// The sole exception is to use marker symbols to identify ranges
-        ///   of symbols;
-        ///     see [`MarkStaticSymbolId`].
-        ///
-        /// See [`crate::sym`] for more information on static symbols.
-        ///
-        /// `static` is a keyword in Rust,
-        ///   so we shorten the module name to `st`.
-        pub mod st {
-            use super::*;
+    (<$size:ty>; $($name:ident : $ty:ident $str:expr),*) => {
+        static_symbol_consts! {
+            // Index 0 is not valid, so begin at 1
+            @i 1;
+            <$size>
 
-            static_symbol_consts! {
-                // Index 0 is not valid, so begin at 1
-                @i 1;
-
-                $(
-                    $name: $ty $str,
-                )*
-            }
+            $(
+                $name: $ty $str,
+            )*
         }
 
         /// Fill a new interner with static symbols.
@@ -187,7 +155,7 @@ macro_rules! static_symbols {
         /// ======
         /// This function will panic if the interner has any symbols,
         ///   which would cause misalignment with the generated constants.
-        pub(super) fn fill<'a, I, Ix>(interner: I) -> I
+        pub(in super::super) fn fill<'a, I, Ix>(interner: I) -> I
         where
             I: Interner<'a, Ix>,
             Ix: SymbolIndexSize
@@ -217,51 +185,91 @@ static_symbol_newtypes! {
     ///
     /// This is the traditional `[a-zA-Z_][a-zA-Z0-9_]*`,
     ///   common in many programming languages.
-    cid: CIdentStaticSymbolId,
+    cid: CIdentStaticSymbolId<global::ProgSymSize>,
 
     /// This symbol serves only as a marker in the internment pool to
     ///   delimit symbol ranges;
     ///     its string value is incidental and should not be relied upon.
-    mark: MarkStaticSymbolId
+    mark: MarkStaticSymbolId<global::ProgSymSize>,
+
+    /// Static 16-bit [`Span`](crate::span::Span) context.
+    ///
+    /// These contexts are intended for use in generated code where a better
+    ///   context cannot be derived.
+    ctx: ContextStaticSymbolId<u16>,
 }
 
-// Static symbols that will have their strings interned upon global
-//   interner initialization.
-//
-// Each of these generates a constant of the same name with a [`SymbolId`].
-// This symbol is constant,
-//   generated at compile-time,
-//   and is intended to be used with a global interner.
-// Since a global interner is initialized on first use,
-//   which in turn populates the interner using [`fill`] above,
-//   this constant will always represent a valid global symbol within the
-//   context of reads.
-//
-// The constants follow a naming convention:
-//   - `L_` indicates that the identifier is all-lowercase.
-//
-// See parent documentation for more information.
-//
-// These end up in the `st` module,
-//   which is re-exported by the parent module.
-static_symbols! {
-    // Index begins at 1, since 0 is reserved during interner initialization
-    L_TRUE: cid "true",
-    L_FALSE: cid "false",
+/// Static symbols (pre-allocated).
+///
+/// Each of the constants in this module represent a [`SymbolId`] statically
+///   allocated at compile-time.
+/// The strings that they represent are automatically populated into the
+///   global interners when the interner is first accessed.
+///
+/// _You should always use the generated constant to reference these
+///    symbols!_
+/// Do not rely upon their integer value,
+///   as it _will_ change over time.
+/// The sole exception is to use marker symbols to identify ranges
+///   of symbols;
+///     see [`MarkStaticSymbolId`].
+///
+/// See [`crate::sym`] for more information on static symbols.
+///
+/// `static` is a keyword in Rust,
+///   so we shorten the module name to `st`.
+///
+/// The constants follow a naming convention:
+///   - `L_` indicates that the identifier is all-lowercase.
+pub mod st {
+    use super::*;
 
-    // [Symbols will be added here as they are needed.]
+    static_symbols! {
+        <global::ProgSymSize>;
 
-    // Marker indicating the end of the static symbols
-    END_STATIC: mark "{{end static}}"
+        L_TRUE: cid "true",
+        L_FALSE: cid "false",
+
+        // [Symbols will be added here as they are needed.]
+
+        // Marker indicating the end of the static symbols
+        //   (this must always be last).
+        END_STATIC: mark "{{end}}"
+    }
+}
+
+/// Static 16-bit symbols (pre-allocated).
+///
+/// These symbols are intended for situations where a smaller symbol size is
+///   necessary.
+/// Presently,
+///   this includes only the [`Span`](crate::span::Span) context.
+///
+/// See also [st](super::st) for general static symbols.
+pub mod st16 {
+    use super::*;
+
+    static_symbols! {
+        <u16>;
+
+        // Special contexts.
+        CTX_LINKER: ctx "#!LINKER",
+
+        // [Symbols will be added here as they are needed.]
+
+        // Marker indicating the end of the static symbols
+        //   (this must always be last).
+        END_STATIC: mark "{{end}}"
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::st;
+    use super::{st, st16};
     use crate::sym::{GlobalSymbolIntern, SymbolId};
 
     #[test]
-    fn global_sanity_check() {
+    fn global_sanity_check_st() {
         // If we _don't_ prefill, make sure we're not starting at the first
         // offset when interning, otherwise it'll look correct.
         let new: SymbolId = "force offset".intern();
@@ -279,5 +287,19 @@ mod test {
         // went wrong.
         assert_eq!(st::L_TRUE.as_sym(), "true".intern());
         assert_eq!(st::L_FALSE.as_sym(), "false".intern());
+    }
+
+    #[test]
+    fn global_sanity_check_st16() {
+        // If we _don't_ prefill, make sure we're not starting at the first
+        // offset when interning, otherwise it'll look correct.
+        let new: SymbolId<u16> = "force offset".intern();
+
+        assert!(
+            new.as_usize() > st16::END_STATIC.as_usize(),
+            "a new 16-bit global symbol allocation was not > END_STATIC, \
+             indicating that prefill is either not working or that \
+             the prefill contains duplicate strings!"
+        );
     }
 }

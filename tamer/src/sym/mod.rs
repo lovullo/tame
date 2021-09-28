@@ -224,7 +224,8 @@
 //!   symbol newtypes and objects composed of symbols are able to be
 //!   statically constructed as well.
 //!
-//! These generated symbol constants can be found in the [`st`] module.
+//! These generated symbol constants can be found in the [`st`] and [`st16`]
+//!   modules.
 //!
 //! Uninterned Symbols
 //! ------------------
