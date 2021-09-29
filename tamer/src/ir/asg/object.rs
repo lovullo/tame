@@ -1022,7 +1022,7 @@ mod test {
             #[test]
             fn redeclare_compatible_resolves() {
                 let sym: SymbolId = "extern_re_pre".intern();
-                let kind = IdentKind::Class(Dim::from_u8(10));
+                let kind = IdentKind::Class(Dim::from_u8(2));
                 let src = Source {
                     desc: Some("okay".into()),
                     ..Default::default()
@@ -1040,7 +1040,7 @@ mod test {
             #[test]
             fn redeclare_compatible_resolves_post() {
                 let sym: SymbolId = "extern_re_post".intern();
-                let kind = IdentKind::Class(Dim::from_u8(10));
+                let kind = IdentKind::Class(Dim::from_u8(1));
                 let src = Source {
                     desc: Some("okay".into()),
                     ..Default::default()
@@ -1057,7 +1057,7 @@ mod test {
             #[test]
             fn redeclare_another_extern() {
                 let sym: SymbolId = "extern_extern".intern();
-                let kind = IdentKind::Class(Dim::from_u8(20));
+                let kind = IdentKind::Class(Dim::from_u8(0));
                 let src_first = Source {
                     desc: Some("first src".into()),
                     ..Default::default()
@@ -1083,7 +1083,7 @@ mod test {
             #[test]
             fn redeclare_post_incompatible_kind() {
                 let sym: SymbolId = "extern_re_bad_post".intern();
-                let kind = IdentKind::Class(Dim::from_u8(10));
+                let kind = IdentKind::Class(Dim::from_u8(2));
                 let src = Source {
                     desc: Some("bad kind".into()),
                     ..Default::default()
@@ -1127,7 +1127,7 @@ mod test {
             #[test]
             fn redeclare_pre_incompatible_kind() {
                 let sym: SymbolId = "extern_re_bad_pre".intern();
-                let kind_given = IdentKind::Class(Dim::from_u8(10));
+                let kind_given = IdentKind::Class(Dim::from_u8(1));
                 let src = Source {
                     desc: Some("bad kind".into()),
                     ..Default::default()

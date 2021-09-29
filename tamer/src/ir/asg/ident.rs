@@ -347,7 +347,10 @@ pub struct Dim(u8);
 
 impl Dim {
     pub fn from_u8(value: u8) -> Self {
-        // TODO: 0≤n<10
+        // We don't expect to format a value this large.
+        // In practice, it should never exceed 2.
+        assert!(value < 10, "Dim value cannot exceed 9");
+
         Self(value)
     }
 }
