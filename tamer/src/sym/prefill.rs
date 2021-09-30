@@ -187,6 +187,16 @@ static_symbol_newtypes! {
     ///   common in many programming languages.
     cid: CIdentStaticSymbolId<global::ProgSymSize>,
 
+    /// A symbol resembling a QName of the form `prefix:local`.
+    ///
+    /// A symbol of this type does _not_ mean that the symbol is intended to
+    ///   be a QName;
+    ///     this is merely a way to describe it.
+    /// For example,
+    ///   `map:head` is intended as an identifier type,
+    ///     not a QName.
+    qname: QnameIdentStaticSymbolId<global::ProgSymSize>,
+
     /// This symbol serves only as a marker in the internment pool to
     ///   delimit symbol ranges;
     ///     its string value is incidental and should not be relied upon.
@@ -234,22 +244,39 @@ pub mod st {
     static_symbols! {
         <global::ProgSymSize>;
 
+        L_CGEN: cid "cgen",
+        L_CLASS: cid "class",
+        L_CONST: cid "const",
         L_DEP: cid "dep",
         L_DESC: cid "desc",
         L_FALSE: cid "false",
+        L_FUNC: cid "func",
+        L_GEN: cid "gen",
         L_GENERATED: cid "generated",
         L_L: cid "l",
+        L_LPARAM: cid "lparam",
+        L_MAP: cid "map",
+        L_MAP_HEAD: qname "map:head",
+        L_MAP_TAIL: qname "map:tail",
+        L_META: cid "meta",
         L_NAME: cid "name",
         L_PACKAGE: cid "package",
+        L_PARAM: cid "param",
         L_PARENT: cid "parent",
         L_PREPROC: cid "preproc",
         L_PROGRAM: cid "program",
+        L_RATE: cid "rate",
+        L_RETMAP: cid "retmap",
+        L_RETMAP_HEAD: qname "retmap:head",
+        L_RETMAP_TAIL: qname "retmap:tail",
         L_SRC: cid "src",
         L_SYM: cid "sym",
         L_TITLE: cid "title",
+        L_TPL: cid "tpl",
         L_TRUE: cid "true",
         L_TYPE: cid "type",
         L_UUROOTPATH: cid "__rootpath",
+        L_WORKSHEET: cid "worksheet",
         L_XMLNS: cid "xmlns",
         L_YIELDS: cid "yields",
 

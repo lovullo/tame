@@ -139,20 +139,20 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
                         (
                             format!("{}", n.name().unwrap().lookup_str()),
-                            n.kind().unwrap().as_ref(),
+                            n.kind().unwrap().as_sym(),
                             format!("{}", generated),
                         )
                     }
                     None => (
                         String::from("missing"),
-                        "missing",
+                        "missing".into(),
                         format!("{}", false),
                     ),
                 };
 
                 vec![
                     ("label".into(), name.into()),
-                    ("kind".into(), kind.into()),
+                    ("kind".into(), kind.lookup_str().as_str().into()),
                     ("generated".into(), generated.into()),
                 ]
             }));

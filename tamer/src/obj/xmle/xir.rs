@@ -130,7 +130,7 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
             self.toks_push_attr(QN_YIELDS, src.yields);
             self.toks_push_attr(QN_PARENT, src.parent);
             self.toks_push_attr(QN_NAME, Some(sym));
-            self.toks_push_attr(QN_TYPE, Some(*kind.as_ref()));
+            self.toks_push_attr(QN_TYPE, Some(kind.as_sym()));
 
             Some(Token::Open(QN_P_SYM, LSPAN))
         })
@@ -332,7 +332,7 @@ pub mod test {
 
             assert_eq!(
                 attrs.find(QN_TYPE).and_then(|a| a.value_atom()),
-                Some(AttrValue::Escaped(*ident.kind().unwrap().as_ref()))
+                Some(AttrValue::Escaped(ident.kind().unwrap().as_sym()))
             );
 
             let generated =

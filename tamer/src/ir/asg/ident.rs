@@ -20,8 +20,7 @@
 //! Identifiers (a type of [object][super::object::IdentObject]).
 
 use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
-use crate::sym::{GlobalSymbolIntern, SymbolId};
-use paste::paste;
+use crate::sym::{st, GlobalSymbolResolve, SymbolId};
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -147,61 +146,29 @@ pub enum IdentKind {
     Worksheet,
 }
 
-/// Produce [`AsRef`] impls for [`str`] and [`global::ProgSymSize`] for
-///   identifier kind strings.
-macro_rules! kind_intern {
-    ($($variant:ident $($v:pat)? => $str:expr),*) => {
-        paste! {
-            lazy_static! {
-                $(
-                    static ref [<PROG_KIND_ $variant:upper>]: SymbolId
-                        = $str.intern();
-                )*
-            }
-
-            impl AsRef<str> for IdentKind {
-                fn as_ref(&self) -> &'static str {
-                    match self {
-                        $(
-                            Self::$variant$($v)* => $str,
-                        )*
-                    }
-                }
-            }
-
-            impl AsRef<SymbolId> for IdentKind {
-                fn as_ref(&self) -> &SymbolId {
-                    match self {
-                        $(
-                            Self::$variant$($v)* => &[<PROG_KIND_ $variant:upper>],
-                        )*
-                    }
-                }
-            }
+impl IdentKind {
+    pub fn as_sym(&self) -> SymbolId {
+        match self {
+            Self::Cgen(_) => st::L_CGEN.as_sym(),
+            Self::Class(_) => st::L_CLASS.as_sym(),
+            Self::Const(_, _) => st::L_CONST.as_sym(),
+            Self::Func(_, _) => st::L_FUNC.as_sym(),
+            Self::Gen(_, _) => st::L_GEN.as_sym(),
+            Self::Lparam(_, _) => st::L_LPARAM.as_sym(),
+            Self::Param(_, _) => st::L_PARAM.as_sym(),
+            Self::Rate(_) => st::L_RATE.as_sym(),
+            Self::Tpl => st::L_TPL.as_sym(),
+            Self::Type(_) => st::L_TYPE.as_sym(),
+            Self::MapHead => st::L_MAP_HEAD.as_sym(),
+            Self::Map => st::L_MAP.as_sym(),
+            Self::MapTail => st::L_MAP_TAIL.as_sym(),
+            Self::RetMapHead => st::L_RETMAP_HEAD.as_sym(),
+            Self::RetMap => st::L_RETMAP.as_sym(),
+            Self::RetMapTail => st::L_RETMAP_TAIL.as_sym(),
+            Self::Meta => st::L_META.as_sym(),
+            Self::Worksheet => st::L_WORKSHEET.as_sym(),
         }
     }
-}
-
-// In the future, we'll pre-populate the internment pool, like rustc.
-kind_intern! {
-    Cgen(_) => "cgen",
-    Class(_) => "class",
-    Const(_, _) => "const",
-    Func(_, _) => "func",
-    Gen(_, _) => "gen",
-    Lparam(_, _) => "lparam",
-    Param(_, _) => "param",
-    Rate(_) => "rate",
-    Tpl => "tpl",
-    Type(_) => "type",
-    MapHead => "map:head",
-    Map => "map",
-    MapTail => "map:tail",
-    RetMapHead => "retmap:head",
-    RetMap => "retmap",
-    RetMapTail => "retmap:tail",
-    Meta => "meta",
-    Worksheet => "worksheet"
 }
 
 impl std::fmt::Display for IdentKind {
@@ -211,7 +178,7 @@ impl std::fmt::Display for IdentKind {
     ///   new type system,
     ///     so for now this just uses a syntax similar to Rust.
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let name: &str = self.as_ref();
+        let name = self.as_sym().lookup_str();
 
         match self {
             Self::Cgen(dim) => {
