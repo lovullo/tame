@@ -149,7 +149,7 @@ pub struct SymAttrs {
     /// User-friendly identifier description.
     ///
     /// This is used primarily by [`SymType::Class`] and [`SymType::Gen`].
-    pub desc: Option<String>,
+    pub desc: Option<SymbolId>,
 
     /// Related identifiers.
     ///

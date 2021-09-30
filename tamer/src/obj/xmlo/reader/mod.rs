@@ -464,9 +464,8 @@ where
                 }
 
                 b"desc" => {
-                    sym_attrs.desc = Some(unsafe {
-                        String::from_utf8_unchecked(attr.value.to_vec())
-                    });
+                    sym_attrs.desc =
+                        Some(unsafe { attr.value.intern_utf8_unchecked() });
                 }
 
                 b"virtual" => {

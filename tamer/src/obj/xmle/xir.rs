@@ -25,7 +25,7 @@ use crate::{
         xir::{AttrValue, QName, Token},
     },
     ld::LSPAN,
-    sym::{st::*, GlobalSymbolIntern, SymbolId},
+    sym::{st::*, SymbolId},
 };
 use arrayvec::ArrayVec;
 use std::array;
@@ -121,12 +121,7 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
                 false => None,
             });
 
-            // TODO: interning ought to be done during read, not by us
-            self.toks_push_attr(
-                QN_DESC,
-                src.desc.as_ref().map(|s| GlobalSymbolIntern::clone_uninterned(s.as_ref()))
-            );
-
+            self.toks_push_attr(QN_DESC, src.desc);
             self.toks_push_attr(QN_YIELDS, src.yields);
             self.toks_push_attr(QN_PARENT, src.parent);
             self.toks_push_attr(QN_NAME, Some(sym));
@@ -221,7 +216,7 @@ pub mod test {
             tree::{parser_from, Attr},
         },
     };
-    use crate::sym::GlobalSymbolResolve;
+    use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -265,7 +260,7 @@ pub mod test {
                 "a".intern(),
                 IdentKind::Meta,
                 Source {
-                    desc: Some(String::from("test desc")),
+                    desc: Some("test desc".intern()),
                     ..Default::default()
                 },
             ),
@@ -381,7 +376,7 @@ pub mod test {
                     .and_then(|a| a.value_atom())
                 {
                     Some(AttrValue::Escaped(given)) => {
-                        assert_eq!(desc, &given.lookup_str() as &str);
+                        assert_eq!(desc.lookup_str(), given.lookup_str());
                     }
                     invalid => panic!("unexpected desc: {:?}", invalid),
                 }

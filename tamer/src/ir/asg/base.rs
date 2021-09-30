@@ -520,7 +520,7 @@ mod test {
             syma,
             IdentKind::Meta,
             Source {
-                desc: Some("a".to_string()),
+                desc: Some("a".into()),
                 ..Default::default()
             },
         )?;
@@ -529,7 +529,7 @@ mod test {
             symb,
             IdentKind::Worksheet,
             Source {
-                desc: Some("b".to_string()),
+                desc: Some("b".into()),
                 ..Default::default()
             },
         )?;
@@ -541,7 +541,7 @@ mod test {
             Some((
                 IdentKind::Meta,
                 Source {
-                    desc: Some("a".to_string()),
+                    desc: Some("a".into()),
                     ..Default::default()
                 },
             )),
@@ -553,7 +553,7 @@ mod test {
             Some((
                 IdentKind::Worksheet,
                 Source {
-                    desc: Some("b".to_string()),
+                    desc: Some("b".into()),
                     ..Default::default()
                 },
             )),
@@ -567,7 +567,7 @@ mod test {
     fn lookup_by_symbol() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "lookup".intern();
+        let sym = "lookup".into();
         let node = sut.declare(
             sym,
             IdentKind::Meta,
@@ -586,7 +586,7 @@ mod test {
     fn declare_returns_existing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "symdup".intern();
+        let sym = "symdup".into();
         let src = Source::default();
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
 

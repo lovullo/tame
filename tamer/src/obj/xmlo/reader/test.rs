@@ -770,7 +770,7 @@ sym_tests! {
     }
 
     desc: [desc="Description"] => SymAttrs {
-        desc: Some("Description".to_string()),
+        desc: Some("Description".into()),
         ..Default::default()
     }
 

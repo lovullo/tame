@@ -276,7 +276,7 @@ impl<W: Write> XmleWriter<W> {
                         attrs.push(("yields", yields));
                     }
                     if let Some(desc) = &src.desc {
-                        attrs.push(("desc", &desc));
+                        attrs.push(("desc", desc.lookup_str().as_str()));
                     }
 
                     let sym = BytesStart::owned_name(b"preproc:sym".to_vec())
@@ -649,7 +649,7 @@ mod test {
             generated: true,
             parent: Some(psym),
             yields: Some(ysym),
-            desc: Some("sym desc".to_string()),
+            desc: Some("sym desc".into()),
             from: Some(vec![fsym]),
             virtual_: true,
             ..Default::default()
