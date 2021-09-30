@@ -57,6 +57,8 @@ qname_const! {
 const HEADER_SIZE: usize = 16;
 type HeaderIter = array::IntoIter<Token, HEADER_SIZE>;
 
+/// Beginning [`Token`]s representing the root node of an `xmle` document
+///   and its immediate child.
 fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
     let pkg_name_val = AttrValue::Escaped(pkg_name);
 
@@ -87,15 +89,47 @@ fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
 const DEP_MAX_ATTRS: usize = 9;
 const DEP_MAX_ATTRS_KEY_VAL: usize = DEP_MAX_ATTRS * 2;
 const DEP_CLOSE: usize = 1; // open is never stored; see `refill_toks`
+
+/// Size of [`DepListIter`] [`Token`] buffer.
 const DEP_TOK_SIZE: usize = DEP_MAX_ATTRS_KEY_VAL + DEP_CLOSE;
 
+/// Iterator that lowers [`Sections`] into `l:dep` as a XIR [`Token`]
+///   stream.
+///
+/// This iterator functions by allocating a constant-sized
+///   [`ArrayVec`]-based buffer that is populated with token data each time
+///   an object is requested from the underlying [`SectionsIter`].
+/// Once the buffer runs out,
+///   another object is requested and the buffer populated with the
+///   appropriate token stream.
+/// This repeats until no more section object data is available.
 struct DepListIter<'a, T: IdentObjectData> {
+    /// Source data to lower into `l:deps`.
     iter: SectionsIter<'a, T>,
+    /// Constant-size [`Token`] buffer used as a stack.
     toks: ArrayVec<Token, DEP_TOK_SIZE>,
+    /// Relative path to project root.
     relroot: AttrValue,
 }
 
 impl<'a, T: IdentObjectData> DepListIter<'a, T> {
+    fn new(sections: &'a Sections<T>, relroot: SymbolId) -> Self {
+        Self {
+            iter: sections.iter_all(),
+            toks: ArrayVec::new(),
+            // TODO: we cannot trust that an arbitrary symbol is escaped; this
+            // needs better typing, along with other things.
+            relroot: AttrValue::Escaped(relroot),
+        }
+    }
+
+    /// Re-fill buffer with a new list of [`Token]s representing the next
+    ///   available object from the inner [`SectionsIter`].
+    ///
+    /// Each token is pushed onto the buffer _in reverse_,
+    ///   since it is treated like a stack;
+    ///     this allows us to cheaply `pop` with each [`Iterator::next`]
+    ///     call.
     fn refill_toks(&mut self) -> Option<Token> {
         // Tokens will be popped, so push in reverse.
         // They are arranged in the same order as the original writer so
@@ -137,6 +171,13 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
         })
     }
 
+    /// Optionally push an attribute if it has a `value`.
+    ///
+    /// _The provided `value` must be escaped;_
+    ///   it is blindly wrapped in [`AttrValue::Escaped`]!
+    ///
+    /// Like [`refill_toks`](DepsListIter::refill_toks),
+    ///   we push in reverse.
     #[inline]
     fn toks_push_attr(&mut self, name: QName, value: Option<SymbolId>) {
         if let Some(val) = value {
@@ -193,19 +234,6 @@ impl<'a, T: IdentObjectData> Iterator for DepListIter<'a, T> {
     }
 }
 
-fn deps<'a, T: IdentObjectData>(
-    sections: &'a Sections<T>,
-    relroot: SymbolId,
-) -> DepListIter<'a, T> {
-    DepListIter {
-        iter: sections.iter_all(),
-        toks: ArrayVec::new(),
-        // TODO: we cannot trust that an arbitrary symbol is escaped; this
-        // needs better typing, along with other things.
-        relroot: AttrValue::Escaped(relroot),
-    }
-}
-
 const FOOTER_SIZE: usize = 2;
 type FooterIter = array::IntoIter<Token, FOOTER_SIZE>;
 
@@ -221,8 +249,8 @@ fn footer() -> FooterIter {
 ///
 /// This serves primarily to encapsulate the nasty iterator type without
 ///   having to resort to dynamic dispatch,
-///     since this iterator will receive hundreds of thousands of calls for
-///     large programs.
+///     since this iterator will receive over a million calls on larger
+///     programs (and hundreds of thousands on smaller).
 pub struct LowerIter<'a, T: IdentObjectData>(
     Chain<Chain<HeaderIter, DepListIter<'a, T>>, FooterIter>,
 );
@@ -230,6 +258,13 @@ pub struct LowerIter<'a, T: IdentObjectData>(
 impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
     type Item = Token;
 
+    /// Produce the next XIR [`Token`] representing the lowering of
+    ///   [`Sections`] from the [ASG](crate::ir::asg).
+    ///
+    /// This produces a single token at a time,
+    ///   but [`DepListIter`] buffers tokens before emitting them,
+    ///     so certain `next` calls have a processing cost while others are
+    ///     essentially free.
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
     }
@@ -242,7 +277,7 @@ pub fn lower_iter<'a, T: IdentObjectData>(
 ) -> LowerIter<'a, T> {
     LowerIter(
         header(pkg_name, relroot)
-            .chain(deps(sections, relroot))
+            .chain(DepListIter::new(sections, relroot))
             .chain(footer()),
     )
 }
