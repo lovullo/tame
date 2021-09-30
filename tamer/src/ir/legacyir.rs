@@ -27,7 +27,7 @@
 //! This IR should be converted into a higher-level IR quickly,
 //!   especially considering that it will be going away in the future.
 
-use crate::sym::{GlobalSymbolResolve, SymbolId, st};
+use crate::sym::{st, GlobalSymbolResolve, SymbolId};
 use std::convert::TryFrom;
 use std::result::Result;
 
