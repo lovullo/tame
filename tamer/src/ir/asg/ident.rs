@@ -343,6 +343,18 @@ impl AsRef<str> for Dim {
     }
 }
 
+impl From<Dim> for u8 {
+    fn from(dim: Dim) -> Self {
+        dim.0
+    }
+}
+
+impl From<Dim> for SymbolId {
+    fn from(dim: Dim) -> Self {
+        st::decimal1(dim.0).as_sym()
+    }
+}
+
 impl std::fmt::Display for Dim {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         (self.0).fmt(fmt)

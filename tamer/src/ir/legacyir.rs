@@ -27,7 +27,7 @@
 //! This IR should be converted into a higher-level IR quickly,
 //!   especially considering that it will be going away in the future.
 
-use crate::sym::SymbolId;
+use crate::sym::{GlobalSymbolResolve, SymbolId, st};
 use std::convert::TryFrom;
 use std::result::Result;
 
@@ -271,15 +271,29 @@ pub enum SymDtype {
     Empty,
 }
 
+impl SymDtype {
+    pub fn as_sym(&self) -> SymbolId {
+        match self {
+            SymDtype::Boolean => st::L_BOOLEAN,
+            SymDtype::Integer => st::L_INTEGER,
+            SymDtype::Float => st::L_FLOAT,
+            SymDtype::Empty => st::L_EMPTY,
+        }
+        .as_sym()
+    }
+}
+
+impl Into<SymbolId> for SymDtype {
+    fn into(self) -> SymbolId {
+        self.as_sym()
+    }
+}
+
+// TODO: Remove after xmle writer is removed
 impl AsRef<str> for SymDtype {
     /// Produce `xmlo`-compatible representation.
     fn as_ref(&self) -> &str {
-        match self {
-            SymDtype::Boolean => &"boolean",
-            SymDtype::Integer => &"integer",
-            SymDtype::Float => &"float",
-            SymDtype::Empty => &"empty",
-        }
+        self.as_sym().lookup_str().as_str()
     }
 }
 
@@ -307,12 +321,7 @@ impl TryFrom<&[u8]> for SymDtype {
 
 impl std::fmt::Display for SymDtype {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Boolean => write!(fmt, "boolean"),
-            Self::Integer => write!(fmt, "integer"),
-            Self::Float => write!(fmt, "float"),
-            Self::Empty => write!(fmt, "(unknown)"),
-        }
+        write!(fmt, "{}", self.as_sym().lookup_str())
     }
 }
 

@@ -21,7 +21,9 @@
 
 use crate::{
     ir::{
-        asg::{IdentObject, IdentObjectData, Sections, SectionsIter},
+        asg::{
+            IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
+        },
         xir::{AttrValue, QName, Token},
     },
     ld::LSPAN,
@@ -33,6 +35,8 @@ use std::iter::Chain;
 
 qname_const! {
     QN_DESC: :L_DESC,
+    QN_DIM: :L_DIM,
+    QN_DTYPE: :L_DTYPE,
     QN_GENERATED: L_PREPROC:L_GENERATED,
     QN_L_DEP: L_L:L_DEP,
     QN_NAME: :L_NAME,
@@ -91,11 +95,12 @@ struct DepListIter<'a, T: IdentObjectData> {
     relroot: AttrValue,
 }
 
-type DepIter<'a, T> = DepListIter<'a, T>;
-
 impl<'a, T: IdentObjectData> DepListIter<'a, T> {
     fn refill_toks(&mut self) -> Option<Token> {
         // Tokens will be popped, so push in reverse.
+        // They are arranged in the same order as the original writer so
+        //   that we can diff the two;
+        //     TODO: re-order sensibly once we're done.
         self.iter.next().map(|obj| {
             let ident = obj.as_ident().expect("unexpected non-identifier object");
 
@@ -110,6 +115,10 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
         }).and_then(|(sym, kind, src)| {
             self.toks.push(Token::Close(None, LSPAN));
 
+            self.toks_push_attr(QN_DESC, src.desc);
+            self.toks_push_attr(QN_YIELDS, src.yields);
+            self.toks_push_attr(QN_PARENT, src.parent);
+
             if let Some(pkg_name) = src.pkg_name {
                 self.toks.push(Token::AttrValue(AttrValue::Escaped(pkg_name), LSPAN));
                 self.toks.push(Token::AttrValueFragment(self.relroot, LSPAN));
@@ -121,11 +130,8 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
                 false => None,
             });
 
-            self.toks_push_attr(QN_DESC, src.desc);
-            self.toks_push_attr(QN_YIELDS, src.yields);
-            self.toks_push_attr(QN_PARENT, src.parent);
             self.toks_push_attr(QN_NAME, Some(sym));
-            self.toks_push_attr(QN_TYPE, Some(kind.as_sym()));
+            self.toks_push_obj_attrs(kind);
 
             Some(Token::Open(QN_P_SYM, LSPAN))
         })
@@ -138,6 +144,44 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
                 .push(Token::AttrValue(AttrValue::Escaped(val), LSPAN));
             self.toks.push(Token::AttrName(name, LSPAN));
         }
+    }
+
+    /// Generate object-specific attributes.
+    ///
+    /// All objects will produce a [`QN_TYPE`] attribute.
+    fn toks_push_obj_attrs(&mut self, kind: &IdentKind) {
+        match kind {
+            IdentKind::Cgen(dim) | IdentKind::Class(dim) => {
+                self.toks_push_attr(QN_DIM, Some((*dim).into()));
+            }
+
+            IdentKind::Const(dim, dtype)
+            | IdentKind::Func(dim, dtype)
+            | IdentKind::Gen(dim, dtype)
+            | IdentKind::Lparam(dim, dtype)
+            | IdentKind::Param(dim, dtype) => {
+                self.toks_push_attr(QN_DTYPE, Some((*dtype).into()));
+                self.toks_push_attr(QN_DIM, Some((*dim).into()));
+            }
+
+            IdentKind::Rate(dtype) | IdentKind::Type(dtype) => {
+                self.toks_push_attr(QN_DTYPE, Some((*dtype).into()));
+            }
+
+            // No additional attributes (explicit match so that the
+            // exhaustiveness check will warn us if new ones are added)
+            IdentKind::Tpl
+            | IdentKind::MapHead
+            | IdentKind::Map
+            | IdentKind::MapTail
+            | IdentKind::RetMapHead
+            | IdentKind::RetMap
+            | IdentKind::RetMapTail
+            | IdentKind::Meta
+            | IdentKind::Worksheet => {}
+        }
+
+        self.toks_push_attr(QN_TYPE, Some(kind.as_sym()));
     }
 }
 
@@ -152,7 +196,7 @@ impl<'a, T: IdentObjectData> Iterator for DepListIter<'a, T> {
 fn deps<'a, T: IdentObjectData>(
     sections: &'a Sections<T>,
     relroot: SymbolId,
-) -> DepIter<'a, T> {
+) -> DepListIter<'a, T> {
     DepListIter {
         iter: sections.iter_all(),
         toks: ArrayVec::new(),
@@ -180,7 +224,7 @@ fn footer() -> FooterIter {
 ///     since this iterator will receive hundreds of thousands of calls for
 ///     large programs.
 pub struct LowerIter<'a, T: IdentObjectData>(
-    Chain<Chain<HeaderIter, DepIter<'a, T>>, FooterIter>,
+    Chain<Chain<HeaderIter, DepListIter<'a, T>>, FooterIter>,
 );
 
 impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
@@ -209,6 +253,7 @@ pub fn lower_iter<'a, T: IdentObjectData>(
 pub mod test {
     use super::*;
     use crate::convert::ExpectInto;
+    use crate::ir::legacyir::SymDtype;
     use crate::ir::{
         asg::{Dim, IdentKind, Source},
         xir::{
@@ -219,6 +264,16 @@ pub mod test {
     use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    macro_rules! assert_attr{
+        ($attrs:ident, $name:ident, $expected:expr, $($args:expr),*) => {
+            assert_eq!(
+                $attrs.find($name).and_then(|a| a.value_atom()),
+                $expected,
+                $($args),*
+            )
+        }
+    }
 
     #[test]
     fn test_produces_header() -> TestResult {
@@ -257,20 +312,7 @@ pub mod test {
 
         let objs = [
             IdentObject::Ident(
-                "a".intern(),
-                IdentKind::Meta,
-                Source {
-                    desc: Some("test desc".intern()),
-                    ..Default::default()
-                },
-            ),
-            IdentObject::Ident(
-                "b".intern(),
-                IdentKind::MapHead,
-                Default::default(),
-            ),
-            IdentObject::Ident(
-                "c".intern(),
+                "cgentest".intern(),
                 IdentKind::Cgen(Dim::from_u8(1)),
                 Source {
                     yields: Some("yieldsValue".intern()),
@@ -279,6 +321,94 @@ pub mod test {
                     pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
+            ),
+            IdentObject::Ident(
+                "classtest".intern(),
+                IdentKind::Class(Dim::from_u8(2)),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "consttest".intern(),
+                IdentKind::Const(Dim::from_u8(0), SymDtype::Boolean),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "functest".intern(),
+                IdentKind::Func(Dim::from_u8(1), SymDtype::Integer),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "gentest".intern(),
+                IdentKind::Gen(Dim::from_u8(1), SymDtype::Boolean),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "lparamtest".intern(),
+                IdentKind::Gen(Dim::from_u8(2), SymDtype::Float),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "paramtest".intern(),
+                IdentKind::Gen(Dim::from_u8(0), SymDtype::Integer),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "ratetest".intern(),
+                IdentKind::Rate(SymDtype::Integer),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "tpltest".intern(),
+                IdentKind::Tpl,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "typetest".intern(),
+                IdentKind::Type(SymDtype::Integer),
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "mapheadtest".intern(),
+                IdentKind::MapHead,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "maptest".intern(),
+                IdentKind::Map,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "maptailtest".intern(),
+                IdentKind::MapTail,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "retmapheadtest".intern(),
+                IdentKind::RetMapHead,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "retmaptest".intern(),
+                IdentKind::RetMap,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "retmaptailtest".intern(),
+                IdentKind::RetMapTail,
+                Default::default(),
+            ),
+            IdentObject::Ident(
+                "metatest".intern(),
+                IdentKind::Meta,
+                Source {
+                    desc: Some("test desc".intern()),
+                    ..Default::default()
+                },
+            ),
+            IdentObject::Ident(
+                "worksheettest".intern(),
+                IdentKind::Worksheet,
+                Default::default(),
             ),
         ];
 
@@ -316,9 +446,9 @@ pub mod test {
             ele
         });
 
-        p_syms.enumerate().for_each(|(i, sym)| {
+        p_syms.enumerate().for_each(|(i, ele)| {
             let ident = objs[i].as_ident().unwrap();
-            let attrs = sym.attrs();
+            let attrs = ele.attrs();
 
             assert_eq!(
                 attrs.find(QN_NAME).and_then(|a| a.value_atom()),
@@ -346,19 +476,17 @@ pub mod test {
             }
 
             if let Some(Source { parent, .. }) = ident.src() {
-                assert_eq!(
-                    attrs
-                        .find("parent".unwrap_into())
-                        .and_then(|a| a.value_atom()),
+                assert_attr!(
+                    attrs,
+                    QN_PARENT,
                     parent.map(|x| AttrValue::Escaped(x)),
                 );
             }
 
             if let Some(Source { yields, .. }) = ident.src() {
-                assert_eq!(
-                    attrs
-                        .find("yields".unwrap_into())
-                        .and_then(|a| a.value_atom()),
+                assert_attr!(
+                    attrs,
+                    QN_YIELDS,
                     yields.map(|x| AttrValue::Escaped(x)),
                 );
             }
@@ -371,10 +499,7 @@ pub mod test {
                 // uninterned and therefore cannot be compared as a
                 // `SymbolId`.  Once the reader takes care of creating the
                 // symbol, we'll have no such problem.
-                match attrs
-                    .find("desc".unwrap_into())
-                    .and_then(|a| a.value_atom())
-                {
+                match attrs.find(QN_DESC).and_then(|a| a.value_atom()) {
                     Some(AttrValue::Escaped(given)) => {
                         assert_eq!(desc.lookup_str(), given.lookup_str());
                     }
@@ -399,6 +524,54 @@ pub mod test {
                     }
                     invalid => panic!("unexpected desc: {:?}", invalid),
                 }
+            }
+
+            // Object-specific attributes
+            match ident.kind().unwrap() {
+                IdentKind::Cgen(dim) | IdentKind::Class(dim) => {
+                    assert_attr!(
+                        attrs,
+                        QN_DIM,
+                        Some(AttrValue::Escaped((*dim).into())),
+                        "invalid {:?} @dim",
+                        ident.kind()
+                    );
+                }
+
+                IdentKind::Const(dim, dtype)
+                | IdentKind::Func(dim, dtype)
+                | IdentKind::Gen(dim, dtype)
+                | IdentKind::Lparam(dim, dtype)
+                | IdentKind::Param(dim, dtype) => {
+                    assert_attr!(
+                        attrs,
+                        QN_DIM,
+                        Some(AttrValue::Escaped((*dim).into())),
+                        "invalid {:?} @dim",
+                        ident.kind()
+                    );
+
+                    assert_attr!(
+                        attrs,
+                        QN_DTYPE,
+                        Some(AttrValue::Escaped((*dtype).into())),
+                        "invalid {:?} @dtype",
+                        ident.kind()
+                    );
+                }
+
+                IdentKind::Rate(dtype) | IdentKind::Type(dtype) => {
+                    assert_attr!(
+                        attrs,
+                        QN_DTYPE,
+                        Some(AttrValue::Escaped((*dtype).into())),
+                        "invalid {:?} @dim",
+                        ident.kind()
+                    );
+                }
+
+                // The others have no additional attributes
+                _ => {}
             }
         });
 

@@ -187,6 +187,9 @@ static_symbol_newtypes! {
     ///   common in many programming languages.
     cid: CIdentStaticSymbolId<global::ProgSymSize>,
 
+    /// Base-10 (decimal) integer value as a string.
+    dec: DecStaticSymbolId<global::ProgSymSize>,
+
     /// A symbol resembling a QName of the form `prefix:local`.
     ///
     /// A symbol of this type does _not_ mean that the symbol is intended to
@@ -241,18 +244,67 @@ static_symbol_newtypes! {
 pub mod st {
     use super::*;
 
+    // Convert `0 ≤ n ≤ 9` into a static symbol representing a single
+    //   decimal digit.
+    //
+    // Panics
+    // ======
+    // This will panic if `n > 9`.
+    pub fn decimal1(n: u8) -> DecStaticSymbolId {
+        assert!(n < 10);
+
+        // The symbols are expected to be in a very specific position in the
+        //   pool (n+1).
+        // This is verified by tests at the bottom of this file.
+        DecStaticSymbolId(unsafe {
+            <global::ProgSymSize as SymbolIndexSize>::NonZero::new_unchecked(
+                (n as global::ProgSymSize) + 1,
+            )
+        })
+    }
+
+    impl From<u8> for DecStaticSymbolId {
+        // Convert `0 ≤ n ≤ 9` into a static symbol representing a single
+        //   decimal digit.
+        //
+        // See [`decimal1`].
+        fn from(n: u8) -> Self {
+            decimal1(n)
+        }
+    }
+
     static_symbols! {
         <global::ProgSymSize>;
 
+        // Decimal strings are expected to be at index (n+1).
+        // See `decimal1`.
+        N0: dec "0",
+        N1: dec "1",
+        N2: dec "2",
+        N3: dec "3",
+        N4: dec "4",
+        N5: dec "5",
+        N6: dec "6",
+        N7: dec "7",
+        N8: dec "8",
+        N9: dec "9",
+
+
+        L_BOOLEAN: cid "boolean",
         L_CGEN: cid "cgen",
         L_CLASS: cid "class",
         L_CONST: cid "const",
         L_DEP: cid "dep",
         L_DESC: cid "desc",
+        L_DIM: cid "dim",
+        L_DTYPE: cid "dtype",
+        L_EMPTY: cid "empty",
         L_FALSE: cid "false",
+        L_FLOAT: cid "float",
         L_FUNC: cid "func",
         L_GEN: cid "gen",
         L_GENERATED: cid "generated",
+        L_INTEGER: cid "integer",
         L_L: cid "l",
         L_LPARAM: cid "lparam",
         L_MAP: cid "map",
@@ -281,8 +333,8 @@ pub mod st {
         L_YIELDS: cid "yields",
 
         URI_LV_RATER: uri "http://www.lovullo.com/rater",
-        URI_LV_PREPROC: uri "http://www.lovullo.com/preproc",
-        URI_LV_LINKER: uri "http://www.lovullo.com/linker",
+        URI_LV_PREPROC: uri "http://www.lovullo.com/rater/preproc",
+        URI_LV_LINKER: uri "http://www.lovullo.com/rater/linker",
 
         // [Symbols will be added here as they are needed.]
 
@@ -319,8 +371,8 @@ pub mod st16 {
 
 #[cfg(test)]
 mod test {
-    use super::{st, st16};
-    use crate::sym::{GlobalSymbolIntern, SymbolId};
+    use super::{st, st16, DecStaticSymbolId};
+    use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
 
     #[test]
     fn global_sanity_check_st() {
@@ -355,5 +407,24 @@ mod test {
              indicating that prefill is either not working or that \
              the prefill contains duplicate strings!"
         );
+    }
+
+    #[test]
+    fn decimal1_0_to_9() {
+        for n in 0..=9 {
+            assert_eq!(st::decimal1(n).as_sym().lookup_str(), n.to_string());
+
+            // From<u8>
+            assert_eq!(
+                DecStaticSymbolId::from(n).as_sym().lookup_str(),
+                n.to_string()
+            );
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn decimal1_gt_9_panics() {
+        st::decimal1(10);
     }
 }
