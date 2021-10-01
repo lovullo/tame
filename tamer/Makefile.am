@@ -18,6 +18,13 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
+# `Makefile.am` is processed by Automake into `Makefile.in`, which is then
+# processed by Autoconf into the final `Makefile`.
+#
+# The `@`-delimited variables are defined dynamically in `configure.ac`,
+# which is processed by Autoconf into `configure`; they are populated based
+# on the environment in which the `configure` script is invoked.
+
 .DELETE_ON_ERROR:
 
 .PHONY: all fix fmt check-fmt bench
@@ -30,27 +37,27 @@ all: bin doc
 
 .PHONY: bin
 bin:
-	@CARGO@ build $(CARGO_BUILD_FLAGS) @FEATURES@
+	@CARGO@ +@RUST_TC@ build $(CARGO_BUILD_FLAGS) @FEATURES@
 
 doc: html
 html-am:
-	@CARGO@ test --doc @FEATURES@
-	@CARGO@ @CARGO_DOC_FLAGS@ doc --document-private-items @FEATURES@
+	@CARGO@ +@RUST_TC@ test --doc @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_DOC_FLAGS@ doc --document-private-items @FEATURES@
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
 check-am: check-fmt
-	@CARGO@ test @FEATURES@
+	@CARGO@ +@RUST_TC@ test @FEATURES@
 
 check-fmt:
-	@CARGO@ fmt -- --check
+	@CARGO@ +@RUST_TC@ fmt -- --check
 
 bench:
-	@CARGO@ @CARGO_BENCH_PRE_FLAGS@ bench $(CARGO_BENCH_FLAGS) @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_BENCH_PRE_FLAGS@ bench $(CARGO_BENCH_FLAGS) @FEATURES@
 
 fix: fmt
 fmt:
-	@CARGO@ fmt
+	@CARGO@ +@RUST_TC@ fmt
 
 clean-am:
-	@CARGO@ clean
+	@CARGO@ +@RUST_TC@ clean

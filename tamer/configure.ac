@@ -43,13 +43,18 @@ AC_SUBST(SUFFIX, m4_argn(4, ver_split))
 AC_ARG_VAR([CARGO], [Rust Cargo executable])
 AC_CHECK_PROGS(CARGO, [cargo])
 
+# Rust toolchain (stable/nightly) is hard-coded for now, since decisions
+# regarding whether to use it are nuanced.
+AC_SUBST([RUST_TC], nightly)
+
 test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 
-rustc_ver_req=1.54.0
+# This is a nightly version at the time of writing
+rustc_ver_req=1.57.0
 
 AC_CHECK_PROGS(RUSTC, [rustc])
-AC_MSG_CHECKING([rustc version >= $rustc_ver_req])
-rustc_version=$("$RUSTC" --version | cut -d' ' -f2)
+AC_MSG_CHECKING([rustc $RUST_TC version >= $rustc_ver_req])
+rustc_version=$("$RUSTC" "+$RUST_TC" --version | cut -d' ' -f2)
 AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
                    [AC_MSG_RESULT([yes ($rustc_version)])],
                    [AC_MSG_RESULT([no ($rustc_version)])
@@ -66,30 +71,30 @@ AC_SUBST([CARGO_DOC_FLAGS], [])
 # it's still an unstable feature and we'll need to use nightly.  We don't
 # check for nightly here, though---if it's missing, then cargo will tell the
 # user what to do.
-AC_MSG_CHECKING([`test` feature support])
-AS_IF(["$RUSTC" --crate-type lib build_aux/bench_check.rs &>/dev/null],
+AC_MSG_CHECKING([`test` feature support on $RUST_TC])
+AS_IF(["$RUSTC" "+$RUST_TC" --crate-type lib build-aux/bench_check.rs &>/dev/null],
       [AC_MSG_RESULT(available)],
       [AC_MSG_RESULT([no (nightly required)])
        AC_SUBST([CARGO_BENCH_PRE_FLAGS], [+nightly])])
 
 # Cargo commands may be available but not necessarily installed for the
 # active toolchain.  Let's check that.
-AC_MSG_CHECKING([whether cargo-fmt is available for active toolchain])
-AS_IF([cargo fmt --help &>/dev/null],
+AC_MSG_CHECKING([whether cargo-fmt is available on $RUST_TC])
+AS_IF([cargo "+$RUST_TC" fmt --help &>/dev/null],
       [AC_MSG_RESULT(yes)],
       [AC_MSG_RESULT(no)
-       cargo fmt --help  # run again so user can see output
-       AC_MSG_ERROR([missing cargo-fmt for active toolchain])])
+       cargo "+$RUST_TC" fmt --help  # run again so user can see output
+       AC_MSG_ERROR([missing cargo-fmt on $RUST_TC])])
 
 # Cargo commands may be available but not necessarily installed for the
 # active toolchain.  Let's check that.
-AC_MSG_CHECKING([whether cargo-doc is available for toolchain])
-AS_IF([cargo $CARGO_DOC_FLAGS doc --help &>/dev/null],
+AC_MSG_CHECKING([whether cargo-doc is available on $RUST_TC])
+AS_IF([cargo "+$RUST_TC" $CARGO_DOC_FLAGS doc --help &>/dev/null],
       [AC_MSG_RESULT(yes)],
       [AC_MSG_RESULT(no)
        # run again so user can see output
-       cargo $CARGO_DOC_FLAGS doc --help 2>&1 | sed 's/^.*: //'
-       AC_MSG_WARN([missing cargo-doc for toolchain])
+       cargo "+$RUST_TC" $CARGO_DOC_FLAGS doc --help 2>&1 | sed 's/^.*: //'
+       AC_MSG_WARN([missing cargo-doc on $RUST_TC])
        AC_MSG_WARN([`make html` will not work])])
 
 AC_ARG_VAR([FEATURES],
