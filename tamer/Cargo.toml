@@ -4,7 +4,7 @@ version = "0.0.0"
 authors = ["Mike Gerwitz <mike.gerwitz@ryansg.com>"]
 description="TAME in Rust"
 license="GPLv3+"
-edition = "2018"
+edition = "2021"
 
 [profile.dev]
 # Release-level optimizations.  Spending the extra couple of moments
