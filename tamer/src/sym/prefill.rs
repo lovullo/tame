@@ -28,7 +28,6 @@
 
 use super::{Interner, SymbolId, SymbolIndexSize};
 use crate::global;
-use std::array;
 
 /// Static symbol identifier that is stable between runs of the same version
 ///   of TAMER.
@@ -260,11 +259,11 @@ macro_rules! static_symbols {
             //   require that we count the number of items first for the
             //   sake of the type definition.
             // This is more convenient.
-            array::IntoIter::new([
+            [
                 $(
                     $str,
                 )*
-            ]).for_each(|sym| { interner.intern(sym); });
+            ].into_iter().for_each(|sym| { interner.intern(sym); });
 
             interner
         }

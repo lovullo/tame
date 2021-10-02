@@ -74,10 +74,7 @@ mod attrs {
 fn empty_element_self_close_from_toks() {
     let name = ("ns", "elem").unwrap_into();
 
-    let toks = std::array::IntoIter::new([
-        Token::Open(name, *S),
-        Token::Close(None, *S2),
-    ]);
+    let toks = [Token::Open(name, *S), Token::Close(None, *S2)].into_iter();
 
     let expected = Element {
         name,
@@ -102,10 +99,8 @@ fn empty_element_self_close_from_toks() {
 fn empty_element_balanced_close_from_toks() {
     let name = ("ns", "openclose").unwrap_into();
 
-    let toks = std::array::IntoIter::new([
-        Token::Open(name, *S),
-        Token::Close(Some(name), *S2),
-    ]);
+    let toks =
+        [Token::Open(name, *S), Token::Close(Some(name), *S2)].into_iter();
 
     let expected = Element {
         name,
@@ -131,10 +126,11 @@ fn empty_element_unbalanced_close_from_toks() {
     let open_name = "open".unwrap_into();
     let close_name = "unbalanced_name".unwrap_into();
 
-    let toks = std::array::IntoIter::new([
+    let toks = [
         Token::Open(open_name, *S),
         Token::Close(Some(close_name), *S2),
-    ]);
+    ]
+    .into_iter();
 
     let mut sut = toks.scan(ParserState::new(), parse);
 
@@ -161,7 +157,7 @@ fn empty_element_with_attrs_from_toks() {
     let val2b = AttrValue::Escaped("val2b".intern());
     let val2c = AttrValue::Escaped("val2b".intern());
 
-    let toks = std::array::IntoIter::new([
+    let toks = [
         Token::Open(name, *S),
         Token::AttrName(attr1, *S),
         Token::AttrValue(val1, *S2),
@@ -171,7 +167,8 @@ fn empty_element_with_attrs_from_toks() {
         Token::AttrValueFragment(val2b, *S2),
         Token::AttrValue(val2c, *S3),
         Token::Close(None, *S2),
-    ]);
+    ]
+    .into_iter();
 
     let expected = Element {
         name,
@@ -209,14 +206,15 @@ fn element_with_empty_sibling_children() {
     let childa = "childa".unwrap_into();
     let childb = "childb".unwrap_into();
 
-    let toks = std::array::IntoIter::new([
+    let toks = [
         Token::Open(parent, *S),
         Token::Open(childa, *S),
         Token::Close(None, *S2),
         Token::Open(childb, *S),
         Token::Close(None, *S2),
         Token::Close(Some(parent), *S2),
-    ]);
+    ]
+    .into_iter();
 
     let expected = Element {
         name: parent,
@@ -252,14 +250,15 @@ fn element_with_child_with_attributes() {
     let attr = "attr".unwrap_into();
     let value = AttrValue::Escaped("attr value".into());
 
-    let toks = std::array::IntoIter::new([
+    let toks = [
         Token::Open(parent, *S),
         Token::Open(child, *S),
         Token::AttrName(attr, *S),
         Token::AttrValue(value, *S2),
         Token::Close(None, *S3),
         Token::Close(Some(parent), *S3),
-    ]);
+    ]
+    .into_iter();
 
     let expected = Element {
         name: parent,
@@ -285,12 +284,13 @@ fn parser_from_filters_incomplete() {
     let attr = "a".unwrap_into();
     let val = AttrValue::Escaped("val1".intern());
 
-    let toks = std::array::IntoIter::new([
+    let toks = [
         Token::Open(name, *S),
         Token::AttrName(attr, *S),
         Token::AttrValue(val, *S2),
         Token::Close(None, *S2),
-    ]);
+    ]
+    .into_iter();
 
     let expected = Element {
         name,

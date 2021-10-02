@@ -66,7 +66,7 @@ fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
     // editions regarding arrays and [`IntoIter`].  This was written in
     // edition 2018; 2021 will be out in a few months at the time of
     // writing.
-    array::IntoIter::new([
+    [
         Token::Open(QN_PACKAGE, LSPAN),
         Token::AttrName(QN_XMLNS, LSPAN),
         Token::AttrValue(AttrValue::st_uri(URI_LV_RATER), LSPAN),
@@ -83,7 +83,8 @@ fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
         Token::AttrName(QN_UUROOTPATH, LSPAN),
         Token::AttrValue(AttrValue::Escaped(relroot), LSPAN),
         Token::Open(QN_L_DEP, LSPAN),
-    ])
+    ]
+    .into_iter()
 }
 
 const DEP_MAX_ATTRS: usize = 9;
@@ -239,10 +240,11 @@ type FooterIter = array::IntoIter<Token, FOOTER_SIZE>;
 
 #[inline]
 fn footer() -> FooterIter {
-    array::IntoIter::new([
+    [
         Token::Close(Some(QN_L_DEP), LSPAN),
         Token::Close(Some(QN_PACKAGE), LSPAN),
-    ])
+    ]
+    .into_iter()
 }
 
 /// Iterator that lazily lowers `xmle` object files into Xir.
