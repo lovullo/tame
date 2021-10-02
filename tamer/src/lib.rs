@@ -19,6 +19,14 @@
 
 //! An incremental rewrite of TAME in Rust.
 
+// Constant functions are still in their infancy as of the time of writing
+//   (October 2021).
+// These two features are used by [`sym::prefill::st_as_sym`] to provide
+//   polymorphic symbol types despite Rust's lack of support for constant
+//   trait methods.
+// See that function for more information.
+#![feature(const_fn_trait_bound)]
+#![feature(const_transmute_copy)]
 // We build docs for private items
 #![allow(rustdoc::private_intra_doc_links)]
 

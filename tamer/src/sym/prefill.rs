@@ -30,11 +30,95 @@ use super::{Interner, SymbolId, SymbolIndexSize};
 use crate::global;
 use std::array;
 
+/// Static symbol identifier that is stable between runs of the same version
+///   of TAMER.
+///
+/// This symbol id is allocated at compile-time.
+///
+/// _All objects implementing this trait must have the same byte
+///   representation as its inner [`SymbolId`]_.
+pub unsafe trait StaticSymbolId<Ix: SymbolIndexSize = global::ProgSymSize>:
+    private::Sealed
+{
+    // Traits cannot contain constant functions.
+    // See [`st_as_sym`] below.
+}
+
+/// Convert any [`StaticSymbolId`] into its inner [`SymbolId`].
+///
+/// Static symbols are typed to convey useful information to newtypes that
+///   wish to wrap or compose them.
+/// This function peels back that type information to expose the inner
+///   symbol.
+///
+/// Safety and Rationale
+/// ====================
+/// This function does its best to work around the limitation in Rust that
+///   traits cannot contain constant functions
+///   (at the time of writing).
+///
+/// To do this,
+///   we require that every object of type [`StaticSymbolId`] have _the same
+///   byte representation_ as [`SymbolId`].
+/// Since Rust optimizes away simple newtype wrappers,
+///   this means that we can simply cast the value to a symbol.
+///
+/// For example, if we have `StaticSymbolId<u32>`,
+///   this would cast to a `SymbolId<u32>`.
+/// The inner value of `SymbolId<u32>` is
+///   `<u32 as SymbolIndexSize>::NonZero`,
+///     which has the same byte representation as `u32`.
+///
+/// This would normally be done using [`std::mem::transmute`],
+///   which ensures that the two types have compatible sizes.
+/// Unfortunately,
+///   the types here do not have fixed size and constant functions are
+///   unable to verify that they are compatible at the time of writing.
+/// We therefore must use [`std::mem::transmute_copy`] to circumvent this
+///   size check.
+///
+/// Circumventing this check is safe given our trait bounds for all static
+///   symbols in this module and its children.
+/// However,
+///   for this safety to hold,
+///   we must ensure that no outside modules can implement
+///   [`StaticSymbolId`] on their own objects.
+/// For this reason,
+///   [`StaticSymbolId`] implements [`private::Sealed`].
+///
+/// With that,
+///   we get [`SymbolId`] polymorphism despite Rust's limitations.
+///
+/// A Note About Nightly
+/// ====================
+/// At the time of writing,
+///   though,
+///   this _does_ require two unstable features:
+///     `const_fn_trait_bound` and `const_transmute_copy`.
+/// We can get rid of the latter using raw pointer casts,
+///   just as it does,
+///   but since we're already relying on unstable flags,
+///     we may as well use it while we require nightly for other things as
+///     well.
+///
+/// `const_fn_trait_bound` cannot be removed in this situation without
+///   another plan.
+/// `const_panic` could be used with an enum,
+///   but that still requires nightly.
+pub const fn st_as_sym<T, Ix>(st: &T) -> SymbolId<Ix>
+where
+    T: StaticSymbolId<Ix>,
+    Ix: SymbolIndexSize,
+{
+    // SAFETY: A number of precautions are taken to make this a safe and
+    // sensible transformation; see function doc above.
+    SymbolId(unsafe { std::mem::transmute_copy(st) })
+}
+
 /// Generate a newtype containing a condensed [`SymbolId`].
 macro_rules! static_symbol_newtype {
     ($(#[$attr:meta])* $name:ident<$size:ty>) => {
         $(#[$attr])*
-        #[doc=""]
         /// This is a statically-allocated symbol.
         ///
         /// This symbol is generated at compile-time and expected to be
@@ -42,6 +126,13 @@ macro_rules! static_symbol_newtype {
         ///   initialized.
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(<$size as SymbolIndexSize>::NonZero);
+
+        // Mark this as a static symbol type, ensuring that it size is fully
+        //   compatible with the underlying `SymbolId` so as not to cause
+        //   problems with `st_as_sym`.
+        impl private::Sealed for $name {}
+        unsafe impl StaticSymbolId<$size> for $name {}
+        assert_eq_size!($name, SymbolId<$size>);
 
         impl $name {
             const fn new(id: $size) -> Self {
@@ -132,7 +223,7 @@ macro_rules! static_symbol_consts {
 ///   and schedule their static strings to be interned upon initialization
 ///   of the global interner.
 ///
-/// This generates [`fill`],
+/// This generates `fill`,
 ///   which the global interners call by default.
 /// Any interner may optionally invoke this,
 ///   immediately after initialization,
@@ -367,6 +458,25 @@ pub mod st16 {
         //   (this must always be last).
         END_STATIC: mark "{{end}}"
     }
+}
+
+/// Non-public module that can contain public traits.
+///
+/// The problem this module tries to solve is preventing anything outside of
+///   this crate from implementing the `StaticSymbolId` trait,
+///     since doing so opens us up to undefined behavior when transmuting
+///     via [`st_as_sym`](super::st_as_sym).
+mod private {
+    /// Extend this trait to prevent other modules from implementing the
+    ///   subtype.
+    ///
+    /// Since other modules extend [`StaticSymbolId`](super::StaticSymbolId)
+    ///   for their own traits,
+    ///     this trait must be `pub`.
+    /// But, since it is contained within a private module,
+    ///   it is not possible to import the trait to implement it on other
+    ///   things.
+    pub trait Sealed {}
 }
 
 #[cfg(test)]

@@ -31,7 +31,8 @@
 
 use crate::span::Span;
 use crate::sym::{
-    CIdentStaticSymbolId, GlobalSymbolIntern, SymbolId, UriStaticSymbolId,
+    CIdentStaticSymbolId, GlobalSymbolIntern, StaticSymbolId, SymbolId,
+    UriStaticSymbolId,
 };
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
@@ -41,13 +42,16 @@ pub mod pred;
 pub mod tree;
 pub mod writer;
 
+pub trait QNameCompatibleStaticSymbolId: StaticSymbolId {}
+impl QNameCompatibleStaticSymbolId for CIdentStaticSymbolId {}
+
 macro_rules! qname_const_inner {
     ($name:ident = :$local:ident) => {
         const $name: QName = QName::st_cid_local($local);
     };
 
     ($name:ident = $prefix:ident:$local:ident) => {
-        const $name: QName = QName::st_cid($prefix, $local);
+        const $name: QName = QName::st_cid(&$prefix, &$local);
     };
 }
 
@@ -280,13 +284,14 @@ impl QName {
     }
 
     /// Construct a constant QName from static C-style symbols.
-    pub const fn st_cid(
-        prefix_sym: CIdentStaticSymbolId,
-        local_sym: CIdentStaticSymbolId,
+    pub const fn st_cid<T: QNameCompatibleStaticSymbolId>(
+        prefix_sym: &T,
+        local_sym: &T,
     ) -> Self {
+        use crate::sym;
         Self(
-            Some(Prefix(NCName(prefix_sym.as_sym()))),
-            LocalPart(NCName(local_sym.as_sym())),
+            Some(Prefix(NCName(sym::st_as_sym(prefix_sym)))),
+            LocalPart(NCName(sym::st_as_sym(local_sym))),
         )
     }
 
