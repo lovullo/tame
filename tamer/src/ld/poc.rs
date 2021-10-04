@@ -242,9 +242,9 @@ fn output_xmle<'a>(
     }
     #[cfg(feature = "wip-xir-xmle-writer")]
     {
-        use std::io::Write;
         use crate::ir::xir::writer::XmlWriter;
         use crate::obj::xmle::xir::lower_iter;
+        use std::io::Write;
 
         eprintln!("warning: using wip-xir-xmle-writer");
 
