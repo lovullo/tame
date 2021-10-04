@@ -24,6 +24,9 @@
 //!
 //! [`SortableAsg::sort`]: super::SortableAsg::sort
 
+use super::IdentObjectData;
+use crate::sym::SymbolId;
+use fxhash::FxHashSet;
 use std::iter::Chain;
 use std::slice::Iter;
 
@@ -121,7 +124,7 @@ pub struct Sections<'a, T> {
     pub rater: Section<'a, T>,
 }
 
-impl<'a, T> Sections<'a, T> {
+impl<'a, T: IdentObjectData> Sections<'a, T> {
     /// New collection of empty sections.
     pub fn new() -> Self {
         Self {
@@ -189,6 +192,19 @@ impl<'a, T> Sections<'a, T> {
         SectionsIter(SectionsIterType::Single(self.map.iter()))
     }
 
+    /// Iterate over each unique map `from` entry.
+    ///
+    /// Multiple mappings may reference the same source field,
+    ///   which would produce duplicate values if they are not filtered.
+    pub fn iter_map_froms_uniq(&self) -> impl Iterator<Item = SymbolId> {
+        self.iter_map()
+            .filter_map(|ident| {
+                ident.src().expect("internal error: missing map src").from
+            })
+            .collect::<FxHashSet<SymbolId>>()
+            .into_iter()
+    }
+
     /// Construct an iterator over the return map section.
     pub fn iter_retmap(&self) -> SectionsIter<T> {
         SectionsIter(SectionsIterType::Single(self.retmap.iter()))
@@ -236,12 +252,20 @@ impl<'a, T> Iterator for SectionsIter<'a, T> {
             SectionsIterType::Single(inner) => inner.next(),
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match &self.0 {
+            SectionsIterType::All(inner) => inner.size_hint(),
+            SectionsIterType::Static(inner) => inner.size_hint(),
+            SectionsIterType::Single(inner) => inner.size_hint(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::IdentObject;
+    use crate::ir::asg::{IdentKind, IdentObject, Source};
     use crate::sym::GlobalSymbolIntern;
 
     type Sut<'a, 'i> = Section<'a, IdentObject>;
@@ -374,6 +398,45 @@ mod test {
         assert_eq!(
             sections.iter_all().collect::<Vec<_>>(),
             objs.iter().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn sections_iter_map_froms_uniq() {
+        let mut sut_a = Sections::new();
+        let mut sut_b = Sections::new();
+
+        let a = IdentObject::Ident(
+            "a".intern(),
+            IdentKind::Map,
+            Source {
+                from: Some("froma".intern()),
+                ..Default::default()
+            },
+        );
+
+        let b = IdentObject::Ident(
+            "a".intern(),
+            IdentKind::Map,
+            Source {
+                from: Some("fromb".intern()),
+                ..Default::default()
+            },
+        );
+
+        // A contains duplicates.
+        sut_a.map.body.push(&a);
+        sut_a.map.body.push(&a);
+        sut_a.map.body.push(&b);
+
+        // B does not.
+        sut_b.map.body.push(&a);
+        sut_b.map.body.push(&b);
+
+        // They should compare the same.
+        assert_eq!(
+            sut_a.iter_map_froms_uniq().collect::<Vec<_>>(),
+            sut_b.iter_map_froms_uniq().collect::<Vec<_>>(),
         );
     }
 }

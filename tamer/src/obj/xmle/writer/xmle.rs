@@ -22,7 +22,6 @@ use crate::ir::asg::{
     IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
 };
 use crate::sym::{GlobalSymbolResolve, SymbolId};
-use fxhash::FxHashSet;
 #[cfg(test)]
 use mock::MockXmlWriter as XmlWriter;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
@@ -302,14 +301,7 @@ impl<W: Write> XmleWriter<W> {
         &mut self,
         sections: &Sections<T>,
     ) -> Result<&mut XmleWriter<W>> {
-        let map_froms: FxHashSet<SymbolId> = sections
-            .iter_map()
-            .filter_map(|ident| {
-                ident.src().expect("internal error: missing map src").from
-            })
-            .collect();
-
-        for from in map_froms {
+        for from in sections.iter_map_froms_uniq() {
             let name: &str = &from.lookup_str();
 
             self.writer.write_event(Event::Empty(
