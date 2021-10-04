@@ -657,7 +657,7 @@ pub struct Source {
     ///
     /// TODO: We have `parent`, `yields`, and `from`.
     ///   We should begin to consolodate.
-    pub from: Option<Vec<SymbolId>>,
+    pub from: Option<SymbolId>,
 
     /// Whether identifier is virtual (can be overridden).
     ///
@@ -1665,7 +1665,7 @@ mod test {
             parent: Some(psym),
             yields: Some(ysym),
             desc: Some("sym desc".into()),
-            from: Some(vec![fsym]),
+            from: Some(fsym),
             virtual_: true,
             override_: true,
             ..Default::default()
@@ -1679,7 +1679,7 @@ mod test {
                 parent: attrs.parent,
                 yields: attrs.yields,
                 desc: Some("sym desc".into()),
-                from: Some(vec![fsym]),
+                from: Some(fsym),
                 virtual_: true,
                 override_: true,
             },

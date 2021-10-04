@@ -302,19 +302,12 @@ impl<W: Write> XmleWriter<W> {
         &mut self,
         sections: &Sections<T>,
     ) -> Result<&mut XmleWriter<W>> {
-        let mut map_froms: FxHashSet<SymbolId> = Default::default();
-
-        let map_iter = sections.iter_map();
-
-        for map_ident in map_iter {
-            let src = map_ident.src().expect("internal error: missing map src");
-
-            if let Some(froms) = &src.from {
-                for from in froms {
-                    map_froms.insert(*from);
-                }
-            }
-        }
+        let map_froms: FxHashSet<SymbolId> = sections
+            .iter_map()
+            .filter_map(|ident| {
+                ident.src().expect("internal error: missing map src").from
+            })
+            .collect();
 
         for from in map_froms {
             let name: &str = &from.lookup_str();
@@ -650,7 +643,7 @@ mod test {
             parent: Some(psym),
             yields: Some(ysym),
             desc: Some("sym desc".into()),
-            from: Some(vec![fsym]),
+            from: Some(fsym),
             virtual_: true,
             ..Default::default()
         };
@@ -688,7 +681,7 @@ mod test {
         let symb = "dest symbol".intern();
 
         let mut src = Source::default();
-        src.from = Some(vec![symb]);
+        src.from = Some(symb);
         let object = IdentObject::Ident(sym, IdentKind::Worksheet, src);
         let mut sections = Sections::new();
         sections.map.push_body(&object);

@@ -313,10 +313,10 @@ where
                         XmloEvent::SymDecl(_, attrs)
                             if attrs.ty == Some(SymType::Map) =>
                         {
-                            attrs.from = Some(Self::process_map_from(
+                            attrs.from = Self::process_map_from(
                                 &mut self.reader,
                                 &mut self.sub_buffer,
-                            )?);
+                            )?;
 
                             Ok(event)
                         }
@@ -502,13 +502,22 @@ where
     fn process_map_from<'a>(
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
-    ) -> XmloResult<Vec<SymbolId>> {
-        let mut froms = Vec::new();
+    ) -> XmloResult<Option<SymbolId>> {
+        let mut from = None;
 
         loop {
             match reader.read_event(buffer)? {
-                XmlEvent::Empty(ele) if ele.name() == b"preproc:from" => froms
-                    .push(
+                XmlEvent::Empty(ele) if ele.name() == b"preproc:from" => {
+                    if from.is_some() {
+                        // This feature isn't actually utilized for the
+                        //   input map.
+                        return Err(XmloError::InvalidMapFrom(
+                            "multiple preproc:from found for input map entry"
+                                .into(),
+                        ));
+                    }
+
+                    from.replace(
                         ele.attributes()
                             .with_checks(false)
                             .filter_map(Result::ok)
@@ -523,7 +532,8 @@ where
                                     })
                                 },
                             )?,
-                    ),
+                    );
+                }
 
                 XmlEvent::End(ele) if ele.name() == b"preproc:sym" => break,
 
@@ -534,7 +544,7 @@ where
             };
         }
 
-        Ok(froms)
+        Ok(from)
     }
 
     /// Process `preproc:sym-dep` element.

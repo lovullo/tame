@@ -159,7 +159,9 @@ pub struct SymAttrs {
     ///  - [`SymType::Map`] includes the name of the source field; and
     ///  - [`SymType::Func`] lists params in order (so that the compiler
     ///    knows application order).
-    pub from: Option<Vec<SymbolId>>,
+    ///
+    /// This system currently only handles the former.
+    pub from: Option<SymbolId>,
 
     /// Whether symbol can be overridden.
     ///

@@ -487,7 +487,12 @@ xmlo_tests! {
                 ])),
             ))),
 
-            1 => Ok(XmlEvent::Empty(MockBytesStart::new(
+            // make sure that whitespace is permitted
+            1 => Ok(XmlEvent::Text(MockBytesText::new(
+                b"      ",
+            ))),
+
+            2 => Ok(XmlEvent::Empty(MockBytesStart::new(
                 b"preproc:from",
                 Some(MockAttributes::new(vec![
                     MockAttribute::new(
@@ -496,21 +501,7 @@ xmlo_tests! {
                 ])),
             ))),
 
-            // make sure that whitespace is permitted
-            2 => Ok(XmlEvent::Text(MockBytesText::new(
-                b"      ",
-            ))),
-
-            3 => Ok(XmlEvent::Empty(MockBytesStart::new(
-                b"preproc:from",
-                Some(MockAttributes::new(vec![
-                    MockAttribute::new(
-                        b"name", b"from-b",
-                    ),
-                ])),
-            ))),
-
-            4 => Ok(XmlEvent::End(MockBytesEnd::new(
+            3 => Ok(XmlEvent::End(MockBytesEnd::new(
                 b"preproc:sym",
             ))),
 
@@ -526,10 +517,9 @@ xmlo_tests! {
                 "sym-map-from".intern(),
                 SymAttrs {
                     ty: Some(SymType::Map),
-                    from: Some(vec![
+                    from: Some(
                         "from-a".intern(),
-                        "from-b".intern(),
-                    ]),
+                    ),
                     pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
