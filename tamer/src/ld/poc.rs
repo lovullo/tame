@@ -35,7 +35,7 @@ use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::error::Error;
 use std::fs;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 type LinkerAsg = DefaultAsg<IdentObject, global::ProgIdentSize>;
@@ -242,6 +242,7 @@ fn output_xmle<'a>(
     }
     #[cfg(feature = "wip-xir-xmle-writer")]
     {
+        use std::io::Write;
         use crate::ir::xir::writer::XmlWriter;
         use crate::obj::xmle::xir::lower_iter;
 
