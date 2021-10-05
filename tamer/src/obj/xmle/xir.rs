@@ -30,8 +30,8 @@ use crate::{
     sym::{st::*, SymbolId},
 };
 use arrayvec::ArrayVec;
-use std::array;
 use std::iter::Chain;
+use std::{array, collections::hash_set};
 
 qname_const! {
     QN_DESC: :L_DESC,
@@ -52,6 +52,8 @@ qname_const! {
     QN_XMLNS_L: L_XMLNS:L_L,
     QN_XMLNS_PREPROC: L_XMLNS:L_PREPROC,
     QN_YIELDS: :L_YIELDS,
+    QN_L_MAP_FROM: L_L:L_MAP_FROM,
+    QN_L_FROM: L_L:L_FROM,
 }
 
 const HEADER_SIZE: usize = 16;
@@ -177,7 +179,7 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
     /// _The provided `value` must be escaped;_
     ///   it is blindly wrapped in [`AttrValue::Escaped`]!
     ///
-    /// Like [`refill_toks`](DepsListIter::refill_toks),
+    /// Like [`refill_toks`](DepListIter::refill_toks),
     ///   we push in reverse.
     #[inline]
     fn toks_push_attr(&mut self, name: QName, value: Option<SymbolId>) {
@@ -235,26 +237,78 @@ impl<'a, T: IdentObjectData> Iterator for DepListIter<'a, T> {
     }
 }
 
+// Maximum size of token buffer.
+//
+// See [`MapFromIter::refill_toks`].
+const MAP_FROM_TOK_SIZE: usize = 3;
+
+/// Generate `l:map-from` section.
+struct MapFromsIter {
+    /// Source data to lower into `l:deps`.
+    iter: hash_set::IntoIter<SymbolId>,
+    /// Token buffer.
+    toks: ArrayVec<Token, MAP_FROM_TOK_SIZE>,
+}
+
+impl MapFromsIter {
+    fn new<'a, T: IdentObjectData>(sections: &'a Sections<T>) -> Self {
+        let mut iter = Self {
+            iter: sections.iter_map_froms_uniq(),
+            // Most of the time we have a single `from` (4 tokens).
+            toks: ArrayVec::new(),
+        };
+
+        // reverse
+        iter.toks.push(Token::Open(QN_L_MAP_FROM, LSPAN));
+        iter.toks.push(Token::Close(Some(QN_L_DEP), LSPAN));
+
+        iter
+    }
+
+    fn refill_toks(&mut self) -> Option<Token> {
+        self.iter.next().and_then(|from| {
+            self.toks.push(Token::Close(None, LSPAN));
+
+            self.toks
+                .push(Token::AttrValue(AttrValue::Escaped(from), LSPAN));
+            self.toks.push(Token::AttrName(QN_NAME, LSPAN));
+
+            Some(Token::Open(QN_L_FROM, LSPAN))
+        })
+    }
+}
+
+impl Iterator for MapFromsIter {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.toks.pop().or_else(|| self.refill_toks())
+    }
+}
+
 const FOOTER_SIZE: usize = 2;
 type FooterIter = array::IntoIter<Token, FOOTER_SIZE>;
 
 #[inline]
 fn footer() -> FooterIter {
     [
-        Token::Close(Some(QN_L_DEP), LSPAN),
+        Token::Close(Some(QN_L_MAP_FROM), LSPAN),
         Token::Close(Some(QN_PACKAGE), LSPAN),
     ]
     .into_iter()
 }
 
-/// Iterator that lazily lowers `xmle` object files into Xir.
+/// Iterator that lazily lowers `xmle` object files into XIR.
 ///
 /// This serves primarily to encapsulate the nasty iterator type without
 ///   having to resort to dynamic dispatch,
 ///     since this iterator will receive over a million calls on larger
 ///     programs (and hundreds of thousands on smaller).
 pub struct LowerIter<'a, T: IdentObjectData>(
-    Chain<Chain<HeaderIter, DepListIter<'a, T>>, FooterIter>,
+    Chain<
+        Chain<Chain<HeaderIter, DepListIter<'a, T>>, MapFromsIter>,
+        FooterIter,
+    >,
 );
 
 impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
@@ -280,6 +334,7 @@ pub fn lower_iter<'a, T: IdentObjectData>(
     LowerIter(
         header(pkg_name, relroot)
             .chain(DepListIter::new(sections, relroot))
+            .chain(MapFromsIter::new(sections))
             .chain(footer()),
     )
 }

@@ -28,6 +28,7 @@ use crate::ir::{
     },
 };
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
+use std::collections::HashSet;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -334,6 +335,74 @@ fn test_writes_deps() -> TestResult {
             _ => {}
         }
     });
+
+    Ok(())
+}
+
+#[test]
+fn test_writes_map_froms() -> TestResult {
+    let mut sections = Sections::new();
+    let relroot = "relroot-deps".intern();
+
+    let a = IdentObject::Ident(
+        "a".intern(),
+        IdentKind::Map,
+        Source {
+            from: Some("froma".intern()),
+            ..Default::default()
+        },
+    );
+
+    let b = IdentObject::Ident(
+        "a".intern(),
+        IdentKind::Map,
+        Source {
+            from: Some("fromb".intern()),
+            ..Default::default()
+        },
+    );
+
+    // Add a duplicate just to ensure that we're using the right method on
+    // `Sections` for uniqueness.
+    sections.map.push_body(&a);
+    sections.map.push_body(&a);
+    sections.map.push_body(&b);
+
+    let mut iter = parser_from(
+        lower_iter(&sections, "pkg".intern(), relroot)
+            .skip_while(not(open(QN_L_MAP_FROM))),
+    );
+
+    let given = iter
+        .next()
+        .expect("tree object expected")
+        .unwrap() // Tree
+        .into_element()
+        .expect("element expected");
+
+    // Sanity check to ensure we have the element we're expecting.
+    assert_eq!(QN_L_MAP_FROM, given.name());
+
+    let froms = given.children();
+
+    let mut found = HashSet::new();
+
+    froms.iter().for_each(|from| {
+        assert_eq!(QN_L_FROM, from.as_element().unwrap().name());
+
+        found.insert(
+            from.as_element()
+                .unwrap()
+                .attrs()
+                .find(QN_NAME)
+                .expect("expecting @name")
+                .value_atom()
+                .unwrap(),
+        );
+    });
+
+    assert!(found.contains(&AttrValue::Escaped("froma".intern())));
+    assert!(found.contains(&AttrValue::Escaped("fromb".intern())));
 
     Ok(())
 }

@@ -31,8 +31,8 @@
 
 use crate::span::Span;
 use crate::sym::{
-    CIdentStaticSymbolId, GlobalSymbolIntern, StaticSymbolId, SymbolId,
-    UriStaticSymbolId,
+    st_as_sym, CIdentStaticSymbolId, GlobalSymbolIntern, StaticSymbolId,
+    SymbolId, TameIdentStaticSymbolId, UriStaticSymbolId,
 };
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
@@ -44,10 +44,11 @@ pub mod writer;
 
 pub trait QNameCompatibleStaticSymbolId: StaticSymbolId {}
 impl QNameCompatibleStaticSymbolId for CIdentStaticSymbolId {}
+impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
 
 macro_rules! qname_const_inner {
     ($name:ident = :$local:ident) => {
-        const $name: QName = QName::st_cid_local($local);
+        const $name: QName = QName::st_cid_local(&$local);
     };
 
     ($name:ident = $prefix:ident:$local:ident) => {
@@ -284,21 +285,23 @@ impl QName {
     }
 
     /// Construct a constant QName from static C-style symbols.
-    pub const fn st_cid<T: QNameCompatibleStaticSymbolId>(
-        prefix_sym: &T,
-        local_sym: &T,
-    ) -> Self {
-        use crate::sym;
+    pub const fn st_cid<T, U>(prefix_sym: &T, local_sym: &U) -> Self
+    where
+        T: QNameCompatibleStaticSymbolId,
+        U: QNameCompatibleStaticSymbolId,
+    {
         Self(
-            Some(Prefix(NCName(sym::st_as_sym(prefix_sym)))),
-            LocalPart(NCName(sym::st_as_sym(local_sym))),
+            Some(Prefix(NCName(st_as_sym(prefix_sym)))),
+            LocalPart(NCName(st_as_sym(local_sym))),
         )
     }
 
     /// Construct a constant QName with a local name only from a static
     ///   C-style symbol.
-    pub const fn st_cid_local(local_sym: CIdentStaticSymbolId) -> Self {
-        Self(None, LocalPart(NCName(local_sym.as_sym())))
+    pub const fn st_cid_local<T: QNameCompatibleStaticSymbolId>(
+        local_sym: &T,
+    ) -> Self {
+        Self(None, LocalPart(NCName(st_as_sym(local_sym))))
     }
 }
 
@@ -376,7 +379,7 @@ pub enum Text {
 ///   we know that the generated text could not possibly require escaping.
 /// This does, however, put the onus on the caller to ensure that they got
 ///   the escaping status correct.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttrValue {
     /// Value that requires escaping.
     ///

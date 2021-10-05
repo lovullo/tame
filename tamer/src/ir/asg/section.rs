@@ -27,6 +27,7 @@
 use super::IdentObjectData;
 use crate::sym::SymbolId;
 use fxhash::FxHashSet;
+use std::collections::hash_set;
 use std::iter::Chain;
 use std::slice::Iter;
 
@@ -196,7 +197,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     ///
     /// Multiple mappings may reference the same source field,
     ///   which would produce duplicate values if they are not filtered.
-    pub fn iter_map_froms_uniq(&self) -> impl Iterator<Item = SymbolId> {
+    pub fn iter_map_froms_uniq(&self) -> hash_set::IntoIter<SymbolId> {
         self.iter_map()
             .filter_map(|ident| {
                 ident.src().expect("internal error: missing map src").from

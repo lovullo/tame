@@ -295,6 +295,13 @@ static_symbol_newtypes! {
     ///     its string value is incidental and should not be relied upon.
     mark: MarkStaticSymbolId<global::ProgSymSize>,
 
+    /// A symbol suitable as a TAME identifier.
+    ///
+    /// This is [`CIdentStaticSymbolId`] with `-` added:
+    ///   `[a-zA-Z_-][a-zA-Z0-9_-]*`.
+    /// This is also suitable as an XML node or attribute name.
+    tid: TameIdentStaticSymbolId<global::ProgSymSize>,
+
     /// Symbol representing a URI.
     ///
     /// This is intended for use primarily as an XML namespace.
@@ -392,12 +399,14 @@ pub mod st {
         L_FALSE: cid "false",
         L_FLOAT: cid "float",
         L_FUNC: cid "func",
+        L_FROM: cid "from",
         L_GEN: cid "gen",
         L_GENERATED: cid "generated",
         L_INTEGER: cid "integer",
         L_L: cid "l",
         L_LPARAM: cid "lparam",
         L_MAP: cid "map",
+        L_MAP_FROM: tid "map-from",
         L_MAP_HEAD: qname "map:head",
         L_MAP_TAIL: qname "map:tail",
         L_META: cid "meta",
