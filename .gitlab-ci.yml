@@ -52,3 +52,19 @@ pages:
         expire_in: 30 min
     only:
         - main
+
+ci:merge:
+    stage: deploy
+    script:
+        - eval $(ssh-agent -s)
+        - ssh-add <(echo "$SSH_PRIVATE_KEY")
+        - git config user.email "gitlab-ci@localhost"
+        - git config user.name "GitLab CI"
+        - git checkout main
+        - git reset --hard origin/main
+        - git merge --ff origin/stage
+        # Should trigger pipeline
+        - git push http://ci:$STAGE_MERGE_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git HEAD:main
+    only:
+        - stage
+
