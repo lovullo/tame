@@ -54,32 +54,38 @@ impl<'a, T> Section<'a, T> {
     }
 
     /// The length of the `Section`
+    #[inline]
     pub fn len(&self) -> usize {
         self.head.len() + self.body.len() + self.tail.len()
     }
 
     /// Check if the `Section` is empty
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Push an `IdentObject` into a `Section`'s head
+    #[inline]
     pub fn push_head(&mut self, obj: &'a T) {
         self.head.push(obj)
     }
 
     /// Push an `IdentObject` into a `Section`'s body
+    #[inline]
     pub fn push_body(&mut self, obj: &'a T) {
         self.body.push(obj)
     }
 
     /// Push an `IdentObject` into a `Section`'s tail
+    #[inline]
     pub fn push_tail(&mut self, obj: &'a T) {
         self.tail.push(obj)
     }
 
     /// Construct a new iterator visiting each head, body, and tail object
     ///   in order.
+    #[inline]
     pub fn iter(&self) -> SectionIter<T> {
         SectionIter(
             self.head
@@ -102,6 +108,7 @@ pub struct SectionIter<'a, T>(
 impl<'a, T> Iterator for SectionIter<'a, T> {
     type Item = &'a T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|x| *x)
     }
@@ -127,6 +134,7 @@ pub struct Sections<'a, T> {
 
 impl<'a, T: IdentObjectData> Sections<'a, T> {
     /// New collection of empty sections.
+    #[inline]
     pub fn new() -> Self {
         Self {
             map: Section::new(),
@@ -151,6 +159,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     /// At the time of writing,
     ///   they are chained in the same order in which they are defined
     ///   on the [`Sections`] struct.
+    #[inline]
     pub fn iter_all(&self) -> SectionsIter<T> {
         SectionsIter(SectionsIterType::All(
             self.map
@@ -176,6 +185,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     ///   but you should not rely on the order that the sections themselves
     ///   appear in;
     ///     they may change or be combined in the future.
+    #[inline]
     pub fn iter_static(&self) -> SectionsIter<T> {
         SectionsIter(SectionsIterType::Static(
             self.meta
@@ -189,6 +199,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     }
 
     /// Construct an iterator over the map section.
+    #[inline]
     pub fn iter_map(&self) -> SectionsIter<T> {
         SectionsIter(SectionsIterType::Single(self.map.iter()))
     }
@@ -197,6 +208,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     ///
     /// Multiple mappings may reference the same source field,
     ///   which would produce duplicate values if they are not filtered.
+    #[inline]
     pub fn iter_map_froms_uniq(&self) -> hash_set::IntoIter<SymbolId> {
         self.iter_map()
             .filter_map(|ident| {
@@ -207,11 +219,13 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     }
 
     /// Construct an iterator over the return map section.
+    #[inline]
     pub fn iter_retmap(&self) -> SectionsIter<T> {
         SectionsIter(SectionsIterType::Single(self.retmap.iter()))
     }
 
     /// Construct an iterator over the executable `rater` section.
+    #[inline]
     pub fn iter_exec(&self) -> SectionsIter<T> {
         SectionsIter(SectionsIterType::Single(self.rater.iter()))
     }
@@ -246,6 +260,7 @@ pub struct SectionsIter<'a, T>(SectionsIterType<'a, T>);
 impl<'a, T> Iterator for SectionsIter<'a, T> {
     type Item = &'a T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.0 {
             SectionsIterType::All(inner) => inner.next(),
@@ -254,6 +269,7 @@ impl<'a, T> Iterator for SectionsIter<'a, T> {
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         match &self.0 {
             SectionsIterType::All(inner) => inner.size_hint(),
