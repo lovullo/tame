@@ -52,6 +52,7 @@ pages:
         expire_in: 30 min
     only:
         - main
+        - stage
 
 ci:merge:
     stage: deploy
@@ -61,8 +62,9 @@ ci:merge:
         - git checkout main
         - git reset --hard origin/main
         - git merge --ff origin/stage
-        # This will trigger main pipeline after pushing
-        - git push http://ci:$STAGE_MERGE_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git HEAD:main
+        # Do not trigger the pipeline after pushing; there's no use in
+        # re-doing the work we just did, since the merge is a fast-forward.
+        - git push -o ci.skip http://ci:$STAGE_MERGE_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git HEAD:main
     only:
         - stage
 
