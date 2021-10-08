@@ -406,3 +406,67 @@ fn test_writes_map_froms() -> TestResult {
 
     Ok(())
 }
+
+macro_rules! test_exec_sec {
+    ($name:ident, $qn:ident, $sec:ident) => {
+        #[test]
+        fn $name() -> TestResult {
+            let mut sections = Sections::new();
+            let relroot = "relroot-exec".intern();
+
+            let frag_a = "a fragment".intern();
+            let frag_b = "b fragment".intern();
+
+            let a = IdentObject::IdentFragment(
+                "a".intern(),
+                IdentKind::Map,
+                Default::default(),
+                frag_a,
+            );
+
+            let b = IdentObject::IdentFragment(
+                "b".intern(),
+                IdentKind::Map,
+                Default::default(),
+                frag_b,
+            );
+
+            sections.$sec.push_body(&a);
+            sections.$sec.push_body(&b);
+
+            let mut iter = parser_from(
+                lower_iter(&sections, "pkg".intern(), relroot)
+                    .skip_while(not(open($qn))),
+            );
+
+            let given = iter
+                .next()
+                .expect("tree object expected")
+                .unwrap() // Tree
+                .into_element()
+                .expect("element expected");
+
+            // Sanity check to ensure we have the element we're expecting.
+            assert_eq!($qn, given.name());
+
+            let nodes = given.children();
+
+            // The text is considered escaped since the fragment was already escaped
+            //   within the xmlo file it was read from.
+            // Order _absolutely_ matters,
+            //   since the purpose of the linker is to put things into the correct
+            //   order for execution.
+            assert_eq!(nodes[0].as_text(), Some(&Text::Escaped(frag_a)));
+            assert_eq!(nodes[1].as_text(), Some(&Text::Escaped(frag_b)));
+
+            assert_eq!(nodes.len(), 2);
+
+            Ok(())
+        }
+    };
+}
+
+test_exec_sec!(test_map_exec, QN_L_MAP_EXEC, map);
+test_exec_sec!(test_retmap_exec, QN_L_RETMAP_EXEC, retmap);
+test_exec_sec!(test_static, QN_L_STATIC, params); // just pick a static
+test_exec_sec!(test_exec, QN_L_EXEC, rater);

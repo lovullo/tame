@@ -24,7 +24,7 @@ use crate::{
         asg::{
             IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
         },
-        xir::{AttrValue, QName, Token},
+        xir::{AttrValue, QName, Text, Token},
     },
     ld::LSPAN,
     sym::{st::*, SymbolId},
@@ -39,6 +39,12 @@ qname_const! {
     QN_DTYPE: :L_DTYPE,
     QN_GENERATED: L_PREPROC:L_GENERATED,
     QN_L_DEP: L_L:L_DEP,
+    QN_L_EXEC: L_L:L_EXEC,
+    QN_L_FROM: L_L:L_FROM,
+    QN_L_MAP_EXEC: L_L:L_MAP_EXEC,
+    QN_L_MAP_FROM: L_L:L_MAP_FROM,
+    QN_L_RETMAP_EXEC: L_L:L_RETMAP_EXEC,
+    QN_L_STATIC: L_L:L_STATIC,
     QN_NAME: :L_NAME,
     QN_PACKAGE: :L_PACKAGE,
     QN_PARENT: :L_PARENT,
@@ -52,8 +58,6 @@ qname_const! {
     QN_XMLNS_L: L_XMLNS:L_L,
     QN_XMLNS_PREPROC: L_XMLNS:L_PREPROC,
     QN_YIELDS: :L_YIELDS,
-    QN_L_MAP_FROM: L_L:L_MAP_FROM,
-    QN_L_FROM: L_L:L_FROM,
 }
 
 const HEADER_SIZE: usize = 14;
@@ -286,6 +290,47 @@ impl Iterator for MapFromsIter {
     }
 }
 
+/// Produce text fragments associated with objects.
+///
+/// Here, "text" refers to the compiled program text.
+struct FragmentIter<'a, T> {
+    iter: SectionsIter<'a, T>,
+}
+
+impl<'a, T: IdentObjectData> FragmentIter<'a, T> {
+    #[inline]
+    fn new(iter: SectionsIter<'a, T>) -> Self {
+        Self { iter }
+    }
+}
+
+impl<'a, T: IdentObjectData> Iterator for FragmentIter<'a, T> {
+    type Item = Token;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter
+            .by_ref()
+            .filter_map(|obj| {
+                match obj.as_ident().expect("encountered non-identifier object")
+                {
+                    IdentObject::IdentFragment(_, _, _, frag) => Some(*frag),
+
+                    // These will never have fragments.
+                    IdentObject::Ident(_, IdentKind::Cgen(_), _)
+                    | IdentObject::Ident(_, IdentKind::Gen(_, _), _)
+                    | IdentObject::Ident(_, IdentKind::Lparam(_, _), _) => None,
+
+                    // Error, but we really should catch that during Section
+                    // lowering.
+                    _ => todo! {},
+                }
+            })
+            .map(|frag| Token::Text(Text::Escaped(frag), LSPAN))
+            .next()
+    }
+}
+
 pub struct ElemWrapIter<I: Iterator<Item = Token>>(
     Chain<Chain<Once<Token>, I>, Once<Token>>,
 );
@@ -315,8 +360,20 @@ impl<I: Iterator<Item = Token>> Iterator for ElemWrapIter<I> {
 pub struct LowerIter<'a, T: IdentObjectData>(
     ElemWrapIter<
         Chain<
-            Chain<HeaderIter, ElemWrapIter<DepListIter<'a, T>>>,
-            ElemWrapIter<MapFromsIter>,
+            Chain<
+                Chain<
+                    Chain<
+                        Chain<
+                            Chain<HeaderIter, ElemWrapIter<DepListIter<'a, T>>>,
+                            ElemWrapIter<MapFromsIter>,
+                        >,
+                        ElemWrapIter<FragmentIter<'a, T>>,
+                    >,
+                    ElemWrapIter<FragmentIter<'a, T>>,
+                >,
+                ElemWrapIter<FragmentIter<'a, T>>,
+            >,
+            ElemWrapIter<FragmentIter<'a, T>>,
         >,
     >,
 );
@@ -355,6 +412,26 @@ pub fn lower_iter<'a, T: IdentObjectData>(
                 Token::Open(QN_L_MAP_FROM, LSPAN),
                 MapFromsIter::new(sections),
                 Token::Close(Some(QN_L_MAP_FROM), LSPAN),
+            ))
+            .chain(ElemWrapIter::new(
+                Token::Open(QN_L_MAP_EXEC, LSPAN),
+                FragmentIter::new(sections.iter_map()),
+                Token::Close(Some(QN_L_MAP_EXEC), LSPAN),
+            ))
+            .chain(ElemWrapIter::new(
+                Token::Open(QN_L_RETMAP_EXEC, LSPAN),
+                FragmentIter::new(sections.iter_retmap()),
+                Token::Close(Some(QN_L_RETMAP_EXEC), LSPAN),
+            ))
+            .chain(ElemWrapIter::new(
+                Token::Open(QN_L_STATIC, LSPAN),
+                FragmentIter::new(sections.iter_static()),
+                Token::Close(Some(QN_L_STATIC), LSPAN),
+            ))
+            .chain(ElemWrapIter::new(
+                Token::Open(QN_L_EXEC, LSPAN),
+                FragmentIter::new(sections.iter_exec()),
+                Token::Close(Some(QN_L_EXEC), LSPAN),
             )),
         Token::Close(Some(QN_PACKAGE), LSPAN),
     ))
