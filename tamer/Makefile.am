@@ -27,13 +27,13 @@
 
 .DELETE_ON_ERROR:
 
-.PHONY: all fix fmt check-fmt bench
+.PHONY: all fix fmt check-fmt bench bench-build
 
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 
 .DEFAULT: bin
 
-all: bin doc
+all: bin doc bench-build
 
 .PHONY: bin
 bin:
@@ -54,6 +54,10 @@ check-fmt:
 
 bench:
 	@CARGO@ +@RUST_TC@ @CARGO_BENCH_PRE_FLAGS@ bench $(CARGO_BENCH_FLAGS) @FEATURES@
+
+# Build but do not run benches (to ensures we didn't break them)
+bench-build:
+	@CARGO@ +@RUST_TC@ @CARGO_BENCH_PRE_FLAGS@ build --benches @FEATURES@
 
 fix: fmt
 fmt:
