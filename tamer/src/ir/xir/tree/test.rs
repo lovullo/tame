@@ -31,6 +31,8 @@ lazy_static! {
 }
 
 mod tree {
+    use crate::ir::xir::Text;
+
     use super::*;
 
     #[test]
@@ -45,6 +47,20 @@ mod tree {
         let tree = Tree::Element(ele.clone());
 
         assert_eq!(Some(&ele), tree.as_element());
+        assert_eq!(None, tree.as_text());
+    }
+
+    #[test]
+    fn text_from_tree() {
+        let text = Text::Escaped("foo".intern());
+        let tree = Tree::Text(text, *S);
+
+        assert!(!tree.is_element());
+        assert_eq!(None, tree.as_element());
+        assert_eq!(None, tree.clone().into_element());
+
+        assert_eq!(Some(&text), tree.as_text());
+        assert_eq!(Some(text), tree.into_text());
     }
 }
 
@@ -269,6 +285,31 @@ fn element_with_child_with_attributes() {
             children: vec![],
             span: (*S, *S3),
         })],
+        span: (*S, *S3),
+    };
+
+    let mut sut = parser_from(toks);
+
+    assert_eq!(sut.next(), Some(Ok(Tree::Element(expected))));
+    assert_eq!(sut.next(), None);
+}
+
+#[test]
+fn element_with_text() {
+    let parent = "parent".unwrap_into();
+    let text = Text::Escaped("inner text".into());
+
+    let toks = [
+        Token::Open(parent, *S),
+        Token::Text(text, *S2),
+        Token::Close(Some(parent), *S3),
+    ]
+    .into_iter();
+
+    let expected = Element {
+        name: parent,
+        attrs: AttrList::new(),
+        children: vec![Tree::Text(text, *S2)],
         span: (*S, *S3),
     };
 

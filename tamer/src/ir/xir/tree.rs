@@ -191,7 +191,7 @@
 //! For more information,
 //!   see [`AttrParts`].
 
-use super::{AttrValue, QName, Token};
+use super::{AttrValue, QName, Text, Token};
 use crate::span::Span;
 use std::{fmt::Display, mem::take};
 
@@ -217,6 +217,12 @@ pub enum Tree {
     /// XML element.
     Element(Element),
 
+    /// Text node.
+    ///
+    /// A text node cannot contain other [`Tree`] elements;
+    ///   sibling text nodes must exist within an [`Element`].
+    Text(Text, Span),
+
     /// This variant exists purely because `#[non_exhaustive]` has no effect
     ///   within the crate.
     ///
@@ -232,6 +238,16 @@ impl Into<Option<Element>> for Tree {
     fn into(self) -> Option<Element> {
         match self {
             Self::Element(ele) => Some(ele),
+            _ => None,
+        }
+    }
+}
+
+impl Into<Option<Text>> for Tree {
+    #[inline]
+    fn into(self) -> Option<Text> {
+        match self {
+            Self::Text(text, _) => Some(text),
             _ => None,
         }
     }
@@ -259,6 +275,23 @@ impl Tree {
     #[inline]
     pub fn is_element(&self) -> bool {
         matches!(self, Self::Element(_))
+    }
+
+    /// Yield a reference to the inner value if it is a [`Text`],
+    ///   otherwise [`None`].
+    #[inline]
+    pub fn as_text<'a>(&'a self) -> Option<&'a Text> {
+        match self {
+            Self::Text(text, _) => Some(text),
+            _ => None,
+        }
+    }
+
+    /// Yield the inner value if it is a [`Text`],
+    ///   otherwise [`None`].
+    #[inline]
+    pub fn into_text(self) -> Option<Text> {
+        self.into()
     }
 }
 
@@ -595,6 +628,20 @@ impl Stack {
             _ => todo! {},
         })
     }
+
+    /// Appends a text node as a child of an element.
+    ///
+    /// This is valid only for a [`Stack::BuddingElement`].
+    fn text(self, value: Text, span: Span) -> Result<Self> {
+        Ok(match self {
+            Self::BuddingElement(mut ele) => {
+                ele.element.children.push(Tree::Text(value, span));
+
+                Self::BuddingElement(ele)
+            }
+            _ => todo! {},
+        })
+    }
 }
 
 /// State while parsing a XIR token stream into a tree.
@@ -669,6 +716,7 @@ impl ParserState {
                 stack.push_attr_value(value, span)
             }
             Token::AttrValue(value, span) => stack.close_attr(value, span),
+            Token::Text(value, span) => stack.text(value, span),
 
             todo => Err(ParseError::Todo(todo, stack)),
         }
