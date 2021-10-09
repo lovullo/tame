@@ -28,6 +28,8 @@ use crate::ir::asg::{
     Asg, DefaultAsg, IdentObject, IdentObjectData, Sections, SortableAsg,
     SortableAsgError,
 };
+use crate::ir::xir::writer::XmlWriter;
+use crate::obj::xmle::xir::lower_iter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
@@ -35,6 +37,7 @@ use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::error::Error;
 use std::fs;
+use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
@@ -232,30 +235,13 @@ fn output_xmle<'a>(
     }
 
     let file = fs::File::create(output)?;
+    let mut buf = BufWriter::new(file);
 
-    #[cfg(not(feature = "wip-xir-xmle-writer"))]
-    {
-        use crate::obj::xmle::writer::XmleWriter;
+    // TODO: check writer final state to make sure it actually finished
+    lower_iter(&sorted, name, relroot.intern())
+        .write(&mut buf, Default::default())?;
 
-        let mut xmle_writer = XmleWriter::new(BufWriter::new(file));
-        xmle_writer.write(&sorted, name, &relroot)?;
-    }
-    #[cfg(feature = "wip-xir-xmle-writer")]
-    {
-        use crate::ir::xir::writer::XmlWriter;
-        use crate::obj::xmle::xir::lower_iter;
-        use std::io::Write;
-
-        eprintln!("warning: using wip-xir-xmle-writer");
-
-        let mut buf = BufWriter::new(file);
-
-        // TODO: check writer final state to make sure it actually finished
-        lower_iter(&sorted, name, relroot.intern())
-            .write(&mut buf, Default::default())?;
-
-        buf.flush()?;
-    }
+    buf.flush()?;
 
     Ok(())
 }

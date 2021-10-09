@@ -23,18 +23,19 @@
 //!   written in XSLT; it will be removed in the future.
 //!
 //!
-//! `xmle` Files
-//! ===================
-//! An `xmle` file is produced by the for each source file.
-//! The format is XML because the original compiler was written in XSLT.
+//! `xmle` File Format
+//! ==================
+//! The `xmle` file contains:
 //!
-//! The general structure of an `xmle` file consists of different sections:
-//!   - map
-//!   - return map
-//!   - statics
-//!   - rater
-//!
-//! For example (with some extra information omitted):
+//!   - `l:dep` representing the topologically sorted symbols associated
+//!        with the linked objects,
+//!          along with metadata;
+//!   - `l:map-from`, a list of source field identifiers;
+//!   - `l:map-exec`, the linked input map text;
+//!   - `l:retmap-exec`, the linked return map text;
+//!   - `l:static`, the linked static section that may be initialized once
+//!       as soon as the program is loaded into memory; and
+//!   - `l:exec`, the linked main program text.
 //!
 //! ```xml
 //! <package xmlns="http://www.lovullo.com/rater"
@@ -56,17 +57,16 @@
 //!     <l:from name="latest_operation_hour"/>
 //!   </l:map-from>
 //!   <l:map-exec>
-//!     function( input, callback ) {)
+//!     function(input,callback) {)
 //!   </l:map-exec>
 //!   <l:retmap-exec>
-//!     function( input, callback ) {)
+//!     function(input,callback) {)
 //!   </l:retmap-exec>
 //!   <l:static>
-//!     function func_min( args , min1, min2) {return min1;}
+//!     function func_min(args,min1,min2) {return min1;}
 //!   </l:static>
-//!   <l:exec>consts[&apos;CMP_OP_EQ&apos;] = 1;</l:exec>
+//!   <l:exec>C['CMP_OP_EQ'] = 1;</l:exec>
 //! </package>
 //! ```
 
-pub mod writer;
 pub mod xir;

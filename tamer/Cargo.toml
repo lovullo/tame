@@ -55,5 +55,3 @@ paste = ">= 1.0.5"
 # expecting it so that it can skip those compilation steps.
 wip-frontends = []
 
-# Write xmle files using the new XIR-based writer.
-wip-xir-xmle-writer = []
