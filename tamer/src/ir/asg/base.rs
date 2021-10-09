@@ -859,13 +859,15 @@ mod test {
     macro_rules! assert_section_sym {
         ( $iterable:expr, $s:ident ) => {{
             let mut pos = 0;
-            assert_eq!($iterable.len(), $s.len());
+
             for obj in $iterable.iter() {
                 let sym = obj.name().expect("missing object");
                 assert_eq!($s.get(pos).map(|s| *s), Some(sym));
 
                 pos = pos + 1;
             }
+
+            assert_eq!(pos, $s.len());
         };};
     }
 

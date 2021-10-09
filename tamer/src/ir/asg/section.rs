@@ -29,6 +29,7 @@ use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::collections::hash_set;
 use std::iter::Chain;
+use std::option;
 use std::slice::Iter;
 
 /// A section of an [object file](crate::obj).
@@ -38,37 +39,31 @@ use std::slice::Iter;
 ///   will have a `head` and `tail` that are empty by default.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Section<'a, T> {
-    head: Vec<&'a T>,
+    head: Option<&'a T>,
     body: Vec<&'a T>,
-    tail: Vec<&'a T>,
+    tail: Option<&'a T>,
 }
 
 impl<'a, T> Section<'a, T> {
     /// New empty section.
     pub fn new() -> Self {
         Self {
-            head: Vec::new(),
+            head: None,
             body: Vec::new(),
-            tail: Vec::new(),
+            tail: None,
         }
-    }
-
-    /// The length of the `Section`
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.head.len() + self.body.len() + self.tail.len()
     }
 
     /// Check if the `Section` is empty
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.body.len() == 0
     }
 
     /// Push an `IdentObject` into a `Section`'s head
     #[inline]
-    pub fn push_head(&mut self, obj: &'a T) {
-        self.head.push(obj)
+    pub fn set_head(&mut self, obj: &'a T) {
+        self.head.replace(obj);
     }
 
     /// Push an `IdentObject` into a `Section`'s body
@@ -79,8 +74,8 @@ impl<'a, T> Section<'a, T> {
 
     /// Push an `IdentObject` into a `Section`'s tail
     #[inline]
-    pub fn push_tail(&mut self, obj: &'a T) {
-        self.tail.push(obj)
+    pub fn set_tail(&mut self, obj: &'a T) {
+        self.tail.replace(obj);
     }
 
     /// Construct a new iterator visiting each head, body, and tail object
@@ -102,7 +97,10 @@ impl<'a, T> Section<'a, T> {
 ///
 /// This hides the complex iterator type from callers.
 pub struct SectionIter<'a, T>(
-    Chain<Chain<Iter<'a, &'a T>, Iter<'a, &'a T>>, Iter<'a, &'a T>>,
+    Chain<
+        Chain<option::Iter<'a, &'a T>, Iter<'a, &'a T>>,
+        option::Iter<'a, &'a T>,
+    >,
 );
 
 impl<'a, T> Iterator for SectionIter<'a, T> {
@@ -285,15 +283,15 @@ mod test {
     use crate::ir::asg::{IdentKind, IdentObject, Source};
     use crate::sym::GlobalSymbolIntern;
 
-    type Sut<'a, 'i> = Section<'a, IdentObject>;
+    type Sut<'a> = Section<'a, IdentObject>;
 
     #[test]
     fn section_empty() {
         let section = Sut::new();
 
-        assert!(section.head.is_empty());
+        assert!(section.head.is_none());
         assert!(section.body.is_empty());
-        assert!(section.tail.is_empty());
+        assert!(section.tail.is_none());
     }
 
     #[test]
@@ -301,11 +299,11 @@ mod test {
         let mut section = Sut::new();
         let obj = IdentObject::Missing("sym".intern());
 
-        assert!(section.head.is_empty());
+        assert!(section.head.is_none());
 
-        section.push_head(&obj);
+        section.set_head(&obj);
 
-        assert_eq!(Some(&&obj), section.head.get(0));
+        assert_eq!(Some(&obj), section.head);
     }
 
     #[test]
@@ -326,25 +324,11 @@ mod test {
         let mut section = Sut::new();
         let obj = IdentObject::Missing("sym".intern());
 
-        assert!(section.tail.is_empty());
+        assert!(section.tail.is_none());
 
-        section.push_tail(&obj);
+        section.set_tail(&obj);
 
-        assert_eq!(Some(&&obj), section.tail.get(0));
-    }
-
-    #[test]
-    fn section_len() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-
-        assert_eq!(0, section.len());
-        section.push_head(&obj);
-        assert_eq!(1, section.len());
-        section.push_body(&obj);
-        assert_eq!(2, section.len());
-        section.push_tail(&obj);
-        assert_eq!(3, section.len());
+        assert_eq!(Some(&obj), section.tail);
     }
 
     #[test]
@@ -352,9 +336,10 @@ mod test {
         let mut section = Sut::new();
         let obj = IdentObject::Missing("sym".intern());
 
+        // head does not contribute
         assert!(section.is_empty());
-        section.push_head(&obj);
-        assert!(!section.is_empty());
+        section.set_head(&obj);
+        assert!(section.is_empty());
     }
 
     #[test]
@@ -372,9 +357,10 @@ mod test {
         let mut section = Sut::new();
         let obj = IdentObject::Missing("sym".intern());
 
+        // tail does not contribute
         assert!(section.is_empty());
-        section.push_tail(&obj);
-        assert!(!section.is_empty());
+        section.set_tail(&obj);
+        assert!(section.is_empty());
     }
 
     #[test]
@@ -383,9 +369,9 @@ mod test {
         let obj = IdentObject::Missing("sym".intern());
         let expect = vec![&obj, &obj, &obj];
 
-        section.push_head(&obj);
+        section.set_head(&obj);
         section.push_body(&obj);
-        section.push_tail(&obj);
+        section.set_tail(&obj);
 
         let collection: Vec<_> = section.iter().collect();
 
@@ -400,9 +386,9 @@ mod test {
             .map(|i| IdentObject::Missing(i.to_string().into()))
             .collect::<Vec<_>>();
 
-        sections.map.head.push(&objs[0]);
+        sections.map.set_head(&objs[0]);
         sections.map.body.push(&objs[1]);
-        sections.map.tail.push(&objs[2]);
+        sections.map.set_tail(&objs[2]);
         sections.retmap.body.push(&objs[3]);
         sections.meta.body.push(&objs[4]);
         sections.worksheet.body.push(&objs[5]);

@@ -219,19 +219,19 @@ fn output_xmle<'a>(
     if !sorted.map.is_empty() {
         sorted
             .map
-            .push_head(get_ident(depgraph, ":map:___head".intern())?);
+            .set_head(get_ident(depgraph, ":map:___head".intern())?);
         sorted
             .map
-            .push_tail(get_ident(depgraph, ":map:___tail".intern())?);
+            .set_tail(get_ident(depgraph, ":map:___tail".intern())?);
     }
 
     if !sorted.retmap.is_empty() {
         sorted
             .retmap
-            .push_head(get_ident(depgraph, ":retmap:___head".intern())?);
+            .set_head(get_ident(depgraph, ":retmap:___head".intern())?);
         sorted
             .retmap
-            .push_tail(get_ident(depgraph, ":retmap:___tail".intern())?);
+            .set_tail(get_ident(depgraph, ":retmap:___tail".intern())?);
     }
 
     let file = fs::File::create(output)?;
