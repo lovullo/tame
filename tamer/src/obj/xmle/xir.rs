@@ -69,10 +69,6 @@ type HeaderIter = array::IntoIter<Token, HEADER_SIZE>;
 fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
     let pkg_name_val = AttrValue::Escaped(pkg_name);
 
-    // See [`array`] docs regarding differences between Rust 2018 and 2021
-    // editions regarding arrays and [`IntoIter`].  This was written in
-    // edition 2018; 2021 will be out in a few months at the time of
-    // writing.
     [
         Token::AttrName(QN_XMLNS, LSPAN),
         Token::AttrValue(AttrValue::st_uri(URI_LV_RATER), LSPAN),
