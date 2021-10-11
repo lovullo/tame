@@ -183,7 +183,10 @@
 //!
 //! [rustc-span]: https://doc.rust-lang.org/stable/nightly-rustc/rustc_span/struct.Span.html
 
-use crate::{convert::ExpectInto, global, sym::{ContextStaticSymbolId, SymbolId}};
+use crate::{
+    global,
+    sym::{ContextStaticSymbolId, SymbolId},
+};
 use std::{convert::TryInto, fmt::Display};
 
 /// A symbol size sufficient for holding interned paths.

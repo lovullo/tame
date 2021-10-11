@@ -622,7 +622,7 @@ mod test {
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
         let obj = sut.get(node).unwrap();
         let terr = TransitionError::ExternResolution {
-            name: &"test fail",
+            name: "test fail".into(),
             expected: IdentKind::Meta,
             given: IdentKind::Meta,
         };
@@ -687,7 +687,7 @@ mod test {
         // It doesn't matter that this isn't the error that'll actually be
         // returned, as long as it's some sort of TransitionError.
         let terr = TransitionError::ExternResolution {
-            name: &"test fail",
+            name: "test fail".into(),
             expected: IdentKind::Meta,
             given: IdentKind::Meta,
         };
@@ -1540,9 +1540,7 @@ mod test {
             .unwrap();
         let ident = sut.get(node).unwrap();
 
-        let expected = UnresolvedError::Missing {
-            name: sym.lookup_str(),
-        };
+        let expected = UnresolvedError::Missing { name: sym };
 
         // Cause resolved() to fail.
         ident.fail_resolved.replace(Some(expected.clone()));

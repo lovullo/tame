@@ -665,7 +665,7 @@ where
                 // compiler.
                 Ok(unsafe { ev.escaped().clone_uninterned_utf8_unchecked() })
             }
-            _ => Err(XmloError::MissingFragmentText(id.lookup_str())),
+            _ => Err(XmloError::MissingFragmentText(id)),
         }?;
 
         Ok(XmloEvent::Fragment(id, text))
@@ -799,7 +799,7 @@ pub enum XmloError {
     /// A `preproc:fragment` element was found, but is missing `@id`.
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
-    MissingFragmentText(&'static str),
+    MissingFragmentText(SymbolId),
 }
 
 impl From<InnerXmlError> for XmloError {

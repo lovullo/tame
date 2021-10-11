@@ -384,7 +384,7 @@ xmlo_tests! {
 
         match sut.read_event() {
             Err(XmloError::MissingFragmentText(symname)) => {
-                assert_eq!("fragsym", symname)
+                assert_eq!("fragsym".intern(), symname)
             }
             bad => panic!("expected XmloError: {:?}", bad),
         }

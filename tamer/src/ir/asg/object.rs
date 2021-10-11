@@ -295,9 +295,8 @@ impl IdentObjectState<IdentObject> for IdentObject {
                 _,
             ) if src.override_ => {
                 if !orig_src.virtual_ {
-                    let err = TransitionError::NonVirtualOverride {
-                        name: name.lookup_str(),
-                    };
+                    let err =
+                        TransitionError::NonVirtualOverride { name: name };
 
                     return Err((self, err));
                 }
@@ -305,7 +304,7 @@ impl IdentObjectState<IdentObject> for IdentObject {
                 if orig_kind != &kind {
                     let err = TransitionError::VirtualOverrideKind {
                         // TODO: defer lookup to error display
-                        name: name.lookup_str(),
+                        name: name,
                         existing: orig_kind.clone(),
                         given: kind.clone(),
                     };
@@ -348,7 +347,7 @@ impl IdentObjectState<IdentObject> for IdentObject {
             IdentObject::Extern(name, ref orig_kind, _) => {
                 if orig_kind != &kind {
                     let err = TransitionError::ExternResolution {
-                        name: name.lookup_str(),
+                        name: name,
                         expected: orig_kind.clone(),
                         given: kind.clone(),
                     };
@@ -374,7 +373,7 @@ impl IdentObjectState<IdentObject> for IdentObject {
 
             _ => {
                 let err = TransitionError::Redeclare {
-                    name: self.name().unwrap().lookup_str(),
+                    name: self.name().unwrap(),
                 };
 
                 Err((self, err))
@@ -384,15 +383,15 @@ impl IdentObjectState<IdentObject> for IdentObject {
 
     fn resolved(&self) -> Result<&IdentObject, UnresolvedError> {
         match self {
-            IdentObject::Missing(name) => Err(UnresolvedError::Missing {
-                name: name.lookup_str(),
-            }),
+            IdentObject::Missing(name) => {
+                Err(UnresolvedError::Missing { name: *name })
+            }
 
             IdentObject::Extern(name, ref kind, ref src) => {
                 Err(UnresolvedError::Extern {
-                    name: name.lookup_str(),
+                    name: *name,
                     kind: kind.clone(),
-                    pkg_name: src.pkg_name.map(|s| s.lookup_str()),
+                    pkg_name: src.pkg_name,
                 })
             }
 
@@ -411,7 +410,7 @@ impl IdentObjectState<IdentObject> for IdentObject {
             Some(cur_kind) => {
                 if cur_kind != &kind {
                     let err = TransitionError::ExternResolution {
-                        name: self.name().unwrap().lookup_str(),
+                        name: self.name().unwrap(),
                         expected: kind.clone(),
                         given: cur_kind.clone(),
                     };
@@ -471,25 +470,25 @@ impl IdentObjectState<IdentObject> for IdentObject {
 pub enum TransitionError {
     /// Attempted to redeclare a concrete, non-virtual identifier without an
     ///   override.
-    Redeclare { name: &'static str },
+    Redeclare { name: SymbolId },
 
     /// Extern resolution failure.
     ///
     /// An extern could not be resolved because the provided identifier had
     ///   a type that is incompatible with the extern definition.
     ExternResolution {
-        name: &'static str,
+        name: SymbolId,
         expected: IdentKind,
         given: IdentKind,
     },
 
     /// Attempt to override a non-virtual identifier.
-    NonVirtualOverride { name: &'static str },
+    NonVirtualOverride { name: SymbolId },
 
     /// Overriding a virtual identifier failed due to an incompatible
     ///   [`IdentKind`].
     VirtualOverrideKind {
-        name: &'static str,
+        name: SymbolId,
         existing: IdentKind,
         given: IdentKind,
     },
@@ -553,17 +552,17 @@ impl std::error::Error for TransitionError {
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnresolvedError {
     /// Expected identifier is missing and nothing about it is known.
-    Missing { name: &'static str },
+    Missing { name: SymbolId },
 
     /// Expected identifier has not yet been resolved with a concrete
     ///   definition.
     Extern {
         /// Identifier name.
-        name: &'static str,
+        name: SymbolId,
         /// Expected identifier type.
         kind: IdentKind,
         /// Name of package where the extern was defined.
-        pkg_name: Option<&'static str>,
+        pkg_name: Option<SymbolId>,
     },
 }
 
@@ -583,7 +582,7 @@ impl std::fmt::Display for UnresolvedError {
                 "unresolved extern `{}` of type `{}`, declared in `{}`",
                 name,
                 kind,
-                pkg_name.as_ref().unwrap_or(&"<unknown>"),
+                pkg_name.map(|s| s.lookup_str()).unwrap_or(&"<unknown>"),
             ),
         }
     }
@@ -861,7 +860,7 @@ mod test {
 
             match result {
                 UnresolvedError::Missing { name: e_name } => {
-                    assert_eq!(sym.lookup_str(), e_name);
+                    assert_eq!(sym, e_name);
                 }
                 _ => panic!("expected UnresolvedError {:?}", result),
             }
@@ -926,7 +925,7 @@ mod test {
             match result {
                 (orig, TransitionError::Redeclare { name }) => {
                     assert_eq!(first, orig);
-                    assert_eq!(sym.lookup_str(), name);
+                    assert_eq!(sym, name);
                 }
                 _ => {
                     panic!("expected TransitionError::Redeclare: {:?}", result)
@@ -976,9 +975,9 @@ mod test {
                         kind: e_kind,
                         pkg_name: e_pkg_name,
                     } => {
-                        assert_eq!(sym.lookup_str(), e_name);
+                        assert_eq!(sym, e_name);
                         assert_eq!(kind, e_kind);
-                        assert_eq!(Some(pkg_name.lookup_str()), e_pkg_name);
+                        assert_eq!(Some(pkg_name), e_pkg_name);
                     }
                     _ => panic!("expected UnresolvedError: {:?}", result),
                 }
@@ -988,7 +987,7 @@ mod test {
             fn resolved_on_extern_error_fmt_without_pkg() {
                 let meta = IdentKind::Meta;
                 let err = UnresolvedError::Extern {
-                    name: &"foo",
+                    name: "foo".into(),
                     kind: IdentKind::Meta,
                     pkg_name: None,
                 };
@@ -1003,12 +1002,12 @@ mod test {
             #[test]
             fn resolved_on_extern_error_fmt_with_pkg() {
                 let meta = IdentKind::Meta;
-                let pkg = &"pkg";
+                let pkg = "pkg".into();
 
                 let err = UnresolvedError::Extern {
-                    name: &"foo",
+                    name: "foo".into(),
                     kind: IdentKind::Meta,
-                    pkg_name: Some(pkg.clone()),
+                    pkg_name: Some(pkg),
                 };
 
                 let msg = format!("{}", err);
@@ -1107,7 +1106,7 @@ mod test {
                             given: e_given,
                         } = err.clone()
                         {
-                            assert_eq!(sym.lookup_str(), e_name);
+                            assert_eq!(sym, e_name);
                             assert_eq!(kind, e_expected);
                             assert_eq!(kind_bad, e_given);
                         }
@@ -1115,7 +1114,7 @@ mod test {
                         // Formatted error
                         let msg = format!("{}", err);
 
-                        assert!(msg.contains(&format!("{}", sym.lookup_str())));
+                        assert!(msg.contains(&format!("{}", sym)));
                         assert!(msg.contains(&format!("{}", kind)));
                         assert!(msg.contains(&format!("{}", kind_bad)));
                     }
@@ -1153,7 +1152,7 @@ mod test {
                             given: e_given,
                         } = err.clone()
                         {
-                            assert_eq!(sym.lookup_str(), e_name);
+                            assert_eq!(sym, e_name);
                             assert_eq!(kind_extern, e_expected);
                             assert_eq!(kind_given, e_given);
                         }
@@ -1161,7 +1160,7 @@ mod test {
                         // Formatted error
                         let msg = format!("{}", err);
 
-                        assert!(msg.contains(&format!("{}", sym.lookup_str())));
+                        assert!(msg.contains(&format!("{}", sym)));
                         assert!(msg.contains(&format!("{}", kind_extern)));
                         assert!(msg.contains(&format!("{}", kind_given)));
                     }
@@ -1356,13 +1355,13 @@ mod test {
                         TransitionError::NonVirtualOverride { ref name },
                     ) => {
                         assert_eq!(orig, &non_virt);
-                        assert_eq!(sym.lookup_str(), *name);
+                        assert_eq!(sym, *name);
 
                         // Formatted error
                         let (_, err) = result;
                         let msg = format!("{}", err);
 
-                        assert!(msg.contains(&format!("{}", sym.lookup_str())));
+                        assert!(msg.contains(&format!("{}", sym)));
                     }
                     (_, TransitionError::VirtualOverrideKind { .. }) => {
                         panic!("kind check must happen _after_ virtual check")
@@ -1413,7 +1412,7 @@ mod test {
                     ) => {
                         assert_eq!(orig, &virt);
 
-                        assert_eq!(sym.lookup_str(), *name);
+                        assert_eq!(sym, *name);
                         assert_eq!(&kind, existing);
                         assert_eq!(&bad_kind, given);
 
@@ -1421,7 +1420,7 @@ mod test {
                         let (_, err) = result;
                         let msg = format!("{}", err);
 
-                        assert!(msg.contains(&format!("{}", sym.lookup_str())));
+                        assert!(msg.contains(&format!("{}", sym)));
                         assert!(msg.contains(&format!("{}", kind)));
                         assert!(msg.contains(&format!("{}", bad_kind)));
                     }
@@ -1589,7 +1588,7 @@ mod test {
                     ) => {
                         assert_eq!(orig, &virt_frag);
 
-                        assert_eq!(sym.lookup_str(), *name);
+                        assert_eq!(sym, *name);
                         assert_eq!(&kind, existing);
                         assert_eq!(&bad_kind, given);
 
@@ -1597,7 +1596,7 @@ mod test {
                         let (_, err) = result;
                         let msg = format!("{}", err);
 
-                        assert!(msg.contains(&format!("{}", sym.lookup_str())));
+                        assert!(msg.contains(&format!("{}", sym)));
                         assert!(msg.contains(&format!("{}", kind)));
                         assert!(msg.contains(&format!("{}", bad_kind)));
                     }
