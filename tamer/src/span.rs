@@ -306,6 +306,18 @@ impl Span {
     pub fn ctx(&self) -> Context {
         self.ctx
     }
+
+    /// Further offset a span.
+    ///
+    /// This attempts to offset a span relative to its current offset by the
+    ///   provided value.
+    /// If the resulting offset exceeds [`global::SourceFileSize`],
+    ///   the result will be [`None`].
+    pub fn offset_add(self, value: global::SourceFileSize) -> Option<Self> {
+        self.offset
+            .checked_add(value)
+            .map(|offset| Self { offset, ..self })
+    }
 }
 
 impl Into<u64> for Span {
@@ -501,6 +513,28 @@ mod test {
         let span = Span::new(offset, len, ctx);
 
         assert_eq!((offset, len, ctx), (span.offset(), span.len(), span.ctx()));
+    }
+
+    #[test]
+    pub fn span_offset_add() {
+        let ctx: Context = "addtest".intern().into();
+        let offset = 10;
+        let len = 5;
+
+        let span = Span::new(offset, len, ctx);
+
+        // Successful add.
+        assert_eq!(
+            span.offset_add(10),
+            Some(Span {
+                offset: offset + 10,
+                len,
+                ctx
+            })
+        );
+
+        // Fail, do not wrap.
+        assert_eq!(span.offset_add(global::SourceFileSize::MAX), None);
     }
 
     #[test]
