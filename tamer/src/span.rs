@@ -183,11 +183,8 @@
 //!
 //! [rustc-span]: https://doc.rust-lang.org/stable/nightly-rustc/rustc_span/struct.Span.html
 
-use crate::{
-    global,
-    sym::{ContextStaticSymbolId, SymbolId},
-};
-use std::convert::TryInto;
+use crate::{convert::ExpectInto, global, sym::{ContextStaticSymbolId, SymbolId}};
+use std::{convert::TryInto, fmt::Display};
 
 /// A symbol size sufficient for holding interned paths.
 pub type PathSymbolId = SymbolId<u16>;
@@ -372,6 +369,20 @@ impl From<Span> for (Span, Span) {
     }
 }
 
+impl Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Needed to avoid unaligned references since Span is packed.
+        let ctx = self.ctx;
+        let offset = self.offset as usize;
+
+        let end = offset + self.len as usize;
+
+        // Very primitive information to begin with; we'll have something
+        // more useful in the future.
+        write!(f, "[{} offset {}-{}]", ctx, offset, end)
+    }
+}
+
 /// A dummy span that can be used in contexts where a span is expected but
 ///   is not important.
 ///
@@ -400,6 +411,12 @@ impl<P: Into<PathIndex>> From<P> for Context {
     }
 }
 
+impl Display for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// An interned path.
 ///
 /// This is interned as a string slice ([`SymbolId`]),
@@ -419,6 +436,12 @@ pub struct PathIndex(PathSymbolId);
 impl From<PathSymbolId> for PathIndex {
     fn from(sym: PathSymbolId) -> Self {
         Self(sym)
+    }
+}
+
+impl Display for PathIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
