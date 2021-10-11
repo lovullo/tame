@@ -237,7 +237,6 @@ fn output_xmle<'a>(
     let file = fs::File::create(output)?;
     let mut buf = BufWriter::new(file);
 
-    // TODO: check writer final state to make sure it actually finished
     lower_iter(&sorted, name, relroot.intern())
         .write(&mut buf, Default::default())?;
 

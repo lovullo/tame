@@ -17,7 +17,17 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! WIP lowering to XIR-based `xmle`.
+//! Lower [`Sections`] into a XIR [`Token`] stream for `xmle` output.
+//!
+//! This is the final step in the linker,
+//!   producing the `xmle` file that can be used to produce the standalone
+//!   `js` file
+//!     (which is still part of the XSLT-based system at the time of
+//!       writing).
+//!
+//! Use [`lower_iter`] to produce the lowering iterator,
+//!   which can then use [`XmleWriter`](crate::ir::xir::writer::XmleWriter)
+//!   for writing.
 
 use crate::{
     ir::{
@@ -373,6 +383,11 @@ impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
     }
 }
 
+/// Lower [`Sections`] into a XIR [`Token`] stream for writing.
+///
+/// This produces the final representation for the `xmle` file,
+///   which can be written using
+///   [`XmleWriter`](crate::ir::xir::writer::XmleWriter).
 #[inline]
 pub fn lower_iter<'a, T: IdentObjectData>(
     sections: &'a Sections<T>,
