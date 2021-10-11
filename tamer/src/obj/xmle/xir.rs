@@ -24,13 +24,13 @@ use crate::{
         asg::{
             IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
         },
-        xir::{AttrValue, QName, Text, Token},
+        xir::{iter::ElemWrapIter, AttrValue, QName, Text, Token},
     },
     ld::LSPAN,
     sym::{st::*, SymbolId},
 };
 use arrayvec::ArrayVec;
-use std::iter::{once, Chain, Once};
+use std::iter::Chain;
 use std::{array, collections::hash_set};
 
 qname_const! {
@@ -324,26 +324,6 @@ impl<'a, T: IdentObjectData> Iterator for FragmentIter<'a, T> {
             })
             .map(|frag| Token::Text(Text::Escaped(frag), LSPAN))
             .next()
-    }
-}
-
-pub struct ElemWrapIter<I: Iterator<Item = Token>>(
-    Chain<Chain<Once<Token>, I>, Once<Token>>,
-);
-
-impl<I: Iterator<Item = Token>> ElemWrapIter<I> {
-    #[inline]
-    fn new(open: Token, inner: I, close: Token) -> Self {
-        Self(once(open).chain(inner).chain(once(close)))
-    }
-}
-
-impl<I: Iterator<Item = Token>> Iterator for ElemWrapIter<I> {
-    type Item = Token;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
     }
 }
 

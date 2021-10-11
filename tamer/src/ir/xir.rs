@@ -38,6 +38,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
 use std::ops::Deref;
 
+pub mod iter;
 pub mod pred;
 pub mod tree;
 pub mod writer;
