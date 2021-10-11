@@ -24,7 +24,7 @@
 use super::{DefaultInterner, Interner};
 use crate::global;
 use std::convert::{TryFrom, TryInto};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Deref;
@@ -47,7 +47,13 @@ use std::thread::LocalKey;
 /// To resolve a [`SymbolId`] into the string that it represents,
 ///   see either [`GlobalSymbolResolve::lookup_str`] or
 ///   [`Interner::index_lookup`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+///
+/// Symbols allocated using the global interner will automatically resolve
+///   to strings via [`Display`].
+/// _This should be done at the last moment_ before outputting,
+///   such as before writing to an object file or displaying an error to the
+///   user.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SymbolId<Ix: SymbolIndexSize = global::ProgSymSize>(
     pub(super) Ix::NonZero,
 );
@@ -97,6 +103,7 @@ pub trait SymbolIndexSize:
     Sized
     + Copy
     + Debug
+    + Display
     + PartialEq
     + Eq
     + TryFrom<usize>
@@ -224,14 +231,70 @@ pub trait GlobalSymbolResolve {
     ///   lookup is performed on the global interner pool,
     ///     which requires locking and so comes at a (small) cost.
     /// This shouldn't be done more than is necessary.
+    ///
+    /// Panics
+    /// ======
+    /// This will panic if the symbol cannot be found.
+    /// Such a situation should never occur if the interner is being used
+    ///   properly and would represent a bug in the program.
+    ///
+    /// If a panic is a problem
+    ///   (e.g. if you are looking up a symbol as _part_ of a panic),
+    ///   use [`GlobalSymbolResolve::try_lookup_str`].
     fn lookup_str(&self) -> &'static str;
+
+    /// Attempt to resolve a [`SymbolId`] allocated using a global interner.
+    ///
+    /// Unlike [`GlobalSymbolResolve::lookup_str`],
+    ///   this cannot panic.
+    ///
+    /// This does not include an error because the failure can only occur
+    ///   when an index lookup fails;
+    ///     [`Option`] would have been used,
+    ///       but [`Result`] is idiomatic with `try_*` functions.
+    fn try_lookup_str(&self) -> Result<&'static str, ()>;
 }
 
 impl<Ix: SymbolIndexSize> GlobalSymbolResolve for SymbolId<Ix> {
     fn lookup_str(&self) -> &'static str {
         Ix::with_static_interner(|interner| {
-            interner.index_lookup(*self).unwrap()
+            interner.index_lookup(*self).unwrap_or_else(|| {
+                // If the system is being used properly, this should never
+                // happen (we'd only look up symbols allocated through this
+                // interner).
+                panic!(
+                    "failed to resolve SymbolId({}) using global \
+                         interner of length {}",
+                    self.0.into(),
+                    interner.len()
+                )
+            })
         })
+    }
+
+    fn try_lookup_str(&self) -> Result<&'static str, ()> {
+        Ix::with_static_interner(|interner| interner.index_lookup(*self))
+            .ok_or(())
+    }
+}
+
+impl<Ix: SymbolIndexSize> Display for SymbolId<Ix> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.lookup_str())
+    }
+}
+
+impl<Ix: SymbolIndexSize> Debug for SymbolId<Ix> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // We have to be careful here when looking up the symbol, since this
+        // may be called during a panic, and we don't want to panic yet
+        // again if we cannot find the symbol.
+        write!(
+            f,
+            "SymbolId({} \"{}\")",
+            self.0.into(),
+            self.try_lookup_str().unwrap_or(&"<#!UNKNOWN_SYMBOL>")
+        )
     }
 }
 
