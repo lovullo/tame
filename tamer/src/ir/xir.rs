@@ -72,45 +72,18 @@ macro_rules! qname_const {
     }
 }
 
-// TODO: Move into crate::sym if this is staying around.
-macro_rules! newtype_symbol {
-	{$($(#[$meta:meta])* pub struct $name:ident;)*} => {
-        $(
-		    $(#[$meta])*
-                #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub struct $name(SymbolId);
-
-            impl Deref for $name {
-                type Target = SymbolId;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.0
-                }
-            }
-
-            impl PartialEq<SymbolId> for $name {
-                fn eq(&self, other: &SymbolId) -> bool {
-                    self.0 == *other
-                }
-            }
-        )*
-	};
-}
-
-// TODO: Derive macro instead?
-newtype_symbol! {
-    /// XML Name minus `":"`.
-    ///
-    /// The intent is to check a string for validity _before_ interning;
-    ///   otherwise,
-    ///     the string would have to be first retrieved from the intern pool
-    ///     for comparison,
-    ///       which is not an operation we want to do implicitly.
-    /// Those methods will be created as they are needed.
-    ///
-    /// See <https://www.w3.org/TR/REC-xml-names/#NT-NCName>.
-    pub struct NCName;
-}
+/// XML Name minus `":"`.
+///
+/// The intent is to check a string for validity _before_ interning;
+///   otherwise,
+///     the string would have to be first retrieved from the intern pool
+///     for comparison,
+///       which is not an operation we want to do implicitly.
+/// Those methods will be created as they are needed.
+///
+/// See <https://www.w3.org/TR/REC-xml-names/#NT-NCName>.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NCName(SymbolId);
 
 impl NCName {
     /// Create a new NCName from a symbol without validating that the symbol
@@ -124,6 +97,20 @@ impl NCName {
     ///     have to worry about whether it's syntatically valid as XML.
     pub unsafe fn new_unchecked(value: SymbolId) -> Self {
         Self(value)
+    }
+}
+
+impl Deref for NCName {
+    type Target = SymbolId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PartialEq<SymbolId> for NCName {
+    fn eq(&self, other: &SymbolId) -> bool {
+        self.0 == *other
     }
 }
 
