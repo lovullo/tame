@@ -26,7 +26,7 @@
 //!       writing).
 //!
 //! Use [`lower_iter`] to produce the lowering iterator,
-//!   which can then use [`XmleWriter`](crate::ir::xir::writer::XmleWriter)
+//!   which can then use [`XmlWriter`](crate::ir::xir::writer::XmlWriter)
 //!   for writing.
 
 use crate::{
@@ -387,7 +387,7 @@ impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
 ///
 /// This produces the final representation for the `xmle` file,
 ///   which can be written using
-///   [`XmleWriter`](crate::ir::xir::writer::XmleWriter).
+///   [`XmlWriter`](crate::ir::xir::writer::XmlWriter).
 #[inline]
 pub fn lower_iter<'a, T: IdentObjectData>(
     sections: &'a Sections<T>,
