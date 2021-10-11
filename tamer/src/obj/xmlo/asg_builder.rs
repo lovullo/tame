@@ -132,7 +132,7 @@ where
     /// Relative path to project root once discovered.
     ///
     /// This will be set by the first package encountered.
-    pub relroot: Option<String>,
+    pub relroot: Option<SymbolId>,
 }
 
 impl<S, Ix> AsgBuilderState<S, Ix>
@@ -369,11 +369,11 @@ mod test {
         let mut sut = Sut::new();
 
         let name = "name".intern();
-        let relroot = "some/path".to_string();
+        let relroot = "some/path".into();
 
         let evs = vec![Ok(XmloEvent::Package(PackageAttrs {
             name: Some(name),
-            relroot: Some(relroot.clone()),
+            relroot: Some(relroot),
             ..Default::default()
         }))];
 

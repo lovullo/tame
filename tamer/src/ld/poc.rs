@@ -213,7 +213,7 @@ fn output_xmle<'a>(
     depgraph: &'a LinkerAsg,
     sorted: &mut Sections<'a, IdentObject>,
     name: SymbolId,
-    relroot: String,
+    relroot: SymbolId,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
     if !sorted.map.is_empty() {
@@ -237,8 +237,7 @@ fn output_xmle<'a>(
     let file = fs::File::create(output)?;
     let mut buf = BufWriter::new(file);
 
-    lower_iter(&sorted, name, relroot.intern())
-        .write(&mut buf, Default::default())?;
+    lower_iter(&sorted, name, relroot).write(&mut buf, Default::default())?;
 
     buf.flush()?;
 

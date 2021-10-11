@@ -41,7 +41,7 @@ pub struct PackageAttrs {
     pub name: Option<SymbolId>,
 
     /// Relative path from package to project root.
-    pub relroot: Option<String>,
+    pub relroot: Option<SymbolId>,
 
     /// Whether this package is a program.
     ///

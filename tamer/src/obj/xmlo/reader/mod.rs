@@ -351,9 +351,9 @@ where
         ele: &'a BytesStart<'a>,
     ) -> XmloResult<PackageAttrs> {
         let mut program = false;
-        let mut elig: Option<SymbolId> = None;
-        let mut name: Option<SymbolId> = None;
-        let mut relroot: Option<String> = None;
+        let mut elig = None;
+        let mut name = None;
+        let mut relroot = None;
 
         for attr in ele.attributes().with_checks(false).filter_map(Result::ok) {
             match attr.key {
@@ -363,9 +363,8 @@ where
                 }
 
                 b"__rootpath" => {
-                    relroot = Some(unsafe {
-                        String::from_utf8_unchecked(attr.value.to_vec())
-                    });
+                    relroot =
+                        Some(unsafe { (&attr.value).intern_utf8_unchecked() });
                 }
 
                 b"program" => {
