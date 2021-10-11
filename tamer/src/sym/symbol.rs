@@ -24,7 +24,7 @@
 use super::{DefaultInterner, Interner};
 use crate::global;
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{self, Debug, Display};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Deref;
@@ -44,9 +44,6 @@ use std::thread::LocalKey;
 ///
 /// Symbol Strings
 /// ==============
-/// [`SymbolId`] intentionally omits the [`Display`] trait to ensure that
-///   compile-time errors occur when symbols are used in contexts where
-///   strings are expected.
 /// To resolve a [`SymbolId`] into the string that it represents,
 ///   see either [`GlobalSymbolResolve::lookup_str`] or
 ///   [`Interner::index_lookup`].
@@ -179,80 +176,6 @@ thread_local! {
 supported_symbol_index!(u16, NonZeroU16, Static16Interner, INTERNER_16);
 supported_symbol_index!(u32, NonZeroU32, Static32Interner, INTERNER_32);
 
-/// A string retrieved from the intern pool using a [`SymbolId`].
-///
-/// The lifetime of the inner string is constrained to the lifetime of the
-///   interner itself.
-/// For global interners,
-///   this means that the string slice has a `'static` lifetime.
-///
-/// [`SymbolStr`] requires significantly more storage than an appropriate
-///   [`SymbolId`] and should only be used when a string value must be
-///   written (e.g. to a file or displayed to the user).
-///
-/// This value is intended to be short-lived.
-#[derive(Debug, Default, Clone)]
-pub struct SymbolStr<'i>(&'i str);
-
-impl<'i> SymbolStr<'i> {
-    pub fn as_str(&self) -> &'i str {
-        self.0
-    }
-
-    /// Create a [`SymbolStr`] from a string for testing.
-    ///
-    /// _This function is only available for tests for convenience!_
-    /// `SymbolStr` must always represent a real, interned string in
-    ///   non-test code.
-    #[cfg(test)]
-    pub fn test_from_str(s: &'i str) -> Self {
-        SymbolStr(s)
-    }
-}
-
-impl<'i> SymbolStr<'i> {
-    pub(super) fn from_interned_slice(slice: &'i str) -> SymbolStr<'i> {
-        SymbolStr(slice)
-    }
-}
-
-impl<'i, T: Deref<Target = str>> PartialEq<T> for SymbolStr<'i> {
-    fn eq(&self, other: &T) -> bool {
-        self.0 == other.deref()
-    }
-}
-
-impl PartialEq<SymbolStr<'_>> for &str {
-    fn eq(&self, other: &SymbolStr<'_>) -> bool {
-        *self == other.0
-    }
-}
-
-impl<'i> Display for SymbolStr<'i> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-// Once we have unsafe_impls stabalized,
-//   we should prevent `SymbolStr` from crossing threads.
-// TAMER does not use threads at the time of writing,
-//   so this isn't a practical concern.
-// If we _do_ want to pass between threads,
-//   we need to ensure the thread holding the interner lives longer than all
-//   other threads.
-//impl<'i> !Send for SymbolStr<'i> {}
-//impl<'i> !Sync for SymbolStr<'i> {}
-
-impl<'i> Deref for SymbolStr<'i> {
-    type Target = str;
-
-    #[inline]
-    fn deref(&self) -> &'i str {
-        self.as_str()
-    }
-}
-
 /// Acquire a static reference to a global interner.
 ///
 /// Global interners are static and thread-local.
@@ -301,11 +224,11 @@ pub trait GlobalSymbolResolve {
     ///   lookup is performed on the global interner pool,
     ///     which requires locking and so comes at a (small) cost.
     /// This shouldn't be done more than is necessary.
-    fn lookup_str(&self) -> SymbolStr<'static>;
+    fn lookup_str(&self) -> &'static str;
 }
 
 impl<Ix: SymbolIndexSize> GlobalSymbolResolve for SymbolId<Ix> {
-    fn lookup_str(&self) -> SymbolStr<'static> {
+    fn lookup_str(&self) -> &'static str {
         Ix::with_static_interner(|interner| {
             interner.index_lookup(*self).unwrap()
         })

@@ -67,7 +67,6 @@
 //! assert_eq!("foo", interner.index_lookup(ia).unwrap());
 //! ```
 
-use super::symbol::SymbolStr;
 use super::{SymbolId, SymbolIndexSize};
 use crate::global;
 use bumpalo::Bump;
@@ -85,7 +84,7 @@ use std::hash::BuildHasher;
 ///   allowing symbols to be compared for equality cheaply by comparing
 ///   integers.
 /// Symbol locations in memory are fixed for the lifetime of the interner,
-///   and can be retrieved as [`SymbolStr`] using
+///   and can be retrieved as [`str`] using
 ///   [`index_lookup`](Interner::index_lookup).
 ///
 /// If you care whether a value has been interned yet or not,
@@ -141,11 +140,15 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
 
     /// Look up a symbol's string value by its [`SymbolId`].
     ///
-    /// This will always return a [`SymbolStr`] as long as the provided
+    /// This will always return a [`str`] as long as the provided
     ///   `index` represents a symbol interned with this interner.
     /// If the index is not found,
     ///   the result is [`None`].
-    fn index_lookup(&'i self, index: SymbolId<Ix>) -> Option<SymbolStr<'i>>;
+    ///
+    /// [`str`] requires significantly more storage than an appropriate
+    ///   [`SymbolId`] and should only be used when a string value must be
+    ///   written (e.g. to a file or displayed to the user).
+    fn index_lookup(&'i self, index: SymbolId<Ix>) -> Option<&'i str>;
 
     /// Intern an assumed-UTF-8 slice of bytes or return an existing
     ///   [`SymbolId`].
@@ -339,11 +342,8 @@ where
         self.map.borrow().len()
     }
 
-    fn index_lookup(&'i self, index: SymbolId<Ix>) -> Option<SymbolStr<'i>> {
-        self.strings
-            .borrow()
-            .get(index.as_usize())
-            .map(|str| SymbolStr::from_interned_slice(*str))
+    fn index_lookup(&'i self, index: SymbolId<Ix>) -> Option<&'i str> {
+        self.strings.borrow().get(index.as_usize()).map(|str| *str)
     }
 }
 

@@ -91,7 +91,7 @@
 //!         XmloEvent::SymDecl(sym, attrs) => syms.push((sym, attrs.ty)),
 //!         XmloEvent::SymDeps(sym, symdeps) => deps.push((sym, symdeps)),
 //!         XmloEvent::Fragment(sym, text) =>
-//!             fragments.push((sym, text.lookup_str().as_str())),
+//!             fragments.push((sym, text.lookup_str())),
 //!
 //!         // Do not read past end of header.
 //!         XmloEvent::Eoh => break,
@@ -137,9 +137,7 @@
 //! ```
 
 use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
-use crate::sym::{
-    GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId, SymbolStr,
-};
+use crate::sym::{GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId};
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
 #[cfg(test)]
@@ -801,7 +799,7 @@ pub enum XmloError {
     /// A `preproc:fragment` element was found, but is missing `@id`.
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
-    MissingFragmentText(SymbolStr<'static>),
+    MissingFragmentText(&'static str),
 }
 
 impl From<InnerXmlError> for XmloError {

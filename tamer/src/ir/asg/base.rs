@@ -392,8 +392,8 @@ mod test {
         UnresolvedError,
     };
     use crate::ir::legacyir::SymDtype;
+    use crate::sym::GlobalSymbolIntern;
     use crate::sym::SymbolId;
-    use crate::sym::{GlobalSymbolIntern, SymbolStr};
     use std::cell::RefCell;
 
     #[derive(Debug, Default, PartialEq)]
@@ -622,7 +622,7 @@ mod test {
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
         let obj = sut.get(node).unwrap();
         let terr = TransitionError::ExternResolution {
-            name: SymbolStr::test_from_str("test fail"),
+            name: &"test fail",
             expected: IdentKind::Meta,
             given: IdentKind::Meta,
         };
@@ -687,7 +687,7 @@ mod test {
         // It doesn't matter that this isn't the error that'll actually be
         // returned, as long as it's some sort of TransitionError.
         let terr = TransitionError::ExternResolution {
-            name: SymbolStr::test_from_str("test fail"),
+            name: &"test fail",
             expected: IdentKind::Meta,
             given: IdentKind::Meta,
         };

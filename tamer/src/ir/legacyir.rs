@@ -295,7 +295,7 @@ impl Into<SymbolId> for SymDtype {
 impl AsRef<str> for SymDtype {
     /// Produce `xmlo`-compatible representation.
     fn as_ref(&self) -> &str {
-        self.as_sym().lookup_str().as_str()
+        self.as_sym().lookup_str()
     }
 }
 

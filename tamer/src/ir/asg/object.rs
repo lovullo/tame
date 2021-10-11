@@ -24,7 +24,7 @@
 
 use super::ident::IdentKind;
 use crate::ir::legacyir::SymAttrs;
-use crate::sym::{GlobalSymbolResolve, SymbolId, SymbolStr};
+use crate::sym::{GlobalSymbolResolve, SymbolId};
 use std::result::Result;
 
 pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
@@ -471,25 +471,25 @@ impl IdentObjectState<IdentObject> for IdentObject {
 pub enum TransitionError {
     /// Attempted to redeclare a concrete, non-virtual identifier without an
     ///   override.
-    Redeclare { name: SymbolStr<'static> },
+    Redeclare { name: &'static str },
 
     /// Extern resolution failure.
     ///
     /// An extern could not be resolved because the provided identifier had
     ///   a type that is incompatible with the extern definition.
     ExternResolution {
-        name: SymbolStr<'static>,
+        name: &'static str,
         expected: IdentKind,
         given: IdentKind,
     },
 
     /// Attempt to override a non-virtual identifier.
-    NonVirtualOverride { name: SymbolStr<'static> },
+    NonVirtualOverride { name: &'static str },
 
     /// Overriding a virtual identifier failed due to an incompatible
     ///   [`IdentKind`].
     VirtualOverrideKind {
-        name: SymbolStr<'static>,
+        name: &'static str,
         existing: IdentKind,
         given: IdentKind,
     },
@@ -553,17 +553,17 @@ impl std::error::Error for TransitionError {
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnresolvedError {
     /// Expected identifier is missing and nothing about it is known.
-    Missing { name: SymbolStr<'static> },
+    Missing { name: &'static str },
 
     /// Expected identifier has not yet been resolved with a concrete
     ///   definition.
     Extern {
         /// Identifier name.
-        name: SymbolStr<'static>,
+        name: &'static str,
         /// Expected identifier type.
         kind: IdentKind,
         /// Name of package where the extern was defined.
-        pkg_name: Option<SymbolStr<'static>>,
+        pkg_name: Option<&'static str>,
     },
 }
 
@@ -583,7 +583,7 @@ impl std::fmt::Display for UnresolvedError {
                 "unresolved extern `{}` of type `{}`, declared in `{}`",
                 name,
                 kind,
-                pkg_name.as_ref().map(|s| s.as_str()).unwrap_or("<unknown>"),
+                pkg_name.as_ref().unwrap_or(&"<unknown>"),
             ),
         }
     }
@@ -988,7 +988,7 @@ mod test {
             fn resolved_on_extern_error_fmt_without_pkg() {
                 let meta = IdentKind::Meta;
                 let err = UnresolvedError::Extern {
-                    name: SymbolStr::test_from_str("foo"),
+                    name: &"foo",
                     kind: IdentKind::Meta,
                     pkg_name: None,
                 };
@@ -1003,10 +1003,10 @@ mod test {
             #[test]
             fn resolved_on_extern_error_fmt_with_pkg() {
                 let meta = IdentKind::Meta;
-                let pkg = SymbolStr::test_from_str("pkg");
+                let pkg = &"pkg";
 
                 let err = UnresolvedError::Extern {
-                    name: SymbolStr::test_from_str("foo"),
+                    name: &"foo",
                     kind: IdentKind::Meta,
                     pkg_name: Some(pkg.clone()),
                 };

@@ -62,7 +62,7 @@
 //! assert_ne!(foo, "bar".intern());
 //!
 //! // Interned slices can be looked up by their symbol id.
-//! assert_eq!("foo", foo.lookup_str().as_str());
+//! assert_eq!("foo", foo.lookup_str());
 //! ```
 //!
 //! What Is String Interning?
@@ -131,8 +131,6 @@
 //! The string associated with a [`SymbolId`] can be looked up from the pool
 //!   using [`GlobalSymbolResolve::lookup_str`] for global interners,
 //!     or [`Interner::index_lookup`] otherwise.
-//! Interned strings are represented by [`SymbolStr`],
-//!   which can be dereferenced into [`&str`].
 //! Symbols allocated using a global interner will have a `'static`
 //!   lifetime.
 //!
@@ -177,7 +175,7 @@
 //!   a part of Rust itself,
 //!     and treated no differently than other core memory allocation.
 //!
-//! All [`SymbolStr`] objects returned from global interners hold a
+//! All [`str`] objects returned from global interners hold a
 //!   `'static` lifetime to simplify lifetime management and borrowing.
 //! However,
 //!   these should not be used in place of [`SymbolId`] if the string value
@@ -190,7 +188,7 @@
 //!   - [`GlobalSymbolResolve`] provides a `lookup_str` method on
 //!       [`SymbolId`] which resolves the symbol using the appropriate
 //!       global interner,
-//!         producing a [`SymbolStr`] holding a reference to the `'static`
+//!         producing a [`str`] holding a reference to the `'static`
 //!         string slice within the pool.
 //!
 //! These traits are intentionally separate so that it is clear how a
@@ -200,7 +198,7 @@
 //!
 //! TAMER does not currently utilize threads,
 //!   and global interners are never dropped,
-//!   and so [`SymbolStr`] will always refer to a valid string.
+//!   and so [`str`] will always refer to a valid string.
 //!
 //! There is no mechanism preventing [`SymbolId`] from one interner from
 //!   being used with another beyond [`SymbolIndexSize`] bounds;
@@ -357,5 +355,5 @@ pub use interner::{
 };
 pub use symbol::{
     GlobalSymbolIntern, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
-    SymbolId, SymbolIndexSize, SymbolStr,
+    SymbolId, SymbolIndexSize,
 };

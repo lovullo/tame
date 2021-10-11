@@ -155,7 +155,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 
                 vec![
                     ("label".into(), name.into()),
-                    ("kind".into(), kind.lookup_str().as_str().into()),
+                    ("kind".into(), kind.lookup_str().into()),
                     ("generated".into(), generated.into()),
                 ]
             }));
