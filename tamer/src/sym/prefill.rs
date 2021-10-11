@@ -461,6 +461,7 @@ pub mod st16 {
         <u16>;
 
         // Special contexts.
+        CTX_DUMMY: ctx "#!DUMMY",
         CTX_LINKER: ctx "#!LINKER",
 
         // [Symbols will be added here as they are needed.]

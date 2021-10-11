@@ -372,6 +372,16 @@ impl From<Span> for (Span, Span) {
     }
 }
 
+/// A dummy span that can be used in contexts where a span is expected but
+///   is not important.
+///
+/// This is intended primarily for tests;
+///   you should always use an appropriate span to permit sensible error
+///   messages and source analysis.
+///
+/// Additional dummy spans can be derived from this one.
+pub const DUMMY_SPAN: Span = Span::st_ctx(crate::sym::st16::CTX_DUMMY);
+
 /// Context for byte offsets (e.g. a source file).
 ///
 /// A context is lifetime-free and [`Copy`]-able,
