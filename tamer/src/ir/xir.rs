@@ -216,7 +216,7 @@ impl TryFrom<&str> for LocalPart {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Whitespace(SymbolId);
 
 impl Deref for Whitespace {
@@ -415,7 +415,7 @@ impl AttrValue {
 ///   such as whether a node is open,
 ///   and so this IR can be processed by a simple state machine
 ///     (see [`writer::WriterState`]).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     /// Opening tag of an element.
     Open(QName, Span),

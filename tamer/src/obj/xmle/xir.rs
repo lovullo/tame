@@ -24,7 +24,10 @@ use crate::{
         asg::{
             IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
         },
-        xir::{iter::ElemWrapIter, AttrValue, QName, Text, Token},
+        xir::{
+            iter::{elem_wrap, ElemWrapIter},
+            AttrValue, QName, Text, Token,
+        },
     },
     ld::LSPAN,
     sym::{st::*, SymbolId},
@@ -376,40 +379,36 @@ pub fn lower_iter<'a, T: IdentObjectData>(
     pkg_name: SymbolId,
     relroot: SymbolId,
 ) -> LowerIter<'a, T> {
-    LowerIter(ElemWrapIter::new(
-        Token::Open(QN_PACKAGE, LSPAN),
+    LowerIter(elem_wrap(
+        QN_PACKAGE,
+        LSPAN,
         header(pkg_name, relroot)
-            .chain(ElemWrapIter::new(
-                Token::Open(QN_L_DEP, LSPAN),
+            .chain(elem_wrap(
+                QN_L_DEP,
+                LSPAN,
                 DepListIter::new(sections, relroot),
-                Token::Close(Some(QN_L_DEP), LSPAN),
             ))
-            .chain(ElemWrapIter::new(
-                Token::Open(QN_L_MAP_FROM, LSPAN),
-                MapFromsIter::new(sections),
-                Token::Close(Some(QN_L_MAP_FROM), LSPAN),
-            ))
-            .chain(ElemWrapIter::new(
-                Token::Open(QN_L_MAP_EXEC, LSPAN),
+            .chain(elem_wrap(QN_L_MAP_FROM, LSPAN, MapFromsIter::new(sections)))
+            .chain(elem_wrap(
+                QN_L_MAP_EXEC,
+                LSPAN,
                 FragmentIter::new(sections.iter_map()),
-                Token::Close(Some(QN_L_MAP_EXEC), LSPAN),
             ))
-            .chain(ElemWrapIter::new(
-                Token::Open(QN_L_RETMAP_EXEC, LSPAN),
+            .chain(elem_wrap(
+                QN_L_RETMAP_EXEC,
+                LSPAN,
                 FragmentIter::new(sections.iter_retmap()),
-                Token::Close(Some(QN_L_RETMAP_EXEC), LSPAN),
             ))
-            .chain(ElemWrapIter::new(
-                Token::Open(QN_L_STATIC, LSPAN),
+            .chain(elem_wrap(
+                QN_L_STATIC,
+                LSPAN,
                 FragmentIter::new(sections.iter_static()),
-                Token::Close(Some(QN_L_STATIC), LSPAN),
             ))
-            .chain(ElemWrapIter::new(
-                Token::Open(QN_L_EXEC, LSPAN),
+            .chain(elem_wrap(
+                QN_L_EXEC,
+                LSPAN,
                 FragmentIter::new(sections.iter_exec()),
-                Token::Close(Some(QN_L_EXEC), LSPAN),
             )),
-        Token::Close(Some(QN_PACKAGE), LSPAN),
     ))
 }
 

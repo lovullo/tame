@@ -18,21 +18,54 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! XIR [`Token`] stream iterators.
+//!
+//! These iterators are provided for convenience in constructing token
+//!   streams.
+//!
+//!   - [`elem_wrap`] wraps a token stream iterator as the body of an
+//!       element of the given name.
 
-use super::Token;
+use super::{QName, Token};
+use crate::span::Span;
 use std::iter::{once, Chain, Once};
+
+/// Wrap an inner [`Token`] stream iterator in an element.
+///
+/// This produces a [`Token::Open`] before the `inner` iterator and a
+///   [`Token::Close`] after `inner` completes.
+/// The provided two-[`Span`] is associated,
+///   respectively,
+///   with the opening and closing tags.
+///
+/// The inner iterator will be in the proper context to produce attributes.
+#[inline]
+pub fn elem_wrap<S, I>(name: QName, span: S, inner: I) -> ElemWrapIter<I>
+where
+    S: Into<(Span, Span)>,
+    I: Iterator<Item = Token>,
+{
+    let twospan: (Span, Span) = span.into();
+
+    ElemWrapIter::new(
+        Token::Open(name, twospan.0),
+        inner,
+        Token::Close(Some(name), twospan.1),
+    )
+}
 
 /// An iterator that wraps a [`Token`] iterator in an element.
 ///
 /// This introduces an opening and closing token before and after the
 ///   iterator.
+///
+/// See [`elem_wrap`] to construct this iterator.
 pub struct ElemWrapIter<I: Iterator<Item = Token>>(
     Chain<Chain<Once<Token>, I>, Once<Token>>,
 );
 
 impl<I: Iterator<Item = Token>> ElemWrapIter<I> {
     #[inline]
-    pub fn new(open: Token, inner: I, close: Token) -> Self {
+    fn new(open: Token, inner: I, close: Token) -> Self {
         Self(once(open).chain(inner).chain(once(close)))
     }
 }
@@ -43,5 +76,37 @@ impl<I: Iterator<Item = Token>> Iterator for ElemWrapIter<I> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{convert::ExpectInto, ir::xir::Token, span::DUMMY_SPAN};
+
+    #[test]
+    fn elem_wrap_iter() {
+        let inner = vec![
+            Token::Open("foo".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+        ];
+
+        let elem_name = "element".unwrap_into();
+        let twospan = (
+            DUMMY_SPAN.offset_add(1).unwrap(),
+            DUMMY_SPAN.offset_add(2).unwrap(),
+        );
+
+        let result = elem_wrap(elem_name, twospan, inner.clone().into_iter());
+
+        assert_eq!(
+            result.collect::<Vec<_>>(),
+            vec![
+                Token::Open(elem_name, twospan.0),
+                inner[0].clone(),
+                inner[1].clone(),
+                Token::Close(Some(elem_name), twospan.1),
+            ]
+        );
     }
 }
