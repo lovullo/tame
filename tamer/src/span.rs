@@ -346,6 +346,20 @@ impl Ord for Span {
 //   because otherwise your week has just been ruined.
 assert_eq_size!(Span, u64);
 
+impl From<Span> for (Span, Span) {
+    /// Expand a [`Span`] into a two-span.
+    ///
+    /// A two-span `(A, B)` is equivalent to a span beginning at the start
+    ///   of `A` and ending at the end of `B`.
+    ///
+    /// We gain no resolution from performing this operation,
+    ///   but it does allow for using a single span in contexts where a
+    ///   higher resolution is supported.
+    fn from(span: Span) -> Self {
+        (span, span)
+    }
+}
+
 /// Context for byte offsets (e.g. a source file).
 ///
 /// A context is lifetime-free and [`Copy`]-able,
@@ -487,5 +501,13 @@ mod test {
         let span = Span::new(offset, len, ctx);
 
         assert_eq!((offset, len, ctx), (span.offset(), span.len(), span.ctx()));
+    }
+
+    #[test]
+    pub fn span_into_twospan() {
+        let ctx: Context = "foo".intern().into();
+        let span = Span::new(10, 50, ctx);
+
+        assert_eq!((span, span), span.into());
     }
 }
