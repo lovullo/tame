@@ -43,7 +43,13 @@ pub mod pred;
 pub mod tree;
 pub mod writer;
 
+/// A static symbol that can be safely converted into a [`QName`] without
+///   any checks.
+///
+/// This must only be implemented on static symbol types that are known to
+///   be valid QNames.
 pub trait QNameCompatibleStaticSymbolId: StaticSymbolId {}
+
 impl QNameCompatibleStaticSymbolId for CIdentStaticSymbolId {}
 impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
 
@@ -154,8 +160,11 @@ impl TryFrom<&str> for NCName {
     }
 }
 
+/// Namespace prefix of a [`QName`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Prefix(NCName);
+
+/// Local name portion of a [`QName`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalPart(NCName);
 
@@ -203,6 +212,10 @@ impl TryFrom<&str> for LocalPart {
     }
 }
 
+/// A sequence of one or more whitespace characters.
+///
+/// Whitespace here is expected to consist of `[ \n\t\r]`
+///   (where the first character in that class is a space).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Whitespace(SymbolId);
 
