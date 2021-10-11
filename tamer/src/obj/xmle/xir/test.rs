@@ -178,7 +178,7 @@ fn test_writes_deps() -> TestResult {
         ),
     ];
 
-    objs.iter().for_each(|x| sections.consts.push_body(x));
+    objs.iter().for_each(|x| sections.st.push_body(x));
 
     let mut iter = parser_from(
         lower_iter(&sections, "pkg".intern(), relroot)
@@ -468,5 +468,5 @@ macro_rules! test_exec_sec {
 
 test_exec_sec!(test_map_exec, QN_L_MAP_EXEC, map);
 test_exec_sec!(test_retmap_exec, QN_L_RETMAP_EXEC, retmap);
-test_exec_sec!(test_static, QN_L_STATIC, params); // just pick a static
+test_exec_sec!(test_static, QN_L_STATIC, st);
 test_exec_sec!(test_exec, QN_L_EXEC, rater);

@@ -299,18 +299,18 @@ where
 
             match ident.kind() {
                 Some(kind) => match kind {
-                    IdentKind::Meta => deps.meta.push_body(ident),
-                    IdentKind::Worksheet => deps.worksheet.push_body(ident),
-                    IdentKind::Param(_, _) => deps.params.push_body(ident),
-                    IdentKind::Type(_) => deps.types.push_body(ident),
-                    IdentKind::Func(_, _) => deps.funcs.push_body(ident),
+                    IdentKind::Meta
+                    | IdentKind::Worksheet
+                    | IdentKind::Param(_, _)
+                    | IdentKind::Type(_)
+                    | IdentKind::Func(_, _)
+                    | IdentKind::Const(_, _) => deps.st.push_body(ident),
                     IdentKind::MapHead
                     | IdentKind::Map
                     | IdentKind::MapTail => deps.map.push_body(ident),
                     IdentKind::RetMapHead
                     | IdentKind::RetMap
                     | IdentKind::RetMapTail => deps.retmap.push_body(ident),
-                    IdentKind::Const(_, _) => deps.consts.push_body(ident),
                     _ => deps.rater.push_body(ident),
                 },
                 None => {
@@ -888,11 +888,9 @@ mod test {
     fn graph_sort() -> SortableAsgResult<(), u16> {
         let mut sut = Sut::new();
 
-        let mut meta = vec![];
-        let mut worksheet = vec![];
+        let mut st = vec![];
         let mut map = vec![];
         let mut retmap = vec![];
-        let mut consts = vec![];
 
         let base = "sym1".intern();
         let base_node = sut
@@ -900,9 +898,9 @@ mod test {
             .unwrap();
 
         add_syms!(sut, base, {
-            meta <- meta1: IdentKind::Meta,
-            worksheet <- work1: IdentKind::Worksheet,
-            consts <- const1: IdentKind::Const(Dim::from_u8(0), DataType::Float),
+            st <- meta1: IdentKind::Meta,
+            st <- work1: IdentKind::Worksheet,
+            st <- const1: IdentKind::Const(Dim::from_u8(0), DataType::Float),
             map <- map1: IdentKind::MapHead,
             map <- map2: IdentKind::Map,
             map <- map3: IdentKind::MapTail,
@@ -913,22 +911,20 @@ mod test {
             retmap <- retmap5: IdentKind::RetMap,
             map <- map4: IdentKind::MapHead,
             map <- map5: IdentKind::Map,
-            meta <- meta2: IdentKind::Meta,
-            worksheet <- work2: IdentKind::Worksheet,
+            st <- meta2: IdentKind::Meta,
+            st <- work2: IdentKind::Worksheet,
             map <- map6: IdentKind::MapTail,
             retmap <- retmap6: IdentKind::RetMapHead,
-            consts <- const2: IdentKind::Const(Dim::from_u8(2), DataType::Float),
+            st <- const2: IdentKind::Const(Dim::from_u8(2), DataType::Float),
         });
 
         map.push(base);
 
         let sections = sut.sort(&vec![base_node])?;
 
-        assert_section_sym!(sections.meta, meta);
-        assert_section_sym!(sections.worksheet, worksheet);
+        assert_section_sym!(sections.st, st);
         assert_section_sym!(sections.map, map);
         assert_section_sym!(sections.retmap, retmap);
-        assert_section_sym!(sections.consts, consts);
 
         Ok(())
     }

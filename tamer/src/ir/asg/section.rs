@@ -110,6 +110,11 @@ impl<'a, T> Iterator for SectionIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|x| *x)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (low, high) = self.0.size_hint();
+        (low, high.map(|x| x + 2))
+    }
 }
 
 /// ASG objects organized into logical sections.
@@ -121,12 +126,7 @@ impl<'a, T> Iterator for SectionIter<'a, T> {
 pub struct Sections<'a, T> {
     pub map: Section<'a, T>,
     pub retmap: Section<'a, T>,
-    pub meta: Section<'a, T>,
-    pub worksheet: Section<'a, T>,
-    pub params: Section<'a, T>,
-    pub types: Section<'a, T>,
-    pub funcs: Section<'a, T>,
-    pub consts: Section<'a, T>,
+    pub st: Section<'a, T>,
     pub rater: Section<'a, T>,
 }
 
@@ -137,12 +137,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
         Self {
             map: Section::new(),
             retmap: Section::new(),
-            meta: Section::new(),
-            worksheet: Section::new(),
-            params: Section::new(),
-            types: Section::new(),
-            funcs: Section::new(),
-            consts: Section::new(),
+            st: Section::new(),
             rater: Section::new(),
         }
     }
@@ -163,12 +158,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
             self.map
                 .iter()
                 .chain(self.retmap.iter())
-                .chain(self.meta.iter())
-                .chain(self.worksheet.iter())
-                .chain(self.params.iter())
-                .chain(self.types.iter())
-                .chain(self.funcs.iter())
-                .chain(self.consts.iter())
+                .chain(self.st.iter())
                 .chain(self.rater.iter()),
         ))
     }
@@ -185,15 +175,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     ///     they may change or be combined in the future.
     #[inline]
     pub fn iter_static(&self) -> SectionsIter<T> {
-        SectionsIter(SectionsIterType::Static(
-            self.meta
-                .iter()
-                .chain(self.worksheet.iter())
-                .chain(self.params.iter())
-                .chain(self.types.iter())
-                .chain(self.funcs.iter())
-                .chain(self.consts.iter()),
-        ))
+        SectionsIter(SectionsIterType::Single(self.st.iter()))
     }
 
     /// Construct an iterator over the map section.
@@ -235,16 +217,11 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
 type SIter<'a, T> = SectionIter<'a, T>;
 type CSIter1<'a, T, L> = Chain<L, SIter<'a, T>>;
 type CSIter2<'a, T, L> = CSIter1<'a, T, CSIter1<'a, T, L>>;
-type CSIter4<'a, T, L> = CSIter2<'a, T, CSIter2<'a, T, L>>;
-type CSIter8<'a, T, L> = CSIter4<'a, T, CSIter4<'a, T, L>>;
-
-type SIter6<'a, T> = CSIter4<'a, T, CSIter1<'a, T, SIter<'a, T>>>;
-type SIter9<'a, T> = CSIter8<'a, T, SIter<'a, T>>;
+type SIter4<'a, T> = CSIter2<'a, T, CSIter1<'a, T, SIter<'a, T>>>;
 
 /// Types of iterators encapsulated by [`SectionsIter`].
 enum SectionsIterType<'a, T> {
-    All(SIter9<'a, T>),
-    Static(SIter6<'a, T>),
+    All(SIter4<'a, T>),
     Single(SIter<'a, T>),
 }
 
@@ -262,7 +239,6 @@ impl<'a, T> Iterator for SectionsIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.0 {
             SectionsIterType::All(inner) => inner.next(),
-            SectionsIterType::Static(inner) => inner.next(),
             SectionsIterType::Single(inner) => inner.next(),
         }
     }
@@ -271,7 +247,6 @@ impl<'a, T> Iterator for SectionsIter<'a, T> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         match &self.0 {
             SectionsIterType::All(inner) => inner.size_hint(),
-            SectionsIterType::Static(inner) => inner.size_hint(),
             SectionsIterType::Single(inner) => inner.size_hint(),
         }
     }
@@ -382,7 +357,7 @@ mod test {
     fn sections_iter_all() {
         let mut sections = Sections::new();
 
-        let objs = (0..=10)
+        let objs = (0..=5)
             .map(|i| IdentObject::Missing(i.to_string().into()))
             .collect::<Vec<_>>();
 
@@ -390,13 +365,8 @@ mod test {
         sections.map.body.push(&objs[1]);
         sections.map.set_tail(&objs[2]);
         sections.retmap.body.push(&objs[3]);
-        sections.meta.body.push(&objs[4]);
-        sections.worksheet.body.push(&objs[5]);
-        sections.params.body.push(&objs[6]);
-        sections.types.body.push(&objs[7]);
-        sections.funcs.body.push(&objs[8]);
-        sections.consts.body.push(&objs[9]);
-        sections.rater.body.push(&objs[10]);
+        sections.st.body.push(&objs[4]);
+        sections.rater.body.push(&objs[5]);
 
         assert_eq!(
             sections.iter_all().collect::<Vec<_>>(),
