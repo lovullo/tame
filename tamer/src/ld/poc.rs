@@ -20,13 +20,13 @@
 //! **This contains the remaining portions of the proof-of-concept linker.**
 //! It is feature-complete and just needs final refactoring.
 
-use super::xmle::xir::lower_iter;
+use super::xmle::{xir::lower_iter, Sections};
 use crate::fs::{
     Filesystem, FsCanonicalizer, PathFile, VisitOnceFile, VisitOnceFilesystem,
 };
 use crate::global;
 use crate::ir::asg::{
-    Asg, DefaultAsg, IdentObject, IdentObjectData, Sections, SortableAsg,
+    Asg, DefaultAsg, IdentObject, IdentObjectData, SortableAsg,
     SortableAsgError,
 };
 use crate::ir::xir::writer::XmlWriter;

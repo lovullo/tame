@@ -27,7 +27,7 @@ use super::ident::IdentKind;
 use super::object::{
     FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
 };
-use super::Sections;
+use crate::ld::xmle::Sections;
 use crate::sym::{GlobalSymbolResolve, SymbolId};
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
 use petgraph::visit::DfsPostOrder;

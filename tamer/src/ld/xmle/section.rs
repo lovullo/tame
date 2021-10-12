@@ -17,14 +17,15 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Ordered sections of ASG object references.
+//! Sections of a linked [`xmle`](super) object file.
 //!
-//! These sections are the result of an ordering operation from
-//!   [`SortableAsg::sort`].
+//! These sections are the result of [`SortableAsg::sort`],
+//!   which places the relocatable object code fragments in the order
+//!   necessary for execution.
 //!
-//! [`SortableAsg::sort`]: super::SortableAsg::sort
+//! [`SortableAsg::sort`]: crate::ir::asg::SortableAsg::sort
 
-use super::IdentObjectData;
+use crate::ir::asg::IdentObjectData;
 use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::collections::hash_set;

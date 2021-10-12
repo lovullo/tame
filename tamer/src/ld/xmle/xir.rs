@@ -29,11 +29,10 @@
 //!   which can then use [`XmlWriter`](crate::ir::xir::writer::XmlWriter)
 //!   for writing.
 
+use super::{Sections, SectionsIter};
 use crate::{
     ir::{
-        asg::{
-            IdentKind, IdentObject, IdentObjectData, Sections, SectionsIter,
-        },
+        asg::{IdentKind, IdentObject, IdentObjectData},
         xir::{
             iter::{elem_wrap, ElemWrapIter},
             AttrValue, QName, Text, Token,

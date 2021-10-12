@@ -24,7 +24,7 @@ use super::object::{
     FragmentText, IdentObjectData, IdentObjectState, Source, TransitionError,
     UnresolvedError,
 };
-use super::Sections;
+use crate::ld::xmle::Sections;
 use crate::sym::SymbolId;
 use petgraph::graph::NodeIndex;
 use std::fmt::Debug;

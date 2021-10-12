@@ -194,7 +194,6 @@ mod base;
 mod graph;
 mod ident;
 mod object;
-mod section;
 
 pub use graph::{
     Asg, AsgError, AsgResult, IndexType, ObjectRef, SortableAsg,
@@ -205,7 +204,6 @@ pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
     TransitionError, TransitionResult, UnresolvedError,
 };
-pub use section::{Section, SectionIter, Sections, SectionsIter};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg<O, Ix = crate::global::ProgSymSize> = base::BaseAsg<O, Ix>;

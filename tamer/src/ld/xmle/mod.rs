@@ -69,4 +69,7 @@
 //! </package>
 //! ```
 
+mod section;
 pub mod xir;
+
+pub use section::{Section, SectionIter, Sections, SectionsIter};
