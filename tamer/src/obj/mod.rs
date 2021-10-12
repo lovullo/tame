@@ -33,5 +33,4 @@
 //!
 //! [ELF]: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
 
-pub mod xmle;
 pub mod xmlo;

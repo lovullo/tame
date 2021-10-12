@@ -88,8 +88,7 @@
 //!
 //!   4. Relocatable code fragments are output into various sections in the
 //!        executable file.
-//!      This output file is currently `xmle`.
-//!      (**TODO**: Link to new `xmle` crate.)
+//!      This output file is currently [`xmle`].
 //!
 //! [ASG]: crate::ir::asg
 //! [topo-sort]: https://en.wikipedia.org/wiki/Topological_sorting
@@ -113,6 +112,7 @@ use crate::span::Span;
 use crate::sym::st16;
 
 pub mod poc;
+pub mod xmle;
 
 /// Span denoting a general linker operation.
 ///

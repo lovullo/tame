@@ -20,6 +20,7 @@
 //! **This is a poorly-written proof of concept; do not use!**  It has been
 //! banished to its own file to try to make that more clear.
 
+use super::xmle::xir::lower_iter;
 use crate::fs::{
     Filesystem, FsCanonicalizer, PathFile, VisitOnceFile, VisitOnceFilesystem,
 };
@@ -29,7 +30,6 @@ use crate::ir::asg::{
     SortableAsgError,
 };
 use crate::ir::xir::writer::XmlWriter;
-use crate::obj::xmle::xir::lower_iter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
