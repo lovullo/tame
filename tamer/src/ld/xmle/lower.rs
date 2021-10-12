@@ -24,8 +24,8 @@
 use super::Sections;
 use crate::{
     ir::asg::{
-        Asg, BaseAsg, IdentKind, IdentObjectData, IdentObjectState, IndexType,
-        ObjectRef, UnresolvedError,
+        Asg, BaseAsg, IdentKind, IdentObject, IdentObjectData,
+        IdentObjectState, IndexType, ObjectRef, UnresolvedError,
     },
     sym::GlobalSymbolResolve,
 };
@@ -39,13 +39,12 @@ pub type SortResult<T, Ix> = Result<T, SortError<Ix>>;
 /// This performs the equivalent of a topological sort,
 ///   although function cycles are permitted.
 /// The actual operation performed is a post-order depth-first traversal.
-pub fn sort<'a, O, Ix>(
-    asg: &'a BaseAsg<O, Ix>,
+pub fn sort<'a, Ix>(
+    asg: &'a BaseAsg<IdentObject, Ix>,
     roots: &[ObjectRef<Ix>],
-) -> SortResult<Sections<'a, O>, Ix>
+) -> SortResult<Sections<'a>, Ix>
 where
     Ix: IndexType,
-    O: IdentObjectData + IdentObjectState<O>,
 {
     let mut deps = Sections::new();
 
@@ -101,10 +100,9 @@ where
 ///
 /// We loop through all SCCs and check that they are not all functions. If
 ///   they are, we ignore the cycle, otherwise we will return an error.
-fn check_cycles<O, Ix>(asg: &BaseAsg<O, Ix>) -> SortResult<(), Ix>
+fn check_cycles<Ix>(asg: &BaseAsg<IdentObject, Ix>) -> SortResult<(), Ix>
 where
     Ix: IndexType,
-    O: IdentObjectData + IdentObjectState<O>,
 {
     // While `tarjan_scc` does do a topological sort, it does not suit our
     // needs because we need to filter out some allowed cycles. It would
@@ -209,95 +207,16 @@ impl<Ix: IndexType> std::error::Error for SortError<Ix> {
 
 #[cfg(test)]
 mod test {
-    use std::cell::RefCell;
-
     use super::*;
     use crate::{
         ir::{
-            asg::{
-                DataType, Dim, FragmentText, IdentObject, Source,
-                TransitionResult,
-            },
+            asg::{DataType, Dim, FragmentText, IdentObject, Source},
             legacyir::SymDtype,
         },
-        sym::{GlobalSymbolIntern, SymbolId},
+        sym::GlobalSymbolIntern,
     };
 
-    #[derive(Debug, Default, PartialEq)]
-    struct StubIdentObject {
-        given_declare: Option<SymbolId>,
-        given_extern: Option<(IdentKind, Source)>,
-        given_resolve: Option<(IdentKind, Source)>,
-        given_set_fragment: Option<FragmentText>,
-        fail_resolved: RefCell<Option<UnresolvedError>>,
-    }
-
-    impl<'i> IdentObjectData for StubIdentObject {
-        fn name(&self) -> Option<SymbolId> {
-            self.given_declare
-        }
-
-        fn kind(&self) -> Option<&IdentKind> {
-            self.given_resolve.as_ref().map(|args| &args.0)
-        }
-
-        fn src(&self) -> Option<&Source> {
-            None
-        }
-
-        fn fragment(&self) -> Option<&FragmentText> {
-            None
-        }
-
-        fn as_ident(&self) -> Option<&IdentObject> {
-            None
-        }
-    }
-
-    impl<'i> IdentObjectState<StubIdentObject> for StubIdentObject {
-        fn declare(ident: SymbolId) -> Self {
-            Self {
-                given_declare: Some(ident),
-                ..Default::default()
-            }
-        }
-
-        fn resolve(
-            mut self,
-            kind: IdentKind,
-            src: Source,
-        ) -> TransitionResult<StubIdentObject> {
-            self.given_resolve = Some((kind, src));
-            Ok(self)
-        }
-
-        fn resolved(&self) -> Result<&StubIdentObject, UnresolvedError> {
-            if self.fail_resolved.borrow().is_some() {
-                return Err(self.fail_resolved.replace(None).unwrap());
-            }
-
-            Ok(self)
-        }
-
-        fn extern_(
-            mut self,
-            kind: IdentKind,
-            src: Source,
-        ) -> TransitionResult<StubIdentObject> {
-            self.given_extern = Some((kind, src));
-            Ok(self)
-        }
-
-        fn set_fragment(
-            mut self,
-            text: FragmentText,
-        ) -> TransitionResult<StubIdentObject> {
-            self.given_set_fragment.replace(text);
-            Ok(self)
-        }
-    }
-
-    type Sut = BaseAsg<StubIdentObject, u16>;
+    type Sut = BaseAsg<IdentObject, u16>;
 
     macro_rules! assert_section_sym {
         ( $iterable:expr, $s:ident ) => {{
@@ -397,9 +316,9 @@ mod test {
 
         match sort(&sut, &vec![sym_node]) {
             Ok(_) => panic!("Unexpected success - dependency is not in graph"),
-            Err(SortError::MissingObjectKind(_)) => (),
-            _ => {
-                panic!("Incorrect error result when dependency is not in graph")
+            Err(SortError::UnresolvedObject(_)) => (),
+            bad => {
+                panic!("Incorrect error result when dependency is not in graph: {:?}", bad)
             }
         }
 
@@ -965,35 +884,6 @@ mod test {
         match result {
             Ok(_) => (),
             Err(e) => panic!("unexpected error: {}", e),
-        }
-
-        Ok(())
-    }
-
-    /// A graph containing unresolved objects cannot be sorted.
-    #[test]
-    fn graph_sort_fail_unresolved() -> SortResult<(), u16> {
-        let mut sut = Sut::new();
-
-        let sym = "unresolved".intern();
-        let node = sut
-            .declare(sym, IdentKind::Meta, Default::default())
-            .unwrap();
-        let ident = sut.get(node).unwrap();
-
-        let expected = UnresolvedError::Missing { name: sym };
-
-        // Cause resolved() to fail.
-        ident.fail_resolved.replace(Some(expected.clone()));
-
-        let result = sort(&sut, &vec![node])
-            .expect_err("expected sort failure due to unresolved identifier");
-
-        match result {
-            SortError::UnresolvedObject(err) => {
-                assert_eq!(expected, err);
-            }
-            _ => panic!("expected SortError::Unresolved: {:?}", result),
         }
 
         Ok(())

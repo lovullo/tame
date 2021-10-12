@@ -29,16 +29,15 @@
 //!   which can then use [`XmlWriter`](crate::ir::xir::writer::XmlWriter)
 //!   for writing.
 
-use super::{Sections, SectionsIter};
+use super::{super::LSPAN, Sections, SectionsIter};
 use crate::{
     ir::{
-        asg::{IdentKind, IdentObject, IdentObjectData},
+        asg::{IdentKind, IdentObject},
         xir::{
             iter::{elem_wrap, ElemWrapIter},
             AttrValue, QName, Text, Token,
         },
     },
-    ld::LSPAN,
     sym::{st::*, SymbolId},
 };
 use arrayvec::ArrayVec;
@@ -117,18 +116,18 @@ const DEP_TOK_SIZE: usize = DEP_MAX_ATTRS_KEY_VAL + DEP_CLOSE;
 ///   another object is requested and the buffer populated with the
 ///   appropriate token stream.
 /// This repeats until no more section object data is available.
-struct DepListIter<'a, T: IdentObjectData> {
+struct DepListIter<'a> {
     /// Source data to lower into `l:deps`.
-    iter: SectionsIter<'a, T>,
+    iter: SectionsIter<'a>,
     /// Constant-size [`Token`] buffer used as a stack.
     toks: ArrayVec<Token, DEP_TOK_SIZE>,
     /// Relative path to project root.
     relroot: AttrValue,
 }
 
-impl<'a, T: IdentObjectData> DepListIter<'a, T> {
+impl<'a> DepListIter<'a> {
     #[inline]
-    fn new(sections: &'a Sections<T>, relroot: SymbolId) -> Self {
+    fn new(sections: &'a Sections, relroot: SymbolId) -> Self {
         Self {
             iter: sections.iter_all(),
             toks: ArrayVec::new(),
@@ -151,14 +150,12 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
         //   that we can diff the two;
         //     TODO: re-order sensibly once we're done.
         self.iter.next().map(|obj| {
-            let ident = obj.as_ident().expect("unexpected non-identifier object");
-
-            match ident {
+            match obj {
                 IdentObject::Ident(sym, kind, src)
                 | IdentObject::IdentFragment(sym, kind, src, _) => (*sym, kind, src),
                 _ => unreachable!(
                     "identifier should have been filtered out during sorting: {:?}",
-                    ident,
+                    obj,
                 ),
             }
         }).and_then(|(sym, kind, src)| {
@@ -241,7 +238,7 @@ impl<'a, T: IdentObjectData> DepListIter<'a, T> {
     }
 }
 
-impl<'a, T: IdentObjectData> Iterator for DepListIter<'a, T> {
+impl<'a> Iterator for DepListIter<'a> {
     type Item = Token;
 
     #[inline]
@@ -265,7 +262,7 @@ struct MapFromsIter {
 
 impl MapFromsIter {
     #[inline]
-    fn new<'a, T: IdentObjectData>(sections: &'a Sections<T>) -> Self {
+    fn new<'a>(sections: &'a Sections) -> Self {
         let iter = Self {
             iter: sections.iter_map_froms_uniq(),
             // Most of the time we have a single `from` (4 tokens).
@@ -301,18 +298,18 @@ impl Iterator for MapFromsIter {
 /// Produce text fragments associated with objects.
 ///
 /// Here, "text" refers to the compiled program text.
-struct FragmentIter<'a, T> {
-    iter: SectionsIter<'a, T>,
+struct FragmentIter<'a> {
+    iter: SectionsIter<'a>,
 }
 
-impl<'a, T: IdentObjectData> FragmentIter<'a, T> {
+impl<'a> FragmentIter<'a> {
     #[inline]
-    fn new(iter: SectionsIter<'a, T>) -> Self {
+    fn new(iter: SectionsIter<'a>) -> Self {
         Self { iter }
     }
 }
 
-impl<'a, T: IdentObjectData> Iterator for FragmentIter<'a, T> {
+impl<'a> Iterator for FragmentIter<'a> {
     type Item = Token;
 
     #[inline]
@@ -320,8 +317,7 @@ impl<'a, T: IdentObjectData> Iterator for FragmentIter<'a, T> {
         self.iter
             .by_ref()
             .filter_map(|obj| {
-                match obj.as_ident().expect("encountered non-identifier object")
-                {
+                match obj {
                     IdentObject::IdentFragment(_, _, _, frag) => Some(*frag),
 
                     // These will never have fragments.
@@ -345,28 +341,28 @@ impl<'a, T: IdentObjectData> Iterator for FragmentIter<'a, T> {
 ///   having to resort to dynamic dispatch,
 ///     since this iterator will receive over a million calls on larger
 ///     programs (and hundreds of thousands on smaller).
-pub struct LowerIter<'a, T: IdentObjectData>(
+pub struct LowerIter<'a>(
     ElemWrapIter<
         Chain<
             Chain<
                 Chain<
                     Chain<
                         Chain<
-                            Chain<HeaderIter, ElemWrapIter<DepListIter<'a, T>>>,
+                            Chain<HeaderIter, ElemWrapIter<DepListIter<'a>>>,
                             ElemWrapIter<MapFromsIter>,
                         >,
-                        ElemWrapIter<FragmentIter<'a, T>>,
+                        ElemWrapIter<FragmentIter<'a>>,
                     >,
-                    ElemWrapIter<FragmentIter<'a, T>>,
+                    ElemWrapIter<FragmentIter<'a>>,
                 >,
-                ElemWrapIter<FragmentIter<'a, T>>,
+                ElemWrapIter<FragmentIter<'a>>,
             >,
-            ElemWrapIter<FragmentIter<'a, T>>,
+            ElemWrapIter<FragmentIter<'a>>,
         >,
     >,
 );
 
-impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
+impl<'a> Iterator for LowerIter<'a> {
     type Item = Token;
 
     /// Produce the next XIR [`Token`] representing the lowering of
@@ -388,11 +384,11 @@ impl<'a, T: IdentObjectData> Iterator for LowerIter<'a, T> {
 ///   which can be written using
 ///   [`XmlWriter`](crate::ir::xir::writer::XmlWriter).
 #[inline]
-pub fn lower_iter<'a, T: IdentObjectData>(
-    sections: &'a Sections<T>,
+pub fn lower_iter<'a>(
+    sections: &'a Sections,
     pkg_name: SymbolId,
     relroot: SymbolId,
-) -> LowerIter<'a, T> {
+) -> LowerIter<'a> {
     LowerIter(elem_wrap(
         QN_PACKAGE,
         LSPAN,

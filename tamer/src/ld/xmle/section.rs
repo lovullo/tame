@@ -23,7 +23,7 @@
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
-use crate::ir::asg::IdentObjectData;
+use crate::ir::asg::{IdentObject, IdentObjectData};
 use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::collections::hash_set;
@@ -37,13 +37,13 @@ use std::slice::Iter;
 ///   information. Rather than dealing with those differently, each `Section`
 ///   will have a `head` and `tail` that are empty by default.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Section<'a, T> {
-    head: Option<&'a T>,
-    body: Vec<&'a T>,
-    tail: Option<&'a T>,
+pub struct Section<'a> {
+    head: Option<&'a IdentObject>,
+    body: Vec<&'a IdentObject>,
+    tail: Option<&'a IdentObject>,
 }
 
-impl<'a, T> Section<'a, T> {
+impl<'a> Section<'a> {
     /// New empty section.
     pub fn new() -> Self {
         Self {
@@ -61,26 +61,26 @@ impl<'a, T> Section<'a, T> {
 
     /// Push an `IdentObject` into a `Section`'s head
     #[inline]
-    pub fn set_head(&mut self, obj: &'a T) {
+    pub fn set_head(&mut self, obj: &'a IdentObject) {
         self.head.replace(obj);
     }
 
     /// Push an `IdentObject` into a `Section`'s body
     #[inline]
-    pub fn push_body(&mut self, obj: &'a T) {
+    pub fn push_body(&mut self, obj: &'a IdentObject) {
         self.body.push(obj)
     }
 
     /// Push an `IdentObject` into a `Section`'s tail
     #[inline]
-    pub fn set_tail(&mut self, obj: &'a T) {
+    pub fn set_tail(&mut self, obj: &'a IdentObject) {
         self.tail.replace(obj);
     }
 
     /// Construct a new iterator visiting each head, body, and tail object
     ///   in order.
     #[inline]
-    pub fn iter(&self) -> SectionIter<T> {
+    pub fn iter(&self) -> SectionIter {
         SectionIter(
             self.head
                 .iter()
@@ -95,15 +95,15 @@ impl<'a, T> Section<'a, T> {
 /// This iterator should be created with [`Section::iter`].
 ///
 /// This hides the complex iterator type from callers.
-pub struct SectionIter<'a, T>(
+pub struct SectionIter<'a>(
     Chain<
-        Chain<option::Iter<'a, &'a T>, Iter<'a, &'a T>>,
-        option::Iter<'a, &'a T>,
+        Chain<option::Iter<'a, &'a IdentObject>, Iter<'a, &'a IdentObject>>,
+        option::Iter<'a, &'a IdentObject>,
     >,
 );
 
-impl<'a, T> Iterator for SectionIter<'a, T> {
-    type Item = &'a T;
+impl<'a> Iterator for SectionIter<'a> {
+    type Item = &'a IdentObject;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -122,14 +122,14 @@ impl<'a, T> Iterator for SectionIter<'a, T> {
 ///   [object file](crate::obj).
 // TODO: Remove pub
 #[derive(Debug, Default, PartialEq)]
-pub struct Sections<'a, T> {
-    pub map: Section<'a, T>,
-    pub retmap: Section<'a, T>,
-    pub st: Section<'a, T>,
-    pub rater: Section<'a, T>,
+pub struct Sections<'a> {
+    pub map: Section<'a>,
+    pub retmap: Section<'a>,
+    pub st: Section<'a>,
+    pub rater: Section<'a>,
 }
 
-impl<'a, T: IdentObjectData> Sections<'a, T> {
+impl<'a> Sections<'a> {
     /// New collection of empty sections.
     #[inline]
     pub fn new() -> Self {
@@ -152,7 +152,7 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     ///   they are chained in the same order in which they are defined
     ///   on the [`Sections`] struct.
     #[inline]
-    pub fn iter_all(&self) -> SectionsIter<T> {
+    pub fn iter_all(&self) -> SectionsIter {
         SectionsIter(SectionsIterType::All(
             self.map
                 .iter()
@@ -173,13 +173,13 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
     ///   appear in;
     ///     they may change or be combined in the future.
     #[inline]
-    pub fn iter_static(&self) -> SectionsIter<T> {
+    pub fn iter_static(&self) -> SectionsIter {
         SectionsIter(SectionsIterType::Single(self.st.iter()))
     }
 
     /// Construct an iterator over the map section.
     #[inline]
-    pub fn iter_map(&self) -> SectionsIter<T> {
+    pub fn iter_map(&self) -> SectionsIter {
         SectionsIter(SectionsIterType::Single(self.map.iter()))
     }
 
@@ -199,13 +199,13 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
 
     /// Construct an iterator over the return map section.
     #[inline]
-    pub fn iter_retmap(&self) -> SectionsIter<T> {
+    pub fn iter_retmap(&self) -> SectionsIter {
         SectionsIter(SectionsIterType::Single(self.retmap.iter()))
     }
 
     /// Construct an iterator over the executable `rater` section.
     #[inline]
-    pub fn iter_exec(&self) -> SectionsIter<T> {
+    pub fn iter_exec(&self) -> SectionsIter {
         SectionsIter(SectionsIterType::Single(self.rater.iter()))
     }
 }
@@ -213,15 +213,15 @@ impl<'a, T: IdentObjectData> Sections<'a, T> {
 // Compose the chained iterator type for [`SectionsIter`].
 // This could be further abstracted away,
 //   but it's likely that `Sections` will be simplified in the future.
-type SIter<'a, T> = SectionIter<'a, T>;
-type CSIter1<'a, T, L> = Chain<L, SIter<'a, T>>;
-type CSIter2<'a, T, L> = CSIter1<'a, T, CSIter1<'a, T, L>>;
-type SIter4<'a, T> = CSIter2<'a, T, CSIter1<'a, T, SIter<'a, T>>>;
+type SIter<'a> = SectionIter<'a>;
+type CSIter1<'a, L> = Chain<L, SIter<'a>>;
+type CSIter2<'a, L> = CSIter1<'a, CSIter1<'a, L>>;
+type SIter4<'a> = CSIter2<'a, CSIter1<'a, SIter<'a>>>;
 
 /// Types of iterators encapsulated by [`SectionsIter`].
-enum SectionsIterType<'a, T> {
-    All(SIter4<'a, T>),
-    Single(SIter<'a, T>),
+enum SectionsIterType<'a> {
+    All(SIter4<'a>),
+    Single(SIter<'a>),
 }
 
 /// Iterator over each of the sections.
@@ -229,10 +229,10 @@ enum SectionsIterType<'a, T> {
 /// This iterator should be created with [`Sections::iter_all`].
 ///
 /// This hides the complex iterator type from callers.
-pub struct SectionsIter<'a, T>(SectionsIterType<'a, T>);
+pub struct SectionsIter<'a>(SectionsIterType<'a>);
 
-impl<'a, T> Iterator for SectionsIter<'a, T> {
-    type Item = &'a T;
+impl<'a> Iterator for SectionsIter<'a> {
+    type Item = &'a IdentObject;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -257,7 +257,7 @@ mod test {
     use crate::ir::asg::{IdentKind, IdentObject, Source};
     use crate::sym::GlobalSymbolIntern;
 
-    type Sut<'a> = Section<'a, IdentObject>;
+    type Sut<'a> = Section<'a>;
 
     #[test]
     fn section_empty() {

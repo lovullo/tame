@@ -19,6 +19,7 @@
 
 use super::*;
 use crate::convert::ExpectInto;
+use crate::ir::asg::IdentObjectData;
 use crate::ir::legacyir::SymDtype;
 use crate::ir::{
     asg::{Dim, IdentKind, Source},
@@ -44,7 +45,7 @@ macro_rules! assert_attr{
 
 #[test]
 fn test_produces_header() -> TestResult {
-    let empty = Sections::<IdentObject>::new();
+    let empty = Sections::new();
     let name = "test-pkg".intern();
     let relroot = "rel/root/".intern();
 
@@ -63,7 +64,7 @@ fn test_produces_header() -> TestResult {
 
 #[test]
 fn test_closes_package() -> TestResult {
-    let empty = Sections::<IdentObject>::new();
+    let empty = Sections::new();
 
     let result = lower_iter(&empty, "foo".intern(), "relroot".intern()).last();
 
@@ -212,7 +213,7 @@ fn test_writes_deps() -> TestResult {
     });
 
     p_syms.enumerate().for_each(|(i, ele)| {
-        let ident = objs[i].as_ident().unwrap();
+        let ident = &objs[i];
         let attrs = ele.attrs();
 
         assert_eq!(

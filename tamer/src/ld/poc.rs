@@ -212,7 +212,7 @@ fn get_ident<'a>(
 
 fn output_xmle<'a>(
     depgraph: &'a LinkerAsg,
-    sorted: &mut Sections<'a, IdentObject>,
+    sorted: &mut Sections<'a>,
     name: SymbolId,
     relroot: SymbolId,
     output: &str,
