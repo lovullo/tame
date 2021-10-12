@@ -19,7 +19,7 @@
 
 //! Combine [object files](crate::obj) into a final executable.
 //!
-//! It's user-facing binary is [`tameld`](../../tameld).
+//! Its user-facing binary is [`tameld`](../../tameld).
 //!
 //!
 //! Background Information
@@ -85,10 +85,11 @@
 //!      Roots for the sort are specified by the return map.
 //!      _Identifiers that are not accessable from one of those roots will be
 //!        omitted from the executable output._
+//!      This operation is performed by [`xmle::lower::sort`],
+//!        producing [`Sections`](xmle::Sections).
 //!
-//!   4. Relocatable code fragments are output into various sections in the
-//!        executable file.
-//!      This output file is currently [`xmle`].
+//!   4. [`Sections`](xmle::Sections) is then lowered into a XIR token
+//!        stream by [`xmle::xir`] for writing.
 //!
 //! [ASG]: crate::ir::asg
 //! [topo-sort]: https://en.wikipedia.org/wiki/Topological_sorting
