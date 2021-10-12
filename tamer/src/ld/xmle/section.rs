@@ -23,12 +23,15 @@
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
-use crate::ir::asg::{IdentObject, IdentObjectData};
-use crate::sym::SymbolId;
+use crate::ir::asg::{
+    IdentKind, IdentObject, IdentObjectData, IdentObjectState, UnresolvedError,
+};
+use crate::sym::{GlobalSymbolResolve, SymbolId};
 use fxhash::FxHashSet;
 use std::collections::hash_set;
 use std::iter::Chain;
 use std::option;
+use std::result::Result;
 use std::slice::Iter;
 
 /// A section of an [object file](crate::obj).
@@ -116,6 +119,8 @@ impl<'a> Iterator for SectionIter<'a> {
     }
 }
 
+pub type PushResult = Result<(), SectionsError>;
+
 /// ASG objects organized into logical sections.
 ///
 /// These sections may not necessarily correspond directly to sections of an
@@ -139,6 +144,47 @@ impl<'a> Sections<'a> {
             st: Section::new(),
             rater: Section::new(),
         }
+    }
+
+    /// Push an object into the appropriate section.
+    ///
+    /// Objects are expected to be properly sorted relative to their order
+    ///   of execution so that their text fragments are placed in the
+    ///   correct order in the final program text.
+    pub fn push(&mut self, ident: &'a IdentObject) -> PushResult {
+        match ident.resolved()?.kind() {
+            Some(kind) => match kind {
+                IdentKind::Meta
+                | IdentKind::Worksheet
+                | IdentKind::Param(_, _)
+                | IdentKind::Type(_)
+                | IdentKind::Func(_, _)
+                | IdentKind::Const(_, _) => self.st.push_body(ident),
+                IdentKind::MapHead | IdentKind::Map | IdentKind::MapTail => {
+                    self.map.push_body(ident)
+                }
+                IdentKind::RetMapHead
+                | IdentKind::RetMap
+                | IdentKind::RetMapTail => self.retmap.push_body(ident),
+                _ => self.rater.push_body(ident),
+            },
+            None => {
+                // TODO: This should not be possible; ensure that with types
+                // or turn this into a panic.  It would certainly be a
+                // compiler bug and there is no use in trying to be nice
+                // about a situation where something went terribly, horribly
+                // wrong.
+                return Err(SectionsError::MissingObjectKind(
+                    ident
+                        .name()
+                        .map(|name| name.lookup_str())
+                        .unwrap_or("<unknown>".into())
+                        .into(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     /// Construct an iterator over each of the individual sections in
@@ -207,6 +253,57 @@ impl<'a> Sections<'a> {
     #[inline]
     pub fn iter_exec(&self) -> SectionsIter {
         SectionsIter(SectionsIterType::Single(self.rater.iter()))
+    }
+}
+
+/// Error during [`Sections`] building.
+#[derive(Debug, PartialEq)]
+pub enum SectionsError {
+    /// An unresolved object was encountered during sorting.
+    ///
+    /// An unresolved object means that the graph has an incomplete picture
+    ///   of the program,
+    ///     and so sorting cannot be reliably performed.
+    /// Since all objects are supposed to be resolved prior to sorting,
+    ///   this represents either a problem with the program being compiled
+    ///   or a bug in the compiler itself.
+    UnresolvedObject(UnresolvedError),
+
+    /// The kind of an object encountered during sorting could not be
+    ///   determined.
+    ///
+    /// Sorting uses the object kind to place objects into their appropriate
+    ///   sections.
+    /// It should never be the case that a resolved object has no kind,
+    ///   so this likely represents a compiler bug.
+    MissingObjectKind(String),
+}
+
+impl From<UnresolvedError> for SectionsError {
+    fn from(err: UnresolvedError) -> Self {
+        Self::UnresolvedObject(err)
+    }
+}
+
+impl std::error::Error for SectionsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::UnresolvedObject(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for SectionsError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::UnresolvedObject(err) => err.fmt(fmt),
+            Self::MissingObjectKind(name) => write!(
+                fmt,
+                "missing object kind for object `{}` (this may be a compiler bug!)",
+                name,
+            ),
+        }
     }
 }
 

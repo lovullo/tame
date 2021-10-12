@@ -21,13 +21,9 @@
 //!
 //! See the [parent module](super) for more information.
 
-use super::Sections;
-use crate::{
-    ir::asg::{
-        Asg, BaseAsg, IdentKind, IdentObject, IdentObjectData,
-        IdentObjectState, IndexType, ObjectRef, UnresolvedError,
-    },
-    sym::GlobalSymbolResolve,
+use super::{section::SectionsError, Sections};
+use crate::ir::asg::{
+    Asg, BaseAsg, IdentKind, IdentObject, IdentObjectData, IndexType, ObjectRef,
 };
 use petgraph::visit::DfsPostOrder;
 
@@ -59,34 +55,8 @@ where
     }
 
     while let Some(index) = dfs.next(&asg.graph) {
-        let ident = asg.get(index).expect("missing node").resolved()?;
-
-        match ident.kind() {
-            Some(kind) => match kind {
-                IdentKind::Meta
-                | IdentKind::Worksheet
-                | IdentKind::Param(_, _)
-                | IdentKind::Type(_)
-                | IdentKind::Func(_, _)
-                | IdentKind::Const(_, _) => deps.st.push_body(ident),
-                IdentKind::MapHead | IdentKind::Map | IdentKind::MapTail => {
-                    deps.map.push_body(ident)
-                }
-                IdentKind::RetMapHead
-                | IdentKind::RetMap
-                | IdentKind::RetMapTail => deps.retmap.push_body(ident),
-                _ => deps.rater.push_body(ident),
-            },
-            None => {
-                return Err(SortError::MissingObjectKind(
-                    ident
-                        .name()
-                        .map(|name| format!("{}", name.lookup_str()))
-                        .unwrap_or("<unknown>".into())
-                        .into(),
-                ))
-            }
-        }
+        let ident = asg.get(index).expect("missing node");
+        deps.push(ident)?;
     }
 
     Ok(deps)
@@ -153,44 +123,23 @@ where
 ///   sorting process.
 #[derive(Debug, PartialEq)]
 pub enum SortError<Ix: IndexType> {
-    /// An unresolved object was encountered during sorting.
-    ///
-    /// An unresolved object means that the graph has an incomplete picture
-    ///   of the program,
-    ///     and so sorting cannot be reliably performed.
-    /// Since all objects are supposed to be resolved prior to sorting,
-    ///   this represents either a problem with the program being compiled
-    ///   or a bug in the compiler itself.
-    UnresolvedObject(UnresolvedError),
-
-    /// The kind of an object encountered during sorting could not be
-    ///   determined.
-    ///
-    /// Sorting uses the object kind to place objects into their appropriate
-    ///   sections.
-    /// It should never be the case that a resolved object has no kind,
-    ///   so this likely represents a compiler bug.
-    MissingObjectKind(String),
+    /// Error while building [`Sections`].
+    SectionsError(SectionsError),
 
     /// The graph has a cyclic dependency.
     Cycles(Vec<Vec<ObjectRef<Ix>>>),
 }
 
-impl<Ix: IndexType> From<UnresolvedError> for SortError<Ix> {
-    fn from(err: UnresolvedError) -> Self {
-        Self::UnresolvedObject(err)
+impl<Ix: IndexType> From<SectionsError> for SortError<Ix> {
+    fn from(err: SectionsError) -> Self {
+        Self::SectionsError(err)
     }
 }
 
 impl<Ix: IndexType> std::fmt::Display for SortError<Ix> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::UnresolvedObject(err) => std::fmt::Display::fmt(err, fmt),
-            Self::MissingObjectKind(name) => write!(
-                fmt,
-                "internal error: missing object kind for object `{}` (this may be a compiler bug!)",
-                name,
-            ),
+            Self::SectionsError(err) => err.fmt(fmt),
             Self::Cycles(_) => write!(fmt, "cyclic dependencies"),
         }
     }
@@ -198,10 +147,7 @@ impl<Ix: IndexType> std::fmt::Display for SortError<Ix> {
 
 impl<Ix: IndexType> std::error::Error for SortError<Ix> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::UnresolvedObject(err) => Some(err),
-            _ => None,
-        }
+        None
     }
 }
 
@@ -316,7 +262,9 @@ mod test {
 
         match sort(&sut, &vec![sym_node]) {
             Ok(_) => panic!("Unexpected success - dependency is not in graph"),
-            Err(SortError::UnresolvedObject(_)) => (),
+            Err(SortError::SectionsError(SectionsError::UnresolvedObject(
+                _,
+            ))) => (),
             bad => {
                 panic!("Incorrect error result when dependency is not in graph: {:?}", bad)
             }
