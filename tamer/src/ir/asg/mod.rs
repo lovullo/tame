@@ -195,10 +195,10 @@ mod graph;
 mod ident;
 mod object;
 
-pub use graph::{
-    Asg, AsgError, AsgResult, IndexType, ObjectRef, SortableAsg,
-    SortableAsgError,
-};
+// TODO: Stop exposing this.  See `ld::xmle::lower`.
+pub use base::BaseAsg;
+
+pub use graph::{Asg, AsgError, AsgResult, IndexType, ObjectRef};
 pub use ident::{DataType, Dim, IdentKind, IdentKindError};
 pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,

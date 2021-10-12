@@ -19,11 +19,9 @@
 
 //! Sections of a linked [`xmle`](super) object file.
 //!
-//! These sections are the result of [`SortableAsg::sort`],
+//! These sections are the result of [`sort`](super::lower::sort),
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
-//!
-//! [`SortableAsg::sort`]: crate::ir::asg::SortableAsg::sort
 
 use crate::ir::asg::IdentObjectData;
 use crate::sym::SymbolId;

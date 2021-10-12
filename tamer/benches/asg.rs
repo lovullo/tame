@@ -30,9 +30,7 @@ use test::Bencher;
 
 mod base {
     use super::*;
-    use tamer::ir::asg::{
-        Asg, DataType, DefaultAsg, IdentKind, IdentObject, SortableAsg, Source,
-    };
+    use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
     use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
     type Sut = DefaultAsg<IdentObject>;
@@ -305,71 +303,6 @@ mod base {
                 .zip(xs.iter().cycle().skip(1))
                 .map(|(from, to)| sut.add_dep_lookup(*from, *to))
                 .for_each(drop);
-        });
-    }
-
-    #[bench]
-    fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
-        let mut sut = Sut::new();
-        let xs = interned_n(1_000);
-
-        let orefs = xs
-            .iter()
-            .map(|sym| {
-                sut.declare(
-                    *sym,
-                    IdentKind::Rate(DataType::Integer),
-                    Source::default(),
-                )
-                .unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        let root = orefs[0];
-
-        // All edges from a single node.
-        orefs.iter().skip(1).for_each(|to| {
-            sut.add_dep(root, *to);
-        });
-
-        bench.iter(|| {
-            drop(sut.sort(&[root]));
-        });
-    }
-
-    #[bench]
-    fn sort_1_with_1_000_existing_one_edge_per_node_one_path(
-        bench: &mut Bencher,
-    ) {
-        let mut sut = Sut::new();
-        let xs = interned_n(1_000);
-
-        let orefs = xs
-            .iter()
-            .map(|sym| {
-                sut.declare(
-                    *sym,
-                    IdentKind::Rate(DataType::Integer),
-                    Source::default(),
-                )
-                .unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        // Note that there's no `cycle` call on the iterator, like the
-        // above tests, to make sure we don't create a cycle on the
-        // graph.
-        orefs
-            .iter()
-            .zip(orefs.iter().skip(1))
-            .for_each(|(from, to)| {
-                sut.add_dep(*from, *to);
-            });
-
-        let root = orefs[0];
-
-        bench.iter(|| {
-            drop(sut.sort(&[root]));
         });
     }
 }

@@ -70,6 +70,8 @@
 //! ```
 
 mod section;
+
+pub mod lower;
 pub mod xir;
 
 pub use section::{Section, SectionIter, Sections, SectionsIter};

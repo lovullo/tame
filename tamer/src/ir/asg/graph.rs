@@ -20,11 +20,7 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{
-    FragmentText, IdentObjectData, IdentObjectState, Source, TransitionError,
-    UnresolvedError,
-};
-use crate::ld::xmle::Sections;
+use super::object::{FragmentText, IdentObjectState, Source, TransitionError};
 use crate::sym::SymbolId;
 use petgraph::graph::NodeIndex;
 use std::fmt::Debug;
@@ -178,37 +174,11 @@ where
     ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
 }
 
-/// Sort a graph into different [`Sections`]
-///
-/// Allow a graph to be partitioned into different [`Sections`] that can be
-///   used as an `Intermediate Representation`.
-pub trait SortableAsg<O, Ix>
-where
-    O: IdentObjectData,
-    Ix: IndexType,
-{
-    /// Sort graph into [`Sections`].
-    ///
-    /// Sorting will fail if the graph contains unresolved objects,
-    ///   or identifiers whose kind cannot be determined
-    ///   (see [`UnresolvedError`]).
-    fn sort<'i>(
-        &'i self,
-        roots: &[ObjectRef<Ix>],
-    ) -> SortableAsgResult<Sections<'i, O>, Ix>;
-}
-
 /// A [`Result`] with a hard-coded [`AsgError`] error type.
 ///
 /// This is the result of every [`Asg`] operation that could potentially
 ///   fail in error.
 pub type AsgResult<T> = Result<T, AsgError>;
-
-/// A [`Result`] with a hard-coded [`SortableAsgError`] error type.
-///
-/// This is the result of every [`SortableAsg`] operation that could
-///   potentially fail in error.
-pub type SortableAsgResult<T, Ix> = Result<T, SortableAsgError<Ix>>;
 
 /// Reference to an [object][super::object] stored within the [`Asg`].
 ///
@@ -282,66 +252,6 @@ impl std::error::Error for AsgError {
 impl From<TransitionError> for AsgError {
     fn from(err: TransitionError) -> Self {
         Self::ObjectTransition(err)
-    }
-}
-
-/// Error during graph sorting.
-///
-/// These errors reflect barriers to meaningfully understanding the
-///   properties of the data in the graph with respect to sorting.
-/// It does not represent bad underlying data that does not affect the
-///   sorting process.
-#[derive(Debug, PartialEq)]
-pub enum SortableAsgError<Ix: IndexType> {
-    /// An unresolved object was encountered during sorting.
-    ///
-    /// An unresolved object means that the graph has an incomplete picture
-    ///   of the program,
-    ///     and so sorting cannot be reliably performed.
-    /// Since all objects are supposed to be resolved prior to sorting,
-    ///   this represents either a problem with the program being compiled
-    ///   or a bug in the compiler itself.
-    UnresolvedObject(UnresolvedError),
-
-    /// The kind of an object encountered during sorting could not be
-    ///   determined.
-    ///
-    /// Sorting uses the object kind to place objects into their appropriate
-    ///   sections.
-    /// It should never be the case that a resolved object has no kind,
-    ///   so this likely represents a compiler bug.
-    MissingObjectKind(String),
-
-    /// The graph has a cyclic dependency.
-    Cycles(Vec<Vec<ObjectRef<Ix>>>),
-}
-
-impl<Ix: IndexType> From<UnresolvedError> for SortableAsgError<Ix> {
-    fn from(err: UnresolvedError) -> Self {
-        Self::UnresolvedObject(err)
-    }
-}
-
-impl<Ix: IndexType> std::fmt::Display for SortableAsgError<Ix> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::UnresolvedObject(err) => std::fmt::Display::fmt(err, fmt),
-            Self::MissingObjectKind(name) => write!(
-                fmt,
-                "internal error: missing object kind for object `{}` (this may be a compiler bug!)",
-                name,
-            ),
-            Self::Cycles(_) => write!(fmt, "cyclic dependencies"),
-        }
-    }
-}
-
-impl<Ix: IndexType> std::error::Error for SortableAsgError<Ix> {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::UnresolvedObject(err) => Some(err),
-            _ => None,
-        }
     }
 }
 

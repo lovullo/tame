@@ -20,15 +20,16 @@
 //! **This contains the remaining portions of the proof-of-concept linker.**
 //! It is feature-complete and just needs final refactoring.
 
-use super::xmle::{xir::lower_iter, Sections};
+use super::xmle::{
+    lower::{sort, SortError},
+    xir::lower_iter,
+    Sections,
+};
 use crate::fs::{
     Filesystem, FsCanonicalizer, PathFile, VisitOnceFile, VisitOnceFilesystem,
 };
 use crate::global;
-use crate::ir::asg::{
-    Asg, DefaultAsg, IdentObject, IdentObjectData, SortableAsg,
-    SortableAsgError,
-};
+use crate::ir::asg::{Asg, DefaultAsg, IdentObject, IdentObjectData};
 use crate::ir::xir::writer::XmlWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
@@ -71,9 +72,9 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let mut sorted = match depgraph.sort(&roots) {
+    let mut sorted = match sort(&depgraph, &roots) {
         Ok(sections) => sections,
-        Err(SortableAsgError::Cycles(cycles)) => {
+        Err(SortError::Cycles(cycles)) => {
             let msg: Vec<String> = cycles
                 .into_iter()
                 .map(|cycle| {
