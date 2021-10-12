@@ -17,8 +17,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! **This is a poorly-written proof of concept; do not use!**  It has been
-//! banished to its own file to try to make that more clear.
+//! **This contains the remaining portions of the proof-of-concept linker.**
+//! It is feature-complete and just needs final refactoring.
 
 use super::xmle::xir::lower_iter;
 use crate::fs::{
