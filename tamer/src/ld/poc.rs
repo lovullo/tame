@@ -23,10 +23,7 @@
 use super::xmle::{
     lower::{sort, SortError},
     xir::lower_iter,
-    Sections,
-};
-use crate::fs::{
-    Filesystem, FsCanonicalizer, PathFile, VisitOnceFile, VisitOnceFilesystem,
+    XmleSections,
 };
 use crate::global;
 use crate::ir::asg::{Asg, DefaultAsg, IdentObject, IdentObjectData};
@@ -34,6 +31,13 @@ use crate::ir::xir::writer::XmlWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
+use crate::{
+    fs::{
+        Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
+        VisitOnceFilesystem,
+    },
+    ld::xmle::Sections,
+};
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::error::Error;
@@ -72,7 +76,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             .filter_map(|sym| depgraph.lookup(sym)),
     );
 
-    let mut sorted = match sort(&depgraph, &roots) {
+    let sorted = match sort(&depgraph, &roots, Sections::new()) {
         Ok(sections) => sections,
         Err(SortError::Cycles(cycles)) => {
             let msg: Vec<String> = cycles
@@ -105,8 +109,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     };
 
     output_xmle(
-        &depgraph,
-        &mut sorted,
+        sorted,
         name.expect("missing root package name"),
         relroot.expect("missing root package relroot"),
         output,
@@ -200,46 +203,16 @@ fn load_xmlo<'a, P: AsRef<Path>>(
     Ok(state)
 }
 
-fn get_ident<'a>(
-    depgraph: &'a LinkerAsg,
-    name: SymbolId<global::ProgSymSize>,
-) -> Result<&'a IdentObject, String> {
-    depgraph
-        .lookup(name)
-        .and_then(|id| depgraph.get(id))
-        .ok_or(format!("missing identifier: {}", name.lookup_str()))
-}
-
-fn output_xmle<'a>(
-    depgraph: &'a LinkerAsg,
-    sorted: &mut Sections<'a>,
+fn output_xmle<'a, S: XmleSections<'a>>(
+    sorted: S,
     name: SymbolId,
     relroot: SymbolId,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
-    if !sorted.map.is_empty() {
-        sorted
-            .map
-            .set_head(get_ident(depgraph, ":map:___head".intern())?);
-        sorted
-            .map
-            .set_tail(get_ident(depgraph, ":map:___tail".intern())?);
-    }
-
-    if !sorted.retmap.is_empty() {
-        sorted
-            .retmap
-            .set_head(get_ident(depgraph, ":retmap:___head".intern())?);
-        sorted
-            .retmap
-            .set_tail(get_ident(depgraph, ":retmap:___tail".intern())?);
-    }
-
     let file = fs::File::create(output)?;
     let mut buf = BufWriter::new(file);
 
-    lower_iter(&sorted, name, relroot).write(&mut buf, Default::default())?;
-
+    lower_iter(sorted, name, relroot).write(&mut buf, Default::default())?;
     buf.flush()?;
 
     Ok(())

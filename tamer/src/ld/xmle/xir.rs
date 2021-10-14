@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Lower [`Sections`] into a XIR [`Token`] stream for `xmle` output.
+//! Lower [`XmleSections`] into a XIR [`Token`] stream for `xmle` output.
 //!
 //! This is the final step in the linker,
 //!   producing the `xmle` file that can be used to produce the standalone
@@ -29,7 +29,7 @@
 //!   which can then use [`XmlWriter`](crate::ir::xir::writer::XmlWriter)
 //!   for writing.
 
-use super::{super::LSPAN, Sections, SectionsIter};
+use super::{super::LSPAN, section::XmleSections};
 use crate::{
     ir::{
         asg::{IdentKind, IdentObject},
@@ -41,8 +41,7 @@ use crate::{
     sym::{st::*, SymbolId},
 };
 use arrayvec::ArrayVec;
-use std::iter::Chain;
-use std::{array, collections::hash_set};
+use std::{array, collections::hash_set, iter::Chain, vec};
 
 qname_const! {
     QN_DESC: :L_DESC,
@@ -106,19 +105,19 @@ const DEP_CLOSE: usize = 1; // open is never stored; see `refill_toks`
 /// Size of [`DepListIter`] [`Token`] buffer.
 const DEP_TOK_SIZE: usize = DEP_MAX_ATTRS_KEY_VAL + DEP_CLOSE;
 
-/// Iterator that lowers [`Sections`] into `l:dep` as a XIR [`Token`]
+/// Iterator that lowers [`XmleSections`] into `l:dep` as a XIR [`Token`]
 ///   stream.
 ///
 /// This iterator functions by allocating a constant-sized
 ///   [`ArrayVec`]-based buffer that is populated with token data each time
-///   an object is requested from the underlying [`SectionsIter`].
+///   an object is requested from the underlying iterator.
 /// Once the buffer runs out,
 ///   another object is requested and the buffer populated with the
 ///   appropriate token stream.
 /// This repeats until no more section object data is available.
 struct DepListIter<'a> {
     /// Source data to lower into `l:deps`.
-    iter: SectionsIter<'a>,
+    iter: vec::IntoIter<&'a IdentObject>,
     /// Constant-size [`Token`] buffer used as a stack.
     toks: ArrayVec<Token, DEP_TOK_SIZE>,
     /// Relative path to project root.
@@ -127,9 +126,9 @@ struct DepListIter<'a> {
 
 impl<'a> DepListIter<'a> {
     #[inline]
-    fn new(sections: &'a Sections, relroot: SymbolId) -> Self {
+    fn new(iter: vec::IntoIter<&'a IdentObject>, relroot: SymbolId) -> Self {
         Self {
-            iter: sections.iter_all(),
+            iter,
             toks: ArrayVec::new(),
             // TODO: we cannot trust that an arbitrary symbol is escaped; this
             // needs better typing, along with other things.
@@ -138,7 +137,7 @@ impl<'a> DepListIter<'a> {
     }
 
     /// Re-fill buffer with a new list of [`Token]s representing the next
-    ///   available object from the inner [`SectionsIter`].
+    ///   available object from the inner iterator.
     ///
     /// Each token is pushed onto the buffer _in reverse_,
     ///   since it is treated like a stack;
@@ -262,9 +261,9 @@ struct MapFromsIter {
 
 impl MapFromsIter {
     #[inline]
-    fn new<'a>(sections: &'a Sections) -> Self {
+    fn new<'a>(iter: hash_set::IntoIter<SymbolId>) -> Self {
         let iter = Self {
-            iter: sections.iter_map_froms_uniq(),
+            iter,
             // Most of the time we have a single `from` (4 tokens).
             toks: ArrayVec::new(),
         };
@@ -298,38 +297,24 @@ impl Iterator for MapFromsIter {
 /// Produce text fragments associated with objects.
 ///
 /// Here, "text" refers to the compiled program text.
-struct FragmentIter<'a> {
-    iter: SectionsIter<'a>,
+struct FragmentIter {
+    iter: vec::IntoIter<SymbolId>,
 }
 
-impl<'a> FragmentIter<'a> {
+impl FragmentIter {
     #[inline]
-    fn new(iter: SectionsIter<'a>) -> Self {
+    fn new(iter: vec::IntoIter<SymbolId>) -> Self {
         Self { iter }
     }
 }
 
-impl<'a> Iterator for FragmentIter<'a> {
+impl Iterator for FragmentIter {
     type Item = Token;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.iter
             .by_ref()
-            .filter_map(|obj| {
-                match obj {
-                    IdentObject::IdentFragment(_, _, _, frag) => Some(*frag),
-
-                    // These will never have fragments.
-                    IdentObject::Ident(_, IdentKind::Cgen(_), _)
-                    | IdentObject::Ident(_, IdentKind::Gen(_, _), _)
-                    | IdentObject::Ident(_, IdentKind::Lparam(_, _), _) => None,
-
-                    // Error, but we really should catch that during Section
-                    // lowering.
-                    _ => todo! {},
-                }
-            })
             .map(|frag| Token::Text(Text::Escaped(frag), LSPAN))
             .next()
     }
@@ -351,13 +336,13 @@ pub struct LowerIter<'a>(
                             Chain<HeaderIter, ElemWrapIter<DepListIter<'a>>>,
                             ElemWrapIter<MapFromsIter>,
                         >,
-                        ElemWrapIter<FragmentIter<'a>>,
+                        ElemWrapIter<FragmentIter>,
                     >,
-                    ElemWrapIter<FragmentIter<'a>>,
+                    ElemWrapIter<FragmentIter>,
                 >,
-                ElemWrapIter<FragmentIter<'a>>,
+                ElemWrapIter<FragmentIter>,
             >,
-            ElemWrapIter<FragmentIter<'a>>,
+            ElemWrapIter<FragmentIter>,
         >,
     >,
 );
@@ -366,7 +351,7 @@ impl<'a> Iterator for LowerIter<'a> {
     type Item = Token;
 
     /// Produce the next XIR [`Token`] representing the lowering of
-    ///   [`Sections`] from the [ASG](crate::ir::asg).
+    ///   [`XmleSections`] from the [ASG](crate::ir::asg).
     ///
     /// This produces a single token at a time,
     ///   but [`DepListIter`] buffers tokens before emitting them,
@@ -378,14 +363,14 @@ impl<'a> Iterator for LowerIter<'a> {
     }
 }
 
-/// Lower [`Sections`] into a XIR [`Token`] stream for writing.
+/// Lower [`XmleSections`] into a XIR [`Token`] stream for writing.
 ///
 /// This produces the final representation for the `xmle` file,
 ///   which can be written using
 ///   [`XmlWriter`](crate::ir::xir::writer::XmlWriter).
 #[inline]
-pub fn lower_iter<'a>(
-    sections: &'a Sections,
+pub fn lower_iter<'a, S: XmleSections<'a>>(
+    mut sections: S,
     pkg_name: SymbolId,
     relroot: SymbolId,
 ) -> LowerIter<'a> {
@@ -396,28 +381,32 @@ pub fn lower_iter<'a>(
             .chain(elem_wrap(
                 QN_L_DEP,
                 LSPAN,
-                DepListIter::new(sections, relroot),
+                DepListIter::new(sections.take_deps().into_iter(), relroot),
             ))
-            .chain(elem_wrap(QN_L_MAP_FROM, LSPAN, MapFromsIter::new(sections)))
+            .chain(elem_wrap(
+                QN_L_MAP_FROM,
+                LSPAN,
+                MapFromsIter::new(sections.take_map_froms().into_iter()),
+            ))
             .chain(elem_wrap(
                 QN_L_MAP_EXEC,
                 LSPAN,
-                FragmentIter::new(sections.iter_map()),
+                FragmentIter::new(sections.take_map().into_iter()),
             ))
             .chain(elem_wrap(
                 QN_L_RETMAP_EXEC,
                 LSPAN,
-                FragmentIter::new(sections.iter_retmap()),
+                FragmentIter::new(sections.take_retmap().into_iter()),
             ))
             .chain(elem_wrap(
                 QN_L_STATIC,
                 LSPAN,
-                FragmentIter::new(sections.iter_static()),
+                FragmentIter::new(sections.take_static().into_iter()),
             ))
             .chain(elem_wrap(
                 QN_L_EXEC,
                 LSPAN,
-                FragmentIter::new(sections.iter_exec()),
+                FragmentIter::new(sections.take_exec().into_iter()),
             )),
     ))
 }

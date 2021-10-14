@@ -309,6 +309,9 @@ static_symbol_newtypes! {
     ///   may need escaping in XML attributes.
     uri: UriStaticSymbolId<global::ProgSymSize>,
 
+    /// Any other generic string that does not fit into any particular type.
+    str: GenericStaticSymbolId<global::ProgSymSize>,
+
     /// Static 16-bit [`Span`](crate::span::Span) context.
     ///
     /// These contexts are intended for use in generated code where a better
@@ -433,6 +436,11 @@ pub mod st {
         L_WORKSHEET: cid "worksheet",
         L_XMLNS: cid "xmlns",
         L_YIELDS: cid "yields",
+
+        L_MAP_UUUHEAD: str ":map:___head",
+        L_MAP_UUUTAIL: str ":map:___tail",
+        L_RETMAP_UUUHEAD: str ":retmap:___head",
+        L_RETMAP_UUUTAIL: str ":retmap:___tail",
 
         URI_LV_RATER: uri "http://www.lovullo.com/rater",
         URI_LV_PREPROC: uri "http://www.lovullo.com/rater/preproc",

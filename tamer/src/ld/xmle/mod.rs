@@ -65,7 +65,7 @@
 //!   <l:static>
 //!     function func_min(args,min1,min2) {return min1;}
 //!   </l:static>
-//!   <l:exec>C['CMP_OP_EQ'] = 1;</l:exec>
+//!   <l:exec>A['foo']=E(A['bar']);</l:exec>
 //! </package>
 //! ```
 
@@ -74,4 +74,4 @@ mod section;
 pub mod lower;
 pub mod xir;
 
-pub use section::{Section, SectionIter, Sections, SectionsIter};
+pub use section::{Sections, XmleSections};

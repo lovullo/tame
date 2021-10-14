@@ -19,7 +19,10 @@
 
 //! Sections of a linked [`xmle`](super) object file.
 //!
-//! These sections are the result of [`sort`](super::lower::sort),
+//! An [`XmleSections`] object is responsible for placing provided
+//!   identifiers into the appropriate section,
+//!     but _it must be provided properly ordered data_.
+//! This ordering is the result of [`sort`](super::lower::sort),
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
@@ -28,110 +31,40 @@ use crate::ir::asg::{
 };
 use crate::sym::{GlobalSymbolResolve, SymbolId};
 use fxhash::FxHashSet;
-use std::collections::hash_set;
-use std::iter::Chain;
-use std::option;
+use std::mem::take;
 use std::result::Result;
-use std::slice::Iter;
 
-/// A section of an [object file](crate::obj).
-///
-/// Most sections will only need a `body`, but some innlude `head` and `tail`
-///   information. Rather than dealing with those differently, each `Section`
-///   will have a `head` and `tail` that are empty by default.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Section<'a> {
-    head: Option<&'a IdentObject>,
-    body: Vec<&'a IdentObject>,
-    tail: Option<&'a IdentObject>,
+pub type PushResult<T = ()> = Result<T, SectionsError>;
+
+pub trait XmleSections<'a> {
+    fn push(&mut self, ident: &'a IdentObject) -> PushResult;
+
+    fn take_deps(&mut self) -> Vec<&'a IdentObject>;
+
+    fn take_static(&mut self) -> Vec<SymbolId>;
+
+    fn take_map(&mut self) -> Vec<SymbolId>;
+
+    fn take_map_froms(&mut self) -> FxHashSet<SymbolId>;
+
+    fn take_retmap(&mut self) -> Vec<SymbolId>;
+
+    fn take_exec(&mut self) -> Vec<SymbolId>;
 }
 
-impl<'a> Section<'a> {
-    /// New empty section.
-    pub fn new() -> Self {
-        Self {
-            head: None,
-            body: Vec::new(),
-            tail: None,
-        }
-    }
-
-    /// Check if the `Section` is empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.body.len() == 0
-    }
-
-    /// Push an `IdentObject` into a `Section`'s head
-    #[inline]
-    pub fn set_head(&mut self, obj: &'a IdentObject) {
-        self.head.replace(obj);
-    }
-
-    /// Push an `IdentObject` into a `Section`'s body
-    #[inline]
-    pub fn push_body(&mut self, obj: &'a IdentObject) {
-        self.body.push(obj)
-    }
-
-    /// Push an `IdentObject` into a `Section`'s tail
-    #[inline]
-    pub fn set_tail(&mut self, obj: &'a IdentObject) {
-        self.tail.replace(obj);
-    }
-
-    /// Construct a new iterator visiting each head, body, and tail object
-    ///   in order.
-    #[inline]
-    pub fn iter(&self) -> SectionIter {
-        SectionIter(
-            self.head
-                .iter()
-                .chain(self.body.iter())
-                .chain(self.tail.iter()),
-        )
-    }
-}
-
-/// Iterator over the head, body, and tail of a [`Section`].
+/// Sections of a linked `xmle` file.
 ///
-/// This iterator should be created with [`Section::iter`].
-///
-/// This hides the complex iterator type from callers.
-pub struct SectionIter<'a>(
-    Chain<
-        Chain<option::Iter<'a, &'a IdentObject>, Iter<'a, &'a IdentObject>>,
-        option::Iter<'a, &'a IdentObject>,
-    >,
-);
-
-impl<'a> Iterator for SectionIter<'a> {
-    type Item = &'a IdentObject;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|x| *x)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let (low, high) = self.0.size_hint();
-        (low, high.map(|x| x + 2))
-    }
-}
-
-pub type PushResult = Result<(), SectionsError>;
-
-/// ASG objects organized into logical sections.
-///
-/// These sections may not necessarily correspond directly to sections of an
-///   [object file](crate::obj).
-// TODO: Remove pub
+/// For more information on these sections,
+///   see the [parent module](super).
 #[derive(Debug, Default, PartialEq)]
 pub struct Sections<'a> {
-    pub map: Section<'a>,
-    pub retmap: Section<'a>,
-    pub st: Section<'a>,
-    pub rater: Section<'a>,
+    deps: Vec<&'a IdentObject>,
+    map_froms: FxHashSet<SymbolId>,
+
+    map: Vec<SymbolId>,
+    retmap: Vec<SymbolId>,
+    st: Vec<SymbolId>,
+    exec: Vec<SymbolId>,
 }
 
 impl<'a> Sections<'a> {
@@ -139,34 +72,58 @@ impl<'a> Sections<'a> {
     #[inline]
     pub fn new() -> Self {
         Self {
-            map: Section::new(),
-            retmap: Section::new(),
-            st: Section::new(),
-            rater: Section::new(),
+            ..Default::default()
         }
     }
+}
 
+impl<'a> XmleSections<'a> for Sections<'a> {
     /// Push an object into the appropriate section.
     ///
     /// Objects are expected to be properly sorted relative to their order
     ///   of execution so that their text fragments are placed in the
     ///   correct order in the final program text.
-    pub fn push(&mut self, ident: &'a IdentObject) -> PushResult {
+    fn push(&mut self, ident: &'a IdentObject) -> PushResult {
+        self.deps.push(ident);
+
+        // TODO: This cannot happen, so use an API without Option.
+        let name = ident.name().expect("missing identifier name");
+
+        let frag = ident.fragment().map(|sym| *sym);
+
         match ident.resolved()?.kind() {
             Some(kind) => match kind {
+                IdentKind::Cgen(_)
+                | IdentKind::Gen(_, _)
+                | IdentKind::Lparam(_, _) => {
+                    // These types do not have fragments.
+                }
                 IdentKind::Meta
                 | IdentKind::Worksheet
                 | IdentKind::Param(_, _)
                 | IdentKind::Type(_)
                 | IdentKind::Func(_, _)
-                | IdentKind::Const(_, _) => self.st.push_body(ident),
+                | IdentKind::Const(_, _) => {
+                    self.st.push(expect_frag(name, frag)?)
+                }
                 IdentKind::MapHead | IdentKind::Map | IdentKind::MapTail => {
-                    self.map.push_body(ident)
+                    self.map.push(expect_frag(name, frag)?);
+
+                    if let Some(from) =
+                        ident.src().expect("missing map src").from
+                    {
+                        self.map_froms.insert(from);
+                    }
                 }
                 IdentKind::RetMapHead
                 | IdentKind::RetMap
-                | IdentKind::RetMapTail => self.retmap.push_body(ident),
-                _ => self.rater.push_body(ident),
+                | IdentKind::RetMapTail => {
+                    self.retmap.push(expect_frag(name, frag)?)
+                }
+                // TODO: Why do templates have fragments?
+                IdentKind::Class(_) | IdentKind::Rate(_) | IdentKind::Tpl => {
+                    self.exec.push(expect_frag(name, frag)?)
+                }
             },
             None => {
                 // TODO: This should not be possible; ensure that with types
@@ -187,73 +144,42 @@ impl<'a> Sections<'a> {
         Ok(())
     }
 
-    /// Construct an iterator over each of the individual sections in
-    ///   arbitrary order.
-    ///
-    /// Each individual section is ordered as stated in [`Section::iter`],
-    ///   but you should not rely on the order that the sections themselves
-    ///   appear in;
-    ///     they may change or be combined in the future.
-    /// At the time of writing,
-    ///   they are chained in the same order in which they are defined
-    ///   on the [`Sections`] struct.
     #[inline]
-    pub fn iter_all(&self) -> SectionsIter {
-        SectionsIter(SectionsIterType::All(
-            self.map
-                .iter()
-                .chain(self.retmap.iter())
-                .chain(self.st.iter())
-                .chain(self.rater.iter()),
-        ))
+    fn take_deps(&mut self) -> Vec<&'a IdentObject> {
+        take(&mut self.deps)
     }
 
-    /// Construct an iterator over the static sections in arbitrary order.
-    ///
-    /// These sections contain fragments that do not depend on any external
-    ///   inputs and can therefore be executed a single time when the
-    ///   program is loaded into memory.
-    ///
-    /// Each individual section is ordered as stated in [`Section::iter`],
-    ///   but you should not rely on the order that the sections themselves
-    ///   appear in;
-    ///     they may change or be combined in the future.
     #[inline]
-    pub fn iter_static(&self) -> SectionsIter {
-        SectionsIter(SectionsIterType::Single(self.st.iter()))
+    fn take_static(&mut self) -> Vec<SymbolId> {
+        take(&mut self.st)
     }
 
-    /// Construct an iterator over the map section.
     #[inline]
-    pub fn iter_map(&self) -> SectionsIter {
-        SectionsIter(SectionsIterType::Single(self.map.iter()))
+    fn take_map(&mut self) -> Vec<SymbolId> {
+        take(&mut self.map)
     }
 
-    /// Iterate over each unique map `from` entry.
-    ///
-    /// Multiple mappings may reference the same source field,
-    ///   which would produce duplicate values if they are not filtered.
     #[inline]
-    pub fn iter_map_froms_uniq(&self) -> hash_set::IntoIter<SymbolId> {
-        self.iter_map()
-            .filter_map(|ident| {
-                ident.src().expect("internal error: missing map src").from
-            })
-            .collect::<FxHashSet<SymbolId>>()
-            .into_iter()
+    fn take_map_froms(&mut self) -> FxHashSet<SymbolId> {
+        take(&mut self.map_froms)
     }
 
-    /// Construct an iterator over the return map section.
     #[inline]
-    pub fn iter_retmap(&self) -> SectionsIter {
-        SectionsIter(SectionsIterType::Single(self.retmap.iter()))
+    fn take_retmap(&mut self) -> Vec<SymbolId> {
+        take(&mut self.retmap)
     }
 
-    /// Construct an iterator over the executable `rater` section.
     #[inline]
-    pub fn iter_exec(&self) -> SectionsIter {
-        SectionsIter(SectionsIterType::Single(self.rater.iter()))
+    fn take_exec(&mut self) -> Vec<SymbolId> {
+        take(&mut self.exec)
     }
+}
+
+fn expect_frag(
+    ident_name: SymbolId,
+    frag: Option<SymbolId>,
+) -> PushResult<SymbolId> {
+    frag.ok_or(SectionsError::MissingFragment(ident_name))
 }
 
 /// Error during [`Sections`] building.
@@ -268,6 +194,9 @@ pub enum SectionsError {
     ///   this represents either a problem with the program being compiled
     ///   or a bug in the compiler itself.
     UnresolvedObject(UnresolvedError),
+
+    /// Identifier is missing an expected text fragment.
+    MissingFragment(SymbolId),
 
     /// The kind of an object encountered during sorting could not be
     ///   determined.
@@ -298,6 +227,11 @@ impl std::fmt::Display for SectionsError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::UnresolvedObject(err) => err.fmt(fmt),
+            Self::MissingFragment(name) => write!(
+                fmt,
+                "missing text fragment for object `{}` (this may be a compiler bug!)",
+                name,
+            ),
             Self::MissingObjectKind(name) => write!(
                 fmt,
                 "missing object kind for object `{}` (this may be a compiler bug!)",
@@ -307,205 +241,199 @@ impl std::fmt::Display for SectionsError {
     }
 }
 
-// Compose the chained iterator type for [`SectionsIter`].
-// This could be further abstracted away,
-//   but it's likely that `Sections` will be simplified in the future.
-type SIter<'a> = SectionIter<'a>;
-type CSIter1<'a, L> = Chain<L, SIter<'a>>;
-type CSIter2<'a, L> = CSIter1<'a, CSIter1<'a, L>>;
-type SIter4<'a> = CSIter2<'a, CSIter1<'a, SIter<'a>>>;
-
-/// Types of iterators encapsulated by [`SectionsIter`].
-enum SectionsIterType<'a> {
-    All(SIter4<'a>),
-    Single(SIter<'a>),
-}
-
-/// Iterator over each of the sections.
-///
-/// This iterator should be created with [`Sections::iter_all`].
-///
-/// This hides the complex iterator type from callers.
-pub struct SectionsIter<'a>(SectionsIterType<'a>);
-
-impl<'a> Iterator for SectionsIter<'a> {
-    type Item = &'a IdentObject;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.0 {
-            SectionsIterType::All(inner) => inner.next(),
-            SectionsIterType::Single(inner) => inner.next(),
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match &self.0 {
-            SectionsIterType::All(inner) => inner.size_hint(),
-            SectionsIterType::Single(inner) => inner.size_hint(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::{IdentKind, IdentObject, Source};
+    use crate::ir::asg::{Dim, IdentKind, IdentObject, Source};
+    use crate::ir::legacyir::SymDtype;
     use crate::sym::GlobalSymbolIntern;
 
-    type Sut<'a> = Section<'a>;
+    type Sut<'a> = Sections<'a>;
 
     #[test]
-    fn section_empty() {
-        let section = Sut::new();
+    fn sections_empty() {
+        let mut sut = Sut::new();
 
-        assert!(section.head.is_none());
-        assert!(section.body.is_empty());
-        assert!(section.tail.is_none());
+        assert!(sut.take_deps().is_empty());
+        assert!(sut.take_map_froms().is_empty());
+        assert!(sut.take_map().is_empty());
+        assert!(sut.take_retmap().is_empty());
+        assert!(sut.take_static().is_empty());
+        assert!(sut.take_exec().is_empty());
     }
 
     #[test]
-    fn section_head() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
+    fn sections_push_adds_dep() -> PushResult {
+        let mut sut = Sut::new();
 
-        assert!(section.head.is_none());
-
-        section.set_head(&obj);
-
-        assert_eq!(Some(&obj), section.head);
-    }
-
-    #[test]
-    fn section_body() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-
-        assert!(section.body.is_empty());
-
-        section.push_body(&obj);
-
-        let body = section.body;
-        assert_eq!(Some(&&obj), body.get(0));
-    }
-
-    #[test]
-    fn section_tail() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-
-        assert!(section.tail.is_none());
-
-        section.set_tail(&obj);
-
-        assert_eq!(Some(&obj), section.tail);
-    }
-
-    #[test]
-    fn section_is_empty_head() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-
-        // head does not contribute
-        assert!(section.is_empty());
-        section.set_head(&obj);
-        assert!(section.is_empty());
-    }
-
-    #[test]
-    fn section_is_empty_body() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-
-        assert!(section.is_empty());
-        section.push_body(&obj);
-        assert!(!section.is_empty());
-    }
-
-    #[test]
-    fn section_is_empty_tail() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-
-        // tail does not contribute
-        assert!(section.is_empty());
-        section.set_tail(&obj);
-        assert!(section.is_empty());
-    }
-
-    #[test]
-    fn section_iterator() {
-        let mut section = Sut::new();
-        let obj = IdentObject::Missing("sym".intern());
-        let expect = vec![&obj, &obj, &obj];
-
-        section.set_head(&obj);
-        section.push_body(&obj);
-        section.set_tail(&obj);
-
-        let collection: Vec<_> = section.iter().collect();
-
-        assert_eq!(expect, collection);
-    }
-
-    #[test]
-    fn sections_iter_all() {
-        let mut sections = Sections::new();
-
-        let objs = (0..=5)
-            .map(|i| IdentObject::Missing(i.to_string().into()))
-            .collect::<Vec<_>>();
-
-        sections.map.set_head(&objs[0]);
-        sections.map.body.push(&objs[1]);
-        sections.map.set_tail(&objs[2]);
-        sections.retmap.body.push(&objs[3]);
-        sections.st.body.push(&objs[4]);
-        sections.rater.body.push(&objs[5]);
-
-        assert_eq!(
-            sections.iter_all().collect::<Vec<_>>(),
-            objs.iter().collect::<Vec<_>>()
+        let a = IdentObject::IdentFragment(
+            "a".intern(),
+            IdentKind::Const(Dim::from_u8(0), SymDtype::Integer),
+            Default::default(),
+            "fraga".intern(),
         );
+
+        // Different section than a, to be sure that we still add it.
+        let b = IdentObject::IdentFragment(
+            "b".intern(),
+            IdentKind::MapHead,
+            Default::default(),
+            "fragb".intern(),
+        );
+
+        sut.push(&a)?;
+        sut.push(&b)?;
+
+        assert_eq!(sut.take_deps(), vec![&a, &b],);
+
+        Ok(())
+    }
+
+    // Certain identifiers have no fragments because the code is associated
+    // with their parents (for now, anyway).
+    #[test]
+    fn idents_not_needing_fragments() -> PushResult {
+        let mut sut = Sut::new();
+
+        let cgen = IdentObject::Ident(
+            "cgen".intern(),
+            IdentKind::Cgen(Dim::from_u8(1)),
+            Default::default(),
+        );
+
+        let gen = IdentObject::Ident(
+            "gen".intern(),
+            IdentKind::Gen(Dim::from_u8(1), SymDtype::Integer),
+            Default::default(),
+        );
+
+        let lparam = IdentObject::Ident(
+            "lparam".intern(),
+            IdentKind::Lparam(Dim::from_u8(1), SymDtype::Integer),
+            Default::default(),
+        );
+
+        sut.push(&cgen)?;
+        sut.push(&gen)?;
+        sut.push(&lparam)?;
+
+        // They should be added as deps...
+        assert_eq!(sut.take_deps(), vec![&cgen, &gen, &lparam]);
+
+        // ...but not added to any sections.
+        assert!(sut.take_map_froms().is_empty());
+        assert!(sut.take_map().is_empty());
+        assert!(sut.take_retmap().is_empty());
+        assert!(sut.take_static().is_empty());
+        assert!(sut.take_exec().is_empty());
+
+        Ok(())
     }
 
     #[test]
-    fn sections_iter_map_froms_uniq() {
+    fn sections_map_froms_is_uniq() -> PushResult {
         let mut sut_a = Sections::new();
         let mut sut_b = Sections::new();
 
-        let a = IdentObject::Ident(
+        let a = IdentObject::IdentFragment(
             "a".intern(),
             IdentKind::Map,
             Source {
                 from: Some("froma".intern()),
                 ..Default::default()
             },
+            "mapa".intern(),
         );
 
-        let b = IdentObject::Ident(
+        let b = IdentObject::IdentFragment(
             "a".intern(),
             IdentKind::Map,
             Source {
                 from: Some("fromb".intern()),
                 ..Default::default()
             },
+            "mapb".intern(),
         );
 
         // A contains duplicates.
-        sut_a.map.body.push(&a);
-        sut_a.map.body.push(&a);
-        sut_a.map.body.push(&b);
+        sut_a.push(&a)?;
+        sut_a.push(&a)?;
+        sut_a.push(&b)?;
 
         // B does not.
-        sut_b.map.body.push(&a);
-        sut_b.map.body.push(&b);
+        sut_b.push(&a)?;
+        sut_b.push(&b)?;
+
+        let a_froms = sut_a.take_map_froms();
 
         // They should compare the same.
+        assert_eq!(a_froms, sut_b.take_map_froms());
+
+        // And should use the proper ids.
+        assert!(a_froms.contains(&"froma".intern()));
+        assert!(a_froms.contains(&"fromb".intern()));
+
+        Ok(())
+    }
+
+    macro_rules! add_syms {
+        ($sut:ident, { $($name:ident: $kind:expr,)* }) => {
+            $(
+                let $name = IdentObject::IdentFragment(
+                    stringify!($name).intern(),
+                    $kind,
+                    Default::default(),
+                    stringify!($kind).intern(), // fragment
+                );
+
+                $sut.push(&$name)?;
+            )*
+        };
+    }
+
+    macro_rules! fragvec {
+        ($($name:ident),*) => {
+            vec![
+                $(&$name),*
+            ].into_iter().map(|x| *x.fragment().unwrap()).collect::<Vec<SymbolId>>()
+        }
+    }
+
+    #[test]
+    fn push_sorts_fragments_into_sections() -> PushResult {
+        let mut sut = Sections::new();
+
+        add_syms!(sut, {
+            cgen: IdentKind::Cgen(Dim::from_u8(1)),
+            class: IdentKind::Class(Dim::from_u8(2)),
+            const_: IdentKind::Const(Dim::from_u8(0), SymDtype::Boolean),
+            func: IdentKind::Func(Dim::from_u8(1), SymDtype::Integer),
+            gen: IdentKind::Gen(Dim::from_u8(1), SymDtype::Boolean),
+            lparam: IdentKind::Lparam(Dim::from_u8(2), SymDtype::Float),
+            param: IdentKind::Param(Dim::from_u8(0), SymDtype::Integer),
+            rate: IdentKind::Rate(SymDtype::Integer),
+            tpl: IdentKind::Tpl,
+            ty: IdentKind::Type(SymDtype::Integer),
+            maphead: IdentKind::MapHead,
+            map: IdentKind::Map,
+            maptail: IdentKind::MapTail,
+            retmaphead: IdentKind::RetMapHead,
+            retmap: IdentKind::RetMap,
+            retmaptail: IdentKind::RetMapTail,
+            meta: IdentKind::Meta,
+            worksheet: IdentKind::Worksheet,
+        });
+
+        assert_eq!(sut.take_map(), fragvec![maphead, map, maptail]);
+        assert_eq!(sut.take_retmap(), fragvec![retmaphead, retmap, retmaptail]);
+
         assert_eq!(
-            sut_a.iter_map_froms_uniq().collect::<Vec<_>>(),
-            sut_b.iter_map_froms_uniq().collect::<Vec<_>>(),
+            sut.take_static(),
+            fragvec![const_, func, param, ty, meta, worksheet]
         );
+
+        assert_eq!(sut.take_exec(), fragvec![class, rate, tpl]);
+
+        Ok(())
     }
 }

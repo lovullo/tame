@@ -27,7 +27,7 @@ use test::Bencher;
 use tamer::ir::asg::{
     Asg, DataType, DefaultAsg, IdentKind, IdentObject, Source,
 };
-use tamer::ld::xmle::lower::sort;
+use tamer::ld::xmle::{lower::sort, Sections};
 use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
 type TestAsg = DefaultAsg<IdentObject>;
@@ -61,7 +61,7 @@ fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
     });
 
     bench.iter(|| {
-        drop(sort(&sut, &[root]));
+        drop(sort(&sut, &[root], Sections::new()));
     });
 }
 
@@ -95,6 +95,6 @@ fn sort_1_with_1_000_existing_one_edge_per_node_one_path(bench: &mut Bencher) {
     let root = orefs[0];
 
     bench.iter(|| {
-        drop(sort(&sut, &[root]));
+        drop(sort(&sut, &[root], Sections::new()));
     });
 }

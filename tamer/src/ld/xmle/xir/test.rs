@@ -19,15 +19,16 @@
 
 use super::*;
 use crate::convert::ExpectInto;
-use crate::ir::asg::IdentObjectData;
-use crate::ir::legacyir::SymDtype;
 use crate::ir::{
-    asg::{Dim, IdentKind, Source},
+    asg::{Dim, IdentKind, IdentObjectData, Source},
+    legacyir::SymDtype,
     xir::{
         pred::{not, open},
         tree::{parser_from, Attr},
     },
 };
+use crate::ld::xmle::section::PushResult;
+use crate::ld::xmle::Sections;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 use std::collections::HashSet;
 
@@ -49,7 +50,7 @@ fn test_produces_header() -> TestResult {
     let name = "test-pkg".intern();
     let relroot = "rel/root/".intern();
 
-    let result = lower_iter(&empty, name, relroot)
+    let result = lower_iter(empty, name, relroot)
         .take_while(|tok| match tok {
             // TODO
             Token::Close(_, _) => false,
@@ -66,7 +67,7 @@ fn test_produces_header() -> TestResult {
 fn test_closes_package() -> TestResult {
     let empty = Sections::new();
 
-    let result = lower_iter(&empty, "foo".intern(), "relroot".intern()).last();
+    let result = lower_iter(empty, "foo".intern(), "relroot".intern()).last();
 
     assert_eq!(Some(Token::Close(Some(QN_PACKAGE), LSPAN)), result);
     Ok(())
@@ -74,7 +75,6 @@ fn test_closes_package() -> TestResult {
 
 #[test]
 fn test_writes_deps() -> TestResult {
-    let mut sections = Sections::new();
     let relroot = "relroot-deps".intern();
 
     let objs = [
@@ -179,10 +179,48 @@ fn test_writes_deps() -> TestResult {
         ),
     ];
 
-    objs.iter().for_each(|x| sections.st.push_body(x));
+    // Creating a stub to return our deps prevents us from being obstructed
+    // by changes to Sections' requirements.
+    struct StubSections<'a> {
+        deps: Vec<&'a IdentObject>,
+    }
+
+    impl<'a> XmleSections<'a> for StubSections<'a> {
+        fn push(&mut self, _ident: &'a IdentObject) -> PushResult {
+            unimplemented!()
+        }
+
+        fn take_deps(&mut self) -> Vec<&'a IdentObject> {
+            self.deps.clone()
+        }
+
+        fn take_static(&mut self) -> Vec<SymbolId> {
+            vec![]
+        }
+
+        fn take_map(&mut self) -> Vec<SymbolId> {
+            vec![]
+        }
+
+        fn take_map_froms(&mut self) -> fxhash::FxHashSet<SymbolId> {
+            Default::default()
+        }
+
+        fn take_retmap(&mut self) -> Vec<SymbolId> {
+            vec![]
+        }
+
+        fn take_exec(&mut self) -> Vec<SymbolId> {
+            vec![]
+        }
+    }
+
+    let sections = StubSections {
+        deps: objs.iter().collect(),
+    };
 
     let mut iter = parser_from(
-        lower_iter(&sections, "pkg".intern(), relroot)
+        lower_iter(sections, "pkg".intern(), relroot)
             .skip_while(not(open(QN_L_DEP))),
     );
 
@@ -345,32 +383,34 @@ fn test_writes_map_froms() -> TestResult {
     let mut sections = Sections::new();
     let relroot = "relroot-deps".intern();
 
-    let a = IdentObject::Ident(
+    let a = IdentObject::IdentFragment(
         "a".intern(),
         IdentKind::Map,
         Source {
             from: Some("froma".intern()),
             ..Default::default()
         },
+        "fraga".intern(),
     );
 
-    let b = IdentObject::Ident(
+    let b = IdentObject::IdentFragment(
         "a".intern(),
         IdentKind::Map,
         Source {
             from: Some("fromb".intern()),
             ..Default::default()
         },
+        "fragb".intern(),
     );
 
     // Add a duplicate just to ensure that we're using the right method on
     // `Sections` for uniqueness.
-    sections.map.push_body(&a);
-    sections.map.push_body(&a);
-    sections.map.push_body(&b);
+    sections.push(&a)?;
+    sections.push(&a)?;
+    sections.push(&b)?;
 
     let mut iter = parser_from(
-        lower_iter(&sections, "pkg".intern(), relroot)
+        lower_iter(sections, "pkg".intern(), relroot)
             .skip_while(not(open(QN_L_MAP_FROM))),
     );
 
@@ -409,7 +449,7 @@ fn test_writes_map_froms() -> TestResult {
 }
 
 macro_rules! test_exec_sec {
-    ($name:ident, $qn:ident, $sec:ident) => {
+    ($name:ident, $qn:ident, $type:expr) => {
         #[test]
         fn $name() -> TestResult {
             let mut sections = Sections::new();
@@ -420,23 +460,23 @@ macro_rules! test_exec_sec {
 
             let a = IdentObject::IdentFragment(
                 "a".intern(),
-                IdentKind::Map,
+                $type,
                 Default::default(),
                 frag_a,
             );
 
             let b = IdentObject::IdentFragment(
                 "b".intern(),
-                IdentKind::Map,
+                $type,
                 Default::default(),
                 frag_b,
             );
 
-            sections.$sec.push_body(&a);
-            sections.$sec.push_body(&b);
+            sections.push(&a)?;
+            sections.push(&b)?;
 
             let mut iter = parser_from(
-                lower_iter(&sections, "pkg".intern(), relroot)
+                lower_iter(sections, "pkg".intern(), relroot)
                     .skip_while(not(open($qn))),
             );
 
@@ -467,7 +507,7 @@ macro_rules! test_exec_sec {
     };
 }
 
-test_exec_sec!(test_map_exec, QN_L_MAP_EXEC, map);
-test_exec_sec!(test_retmap_exec, QN_L_RETMAP_EXEC, retmap);
-test_exec_sec!(test_static, QN_L_STATIC, st);
-test_exec_sec!(test_exec, QN_L_EXEC, rater);
+test_exec_sec!(test_map_exec, QN_L_MAP_EXEC, IdentKind::Map);
+test_exec_sec!(test_retmap_exec, QN_L_RETMAP_EXEC, IdentKind::RetMap);
+test_exec_sec!(test_static, QN_L_STATIC, IdentKind::Worksheet);
+test_exec_sec!(test_exec, QN_L_EXEC, IdentKind::Class(Dim::from_u8(1)));
