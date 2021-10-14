@@ -26,7 +26,7 @@ use super::xmle::{
     XmleSections,
 };
 use crate::global;
-use crate::ir::asg::{Asg, DefaultAsg, IdentObject, IdentObjectData};
+use crate::ir::asg::{Asg, DefaultAsg, IdentObject};
 use crate::ir::xir::writer::XmlWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
@@ -82,20 +82,12 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
             let msg: Vec<String> = cycles
                 .into_iter()
                 .map(|cycle| {
-                    let mut path: Vec<String> = cycle
+                    let mut path = cycle
                         .into_iter()
                         .map(|obj| {
-                            format!(
-                                "{}",
-                                depgraph
-                                    .get(obj)
-                                    .unwrap()
-                                    .name()
-                                    .unwrap()
-                                    .lookup_str(),
-                            )
+                            depgraph.get(obj).unwrap().name().lookup_str()
                         })
-                        .collect();
+                        .collect::<Vec<&str>>();
 
                     path.reverse();
                     path.push(path[0].clone());
@@ -145,7 +137,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
                         };
 
                         (
-                            format!("{}", n.name().unwrap().lookup_str()),
+                            n.name().lookup_str().into(),
                             n.kind().unwrap().as_sym(),
                             format!("{}", generated),
                         )

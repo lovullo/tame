@@ -27,28 +27,45 @@
 //!   necessary for execution.
 
 use crate::ir::asg::{
-    IdentKind, IdentObject, IdentObjectData, IdentObjectState, UnresolvedError,
+    IdentKind, IdentObject, IdentObjectState, UnresolvedError,
 };
-use crate::sym::{GlobalSymbolResolve, SymbolId};
+use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::mem::take;
 use std::result::Result;
 
 pub type PushResult<T = ()> = Result<T, SectionsError>;
 
+/// Sections of a linked `xmle` file.
+///
+/// For more information on these sections,
+///   see the [parent module](super).
 pub trait XmleSections<'a> {
+    /// Push an object into the appropriate section.
+    ///
+    /// Objects are expected to be properly sorted relative to their order
+    ///   of execution so that their text fragments are placed in the
+    ///   correct order in the final program text.
     fn push(&mut self, ident: &'a IdentObject) -> PushResult;
 
+    /// Take the list of objects present in the linked file.
+    ///
+    /// The order of these objects does not matter.
     fn take_deps(&mut self) -> Vec<&'a IdentObject>;
 
-    fn take_static(&mut self) -> Vec<SymbolId>;
-
+    /// Take the ordered text fragments for the `map` section.
     fn take_map(&mut self) -> Vec<SymbolId>;
 
+    /// Take the set of external identifiers mapped into this system.
     fn take_map_froms(&mut self) -> FxHashSet<SymbolId>;
 
+    /// Take the ordered text fragments for the `retmap` section.
     fn take_retmap(&mut self) -> Vec<SymbolId>;
 
+    /// Take the ordered text fragments for the `static` section.
+    fn take_static(&mut self) -> Vec<SymbolId>;
+
+    /// Take the ordered text fragments for the `exec` section.
     fn take_exec(&mut self) -> Vec<SymbolId>;
 }
 
@@ -58,12 +75,24 @@ pub trait XmleSections<'a> {
 ///   see the [parent module](super).
 #[derive(Debug, Default, PartialEq)]
 pub struct Sections<'a> {
+    /// List of objects present in the linked file.
+    ///
+    /// The order of these objects does not matter.
     deps: Vec<&'a IdentObject>,
+
+    /// External identifiers mapped into this system.
     map_froms: FxHashSet<SymbolId>,
 
+    /// Ordered text fragments of `map` section.
     map: Vec<SymbolId>,
+
+    /// Order text fragments of `retmap` section.
     retmap: Vec<SymbolId>,
+
+    /// Ordered text fragments of `static` section.
     st: Vec<SymbolId>,
+
+    /// Ordered text fragments of `exec` section.
     exec: Vec<SymbolId>,
 }
 
@@ -78,18 +107,12 @@ impl<'a> Sections<'a> {
 }
 
 impl<'a> XmleSections<'a> for Sections<'a> {
-    /// Push an object into the appropriate section.
-    ///
-    /// Objects are expected to be properly sorted relative to their order
-    ///   of execution so that their text fragments are placed in the
-    ///   correct order in the final program text.
     fn push(&mut self, ident: &'a IdentObject) -> PushResult {
         self.deps.push(ident);
 
         // TODO: This cannot happen, so use an API without Option.
-        let name = ident.name().expect("missing identifier name");
-
-        let frag = ident.fragment().map(|sym| *sym);
+        let name = ident.name();
+        let frag = ident.fragment();
 
         match ident.resolved()?.kind() {
             Some(kind) => match kind {
@@ -131,13 +154,7 @@ impl<'a> XmleSections<'a> for Sections<'a> {
                 // compiler bug and there is no use in trying to be nice
                 // about a situation where something went terribly, horribly
                 // wrong.
-                return Err(SectionsError::MissingObjectKind(
-                    ident
-                        .name()
-                        .map(|name| name.lookup_str())
-                        .unwrap_or("<unknown>".into())
-                        .into(),
-                ));
+                return Err(SectionsError::MissingObjectKind(ident.name()));
             }
         }
 
@@ -205,7 +222,7 @@ pub enum SectionsError {
     ///   sections.
     /// It should never be the case that a resolved object has no kind,
     ///   so this likely represents a compiler bug.
-    MissingObjectKind(String),
+    MissingObjectKind(SymbolId),
 }
 
 impl From<UnresolvedError> for SectionsError {
@@ -395,7 +412,7 @@ mod test {
         ($($name:ident),*) => {
             vec![
                 $(&$name),*
-            ].into_iter().map(|x| *x.fragment().unwrap()).collect::<Vec<SymbolId>>()
+            ].into_iter().map(|x| x.fragment().unwrap()).collect::<Vec<SymbolId>>()
         }
     }
 

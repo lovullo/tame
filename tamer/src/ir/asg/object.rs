@@ -80,6 +80,44 @@ pub enum IdentObject {
     IdentFragment(SymbolId, IdentKind, Source, FragmentText),
 }
 
+impl IdentObject {
+    pub fn name(&self) -> SymbolId {
+        match self {
+            Self::Missing(name)
+            | Self::Ident(name, _, _)
+            | Self::Extern(name, _, _)
+            | Self::IdentFragment(name, _, _, _) => *name,
+        }
+    }
+
+    pub fn kind(&self) -> Option<&IdentKind> {
+        match self {
+            Self::Missing(_) => None,
+            Self::Ident(_, kind, _)
+            | Self::Extern(_, kind, _)
+            | Self::IdentFragment(_, kind, _, _) => Some(kind),
+        }
+    }
+
+    pub fn src(&self) -> Option<&Source> {
+        match self {
+            Self::Missing(_) | Self::Extern(_, _, _) => None,
+            Self::Ident(_, _, src) | Self::IdentFragment(_, _, src, _) => {
+                Some(src)
+            }
+        }
+    }
+
+    pub fn fragment(&self) -> Option<FragmentText> {
+        match self {
+            Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _, _) => {
+                None
+            }
+            Self::IdentFragment(_, _, _, text) => Some(*text),
+        }
+    }
+}
+
 /// Retrieve information about an [`IdentObject`].
 ///
 /// APIs should adhere to this trait rather than a concrete object type such
@@ -120,7 +158,7 @@ pub trait IdentObjectData {
     ///
     /// If the object does not have an associated code fragment,
     ///   [`None`] is returned.
-    fn fragment(&self) -> Option<&FragmentText>;
+    fn fragment(&self) -> Option<FragmentText>;
 
     /// IdentObject as an identifier ([`IdentObject`]).
     ///
@@ -137,39 +175,20 @@ pub trait IdentObjectData {
 
 impl IdentObjectData for IdentObject {
     fn name(&self) -> Option<SymbolId> {
-        match self {
-            Self::Missing(name)
-            | Self::Ident(name, _, _)
-            | Self::Extern(name, _, _)
-            | Self::IdentFragment(name, _, _, _) => Some(*name),
-        }
+        Some(Self::name(self))
     }
 
     fn kind(&self) -> Option<&IdentKind> {
-        match self {
-            Self::Missing(_) => None,
-            Self::Ident(_, kind, _)
-            | Self::Extern(_, kind, _)
-            | Self::IdentFragment(_, kind, _, _) => Some(kind),
-        }
+        Self::kind(self)
     }
 
     fn src(&self) -> Option<&Source> {
-        match self {
-            Self::Missing(_) | Self::Extern(_, _, _) => None,
-            Self::Ident(_, _, src) | Self::IdentFragment(_, _, src, _) => {
-                Some(src)
-            }
-        }
+        Self::src(self)
     }
 
-    fn fragment(&self) -> Option<&FragmentText> {
-        match self {
-            Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _, _) => {
-                None
-            }
-            Self::IdentFragment(_, _, _, text) => Some(text),
-        }
+    fn fragment(&self) -> Option<FragmentText> {
+        // TODO: Get rid of the reference; the type is `Copy` now.
+        Self::fragment(self)
     }
 
     /// Expose underlying [`IdentObject`].
@@ -372,9 +391,7 @@ impl IdentObjectState<IdentObject> for IdentObject {
             }
 
             _ => {
-                let err = TransitionError::Redeclare {
-                    name: self.name().unwrap(),
-                };
+                let err = TransitionError::Redeclare { name: self.name() };
 
                 Err((self, err))
             }
@@ -406,11 +423,11 @@ impl IdentObjectState<IdentObject> for IdentObject {
         src: Source,
     ) -> TransitionResult<IdentObject> {
         match self.kind() {
-            None => Ok(IdentObject::Extern(self.name().unwrap(), kind, src)),
+            None => Ok(IdentObject::Extern(self.name(), kind, src)),
             Some(cur_kind) => {
                 if cur_kind != &kind {
                     let err = TransitionError::ExternResolution {
-                        name: self.name().unwrap(),
+                        name: self.name(),
                         expected: kind.clone(),
                         given: cur_kind.clone(),
                     };
@@ -708,22 +725,25 @@ mod test {
         fn ident_object_name() {
             let sym: SymbolId = "sym".intern();
 
-            assert_eq!(Some(sym), IdentObject::Missing(sym).name());
-
             assert_eq!(
                 Some(sym),
+                IdentObjectData::name(&IdentObject::Missing(sym))
+            );
+
+            assert_eq!(
+                sym,
                 IdentObject::Ident(sym, IdentKind::Meta, Source::default())
                     .name()
             );
 
             assert_eq!(
-                Some(sym),
+                sym,
                 IdentObject::Extern(sym, IdentKind::Meta, Source::default())
                     .name()
             );
 
             assert_eq!(
-                Some(sym),
+                sym,
                 IdentObject::IdentFragment(
                     sym,
                     IdentKind::Meta,
@@ -816,7 +836,7 @@ mod test {
             );
 
             assert_eq!(
-                Some(&text),
+                Some(text),
                 IdentObject::IdentFragment(
                     sym,
                     IdentKind::Meta,

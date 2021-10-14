@@ -305,7 +305,7 @@ mod test {
             None
         }
 
-        fn fragment(&self) -> Option<&FragmentText> {
+        fn fragment(&self) -> Option<FragmentText> {
             None
         }
 

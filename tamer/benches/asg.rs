@@ -313,7 +313,7 @@ mod object {
     mod ident {
         use super::*;
         use tamer::ir::asg::{
-            IdentKind, IdentObject, IdentObjectData, IdentObjectState, Source,
+            IdentKind, IdentObject, IdentObjectState, Source,
         };
         use tamer::sym::GlobalSymbolIntern;
 

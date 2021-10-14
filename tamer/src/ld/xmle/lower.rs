@@ -23,10 +23,7 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    ir::asg::{
-        Asg, BaseAsg, IdentKind, IdentObject, IdentObjectData, IndexType,
-        ObjectRef,
-    },
+    ir::asg::{Asg, BaseAsg, IdentKind, IdentObject, IndexType, ObjectRef},
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;

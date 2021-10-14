@@ -20,7 +20,7 @@
 use super::*;
 use crate::convert::ExpectInto;
 use crate::ir::{
-    asg::{Dim, IdentKind, IdentObjectData, Source},
+    asg::{Dim, IdentKind, Source},
     legacyir::SymDtype,
     xir::{
         pred::{not, open},
@@ -256,7 +256,7 @@ fn test_writes_deps() -> TestResult {
 
         assert_eq!(
             attrs.find(QN_NAME).and_then(|a| a.value_atom()),
-            Some(AttrValue::Escaped(ident.name().unwrap())),
+            Some(AttrValue::Escaped(ident.name())),
         );
 
         assert_eq!(
