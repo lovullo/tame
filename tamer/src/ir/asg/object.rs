@@ -83,26 +83,26 @@ pub enum IdentObject {
 impl IdentObject {
     pub fn name(&self) -> SymbolId {
         match self {
-            Self::Missing(name)
-            | Self::Ident(name, _, _)
-            | Self::Extern(name, _, _)
-            | Self::IdentFragment(name, _, _, _) => *name,
+            Self::Missing(name, ..)
+            | Self::Ident(name, ..)
+            | Self::Extern(name, ..)
+            | Self::IdentFragment(name, ..) => *name,
         }
     }
 
     pub fn kind(&self) -> Option<&IdentKind> {
         match self {
-            Self::Missing(_) => None,
-            Self::Ident(_, kind, _)
-            | Self::Extern(_, kind, _)
-            | Self::IdentFragment(_, kind, _, _) => Some(kind),
+            Self::Missing(..) => None,
+            Self::Ident(_, kind, ..)
+            | Self::Extern(_, kind, ..)
+            | Self::IdentFragment(_, kind, ..) => Some(kind),
         }
     }
 
     pub fn src(&self) -> Option<&Source> {
         match self {
-            Self::Missing(_) | Self::Extern(_, _, _) => None,
-            Self::Ident(_, _, src) | Self::IdentFragment(_, _, src, _) => {
+            Self::Missing(..) | Self::Extern(..) => None,
+            Self::Ident(_, _, src, ..) | Self::IdentFragment(_, _, src, ..) => {
                 Some(src)
             }
         }
@@ -110,9 +110,7 @@ impl IdentObject {
 
     pub fn fragment(&self) -> Option<FragmentText> {
         match self {
-            Self::Missing(_) | Self::Ident(_, _, _) | Self::Extern(_, _, _) => {
-                None
-            }
+            Self::Missing(..) | Self::Ident(..) | Self::Extern(..) => None,
             Self::IdentFragment(_, _, _, text) => Some(*text),
         }
     }
@@ -379,12 +377,14 @@ impl IdentObjectState<IdentObject> for IdentObject {
 
             // These represent the prolog and epilogue of maps. This
             // situation will be resolved in the future.
-            IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
-            | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
-            | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
-            | IdentObject::IdentFragment(_, IdentKind::RetMapTail, _, _) => {
-                Ok(self)
-            }
+            IdentObject::IdentFragment(
+                _,
+                IdentKind::MapHead
+                | IdentKind::MapTail
+                | IdentKind::RetMapHead
+                | IdentKind::RetMapTail,
+                ..,
+            ) => Ok(self),
 
             IdentObject::Missing(name) => {
                 Ok(IdentObject::Ident(name, kind, src))
@@ -412,8 +412,7 @@ impl IdentObjectState<IdentObject> for IdentObject {
                 })
             }
 
-            IdentObject::Ident(_, _, _)
-            | IdentObject::IdentFragment(_, _, _, _) => Ok(self),
+            IdentObject::Ident(..) | IdentObject::IdentFragment(..) => Ok(self),
         }
     }
 
@@ -456,18 +455,20 @@ impl IdentObjectState<IdentObject> for IdentObject {
             // If this is not permissable, then we should have already
             // prevented the `resolve` transition before this fragment was
             // encountered.
-            IdentObject::IdentFragment(_, _, ref src, _) if src.override_ => {
+            IdentObject::IdentFragment(_, _, ref src, ..) if src.override_ => {
                 Ok(self)
             }
 
             // These represent the prolog and epilogue of maps. This
             // situation will be resolved in the future.
-            IdentObject::IdentFragment(_, IdentKind::MapHead, _, _)
-            | IdentObject::IdentFragment(_, IdentKind::MapTail, _, _)
-            | IdentObject::IdentFragment(_, IdentKind::RetMapHead, _, _)
-            | IdentObject::IdentFragment(_, IdentKind::RetMapTail, _, _) => {
-                Ok(self)
-            }
+            IdentObject::IdentFragment(
+                _,
+                IdentKind::MapHead
+                | IdentKind::MapTail
+                | IdentKind::RetMapHead
+                | IdentKind::RetMapTail,
+                ..,
+            ) => Ok(self),
 
             _ => {
                 let msg = format!(

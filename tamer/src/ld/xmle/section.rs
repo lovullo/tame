@@ -116,17 +116,17 @@ impl<'a> XmleSections<'a> for Sections<'a> {
 
         match ident.resolved()?.kind() {
             Some(kind) => match kind {
-                IdentKind::Cgen(_)
-                | IdentKind::Gen(_, _)
-                | IdentKind::Lparam(_, _) => {
+                IdentKind::Cgen(..)
+                | IdentKind::Gen(..)
+                | IdentKind::Lparam(..) => {
                     // These types do not have fragments.
                 }
                 IdentKind::Meta
                 | IdentKind::Worksheet
-                | IdentKind::Param(_, _)
-                | IdentKind::Type(_)
-                | IdentKind::Func(_, _)
-                | IdentKind::Const(_, _) => {
+                | IdentKind::Param(..)
+                | IdentKind::Type(..)
+                | IdentKind::Func(..)
+                | IdentKind::Const(..) => {
                     self.st.push(expect_frag(name, frag)?)
                 }
                 IdentKind::MapHead | IdentKind::Map | IdentKind::MapTail => {
@@ -144,7 +144,7 @@ impl<'a> XmleSections<'a> for Sections<'a> {
                     self.retmap.push(expect_frag(name, frag)?)
                 }
                 // TODO: Why do templates have fragments?
-                IdentKind::Class(_) | IdentKind::Rate(_) | IdentKind::Tpl => {
+                IdentKind::Class(..) | IdentKind::Rate(..) | IdentKind::Tpl => {
                     self.exec.push(expect_frag(name, frag)?)
                 }
             },

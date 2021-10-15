@@ -124,7 +124,7 @@ where
 
             let is_all_funcs = scc.iter().all(|nx| {
                 let ident = Asg::get(asg, *nx).expect("missing node");
-                matches!(ident.kind(), Some(IdentKind::Func(_, _)))
+                matches!(ident.kind(), Some(IdentKind::Func(..)))
             });
 
             if is_all_funcs {
