@@ -199,6 +199,12 @@ macro_rules! static_symbol_consts {
             $str,
             "\"`."
         )]
+        #[doc=""]
+        #[doc=concat!(
+            "For the raw (untyped) version, see [`raw::",
+            stringify!($name),
+            "`]."
+        )]
         pub const $name: static_symbol_ty!($ty) =
             <static_symbol_ty!($ty)>::new($i);
 
@@ -236,6 +242,36 @@ macro_rules! static_symbols {
 
             $(
                 $name: $ty $str,
+            )*
+        }
+
+        /// Expose each of the [typed static symbols](super) as raw
+        ///   [`SymbolId`] values.
+        ///
+        /// These constants are useful for `match` expressions and any other
+        ///   contexts where the type of the symbol must match,
+        ///     and where the static type metadata is unimportant.
+        ///
+        /// This is equivalent to calling `as_sym` on the static newtype,
+        ///   or using [`st_as_sym`](super::super::st_as_sym).
+        pub mod raw {
+            use super::SymbolId;
+
+            $(
+                #[doc=concat!(
+                    "Raw (untyped) interned `",
+                    stringify!($ty),
+                    "` string `\"",
+                    $str,
+                    "\"`."
+                )]
+                #[doc=""]
+                #[doc=concat!(
+                    "For the typed version, see [`super::",
+                    stringify!($name),
+                    "`]."
+                )]
+                pub const $name: SymbolId<$size> = super::$name.as_sym();
             )*
         }
 
@@ -317,6 +353,11 @@ static_symbol_newtypes! {
     /// These contexts are intended for use in generated code where a better
     ///   context cannot be derived.
     ctx: ContextStaticSymbolId<u16>,
+
+    /// This symbol serves only as a marker in the internment pool to
+    ///   delimit symbol ranges;
+    ///     its string value is incidental and should not be relied upon.
+    mark16: Mark16StaticSymbolId<u16>,
 }
 
 /// Static symbols (pre-allocated).
@@ -374,7 +415,7 @@ pub mod st {
     }
 
     static_symbols! {
-        <global::ProgSymSize>;
+        <crate::global::ProgSymSize>;
 
         // Decimal strings are expected to be at index (n+1).
         // See `decimal1`.
@@ -476,7 +517,7 @@ pub mod st16 {
 
         // Marker indicating the end of the static symbols
         //   (this must always be last).
-        END_STATIC: mark "{{end}}"
+        END_STATIC: mark16 "{{end}}"
     }
 }
 
@@ -523,6 +564,12 @@ mod test {
         // went wrong.
         assert_eq!(st::L_TRUE.as_sym(), "true".intern());
         assert_eq!(st::L_FALSE.as_sym(), "false".intern());
+    }
+
+    // Just ensure raw symbols are available and match.
+    #[test]
+    fn sanity_check_st_raw() {
+        assert_eq!(st::L_TRUE.as_sym(), st::raw::L_TRUE);
     }
 
     #[test]
