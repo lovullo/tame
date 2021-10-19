@@ -76,6 +76,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::hash::BuildHasher;
+use std::str::{from_utf8, from_utf8_unchecked, Utf8Error};
 
 /// Create, store, compare, and retrieve interned values.
 ///
@@ -150,20 +151,47 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     ///   written (e.g. to a file or displayed to the user).
     fn index_lookup(&'i self, index: SymbolId<Ix>) -> Option<&'i str>;
 
+    /// Intern a byte slice as a UTF-8 string.
+    ///
+    /// This method is intended as a performance optimization to avoid
+    ///   unnecessary UTF-8 checks when a byte slice has already been
+    ///   interned.
+    ///
+    /// This first checks to see if the provided byte slice matches an
+    ///   existing intern,
+    ///     returning the symbol if found.
+    /// This allows us to skip the cost of a UTF-8 check for strings that
+    ///   have already been encountered,
+    ///     since their presence in the pool means that the string was
+    ///     either
+    ///       (a) already interned as a valid UTF-8 string; or
+    ///       (b) was interned using an unsafe function.
+    /// In the case of (b),
+    ///   the safety violation is the fault of the original caller,
+    ///     and there's nothing we can do about it now.
+    ///
+    /// Note that this optimization is only beneficial when a string has
+    ///   already been interned.
+    /// To avoid the cost of UTF-8 checks entirely,
+    ///   see [`Interner::intern_utf8_unchecked`].
+    ///
+    /// If the byte slice does not represent a valid UTF-8 string,
+    ///   a [`Utf8Error`] will be returned.
+    fn intern_utf8(&self, value: &[u8]) -> Result<SymbolId<Ix>, Utf8Error>;
+
     /// Intern an assumed-UTF-8 slice of bytes or return an existing
     ///   [`SymbolId`].
     ///
     /// Safety
     /// ======
-    /// This function is unsafe because it uses
-    ///   [`std::str::from_utf8_unchecked`].
+    /// This function is unsafe because it uses [`from_utf8_unchecked`].
     /// It is provided for convenience when interning from trusted binary
     ///   data
     ///     (such as [object files][]).
     ///
     /// [object files]: crate::obj
     unsafe fn intern_utf8_unchecked(&self, value: &[u8]) -> SymbolId<Ix> {
-        self.intern(std::str::from_utf8_unchecked(value))
+        self.intern(from_utf8_unchecked(value))
     }
 
     /// Copy the provided assumed-UTF-8 slice of bytes into the intern pool
@@ -175,8 +203,7 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     ///
     /// Safety
     /// ======
-    /// This function is unsafe because it uses
-    ///   [`std::str::from_utf8_unchecked`].
+    /// This function is unsafe because it uses [`from_utf8_unchecked`].
     /// It is provided for convenience when interning from trusted binary
     ///   data
     ///     (such as [object files][]).
@@ -186,7 +213,7 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
         &self,
         value: &[u8],
     ) -> SymbolId<Ix> {
-        self.clone_uninterned(std::str::from_utf8_unchecked(value))
+        self.clone_uninterned(from_utf8_unchecked(value))
     }
 }
 
@@ -287,10 +314,28 @@ where
     #[inline]
     fn copy_slice_into_arena(&self, value: &str) -> &'i str {
         unsafe {
-            &*(std::str::from_utf8_unchecked(
+            &*(from_utf8_unchecked(
                 self.arena.alloc_slice_clone(value.as_bytes()),
             ) as *const str)
         }
+    }
+
+    /// Intern the provided value without looking for an existing intern.
+    ///
+    /// _This is an internal function that should only be used after having
+    ///   already checked for an existing intern._
+    /// It exists only to share common logic across methods.
+    #[inline]
+    fn intern_without_lookup(&self, value: &str) -> SymbolId<Ix> {
+        let mut syms = self.strings.borrow_mut();
+
+        let id = Self::get_next_symbol_id(&mut syms);
+        let clone = self.copy_slice_into_arena(value);
+
+        self.map.borrow_mut().insert(clone, id);
+        syms.push(clone);
+
+        id
     }
 }
 
@@ -301,21 +346,11 @@ where
     <Ix as TryFrom<usize>>::Error: Debug,
 {
     fn intern(&self, value: &str) -> SymbolId<Ix> {
-        let mut map = self.map.borrow_mut();
-
-        if let Some(sym) = map.get(value) {
+        if let Some(sym) = self.map.borrow().get(value) {
             return *sym;
         }
 
-        let mut syms = self.strings.borrow_mut();
-
-        let id = Self::get_next_symbol_id(&mut syms);
-        let clone = self.copy_slice_into_arena(value);
-
-        map.insert(clone, id);
-        syms.push(clone);
-
-        id
+        self.intern_without_lookup(value)
     }
 
     #[inline]
@@ -330,6 +365,26 @@ where
         syms.push(self.copy_slice_into_arena(value));
 
         id
+    }
+
+    fn intern_utf8(&self, value: &[u8]) -> Result<SymbolId<Ix>, Utf8Error> {
+        // Check the raw byte slice _before_ performing a UTF-8 check.
+        // Note that `from_utf8_unchecked` is simply a transmute,
+        //   so this check incurs only a hashing cost.
+        if let Some(sym) = self.map.borrow().get(
+            // SAFETY: This is only being used to check if the byte slice
+            // matches an existing intern, which must them already be UTF-8
+            // (unless an unsafe method was used to add it to begin with).
+            unsafe { from_utf8_unchecked(value) },
+        ) {
+            return Ok(*sym);
+        }
+
+        // The string is not yet interned, so we must perform a UTF-8 check
+        //   and can then proceed to intern as we normally would.
+        // This does incur a double hashing cost,
+        //   just like `intern`.
+        Ok(self.intern_without_lookup(from_utf8(value)?))
     }
 
     #[inline]
@@ -524,5 +579,46 @@ mod test {
 
         let sym = sut.intern("foo");
         assert_eq!("foo", sut.index_lookup(sym).unwrap());
+    }
+
+    #[test]
+    fn intern_utf8_with_new_valid_utf8_bytes() {
+        let sut = Sut::new();
+
+        let bytes = "valid".as_bytes();
+        let sym = sut.intern_utf8(bytes).expect("unexpected failure");
+
+        assert_eq!(sut.intern("valid"), sym);
+    }
+
+    #[test]
+    fn intern_utf8_with_existing_valid_utf8_bytes() {
+        let sut = Sut::new();
+
+        let s = "valid";
+
+        // Intern normally _first_ so that the `intern_utf8` call will
+        // return an existing intern.
+        sut.intern(s);
+        let sym = sut.intern_utf8(s.as_bytes()).expect("unexpected failure");
+
+        assert_eq!(sut.intern("valid"), sym);
+    }
+
+    #[test]
+    fn intern_utf8_fails_with_invalid_utf8_bytes() {
+        let sut = Sut::new();
+
+        // Invalid two-byte encoding.
+        let bytes = &vec![0b11000000u8];
+        let result = sut.intern_utf8(bytes);
+
+        match (result, from_utf8(bytes)) {
+            (_, Ok(_)) => panic!("test string is valid UTF-8"),
+            (Ok(_), _) => panic!("expected error"),
+            (Err(given), Err(expected)) => {
+                assert_eq!(given, expected);
+            }
+        }
     }
 }
