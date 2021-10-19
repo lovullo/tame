@@ -164,6 +164,34 @@ mod interner {
             });
         }
 
+        // Unlike the above, which already has a UTF-8 string, this actually
+        // performs a conversion and check from `&[u8]`.
+        #[bench]
+        fn with_all_new_1000_utf8_checked(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+            let bs: Vec<&[u8]> = strs.iter().map(|s| s.as_bytes()).collect();
+
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                bs.iter()
+                    .map(|b| sut.intern(std::str::from_utf8(&b).unwrap()))
+                    .for_each(drop);
+            });
+        }
+
+        #[bench]
+        fn with_all_new_1000_utf8_unchecked(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+            let bs: Vec<&[u8]> = strs.iter().map(|s| s.as_bytes()).collect();
+
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                bs.iter()
+                    .map(|b| unsafe { sut.intern_utf8_unchecked(&b) })
+                    .for_each(drop);
+            });
+        }
+
         #[bench]
         fn with_all_new_uninterned_1000(bench: &mut Bencher) {
             let strs = gen_strs(1000);
@@ -190,6 +218,18 @@ mod interner {
             bench.iter(|| {
                 let sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 (0..1000).map(|_| sut.intern("first")).for_each(drop);
+            });
+        }
+
+        // Unlike the above, which already has a UTF-8 string, this actually
+        // performs a conversion and check from `&[u8]`.
+        #[bench]
+        fn with_one_new_1000_utf8_checked(bench: &mut Bencher) {
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                (0..1000)
+                    .map(|_| sut.intern(std::str::from_utf8(b"first").unwrap()))
+                    .for_each(drop);
             });
         }
 
