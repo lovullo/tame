@@ -179,6 +179,20 @@ mod interner {
             });
         }
 
+        // Using `Interner::intern_utf8`.
+        #[bench]
+        fn with_all_new_1000_intern_utf8(bench: &mut Bencher) {
+            let strs = gen_strs(1000);
+            let bs: Vec<&[u8]> = strs.iter().map(|s| s.as_bytes()).collect();
+
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                bs.iter()
+                    .map(|b| sut.intern_utf8(&b).unwrap())
+                    .for_each(drop);
+            });
+        }
+
         #[bench]
         fn with_all_new_1000_utf8_unchecked(bench: &mut Bencher) {
             let strs = gen_strs(1000);
@@ -229,6 +243,17 @@ mod interner {
                 let sut = ArenaInterner::<FxBuildHasher, u32>::new();
                 (0..1000)
                     .map(|_| sut.intern(std::str::from_utf8(b"first").unwrap()))
+                    .for_each(drop);
+            });
+        }
+
+        // Using `Interner::intern_utf8`.
+        #[bench]
+        fn with_one_new_1000_intern_utf8(bench: &mut Bencher) {
+            bench.iter(|| {
+                let sut = ArenaInterner::<FxBuildHasher, u32>::new();
+                (0..1000)
+                    .map(|_| sut.intern_utf8(b"first").unwrap())
                     .for_each(drop);
             });
         }
