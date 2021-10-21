@@ -111,6 +111,27 @@ impl<B: BufRead> XmlXirReader<B> {
                     ))
                 }
 
+                QuickXmlEvent::Start(ele) => {
+                    Some(ele.name().try_into().map_err(Error::from).and_then(
+                        |qname| {
+                            Self::parse_attrs(
+                                &mut self.tokbuf,
+                                ele.attributes(),
+                            )?;
+
+                            // The first token will be immediately returned
+                            //   via the Iterator.
+                            Ok(Token::Open(qname, DUMMY_SPAN))
+                        },
+                    ))
+                }
+
+                QuickXmlEvent::End(ele) => {
+                    Some(ele.name().try_into().map_err(Error::from).and_then(
+                        |qname| Ok(Token::Close(Some(qname), DUMMY_SPAN)),
+                    ))
+                }
+
                 // quick_xml emits a useless text event if the first byte is
                 //   a '<'.
                 QuickXmlEvent::Text(bytes) if bytes.escaped().is_empty() => {

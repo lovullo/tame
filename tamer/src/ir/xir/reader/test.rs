@@ -172,6 +172,61 @@ fn permits_duplicate_attrs() {
     );
 }
 
+#[test]
+fn child_node_self_closing() {
+    let sut = Sut::new(r#"<root><child /></root>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+#[test]
+fn sibling_nodes() {
+    let sut = Sut::new(r#"<root><child /><child /></root>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+#[test]
+fn child_node_with_attrs() {
+    let sut = Sut::new(r#"<root><child foo="bar" /></root>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::AttrName("foo".unwrap_into(), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::Escaped("bar".into()), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
 // TODO: Enough information for error recovery and reporting.
 #[test]
 fn node_name_invalid_utf8() {
