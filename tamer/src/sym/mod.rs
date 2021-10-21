@@ -354,6 +354,6 @@ pub use interner::{
     Interner,
 };
 pub use symbol::{
-    GlobalSymbolIntern, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
-    SymbolId, SymbolIndexSize,
+    GlobalSymbolIntern, GlobalSymbolInternBytes, GlobalSymbolInternUnchecked,
+    GlobalSymbolResolve, SymbolId, SymbolIndexSize,
 };

@@ -1,0 +1,179 @@
+// XIR reader
+//
+//  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
+//
+//  This file is part of TAME.
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Parse XML files into a XIR [`Token`] stream.
+//!
+//! This uses [`quick_xml`] as the parser.
+
+use super::{AttrValue, Error, Token};
+use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
+use quick_xml::{
+    self,
+    events::{attributes::Attributes, Event as QuickXmlEvent},
+};
+use std::{collections::VecDeque, io::BufRead, result};
+
+pub type Result<T> = result::Result<T, Error>;
+
+/// Parse XML into a XIR [`Token`] stream.
+///
+/// This reader is intended to be used as an [`Iterator`].
+///
+/// The underlying reader produces events in chunks that are far too
+///   large for XIR,
+///     so most [`Token`]s retrieved via this call are buffered.
+/// Parsing takes place when that buffer is exhausted and the next event
+///   is requested from the underlying reader
+///     (see [`XmlXirReader::refill_buf`]).
+/// Errors can only occur during parsing,
+///   and will never occur on buffered tokens.
+///
+/// [`None`] is returned only on EOF,
+///   not on error.
+pub struct XmlXirReader<B: BufRead> {
+    /// Inner parser.
+    reader: quick_xml::Reader<B>,
+
+    /// Buffer for [`quick_xml::Reader`].
+    readbuf: Vec<u8>,
+
+    /// [`Token`] buffer populated upon receiving a new event from
+    ///   `reader`.
+    ///
+    /// This buffer serves [`Iterator::next`] requests until it is
+    ///   depleted,
+    ///     after which [`XmlXirReader::refill_buf`] requests another token
+    ///     from `reader`.
+    tokbuf: VecDeque<Token>,
+}
+
+impl<B: BufRead> XmlXirReader<B> {
+    pub fn new(reader: B) -> Self {
+        Self {
+            reader: quick_xml::Reader::from_reader(reader),
+            readbuf: Vec::new(),
+            // This capacity is largely arbitrary,
+            //   but [`Token`]s are small enough that it likely does not
+            //   matter much.
+            tokbuf: VecDeque::with_capacity(32),
+        }
+    }
+
+    /// Parse using the underlying [`quick_xml::Reader`] and populate the
+    ///   [`Token`] buffer.
+    ///
+    /// This is intended to be invoked once the buffer has been depleted by
+    ///   [`XmlXirReader::next`].
+    pub fn refill_buf(&mut self) -> Option<Result<Token>> {
+        // Clear any previous buffer to free unneeded data.
+        self.tokbuf.clear();
+
+        // TODO: need an option to ignore namespaces, since it's a waste of
+        // time for the linker
+        match self.reader.read_event(&mut self.readbuf) {
+            // This is the only time we'll consider the iterator to be done.
+            Ok(QuickXmlEvent::Eof) => None,
+
+            Err(inner) => Some(Err(inner.into())),
+
+            Ok(ev) => match ev {
+                QuickXmlEvent::Empty(ele) => {
+                    Some(ele.name().try_into().map_err(Error::from).and_then(
+                        |qname| {
+                            Self::parse_attrs(
+                                &mut self.tokbuf,
+                                ele.attributes(),
+                            )?;
+
+                            self.tokbuf
+                                .push_front(Token::Close(None, DUMMY_SPAN));
+
+                            // The first token will be immediately returned
+                            //   via the Iterator.
+                            Ok(Token::Open(qname, DUMMY_SPAN))
+                        },
+                    ))
+                }
+
+                // quick_xml emits a useless text event if the first byte is
+                //   a '<'.
+                QuickXmlEvent::Text(bytes) if bytes.escaped().is_empty() => {
+                    self.refill_buf()
+                }
+
+                x => todo!("event: {:?}", x),
+            },
+        }
+    }
+
+    /// Parse attributes into a XIR [`Token`] stream.
+    ///
+    /// The order of attributes will be maintained.
+    ///
+    /// This does not yet handle whitespace between attributes,
+    ///   or around `=`.
+    fn parse_attrs<'a>(
+        tokbuf: &mut VecDeque<Token>,
+        mut attrs: Attributes<'a>,
+    ) -> Result<()> {
+        // Disable checks to allow duplicate attributes;
+        //   XIR does not enforce this,
+        //     because it needs to accommodate semantically invalid XML for
+        //     later analysis.
+        for result in attrs.with_checks(false) {
+            let attr = result?;
+
+            // The attribute value,
+            //   having just been read from XML,
+            //   must have been escaped to be parsed properly.
+            // If it parsed but it's not technically escaped according to
+            //   the spec,
+            //     that's okay as long as we can read it again,
+            //       but we probably should still throw an error if we
+            //       encounter such a situation.
+            let value = AttrValue::Escaped(attr.value.as_ref().intern_utf8()?);
+
+            // The name must be parsed as a QName.
+            let name = attr.key.try_into()?;
+
+            tokbuf.push_front(Token::AttrName(name, DUMMY_SPAN));
+            tokbuf.push_front(Token::AttrValue(value, DUMMY_SPAN));
+        }
+
+        Ok(())
+    }
+}
+
+impl<B: BufRead> Iterator for XmlXirReader<B> {
+    type Item = Result<Token>;
+
+    /// Produce the next XIR [`Token`] from the input.
+    ///
+    /// For more information on how this reader operates,
+    ///   see [`XmlXirReader`].
+    fn next(&mut self) -> Option<Self::Item> {
+        self.tokbuf
+            .pop_back()
+            .map(|tok| Ok(tok))
+            .or_else(|| self.refill_buf())
+    }
+}
+
+#[cfg(test)]
+mod test;

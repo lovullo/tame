@@ -176,8 +176,14 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     ///   see [`Interner::intern_utf8_unchecked`].
     ///
     /// If the byte slice does not represent a valid UTF-8 string,
-    ///   a [`Utf8Error`] will be returned.
-    fn intern_utf8(&self, value: &[u8]) -> Result<SymbolId<Ix>, Utf8Error>;
+    ///   a [`Utf8Error`] will be returned along with a reference to the
+    ///   provided byte string.
+    /// The purpose of this pair is to simplify error conversions
+    ///   using `?` so that errors can contain additional context.
+    fn intern_utf8<'a>(
+        &self,
+        value: &'a [u8],
+    ) -> Result<SymbolId<Ix>, (Utf8Error, &'a [u8])>;
 
     /// Intern an assumed-UTF-8 slice of bytes or return an existing
     ///   [`SymbolId`].
@@ -367,7 +373,10 @@ where
         id
     }
 
-    fn intern_utf8(&self, value: &[u8]) -> Result<SymbolId<Ix>, Utf8Error> {
+    fn intern_utf8<'a>(
+        &self,
+        value: &'a [u8],
+    ) -> Result<SymbolId<Ix>, (Utf8Error, &'a [u8])> {
         // Check the raw byte slice _before_ performing a UTF-8 check.
         // Note that `from_utf8_unchecked` is simply a transmute,
         //   so this check incurs only a hashing cost.
@@ -384,7 +393,9 @@ where
         //   and can then proceed to intern as we normally would.
         // This does incur a double hashing cost,
         //   just like `intern`.
-        Ok(self.intern_without_lookup(from_utf8(value)?))
+        Ok(self.intern_without_lookup(
+            from_utf8(value).map_err(|err| (err, value))?,
+        ))
     }
 
     #[inline]
@@ -610,14 +621,15 @@ mod test {
         let sut = Sut::new();
 
         // Invalid two-byte encoding.
-        let bytes = &vec![0b11000000u8];
+        let bytes = &[0b11000000u8];
         let result = sut.intern_utf8(bytes);
 
         match (result, from_utf8(bytes)) {
             (_, Ok(_)) => panic!("test string is valid UTF-8"),
             (Ok(_), _) => panic!("expected error"),
-            (Err(given), Err(expected)) => {
-                assert_eq!(given, expected);
+            (Err((given_err, given_u8)), Err(expected)) => {
+                assert_eq!(given_u8, bytes);
+                assert_eq!(given_err, expected);
             }
         }
     }

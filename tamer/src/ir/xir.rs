@@ -22,24 +22,64 @@
 //! XIR serves not only as a TAMER-specific IR,
 //!   but also as an abstraction layer atop of whatever XML library is
 //!   used (e.g. `quick_xml`).
-//!
 //! XIR is _not_ intended to be comprehensive,
 //!   or even general-purpose---it
 //!     exists to solve concerns specific to TAMER's construction.
 //!
-//! _This is a work in progress!_
+//! Parsing and Safety
+//! ==================
+//! Many XIR elements know how to safely parse into themselves,
+//!   exposing [`TryFrom`] traits that will largely do the right thing for
+//!   you.
+//! For example,
+//!   [`QName`] is able to construct itself from a byte slice and from a
+//!     string tuple,
+//!       among other things.
+//!
+//! ```
+//! use tamer::ir::xir::QName;
+//! use tamer::sym::GlobalSymbolIntern;
+//!
+//!# fn main() -> Result<(), tamer::ir::xir::Error> {
+//! let src = "foo:bar".as_bytes();
+//! let qname = QName::try_from(src)?;
+//!
+//! assert_eq!(qname, ("foo", "bar").try_into()?);
+//!
+//!# Ok(())
+//!# }
+//! ```
+//!
+//! However,
+//!   certain elements cannot fully parse on their own because require
+//!   important contextual information,
+//!     such as [`AttrValue`],
+//!       which requires knowing whether the provided value is escaped.
+//! It is important that the caller is diligent in making the proper
+//!   determination in these cases,
+//!     otherwise it could result in situations ranging from invalid
+//!     compiler output to security vulnerabilities
+//!       (via XML injection).
+//!
+//! To parse an entire XML document,
+//!   see [`reader`].
 
 use crate::span::Span;
 use crate::sym::{
-    st_as_sym, CIdentStaticSymbolId, GlobalSymbolIntern, StaticSymbolId,
-    SymbolId, TameIdentStaticSymbolId, UriStaticSymbolId,
+    st_as_sym, CIdentStaticSymbolId, GlobalSymbolIntern,
+    GlobalSymbolInternBytes, StaticSymbolId, SymbolId, TameIdentStaticSymbolId,
+    UriStaticSymbolId,
 };
+use memchr::memchr;
 use std::convert::{TryFrom, TryInto};
-use std::fmt::Display;
 use std::ops::Deref;
+
+mod error;
+pub use error::Error;
 
 pub mod iter;
 pub mod pred;
+pub mod reader;
 pub mod tree;
 pub mod writer;
 
@@ -53,6 +93,7 @@ pub trait QNameCompatibleStaticSymbolId: StaticSymbolId {}
 impl QNameCompatibleStaticSymbolId for CIdentStaticSymbolId {}
 impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
 
+#[doc(hidden)]
 macro_rules! qname_const_inner {
     ($name:ident = :$local:ident) => {
         const $name: QName = QName::st_cid_local(&$local);
@@ -106,6 +147,24 @@ impl NCName {
     }
 }
 
+impl TryFrom<&[u8]> for NCName {
+    type Error = Error;
+
+    /// Attempt to parse a byte slice into an [`NCName`].
+    ///
+    /// If the slice contains `b':'`,
+    ///   an error will be produced.
+    /// No other checks are performed beyond checking that the byte sequence
+    ///   represents a valid UTF-8 string.
+    /// The string will be interned for you.
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match value.contains(&b':') {
+            true => Err(Error::NCColon(value.to_owned())),
+            false => Ok(NCName(value.intern_utf8()?)),
+        }
+    }
+}
+
 impl Deref for NCName {
     type Target = SymbolId;
 
@@ -117,34 +176,6 @@ impl Deref for NCName {
 impl PartialEq<SymbolId> for NCName {
     fn eq(&self, other: &SymbolId) -> bool {
         self.0 == *other
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Error {
-    /// Provided name contains a `':'`.
-    NCColon(String),
-
-    /// Provided string contains non-ASCII-whitespace characters.
-    NotWhitespace(String),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NCColon(name) => {
-                write!(f, "NCName must not contain a colon: `{}`", name)
-            }
-            Self::NotWhitespace(s) => {
-                write!(f, "String contains non-ASCII-whitespace: `{}`", s)
-            }
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
     }
 }
 
@@ -260,8 +291,8 @@ const_assert!(std::mem::size_of::<QName>() <= std::mem::size_of::<usize>());
 impl QName {
     /// Create a new fully-qualified name (including both a namespace URI
     ///   and local name).
-    pub fn new(prefix: Prefix, local_name: LocalPart) -> Self {
-        Self(Some(prefix), local_name)
+    pub fn new(prefix: Option<Prefix>, local_name: LocalPart) -> Self {
+        Self(prefix, local_name)
     }
 
     /// Create a new name from a local name only.
@@ -340,6 +371,44 @@ impl TryFrom<&str> for QName {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(QName(None, value.try_into()?))
+    }
+}
+
+impl TryFrom<&[u8]> for QName {
+    type Error = Error;
+
+    /// Attempt to parse a byte slice into a [`QName`].
+    ///
+    /// The byte slice must represent a valid QName in UTF-8.
+    /// If a colon is present,
+    ///   it delimits the namespace [`Prefix`] and [`LocalPart`],
+    ///   and therefore must not be in the first or last byte position.
+    fn try_from(name: &[u8]) -> Result<Self, Self::Error> {
+        match memchr(b':', name) {
+            // Leading colon means we're missing a prefix, trailing means
+            //   that we have no local part.
+            Some(pos) if pos == 0 || pos == name.len() - 1 => {
+                Err(Error::InvalidQName(name.to_owned()))
+            }
+
+            // There is _at least_ one colon in the string.
+            Some(pos) => {
+                // The prefix is before the first colon,
+                //   and so itself must not contain a colon and is therefore
+                //   a valid NCName.
+                let prefix = NCName(name[..pos].intern_utf8()?);
+
+                // But there could be a _second_ colon,
+                //   so the local part requires validation.
+                let local = NCName::try_from(&name[(pos + 1)..])?;
+
+                Ok(Self::new(Some(prefix.into()), local.into()))
+            }
+
+            // There are no colons in the string, so the entire string is
+            //   both a local part and a valid NCName.
+            None => Ok(Self::new(None, NCName(name.intern_utf8()?).into())),
+        }
     }
 }
 
@@ -520,6 +589,21 @@ mod test {
             assert_eq!(
                 NCName::try_from("look:a-colon"),
                 Err(Error::NCColon("look:a-colon".into()))
+            );
+        }
+
+        #[test]
+        fn ncname_from_byte_slice() -> TestResult {
+            let name: NCName = (b"no-colon" as &[u8]).try_into()?;
+            assert_eq!(name, "no-colon".intern());
+            Ok(())
+        }
+
+        #[test]
+        fn ncname_from_byte_slice_fails_with_colon() {
+            assert_eq!(
+                NCName::try_from(b"a:colon" as &[u8]),
+                Err(Error::NCColon("a:colon".into()))
             );
         }
 

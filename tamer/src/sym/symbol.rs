@@ -28,6 +28,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Deref;
+use std::str::Utf8Error;
 use std::thread::LocalKey;
 
 /// Unique symbol identifier produced by an [`Interner`].
@@ -327,6 +328,26 @@ pub trait GlobalSymbolIntern<Ix: SymbolIndexSize> {
 }
 
 /// Intern a byte slice using a global interner.
+pub trait GlobalSymbolInternBytes<Ix: SymbolIndexSize>
+where
+    Self: Sized,
+{
+    /// Intern a byte slice using a global interner.
+    ///
+    /// This first checks to see if the provided slice has already been
+    ///   interned.
+    /// If so,
+    ///   we are able to save time by not checking for UTF-8 validity.
+    /// Otherwise,
+    ///   we intern the slice in the usual way,
+    ///     failing if it does not represent a valid UTF-8 string.
+    ///
+    /// For further explanation,
+    ///   see [`Interner::intern_utf8`].
+    fn intern_utf8(self) -> Result<SymbolId<Ix>, (Utf8Error, Self)>;
+}
+
+/// Intern a byte slice using a global interner.
 ///
 /// See also [`GlobalSymbolIntern`].
 /// This uses [`Interner::intern_utf8_unchecked`].
@@ -371,6 +392,12 @@ impl<Ix: SymbolIndexSize> GlobalSymbolIntern<Ix> for &str {
 
     fn clone_uninterned(self) -> SymbolId<Ix> {
         Ix::with_static_interner(|interner| interner.clone_uninterned(self))
+    }
+}
+
+impl<Ix: SymbolIndexSize> GlobalSymbolInternBytes<Ix> for &[u8] {
+    fn intern_utf8(self) -> Result<SymbolId<Ix>, (Utf8Error, Self)> {
+        Ix::with_static_interner(|interner| interner.intern_utf8(self))
     }
 }
 
