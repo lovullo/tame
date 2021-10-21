@@ -84,8 +84,6 @@ impl<B: BufRead> XmlXirReader<B> {
         // Clear any previous buffer to free unneeded data.
         self.tokbuf.clear();
 
-        // TODO: need an option to ignore namespaces, since it's a waste of
-        // time for the linker
         match self.reader.read_event(&mut self.readbuf) {
             // This is the only time we'll consider the iterator to be done.
             Ok(QuickXmlEvent::Eof) => None,
