@@ -25,7 +25,7 @@ use super::{AttrValue, Error, Token};
 use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
 use quick_xml::{
     self,
-    events::{attributes::Attributes, Event as QuickXmlEvent},
+    events::{attributes::Attributes, BytesStart, Event as QuickXmlEvent},
 };
 use std::{collections::VecDeque, io::BufRead, result};
 
@@ -93,37 +93,21 @@ impl<B: BufRead> XmlXirReader<B> {
             Err(inner) => Some(Err(inner.into())),
 
             Ok(ev) => match ev {
-                QuickXmlEvent::Empty(ele) => {
-                    Some(ele.name().try_into().map_err(Error::from).and_then(
-                        |qname| {
-                            Self::parse_attrs(
-                                &mut self.tokbuf,
-                                ele.attributes(),
-                            )?;
-
+                QuickXmlEvent::Empty(ele) => Some(
+                    Self::parse_element_open(&mut self.tokbuf, ele).and_then(
+                        |open| {
+                            // Tag is self-closing, but this does not yet
+                            //   handle whitespace before the `/`.
                             self.tokbuf
                                 .push_front(Token::Close(None, DUMMY_SPAN));
 
-                            // The first token will be immediately returned
-                            //   via the Iterator.
-                            Ok(Token::Open(qname, DUMMY_SPAN))
+                            Ok(open)
                         },
-                    ))
-                }
+                    ),
+                ),
 
                 QuickXmlEvent::Start(ele) => {
-                    Some(ele.name().try_into().map_err(Error::from).and_then(
-                        |qname| {
-                            Self::parse_attrs(
-                                &mut self.tokbuf,
-                                ele.attributes(),
-                            )?;
-
-                            // The first token will be immediately returned
-                            //   via the Iterator.
-                            Ok(Token::Open(qname, DUMMY_SPAN))
-                        },
-                    ))
+                    Some(Self::parse_element_open(&mut self.tokbuf, ele))
                 }
 
                 QuickXmlEvent::End(ele) => {
@@ -141,6 +125,28 @@ impl<B: BufRead> XmlXirReader<B> {
                 x => todo!("event: {:?}", x),
             },
         }
+    }
+
+    /// Parse opening element and its attributes into a XIR [`Token`]
+    ///   stream.
+    ///
+    /// The opening element is returned rather than being added to the token
+    ///   buffer,
+    ///     since the intent is to provide that token immediately.
+    fn parse_element_open(
+        tokbuf: &mut VecDeque<Token>,
+        ele: BytesStart,
+    ) -> Result<Token> {
+        ele.name()
+            .try_into()
+            .map_err(Error::from)
+            .and_then(|qname| {
+                Self::parse_attrs(tokbuf, ele.attributes())?;
+
+                // The first token will be immediately returned
+                //   via the Iterator.
+                Ok(Token::Open(qname, DUMMY_SPAN))
+            })
     }
 
     /// Parse attributes into a XIR [`Token`] stream.
