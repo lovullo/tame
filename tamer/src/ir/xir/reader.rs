@@ -130,6 +130,13 @@ impl<B: BufRead> XmlXirReader<B> {
                     ))
                 }
 
+                // Comments are _not_ returned escaped.
+                QuickXmlEvent::Comment(bytes) => Some(
+                    bytes.intern_utf8().map_err(Error::from).and_then(|text| {
+                        Ok(Token::Comment(Text::Unescaped(text), DUMMY_SPAN))
+                    }),
+                ),
+
                 x => todo!("event: {:?}", x),
             },
         }

@@ -330,6 +330,49 @@ fn mixed_child_text_and_cdata() {
     );
 }
 
+#[test]
+fn comment() {
+    let sut = Sut::new(r#"<!--root--><root><!--<child>--></root>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Comment(Text::Unescaped("root".into()), DUMMY_SPAN),
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Comment(Text::Unescaped("<child>".into()), DUMMY_SPAN),
+            Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+#[test]
+fn comment_multiline() {
+    let sut = Sut::new(
+        r#"<mult><!--comment
+on multiple
+lines-->
+</mult>"#
+            .as_bytes(),
+    );
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("mult".unwrap_into(), DUMMY_SPAN),
+            Token::Comment(
+                Text::Unescaped("comment\non multiple\nlines".into()),
+                DUMMY_SPAN
+            ),
+            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
+            Token::Close(Some("mult".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
 // TODO: Enough information for error recovery and reporting.
 #[test]
 fn node_name_invalid_utf8() {
