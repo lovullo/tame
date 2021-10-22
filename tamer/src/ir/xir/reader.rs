@@ -120,7 +120,11 @@ impl<B: BufRead> XmlXirReader<B> {
                     self.refill_buf()
                 }
 
-                QuickXmlEvent::Text(bytes) => {
+                // quick_xml gives us escaped bytes for CData,
+                //   so handle them identically.
+                // The question is whether we'll want to distinguish the two
+                //   in the future to reproduce the source document on write.
+                QuickXmlEvent::Text(bytes) | QuickXmlEvent::CData(bytes) => {
                     Some(bytes.intern_utf8().map_err(Error::from).and_then(
                         |text| Ok(Token::Text(Text::Escaped(text), DUMMY_SPAN)),
                     ))

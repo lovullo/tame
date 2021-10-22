@@ -293,6 +293,43 @@ fn mixed_child_content_with_newlines() {
     );
 }
 
+#[test]
+fn child_cdata() {
+    let sut = Sut::new(r#"<cd><![CDATA[<foo />]]></cd>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("cd".unwrap_into(), DUMMY_SPAN),
+            // Escaped by quick_xml.
+            Token::Text(Text::Escaped("&lt;foo /&gt;".into()), DUMMY_SPAN),
+            Token::Close(Some("cd".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+#[test]
+fn mixed_child_text_and_cdata() {
+    let sut = Sut::new(r#"<cd>foo<bar/><![CDATA[<baz/>]]></cd>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("cd".unwrap_into(), DUMMY_SPAN),
+            Token::Text(Text::Escaped("foo".into()), DUMMY_SPAN),
+            Token::Open("bar".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            // Escaped by quick_xml.
+            Token::Text(Text::Escaped("&lt;baz/&gt;".into()), DUMMY_SPAN),
+            Token::Close(Some("cd".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
 // TODO: Enough information for error recovery and reporting.
 #[test]
 fn node_name_invalid_utf8() {
