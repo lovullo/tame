@@ -20,7 +20,7 @@
 use super::*;
 use crate::{
     convert::ExpectInto,
-    ir::xir::{AttrValue, Token},
+    ir::xir::{AttrValue, Text, Token},
     span::DUMMY_SPAN,
 };
 
@@ -223,6 +223,72 @@ fn child_node_with_attrs() {
             Token::AttrValue(AttrValue::Escaped("bar".into()), DUMMY_SPAN),
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+#[test]
+fn child_text() {
+    let sut = Sut::new(r#"<text>foo bar</text>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("text".unwrap_into(), DUMMY_SPAN),
+            Token::Text(Text::Escaped("foo bar".into()), DUMMY_SPAN),
+            Token::Close(Some("text".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+#[test]
+fn mixed_child_content() {
+    let sut = Sut::new(r#"<text>foo<em>bar</em></text>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("text".unwrap_into(), DUMMY_SPAN),
+            Token::Text(Text::Escaped("foo".into()), DUMMY_SPAN),
+            Token::Open("em".unwrap_into(), DUMMY_SPAN),
+            Token::Text(Text::Escaped("bar".into()), DUMMY_SPAN),
+            Token::Close(Some("em".unwrap_into()), DUMMY_SPAN),
+            Token::Close(Some("text".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
+// This is how XML is typically written; people don't perceive it as mixed,
+// even though it is.  This intentionally adds newlines before and after the
+// opening and closing tags of the root node.
+#[test]
+fn mixed_child_content_with_newlines() {
+    let sut = Sut::new(
+        r#"
+<root>
+  <child />
+</root>
+"#
+        .as_bytes(),
+    );
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Text(Text::Escaped("\n  ".into()), DUMMY_SPAN),
+            Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
+            Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
+            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
         ],
     );
 }

@@ -22,7 +22,7 @@
 //! This uses [`quick_xml`] as the parser.
 
 use super::{AttrValue, Error, Token};
-use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
+use crate::{ir::xir::Text, span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
 use quick_xml::{
     self,
     events::{attributes::Attributes, BytesStart, Event as QuickXmlEvent},
@@ -118,6 +118,12 @@ impl<B: BufRead> XmlXirReader<B> {
                 //   a '<'.
                 QuickXmlEvent::Text(bytes) if bytes.escaped().is_empty() => {
                     self.refill_buf()
+                }
+
+                QuickXmlEvent::Text(bytes) => {
+                    Some(bytes.intern_utf8().map_err(Error::from).and_then(
+                        |text| Ok(Token::Text(Text::Escaped(text), DUMMY_SPAN)),
+                    ))
                 }
 
                 x => todo!("event: {:?}", x),
