@@ -65,8 +65,15 @@ pub struct XmlXirReader<B: BufRead> {
 
 impl<B: BufRead> XmlXirReader<B> {
     pub fn new(reader: B) -> Self {
+        let mut reader = quick_xml::Reader::from_reader(reader);
+
+        // XIR must support mismatched tags so that we are able to represent
+        //   and reconstruct malformed inputs.
+        // XIRT will handle mismatch errors itself.
+        reader.check_end_names(false);
+
         Self {
-            reader: quick_xml::Reader::from_reader(reader),
+            reader,
             readbuf: Vec::new(),
             // This capacity is largely arbitrary,
             //   but [`Token`]s are small enough that it likely does not

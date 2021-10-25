@@ -373,6 +373,24 @@ lines-->
     );
 }
 
+// XIRT handles mismatch errors; XIR must explicitly support them.
+#[test]
+fn permits_mismatched_tags() {
+    let sut = Sut::new(r#"<root><child /></mismatch>"#.as_bytes());
+
+    let result = sut.collect::<Result<Vec<_>>>();
+
+    assert_eq!(
+        result.expect("parsing failed"),
+        vec![
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+            Token::Close(Some("mismatch".unwrap_into()), DUMMY_SPAN),
+        ],
+    );
+}
+
 // TODO: Enough information for error recovery and reporting.
 #[test]
 fn node_name_invalid_utf8() {
