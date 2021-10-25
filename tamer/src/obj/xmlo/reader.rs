@@ -17,15 +17,10 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::ir::legacyir::{PackageAttrs, SymAttrs};
+use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
-use crate::{
-    ir::legacyir::{PackageAttrs, SymAttrs},
-    sym::SymbolId,
-};
-use std::{fmt::Display, io::BufRead};
-
-#[cfg(feature = "wip-xmlo-xir-reader")]
-use crate::ir::xir::reader::XmlXirReader;
+use std::fmt::Display;
 
 #[cfg(not(feature = "wip-xmlo-xir-reader"))]
 mod quickxml;
@@ -33,56 +28,66 @@ mod quickxml;
 #[cfg(not(feature = "wip-xmlo-xir-reader"))]
 pub use quickxml::XmloReader;
 
+#[cfg(feature = "wip-xmlo-xir-reader")]
+pub use new::XmloReader;
+
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
 ///
 /// This is the result of every [`XmloReader`] operation that could
 ///   potentially fail in error.
 pub type XmloResult<T> = Result<T, XmloError>;
 
+/// Re-implementation of `XmloReader` using [`XmlXirReader`].
+///
+/// This module will be merged into [`super`] once complete;
+///   it exists to make feature-flagging less confusing and error-prone.
 #[cfg(feature = "wip-xmlo-xir-reader")]
-pub struct XmloReader<B: BufRead> {
-    _reader: XmlXirReader<B>,
-}
+mod new {
+    use super::{XmloEvent, XmloResult};
+    use crate::ir::xir::reader::Result as ReaderResult;
+    use crate::ir::xir::reader::XmlXirReader;
+    use crate::ir::xir::Token;
+    use std::io::BufRead;
 
-#[cfg(feature = "wip-xmlo-xir-reader")]
-impl<B: BufRead> XmloReader<B> {
-    pub fn new(reader: B) -> Self {
-        let reader = XmlXirReader::new(reader);
-
-        Self { _reader: reader }
+    #[cfg(feature = "wip-xmlo-xir-reader")]
+    pub struct XmloReader<I: Iterator<Item = ReaderResult<Token>>> {
+        _reader: I,
     }
 
-    pub fn read_event<'a>(&mut self) -> XmloResult<XmloEvent> {
-        todo!("XmloReader::read_event")
+    #[cfg(feature = "wip-xmlo-xir-reader")]
+    impl<I> XmloReader<I>
+    where
+        I: Iterator<Item = ReaderResult<Token>>,
+    {
+        pub fn from_reader(reader: I) -> Self {
+            Self { _reader: reader }
+        }
+
+        pub fn read_event(&mut self) -> XmloResult<XmloEvent> {
+            todo!("XmloReader::read_event")
+        }
     }
-}
 
-impl<B> Iterator for XmloReader<B>
-where
-    B: BufRead,
-{
-    type Item = XmloResult<XmloEvent>;
+    #[cfg(feature = "wip-xmlo-xir-reader")]
+    impl<I> Iterator for XmloReader<I>
+    where
+        I: Iterator<Item = ReaderResult<Token>>,
+    {
+        type Item = XmloResult<XmloEvent>;
 
-    /// Invoke [`XmloReader::read_event`] and yield the result via an
-    ///   [`Iterator`] API.
-    ///
-    /// *Warning*: This will always return [`Some`] for now.
-    /// Future changes may alter this behavior.
-    /// To terminate the iterator,
-    ///   it's recommended that you use [`Iterator::take_while`] to filter
-    ///   on the desired predicate,
-    ///     such as [`XmloEvent::Eoh`].
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.read_event())
+        fn next(&mut self) -> Option<Self::Item> {
+            Some(self.read_event())
+        }
     }
-}
 
-impl<B> From<B> for XmloReader<B>
-where
-    B: BufRead,
-{
-    fn from(buf: B) -> Self {
-        Self::new(buf)
+    #[cfg(feature = "wip-xmlo-xir-reader")]
+    impl<B> From<B> for XmloReader<XmlXirReader<B>>
+    where
+        B: BufRead,
+    {
+        fn from(buf: B) -> Self {
+            Self::from_reader(XmlXirReader::new(buf))
+        }
     }
 }
 

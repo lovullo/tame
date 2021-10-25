@@ -683,5 +683,34 @@ where
     }
 }
 
+impl<B> Iterator for XmloReader<B>
+where
+    B: BufRead,
+{
+    type Item = XmloResult<XmloEvent>;
+
+    /// Invoke [`XmloReader::read_event`] and yield the result via an
+    ///   [`Iterator`] API.
+    ///
+    /// *Warning*: This will always return [`Some`] for now.
+    /// Future changes may alter this behavior.
+    /// To terminate the iterator,
+    ///   it's recommended that you use [`Iterator::take_while`] to filter
+    ///   on the desired predicate,
+    ///     such as [`XmloEvent::Eoh`].
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.read_event())
+    }
+}
+
+impl<B> From<B> for XmloReader<B>
+where
+    B: BufRead,
+{
+    fn from(buf: B) -> Self {
+        Self::new(buf)
+    }
+}
+
 #[cfg(test)]
 mod test;

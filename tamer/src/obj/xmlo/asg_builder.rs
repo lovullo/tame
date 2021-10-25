@@ -54,7 +54,7 @@
 //!     </preproc:fragments>
 //!   </package>"#;
 //!
-//! let xmlo = XmloReader::new(src_xmlo);
+//! let xmlo = XmloReader::from(src_xmlo);
 //! let mut asg = DefaultAsg::<IdentObject>::new();
 //!
 //! let state = asg.import_xmlo(xmlo, AsgBuilderState::<FxBuildHasher, _>::new());
