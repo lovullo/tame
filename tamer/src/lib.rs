@@ -27,7 +27,13 @@
 // See that function for more information.
 #![feature(const_fn_trait_bound)]
 #![feature(const_transmute_copy)]
-// We build docs for private items
+// Trait aliases are convenient for reducing verbosity in situations where
+//   type aliases cannot be used.
+// To remove this feature if it is not stabalized,
+//   simply replace each alias reference with its definition,
+//   or possibly write a trait with a `Self` bound.
+#![feature(trait_alias)]
+// We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 
 pub mod global;
@@ -45,6 +51,7 @@ pub mod convert;
 pub mod fs;
 #[macro_use]
 pub mod ir;
+pub mod iter;
 pub mod ld;
 pub mod obj;
 pub mod span;
