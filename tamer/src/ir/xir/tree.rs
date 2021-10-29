@@ -191,7 +191,7 @@
 //! For more information,
 //!   see [`AttrParts`].
 
-use super::{AttrValue, QName, Text, Token};
+use super::{AttrValue, QName, Text, Token, TokenResultStream};
 use crate::span::Span;
 use std::{fmt::Display, mem::take};
 

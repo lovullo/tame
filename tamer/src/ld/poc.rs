@@ -174,9 +174,24 @@ fn load_xmlo<'a, P: AsRef<Path>>(
 
     let (path, file) = cfile.into();
 
-    let xmlo: XmloReader<_> = file.into();
+    let mut state = {
+        #[cfg(not(feature = "wip-xmlo-xir-reader"))]
+        {
+            let xmlo: XmloReader<_> = file.into();
+            depgraph.import_xmlo(xmlo, state)?
+        }
 
-    let mut state = depgraph.import_xmlo(xmlo, state)?;
+        #[cfg(feature = "wip-xmlo-xir-reader")]
+        {
+            use crate::ir::xir::reader::XmlXirReader;
+            use crate::iter::into_iter_while_ok;
+
+            into_iter_while_ok(XmlXirReader::from(file), |toks| {
+                let xmlo: XmloReader<_> = toks.into();
+                depgraph.import_xmlo(xmlo, state)
+            })??
+        }
+    };
 
     let mut dir: PathBuf = path.clone();
     dir.pop();

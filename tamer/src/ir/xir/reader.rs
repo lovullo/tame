@@ -224,5 +224,11 @@ impl<B: BufRead> Iterator for XmlXirReader<B> {
     }
 }
 
+impl<B: BufRead> From<B> for XmlXirReader<B> {
+    fn from(reader: B) -> Self {
+        Self::new(reader)
+    }
+}
+
 #[cfg(test)]
 mod test;

@@ -37,41 +37,60 @@ pub use new::XmloReader;
 ///   potentially fail in error.
 pub type XmloResult<T> = Result<T, XmloError>;
 
-/// Re-implementation of `XmloReader` using [`XmlXirReader`].
-///
-/// This module will be merged into [`super`] once complete;
-///   it exists to make feature-flagging less confusing and error-prone.
 #[cfg(feature = "wip-xmlo-xir-reader")]
 mod new {
-    use super::{XmloEvent, XmloResult};
-    use crate::ir::xir::reader::Result as ReaderResult;
-    use crate::ir::xir::reader::XmlXirReader;
-    use crate::ir::xir::Token;
-    use std::io::BufRead;
+    //! Re-implementation of `XmloReader` using a [`TokenStream`].
+    //!
+    //! This module will be merged into [`super`] once complete;
+    //!   it exists to make feature-flagging less confusing and error-prone.
 
-    #[cfg(feature = "wip-xmlo-xir-reader")]
-    pub struct XmloReader<I: Iterator<Item = ReaderResult<Token>>> {
-        _reader: I,
+    use super::{XmloError, XmloEvent, XmloResult};
+    use crate::ir::xir::{Token, TokenStream};
+    use crate::sym::st::*;
+
+    qname_const! {
+        QN_LV_PACKAGE: L_LV:L_PACKAGE,
+        QN_PACKAGE: :L_PACKAGE,
     }
 
-    #[cfg(feature = "wip-xmlo-xir-reader")]
+    pub struct XmloReader<I: TokenStream> {
+        reader: I,
+        seen_root: bool,
+    }
+
     impl<I> XmloReader<I>
     where
-        I: Iterator<Item = ReaderResult<Token>>,
+        I: TokenStream,
     {
         pub fn from_reader(reader: I) -> Self {
-            Self { _reader: reader }
+            Self {
+                reader,
+                seen_root: false,
+            }
         }
 
         pub fn read_event(&mut self) -> XmloResult<XmloEvent> {
-            todo!("XmloReader::read_event")
+            let token = self.reader.next().ok_or(XmloError::UnexpectedEof)?;
+
+            if !self.seen_root {
+                match token {
+                    Token::Open(QN_LV_PACKAGE | QN_PACKAGE, _) => {
+                        //self.seen_root = true;
+                    }
+
+                    _ => return Err(XmloError::UnexpectedRoot),
+                }
+            }
+
+            match token {
+                todo => todo!("read_event: {:?}", todo),
+            }
         }
     }
 
-    #[cfg(feature = "wip-xmlo-xir-reader")]
     impl<I> Iterator for XmloReader<I>
     where
-        I: Iterator<Item = ReaderResult<Token>>,
+        I: TokenStream,
     {
         type Item = XmloResult<XmloEvent>;
 
@@ -80,13 +99,12 @@ mod new {
         }
     }
 
-    #[cfg(feature = "wip-xmlo-xir-reader")]
-    impl<B> From<B> for XmloReader<XmlXirReader<B>>
+    impl<I> From<I> for XmloReader<I>
     where
-        B: BufRead,
+        I: TokenStream,
     {
-        fn from(buf: B) -> Self {
-            Self::from_reader(XmlXirReader::new(buf))
+        fn from(toks: I) -> Self {
+            Self::from_reader(toks)
         }
     }
 }
@@ -148,7 +166,7 @@ pub enum XmloEvent {
 /// TODO: These errors provide no context (byte offset).
 #[derive(Debug, PartialEq)]
 pub enum XmloError {
-    /// XML parsing error.
+    /// XML parsing error (legacy, quick-xml).
     XmlError(XmlError),
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
@@ -171,6 +189,8 @@ pub enum XmloError {
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
     MissingFragmentText(SymbolId),
+    /// Token stream ended unexpectedly.
+    UnexpectedEof,
 }
 
 impl From<InnerXmlError> for XmloError {
@@ -182,42 +202,43 @@ impl From<InnerXmlError> for XmloError {
 impl Display for XmloError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            XmloError::XmlError(e) => e.fmt(fmt),
-            XmloError::UnexpectedRoot => {
+            Self::XmlError(e) => e.fmt(fmt),
+            Self::UnexpectedRoot => {
                 write!(fmt, "unexpected package root (is this a package?)")
             }
-            XmloError::UnassociatedSym => write!(
+            Self::UnassociatedSym => write!(
                 fmt,
                 "unassociated symbol table entry: preproc:sym/@name missing"
             ),
-            XmloError::InvalidType(ty) => {
+            Self::InvalidType(ty) => {
                 write!(fmt, "invalid preproc:sym/@type `{}`", ty)
             }
-            XmloError::InvalidDtype(dtype) => {
+            Self::InvalidDtype(dtype) => {
                 write!(fmt, "invalid preproc:sym/@dtype `{}`", dtype)
             }
-            XmloError::InvalidDim(dim) => {
+            Self::InvalidDim(dim) => {
                 write!(fmt, "invalid preproc:sym/@dim `{}`", dim)
             }
-            XmloError::InvalidMapFrom(msg) => {
+            Self::InvalidMapFrom(msg) => {
                 write!(fmt, "invalid preproc:sym[@type=\"map\"]: {}", msg)
             }
-            XmloError::UnassociatedSymDep => write!(
+            Self::UnassociatedSymDep => write!(
                 fmt,
                 "unassociated dependency list: preproc:sym-dep/@name missing"
             ),
-            XmloError::MalformedSymRef(msg) => {
+            Self::MalformedSymRef(msg) => {
                 write!(fmt, "malformed dependency ref: {}", msg)
             }
-            XmloError::UnassociatedFragment => write!(
+            Self::UnassociatedFragment => write!(
                 fmt,
                 "unassociated fragment: preproc:fragment/@id missing"
             ),
-            XmloError::MissingFragmentText(symname) => write!(
+            Self::MissingFragmentText(symname) => write!(
                 fmt,
                 "fragment found, but missing text for symbol `{}`",
                 symname,
             ),
+            Self::UnexpectedEof => write!(fmt, "unexpected EOF"),
         }
     }
 }
@@ -230,3 +251,7 @@ impl std::error::Error for XmloError {
         }
     }
 }
+
+#[cfg(feature = "wip-xmlo-xir-reader")]
+#[cfg(test)]
+mod test;

@@ -449,6 +449,7 @@ pub mod st {
         L_INTEGER: cid "integer",
         L_L: cid "l",
         L_LPARAM: cid "lparam",
+        L_LV: cid "lv",
         L_MAP: cid "map",
         L_MAP_EXEC: tid "map-exec",
         L_MAP_FROM: tid "map-from",

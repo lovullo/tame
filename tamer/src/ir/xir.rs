@@ -83,6 +83,23 @@ pub mod reader;
 pub mod tree;
 pub mod writer;
 
+/// An infallible [`Token`] stream.
+///
+/// If the token stream originates from an operation that could potentially
+///   fail and ought to be propagated,
+///     use [`TokenResultStream`].
+///
+/// The name "stream" in place of "iterator" is intended to convey that this
+///   type is expected to be processed in real-time as a stream,
+///     not read into memory.
+pub trait TokenStream = Iterator<Item = Token>;
+
+/// A [`Token`] stream that may encounter errors during parsing.
+///
+/// If the stream cannot fail,
+///   consider using [`TokenStream`].
+pub trait TokenResultStream = Iterator<Item = Result<Token, Error>>;
+
 /// A static symbol that can be safely converted into a [`QName`] without
 ///   any checks.
 ///

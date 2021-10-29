@@ -25,6 +25,8 @@ use crate::test::quick_xml::*;
 
 type Sut<B> = XmloReader<B>;
 
+// Tests marked with "DONE" have been migrated to `super::test`.
+
 macro_rules! xmlo_tests {
     ($(fn $fn:ident($sut:ident) $body:block)*) => {
         $(
@@ -53,6 +55,7 @@ xmlo_tests! {
         assert_eq!(Some(false), sut.reader.check_end);
     }
 
+    // DONE
     fn proxies_xml_failures(sut) {
         sut.reader.next_event =
             Some(Box::new(|_, _| Err(InnerXmlError::UnexpectedEof("test".into()))));
@@ -77,6 +80,7 @@ xmlo_tests! {
         }
     }
 
+    // DONE
     fn fails_on_invalid_root(sut) {
         // xmlo_tests macro sets this for us, so we need to clear it to
         // be able to perform the check

@@ -26,7 +26,7 @@
 //! ====================
 //! Iterators that can fail,
 //!   such as XIR's
-//!     [`TokenResultIterator`](crate::ir::xir::TokenResultIterator),
+//!     [`TokenResultStream`](crate::ir::xir::TokenResultStream),
 //!   can be confounding and difficult to work with because
 //!     [`Iterator::next`] wraps the [`Result`] within an [`Option`].
 //! Further,
@@ -58,8 +58,8 @@
 //!
 //! Put simply: we take an `Iterator<Item = Result<T, E>` and produce an
 //!   `Iterator<Item = T>`,
-//!     so that consumers of `T` needn't know or care that `T` we could fail
-//!     to produce a `T`.
+//!     so that consumers of `T` needn't know or care that we could fail to
+//!     produce a `T`.
 //!
 //! This iterator is constructed using either [`with_iter_while_ok`] or
 //!   [`into_iter_while_ok`],

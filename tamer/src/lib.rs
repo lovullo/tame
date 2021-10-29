@@ -33,6 +33,9 @@
 //   simply replace each alias reference with its definition,
 //   or possibly write a trait with a `Self` bound.
 #![feature(trait_alias)]
+// Can be replaced with `assert!(matches!(...))`,
+//   but at a loss of a better error message.
+#![feature(assert_matches)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 
