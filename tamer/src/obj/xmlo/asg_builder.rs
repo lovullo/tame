@@ -37,35 +37,6 @@
 //!   package paths;
 //!     it is wrapped in an [`Option`] so that [`take`](Option::take) can be
 //!       used to take ownership over the data.
-//!
-//! ```
-//! use tamer::global;
-//! use tamer::ir::asg::{DefaultAsg, IdentObject};
-//! use tamer::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
-//! use tamer::sym::GlobalSymbolIntern;
-//! use fxhash::FxBuildHasher;
-//! use std::io::BufReader;
-//!
-//! let src_xmlo: &[u8] = br#"<package>
-//!     <preproc:symtable>
-//!       <preproc:sym name="foo" type="cgen" src="dep/package" />
-//!     </preproc:symtable>
-//!     <preproc:fragments>
-//!     </preproc:fragments>
-//!   </package>"#;
-//!
-//! let xmlo = XmloReader::from(src_xmlo);
-//! let mut asg = DefaultAsg::<IdentObject>::new();
-//!
-//! let state = asg.import_xmlo(xmlo, AsgBuilderState::<FxBuildHasher, _>::new());
-//!
-//! // Use `state.found` to recursively load dependencies.
-//! let AsgBuilderState { found, .. } = state.expect("unexpected failure");
-//! assert_eq!(
-//!     vec![&"dep/package".intern()],
-//!     found.unwrap().iter().collect::<Vec<_>>(),
-//! );
-//! ```
 
 use super::reader::{XmloError, XmloEvent, XmloResult};
 use crate::ir::asg::{
