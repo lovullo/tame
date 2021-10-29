@@ -64,6 +64,7 @@ fn empty_node_without_prefix_or_attributes() {
         result.expect("parsing failed"),
         vec![
             Token::Open("empty-node".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
     );
@@ -86,6 +87,7 @@ fn does_not_resolve_xmlns() {
                 AttrValue::Escaped("noresolve".into()),
                 DUMMY_SPAN
             ),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
     );
@@ -108,6 +110,7 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
                 AttrValue::Escaped("noresolve".into()),
                 DUMMY_SPAN
             ),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
     );
@@ -146,6 +149,7 @@ fn multiple_attrs_ordered() {
             Token::AttrValue(AttrValue::Escaped("b".into()), DUMMY_SPAN),
             Token::AttrName(("b", "baz").unwrap_into(), DUMMY_SPAN),
             Token::AttrValue(AttrValue::Escaped("c".into()), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
     );
@@ -167,6 +171,7 @@ fn permits_duplicate_attrs() {
             Token::AttrValue(AttrValue::Escaped("a".into()), DUMMY_SPAN),
             Token::AttrName("attr".unwrap_into(), DUMMY_SPAN),
             Token::AttrValue(AttrValue::Escaped("b".into()), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
     );
@@ -182,7 +187,9 @@ fn child_node_self_closing() {
         result.expect("parsing failed"),
         vec![
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
         ],
@@ -199,9 +206,12 @@ fn sibling_nodes() {
         result.expect("parsing failed"),
         vec![
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
         ],
@@ -218,9 +228,11 @@ fn child_node_with_attrs() {
         result.expect("parsing failed"),
         vec![
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("foo".unwrap_into(), DUMMY_SPAN),
             Token::AttrValue(AttrValue::Escaped("bar".into()), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
         ],
@@ -237,6 +249,7 @@ fn child_text() {
         result.expect("parsing failed"),
         vec![
             Token::Open("text".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Text(Text::Escaped("foo bar".into()), DUMMY_SPAN),
             Token::Close(Some("text".unwrap_into()), DUMMY_SPAN),
         ],
@@ -253,8 +266,10 @@ fn mixed_child_content() {
         result.expect("parsing failed"),
         vec![
             Token::Open("text".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Text(Text::Escaped("foo".into()), DUMMY_SPAN),
             Token::Open("em".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Text(Text::Escaped("bar".into()), DUMMY_SPAN),
             Token::Close(Some("em".unwrap_into()), DUMMY_SPAN),
             Token::Close(Some("text".unwrap_into()), DUMMY_SPAN),
@@ -283,8 +298,10 @@ fn mixed_child_content_with_newlines() {
         vec![
             Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Text(Text::Escaped("\n  ".into()), DUMMY_SPAN),
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
@@ -303,6 +320,7 @@ fn child_cdata() {
         result.expect("parsing failed"),
         vec![
             Token::Open("cd".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             // Escaped by quick_xml.
             Token::Text(Text::Escaped("&lt;foo /&gt;".into()), DUMMY_SPAN),
             Token::Close(Some("cd".unwrap_into()), DUMMY_SPAN),
@@ -320,8 +338,10 @@ fn mixed_child_text_and_cdata() {
         result.expect("parsing failed"),
         vec![
             Token::Open("cd".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Text(Text::Escaped("foo".into()), DUMMY_SPAN),
             Token::Open("bar".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             // Escaped by quick_xml.
             Token::Text(Text::Escaped("&lt;baz/&gt;".into()), DUMMY_SPAN),
@@ -341,6 +361,7 @@ fn comment() {
         vec![
             Token::Comment(Text::Unescaped("root".into()), DUMMY_SPAN),
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Comment(Text::Unescaped("<child>".into()), DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
         ],
@@ -363,6 +384,7 @@ lines-->
         result.expect("parsing failed"),
         vec![
             Token::Open("mult".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Comment(
                 Text::Unescaped("comment\non multiple\nlines".into()),
                 DUMMY_SPAN
@@ -384,7 +406,9 @@ fn permits_mismatched_tags() {
         result.expect("parsing failed"),
         vec![
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
+            Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("mismatch".unwrap_into()), DUMMY_SPAN),
         ],

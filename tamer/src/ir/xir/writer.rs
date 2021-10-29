@@ -247,6 +247,9 @@ impl XmlWriter for Token {
                 Ok(S::AttrFragmentAdjacent)
             }
 
+            // AttrEnd is ignored by the writer (and is optional).
+            (Self::AttrEnd, x) => Ok(x),
+
             // Unescaped not yet supported, but you could use CData.
             (
                 Self::Text(Text::Escaped(text), _),
@@ -481,6 +484,17 @@ mod test {
         Ok(())
     }
 
+    // AttrEnd does not even need to be in a semantically valid position; we
+    // just ignore it entirely.
+    #[test]
+    fn ignores_attr_end() -> TestResult {
+        let result = Token::AttrEnd.write_new(WriterState::NodeOpen)?;
+        assert_eq!(result.0, b"");
+        assert_eq!(result.1, WriterState::NodeOpen);
+
+        Ok(())
+    }
+
     #[test]
     fn writes_escaped_text() -> TestResult {
         // Just to be sure it's not trying to escape when we say it
@@ -563,6 +577,7 @@ mod test {
             Token::Open(root, *S),
             Token::AttrName(("an", "attr").try_into()?, *S),
             Token::AttrValue(AttrValue::Escaped("value".intern()), *S),
+            Token::AttrEnd,
             Token::Text(Text::Escaped("text".intern()), *S),
             Token::Open(("c", "child").try_into()?, *S),
             Token::Whitespace(" ".try_into()?, *S),

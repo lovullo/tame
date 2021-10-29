@@ -549,6 +549,20 @@ pub enum Token {
     ///   components of generated attribute values.
     AttrValueFragment(AttrValue, Span),
 
+    /// A delimiter indicating that attribute processing has ended and the
+    ///   next token will be either a child node or [`Token::Close`].
+    ///
+    /// This allows for streaming attribute collection without any
+    ///   lookahead,
+    ///     which would otherwise require an iterator supporting a `peek`
+    ///     operation.
+    ///
+    /// This is mandatory for _readers_ to produce,
+    ///   but _writers must ignore it and not require it to be present_,
+    ///     allowing for the reduction of token counts for generated XIR in
+    ///     situations where we know that it will not be further parsed.
+    AttrEnd,
+
     /// Comment node.
     Comment(Text, Span),
 
