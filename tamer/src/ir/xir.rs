@@ -96,11 +96,13 @@ impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
 #[doc(hidden)]
 macro_rules! qname_const_inner {
     ($name:ident = :$local:ident) => {
-        const $name: QName = QName::st_cid_local(&$local);
+        const $name: crate::ir::xir::QName =
+            crate::ir::xir::QName::st_cid_local(&$local);
     };
 
     ($name:ident = $prefix:ident:$local:ident) => {
-        const $name: QName = QName::st_cid(&$prefix, &$local);
+        const $name: crate::ir::xir::QName =
+            crate::ir::xir::QName::st_cid(&$prefix, &$local);
     };
 }
 
