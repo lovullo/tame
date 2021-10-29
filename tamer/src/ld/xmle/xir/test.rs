@@ -252,7 +252,7 @@ fn test_writes_deps() -> TestResult {
 
     p_syms.enumerate().for_each(|(i, ele)| {
         let ident = &objs[i];
-        let attrs = ele.attrs();
+        let attrs = ele.attrs().unwrap();
 
         assert_eq!(
             attrs.find(QN_NAME).and_then(|a| a.value_atom()),
@@ -435,6 +435,7 @@ fn test_writes_map_froms() -> TestResult {
             from.as_element()
                 .unwrap()
                 .attrs()
+                .unwrap()
                 .find(QN_NAME)
                 .expect("expecting @name")
                 .value_atom()

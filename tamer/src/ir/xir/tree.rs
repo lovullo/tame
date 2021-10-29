@@ -307,7 +307,7 @@ impl Tree {
 pub struct Element {
     name: QName,
     /// Zero or more attributes.
-    attrs: AttrList,
+    attrs: Option<AttrList>,
     /// Zero or more child nodes.
     children: Vec<Tree>,
     /// Spans for opening and closing tags respectively.
@@ -329,8 +329,8 @@ impl Element {
 
     /// Attributes of this element.
     #[inline]
-    pub fn attrs(&self) -> &AttrList {
-        &self.attrs
+    pub fn attrs(&self) -> Option<&AttrList> {
+        self.attrs.as_ref()
     }
 
     /// Opens an element for incremental construction.
@@ -343,7 +343,7 @@ impl Element {
     fn open(name: QName, span: Span) -> Self {
         Self {
             name,
-            attrs: AttrList::new(),
+            attrs: None,
             children: vec![],
             span: (span, span), // We do not yet know where the span will end
         }
@@ -450,7 +450,7 @@ impl ElementStack {
     /// Push the provided [`Attr`] onto the attribute list of the inner
     ///   [`Element`].
     fn consume_attr(mut self, attr: Attr) -> Self {
-        self.element.attrs.push(attr);
+        self.element.attrs.get_or_insert_default().push(attr);
         self
     }
 

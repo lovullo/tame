@@ -36,6 +36,11 @@
 // Can be replaced with `assert!(matches!(...))`,
 //   but at a loss of a better error message.
 #![feature(assert_matches)]
+// Simplifies creating `Option` default values.
+// To remove this feature,
+//   this can be done more verbosely in the usual way,
+//   or we can write our own version.
+#![feature(option_get_or_insert_default)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 
