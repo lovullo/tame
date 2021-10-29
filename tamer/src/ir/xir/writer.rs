@@ -19,7 +19,7 @@
 
 //! Lower XIR stream into an XML byte stream via [`Write`].
 
-use super::{Error as XirError, QName, Token};
+use super::{Error as XirError, QName, Token, TokenStream};
 use crate::ir::xir::{AttrValue, Text};
 use crate::sym::GlobalSymbolResolve;
 use std::io::{Error as IoError, Write};
@@ -318,7 +318,7 @@ impl XmlWriter for Token {
     }
 }
 
-impl<I: Iterator<Item = Token>> XmlWriter for I {
+impl<I: TokenStream> XmlWriter for I {
     fn write<W: Write>(
         mut self,
         sink: &mut W,

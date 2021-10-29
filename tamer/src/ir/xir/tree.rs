@@ -191,7 +191,7 @@
 //! For more information,
 //!   see [`AttrParts`].
 
-use super::{AttrValue, QName, Text, Token, TokenResultStream};
+use super::{AttrValue, QName, Text, Token, TokenResultStream, TokenStream};
 use crate::span::Span;
 use std::{fmt::Display, mem::take};
 
@@ -849,7 +849,7 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
 /// let parser = parser_from(token_stream);
 /// ```
 pub fn parser_from(
-    toks: impl Iterator<Item = Token>,
+    toks: impl TokenStream,
 ) -> impl Iterator<Item = Result<Tree>> {
     toks.scan(ParserState::new(), parse)
         .filter_map(|parsed| match parsed {

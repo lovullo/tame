@@ -25,7 +25,7 @@
 //!   - [`elem_wrap`] wraps a token stream iterator as the body of an
 //!       element of the given name.
 
-use super::{QName, Token};
+use super::{QName, Token, TokenStream};
 use crate::span::Span;
 use std::iter::{once, Chain, Once};
 
@@ -42,7 +42,7 @@ use std::iter::{once, Chain, Once};
 pub fn elem_wrap<S, I>(name: QName, span: S, inner: I) -> ElemWrapIter<I>
 where
     S: Into<(Span, Span)>,
-    I: Iterator<Item = Token>,
+    I: TokenStream,
 {
     let twospan: (Span, Span) = span.into();
 
@@ -59,18 +59,18 @@ where
 ///   iterator.
 ///
 /// See [`elem_wrap`] to construct this iterator.
-pub struct ElemWrapIter<I: Iterator<Item = Token>>(
+pub struct ElemWrapIter<I: TokenStream>(
     Chain<Chain<Once<Token>, I>, Once<Token>>,
 );
 
-impl<I: Iterator<Item = Token>> ElemWrapIter<I> {
+impl<I: TokenStream> ElemWrapIter<I> {
     #[inline]
     fn new(open: Token, inner: I, close: Token) -> Self {
         Self(once(open).chain(inner).chain(once(close)))
     }
 }
 
-impl<I: Iterator<Item = Token>> Iterator for ElemWrapIter<I> {
+impl<I: TokenStream> Iterator for ElemWrapIter<I> {
     type Item = Token;
 
     #[inline]
