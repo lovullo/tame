@@ -72,6 +72,7 @@ use crate::sym::{
 };
 use memchr::memchr;
 use std::convert::{TryFrom, TryInto};
+use std::fmt::Display;
 use std::ops::Deref;
 
 mod error;
@@ -262,6 +263,18 @@ impl TryFrom<&str> for LocalPart {
     }
 }
 
+impl Display for Prefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Display for LocalPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// A sequence of one or more whitespace characters.
 ///
 /// Whitespace here is expected to consist of `[ \n\t\r]`
@@ -427,6 +440,15 @@ impl TryFrom<&[u8]> for QName {
             // There are no colons in the string, so the entire string is
             //   both a local part and a valid NCName.
             None => Ok(Self::new(None, NCName(name.intern_utf8()?).into())),
+        }
+    }
+}
+
+impl Display for QName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QName(Some(local), suffix) => write!(f, "{}:{}", local, suffix),
+            QName(None, suffix) => suffix.fmt(f),
         }
     }
 }
