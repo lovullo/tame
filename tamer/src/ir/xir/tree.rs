@@ -718,7 +718,9 @@ impl ParserState {
             Token::AttrValue(value, span) => stack.close_attr(value, span),
             Token::Text(value, span) => stack.text(value, span),
 
-            todo => Err(ParseError::Todo(todo, stack)),
+            Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {
+                Err(ParseError::Todo(tok, stack))
+            }
         }
         .map(|new_stack| self.store_or_emit(new_stack))
     }
