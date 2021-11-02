@@ -449,8 +449,8 @@ impl ElementStack {
 
     /// Push the provided [`Attr`] onto the attribute list of the inner
     ///   [`Element`].
-    fn consume_attr(mut self, attr: Attr) -> Self {
-        self.element.attrs.get_or_insert_default().push(attr);
+    fn consume_attrs(mut self, attr_list: AttrList) -> Self {
+        self.element.attrs.replace(attr_list);
         self
     }
 
@@ -494,13 +494,16 @@ pub enum Stack {
     /// This should be consumed and emitted.
     ClosedElement(Element),
 
+    /// An [`AttrList`] that is still under construction.
+    BuddingAttrList(Option<ElementStack>, AttrList),
+
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
-    AttrName(ElementStack, QName, Span),
+    AttrName(Option<ElementStack>, AttrList, QName, Span),
 
     /// An attribute whose value is being constructed of value fragments,
     ///   after which it will be attached to an element.
-    AttrFragments(ElementStack, AttrParts),
+    AttrFragments(Option<ElementStack>, AttrList, AttrParts),
 }
 
 impl Default for Stack {
@@ -553,6 +556,15 @@ impl Stack {
                 .try_close(name, span)
                 .map(ElementStack::consume_child_or_complete),
 
+            // We can implicitly complete the attribute list if there's a
+            //   missing `Token::AttrEnd`,
+            //     which alleviates us from having to unnecessarily generate
+            //     it outside of readers.
+            Self::BuddingAttrList(Some(stack), attr_list) => stack
+                .consume_attrs(attr_list)
+                .try_close(name, span)
+                .map(ElementStack::consume_child_or_complete),
+
             _ => todo! {},
         }
     }
@@ -564,8 +576,14 @@ impl Stack {
     ///   value via [`Stack::close_attr`].
     fn open_attr(self, name: QName, span: Span) -> Result<Self> {
         Ok(match self {
+            // Begin construction of an attribute list on a new element.
             Self::BuddingElement(ele_stack) => {
-                Self::AttrName(ele_stack, name, span)
+                Self::AttrName(Some(ele_stack), Default::default(), name, span)
+            }
+
+            // Continuation of attribute list.
+            Self::BuddingAttrList(ele_stack, attr_list) => {
+                Self::AttrName(ele_stack, attr_list, name, span)
             }
 
             _ => todo! {},
@@ -584,19 +602,19 @@ impl Stack {
     /// This will cause heap allocation.
     fn push_attr_value(self, value: AttrValue, span: Span) -> Result<Self> {
         Ok(match self {
-            Self::AttrName(ele_stack, name, open_span) => {
+            Self::AttrName(ele_stack, attr_list, name, open_span) => {
                 // This initial capacity can be adjusted after we observe
                 // empirically what we most often parse, or we can make it
                 // configurable.
                 let mut parts = AttrParts::with_capacity(name, open_span, 2);
 
                 parts.push_value(value, span);
-                Self::AttrFragments(ele_stack, parts)
+                Self::AttrFragments(ele_stack, attr_list, parts)
             }
 
-            Self::AttrFragments(ele_stack, mut parts) => {
+            Self::AttrFragments(ele_stack, attr_list, mut parts) => {
                 parts.push_value(value, span);
-                Self::AttrFragments(ele_stack, parts)
+                Self::AttrFragments(ele_stack, attr_list, parts)
             }
 
             _ => todo! {},
@@ -611,21 +629,38 @@ impl Stack {
     ///   [`Attr::Extensible`] with no further processing.
     fn close_attr(self, value: AttrValue, span: Span) -> Result<Self> {
         Ok(match self {
-            Self::AttrName(ele_stack, name, open_span) => {
-                Stack::BuddingElement(ele_stack.consume_attr(Attr::new(
-                    name,
-                    value,
-                    (open_span, span),
-                )))
+            Self::AttrName(ele_stack, attr_list, name, open_span) => {
+                Self::BuddingAttrList(
+                    ele_stack,
+                    attr_list.push(Attr::new(name, value, (open_span, span))),
+                )
             }
-            Self::AttrFragments(ele_stack, mut parts) => {
+            Self::AttrFragments(ele_stack, attr_list, mut parts) => {
                 parts.push_value(value, span);
 
-                Stack::BuddingElement(
-                    ele_stack.consume_attr(Attr::Extensible(parts)),
+                Stack::BuddingAttrList(
+                    ele_stack,
+                    attr_list.push(Attr::Extensible(parts)),
                 )
             }
             _ => todo! {},
+        })
+    }
+
+    /// End attribute parsing.
+    ///
+    /// If parsing occurs within an element context,
+    ///   the accumulated [`AttrList`] will be attached to the budding
+    ///   [`Element`].
+    fn end_attrs(self) -> Result<Self> {
+        Ok(match self {
+            Self::BuddingAttrList(None, _attr_list) => todo!("completed attrs"),
+
+            Self::BuddingAttrList(Some(ele_stack), attr_list) => {
+                Self::BuddingElement(ele_stack.consume_attrs(attr_list))
+            }
+
+            _ => todo!("attr error"),
         })
     }
 
@@ -716,6 +751,7 @@ impl ParserState {
                 stack.push_attr_value(value, span)
             }
             Token::AttrValue(value, span) => stack.close_attr(value, span),
+            Token::AttrEnd => stack.end_attrs(),
             Token::Text(value, span) => stack.text(value, span),
 
             Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {

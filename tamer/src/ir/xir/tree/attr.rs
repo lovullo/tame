@@ -267,8 +267,9 @@ impl AttrList {
     }
 
     /// Add an attribute to the end of the attribute list.
-    pub fn push(&mut self, attr: Attr) {
-        self.attrs.push(attr)
+    pub fn push(mut self, attr: Attr) -> Self {
+        self.attrs.push(attr);
+        self
     }
 
     /// Search for an attribute of the given `name`.
