@@ -283,6 +283,11 @@ impl AttrList {
     pub fn find(&self, name: QName) -> Option<&Attr> {
         self.attrs.iter().find(|attr| attr.name() == name)
     }
+
+    /// Returns [`true`] if the list contains no attributes.
+    pub fn is_empty(&self) -> bool {
+        self.attrs.is_empty()
+    }
 }
 
 impl From<Vec<Attr>> for AttrList {

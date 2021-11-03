@@ -102,10 +102,7 @@ fn empty_element_self_close_from_toks() {
     let mut sut = toks.scan(ParserState::new(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Parsed::Object(Tree::Element(expected))))
-    );
+    assert_eq!(sut.next(), Some(Ok(Parsed::Tree(Tree::Element(expected)))));
     assert_eq!(sut.next(), None);
 }
 
@@ -128,10 +125,7 @@ fn empty_element_balanced_close_from_toks() {
     let mut sut = toks.scan(ParserState::new(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Parsed::Object(Tree::Element(expected))))
-    );
+    assert_eq!(sut.next(), Some(Ok(Parsed::Tree(Tree::Element(expected)))));
     assert_eq!(sut.next(), None);
 }
 
@@ -209,10 +203,53 @@ fn empty_element_with_attrs_from_toks() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValueFragment
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValueFragment
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValue
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Parsed::Object(Tree::Element(expected))))
-    );
+    assert_eq!(sut.next(), Some(Ok(Parsed::Tree(Tree::Element(expected)))));
+    assert_eq!(sut.next(), None);
+}
+
+// We should accommodate missing AttrEnd in an element context so that we
+//   can parse generated XIR without having to emit AttrEnd if we know it
+//   will not be necessary.
+// I may come to regret that accommodation after we have to go back and add
+//   AttrEnd to systems that weren't providing it.
+#[test]
+fn child_element_after_attrs() {
+    let name = ("ns", "elem").unwrap_into();
+    let child = "child".unwrap_into();
+    let attr = "a".unwrap_into();
+    let val = AttrValue::Escaped("val".intern());
+
+    let toks = [
+        Token::Open(name, *S),
+        Token::AttrName(attr, *S),
+        Token::AttrValue(val, *S2),
+        // No AttrEnd
+        Token::Open(child, *S),
+        Token::Close(None, *S2),
+        Token::Close(Some(name), *S3),
+    ]
+    .into_iter();
+
+    let expected = Element {
+        name,
+        attrs: Some(AttrList::from(vec![Attr::new(attr, val, (*S, *S2))])),
+        children: vec![Tree::Element(Element {
+            name: child,
+            attrs: None,
+            children: vec![],
+            span: (*S, *S2),
+        })],
+        span: (*S, *S3),
+    };
+
+    let mut sut = toks.scan(ParserState::new(), parse);
+
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValue
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Close
+    assert_eq!(sut.next(), Some(Ok(Parsed::Tree(Tree::Element(expected)))));
     assert_eq!(sut.next(), None);
 }
 
@@ -347,4 +384,79 @@ fn parser_from_filters_incomplete() {
     // object.
     assert_eq!(sut.next(), Some(Ok(Tree::Element(expected))));
     assert_eq!(sut.next(), None);
+}
+
+#[test]
+fn parse_attrs_fails_if_first_token_is_non_attr() {
+    let tok = Token::Open("foo".unwrap_into(), *S);
+    let mut toks = [tok.clone()].into_iter();
+
+    assert_eq!(
+        Err(ParseError::AttrNameExpected(tok)),
+        parse_attrs(&mut toks, AttrList::new()),
+    );
+
+    // The token should have been consumed, not copied.
+    assert_eq!(0, toks.len());
+}
+
+// Since the purpose of this function is to parse the complete attribute
+// list, it must fail if it does not encounter `AttrEnd`.
+#[test]
+fn parse_attrs_fails_if_end_before_attr_end() {
+    let mut toks = [
+        Token::AttrName("foo".unwrap_into(), *S),
+        Token::AttrValue(AttrValue::Escaped("bar".into()), *S),
+        // No Token::AttrEnd
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::UnexpectedAttrEof),
+        parse_attrs(&mut toks, AttrList::new()),
+    );
+}
+
+#[test]
+fn parse_attrs_fails_if_missing_attr_end() {
+    // Let's also ensure we fail if some other token is available in place
+    // of Token::AttrEnd.
+    let mut toks = [
+        Token::AttrName("foo".unwrap_into(), *S),
+        Token::AttrValue(AttrValue::Escaped("bar".into()), *S2),
+        // No Token::AttrEnd
+        Token::Close(None, *S3),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::MissingIsolatedAttrEnd(*S3)),
+        parse_attrs(&mut toks, AttrList::new()),
+    );
+}
+
+#[test]
+fn parse_attrs_isolated() {
+    let attr1 = "one".unwrap_into();
+    let attr2 = "two".unwrap_into();
+    let val1 = AttrValue::Escaped("val1".into());
+    let val2 = AttrValue::Escaped("val2".into());
+
+    // Let's also ensure we fail if some other token is available in place
+    // of Token::AttrEnd.
+    let mut toks = [
+        Token::AttrName(attr1, *S),
+        Token::AttrValue(val1, *S2),
+        Token::AttrName(attr2, *S2),
+        Token::AttrValue(val2, *S3),
+        Token::AttrEnd,
+    ]
+    .into_iter();
+
+    let expected = AttrList::from([
+        Attr::new(attr1, val1, (*S, *S2)),
+        Attr::new(attr2, val2, (*S2, *S3)),
+    ]);
+
+    assert_eq!(expected, parse_attrs(&mut toks, AttrList::new()).unwrap());
 }

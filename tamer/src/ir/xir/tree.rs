@@ -47,7 +47,7 @@
 //! They have slightly different use cases and tradeoffs:
 //!
 //! [`parse`] yields a [`Result`] containing [`Parsed`],
-//!   which _may_ contain a [`Parsed::Object`],
+//!   which _may_ contain a [`Parsed::Tree`],
 //!   but it's more likely to contain [`Parsed::Incomplete`];
 //!     this is because it typically takes multiple [`Token`]s to complete
 //!     parsing within a given context.
@@ -70,7 +70,7 @@
 //!     which does two things:
 //!
 //!   1. It filters out all [`Parsed::Incomplete`]; and
-//!   2. On [`Parsed::Object`],
+//!   2. On [`Parsed::Tree`],
 //!        it yields the inner [`Tree`].
 //!
 //! This is a much more convenient API,
@@ -504,6 +504,9 @@ pub enum Stack {
     /// An attribute whose value is being constructed of value fragments,
     ///   after which it will be attached to an element.
     AttrFragments(Option<ElementStack>, AttrList, AttrParts),
+
+    /// A completed [`AttrList`] without any [`Element`] context.
+    IsolatedAttrList(AttrList),
 }
 
 impl Default for Stack {
@@ -530,10 +533,25 @@ impl Stack {
         Ok(Self::BuddingElement(ElementStack {
             element,
             pstack: match self {
-                // Opening a root element (or lack of context)
+                // Opening a root element (or lack of context).
                 Self::Empty => Ok(None),
-                // Open a child element
+
+                // Open a child element.
                 Self::BuddingElement(pstack) => Ok(Some(pstack.store())),
+
+                // Opening a child element in attribute parsing context.
+                // Automatically close the attributes despite a missing
+                //   AttrEnd to accommodate non-reader XIR.
+                Self::BuddingAttrList(Some(pstack), attr_list) => {
+                    Ok(Some(pstack.consume_attrs(attr_list).store()))
+                }
+
+                // Attempting to open a child element in an isolated
+                //   attribute parsing context means that `AttrEnd` was not
+                //   provided.
+                Self::BuddingAttrList(None, ..) => {
+                    Err(ParseError::AttrNameExpected(Token::Open(name, span)))
+                }
 
                 _ => todo! {},
             }?,
@@ -564,6 +582,11 @@ impl Stack {
                 .consume_attrs(attr_list)
                 .try_close(name, span)
                 .map(ElementStack::consume_child_or_complete),
+
+            // See the error variant description for more information.
+            Self::BuddingAttrList(None, ..) => {
+                Err(ParseError::MissingIsolatedAttrEnd(span))
+            }
 
             _ => todo! {},
         }
@@ -654,7 +677,9 @@ impl Stack {
     ///   [`Element`].
     fn end_attrs(self) -> Result<Self> {
         Ok(match self {
-            Self::BuddingAttrList(None, _attr_list) => todo!("completed attrs"),
+            Self::BuddingAttrList(None, attr_list) => {
+                Self::IsolatedAttrList(attr_list)
+            }
 
             Self::BuddingAttrList(Some(ele_stack), attr_list) => {
                 Self::BuddingElement(ele_stack.consume_attrs(attr_list))
@@ -723,6 +748,11 @@ impl ParserState {
         }
     }
 
+    /// Initialize the state of the parser with the given [`Stack`].
+    fn with(stack: Stack) -> Self {
+        Self { stack }
+    }
+
     /// Consume a single XIR [`Token`] and attempt to parse it within the
     ///   context of the current [`Stack`].
     ///
@@ -764,7 +794,8 @@ impl ParserState {
     /// Emit a completed object or store the current stack for further processing.
     fn store_or_emit(&mut self, new_stack: Stack) -> Parsed {
         match new_stack {
-            Stack::ClosedElement(ele) => Parsed::Object(Tree::Element(ele)),
+            Stack::ClosedElement(ele) => Parsed::Tree(Tree::Element(ele)),
+            Stack::IsolatedAttrList(attr_list) => Parsed::AttrList(attr_list),
 
             _ => {
                 self.stack = new_stack;
@@ -787,10 +818,32 @@ pub enum ParseError {
         close: (QName, Span),
     },
 
+    /// [`Token::AttrEnd`] was expected in an isolated attribute context,
+    ///   but [`Token::Close`] was encountered instead.
+    ///
+    /// This means that we encountered an element close while parsing
+    ///   attributes in an isolated context,
+    ///     which may happen if we're parsing only attributes as part
+    ///     of a larger XIR stream.
+    /// This should never happen if our XIR is well-formed _from a reader_,
+    ///     but could happen if we generate XIR that we are not expecting to
+    ///     subsequently parse.
+    ///
+    /// There is nothing the user can do to correct it;
+    ///   this represents a bug in the compiler.
+    MissingIsolatedAttrEnd(Span),
+
+    /// An attribute was expected as the next [`Token`].
+    AttrNameExpected(Token),
+
+    /// Token stream ended before attribute parsing was complete.
+    UnexpectedAttrEof,
+
     /// Not yet implemented.
     Todo(Token, Stack),
 }
 
+// TODO: Token needs to implement Display!
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -803,6 +856,33 @@ impl Display for ParseError {
                     f,
                     "expected closing tag `{:?}`, found `{:?}`",
                     open_name, close_name,
+                )
+            }
+
+            Self::MissingIsolatedAttrEnd(span) => {
+                // Try to be helpful to developers and users alike.
+                #[cfg(test)]
+                let testmsg = "or a problem with your test case";
+                #[cfg(not(test))]
+                let testmsg = "and should be reported";
+
+                write!(
+                    f,
+                    "internal error: expecting AttrEnd, found Close at {}; \
+                       this represents a compiler bug {}",
+                    span, testmsg
+                )
+            }
+
+            Self::AttrNameExpected(tok) => {
+                write!(f, "attribute name expected, found `{:?}`", tok)
+            }
+
+            // TODO: Perhaps we should include the last-encountered Span.
+            Self::UnexpectedAttrEof => {
+                write!(
+                    f,
+                    "unexpected end of input during isolated attribute parsing",
                 )
             }
 
@@ -830,7 +910,10 @@ impl Display for ParseError {
 #[derive(Debug, Eq, PartialEq)]
 pub enum Parsed {
     /// Parsing of an object is complete.
-    Object(Tree),
+    Tree(Tree),
+
+    /// Parsing of an isolated attribute list is complete.
+    AttrList(AttrList),
 
     /// The parser needs more token data to emit an object
     ///   (the active context is not yet complete).
@@ -868,7 +951,7 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
 /// Unlike [`parse`],
 ///   which is intended for use with [`Iterator::scan`],
 ///   this will yield /only/ when the underlying parser yields
-///   [`Parsed::Object`],
+///   [`Parsed::Tree`],
 ///     unwrapping the inner [`Tree`] value.
 /// This interface is far more convenient,
 ///   but comes at the cost of not knowing how many parsing steps a single
@@ -891,10 +974,52 @@ pub fn parser_from(
 ) -> impl Iterator<Item = Result<Tree>> {
     toks.scan(ParserState::new(), parse)
         .filter_map(|parsed| match parsed {
-            Ok(Parsed::Object(tree)) => Some(Ok(tree)),
+            Ok(Parsed::Tree(tree)) => Some(Ok(tree)),
             Ok(Parsed::Incomplete) => None,
             Err(x) => Some(Err(x)),
+
+            // These make no sense in this context and should never occur.
+            Ok(Parsed::AttrList(x)) => unreachable!(
+                "unexpected yield by XIRT (Tree expected): {:?}",
+                x
+            ),
         })
+}
+
+/// Begin parsing in an isolated attribute context,
+///   producing an [`AttrList`] that is detached from any [`Element`].
+///
+/// This is useful when you wish to consume a XIR stream and collect only
+///   the attributes of an element.
+/// If you wish to process an entire element,
+///   use [`parser_from`] instead.
+///
+/// Parsing must begin at a [`Token::AttrName`] token.
+///
+/// This will consume tokens until reaching [`Token::AttrEnd`],
+///   and so it is important that the XIR stream contain this delimiter;
+///     this should be the case with all readers.
+#[inline]
+pub fn parse_attrs<'a>(
+    toks: &mut impl TokenStream,
+    dest: AttrList,
+) -> Result<AttrList> {
+    let mut state = ParserState::with(Stack::BuddingAttrList(None, dest));
+
+    loop {
+        match toks.next().and_then(|tok| parse(&mut state, tok)) {
+            None => return Err(ParseError::UnexpectedAttrEof),
+            Some(Err(err)) => return Err(err),
+            Some(Ok(Parsed::Incomplete)) => continue,
+            Some(Ok(Parsed::AttrList(attr_list))) => return Ok(attr_list),
+
+            // These make no sense in this context and should never occur.
+            Some(Ok(Parsed::Tree(x))) => unreachable!(
+                "unexpected yield by XIRT (AttrList expected): {:?}",
+                x
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
