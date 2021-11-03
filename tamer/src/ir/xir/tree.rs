@@ -843,19 +843,19 @@ pub enum ParseError {
     Todo(Token, Stack),
 }
 
-// TODO: Token needs to implement Display!
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // TODO: not a useful error because of symbols and missing span information
             Self::UnbalancedTag {
-                open: (open_name, _),
-                close: (close_name, _),
+                open: (open_name, open_span),
+                close: (close_name, close_span),
             } => {
                 write!(
                     f,
-                    "expected closing tag `{:?}`, found `{:?}`",
-                    open_name, close_name,
+                    "expected closing tag `{}`, but found `{}` at {} \
+                     (opening tag at {})",
+                    open_name, close_name, close_span, open_span
                 )
             }
 
@@ -875,7 +875,7 @@ impl Display for ParseError {
             }
 
             Self::AttrNameExpected(tok) => {
-                write!(f, "attribute name expected, found `{:?}`", tok)
+                write!(f, "attribute name expected, found `{}`", tok)
             }
 
             // TODO: Perhaps we should include the last-encountered Span.

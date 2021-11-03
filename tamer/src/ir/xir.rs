@@ -313,6 +313,12 @@ impl From<Whitespace> for Text {
     }
 }
 
+impl Display for Whitespace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// A qualified name (namespace prefix and local name).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QName(Option<Prefix>, LocalPart);
@@ -518,6 +524,15 @@ impl AttrValue {
     }
 }
 
+impl Display for AttrValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Escaped(value) => value.fmt(f),
+            _ => todo!("AttrValue::Unescaped fmt"),
+        }
+    }
+}
+
 /// Lightly-structured XML tokens with associated [`Span`]s.
 ///
 /// This is a streamable IR for XML.
@@ -608,6 +623,39 @@ pub enum Token {
     ///   but intended for use where only whitespace is allowed,
     ///     such as alignment of attributes.
     Whitespace(Whitespace, Span),
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Open(qname, span) => write!(f, "`<{}>` at {}", qname, span),
+            Self::Close(Some(qname), span) => {
+                write!(f, "`</{}>` at {}", qname, span)
+            }
+            // Its context is contained within the Open,
+            //   and hopefully any user-visible errors will display that instead.
+            Self::Close(None, span) => {
+                write!(f, "self-closing tag at {}", span)
+            }
+            Self::AttrName(qname, span) => {
+                write!(f, "`@{}` at {}", qname, span)
+            }
+            Self::AttrValue(attr_val, span) => {
+                write!(f, "attribute value `{}` at {}", attr_val, span)
+            }
+            Self::AttrValueFragment(attr_val, span) => {
+                write!(f, "attribute value fragment `{}` at {}", attr_val, span)
+            }
+            Self::AttrEnd => write!(f, "end of attributes"),
+            // TODO: Safe truncated comment.
+            Self::Comment(_, span) => write!(f, "comment at {}", span),
+            // TODO: Safe truncated text.
+            Self::Text(_, span) => write!(f, "text at {}", span),
+            // TODO: Safe truncated CDATA.
+            Self::CData(_, span) => write!(f, "CDATA at {}", span),
+            Self::Whitespace(ws, span) => write!(f, "`{}` at {}", ws, span),
+        }
+    }
 }
 
 #[cfg(test)]
