@@ -875,7 +875,7 @@ impl Display for ParseError {
             }
 
             Self::AttrNameExpected(tok) => {
-                write!(f, "attribute name expected, found `{}`", tok)
+                write!(f, "attribute name expected, found {}", tok)
             }
 
             // TODO: Perhaps we should include the last-encountered Span.
