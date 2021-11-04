@@ -22,7 +22,9 @@ use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
 use std::fmt::Display;
 
-#[cfg(not(feature = "wip-xmlo-xir-reader"))]
+// While the _use_ is gated, this isn't, to ensure that we still try to
+// compile it while the flag is off (and so it's parsed by the language
+// server).
 mod quickxml;
 
 #[cfg(not(feature = "wip-xmlo-xir-reader"))]
