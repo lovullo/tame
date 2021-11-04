@@ -81,6 +81,9 @@
 //!         and the [`Iterator`] produced by [`parser_from`] will cause the
 //!         system to process [`Iterator::next`] for that entire duration.
 //!
+//! See also [`attr_parser_from`] and [`parse_attrs`] for parsing only
+//!   attributes partway through a token stream.
+//!
 //! Cost of Parsing
 //! ===============
 //! While [`Tree`] is often much easier to work with than a stream of
@@ -483,6 +486,13 @@ pub enum Stack {
     /// Empty stack.
     Empty,
 
+    /// Empty stack expected to parse isolated, individual attributes.
+    ///
+    /// The purpose of this over `Empty` is to ensure that the parser is
+    ///   able to properly fail on invalid XIR input when the caller is not
+    ///   trying to parse individual attributes.
+    IsolatedAttrEmpty,
+
     /// An [`Element`] that is still under construction.
     ///
     /// (This is a tree IR,
@@ -499,14 +509,26 @@ pub enum Stack {
 
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
-    AttrName(Option<ElementStack>, AttrList, QName, Span),
+    AttrName(Option<(Option<ElementStack>, AttrList)>, QName, Span),
 
     /// An attribute whose value is being constructed of value fragments,
     ///   after which it will be attached to an element.
-    AttrFragments(Option<ElementStack>, AttrList, AttrParts),
+    AttrFragments(Option<(Option<ElementStack>, AttrList)>, AttrParts),
 
     /// A completed [`AttrList`] without any [`Element`] context.
     IsolatedAttrList(AttrList),
+
+    /// A completed [`Attr`] without any [`AttrList`] context.
+    IsolatedAttr(Attr),
+
+    /// Parsing has completed relative to the initial context.
+    ///
+    /// This is the final accepting state of the state machine.
+    /// The parser will not operate while in this state,
+    ///   which must be explicitly acknowledged and cleared in order to
+    ///   indicate that additional tokens are expected and are not in
+    ///   error.
+    Done,
 }
 
 impl Default for Stack {
@@ -548,8 +570,9 @@ impl Stack {
 
                 // Attempting to open a child element in an isolated
                 //   attribute parsing context means that `AttrEnd` was not
-                //   provided.
-                Self::BuddingAttrList(None, ..) => {
+                //   provided
+                //     (or that we're not parsing in the correct context).
+                Self::BuddingAttrList(None, ..) | Self::IsolatedAttrEmpty => {
                     Err(ParseError::AttrNameExpected(Token::Open(name, span)))
                 }
 
@@ -600,16 +623,21 @@ impl Stack {
     fn open_attr(self, name: QName, span: Span) -> Result<Self> {
         Ok(match self {
             // Begin construction of an attribute list on a new element.
-            Self::BuddingElement(ele_stack) => {
-                Self::AttrName(Some(ele_stack), Default::default(), name, span)
-            }
+            Self::BuddingElement(ele_stack) => Self::AttrName(
+                Some((Some(ele_stack), Default::default())),
+                name,
+                span,
+            ),
 
             // Continuation of attribute list.
             Self::BuddingAttrList(ele_stack, attr_list) => {
-                Self::AttrName(ele_stack, attr_list, name, span)
+                Self::AttrName(Some((ele_stack, attr_list)), name, span)
             }
 
-            _ => todo! {},
+            // Isolated single attribute.
+            Self::IsolatedAttrEmpty => Self::AttrName(None, name, span),
+
+            _ => todo!("open_attr in state {:?}", self),
         })
     }
 
@@ -625,19 +653,19 @@ impl Stack {
     /// This will cause heap allocation.
     fn push_attr_value(self, value: AttrValue, span: Span) -> Result<Self> {
         Ok(match self {
-            Self::AttrName(ele_stack, attr_list, name, open_span) => {
+            Self::AttrName(head, name, open_span) => {
                 // This initial capacity can be adjusted after we observe
                 // empirically what we most often parse, or we can make it
                 // configurable.
                 let mut parts = AttrParts::with_capacity(name, open_span, 2);
 
                 parts.push_value(value, span);
-                Self::AttrFragments(ele_stack, attr_list, parts)
+                Self::AttrFragments(head, parts)
             }
 
-            Self::AttrFragments(ele_stack, attr_list, mut parts) => {
+            Self::AttrFragments(head, mut parts) => {
                 parts.push_value(value, span);
-                Self::AttrFragments(ele_stack, attr_list, parts)
+                Self::AttrFragments(head, parts)
             }
 
             _ => todo! {},
@@ -652,13 +680,14 @@ impl Stack {
     ///   [`Attr::Extensible`] with no further processing.
     fn close_attr(self, value: AttrValue, span: Span) -> Result<Self> {
         Ok(match self {
-            Self::AttrName(ele_stack, attr_list, name, open_span) => {
+            Self::AttrName(Some((ele_stack, attr_list)), name, open_span) => {
                 Self::BuddingAttrList(
                     ele_stack,
                     attr_list.push(Attr::new(name, value, (open_span, span))),
                 )
             }
-            Self::AttrFragments(ele_stack, attr_list, mut parts) => {
+
+            Self::AttrFragments(Some((ele_stack, attr_list)), mut parts) => {
                 parts.push_value(value, span);
 
                 Stack::BuddingAttrList(
@@ -666,6 +695,12 @@ impl Stack {
                     attr_list.push(Attr::Extensible(parts)),
                 )
             }
+
+            // Isolated single attribute.
+            Self::AttrName(None, name, open_span) => {
+                Stack::IsolatedAttr(Attr::new(name, value, (open_span, span)))
+            }
+
             _ => todo! {},
         })
     }
@@ -684,6 +719,8 @@ impl Stack {
             Self::BuddingAttrList(Some(ele_stack), attr_list) => {
                 Self::BuddingElement(ele_stack.consume_attrs(attr_list))
             }
+
+            Self::IsolatedAttrEmpty => Self::Done,
 
             _ => todo!("attr error"),
         })
@@ -796,6 +833,11 @@ impl ParserState {
         match new_stack {
             Stack::ClosedElement(ele) => Parsed::Tree(Tree::Element(ele)),
             Stack::IsolatedAttrList(attr_list) => Parsed::AttrList(attr_list),
+
+            Stack::IsolatedAttr(attr) => {
+                self.stack = Stack::IsolatedAttrEmpty;
+                Parsed::Attr(attr)
+            }
 
             _ => {
                 self.stack = new_stack;
@@ -910,14 +952,37 @@ impl Display for ParseError {
 #[derive(Debug, Eq, PartialEq)]
 pub enum Parsed {
     /// Parsing of an object is complete.
+    ///
+    /// See [`parser_from`].
     Tree(Tree),
 
     /// Parsing of an isolated attribute list is complete.
+    ///
+    /// See [`parse_attrs`].
     AttrList(AttrList),
+
+    /// Parsing of a single isolated attribute is complete.
+    ///
+    /// See [`attr_parser_from`].
+    Attr(Attr),
 
     /// The parser needs more token data to emit an object
     ///   (the active context is not yet complete).
     Incomplete,
+
+    /// All parsing has completed successfully relative to the original
+    ///   context.
+    ///
+    /// This does not necessarily mean that the XIR token stream has ended,
+    ///   because parsing may have started for a portion of it.
+    /// However,
+    ///   if parsing began at the root node for the XIR stream,
+    ///     then this _does_ indicate the end of the XML document.
+    ///
+    /// To continue using this parser after it has reached this state,
+    ///   it must be explicitly reset to indicate that further parsing is
+    ///   expected and not an error.
+    Done,
 }
 
 /// Wrap [`ParserState::parse_token`] result in [`Some`],
@@ -945,7 +1010,7 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
     Some(ParserState::parse_token(state, tok))
 }
 
-/// Produce a lazy parser from a given [`Token`] iterator,
+/// Produce a lazy parser from a given [`TokenStream`],
 ///   yielding only when an object has been fully parsed.
 ///
 /// Unlike [`parse`],
@@ -978,8 +1043,10 @@ pub fn parser_from(
             Ok(Parsed::Incomplete) => None,
             Err(x) => Some(Err(x)),
 
+            Ok(Parsed::Done) => todo!("parser_from Parsed::Done"),
+
             // These make no sense in this context and should never occur.
-            Ok(Parsed::AttrList(x)) => unreachable!(
+            Ok(x @ (Parsed::AttrList(_) | Parsed::Attr(_))) => unreachable!(
                 "unexpected yield by XIRT (Tree expected): {:?}",
                 x
             ),
@@ -1013,13 +1080,46 @@ pub fn parse_attrs<'a>(
             Some(Ok(Parsed::Incomplete)) => continue,
             Some(Ok(Parsed::AttrList(attr_list))) => return Ok(attr_list),
 
+            Some(Ok(Parsed::Done)) => todo!("parse_attrs Parsed::Done"),
+
             // These make no sense in this context and should never occur.
-            Some(Ok(Parsed::Tree(x))) => unreachable!(
+            Some(Ok(x @ (Parsed::Tree(_) | Parsed::Attr(_)))) => unreachable!(
                 "unexpected yield by XIRT (AttrList expected): {:?}",
                 x
             ),
         }
     }
+}
+
+/// Produce a lazy attribute parser from a given [`TokenStream`],
+///   yielding only when an attribute has been fully parsed.
+///
+/// This is a specialized parser that begins parsing partway through a XIR
+///   token stream.
+/// To parse an entire stream as a tree,
+///   see [`parser_from`].
+///
+/// For more information on contexts,
+///   and the parser in general,
+///   see the [module-level documentation](self).
+pub fn attr_parser_from(
+    toks: impl TokenStream,
+) -> impl Iterator<Item = Result<Attr>> {
+    toks.scan(ParserState::with(Stack::IsolatedAttrEmpty), parse)
+        .filter_map(|parsed| match parsed {
+            Ok(Parsed::Attr(attr)) => Some(Ok(attr)),
+            Ok(Parsed::Incomplete) => None,
+            Err(err) => Some(Err(err)),
+
+            // AttrEnd must have been encountered.
+            Ok(Parsed::Done) => None,
+
+            // These make no sense in this context and should never occur.
+            Ok(x @ (Parsed::Tree(_) | Parsed::AttrList(_))) => unreachable!(
+                "unexpected yield by XIRT (Attr expected): {:?}",
+                x
+            ),
+        })
 }
 
 #[cfg(test)]
