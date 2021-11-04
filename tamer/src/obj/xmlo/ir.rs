@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Legacy IR faithful to the XSLT-based compiler.
+//! `xmlo` IR faithful to the XSLT-based compiler.
 //!
 //! This represents the intermediate format (IR) used by the `xmlo` files
 //!   (see [`crate::obj::xmlo`]) originally produced by the XSLT-based

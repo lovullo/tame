@@ -75,9 +75,9 @@
 //! ```
 
 mod asg_builder;
-mod legacyir;
+mod ir;
 mod reader;
 
 pub use asg_builder::{AsgBuilder, AsgBuilderState};
-pub use legacyir::{PackageAttrs, SymAttrs, SymDtype, SymType};
+pub use ir::{PackageAttrs, SymAttrs, SymDtype, SymType};
 pub use reader::{XmloError, XmloEvent, XmloReader};
