@@ -19,7 +19,7 @@
 
 use super::super::{InnerXmlError, XmlError};
 use super::*;
-use crate::ir::legacyir::{SymDtype, SymType};
+use crate::obj::xmlo::{SymDtype, SymType};
 use crate::sym::GlobalSymbolIntern;
 use crate::test::quick_xml::*;
 

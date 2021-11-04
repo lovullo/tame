@@ -21,7 +21,6 @@ use super::*;
 use crate::convert::ExpectInto;
 use crate::ir::{
     asg::{Dim, IdentKind, Source},
-    legacyir::SymDtype,
     xir::{
         pred::{not, open},
         tree::{parser_from, Attr},
@@ -29,6 +28,7 @@ use crate::ir::{
 };
 use crate::ld::xmle::section::PushResult;
 use crate::ld::xmle::Sections;
+use crate::obj::xmlo::SymDtype;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 use std::collections::HashSet;
 

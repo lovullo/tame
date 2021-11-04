@@ -68,7 +68,8 @@
 //!        process;
 //!          they do not persist in memory.
 //!      Only the required portions of the file are loaded.
-//!      See the [Legacy IR](crate::ir::legacyir) for more information.
+//!      See [`XmloReader`](crate::obj::xmlo::XmloReader) for more
+//!        information.
 //!
 //!   2. This information is used to populate the [ASG].
 //!      Information is added to the graph as it is discovered during object

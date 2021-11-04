@@ -23,7 +23,7 @@
 //!  See [`super`] for available exports._
 
 use super::ident::IdentKind;
-use crate::ir::legacyir::SymAttrs;
+use crate::obj::xmlo::SymAttrs;
 use crate::sym::{GlobalSymbolResolve, SymbolId};
 use std::result::Result;
 

@@ -17,8 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Lower [Legacy IR](crate::ir::legacyir) derived from [`XmloEvent`]
-//!   into [`Asg`].
+//! Lower [`xmlo` IR](crate::obj::xmlo) into [`Asg`].
 //!
 //! [`AsgBuilder`] is exclusively responsible for this lowering operation
 //!   within the context of [`xmlo` object files](super).
@@ -141,7 +140,7 @@ where
     ///
     /// This is an IR lowering operation.
     /// The [`XmloResult`] produces data gleaned from
-    ///   [`legacyir`](crate::ir::legacyir),
+    ///   [`xmlo`](crate::obj::xmlo),
     ///     and this process lowers it into the IR [`asg`](crate::ir::asg).
     ///
     /// Each call to this method augments the provided [`AsgBuilderState`];
@@ -327,7 +326,7 @@ impl Error for AsgBuilderError {
 mod test {
     use super::*;
     use crate::ir::asg::{DefaultAsg, FragmentText, IdentObject};
-    use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
+    use crate::obj::xmlo::{PackageAttrs, SymAttrs, SymType};
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 

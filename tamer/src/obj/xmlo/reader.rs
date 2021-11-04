@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::ir::legacyir::{PackageAttrs, SymAttrs};
+use super::{PackageAttrs, SymAttrs};
 use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
 use std::fmt::Display;

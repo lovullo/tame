@@ -19,7 +19,7 @@
 
 //! Identifiers (a type of [object][super::object::IdentObject]).
 
-use crate::ir::legacyir::{SymAttrs, SymDtype, SymType};
+use crate::obj::xmlo::{SymAttrs, SymDtype, SymType};
 use crate::sym::{st, GlobalSymbolResolve, SymbolId};
 use std::convert::TryFrom;
 use std::error::Error;
@@ -29,7 +29,7 @@ use std::error::Error;
 /// Here, the term _calculation_ refers to a composable expression that
 ///   produces a numeric result.
 ///
-/// These are derived from [`legacyir::SymType`][crate::ir::legacyir::SymType]
+/// These are derived from [`SymType`][crate::obj::xmlo::SymType]
 ///   and will be generalized in the future.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IdentKind {

@@ -184,11 +184,9 @@ impl<Ix: IndexType> std::error::Error for SortError<Ix> {
 mod test {
     use super::*;
     use crate::{
-        ir::{
-            asg::{Dim, FragmentText, IdentObject, Source},
-            legacyir::SymDtype,
-        },
+        ir::asg::{Dim, FragmentText, IdentObject, Source},
         ld::xmle::{section::PushResult, Sections},
+        obj::xmlo::SymDtype,
         sym::GlobalSymbolIntern,
     };
 

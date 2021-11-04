@@ -262,7 +262,7 @@ impl std::fmt::Display for SectionsError {
 mod test {
     use super::*;
     use crate::ir::asg::{Dim, IdentKind, IdentObject, Source};
-    use crate::ir::legacyir::SymDtype;
+    use crate::obj::xmlo::SymDtype;
     use crate::sym::GlobalSymbolIntern;
 
     type Sut<'a> = Sections<'a>;

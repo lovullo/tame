@@ -38,9 +38,7 @@
 //! How To Use
 //! ==========
 //! The event-based API for [`XmloReader`] is similar to that of
-//!   [`quick_xml`],
-//!     except that the [`XmloResult`] produces
-//!     [Legacy IR](crate::ir::legacyir).
+//!   [`quick_xml`].
 //! There is minor overhead incurred from parsing if the emitted events are
 //!   not used,
 //!     but it is quite minimal.
@@ -49,8 +47,8 @@
 //! _You should stop reading at [`XmloEvent::Eoh`];_
 //!   reading the remainder of the object file has not yet been implemented.
 
+use super::super::{PackageAttrs, SymAttrs, SymType};
 use super::{XmloError, XmloEvent, XmloResult};
-use crate::ir::legacyir::{PackageAttrs, SymAttrs, SymType};
 use crate::sym::{GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId};
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
