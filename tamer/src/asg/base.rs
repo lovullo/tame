@@ -274,7 +274,7 @@ where
 mod test {
     use super::super::graph::AsgError;
     use super::*;
-    use crate::ir::asg::{
+    use crate::asg::{
         Dim, IdentObject, TransitionError, TransitionResult, UnresolvedError,
     };
     use crate::sym::{GlobalSymbolIntern, SymbolId};

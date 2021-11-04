@@ -31,7 +31,7 @@ lazy_static! {
 }
 
 mod tree {
-    use crate::ir::xir::Text;
+    use crate::xir::Text;
 
     use super::*;
 

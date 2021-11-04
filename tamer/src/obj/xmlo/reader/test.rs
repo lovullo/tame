@@ -20,7 +20,7 @@
 use std::assert_matches::assert_matches;
 
 use super::*;
-use crate::{convert::ExpectInto, ir::xir::Token, span::DUMMY_SPAN};
+use crate::{convert::ExpectInto, span::DUMMY_SPAN, xir::Token};
 
 type Sut<B> = XmloReader<B>;
 

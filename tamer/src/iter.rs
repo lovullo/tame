@@ -26,7 +26,7 @@
 //! ====================
 //! Iterators that can fail,
 //!   such as XIR's
-//!     [`TokenResultStream`](crate::ir::xir::TokenResultStream),
+//!     [`TokenResultStream`](crate::xir::TokenResultStream),
 //!   can be confounding and difficult to work with because
 //!     [`Iterator::next`] wraps the [`Result`] within an [`Option`].
 //! Further,

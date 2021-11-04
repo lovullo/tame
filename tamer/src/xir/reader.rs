@@ -22,7 +22,7 @@
 //! This uses [`quick_xml`] as the parser.
 
 use super::{AttrValue, Error, Token};
-use crate::{ir::xir::Text, span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
+use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes, xir::Text};
 use quick_xml::{
     self,
     events::{attributes::Attributes, BytesStart, Event as QuickXmlEvent},

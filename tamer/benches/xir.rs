@@ -40,8 +40,8 @@ extern crate tamer;
 extern crate test;
 
 use std::convert::{TryFrom, TryInto};
-use tamer::ir::xir::{NCName, QName, Token};
 use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
+use tamer::xir::{NCName, QName, Token};
 use test::Bencher;
 
 fn gen_strs(n: usize, suffix: &str) -> Vec<String> {
@@ -119,7 +119,7 @@ mod name {
 
 mod ws {
     use super::*;
-    use tamer::ir::xir::Whitespace;
+    use tamer::xir::Whitespace;
 
     #[bench]
     fn whitespace_1000(bench: &mut Bencher) {
@@ -138,8 +138,8 @@ mod writer {
         Writer as QuickXmlWriter,
     };
     use std::borrow::Cow;
-    use tamer::ir::xir::{writer::XmlWriter, AttrValue, Text};
     use tamer::span::Span;
+    use tamer::xir::{writer::XmlWriter, AttrValue, Text};
 
     const FRAGMENT: &str = r#"<fragment>
 This is pretend fragment text.  We need a lot of it.

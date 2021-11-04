@@ -17,13 +17,13 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Lowering of the [ASG](crate::ir::asg) into `xmle` [`XmleSections`].
+//! Lowering of the [ASG](crate::asg) into `xmle` [`XmleSections`].
 //!
 //! See the [parent module](super) for more information.
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    ir::asg::{Asg, BaseAsg, IdentKind, IdentObject, IndexType, ObjectRef},
+    asg::{Asg, BaseAsg, IdentKind, IdentObject, IndexType, ObjectRef},
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -184,7 +184,7 @@ impl<Ix: IndexType> std::error::Error for SortError<Ix> {
 mod test {
     use super::*;
     use crate::{
-        ir::asg::{Dim, FragmentText, IdentObject, Source},
+        asg::{Dim, FragmentText, IdentObject, Source},
         ld::xmle::{section::PushResult, Sections},
         obj::xmlo::SymDtype,
         sym::GlobalSymbolIntern,

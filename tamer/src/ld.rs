@@ -92,7 +92,7 @@
 //!   4. [`Sections`](xmle::Sections) is then lowered into a XIR token
 //!        stream by [`xmle::xir`] for writing.
 //!
-//! [ASG]: crate::ir::asg
+//! [ASG]: crate::asg
 //! [topo-sort]: https://en.wikipedia.org/wiki/Topological_sorting
 //!
 //! Steps 1 and 2 are performed at the same time:
@@ -100,7 +100,7 @@
 //! Since the ASG contains only partial information,
 //!   it must perform other validations (such as extern resolution) during
 //!   this process;
-//!     see [crate::ir::asg] for more information.
+//!     see [crate::asg] for more information.
 //!
 //! Because the topological sort only considered explicitly defined roots,
 //!   identifiers are only included in the final executable if they are

@@ -37,10 +37,10 @@
 //!       among other things.
 //!
 //! ```
-//! use tamer::ir::xir::QName;
+//! use tamer::xir::QName;
 //! use tamer::sym::GlobalSymbolIntern;
 //!
-//!# fn main() -> Result<(), tamer::ir::xir::Error> {
+//!# fn main() -> Result<(), tamer::xir::Error> {
 //! let src = "foo:bar".as_bytes();
 //! let qname = QName::try_from(src)?;
 //!
@@ -114,13 +114,13 @@ impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
 #[doc(hidden)]
 macro_rules! qname_const_inner {
     ($name:ident = :$local:ident) => {
-        const $name: crate::ir::xir::QName =
-            crate::ir::xir::QName::st_cid_local(&$local);
+        const $name: crate::xir::QName =
+            crate::xir::QName::st_cid_local(&$local);
     };
 
     ($name:ident = $prefix:ident:$local:ident) => {
-        const $name: crate::ir::xir::QName =
-            crate::ir::xir::QName::st_cid(&$prefix, &$local);
+        const $name: crate::xir::QName =
+            crate::xir::QName::st_cid(&$prefix, &$local);
     };
 }
 

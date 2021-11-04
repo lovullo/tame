@@ -20,8 +20,8 @@
 //! Lower XIR stream into an XML byte stream via [`Write`].
 
 use super::{Error as XirError, QName, Token, TokenStream};
-use crate::ir::xir::{AttrValue, Text};
 use crate::sym::GlobalSymbolResolve;
+use crate::xir::{AttrValue, Text};
 use std::io::{Error as IoError, Write};
 use std::result;
 
@@ -336,9 +336,9 @@ mod test {
 
     use super::*;
     use crate::{
-        ir::xir::{AttrValue, QName, Text, Whitespace},
         span::Span,
         sym::GlobalSymbolIntern,
+        xir::{AttrValue, QName, Text, Whitespace},
     };
 
     type TestResult = std::result::Result<(), Error>;

@@ -26,9 +26,7 @@
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
-use crate::ir::asg::{
-    IdentKind, IdentObject, IdentObjectState, UnresolvedError,
-};
+use crate::asg::{IdentKind, IdentObject, IdentObjectState, UnresolvedError};
 use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::mem::take;
@@ -261,7 +259,7 @@ impl std::fmt::Display for SectionsError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::{Dim, IdentKind, IdentObject, Source};
+    use crate::asg::{Dim, IdentKind, IdentObject, Source};
     use crate::obj::xmlo::SymDtype;
     use crate::sym::GlobalSymbolIntern;
 

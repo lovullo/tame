@@ -61,7 +61,7 @@
 //!
 //! ```
 //! use tamer::global;
-//! use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
+//! use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
 //! use tamer::sym::{Interner, DefaultProgInterner};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -110,7 +110,7 @@
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
+//! # use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -156,7 +156,7 @@
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
+//! # use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {

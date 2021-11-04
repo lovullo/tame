@@ -30,7 +30,7 @@ use test::Bencher;
 
 mod base {
     use super::*;
-    use tamer::ir::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
+    use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
     use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
     type Sut = DefaultAsg<IdentObject>;
@@ -312,9 +312,7 @@ mod object {
 
     mod ident {
         use super::*;
-        use tamer::ir::asg::{
-            IdentKind, IdentObject, IdentObjectState, Source,
-        };
+        use tamer::asg::{IdentKind, IdentObject, IdentObjectState, Source};
         use tamer::sym::GlobalSymbolIntern;
 
         type Sut = IdentObject;

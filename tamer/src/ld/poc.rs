@@ -25,12 +25,12 @@ use super::xmle::{
     xir::lower_iter,
     XmleSections,
 };
+use crate::asg::{Asg, DefaultAsg, IdentObject};
 use crate::global;
-use crate::ir::asg::{Asg, DefaultAsg, IdentObject};
-use crate::ir::xir::writer::XmlWriter;
 use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
+use crate::xir::writer::XmlWriter;
 use crate::{
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
@@ -183,8 +183,8 @@ fn load_xmlo<'a, P: AsRef<Path>>(
 
         #[cfg(feature = "wip-xmlo-xir-reader")]
         {
-            use crate::ir::xir::reader::XmlXirReader;
             use crate::iter::into_iter_while_ok;
+            use crate::xir::reader::XmlXirReader;
 
             into_iter_while_ok(XmlXirReader::from(file), |toks| {
                 let xmlo: XmloReader<_> = toks.into();

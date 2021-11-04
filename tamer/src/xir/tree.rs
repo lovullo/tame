@@ -27,8 +27,8 @@
 //!   [`parser_from`] or [`parse`].
 //!
 //! ```
-//! use tamer::ir::xir::tree::{ParserState, parse, parser_from};
-//!# use tamer::ir::xir::Token;
+//! use tamer::xir::tree::{ParserState, parse, parser_from};
+//!# use tamer::xir::Token;
 //!
 //!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 //! // Lazily parse a stream of XIR tokens as an iterator, yielding the next
@@ -999,8 +999,8 @@ pub enum Parsed {
 ///   iterator it scans returns [`None`].
 ///
 /// ```
-/// use tamer::ir::xir::tree::{ParserState, parse};
-///# use tamer::ir::xir::Token;
+/// use tamer::xir::tree::{ParserState, parse};
+///# use tamer::xir::Token;
 ///
 ///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // The above is equivalent to:
@@ -1027,8 +1027,8 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
 ///   see the [module-level documentation](self).
 ///
 /// ```
-/// use tamer::ir::xir::tree::parser_from;
-///# use tamer::ir::xir::Token;
+/// use tamer::xir::tree::parser_from;
+///# use tamer::xir::Token;
 ///
 ///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // Lazily parse a stream of XIR tokens as an iterator.

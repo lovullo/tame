@@ -20,8 +20,8 @@
 use super::*;
 use crate::{
     convert::ExpectInto,
-    ir::xir::{AttrValue, Text, Token},
     span::DUMMY_SPAN,
+    xir::{AttrValue, Text, Token},
 };
 
 /// These tests use [`quick_xml`] directly,

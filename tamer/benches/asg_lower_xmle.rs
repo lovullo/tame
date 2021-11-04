@@ -24,9 +24,7 @@ extern crate test;
 
 use test::Bencher;
 
-use tamer::ir::asg::{
-    Asg, DataType, DefaultAsg, IdentKind, IdentObject, Source,
-};
+use tamer::asg::{Asg, DataType, DefaultAsg, IdentKind, IdentObject, Source};
 use tamer::ld::xmle::{lower::sort, Sections};
 use tamer::sym::{GlobalSymbolIntern, SymbolId};
 

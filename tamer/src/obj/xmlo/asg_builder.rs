@@ -38,7 +38,7 @@
 //!       used to take ownership over the data.
 
 use super::reader::{XmloError, XmloEvent, XmloResult};
-use crate::ir::asg::{
+use crate::asg::{
     Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, IndexType,
     ObjectRef, Source,
 };
@@ -141,7 +141,7 @@ where
     /// This is an IR lowering operation.
     /// The [`XmloResult`] produces data gleaned from
     ///   [`xmlo`](crate::obj::xmlo),
-    ///     and this process lowers it into the IR [`asg`](crate::ir::asg).
+    ///     and this process lowers it into the IR [`asg`](crate::asg).
     ///
     /// Each call to this method augments the provided [`AsgBuilderState`];
     ///   see its documentation for more information.
@@ -325,7 +325,7 @@ impl Error for AsgBuilderError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ir::asg::{DefaultAsg, FragmentText, IdentObject};
+    use crate::asg::{DefaultAsg, FragmentText, IdentObject};
     use crate::obj::xmlo::{PackageAttrs, SymAttrs, SymType};
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;

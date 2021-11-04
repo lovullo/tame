@@ -26,19 +26,17 @@
 //!       writing).
 //!
 //! Use [`lower_iter`] to produce the lowering iterator,
-//!   which can then use [`XmlWriter`](crate::ir::xir::writer::XmlWriter)
+//!   which can then use [`XmlWriter`](crate::xir::writer::XmlWriter)
 //!   for writing.
 
 use super::{super::LSPAN, section::XmleSections};
 use crate::{
-    ir::{
-        asg::{IdentKind, IdentObject},
-        xir::{
-            iter::{elem_wrap, ElemWrapIter},
-            AttrValue, QName, Text, Token,
-        },
-    },
+    asg::{IdentKind, IdentObject},
     sym::{st::*, SymbolId},
+    xir::{
+        iter::{elem_wrap, ElemWrapIter},
+        AttrValue, QName, Text, Token,
+    },
 };
 use arrayvec::ArrayVec;
 use std::{array, collections::hash_set, iter::Chain, vec};
@@ -351,7 +349,7 @@ impl<'a> Iterator for LowerIter<'a> {
     type Item = Token;
 
     /// Produce the next XIR [`Token`] representing the lowering of
-    ///   [`XmleSections`] from the [ASG](crate::ir::asg).
+    ///   [`XmleSections`] from the [ASG](crate::asg).
     ///
     /// This produces a single token at a time,
     ///   but [`DepListIter`] buffers tokens before emitting them,
@@ -367,7 +365,7 @@ impl<'a> Iterator for LowerIter<'a> {
 ///
 /// This produces the final representation for the `xmle` file,
 ///   which can be written using
-///   [`XmlWriter`](crate::ir::xir::writer::XmlWriter).
+///   [`XmlWriter`](crate::xir::writer::XmlWriter).
 #[inline]
 pub fn lower_iter<'a, S: XmleSections<'a>>(
     mut sections: S,

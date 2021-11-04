@@ -47,8 +47,8 @@ mod new {
     //!   it exists to make feature-flagging less confusing and error-prone.
 
     use super::{XmloError, XmloEvent, XmloResult};
-    use crate::ir::xir::{Token, TokenStream};
     use crate::sym::st::*;
+    use crate::xir::{Token, TokenStream};
 
     qname_const! {
         QN_LV_PACKAGE: L_LV:L_PACKAGE,
