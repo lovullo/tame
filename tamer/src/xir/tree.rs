@@ -196,7 +196,7 @@
 
 use super::{AttrValue, QName, Text, Token, TokenResultStream, TokenStream};
 use crate::span::Span;
-use std::{fmt::Display, mem::take};
+use std::{fmt::Display, iter, mem::take};
 
 mod attr;
 pub use attr::{Attr, AttrList, AttrParts, SimpleAttr};
@@ -1099,27 +1099,45 @@ pub fn parse_attrs<'a>(
 /// To parse an entire stream as a tree,
 ///   see [`parser_from`].
 ///
+/// This parser does not take ownership over the iterator,
+///   allowing parsing to continue on the underlying token stream after
+///   attribute parsing has completed.
+/// Once attribute parsing is finished,
+///   parsing is able to continue on the underlying token stream as if the
+///   attributes were never present in XIR at all;
+///     this also allows this parser to be used as an attribute filter while
+///     ensuring that the attributes are syntactically valid.
+///
 /// For more information on contexts,
 ///   and the parser in general,
 ///   see the [module-level documentation](self).
-pub fn attr_parser_from(
-    toks: impl TokenStream,
-) -> impl Iterator<Item = Result<Attr>> {
-    toks.scan(ParserState::with(Stack::IsolatedAttrEmpty), parse)
-        .filter_map(|parsed| match parsed {
-            Ok(Parsed::Attr(attr)) => Some(Ok(attr)),
-            Ok(Parsed::Incomplete) => None,
-            Err(err) => Some(Err(err)),
+#[inline]
+pub fn attr_parser_from<'a>(
+    toks: &'a mut impl TokenStream,
+) -> impl Iterator<Item = Result<Attr>> + 'a {
+    let mut state = ParserState::with(Stack::IsolatedAttrEmpty);
 
-            // AttrEnd must have been encountered.
-            Ok(Parsed::Done) => None,
+    iter::from_fn(move || {
+        loop {
+            match toks.next().and_then(|tok| parse(&mut state, tok)) {
+                None => return None,
+                Some(Err(err)) => return Some(Err(err)),
+                Some(Ok(Parsed::Attr(attr))) => return Some(Ok(attr)),
+                Some(Ok(Parsed::Incomplete)) => continue,
 
-            // These make no sense in this context and should never occur.
-            Ok(x @ (Parsed::Tree(_) | Parsed::AttrList(_))) => unreachable!(
-                "unexpected yield by XIRT (Attr expected): {:?}",
-                x
-            ),
-        })
+                // AttrEnd must have been encountered.
+                Some(Ok(Parsed::Done)) => return None,
+
+                // These make no sense in this context and should never occur.
+                Some(Ok(x @ (Parsed::Tree(_) | Parsed::AttrList(_)))) => {
+                    unreachable!(
+                        "unexpected yield by XIRT (Attr expected): {:?}",
+                        x
+                    )
+                }
+            }
+        }
+    })
 }
 
 #[cfg(test)]

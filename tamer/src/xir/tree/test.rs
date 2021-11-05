@@ -462,9 +462,9 @@ fn parse_attrs_isolated() {
 #[test]
 fn attr_parser_with_non_attr_token() {
     let name = "unexpected".unwrap_into();
-    let toks = [Token::Open(name, *S)].into_iter();
+    let mut toks = [Token::Open(name, *S)].into_iter();
 
-    let mut sut = attr_parser_from(toks);
+    let mut sut = attr_parser_from(&mut toks);
 
     assert_eq!(
         sut.next(),
@@ -479,7 +479,7 @@ fn parser_attr_multiple() {
     let val1 = AttrValue::Escaped("val1".into());
     let val2 = AttrValue::Escaped("val2".into());
 
-    let toks = [
+    let mut toks = [
         Token::AttrName(attr1, *S),
         Token::AttrValue(val1, *S2),
         Token::AttrName(attr2, *S2),
@@ -488,7 +488,7 @@ fn parser_attr_multiple() {
     ]
     .into_iter();
 
-    let mut sut = attr_parser_from(toks);
+    let mut sut = attr_parser_from(&mut toks);
 
     assert_eq!(sut.next(), Some(Ok(Attr::new(attr1, val1, (*S, *S2)))));
     assert_eq!(sut.next(), Some(Ok(Attr::new(attr2, val2, (*S2, *S3)))));
