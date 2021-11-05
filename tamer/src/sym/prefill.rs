@@ -475,6 +475,7 @@ pub mod st {
         L_TRUE: cid "true",
         L_TYPE: cid "type",
         L_UUROOTPATH: cid "__rootpath",
+        L_VALUE: cid "value",
         L_WORKSHEET: cid "worksheet",
         L_XMLNS: cid "xmlns",
         L_YIELDS: cid "yields",
