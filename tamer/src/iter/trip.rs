@@ -245,6 +245,51 @@ where
     with_iter_while_ok(&mut from.into_iter(), f)
 }
 
+/// An [`Iterator`] supporting the [`while_ok`](TrippableIterator::while_ok)
+///   and [`into_while_ok`](TrippableIterator::into_while_ok) trip
+///   operations.
+///
+/// For more information,
+///   see the [module-level documentation](self).
+pub trait TrippableIterator<T, E>
+where
+    Self: Iterator<Item = Result<T, E>> + Sized,
+{
+    /// Given a mutable reference to a
+    ///   [`ResultIterator<T, E>`](ResultIterator),
+    ///     yield a [`TripIter`] that yields the inner `T` value while the
+    ///     iterator yields an [`Ok`] item.
+    ///
+    /// For more information,
+    ///   see [`with_iter_while_ok`] and the
+    ///   [module-level documentation](super).
+    fn while_ok<F, U>(&mut self, f: F) -> Result<U, E>
+    where
+        F: FnOnce(&mut TripIter<Self, T, E>) -> U,
+    {
+        TripIter::with_iter_while_ok(self, f)
+    }
+
+    /// Given an object capable of being converted into a
+    ///   [`ResultIterator<T, E>`](ResultIterator),
+    ///     yield a [`TripIter`] that yields the inner `T` value while the
+    ///     iterator yields an [`Ok`] item.
+    ///
+    /// For more information,
+    ///   see [`into_iter_while_ok`] and the [module-level documentation](super).
+    fn into_while_ok<F, U>(mut self, f: F) -> Result<U, E>
+    where
+        F: FnOnce(&mut TripIter<Self, T, E>) -> U,
+    {
+        self.while_ok(f)
+    }
+}
+
+impl<T, E, I> TrippableIterator<T, E> for I where
+    I: Iterator<Item = Result<T, E>> + Sized
+{
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

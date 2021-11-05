@@ -65,15 +65,17 @@
 //!   [`into_iter_while_ok`],
 //!     depending on whether ownership of the source iterator needs to be
 //!     retained.
+//! The [`TrippableIterator`] trait also provides convenient methods
+//!   directly on compatible [`Iterator`]s.
 //! Each of those functions provide their own minimal examples,
 //!   one of which is reproduced here:
 //!
 //! ```
-//! use tamer::iter::with_iter_while_ok;
+//! use tamer::iter::TrippableIterator;
 //!
 //! let mut values = [Ok(0), Err("trip"), Ok(1)].into_iter();
 //!
-//! let result = with_iter_while_ok(&mut values, |iter| {
+//! let result = values.while_ok(|iter| {
 //!   // First is `Ok`, so it yields.  Note that the value is no longer
 //!   // `Ok`, which liberates our system from handling others' errors.
 //!   assert_eq!(Some(0), iter.next());
@@ -274,4 +276,6 @@ mod trip;
 pub trait ResultIterator<T, E> = Iterator<Item = Result<T, E>>;
 
 pub use collect::{TryCollect, TryFromIterator};
-pub use trip::{into_iter_while_ok, with_iter_while_ok, TripIter};
+pub use trip::{
+    into_iter_while_ok, with_iter_while_ok, TripIter, TrippableIterator,
+};
