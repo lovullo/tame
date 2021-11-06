@@ -262,6 +262,10 @@
 //! This makes sense from a type perspective,
 //!   but may seem unintuitive at a glance.
 //!
+//! If the source iterator yields [`Result<T, E>`](Result),
+//!   but the [`TryFromIterator`] expects `T`,
+//!   see [`TryCollect::try_collect_ok`].
+//!
 //! [`try_collect`]: TryCollect::try_collect
 //! [`collect`]: Iterator::collect
 

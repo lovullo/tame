@@ -30,6 +30,7 @@
 //!
 //! See the [parent module](super) for more information.
 
+use super::TrippableIterator;
 use std::convert::Infallible;
 
 /// Conversion from an [`Iterator`] that may fail in a controlled way.
@@ -77,7 +78,7 @@ where
 ///
 /// Where [`Iterator::collect`] uses [`FromIterator`],
 ///   `try_collect` uses [`TryFromIterator`].
-pub trait TryCollect: Iterator {
+pub trait TryCollect: Iterator + Sized {
     /// Attempts to transform an iterator into a collection,
     ///   which may fail in a controlled manner under certain
     ///   circumstances.
@@ -86,14 +87,55 @@ pub trait TryCollect: Iterator {
     ///   use [`Iterator::collect`] instead.
     ///
     /// See the [module-level documentation](super) for more information.
-    fn try_collect<B: TryFromIterator<Self::Item>>(self)
-        -> Result<B, B::Error>;
-}
-
-impl<I: Iterator> TryCollect for I {
+    #[inline]
     fn try_collect<B: TryFromIterator<Self::Item>>(
         self,
     ) -> Result<B, B::Error> {
         TryFromIterator::try_from_iter(self)
     }
+
+    /// Attempts to transform a [`Result<T, E>`](Result) iterator into a
+    ///   collection of `T`,
+    ///     which may fail in a controlled manner on either the source
+    ///     iterator or the transformation.
+    ///
+    /// Ideally, this method would not have to exist.
+    /// However,
+    ///   at the time of writing,
+    ///   `iter.while_ok(TryCollect::try_collect)` fails to compile,
+    ///     requiring instead a more verbose closure.
+    /// This function exists purely to improve readability and reduce
+    ///   boilerplate,
+    ///     but at the expense of a somewhat confusing return type.
+    ///
+    /// The outer [`Result`] represents the the source iterator,
+    ///   in the sense of [`TrippableIterator::while_ok`].
+    /// The inner [`Result`] represents the result of the
+    ///   [`try_collect`](TryCollect::try_collect) operation.
+    /// Since these two errors types are expected to be unrelated to
+    ///   one-another
+    ///     (after all, [`TrippableIterator`] exists precisely to decouple
+    ///       the downstream iterators from upstream failures),
+    ///     there is no obvious and correct conversion,
+    ///       and so it is left up to the caller.
+    /// Often,
+    ///   this call is simply suffixed with `??`,
+    ///     leaving the containing function's return type to manage the
+    ///     conversion via [`Into`].
+    #[inline]
+    fn try_collect_ok<T, E, B: TryFromIterator<T>>(
+        mut self,
+    ) -> Result<Result<B, B::Error>, E>
+    where
+        Self: Iterator<Item = Result<T, E>>,
+    {
+        // At the time of writing,
+        //   `self.while_ok(TryCollect::try_collect)` does not compile,
+        //     stating that `FnOnce` is "not general enough" and appearing
+        //     immune to any attempts to generalize lifetimes using
+        //     higher-rank trait bounds (HRTBs).
+        self.while_ok(|iter| iter.try_collect())
+    }
 }
+
+impl<I: Iterator> TryCollect for I {}

@@ -263,6 +263,7 @@ where
     /// For more information,
     ///   see [`with_iter_while_ok`] and the
     ///   [module-level documentation](super).
+    #[inline]
     fn while_ok<F, U>(&mut self, f: F) -> Result<U, E>
     where
         F: FnOnce(&mut TripIter<Self, T, E>) -> U,
@@ -277,6 +278,7 @@ where
     ///
     /// For more information,
     ///   see [`into_iter_while_ok`] and the [module-level documentation](super).
+    #[inline]
     fn into_while_ok<F, U>(mut self, f: F) -> Result<U, E>
     where
         F: FnOnce(&mut TripIter<Self, T, E>) -> U,
