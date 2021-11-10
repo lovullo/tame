@@ -21,7 +21,7 @@
 //!
 //! This uses [`quick_xml`] as the parser.
 
-use super::{AttrValue, Error, Token};
+use super::{Error, Token, XirString};
 use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes, xir::Text};
 use quick_xml::{
     self,
@@ -188,6 +188,9 @@ impl<B: BufRead> XmlXirReader<B> {
         for result in attrs.with_checks(false) {
             let attr = result?;
 
+            // The name must be parsed as a QName.
+            let name = attr.key.try_into()?;
+
             // The attribute value,
             //   having just been read from XML,
             //   must have been escaped to be parsed properly.
@@ -196,10 +199,8 @@ impl<B: BufRead> XmlXirReader<B> {
             //     that's okay as long as we can read it again,
             //       but we probably should still throw an error if we
             //       encounter such a situation.
-            let value = AttrValue::Escaped(attr.value.as_ref().intern_utf8()?);
-
-            // The name must be parsed as a QName.
-            let name = attr.key.try_into()?;
+            let value =
+                XirString::from_escaped_raw(attr.value.as_ref())?.into();
 
             tokbuf.push_front(Token::AttrName(name, DUMMY_SPAN));
             tokbuf.push_front(Token::AttrValue(value, DUMMY_SPAN));
@@ -224,7 +225,7 @@ impl<B: BufRead> Iterator for XmlXirReader<B> {
     fn next(&mut self) -> Option<Self::Item> {
         self.tokbuf
             .pop_back()
-            .map(|tok| Ok(tok))
+            .map(Result::Ok)
             .or_else(|| self.refill_buf())
     }
 }

@@ -73,10 +73,14 @@ use crate::sym::{
 use memchr::memchr;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
+use std::hash::Hash;
 use std::ops::Deref;
 
 mod error;
 pub use error::Error;
+
+mod string;
+pub use string::XirString;
 
 pub mod iter;
 pub mod pred;
@@ -497,39 +501,37 @@ pub enum Text {
 /// This does, however, put the onus on the caller to ensure that they got
 ///   the escaping status correct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AttrValue {
-    /// Value that requires escaping.
-    ///
-    /// Unescaped values require further processing before writing.
-    Unescaped(SymbolId),
-
-    /// Value that either has already been escaped or is known not to
-    ///   require escaping.
-    ///
-    /// Escaped values can be written as-is without any further processing.
-    Escaped(SymbolId),
-}
+pub struct AttrValue(XirString);
 
 impl AttrValue {
     /// Construct a constant escaped attribute from a static C-style symbol.
     pub const fn st_cid(sym: CIdentStaticSymbolId) -> Self {
-        Self::Escaped(sym.as_sym())
+        Self(XirString::st_cid(sym))
     }
 
     /// Construct a constant escaped attribute from a static URI symbol.
     ///
     /// URIs are expected _not_ to contain quotes.
     pub const fn st_uri(sym: UriStaticSymbolId) -> Self {
-        Self::Escaped(sym.as_sym())
+        Self(XirString::st_uri(sym))
+    }
+}
+
+impl<T: Into<XirString>> From<T> for AttrValue {
+    fn from(s: T) -> Self {
+        Self(s.into())
+    }
+}
+
+impl Into<SymbolId> for AttrValue {
+    fn into(self) -> SymbolId {
+        self.0.into()
     }
 }
 
 impl Display for AttrValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Escaped(value) => value.fmt(f),
-            _ => todo!("AttrValue::Unescaped fmt"),
-        }
+        self.0.fmt(f)
     }
 }
 

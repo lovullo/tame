@@ -73,9 +73,9 @@ mod attrs {
         let b = "b".unwrap_into();
 
         let attra =
-            Attr::new(a, AttrValue::Escaped("a value".into()), (*S, *S2));
+            Attr::new(a, AttrValue::from("a value".intern()), (*S, *S2));
         let attrb =
-            Attr::new(b, AttrValue::Escaped("b value".into()), (*S, *S2));
+            Attr::new(b, AttrValue::from("b value".intern()), (*S, *S2));
 
         let attrs = AttrList::from([attra.clone(), attrb.clone()]);
 
@@ -162,10 +162,10 @@ fn empty_element_with_attrs_from_toks() {
     let name = ("ns", "elem").unwrap_into();
     let attr1 = "a".unwrap_into();
     let attr2 = "b".unwrap_into();
-    let val1 = AttrValue::Escaped("val1".intern());
-    let val2a = AttrValue::Escaped("val2a".intern());
-    let val2b = AttrValue::Escaped("val2b".intern());
-    let val2c = AttrValue::Escaped("val2b".intern());
+    let val1 = AttrValue::from("val1".intern());
+    let val2a = AttrValue::from("val2a".intern());
+    let val2b = AttrValue::from("val2b".intern());
+    let val2c = AttrValue::from("val2b".intern());
 
     let toks = [
         Token::Open(name, *S),
@@ -217,7 +217,7 @@ fn child_element_after_attrs() {
     let name = ("ns", "elem").unwrap_into();
     let child = "child".unwrap_into();
     let attr = "a".unwrap_into();
-    let val = AttrValue::Escaped("val".intern());
+    let val = AttrValue::from("val".intern());
 
     let toks = [
         Token::Open(name, *S),
@@ -301,7 +301,7 @@ fn element_with_child_with_attributes() {
     let parent = "parent".unwrap_into();
     let child = "child".unwrap_into();
     let attr = "attr".unwrap_into();
-    let value = AttrValue::Escaped("attr value".into());
+    let value = AttrValue::from("attr value".intern());
 
     let toks = [
         Token::Open(parent, *S),
@@ -360,7 +360,7 @@ fn element_with_text() {
 fn parser_from_filters_incomplete() {
     let name = ("ns", "elem").unwrap_into();
     let attr = "a".unwrap_into();
-    let val = AttrValue::Escaped("val1".intern());
+    let val = AttrValue::from("val1".intern());
 
     let toks = [
         Token::Open(name, *S),
@@ -406,7 +406,7 @@ fn parse_attrs_fails_if_first_token_is_non_attr() {
 fn parse_attrs_fails_if_end_before_attr_end() {
     let mut toks = [
         Token::AttrName("foo".unwrap_into(), *S),
-        Token::AttrValue(AttrValue::Escaped("bar".into()), *S),
+        Token::AttrValue(AttrValue::from("bar".intern()), *S),
         // No Token::AttrEnd
     ]
     .into_iter();
@@ -423,7 +423,7 @@ fn parse_attrs_fails_if_missing_attr_end() {
     // of Token::AttrEnd.
     let mut toks = [
         Token::AttrName("foo".unwrap_into(), *S),
-        Token::AttrValue(AttrValue::Escaped("bar".into()), *S2),
+        Token::AttrValue(AttrValue::from("bar".intern()), *S2),
         // No Token::AttrEnd
         Token::Close(None, *S3),
     ]
@@ -439,8 +439,8 @@ fn parse_attrs_fails_if_missing_attr_end() {
 fn parse_attrs_isolated() {
     let attr1 = "one".unwrap_into();
     let attr2 = "two".unwrap_into();
-    let val1 = AttrValue::Escaped("val1".into());
-    let val2 = AttrValue::Escaped("val2".into());
+    let val1 = AttrValue::from("val1".intern());
+    let val2 = AttrValue::from("val2".intern());
 
     let mut toks = [
         Token::AttrName(attr1, *S),
@@ -476,8 +476,8 @@ fn attr_parser_with_non_attr_token() {
 fn parser_attr_multiple() {
     let attr1 = "one".unwrap_into();
     let attr2 = "two".unwrap_into();
-    let val1 = AttrValue::Escaped("val1".into());
-    let val2 = AttrValue::Escaped("val2".into());
+    let val1 = AttrValue::from("val1".intern());
+    let val2 = AttrValue::from("val2".intern());
 
     let mut toks = [
         Token::AttrName(attr1, *S),

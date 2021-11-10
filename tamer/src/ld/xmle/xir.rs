@@ -35,7 +35,7 @@ use crate::{
     sym::{st::*, SymbolId},
     xir::{
         iter::{elem_wrap, ElemWrapIter},
-        AttrValue, QName, Text, Token,
+        AttrValue, QName, Text, Token, XirString,
     },
 };
 use arrayvec::ArrayVec;
@@ -75,7 +75,12 @@ type HeaderIter = array::IntoIter<Token, HEADER_SIZE>;
 ///   and its immediate child.
 #[inline]
 fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
-    let pkg_name_val = AttrValue::Escaped(pkg_name);
+    // TODO: Introduce newtypes so that we do not have to make unsafe
+    //   assumptions.
+    let pkg_name_val =
+        AttrValue::from(unsafe { XirString::assume_fixed(pkg_name) });
+    let relroot_val =
+        AttrValue::from(unsafe { XirString::assume_fixed(relroot) });
 
     [
         Token::AttrName(QN_XMLNS, LSPAN),
@@ -91,7 +96,7 @@ fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
         Token::AttrName(QN_NAME, LSPAN),
         Token::AttrValue(pkg_name_val, LSPAN),
         Token::AttrName(QN_UUROOTPATH, LSPAN),
-        Token::AttrValue(AttrValue::Escaped(relroot), LSPAN),
+        Token::AttrValue(relroot_val, LSPAN),
     ]
     .into_iter()
 }
@@ -130,7 +135,9 @@ impl<'a> DepListIter<'a> {
             toks: ArrayVec::new(),
             // TODO: we cannot trust that an arbitrary symbol is escaped; this
             // needs better typing, along with other things.
-            relroot: AttrValue::Escaped(relroot),
+            relroot: AttrValue::from(unsafe {
+                XirString::assume_fixed(relroot)
+            }),
         }
     }
 
@@ -163,7 +170,12 @@ impl<'a> DepListIter<'a> {
             self.toks_push_attr(QN_PARENT, src.parent);
 
             if let Some(pkg_name) = src.pkg_name {
-                self.toks.push(Token::AttrValue(AttrValue::Escaped(pkg_name), LSPAN));
+                // TODO: Introduce newtypes so that we do not have to make unsafe
+                //   assumptions.
+                let pkg_name_val =
+                    AttrValue::from(unsafe { XirString::assume_fixed(pkg_name) });
+
+                self.toks.push(Token::AttrValue(pkg_name_val, LSPAN));
                 self.toks.push(Token::AttrValueFragment(self.relroot, LSPAN));
                 self.toks.push(Token::AttrName(QN_SRC, LSPAN));
             }
@@ -182,16 +194,14 @@ impl<'a> DepListIter<'a> {
 
     /// Optionally push an attribute if it has a `value`.
     ///
-    /// _The provided `value` must be escaped;_
-    ///   it is blindly wrapped in [`AttrValue::Escaped`]!
-    ///
     /// Like [`refill_toks`](DepListIter::refill_toks),
     ///   we push in reverse.
     #[inline]
     fn toks_push_attr(&mut self, name: QName, value: Option<SymbolId>) {
         if let Some(val) = value {
-            self.toks
-                .push(Token::AttrValue(AttrValue::Escaped(val), LSPAN));
+            let attr_val = AttrValue::from(val);
+
+            self.toks.push(Token::AttrValue(attr_val, LSPAN));
             self.toks.push(Token::AttrName(name, LSPAN));
         }
     }
@@ -274,8 +284,11 @@ impl MapFromsIter {
         self.iter.next().and_then(|from| {
             self.toks.push(Token::Close(None, LSPAN));
 
-            self.toks
-                .push(Token::AttrValue(AttrValue::Escaped(from), LSPAN));
+            // TODO
+            let from_val =
+                AttrValue::from(unsafe { XirString::assume_fixed(from) });
+
+            self.toks.push(Token::AttrValue(from_val, LSPAN));
             self.toks.push(Token::AttrName(QN_NAME, LSPAN));
 
             Some(Token::Open(QN_L_FROM, LSPAN))

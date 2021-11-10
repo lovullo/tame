@@ -19,10 +19,11 @@
 
 //! XIR error information.
 
+use crate::tpwrap::quick_xml;
 use std::{fmt::Display, str::Utf8Error};
 
 /// Error attempting to produce a XIR object.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Error {
     /// Provided name contains a `':'`.
     NCColon(Vec<u8>),
@@ -36,6 +37,9 @@ pub enum Error {
     //   we allow the displayer to determine how to handle invalid UTF-8
     //   encodings.
     InvalidUtf8(Utf8Error, Vec<u8>),
+
+    // TODO: Better error translation and spans.
+    QuickXmlError(quick_xml::Error),
 }
 
 impl Display for Error {
@@ -62,6 +66,10 @@ impl Display for Error {
                     String::from_utf8_lossy(bytes)
                 )
             }
+            // TODO: See Error TODO
+            Self::QuickXmlError(inner) => {
+                write!(f, "internal parser error: {:?}", inner)
+            }
         }
     }
 }
@@ -81,9 +89,8 @@ impl From<(Utf8Error, &[u8])> for Error {
     }
 }
 
-impl From<quick_xml::Error> for Error {
-    fn from(err: quick_xml::Error) -> Self {
-        // These need to be translated to provide our own errors.
-        todo!("quick_xml::Error: {:?}", err)
+impl<E: Into<quick_xml::Error>> From<E> for Error {
+    fn from(err: E) -> Self {
+        Self::QuickXmlError(err.into().into())
     }
 }

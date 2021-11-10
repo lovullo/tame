@@ -256,12 +256,12 @@ fn test_writes_deps() -> TestResult {
 
         assert_eq!(
             attrs.find(QN_NAME).and_then(|a| a.value_atom()),
-            Some(AttrValue::Escaped(ident.name())),
+            Some(AttrValue::from(ident.name())),
         );
 
         assert_eq!(
             attrs.find(QN_TYPE).and_then(|a| a.value_atom()),
-            Some(AttrValue::Escaped(ident.kind().unwrap().as_sym()))
+            Some(AttrValue::from(ident.kind().unwrap().as_sym()))
         );
 
         let generated = attrs.find(QN_GENERATED).and_then(|a| a.value_atom());
@@ -270,25 +270,17 @@ fn test_writes_deps() -> TestResult {
             generated: true, ..
         }) = ident.src()
         {
-            assert_eq!(generated, Some(AttrValue::Escaped("true".intern())));
+            assert_eq!(generated, Some(AttrValue::from("true".intern())));
         } else {
             assert_eq!(generated, None);
         }
 
         if let Some(Source { parent, .. }) = ident.src() {
-            assert_attr!(
-                attrs,
-                QN_PARENT,
-                parent.map(|x| AttrValue::Escaped(x)),
-            );
+            assert_attr!(attrs, QN_PARENT, parent.map(|x| AttrValue::from(x)),);
         }
 
         if let Some(Source { yields, .. }) = ident.src() {
-            assert_attr!(
-                attrs,
-                QN_YIELDS,
-                yields.map(|x| AttrValue::Escaped(x)),
-            );
+            assert_attr!(attrs, QN_YIELDS, yields.map(|x| AttrValue::from(x)),);
         }
 
         if let Some(Source {
@@ -300,8 +292,11 @@ fn test_writes_deps() -> TestResult {
             // `SymbolId`.  Once the reader takes care of creating the
             // symbol, we'll have no such problem.
             match attrs.find(QN_DESC).and_then(|a| a.value_atom()) {
-                Some(AttrValue::Escaped(given)) => {
-                    assert_eq!(desc.lookup_str(), given.lookup_str());
+                Some(given) => {
+                    assert_eq!(
+                        desc.lookup_str(),
+                        Into::<SymbolId>::into(given).lookup_str()
+                    );
                 }
                 invalid => panic!("unexpected desc: {:?}", invalid),
             }
@@ -317,8 +312,8 @@ fn test_writes_deps() -> TestResult {
                     assert_eq!(
                         parts.value_fragments(),
                         &vec![
-                            (AttrValue::Escaped(relroot), LSPAN),
-                            (AttrValue::Escaped(*pkg_name), LSPAN),
+                            (AttrValue::from(relroot), LSPAN),
+                            (AttrValue::from(*pkg_name), LSPAN),
                         ]
                     );
                 }
@@ -332,7 +327,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DIM,
-                    Some(AttrValue::Escaped((*dim).into())),
+                    Some(AttrValue::from(Into::<SymbolId>::into(*dim))),
                     "invalid {:?} @dim",
                     ident.kind()
                 );
@@ -346,7 +341,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DIM,
-                    Some(AttrValue::Escaped((*dim).into())),
+                    Some(AttrValue::from(Into::<SymbolId>::into(*dim))),
                     "invalid {:?} @dim",
                     ident.kind()
                 );
@@ -354,7 +349,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DTYPE,
-                    Some(AttrValue::Escaped((*dtype).into())),
+                    Some(AttrValue::from(Into::<SymbolId>::into(*dtype))),
                     "invalid {:?} @dtype",
                     ident.kind()
                 );
@@ -364,7 +359,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DTYPE,
-                    Some(AttrValue::Escaped((*dtype).into())),
+                    Some(AttrValue::from(Into::<SymbolId>::into(*dtype))),
                     "invalid {:?} @dim",
                     ident.kind()
                 );
@@ -443,8 +438,8 @@ fn test_writes_map_froms() -> TestResult {
         );
     });
 
-    assert!(found.contains(&AttrValue::Escaped("froma".intern())));
-    assert!(found.contains(&AttrValue::Escaped("fromb".intern())));
+    assert!(found.contains(&AttrValue::from("froma".intern())));
+    assert!(found.contains(&AttrValue::from("fromb".intern())));
 
     Ok(())
 }

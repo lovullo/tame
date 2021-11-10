@@ -18,6 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::sym::GlobalSymbolIntern;
 use crate::{
     convert::ExpectInto,
     span::DUMMY_SPAN,
@@ -83,10 +84,7 @@ fn does_not_resolve_xmlns() {
             Token::Open("no-ns".unwrap_into(), DUMMY_SPAN),
             // Since we didn't parse @xmlns, it's still an attribute.
             Token::AttrName("xmlns".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(
-                AttrValue::Escaped("noresolve".into()),
-                DUMMY_SPAN
-            ),
+            Token::AttrValue(AttrValue::from("noresolve".intern()), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -106,10 +104,7 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
         vec![
             Token::Open(("x", "empty-node").unwrap_into(), DUMMY_SPAN),
             Token::AttrName(("xmlns", "x").unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(
-                AttrValue::Escaped("noresolve".into()),
-                DUMMY_SPAN
-            ),
+            Token::AttrValue(AttrValue::from("noresolve".intern()), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -144,11 +139,11 @@ fn multiple_attrs_ordered() {
         vec![
             Token::Open("ele".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("foo".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::Escaped("a".into()), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::from("a".intern()), DUMMY_SPAN),
             Token::AttrName("bar".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::Escaped("b".into()), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::from("b".intern()), DUMMY_SPAN),
             Token::AttrName(("b", "baz").unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::Escaped("c".into()), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::from("c".intern()), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -168,9 +163,9 @@ fn permits_duplicate_attrs() {
         vec![
             Token::Open("dup".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("attr".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::Escaped("a".into()), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::from("a".intern()), DUMMY_SPAN),
             Token::AttrName("attr".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::Escaped("b".into()), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::from("b".intern()), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -231,7 +226,7 @@ fn child_node_with_attrs() {
             Token::AttrEnd,
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("foo".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::Escaped("bar".into()), DUMMY_SPAN),
+            Token::AttrValue(AttrValue::from("bar".intern()), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),

@@ -139,7 +139,7 @@ mod writer {
     };
     use std::borrow::Cow;
     use tamer::span::Span;
-    use tamer::xir::{writer::XmlWriter, AttrValue, Text};
+    use tamer::xir::{writer::XmlWriter, Text};
 
     const FRAGMENT: &str = r#"<fragment>
 This is pretend fragment text.  We need a lot of it.
@@ -210,9 +210,9 @@ This is pretend fragment text.  We need a lot of it.</fragment>
                 vec![
                     Token::Open(name, span),
                     Token::AttrName(attr1, span),
-                    Token::AttrValue(AttrValue::Escaped(val1), span),
+                    Token::AttrValue(val1.into(), span),
                     Token::AttrName(attr2, span),
-                    Token::AttrValue(AttrValue::Escaped(val2), span),
+                    Token::AttrValue(val2.into(), span),
                     Token::Close(None, span),
                 ]
                 .into_iter()

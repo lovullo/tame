@@ -207,42 +207,36 @@ impl XmlWriter for Token {
                 Ok(S::AttrNameAdjacent)
             }
 
-            (
-                Self::AttrValue(AttrValue::Escaped(value), _),
-                S::AttrNameAdjacent,
-            ) => {
+            (Self::AttrValue(AttrValue(value), _), S::AttrNameAdjacent) => {
                 sink.write(b"=\"")?;
-                sink.write(value.lookup_str().as_bytes())?;
+                sink.write(value.into_escaped().lookup_str().as_bytes())?;
+                sink.write(b"\"")?;
+
+                Ok(S::NodeOpen)
+            }
+
+            (Self::AttrValue(AttrValue(value), _), S::AttrFragmentAdjacent) => {
+                sink.write(value.into_escaped().lookup_str().as_bytes())?;
                 sink.write(b"\"")?;
 
                 Ok(S::NodeOpen)
             }
 
             (
-                Self::AttrValue(AttrValue::Escaped(value), _),
-                S::AttrFragmentAdjacent,
-            ) => {
-                sink.write(value.lookup_str().as_bytes())?;
-                sink.write(b"\"")?;
-
-                Ok(S::NodeOpen)
-            }
-
-            (
-                Self::AttrValueFragment(AttrValue::Escaped(value), _),
+                Self::AttrValueFragment(AttrValue(value), _),
                 S::AttrNameAdjacent,
             ) => {
                 sink.write(b"=\"")?;
-                sink.write(value.lookup_str().as_bytes())?;
+                sink.write(value.into_escaped().lookup_str().as_bytes())?;
 
                 Ok(S::AttrFragmentAdjacent)
             }
 
             (
-                Self::AttrValueFragment(AttrValue::Escaped(value), _),
+                Self::AttrValueFragment(AttrValue(value), _),
                 S::AttrFragmentAdjacent,
             ) => {
-                sink.write(value.lookup_str().as_bytes())?;
+                sink.write(value.into_escaped().lookup_str().as_bytes())?;
 
                 Ok(S::AttrFragmentAdjacent)
             }
@@ -295,13 +289,7 @@ impl XmlWriter for Token {
 
             // As-of-yet unsupported operations that weren't needed at the
             // time of writing, but were planned for in the design of Xir.
-            (
-                invalid
-                @
-                (Self::AttrName(_, _)
-                | Self::AttrValue(AttrValue::Unescaped(_), _)),
-                S::AttrNameAdjacent,
-            )
+            (invalid @ Self::AttrName(_, _), S::AttrNameAdjacent)
             | (invalid @ Self::Text(Text::Unescaped(_), _), S::NodeExpected)
             | (invalid @ Self::CData(Text::Escaped(_), _), S::NodeExpected) => {
                 Err(Error::Todo(format!("{:?}", invalid), prev_state))
@@ -452,24 +440,22 @@ mod test {
     }
 
     #[test]
-    fn writes_escaped_attr_value_when_adjacent_to_attr() -> TestResult {
-        // Just to be sure it's not trying to escape when we say it
-        // shouldn't, we include a character that must otherwise be escaped.
-        let value = AttrValue::Escaped("test \" escaped".intern());
+    fn writes_attr_value_when_adjacent_to_attr() -> TestResult {
+        let value = AttrValue::from("test str".intern());
 
         let result = Token::AttrValue(value, *S)
             .write_new(WriterState::AttrNameAdjacent)?;
 
-        assert_eq!(result.0, br#"="test " escaped""#);
+        assert_eq!(result.0, br#"="test str""#);
         assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
     }
 
     #[test]
-    fn writes_escaped_attr_value_consisting_of_fragments() -> TestResult {
-        let value_left = AttrValue::Escaped("left ".intern());
-        let value_right = AttrValue::Escaped("right".intern());
+    fn writes_attr_value_consisting_of_fragments() -> TestResult {
+        let value_left = AttrValue::from("left ".intern());
+        let value_right = AttrValue::from("right".intern());
 
         let result = vec![
             Token::AttrValueFragment(value_left, *S),
@@ -559,7 +545,7 @@ mod test {
     #[test]
     fn unsupported_transition_results_in_error() -> TestResult {
         assert!(matches!(
-            Token::AttrValue(AttrValue::Escaped("".into()), *S)
+            Token::AttrValue(AttrValue::from("".intern()), *S)
                 .write(&mut vec![], WriterState::NodeExpected),
             Err(Error::UnexpectedToken(_, WriterState::NodeExpected)),
         ));
@@ -576,7 +562,7 @@ mod test {
         let result = vec![
             Token::Open(root, *S),
             Token::AttrName(("an", "attr").try_into()?, *S),
-            Token::AttrValue(AttrValue::Escaped("value".intern()), *S),
+            Token::AttrValue(AttrValue::from("value".intern()), *S),
             Token::AttrEnd,
             Token::Text(Text::Escaped("text".intern()), *S),
             Token::Open(("c", "child").try_into()?, *S),

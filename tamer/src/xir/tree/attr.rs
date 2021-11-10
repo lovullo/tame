@@ -320,7 +320,7 @@ mod test {
     #[test]
     fn attr_into_attr_parts() {
         let name = "attr".unwrap_into();
-        let value = AttrValue::Escaped("value".intern());
+        let value = AttrValue::from("value".intern());
 
         let attr = SimpleAttr {
             name,
@@ -347,8 +347,8 @@ mod test {
     #[test]
     fn push_attr_part() {
         let name = "pushattr".unwrap_into();
-        let value1 = AttrValue::Escaped("first".intern());
-        let value2 = AttrValue::Escaped("second".intern());
+        let value1 = AttrValue::from("first".intern());
+        let value2 = AttrValue::from("second".intern());
 
         let mut attr = Attr::new_extensible_with_capacity(name, *S, 2).parts();
 
@@ -361,8 +361,8 @@ mod test {
     #[test]
     fn attr_from_parts() {
         let name = "pushattr".unwrap_into();
-        let value1 = AttrValue::Escaped("first".intern());
-        let value2 = AttrValue::Escaped("second".intern());
+        let value1 = AttrValue::from("first".intern());
+        let value2 = AttrValue::from("second".intern());
 
         let attr =
             Attr::from_fragments(name, *S, vec![(value1, *S), (value2, *S2)])
@@ -374,9 +374,9 @@ mod test {
     #[test]
     fn into_fragments_to_reuse_buffer_for_parts() {
         let name = "partbuffer".unwrap_into();
-        let value1 = AttrValue::Escaped("first".intern());
-        let value2 = AttrValue::Escaped("second".intern());
-        let value3 = AttrValue::Escaped("third".intern());
+        let value1 = AttrValue::from("first".intern());
+        let value2 = AttrValue::from("second".intern());
+        let value3 = AttrValue::from("third".intern());
 
         let frags = vec![(value1, *S2), (value2, *S)];
 
