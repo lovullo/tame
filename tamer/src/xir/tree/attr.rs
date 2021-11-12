@@ -23,8 +23,8 @@
 //!
 //! See [parent module](super) for additional documentation.
 
-use super::{AttrValue, QName};
-use crate::span::Span;
+use super::QName;
+use crate::{span::Span, sym::SymbolId};
 
 /// An attribute.
 ///
@@ -49,7 +49,7 @@ impl Attr {
     ///   but it can be cheaply converted into [`Attr::Extensible`] via
     ///   [`Attr::parts`] or [`From`].
     #[inline]
-    pub fn new(name: QName, value: AttrValue, span: (Span, Span)) -> Self {
+    pub fn new(name: QName, value: SymbolId, span: (Span, Span)) -> Self {
         Self::Simple(SimpleAttr::new(name, value, span))
     }
 
@@ -78,7 +78,7 @@ impl Attr {
     pub fn from_fragments(
         name: QName,
         name_span: Span,
-        frags: Vec<(AttrValue, Span)>,
+        frags: Vec<(SymbolId, Span)>,
     ) -> Self {
         Self::Extensible(AttrParts {
             name,
@@ -123,10 +123,10 @@ impl Attr {
     ///   return [`None`] and let the caller decide how to proceed with
     ///   deriving an atom.
     ///
-    /// Since [`AttrValue`] implements [`Copy`],
+    /// Since [`SymbolId`] implements [`Copy`],
     ///   this returns an owned value.
     #[inline]
-    pub fn value_atom(&self) -> Option<AttrValue> {
+    pub fn value_atom(&self) -> Option<SymbolId> {
         match self {
             Self::Simple(attr) => Some(attr.value),
             Self::Extensible(attr) if attr.value_frags.len() == 1 => {
@@ -140,11 +140,11 @@ impl Attr {
 /// Element attribute with an atomic value.
 ///
 /// This should be used in place of [`AttrParts`] whenever the attribute is
-///   a simple [`QName`]/[`AttrValue`] pair.
+///   a simple [`QName`]/[`SymbolId`] pair.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SimpleAttr {
     name: QName,
-    value: AttrValue,
+    value: SymbolId,
     /// Spans for the attribute name and value respectively.
     span: (Span, Span),
 }
@@ -153,7 +153,7 @@ impl SimpleAttr {
     /// Construct a new simple attribute with a name, value, and respective
     ///   [`Span`]s.
     #[inline]
-    pub fn new(name: QName, value: AttrValue, span: (Span, Span)) -> Self {
+    pub fn new(name: QName, value: SymbolId, span: (Span, Span)) -> Self {
         Self { name, value, span }
     }
 }
@@ -174,7 +174,7 @@ pub struct AttrParts {
     ///
     /// When writing,
     ///   fragments will be concatenated in order without any delimiters.
-    value_frags: Vec<(AttrValue, Span)>,
+    value_frags: Vec<(SymbolId, Span)>,
 }
 
 impl AttrParts {
@@ -202,7 +202,7 @@ impl AttrParts {
     ///     and are associated with
     ///     [`Token::AttrValueFragment`](super::Token::AttrValueFragment).
     #[inline]
-    pub fn push_value(&mut self, value: AttrValue, span: Span) {
+    pub fn push_value(&mut self, value: SymbolId, span: Span) {
         self.value_frags.push((value, span));
     }
 
@@ -213,7 +213,7 @@ impl AttrParts {
     ///   [`AttrParts`],
     ///     see [`into_fragments`](AttrParts::into_fragments).
     #[inline]
-    pub fn value_fragments(&self) -> &Vec<(AttrValue, Span)> {
+    pub fn value_fragments(&self) -> &Vec<(SymbolId, Span)> {
         &self.value_frags
     }
 
@@ -223,7 +223,7 @@ impl AttrParts {
     /// This allows the buffer to be re-used for future [`AttrParts`],
     ///   avoiding additional heap allocations.
     #[inline]
-    pub fn into_fragments(self) -> Vec<(AttrValue, Span)> {
+    pub fn into_fragments(self) -> Vec<(SymbolId, Span)> {
         self.value_frags
     }
 }
@@ -320,7 +320,7 @@ mod test {
     #[test]
     fn attr_into_attr_parts() {
         let name = "attr".unwrap_into();
-        let value = AttrValue::from("value".intern());
+        let value = "value".intern();
 
         let attr = SimpleAttr {
             name,
@@ -347,8 +347,8 @@ mod test {
     #[test]
     fn push_attr_part() {
         let name = "pushattr".unwrap_into();
-        let value1 = AttrValue::from("first".intern());
-        let value2 = AttrValue::from("second".intern());
+        let value1 = "first".intern();
+        let value2 = "second".intern();
 
         let mut attr = Attr::new_extensible_with_capacity(name, *S, 2).parts();
 
@@ -361,8 +361,8 @@ mod test {
     #[test]
     fn attr_from_parts() {
         let name = "pushattr".unwrap_into();
-        let value1 = AttrValue::from("first".intern());
-        let value2 = AttrValue::from("second".intern());
+        let value1 = "first".intern();
+        let value2 = "second".intern();
 
         let attr =
             Attr::from_fragments(name, *S, vec![(value1, *S), (value2, *S2)])
@@ -374,9 +374,9 @@ mod test {
     #[test]
     fn into_fragments_to_reuse_buffer_for_parts() {
         let name = "partbuffer".unwrap_into();
-        let value1 = AttrValue::from("first".intern());
-        let value2 = AttrValue::from("second".intern());
-        let value3 = AttrValue::from("third".intern());
+        let value1 = "first".intern();
+        let value2 = "second".intern();
+        let value3 = "third".intern();
 
         let frags = vec![(value1, *S2), (value2, *S)];
 

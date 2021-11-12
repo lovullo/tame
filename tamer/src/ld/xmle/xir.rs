@@ -35,7 +35,7 @@ use crate::{
     sym::{st::*, SymbolId},
     xir::{
         iter::{elem_wrap, ElemWrapIter},
-        AttrValue, QName, Text, Token, XirString,
+        QName, Text, Token,
     },
 };
 use arrayvec::ArrayVec;
@@ -75,28 +75,21 @@ type HeaderIter = array::IntoIter<Token, HEADER_SIZE>;
 ///   and its immediate child.
 #[inline]
 fn header(pkg_name: SymbolId, relroot: SymbolId) -> HeaderIter {
-    // TODO: Introduce newtypes so that we do not have to make unsafe
-    //   assumptions.
-    let pkg_name_val =
-        AttrValue::from(unsafe { XirString::assume_fixed(pkg_name) });
-    let relroot_val =
-        AttrValue::from(unsafe { XirString::assume_fixed(relroot) });
-
     [
         Token::AttrName(QN_XMLNS, LSPAN),
-        Token::AttrValue(AttrValue::st_uri(URI_LV_RATER), LSPAN),
+        Token::AttrValue(raw::URI_LV_RATER, LSPAN),
         Token::AttrName(QN_XMLNS_PREPROC, LSPAN),
-        Token::AttrValue(AttrValue::st_uri(URI_LV_PREPROC), LSPAN),
+        Token::AttrValue(raw::URI_LV_PREPROC, LSPAN),
         Token::AttrName(QN_XMLNS_L, LSPAN),
-        Token::AttrValue(AttrValue::st_uri(URI_LV_LINKER), LSPAN),
+        Token::AttrValue(raw::URI_LV_LINKER, LSPAN),
         Token::AttrName(QN_TITLE, LSPAN),
-        Token::AttrValue(pkg_name_val, LSPAN),
+        Token::AttrValue(pkg_name, LSPAN),
         Token::AttrName(QN_PROGRAM, LSPAN),
-        Token::AttrValue(AttrValue::st_cid(L_TRUE), LSPAN),
+        Token::AttrValue(raw::L_TRUE, LSPAN),
         Token::AttrName(QN_NAME, LSPAN),
-        Token::AttrValue(pkg_name_val, LSPAN),
+        Token::AttrValue(pkg_name, LSPAN),
         Token::AttrName(QN_UUROOTPATH, LSPAN),
-        Token::AttrValue(relroot_val, LSPAN),
+        Token::AttrValue(relroot, LSPAN),
     ]
     .into_iter()
 }
@@ -124,7 +117,7 @@ struct DepListIter<'a> {
     /// Constant-size [`Token`] buffer used as a stack.
     toks: ArrayVec<Token, DEP_TOK_SIZE>,
     /// Relative path to project root.
-    relroot: AttrValue,
+    relroot: SymbolId,
 }
 
 impl<'a> DepListIter<'a> {
@@ -133,11 +126,7 @@ impl<'a> DepListIter<'a> {
         Self {
             iter,
             toks: ArrayVec::new(),
-            // TODO: we cannot trust that an arbitrary symbol is escaped; this
-            // needs better typing, along with other things.
-            relroot: AttrValue::from(unsafe {
-                XirString::assume_fixed(relroot)
-            }),
+            relroot,
         }
     }
 
@@ -172,10 +161,7 @@ impl<'a> DepListIter<'a> {
             if let Some(pkg_name) = src.pkg_name {
                 // TODO: Introduce newtypes so that we do not have to make unsafe
                 //   assumptions.
-                let pkg_name_val =
-                    AttrValue::from(unsafe { XirString::assume_fixed(pkg_name) });
-
-                self.toks.push(Token::AttrValue(pkg_name_val, LSPAN));
+                self.toks.push(Token::AttrValue(pkg_name, LSPAN));
                 self.toks.push(Token::AttrValueFragment(self.relroot, LSPAN));
                 self.toks.push(Token::AttrName(QN_SRC, LSPAN));
             }
@@ -199,9 +185,7 @@ impl<'a> DepListIter<'a> {
     #[inline]
     fn toks_push_attr(&mut self, name: QName, value: Option<SymbolId>) {
         if let Some(val) = value {
-            let attr_val = AttrValue::from(val);
-
-            self.toks.push(Token::AttrValue(attr_val, LSPAN));
+            self.toks.push(Token::AttrValue(val, LSPAN));
             self.toks.push(Token::AttrName(name, LSPAN));
         }
     }
@@ -284,11 +268,7 @@ impl MapFromsIter {
         self.iter.next().and_then(|from| {
             self.toks.push(Token::Close(None, LSPAN));
 
-            // TODO
-            let from_val =
-                AttrValue::from(unsafe { XirString::assume_fixed(from) });
-
-            self.toks.push(Token::AttrValue(from_val, LSPAN));
+            self.toks.push(Token::AttrValue(from, LSPAN));
             self.toks.push(Token::AttrName(QN_NAME, LSPAN));
 
             Some(Token::Open(QN_L_FROM, LSPAN))

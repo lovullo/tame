@@ -19,9 +19,10 @@
 
 //! Lower XIR stream into an XML byte stream via [`Write`].
 
+use super::{DefaultEscaper, Escaper};
 use super::{Error as XirError, QName, Token, TokenStream};
 use crate::sym::GlobalSymbolResolve;
-use crate::xir::{AttrValue, Text};
+use crate::xir::Text;
 use std::io::{Error as IoError, Write};
 use std::result;
 
@@ -118,7 +119,11 @@ impl WriterState {
 /// It uses a finate state machine (FSM),
 ///   where states are represented by [`WriterState`],
 ///   to avoid lookahead requirements.
-pub trait XmlWriter: Sized {
+pub trait XmlWriter<S = DefaultEscaper>
+where
+    S: Escaper,
+    Self: Sized,
+{
     /// Write XML representation into the provided buffer.
     ///
     /// The writer acts as a state machine to determine whether previous
@@ -133,7 +138,12 @@ pub trait XmlWriter: Sized {
     /// If you have a series of writes to perform,
     ///   consider using an [`Iterator`] implementing [`XmlWriter`].
     #[must_use = "Write operation may fail"]
-    fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result;
+    fn write<W: Write>(
+        self,
+        sink: &mut W,
+        prev_state: WriterState,
+        escaper: &S,
+    ) -> Result;
 
     /// Allocate a new buffer and write into it,
     ///   returning both the new buffer and the writer state.
@@ -147,17 +157,23 @@ pub trait XmlWriter: Sized {
     fn write_new(
         self,
         prev_state: WriterState,
+        escaper: &S,
     ) -> Result<(Vec<u8>, WriterState)> {
         let mut buf = Vec::<u8>::new();
-        let state = self.write(&mut buf, prev_state)?;
+        let state = self.write(&mut buf, prev_state, escaper)?;
 
         Ok((buf, state))
     }
 }
 
-impl XmlWriter for QName {
+impl<S: Escaper> XmlWriter<S> for QName {
     #[inline]
-    fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result {
+    fn write<W: Write>(
+        self,
+        sink: &mut W,
+        prev_state: WriterState,
+        _escaper: &S,
+    ) -> Result {
         if let Some(prefix) = self.prefix() {
             sink.write(prefix.lookup_str().as_bytes())?;
             sink.write(b":")?;
@@ -168,77 +184,76 @@ impl XmlWriter for QName {
     }
 }
 
-impl XmlWriter for Token {
-    fn write<W: Write>(self, sink: &mut W, prev_state: WriterState) -> Result {
-        type S = WriterState; // More concise
+impl<S: Escaper> XmlWriter<S> for Token {
+    fn write<W: Write>(
+        self,
+        sink: &mut W,
+        prev_state: WriterState,
+        escaper: &S,
+    ) -> Result {
+        type W = WriterState; // More concise
 
         match (self, prev_state) {
-            (Self::Open(name, _), S::NodeExpected | S::NodeOpen) => {
+            (Self::Open(name, _), W::NodeExpected | W::NodeOpen) => {
                 // If a node is still open, then we are a child.
                 prev_state.close_tag_if_open(sink)?;
                 sink.write(b"<")?;
-                name.write(sink, prev_state)?;
+                name.write(sink, prev_state, escaper)?;
 
-                Ok(S::NodeOpen)
+                Ok(W::NodeOpen)
             }
 
-            (Self::Close(None, _), S::NodeOpen) => {
+            (Self::Close(None, _), W::NodeOpen) => {
                 sink.write(b"/>")?;
 
-                Ok(S::NodeExpected)
+                Ok(W::NodeExpected)
             }
 
-            (Self::Close(Some(name), _), S::NodeExpected | S::NodeOpen) => {
+            (Self::Close(Some(name), _), W::NodeExpected | W::NodeOpen) => {
                 // If open, we're going to produce an element of the form
                 // `<foo></foo>`.
                 prev_state.close_tag_if_open(sink)?;
 
                 sink.write(b"</")?;
-                name.write(sink, prev_state)?;
+                name.write(sink, prev_state, escaper)?;
                 sink.write(b">")?;
 
-                Ok(S::NodeExpected)
+                Ok(W::NodeExpected)
             }
 
-            (Self::AttrName(name, _), S::NodeOpen) => {
+            (Self::AttrName(name, _), W::NodeOpen) => {
                 sink.write(b" ")?;
-                name.write(sink, prev_state)?;
+                name.write(sink, prev_state, escaper)?;
 
-                Ok(S::AttrNameAdjacent)
+                Ok(W::AttrNameAdjacent)
             }
 
-            (Self::AttrValue(AttrValue(value), _), S::AttrNameAdjacent) => {
+            (Self::AttrValue(value, _), W::AttrNameAdjacent) => {
                 sink.write(b"=\"")?;
-                sink.write(value.into_escaped().lookup_str().as_bytes())?;
+                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
                 sink.write(b"\"")?;
 
-                Ok(S::NodeOpen)
+                Ok(W::NodeOpen)
             }
 
-            (Self::AttrValue(AttrValue(value), _), S::AttrFragmentAdjacent) => {
-                sink.write(value.into_escaped().lookup_str().as_bytes())?;
+            (Self::AttrValue(value, _), W::AttrFragmentAdjacent) => {
+                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
                 sink.write(b"\"")?;
 
-                Ok(S::NodeOpen)
+                Ok(W::NodeOpen)
             }
 
-            (
-                Self::AttrValueFragment(AttrValue(value), _),
-                S::AttrNameAdjacent,
-            ) => {
+            (Self::AttrValueFragment(value, _), W::AttrNameAdjacent) => {
                 sink.write(b"=\"")?;
-                sink.write(value.into_escaped().lookup_str().as_bytes())?;
+                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
 
-                Ok(S::AttrFragmentAdjacent)
+                Ok(W::AttrFragmentAdjacent)
             }
 
-            (
-                Self::AttrValueFragment(AttrValue(value), _),
-                S::AttrFragmentAdjacent,
-            ) => {
-                sink.write(value.into_escaped().lookup_str().as_bytes())?;
+            (Self::AttrValueFragment(value, _), W::AttrFragmentAdjacent) => {
+                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
 
-                Ok(S::AttrFragmentAdjacent)
+                Ok(W::AttrFragmentAdjacent)
             }
 
             // AttrEnd is ignored by the writer (and is optional).
@@ -247,51 +262,51 @@ impl XmlWriter for Token {
             // Unescaped not yet supported, but you could use CData.
             (
                 Self::Text(Text::Escaped(text), _),
-                S::NodeExpected | S::NodeOpen,
+                W::NodeExpected | W::NodeOpen,
             ) => {
                 prev_state.close_tag_if_open(sink)?;
                 sink.write(text.lookup_str().as_bytes())?;
 
-                Ok(S::NodeExpected)
+                Ok(W::NodeExpected)
             }
 
             // Escaped not yet supported, but you could use Text.
             (
                 Self::CData(Text::Unescaped(text), _),
-                S::NodeExpected | S::NodeOpen,
+                W::NodeExpected | W::NodeOpen,
             ) => {
                 prev_state.close_tag_if_open(sink)?;
                 sink.write(b"<![CDATA[")?;
                 sink.write(text.lookup_str().as_bytes())?;
                 sink.write(b"]]>")?;
 
-                Ok(S::NodeExpected)
+                Ok(W::NodeExpected)
             }
 
             // Unescaped not yet supported, since we do not have a use case.
             (
                 Self::Comment(Text::Escaped(comment), _),
-                S::NodeExpected | S::NodeOpen,
+                W::NodeExpected | W::NodeOpen,
             ) => {
                 prev_state.close_tag_if_open(sink)?;
                 sink.write(b"<!--")?;
                 sink.write(comment.lookup_str().as_bytes())?;
                 sink.write(b"-->")?;
 
-                Ok(S::NodeExpected)
+                Ok(W::NodeExpected)
             }
 
-            (Self::Whitespace(ws, _), S::NodeOpen) => {
+            (Self::Whitespace(ws, _), W::NodeOpen) => {
                 sink.write(ws.lookup_str().as_bytes())?;
 
-                Ok(S::NodeOpen)
+                Ok(W::NodeOpen)
             }
 
             // As-of-yet unsupported operations that weren't needed at the
             // time of writing, but were planned for in the design of Xir.
-            (invalid @ Self::AttrName(_, _), S::AttrNameAdjacent)
-            | (invalid @ Self::Text(Text::Unescaped(_), _), S::NodeExpected)
-            | (invalid @ Self::CData(Text::Escaped(_), _), S::NodeExpected) => {
+            (invalid @ Self::AttrName(_, _), W::AttrNameAdjacent)
+            | (invalid @ Self::Text(Text::Unescaped(_), _), W::NodeExpected)
+            | (invalid @ Self::CData(Text::Escaped(_), _), W::NodeExpected) => {
                 Err(Error::Todo(format!("{:?}", invalid), prev_state))
             }
 
@@ -306,30 +321,52 @@ impl XmlWriter for Token {
     }
 }
 
-impl<I: TokenStream> XmlWriter for I {
+impl<I: TokenStream, S: Escaper> XmlWriter<S> for I {
     fn write<W: Write>(
         mut self,
         sink: &mut W,
         initial_state: WriterState,
+        escaper: &S,
     ) -> Result {
         self.try_fold(initial_state, |prev_state, tok| {
-            tok.write(sink, prev_state)
+            tok.write(sink, prev_state, escaper)
         })
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::convert::{TryFrom, TryInto};
+    use std::{
+        borrow::Cow,
+        convert::{TryFrom, TryInto},
+    };
 
     use super::*;
     use crate::{
         span::Span,
         sym::GlobalSymbolIntern,
-        xir::{AttrValue, QName, Text, Whitespace},
+        xir::{QName, Text, Whitespace},
     };
 
     type TestResult = std::result::Result<(), Error>;
+    type Esc = DefaultEscaper;
+
+    #[derive(Debug, Default)]
+    struct MockEscaper {}
+
+    // Simply adds ":ESC" as a suffix to the provided byte slice.
+    impl Escaper for MockEscaper {
+        fn escape_bytes(value: &[u8]) -> Cow<[u8]> {
+            let mut esc = value.to_owned();
+            esc.extend_from_slice(b":ESC");
+
+            Cow::Owned(esc)
+        }
+
+        fn unescape_bytes(_: &[u8]) -> result::Result<Cow<[u8]>, XirError> {
+            unreachable!("Writer should not be unescaping!")
+        }
+    }
 
     lazy_static! {
         static ref S: Span =
@@ -339,7 +376,8 @@ mod test {
     #[test]
     fn writes_beginning_node_tag_without_prefix() -> TestResult {
         let name = QName::new_local("no-prefix".try_into()?);
-        let result = Token::Open(name, *S).write_new(Default::default())?;
+        let result = Token::Open(name, *S)
+            .write_new(Default::default(), &Esc::default())?;
 
         assert_eq!(result.0, b"<no-prefix");
         assert_eq!(result.1, WriterState::NodeOpen);
@@ -350,7 +388,8 @@ mod test {
     #[test]
     fn writes_beginning_node_tag_with_prefix() -> TestResult {
         let name = QName::try_from(("prefix", "element-name"))?;
-        let result = Token::Open(name, *S).write_new(Default::default())?;
+        let result = Token::Open(name, *S)
+            .write_new(Default::default(), &Esc::default())?;
 
         assert_eq!(result.0, b"<prefix:element-name");
         assert_eq!(result.1, WriterState::NodeOpen);
@@ -361,7 +400,8 @@ mod test {
     #[test]
     fn closes_open_node_when_opening_another() -> TestResult {
         let name = QName::try_from(("p", "another-element"))?;
-        let result = Token::Open(name, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::Open(name, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
 
         assert_eq!(result.0, b"><p:another-element");
         assert_eq!(result.1, WriterState::NodeOpen);
@@ -371,7 +411,8 @@ mod test {
 
     #[test]
     fn closes_open_node_as_empty_element() -> TestResult {
-        let result = Token::Close(None, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::Close(None, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
 
         assert_eq!(result.0, b"/>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -384,7 +425,7 @@ mod test {
         let name = QName::try_from(("a", "closed-element"))?;
 
         let result = Token::Close(Some(name), *S)
-            .write_new(WriterState::NodeExpected)?;
+            .write_new(WriterState::NodeExpected, &Esc::default())?;
 
         assert_eq!(result.0, b"</a:closed-element>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -398,8 +439,8 @@ mod test {
     fn closes_open_node_with_closing_tag() -> TestResult {
         let name = QName::try_from(("b", "closed-element"))?;
 
-        let result =
-            Token::Close(Some(name), *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::Close(Some(name), *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
 
         assert_eq!(result.0, b"></b:closed-element>");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -411,7 +452,7 @@ mod test {
     #[test]
     fn whitespace_within_open_node() -> TestResult {
         let result = Token::Whitespace(Whitespace::try_from(" \t ")?, *S)
-            .write_new(WriterState::NodeOpen)?;
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
 
         assert_eq!(result.0, b" \t ");
         assert_eq!(result.1, WriterState::NodeOpen);
@@ -425,14 +466,14 @@ mod test {
         let name_local = QName::new_local("nons".try_into()?);
 
         // Namespace prefix
-        let result =
-            Token::AttrName(name_ns, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::AttrName(name_ns, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
         assert_eq!(result.0, b" some:attr");
         assert_eq!(result.1, WriterState::AttrNameAdjacent);
 
         // No namespace prefix
-        let result =
-            Token::AttrName(name_local, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::AttrName(name_local, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
         assert_eq!(result.0, b" nons");
         assert_eq!(result.1, WriterState::AttrNameAdjacent);
 
@@ -441,12 +482,14 @@ mod test {
 
     #[test]
     fn writes_attr_value_when_adjacent_to_attr() -> TestResult {
-        let value = AttrValue::from("test str".intern());
+        let value = "test str".intern();
 
-        let result = Token::AttrValue(value, *S)
-            .write_new(WriterState::AttrNameAdjacent)?;
+        let result = Token::AttrValue(value, *S).write_new(
+            WriterState::AttrNameAdjacent,
+            &MockEscaper::default(),
+        )?;
 
-        assert_eq!(result.0, br#"="test str""#);
+        assert_eq!(result.0, br#"="test str:ESC""#);
         assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
@@ -454,17 +497,19 @@ mod test {
 
     #[test]
     fn writes_attr_value_consisting_of_fragments() -> TestResult {
-        let value_left = AttrValue::from("left ".intern());
-        let value_right = AttrValue::from("right".intern());
+        let value_left = "left".intern();
+        let value_mid = " mid".intern();
+        let value_right = " right".intern();
 
         let result = vec![
             Token::AttrValueFragment(value_left, *S),
+            Token::AttrValueFragment(value_mid, *S),
             Token::AttrValue(value_right, *S),
         ]
         .into_iter()
-        .write_new(WriterState::AttrNameAdjacent)?;
+        .write_new(WriterState::AttrNameAdjacent, &MockEscaper::default())?;
 
-        assert_eq!(result.0, br#"="left right""#);
+        assert_eq!(result.0, br#"="left:ESC mid:ESC right:ESC""#);
         assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())
@@ -474,7 +519,8 @@ mod test {
     // just ignore it entirely.
     #[test]
     fn ignores_attr_end() -> TestResult {
-        let result = Token::AttrEnd.write_new(WriterState::NodeOpen)?;
+        let result =
+            Token::AttrEnd.write_new(WriterState::NodeOpen, &Esc::default())?;
         assert_eq!(result.0, b"");
         assert_eq!(result.1, WriterState::NodeOpen);
 
@@ -488,13 +534,14 @@ mod test {
         let text = Text::Escaped("test > escaped".intern());
 
         // When a node is expected.
-        let result =
-            Token::Text(text, *S).write_new(WriterState::NodeExpected)?;
+        let result = Token::Text(text, *S)
+            .write_new(WriterState::NodeExpected, &Esc::default())?;
         assert_eq!(result.0, b"test > escaped");
         assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        let result = Token::Text(text, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::Text(text, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
         assert_eq!(result.0, b">test > escaped");
         assert_eq!(result.1, WriterState::NodeExpected);
 
@@ -508,13 +555,14 @@ mod test {
         let text = Text::Unescaped("test > unescaped".intern());
 
         // When a node is expected.
-        let result =
-            Token::CData(text, *S).write_new(WriterState::NodeExpected)?;
+        let result = Token::CData(text, *S)
+            .write_new(WriterState::NodeExpected, &Esc::default())?;
         assert_eq!(result.0, b"<![CDATA[test > unescaped]]>");
         assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        let result = Token::CData(text, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::CData(text, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
         assert_eq!(result.0, b"><![CDATA[test > unescaped]]>");
         assert_eq!(result.1, WriterState::NodeExpected);
 
@@ -528,14 +576,14 @@ mod test {
         let comment = Text::Escaped("comment > escaped".intern());
 
         // When a node is expected.
-        let result =
-            Token::Comment(comment, *S).write_new(WriterState::NodeExpected)?;
+        let result = Token::Comment(comment, *S)
+            .write_new(WriterState::NodeExpected, &Esc::default())?;
         assert_eq!(result.0, b"<!--comment > escaped-->");
         assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        let result =
-            Token::Comment(comment, *S).write_new(WriterState::NodeOpen)?;
+        let result = Token::Comment(comment, *S)
+            .write_new(WriterState::NodeOpen, &Esc::default())?;
         assert_eq!(result.0, b"><!--comment > escaped-->");
         assert_eq!(result.1, WriterState::NodeExpected);
 
@@ -545,8 +593,11 @@ mod test {
     #[test]
     fn unsupported_transition_results_in_error() -> TestResult {
         assert!(matches!(
-            Token::AttrValue(AttrValue::from("".intern()), *S)
-                .write(&mut vec![], WriterState::NodeExpected),
+            Token::AttrValue("".intern(), *S).write(
+                &mut vec![],
+                WriterState::NodeExpected,
+                &Esc::default()
+            ),
             Err(Error::UnexpectedToken(_, WriterState::NodeExpected)),
         ));
 
@@ -562,7 +613,7 @@ mod test {
         let result = vec![
             Token::Open(root, *S),
             Token::AttrName(("an", "attr").try_into()?, *S),
-            Token::AttrValue(AttrValue::from("value".intern()), *S),
+            Token::AttrValue("value".intern(), *S),
             Token::AttrEnd,
             Token::Text(Text::Escaped("text".intern()), *S),
             Token::Open(("c", "child").try_into()?, *S),
@@ -571,7 +622,7 @@ mod test {
             Token::Close(Some(root), *S),
         ]
         .into_iter()
-        .write_new(Default::default())?;
+        .write_new(Default::default(), &Esc::default())?;
 
         assert_eq!(
             result.0,

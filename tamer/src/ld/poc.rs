@@ -25,18 +25,24 @@ use super::xmle::{
     xir::lower_iter,
     XmleSections,
 };
-use crate::asg::{Asg, DefaultAsg, IdentObject};
 use crate::global;
-use crate::obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader};
 use crate::sym::SymbolId;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 use crate::xir::writer::XmlWriter;
+use crate::{
+    asg::{Asg, DefaultAsg, IdentObject},
+    xir::DefaultEscaper,
+};
 use crate::{
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,
     },
     ld::xmle::Sections,
+};
+use crate::{
+    obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader},
+    xir::Escaper,
 };
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
@@ -54,11 +60,24 @@ type LinkerAsgBuilderState =
 pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
+    let escaper = {
+        #[cfg(feature = "wip-xmlo-xir-reader")]
+        {
+            DefaultEscaper::default()
+        }
+        #[cfg(not(feature = "wip-xmlo-xir-reader"))]
+        {
+            // The original POC linker did nothing with escape sequences,
+            //   since it simply shuffles data around and re-outputs as XML.
+            crate::xir::NullEscaper::default()
+        }
+    };
 
     let state = load_xmlo(
         package_path,
         &mut fs,
         &mut depgraph,
+        &escaper,
         AsgBuilderState::new(),
     )?;
 
@@ -105,6 +124,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
         name.expect("missing root package name"),
         relroot.expect("missing root package relroot"),
         output,
+        &escaper,
     )?;
 
     Ok(())
@@ -113,11 +133,13 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
 pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
+    let escaper = DefaultEscaper::default();
 
     let _ = load_xmlo(
         package_path,
         &mut fs,
         &mut depgraph,
+        &escaper,
         AsgBuilderState::new(),
     )?;
 
@@ -161,10 +183,11 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_xmlo<'a, P: AsRef<Path>>(
+fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     path_str: P,
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
     depgraph: &mut LinkerAsg,
+    escaper: &S,
     state: LinkerAsgBuilderState,
 ) -> Result<LinkerAsgBuilderState, Box<dyn Error>> {
     let cfile: PathFile<BufReader<fs::File>> = match fs.open(path_str)? {
@@ -186,7 +209,7 @@ fn load_xmlo<'a, P: AsRef<Path>>(
             use crate::iter::into_iter_while_ok;
             use crate::xir::reader::XmlXirReader;
 
-            into_iter_while_ok(XmlXirReader::from(file), |toks| {
+            into_iter_while_ok(XmlXirReader::new(file, escaper), |toks| {
                 let xmlo: XmloReader<_> = toks.into();
                 depgraph.import_xmlo(xmlo, state)
             })??
@@ -204,22 +227,27 @@ fn load_xmlo<'a, P: AsRef<Path>>(
         path_buf.push(str);
         path_buf.set_extension("xmlo");
 
-        state = load_xmlo(path_buf, fs, depgraph, state)?;
+        state = load_xmlo(path_buf, fs, depgraph, escaper, state)?;
     }
 
     Ok(state)
 }
 
-fn output_xmle<'a, S: XmleSections<'a>>(
-    sorted: S,
+fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
+    sorted: X,
     name: SymbolId,
     relroot: SymbolId,
     output: &str,
+    escaper: &S,
 ) -> Result<(), Box<dyn Error>> {
     let file = fs::File::create(output)?;
     let mut buf = BufWriter::new(file);
 
-    lower_iter(sorted, name, relroot).write(&mut buf, Default::default())?;
+    lower_iter(sorted, name, relroot).write(
+        &mut buf,
+        Default::default(),
+        escaper,
+    )?;
     buf.flush()?;
 
     Ok(())

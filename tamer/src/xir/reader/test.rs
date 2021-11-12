@@ -17,12 +17,14 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::borrow::Cow;
+
 use super::*;
 use crate::sym::GlobalSymbolIntern;
 use crate::{
     convert::ExpectInto,
     span::DUMMY_SPAN,
-    xir::{AttrValue, Text, Token},
+    xir::{Error, Text, Token},
 };
 
 /// These tests use [`quick_xml`] directly,
@@ -41,7 +43,24 @@ use crate::{
 ///         and by relying on certain parsing behavior to eliminate
 ///           redundant checks.
 
-type Sut<B> = XmlXirReader<B>;
+type Sut<'a, B, S> = XmlXirReader<'a, B, S>;
+
+#[derive(Debug, Default)]
+struct MockEscaper {}
+
+// Simply adds ":UNESC" as a suffix to the provided byte slice.
+impl Escaper for MockEscaper {
+    fn escape_bytes(_: &[u8]) -> Cow<[u8]> {
+        unreachable!("Reader should not be escaping!")
+    }
+
+    fn unescape_bytes(value: &[u8]) -> result::Result<Cow<[u8]>, Error> {
+        let mut unesc = value.to_owned();
+        unesc.extend_from_slice(b":UNESC");
+
+        Ok(Cow::Owned(unesc))
+    }
+}
 
 /// A byte that will be invalid provided that there is either no following
 ///   UTF-8 byte,
@@ -55,9 +74,20 @@ const INVALID_UTF8_BYTE: u8 = 0b11000000u8;
 const INVALID_STR: &str =
     unsafe { std::str::from_utf8_unchecked(&[INVALID_UTF8_BYTE]) };
 
+macro_rules! new_sut {
+    ($sut:ident = $data:expr) => {
+        new_sut!(b $sut = $data.as_bytes())
+    };
+
+    (b $sut:ident = $data:expr) => {
+        let escaper = MockEscaper::default();
+        let $sut = Sut::new($data, &escaper);
+    };
+}
+
 #[test]
 fn empty_node_without_prefix_or_attributes() {
-    let sut = Sut::new("<empty-node />".as_bytes());
+    new_sut!(sut = "<empty-node />");
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -74,7 +104,7 @@ fn empty_node_without_prefix_or_attributes() {
 // Resolving namespaces is not the concern of XIR.
 #[test]
 fn does_not_resolve_xmlns() {
-    let sut = Sut::new(r#"<no-ns xmlns="noresolve" />"#.as_bytes());
+    new_sut!(sut = r#"<no-ns xmlns="noresolve" />"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -84,7 +114,7 @@ fn does_not_resolve_xmlns() {
             Token::Open("no-ns".unwrap_into(), DUMMY_SPAN),
             // Since we didn't parse @xmlns, it's still an attribute.
             Token::AttrName("xmlns".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("noresolve".intern()), DUMMY_SPAN),
+            Token::AttrValue("noresolve:UNESC".intern(), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -94,7 +124,7 @@ fn does_not_resolve_xmlns() {
 // Resolving namespaces is not the concern of XIR.
 #[test]
 fn empty_node_with_prefix_without_attributes_unresolved() {
-    let sut = Sut::new(r#"<x:empty-node xmlns:x="noresolve" />"#.as_bytes());
+    new_sut!(sut = r#"<x:empty-node xmlns:x="noresolve" />"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -104,7 +134,7 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
         vec![
             Token::Open(("x", "empty-node").unwrap_into(), DUMMY_SPAN),
             Token::AttrName(("xmlns", "x").unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("noresolve".intern()), DUMMY_SPAN),
+            Token::AttrValue("noresolve:UNESC".intern(), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -115,7 +145,7 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
 #[test]
 fn prefix_with_empty_local_name_invalid_qname() {
     // No local name (trailing colon).
-    let sut = Sut::new(r#"<x: xmlns:x="testns" />"#.as_bytes());
+    new_sut!(sut = r#"<x: xmlns:x="testns" />"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -130,7 +160,7 @@ fn prefix_with_empty_local_name_invalid_qname() {
 // The order of attributes must be retained.
 #[test]
 fn multiple_attrs_ordered() {
-    let sut = Sut::new(r#"<ele foo="a" bar="b" b:baz="c" />"#.as_bytes());
+    new_sut!(sut = r#"<ele foo="a" bar="b" b:baz="c" />"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -139,11 +169,11 @@ fn multiple_attrs_ordered() {
         vec![
             Token::Open("ele".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("foo".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("a".intern()), DUMMY_SPAN),
+            Token::AttrValue("a:UNESC".intern(), DUMMY_SPAN),
             Token::AttrName("bar".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("b".intern()), DUMMY_SPAN),
+            Token::AttrValue("b:UNESC".intern(), DUMMY_SPAN),
             Token::AttrName(("b", "baz").unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("c".intern()), DUMMY_SPAN),
+            Token::AttrValue("c:UNESC".intern(), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -154,7 +184,7 @@ fn multiple_attrs_ordered() {
 // need to allow it to support e.g. recovery, code formatting, and LSPs.
 #[test]
 fn permits_duplicate_attrs() {
-    let sut = Sut::new(r#"<dup attr="a" attr="b" />"#.as_bytes());
+    new_sut!(sut = r#"<dup attr="a" attr="b" />"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -163,9 +193,9 @@ fn permits_duplicate_attrs() {
         vec![
             Token::Open("dup".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("attr".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("a".intern()), DUMMY_SPAN),
+            Token::AttrValue("a:UNESC".intern(), DUMMY_SPAN),
             Token::AttrName("attr".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("b".intern()), DUMMY_SPAN),
+            Token::AttrValue("b:UNESC".intern(), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
         ],
@@ -174,7 +204,7 @@ fn permits_duplicate_attrs() {
 
 #[test]
 fn child_node_self_closing() {
-    let sut = Sut::new(r#"<root><child /></root>"#.as_bytes());
+    new_sut!(sut = r#"<root><child /></root>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -193,7 +223,7 @@ fn child_node_self_closing() {
 
 #[test]
 fn sibling_nodes() {
-    let sut = Sut::new(r#"<root><child /><child /></root>"#.as_bytes());
+    new_sut!(sut = r#"<root><child /><child /></root>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -215,7 +245,7 @@ fn sibling_nodes() {
 
 #[test]
 fn child_node_with_attrs() {
-    let sut = Sut::new(r#"<root><child foo="bar" /></root>"#.as_bytes());
+    new_sut!(sut = r#"<root><child foo="bar" /></root>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -226,7 +256,7 @@ fn child_node_with_attrs() {
             Token::AttrEnd,
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
             Token::AttrName("foo".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(AttrValue::from("bar".intern()), DUMMY_SPAN),
+            Token::AttrValue("bar:UNESC".intern(), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
@@ -236,7 +266,7 @@ fn child_node_with_attrs() {
 
 #[test]
 fn child_text() {
-    let sut = Sut::new(r#"<text>foo bar</text>"#.as_bytes());
+    new_sut!(sut = r#"<text>foo bar</text>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -253,7 +283,7 @@ fn child_text() {
 
 #[test]
 fn mixed_child_content() {
-    let sut = Sut::new(r#"<text>foo<em>bar</em></text>"#.as_bytes());
+    new_sut!(sut = r#"<text>foo<em>bar</em></text>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -277,13 +307,12 @@ fn mixed_child_content() {
 // opening and closing tags of the root node.
 #[test]
 fn mixed_child_content_with_newlines() {
-    let sut = Sut::new(
-        r#"
+    new_sut!(
+        sut = r#"
 <root>
   <child />
 </root>
 "#
-        .as_bytes(),
     );
 
     let result = sut.collect::<Result<Vec<_>>>();
@@ -307,7 +336,7 @@ fn mixed_child_content_with_newlines() {
 
 #[test]
 fn child_cdata() {
-    let sut = Sut::new(r#"<cd><![CDATA[<foo />]]></cd>"#.as_bytes());
+    new_sut!(sut = r#"<cd><![CDATA[<foo />]]></cd>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -325,7 +354,7 @@ fn child_cdata() {
 
 #[test]
 fn mixed_child_text_and_cdata() {
-    let sut = Sut::new(r#"<cd>foo<bar/><![CDATA[<baz/>]]></cd>"#.as_bytes());
+    new_sut!(sut = r#"<cd>foo<bar/><![CDATA[<baz/>]]></cd>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -347,7 +376,7 @@ fn mixed_child_text_and_cdata() {
 
 #[test]
 fn comment() {
-    let sut = Sut::new(r#"<!--root--><root><!--<child>--></root>"#.as_bytes());
+    new_sut!(sut = r#"<!--root--><root><!--<child>--></root>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -365,12 +394,11 @@ fn comment() {
 
 #[test]
 fn comment_multiline() {
-    let sut = Sut::new(
-        r#"<mult><!--comment
+    new_sut!(
+        sut = r#"<mult><!--comment
 on multiple
 lines-->
 </mult>"#
-            .as_bytes(),
     );
 
     let result = sut.collect::<Result<Vec<_>>>();
@@ -393,7 +421,7 @@ lines-->
 // XIRT handles mismatch errors; XIR must explicitly support them.
 #[test]
 fn permits_mismatched_tags() {
-    let sut = Sut::new(r#"<root><child /></mismatch>"#.as_bytes());
+    new_sut!(sut = r#"<root><child /></mismatch>"#);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -414,7 +442,7 @@ fn permits_mismatched_tags() {
 #[test]
 fn node_name_invalid_utf8() {
     let bytes: &[u8] = &[b'<', INVALID_UTF8_BYTE, b'/', b'>'];
-    let sut = Sut::new(bytes);
+    new_sut!(b sut = bytes);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -434,7 +462,7 @@ fn attr_name_invalid_utf8() {
     s.push_str(INVALID_STR);
     s.push_str(r#"="value"/>"#);
 
-    let sut = Sut::new(s.as_bytes());
+    new_sut!(sut = s);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -454,14 +482,28 @@ fn attr_value_invalid_utf8() {
     s.push_str(INVALID_STR);
     s.push_str(r#""/>"#);
 
-    let sut = Sut::new(s.as_bytes());
+    new_sut!(sut = s);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
     match result {
         Ok(_) => panic!("expected failure"),
         Err(Error::InvalidUtf8(_, bytes)) => {
-            assert_eq!(bytes, &[b'b', b'a', b'd', INVALID_UTF8_BYTE]);
+            assert_eq!(
+                bytes,
+                &[
+                    b'b',
+                    b'a',
+                    b'd',
+                    INVALID_UTF8_BYTE,
+                    b':',
+                    b'U',
+                    b'N',
+                    b'E',
+                    b'S',
+                    b'C'
+                ]
+            );
         }
         _ => panic!("unexpected failure"),
     }

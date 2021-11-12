@@ -138,8 +138,8 @@ mod writer {
         Writer as QuickXmlWriter,
     };
     use std::borrow::Cow;
-    use tamer::span::Span;
     use tamer::xir::{writer::XmlWriter, Text};
+    use tamer::{span::Span, xir::DefaultEscaper};
 
     const FRAGMENT: &str = r#"<fragment>
 This is pretend fragment text.  We need a lot of it.
@@ -216,7 +216,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
                     Token::Close(None, span),
                 ]
                 .into_iter()
-                .write(&mut buf, Default::default())
+                .write(&mut buf, Default::default(), &DefaultEscaper::default())
                 .unwrap();
             });
         });
@@ -253,7 +253,11 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         bench.iter(|| {
             (0..50).for_each(|_| {
                 Token::Text(Text::Escaped(frag), span)
-                    .write(&mut buf, Default::default())
+                    .write(
+                        &mut buf,
+                        Default::default(),
+                        &DefaultEscaper::default(),
+                    )
                     .unwrap();
             });
         });

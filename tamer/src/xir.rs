@@ -50,17 +50,6 @@
 //!# }
 //! ```
 //!
-//! However,
-//!   certain elements cannot fully parse on their own because require
-//!   important contextual information,
-//!     such as [`AttrValue`],
-//!       which requires knowing whether the provided value is escaped.
-//! It is important that the caller is diligent in making the proper
-//!   determination in these cases,
-//!     otherwise it could result in situations ranging from invalid
-//!     compiler output to security vulnerabilities
-//!       (via XML injection).
-//!
 //! To parse an entire XML document,
 //!   see [`reader`].
 
@@ -68,19 +57,17 @@ use crate::span::Span;
 use crate::sym::{
     st_as_sym, CIdentStaticSymbolId, GlobalSymbolIntern,
     GlobalSymbolInternBytes, StaticSymbolId, SymbolId, TameIdentStaticSymbolId,
-    UriStaticSymbolId,
 };
 use memchr::memchr;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
-use std::hash::Hash;
 use std::ops::Deref;
 
 mod error;
 pub use error::Error;
 
-mod string;
-pub use string::XirString;
+mod escape;
+pub use escape::{DefaultEscaper, Escaper, NullEscaper};
 
 pub mod iter;
 pub mod pred;
@@ -494,47 +481,6 @@ pub enum Text {
     Escaped(SymbolId),
 }
 
-/// Represents an attribute value and its escaped contents.
-///
-/// Being explicit about the state of escaping allows us to skip checks when
-///   we know that the generated text could not possibly require escaping.
-/// This does, however, put the onus on the caller to ensure that they got
-///   the escaping status correct.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AttrValue(XirString);
-
-impl AttrValue {
-    /// Construct a constant escaped attribute from a static C-style symbol.
-    pub const fn st_cid(sym: CIdentStaticSymbolId) -> Self {
-        Self(XirString::st_cid(sym))
-    }
-
-    /// Construct a constant escaped attribute from a static URI symbol.
-    ///
-    /// URIs are expected _not_ to contain quotes.
-    pub const fn st_uri(sym: UriStaticSymbolId) -> Self {
-        Self(XirString::st_uri(sym))
-    }
-}
-
-impl<T: Into<XirString>> From<T> for AttrValue {
-    fn from(s: T) -> Self {
-        Self(s.into())
-    }
-}
-
-impl Into<SymbolId> for AttrValue {
-    fn into(self) -> SymbolId {
-        self.0.into()
-    }
-}
-
-impl Display for AttrValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
 /// Lightly-structured XML tokens with associated [`Span`]s.
 ///
 /// This is a streamable IR for XML.
@@ -575,7 +521,7 @@ pub enum Token {
     AttrName(QName, Span),
 
     /// Element attribute value.
-    AttrValue(AttrValue, Span),
+    AttrValue(SymbolId, Span),
 
     /// A portion of an element attribute value.
     ///
@@ -586,7 +532,7 @@ pub enum Token {
     /// Since each fragment contains a span,
     ///   this also potentially gives higher resolution for the origin of
     ///   components of generated attribute values.
-    AttrValueFragment(AttrValue, Span),
+    AttrValueFragment(SymbolId, Span),
 
     /// A delimiter indicating that attribute processing has ended and the
     ///   next token will be either a child node or [`Token::Close`].

@@ -194,8 +194,8 @@
 //! For more information,
 //!   see [`AttrParts`].
 
-use super::{AttrValue, QName, Text, Token, TokenResultStream, TokenStream};
-use crate::span::Span;
+use super::{QName, Text, Token, TokenResultStream, TokenStream};
+use crate::{span::Span, sym::SymbolId};
 use std::{fmt::Display, iter, mem::take};
 
 mod attr;
@@ -651,7 +651,7 @@ impl Stack {
     ///     which is responsible for managing future fragments.
     ///
     /// This will cause heap allocation.
-    fn push_attr_value(self, value: AttrValue, span: Span) -> Result<Self> {
+    fn push_attr_value(self, value: SymbolId, span: Span) -> Result<Self> {
         Ok(match self {
             Self::AttrName(head, name, open_span) => {
                 // This initial capacity can be adjusted after we observe
@@ -678,7 +678,7 @@ impl Stack {
     /// If the attribute is composed of fragments ([`Stack::AttrFragments`]),
     ///   this serves as the final fragment and will yield an
     ///   [`Attr::Extensible`] with no further processing.
-    fn close_attr(self, value: AttrValue, span: Span) -> Result<Self> {
+    fn close_attr(self, value: SymbolId, span: Span) -> Result<Self> {
         Ok(match self {
             Self::AttrName(Some((ele_stack, attr_list)), name, open_span) => {
                 Self::BuddingAttrList(

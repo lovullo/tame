@@ -256,12 +256,12 @@ fn test_writes_deps() -> TestResult {
 
         assert_eq!(
             attrs.find(QN_NAME).and_then(|a| a.value_atom()),
-            Some(AttrValue::from(ident.name())),
+            Some(ident.name()),
         );
 
         assert_eq!(
             attrs.find(QN_TYPE).and_then(|a| a.value_atom()),
-            Some(AttrValue::from(ident.kind().unwrap().as_sym()))
+            Some(ident.kind().unwrap().as_sym())
         );
 
         let generated = attrs.find(QN_GENERATED).and_then(|a| a.value_atom());
@@ -270,17 +270,17 @@ fn test_writes_deps() -> TestResult {
             generated: true, ..
         }) = ident.src()
         {
-            assert_eq!(generated, Some(AttrValue::from("true".intern())));
+            assert_eq!(generated, Some("true".intern()));
         } else {
             assert_eq!(generated, None);
         }
 
         if let Some(Source { parent, .. }) = ident.src() {
-            assert_attr!(attrs, QN_PARENT, parent.map(|x| AttrValue::from(x)),);
+            assert_attr!(attrs, QN_PARENT, *parent,);
         }
 
         if let Some(Source { yields, .. }) = ident.src() {
-            assert_attr!(attrs, QN_YIELDS, yields.map(|x| AttrValue::from(x)),);
+            assert_attr!(attrs, QN_YIELDS, *yields,);
         }
 
         if let Some(Source {
@@ -311,10 +311,7 @@ fn test_writes_deps() -> TestResult {
                 Some(Attr::Extensible(parts)) => {
                     assert_eq!(
                         parts.value_fragments(),
-                        &vec![
-                            (AttrValue::from(relroot), LSPAN),
-                            (AttrValue::from(*pkg_name), LSPAN),
-                        ]
+                        &vec![(relroot, LSPAN), (*pkg_name, LSPAN),]
                     );
                 }
                 invalid => panic!("unexpected desc: {:?}", invalid),
@@ -327,7 +324,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DIM,
-                    Some(AttrValue::from(Into::<SymbolId>::into(*dim))),
+                    Some(Into::<SymbolId>::into(*dim)),
                     "invalid {:?} @dim",
                     ident.kind()
                 );
@@ -341,7 +338,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DIM,
-                    Some(AttrValue::from(Into::<SymbolId>::into(*dim))),
+                    Some((*dim).into()),
                     "invalid {:?} @dim",
                     ident.kind()
                 );
@@ -349,7 +346,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DTYPE,
-                    Some(AttrValue::from(Into::<SymbolId>::into(*dtype))),
+                    Some((*dtype).into()),
                     "invalid {:?} @dtype",
                     ident.kind()
                 );
@@ -359,7 +356,7 @@ fn test_writes_deps() -> TestResult {
                 assert_attr!(
                     attrs,
                     QN_DTYPE,
-                    Some(AttrValue::from(Into::<SymbolId>::into(*dtype))),
+                    Some((*dtype).into()),
                     "invalid {:?} @dim",
                     ident.kind()
                 );
@@ -438,8 +435,8 @@ fn test_writes_map_froms() -> TestResult {
         );
     });
 
-    assert!(found.contains(&AttrValue::from("froma".intern())));
-    assert!(found.contains(&AttrValue::from("fromb".intern())));
+    assert!(found.contains(&"froma".intern()));
+    assert!(found.contains(&"fromb".intern()));
 
     Ok(())
 }

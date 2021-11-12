@@ -21,7 +21,7 @@
 //!
 //! This uses [`quick_xml`] as the parser.
 
-use super::{Error, Token, XirString};
+use super::{DefaultEscaper, Error, Escaper, Token};
 use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes, xir::Text};
 use quick_xml::{
     self,
@@ -46,7 +46,11 @@ pub type Result<T> = result::Result<T, Error>;
 ///
 /// [`None`] is returned only on EOF,
 ///   not on error.
-pub struct XmlXirReader<B: BufRead> {
+pub struct XmlXirReader<'s, B, S = DefaultEscaper>
+where
+    B: BufRead,
+    S: Escaper,
+{
     /// Inner parser.
     reader: quick_xml::Reader<B>,
 
@@ -61,10 +65,13 @@ pub struct XmlXirReader<B: BufRead> {
     ///     after which [`XmlXirReader::refill_buf`] requests another token
     ///     from `reader`.
     tokbuf: VecDeque<Token>,
+
+    /// System for unescaping string data.
+    escaper: &'s S,
 }
 
-impl<B: BufRead> XmlXirReader<B> {
-    pub fn new(reader: B) -> Self {
+impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
+    pub fn new(reader: B, escaper: &'s S) -> Self {
         let mut reader = quick_xml::Reader::from_reader(reader);
 
         // XIR must support mismatched tags so that we are able to represent
@@ -79,6 +86,8 @@ impl<B: BufRead> XmlXirReader<B> {
             //   but [`Token`]s are small enough that it likely does not
             //   matter much.
             tokbuf: VecDeque::with_capacity(32),
+
+            escaper,
         }
     }
 
@@ -99,21 +108,25 @@ impl<B: BufRead> XmlXirReader<B> {
 
             Ok(ev) => match ev {
                 QuickXmlEvent::Empty(ele) => Some(
-                    Self::parse_element_open(&mut self.tokbuf, ele).and_then(
-                        |open| {
-                            // Tag is self-closing, but this does not yet
-                            //   handle whitespace before the `/`.
-                            self.tokbuf
-                                .push_front(Token::Close(None, DUMMY_SPAN));
+                    Self::parse_element_open(
+                        &self.escaper,
+                        &mut self.tokbuf,
+                        ele,
+                    )
+                    .and_then(|open| {
+                        // Tag is self-closing, but this does not yet
+                        //   handle whitespace before the `/`.
+                        self.tokbuf.push_front(Token::Close(None, DUMMY_SPAN));
 
-                            Ok(open)
-                        },
-                    ),
+                        Ok(open)
+                    }),
                 ),
 
-                QuickXmlEvent::Start(ele) => {
-                    Some(Self::parse_element_open(&mut self.tokbuf, ele))
-                }
+                QuickXmlEvent::Start(ele) => Some(Self::parse_element_open(
+                    &self.escaper,
+                    &mut self.tokbuf,
+                    ele,
+                )),
 
                 QuickXmlEvent::End(ele) => {
                     Some(ele.name().try_into().map_err(Error::from).and_then(
@@ -156,6 +169,7 @@ impl<B: BufRead> XmlXirReader<B> {
     ///   buffer,
     ///     since the intent is to provide that token immediately.
     fn parse_element_open(
+        escaper: &'s S,
         tokbuf: &mut VecDeque<Token>,
         ele: BytesStart,
     ) -> Result<Token> {
@@ -163,7 +177,7 @@ impl<B: BufRead> XmlXirReader<B> {
             .try_into()
             .map_err(Error::from)
             .and_then(|qname| {
-                Self::parse_attrs(tokbuf, ele.attributes())?;
+                Self::parse_attrs(escaper, tokbuf, ele.attributes())?;
 
                 // The first token will be immediately returned
                 //   via the Iterator.
@@ -178,6 +192,7 @@ impl<B: BufRead> XmlXirReader<B> {
     /// This does not yet handle whitespace between attributes,
     ///   or around `=`.
     fn parse_attrs<'a>(
+        escaper: &'s S,
         tokbuf: &mut VecDeque<Token>,
         mut attrs: Attributes<'a>,
     ) -> Result<()> {
@@ -199,8 +214,7 @@ impl<B: BufRead> XmlXirReader<B> {
             //     that's okay as long as we can read it again,
             //       but we probably should still throw an error if we
             //       encounter such a situation.
-            let value =
-                XirString::from_escaped_raw(attr.value.as_ref())?.into();
+            let value = escaper.unescape_intern(attr.value.as_ref())?.into();
 
             tokbuf.push_front(Token::AttrName(name, DUMMY_SPAN));
             tokbuf.push_front(Token::AttrValue(value, DUMMY_SPAN));
@@ -215,7 +229,11 @@ impl<B: BufRead> XmlXirReader<B> {
     }
 }
 
-impl<B: BufRead> Iterator for XmlXirReader<B> {
+impl<'s, B, S> Iterator for XmlXirReader<'s, B, S>
+where
+    B: BufRead,
+    S: Escaper,
+{
     type Item = Result<Token>;
 
     /// Produce the next XIR [`Token`] from the input.
@@ -227,12 +245,6 @@ impl<B: BufRead> Iterator for XmlXirReader<B> {
             .pop_back()
             .map(Result::Ok)
             .or_else(|| self.refill_buf())
-    }
-}
-
-impl<B: BufRead> From<B> for XmlXirReader<B> {
-    fn from(reader: B) -> Self {
-        Self::new(reader)
     }
 }
 
