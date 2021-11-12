@@ -67,7 +67,7 @@ mod error;
 pub use error::Error;
 
 mod escape;
-pub use escape::{DefaultEscaper, Escaper, NullEscaper};
+pub use escape::{DefaultEscaper, Escaper};
 
 pub mod iter;
 pub mod pred;

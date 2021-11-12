@@ -60,18 +60,7 @@ type LinkerAsgBuilderState =
 pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
-    let escaper = {
-        #[cfg(feature = "wip-xmlo-xir-reader")]
-        {
-            DefaultEscaper::default()
-        }
-        #[cfg(not(feature = "wip-xmlo-xir-reader"))]
-        {
-            // The original POC linker did nothing with escape sequences,
-            //   since it simply shuffles data around and re-outputs as XML.
-            crate::xir::NullEscaper::default()
-        }
-    };
+    let escaper = DefaultEscaper::default();
 
     let state = load_xmlo(
         package_path,

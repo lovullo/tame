@@ -214,7 +214,8 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             //     that's okay as long as we can read it again,
             //       but we probably should still throw an error if we
             //       encounter such a situation.
-            let value = escaper.unescape_intern(attr.value.as_ref())?.into();
+            let value =
+                escaper.unescape(attr.value.as_ref().intern_utf8()?)?.into();
 
             tokbuf.push_front(Token::AttrName(name, DUMMY_SPAN));
             tokbuf.push_front(Token::AttrValue(value, DUMMY_SPAN));

@@ -489,21 +489,8 @@ fn attr_value_invalid_utf8() {
     match result {
         Ok(_) => panic!("expected failure"),
         Err(Error::InvalidUtf8(_, bytes)) => {
-            assert_eq!(
-                bytes,
-                &[
-                    b'b',
-                    b'a',
-                    b'd',
-                    INVALID_UTF8_BYTE,
-                    b':',
-                    b'U',
-                    b'N',
-                    b'E',
-                    b'S',
-                    b'C'
-                ]
-            );
+            // Doesn't make it to the Escaper.
+            assert_eq!(bytes, &[b'b', b'a', b'd', INVALID_UTF8_BYTE]);
         }
         _ => panic!("unexpected failure"),
     }
