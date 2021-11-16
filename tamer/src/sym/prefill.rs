@@ -221,7 +221,13 @@ macro_rules! static_symbol_consts {
     };
 
     // Terminating condition.
-    (@i $i:expr; <$size:ty>) => {}
+    (@i $i:expr; <$size:ty>) => {
+        /// Number of statically allocated symbols.
+        ///
+        /// This can be used to help determine a base capacity for
+        ///   collections holding [`SymbolId`]s.
+        pub const ST_COUNT: usize = $i - 1;
+    }
 }
 
 /// Statically allocate [`SymbolId`]s for the provided symbols,
@@ -605,5 +611,16 @@ mod test {
     #[should_panic]
     fn decimal1_gt_9_panics() {
         st::decimal1(10);
+    }
+
+    #[test]
+    fn st_count_matches_actual_count() {
+        // This assumes that static symbols begin at 1 and end at
+        //   END_STATIC.
+        assert_eq!(
+            st::END_STATIC.as_usize(),
+            st::ST_COUNT,
+            "st::ST_COUNT does not match the number of static symbols"
+        );
     }
 }

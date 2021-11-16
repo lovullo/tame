@@ -57,8 +57,8 @@
 use fxhash::FxHashMap;
 
 use crate::sym::{
-    GlobalSymbolInternBytes, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
-    SymbolId,
+    st::ST_COUNT, GlobalSymbolInternBytes, GlobalSymbolInternUnchecked,
+    GlobalSymbolResolve, SymbolId,
 };
 use std::{borrow::Cow, cell::RefCell, collections::hash_map::Entry};
 
@@ -205,11 +205,22 @@ pub struct CachingEscaper<S: Escaper> {
 
 impl<S: Escaper> CachingEscaper<S> {
     pub fn new(inner: S) -> Self {
-        // TODO: Capacity that is at least double the length of the static
-        // symbols.
+        // We know we'll encounter more than the statically allocated
+        //   symbols,
+        //     given that we'll be reading parsing XML documents.
+        // This can be adjusted as needed after profiling.
+        let capacity = ST_COUNT * 2;
+
         Self {
             inner,
-            ..Default::default()
+            toesc: RefCell::new(FxHashMap::with_capacity_and_hasher(
+                capacity,
+                Default::default(),
+            )),
+            tounesc: RefCell::new(FxHashMap::with_capacity_and_hasher(
+                capacity,
+                Default::default(),
+            )),
         }
     }
 
