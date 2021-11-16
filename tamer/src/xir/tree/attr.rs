@@ -120,7 +120,7 @@ impl Attr {
     ///   (b) this is [`Attr::Extensible`] with one fragment.
     /// Otherwise,
     ///   this panics with a TODO,
-    ///   since we haven't had a need for merging attributes [yet].
+    ///   since we haven't had a need for merging attributes \[yet\].
     ///
     /// Since [`SymbolId`] implements [`Copy`],
     ///   this returns an owned value.
