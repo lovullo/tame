@@ -297,10 +297,9 @@ impl TryFrom<&str> for Whitespace {
     }
 }
 
-impl From<Whitespace> for Text {
+impl From<Whitespace> for SymbolId {
     fn from(ws: Whitespace) -> Self {
-        // Whitespace needs no escaping
-        Self::Escaped(ws.0)
+        ws.0
     }
 }
 
@@ -450,37 +449,6 @@ impl Display for QName {
     }
 }
 
-/// Represents text and its escaped state.
-///
-/// Being explicit about the state of escaping allows us to skip checks when
-///   we know that the generated text could not possibly require escaping.
-/// This does, however, put the onus on the caller to ensure that they got
-///   the escaping status correct.
-/// (TODO: More information on why this burden isn"t all that bad,
-///    despite the risk.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Text {
-    /// Text node that requires escaping.
-    ///
-    /// Unescaped text requires further processing before writing.
-    ///
-    /// Note that,
-    ///   since the unescaped text is interned,
-    ///   it may be wasteful to intern a large text node with the intent of
-    ///     escaping and re-interning later.
-    /// Instead,
-    ///   if escaping is only needed for writing,
-    ///   it is likely better to leave it to the writer to escape,
-    ///     which does _not_ require interning of the resulting string.
-    Unescaped(SymbolId),
-
-    /// Text node that either has already been escaped or is known not to
-    ///   require escaping.
-    ///
-    /// Escaped text can be written as-is without any further processing.
-    Escaped(SymbolId),
-}
-
 /// Lightly-structured XML tokens with associated [`Span`]s.
 ///
 /// This is a streamable IR for XML.
@@ -549,23 +517,21 @@ pub enum Token {
     AttrEnd,
 
     /// Comment node.
-    Comment(Text, Span),
+    Comment(SymbolId, Span),
 
     /// Character data as part of an element.
     ///
     /// See also [`CData`](Token::CData) variant.
-    Text(Text, Span),
+    Text(SymbolId, Span),
 
     /// CData node (`<![CDATA[...]]>`).
-    ///
-    /// See also [`Text`](Token::Text) variant.
     ///
     /// _Warning: It is up to the caller to ensure that the string `]]>` is
     ///   not present in the text!_
     /// This is intended for reading existing XML data where CData is
     ///   already present,
     ///     not for producing new CData safely!
-    CData(Text, Span),
+    CData(SymbolId, Span),
 
     /// Similar to `Text`,
     ///   but intended for use where only whitespace is allowed,
@@ -704,10 +670,7 @@ mod test {
 
     #[test]
     fn whitespace_as_text() -> TestResult {
-        assert_eq!(
-            Text::Escaped(" ".intern()),
-            Whitespace::try_from(" ")?.into(),
-        );
+        assert_eq!(" ".intern(), Whitespace::try_from(" ")?.into(),);
 
         Ok(())
     }

@@ -24,7 +24,7 @@ use crate::sym::GlobalSymbolIntern;
 use crate::{
     convert::ExpectInto,
     span::DUMMY_SPAN,
-    xir::{Error, Text, Token},
+    xir::{Error, Token},
 };
 
 /// These tests use [`quick_xml`] directly,
@@ -275,7 +275,7 @@ fn child_text() {
         vec![
             Token::Open("text".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
-            Token::Text(Text::Escaped("foo bar".into()), DUMMY_SPAN),
+            Token::Text("foo bar:UNESC".into(), DUMMY_SPAN),
             Token::Close(Some("text".unwrap_into()), DUMMY_SPAN),
         ],
     );
@@ -292,10 +292,10 @@ fn mixed_child_content() {
         vec![
             Token::Open("text".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
-            Token::Text(Text::Escaped("foo".into()), DUMMY_SPAN),
+            Token::Text("foo:UNESC".into(), DUMMY_SPAN),
             Token::Open("em".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
-            Token::Text(Text::Escaped("bar".into()), DUMMY_SPAN),
+            Token::Text("bar:UNESC".into(), DUMMY_SPAN),
             Token::Close(Some("em".unwrap_into()), DUMMY_SPAN),
             Token::Close(Some("text".unwrap_into()), DUMMY_SPAN),
         ],
@@ -320,56 +320,16 @@ fn mixed_child_content_with_newlines() {
     assert_eq!(
         result.expect("parsing failed"),
         vec![
-            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
+            Token::Text("\n:UNESC".into(), DUMMY_SPAN),
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
-            Token::Text(Text::Escaped("\n  ".into()), DUMMY_SPAN),
+            Token::Text("\n  :UNESC".into(), DUMMY_SPAN),
             Token::Open("child".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
             Token::Close(None, DUMMY_SPAN),
-            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
+            Token::Text("\n:UNESC".into(), DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
-            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
-        ],
-    );
-}
-
-#[test]
-fn child_cdata() {
-    new_sut!(sut = r#"<cd><![CDATA[<foo />]]></cd>"#);
-
-    let result = sut.collect::<Result<Vec<_>>>();
-
-    assert_eq!(
-        result.expect("parsing failed"),
-        vec![
-            Token::Open("cd".unwrap_into(), DUMMY_SPAN),
-            Token::AttrEnd,
-            // Escaped by quick_xml.
-            Token::Text(Text::Escaped("&lt;foo /&gt;".into()), DUMMY_SPAN),
-            Token::Close(Some("cd".unwrap_into()), DUMMY_SPAN),
-        ],
-    );
-}
-
-#[test]
-fn mixed_child_text_and_cdata() {
-    new_sut!(sut = r#"<cd>foo<bar/><![CDATA[<baz/>]]></cd>"#);
-
-    let result = sut.collect::<Result<Vec<_>>>();
-
-    assert_eq!(
-        result.expect("parsing failed"),
-        vec![
-            Token::Open("cd".unwrap_into(), DUMMY_SPAN),
-            Token::AttrEnd,
-            Token::Text(Text::Escaped("foo".into()), DUMMY_SPAN),
-            Token::Open("bar".unwrap_into(), DUMMY_SPAN),
-            Token::AttrEnd,
-            Token::Close(None, DUMMY_SPAN),
-            // Escaped by quick_xml.
-            Token::Text(Text::Escaped("&lt;baz/&gt;".into()), DUMMY_SPAN),
-            Token::Close(Some("cd".unwrap_into()), DUMMY_SPAN),
+            Token::Text("\n:UNESC".into(), DUMMY_SPAN),
         ],
     );
 }
@@ -383,10 +343,10 @@ fn comment() {
     assert_eq!(
         result.expect("parsing failed"),
         vec![
-            Token::Comment(Text::Unescaped("root".into()), DUMMY_SPAN),
+            Token::Comment("root".into(), DUMMY_SPAN),
             Token::Open("root".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
-            Token::Comment(Text::Unescaped("<child>".into()), DUMMY_SPAN),
+            Token::Comment("<child>".into(), DUMMY_SPAN),
             Token::Close(Some("root".unwrap_into()), DUMMY_SPAN),
         ],
     );
@@ -408,11 +368,8 @@ lines-->
         vec![
             Token::Open("mult".unwrap_into(), DUMMY_SPAN),
             Token::AttrEnd,
-            Token::Comment(
-                Text::Unescaped("comment\non multiple\nlines".into()),
-                DUMMY_SPAN
-            ),
-            Token::Text(Text::Escaped("\n".into()), DUMMY_SPAN),
+            Token::Comment("comment\non multiple\nlines".into(), DUMMY_SPAN),
+            Token::Text("\n:UNESC".into(), DUMMY_SPAN),
             Token::Close(Some("mult".unwrap_into()), DUMMY_SPAN),
         ],
     );

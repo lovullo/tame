@@ -194,7 +194,7 @@
 //! For more information,
 //!   see [`AttrParts`].
 
-use super::{QName, Text, Token, TokenResultStream, TokenStream};
+use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId};
 use std::{fmt::Display, iter, mem::take};
 
@@ -224,7 +224,7 @@ pub enum Tree {
     ///
     /// A text node cannot contain other [`Tree`] elements;
     ///   sibling text nodes must exist within an [`Element`].
-    Text(Text, Span),
+    Text(SymbolId, Span),
 
     /// This variant exists purely because `#[non_exhaustive]` has no effect
     ///   within the crate.
@@ -246,9 +246,9 @@ impl Into<Option<Element>> for Tree {
     }
 }
 
-impl Into<Option<Text>> for Tree {
+impl Into<Option<SymbolId>> for Tree {
     #[inline]
-    fn into(self) -> Option<Text> {
+    fn into(self) -> Option<SymbolId> {
         match self {
             Self::Text(text, _) => Some(text),
             _ => None,
@@ -280,21 +280,16 @@ impl Tree {
         matches!(self, Self::Element(_))
     }
 
-    /// Yield a reference to the inner value if it is a [`Text`],
-    ///   otherwise [`None`].
+    /// Yield a string representation of the element,
+    ///   if applicable.
+    ///
+    /// This is incomplete.
     #[inline]
-    pub fn as_text<'a>(&'a self) -> Option<&'a Text> {
+    pub fn as_sym(&self) -> Option<SymbolId> {
         match self {
-            Self::Text(text, _) => Some(text),
+            Self::Text(sym, ..) => Some(*sym),
             _ => None,
         }
-    }
-
-    /// Yield the inner value if it is a [`Text`],
-    ///   otherwise [`None`].
-    #[inline]
-    pub fn into_text(self) -> Option<Text> {
-        self.into()
     }
 }
 
@@ -729,7 +724,7 @@ impl Stack {
     /// Appends a text node as a child of an element.
     ///
     /// This is valid only for a [`Stack::BuddingElement`].
-    fn text(self, value: Text, span: Span) -> Result<Self> {
+    fn text(self, value: SymbolId, span: Span) -> Result<Self> {
         Ok(match self {
             Self::BuddingElement(mut ele) => {
                 ele.element.children.push(Tree::Text(value, span));

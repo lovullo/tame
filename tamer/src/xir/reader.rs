@@ -22,7 +22,7 @@
 //! This uses [`quick_xml`] as the parser.
 
 use super::{DefaultEscaper, Error, Escaper, Token};
-use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes, xir::Text};
+use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
 use quick_xml::{
     self,
     events::{attributes::Attributes, BytesStart, Event as QuickXmlEvent},
@@ -140,21 +140,26 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     self.refill_buf()
                 }
 
-                // quick_xml gives us escaped bytes for CData,
-                //   so handle them identically.
-                // The question is whether we'll want to distinguish the two
-                //   in the future to reproduce the source document on write.
-                QuickXmlEvent::Text(bytes) | QuickXmlEvent::CData(bytes) => {
-                    Some(bytes.intern_utf8().map_err(Error::from).and_then(
-                        |text| Ok(Token::Text(Text::Escaped(text), DUMMY_SPAN)),
-                    ))
-                }
+                // quick_xml _escapes_ the unescaped CData before handing it
+                //   off to us,
+                //     which is a complete waste since we'd just have to
+                //     unescape it again.
+                QuickXmlEvent::CData(bytes) => todo!("CData: {:?}", bytes),
+
+                QuickXmlEvent::Text(bytes) => Some(
+                    bytes
+                        .intern_utf8()
+                        .map_err(Error::from)
+                        .and_then(|sym| self.escaper.unescape(sym))
+                        .map(|unesc| Token::Text(unesc, DUMMY_SPAN)),
+                ),
 
                 // Comments are _not_ returned escaped.
                 QuickXmlEvent::Comment(bytes) => Some(
-                    bytes.intern_utf8().map_err(Error::from).and_then(|text| {
-                        Ok(Token::Comment(Text::Unescaped(text), DUMMY_SPAN))
-                    }),
+                    bytes
+                        .intern_utf8()
+                        .map_err(Error::from)
+                        .map(|text| Token::Comment(text, DUMMY_SPAN)),
                 ),
 
                 x => todo!("event: {:?}", x),

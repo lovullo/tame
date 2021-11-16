@@ -31,8 +31,6 @@ lazy_static! {
 }
 
 mod tree {
-    use crate::xir::Text;
-
     use super::*;
 
     #[test]
@@ -47,20 +45,19 @@ mod tree {
         let tree = Tree::Element(ele.clone());
 
         assert_eq!(Some(&ele), tree.as_element());
-        assert_eq!(None, tree.as_text());
+        assert_eq!(None, Into::<Option<SymbolId>>::into(tree));
     }
 
     #[test]
     fn text_from_tree() {
-        let text = Text::Escaped("foo".intern());
+        let text = "foo".intern();
         let tree = Tree::Text(text, *S);
 
         assert!(!tree.is_element());
         assert_eq!(None, tree.as_element());
         assert_eq!(None, tree.clone().into_element());
 
-        assert_eq!(Some(&text), tree.as_text());
-        assert_eq!(Some(text), tree.into_text());
+        assert_eq!(Some(text), tree.into());
     }
 }
 
@@ -332,7 +329,7 @@ fn element_with_child_with_attributes() {
 #[test]
 fn element_with_text() {
     let parent = "parent".unwrap_into();
-    let text = Text::Escaped("inner text".into());
+    let text = "inner text".into();
 
     let toks = [
         Token::Open(parent, *S),

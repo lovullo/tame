@@ -490,8 +490,8 @@ macro_rules! test_exec_sec {
             // Order _absolutely_ matters,
             //   since the purpose of the linker is to put things into the correct
             //   order for execution.
-            assert_eq!(nodes[0].as_text(), Some(&Text::Escaped(frag_a)));
-            assert_eq!(nodes[1].as_text(), Some(&Text::Escaped(frag_b)));
+            assert_eq!(Some(frag_a), nodes[0].as_sym());
+            assert_eq!(Some(frag_b), nodes[1].as_sym());
 
             assert_eq!(nodes.len(), 2);
 

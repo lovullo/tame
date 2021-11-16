@@ -35,7 +35,7 @@ use crate::{
     sym::{st::*, SymbolId},
     xir::{
         iter::{elem_wrap, ElemWrapIter},
-        QName, Text, Token,
+        QName, Token,
     },
 };
 use arrayvec::ArrayVec;
@@ -306,7 +306,7 @@ impl Iterator for FragmentIter {
     fn next(&mut self) -> Option<Self::Item> {
         self.iter
             .by_ref()
-            .map(|frag| Token::Text(Text::Escaped(frag), LSPAN))
+            .map(|frag| Token::Text(frag, LSPAN))
             .next()
     }
 }

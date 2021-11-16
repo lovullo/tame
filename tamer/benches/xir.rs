@@ -138,7 +138,7 @@ mod writer {
         Writer as QuickXmlWriter,
     };
     use std::borrow::Cow;
-    use tamer::xir::{writer::XmlWriter, Text};
+    use tamer::xir::{writer::XmlWriter, Escaper};
     use tamer::{span::Span, xir::DefaultEscaper};
 
     const FRAGMENT: &str = r#"<fragment>
@@ -205,6 +205,12 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         let val1 = "value".intern();
         let val2 = "value2".intern();
 
+        // Prime the cache, since BytesStart is already assumed to be
+        // escaped.  We will have cached on read in a real-world scenario.
+        let escaper = DefaultEscaper::default();
+        escaper.escape(val1);
+        escaper.escape(val2);
+
         bench.iter(|| {
             (0..1000).for_each(|_| {
                 vec![
@@ -216,7 +222,7 @@ This is pretend fragment text.  We need a lot of it.</fragment>
                     Token::Close(None, span),
                 ]
                 .into_iter()
-                .write(&mut buf, Default::default(), &DefaultEscaper::default())
+                .write(&mut buf, Default::default(), &escaper)
                 .unwrap();
             });
         });
@@ -250,14 +256,15 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         let frag: SymbolId = FRAGMENT.intern();
         let span = Span::from_byte_interval((0, 0), "path".intern());
 
+        // Prime the cache, since BytesStart is already assumed to be
+        // escaped.
+        let escaper = DefaultEscaper::default();
+        escaper.escape(frag);
+
         bench.iter(|| {
             (0..50).for_each(|_| {
-                Token::Text(Text::Escaped(frag), span)
-                    .write(
-                        &mut buf,
-                        Default::default(),
-                        &DefaultEscaper::default(),
-                    )
+                Token::Text(frag, span)
+                    .write(&mut buf, Default::default(), &escaper)
                     .unwrap();
             });
         });
