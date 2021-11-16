@@ -95,7 +95,7 @@ pub trait TryCollect: Iterator + Sized {
     }
 
     /// Attempts to transform a [`Result<T, E>`](Result) iterator into a
-    ///   collection of `T`,
+    ///   collection of [`TryFromIterator<T>`](TryFromIterator),
     ///     which may fail in a controlled manner on either the source
     ///     iterator or the transformation.
     ///
