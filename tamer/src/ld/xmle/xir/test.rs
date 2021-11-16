@@ -37,7 +37,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 macro_rules! assert_attr{
     ($attrs:ident, $name:ident, $expected:expr, $($args:expr),*) => {
         assert_eq!(
-            $attrs.find($name).and_then(|a| a.value_atom()),
+            $attrs.find($name).map(|a| a.value_atom()),
             $expected,
             $($args),*
         )
@@ -255,16 +255,16 @@ fn test_writes_deps() -> TestResult {
         let attrs = ele.attrs().unwrap();
 
         assert_eq!(
-            attrs.find(QN_NAME).and_then(|a| a.value_atom()),
+            attrs.find(QN_NAME).map(|a| a.value_atom()),
             Some(ident.name()),
         );
 
         assert_eq!(
-            attrs.find(QN_TYPE).and_then(|a| a.value_atom()),
+            attrs.find(QN_TYPE).map(|a| a.value_atom()),
             Some(ident.kind().unwrap().as_sym())
         );
 
-        let generated = attrs.find(QN_GENERATED).and_then(|a| a.value_atom());
+        let generated = attrs.find(QN_GENERATED).map(|a| a.value_atom());
 
         if let Some(Source {
             generated: true, ..
@@ -291,7 +291,7 @@ fn test_writes_deps() -> TestResult {
             // uninterned and therefore cannot be compared as a
             // `SymbolId`.  Once the reader takes care of creating the
             // symbol, we'll have no such problem.
-            match attrs.find(QN_DESC).and_then(|a| a.value_atom()) {
+            match attrs.find(QN_DESC).map(|a| a.value_atom()) {
                 Some(given) => {
                     assert_eq!(
                         desc.lookup_str(),
@@ -430,8 +430,7 @@ fn test_writes_map_froms() -> TestResult {
                 .unwrap()
                 .find(QN_NAME)
                 .expect("expecting @name")
-                .value_atom()
-                .unwrap(),
+                .value_atom(),
         );
     });
 

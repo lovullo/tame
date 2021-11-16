@@ -113,26 +113,32 @@ impl Attr {
         }
     }
 
-    /// Attempt to retrieve a cost-free atom from the attribute.
+    /// Retrieve an atom from the attribute.
     ///
-    /// An atom is available if either
+    /// An atom is cost-free if either
     ///   (a) this is [`Attr::Simple`]; or
     ///   (b) this is [`Attr::Extensible`] with one fragment.
     /// Otherwise,
-    ///   rather than assuming what the caller may want to do,
-    ///   return [`None`] and let the caller decide how to proceed with
-    ///   deriving an atom.
+    ///   this panics with a TODO,
+    ///   since we haven't had a need for merging attributes [yet].
     ///
     /// Since [`SymbolId`] implements [`Copy`],
     ///   this returns an owned value.
     #[inline]
-    pub fn value_atom(&self) -> Option<SymbolId> {
+    pub fn value_atom(&self) -> SymbolId {
         match self {
-            Self::Simple(attr) => Some(attr.value),
+            Self::Simple(attr) => attr.value,
             Self::Extensible(attr) if attr.value_frags.len() == 1 => {
-                Some(attr.value_frags[0].0)
+                attr.value_frags[0].0
             }
-            _ => None,
+            // We'll probably want to just merge and generate a new
+            //   SymbolId,
+            //     possibly having a separate variant of this method if we
+            //     want to guarantee a cost-free conversion as a Result.
+            Self::Extensible(attr) => todo!(
+                "Multi-fragment attribute atom requested: {:?}",
+                attr.value_frags
+            ),
         }
     }
 }
