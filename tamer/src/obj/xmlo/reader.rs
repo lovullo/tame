@@ -17,10 +17,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{PackageAttrs, SymAttrs};
+use super::{PackageAttrs, SymAttrs, XmloError};
 use crate::sym::SymbolId;
-use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
-use std::fmt::Display;
 
 // While the _use_ is gated, this isn't, to ensure that we still try to
 // compile it while the flag is off (and so it's parsed by the language
@@ -155,103 +153,6 @@ pub enum XmloEvent {
     ///   dependency list; and fragments.
     /// This event is emitted at the closing `preproc:fragment` node.
     Eoh,
-}
-
-/// Error during `xmlo` processing.
-///
-/// Errors contain only owned values rather than references to original
-///   data since they represent conditions requiring termination from
-///   malformed compiler output,
-///     and so should rarely occur.
-/// This drastically simplifies the reader and [`Result`] chaining.
-///
-/// TODO: These errors provide no context (byte offset).
-#[derive(Debug, PartialEq)]
-pub enum XmloError {
-    /// XML parsing error (legacy, quick-xml).
-    XmlError(XmlError),
-    /// The root node was not an `lv:package`.
-    UnexpectedRoot,
-    /// A `preproc:sym` node was found, but is missing `@name`.
-    UnassociatedSym,
-    /// The provided `preproc:sym/@type` is unknown or invalid.
-    InvalidType(String),
-    /// The provided `preproc:sym/@dtype` is unknown or invalid.
-    InvalidDtype(String),
-    /// The provided `preproc:sym/@dim` is invalid.
-    InvalidDim(String),
-    /// A `preproc:sym-dep` element was found, but is missing `@name`.
-    UnassociatedSymDep,
-    /// The `preproc:sym[@type="map"]` contains unexpected or invalid data.
-    InvalidMapFrom(String),
-    /// Invalid dependency in adjacency list
-    ///   (`preproc:sym-dep/preproc:sym-ref`).
-    MalformedSymRef(String),
-    /// A `preproc:fragment` element was found, but is missing `@id`.
-    UnassociatedFragment,
-    /// A `preproc:fragment` element was found, but is missing `text()`.
-    MissingFragmentText(SymbolId),
-    /// Token stream ended unexpectedly.
-    UnexpectedEof,
-}
-
-impl From<InnerXmlError> for XmloError {
-    fn from(e: InnerXmlError) -> Self {
-        XmloError::XmlError(e.into())
-    }
-}
-
-impl Display for XmloError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::XmlError(e) => e.fmt(fmt),
-            Self::UnexpectedRoot => {
-                write!(fmt, "unexpected package root (is this a package?)")
-            }
-            Self::UnassociatedSym => write!(
-                fmt,
-                "unassociated symbol table entry: preproc:sym/@name missing"
-            ),
-            Self::InvalidType(ty) => {
-                write!(fmt, "invalid preproc:sym/@type `{}`", ty)
-            }
-            Self::InvalidDtype(dtype) => {
-                write!(fmt, "invalid preproc:sym/@dtype `{}`", dtype)
-            }
-            Self::InvalidDim(dim) => {
-                write!(fmt, "invalid preproc:sym/@dim `{}`", dim)
-            }
-            Self::InvalidMapFrom(msg) => {
-                write!(fmt, "invalid preproc:sym[@type=\"map\"]: {}", msg)
-            }
-            Self::UnassociatedSymDep => write!(
-                fmt,
-                "unassociated dependency list: preproc:sym-dep/@name missing"
-            ),
-            Self::MalformedSymRef(msg) => {
-                write!(fmt, "malformed dependency ref: {}", msg)
-            }
-            Self::UnassociatedFragment => write!(
-                fmt,
-                "unassociated fragment: preproc:fragment/@id missing"
-            ),
-            Self::MissingFragmentText(symname) => write!(
-                fmt,
-                "fragment found, but missing text for symbol `{}`",
-                symname,
-            ),
-            Self::UnexpectedEof => write!(fmt, "unexpected EOF"),
-        }
-    }
-}
-
-impl std::error::Error for XmloError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::XmlError(e) => Some(e),
-            _ => None,
-        }
-    }
 }
 
 #[cfg(feature = "wip-xmlo-xir-reader")]

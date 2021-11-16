@@ -37,7 +37,10 @@
 //!     it is wrapped in an [`Option`] so that [`take`](Option::take) can be
 //!       used to take ownership over the data.
 
-use super::reader::{XmloError, XmloEvent, XmloResult};
+use super::{
+    reader::{XmloEvent, XmloResult},
+    XmloError,
+};
 use crate::asg::{
     Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, IndexType,
     ObjectRef, Source,

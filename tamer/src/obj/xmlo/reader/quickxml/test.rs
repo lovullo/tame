@@ -17,11 +17,11 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::super::{InnerXmlError, XmlError};
 use super::*;
 use crate::obj::xmlo::{SymDtype, SymType};
 use crate::sym::GlobalSymbolIntern;
 use crate::test::quick_xml::*;
+use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
 
 type Sut<B> = XmloReader<B>;
 

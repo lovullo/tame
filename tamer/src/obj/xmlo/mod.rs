@@ -75,9 +75,11 @@
 //! ```
 
 mod asg_builder;
+mod error;
 mod ir;
 mod reader;
 
 pub use asg_builder::{AsgBuilder, AsgBuilderState};
+pub use error::XmloError;
 pub use ir::{PackageAttrs, SymAttrs, SymDtype, SymType};
-pub use reader::{XmloError, XmloEvent, XmloReader};
+pub use reader::{XmloEvent, XmloReader};

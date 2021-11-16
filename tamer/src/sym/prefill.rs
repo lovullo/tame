@@ -444,6 +444,7 @@ pub mod st {
         L_DESC: cid "desc",
         L_DIM: cid "dim",
         L_DTYPE: cid "dtype",
+        L_ELIG_CLASS_YIELDS: tid "elig-class-yields",
         L_EMPTY: cid "empty",
         L_EXEC: cid "exec",
         L_FALSE: cid "false",
