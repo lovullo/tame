@@ -834,6 +834,10 @@ impl ParserState {
                 Parsed::Attr(attr)
             }
 
+            // This parser has completed relative to its initial context and
+            //   is not expecting any further input.
+            Stack::Done => Parsed::Done,
+
             _ => {
                 self.stack = new_stack;
                 Parsed::Incomplete

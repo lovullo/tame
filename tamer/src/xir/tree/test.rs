@@ -480,6 +480,8 @@ fn parser_attr_multiple() {
         Token::AttrName(attr2, *S2),
         Token::AttrValue(val2, *S3),
         Token::AttrEnd,
+        // Token that we should _not_ hit.
+        Token::Text("nohit".into(), *S),
     ]
     .into_iter();
 
@@ -488,4 +490,12 @@ fn parser_attr_multiple() {
     assert_eq!(sut.next(), Some(Ok(Attr::new(attr1, val1, (*S, *S2)))));
     assert_eq!(sut.next(), Some(Ok(Attr::new(attr2, val2, (*S2, *S3)))));
     assert_eq!(sut.next(), None);
+
+    // Parsing must stop after AttrEnd,
+    //   after which some other parser can continue on the same token
+    //   stream.
+    // Even if there _were_ more attributes,
+    //   this parser is spent and cannot continue.
+    drop(sut);
+    assert_eq!(toks.next(), Some(Token::Text("nohit".into(), *S)));
 }
