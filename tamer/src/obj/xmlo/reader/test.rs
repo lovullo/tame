@@ -42,3 +42,68 @@ fn fails_on_invalid_root() {
 
     assert_matches!(sut.next(), Some(Err(XmloError::UnexpectedRoot)));
 }
+
+#[test]
+fn parses_package_attrs() {
+    let name = "pkgroot".into();
+    let relroot = "../../".into();
+    let elig = "elig-class-yields".into();
+
+    let mut sut = Sut::from_reader(
+        [
+            Token::Open("package".unwrap_into(), DUMMY_SPAN),
+            Token::AttrName("name".unwrap_into(), DUMMY_SPAN),
+            Token::AttrValue(name, DUMMY_SPAN),
+            Token::AttrName("__rootpath".unwrap_into(), DUMMY_SPAN),
+            Token::AttrValue(relroot, DUMMY_SPAN),
+            Token::AttrName("program".unwrap_into(), DUMMY_SPAN),
+            Token::AttrValue(raw::L_TRUE, DUMMY_SPAN),
+            Token::AttrName(
+                ("preproc", "elig-class-yields").unwrap_into(),
+                DUMMY_SPAN,
+            ),
+            Token::AttrValue(elig, DUMMY_SPAN),
+            Token::AttrEnd,
+        ]
+        .into_iter(),
+    );
+
+    let result = sut.next();
+
+    assert_eq!(
+        Some(Ok(XmloEvent::Package(PackageAttrs {
+            name: Some(name),
+            relroot: Some(relroot),
+            program: true,
+            elig: Some(elig),
+        }))),
+        result
+    );
+}
+
+// The linker does not [yet] parse namespaces.
+#[test]
+fn parses_package_attrs_with_ns_prefix() {
+    let name = "pkgrootns".into();
+
+    let mut sut = Sut::from_reader(
+        [
+            Token::Open(("lv", "package").unwrap_into(), DUMMY_SPAN),
+            Token::AttrName("name".unwrap_into(), DUMMY_SPAN),
+            Token::AttrValue(name, DUMMY_SPAN),
+            Token::AttrEnd,
+        ]
+        .into_iter(),
+    );
+
+    let result = sut.next();
+
+    // NB: This also tests defaults and non-program.
+    assert_eq!(
+        Some(Ok(XmloEvent::Package(PackageAttrs {
+            name: Some(name),
+            ..Default::default()
+        }))),
+        result
+    );
+}

@@ -18,7 +18,9 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{PackageAttrs, SymAttrs, XmloError};
-use crate::sym::SymbolId;
+use crate::iter::TryFromIterator;
+use crate::sym::{st::*, SymbolId};
+use crate::xir::tree::Attr;
 
 // While the _use_ is gated, this isn't, to ensure that we still try to
 // compile it while the flag is off (and so it's parsed by the language
@@ -37,6 +39,13 @@ pub use new::XmloReader;
 ///   potentially fail in error.
 pub type XmloResult<T> = Result<T, XmloError>;
 
+qname_const! {
+    QN_NAME: :L_NAME,
+    QN_ROOTPATH: :L_UUROOTPATH,
+    QN_PROGRAM: :L_PROGRAM,
+    QN_PREPROC_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
+}
+
 #[cfg(feature = "wip-xmlo-xir-reader")]
 mod new {
     //! Re-implementation of `XmloReader` using a [`TokenStream`].
@@ -45,7 +54,9 @@ mod new {
     //!   it exists to make feature-flagging less confusing and error-prone.
 
     use super::{XmloError, XmloEvent, XmloResult};
+    use crate::iter::TryCollect;
     use crate::sym::st::*;
+    use crate::xir::tree::attr_parser_from;
     use crate::xir::{Token, TokenStream};
 
     qname_const! {
@@ -53,6 +64,7 @@ mod new {
         QN_PACKAGE: :L_PACKAGE,
     }
 
+    #[derive(Debug)]
     pub struct XmloReader<I: TokenStream> {
         reader: I,
         seen_root: bool,
@@ -75,7 +87,10 @@ mod new {
             if !self.seen_root {
                 match token {
                     Token::Open(QN_LV_PACKAGE | QN_PACKAGE, _) => {
-                        //self.seen_root = true;
+                        return Ok(XmloEvent::Package(
+                            attr_parser_from(&mut self.reader)
+                                .try_collect_ok()??,
+                        ));
                     }
 
                     _ => return Err(XmloError::UnexpectedRoot),
@@ -153,6 +168,35 @@ pub enum XmloEvent {
     ///   dependency list; and fragments.
     /// This event is emitted at the closing `preproc:fragment` node.
     Eoh,
+}
+
+impl TryFromIterator<Attr> for PackageAttrs {
+    type Error = XmloError;
+
+    fn try_from_iter<I: IntoIterator<Item = Attr>>(
+        iter: I,
+    ) -> Result<Self, Self::Error> {
+        let mut attrs: Self = Default::default();
+
+        for attr in iter.into_iter() {
+            let val = attr.value_atom();
+
+            match attr.name() {
+                QN_NAME => attrs.name = Some(val),
+                QN_ROOTPATH => attrs.relroot = Some(val),
+                QN_PROGRAM => attrs.program = val == raw::L_TRUE,
+                QN_PREPROC_ELIG_CLASS_YIELDS => attrs.elig = Some(val),
+
+                // Ignore anything else on the root node.
+                // TODO: After tamec is fully migrated from XSLT,
+                //   before we move to a different format,
+                //   we should error here.
+                _ => (),
+            }
+        }
+
+        Ok(attrs)
+    }
 }
 
 #[cfg(feature = "wip-xmlo-xir-reader")]

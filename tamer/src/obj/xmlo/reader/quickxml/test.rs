@@ -99,6 +99,7 @@ xmlo_tests! {
         }
     }
 
+    // DONE
     fn recognizes_valid_roots(sut) {
         // xmlo_tests macro sets this for us, so we need to clear it to
         // be able to perform the check
@@ -129,6 +130,7 @@ xmlo_tests! {
         sut.read_event()?;
     }
 
+    // DONE
     fn package_event_program(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
@@ -154,6 +156,7 @@ xmlo_tests! {
         );
     }
 
+    // DONE
     fn package_event_nonprogram(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
@@ -173,6 +176,7 @@ xmlo_tests! {
         );
     }
 
+    // DONE
     fn package_event_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(

@@ -196,7 +196,7 @@
 
 use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId};
-use std::{fmt::Display, iter, mem::take};
+use std::{error::Error, fmt::Display, iter, mem::take};
 
 mod attr;
 pub use attr::{Attr, AttrList, AttrParts, SimpleAttr};
@@ -937,6 +937,12 @@ impl Display for ParseError {
                 )
             }
         }
+    }
+}
+
+impl Error for ParseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 

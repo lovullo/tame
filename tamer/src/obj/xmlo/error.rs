@@ -21,6 +21,7 @@
 
 use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
+use crate::xir::tree::ParseError as XirtParseError;
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.
@@ -36,6 +37,8 @@ use std::fmt::Display;
 pub enum XmloError {
     /// XML parsing error (legacy, quick-xml).
     XmlError(XmlError),
+    /// XIR parsing error.
+    XirtError(XirtParseError),
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
@@ -67,10 +70,17 @@ impl From<InnerXmlError> for XmloError {
     }
 }
 
+impl From<XirtParseError> for XmloError {
+    fn from(e: XirtParseError) -> Self {
+        Self::XirtError(e)
+    }
+}
+
 impl Display for XmloError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::XmlError(e) => e.fmt(fmt),
+            Self::XirtError(e) => e.fmt(fmt),
             Self::UnexpectedRoot => {
                 write!(fmt, "unexpected package root (is this a package?)")
             }
@@ -115,6 +125,7 @@ impl std::error::Error for XmloError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::XmlError(e) => Some(e),
+            Self::XirtError(e) => Some(e),
             _ => None,
         }
     }
