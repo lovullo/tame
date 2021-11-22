@@ -20,7 +20,7 @@
 use std::assert_matches::assert_matches;
 
 use super::*;
-use crate::{convert::ExpectInto, span::DUMMY_SPAN, xir::Token};
+use crate::{convert::ExpectInto, span::DUMMY_SPAN as DS, xir::Token};
 
 type Sut<B> = XmloReader<B>;
 
@@ -33,11 +33,7 @@ fn fail_unexpected_eof() {
 #[test]
 fn fails_on_invalid_root() {
     let mut sut = Sut::from_reader(
-        [Token::Open(
-            "not-a-valid-package-node".unwrap_into(),
-            DUMMY_SPAN,
-        )]
-        .into_iter(),
+        [Token::Open("not-a-valid-package-node".unwrap_into(), DS)].into_iter(),
     );
 
     assert_matches!(sut.next(), Some(Err(XmloError::UnexpectedRoot)));
@@ -51,18 +47,15 @@ fn parses_package_attrs() {
 
     let mut sut = Sut::from_reader(
         [
-            Token::Open("package".unwrap_into(), DUMMY_SPAN),
-            Token::AttrName("name".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(name, DUMMY_SPAN),
-            Token::AttrName("__rootpath".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(relroot, DUMMY_SPAN),
-            Token::AttrName("program".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(raw::L_TRUE, DUMMY_SPAN),
-            Token::AttrName(
-                ("preproc", "elig-class-yields").unwrap_into(),
-                DUMMY_SPAN,
-            ),
-            Token::AttrValue(elig, DUMMY_SPAN),
+            Token::Open("package".unwrap_into(), DS),
+            Token::AttrName("name".unwrap_into(), DS),
+            Token::AttrValue(name, DS),
+            Token::AttrName("__rootpath".unwrap_into(), DS),
+            Token::AttrValue(relroot, DS),
+            Token::AttrName("program".unwrap_into(), DS),
+            Token::AttrValue(raw::L_TRUE, DS),
+            Token::AttrName(("preproc", "elig-class-yields").unwrap_into(), DS),
+            Token::AttrValue(elig, DS),
             Token::AttrEnd,
         ]
         .into_iter(),
@@ -88,9 +81,9 @@ fn parses_package_attrs_with_ns_prefix() {
 
     let mut sut = Sut::from_reader(
         [
-            Token::Open(("lv", "package").unwrap_into(), DUMMY_SPAN),
-            Token::AttrName("name".unwrap_into(), DUMMY_SPAN),
-            Token::AttrValue(name, DUMMY_SPAN),
+            Token::Open(("lv", "package").unwrap_into(), DS),
+            Token::AttrName("name".unwrap_into(), DS),
+            Token::AttrValue(name, DS),
             Token::AttrEnd,
         ]
         .into_iter(),
