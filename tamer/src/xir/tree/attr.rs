@@ -25,6 +25,7 @@
 
 use super::QName;
 use crate::{span::Span, sym::SymbolId};
+use std::fmt::Display;
 
 /// An attribute.
 ///
@@ -143,6 +144,15 @@ impl Attr {
     }
 }
 
+impl Display for Attr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Simple(attr) => attr.fmt(f),
+            Self::Extensible(parts) => parts.fmt(f),
+        }
+    }
+}
+
 /// Element attribute with an atomic value.
 ///
 /// This should be used in place of [`AttrParts`] whenever the attribute is
@@ -161,6 +171,12 @@ impl SimpleAttr {
     #[inline]
     pub fn new(name: QName, value: SymbolId, span: (Span, Span)) -> Self {
         Self { name, value, span }
+    }
+}
+
+impl Display for SimpleAttr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "`@{}=\"{}\"` at {}", self.name, self.value, self.span.0)
     }
 }
 
@@ -250,6 +266,12 @@ impl From<Attr> for AttrParts {
             Attr::Simple(inner) => inner.into(),
             Attr::Extensible(inner) => inner,
         }
+    }
+}
+
+impl Display for AttrParts {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!("<AttrParts as std::fmt::Display>::fmt")
     }
 }
 
