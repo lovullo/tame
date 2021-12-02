@@ -17,9 +17,14 @@
 #
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This script should be run _once_ after an initial checkout, otherwise it
+# may overwrite any subsequent configuration you may have done.
 ##
 
 set -euo pipefail
 
-./autogen.sh
+# This will apply a default configuration, which will be used to perform a
+# fetch of the dependencies.  You are of course free to reconfigure after.
+./autogen.sh && ./configure && make fetch
 

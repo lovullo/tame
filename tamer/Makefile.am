@@ -37,31 +37,36 @@ all: bin doc bench-build
 
 .PHONY: bin
 bin:
-	@CARGO@ +@RUST_TC@ build $(CARGO_BUILD_FLAGS) @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ build $(CARGO_BUILD_FLAGS) @FEATURES@
 
 doc: html
 html-am:
-	@CARGO@ +@RUST_TC@ test --doc @FEATURES@
-	@CARGO@ +@RUST_TC@ @CARGO_DOC_FLAGS@ doc --document-private-items @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --doc @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ @CARGO_DOC_FLAGS@ doc --document-private-items @FEATURES@
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
 check-am: check-fmt
-	@CARGO@ +@RUST_TC@ test @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test @FEATURES@
 
 check-fmt:
-	@CARGO@ +@RUST_TC@ fmt -- --check
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ fmt -- --check
 
 bench:
-	@CARGO@ +@RUST_TC@ @CARGO_BENCH_PRE_FLAGS@ bench $(CARGO_BENCH_FLAGS) @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ @CARGO_BENCH_PRE_FLAGS@ bench $(CARGO_BENCH_FLAGS) @FEATURES@
 
 # Build but do not run benches (to ensures we didn't break them)
 bench-build:
-	@CARGO@ +@RUST_TC@ @CARGO_BENCH_PRE_FLAGS@ build --benches @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ @CARGO_BENCH_PRE_FLAGS@ build --benches @FEATURES@
 
 fix: fmt
 fmt:
-	@CARGO@ +@RUST_TC@ fmt
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ fmt
 
 clean-am:
-	@CARGO@ +@RUST_TC@ clean
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ clean
+
+.PHONY: fetch
+fetch:
+	@CARGO@ +@RUST_TC@ --locked fetch
+

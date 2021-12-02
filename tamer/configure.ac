@@ -49,6 +49,12 @@ AC_SUBST([RUST_TC], nightly)
 
 test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 
+# There is no reason the build should _ever_ access the network.
+# This both helps with reproducibility and helps to mitigate supply chain
+# attacks by requiring developers to explicitly indicate their intent to
+# fetch a network resource (by invoking cargo manually).
+AC_SUBST([CARGO_FLAGS], "--frozen --offline")
+
 # This is a nightly version at the time of writing
 rustc_ver_req=1.57.0
 
