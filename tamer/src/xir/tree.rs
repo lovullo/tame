@@ -741,7 +741,7 @@ impl ParserState {
             Token::Close(name, span) => stack.close_element(name, span),
             Token::AttrName(name, span) => stack.open_attr(name, span),
             Token::AttrValue(value, span) => stack.close_attr(value, span),
-            Token::AttrEnd => stack.end_attrs(),
+            Token::AttrEnd(_) => stack.end_attrs(),
             Token::Text(value, span) => stack.text(value, span),
 
             // This parse is being rewritten, so we'll address this with a

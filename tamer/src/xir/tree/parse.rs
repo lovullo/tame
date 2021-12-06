@@ -282,7 +282,7 @@ pub mod test {
     use std::assert_matches::assert_matches;
 
     use super::*;
-    use crate::span::DUMMY_SPAN;
+    use crate::span::DUMMY_SPAN as DS;
 
     /// Preferred [`TokenStreamParser`].
     ///
@@ -307,7 +307,7 @@ pub mod test {
 
         fn parse_token(&mut self, tok: Token) -> TokenStreamStateResult<Self> {
             match tok {
-                Token::AttrEnd => {
+                Token::AttrEnd(..) => {
                     *self = Self::Done;
                 }
                 Token::Close(..) => {
@@ -346,13 +346,13 @@ pub mod test {
     #[test]
     fn permits_end_of_stream_in_accepting_state() {
         // EchoState is placed into a Done state given AttrEnd.
-        let mut toks = [Token::AttrEnd].into_iter();
+        let mut toks = [Token::AttrEnd(DS)].into_iter();
 
         let mut sut = Sut::from(&mut toks);
 
         // The first token should be processed normally.
         // EchoState proxies the token back.
-        assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd))), sut.next());
+        assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd(DS)))), sut.next());
 
         // This is now the end of the token stream,
         //   which should be okay provided that the first token put us into
@@ -380,7 +380,7 @@ pub mod test {
     #[test]
     fn returns_state_specific_error() {
         // Token::Close causes EchoState to produce an error.
-        let errtok = Token::Close(None, DUMMY_SPAN);
+        let errtok = Token::Close(None, DS);
         let mut toks = [errtok.clone()].into_iter();
 
         let mut sut = Sut::from(&mut toks);
@@ -403,7 +403,7 @@ pub mod test {
     fn fails_when_parser_is_finalized_in_non_accepting_state() {
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
-        let mut toks = [Token::AttrEnd].into_iter();
+        let mut toks = [Token::AttrEnd(DS)].into_iter();
 
         let sut = Sut::from(&mut toks);
 
@@ -421,7 +421,7 @@ pub mod test {
         // `toks` above is set up already for this,
         //   which allows us to assert that we received back the same `sut`.
         let mut sut = result.unwrap_err().0;
-        assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd))), sut.next());
+        assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd(DS)))), sut.next());
 
         // And so we should now be in an accepting state,
         //   able to finalize.

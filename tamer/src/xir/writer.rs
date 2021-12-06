@@ -256,7 +256,7 @@ impl<S: Escaper> XmlWriter<S> for Token {
             }
 
             // AttrEnd is ignored by the writer (and is optional).
-            (Self::AttrEnd, x) => Ok(x),
+            (Self::AttrEnd(..), x) => Ok(x),
 
             // TODO: We have no way of knowing if text should be formatted
             //   as CData,
@@ -501,7 +501,7 @@ mod test {
     // just ignore it entirely.
     #[test]
     fn ignores_attr_end() -> TestResult {
-        let result = Token::AttrEnd
+        let result = Token::AttrEnd(*S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
         assert_eq!(result.0, b"");
         assert_eq!(result.1, WriterState::NodeOpen);
@@ -573,7 +573,7 @@ mod test {
             Token::Open(root, *S),
             Token::AttrName(("an", "attr").try_into()?, *S),
             Token::AttrValue("value".intern(), *S),
-            Token::AttrEnd,
+            Token::AttrEnd(*S),
             Token::Text("text".intern(), *S),
             Token::Open(("c", "child").try_into()?, *S),
             Token::Whitespace(" ".try_into()?, *S),

@@ -195,8 +195,12 @@ mod test {
 
         // But we provide something else unexpected.
         assert_eq!(
-            sut.parse_token(Token::AttrEnd),
-            Err(AttrParseError::AttrValueExpected(attr, *S, Token::AttrEnd))
+            sut.parse_token(Token::AttrEnd(*S2)),
+            Err(AttrParseError::AttrValueExpected(
+                attr,
+                *S,
+                Token::AttrEnd(*S2)
+            ))
         );
 
         // We should not be in an accepting state,

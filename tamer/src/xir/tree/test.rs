@@ -431,7 +431,7 @@ fn parse_attrs_isolated() {
         Token::AttrValue(val1, *S2),
         Token::AttrName(attr2, *S2),
         Token::AttrValue(val2, *S3),
-        Token::AttrEnd,
+        Token::AttrEnd(*S3),
     ]
     .into_iter();
 
@@ -468,7 +468,7 @@ fn parser_attr_multiple() {
         Token::AttrValue(val1, *S2),
         Token::AttrName(attr2, *S2),
         Token::AttrValue(val2, *S3),
-        Token::AttrEnd,
+        Token::AttrEnd(*S3),
         // Token that we should _not_ hit.
         Token::Text("nohit".into(), *S),
     ]
