@@ -20,6 +20,7 @@
 //! Basic streaming parsing framework to lower XIR into XIRT.
 
 use super::super::{Token, TokenStream};
+use crate::span::Span;
 use std::{error::Error, fmt::Display};
 
 /// Lower a [`TokenStream`] into XIRT.
@@ -38,29 +39,15 @@ pub trait TokenStreamParser<I: TokenStream>:
     /// Parsing automaton.
     type State: TokenStreamState;
 
-    /// Parse a single [`Token`] according to the current
-    ///   [`TokenStreamState`],
-    ///     if available.
+    /// Retrieve the most recently encountered [`Span`].
     ///
-    /// If the underlying [`TokenStream`] yields [`None`],
-    ///   then the [`TokenStreamState`] must be in an accepting state;
-    ///     otherwise, [`ParseError::UnexpectedEof`] will occur.
-    ///
-    /// This is intended to be invoked by [`Iterator::next`].
-    /// Accepting a token rather than the [`TokenStream`] allows the caller
-    ///   to inspect the token first
-    ///     (e.g. to store a copy of the [`Span`][crate::span::Span]).
-    #[inline]
-    fn parse_next(
-        state: &mut Self::State,
-        otok: Option<Token>,
-    ) -> Option<Self::Item> {
-        match otok {
-            None if state.is_accepting() => None,
-            None => Some(Err(ParseError::UnexpectedEof)),
-            Some(tok) => Some(state.parse_token(tok).map_err(ParseError::from)),
-        }
-    }
+    /// This indicates the location of the last [`Token`] that was parsed.
+    /// If no token has yet been encountered,
+    ///   then this yields [`None`].
+    /// If this parser follows another,
+    ///   then the appropriate combinator ought to replace [`None`] with its
+    ///   last [`Span`].
+    fn last_span(&self) -> Option<Span>;
 
     /// Indicate that no further parsing will take place using this parser,
     ///   and [`drop`] it.
@@ -99,7 +86,7 @@ pub type TokenStreamParserResult<S, T> =
 ///   accepting state has been reached.
 /// Whatever the underlying automaton,
 ///   a `(state, token)` pair must uniquely determine the next parser
-///   action via [`TokenStreamParser::parse_next`].
+///   action.
 ///
 /// Intuitively,
 ///   since only one [`TokenStreamParser`] may hold a mutable reference to
@@ -159,9 +146,6 @@ pub trait TokenStreamState: Default {
 }
 
 /// Result of applying a [`Token`] to a [`TokenStreamState`].
-///
-/// See [`TokenStreamState::parse_token`] and
-///   [`TokenStreamParser::parse_next`] for more information.
 pub type TokenStreamStateResult<S> = Result<
     Parsed<<S as TokenStreamState>::Object>,
     <S as TokenStreamState>::Error,
@@ -180,12 +164,17 @@ pub type TokenStreamStateResult<S> = Result<
 pub struct Parser<'a, S: TokenStreamState, I: TokenStream> {
     toks: &'a mut I,
     state: S,
+    last_span: Option<Span>,
 }
 
 impl<'a, S: TokenStreamState, I: TokenStream> TokenStreamParser<I>
     for Parser<'a, S, I>
 {
     type State = S;
+
+    fn last_span(&self) -> Option<Span> {
+        self.last_span
+    }
 
     fn finalize(
         self,
@@ -194,7 +183,8 @@ impl<'a, S: TokenStreamState, I: TokenStream> TokenStreamParser<I>
         if self.state.is_accepting() {
             Ok(())
         } else {
-            Err((self, ParseError::UnexpectedEof))
+            let span = self.last_span;
+            Err((self, ParseError::UnexpectedEof(span)))
         }
     }
 }
@@ -202,16 +192,33 @@ impl<'a, S: TokenStreamState, I: TokenStream> TokenStreamParser<I>
 impl<'a, S: TokenStreamState, I: TokenStream> Iterator for Parser<'a, S, I> {
     type Item = TokenStreamParsedResult<S>;
 
-    /// Consume a single token from the underlying [`TokenStream`] and parse
-    ///   it according to the current [`TokenStreamState`].
+    /// Parse a single [`Token`] according to the current
+    ///   [`TokenStreamState`],
+    ///     if available.
     ///
-    /// See [`TokenStreamParser::parse_next`] for more information.
+    /// If the underlying [`TokenStream`] yields [`None`],
+    ///   then the [`TokenStreamState`] must be in an accepting state;
+    ///     otherwise, [`ParseError::UnexpectedEof`] will occur.
+    ///
+    /// This is intended to be invoked by [`Iterator::next`].
+    /// Accepting a token rather than the [`TokenStream`] allows the caller
+    ///   to inspect the token first
+    ///     (e.g. to store a copy of the [`Span`][crate::span::Span]).
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        <Self as TokenStreamParser<I>>::parse_next(
-            &mut self.state,
-            self.toks.next(),
-        )
+        let otok = self.toks.next();
+
+        match otok {
+            None if self.state.is_accepting() => None,
+            None => Some(Err(ParseError::UnexpectedEof(self.last_span))),
+            Some(tok) => {
+                // Store the most recently encountered Span for error
+                //   reporting in case we encounter an EOF.
+                self.last_span = Some(tok.span());
+
+                Some(self.state.parse_token(tok).map_err(ParseError::from))
+            }
+        }
     }
 }
 
@@ -228,8 +235,21 @@ impl<'a, S: TokenStreamState, I: TokenStream> Iterator for Parser<'a, S, I> {
 ///   [`StateError`][ParseError::StateError] variant.
 #[derive(Debug, PartialEq)]
 pub enum ParseError<E: Error + PartialEq> {
-    // TODO: Last span encountered, maybe?
-    UnexpectedEof,
+    /// Token stream ended unexpectedly.
+    ///
+    /// This error means that the parser was expecting more input before
+    ///   reaching an accepting state.
+    /// This could represent a truncated file,
+    ///   a malformed stream,
+    ///   or maybe just a user that's not done typing yet
+    ///     (e.g. in the case of an LSP implementation).
+    ///
+    /// If no span is available,
+    ///   then parsing has not even had the chance to begin.
+    /// If this parser follows another,
+    ///   then the combinator ought to substitute a missing span with
+    ///   whatever span preceded this invocation.
+    UnexpectedEof(Option<Span>),
 
     /// A parser-specific error associated with an inner
     ///   [`TokenStreamState`].
@@ -245,7 +265,14 @@ impl<E: Error + PartialEq> From<E> for ParseError<E> {
 impl<E: Error + PartialEq> Display for ParseError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnexpectedEof => write!(f, "unexpected end of input"),
+            Self::UnexpectedEof(ospan) => {
+                write!(f, "unexpected end of input at ")?;
+
+                match ospan {
+                    None => write!(f, "<unknown location>"),
+                    Some(span) => write!(f, "{}", span),
+                }
+            }
             Self::StateError(e) => Display::fmt(e, f),
         }
     }
@@ -267,6 +294,7 @@ impl<'a, S: TokenStreamState, I: TokenStream> From<&'a mut I>
         Self {
             toks,
             state: Default::default(),
+            last_span: None,
         }
     }
 }
@@ -344,20 +372,29 @@ pub mod test {
     type Sut<'a, I> = DefaultParser<'a, EchoState, I>;
 
     #[test]
-    fn permits_end_of_stream_in_accepting_state() {
+    fn successful_parse_in_accepting_state_with_spans() {
         // EchoState is placed into a Done state given AttrEnd.
         let mut toks = [Token::AttrEnd(DS)].into_iter();
 
         let mut sut = Sut::from(&mut toks);
 
+        // We haven't seen any spans yet.
+        assert_eq!(None, sut.last_span());
+
         // The first token should be processed normally.
         // EchoState proxies the token back.
         assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd(DS)))), sut.next());
+
+        // The last span we've seen should be the one we just processed.
+        assert_eq!(Some(DS), sut.last_span());
 
         // This is now the end of the token stream,
         //   which should be okay provided that the first token put us into
         //   a proper accepting state.
         assert_eq!(None, sut.next());
+
+        // But the last span we saw _should_ still be available.
+        assert_eq!(Some(DS), sut.last_span());
 
         // Further, finalizing should work in this state.
         assert!(sut.finalize().is_ok());
@@ -365,16 +402,19 @@ pub mod test {
 
     #[test]
     fn fails_on_end_of_stream_when_not_in_accepting_state() {
-        // No tokens, so EchoState starts in a non-accepting state.
-        let mut toks = [].into_iter();
+        let mut toks = [Token::Close(None, DS)].into_iter();
 
         let mut sut = Sut::from(&mut toks);
+
+        // The first token is fine,
+        //   and allows us to acquire our most recent span.
+        sut.next();
 
         // Given that we have no tokens,
         //   and that EchoState::default does not start in an accepting
         //     state,
         //   we must fail when we encounter the end of the stream.
-        assert_eq!(Some(Err(ParseError::UnexpectedEof)), sut.next());
+        assert_eq!(Some(Err(ParseError::UnexpectedEof(Some(DS)))), sut.next());
     }
 
     #[test]
@@ -403,9 +443,18 @@ pub mod test {
     fn fails_when_parser_is_finalized_in_non_accepting_state() {
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
-        let mut toks = [Token::AttrEnd(DS)].into_iter();
+        let mut toks = [
+            // Used purely to populate a Span.
+            Token::Close(None, DS),
+            // Recovery token here:
+            Token::AttrEnd(DS),
+        ]
+        .into_iter();
 
-        let sut = Sut::from(&mut toks);
+        let mut sut = Sut::from(&mut toks);
+
+        // Populate our most recently seen token's span.
+        sut.next();
 
         // Attempting to finalize now in a non-accepting state should fail
         //   in the same way that encountering an end-of-stream does,
@@ -413,7 +462,10 @@ pub mod test {
         //     and the parser will have no further opportunity to reach an
         //     accepting state.
         let result = sut.finalize();
-        assert_matches!(result, Err((_, ParseError::UnexpectedEof)));
+        assert_matches!(
+            result,
+            Err((_, ParseError::UnexpectedEof(Some(span)))) if span == DS
+        );
 
         // The sut should have been re-returned,
         //   allowing for attempted error recovery if the caller can manage
