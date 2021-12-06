@@ -18,16 +18,16 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::convert::ExpectInto;
 use crate::ld::xmle::section::PushResult;
 use crate::ld::xmle::Sections;
 use crate::obj::xmlo::SymDtype;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
+use crate::xir::tree::merge_attr_fragments;
 use crate::{
     asg::{Dim, IdentKind, Source},
     xir::{
         pred::{not, open},
-        tree::{parser_from, Attr},
+        tree::parser_from,
     },
 };
 use std::collections::HashSet;
@@ -37,7 +37,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 macro_rules! assert_attr{
     ($attrs:ident, $name:ident, $expected:expr, $($args:expr),*) => {
         assert_eq!(
-            $attrs.find($name).map(|a| a.value_atom()),
+            $attrs.find($name).map(|a| a.value()),
             $expected,
             $($args),*
         )
@@ -219,10 +219,10 @@ fn test_writes_deps() -> TestResult {
         deps: objs.iter().collect(),
     };
 
-    let mut iter = parser_from(
-        lower_iter(sections, "pkg".intern(), relroot)
-            .skip_while(not(open(QN_L_DEP))),
-    );
+    let mut lower_iter = lower_iter(sections, "pkg".intern(), relroot)
+        .skip_while(not(open(QN_L_DEP)));
+
+    let mut iter = parser_from(merge_attr_fragments(&mut lower_iter));
 
     let given = iter
         .next()
@@ -254,17 +254,14 @@ fn test_writes_deps() -> TestResult {
         let ident = &objs[i];
         let attrs = ele.attrs().unwrap();
 
-        assert_eq!(
-            attrs.find(QN_NAME).map(|a| a.value_atom()),
-            Some(ident.name()),
-        );
+        assert_eq!(attrs.find(QN_NAME).map(|a| a.value()), Some(ident.name()),);
 
         assert_eq!(
-            attrs.find(QN_TYPE).map(|a| a.value_atom()),
+            attrs.find(QN_TYPE).map(|a| a.value()),
             Some(ident.kind().unwrap().as_sym())
         );
 
-        let generated = attrs.find(QN_GENERATED).map(|a| a.value_atom());
+        let generated = attrs.find(QN_GENERATED).map(|a| a.value());
 
         if let Some(Source {
             generated: true, ..
@@ -287,19 +284,7 @@ fn test_writes_deps() -> TestResult {
             desc: Some(desc), ..
         }) = ident.src()
         {
-            // We must take extra effort to compare these, since desc is
-            // uninterned and therefore cannot be compared as a
-            // `SymbolId`.  Once the reader takes care of creating the
-            // symbol, we'll have no such problem.
-            match attrs.find(QN_DESC).map(|a| a.value_atom()) {
-                Some(given) => {
-                    assert_eq!(
-                        desc.lookup_str(),
-                        Into::<SymbolId>::into(given).lookup_str()
-                    );
-                }
-                invalid => panic!("unexpected desc: {:?}", invalid),
-            }
+            assert_attr!(attrs, QN_DESC, Some(*desc),);
         }
 
         if let Some(Source {
@@ -307,15 +292,13 @@ fn test_writes_deps() -> TestResult {
             ..
         }) = ident.src()
         {
-            match attrs.find("src".unwrap_into()) {
-                Some(Attr::Extensible(parts)) => {
-                    assert_eq!(
-                        parts.value_fragments(),
-                        &vec![(relroot, LSPAN), (*pkg_name, LSPAN),]
-                    );
-                }
-                invalid => panic!("unexpected desc: {:?}", invalid),
-            }
+            let expected = [relroot, *pkg_name]
+                .iter()
+                .map(GlobalSymbolResolve::lookup_str)
+                .collect::<String>()
+                .intern();
+
+            assert_attr!(attrs, QN_SRC, Some(expected),);
         }
 
         // Object-specific attributes
@@ -430,7 +413,7 @@ fn test_writes_map_froms() -> TestResult {
                 .unwrap()
                 .find(QN_NAME)
                 .expect("expecting @name")
-                .value_atom(),
+                .value(),
         );
     });
 

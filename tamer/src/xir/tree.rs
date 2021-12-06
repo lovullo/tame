@@ -170,30 +170,6 @@
 //!     is, our stack is fully type-safe.
 //!
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
-//!
-//! High-Resolution Attributes
-//! --------------------------
-//! XIRT supports [`Token::AttrValueFragment`],
-//!   which can produce concatenated attribute values that retain the
-//!   [`Span`] of each of their constituent parts.
-//! This could allow,
-//!   for example,
-//!   creating an LSP server that would expose all of the TAME templates and
-//!     source inputs used to generate an identifier.
-//!
-//! However,
-//!   note that the XIR token stream introduced [`Token::AttrValueFragment`]
-//!   primarily to eliminate the need for unnecessary [symbol
-//!   lookups](crate::sym), copying, and heap allocations.
-//! XIRT must perform extra heap allocations to process these fragments.
-//! Once processed,
-//!   an [`Attr::Extensible`] object is produced;
-//!     the value is _not_ concatenated and interned,
-//!       allowing it to be cheaply converted back into a [`Token`] stream
-//!       for writing without unnecessary overhead.
-//!
-//! For more information,
-//!   see [`AttrParts`].
 
 mod attr;
 mod parse;
@@ -202,7 +178,7 @@ use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId};
 use std::{error::Error, fmt::Display, iter, mem::take};
 
-pub use attr::{Attr, AttrList, AttrParts, SimpleAttr};
+pub use attr::{Attr, AttrList};
 
 /// A XIR tree (XIRT).
 ///
@@ -509,10 +485,6 @@ pub enum Stack {
     ///   after which it will be attached to an element.
     AttrName(Option<(Option<ElementStack>, AttrList)>, QName, Span),
 
-    /// An attribute whose value is being constructed of value fragments,
-    ///   after which it will be attached to an element.
-    AttrFragments(Option<(Option<ElementStack>, AttrList)>, AttrParts),
-
     /// A completed [`AttrList`] without any [`Element`] context.
     IsolatedAttrList(AttrList),
 
@@ -639,58 +611,14 @@ impl Stack {
         })
     }
 
-    /// Push a value fragment onto an attribute.
-    ///
-    /// This begins to build an attribute out of value fragments,
-    ///   which is also completed by [`Stack::close_attr`].
-    /// The attribute information that was previously held in
-    ///   [`Stack::AttrName`] is moved into a [`AttrParts`] if that has not
-    ///   already happend,
-    ///     which is responsible for managing future fragments.
-    ///
-    /// This will cause heap allocation.
-    fn push_attr_value(self, value: SymbolId, span: Span) -> Result<Self> {
-        Ok(match self {
-            Self::AttrName(head, name, open_span) => {
-                // This initial capacity can be adjusted after we observe
-                // empirically what we most often parse, or we can make it
-                // configurable.
-                let mut parts = AttrParts::with_capacity(name, open_span, 2);
-
-                parts.push_value(value, span);
-                Self::AttrFragments(head, parts)
-            }
-
-            Self::AttrFragments(head, mut parts) => {
-                parts.push_value(value, span);
-                Self::AttrFragments(head, parts)
-            }
-
-            _ => todo! {},
-        })
-    }
-
     /// Assigns a value to an opened attribute and attaches to the parent
     ///   element.
-    ///
-    /// If the attribute is composed of fragments ([`Stack::AttrFragments`]),
-    ///   this serves as the final fragment and will yield an
-    ///   [`Attr::Extensible`] with no further processing.
     fn close_attr(self, value: SymbolId, span: Span) -> Result<Self> {
         Ok(match self {
             Self::AttrName(Some((ele_stack, attr_list)), name, open_span) => {
                 Self::BuddingAttrList(
                     ele_stack,
                     attr_list.push(Attr::new(name, value, (open_span, span))),
-                )
-            }
-
-            Self::AttrFragments(Some((ele_stack, attr_list)), mut parts) => {
-                parts.push_value(value, span);
-
-                Stack::BuddingAttrList(
-                    ele_stack,
-                    attr_list.push(Attr::Extensible(parts)),
                 )
             }
 
@@ -812,12 +740,15 @@ impl ParserState {
             Token::Open(name, span) => stack.open_element(name, span),
             Token::Close(name, span) => stack.close_element(name, span),
             Token::AttrName(name, span) => stack.open_attr(name, span),
-            Token::AttrValueFragment(value, span) => {
-                stack.push_attr_value(value, span)
-            }
             Token::AttrValue(value, span) => stack.close_attr(value, span),
             Token::AttrEnd => stack.end_attrs(),
             Token::Text(value, span) => stack.text(value, span),
+
+            // This parse is being rewritten, so we'll address this with a
+            //   proper error then.
+            Token::AttrValueFragment(..) => {
+                panic!("AttrValueFragment is not parsable")
+            }
 
             Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {
                 Err(ParseError::Todo(tok, stack))
@@ -1143,6 +1074,51 @@ pub fn attr_parser_from<'a>(
                         x
                     )
                 }
+            }
+        }
+    })
+}
+
+#[cfg(test)]
+pub fn merge_attr_fragments<'a>(
+    toks: &'a mut impl TokenStream,
+) -> impl TokenStream + 'a {
+    use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
+
+    let mut stack = Vec::with_capacity(4);
+
+    iter::from_fn(move || {
+        loop {
+            match toks.next() {
+                // Collect fragments and continue iterating until we find
+                //   the final `Token::AttrValue`.
+                Some(Token::AttrValueFragment(frag, ..)) => {
+                    stack.push(frag);
+                }
+
+                // An AttrValue without any stack is just a normal value.
+                // We are not interested in it.
+                val @ Some(Token::AttrValue(..)) if stack.len() == 0 => {
+                    return val;
+                }
+
+                // But if we have a stack,
+                //   allocate a new string that concatenates each of the
+                //   symbols and return a newly allocated symbol.
+                Some(Token::AttrValue(last, span)) if stack.len() > 0 => {
+                    stack.push(last);
+
+                    let merged = stack
+                        .iter()
+                        .map(|frag| frag.lookup_str())
+                        .collect::<String>()
+                        .intern();
+
+                    stack.clear();
+
+                    return Some(Token::AttrValue(merged, span));
+                }
+                other => return other,
             }
         }
     })

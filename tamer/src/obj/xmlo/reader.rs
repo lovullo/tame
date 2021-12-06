@@ -179,7 +179,7 @@ impl TryFromIterator<Attr> for PackageAttrs {
         let mut attrs: Self = Default::default();
 
         for attr in iter.into_iter() {
-            let val = attr.value_atom();
+            let val = attr.value();
 
             match attr.name() {
                 QN_NAME => attrs.name = Some(val),

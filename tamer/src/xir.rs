@@ -500,6 +500,13 @@ pub enum Token {
     /// Since each fragment contains a span,
     ///   this also potentially gives higher resolution for the origin of
     ///   components of generated attribute values.
+    ///
+    /// _This should be used only for writing._
+    /// These will never be encountered during reading,
+    ///   and so to keep the parsers and IRs simple,
+    ///   there is no support for fragments beyond XIR.
+    /// (There was in the past,
+    ///    but it was removed.)
     AttrValueFragment(SymbolId, Span),
 
     /// A delimiter indicating that attribute processing has ended and the

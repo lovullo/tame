@@ -158,19 +158,14 @@ fn empty_element_with_attrs_from_toks() {
     let attr1 = "a".unwrap_into();
     let attr2 = "b".unwrap_into();
     let val1 = "val1".intern();
-    let val2a = "val2a".intern();
-    let val2b = "val2b".intern();
-    let val2c = "val2b".intern();
+    let val2 = "val2".intern();
 
     let toks = [
         Token::Open(name, *S),
         Token::AttrName(attr1, *S),
         Token::AttrValue(val1, *S2),
         Token::AttrName(attr2, *S),
-        // More than one fragment to ensure we handle that state
-        Token::AttrValueFragment(val2a, *S),
-        Token::AttrValueFragment(val2b, *S2),
-        Token::AttrValue(val2c, *S3),
+        Token::AttrValue(val2, *S3),
         Token::Close(None, *S2),
     ]
     .into_iter();
@@ -179,11 +174,7 @@ fn empty_element_with_attrs_from_toks() {
         name,
         attrs: Some(AttrList::from(vec![
             Attr::new(attr1, val1, (*S, *S2)),
-            Attr::from_fragments(
-                attr2,
-                *S,
-                vec![(val2a, *S), (val2b, *S2), (val2c, *S3)],
-            ),
+            Attr::new(attr2, val2, (*S, *S3)),
         ])),
         children: vec![],
         span: (*S, *S2),
@@ -195,8 +186,6 @@ fn empty_element_with_attrs_from_toks() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValue
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
-    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValueFragment
-    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValueFragment
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValue
     assert_eq!(sut.next(), Some(Ok(Parsed::Tree(Tree::Element(expected)))));
     assert_eq!(sut.next(), None);
