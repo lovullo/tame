@@ -24,7 +24,7 @@
 //!
 //! Parsing is handled by [`ParserState::parse_token`].
 //! An [`Iterator::scan`]-based parser can be constructed using
-//!   [`parser_from`] or [`parse`].
+//!   [`parser_from`] or [`parse`][parse()].
 //!
 //! ```
 //! use tamer::xir::tree::{ParserState, parse, parser_from};
@@ -43,10 +43,10 @@
 //!
 //! `parser_from` Or `parse`?
 //! =========================
-//! [`parser_from`] is implemented in terms of [`parse`].
+//! [`parser_from`] is implemented in terms of [`parse`][parse()].
 //! They have slightly different use cases and tradeoffs:
 //!
-//! [`parse`] yields a [`Result`] containing [`Parsed`],
+//! [`parse`][parse()] yields a [`Result`] containing [`Parsed`],
 //!   which _may_ contain a [`Parsed::Tree`],
 //!   but it's more likely to contain [`Parsed::Incomplete`];
 //!     this is because it typically takes multiple [`Token`]s to complete
@@ -54,12 +54,13 @@
 //!
 //! In return, though, you get some important guarantees:
 //!
-//!   1. [`parse`] consumes only a _single_ token; and
+//!   1. [`parse`][parse()] consumes only a _single_ token; and
 //!   2. It has a constant upper bound for execution time.
 //!
-//! This means that [`parse`] will never cause the system to hang---you
-//!   are in complete control over how much progress parsing makes,
-//!     and are free to stop and resume it at any time.
+//! This means that [`parse`][parse()] will never cause the system to
+//!   hang---you
+//!     are in complete control over how much progress parsing makes,
+//!       and are free to stop and resume it at any time.
 //!
 //! However,
 //!   if you do not care about those things,
@@ -194,11 +195,13 @@
 //! For more information,
 //!   see [`AttrParts`].
 
+mod attr;
+mod parse;
+
 use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId};
 use std::{error::Error, fmt::Display, iter, mem::take};
 
-mod attr;
 pub use attr::{Attr, AttrList, AttrParts, SimpleAttr};
 
 /// A XIR tree (XIRT).
@@ -1018,7 +1021,7 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
 /// Produce a lazy parser from a given [`TokenStream`],
 ///   yielding only when an object has been fully parsed.
 ///
-/// Unlike [`parse`],
+/// Unlike [`parse`][parse()],
 ///   which is intended for use with [`Iterator::scan`],
 ///   this will yield /only/ when the underlying parser yields
 ///   [`Parsed::Tree`],

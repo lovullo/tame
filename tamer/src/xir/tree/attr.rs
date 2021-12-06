@@ -27,6 +27,8 @@ use super::QName;
 use crate::{span::Span, sym::SymbolId};
 use std::fmt::Display;
 
+mod parse;
+
 /// An attribute.
 ///
 /// Attributes come in two flavors:
