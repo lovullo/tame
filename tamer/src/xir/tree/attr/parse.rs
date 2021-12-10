@@ -22,7 +22,7 @@
 use crate::{
     span::Span,
     xir::{
-        tree::parse::{ParseState, ParseStateResult, Parsed},
+        tree::parse::{ParseState, ParseStateResult, ParseStatus},
         QName, Token,
     },
 };
@@ -52,17 +52,17 @@ impl ParseState for AttrParserState {
         use AttrParserState::*;
 
         match (take(self), tok) {
-            (Empty, Token::AttrEnd(_)) => return Ok(Parsed::Done),
+            (Empty, Token::AttrEnd(_)) => return Ok(ParseStatus::Done),
 
             (Empty, Token::AttrName(name, span)) => {
                 *self = Name(name, span);
-                Ok(Parsed::Incomplete)
+                Ok(ParseStatus::Incomplete)
             }
 
             (Empty, invalid) => Err(AttrParseError::AttrNameExpected(invalid)),
 
             (Name(name, nspan), Token::AttrValue(value, vspan)) => {
-                Ok(Parsed::Object(Attr::new(name, value, (nspan, vspan))))
+                Ok(ParseStatus::Object(Attr::new(name, value, (nspan, vspan))))
             }
 
             (Name(name, nspan), invalid) => {
@@ -163,14 +163,14 @@ mod test {
         //   and so we are awaiting a value.
         assert_eq!(
             sut.parse_token(Token::AttrName(attr, *S)),
-            Ok(Parsed::Incomplete)
+            Ok(ParseStatus::Incomplete)
         );
 
         // Once we have a value,
         //   an Attr can be emitted.
         assert_eq!(
             sut.parse_token(Token::AttrValue(val, *S2)),
-            Ok(Parsed::Object(expected))
+            Ok(ParseStatus::Object(expected))
         );
     }
 
@@ -184,7 +184,7 @@ mod test {
         //   the token stream.
         assert_eq!(
             sut.parse_token(Token::AttrName(attr, *S)),
-            Ok(Parsed::Incomplete)
+            Ok(ParseStatus::Incomplete)
         );
 
         // But we provide something else unexpected.
@@ -210,7 +210,7 @@ mod test {
         let expected = Attr::new(attr, recover, (*S, *S2));
         assert_eq!(
             sut.parse_token(Token::AttrValue(recover, *S2)),
-            Ok(Parsed::Object(expected))
+            Ok(ParseStatus::Object(expected))
         );
 
         // Finally, we should now be in an accepting state.
@@ -221,7 +221,7 @@ mod test {
     fn yields_none_on_attr_end() {
         let mut sut = AttrParserState::default();
 
-        assert_eq!(sut.parse_token(Token::AttrEnd(*S)), Ok(Parsed::Done));
+        assert_eq!(sut.parse_token(Token::AttrEnd(*S)), Ok(ParseStatus::Done));
         assert!(sut.is_accepting());
     }
 }

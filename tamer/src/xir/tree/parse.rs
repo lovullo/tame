@@ -95,7 +95,7 @@ pub trait ParseState: Default {
 
 /// Result of applying a [`Token`] to a [`ParseState`].
 pub type ParseStateResult<S> =
-    Result<Parsed<<S as ParseState>::Object>, <S as ParseState>::Error>;
+    Result<ParseStatus<<S as ParseState>::Object>, <S as ParseState>::Error>;
 
 /// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
@@ -167,8 +167,9 @@ impl<'a, S: ParseState, I: TokenStream> Iterator for Parser<'a, S, I> {
                 self.last_span = Some(tok.span());
 
                 match self.state.parse_token(tok) {
-                    Ok(Parsed::Done) => None,
-                    parsed => Some(parsed.map_err(ParseError::from)),
+                    Ok(ParseStatus::Done) => None,
+                    Ok(parsed) => Some(Ok(parsed.into())),
+                    Err(e) => Some(Err(e.into())),
                 }
             }
         }
@@ -252,7 +253,7 @@ impl<'a, S: ParseState, I: TokenStream> From<&'a mut I> for Parser<'a, S, I> {
 
 /// Result of a parsing operation.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Parsed<T> {
+pub enum ParseStatus<T> {
     /// Additional tokens are needed to complete parsing of the next object.
     Incomplete,
 
@@ -266,9 +267,38 @@ pub enum Parsed<T> {
     /// Parsing is complete.
     ///
     /// This should cause an iterator to yield [`None`].
-    /// If a parser is a combination of multiple [`ParserState`]s,
+    /// If a parser is a combination of multiple [`ParseState`]s,
     ///   this should transition to the next appropriate state.
     Done,
+}
+
+/// Result of a parsing operation.
+///
+/// Whereas [`ParseStatus`] is used by [`ParseState`] to influence parser
+///   operation,
+///     this type is public-facing and used by [`Parser`].
+#[derive(Debug, PartialEq, Eq)]
+pub enum Parsed<T> {
+    /// Additional tokens are needed to complete parsing of the next object.
+    Incomplete,
+
+    /// Parsing of an object is complete.
+    ///
+    /// This does not indicate that the parser is complete,
+    ///   as more objects may be able to be emitted.
+    Object(T),
+}
+
+impl<T> From<ParseStatus<T>> for Parsed<T> {
+    fn from(status: ParseStatus<T>) -> Self {
+        match status {
+            ParseStatus::Incomplete => Parsed::Incomplete,
+            ParseStatus::Object(x) => Parsed::Object(x),
+            ParseStatus::Done => {
+                unreachable!("Done status must be filtered by Parser")
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -305,7 +335,7 @@ pub mod test {
                 _ => {}
             }
 
-            Ok(Parsed::Object(tok))
+            Ok(ParseStatus::Object(tok))
         }
 
         fn is_accepting(&self) -> bool {
