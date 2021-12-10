@@ -23,11 +23,13 @@
 //!
 //! See [parent module](super) for additional documentation.
 
+mod parse;
+
 use super::QName;
 use crate::{span::Span, sym::SymbolId};
 use std::fmt::Display;
 
-mod parse;
+pub use parse::{AttrParseError, AttrParserState};
 
 /// Element attribute.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -114,6 +116,12 @@ impl AttrList {
 impl From<Vec<Attr>> for AttrList {
     fn from(attrs: Vec<Attr>) -> Self {
         AttrList { attrs }
+    }
+}
+
+impl FromIterator<Attr> for AttrList {
+    fn from_iter<T: IntoIterator<Item = Attr>>(iter: T) -> Self {
+        iter.into_iter().collect::<Vec<Attr>>().into()
     }
 }
 

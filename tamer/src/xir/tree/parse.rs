@@ -23,6 +23,9 @@ use super::super::{Token, TokenStream};
 use crate::span::Span;
 use std::{error::Error, fmt::Display};
 
+/// Preferred [`TokenStreamParser`].
+pub type DefaultParser<'a, S, I> = Parser<'a, S, I>;
+
 /// Lower a [`TokenStream`] into XIRT.
 ///
 /// Parsers are wrappers around a ([`TokenStreamState`], [`TokenStream`])
@@ -146,9 +149,11 @@ pub trait TokenStreamState: Default {
 }
 
 /// Result of applying a [`Token`] to a [`TokenStreamState`].
-pub type TokenStreamStateResult<S> = Result<
-    Parsed<<S as TokenStreamState>::Object>,
-    <S as TokenStreamState>::Error,
+pub type TokenStreamStateResult<S> = Option<
+    Result<
+        Parsed<<S as TokenStreamState>::Object>,
+        <S as TokenStreamState>::Error,
+    >,
 >;
 
 /// A streaming parser defined by a [`TokenStreamState`] with exclusive
@@ -216,7 +221,9 @@ impl<'a, S: TokenStreamState, I: TokenStream> Iterator for Parser<'a, S, I> {
                 //   reporting in case we encounter an EOF.
                 self.last_span = Some(tok.span());
 
-                Some(self.state.parse_token(tok).map_err(ParseError::from))
+                self.state
+                    .parse_token(tok)
+                    .map(|parsed| parsed.map_err(ParseError::from))
             }
         }
     }
@@ -312,11 +319,6 @@ pub mod test {
     use super::*;
     use crate::span::DUMMY_SPAN as DS;
 
-    /// Preferred [`TokenStreamParser`].
-    ///
-    /// TODO: Move into parent module once used outside of tests.
-    pub type DefaultParser<'a, S, I> = Parser<'a, S, I>;
-
     #[derive(Debug, PartialEq, Eq)]
     enum EchoState {
         Empty,
@@ -339,12 +341,12 @@ pub mod test {
                     *self = Self::Done;
                 }
                 Token::Close(..) => {
-                    return Err(EchoStateError::InnerError(tok))
+                    return Some(Err(EchoStateError::InnerError(tok)))
                 }
                 _ => {}
             }
 
-            Ok(Parsed::Object(tok))
+            Some(Ok(Parsed::Object(tok)))
         }
 
         fn is_accepting(&self) -> bool {

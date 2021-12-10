@@ -51,32 +51,26 @@ impl TokenStreamState for AttrParserState {
     fn parse_token(&mut self, tok: Token) -> TokenStreamStateResult<Self> {
         use AttrParserState::*;
 
-        *self = match (take(self), tok) {
-            (Empty, Token::AttrName(name, span)) => Name(name, span),
+        Some(match (take(self), tok) {
+            (Empty, Token::AttrEnd(_)) => return None,
 
-            (Empty, invalid) => {
-                return Err(AttrParseError::AttrNameExpected(invalid))
+            (Empty, Token::AttrName(name, span)) => {
+                *self = Name(name, span);
+                Ok(Parsed::Incomplete)
             }
 
+            (Empty, invalid) => Err(AttrParseError::AttrNameExpected(invalid)),
+
             (Name(name, nspan), Token::AttrValue(value, vspan)) => {
-                return Ok(Parsed::Object(Attr::new(
-                    name,
-                    value,
-                    (nspan, vspan),
-                )))
+                Ok(Parsed::Object(Attr::new(name, value, (nspan, vspan))))
             }
 
             (Name(name, nspan), invalid) => {
                 // Restore state for error recovery.
                 *self = Name(name, nspan);
-
-                return Err(AttrParseError::AttrValueExpected(
-                    name, nspan, invalid,
-                ));
+                Err(AttrParseError::AttrValueExpected(name, nspan, invalid))
             }
-        };
-
-        Ok(Parsed::Incomplete)
+        })
     }
 
     #[inline]
@@ -148,7 +142,7 @@ mod test {
 
         // Fail immediately.
         assert_eq!(
-            Err(AttrParseError::AttrNameExpected(tok.clone())),
+            Some(Err(AttrParseError::AttrNameExpected(tok.clone()))),
             sut.parse_token(tok)
         );
 
@@ -169,14 +163,14 @@ mod test {
         //   and so we are awaiting a value.
         assert_eq!(
             sut.parse_token(Token::AttrName(attr, *S)),
-            Ok(Parsed::Incomplete)
+            Some(Ok(Parsed::Incomplete))
         );
 
         // Once we have a value,
         //   an Attr can be emitted.
         assert_eq!(
             sut.parse_token(Token::AttrValue(val, *S2)),
-            Ok(Parsed::Object(expected))
+            Some(Ok(Parsed::Object(expected)))
         );
     }
 
@@ -190,17 +184,17 @@ mod test {
         //   the token stream.
         assert_eq!(
             sut.parse_token(Token::AttrName(attr, *S)),
-            Ok(Parsed::Incomplete)
+            Some(Ok(Parsed::Incomplete))
         );
 
         // But we provide something else unexpected.
         assert_eq!(
             sut.parse_token(Token::AttrEnd(*S2)),
-            Err(AttrParseError::AttrValueExpected(
+            Some(Err(AttrParseError::AttrValueExpected(
                 attr,
                 *S,
                 Token::AttrEnd(*S2)
-            ))
+            )))
         );
 
         // We should not be in an accepting state,
@@ -216,10 +210,18 @@ mod test {
         let expected = Attr::new(attr, recover, (*S, *S2));
         assert_eq!(
             sut.parse_token(Token::AttrValue(recover, *S2)),
-            Ok(Parsed::Object(expected))
+            Some(Ok(Parsed::Object(expected)))
         );
 
         // Finally, we should now be in an accepting state.
+        assert!(sut.is_accepting());
+    }
+
+    #[test]
+    fn yields_none_on_attr_end() {
+        let mut sut = AttrParserState::default();
+
+        assert_eq!(sut.parse_token(Token::AttrEnd(*S)), None);
         assert!(sut.is_accepting());
     }
 }

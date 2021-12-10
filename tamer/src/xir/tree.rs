@@ -174,9 +174,11 @@
 mod attr;
 mod parse;
 
+use self::attr::AttrParserState;
+
 use super::{QName, Token, TokenResultStream, TokenStream};
-use crate::{span::Span, sym::SymbolId};
-use std::{error::Error, fmt::Display, iter, mem::take};
+use crate::{span::Span, sym::SymbolId, xir::tree::parse::DefaultParser};
+use std::{error::Error, fmt::Display, mem::take};
 
 pub use attr::{Attr, AttrList};
 
@@ -1054,35 +1056,40 @@ pub fn parse_attrs<'a>(
 pub fn attr_parser_from<'a>(
     toks: &'a mut impl TokenStream,
 ) -> impl Iterator<Item = Result<Attr>> + 'a {
-    let mut state = ParserState::with(Stack::IsolatedAttrEmpty);
+    use parse::Parsed;
 
-    iter::from_fn(move || {
-        loop {
-            match toks.next().and_then(|tok| parse(&mut state, tok)) {
-                None => return None,
-                Some(Err(err)) => return Some(Err(err)),
-                Some(Ok(Parsed::Attr(attr))) => return Some(Ok(attr)),
-                Some(Ok(Parsed::Incomplete)) => continue,
-
-                // AttrEnd must have been encountered.
-                Some(Ok(Parsed::Done)) => return None,
-
-                // These make no sense in this context and should never occur.
-                Some(Ok(x @ (Parsed::Tree(_) | Parsed::AttrList(_)))) => {
-                    unreachable!(
-                        "unexpected yield by XIRT (Attr expected): {:?}",
-                        x
-                    )
-                }
-            }
+    DefaultParser::<AttrParserState, _>::from(toks).filter_map(|parsed| {
+        match parsed {
+            Ok(Parsed::Object(attr)) => Some(Ok(attr)),
+            Ok(Parsed::Incomplete) => None,
+            Err(x) => Some(Err(x.into())),
         }
     })
+}
+
+// Transitional; this will go away, or at least be refined.
+impl From<parse::ParseError<attr::AttrParseError>> for ParseError {
+    fn from(e: parse::ParseError<attr::AttrParseError>) -> Self {
+        match e {
+            parse::ParseError::UnexpectedEof(_) => Self::UnexpectedAttrEof,
+
+            parse::ParseError::StateError(
+                attr::AttrParseError::AttrNameExpected(tok),
+            ) => Self::AttrNameExpected(tok),
+
+            parse::ParseError::StateError(
+                attr::AttrParseError::AttrValueExpected(..),
+            ) => Self::UnexpectedAttrEof,
+        }
+    }
 }
 
 #[cfg(test)]
 pub fn merge_attr_fragments<'a>(
     toks: &'a mut impl TokenStream,
 ) -> impl TokenStream + 'a {
+    use std::iter;
+
     use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 
     let mut stack = Vec::with_capacity(4);
