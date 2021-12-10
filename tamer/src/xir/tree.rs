@@ -177,7 +177,7 @@ mod parse;
 use self::attr::AttrParserState;
 
 use super::{QName, Token, TokenResultStream, TokenStream};
-use crate::{span::Span, sym::SymbolId, xir::tree::parse::DefaultParser};
+use crate::{span::Span, sym::SymbolId, xir::tree::parse::TokenStreamState};
 use std::{error::Error, fmt::Display, mem::take};
 
 pub use attr::{Attr, AttrList};
@@ -1058,12 +1058,10 @@ pub fn attr_parser_from<'a>(
 ) -> impl Iterator<Item = Result<Attr>> + 'a {
     use parse::Parsed;
 
-    DefaultParser::<AttrParserState, _>::from(toks).filter_map(|parsed| {
-        match parsed {
-            Ok(Parsed::Object(attr)) => Some(Ok(attr)),
-            Ok(Parsed::Incomplete) => None,
-            Err(x) => Some(Err(x.into())),
-        }
+    AttrParserState::parser(toks).filter_map(|parsed| match parsed {
+        Ok(Parsed::Object(attr)) => Some(Ok(attr)),
+        Ok(Parsed::Incomplete) => None,
+        Err(x) => Some(Err(x.into())),
     })
 }
 

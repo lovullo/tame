@@ -23,63 +23,19 @@ use super::super::{Token, TokenStream};
 use crate::span::Span;
 use std::{error::Error, fmt::Display};
 
-/// Preferred [`TokenStreamParser`].
-pub type DefaultParser<'a, S, I> = Parser<'a, S, I>;
-
-/// Lower a [`TokenStream`] into XIRT.
-///
-/// Parsers are wrappers around a ([`TokenStreamState`], [`TokenStream`])
-///   pair,
-///     where only one parser may have mutable access to the stream at any
-///     given time.
-///
-/// After you have finished with a parser,
-///   you should call [`finalize`](TokenStreamParser::finalize) to ensure
-///   that parsing has completed in an accepting state.
-pub trait TokenStreamParser<I: TokenStream>:
-    Iterator<Item = TokenStreamParsedResult<Self::State>> + Sized
-{
-    /// Parsing automaton.
-    type State: TokenStreamState;
-
-    /// Retrieve the most recently encountered [`Span`].
-    ///
-    /// This indicates the location of the last [`Token`] that was parsed.
-    /// If no token has yet been encountered,
-    ///   then this yields [`None`].
-    /// If this parser follows another,
-    ///   then the appropriate combinator ought to replace [`None`] with its
-    ///   last [`Span`].
-    fn last_span(&self) -> Option<Span>;
-
-    /// Indicate that no further parsing will take place using this parser,
-    ///   and [`drop`] it.
-    ///
-    /// Invoking the method is equivalent to stating that the stream has
-    ///   ended,
-    ///     since the parser will have no later opportunity to continue
-    ///     parsing.
-    /// Consequently,
-    ///   the caller should expect [`ParseError::UnexpectedEof`] if the
-    ///   parser is not in an accepting state.
-    fn finalize(
-        self,
-    ) -> Result<(), (Self, ParseError<<Self::State as TokenStreamState>::Error>)>;
-}
-
 /// Result of applying a [`Token`] to a [`TokenStreamState`],
 ///   with any error having been wrapped in a [`ParseError`].
 pub type TokenStreamParsedResult<S> =
     TokenStreamParserResult<S, Parsed<<S as TokenStreamState>::Object>>;
 
-/// Result of some non-parsing operation on a [`TokenStreamParser`],
+/// Result of some non-parsing operation on a [`Parser`],
 ///   with any error having been wrapped in a [`ParseError`].
 pub type TokenStreamParserResult<S, T> =
     Result<T, ParseError<<S as TokenStreamState>::Error>>;
 
 /// A deterministic parsing automaton.
 ///
-/// These states are utilized by a [`TokenStreamParser`].
+/// These states are utilized by a [`Parser`].
 ///
 /// A [`TokenStreamState`] is also responsible for storing data about the
 ///   accepted input,
@@ -92,7 +48,7 @@ pub type TokenStreamParserResult<S, T> =
 ///   action.
 ///
 /// Intuitively,
-///   since only one [`TokenStreamParser`] may hold a mutable reference to
+///   since only one [`Parser`] may hold a mutable reference to
 ///   an underlying [`TokenStream`] at any given point,
 ///   this does in fact represent the current state of the entire
 ///     [`TokenStream`] at the current position for a given parser
@@ -108,17 +64,8 @@ pub trait TokenStreamState: Default {
     ///
     /// Whether this method is helpful or provides any clarity depends on
     ///   the context and the types that are able to be inferred.
-    /// This is completely generic,
-    ///   able to construct any compatible type of [`TokenStreamParser`],
-    ///   and so does not in itself do anything to help with type inference
-    ///     (compared to `P::from`,
-    ///        you trade an unknown `P::State` for an unknown `P`).
-    fn parser<P, I>(toks: &mut I) -> P
-    where
-        I: TokenStream,
-        P: TokenStreamParser<I> + for<'a> From<&'a mut I>,
-    {
-        P::from(toks)
+    fn parser<I: TokenStream>(toks: &mut I) -> Parser<Self, I> {
+        Parser::from(toks)
     }
 
     /// Parse a single [`Token`] and optionally perform a state transition.
@@ -165,6 +112,11 @@ pub type TokenStreamStateResult<S> = Option<
 ///     unique to their operation.
 /// This also simplifies combinators,
 ///   since there is more uniformity among distinct parser types.
+///
+/// After you have finished with a parser,
+///   if you have not consumed the entire iterator,
+///   call [`finalize`](Parser::finalize) to ensure that parsing has
+///     completed in an accepting state.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Parser<'a, S: TokenStreamState, I: TokenStream> {
     toks: &'a mut I,
@@ -172,19 +124,18 @@ pub struct Parser<'a, S: TokenStreamState, I: TokenStream> {
     last_span: Option<Span>,
 }
 
-impl<'a, S: TokenStreamState, I: TokenStream> TokenStreamParser<I>
-    for Parser<'a, S, I>
-{
-    type State = S;
-
-    fn last_span(&self) -> Option<Span> {
-        self.last_span
-    }
-
-    fn finalize(
-        self,
-    ) -> Result<(), (Self, ParseError<<Self::State as TokenStreamState>::Error>)>
-    {
+impl<'a, S: TokenStreamState, I: TokenStream> Parser<'a, S, I> {
+    /// Indicate that no further parsing will take place using this parser,
+    ///   and [`drop`] it.
+    ///
+    /// Invoking the method is equivalent to stating that the stream has
+    ///   ended,
+    ///     since the parser will have no later opportunity to continue
+    ///     parsing.
+    /// Consequently,
+    ///   the caller should expect [`ParseError::UnexpectedEof`] if the
+    ///   parser is not in an accepting state.
+    pub fn finalize(self) -> Result<(), (Self, ParseError<S::Error>)> {
         if self.state.is_accepting() {
             Ok(())
         } else {
@@ -229,7 +180,7 @@ impl<'a, S: TokenStreamState, I: TokenStream> Iterator for Parser<'a, S, I> {
     }
 }
 
-/// Common parsing errors produced by [`TokenStreamParser`].
+/// Common parsing errors produced by [`Parser`].
 ///
 /// These errors are common enough that they are handled in a common way,
 ///   such that individual parsers needn't check for these situations
@@ -371,7 +322,7 @@ pub mod test {
         }
     }
 
-    type Sut<'a, I> = DefaultParser<'a, EchoState, I>;
+    type Sut<'a, I> = Parser<'a, EchoState, I>;
 
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {
@@ -380,23 +331,14 @@ pub mod test {
 
         let mut sut = Sut::from(&mut toks);
 
-        // We haven't seen any spans yet.
-        assert_eq!(None, sut.last_span());
-
         // The first token should be processed normally.
         // EchoState proxies the token back.
         assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd(DS)))), sut.next());
-
-        // The last span we've seen should be the one we just processed.
-        assert_eq!(Some(DS), sut.last_span());
 
         // This is now the end of the token stream,
         //   which should be okay provided that the first token put us into
         //   a proper accepting state.
         assert_eq!(None, sut.next());
-
-        // But the last span we saw _should_ still be available.
-        assert_eq!(Some(DS), sut.last_span());
 
         // Further, finalizing should work in this state.
         assert!(sut.finalize().is_ok());
