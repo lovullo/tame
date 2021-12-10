@@ -1060,7 +1060,7 @@ pub fn attr_parser_from<'a>(
 
     AttrParserState::parser(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(attr)) => Some(Ok(attr)),
-        Ok(Parsed::Incomplete) => None,
+        Ok(Parsed::Incomplete | Parsed::Done) => None,
         Err(x) => Some(Err(x.into())),
     })
 }

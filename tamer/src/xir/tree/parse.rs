@@ -95,7 +95,7 @@ pub trait ParseState: Default {
 
 /// Result of applying a [`Token`] to a [`ParseState`].
 pub type ParseStateResult<S> =
-    Option<Result<Parsed<<S as ParseState>::Object>, <S as ParseState>::Error>>;
+    Result<Parsed<<S as ParseState>::Object>, <S as ParseState>::Error>;
 
 /// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
@@ -166,9 +166,10 @@ impl<'a, S: ParseState, I: TokenStream> Iterator for Parser<'a, S, I> {
                 //   reporting in case we encounter an EOF.
                 self.last_span = Some(tok.span());
 
-                self.state
-                    .parse_token(tok)
-                    .map(|parsed| parsed.map_err(ParseError::from))
+                match self.state.parse_token(tok) {
+                    Ok(Parsed::Done) => None,
+                    parsed => Some(parsed.map_err(ParseError::from)),
+                }
             }
         }
     }
@@ -249,10 +250,25 @@ impl<'a, S: ParseState, I: TokenStream> From<&'a mut I> for Parser<'a, S, I> {
     }
 }
 
+/// Result of a parsing operation.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Parsed<T> {
+    /// Additional tokens are needed to complete parsing of the next object.
     Incomplete,
+
+    /// Parsing of an object is complete.
+    ///
+    /// This does not indicate that the parser is complete,
+    ///   as more objects may be able to be emitted;
+    ///     see [`Parsed::Done`].
     Object(T),
+
+    /// Parsing is complete.
+    ///
+    /// This should cause an iterator to yield [`None`].
+    /// If a parser is a combination of multiple [`ParserState`]s,
+    ///   this should transition to the next appropriate state.
+    Done,
 }
 
 #[cfg(test)]
@@ -284,12 +300,12 @@ pub mod test {
                     *self = Self::Done;
                 }
                 Token::Close(..) => {
-                    return Some(Err(EchoStateError::InnerError(tok)))
+                    return Err(EchoStateError::InnerError(tok))
                 }
                 _ => {}
             }
 
-            Some(Ok(Parsed::Object(tok)))
+            Ok(Parsed::Object(tok))
         }
 
         fn is_accepting(&self) -> bool {
