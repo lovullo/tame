@@ -22,7 +22,7 @@
 use crate::{
     span::Span,
     xir::{
-        tree::parse::{Parsed, TokenStreamState, TokenStreamStateResult},
+        tree::parse::{ParseState, ParseStateResult, Parsed},
         QName, Token,
     },
 };
@@ -44,11 +44,11 @@ pub enum AttrParserState {
     Name(QName, Span),
 }
 
-impl TokenStreamState for AttrParserState {
+impl ParseState for AttrParserState {
     type Object = Attr;
     type Error = AttrParseError;
 
-    fn parse_token(&mut self, tok: Token) -> TokenStreamStateResult<Self> {
+    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
         use AttrParserState::*;
 
         Some(match (take(self), tok) {

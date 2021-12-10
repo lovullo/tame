@@ -177,7 +177,7 @@ mod parse;
 use self::attr::AttrParserState;
 
 use super::{QName, Token, TokenResultStream, TokenStream};
-use crate::{span::Span, sym::SymbolId, xir::tree::parse::TokenStreamState};
+use crate::{span::Span, sym::SymbolId, xir::tree::parse::ParseState};
 use std::{error::Error, fmt::Display, mem::take};
 
 pub use attr::{Attr, AttrList};

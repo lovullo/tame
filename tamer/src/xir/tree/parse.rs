@@ -23,21 +23,19 @@ use super::super::{Token, TokenStream};
 use crate::span::Span;
 use std::{error::Error, fmt::Display};
 
-/// Result of applying a [`Token`] to a [`TokenStreamState`],
+/// Result of applying a [`Token`] to a [`ParseState`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type TokenStreamParsedResult<S> =
-    TokenStreamParserResult<S, Parsed<<S as TokenStreamState>::Object>>;
+pub type ParsedResult<S> = ParseResult<S, Parsed<<S as ParseState>::Object>>;
 
 /// Result of some non-parsing operation on a [`Parser`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type TokenStreamParserResult<S, T> =
-    Result<T, ParseError<<S as TokenStreamState>::Error>>;
+pub type ParseResult<S, T> = Result<T, ParseError<<S as ParseState>::Error>>;
 
 /// A deterministic parsing automaton.
 ///
 /// These states are utilized by a [`Parser`].
 ///
-/// A [`TokenStreamState`] is also responsible for storing data about the
+/// A [`ParseState`] is also responsible for storing data about the
 ///   accepted input,
 ///     and handling appropriate type conversions into the final type.
 /// That is---an
@@ -53,7 +51,7 @@ pub type TokenStreamParserResult<S, T> =
 ///   this does in fact represent the current state of the entire
 ///     [`TokenStream`] at the current position for a given parser
 ///     composition.
-pub trait TokenStreamState: Default {
+pub trait ParseState: Default {
     /// Objects produced by a parser utilizing these states.
     type Object;
 
@@ -75,7 +73,7 @@ pub trait TokenStreamState: Default {
     /// The result of a parsing operation is either an object or an
     ///   indication that additional tokens of input are needed;
     ///     see [`Parsed`] for more information.
-    fn parse_token(&mut self, tok: Token) -> TokenStreamStateResult<Self>;
+    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self>;
 
     /// Whether the current state represents an accepting state.
     ///
@@ -95,15 +93,11 @@ pub trait TokenStreamState: Default {
     fn is_accepting(&self) -> bool;
 }
 
-/// Result of applying a [`Token`] to a [`TokenStreamState`].
-pub type TokenStreamStateResult<S> = Option<
-    Result<
-        Parsed<<S as TokenStreamState>::Object>,
-        <S as TokenStreamState>::Error,
-    >,
->;
+/// Result of applying a [`Token`] to a [`ParseState`].
+pub type ParseStateResult<S> =
+    Option<Result<Parsed<<S as ParseState>::Object>, <S as ParseState>::Error>>;
 
-/// A streaming parser defined by a [`TokenStreamState`] with exclusive
+/// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
 ///
 /// This parser handles operations that are common among all types of
@@ -118,13 +112,13 @@ pub type TokenStreamStateResult<S> = Option<
 ///   call [`finalize`](Parser::finalize) to ensure that parsing has
 ///     completed in an accepting state.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Parser<'a, S: TokenStreamState, I: TokenStream> {
+pub struct Parser<'a, S: ParseState, I: TokenStream> {
     toks: &'a mut I,
     state: S,
     last_span: Option<Span>,
 }
 
-impl<'a, S: TokenStreamState, I: TokenStream> Parser<'a, S, I> {
+impl<'a, S: ParseState, I: TokenStream> Parser<'a, S, I> {
     /// Indicate that no further parsing will take place using this parser,
     ///   and [`drop`] it.
     ///
@@ -145,15 +139,15 @@ impl<'a, S: TokenStreamState, I: TokenStream> Parser<'a, S, I> {
     }
 }
 
-impl<'a, S: TokenStreamState, I: TokenStream> Iterator for Parser<'a, S, I> {
-    type Item = TokenStreamParsedResult<S>;
+impl<'a, S: ParseState, I: TokenStream> Iterator for Parser<'a, S, I> {
+    type Item = ParsedResult<S>;
 
     /// Parse a single [`Token`] according to the current
-    ///   [`TokenStreamState`],
+    ///   [`ParseState`],
     ///     if available.
     ///
     /// If the underlying [`TokenStream`] yields [`None`],
-    ///   then the [`TokenStreamState`] must be in an accepting state;
+    ///   then the [`ParseState`] must be in an accepting state;
     ///     otherwise, [`ParseError::UnexpectedEof`] will occur.
     ///
     /// This is intended to be invoked by [`Iterator::next`].
@@ -210,7 +204,7 @@ pub enum ParseError<E: Error + PartialEq> {
     UnexpectedEof(Option<Span>),
 
     /// A parser-specific error associated with an inner
-    ///   [`TokenStreamState`].
+    ///   [`ParseState`].
     StateError(E),
 }
 
@@ -245,9 +239,7 @@ impl<E: Error + PartialEq + 'static> Error for ParseError<E> {
     }
 }
 
-impl<'a, S: TokenStreamState, I: TokenStream> From<&'a mut I>
-    for Parser<'a, S, I>
-{
+impl<'a, S: ParseState, I: TokenStream> From<&'a mut I> for Parser<'a, S, I> {
     fn from(toks: &'a mut I) -> Self {
         Self {
             toks,
@@ -282,11 +274,11 @@ pub mod test {
         }
     }
 
-    impl TokenStreamState for EchoState {
+    impl ParseState for EchoState {
         type Object = Token;
         type Error = EchoStateError;
 
-        fn parse_token(&mut self, tok: Token) -> TokenStreamStateResult<Self> {
+        fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
             match tok {
                 Token::AttrEnd(..) => {
                     *self = Self::Done;
