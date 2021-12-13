@@ -176,7 +176,10 @@
 mod attr;
 mod parse;
 
-use self::{attr::AttrParserState, parse::ParseStateResult};
+use self::{
+    attr::AttrParserState,
+    parse::{ParseResult, ParseStateResult},
+};
 
 use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId, xir::tree::parse::ParseState};
@@ -888,21 +891,17 @@ pub fn parse(state: &mut Stack, tok: Token) -> Option<Result<Parsed>> {
 /// ```
 pub fn parser_from(
     toks: impl TokenStream,
-) -> impl Iterator<Item = Result<Tree>> {
-    toks.scan(Stack::default(), parse)
-        .filter_map(|parsed| match parsed {
-            Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
-            Ok(Parsed::Incomplete) => None,
-            Err(x) => Some(Err(x)),
+) -> impl Iterator<Item = ParseResult<Stack, Tree>> {
+    Stack::parser(toks).filter_map(|parsed| match parsed {
+        Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
+        Ok(Parsed::Incomplete) => None,
+        Err(x) => Some(Err(x)),
 
-            // These make no sense in this context and should never occur.
-            Ok(x @ Parsed::Object(Object::Attr(_))) => {
-                unreachable!(
-                    "unexpected yield by XIRT (Tree expected): {:?}",
-                    x
-                )
-            }
-        })
+        // These make no sense in this context and should never occur.
+        Ok(x @ Parsed::Object(Object::Attr(_))) => {
+            unreachable!("unexpected yield by XIRT (Tree expected): {:?}", x)
+        }
+    })
 }
 
 /// Produce a lazy attribute parser from a given [`TokenStream`],
