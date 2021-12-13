@@ -82,8 +82,8 @@
 //!         and the [`Iterator`] produced by [`parser_from`] will cause the
 //!         system to process [`Iterator::next`] for that entire duration.
 //!
-//! See also [`attr_parser_from`] and [`parse_attrs`] for parsing only
-//!   attributes partway through a token stream.
+//! See also [`attr_parser_from`] for parsing only attributes partway
+//!   through a token stream.
 //!
 //! [`Parsed::Incomplete`]: parse::Parsed::Incomplete
 //! [`Parsed::Object`]: parse::Parsed::Object
@@ -492,9 +492,6 @@ pub enum Stack {
     ///   after which it will be attached to an element.
     AttrName(Option<(Option<ElementStack>, AttrList)>, QName, Span),
 
-    /// A completed [`AttrList`] without any [`Element`] context.
-    IsolatedAttrList(AttrList),
-
     /// A completed [`Attr`] without any [`AttrList`] context.
     IsolatedAttr(Attr),
 
@@ -678,10 +675,6 @@ impl Stack {
     ///   [`Element`].
     fn end_attrs(self) -> Result<Self> {
         Ok(match self {
-            Self::BuddingAttrList(None, attr_list) => {
-                Self::IsolatedAttrList(attr_list)
-            }
-
             Self::BuddingAttrList(Some(ele_stack), attr_list) => {
                 Self::BuddingElement(ele_stack.consume_attrs(attr_list))
             }
@@ -711,9 +704,6 @@ impl Stack {
         match new_stack {
             Stack::ClosedElement(ele) => {
                 ParseStatus::Object(Object::Tree(Tree::Element(ele)))
-            }
-            Stack::IsolatedAttrList(attr_list) => {
-                ParseStatus::Object(Object::AttrList(attr_list))
             }
 
             Stack::IsolatedAttr(attr) => {
@@ -841,11 +831,6 @@ pub enum Object {
     /// See [`parser_from`].
     Tree(Tree),
 
-    /// Parsing of an isolated attribute list is complete.
-    ///
-    /// See [`parse_attrs`].
-    AttrList(AttrList),
-
     /// Parsing of a single isolated attribute is complete.
     ///
     /// See [`attr_parser_from`].
@@ -911,53 +896,13 @@ pub fn parser_from(
             Err(x) => Some(Err(x)),
 
             // These make no sense in this context and should never occur.
-            Ok(x @ Parsed::Object(Object::AttrList(_) | Object::Attr(_))) => {
+            Ok(x @ Parsed::Object(Object::Attr(_))) => {
                 unreachable!(
                     "unexpected yield by XIRT (Tree expected): {:?}",
                     x
                 )
             }
         })
-}
-
-/// Begin parsing in an isolated attribute context,
-///   producing an [`AttrList`] that is detached from any [`Element`].
-///
-/// This is useful when you wish to consume a XIR stream and collect only
-///   the attributes of an element.
-/// If you wish to process an entire element,
-///   use [`parser_from`] instead.
-///
-/// Parsing must begin at a [`Token::AttrName`] token.
-///
-/// This will consume tokens until reaching [`Token::AttrEnd`],
-///   and so it is important that the XIR stream contain this delimiter;
-///     this should be the case with all readers.
-#[inline]
-pub fn parse_attrs<'a>(
-    toks: &mut impl TokenStream,
-    dest: AttrList,
-) -> Result<AttrList> {
-    let mut state = Stack::BuddingAttrList(None, dest);
-
-    loop {
-        match toks.next().and_then(|tok| parse(&mut state, tok)) {
-            None => return Err(StackError::UnexpectedAttrEof),
-            Some(Err(err)) => return Err(err),
-            Some(Ok(Parsed::Incomplete)) => continue,
-            Some(Ok(Parsed::Object(Object::AttrList(attr_list)))) => {
-                return Ok(attr_list)
-            }
-
-            // These make no sense in this context and should never occur.
-            Some(Ok(x @ Parsed::Object(Object::Tree(_) | Object::Attr(_)))) => {
-                unreachable!(
-                    "unexpected yield by XIRT (AttrList expected): {:?}",
-                    x
-                )
-            }
-        }
-    }
 }
 
 /// Produce a lazy attribute parser from a given [`TokenStream`],
