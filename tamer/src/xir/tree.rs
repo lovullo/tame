@@ -47,7 +47,7 @@
 //! They have slightly different use cases and tradeoffs:
 //!
 //! [`parse`][parse()] yields a [`Result`] containing [`Parsed`],
-//!   which _may_ contain a [`Parsed::Tree`],
+//!   which _may_ contain an [`Parsed::Object`],
 //!   but it's more likely to contain [`Parsed::Incomplete`];
 //!     this is because it typically takes multiple [`Token`]s to complete
 //!     parsing within a given context.
@@ -71,8 +71,8 @@
 //!     which does two things:
 //!
 //!   1. It filters out all [`Parsed::Incomplete`]; and
-//!   2. On [`Parsed::Tree`],
-//!        it yields the inner [`Tree`].
+//!   2. On [`Parsed::Object`],
+//!        it yields the inner [`Object`].
 //!
 //! This is a much more convenient API,
 //!   but is not without its downsides:
@@ -762,12 +762,16 @@ impl ParserState {
     /// Emit a completed object or store the current stack for further processing.
     fn store_or_emit(&mut self, new_stack: Stack) -> Parsed {
         match new_stack {
-            Stack::ClosedElement(ele) => Parsed::Tree(Tree::Element(ele)),
-            Stack::IsolatedAttrList(attr_list) => Parsed::AttrList(attr_list),
+            Stack::ClosedElement(ele) => {
+                Parsed::Object(Object::Tree(Tree::Element(ele)))
+            }
+            Stack::IsolatedAttrList(attr_list) => {
+                Parsed::Object(Object::AttrList(attr_list))
+            }
 
             Stack::IsolatedAttr(attr) => {
                 self.stack = Stack::IsolatedAttrEmpty;
-                Parsed::Attr(attr)
+                Parsed::Object(Object::Attr(attr))
             }
 
             // This parser has completed relative to its initial context and
@@ -882,16 +886,9 @@ impl Error for ParseError {
     }
 }
 
-/// Either a parsed [`Tree`] or an indication that more tokens are needed to
-///   complete the active context.
-///
-/// This has the same structure as [`Option`],
-///   but is its own type to avoid confusion as to what this type may mean
-///   when deeply nested within other types
-///     (e.g. `Option<Result<Parsed, ParserError>>` reads a bit better
-///       than `Option<Result<Option<Tree>, ParserError>>`).
+/// Parsed object.
 #[derive(Debug, Eq, PartialEq)]
-pub enum Parsed {
+pub enum Object {
     /// Parsing of an object is complete.
     ///
     /// See [`parser_from`].
@@ -906,6 +903,22 @@ pub enum Parsed {
     ///
     /// See [`attr_parser_from`].
     Attr(Attr),
+}
+
+/// Either a parsed [`Tree`] or an indication that more tokens are needed to
+///   complete the active context.
+///
+/// This has the same structure as [`Option`],
+///   but is its own type to avoid confusion as to what this type may mean
+///   when deeply nested within other types
+///     (e.g. `Option<Result<Parsed, ParserError>>` reads a bit better
+///       than `Option<Result<Option<Tree>, ParserError>>`).
+#[derive(Debug, Eq, PartialEq)]
+pub enum Parsed {
+    /// Parsing of an object is complete.
+    ///
+    /// See [`parser_from`].
+    Object(Object),
 
     /// The parser needs more token data to emit an object
     ///   (the active context is not yet complete).
@@ -957,7 +970,7 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
 /// Unlike [`parse`][parse()],
 ///   which is intended for use with [`Iterator::scan`],
 ///   this will yield /only/ when the underlying parser yields
-///   [`Parsed::Tree`],
+///   [`Object::Tree`],
 ///     unwrapping the inner [`Tree`] value.
 /// This interface is far more convenient,
 ///   but comes at the cost of not knowing how many parsing steps a single
@@ -980,17 +993,19 @@ pub fn parser_from(
 ) -> impl Iterator<Item = Result<Tree>> {
     toks.scan(ParserState::new(), parse)
         .filter_map(|parsed| match parsed {
-            Ok(Parsed::Tree(tree)) => Some(Ok(tree)),
+            Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
             Ok(Parsed::Incomplete) => None,
             Err(x) => Some(Err(x)),
 
             Ok(Parsed::Done) => todo!("parser_from Parsed::Done"),
 
             // These make no sense in this context and should never occur.
-            Ok(x @ (Parsed::AttrList(_) | Parsed::Attr(_))) => unreachable!(
-                "unexpected yield by XIRT (Tree expected): {:?}",
-                x
-            ),
+            Ok(x @ Parsed::Object(Object::AttrList(_) | Object::Attr(_))) => {
+                unreachable!(
+                    "unexpected yield by XIRT (Tree expected): {:?}",
+                    x
+                )
+            }
         })
 }
 
@@ -1019,15 +1034,19 @@ pub fn parse_attrs<'a>(
             None => return Err(ParseError::UnexpectedAttrEof),
             Some(Err(err)) => return Err(err),
             Some(Ok(Parsed::Incomplete)) => continue,
-            Some(Ok(Parsed::AttrList(attr_list))) => return Ok(attr_list),
+            Some(Ok(Parsed::Object(Object::AttrList(attr_list)))) => {
+                return Ok(attr_list)
+            }
 
             Some(Ok(Parsed::Done)) => todo!("parse_attrs Parsed::Done"),
 
             // These make no sense in this context and should never occur.
-            Some(Ok(x @ (Parsed::Tree(_) | Parsed::Attr(_)))) => unreachable!(
-                "unexpected yield by XIRT (AttrList expected): {:?}",
-                x
-            ),
+            Some(Ok(x @ Parsed::Object(Object::Tree(_) | Object::Attr(_)))) => {
+                unreachable!(
+                    "unexpected yield by XIRT (AttrList expected): {:?}",
+                    x
+                )
+            }
         }
     }
 }

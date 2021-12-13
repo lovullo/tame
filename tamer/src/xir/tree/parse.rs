@@ -261,7 +261,7 @@ pub enum ParseStatus<T> {
     ///
     /// This does not indicate that the parser is complete,
     ///   as more objects may be able to be emitted;
-    ///     see [`Parsed::Done`].
+    ///     see [`ParseStatus::Done`].
     Object(T),
 
     /// Parsing is complete.
