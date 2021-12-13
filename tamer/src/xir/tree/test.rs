@@ -94,7 +94,7 @@ fn empty_element_self_close_from_toks() {
         span: (*S, *S2),
     };
 
-    let mut sut = toks.scan(ParserState::new(), parse);
+    let mut sut = toks.scan(Default::default(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -120,7 +120,7 @@ fn empty_element_balanced_close_from_toks() {
         span: (*S, *S2),
     };
 
-    let mut sut = toks.scan(ParserState::new(), parse);
+    let mut sut = toks.scan(Default::default(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -143,7 +143,7 @@ fn empty_element_unbalanced_close_from_toks() {
     ]
     .into_iter();
 
-    let mut sut = toks.scan(ParserState::new(), parse);
+    let mut sut = toks.scan(Default::default(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -186,7 +186,7 @@ fn empty_element_with_attrs_from_toks() {
         span: (*S, *S2),
     };
 
-    let mut sut = toks.scan(ParserState::new(), parse);
+    let mut sut = toks.scan(Default::default(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
@@ -235,7 +235,7 @@ fn child_element_after_attrs() {
         span: (*S, *S3),
     };
 
-    let mut sut = toks.scan(ParserState::new(), parse);
+    let mut sut = toks.scan(Default::default(), parse);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName

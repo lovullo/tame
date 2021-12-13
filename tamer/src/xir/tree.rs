@@ -22,12 +22,12 @@
 //! **This is a work-in-progress implementation.**
 //! It will be augmented only as needed.
 //!
-//! Parsing is handled by [`ParserState::parse_token`].
+//! Parsing is handled by [`Stack::parse_token`].
 //! An [`Iterator::scan`]-based parser can be constructed using
 //!   [`parser_from`] or [`parse`][parse()].
 //!
 //! ```
-//! use tamer::xir::tree::{ParserState, parse, parser_from};
+//! use tamer::xir::tree::{Stack, parse, parser_from};
 //!# use tamer::xir::Token;
 //!
 //!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
@@ -38,7 +38,7 @@
 //!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 //! // Consume a single token at a time, yielding either an incomplete state
 //! // or the next parsed object.
-//! let parser = token_stream.scan(ParserState::new(), parse);
+//! let parser = token_stream.scan(Stack::default(), parse);
 //! ```
 //!
 //! `parser_from` Or `parse`?
@@ -122,7 +122,7 @@
 //!   however,
 //!   perform _[semantic analysis]_ on the token stream.
 //! Given that,
-//!   [`ParserState::parse_token`] returns a [`Result`],
+//!   [`Stack::parse_token`] returns a [`Result`],
 //!     with parsing errors represented by this module's [`ParseError`].
 //!
 //! As an example,
@@ -137,8 +137,7 @@
 //! Parser Implementation
 //! =====================
 //! The parser that lowers the XIR [`Token`] stream into a [`Tree`]
-//!   is implemented on [`ParserState`],
-//!     which exists to encapsulate the [`Stack`].
+//!   is implemented on [`Stack`].
 //!
 //! This parser is a [stack machine],
 //!   where the stack represents the [`Tree`] that is under construction.
@@ -177,7 +176,7 @@
 mod attr;
 mod parse;
 
-use self::attr::AttrParserState;
+use self::{attr::AttrParserState, parse::ParseStateResult};
 
 use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId, xir::tree::parse::ParseState};
@@ -515,6 +514,39 @@ impl Default for Stack {
     }
 }
 
+impl ParseState for Stack {
+    type Object = Object;
+    type Error = ParseError;
+
+    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
+        let stack = take(self);
+
+        match tok {
+            Token::Open(name, span) => stack.open_element(name, span),
+            Token::Close(name, span) => stack.close_element(name, span),
+            Token::AttrName(name, span) => stack.open_attr(name, span),
+            Token::AttrValue(value, span) => stack.close_attr(value, span),
+            Token::AttrEnd(_) => stack.end_attrs(),
+            Token::Text(value, span) => stack.text(value, span),
+
+            // This parse is being rewritten, so we'll address this with a
+            //   proper error then.
+            Token::AttrValueFragment(..) => {
+                panic!("AttrValueFragment is not parsable")
+            }
+
+            Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {
+                Err(ParseError::Todo(tok, stack))
+            }
+        }
+        .map(|new_stack| self.store_or_emit(new_stack))
+    }
+
+    fn is_accepting(&self) -> bool {
+        *self == Self::Empty || *self == Self::Done
+    }
+}
+
 impl Stack {
     /// Attempt to open a new element.
     ///
@@ -673,97 +705,6 @@ impl Stack {
             _ => todo! {},
         })
     }
-}
-
-/// State while parsing a XIR token stream into a tree.
-///
-/// [`ParserState`] is responsible only for dispatch and bookkeeping;
-///   state transitions and stack manipulation are handled by the various
-///   methods on [`Stack`].
-///
-/// This is a stack machine with the interface of a state machine.
-/// The stack is encoded into the variants themselves
-///   (which Rust will allocate on the stack),
-///     which is sensible given that we always know exactly what and how
-///     many arguments we need.
-/// This gives us both the stack we want and type safety,
-///   and has compile-time guarantees to ensure that we cannot produce a
-///   stack that is not suitable for the computation at hand.
-///
-/// Note that this cannot be reasoned about in terms of a pushdown automaton
-///   because there is no set language for the stack---it
-///     contains arbitrary data holding the state of the current computation,
-///       which is (theoretically, but not practically) unbounded by the
-///       recursive nature of [`Element`].
-///
-/// This is very similar to the [XmlWriter](super::writer::XmlWriter),
-///   except that a stack is needed to accumulate tokens until we can begin
-///   emitting a tree.
-#[derive(Debug, Default)]
-pub struct ParserState {
-    stack: Stack,
-}
-
-impl ParserState {
-    /// Create state of a new parser that has not yet seen any input
-    ///   tokens.
-    ///
-    /// _Consider using [`parser_from`] instead._
-    ///
-    /// Parsers using this state are suitable only for valid starting
-    ///   contexts,
-    ///     as defined in the [module-level documentation](self).
-    pub fn new() -> Self {
-        Self {
-            stack: Default::default(),
-        }
-    }
-
-    /// Initialize the state of the parser with the given [`Stack`].
-    fn with(stack: Stack) -> Self {
-        Self { stack }
-    }
-
-    /// Consume a single XIR [`Token`] and attempt to parse it within the
-    ///   context of the current [`Stack`].
-    ///
-    /// Each call to this method represents a [state transition].
-    /// Invalid state transitions represent either a semantic error
-    ///   (e.g. unbalanced tags)
-    ///   or unimplemented features that will be added as needed.
-    ///
-    /// This parser is not responsible for validating _syntax_,
-    ///   since valid syntax is already implied by the existence of
-    ///   [`Token`].
-    /// But it does perform semantic analysis on that token stream.
-    ///
-    /// All heavy lifting is done by the various methods on [`Stack`].
-    ///
-    /// See the [module-level documentation](self) for more information on
-    ///   the implementation of the parser.
-    pub fn parse_token(&mut self, tok: Token) -> Result<ParseStatus> {
-        let stack = take(&mut self.stack);
-
-        match tok {
-            Token::Open(name, span) => stack.open_element(name, span),
-            Token::Close(name, span) => stack.close_element(name, span),
-            Token::AttrName(name, span) => stack.open_attr(name, span),
-            Token::AttrValue(value, span) => stack.close_attr(value, span),
-            Token::AttrEnd(_) => stack.end_attrs(),
-            Token::Text(value, span) => stack.text(value, span),
-
-            // This parse is being rewritten, so we'll address this with a
-            //   proper error then.
-            Token::AttrValueFragment(..) => {
-                panic!("AttrValueFragment is not parsable")
-            }
-
-            Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {
-                Err(ParseError::Todo(tok, stack))
-            }
-        }
-        .map(|new_stack| self.store_or_emit(new_stack))
-    }
 
     /// Emit a completed object or store the current stack for further processing.
     fn store_or_emit(&mut self, new_stack: Stack) -> ParseStatus {
@@ -776,7 +717,7 @@ impl ParserState {
             }
 
             Stack::IsolatedAttr(attr) => {
-                self.stack = Stack::IsolatedAttrEmpty;
+                *self = Stack::IsolatedAttrEmpty;
                 ParseStatus::Object(Object::Attr(attr))
             }
 
@@ -785,7 +726,7 @@ impl ParserState {
             Stack::Done => ParseStatus::Done,
 
             _ => {
-                self.stack = new_stack;
+                *self = new_stack;
                 ParseStatus::Incomplete
             }
         }
@@ -795,7 +736,7 @@ impl ParserState {
 /// Result of a XIR tree parsing operation.
 pub type Result<T> = std::result::Result<T, ParseError>;
 
-/// Parsing error from [`ParserState`].
+/// Parsing error from [`Stack`].
 #[derive(Debug, Eq, PartialEq)]
 pub enum ParseError {
     /// The closing tag does not match the opening tag at the same level of
@@ -911,7 +852,7 @@ pub enum Object {
     Attr(Attr),
 }
 
-/// Wrap [`ParserState::parse_token`] result in [`Some`],
+/// Wrap [`Stack::parse_token`] result in [`Some`],
 ///   suitable for use with [`Iterator::scan`].
 ///
 /// If you do not require a single-step [`Iterator::next`] and simply want
@@ -925,15 +866,15 @@ pub enum Object {
 ///   iterator it scans returns [`None`].
 ///
 /// ```
-/// use tamer::xir::tree::{ParserState, parse};
+/// use tamer::xir::tree::{Stack, parse};
 ///# use tamer::xir::Token;
 ///
 ///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // The above is equivalent to:
-/// let parser = token_stream.scan(ParserState::new(), parse);
+/// let parser = token_stream.scan(Stack::default(), parse);
 /// ```
-pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
-    Some(ParserState::parse_token(state, tok).map(Into::into))
+pub fn parse(state: &mut Stack, tok: Token) -> Option<Result<Parsed>> {
+    Some(Stack::parse_token(state, tok).map(Into::into))
 }
 
 /// Produce a lazy parser from a given [`TokenStream`],
@@ -963,7 +904,7 @@ pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
 pub fn parser_from(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = Result<Tree>> {
-    toks.scan(ParserState::new(), parse)
+    toks.scan(Stack::default(), parse)
         .filter_map(|parsed| match parsed {
             Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
             Ok(Parsed::Incomplete) => None,
@@ -997,7 +938,7 @@ pub fn parse_attrs<'a>(
     toks: &mut impl TokenStream,
     dest: AttrList,
 ) -> Result<AttrList> {
-    let mut state = ParserState::with(Stack::BuddingAttrList(None, dest));
+    let mut state = Stack::BuddingAttrList(None, dest);
 
     loop {
         match toks.next().and_then(|tok| parse(&mut state, tok)) {
