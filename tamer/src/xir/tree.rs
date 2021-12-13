@@ -85,6 +85,9 @@
 //! See also [`attr_parser_from`] and [`parse_attrs`] for parsing only
 //!   attributes partway through a token stream.
 //!
+//! [`Parsed::Incomplete`]: parse::Parsed::Incomplete
+//! [`Parsed::Object`]: parse::Parsed::Object
+//!
 //! Cost of Parsing
 //! ===============
 //! While [`Tree`] is often much easier to work with than a stream of
@@ -181,6 +184,9 @@ use crate::{span::Span, sym::SymbolId, xir::tree::parse::ParseState};
 use std::{error::Error, fmt::Display, mem::take};
 
 pub use attr::{Attr, AttrList};
+
+type Parsed = parse::Parsed<Object>;
+type ParseStatus = parse::ParseStatus<Object>;
 
 /// A XIR tree (XIRT).
 ///
@@ -735,7 +741,7 @@ impl ParserState {
     ///
     /// See the [module-level documentation](self) for more information on
     ///   the implementation of the parser.
-    pub fn parse_token(&mut self, tok: Token) -> Result<Parsed> {
+    pub fn parse_token(&mut self, tok: Token) -> Result<ParseStatus> {
         let stack = take(&mut self.stack);
 
         match tok {
@@ -760,27 +766,27 @@ impl ParserState {
     }
 
     /// Emit a completed object or store the current stack for further processing.
-    fn store_or_emit(&mut self, new_stack: Stack) -> Parsed {
+    fn store_or_emit(&mut self, new_stack: Stack) -> ParseStatus {
         match new_stack {
             Stack::ClosedElement(ele) => {
-                Parsed::Object(Object::Tree(Tree::Element(ele)))
+                ParseStatus::Object(Object::Tree(Tree::Element(ele)))
             }
             Stack::IsolatedAttrList(attr_list) => {
-                Parsed::Object(Object::AttrList(attr_list))
+                ParseStatus::Object(Object::AttrList(attr_list))
             }
 
             Stack::IsolatedAttr(attr) => {
                 self.stack = Stack::IsolatedAttrEmpty;
-                Parsed::Object(Object::Attr(attr))
+                ParseStatus::Object(Object::Attr(attr))
             }
 
             // This parser has completed relative to its initial context and
             //   is not expecting any further input.
-            Stack::Done => Parsed::Done,
+            Stack::Done => ParseStatus::Done,
 
             _ => {
                 self.stack = new_stack;
-                Parsed::Incomplete
+                ParseStatus::Incomplete
             }
         }
     }
@@ -905,40 +911,6 @@ pub enum Object {
     Attr(Attr),
 }
 
-/// Either a parsed [`Tree`] or an indication that more tokens are needed to
-///   complete the active context.
-///
-/// This has the same structure as [`Option`],
-///   but is its own type to avoid confusion as to what this type may mean
-///   when deeply nested within other types
-///     (e.g. `Option<Result<Parsed, ParserError>>` reads a bit better
-///       than `Option<Result<Option<Tree>, ParserError>>`).
-#[derive(Debug, Eq, PartialEq)]
-pub enum Parsed {
-    /// Parsing of an object is complete.
-    ///
-    /// See [`parser_from`].
-    Object(Object),
-
-    /// The parser needs more token data to emit an object
-    ///   (the active context is not yet complete).
-    Incomplete,
-
-    /// All parsing has completed successfully relative to the original
-    ///   context.
-    ///
-    /// This does not necessarily mean that the XIR token stream has ended,
-    ///   because parsing may have started for a portion of it.
-    /// However,
-    ///   if parsing began at the root node for the XIR stream,
-    ///     then this _does_ indicate the end of the XML document.
-    ///
-    /// To continue using this parser after it has reached this state,
-    ///   it must be explicitly reset to indicate that further parsing is
-    ///   expected and not an error.
-    Done,
-}
-
 /// Wrap [`ParserState::parse_token`] result in [`Some`],
 ///   suitable for use with [`Iterator::scan`].
 ///
@@ -961,7 +933,7 @@ pub enum Parsed {
 /// let parser = token_stream.scan(ParserState::new(), parse);
 /// ```
 pub fn parse(state: &mut ParserState, tok: Token) -> Option<Result<Parsed>> {
-    Some(ParserState::parse_token(state, tok))
+    Some(ParserState::parse_token(state, tok).map(Into::into))
 }
 
 /// Produce a lazy parser from a given [`TokenStream`],
@@ -996,8 +968,6 @@ pub fn parser_from(
             Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
             Ok(Parsed::Incomplete) => None,
             Err(x) => Some(Err(x)),
-
-            Ok(Parsed::Done) => todo!("parser_from Parsed::Done"),
 
             // These make no sense in this context and should never occur.
             Ok(x @ Parsed::Object(Object::AttrList(_) | Object::Attr(_))) => {
@@ -1037,8 +1007,6 @@ pub fn parse_attrs<'a>(
             Some(Ok(Parsed::Object(Object::AttrList(attr_list)))) => {
                 return Ok(attr_list)
             }
-
-            Some(Ok(Parsed::Done)) => todo!("parse_attrs Parsed::Done"),
 
             // These make no sense in this context and should never occur.
             Some(Ok(x @ Parsed::Object(Object::Tree(_) | Object::Attr(_)))) => {
