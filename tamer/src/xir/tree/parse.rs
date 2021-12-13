@@ -62,7 +62,7 @@ pub trait ParseState: Default {
     ///
     /// Whether this method is helpful or provides any clarity depends on
     ///   the context and the types that are able to be inferred.
-    fn parser<I: TokenStream>(toks: &mut I) -> Parser<Self, I> {
+    fn parser<I: TokenStream>(toks: I) -> Parser<Self, I> {
         Parser::from(toks)
     }
 
@@ -112,13 +112,13 @@ pub type ParseStateResult<S> =
 ///   call [`finalize`](Parser::finalize) to ensure that parsing has
 ///     completed in an accepting state.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Parser<'a, S: ParseState, I: TokenStream> {
-    toks: &'a mut I,
+pub struct Parser<S: ParseState, I: TokenStream> {
+    toks: I,
     state: S,
     last_span: Option<Span>,
 }
 
-impl<'a, S: ParseState, I: TokenStream> Parser<'a, S, I> {
+impl<S: ParseState, I: TokenStream> Parser<S, I> {
     /// Indicate that no further parsing will take place using this parser,
     ///   and [`drop`] it.
     ///
@@ -139,7 +139,7 @@ impl<'a, S: ParseState, I: TokenStream> Parser<'a, S, I> {
     }
 }
 
-impl<'a, S: ParseState, I: TokenStream> Iterator for Parser<'a, S, I> {
+impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
     type Item = ParsedResult<S>;
 
     /// Parse a single [`Token`] according to the current
@@ -241,8 +241,8 @@ impl<E: Error + PartialEq + 'static> Error for ParseError<E> {
     }
 }
 
-impl<'a, S: ParseState, I: TokenStream> From<&'a mut I> for Parser<'a, S, I> {
-    fn from(toks: &'a mut I) -> Self {
+impl<S: ParseState, I: TokenStream> From<I> for Parser<S, I> {
+    fn from(toks: I) -> Self {
         Self {
             toks,
             state: Default::default(),
@@ -360,7 +360,7 @@ pub mod test {
         }
     }
 
-    type Sut<'a, I> = Parser<'a, EchoState, I>;
+    type Sut<I> = Parser<EchoState, I>;
 
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {
