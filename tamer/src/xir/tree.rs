@@ -123,7 +123,7 @@
 //!   perform _[semantic analysis]_ on the token stream.
 //! Given that,
 //!   [`Stack::parse_token`] returns a [`Result`],
-//!     with parsing errors represented by this module's [`ParseError`].
+//!     with parsing errors represented by this module's [`StackError`].
 //!
 //! As an example,
 //!   a XIR token stream permits unbalanced tags.
@@ -393,7 +393,7 @@ impl ElementStack {
         // stream to begin with, so we don't check for it.
         if let Some(name) = close_name {
             if name != ele_name {
-                return Err(ParseError::UnbalancedTag {
+                return Err(StackError::UnbalancedTag {
                     open: (ele_name, open_span),
                     close: (name, close_span),
                 });
@@ -516,7 +516,7 @@ impl Default for Stack {
 
 impl ParseState for Stack {
     type Object = Object;
-    type Error = ParseError;
+    type Error = StackError;
 
     fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
         let stack = take(self);
@@ -536,7 +536,7 @@ impl ParseState for Stack {
             }
 
             Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {
-                Err(ParseError::Todo(tok, stack))
+                Err(StackError::Todo(tok, stack))
             }
         }
         .map(|new_stack| self.store_or_emit(new_stack))
@@ -583,7 +583,7 @@ impl Stack {
                 //   provided
                 //     (or that we're not parsing in the correct context).
                 Self::BuddingAttrList(None, ..) | Self::IsolatedAttrEmpty => {
-                    Err(ParseError::AttrNameExpected(Token::Open(name, span)))
+                    Err(StackError::AttrNameExpected(Token::Open(name, span)))
                 }
 
                 _ => todo! {},
@@ -600,7 +600,7 @@ impl Stack {
     ///   then it _must_ match the name of the element currently being
     ///     processed---that is,
     ///       the tree must be _balanced_.
-    /// An unbalanced tree results in a [`ParseError::UnbalancedTag`].
+    /// An unbalanced tree results in a [`StackError::UnbalancedTag`].
     fn close_element(self, name: Option<QName>, span: Span) -> Result<Self> {
         match self {
             Self::BuddingElement(stack) => stack
@@ -618,7 +618,7 @@ impl Stack {
 
             // See the error variant description for more information.
             Self::BuddingAttrList(None, ..) => {
-                Err(ParseError::MissingIsolatedAttrEnd(span))
+                Err(StackError::MissingIsolatedAttrEnd(span))
             }
 
             _ => todo! {},
@@ -734,11 +734,11 @@ impl Stack {
 }
 
 /// Result of a XIR tree parsing operation.
-pub type Result<T> = std::result::Result<T, ParseError>;
+pub type Result<T> = std::result::Result<T, StackError>;
 
 /// Parsing error from [`Stack`].
 #[derive(Debug, Eq, PartialEq)]
-pub enum ParseError {
+pub enum StackError {
     /// The closing tag does not match the opening tag at the same level of
     ///   nesting.
     UnbalancedTag {
@@ -771,7 +771,7 @@ pub enum ParseError {
     Todo(Token, Stack),
 }
 
-impl Display for ParseError {
+impl Display for StackError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // TODO: not a useful error because of symbols and missing span information
@@ -827,7 +827,7 @@ impl Display for ParseError {
     }
 }
 
-impl Error for ParseError {
+impl Error for StackError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         None
     }
@@ -942,7 +942,7 @@ pub fn parse_attrs<'a>(
 
     loop {
         match toks.next().and_then(|tok| parse(&mut state, tok)) {
-            None => return Err(ParseError::UnexpectedAttrEof),
+            None => return Err(StackError::UnexpectedAttrEof),
             Some(Err(err)) => return Err(err),
             Some(Ok(Parsed::Incomplete)) => continue,
             Some(Ok(Parsed::Object(Object::AttrList(attr_list)))) => {
@@ -994,7 +994,7 @@ pub fn attr_parser_from<'a>(
 }
 
 // Transitional; this will go away, or at least be refined.
-impl From<parse::ParseError<attr::AttrParseError>> for ParseError {
+impl From<parse::ParseError<attr::AttrParseError>> for StackError {
     fn from(e: parse::ParseError<attr::AttrParseError>) -> Self {
         match e {
             parse::ParseError::UnexpectedEof(_) => Self::UnexpectedAttrEof,

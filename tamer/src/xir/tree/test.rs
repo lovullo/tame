@@ -148,7 +148,7 @@ fn empty_element_unbalanced_close_from_toks() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
         sut.next(),
-        Some(Err(ParseError::UnbalancedTag {
+        Some(Err(StackError::UnbalancedTag {
             open: (open_name, *S),
             close: (close_name, *S2),
         }))
@@ -388,7 +388,7 @@ fn parse_attrs_fails_if_first_token_is_non_attr() {
     let mut toks = [tok.clone()].into_iter();
 
     assert_eq!(
-        Err(ParseError::AttrNameExpected(tok)),
+        Err(StackError::AttrNameExpected(tok)),
         parse_attrs(&mut toks, AttrList::new()),
     );
 
@@ -408,7 +408,7 @@ fn parse_attrs_fails_if_end_before_attr_end() {
     .into_iter();
 
     assert_eq!(
-        Err(ParseError::UnexpectedAttrEof),
+        Err(StackError::UnexpectedAttrEof),
         parse_attrs(&mut toks, AttrList::new()),
     );
 }
@@ -426,7 +426,7 @@ fn parse_attrs_fails_if_missing_attr_end() {
     .into_iter();
 
     assert_eq!(
-        Err(ParseError::MissingIsolatedAttrEnd(*S3)),
+        Err(StackError::MissingIsolatedAttrEnd(*S3)),
         parse_attrs(&mut toks, AttrList::new()),
     );
 }
@@ -464,7 +464,7 @@ fn attr_parser_with_non_attr_token() {
 
     assert_eq!(
         sut.next(),
-        Some(Err(ParseError::AttrNameExpected(Token::Open(name, *S))))
+        Some(Err(StackError::AttrNameExpected(Token::Open(name, *S))))
     );
 }
 

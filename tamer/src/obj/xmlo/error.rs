@@ -21,7 +21,7 @@
 
 use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
-use crate::xir::tree::ParseError as XirtParseError;
+use crate::xir::tree::StackError as XirtParseError;
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.
