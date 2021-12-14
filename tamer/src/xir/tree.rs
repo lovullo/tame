@@ -482,11 +482,11 @@ pub enum Stack {
     ClosedElement(Element),
 
     /// An [`AttrList`] that is still under construction.
-    BuddingAttrList(Option<ElementStack>, AttrList),
+    BuddingAttrList(ElementStack, AttrList),
 
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
-    AttrName(Option<(Option<ElementStack>, AttrList)>, QName, Span),
+    AttrName(ElementStack, AttrList, QName, Span),
 
     /// Parsing has completed relative to the initial context.
     ///
@@ -556,28 +556,20 @@ impl Stack {
             element,
             pstack: match self {
                 // Opening a root element (or lack of context).
-                Self::Empty => Ok(None),
+                Self::Empty => None,
 
                 // Open a child element.
-                Self::BuddingElement(pstack) => Ok(Some(pstack.store())),
+                Self::BuddingElement(pstack) => Some(pstack.store()),
 
                 // Opening a child element in attribute parsing context.
                 // Automatically close the attributes despite a missing
                 //   AttrEnd to accommodate non-reader XIR.
-                Self::BuddingAttrList(Some(pstack), attr_list) => {
-                    Ok(Some(pstack.consume_attrs(attr_list).store()))
-                }
-
-                // Attempting to open a child element in an isolated
-                //   attribute parsing context means that `AttrEnd` was not
-                //   provided
-                //     (or that we're not parsing in the correct context).
-                Self::BuddingAttrList(None, ..) => {
-                    Err(StackError::AttrNameExpected(Token::Open(name, span)))
+                Self::BuddingAttrList(pstack, attr_list) => {
+                    Some(pstack.consume_attrs(attr_list).store())
                 }
 
                 _ => todo! {},
-            }?,
+            },
         }))
     }
 
@@ -601,7 +593,7 @@ impl Stack {
             //   missing `Token::AttrEnd`,
             //     which alleviates us from having to unnecessarily generate
             //     it outside of readers.
-            Self::BuddingAttrList(Some(stack), attr_list) => stack
+            Self::BuddingAttrList(stack, attr_list) => stack
                 .consume_attrs(attr_list)
                 .try_close(name, span)
                 .map(ElementStack::consume_child_or_complete),
@@ -618,15 +610,13 @@ impl Stack {
     fn open_attr(self, name: QName, span: Span) -> Result<Self> {
         Ok(match self {
             // Begin construction of an attribute list on a new element.
-            Self::BuddingElement(ele_stack) => Self::AttrName(
-                Some((Some(ele_stack), Default::default())),
-                name,
-                span,
-            ),
+            Self::BuddingElement(ele_stack) => {
+                Self::AttrName(ele_stack, Default::default(), name, span)
+            }
 
             // Continuation of attribute list.
             Self::BuddingAttrList(ele_stack, attr_list) => {
-                Self::AttrName(Some((ele_stack, attr_list)), name, span)
+                Self::AttrName(ele_stack, attr_list, name, span)
             }
 
             _ => todo!("open_attr in state {:?}", self),
@@ -637,7 +627,7 @@ impl Stack {
     ///   element.
     fn close_attr(self, value: SymbolId, span: Span) -> Result<Self> {
         Ok(match self {
-            Self::AttrName(Some((ele_stack, attr_list)), name, open_span) => {
+            Self::AttrName(ele_stack, attr_list, name, open_span) => {
                 Self::BuddingAttrList(
                     ele_stack,
                     attr_list.push(Attr::new(name, value, (open_span, span))),
@@ -655,7 +645,7 @@ impl Stack {
     ///   [`Element`].
     fn end_attrs(self) -> Result<Self> {
         Ok(match self {
-            Self::BuddingAttrList(Some(ele_stack), attr_list) => {
+            Self::BuddingAttrList(ele_stack, attr_list) => {
                 Self::BuddingElement(ele_stack.consume_attrs(attr_list))
             }
 
