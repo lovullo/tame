@@ -100,7 +100,7 @@ fn empty_element_self_close_from_toks() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
         sut.next(),
-        Some(Ok(Parsed::Object(Object::Tree(Tree::Element(expected)))))
+        Some(Ok(Parsed::Object(Tree::Element(expected))))
     );
     assert_eq!(sut.next(), None);
 }
@@ -126,7 +126,7 @@ fn empty_element_balanced_close_from_toks() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
         sut.next(),
-        Some(Ok(Parsed::Object(Object::Tree(Tree::Element(expected)))))
+        Some(Ok(Parsed::Object(Tree::Element(expected))))
     );
     assert_eq!(sut.next(), None);
 }
@@ -196,7 +196,7 @@ fn empty_element_with_attrs_from_toks() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrValue
     assert_eq!(
         sut.next(),
-        Some(Ok(Parsed::Object(Object::Tree(Tree::Element(expected)))))
+        Some(Ok(Parsed::Object(Tree::Element(expected))))
     );
     assert_eq!(sut.next(), None);
 }
@@ -245,7 +245,7 @@ fn child_element_after_attrs() {
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Close
     assert_eq!(
         sut.next(),
-        Some(Ok(Parsed::Object(Object::Tree(Tree::Element(expected)))))
+        Some(Ok(Parsed::Object(Tree::Element(expected))))
     );
     assert_eq!(sut.next(), None);
 }

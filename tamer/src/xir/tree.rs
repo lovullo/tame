@@ -72,7 +72,7 @@
 //!
 //!   1. It filters out all [`Parsed::Incomplete`]; and
 //!   2. On [`Parsed::Object`],
-//!        it yields the inner [`Object`].
+//!        it yields the inner [`Tree`].
 //!
 //! This is a much more convenient API,
 //!   but is not without its downsides:
@@ -187,8 +187,8 @@ use std::{error::Error, fmt::Display, mem::take};
 
 pub use attr::{Attr, AttrList};
 
-type Parsed = parse::Parsed<Object>;
-type ParseStatus = parse::ParseStatus<Object>;
+type Parsed = parse::Parsed<Tree>;
+type ParseStatus = parse::ParseStatus<Tree>;
 
 /// A XIR tree (XIRT).
 ///
@@ -505,7 +505,7 @@ impl Default for Stack {
 }
 
 impl ParseState for Stack {
-    type Object = Object;
+    type Object = Tree;
     type Error = StackError;
 
     fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
@@ -681,7 +681,7 @@ impl Stack {
     fn store_or_emit(&mut self, new_stack: Stack) -> ParseStatus {
         match new_stack {
             Stack::ClosedElement(ele) => {
-                ParseStatus::Object(Object::Tree(Tree::Element(ele)))
+                ParseStatus::Object(Tree::Element(ele))
             }
 
             // This parser has completed relative to its initial context and
@@ -766,15 +766,6 @@ impl Error for StackError {
     }
 }
 
-/// Parsed object.
-#[derive(Debug, Eq, PartialEq)]
-pub enum Object {
-    /// Parsing of an object is complete.
-    ///
-    /// See [`parser_from`].
-    Tree(Tree),
-}
-
 /// Produce a streaming parser for the given [`TokenStream`].
 ///
 /// If you do not require a single-step [`Iterator::next`] and simply want
@@ -807,8 +798,7 @@ pub fn parse(
 /// Unlike [`parse`][parse()],
 ///   which is intended for use with [`Iterator::scan`],
 ///   this will yield /only/ when the underlying parser yields
-///   [`Object::Tree`],
-///     unwrapping the inner [`Tree`] value.
+///   [`Tree`].
 /// This interface is far more convenient,
 ///   but comes at the cost of not knowing how many parsing steps a single
 ///   [`Iterator::next`] call will take.
@@ -829,7 +819,7 @@ pub fn parser_from(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = ParseResult<Stack, Tree>> {
     Stack::parse(toks).filter_map(|parsed| match parsed {
-        Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
+        Ok(Parsed::Object(tree)) => Some(Ok(tree)),
         Ok(Parsed::Incomplete) => None,
         Err(x) => Some(Err(x)),
     })
