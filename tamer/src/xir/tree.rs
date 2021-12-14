@@ -470,13 +470,6 @@ pub enum Stack {
     /// Empty stack.
     Empty,
 
-    /// Empty stack expected to parse isolated, individual attributes.
-    ///
-    /// The purpose of this over `Empty` is to ensure that the parser is
-    ///   able to properly fail on invalid XIR input when the caller is not
-    ///   trying to parse individual attributes.
-    IsolatedAttrEmpty,
-
     /// An [`Element`] that is still under construction.
     ///
     /// (This is a tree IR,
@@ -494,9 +487,6 @@ pub enum Stack {
     /// An attribute is awaiting its value,
     ///   after which it will be attached to an element.
     AttrName(Option<(Option<ElementStack>, AttrList)>, QName, Span),
-
-    /// A completed [`Attr`] without any [`AttrList`] context.
-    IsolatedAttr(Attr),
 
     /// Parsing has completed relative to the initial context.
     ///
@@ -582,7 +572,7 @@ impl Stack {
                 //   attribute parsing context means that `AttrEnd` was not
                 //   provided
                 //     (or that we're not parsing in the correct context).
-                Self::BuddingAttrList(None, ..) | Self::IsolatedAttrEmpty => {
+                Self::BuddingAttrList(None, ..) => {
                     Err(StackError::AttrNameExpected(Token::Open(name, span)))
                 }
 
@@ -616,11 +606,6 @@ impl Stack {
                 .try_close(name, span)
                 .map(ElementStack::consume_child_or_complete),
 
-            // See the error variant description for more information.
-            Self::BuddingAttrList(None, ..) => {
-                Err(StackError::MissingIsolatedAttrEnd(span))
-            }
-
             _ => todo! {},
         }
     }
@@ -644,9 +629,6 @@ impl Stack {
                 Self::AttrName(Some((ele_stack, attr_list)), name, span)
             }
 
-            // Isolated single attribute.
-            Self::IsolatedAttrEmpty => Self::AttrName(None, name, span),
-
             _ => todo!("open_attr in state {:?}", self),
         })
     }
@@ -660,11 +642,6 @@ impl Stack {
                     ele_stack,
                     attr_list.push(Attr::new(name, value, (open_span, span))),
                 )
-            }
-
-            // Isolated single attribute.
-            Self::AttrName(None, name, open_span) => {
-                Stack::IsolatedAttr(Attr::new(name, value, (open_span, span)))
             }
 
             _ => todo! {},
@@ -681,8 +658,6 @@ impl Stack {
             Self::BuddingAttrList(Some(ele_stack), attr_list) => {
                 Self::BuddingElement(ele_stack.consume_attrs(attr_list))
             }
-
-            Self::IsolatedAttrEmpty => Self::Done,
 
             _ => todo!("attr error"),
         })
@@ -707,11 +682,6 @@ impl Stack {
         match new_stack {
             Stack::ClosedElement(ele) => {
                 ParseStatus::Object(Object::Tree(Tree::Element(ele)))
-            }
-
-            Stack::IsolatedAttr(attr) => {
-                *self = Stack::IsolatedAttrEmpty;
-                ParseStatus::Object(Object::Attr(attr))
             }
 
             // This parser has completed relative to its initial context and
@@ -739,21 +709,6 @@ pub enum StackError {
         close: (QName, Span),
     },
 
-    /// [`Token::AttrEnd`] was expected in an isolated attribute context,
-    ///   but [`Token::Close`] was encountered instead.
-    ///
-    /// This means that we encountered an element close while parsing
-    ///   attributes in an isolated context,
-    ///     which may happen if we're parsing only attributes as part
-    ///     of a larger XIR stream.
-    /// This should never happen if our XIR is well-formed _from a reader_,
-    ///     but could happen if we generate XIR that we are not expecting to
-    ///     subsequently parse.
-    ///
-    /// There is nothing the user can do to correct it;
-    ///   this represents a bug in the compiler.
-    MissingIsolatedAttrEnd(Span),
-
     /// An attribute was expected as the next [`Token`].
     AttrNameExpected(Token),
 
@@ -777,21 +732,6 @@ impl Display for StackError {
                     "expected closing tag `{}`, but found `{}` at {} \
                      (opening tag at {})",
                     open_name, close_name, close_span, open_span
-                )
-            }
-
-            Self::MissingIsolatedAttrEnd(span) => {
-                // Try to be helpful to developers and users alike.
-                #[cfg(test)]
-                let testmsg = "or a problem with your test case";
-                #[cfg(not(test))]
-                let testmsg = "and should be reported";
-
-                write!(
-                    f,
-                    "internal error: expecting AttrEnd, found Close at {}; \
-                       this represents a compiler bug {}",
-                    span, testmsg
                 )
             }
 
@@ -833,11 +773,6 @@ pub enum Object {
     ///
     /// See [`parser_from`].
     Tree(Tree),
-
-    /// Parsing of a single isolated attribute is complete.
-    ///
-    /// See [`attr_parser_from`].
-    Attr(Attr),
 }
 
 /// Produce a streaming parser for the given [`TokenStream`].
@@ -897,11 +832,6 @@ pub fn parser_from(
         Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
         Ok(Parsed::Incomplete) => None,
         Err(x) => Some(Err(x)),
-
-        // These make no sense in this context and should never occur.
-        Ok(x @ Parsed::Object(Object::Attr(_))) => {
-            unreachable!("unexpected yield by XIRT (Tree expected): {:?}", x)
-        }
     })
 }
 
