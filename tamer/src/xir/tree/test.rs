@@ -20,6 +20,7 @@
 use super::*;
 use crate::convert::ExpectInto;
 use crate::sym::GlobalSymbolIntern;
+use crate::xir::tree::parse::ParseError;
 
 lazy_static! {
     static ref S: Span =
@@ -94,7 +95,7 @@ fn empty_element_self_close_from_toks() {
         span: (*S, *S2),
     };
 
-    let mut sut = toks.scan(Default::default(), parse);
+    let mut sut = Stack::parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -120,7 +121,7 @@ fn empty_element_balanced_close_from_toks() {
         span: (*S, *S2),
     };
 
-    let mut sut = toks.scan(Default::default(), parse);
+    let mut sut = Stack::parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -143,15 +144,15 @@ fn empty_element_unbalanced_close_from_toks() {
     ]
     .into_iter();
 
-    let mut sut = toks.scan(Default::default(), parse);
+    let mut sut = Stack::parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
         sut.next(),
-        Some(Err(StackError::UnbalancedTag {
+        Some(Err(ParseError::StateError(StackError::UnbalancedTag {
             open: (open_name, *S),
             close: (close_name, *S2),
-        }))
+        })))
     );
 
     // TODO: We need to figure out how to best implement recovery before
@@ -186,7 +187,7 @@ fn empty_element_with_attrs_from_toks() {
         span: (*S, *S2),
     };
 
-    let mut sut = toks.scan(Default::default(), parse);
+    let mut sut = Stack::parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
@@ -235,7 +236,7 @@ fn child_element_after_attrs() {
         span: (*S, *S3),
     };
 
-    let mut sut = toks.scan(Default::default(), parse);
+    let mut sut = Stack::parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName

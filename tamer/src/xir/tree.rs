@@ -38,7 +38,7 @@
 //!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 //! // Consume a single token at a time, yielding either an incomplete state
 //! // or the next parsed object.
-//! let parser = token_stream.scan(Stack::default(), parse);
+//! let parser = parse(token_stream);
 //! ```
 //!
 //! `parser_from` Or `parse`?
@@ -178,11 +178,11 @@ mod parse;
 
 use self::{
     attr::AttrParserState,
-    parse::{ParseResult, ParseStateResult},
+    parse::{ParseResult, ParseState, ParseStateResult, ParsedResult},
 };
 
 use super::{QName, Token, TokenResultStream, TokenStream};
-use crate::{span::Span, sym::SymbolId, xir::tree::parse::ParseState};
+use crate::{span::Span, sym::SymbolId};
 use std::{error::Error, fmt::Display, mem::take};
 
 pub use attr::{Attr, AttrList};
@@ -840,8 +840,7 @@ pub enum Object {
     Attr(Attr),
 }
 
-/// Wrap [`Stack::parse_token`] result in [`Some`],
-///   suitable for use with [`Iterator::scan`].
+/// Produce a streaming parser for the given [`TokenStream`].
 ///
 /// If you do not require a single-step [`Iterator::next`] and simply want
 ///   the next parsed object,
@@ -859,10 +858,12 @@ pub enum Object {
 ///
 ///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // The above is equivalent to:
-/// let parser = token_stream.scan(Stack::default(), parse);
+/// let parser = parse(token_stream);
 /// ```
-pub fn parse(state: &mut Stack, tok: Token) -> Option<Result<Parsed>> {
-    Some(Stack::parse_token(state, tok).map(Into::into))
+pub fn parse(
+    toks: impl TokenStream,
+) -> impl Iterator<Item = ParsedResult<Stack>> {
+    Stack::parse(toks)
 }
 
 /// Produce a lazy parser from a given [`TokenStream`],
@@ -892,7 +893,7 @@ pub fn parse(state: &mut Stack, tok: Token) -> Option<Result<Parsed>> {
 pub fn parser_from(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = ParseResult<Stack, Tree>> {
-    Stack::parser(toks).filter_map(|parsed| match parsed {
+    Stack::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(Object::Tree(tree))) => Some(Ok(tree)),
         Ok(Parsed::Incomplete) => None,
         Err(x) => Some(Err(x)),
@@ -930,7 +931,7 @@ pub fn attr_parser_from<'a>(
 ) -> impl Iterator<Item = Result<Attr>> + 'a {
     use parse::Parsed;
 
-    AttrParserState::parser(toks).filter_map(|parsed| match parsed {
+    AttrParserState::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(attr)) => Some(Ok(attr)),
         Ok(Parsed::Incomplete) => None,
         Err(x) => Some(Err(x.into())),

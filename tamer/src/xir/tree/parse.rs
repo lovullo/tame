@@ -62,7 +62,7 @@ pub trait ParseState: Default {
     ///
     /// Whether this method is helpful or provides any clarity depends on
     ///   the context and the types that are able to be inferred.
-    fn parser<I: TokenStream>(toks: I) -> Parser<Self, I> {
+    fn parse<I: TokenStream>(toks: I) -> Parser<Self, I> {
         Parser::from(toks)
     }
 
