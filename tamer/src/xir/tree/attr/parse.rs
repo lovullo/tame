@@ -59,7 +59,7 @@ impl ParseState for AttrParserState {
                 Ok(ParseStatus::Incomplete)
             }
 
-            (Empty, invalid) => Err(AttrParseError::AttrNameExpected(invalid)),
+            (Empty, invalid) => return Ok(ParseStatus::Dead(invalid)),
 
             (Name(name, nspan), Token::AttrValue(value, vspan)) => {
                 Ok(ParseStatus::Object(Attr::new(name, value, (nspan, vspan))))
@@ -86,7 +86,7 @@ impl Default for AttrParserState {
 }
 
 /// Attribute parsing error.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AttrParseError {
     /// [`Token::AttrName`] was expected.
     AttrNameExpected(Token),
@@ -135,16 +135,14 @@ mod test {
     }
 
     #[test]
-    fn fails_if_first_token_is_non_attr() {
+    fn dead_if_first_token_is_non_attr() {
         let tok = Token::Open("foo".unwrap_into(), *S);
 
         let mut sut = AttrParserState::default();
 
-        // Fail immediately.
-        assert_eq!(
-            Err(AttrParseError::AttrNameExpected(tok.clone())),
-            sut.parse_token(tok)
-        );
+        // There is no state that we can transition to,
+        //   and we're in an empty accepting state.
+        assert_eq!(Ok(ParseStatus::Dead(tok.clone())), sut.parse_token(tok));
 
         // Let's just make sure we're in the same state we started in so
         //   that we know we can accommodate recovery token(s).

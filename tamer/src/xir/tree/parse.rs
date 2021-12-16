@@ -21,6 +21,7 @@
 
 use super::super::{Token, TokenStream};
 use crate::span::Span;
+use std::fmt::Debug;
 use std::{error::Error, fmt::Display};
 
 /// Result of applying a [`Token`] to a [`ParseState`],
@@ -51,12 +52,12 @@ pub type ParseResult<S, T> = Result<T, ParseError<<S as ParseState>::Error>>;
 ///   this does in fact represent the current state of the entire
 ///     [`TokenStream`] at the current position for a given parser
 ///     composition.
-pub trait ParseState: Default {
+pub trait ParseState: Default + PartialEq + Eq + Debug {
     /// Objects produced by a parser utilizing these states.
     type Object;
 
     /// Errors specific to this set of states.
-    type Error: Error + PartialEq;
+    type Error: Error + PartialEq + Eq;
 
     /// Construct a parser.
     ///
@@ -166,9 +167,21 @@ impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
                 //   reporting in case we encounter an EOF.
                 self.last_span = Some(tok.span());
 
+                use ParseStatus::*;
                 match self.state.parse_token(tok) {
-                    Ok(ParseStatus::Done) => None,
-                    Ok(parsed) => Some(Ok(parsed.into())),
+                    Ok(Done) => None,
+
+                    // Nothing handled this dead state,
+                    //   and we cannot discard a lookahead token,
+                    //   so we have no choice but to produce an error.
+                    Ok(Dead(invalid)) => {
+                        Some(Err(ParseError::UnexpectedToken(invalid)))
+                    }
+
+                    Ok(parsed @ (Incomplete | Object(..))) => {
+                        Some(Ok(parsed.into()))
+                    }
+
                     Err(e) => Some(Err(e.into())),
                 }
             }
@@ -187,8 +200,8 @@ impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
 ///
 /// Parsers may return their own unique errors via the
 ///   [`StateError`][ParseError::StateError] variant.
-#[derive(Debug, PartialEq)]
-pub enum ParseError<E: Error + PartialEq> {
+#[derive(Debug, PartialEq, Eq)]
+pub enum ParseError<E: Error + PartialEq + Eq> {
     /// Token stream ended unexpectedly.
     ///
     /// This error means that the parser was expecting more input before
@@ -205,18 +218,45 @@ pub enum ParseError<E: Error + PartialEq> {
     ///   whatever span preceded this invocation.
     UnexpectedEof(Option<Span>),
 
+    /// The parser reached an unhandled dead state.
+    ///
+    /// Once a parser returns [`ParseStatus::Dead`],
+    ///   a parent context must use that provided token as a lookahead.
+    /// If that does not occur,
+    ///   [`Parser`] produces this error.
+    ///
+    /// In the future,
+    ///   it may be desirable to be able to query [`ParseState`] for what
+    ///   tokens are acceptable at this point,
+    ///     to provide better error messages.
+    UnexpectedToken(Token),
+
     /// A parser-specific error associated with an inner
     ///   [`ParseState`].
     StateError(E),
 }
 
-impl<E: Error + PartialEq> From<E> for ParseError<E> {
+impl<EA: Error + PartialEq + Eq> ParseError<EA> {
+    pub fn inner_into<EB: Error + PartialEq + Eq>(self) -> ParseError<EB>
+    where
+        EA: Into<EB>,
+    {
+        use ParseError::*;
+        match self {
+            UnexpectedEof(x) => UnexpectedEof(x),
+            UnexpectedToken(x) => UnexpectedToken(x),
+            StateError(e) => StateError(e.into()),
+        }
+    }
+}
+
+impl<E: Error + PartialEq + Eq> From<E> for ParseError<E> {
     fn from(e: E) -> Self {
         Self::StateError(e)
     }
 }
 
-impl<E: Error + PartialEq> Display for ParseError<E> {
+impl<E: Error + PartialEq + Eq> Display for ParseError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnexpectedEof(ospan) => {
@@ -227,12 +267,15 @@ impl<E: Error + PartialEq> Display for ParseError<E> {
                     Some(span) => write!(f, "{}", span),
                 }
             }
+            Self::UnexpectedToken(tok) => {
+                write!(f, "unexpected {}", tok)
+            }
             Self::StateError(e) => Display::fmt(e, f),
         }
     }
 }
 
-impl<E: Error + PartialEq + 'static> Error for ParseError<E> {
+impl<E: Error + PartialEq + Eq + 'static> Error for ParseError<E> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::StateError(e) => Some(e),
@@ -264,6 +307,31 @@ pub enum ParseStatus<T> {
     ///     see [`ParseStatus::Done`].
     Object(T),
 
+    /// Parser encountered a dead state relative to the given token.
+    ///
+    /// A dead state is an empty accepting state that has no state
+    ///   transition for the given token.
+    /// A state is empty if a [`ParseStatus::Object`] will not be lost if
+    ///   parsing ends at this point
+    ///     (that is---there is no partially-built object).
+    /// This could simply mean that the parser has completed its job and
+    ///   that control must be returned to a parent context.
+    ///
+    /// If a parser is _not_ in an accepting state,
+    ///   then an error ought to occur rather than a dead state;
+    ///     the difference between the two is that the token associated with
+    ///       a dead state can be used as a lookahead token in order to
+    ///       produce a state transition at a higher level,
+    ///     whereas an error indicates that parsing has failed.
+    /// Intuitively,
+    ///   this means that a [`ParseStatus::Object`] had just been emitted
+    ///   and that the token following it isn't something that can be
+    ///   parsed.
+    ///
+    /// If there is no parent context to handle the token,
+    ///   [`Parser`] must yield an error.
+    Dead(Token),
+
     /// Parsing is complete.
     ///
     /// This should cause an iterator to yield [`None`].
@@ -294,8 +362,8 @@ impl<T> From<ParseStatus<T>> for Parsed<T> {
         match status {
             ParseStatus::Incomplete => Parsed::Incomplete,
             ParseStatus::Object(x) => Parsed::Object(x),
-            ParseStatus::Done => {
-                unreachable!("Done status must be filtered by Parser")
+            ParseStatus::Dead(_) | ParseStatus::Done => {
+                unreachable!("Dead/Done status must be filtered by Parser")
             }
         }
     }
@@ -303,7 +371,7 @@ impl<T> From<ParseStatus<T>> for Parsed<T> {
 
 #[cfg(test)]
 pub mod test {
-    use std::assert_matches::assert_matches;
+    use std::{assert_matches::assert_matches, iter::once};
 
     use super::*;
     use crate::span::DUMMY_SPAN as DS;
@@ -332,6 +400,7 @@ pub mod test {
                 Token::Close(..) => {
                     return Err(EchoStateError::InnerError(tok))
                 }
+                Token::Comment(..) => return Ok(ParseStatus::Dead(tok)),
                 _ => {}
             }
 
@@ -343,7 +412,7 @@ pub mod test {
         }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     enum EchoStateError {
         InnerError(Token),
     }
@@ -460,5 +529,20 @@ pub mod test {
         // And so we should now be in an accepting state,
         //   able to finalize.
         assert!(sut.finalize().is_ok());
+    }
+
+    #[test]
+    fn unhandled_dead_state_results_in_error() {
+        // A comment will cause our parser to return Dead.
+        let tok = Token::Comment("dead".into(), DS);
+        let mut toks = once(tok.clone());
+
+        let mut sut = Sut::from(&mut toks);
+
+        // Our parser returns a Dead status,
+        //   which is unhandled by any parent context
+        //     (since we're not composing parsers),
+        //     which causes an error due to an unhandled Dead state.
+        assert_eq!(sut.next(), Some(Err(ParseError::UnexpectedToken(tok))),);
     }
 }

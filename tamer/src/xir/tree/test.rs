@@ -38,7 +38,7 @@ mod tree {
     fn element_from_tree() {
         let ele = Element {
             name: "foo".unwrap_into(),
-            attrs: None,
+            attrs: AttrList::new(),
             children: vec![],
             span: (*S, *S2),
         };
@@ -90,12 +90,12 @@ fn empty_element_self_close_from_toks() {
 
     let expected = Element {
         name,
-        attrs: None,
+        attrs: AttrList::new(),
         children: vec![],
         span: (*S, *S2),
     };
 
-    let mut sut = Stack::parse(toks);
+    let mut sut = parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -116,12 +116,12 @@ fn empty_element_balanced_close_from_toks() {
 
     let expected = Element {
         name,
-        attrs: None,
+        attrs: AttrList::new(),
         children: vec![],
         span: (*S, *S2),
     };
 
-    let mut sut = Stack::parse(toks);
+    let mut sut = parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -144,7 +144,7 @@ fn empty_element_unbalanced_close_from_toks() {
     ]
     .into_iter();
 
-    let mut sut = Stack::parse(toks);
+    let mut sut = parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
     assert_eq!(
@@ -179,15 +179,15 @@ fn empty_element_with_attrs_from_toks() {
 
     let expected = Element {
         name,
-        attrs: Some(AttrList::from(vec![
+        attrs: AttrList::from(vec![
             Attr::new(attr1, val1, (*S, *S2)),
             Attr::new(attr2, val2, (*S, *S3)),
-        ])),
+        ]),
         children: vec![],
         span: (*S, *S2),
     };
 
-    let mut sut = Stack::parse(toks);
+    let mut sut = parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
@@ -226,17 +226,17 @@ fn child_element_after_attrs() {
 
     let expected = Element {
         name,
-        attrs: Some(AttrList::from(vec![Attr::new(attr, val, (*S, *S2))])),
+        attrs: AttrList::from(vec![Attr::new(attr, val, (*S, *S2))]),
         children: vec![Tree::Element(Element {
             name: child,
-            attrs: None,
+            attrs: AttrList::new(),
             children: vec![],
             span: (*S, *S2),
         })],
         span: (*S, *S3),
     };
 
-    let mut sut = Stack::parse(toks);
+    let mut sut = parse(toks);
 
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open
     assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // AttrName
@@ -268,17 +268,17 @@ fn element_with_empty_sibling_children() {
 
     let expected = Element {
         name: parent,
-        attrs: None,
+        attrs: AttrList::new(),
         children: vec![
             Tree::Element(Element {
                 name: childa,
-                attrs: None,
+                attrs: AttrList::new(),
                 children: vec![],
                 span: (*S, *S2),
             }),
             Tree::Element(Element {
                 name: childb,
-                attrs: None,
+                attrs: AttrList::new(),
                 children: vec![],
                 span: (*S, *S2),
             }),
@@ -312,10 +312,10 @@ fn element_with_child_with_attributes() {
 
     let expected = Element {
         name: parent,
-        attrs: None,
+        attrs: AttrList::new(),
         children: vec![Tree::Element(Element {
             name: child,
-            attrs: Some(AttrList::from([Attr::new(attr, value, (*S, *S2))])),
+            attrs: AttrList::from([Attr::new(attr, value, (*S, *S2))]),
             children: vec![],
             span: (*S, *S3),
         })],
@@ -342,7 +342,7 @@ fn element_with_text() {
 
     let expected = Element {
         name: parent,
-        attrs: None,
+        attrs: AttrList::new(),
         children: vec![Tree::Text(text, *S2)],
         span: (*S, *S3),
     };
@@ -369,7 +369,7 @@ fn parser_from_filters_incomplete() {
 
     let expected = Element {
         name,
-        attrs: Some(AttrList::from([Attr::new(attr, val, (*S, *S2))])),
+        attrs: AttrList::from([Attr::new(attr, val, (*S, *S2))]),
         children: vec![],
         span: (*S, *S2),
     };
@@ -392,7 +392,7 @@ fn attr_parser_with_non_attr_token() {
 
     assert_eq!(
         sut.next(),
-        Some(Err(StackError::AttrNameExpected(Token::Open(name, *S))))
+        Some(Err(ParseError::UnexpectedToken(Token::Open(name, *S))))
     );
 }
 

@@ -21,7 +21,7 @@
 
 use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
-use crate::xir::tree::StackError as XirtParseError;
+use crate::xir::tree::{parse::ParseError, StackError};
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.
@@ -38,7 +38,7 @@ pub enum XmloError {
     /// XML parsing error (legacy, quick-xml).
     XmlError(XmlError),
     /// XIR parsing error.
-    XirtError(XirtParseError),
+    XirtError(ParseError<StackError>),
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
@@ -70,8 +70,8 @@ impl From<InnerXmlError> for XmloError {
     }
 }
 
-impl From<XirtParseError> for XmloError {
-    fn from(e: XirtParseError) -> Self {
+impl From<ParseError<StackError>> for XmloError {
+    fn from(e: ParseError<StackError>) -> Self {
         Self::XirtError(e)
     }
 }

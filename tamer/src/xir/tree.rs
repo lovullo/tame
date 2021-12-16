@@ -174,21 +174,23 @@
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
 
 mod attr;
-mod parse;
+pub mod parse;
 
 use self::{
-    attr::AttrParserState,
-    parse::{ParseResult, ParseState, ParseStateResult, ParsedResult},
+    attr::{AttrParseError, AttrParserState},
+    parse::{
+        ParseError, ParseResult, ParseState, ParseStateResult, ParseStatus,
+        ParsedResult,
+    },
 };
 
 use super::{QName, Token, TokenResultStream, TokenStream};
 use crate::{span::Span, sym::SymbolId};
-use std::{error::Error, fmt::Display, mem::take};
+use std::{error::Error, fmt::Display, mem::take, result};
 
 pub use attr::{Attr, AttrList};
 
 type Parsed = parse::Parsed<Tree>;
-type ParseStatus = parse::ParseStatus<Tree>;
 
 /// A XIR tree (XIRT).
 ///
@@ -294,7 +296,7 @@ impl Tree {
 pub struct Element {
     name: QName,
     /// Zero or more attributes.
-    attrs: Option<AttrList>,
+    attrs: AttrList,
     /// Zero or more child nodes.
     children: Vec<Tree>,
     /// Spans for opening and closing tags respectively.
@@ -316,8 +318,8 @@ impl Element {
 
     /// Attributes of this element.
     #[inline]
-    pub fn attrs(&self) -> Option<&AttrList> {
-        self.attrs.as_ref()
+    pub fn attrs(&self) -> &AttrList {
+        &self.attrs
     }
 
     /// Opens an element for incremental construction.
@@ -330,7 +332,7 @@ impl Element {
     fn open(name: QName, span: Span) -> Self {
         Self {
             name,
-            attrs: None,
+            attrs: AttrList::new(),
             children: vec![],
             span: (span, span), // We do not yet know where the span will end
         }
@@ -417,7 +419,7 @@ impl ElementStack {
     ///   then the returned [`Stack`] will represent the state of the stack
     ///   prior to the child element being opened,
     ///     as stored with [`ElementStack::store`].
-    fn consume_child_or_complete(self) -> Stack {
+    fn consume_child_or_complete<SA: StackAttrParseState>(self) -> Stack<SA> {
         match self.pstack {
             Some(parent_stack) => Stack::BuddingElement(
                 parent_stack.consume_element(self.element),
@@ -437,7 +439,7 @@ impl ElementStack {
     /// Push the provided [`Attr`] onto the attribute list of the inner
     ///   [`Element`].
     fn consume_attrs(mut self, attr_list: AttrList) -> Self {
-        self.element.attrs.replace(attr_list);
+        self.element.attrs = attr_list;
         self
     }
 
@@ -466,7 +468,10 @@ impl ElementStack {
 /// For more information,
 ///   see the [module-level documentation](self).
 #[derive(Debug, Eq, PartialEq)]
-pub enum Stack {
+pub enum Stack<SA = AttrParserState>
+where
+    SA: StackAttrParseState,
+{
     /// Empty stack.
     Empty,
 
@@ -484,9 +489,8 @@ pub enum Stack {
     /// An [`AttrList`] that is still under construction.
     BuddingAttrList(ElementStack, AttrList),
 
-    /// An attribute is awaiting its value,
-    ///   after which it will be attached to an element.
-    AttrName(ElementStack, AttrList, QName, Span),
+    /// Parsing has been ceded to `SA` for attribute parsing.
+    AttrState(ElementStack, AttrList, SA),
 
     /// Parsing has completed relative to the initial context.
     ///
@@ -498,35 +502,64 @@ pub enum Stack {
     Done,
 }
 
-impl Default for Stack {
+pub trait StackAttrParseState = ParseState<Object = Attr>
+where
+    <Self as ParseState>::Error: Into<StackError>;
+
+impl<SA: StackAttrParseState> Default for Stack<SA> {
     fn default() -> Self {
         Self::Empty
     }
 }
 
-impl ParseState for Stack {
+impl<SA: StackAttrParseState> ParseState for Stack<SA> {
     type Object = Tree;
     type Error = StackError;
 
     fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
         let stack = take(self);
 
+        // This demonstrates how parsers can be combined.
+        // The next step will be to abstract this away.
+        if let Stack::AttrState(estack, attrs, mut sa) = stack {
+            use ParseStatus::*;
+            return match sa.parse_token(tok) {
+                Ok(Incomplete) => {
+                    *self = Self::AttrState(estack, attrs, sa);
+                    Ok(Incomplete)
+                }
+                Ok(Object(attr)) => {
+                    let attrs = attrs.push(attr);
+                    *self = Self::AttrState(estack, attrs, sa);
+                    Ok(Incomplete)
+                }
+                // This will likely go away with AttrEnd.
+                Ok(Done) => {
+                    *self = Self::BuddingElement(estack.consume_attrs(attrs));
+                    Ok(Incomplete)
+                }
+                Ok(Dead(lookahead)) => {
+                    *self = Self::BuddingElement(estack.consume_attrs(attrs));
+                    self.parse_token(lookahead)
+                }
+                Err(x) => Err(x.into()),
+            };
+        }
+
         match tok {
             Token::Open(name, span) => stack.open_element(name, span),
             Token::Close(name, span) => stack.close_element(name, span),
-            Token::AttrName(name, span) => stack.open_attr(name, span),
-            Token::AttrValue(value, span) => stack.close_attr(value, span),
-            Token::AttrEnd(_) => stack.end_attrs(),
             Token::Text(value, span) => stack.text(value, span),
 
-            // This parse is being rewritten, so we'll address this with a
-            //   proper error then.
-            Token::AttrValueFragment(..) => {
-                panic!("AttrValueFragment is not parsable")
-            }
-
-            Token::Comment(..) | Token::CData(..) | Token::Whitespace(..) => {
-                Err(StackError::Todo(tok, stack))
+            _ if self.is_accepting() => return Ok(ParseStatus::Dead(tok)),
+            _ => {
+                todo!(
+                    "TODO: `{:?}` unrecognized.  The parser is not yet \
+                        complete, so this could represent either a missing \
+                        feature or a semantic error.  Stack: `{:?}`.",
+                    tok,
+                    stack
+                )
             }
         }
         .map(|new_stack| self.store_or_emit(new_stack))
@@ -537,7 +570,7 @@ impl ParseState for Stack {
     }
 }
 
-impl Stack {
+impl<SA: StackAttrParseState> Stack<SA> {
     /// Attempt to open a new element.
     ///
     /// If the stack is [`Self::Empty`],
@@ -552,25 +585,29 @@ impl Stack {
     fn open_element(self, name: QName, span: Span) -> Result<Self> {
         let element = Element::open(name, span);
 
-        Ok(Self::BuddingElement(ElementStack {
-            element,
-            pstack: match self {
-                // Opening a root element (or lack of context).
-                Self::Empty => None,
+        Ok(Self::AttrState(
+            ElementStack {
+                element,
+                pstack: match self {
+                    // Opening a root element (or lack of context).
+                    Self::Empty => None,
 
-                // Open a child element.
-                Self::BuddingElement(pstack) => Some(pstack.store()),
+                    // Open a child element.
+                    Self::BuddingElement(pstack) => Some(pstack.store()),
 
-                // Opening a child element in attribute parsing context.
-                // Automatically close the attributes despite a missing
-                //   AttrEnd to accommodate non-reader XIR.
-                Self::BuddingAttrList(pstack, attr_list) => {
-                    Some(pstack.consume_attrs(attr_list).store())
-                }
+                    // Opening a child element in attribute parsing context.
+                    // Automatically close the attributes despite a missing
+                    //   AttrEnd to accommodate non-reader XIR.
+                    Self::BuddingAttrList(pstack, attr_list) => {
+                        Some(pstack.consume_attrs(attr_list).store())
+                    }
 
-                _ => todo! {},
+                    _ => todo! {},
+                },
             },
-        }))
+            Default::default(),
+            SA::default(),
+        ))
     }
 
     /// Attempt to close an element.
@@ -602,57 +639,6 @@ impl Stack {
         }
     }
 
-    /// Begin an attribute on an element.
-    ///
-    /// An attribute begins with a [`QName`] representing its name.
-    /// It will be attached to a parent element after being closed with a
-    ///   value via [`Stack::close_attr`].
-    fn open_attr(self, name: QName, span: Span) -> Result<Self> {
-        Ok(match self {
-            // Begin construction of an attribute list on a new element.
-            Self::BuddingElement(ele_stack) => {
-                Self::AttrName(ele_stack, Default::default(), name, span)
-            }
-
-            // Continuation of attribute list.
-            Self::BuddingAttrList(ele_stack, attr_list) => {
-                Self::AttrName(ele_stack, attr_list, name, span)
-            }
-
-            _ => todo!("open_attr in state {:?}", self),
-        })
-    }
-
-    /// Assigns a value to an opened attribute and attaches to the parent
-    ///   element.
-    fn close_attr(self, value: SymbolId, span: Span) -> Result<Self> {
-        Ok(match self {
-            Self::AttrName(ele_stack, attr_list, name, open_span) => {
-                Self::BuddingAttrList(
-                    ele_stack,
-                    attr_list.push(Attr::new(name, value, (open_span, span))),
-                )
-            }
-
-            _ => todo! {},
-        })
-    }
-
-    /// End attribute parsing.
-    ///
-    /// If parsing occurs within an element context,
-    ///   the accumulated [`AttrList`] will be attached to the budding
-    ///   [`Element`].
-    fn end_attrs(self) -> Result<Self> {
-        Ok(match self {
-            Self::BuddingAttrList(ele_stack, attr_list) => {
-                Self::BuddingElement(ele_stack.consume_attrs(attr_list))
-            }
-
-            _ => todo!("attr error"),
-        })
-    }
-
     /// Appends a text node as a child of an element.
     ///
     /// This is valid only for a [`Stack::BuddingElement`].
@@ -668,7 +654,7 @@ impl Stack {
     }
 
     /// Emit a completed object or store the current stack for further processing.
-    fn store_or_emit(&mut self, new_stack: Stack) -> ParseStatus {
+    fn store_or_emit(&mut self, new_stack: Self) -> ParseStatus<Tree> {
         match new_stack {
             Stack::ClosedElement(ele) => {
                 ParseStatus::Object(Tree::Element(ele))
@@ -699,14 +685,13 @@ pub enum StackError {
         close: (QName, Span),
     },
 
+    AttrError(AttrParseError),
+
     /// An attribute was expected as the next [`Token`].
     AttrNameExpected(Token),
 
     /// Token stream ended before attribute parsing was complete.
     UnexpectedAttrEof,
-
-    /// Not yet implemented.
-    Todo(Token, Stack),
 }
 
 impl Display for StackError {
@@ -725,6 +710,8 @@ impl Display for StackError {
                 )
             }
 
+            Self::AttrError(e) => Display::fmt(e, f),
+
             Self::AttrNameExpected(tok) => {
                 write!(f, "attribute name expected, found {}", tok)
             }
@@ -736,23 +723,16 @@ impl Display for StackError {
                     "unexpected end of input during isolated attribute parsing",
                 )
             }
-
-            Self::Todo(tok, stack) => {
-                write!(
-                    f,
-                    "TODO: `{:?}` unrecognized.  The parser is not yet \
-                        complete, so this could represent either a missing \
-                        feature or a semantic error.  Stack: `{:?}`.",
-                    tok, stack
-                )
-            }
         }
     }
 }
 
 impl Error for StackError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
+        match self {
+            Self::AttrError(e) => Some(e),
+            _ => None,
+        }
     }
 }
 
@@ -779,7 +759,7 @@ impl Error for StackError {
 pub fn parse(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = ParsedResult<Stack>> {
-    Stack::parse(toks)
+    Stack::<AttrParserState>::parse(toks)
 }
 
 /// Produce a lazy parser from a given [`TokenStream`],
@@ -808,7 +788,7 @@ pub fn parse(
 pub fn parser_from(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = ParseResult<Stack, Tree>> {
-    Stack::parse(toks).filter_map(|parsed| match parsed {
+    Stack::<AttrParserState>::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(tree)) => Some(Ok(tree)),
         Ok(Parsed::Incomplete) => None,
         Err(x) => Some(Err(x)),
@@ -837,31 +817,23 @@ pub fn parser_from(
 ///   see the [module-level documentation](self).
 #[inline]
 pub fn attr_parser_from<'a>(
-    toks: &'a mut impl TokenStream,
-) -> impl Iterator<Item = Result<Attr>> + 'a {
+    toks: impl TokenStream,
+) -> impl Iterator<Item = result::Result<Attr, ParseError<StackError>>> {
     use parse::Parsed;
 
     AttrParserState::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(attr)) => Some(Ok(attr)),
         Ok(Parsed::Incomplete) => None,
-        Err(x) => Some(Err(x.into())),
+        Err(ParseError::StateError(e)) => {
+            Some(Err(ParseError::StateError(StackError::AttrError(e))))
+        }
+        Err(e) => Some(Err(e.inner_into())),
     })
 }
 
-// Transitional; this will go away, or at least be refined.
-impl From<parse::ParseError<attr::AttrParseError>> for StackError {
-    fn from(e: parse::ParseError<attr::AttrParseError>) -> Self {
-        match e {
-            parse::ParseError::UnexpectedEof(_) => Self::UnexpectedAttrEof,
-
-            parse::ParseError::StateError(
-                attr::AttrParseError::AttrNameExpected(tok),
-            ) => Self::AttrNameExpected(tok),
-
-            parse::ParseError::StateError(
-                attr::AttrParseError::AttrValueExpected(..),
-            ) => Self::UnexpectedAttrEof,
-        }
+impl From<AttrParseError> for StackError {
+    fn from(e: AttrParseError) -> Self {
+        StackError::AttrError(e)
     }
 }
 
