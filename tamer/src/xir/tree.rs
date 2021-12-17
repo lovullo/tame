@@ -517,37 +517,66 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
     type Error = StackError;
 
     fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
-        let stack = take(self);
+        use Stack::*;
 
-        // This demonstrates how parsers can be combined.
-        // The next step will be to abstract this away.
-        if let Stack::AttrState(estack, attrs, mut sa) = stack {
-            use ParseStatus::*;
-            return match sa.parse_token(tok) {
-                Ok(Incomplete) => {
-                    *self = Self::AttrState(estack, attrs, sa);
-                    Ok(Incomplete)
-                }
-                Ok(Object(attr)) => {
-                    let attrs = attrs.push(attr);
-                    *self = Self::AttrState(estack, attrs, sa);
-                    Ok(Incomplete)
-                }
-                Ok(Dead(lookahead)) => {
-                    *self = Self::BuddingElement(estack.consume_attrs(attrs));
-                    self.parse_token(lookahead)
-                }
-                Err(x) => Err(x.into()),
-            };
-        }
+        match (take(self), tok) {
+            // Open a root element (or lack of context).
+            (Empty, Token::Open(name, span)) => {
+                Ok(Self::begin_attrs(name, span, None))
+            }
 
-        match tok {
-            Token::Open(name, span) => stack.open_element(name, span),
-            Token::Close(name, span) => stack.close_element(name, span),
-            Token::Text(value, span) => stack.text(value, span),
+            // Open a child element.
+            (BuddingElement(pstack), Token::Open(name, span)) => {
+                Ok(Self::begin_attrs(name, span, Some(pstack.store())))
+            }
 
-            _ if self.is_accepting() => return Ok(ParseStatus::Dead(tok)),
-            _ => {
+            // Open a child element in attribute parsing context.
+            (BuddingAttrList(pstack, attr_list), Token::Open(name, span)) => {
+                Ok(Self::begin_attrs(
+                    name,
+                    span,
+                    Some(pstack.consume_attrs(attr_list).store()),
+                ))
+            }
+
+            // Attribute parsing.
+            (AttrState(estack, attrs, mut sa), tok) => {
+                use ParseStatus::*;
+                match sa.parse_token(tok) {
+                    Ok(Incomplete) => Ok(AttrState(estack, attrs, sa)),
+                    Ok(Object(attr)) => {
+                        Ok(AttrState(estack, attrs.push(attr), sa))
+                    }
+                    Ok(Dead(lookahead)) => {
+                        *self = BuddingElement(estack.consume_attrs(attrs));
+                        return self.parse_token(lookahead);
+                    }
+                    Err(x) => Err(x.into()),
+                }
+            }
+
+            (BuddingElement(stack), Token::Close(name, span)) => stack
+                .try_close(name, span)
+                .map(ElementStack::consume_child_or_complete),
+
+            (BuddingAttrList(stack, attr_list), Token::Close(name, span)) => {
+                stack
+                    .consume_attrs(attr_list)
+                    .try_close(name, span)
+                    .map(ElementStack::consume_child_or_complete)
+            }
+
+            (BuddingElement(mut ele), Token::Text(value, span)) => {
+                ele.element.children.push(Tree::Text(value, span));
+
+                Ok(Self::BuddingElement(ele))
+            }
+
+            (_, tok) if self.is_accepting() => {
+                return Ok(ParseStatus::Dead(tok))
+            }
+
+            (stack, tok) => {
                 todo!(
                     "TODO: `{:?}` unrecognized.  The parser is not yet \
                         complete, so this could represent either a missing \
@@ -566,80 +595,19 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
 }
 
 impl<SA: StackAttrParseState> Stack<SA> {
-    /// Attempt to open a new element.
-    ///
-    /// If the stack is [`Self::Empty`],
-    ///   then the element will be considered to be a root element,
-    ///     meaning that it will be completed once it is closed.
-    /// If the stack contains [`Self::BuddingElement`],
-    ///   then a child element will be started,
-    ///     which will be consumed by the parent one closed rather than
-    ///     being considered a completed [`Element`].
-    ///
-    /// Attempting to open an element in any other context is an error.
-    fn open_element(self, name: QName, span: Span) -> Result<Self> {
-        let element = Element::open(name, span);
-
-        Ok(Self::AttrState(
+    fn begin_attrs(
+        name: QName,
+        span: Span,
+        pstack: Option<Box<ElementStack>>,
+    ) -> Self {
+        Self::AttrState(
             ElementStack {
-                element,
-                pstack: match self {
-                    // Opening a root element (or lack of context).
-                    Self::Empty => None,
-
-                    // Open a child element.
-                    Self::BuddingElement(pstack) => Some(pstack.store()),
-
-                    // Opening a child element in attribute parsing context.
-                    Self::BuddingAttrList(pstack, attr_list) => {
-                        Some(pstack.consume_attrs(attr_list).store())
-                    }
-
-                    _ => todo! {},
-                },
+                element: Element::open(name, span),
+                pstack,
             },
             Default::default(),
             SA::default(),
-        ))
-    }
-
-    /// Attempt to close an element.
-    ///
-    /// Elements can be either self-closing
-    ///   (in which case `name` is [`None`]),
-    ///   or have their own independent closing tags.
-    /// If a name is provided,
-    ///   then it _must_ match the name of the element currently being
-    ///     processed---that is,
-    ///       the tree must be _balanced_.
-    /// An unbalanced tree results in a [`StackError::UnbalancedTag`].
-    fn close_element(self, name: Option<QName>, span: Span) -> Result<Self> {
-        match self {
-            Self::BuddingElement(stack) => stack
-                .try_close(name, span)
-                .map(ElementStack::consume_child_or_complete),
-
-            Self::BuddingAttrList(stack, attr_list) => stack
-                .consume_attrs(attr_list)
-                .try_close(name, span)
-                .map(ElementStack::consume_child_or_complete),
-
-            _ => todo! {},
-        }
-    }
-
-    /// Appends a text node as a child of an element.
-    ///
-    /// This is valid only for a [`Stack::BuddingElement`].
-    fn text(self, value: SymbolId, span: Span) -> Result<Self> {
-        Ok(match self {
-            Self::BuddingElement(mut ele) => {
-                ele.element.children.push(Tree::Text(value, span));
-
-                Self::BuddingElement(ele)
-            }
-            _ => todo! {},
-        })
+        )
     }
 
     /// Emit a completed object or store the current stack for further processing.
