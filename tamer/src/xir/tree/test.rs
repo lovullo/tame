@@ -201,11 +201,6 @@ fn empty_element_with_attrs_from_toks() {
     assert_eq!(sut.next(), None);
 }
 
-// We should accommodate missing AttrEnd in an element context so that we
-//   can parse generated XIR without having to emit AttrEnd if we know it
-//   will not be necessary.
-// I may come to regret that accommodation after we have to go back and add
-//   AttrEnd to systems that weren't providing it.
 #[test]
 fn child_element_after_attrs() {
     let name = ("ns", "elem").unwrap_into();
@@ -217,7 +212,6 @@ fn child_element_after_attrs() {
         Token::Open(name, *S),
         Token::AttrName(attr, *S),
         Token::AttrValue(val, *S2),
-        // No AttrEnd
         Token::Open(child, *S),
         Token::Close(None, *S2),
         Token::Close(Some(name), *S3),
@@ -408,7 +402,6 @@ fn parser_attr_multiple() {
         Token::AttrValue(val1, *S2),
         Token::AttrName(attr2, *S2),
         Token::AttrValue(val2, *S3),
-        Token::AttrEnd(*S3),
         // Token that we should _not_ hit.
         Token::Text("nohit".into(), *S),
     ]
@@ -418,13 +411,16 @@ fn parser_attr_multiple() {
 
     assert_eq!(sut.next(), Some(Ok(Attr::new(attr1, val1, (*S, *S2)))));
     assert_eq!(sut.next(), Some(Ok(Attr::new(attr2, val2, (*S2, *S3)))));
-    assert_eq!(sut.next(), None);
 
-    // Parsing must stop after AttrEnd,
+    // Parsing must stop after the last attribute,
     //   after which some other parser can continue on the same token
-    //   stream.
-    // Even if there _were_ more attributes,
-    //   this parser is spent and cannot continue.
-    drop(sut);
-    assert_eq!(toks.next(), Some(Token::Text("nohit".into(), *S)));
+    //   stream
+    //     (using this token as a lookahead).
+    assert_eq!(
+        sut.next(),
+        Some(Err(ParseError::UnexpectedToken(Token::Text(
+            "nohit".into(),
+            *S
+        ))))
+    );
 }

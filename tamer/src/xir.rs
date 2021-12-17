@@ -509,28 +509,6 @@ pub enum Token {
     ///    but it was removed.)
     AttrValueFragment(SymbolId, Span),
 
-    /// A delimiter indicating that attribute processing has ended and the
-    ///   next token will be either a child node or [`Token::Close`].
-    ///
-    /// This allows for streaming attribute collection without any
-    ///   lookahead,
-    ///     which would otherwise require an iterator supporting a `peek`
-    ///     operation.
-    ///
-    /// This is mandatory for _readers_ to produce,
-    ///   but _writers must ignore it and not require it to be present_,
-    ///     allowing for the reduction of token counts for generated XIR in
-    ///     situations where we know that it will not be further parsed.
-    ///
-    /// The [`Span`] ought to be the final byte of the preceding attribute,
-    ///   and is required only so that we can guarantee an API that can
-    ///   produce a [`Span`] for any given [`Token`].
-    /// The span position cannot be after the preceding attribute because,
-    ///   if attributes are parsed in isolation,
-    ///   the following byte is outside of the context that we are permitted
-    ///   to parse.
-    AttrEnd(Span),
-
     /// Comment node.
     Comment(SymbolId, Span),
 
@@ -575,7 +553,6 @@ impl Display for Token {
             Self::AttrValueFragment(attr_val, span) => {
                 write!(f, "attribute value fragment `{}` at {}", attr_val, span)
             }
-            Self::AttrEnd(span) => write!(f, "end of attributes at {}", span),
             // TODO: Safe truncated comment.
             Self::Comment(_, span) => write!(f, "comment at {}", span),
             // TODO: Safe truncated text.
@@ -600,7 +577,6 @@ impl Token {
             | AttrName(_, span)
             | AttrValue(_, span)
             | AttrValueFragment(_, span)
-            | AttrEnd(span)
             | Comment(_, span)
             | Text(_, span)
             | CData(_, span)

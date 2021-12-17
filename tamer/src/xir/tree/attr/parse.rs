@@ -52,8 +52,6 @@ impl ParseState for AttrParserState {
         use AttrParserState::*;
 
         match (take(self), tok) {
-            (Empty, Token::AttrEnd(_)) => return Ok(ParseStatus::Done),
-
             (Empty, Token::AttrName(name, span)) => {
                 *self = Name(name, span);
                 Ok(ParseStatus::Incomplete)
@@ -187,11 +185,11 @@ mod test {
 
         // But we provide something else unexpected.
         assert_eq!(
-            sut.parse_token(Token::AttrEnd(*S2)),
+            sut.parse_token(Token::Close(None, *S2)),
             Err(AttrParseError::AttrValueExpected(
                 attr,
                 *S,
-                Token::AttrEnd(*S2)
+                Token::Close(None, *S2)
             ))
         );
 
@@ -212,14 +210,6 @@ mod test {
         );
 
         // Finally, we should now be in an accepting state.
-        assert!(sut.is_accepting());
-    }
-
-    #[test]
-    fn yields_none_on_attr_end() {
-        let mut sut = AttrParserState::default();
-
-        assert_eq!(sut.parse_token(Token::AttrEnd(*S)), Ok(ParseStatus::Done));
         assert!(sut.is_accepting());
     }
 }

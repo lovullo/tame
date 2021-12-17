@@ -169,8 +169,6 @@ impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
 
                 use ParseStatus::*;
                 match self.state.parse_token(tok) {
-                    Ok(Done) => None,
-
                     // Nothing handled this dead state,
                     //   and we cannot discard a lookahead token,
                     //   so we have no choice but to produce an error.
@@ -303,8 +301,7 @@ pub enum ParseStatus<T> {
     /// Parsing of an object is complete.
     ///
     /// This does not indicate that the parser is complete,
-    ///   as more objects may be able to be emitted;
-    ///     see [`ParseStatus::Done`].
+    ///   as more objects may be able to be emitted.
     Object(T),
 
     /// Parser encountered a dead state relative to the given token.
@@ -331,13 +328,6 @@ pub enum ParseStatus<T> {
     /// If there is no parent context to handle the token,
     ///   [`Parser`] must yield an error.
     Dead(Token),
-
-    /// Parsing is complete.
-    ///
-    /// This should cause an iterator to yield [`None`].
-    /// If a parser is a combination of multiple [`ParseState`]s,
-    ///   this should transition to the next appropriate state.
-    Done,
 }
 
 /// Result of a parsing operation.
@@ -362,8 +352,8 @@ impl<T> From<ParseStatus<T>> for Parsed<T> {
         match status {
             ParseStatus::Incomplete => Parsed::Incomplete,
             ParseStatus::Object(x) => Parsed::Object(x),
-            ParseStatus::Dead(_) | ParseStatus::Done => {
-                unreachable!("Dead/Done status must be filtered by Parser")
+            ParseStatus::Dead(_) => {
+                unreachable!("Dead status must be filtered by Parser")
             }
         }
     }
@@ -394,13 +384,13 @@ pub mod test {
 
         fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
             match tok {
-                Token::AttrEnd(..) => {
+                Token::Comment(..) => {
                     *self = Self::Done;
                 }
                 Token::Close(..) => {
                     return Err(EchoStateError::InnerError(tok))
                 }
-                Token::Comment(..) => return Ok(ParseStatus::Dead(tok)),
+                Token::Text(..) => return Ok(ParseStatus::Dead(tok)),
                 _ => {}
             }
 
@@ -433,14 +423,15 @@ pub mod test {
 
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {
-        // EchoState is placed into a Done state given AttrEnd.
-        let mut toks = [Token::AttrEnd(DS)].into_iter();
+        // EchoState is placed into a Done state given Comment.
+        let tok = Token::Comment("foo".into(), DS);
+        let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);
 
         // The first token should be processed normally.
         // EchoState proxies the token back.
-        assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd(DS)))), sut.next());
+        assert_eq!(Some(Ok(Parsed::Object(tok))), sut.next());
 
         // This is now the end of the token stream,
         //   which should be okay provided that the first token put us into
@@ -494,11 +485,12 @@ pub mod test {
     fn fails_when_parser_is_finalized_in_non_accepting_state() {
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
+        let recovery = Token::Comment("recov".into(), DS);
         let mut toks = [
             // Used purely to populate a Span.
             Token::Close(None, DS),
             // Recovery token here:
-            Token::AttrEnd(DS),
+            recovery.clone(),
         ]
         .into_iter();
 
@@ -524,7 +516,7 @@ pub mod test {
         // `toks` above is set up already for this,
         //   which allows us to assert that we received back the same `sut`.
         let mut sut = result.unwrap_err().0;
-        assert_eq!(Some(Ok(Parsed::Object(Token::AttrEnd(DS)))), sut.next());
+        assert_eq!(Some(Ok(Parsed::Object(recovery))), sut.next());
 
         // And so we should now be in an accepting state,
         //   able to finalize.
@@ -533,8 +525,8 @@ pub mod test {
 
     #[test]
     fn unhandled_dead_state_results_in_error() {
-        // A comment will cause our parser to return Dead.
-        let tok = Token::Comment("dead".into(), DS);
+        // A Text will cause our parser to return Dead.
+        let tok = Token::Text("dead".into(), DS);
         let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);

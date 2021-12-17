@@ -533,11 +533,6 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                     *self = Self::AttrState(estack, attrs, sa);
                     Ok(Incomplete)
                 }
-                // This will likely go away with AttrEnd.
-                Ok(Done) => {
-                    *self = Self::BuddingElement(estack.consume_attrs(attrs));
-                    Ok(Incomplete)
-                }
                 Ok(Dead(lookahead)) => {
                     *self = Self::BuddingElement(estack.consume_attrs(attrs));
                     self.parse_token(lookahead)
@@ -596,8 +591,6 @@ impl<SA: StackAttrParseState> Stack<SA> {
                     Self::BuddingElement(pstack) => Some(pstack.store()),
 
                     // Opening a child element in attribute parsing context.
-                    // Automatically close the attributes despite a missing
-                    //   AttrEnd to accommodate non-reader XIR.
                     Self::BuddingAttrList(pstack, attr_list) => {
                         Some(pstack.consume_attrs(attr_list).store())
                     }
@@ -626,10 +619,6 @@ impl<SA: StackAttrParseState> Stack<SA> {
                 .try_close(name, span)
                 .map(ElementStack::consume_child_or_complete),
 
-            // We can implicitly complete the attribute list if there's a
-            //   missing `Token::AttrEnd`,
-            //     which alleviates us from having to unnecessarily generate
-            //     it outside of readers.
             Self::BuddingAttrList(stack, attr_list) => stack
                 .consume_attrs(attr_list)
                 .try_close(name, span)
@@ -659,10 +648,6 @@ impl<SA: StackAttrParseState> Stack<SA> {
             Stack::ClosedElement(ele) => {
                 ParseStatus::Object(Tree::Element(ele))
             }
-
-            // This parser has completed relative to its initial context and
-            //   is not expecting any further input.
-            Stack::Done => ParseStatus::Done,
 
             _ => {
                 *self = new_stack;

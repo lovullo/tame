@@ -255,9 +255,6 @@ impl<S: Escaper> XmlWriter<S> for Token {
                 Ok(W::AttrFragmentAdjacent)
             }
 
-            // AttrEnd is ignored by the writer (and is optional).
-            (Self::AttrEnd(..), x) => Ok(x),
-
             // TODO: We have no way of knowing if text should be formatted
             //   as CData,
             //     which may also be beneficial to avoid escaping if we
@@ -497,18 +494,6 @@ mod test {
         Ok(())
     }
 
-    // AttrEnd does not even need to be in a semantically valid position; we
-    // just ignore it entirely.
-    #[test]
-    fn ignores_attr_end() -> TestResult {
-        let result = Token::AttrEnd(*S)
-            .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
-        assert_eq!(result.0, b"");
-        assert_eq!(result.1, WriterState::NodeOpen);
-
-        Ok(())
-    }
-
     #[test]
     fn writes_text() -> TestResult {
         let text = "test unescaped".intern();
@@ -573,7 +558,6 @@ mod test {
             Token::Open(root, *S),
             Token::AttrName(("an", "attr").try_into()?, *S),
             Token::AttrValue("value".intern(), *S),
-            Token::AttrEnd(*S),
             Token::Text("text".intern(), *S),
             Token::Open(("c", "child").try_into()?, *S),
             Token::Whitespace(" ".try_into()?, *S),

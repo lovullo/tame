@@ -56,7 +56,6 @@ fn parses_package_attrs() {
             Token::AttrValue(raw::L_TRUE, DS),
             Token::AttrName(("preproc", "elig-class-yields").unwrap_into(), DS),
             Token::AttrValue(elig, DS),
-            Token::AttrEnd(DS),
         ]
         .into_iter(),
     );
@@ -84,7 +83,6 @@ fn parses_package_attrs_with_ns_prefix() {
             Token::Open(("lv", "package").unwrap_into(), DS),
             Token::AttrName("name".unwrap_into(), DS),
             Token::AttrValue(name, DS),
-            Token::AttrEnd(DS),
         ]
         .into_iter(),
     );

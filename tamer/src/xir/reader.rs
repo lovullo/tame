@@ -226,11 +226,6 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             tokbuf.push_front(Token::AttrValue(value, DUMMY_SPAN));
         }
 
-        // Indicate the end of attributes even if no attributes were output.
-        // This allows for a reliable delimiter that can be used without
-        //   lookahead for streaming attribute parsing.
-        tokbuf.push_front(Token::AttrEnd(DUMMY_SPAN));
-
         Ok(())
     }
 }
