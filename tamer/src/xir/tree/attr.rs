@@ -29,7 +29,7 @@ use super::QName;
 use crate::{span::Span, sym::SymbolId};
 use std::fmt::Display;
 
-pub use parse::{AttrParseError, AttrParserState};
+pub use parse::{AttrParseError, AttrParseState};
 
 /// Element attribute.
 #[derive(Debug, Clone, Eq, PartialEq)]

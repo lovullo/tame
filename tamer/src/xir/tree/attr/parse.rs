@@ -39,17 +39,17 @@ use super::Attr;
 /// The actual parsing operation is therefore a FSM,
 ///   not a PDA.
 #[derive(Debug, Eq, PartialEq)]
-pub enum AttrParserState {
+pub enum AttrParseState {
     Empty,
     Name(QName, Span),
 }
 
-impl ParseState for AttrParserState {
+impl ParseState for AttrParseState {
     type Object = Attr;
     type Error = AttrParseError;
 
     fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
-        use AttrParserState::*;
+        use AttrParseState::*;
 
         match (take(self), tok) {
             (Empty, Token::AttrName(name, span)) => {
@@ -77,7 +77,7 @@ impl ParseState for AttrParserState {
     }
 }
 
-impl Default for AttrParserState {
+impl Default for AttrParseState {
     fn default() -> Self {
         Self::Empty
     }
@@ -136,7 +136,7 @@ mod test {
     fn dead_if_first_token_is_non_attr() {
         let tok = Token::Open("foo".unwrap_into(), *S);
 
-        let mut sut = AttrParserState::default();
+        let mut sut = AttrParseState::default();
 
         // There is no state that we can transition to,
         //   and we're in an empty accepting state.
@@ -144,7 +144,7 @@ mod test {
 
         // Let's just make sure we're in the same state we started in so
         //   that we know we can accommodate recovery token(s).
-        assert_eq!(sut, AttrParserState::default());
+        assert_eq!(sut, AttrParseState::default());
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod test {
         let attr = "attr".unwrap_into();
         let val = "val".intern();
 
-        let mut sut = AttrParserState::default();
+        let mut sut = AttrParseState::default();
         let expected = Attr::new(attr, val, (*S, *S2));
 
         // First token represents the name,
@@ -174,7 +174,7 @@ mod test {
     fn parse_fails_when_attribute_value_missing_but_can_recover() {
         let attr = "bad".unwrap_into();
 
-        let mut sut = AttrParserState::default();
+        let mut sut = AttrParseState::default();
 
         // This token indicates that we're expecting a value to come next in
         //   the token stream.

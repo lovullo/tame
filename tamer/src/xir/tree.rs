@@ -177,7 +177,7 @@ mod attr;
 pub mod parse;
 
 use self::{
-    attr::{AttrParseError, AttrParserState},
+    attr::{AttrParseError, AttrParseState},
     parse::{
         ParseError, ParseResult, ParseState, ParseStateResult, ParseStatus,
         ParsedResult,
@@ -468,7 +468,7 @@ impl ElementStack {
 /// For more information,
 ///   see the [module-level documentation](self).
 #[derive(Debug, Eq, PartialEq)]
-pub enum Stack<SA = AttrParserState>
+pub enum Stack<SA = AttrParseState>
 where
     SA: StackAttrParseState,
 {
@@ -744,7 +744,7 @@ impl Error for StackError {
 pub fn parse(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = ParsedResult<Stack>> {
-    Stack::<AttrParserState>::parse(toks)
+    Stack::<AttrParseState>::parse(toks)
 }
 
 /// Produce a lazy parser from a given [`TokenStream`],
@@ -773,7 +773,7 @@ pub fn parse(
 pub fn parser_from(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = ParseResult<Stack, Tree>> {
-    Stack::<AttrParserState>::parse(toks).filter_map(|parsed| match parsed {
+    Stack::<AttrParseState>::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(tree)) => Some(Ok(tree)),
         Ok(Parsed::Incomplete) => None,
         Err(x) => Some(Err(x)),
@@ -806,7 +806,7 @@ pub fn attr_parser_from<'a>(
 ) -> impl Iterator<Item = result::Result<Attr, ParseError<StackError>>> {
     use parse::Parsed;
 
-    AttrParserState::parse(toks).filter_map(|parsed| match parsed {
+    AttrParseState::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(attr)) => Some(Ok(attr)),
         Ok(Parsed::Incomplete) => None,
         Err(ParseError::StateError(e)) => {
