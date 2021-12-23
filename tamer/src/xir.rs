@@ -70,6 +70,7 @@ mod escape;
 pub use escape::{DefaultEscaper, Escaper};
 
 pub mod iter;
+pub mod parse;
 pub mod pred;
 pub mod reader;
 pub mod tree;

@@ -22,7 +22,7 @@
 use crate::{
     span::Span,
     xir::{
-        tree::parse::{ParseState, ParseStateResult, ParseStatus},
+        parse::{ParseState, ParseStateResult, ParseStatus},
         QName, Token,
     },
 };

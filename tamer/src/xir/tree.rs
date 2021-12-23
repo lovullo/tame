@@ -85,8 +85,8 @@
 //! See also [`attr_parser_from`] for parsing only attributes partway
 //!   through a token stream.
 //!
-//! [`Parsed::Incomplete`]: parse::Parsed::Incomplete
-//! [`Parsed::Object`]: parse::Parsed::Object
+//! [`Parsed::Incomplete`]: super::parse::Parsed::Incomplete
+//! [`Parsed::Object`]: super::parse::Parsed::Object
 //!
 //! Cost of Parsing
 //! ===============
@@ -174,14 +174,13 @@
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
 
 mod attr;
-pub mod parse;
 
 use self::{
-    attr::{AttrParseError, AttrParseState},
-    parse::{
+    super::parse::{
         ParseError, ParseResult, ParseState, ParseStateResult, ParseStatus,
         ParsedResult,
     },
+    attr::{AttrParseError, AttrParseState},
 };
 
 use super::{QName, Token, TokenResultStream, TokenStream};
@@ -190,7 +189,7 @@ use std::{error::Error, fmt::Display, mem::take, result};
 
 pub use attr::{Attr, AttrList};
 
-type Parsed = parse::Parsed<Tree>;
+type Parsed = super::parse::Parsed<Tree>;
 
 /// A XIR tree (XIRT).
 ///
@@ -772,7 +771,7 @@ pub fn parser_from(
 pub fn attr_parser_from<'a>(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = result::Result<Attr, ParseError<StackError>>> {
-    use parse::Parsed;
+    use super::parse::Parsed;
 
     AttrParseState::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(attr)) => Some(Ok(attr)),

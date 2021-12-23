@@ -17,9 +17,9 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Basic streaming parsing framework to lower XIR into XIRT.
+//! Basic streaming parsing framework for XIR lowering operations.
 
-use super::super::{Token, TokenStream};
+use super::{Token, TokenStream};
 use crate::span::Span;
 use std::fmt::Debug;
 use std::{error::Error, fmt::Display};
