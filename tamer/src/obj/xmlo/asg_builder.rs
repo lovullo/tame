@@ -42,8 +42,8 @@ use super::{
     XmloError,
 };
 use crate::asg::{
-    Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, IndexType,
-    ObjectRef, Source,
+    Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, ObjectRef,
+    Source,
 };
 use crate::sym::SymbolId;
 use std::collections::HashSet;
@@ -52,8 +52,7 @@ use std::error::Error;
 use std::fmt::Display;
 use std::hash::BuildHasher;
 
-pub type Result<S, Ix> =
-    std::result::Result<AsgBuilderState<S, Ix>, AsgBuilderError>;
+pub type Result<S> = std::result::Result<AsgBuilderState<S>, AsgBuilderError>;
 
 /// Builder state between imports.
 ///
@@ -75,17 +74,16 @@ pub type Result<S, Ix> =
 /// This is used by the linker to only include dependencies that are
 ///   actually used by a particular program.
 #[derive(Debug, Default)]
-pub struct AsgBuilderState<S, Ix>
+pub struct AsgBuilderState<S>
 where
     S: BuildHasher,
-    Ix: IndexType,
 {
     /// Discovered roots.
     ///
     /// Roots represent starting points for a topological sort of the
     ///   graph.
     /// They are meaningful to the linker.
-    pub roots: Vec<ObjectRef<Ix>>,
+    pub roots: Vec<ObjectRef>,
 
     /// Relative paths to imported packages that have been discovered.
     ///
@@ -108,10 +106,9 @@ where
     pub relroot: Option<SymbolId>,
 }
 
-impl<S, Ix> AsgBuilderState<S, Ix>
+impl<S> AsgBuilderState<S>
 where
     S: BuildHasher + Default,
-    Ix: IndexType,
 {
     /// Create a new, empty state.
     pub fn new() -> Self {
@@ -133,11 +130,10 @@ where
 /// For more information on what data are processed,
 ///   see [`AsgBuilderState`].
 /// See the [module-level documentation](self) for example usage.
-pub trait AsgBuilder<O, S, Ix>
+pub trait AsgBuilder<O, S>
 where
     O: IdentObjectState<O>,
     S: BuildHasher,
-    Ix: IndexType,
 {
     /// Import [`XmloResult`]s into an [`Asg`].
     ///
@@ -152,22 +148,21 @@ where
     fn import_xmlo(
         &mut self,
         xmlo: impl Iterator<Item = XmloResult<XmloEvent>>,
-        state: AsgBuilderState<S, Ix>,
-    ) -> Result<S, Ix>;
+        state: AsgBuilderState<S>,
+    ) -> Result<S>;
 }
 
-impl<O, S, Ix, G> AsgBuilder<O, S, Ix> for G
+impl<O, S, G> AsgBuilder<O, S> for G
 where
     O: IdentObjectState<O>,
     S: BuildHasher + Default,
-    Ix: IndexType,
-    G: Asg<O, Ix>,
+    G: Asg<O>,
 {
     fn import_xmlo(
         &mut self,
         mut xmlo: impl Iterator<Item = XmloResult<XmloEvent>>,
-        mut state: AsgBuilderState<S, Ix>,
-    ) -> Result<S, Ix> {
+        mut state: AsgBuilderState<S>,
+    ) -> Result<S> {
         let mut elig = None;
         let first = state.is_first();
         let found = state.found.get_or_insert(Default::default());
@@ -333,9 +328,8 @@ mod test {
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 
-    type SutIx = u16;
-    type Sut<'i> = DefaultAsg<IdentObject, SutIx>;
-    type SutState<'i> = AsgBuilderState<RandomState, SutIx>;
+    type Sut<'i> = DefaultAsg<IdentObject>;
+    type SutState<'i> = AsgBuilderState<RandomState>;
 
     #[test]
     fn gets_data_from_package_event() {
@@ -584,7 +578,7 @@ mod test {
 
         // This is all that's needed to not consider this to be the first
         // package, so that pkg_name is retained below.
-        let state = AsgBuilderState::<RandomState, SutIx> {
+        let state = AsgBuilderState::<RandomState> {
             name: Some(pkg_name),
             ..Default::default()
         };

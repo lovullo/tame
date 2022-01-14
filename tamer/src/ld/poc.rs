@@ -25,7 +25,6 @@ use super::xmle::{
     xir::lower_iter,
     XmleSections,
 };
-use crate::global;
 use crate::sym::SymbolId;
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 use crate::xir::writer::XmlWriter;
@@ -52,10 +51,8 @@ use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
-type LinkerAsg = DefaultAsg<IdentObject, global::ProgIdentSize>;
-
-type LinkerAsgBuilderState =
-    AsgBuilderState<FxBuildHasher, global::ProgIdentSize>;
+type LinkerAsg = DefaultAsg<IdentObject>;
+type LinkerAsgBuilderState = AsgBuilderState<FxBuildHasher>;
 
 pub fn xmle(package_path: &str, output: &str) -> Result<(), Box<dyn Error>> {
     let mut fs = VisitOnceFilesystem::new();

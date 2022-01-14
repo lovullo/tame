@@ -42,9 +42,8 @@ impl<T: petgraph::graph::IndexType> IndexType for T {}
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-pub trait Asg<O, Ix>
+pub trait Asg<O>
 where
-    Ix: IndexType,
     O: IdentObjectState<O>,
 {
     /// Declare a concrete identifier.
@@ -83,7 +82,7 @@ where
         name: SymbolId,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef<Ix>>;
+    ) -> AsgResult<ObjectRef>;
 
     /// Declare an abstract identifier.
     ///
@@ -110,7 +109,7 @@ where
         name: SymbolId,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef<Ix>>;
+    ) -> AsgResult<ObjectRef>;
 
     /// Set the fragment associated with a concrete identifier.
     ///
@@ -119,9 +118,9 @@ where
     ///   see [`IdentObjectState::set_fragment`].
     fn set_fragment(
         &mut self,
-        identi: ObjectRef<Ix>,
+        identi: ObjectRef,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef<Ix>>;
+    ) -> AsgResult<ObjectRef>;
 
     /// Retrieve an object from the graph by [`ObjectRef`].
     ///
@@ -130,7 +129,7 @@ where
     ///   this should never fail so long as references are not shared
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
-    fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&O>;
+    fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&O>;
 
     /// Attempt to retrieve an identifier from the graph by name.
     ///
@@ -138,7 +137,7 @@ where
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
-    fn lookup(&self, name: SymbolId) -> Option<ObjectRef<Ix>>;
+    fn lookup(&self, name: SymbolId) -> Option<ObjectRef>;
 
     /// Declare that `dep` is a dependency of `ident`.
     ///
@@ -149,10 +148,10 @@ where
     /// See [`add_dep_lookup`][Asg::add_dep_lookup] if identifiers have to
     ///   be looked up by [`SymbolId`] or if they may not yet have been
     ///   declared.
-    fn add_dep(&mut self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>);
+    fn add_dep(&mut self, ident: ObjectRef, dep: ObjectRef);
 
     /// Check whether `dep` is a dependency of `ident`.
-    fn has_dep(&self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>) -> bool;
+    fn has_dep(&self, ident: ObjectRef, dep: ObjectRef) -> bool;
 
     /// Declare that `dep` is a dependency of `ident`,
     ///   regardless of whether they are known.
@@ -171,7 +170,7 @@ where
         &mut self,
         ident: SymbolId,
         dep: SymbolId,
-    ) -> (ObjectRef<Ix>, ObjectRef<Ix>);
+    ) -> (ObjectRef, ObjectRef);
 }
 
 /// A [`Result`] with a hard-coded [`AsgError`] error type.
@@ -186,22 +185,22 @@ pub type AsgResult<T> = Result<T, AsgError>;
 ///   not pointers.
 /// See the [module-level documentation][self] for more information.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub struct ObjectRef<Ix>(NodeIndex<Ix>);
+pub struct ObjectRef(NodeIndex);
 
-impl<Ix: IndexType> ObjectRef<Ix> {
-    pub fn new(index: NodeIndex<Ix>) -> Self {
+impl ObjectRef {
+    pub fn new(index: NodeIndex) -> Self {
         Self(index)
     }
 }
 
-impl<Ix: IndexType> From<NodeIndex<Ix>> for ObjectRef<Ix> {
-    fn from(index: NodeIndex<Ix>) -> Self {
+impl From<NodeIndex> for ObjectRef {
+    fn from(index: NodeIndex) -> Self {
         Self(index)
     }
 }
 
-impl<Ix: IndexType> From<ObjectRef<Ix>> for NodeIndex<Ix> {
-    fn from(objref: ObjectRef<Ix>) -> Self {
+impl From<ObjectRef> for NodeIndex {
+    fn from(objref: ObjectRef) -> Self {
         objref.0
     }
 }
@@ -265,7 +264,7 @@ mod test {
         #[test]
         fn to_from_nodeindex() {
             let index = NodeIndex::<u32>::new(5);
-            let objref: ObjectRef<u32> = ObjectRef::from(index);
+            let objref: ObjectRef = ObjectRef::from(index);
 
             assert_eq!(index, objref.0);
             assert_eq!(index, objref.into());

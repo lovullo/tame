@@ -19,13 +19,17 @@
 
 //! Base concrete [`Asg`] implementation.
 
-use super::graph::{Asg, AsgEdge, AsgResult, IndexType, Node, ObjectRef};
+use super::graph::{Asg, AsgEdge, AsgResult, Node, ObjectRef};
 use super::ident::IdentKind;
 use super::object::{
     FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
 };
+use crate::global;
 use crate::sym::SymbolId;
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
+
+/// Index size for Graph nodes and edges.
+type Ix = global::ProgSymSize;
 
 /// Concrete ASG.
 ///
@@ -37,10 +41,7 @@ use petgraph::graph::{DiGraph, Graph, NodeIndex};
 ///
 /// For more information,
 ///   see [`Asg`].
-pub struct BaseAsg<O, Ix>
-where
-    Ix: IndexType,
-{
+pub struct BaseAsg<O> {
     // TODO: private; see `ld::xmle::lower`.
     /// Directed graph on which objects are stored.
     pub graph: DiGraph<Node<O>, AsgEdge, Ix>,
@@ -57,9 +58,8 @@ where
     empty_node: NodeIndex<Ix>,
 }
 
-impl<O, Ix> BaseAsg<O, Ix>
+impl<O> BaseAsg<O>
 where
-    Ix: IndexType,
     O: IdentObjectState<O> + IdentObjectData,
 {
     /// Create a new ASG.
@@ -133,7 +133,7 @@ where
     ///   reference to it.
     ///
     /// See [`IdentObjectState::declare`] for more information.
-    fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef<Ix> {
+    fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
         self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(O::declare(ident)));
 
@@ -155,7 +155,7 @@ where
         &mut self,
         name: SymbolId,
         f: F,
-    ) -> AsgResult<ObjectRef<Ix>>
+    ) -> AsgResult<ObjectRef>
     where
         F: FnOnce(O) -> TransitionResult<O>,
     {
@@ -170,11 +170,7 @@ where
     ///
     /// This will safely restore graph state to the original identifier
     ///   value on transition failure.
-    fn with_ident<F>(
-        &mut self,
-        identi: ObjectRef<Ix>,
-        f: F,
-    ) -> AsgResult<ObjectRef<Ix>>
+    fn with_ident<F>(&mut self, identi: ObjectRef, f: F) -> AsgResult<ObjectRef>
     where
         F: FnOnce(O) -> TransitionResult<O>,
     {
@@ -196,9 +192,8 @@ where
     }
 }
 
-impl<O, Ix> Asg<O, Ix> for BaseAsg<O, Ix>
+impl<O> Asg<O> for BaseAsg<O>
 where
-    Ix: IndexType,
     O: IdentObjectState<O> + IdentObjectData,
 {
     fn declare(
@@ -206,7 +201,7 @@ where
         name: SymbolId,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef<Ix>> {
+    ) -> AsgResult<ObjectRef> {
         self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
     }
 
@@ -215,20 +210,20 @@ where
         name: SymbolId,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef<Ix>> {
+    ) -> AsgResult<ObjectRef> {
         self.with_ident_lookup(name, |obj| obj.extern_(kind, src))
     }
 
     fn set_fragment(
         &mut self,
-        identi: ObjectRef<Ix>,
+        identi: ObjectRef,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef<Ix>> {
+    ) -> AsgResult<ObjectRef> {
         self.with_ident(identi, |obj| obj.set_fragment(text))
     }
 
     #[inline]
-    fn get<I: Into<ObjectRef<Ix>>>(&self, index: I) -> Option<&O> {
+    fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&O> {
         self.graph.node_weight(index.into().into()).map(|node| {
             node.as_ref()
                 .expect("internal error: BaseAsg::get missing Node data")
@@ -236,7 +231,7 @@ where
     }
 
     #[inline]
-    fn lookup(&self, name: SymbolId) -> Option<ObjectRef<Ix>> {
+    fn lookup(&self, name: SymbolId) -> Option<ObjectRef> {
         let i = name.as_usize();
 
         self.index
@@ -245,13 +240,13 @@ where
             .map(|ni| ObjectRef::new(*ni))
     }
 
-    fn add_dep(&mut self, identi: ObjectRef<Ix>, depi: ObjectRef<Ix>) {
+    fn add_dep(&mut self, identi: ObjectRef, depi: ObjectRef) {
         self.graph
             .update_edge(identi.into(), depi.into(), Default::default());
     }
 
     #[inline]
-    fn has_dep(&self, ident: ObjectRef<Ix>, dep: ObjectRef<Ix>) -> bool {
+    fn has_dep(&self, ident: ObjectRef, dep: ObjectRef) -> bool {
         self.graph.contains_edge(ident.into(), dep.into())
     }
 
@@ -259,7 +254,7 @@ where
         &mut self,
         ident: SymbolId,
         dep: SymbolId,
-    ) -> (ObjectRef<Ix>, ObjectRef<Ix>) {
+    ) -> (ObjectRef, ObjectRef) {
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
 
@@ -372,7 +367,7 @@ mod test {
         }
     }
 
-    type Sut = BaseAsg<StubIdentObject, u16>;
+    type Sut = BaseAsg<StubIdentObject>;
 
     #[test]
     fn create_with_capacity() {

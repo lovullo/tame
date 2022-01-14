@@ -206,4 +206,4 @@ pub use object::{
 };
 
 /// Default concrete ASG implementation.
-pub type DefaultAsg<O, Ix = crate::global::ProgSymSize> = base::BaseAsg<O, Ix>;
+pub type DefaultAsg<O> = base::BaseAsg<O>;

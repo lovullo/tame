@@ -23,26 +23,25 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{Asg, BaseAsg, IdentKind, IdentObject, IndexType, ObjectRef},
+    asg::{Asg, BaseAsg, IdentKind, IdentObject, ObjectRef},
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
 
 // Result of [`sort`].
-pub type SortResult<T, Ix> = Result<T, SortError<Ix>>;
+pub type SortResult<T> = Result<T, SortError>;
 
 /// Lower ASG into [`XmleSections`] by ordering relocatable text fragments.
 ///
 /// This performs the equivalent of a topological sort,
 ///   although function cycles are permitted.
 /// The actual operation performed is a post-order depth-first traversal.
-pub fn sort<'a, Ix, S: XmleSections<'a>>(
-    asg: &'a BaseAsg<IdentObject, Ix>,
-    roots: &[ObjectRef<Ix>],
+pub fn sort<'a, S: XmleSections<'a>>(
+    asg: &'a BaseAsg<IdentObject>,
+    roots: &[ObjectRef],
     mut dest: S,
-) -> SortResult<S, Ix>
+) -> SortResult<S>
 where
-    Ix: IndexType,
     S: XmleSections<'a>,
 {
     // TODO: we should check for cycles as we sort (as the POC did).
@@ -72,12 +71,11 @@ where
     Ok(dest)
 }
 
-fn get_ident<'a, Ix, S>(
-    depgraph: &'a BaseAsg<IdentObject, Ix>,
+fn get_ident<'a, S>(
+    depgraph: &'a BaseAsg<IdentObject>,
     name: S,
 ) -> &'a IdentObject
 where
-    Ix: IndexType,
     S: Into<SymbolId>,
 {
     let sym = name.into();
@@ -99,10 +97,7 @@ where
 ///
 /// We loop through all SCCs and check that they are not all functions. If
 ///   they are, we ignore the cycle, otherwise we will return an error.
-fn check_cycles<Ix>(asg: &BaseAsg<IdentObject, Ix>) -> SortResult<(), Ix>
-where
-    Ix: IndexType,
-{
+fn check_cycles(asg: &BaseAsg<IdentObject>) -> SortResult<()> {
     // While `tarjan_scc` does do a topological sort, it does not suit our
     // needs because we need to filter out some allowed cycles. It would
     // still be possible to use this, but we also need to only check nodes
@@ -151,21 +146,21 @@ where
 /// It does not represent bad underlying data that does not affect the
 ///   sorting process.
 #[derive(Debug, PartialEq)]
-pub enum SortError<Ix: IndexType> {
+pub enum SortError {
     /// Error while lowering into [`XmleSections`].
     SectionsError(SectionsError),
 
     /// The graph has a cyclic dependency.
-    Cycles(Vec<Vec<ObjectRef<Ix>>>),
+    Cycles(Vec<Vec<ObjectRef>>),
 }
 
-impl<Ix: IndexType> From<SectionsError> for SortError<Ix> {
+impl From<SectionsError> for SortError {
     fn from(err: SectionsError) -> Self {
         Self::SectionsError(err)
     }
 }
 
-impl<Ix: IndexType> std::fmt::Display for SortError<Ix> {
+impl std::fmt::Display for SortError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::SectionsError(err) => err.fmt(fmt),
@@ -174,7 +169,7 @@ impl<Ix: IndexType> std::fmt::Display for SortError<Ix> {
     }
 }
 
-impl<Ix: IndexType> std::error::Error for SortError<Ix> {
+impl std::error::Error for SortError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -190,7 +185,7 @@ mod test {
         sym::GlobalSymbolIntern,
     };
 
-    type TestAsg = BaseAsg<IdentObject, u16>;
+    type TestAsg = BaseAsg<IdentObject>;
 
     /// Create a graph with the expected {ret,}map head/tail identifiers.
     fn make_asg() -> TestAsg {
@@ -234,7 +229,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort() -> SortResult<(), u16> {
+    fn graph_sort() -> SortResult<()> {
         // We care only about the order of pushes, not the sections they end
         // up in.
         struct StubSections<'a> {
@@ -318,7 +313,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_missing_node() -> SortResult<(), u16> {
+    fn graph_sort_missing_node() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym = "sym".intern();
@@ -354,7 +349,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_no_roots_same_as_empty_graph() -> SortResult<(), u16> {
+    fn graph_sort_no_roots_same_as_empty_graph() -> SortResult<()> {
         let mut asg_nonempty_no_roots = make_asg();
 
         // "empty" (it has the head/tail {ret,}map objects)
@@ -374,7 +369,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_simple_cycle() -> SortResult<(), u16> {
+    fn graph_sort_simple_cycle() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym = "sym".intern();
@@ -412,7 +407,7 @@ mod test {
 
         let result = sort(&asg, &vec![sym_node], Sections::new());
 
-        let expected: Vec<Vec<ObjectRef<u16>>> =
+        let expected: Vec<Vec<ObjectRef>> =
             vec![vec![dep_node.into(), sym_node.into()]];
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
@@ -424,7 +419,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_two_simple_cycles() -> SortResult<(), u16> {
+    fn graph_sort_two_simple_cycles() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym = "sym".intern();
@@ -492,7 +487,7 @@ mod test {
 
         let result = sort(&asg, &vec![sym_node], Sections::new());
 
-        let expected: Vec<Vec<ObjectRef<u16>>> = vec![
+        let expected: Vec<Vec<ObjectRef>> = vec![
             vec![dep_node.into(), sym_node.into()],
             vec![dep2_node.into(), sym2_node.into()],
         ];
@@ -506,7 +501,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_no_cycle_with_edge_to_same_node() -> SortResult<(), u16> {
+    fn graph_sort_no_cycle_with_edge_to_same_node() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym = "sym".intern();
@@ -553,7 +548,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_cycle_with_a_few_steps() -> SortResult<(), u16> {
+    fn graph_sort_cycle_with_a_few_steps() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym1 = "sym1".intern();
@@ -606,7 +601,7 @@ mod test {
 
         let result = sort(&asg, &vec![sym1_node], Sections::new());
 
-        let expected: Vec<Vec<ObjectRef<u16>>> =
+        let expected: Vec<Vec<ObjectRef>> =
             vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
@@ -619,7 +614,7 @@ mod test {
 
     #[test]
     fn graph_sort_cyclic_function_with_non_function_with_a_few_steps(
-    ) -> SortResult<(), u16> {
+    ) -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym1 = "sym1".intern();
@@ -672,7 +667,7 @@ mod test {
 
         let result = sort(&asg, &vec![sym1_node], Sections::new());
 
-        let expected: Vec<Vec<ObjectRef<u16>>> =
+        let expected: Vec<Vec<ObjectRef>> =
             vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
@@ -684,7 +679,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_cyclic_bookended_by_functions() -> SortResult<(), u16> {
+    fn graph_sort_cyclic_bookended_by_functions() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym1 = "sym1".intern();
@@ -737,7 +732,7 @@ mod test {
 
         let result = sort(&asg, &vec![sym1_node], Sections::new());
 
-        let expected: Vec<Vec<ObjectRef<u16>>> =
+        let expected: Vec<Vec<ObjectRef>> =
             vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
@@ -749,7 +744,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_cyclic_function_ignored() -> SortResult<(), u16> {
+    fn graph_sort_cyclic_function_ignored() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym = "sym".intern();
@@ -796,7 +791,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_cyclic_function_is_bookended() -> SortResult<(), u16> {
+    fn graph_sort_cyclic_function_is_bookended() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym1 = "sym1".intern();
@@ -849,7 +844,7 @@ mod test {
 
         let result = sort(&asg, &vec![sym1_node], Sections::new());
 
-        let expected: Vec<Vec<ObjectRef<u16>>> =
+        let expected: Vec<Vec<ObjectRef>> =
             vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
@@ -861,7 +856,7 @@ mod test {
     }
 
     #[test]
-    fn graph_sort_ignore_non_linked() -> SortResult<(), u16> {
+    fn graph_sort_ignore_non_linked() -> SortResult<()> {
         let mut asg = make_asg();
 
         let sym = "sym".intern();
