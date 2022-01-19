@@ -564,9 +564,6 @@ main()
   spawn-runner 0 "$root"
   trap "spawn-next-runner '$root'" USR1
 
-  # runner report on SIGUSR2
-  trap "runner-report-line '$root'" USR2
-
   # status line reporting on runners for TUI mode
   tui-runner-status-line &
 

@@ -86,10 +86,6 @@ command-runner()
   date +%s > "$base/cmdstart"
   echo "$*" > "$base/cmdline"
 
-  # notify tamed that it should update any diagnostic display
-  #local -ri tamed_pid=$( < "$root/pid" )
-  #kill -USR2 "$tamed_pid"
-
   # all remaining arguments are passed to the runner
   echo "$*" > "$base/0"
 
