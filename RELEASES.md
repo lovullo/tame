@@ -22,6 +22,11 @@ Compiler
 --------
 - Input mappings will no longer emit the destination param as a dependency.
 - `tamed --report` and `TAMED_TUI` for analyzing build performance.
+- Runners now store start time and duration for each command, available in
+  the runpath for reporting.
+- `TAMED_RUNTAB_OUT`, if set, will aggregate all runners' runtabs into a
+  single file as jobs are completed.  See `tamed --help` for more
+  information and examples.
 
 Documentation
 -------------

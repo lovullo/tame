@@ -24,6 +24,8 @@ readonly mypath
 
 declare -ri EX_RUNNING=1
 declare -ri EX_NOTRUNNING=2  # tamed is not running
+declare -ri EX_RUNTAB_LOCK=3 # failed to acquire aggregate runtab lock
+declare -ri EX_RUNTAB_OUT=4  # failed to write to aggregate runtab
 declare -ri EX_USAGE=64      # incorrect usage; sysexits.h
 declare -ri EX_CANTCREAT=73  # cannot create file; sysexits.h
 
@@ -44,6 +46,9 @@ declare root=
 # non-empty if in TUI (terminal UI) mode (use `in-tui-mode')
 declare -r TAMED_TUI="${TAMED_TUI:-}"
 declare tui_mode=
+
+# file into which aggregate runner report will be placed (none if empty)
+declare -r TAMED_RUNTAB_OUT="${TAMED_RUNTAB_OUT:-}"
 
 
 # Create FIFOs for runner
@@ -117,6 +122,10 @@ spawn-runner()
   # flag as available (the client will manipulate these)
   echo 0 > "$base/busy"
 
+  # runtab is used for reporting, which we will optionally aggregate
+  > "$base/runtab"
+  monitor-runner-runtab "$root" "$base/runtab" &
+
   # monitor runner usage and kill when inactive
   stall-monitor "$base" &
 
@@ -137,6 +146,55 @@ spawn-runner()
   echo "$id" > "$root/maxid"
 
   log "runner $id ($!): $base"
+}
+
+
+# Monitor the given runner runtab and append to the aggregate runtab
+#
+# The aggregate runtab is append-only and has a row-level lock to support
+# concurrent writes without having to rely on kernel buffering.
+monitor-runner-runtab()
+{
+  local -r root="${1?Missing root run path}"
+  local -r runtab="${2?Missing runtab path}"
+
+  # no use in aggregating if it was not requested
+  test -n "$TAMED_RUNTAB_OUT" || return 0
+
+  while ! spawner-dead; do
+    # this is a shared file, and while buffering _should_ be sufficient, we
+    # may as well avoid potential headaches entirely by locking during the
+    # operation
+    tail -f "$runtab" | while read -r row; do
+        # we want to lock _per row write_, since output will be interleaved
+        # between all the runners
+        (
+          local -ri timeout=3
+
+          flock -w $timeout 7 || {
+              echo "error: failed to acquire lock on aggregate runtab" >&2
+              exit $EX_RUNTAB_LOCK
+          }
+
+          echo "$row" >&7
+        ) 7>> "$TAMED_RUNTAB_OUT"
+    done
+  done
+}
+
+
+# Check that we can write to the provided runtab, and clear it
+runtab-check-and-clear()
+{
+  test -n "$TAMED_RUNTAB_OUT" || return 0
+
+  # clear the runtab, and see if we can write to it
+  >"$TAMED_RUNTAB_OUT" || {
+    echo "error: unable to write to '$TAMED_RUNTAB_OUT' (TAMED_RUNTAB_OUT)"
+    exit $EX_RUNTAB_OUT
+  }
+
+  echo "tamed: aggregating runner runtabs into '$TAMED_RUNTAB_OUT'"
 }
 
 
@@ -248,12 +306,15 @@ abort-if-not-running()
 # runners; the target tamed is expected to clean up itself.
 # Consequently, if a tamed terminated abnormally without
 # cleaning up, this will not solve that problem.
+#
+# Note that this is also called by tame to clean up an old tamed
+# before spawning a new one.
 kill-running()
 {
   local -r root="${1?Missing root}"
 
-  abort-if-not-running "$root" 2>/dev/null
-  local -r pid=$( cat "$root"/pid 2>/dev/null )
+  test -d "$root" || return 0
+  local -r pid=$( < "$root"/pid 2>/dev/null )
 
   test -n "$pid" || return 0
 
@@ -301,14 +362,17 @@ runner-report()
   test -f "$path/cmdline" || return 0
 
   local cmdline=$(< "$path/cmdline" )
-  local cmdstart=$(< "$path/cmdstart" )
+  local -a cmdstart cmdstart_fmt
+
+  cmdstart=( $(< "$path/cmdstart" ) )
+  cmdstart_fmt=$(date --date=@"${cmdstart[0]}" +%Y-%m-%dT%H:%M:%S)
 
   local -i now=$(date +%s)
 
   cat <<EOF
 runner:  $id
 command: $cmdline
-start:   $cmdstart ($(date +%Y-%m-%dT%H:%M:%S <<< "$cmdstart"))
+start:   ${cmdstart[0]}.${cmdstart[1]} ($cmdstart_fmt)
 elapsed: $((now - cmdstart)) seconds
 EOF
 }
@@ -430,6 +494,23 @@ to the process id of make itself.  It defaults to the actual
 parent process id (PPID), so tamed will not kill itself if
 run manually on a shell (unless the shell exits first).
 
+TAMED_RUNTAB_OUT can specify a file in which to write job
+start times (as seconds from the Unix epoch); durations
+(in milliseconds); and commands from each of the runners.
+The table is tab-delimited.  Here are some useful examples:
+
+  # format nicely into columns and view in pager
+  $ column runtab | less
+
+  # sort by runtime descending (second column)
+  $ sort -rnk2 runtab
+
+  # take the runtime and command columns
+  $ cut -2,3 runtab
+
+  # convert milliseconds into minutes (!) and sort desc
+  $ awk '{ $2 = $2 / 1000 / 60; print } runtab | sort -nrk2
+
 Options:
   --help    show this message
   --kill    kill a runing tamed at path RUNPATH
@@ -444,6 +525,9 @@ Environment Variables:
   TAMED_JAVA_OPTS       opts to pass to dslc, and in turn, the JVM
   TAMED_TUI             run in TUI mode (provide UI features like a
                           dynamic runner status line)
+  TAMED_RUNTAB_OUT      file into which aggregate runner report will
+                          be written (otherwise reports are only
+                          available per-runner while tamed is running)
 EOF
 
   exit $EX_USAGE
@@ -550,6 +634,7 @@ main()
 
   abort-if-running "$root"
   tui-check
+  runtab-check-and-clear
 
   # clean up background processes before we exit
   trap exit TERM

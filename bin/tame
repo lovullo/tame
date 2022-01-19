@@ -83,7 +83,7 @@ command-runner()
 
   # log the provided command line and starting time so that we can determine
   # what is currently being compiled and how long it is taking
-  date +%s > "$base/cmdstart"
+  millis > "$base/cmdstart"
   echo "$*" > "$base/cmdline"
 
   # all remaining arguments are passed to the runner
@@ -113,7 +113,9 @@ command-runner()
     if [ "${line:0:5}" == "DONE " ]; then
       read -r _ code _ <<< "$line"
 
+      runtab-append "$base"
       mark-available "$base"
+
       return "$code"
     fi
 
@@ -237,7 +239,56 @@ mark-available()
   echo idle > "$base/cmdline"
 
   # this can be used to determine how long the worker has been idle
-  date +%s > "$base/cmdstart"
+  millis > "$base/cmdstart"
+}
+
+
+# Output seconds and milliseconds, space-delimited
+millis()
+{
+  local date
+  date=( $(date '+%s %N') )
+
+  # %N returns nanoseconds and it may be 0-prefixed, which would be
+  # interpreted as octal without the explicit base specification
+  echo "${date[0]}" "$(( 10#"${date[1]}" / 1000000 ))"
+}
+
+
+# Append data to the runner table (runtab)
+#
+# This takes information about the most recently executed command and
+# appends it to a table representing the work that the runner has
+# done.  This should be done at the end of processing a particular job but
+# before marking the runner as available using `mark-available'.
+#
+# The columns of this report are, tab-delimited:
+#   1. Start date (Unix timestamp, seconds);
+#   2. Duration (milliseconds); and
+#   3. Runner command line
+runtab-append()
+{
+  local -r base=${1?Missing runner base path}
+
+  local cmd duration
+  local -a cmdstart now
+
+  cmd=$(< "$base/cmdline")
+  cmdstart=( $(< "$base/cmdstart") )
+  now=( $(millis) )
+
+  # duration consists of seconds and nanoseconds; let's just deal with
+  # milliseconds, since any greater precision is not useful to us with how
+  # slow the system is today, and convert it into a decimal for
+  # reporting.  Nanoseconds may be 0-prefixed, which will be interpreted as
+  # octal without an explicit base specification.
+  duration=$((
+    ((now[0] * 1000) + now[1])
+    - ((cmdstart[0] * 1000) + cmdstart[1])
+  ))
+
+  # the duration is in milliseconds
+  printf "%d\t%s\t%s\n" "$cmdstart" "$duration" "$cmd" >> "$base/runtab"
 }
 
 
