@@ -431,8 +431,10 @@ parent process id (PPID), so tamed will not kill itself if
 run manually on a shell (unless the shell exits first).
 
 Options:
-  --help   show this message
-  --kill   kill a runing tamed at path RUNPATH
+  --help    show this message
+  --kill    kill a runing tamed at path RUNPATH
+  --report  display runner report (this is subject to change
+              in later versions)
 
 Environment Variables:
   TAMED_STALL_SECONDS   number of seconds of runner inactivity before
