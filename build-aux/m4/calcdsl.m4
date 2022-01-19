@@ -37,6 +37,9 @@ AC_ARG_VAR([TAME], [The TAME compiler])
 AC_ARG_VAR([RATER_CLASSPATH], [DSL Compiler Saxon class path])
 AC_ARG_VAR([PROGUI_TEST_PATH], [Path to JavaScript tests for Program UI])
 
+# This can also be set via the environment or during a make invocation
+AC_ARG_VAR([TAMED_TUI], [Enable TUI (text UI) mode for tamed])
+
 # Auto-discover Java and Ant paths
 AC_CHECK_PROGS(JAVA, [java])
 AC_CHECK_PROGS(ANT, [ant])

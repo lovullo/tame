@@ -81,6 +81,15 @@ command-runner()
   # (rather than continuing in background after we die)
   trap 'kill -TERM $pid &>/dev/null' INT TERM
 
+  # log the provided command line and starting time so that we can determine
+  # what is currently being compiled and how long it is taking
+  date +%s > "$base/cmdstart"
+  echo "$*" > "$base/cmdline"
+
+  # notify tamed that it should update any diagnostic display
+  #local -ri tamed_pid=$( < "$root/pid" )
+  #kill -USR2 "$tamed_pid"
+
   # all remaining arguments are passed to the runner
   echo "$*" > "$base/0"
 
@@ -229,6 +238,10 @@ mark-available()
 {
   local -r base=${1?Missing runner base path}
   echo 0 > "$base/busy"
+  echo idle > "$base/cmdline"
+
+  # this can be used to determine how long the worker has been idle
+  date +%s > "$base/cmdstart"
 }
 
 
@@ -380,6 +393,9 @@ kill-tamed()
 # output rather than wasting cycles doing this filtering.
 saneout()
 {
+  # the final line clears the entire line before outputting in an attempt to
+  # better accommodate the runner status line from tamed; this can be
+  # removed once the Makefile properly takes up this task.
   awk '
     /^~~~~\[begin /,/^~~~~\[end / { next }
     /^rm / { next }
@@ -397,7 +413,7 @@ saneout()
     /internal:/ { printf "\033[0;35m"; out=1; }
     /internal error:/ { printf "\033[1m"; out=1; }
     /^[^[]/ || out { print; printf "\033[0;0m"; out=0; }
-  '
+  ' | awk '{printf "\x1b[2K\r%s", $0}'
 }
 
 

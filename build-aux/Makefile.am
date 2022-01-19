@@ -114,13 +114,16 @@ SHELL = /bin/bash -O extglob -O nullglob
 export TAME_CMD_WAITTIME
 export TAMED_STALL_SECONDS
 export TAMED_JAVA_OPTS
+export TAMED_TUI
 
 TAMED_SPAWNER_PID=$(shell echo $$PPID)
 export TAMED_SPAWNER_PID
 
 # Optional timestamping for TAME commands
+TS = 0
 TS_FMT=%s
-tame__ts_0 = :
+tamed_clear__1 = @printf '\e[2K'  # clear line
+tame__ts_0 = $(tamed_clear__$(TAMED_TUI)) # clear line if TUI
 tame__ts_1 = @printf '[%($(TS_FMT))T] '
 TAME_TS = $(tame__ts_$(TS))
 

@@ -21,6 +21,7 @@ Rust 1.53 is now required.
 Compiler
 --------
 - Input mappings will no longer emit the destination param as a dependency.
+- `tamed --report` and `TAMED_TUI` for analyzing build performance.
 
 Documentation
 -------------
