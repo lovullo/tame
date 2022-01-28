@@ -460,7 +460,7 @@ saneout()
     /internal:/ { printf "\033[0;35m"; out=1; }
     /internal error:/ { printf "\033[1m"; out=1; }
     /^[^[]/ || out { print; printf "\033[0;0m"; out=0; }
-  ' | awk '{printf "\x1b[2K\r%s", $0}'
+  ' | sed 's/^/\x1b[2K\r/'
 }
 
 
