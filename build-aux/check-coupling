@@ -70,13 +70,13 @@ find-violations()
             $( non-supplier-maps ) \
     | grep ' /suppliers/'
 
-  # Suppliers must not import other suppliers.
+  # Suppliers must not import other suppliers or UI packages.
   # TODO: Check against supplier maps
   for supplier in suppliers/*.xml; do
     local name=$( basename "$supplier" .xml )
 
     lsimports "$supplier" $( supplier-packages "$name" ) \
-      | grep ' /suppliers/' \
+      | grep ' /suppliers/\|/ui/' \
       | grep -v " /suppliers/$name/"
   done
 }

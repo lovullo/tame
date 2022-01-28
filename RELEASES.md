@@ -43,6 +43,11 @@ Linker
     entities within the XML document.  In some cases, it can reduce peak
     memory usage by half.
 
+Tools
+=====
+- `build-aux/check-coupling` will now prevent `supplier/` packages from
+  importing `ui/` packages; previously only the reverse was true.
+
 
 v18.0.3 (2021-07-21)
 ====================
