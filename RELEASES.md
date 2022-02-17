@@ -27,6 +27,9 @@ Compiler
 - `TAMED_RUNTAB_OUT`, if set, will aggregate all runners' runtabs into a
   single file as jobs are completed.  See `tamed --help` for more
   information and examples.
+- Improved symbol table processing performance.
+  - For packages/maps with thousands of dependenices, this may improve
+    processing time by a minute or more.
 
 Documentation
 -------------

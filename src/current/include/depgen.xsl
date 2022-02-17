@@ -88,7 +88,7 @@
 
 
 <template match="preproc:symtable" mode="preproc:depgen" priority="9">
-  <variable name="symtable" select="." />
+  <variable name="symtable" select="." as="element( preproc:symtable )" />
 
   <variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
                 select="map:merge( for $sym in $symtable/preproc:sym

@@ -243,12 +243,6 @@
         </call-template>
       </variable>
 
-      <!-- remove duplicates (if any) -->
-      <for-each-group select="$extresults/preproc:sym"
-                      group-by="@name">
-        <sequence select="current-group()[ 1 ]" />
-      </for-each-group>
-
       <sequence select="$extresults//preproc:error" />
 
       <!-- process symbols (except imported externs) -->
@@ -260,48 +254,9 @@
         </call-template>
       </variable>
 
-      <!-- contains duplicates -->
-      <variable name="new-seq-map" as="map( xs:string, element( preproc:sym )+ )"
-                select="map:merge(
-                          for $sym in $newresult/preproc:sym
-                            return map{ string( $sym/@name ) : $sym },
-                          map{ 'duplicates' : 'combine' } )" />
-
-      <variable name="new-typed-map" as="map( xs:string, element( preproc:sym ) )"
-                select="map:merge(
-                          for $sym in $newresult/preproc:sym[ @type ]
-                            return map{ string( $sym/@name ) : $sym } )" />
-
-      <variable name="nonlocals-map" as="map( xs:string, element( preproc:sym ) )"
-                select="map:merge(
-                          for $sym in $newresult/preproc:sym[ not( @local = 'true' ) ]
-                            return map{ string( $sym/@name ) : $sym } )" />
-
-      <!-- TODO: revisit this logic -->
-      <variable name="dedup" as="element( preproc:sym )*"
-                    select="$newresult/preproc:sym[
-                            not(
-                              (
-                                @pollute='true'
-                                and not( @type )
-                                and (
-                                  (
-                                    ( count( $new-seq-map( @name ) ) gt 1 )
-                                    and @name=preceding-sibling::preproc:sym/@name
-                                  )
-                                  or exists( $new-typed-map( @name ) )
-                                )
-                              )
-                              or (
-                                @local = 'true'
-                                and exists( $nonlocals-map( @name ) )
-                              )
-                            )
-                          ]" />
-
       <apply-templates mode="preproc:symtable-complete"
-                           select="$dedup">
-        <with-param name="syms" select="$dedup" />
+                           select="$newresult/preproc:sym">
+        <with-param name="syms" select="$newresult/preproc:sym" />
       </apply-templates>
     </preproc:symtable>
 
@@ -444,7 +399,6 @@
 </function>
 
 
-<!-- TODO: revisit this mess -->
 <template name="preproc:symtable-process-symbols">
   <param name="extresults" as="element( preproc:syms )" />
   <param name="new"        as="element( preproc:syms )" />
@@ -454,90 +408,61 @@
                 select="preproc:symtable/preproc:sym[
                           not( @held = 'true' ) ]" />
 
-  <variable name="cursym-map" as="map( xs:string, element( preproc:sym ) )"
-            select="map:merge(
-                      for $sym in $cursym
-                        return map{ string( $sym/@name ) : $sym } )" />
-
-  <variable name="extresults-map" as="map( xs:string, element( preproc:sym ) )"
-            select="map:merge(
-                      for $sym in $extresults/preproc:sym
-                        return map{ string( $sym/@name ) : $sym } )" />
-
-  <!-- contains duplicates -->
-  <variable name="new-seq-map" as="map( xs:string, element( preproc:sym )+ )"
-            select="map:merge(
-                      for $sym in $new/preproc:sym
-                        return map{ string( $sym/@name ) : $sym },
-                      map{ 'duplicates' : 'combine' } )" />
-
   <variable name="new-overrides-map" as="map( xs:string, element( preproc:sym ) )"
             select="map:merge(
                       for $sym in $new/preproc:sym[ @override = 'true' ]
                         return map{ string( $sym/@name ) : $sym } )" />
 
   <preproc:syms>
-    <sequence select="$cursym" />
+    <for-each-group select="$cursym,
+                            $extresults/preproc:sym,
+                            $new/preproc:sym[ not( @extern='true' and @src ) ]"
+                    group-by="@name">
+      <!-- Unfortuantely, <sort> in this context does not sort the resulting
+           groups, so we must do so separately -->
+      <variable name="sorted" as="element( preproc:sym )*">
+        <perform-sort select="current-group()">
+          <sort select="@local" />
+          <sort select="@held" />
+        </perform-sort>
+      </variable>
 
-    <for-each select="$new/preproc:sym[ not( @extern='true' and @src ) ]">
-      <variable name="name" select="@name" />
-      <variable name="src" select="@src" />
+      <!-- first symbol of this name with non-local taking precedence -->
+      <variable name="first" select="$sorted[ 1 ]" />
 
-      <variable name="dupall" as="element( preproc:sym )*"
-                select="$cursym-map( $name ),
-                        $extresults-map( $name ),
-                        if ( count( $new-seq-map( $name ) ) gt 1 ) then
-                            preceding-sibling::preproc:sym[ @name = $name ]
-                          else
-                            ()" />
+      <variable name="name" select="current-grouping-key()" />
+      <variable name="src" select="$first/@src" />
 
       <variable name="override" as="element( preproc:sym )?"
-                select="$new-overrides-map( @name )" />
+                select="$new-overrides-map( $name )" />
 
       <choose>
-        <when test="@pollute='true' and not( @type )">
+        <when test="$first/@pollute='true' and not( $first/@type )">
           <!-- we'll strip these out later -->
-          <sequence select="." />
-        </when>
-
-        <when test="exists( $override ) and not( $override is . )">
-          <!-- overridden; we're obsolete :( -->
+          <sequence select="$first" />
         </when>
 
         <!-- if we've gotten this far, then the override is good; clear it
              so as not to trigger override errors  -->
-        <when test="@override='true'">
-          <copy>
-            <sequence select="@*[ not( name()='override' ) ]" />
+        <when test="$override">
+          <preproc:sym>
+            <sequence select="$override/@*[ not( name()='override' ) ]" />
 
             <!-- mark this has having been overridden for the linker (see
                  TAMER; we'll hopefully be getting rid of overrides in the
                  future) -->
             <attribute name="isoverride" select="'true'" />
 
-            <sequence select="*" />
-          </copy>
-        </when>
-
-        <!-- if we have already imported the symbol as local, but this one
-             is non-local (exportable), then this one takes precedence -->
-        <when test="not( @local = 'true' )
-                          and $dupall[ @local = 'true' ]
-                          and not( $dupall[ not( @local = 'true' ) ] )">
-          <sequence select="." />
-        </when>
-
-        <when test="$dupall[ @type ]">
-          <!-- there is already a symbol of this name from the same package;
-               let's not add duplicates -->
+            <sequence select="$override/*" />
+          </preproc:sym>
         </when>
 
         <otherwise>
           <!-- this symbol is good; use it -->
-          <sequence select="." />
+          <sequence select="$first" />
         </otherwise>
       </choose>
-    </for-each>
+    </for-each-group>
   </preproc:syms>
 </template>
 
