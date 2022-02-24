@@ -290,7 +290,7 @@
   <variable name="result">
     <apply-templates select="." mode="preproc:class-groupgen">
       <with-param name="legacy-classify"
-                  select="compiler:use-legacy-classify( . )"
+                  select="compiler:use-legacy-classify()"
                   tunnel="yes" />
     </apply-templates>
   </variable>

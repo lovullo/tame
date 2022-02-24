@@ -16,10 +16,27 @@ commits that introduce the changes.  To make a new release, run
 
 NEXT
 ====
-Rust 1.53 is now required.
+This version includes a backwards-incomplatible change to enable the new
+classification system for all packages, which was previously gated behind a
+feature flag and the `_use-new-classification-system_` template.  (This
+template will remain for some time before being removed, but will emit
+deprecation warnings.)  This new system can be disabled for now by setting
+`legacy-classify=true` using the new `TAME_PARAMS` configuration option or
+Makefile variable.
+
+Nightly Rust >= 1.53 is now required for TAMER.
 
 Compiler
 --------
+- The new classification system is now enabled by default on all packages.
+  - Legacy systems may use `TAME_PARAMS` (see below) to append
+    `legacy-classify=true` to disable the new system, for now.
+  - The new system will consider `x/0=0`; see commit message for detailed
+    rationale on this change.  This will also remove all `Infinity` and `NaN`
+    values from intermediate and return variables.  These get serialized to
+    `null`s in JSON.
+- `TAME_PARMS`, now accepted by the `Makefile` and `configure` script, will
+  append `key=value` options to the XSLT-based compiler invocations.
 - Input mappings will no longer emit the destination param as a dependency.
 - `tamed --report` and `TAMED_TUI` for analyzing build performance.
 - Runners now store start time and duration for each command, available in
@@ -30,8 +47,6 @@ Compiler
 - Improved symbol table processing performance.
   - For packages/maps with thousands of dependenices, this may improve
     processing time by a minute or more.
-- `TAME_PARMS`, now accepted by the `Makefile` and `configure` script, will
-  append `key=value` options to the XSLT-based compiler invocations.
 
 Documentation
 -------------

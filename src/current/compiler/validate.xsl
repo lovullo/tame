@@ -272,7 +272,7 @@
 <template match="lv:match[@pattern]" mode="lvv:validate-match" priority="9">
   <choose>
     <!-- warn of upcoming removal -->
-    <when test="compiler:use-legacy-classify( ancestor::lv:classify )">
+    <when test="compiler:use-legacy-classify()">
       <message select="concat( 'warning: ',
                                ancestor::lv:classify/@as,
                                ': lv:match[@pattern] support is deprecated ',

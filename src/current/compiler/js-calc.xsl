@@ -830,7 +830,7 @@
 
 <template match="c:expt" mode="compile-calc">
   <!-- we only accept a numerator and a denominator -->
-  <text>Math.pow(</text>
+  <text>pow(</text>
   <apply-templates select="./c:*[1]" mode="compile" />
   <text>, </text>
   <apply-templates select="./c:*[2]" mode="compile" />
