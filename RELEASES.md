@@ -30,6 +30,8 @@ Compiler
 - Improved symbol table processing performance.
   - For packages/maps with thousands of dependenices, this may improve
     processing time by a minute or more.
+- `TAME_PARMS`, now accepted by the `Makefile` and `configure` script, will
+  append `key=value` options to the XSLT-based compiler invocations.
 
 Documentation
 -------------

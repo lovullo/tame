@@ -147,7 +147,7 @@ program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 # Individual dependencies appear in suppliers.mk (see below)
 %.xmlo: %.xmli $(path_tame)/.rev-xmlo
 	$(TAME_TS)
-	$(TAME) compile $< $@
+	$(TAME) compile $< $@ $(TAME_PARAMS)
 
 # Note the `$()' here to prevent Automake from inlining this file---it is
 # to be generated when imports change, which can be at any time.
@@ -157,7 +157,7 @@ summary-html: $(dest_summary_html) ;
 
 %.html: %.js %.xmle
 	$(TAME_TS)
-	$(TAME) summary $*.xmle $@
+	$(TAME) summary $*.xmle $@ $(TAME_PARAMS)
 
 standalones: $(dest_standalone)
 strip: $(dest_standalone_strip) ui/package.strip.js
@@ -166,7 +166,7 @@ strip: $(dest_standalone_strip) ui/package.strip.js
 	$(path_tame)/tamer/target/release/tameld --emit xmle -o $@ $<
 %.js: %.xmle
 	$(TAME_TS)
-	$(TAME) standalone $< $@
+	$(TAME) standalone $< $@ $(TAME_PARAMS)
 %.strip.js: %.js
 	cp $< $@
 	$(path_tame)/tools/strip $@
@@ -176,15 +176,15 @@ c1map: $(dest_c1map)
 
 %.dot: %.xmlo
 	$(TAME_TS)
-	$(TAME) dot $< $@
+	$(TAME) dot $< $@ $(TAME_PARAMS)
 %.dote: %.xmle
 	$(TAME_TS)
-	$(TAME) dot $< $@
+	$(TAME) dot $< $@ $(TAME_PARAMS)
 
 %.neo4j: %.xmlo
-	$(TAME) neo4j $< $@
+	$(TAME) neo4j $< $@ $(TAME_PARAMS)
 %.neo4je: %.xmle
-	$(TAME) neo4j $< $@
+	$(TAME) neo4j $< $@ $(TAME_PARAMS)
 
 
 %.svg: %.dote
@@ -231,22 +231,22 @@ version: .version.xml
 
 ui/program.expanded.xml: ui/program.xml $(program_fragments) .version.xml
 	$(TAME_TS)
-	$(TAME) progui-expand $< $@
+	$(TAME) progui-expand $< $@ $(TAME_PARAMS)
 ui/Program.js: ui/program.expanded.xml ui/package.js
 	$(TAME_TS)
-	$(TAME) progui-class $< $@ include-path=$$(pwd)/ui/
+	$(TAME) progui-class $< $@ include-path=$$(pwd)/ui/ $(TAME_PARAMS)
 ui/html/index.phtml: ui/program.expanded.xml
 	$(TAME_TS)
-	$(TAME) progui-html $< $@ out-path=./
+	$(TAME) progui-html $< $@ out-path=./ $(TAME_PARAMS)
 ui/package-dfns.xmlo: ui/package-dfns.xml $(package_dfns_xmlos)
 ui/package-dfns.xml: ui/program.expanded.xml
 	$(TAME_TS)
-	$(TAME) progui-pkg $< $@
+	$(TAME) progui-pkg $< $@ $(TAME_PARAMS)
 $(package_dfns_pkgs): ui/package-dfns.xml
 ui/package-map.xmlo: ui/package-map.xml ui/package-dfns.xmlo $(package_dfns_xmlos)
 ui/package-map.xml: ui/program.expanded.xml ui/package-dfns.xml
 	$(TAME_TS)
-	$(TAME) progui-pkg-map $< $@
+	$(TAME) progui-pkg-map $< $@ $(TAME_PARAMS)
 
 # for the time being, this does not depend on clean-rate-tables because $(ant) will
 specs:

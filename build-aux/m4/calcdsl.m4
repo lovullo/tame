@@ -34,6 +34,7 @@ AC_ARG_VAR([JAVA], [The Java executable])
 AC_ARG_VAR([ANT], [Apache Ant])
 AC_ARG_VAR([DSLC_JAR], [Path to DSL Compiler JAR])
 AC_ARG_VAR([TAME], [The TAME compiler])
+AC_ARG_VAR([TAME_PARAMS], [key=value pairs for XSLT-based compiler global params])
 AC_ARG_VAR([RATER_CLASSPATH], [DSL Compiler Saxon class path])
 AC_ARG_VAR([PROGUI_TEST_PATH], [Path to JavaScript tests for Program UI])
 
