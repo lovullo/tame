@@ -14,8 +14,8 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
-NEXT
-====
+v19.0.0 (2022-03-01)
+====================
 This version includes a backwards-incomplatible change to enable the new
 classification system for all packages, which was previously gated behind a
 feature flag and the `_use-new-classification-system_` template.  (This
