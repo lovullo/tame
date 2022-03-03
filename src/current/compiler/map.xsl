@@ -796,7 +796,7 @@
               <call-template name="lvmc:gen-input-default">
                 <with-param name="sym" select="$sym" />
                 <with-param name="from-str">
-                  <text>''+val[i]</text>
+                  <text>+val[i]||0</text>
                 </with-param>
                 <!-- We have to reduce the nesting level by one because of
                      our outer loop, but we do not want to go below 0, which

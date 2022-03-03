@@ -14,6 +14,17 @@ commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
 
+NEXT
+====
+This is a bugfix release.
+
+Compiler
+--------
+- Input maps will now ensure that non-numeric string values result in `0`
+  rather than `NaN`, the latter of which results in undefined behavior in
+  the new classification system.
+
+
 v19.0.0 (2022-03-01)
 ====================
 This version includes a backwards-incomplatible change to enable the new
