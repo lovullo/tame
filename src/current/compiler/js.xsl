@@ -2414,7 +2414,7 @@
         {
             // TODO: error
             if ( Array.isArray( input ) ) input = input[0];
-            return ( input === '' || input === undefined ) ? value : +input||0;
+            return ( input === '' || input === undefined ) ? +value : +input||0;
         }
 
         // TODO: error for both
@@ -2423,14 +2423,14 @@
 
         // TODO: this maintains old behavior, but maybe should be an error;
         // we cannot have empty index sets (see design/tpl).
-        if (input.length === 0) input = [value];
+        if (input.length === 0) input = [+value];
 
         return input.map( function( x ) {
             return ( depth === 2 )
               ? Array.isArray( x )
                   ? x.map( function(s) { return +s||0; } )
                   : [ x ]
-              : ( x === '' || x === undefined ) ? value : +x||0;
+              : ( x === '' || x === undefined ) ? +value : +x||0;
         } );
     }
 
