@@ -134,7 +134,7 @@ pub trait TryCollect: Iterator + Sized {
         //     stating that `FnOnce` is "not general enough" and appearing
         //     immune to any attempts to generalize lifetimes using
         //     higher-rank trait bounds (HRTBs).
-        self.while_ok(|iter| iter.try_collect())
+        self.while_ok(|iter| TryCollect::try_collect(iter))
     }
 }
 
