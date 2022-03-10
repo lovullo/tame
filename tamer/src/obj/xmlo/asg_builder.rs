@@ -185,13 +185,24 @@ where
 
         while let Some(ev) = xmlo.next() {
             match (istate, ev?) {
-                (IS::None, XmloEvent::Package(attrs)) => {
+                (IS::None, XmloEvent::PkgName(name)) => {
                     if first {
-                        state.name = attrs.name;
-                        state.relroot = attrs.relroot;
+                        state.name = Some(name);
                     }
+                }
 
-                    elig = attrs.elig;
+                (IS::None, XmloEvent::PkgRootPath(relroot)) => {
+                    if first {
+                        state.relroot = Some(relroot);
+                    }
+                }
+
+                (IS::None, XmloEvent::PkgEligClassYields(pkg_elig)) => {
+                    elig = Some(pkg_elig);
+                }
+
+                (IS::None, XmloEvent::PkgProgramFlag) => {
+                    // Unused
                 }
 
                 (IS::None | IS::SymDep(_), XmloEvent::SymDepStart(sym)) => {
@@ -349,7 +360,7 @@ impl Error for AsgBuilderError {
 mod test {
     use super::*;
     use crate::asg::{DefaultAsg, FragmentText, IdentObject};
-    use crate::obj::xmlo::{PackageAttrs, SymAttrs, SymType};
+    use crate::obj::xmlo::{SymAttrs, SymType};
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 
@@ -363,15 +374,12 @@ mod test {
         let name = "name".intern();
         let relroot = "some/path".into();
 
-        let evs = vec![Ok(XmloEvent::Package(PackageAttrs {
-            name: Some(name),
-            relroot: Some(relroot),
-            ..Default::default()
-        }))];
+        let evs = vec![
+            Ok(XmloEvent::PkgName(name)),
+            Ok(XmloEvent::PkgRootPath(relroot)),
+        ];
 
-        let state = sut
-            .import_xmlo(evs.into_iter(), SutState::new())
-            .expect("parsing of proper PackageAttrs must succeed");
+        let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
         assert_eq!(Some(name), state.name);
         assert_eq!(Some(relroot), state.relroot);
@@ -400,10 +408,7 @@ mod test {
             .declare(elig_sym, IdentKind::Meta, Default::default())
             .unwrap();
 
-        let evs = vec![Ok(XmloEvent::Package(PackageAttrs {
-            elig: Some(elig_sym),
-            ..Default::default()
-        }))];
+        let evs = vec![Ok(XmloEvent::PkgEligClassYields(elig_sym))];
 
         let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
@@ -817,15 +822,12 @@ mod test {
             // Stop here.
             Ok(XmloEvent::Eoh),
             // Shouldn't make it to this one.
-            Ok(XmloEvent::Package(PackageAttrs {
-                name: Some(pkg_name),
-                ..Default::default()
-            })),
+            Ok(XmloEvent::PkgName(pkg_name)),
         ];
 
         let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
-        // Should still be true because we didn't get to the `PackageAttrs`
+        // Should still be true because we didn't get to the `PkgName`
         // event.
         assert!(state.is_first());
     }

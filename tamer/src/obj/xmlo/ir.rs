@@ -31,35 +31,6 @@ use crate::sym::{st, GlobalSymbolResolve, SymbolId};
 use std::convert::TryFrom;
 use std::result::Result;
 
-/// Toplevel package attributes.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct PackageAttrs {
-    /// Unique package identifier.
-    ///
-    /// The package name is derived from the filename relative to the
-    ///   project root during compilation (see `relroot`).
-    pub name: Option<SymbolId>,
-
-    /// Relative path from package to project root.
-    pub relroot: Option<SymbolId>,
-
-    /// Whether this package is a program.
-    ///
-    /// A _program_ is a package intended to be linked into a final
-    ///   executable.
-    /// Programs cannot be imported by other packages.
-    /// Non-program packages cannot be linked.
-    pub program: bool,
-
-    /// Symbol representing package eligibility.
-    ///
-    /// A package is _eligible_ for computation if certain invariants are
-    ///   met.
-    /// This symbol is responsible for including each of those invariants as
-    ///   dependencies so that they are included at link-time.
-    pub elig: Option<SymbolId>,
-}
-
 /// Symbol attributes.
 ///
 /// This is a subset of all available attributes available on the

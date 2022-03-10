@@ -47,7 +47,7 @@
 //! _You should stop reading at [`XmloEvent::Eoh`];_
 //!   reading the remainder of the object file has not yet been implemented.
 
-use super::super::{PackageAttrs, SymAttrs, SymType};
+use super::super::{SymAttrs, SymType};
 use super::{XmloError, XmloEvent, XmloResult};
 use crate::sym::{GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId};
 #[cfg(test)]
@@ -202,13 +202,11 @@ where
             }
 
             XmlEvent::Start(ele) => match ele.name() {
-                b"package" | b"lv:package" => {
-                    let attrs = Self::process_package(&ele)?;
-
-                    self.pkg_name = attrs.name;
-
-                    Ok(XmloEvent::Package(attrs))
-                }
+                b"package" | b"lv:package" => Self::process_package(
+                    &ele,
+                    &mut self.pkg_name,
+                    &mut self.event_queue,
+                ),
 
                 b"preproc:sym-dep" => Self::process_dep(
                     &ele,
@@ -266,13 +264,11 @@ where
     }
 
     /// Process `lv:package` element attributes.
-    ///
-    /// The result is an [`XmloEvent::Package`] containing each applicable
-    ///   attribute,
-    ///     parsed.
     fn process_package<'a>(
         ele: &'a BytesStart<'a>,
-    ) -> XmloResult<PackageAttrs> {
+        pkg_name: &mut Option<SymbolId>,
+        event_queue: &mut VecDeque<XmloEvent>,
+    ) -> XmloResult<XmloEvent> {
         let mut program = false;
         let mut elig = None;
         let mut name = None;
@@ -303,14 +299,22 @@ where
             }
         }
 
-        // TODO: proper errors, no panic
-        Ok(PackageAttrs {
-            name,
-            relroot,
-            program,
-            elig,
-            ..Default::default()
-        })
+        if let Some(given_name) = name {
+            event_queue.push_back(XmloEvent::PkgName(given_name));
+        }
+        if let Some(given_relroot) = relroot {
+            event_queue.push_back(XmloEvent::PkgRootPath(given_relroot));
+        }
+        if let Some(given_elig) = elig {
+            event_queue.push_back(XmloEvent::PkgEligClassYields(given_elig));
+        }
+        if program {
+            event_queue.push_back(XmloEvent::PkgProgramFlag);
+        }
+
+        *pkg_name = name;
+
+        Ok(event_queue.pop_front().unwrap())
     }
 
     /// Process `preproc:sym` element attributes.

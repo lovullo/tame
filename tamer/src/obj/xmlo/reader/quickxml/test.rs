@@ -109,7 +109,9 @@ xmlo_tests! {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"package",
-                Some(MockAttributes::new(vec![])),
+                Some(MockAttributes::new(vec![
+                    MockAttribute::new(b"program", b"true"),
+                ])),
             )))
         }));
 
@@ -123,7 +125,9 @@ xmlo_tests! {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"lv:package",
-                Some(MockAttributes::new(vec![])),
+                Some(MockAttributes::new(vec![
+                    MockAttribute::new(b"program", b"true"),
+                ])),
             )))
         }));
 
@@ -144,35 +148,13 @@ xmlo_tests! {
             )))
         }));
 
-        let result = sut.read_event()?;
-
         assert_eq!(
-            XmloEvent::Package(PackageAttrs {
-                program: true,
-                elig: Some("eligClassYields".intern()),
-                ..Default::default()
-            }),
-            result
+            XmloEvent::PkgEligClassYields("eligClassYields".intern()),
+            sut.read_event()?
         );
-    }
-
-    // DONE
-    fn package_event_nonprogram(sut) {
-        sut.reader.next_event = Some(Box::new(|_, _| {
-            Ok(XmlEvent::Start(MockBytesStart::new(
-                b"package",
-                Some(MockAttributes::new(vec![])),
-            )))
-        }));
-
-        let result = sut.read_event()?;
-
         assert_eq!(
-            XmloEvent::Package(PackageAttrs {
-                program: false,
-                ..Default::default()
-            }),
-            result
+            XmloEvent::PkgProgramFlag,
+            sut.read_event()?
         );
     }
 
@@ -188,16 +170,14 @@ xmlo_tests! {
             )))
         }));
 
-        let result = sut.read_event()?;
+        assert_eq!(
+            XmloEvent::PkgName("pkg/name".intern()),
+            sut.read_event()?
+        );
 
         assert_eq!(
-            XmloEvent::Package(PackageAttrs {
-                name: Some("pkg/name".intern()),
-                relroot: Some("../../".into()),
-                program: false,
-                ..Default::default()
-            }),
-            result
+            XmloEvent::PkgRootPath("../../".intern()),
+            sut.read_event()?
         );
     }
 
@@ -615,17 +595,16 @@ xmlo_tests! {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
                 b"package",
-                Some(MockAttributes::new(vec![])),
+                Some(MockAttributes::new(vec![
+                    MockAttribute::new(b"name", b"pkg/name"),
+                ])),
             )))
         }));
 
         let result = sut.next().unwrap()?;
 
         assert_eq!(
-            XmloEvent::Package(PackageAttrs {
-                program: false,
-                ..Default::default()
-            }),
+            XmloEvent::PkgName("pkg/name".intern()),
             result
         );
     }
