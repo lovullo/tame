@@ -147,12 +147,6 @@ pub enum XmloEvent {
     ///   [`SymAttrs`].
     SymDecl(SymbolId, SymAttrs),
 
-    /// Dependencies of a given symbol.
-    ///
-    /// Note that, for simplicity, an owned vector is returned rather than a
-    ///   slice into an internal buffer.
-    SymDeps(SymbolId, Vec<SymbolId>),
-
     /// Begin adjacency list for a given symbol and interpret subsequent
     ///   symbols as edges (dependencies).
     SymDepStart(SymbolId),

@@ -480,10 +480,6 @@ where
     /// </preproc:sym-dep>
     /// ```
     ///
-    /// This function will read any number of `preproc:sym-ref` nodes and
-    ///   produce a single [`XmloEvent::SymDeps`] containing a [`SymbolId`]
-    ///   for `preproc:sym-dep/@name` and for each `preproc:sym-ref/@name`.
-    ///
     /// Errors
     /// ======
     ///  - [`XmloError::UnassociatedSymDep`] if missing `preproc:sym-dep/@name`.
