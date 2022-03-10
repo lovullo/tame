@@ -204,6 +204,8 @@ pub struct CachingEscaper<S: Escaper> {
 }
 
 impl<S: Escaper> CachingEscaper<S> {
+    // TODO: remove allow along with wip-xmlo-xir-reader
+    #[allow(dead_code)]
     pub fn new(inner: S) -> Self {
         // We know we'll encounter more than the statically allocated
         //   symbols,
@@ -224,6 +226,8 @@ impl<S: Escaper> CachingEscaper<S> {
         }
     }
 
+    // TODO: remove allow along with wip-xmlo-xir-reader
+    #[allow(dead_code)]
     pub fn into_inner(self) -> S {
         self.inner
     }
