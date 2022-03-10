@@ -62,6 +62,7 @@ use quick_xml::events::BytesStart;
 use quick_xml::events::Event as XmlEvent;
 #[cfg(not(test))]
 use quick_xml::Reader as XmlReader;
+use std::collections::VecDeque;
 use std::convert::TryInto;
 use std::io::BufRead;
 use std::iter::Iterator;
@@ -108,6 +109,14 @@ where
     /// This is known after processing the root `package` element,
     ///   provided that it's a proper root node.
     pkg_name: Option<SymbolId>,
+
+    /// Queue of events already processed,
+    ///   to be returned on [`XmloReader::read_event`].
+    ///
+    /// This exists as an incremental transition toward producing a
+    ///   streaming API and will eventually be eliminated.
+    /// It does incur a small performance cost.
+    event_queue: VecDeque<XmloEvent>,
 }
 
 impl<B> XmloReader<B>
@@ -128,6 +137,7 @@ where
             sub_buffer: Vec::new(),
             seen_root: false,
             pkg_name: None,
+            event_queue: VecDeque::new(),
         }
     }
 
@@ -157,6 +167,14 @@ where
         // previous run.  This does not affect behavior.
         self.buffer.clear();
         self.sub_buffer.clear();
+
+        // Return queued events first before continuing processing.
+        // This allows us to begin to transition to a streaming API without
+        //   many structural changes,
+        //     but will eventually go away.
+        if let Some(event) = self.event_queue.pop_front() {
+            return Ok(event);
+        }
 
         let event = self.reader.read_event(&mut self.buffer)?;
 
@@ -196,6 +214,7 @@ where
                     &ele,
                     &mut self.reader,
                     &mut self.sub_buffer,
+                    &mut self.event_queue,
                 ),
 
                 b"preproc:fragment" => Self::process_fragment(
@@ -475,6 +494,7 @@ where
         ele: &'a BytesStart<'a>,
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
+        event_queue: &mut VecDeque<XmloEvent>,
     ) -> XmloResult<XmloEvent> {
         let name = ele
             .attributes()
@@ -485,14 +505,14 @@ where
                 Ok(unsafe { attr.value.intern_utf8_unchecked() })
             })?;
 
-        let mut deps = Vec::new();
+        event_queue.push_back(XmloEvent::SymDepStart(name));
 
         loop {
             match reader.read_event(buffer)? {
                 XmlEvent::Empty(symref)
                     if symref.name() == b"preproc:sym-ref" =>
                 {
-                    deps.push(
+                    event_queue.push_back(XmloEvent::Symbol(
                         symref
                             .attributes()
                             .with_checks(false)
@@ -508,7 +528,7 @@ where
                                     })
                                 },
                             )?,
-                    );
+                    ));
                 }
 
                 // We assume that elements are properly nested, so this must
@@ -525,7 +545,7 @@ where
             }
         }
 
-        Ok(XmloEvent::SymDeps(name, deps))
+        Ok(event_queue.pop_front().unwrap())
     }
 
     /// Process `preproc:fragment` element.

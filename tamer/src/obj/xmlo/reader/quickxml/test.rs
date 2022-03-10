@@ -227,13 +227,14 @@ xmlo_tests! {
             )),
         }));
 
-        let result = sut.read_event()?;
+        let result = sut.take(3).collect::<Result<Vec<_>, _>>()?;
 
         assert_eq!(
-            XmloEvent::SymDeps(
-                "depsym".intern(),
-                vec!["dep1".intern(), "dep2".intern()]
-            ),
+            vec![
+                XmloEvent::SymDepStart("depsym".intern()),
+                XmloEvent::Symbol("dep1".intern()),
+                XmloEvent::Symbol("dep2".intern()),
+            ],
             result
         );
     }

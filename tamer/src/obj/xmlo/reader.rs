@@ -153,6 +153,14 @@ pub enum XmloEvent {
     ///   slice into an internal buffer.
     SymDeps(SymbolId, Vec<SymbolId>),
 
+    /// Begin adjacency list for a given symbol and interpret subsequent
+    ///   symbols as edges (dependencies).
+    SymDepStart(SymbolId),
+
+    /// A symbol reference whose interpretation is dependent on the current
+    ///   state.
+    Symbol(SymbolId),
+
     /// Text (compiled code) fragment for a given symbol.
     ///
     /// This contains the compiler output for a given symbol,

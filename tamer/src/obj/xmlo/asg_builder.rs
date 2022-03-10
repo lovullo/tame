@@ -152,6 +152,19 @@ where
     ) -> Result<S>;
 }
 
+/// Internal state machine for [`AsgBuilder`].
+///
+/// This will likely be worked into [`AsgBuilderState`] eventually and
+/// exists during a transition to the streaming parsers.
+#[derive(Debug, Clone, Copy)]
+enum AsgBuilderInternalState {
+    /// The "old way" of doing things; not yet refactored.
+    None,
+
+    /// Processing symbol dependencies.
+    SymDep(SymbolId),
+}
+
 impl<O, S, G> AsgBuilder<O, S> for G
 where
     O: IdentObjectState<O>,
@@ -167,9 +180,12 @@ where
         let first = state.is_first();
         let found = state.found.get_or_insert(Default::default());
 
+        use AsgBuilderInternalState as IS;
+        let mut istate = IS::None;
+
         while let Some(ev) = xmlo.next() {
-            match ev? {
-                XmloEvent::Package(attrs) => {
+            match (istate, ev?) {
+                (IS::None, XmloEvent::Package(attrs)) => {
                     if first {
                         state.name = attrs.name;
                         state.relroot = attrs.relroot;
@@ -178,13 +194,15 @@ where
                     elig = attrs.elig;
                 }
 
-                XmloEvent::SymDeps(sym, deps) => {
-                    for dep_sym in deps {
-                        self.add_dep_lookup(sym, dep_sym);
-                    }
+                (IS::None | IS::SymDep(_), XmloEvent::SymDepStart(sym)) => {
+                    istate = IS::SymDep(sym);
                 }
 
-                XmloEvent::SymDecl(sym, attrs) => {
+                (IS::SymDep(sym), XmloEvent::Symbol(dep_sym)) => {
+                    self.add_dep_lookup(sym, dep_sym);
+                }
+
+                (IS::None, XmloEvent::SymDecl(sym, attrs)) => {
                     if let Some(sym_src) = attrs.src {
                         found.insert(sym_src);
                     } else {
@@ -218,7 +236,10 @@ where
                     }
                 }
 
-                XmloEvent::Fragment(sym, text) => {
+                // Fragments follow SymDeps.
+                (IS::None | IS::SymDep(_), XmloEvent::Fragment(sym, text)) => {
+                    istate = IS::None;
+
                     let frag = self
                         .lookup(sym)
                         .ok_or(AsgBuilderError::MissingFragmentIdent(sym))?;
@@ -231,7 +252,11 @@ where
                 // may change in the future, in which case this
                 // responsibility can be delegated to the linker (to produce
                 // an `Iterator` that stops at EOH).
-                XmloEvent::Eoh => break,
+                (IS::None, XmloEvent::Eoh) => break,
+
+                (istate, ev) => {
+                    todo!("unexpected state transition: {istate:?} -> {ev:?}")
+                }
             }
         }
 
@@ -393,8 +418,11 @@ mod test {
         let sym_to1 = "to1".intern();
         let sym_to2 = "to2".intern();
 
-        let evs =
-            vec![Ok(XmloEvent::SymDeps(sym_from, vec![sym_to1, sym_to2]))];
+        let evs = vec![
+            Ok(XmloEvent::SymDepStart(sym_from)),
+            Ok(XmloEvent::Symbol(sym_to1)),
+            Ok(XmloEvent::Symbol(sym_to2)),
+        ];
 
         let _ = sut
             .import_xmlo(evs.into_iter(), SutState::new())
