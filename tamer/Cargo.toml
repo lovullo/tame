@@ -26,12 +26,12 @@ lto = true
 arrayvec = ">= 0.7.1"
 bumpalo = ">= 2.6.0"
 fxhash = ">= 0.2.1"
-petgraph = "0.5.1"  # TODO: petgraph-graphml holds this back
+petgraph = "0.6.0"
 quick-xml = ">= 0.23.0-alpha3"
 getopts = "0.2"
 exitcode = "1.1.2"
 lazy_static = ">= 1.4.0"
-petgraph-graphml = ">= 2.0.1"
+petgraph-graphml = "3.0.0"
 static_assertions = ">= 1.1.0"
 memchr = ">= 2.3.4"  # quick-xml expects =2.3.4 at the time
 paste = ">= 1.0.5"
