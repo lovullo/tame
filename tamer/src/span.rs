@@ -313,10 +313,14 @@ impl Span {
     ///   provided value.
     /// If the resulting offset exceeds [`global::SourceFileSize`],
     ///   the result will be [`None`].
-    pub fn offset_add(self, value: global::SourceFileSize) -> Option<Self> {
-        self.offset
-            .checked_add(value)
-            .map(|offset| Self { offset, ..self })
+    pub const fn offset_add(
+        self,
+        value: global::SourceFileSize,
+    ) -> Option<Self> {
+        match self.offset.checked_add(value) {
+            Some(offset) => Some(Self { offset, ..self }),
+            None => None,
+        }
     }
 }
 
