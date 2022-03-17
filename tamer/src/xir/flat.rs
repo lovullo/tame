@@ -37,13 +37,10 @@
 //!   of the caller.
 
 use super::{
+    attr::{Attr, AttrParseError, AttrParseState},
     parse::{
         ParseState, ParseStateResult, ParseStatus, ParsedResult,
         TransitionResult,
-    },
-    tree::{
-        attr::{AttrParseError, AttrParseState},
-        Attr,
     },
     QName, Token, TokenStream, Whitespace,
 };

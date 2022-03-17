@@ -173,13 +173,9 @@
 //!
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
 
-pub mod attr;
-
-use self::{
-    super::parse::{
-        ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
-    },
-    attr::{AttrParseError, AttrParseState},
+use self::super::{
+    attr::{Attr, AttrList, AttrParseError, AttrParseState},
+    parse::{ParseError, ParseResult, ParseState, ParseStatus, ParsedResult},
 };
 
 use super::{
@@ -187,8 +183,6 @@ use super::{
 };
 use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
 use std::{error::Error, fmt::Display, result};
-
-pub use attr::{Attr, AttrList};
 
 type Parsed = super::parse::Parsed<Tree>;
 

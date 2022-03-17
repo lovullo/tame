@@ -69,6 +69,7 @@ pub use error::Error;
 mod escape;
 pub use escape::{DefaultEscaper, Escaper};
 
+pub mod attr;
 pub mod flat;
 pub mod iter;
 pub mod parse;
