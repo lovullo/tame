@@ -22,6 +22,7 @@
 use super::{Token, TokenStream};
 use crate::span::Span;
 use std::fmt::Debug;
+use std::mem::take;
 use std::{error::Error, fmt::Display};
 
 /// Result of applying a [`Token`] to a [`ParseState`],
@@ -69,12 +70,22 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
 
     /// Parse a single [`Token`] and optionally perform a state transition.
     ///
-    /// The current state is represented by `self`,
-    ///   which is mutable to allow for a state transition.
-    /// The result of a parsing operation is either an object or an
-    ///   indication that additional tokens of input are needed;
-    ///     see [`Parsed`] for more information.
-    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self>;
+    /// The current state is represented by `self`.
+    /// The result of a parsing operation is a state transition with
+    ///   associated [`ParseStatus`] data.
+    ///
+    /// Note that `self` is owned,
+    ///   for a couple primary reasons:
+    ///
+    ///   1. This forces the parser to explicitly consider and document all
+    ///        state transitions,
+    ///          rather than potentially missing unintended behavior through
+    ///          implicit behavior; and
+    ///   2. It allows for more natural functional composition of state,
+    ///        which in turn makes it easier to compose parsers
+    ///          (which conceptually involves stitching together state
+    ///            machines).
+    fn parse_token(self, tok: Token) -> TransitionResult<Self>;
 
     /// Whether the current state represents an accepting state.
     ///
@@ -95,8 +106,64 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
 }
 
 /// Result of applying a [`Token`] to a [`ParseState`].
+///
+/// This is used by [`ParseState::parse_token`];
+///   see that function for rationale.
 pub type ParseStateResult<S> =
     Result<ParseStatus<<S as ParseState>::Object>, <S as ParseState>::Error>;
+
+/// Denotes a state transition.
+///
+/// This newtype was created to produce clear, self-documenting code;
+///   parsers can get confusing to read with all of the types involved,
+///     so this provides a mental synchronization point.
+///
+/// This also provides some convenience methods to help remote boilerplate
+///   and further improve code clarity.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Transition<S: ParseState>(pub S);
+
+impl<S: ParseState> Transition<S> {
+    /// A state transition with corresponding data.
+    ///
+    /// This allows [`ParseState::parse_token`] to emit a parsed object and
+    ///   corresponds to [`ParseStatus::Object`].
+    pub fn with(self, obj: S::Object) -> (Self, ParseStateResult<S>) {
+        (self, Ok(ParseStatus::Object(obj)))
+    }
+
+    /// A state transition indicating that more data is needed before an
+    ///   object can be emitted.
+    ///
+    /// This corresponds to [`ParseStatus::Incomplete`].
+    pub fn incomplete(self) -> (Self, ParseStateResult<S>) {
+        (self, Ok(ParseStatus::Incomplete))
+    }
+
+    /// A dead state transition.
+    ///
+    /// This corresponds to [`ParseStatus::Dead`],
+    ///   and a calling parser should use the provided [`Token`] as
+    ///   lookahead.
+    pub fn dead(self, tok: Token) -> (Self, ParseStateResult<S>) {
+        (self, Ok(ParseStatus::Dead(tok)))
+    }
+
+    /// A transition with corresponding error.
+    ///
+    /// This indicates a parsing failure.
+    /// The state ought to be suitable for error recovery.
+    pub fn err<E: Into<S::Error>>(self, err: E) -> (Self, ParseStateResult<S>) {
+        (self, Err(err.into()))
+    }
+}
+
+/// A state transition with associated data.
+///
+/// Conceptually,
+///   imagine the act of a state transition producing data.
+/// See [`Transition`] for convenience methods for producing this tuple.
+pub type TransitionResult<S> = (Transition<S>, ParseStateResult<S>);
 
 /// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
@@ -167,8 +234,12 @@ impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
                 //   reporting in case we encounter an EOF.
                 self.last_span = Some(tok.span());
 
+                let result;
+                (Transition(self.state), result) =
+                    take(&mut self.state).parse_token(tok);
+
                 use ParseStatus::*;
-                match self.state.parse_token(tok) {
+                match result {
                     // Nothing handled this dead state,
                     //   and we cannot discard a lookahead token,
                     //   so we have no choice but to produce an error.
@@ -382,19 +453,15 @@ pub mod test {
         type Object = Token;
         type Error = EchoStateError;
 
-        fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
+        fn parse_token(self, tok: Token) -> TransitionResult<Self> {
             match tok {
-                Token::Comment(..) => {
-                    *self = Self::Done;
-                }
+                Token::Comment(..) => Transition(Self::Done).with(tok),
                 Token::Close(..) => {
-                    return Err(EchoStateError::InnerError(tok))
+                    Transition(self).err(EchoStateError::InnerError(tok))
                 }
-                Token::Text(..) => return Ok(ParseStatus::Dead(tok)),
-                _ => {}
+                Token::Text(..) => Transition(self).dead(tok),
+                _ => Transition(self).with(tok),
             }
-
-            Ok(ParseStatus::Object(tok))
         }
 
         fn is_accepting(&self) -> bool {

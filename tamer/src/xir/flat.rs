@@ -37,16 +37,19 @@
 //!   of the caller.
 
 use super::{
-    parse::{ParseState, ParseStateResult, ParseStatus, ParsedResult},
+    parse::{
+        ParseState, ParseStateResult, ParseStatus, ParsedResult,
+        TransitionResult,
+    },
     tree::{
         attr::{AttrParseError, AttrParseState},
         Attr,
     },
     QName, Token, TokenStream, Whitespace,
 };
-use crate::{span::Span, sym::SymbolId};
+use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
 use arrayvec::ArrayVec;
-use std::{error::Error, fmt::Display, mem::replace};
+use std::{error::Error, fmt::Display};
 
 /// Tag nesting depth
 ///   (`0` represents the root).
@@ -138,10 +141,6 @@ where
 
     /// Delegating to attribute parser.
     AttrExpected(ElementStack<MAX_DEPTH>, SA),
-
-    /// Temporary state used to catch missing explicit state transitions in
-    /// `parse_token`.
-    Invalid,
 }
 
 impl<const MD: usize, SA: FlatAttrParseState> Default for State<MD, SA> {
@@ -150,11 +149,6 @@ impl<const MD: usize, SA: FlatAttrParseState> Default for State<MD, SA> {
     }
 }
 
-/// Denotes a state transition.
-///
-/// This newtype was created to produce clear, self-documenting code.
-struct Transition<T>(T);
-
 impl<const MAX_DEPTH: usize, SA> ParseState for State<MAX_DEPTH, SA>
 where
     SA: FlatAttrParseState,
@@ -162,39 +156,31 @@ where
     type Object = Object;
     type Error = StateError;
 
-    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
+    fn parse_token(self, tok: Token) -> TransitionResult<Self> {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
-        use State::{AttrExpected, Invalid, NodeExpected};
-
-        let result;
+        use State::{AttrExpected, NodeExpected};
 
         // This awkward-looking take-reassign forces us to be explicit
         //   about state transitions in every case,
         //     ensuring that we always have documented proof of what state
         //     the system winds up in.
         // The `Invalid` state prevents using `return`.
-        (Transition(*self), result) = match (replace(self, Invalid), tok) {
+        match (self, tok) {
             (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
 
-            (AttrExpected(stack, mut sa), tok) => match sa.parse_token(tok) {
-                Ok(Incomplete) => {
-                    (Transition(AttrExpected(stack, sa)), Ok(Incomplete))
+            (AttrExpected(stack, sa), tok) => match sa.parse_token(tok) {
+                (Transition(sa), Ok(Incomplete)) => {
+                    Transition(AttrExpected(stack, sa)).incomplete()
                 }
-                Ok(Obj(attr)) => (
-                    Transition(AttrExpected(stack, sa)),
-                    Ok(Obj(Object::Attr(attr))),
-                ),
-                Ok(Dead(lookahead)) => Self::parse_node(stack, lookahead),
-                Err(x) => (Transition(AttrExpected(stack, sa)), Err(x.into())),
+                (Transition(sa), Ok(Obj(attr))) => {
+                    Transition(AttrExpected(stack, sa)).with(Object::Attr(attr))
+                }
+                (_, Ok(Dead(lookahead))) => Self::parse_node(stack, lookahead),
+                (Transition(sa), Err(x)) => {
+                    Transition(AttrExpected(stack, sa)).err(x)
+                }
             },
-
-            // See comment at the top of this function.
-            (Invalid, _) => {
-                unreachable!("XIRF parser reached invalid state")
-            }
-        };
-
-        result
+        }
     }
 
     /// Whether all elements have been closed.
@@ -220,81 +206,71 @@ where
         mut stack: ElementStack<MAX_DEPTH>,
         tok: Token,
     ) -> (Transition<Self>, ParseStateResult<Self>) {
-        use ParseStatus::Object as Obj;
+        use Object::*;
         use State::{AttrExpected, NodeExpected};
 
         match tok {
-            Token::Open(qname, span) if stack.len() == MAX_DEPTH => (
-                Transition(NodeExpected(stack)),
-                Err(StateError::MaxDepthExceeded {
-                    open: (qname, span),
-                    max: Depth(MAX_DEPTH),
-                }),
-            ),
+            Token::Open(qname, span) if stack.len() == MAX_DEPTH => Transition(
+                NodeExpected(stack),
+            )
+            .err(StateError::MaxDepthExceeded {
+                open: (qname, span),
+                max: Depth(MAX_DEPTH),
+            }),
 
             Token::Open(qname, span) => {
                 let depth = stack.len();
                 stack.push((qname, span));
 
                 // Delegate to the attribute parser until it is complete.
-                (
-                    Transition(AttrExpected(stack, SA::default())),
-                    Ok(Obj(Object::Open(qname, span, Depth(depth)))),
-                )
+                Transition(AttrExpected(stack, SA::default())).with(Open(
+                    qname,
+                    span,
+                    Depth(depth),
+                ))
             }
 
             Token::Close(close_oqname, close_span) => {
                 match (close_oqname, stack.pop()) {
-                    (_, None) => (
-                        Transition(NodeExpected(stack)),
-                        Err(StateError::ExtraClosingTag(
-                            close_oqname,
-                            close_span,
-                        )),
+                    (_, None) => Transition(NodeExpected(stack)).err(
+                        StateError::ExtraClosingTag(close_oqname, close_span),
                     ),
 
                     (Some(qname), Some((open_qname, open_span)))
                         if qname != open_qname =>
                     {
-                        (
-                            Transition(NodeExpected(stack)),
-                            Err(StateError::UnbalancedTag {
+                        Transition(NodeExpected(stack)).err(
+                            StateError::UnbalancedTag {
                                 open: (open_qname, open_span),
                                 close: (qname, close_span),
-                            }),
+                            },
                         )
                     }
 
                     (..) => {
                         let depth = stack.len();
-                        (
-                            Transition(NodeExpected(stack)),
-                            Ok(Obj(Object::Close(
-                                close_oqname,
-                                close_span,
-                                Depth(depth),
-                            ))),
-                        )
+
+                        Transition(NodeExpected(stack)).with(Close(
+                            close_oqname,
+                            close_span,
+                            Depth(depth),
+                        ))
                     }
                 }
             }
 
-            Token::Comment(sym, span) => (
-                Transition(NodeExpected(stack)),
-                Ok(Obj(Object::Comment(sym, span))),
-            ),
-            Token::Text(sym, span) => (
-                Transition(NodeExpected(stack)),
-                Ok(Obj(Object::Text(sym, span))),
-            ),
-            Token::CData(sym, span) => (
-                Transition(NodeExpected(stack)),
-                Ok(Obj(Object::CData(sym, span))),
-            ),
-            Token::Whitespace(ws, span) => (
-                Transition(NodeExpected(stack)),
-                Ok(Obj(Object::Whitespace(ws, span))),
-            ),
+            Token::Comment(sym, span) => {
+                Transition(NodeExpected(stack)).with(Comment(sym, span))
+            }
+            Token::Text(sym, span) => {
+                Transition(NodeExpected(stack)).with(Text(sym, span))
+            }
+            Token::CData(sym, span) => {
+                Transition(NodeExpected(stack)).with(CData(sym, span))
+            }
+            Token::Whitespace(ws, span) => {
+                Transition(NodeExpected(stack)).with(Whitespace(ws, span))
+            }
 
             // We should transition to `State::Attr` before encountering any
             //   of these tokens.

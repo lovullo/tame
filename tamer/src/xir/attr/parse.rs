@@ -22,11 +22,11 @@
 use crate::{
     span::Span,
     xir::{
-        parse::{ParseState, ParseStateResult, ParseStatus},
+        parse::{ParseState, Transition, TransitionResult},
         QName, Token,
     },
 };
-use std::{error::Error, fmt::Display, mem::take};
+use std::{error::Error, fmt::Display};
 
 use super::Attr;
 
@@ -48,25 +48,25 @@ impl ParseState for AttrParseState {
     type Object = Attr;
     type Error = AttrParseError;
 
-    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
-        use AttrParseState::*;
+    fn parse_token(self, tok: Token) -> TransitionResult<Self> {
+        use AttrParseState::{Empty, Name};
 
-        match (take(self), tok) {
+        match (self, tok) {
             (Empty, Token::AttrName(name, span)) => {
-                *self = Name(name, span);
-                Ok(ParseStatus::Incomplete)
+                Transition(Name(name, span)).incomplete()
             }
 
-            (Empty, invalid) => return Ok(ParseStatus::Dead(invalid)),
+            (Empty, invalid) => Transition(Empty).dead(invalid),
 
             (Name(name, nspan), Token::AttrValue(value, vspan)) => {
-                Ok(ParseStatus::Object(Attr::new(name, value, (nspan, vspan))))
+                Transition(Empty).with(Attr::new(name, value, (nspan, vspan)))
             }
 
             (Name(name, nspan), invalid) => {
                 // Restore state for error recovery.
-                *self = Name(name, nspan);
-                Err(AttrParseError::AttrValueExpected(name, nspan, invalid))
+                Transition(Name(name, nspan)).err(
+                    AttrParseError::AttrValueExpected(name, nspan, invalid),
+                )
             }
         }
     }
@@ -120,31 +120,32 @@ impl Error for AttrParseError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{convert::ExpectInto, sym::GlobalSymbolIntern};
+    use crate::{
+        convert::ExpectInto,
+        sym::GlobalSymbolIntern,
+        xir::parse::{ParseStatus, Parsed},
+    };
 
-    // TODO: Just make these const
-    lazy_static! {
-        static ref S: Span =
-            Span::from_byte_interval((0, 0), "test case, 1".intern());
-        static ref S2: Span =
-            Span::from_byte_interval((0, 0), "test case, 2".intern());
-        static ref S3: Span =
-            Span::from_byte_interval((0, 0), "test case, 3".intern());
-    }
+    const S: Span = crate::span::DUMMY_SPAN;
+    const S2: Span = S.offset_add(1).unwrap();
 
     #[test]
     fn dead_if_first_token_is_non_attr() {
-        let tok = Token::Open("foo".unwrap_into(), *S);
+        let tok = Token::Open("foo".unwrap_into(), S);
 
-        let mut sut = AttrParseState::default();
+        let sut = AttrParseState::default();
 
         // There is no state that we can transition to,
         //   and we're in an empty accepting state.
-        assert_eq!(Ok(ParseStatus::Dead(tok.clone())), sut.parse_token(tok));
-
-        // Let's just make sure we're in the same state we started in so
-        //   that we know we can accommodate recovery token(s).
-        assert_eq!(sut, AttrParseState::default());
+        assert_eq!(
+            (
+                // Make sure we're in the same state we started in so that
+                //   we know we can accommodate recovery token(s).
+                Transition(AttrParseState::default()),
+                Ok(ParseStatus::Dead(tok.clone()))
+            ),
+            sut.parse_token(tok)
+        );
     }
 
     #[test]
@@ -152,21 +153,17 @@ mod test {
         let attr = "attr".unwrap_into();
         let val = "val".intern();
 
-        let mut sut = AttrParseState::default();
-        let expected = Attr::new(attr, val, (*S, *S2));
+        let toks =
+            [Token::AttrName(attr, S), Token::AttrValue(val, S2)].into_iter();
 
-        // First token represents the name,
-        //   and so we are awaiting a value.
-        assert_eq!(
-            sut.parse_token(Token::AttrName(attr, *S)),
-            Ok(ParseStatus::Incomplete)
-        );
+        let sut = AttrParseState::parse(toks);
 
-        // Once we have a value,
-        //   an Attr can be emitted.
         assert_eq!(
-            sut.parse_token(Token::AttrValue(val, *S2)),
-            Ok(ParseStatus::Object(expected))
+            Ok(vec![
+                Parsed::Incomplete,
+                Parsed::Object(Attr::new(attr, val, (S, S2))),
+            ]),
+            sut.collect()
         );
     }
 
@@ -174,22 +171,22 @@ mod test {
     fn parse_fails_when_attribute_value_missing_but_can_recover() {
         let attr = "bad".unwrap_into();
 
-        let mut sut = AttrParseState::default();
+        let sut = AttrParseState::default();
 
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
-        assert_eq!(
-            sut.parse_token(Token::AttrName(attr, *S)),
-            Ok(ParseStatus::Incomplete)
-        );
+        let (Transition(sut), result) =
+            sut.parse_token(Token::AttrName(attr, S));
+        assert_eq!(result, Ok(ParseStatus::Incomplete));
 
         // But we provide something else unexpected.
+        let (Transition(sut), result) = sut.parse_token(Token::Close(None, S2));
         assert_eq!(
-            sut.parse_token(Token::Close(None, *S2)),
+            result,
             Err(AttrParseError::AttrValueExpected(
                 attr,
-                *S,
-                Token::Close(None, *S2)
+                S,
+                Token::Close(None, S2)
             ))
         );
 
@@ -203,10 +200,11 @@ mod test {
         // Rather than checking for that state,
         //   let's actually attempt a recovery.
         let recover = "value".intern();
-        let expected = Attr::new(attr, recover, (*S, *S2));
+        let (Transition(sut), result) =
+            sut.parse_token(Token::AttrValue(recover, S2));
         assert_eq!(
-            sut.parse_token(Token::AttrValue(recover, *S2)),
-            Ok(ParseStatus::Object(expected))
+            result,
+            Ok(ParseStatus::Object(Attr::new(attr, recover, (S, S2)))),
         );
 
         // Finally, we should now be in an accepting state.

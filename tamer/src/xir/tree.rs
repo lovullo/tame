@@ -177,15 +177,16 @@ pub mod attr;
 
 use self::{
     super::parse::{
-        ParseError, ParseResult, ParseState, ParseStateResult, ParseStatus,
-        ParsedResult,
+        ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
     },
     attr::{AttrParseError, AttrParseState},
 };
 
-use super::{QName, Token, TokenResultStream, TokenStream};
-use crate::{span::Span, sym::SymbolId};
-use std::{error::Error, fmt::Display, mem::take, result};
+use super::{
+    parse::TransitionResult, QName, Token, TokenResultStream, TokenStream,
+};
+use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
+use std::{error::Error, fmt::Display, result};
 
 pub use attr::{Attr, AttrList};
 
@@ -515,65 +516,82 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
     type Object = Tree;
     type Error = StackError;
 
-    fn parse_token(&mut self, tok: Token) -> ParseStateResult<Self> {
+    fn parse_token(self, tok: Token) -> TransitionResult<Self> {
         use Stack::*;
 
-        match (take(self), tok) {
+        match (self, tok) {
             // Open a root element (or lack of context).
             (Empty, Token::Open(name, span)) => {
-                Ok(Self::begin_attrs(name, span, None))
+                Self::begin_attrs(name, span, None)
             }
 
             // Open a child element.
             (BuddingElement(pstack), Token::Open(name, span)) => {
-                Ok(Self::begin_attrs(name, span, Some(pstack.store())))
+                Self::begin_attrs(name, span, Some(pstack.store()))
             }
 
             // Open a child element in attribute parsing context.
             (BuddingAttrList(pstack, attr_list), Token::Open(name, span)) => {
-                Ok(Self::begin_attrs(
+                Self::begin_attrs(
                     name,
                     span,
                     Some(pstack.consume_attrs(attr_list).store()),
-                ))
+                )
             }
 
             // Attribute parsing.
-            (AttrState(estack, attrs, mut sa), tok) => {
+            (AttrState(estack, attrs, sa), tok) => {
                 use ParseStatus::*;
                 match sa.parse_token(tok) {
-                    Ok(Incomplete) => Ok(AttrState(estack, attrs, sa)),
-                    Ok(Object(attr)) => {
-                        Ok(AttrState(estack, attrs.push(attr), sa))
+                    (Transition(sa), Ok(Incomplete)) => {
+                        Transition(AttrState(estack, attrs, sa)).incomplete()
                     }
-                    Ok(Dead(lookahead)) => {
-                        *self = BuddingElement(estack.consume_attrs(attrs));
-                        return self.parse_token(lookahead);
+                    (Transition(sa), Ok(Object(attr))) => {
+                        Transition(AttrState(estack, attrs.push(attr), sa))
+                            .incomplete()
                     }
-                    Err(x) => Err(x.into()),
+                    (_, Ok(Dead(lookahead))) => {
+                        BuddingElement(estack.consume_attrs(attrs))
+                            .parse_token(lookahead)
+                    }
+                    (Transition(sa), Err(x)) => {
+                        Transition(AttrState(estack, attrs, sa)).err(x.into())
+                    }
                 }
             }
 
             (BuddingElement(stack), Token::Close(name, span)) => stack
                 .try_close(name, span)
-                .map(ElementStack::consume_child_or_complete),
+                .map(ElementStack::consume_child_or_complete)
+                .map(|new_stack| match new_stack {
+                    Stack::ClosedElement(ele) => {
+                        Transition(Empty).with(Tree::Element(ele))
+                    }
+                    _ => Transition(new_stack).incomplete(),
+                })
+                .unwrap_or_else(|err| Transition(Empty).err(err)),
 
             (BuddingAttrList(stack, attr_list), Token::Close(name, span)) => {
                 stack
                     .consume_attrs(attr_list)
                     .try_close(name, span)
                     .map(ElementStack::consume_child_or_complete)
+                    .map(|new_stack| match new_stack {
+                        Stack::ClosedElement(ele) => {
+                            Transition(Empty).with(Tree::Element(ele))
+                        }
+                        _ => Transition(new_stack).incomplete(),
+                    })
+                    .unwrap_or_else(|err| Transition(Empty).err(err))
             }
 
             (BuddingElement(mut ele), Token::Text(value, span)) => {
                 ele.element.children.push(Tree::Text(value, span));
 
-                Ok(Self::BuddingElement(ele))
+                Transition(BuddingElement(ele)).incomplete()
             }
 
-            (_, tok) if self.is_accepting() => {
-                return Ok(ParseStatus::Dead(tok))
-            }
+            (st, tok) if st.is_accepting() => Transition(st).dead(tok),
 
             (stack, tok) => {
                 todo!(
@@ -585,7 +603,6 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                 )
             }
         }
-        .map(|new_stack| self.store_or_emit(new_stack))
     }
 
     fn is_accepting(&self) -> bool {
@@ -598,29 +615,16 @@ impl<SA: StackAttrParseState> Stack<SA> {
         name: QName,
         span: Span,
         pstack: Option<Box<ElementStack>>,
-    ) -> Self {
-        Self::AttrState(
+    ) -> TransitionResult<Self> {
+        Transition(Self::AttrState(
             ElementStack {
                 element: Element::open(name, span),
                 pstack,
             },
             Default::default(),
             SA::default(),
-        )
-    }
-
-    /// Emit a completed object or store the current stack for further processing.
-    fn store_or_emit(&mut self, new_stack: Self) -> ParseStatus<Tree> {
-        match new_stack {
-            Stack::ClosedElement(ele) => {
-                ParseStatus::Object(Tree::Element(ele))
-            }
-
-            _ => {
-                *self = new_stack;
-                ParseStatus::Incomplete
-            }
-        }
+        ))
+        .incomplete()
     }
 }
 
