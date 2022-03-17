@@ -38,10 +38,7 @@
 
 use super::{
     attr::{Attr, AttrParseError, AttrParseState},
-    parse::{
-        ParseState, ParseStateResult, ParseStatus, ParsedResult,
-        TransitionResult,
-    },
+    parse::{ParseState, ParseStatus, ParsedResult, TransitionResult},
     QName, Token, TokenStream, Whitespace,
 };
 use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
@@ -202,7 +199,7 @@ where
     fn parse_node(
         mut stack: ElementStack<MAX_DEPTH>,
         tok: Token,
-    ) -> (Transition<Self>, ParseStateResult<Self>) {
+    ) -> TransitionResult<Self> {
         use Object::*;
         use State::{AttrExpected, NodeExpected};
 
