@@ -173,7 +173,7 @@
 //!
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
 
-mod attr;
+pub mod attr;
 
 use self::{
     super::parse::{
