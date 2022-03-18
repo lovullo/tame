@@ -71,19 +71,25 @@ fn empty_element_balanced_close() {
 }
 
 // More closing tags than opening.
+//
+// We cannot keep the token and throw our own error because this tag may be
+//   part of a parent context.
 #[test]
 fn extra_closing_tag() {
     let name = ("ns", "openclose").unwrap_into();
-    let toks = [Token::Close(Some(name), S)].into_iter();
+    let toks = [
+        // We need an opening tag to actually begin document parsing.
+        Token::Open(name, S),
+        Token::Close(Some(name), S2),
+        Token::Close(Some(name), S3),
+    ]
+    .into_iter();
 
-    let mut sut = parse::<1>(toks);
+    let sut = parse::<1>(toks);
 
     assert_eq!(
-        sut.next(),
-        Some(Err(ParseError::StateError(StateError::ExtraClosingTag(
-            Some(name),
-            S,
-        ))))
+        Err(ParseError::UnexpectedToken(Token::Close(Some(name), S3),)),
+        sut.collect::<Result<Vec<Parsed<Object>>, _>>()
     );
 }
 
@@ -92,15 +98,20 @@ fn extra_closing_tag() {
 // gotten to XIRF).
 #[test]
 fn extra_self_closing_tag() {
-    let toks = [Token::Close(None, S)].into_iter();
+    let name = ("ns", "openclose").unwrap_into();
+    let toks = [
+        // We need an opening tag to actually begin document parsing.
+        Token::Open(name, S),
+        Token::Close(None, S2),
+        Token::Close(None, S3),
+    ]
+    .into_iter();
 
-    let mut sut = parse::<1>(toks);
+    let sut = parse::<1>(toks);
 
     assert_eq!(
-        sut.next(),
-        Some(Err(ParseError::StateError(StateError::ExtraClosingTag(
-            None, S,
-        ))))
+        Err(ParseError::UnexpectedToken(Token::Close(None, S3),)),
+        sut.collect::<Result<Vec<Parsed<Object>>, _>>()
     );
 }
 
@@ -354,4 +365,79 @@ fn not_accepting_state_if_element_open() {
 
     // Element was not closed.
     assert_eq!(Some(Err(ParseError::UnexpectedEof(Some(S)))), sut.next());
+}
+
+// XML permits comment nodes before and after the document root element.
+#[test]
+fn comment_before_or_after_root_ok() {
+    let name = "root".unwrap_into();
+    let cstart = "start comment".intern();
+    let cend = "end comment".intern();
+
+    let toks = [
+        Token::Comment(cstart, S),
+        Token::Open(name, S2),
+        Token::Close(None, S3),
+        Token::Comment(cend, S4),
+    ]
+    .into_iter();
+
+    let sut = parse::<1>(toks);
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Object(Object::Comment(cstart, S)),
+            Parsed::Object(Object::Open(name, S2, Depth(0))),
+            Parsed::Object(Object::Close(None, S3, Depth(0))),
+            Parsed::Object(Object::Comment(cend, S4)),
+        ]),
+        sut.collect(),
+    );
+}
+
+// But there must be no content at the end of the document after the closing
+//   root node.
+// This does not test every applicable token;
+//   you can easily verify the actual implementation at a glance.
+//
+// This is just a dead parser state,
+//   since it's possible for XIRF to be composed and we want to return to
+//   the parent parser.
+#[test]
+fn content_after_root_close_error() {
+    let name = "root".unwrap_into();
+
+    let toks = [
+        Token::Open(name, S),
+        Token::Close(None, S2),
+        // Document ends here
+        Token::Open(name, S3),
+    ]
+    .into_iter();
+
+    let sut = parse::<1>(toks);
+
+    assert_eq!(
+        Result::<Vec<Parsed<Object>>, _>::Err(ParseError::UnexpectedToken(
+            Token::Open(name, S3)
+        )),
+        sut.collect()
+    );
+}
+
+// Non-comment nodes cannot appear before the opening root tag.
+#[test]
+fn content_before_root_open_error() {
+    let text = "foo".intern();
+
+    let toks = [Token::Text(text, S)].into_iter();
+
+    let sut = parse::<1>(toks);
+
+    assert_eq!(
+        Result::<Vec<Parsed<Object>>, _>::Err(ParseError::StateError(
+            StateError::RootOpenExpected(Token::Text(text, S))
+        )),
+        sut.collect()
+    );
 }

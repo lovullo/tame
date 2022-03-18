@@ -28,8 +28,10 @@
 //!   1. All closing tags must correspond to a matching opening tag at the
 //!        same depth;
 //!   2. [`Object`] exposes the [`Depth`] of each opening/closing tag;
-//!   3. Attribute tokens are parsed into [`Attr`] objects; and
-//!   4. Parsing will fail if input ends before all elements have been
+//!   3. Attribute tokens are parsed into [`Attr`] objects;
+//!   4. Documents must begin with an element and end with the closing of
+//!        that element;
+//!   5. Parsing will fail if input ends before all elements have been
 //!        closed.
 //!
 //! XIRF lowering does not perform any dynamic memory allocation;
@@ -118,29 +120,26 @@ where
 ///   allowing XIRF's parser to avoid memory allocation entirely.
 type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
 
-/// XIRF parser state.
+/// XIRF document parser state.
 ///
-/// This parser is a pushdown automaton.
-#[derive(Debug, PartialEq, Eq)]
+/// This parser is a pushdown automaton that parses a single XML document.
+#[derive(Debug, Default, PartialEq, Eq)]
 pub enum State<const MAX_DEPTH: usize, SA = AttrParseState>
 where
     SA: FlatAttrParseState,
 {
-    // TODO: Ensure that non-comment nodes are not encountered before the
-    //   root,
-    //     and that we do not encounter any non-comment nodes after the
-    //     root.
+    /// Document parsing has not yet begun.
+    #[default]
+    PreRoot,
+
     /// Parsing nodes.
     NodeExpected(ElementStack<MAX_DEPTH>),
 
     /// Delegating to attribute parser.
     AttrExpected(ElementStack<MAX_DEPTH>, SA),
-}
 
-impl<const MD: usize, SA: FlatAttrParseState> Default for State<MD, SA> {
-    fn default() -> Self {
-        Self::NodeExpected(Default::default())
-    }
+    /// End of document has been reached.
+    Done,
 }
 
 impl<const MAX_DEPTH: usize, SA> ParseState for State<MAX_DEPTH, SA>
@@ -152,9 +151,22 @@ where
 
     fn parse_token(self, tok: Token) -> TransitionResult<Self> {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
-        use State::{AttrExpected, NodeExpected};
+        use State::{AttrExpected, Done, NodeExpected, PreRoot};
 
         match (self, tok) {
+            // Comments are permitted before and after the first root element.
+            (st @ (PreRoot | Done), Token::Comment(sym, span)) => {
+                Transition(st).with(Object::Comment(sym, span))
+            }
+
+            (PreRoot, tok @ Token::Open(..)) => {
+                Self::parse_node(Default::default(), tok)
+            }
+
+            (PreRoot, tok) => {
+                Transition(PreRoot).err(StateError::RootOpenExpected(tok))
+            }
+
             (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
 
             (AttrExpected(stack, sa), tok) => match sa.parse_token(tok) {
@@ -169,6 +181,8 @@ where
                     Transition(AttrExpected(stack, sa)).err(x)
                 }
             },
+
+            (Done, tok) => Transition(Done).dead(tok),
         }
     }
 
@@ -182,7 +196,7 @@ where
         // TODO: It'd be nice if we could also return additional context to
         //   aid the user in diagnosing the problem,
         //     e.g. what element(s) still need closing.
-        matches!(self, Self::NodeExpected(stack) if stack.len() == 0)
+        *self == State::Done
     }
 }
 
@@ -196,7 +210,7 @@ where
         tok: Token,
     ) -> TransitionResult<Self> {
         use Object::*;
-        use State::{AttrExpected, NodeExpected};
+        use State::{AttrExpected, Done, NodeExpected};
 
         match tok {
             Token::Open(qname, span) if stack.len() == MAX_DEPTH => Transition(
@@ -221,9 +235,7 @@ where
 
             Token::Close(close_oqname, close_span) => {
                 match (close_oqname, stack.pop()) {
-                    (_, None) => Transition(NodeExpected(stack)).err(
-                        StateError::ExtraClosingTag(close_oqname, close_span),
-                    ),
+                    (_, None) => unreachable!("parser should be in Done state"),
 
                     (Some(qname), Some((open_qname, open_span)))
                         if qname != open_qname =>
@@ -235,6 +247,13 @@ where
                             },
                         )
                     }
+
+                    // Final closing tag (for root node) completes the document.
+                    (..) if stack.len() == 0 => Transition(Done).with(Close(
+                        close_oqname,
+                        close_span,
+                        Depth(0),
+                    )),
 
                     (..) => {
                         let depth = stack.len();
@@ -283,6 +302,9 @@ pub fn parse<const MAX_DEPTH: usize>(
 /// Parsing error from [`State`].
 #[derive(Debug, Eq, PartialEq)]
 pub enum StateError {
+    /// Opening root element tag was expected.
+    RootOpenExpected(Token),
+
     /// Opening tag exceeds the maximum nesting depth for this parser.
     MaxDepthExceeded { open: (QName, Span), max: Depth },
 
@@ -293,10 +315,6 @@ pub enum StateError {
         close: (QName, Span),
     },
 
-    /// Attempt to close a tag with no corresponding opening tag
-    ///   (which would result in a negative depth).
-    ExtraClosingTag(Option<QName>, Span),
-
     /// Error from the attribute parser.
     AttrError(AttrParseError),
 }
@@ -306,6 +324,14 @@ impl Display for StateError {
         use StateError::*;
 
         match self {
+            RootOpenExpected(tok) => {
+                write!(
+                    f,
+                    "opening root element tag expected, \
+                       but found {tok}"
+                )
+            }
+
             MaxDepthExceeded {
                 open: (name, span),
                 max,
@@ -327,18 +353,6 @@ impl Display for StateError {
                        but found `{close_name}` at {close_span} \
                        (opening tag at {open_span})",
                 )
-            }
-
-            ExtraClosingTag(Some(name), span) => {
-                write!(f, "closing tag `{name}` at {span} has no opening tag",)
-            }
-
-            // If this occurs, its likely that something generated invalid
-            //   XIR;
-            //     it should be a parsing error on read and no generator
-            //     should ever produce this.
-            ExtraClosingTag(None, span) => {
-                write!(f, "self-closing tag at {span} has no opening tag")
             }
 
             AttrError(e) => Display::fmt(e, f),
