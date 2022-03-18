@@ -41,7 +41,7 @@
 use super::{
     attr::{Attr, AttrParseError, AttrParseState},
     parse::{ParseState, ParseStatus, ParsedResult, TransitionResult},
-    QName, Token, TokenStream, Whitespace,
+    QName, Token, Token as XirToken, TokenStream, Whitespace,
 };
 use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
 use arrayvec::ArrayVec;
@@ -109,7 +109,7 @@ pub enum Object {
 }
 
 /// XIRF-compatible attribute parser.
-pub trait FlatAttrParseState = ParseState<Object = Attr>
+pub trait FlatAttrParseState = ParseState<Token = XirToken, Object = Attr>
 where
     <Self as ParseState>::Error: Into<StateError>;
 
@@ -146,6 +146,7 @@ impl<const MAX_DEPTH: usize, SA> ParseState for State<MAX_DEPTH, SA>
 where
     SA: FlatAttrParseState,
 {
+    type Token = XirToken;
     type Object = Object;
     type Error = StateError;
 

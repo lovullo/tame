@@ -567,11 +567,11 @@ impl Display for Token {
     }
 }
 
-impl Token {
+impl parse::Token for Token {
     /// Retrieve the [`Span`] associated with a given [`Token`].
     ///
     /// Every token has an associated span.
-    pub fn span(&self) -> Span {
+    fn span(&self) -> Span {
         use Token::*;
 
         match self {
@@ -585,12 +585,6 @@ impl Token {
             | CData(_, span)
             | Whitespace(_, span) => *span,
         }
-    }
-}
-
-impl From<Token> for Span {
-    fn from(tok: Token) -> Self {
-        tok.span()
     }
 }
 

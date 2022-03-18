@@ -23,7 +23,7 @@ use crate::{
     span::Span,
     xir::{
         parse::{ParseState, Transition, TransitionResult},
-        QName, Token,
+        QName, Token as XirToken,
     },
 };
 use std::{error::Error, fmt::Display};
@@ -45,20 +45,21 @@ pub enum AttrParseState {
 }
 
 impl ParseState for AttrParseState {
+    type Token = XirToken;
     type Object = Attr;
     type Error = AttrParseError;
 
-    fn parse_token(self, tok: Token) -> TransitionResult<Self> {
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
         use AttrParseState::{Empty, Name};
 
         match (self, tok) {
-            (Empty, Token::AttrName(name, span)) => {
+            (Empty, XirToken::AttrName(name, span)) => {
                 Transition(Name(name, span)).incomplete()
             }
 
             (Empty, invalid) => Transition(Empty).dead(invalid),
 
-            (Name(name, nspan), Token::AttrValue(value, vspan)) => {
+            (Name(name, nspan), XirToken::AttrValue(value, vspan)) => {
                 Transition(Empty).with(Attr::new(name, value, (nspan, vspan)))
             }
 
@@ -87,10 +88,10 @@ impl Default for AttrParseState {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AttrParseError {
     /// [`Token::AttrName`] was expected.
-    AttrNameExpected(Token),
+    AttrNameExpected(XirToken),
 
     /// [`Token::AttrValue`] was expected.
-    AttrValueExpected(QName, Span, Token),
+    AttrValueExpected(QName, Span, XirToken),
 }
 
 impl Display for AttrParseError {
@@ -131,7 +132,7 @@ mod test {
 
     #[test]
     fn dead_if_first_token_is_non_attr() {
-        let tok = Token::Open("foo".unwrap_into(), S);
+        let tok = XirToken::Open("foo".unwrap_into(), S);
 
         let sut = AttrParseState::default();
 
@@ -153,8 +154,8 @@ mod test {
         let attr = "attr".unwrap_into();
         let val = "val".intern();
 
-        let toks =
-            [Token::AttrName(attr, S), Token::AttrValue(val, S2)].into_iter();
+        let toks = [XirToken::AttrName(attr, S), XirToken::AttrValue(val, S2)]
+            .into_iter();
 
         let sut = AttrParseState::parse(toks);
 
@@ -176,17 +177,18 @@ mod test {
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
         let (Transition(sut), result) =
-            sut.parse_token(Token::AttrName(attr, S));
+            sut.parse_token(XirToken::AttrName(attr, S));
         assert_eq!(result, Ok(ParseStatus::Incomplete));
 
         // But we provide something else unexpected.
-        let (Transition(sut), result) = sut.parse_token(Token::Close(None, S2));
+        let (Transition(sut), result) =
+            sut.parse_token(XirToken::Close(None, S2));
         assert_eq!(
             result,
             Err(AttrParseError::AttrValueExpected(
                 attr,
                 S,
-                Token::Close(None, S2)
+                XirToken::Close(None, S2)
             ))
         );
 
@@ -201,7 +203,7 @@ mod test {
         //   let's actually attempt a recovery.
         let recover = "value".intern();
         let (Transition(sut), result) =
-            sut.parse_token(Token::AttrValue(recover, S2));
+            sut.parse_token(XirToken::AttrValue(recover, S2));
         assert_eq!(
             result,
             Ok(ParseStatus::Object(Attr::new(attr, recover, (S, S2)))),

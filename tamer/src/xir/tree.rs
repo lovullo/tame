@@ -173,14 +173,15 @@
 //!
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
 
-use self::super::{
+use super::{
     attr::{Attr, AttrList, AttrParseError, AttrParseState},
-    parse::{ParseError, ParseResult, ParseState, ParseStatus, ParsedResult},
+    parse::{
+        ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
+        TransitionResult,
+    },
+    QName, Token, Token as XirToken, TokenResultStream, TokenStream,
 };
 
-use super::{
-    parse::TransitionResult, QName, Token, TokenResultStream, TokenStream,
-};
 use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
 use std::{error::Error, fmt::Display, result};
 
@@ -496,7 +497,7 @@ where
     Done,
 }
 
-pub trait StackAttrParseState = ParseState<Object = Attr>
+pub trait StackAttrParseState = ParseState<Token = XirToken, Object = Attr>
 where
     <Self as ParseState>::Error: Into<StackError>;
 
@@ -507,10 +508,11 @@ impl<SA: StackAttrParseState> Default for Stack<SA> {
 }
 
 impl<SA: StackAttrParseState> ParseState for Stack<SA> {
+    type Token = XirToken;
     type Object = Tree;
     type Error = StackError;
 
-    fn parse_token(self, tok: Token) -> TransitionResult<Self> {
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
         use Stack::*;
 
         match (self, tok) {
@@ -768,7 +770,8 @@ pub fn parser_from(
 #[inline]
 pub fn attr_parser_from<'a>(
     toks: impl TokenStream,
-) -> impl Iterator<Item = result::Result<Attr, ParseError<StackError>>> {
+) -> impl Iterator<Item = result::Result<Attr, ParseError<XirToken, StackError>>>
+{
     use super::parse::Parsed;
 
     AttrParseState::parse(toks).filter_map(|parsed| match parsed {

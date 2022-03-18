@@ -19,7 +19,6 @@
 
 //! Basic streaming parsing framework for XIR lowering operations.
 
-use super::{Token, TokenStream};
 use crate::span::Span;
 use std::fmt::Debug;
 use std::mem::take;
@@ -31,7 +30,34 @@ pub type ParsedResult<S> = ParseResult<S, Parsed<<S as ParseState>::Object>>;
 
 /// Result of some non-parsing operation on a [`Parser`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type ParseResult<S, T> = Result<T, ParseError<<S as ParseState>::Error>>;
+pub type ParseResult<S, T> =
+    Result<T, ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>;
+
+/// A single datum from a streaming IR with an associated [`Span`].
+///
+/// A token may be a lexeme with associated data,
+///   or a more structured object having been lowered from other IRs.
+pub trait Token: Display + Debug + PartialEq + Eq {
+    /// Retrieve the [`Span`] representing the source location of the token.
+    fn span(&self) -> Span;
+}
+
+impl<T: Token> From<T> for Span {
+    fn from(tok: T) -> Self {
+        tok.span()
+    }
+}
+
+/// An infallible [`Token`] stream.
+///
+/// If the token stream originates from an operation that could potentially
+///   fail and ought to be propagated,
+///     use [`TokenResultStream`].
+///
+/// The name "stream" in place of "iterator" is intended to convey that this
+///   type is expected to be processed in real-time as a stream,
+///     not read into memory.
+pub trait TokenStream<T: Token> = Iterator<Item = T>;
 
 /// A deterministic parsing automaton.
 ///
@@ -54,6 +80,9 @@ pub type ParseResult<S, T> = Result<T, ParseError<<S as ParseState>::Error>>;
 ///     [`TokenStream`] at the current position for a given parser
 ///     composition.
 pub trait ParseState: Default + PartialEq + Eq + Debug {
+    /// Input tokens to the parser.
+    type Token: Token;
+
     /// Objects produced by a parser utilizing these states.
     type Object;
 
@@ -64,7 +93,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///
     /// Whether this method is helpful or provides any clarity depends on
     ///   the context and the types that are able to be inferred.
-    fn parse<I: TokenStream>(toks: I) -> Parser<Self, I> {
+    fn parse<I: TokenStream<Self::Token>>(toks: I) -> Parser<Self, I> {
         Parser::from(toks)
     }
 
@@ -85,7 +114,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///        which in turn makes it easier to compose parsers
     ///          (which conceptually involves stitching together state
     ///            machines).
-    fn parse_token(self, tok: Token) -> TransitionResult<Self>;
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self>;
 
     /// Whether the current state represents an accepting state.
     ///
@@ -109,8 +138,10 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
 ///
 /// This is used by [`ParseState::parse_token`];
 ///   see that function for rationale.
-pub type ParseStateResult<S> =
-    Result<ParseStatus<<S as ParseState>::Object>, <S as ParseState>::Error>;
+pub type ParseStateResult<S> = Result<
+    ParseStatus<<S as ParseState>::Token, <S as ParseState>::Object>,
+    <S as ParseState>::Error,
+>;
 
 /// Denotes a state transition.
 ///
@@ -145,7 +176,7 @@ impl<S: ParseState> Transition<S> {
     /// This corresponds to [`ParseStatus::Dead`],
     ///   and a calling parser should use the provided [`Token`] as
     ///   lookahead.
-    pub fn dead(self, tok: Token) -> (Self, ParseStateResult<S>) {
+    pub fn dead(self, tok: S::Token) -> (Self, ParseStateResult<S>) {
         (self, Ok(ParseStatus::Dead(tok)))
     }
 
@@ -180,13 +211,13 @@ pub type TransitionResult<S> = (Transition<S>, ParseStateResult<S>);
 ///   call [`finalize`](Parser::finalize) to ensure that parsing has
 ///     completed in an accepting state.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Parser<S: ParseState, I: TokenStream> {
+pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     toks: I,
     state: S,
     last_span: Option<Span>,
 }
 
-impl<S: ParseState, I: TokenStream> Parser<S, I> {
+impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Indicate that no further parsing will take place using this parser,
     ///   and [`drop`] it.
     ///
@@ -197,7 +228,9 @@ impl<S: ParseState, I: TokenStream> Parser<S, I> {
     /// Consequently,
     ///   the caller should expect [`ParseError::UnexpectedEof`] if the
     ///   parser is not in an accepting state.
-    pub fn finalize(self) -> Result<(), (Self, ParseError<S::Error>)> {
+    pub fn finalize(
+        self,
+    ) -> Result<(), (Self, ParseError<S::Token, S::Error>)> {
         if self.state.is_accepting() {
             Ok(())
         } else {
@@ -207,7 +240,7 @@ impl<S: ParseState, I: TokenStream> Parser<S, I> {
     }
 }
 
-impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
+impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
     type Item = ParsedResult<S>;
 
     /// Parse a single [`Token`] according to the current
@@ -276,7 +309,7 @@ impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
 /// Parsers may return their own unique errors via the
 ///   [`StateError`][ParseError::StateError] variant.
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseError<E: Error + PartialEq + Eq> {
+pub enum ParseError<T: Token, E: Error + PartialEq + Eq> {
     /// Token stream ended unexpectedly.
     ///
     /// This error means that the parser was expecting more input before
@@ -304,15 +337,15 @@ pub enum ParseError<E: Error + PartialEq + Eq> {
     ///   it may be desirable to be able to query [`ParseState`] for what
     ///   tokens are acceptable at this point,
     ///     to provide better error messages.
-    UnexpectedToken(Token),
+    UnexpectedToken(T),
 
     /// A parser-specific error associated with an inner
     ///   [`ParseState`].
     StateError(E),
 }
 
-impl<EA: Error + PartialEq + Eq> ParseError<EA> {
-    pub fn inner_into<EB: Error + PartialEq + Eq>(self) -> ParseError<EB>
+impl<T: Token, EA: Error + PartialEq + Eq> ParseError<T, EA> {
+    pub fn inner_into<EB: Error + PartialEq + Eq>(self) -> ParseError<T, EB>
     where
         EA: Into<EB>,
     {
@@ -325,13 +358,13 @@ impl<EA: Error + PartialEq + Eq> ParseError<EA> {
     }
 }
 
-impl<E: Error + PartialEq + Eq> From<E> for ParseError<E> {
+impl<T: Token, E: Error + PartialEq + Eq> From<E> for ParseError<T, E> {
     fn from(e: E) -> Self {
         Self::StateError(e)
     }
 }
 
-impl<E: Error + PartialEq + Eq> Display for ParseError<E> {
+impl<T: Token, E: Error + PartialEq + Eq> Display for ParseError<T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnexpectedEof(ospan) => {
@@ -350,7 +383,7 @@ impl<E: Error + PartialEq + Eq> Display for ParseError<E> {
     }
 }
 
-impl<E: Error + PartialEq + Eq + 'static> Error for ParseError<E> {
+impl<T: Token, E: Error + PartialEq + Eq + 'static> Error for ParseError<T, E> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::StateError(e) => Some(e),
@@ -359,7 +392,7 @@ impl<E: Error + PartialEq + Eq + 'static> Error for ParseError<E> {
     }
 }
 
-impl<S: ParseState, I: TokenStream> From<I> for Parser<S, I> {
+impl<S: ParseState, I: TokenStream<S::Token>> From<I> for Parser<S, I> {
     fn from(toks: I) -> Self {
         Self {
             toks,
@@ -371,7 +404,7 @@ impl<S: ParseState, I: TokenStream> From<I> for Parser<S, I> {
 
 /// Result of a parsing operation.
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseStatus<T> {
+pub enum ParseStatus<T, O> {
     /// Additional tokens are needed to complete parsing of the next object.
     Incomplete,
 
@@ -379,7 +412,7 @@ pub enum ParseStatus<T> {
     ///
     /// This does not indicate that the parser is complete,
     ///   as more objects may be able to be emitted.
-    Object(T),
+    Object(O),
 
     /// Parser encountered a dead state relative to the given token.
     ///
@@ -404,7 +437,7 @@ pub enum ParseStatus<T> {
     ///
     /// If there is no parent context to handle the token,
     ///   [`Parser`] must yield an error.
-    Dead(Token),
+    Dead(T),
 }
 
 /// Result of a parsing operation.
@@ -413,7 +446,7 @@ pub enum ParseStatus<T> {
 ///   operation,
 ///     this type is public-facing and used by [`Parser`].
 #[derive(Debug, PartialEq, Eq)]
-pub enum Parsed<T> {
+pub enum Parsed<O> {
     /// Additional tokens are needed to complete parsing of the next object.
     Incomplete,
 
@@ -421,11 +454,11 @@ pub enum Parsed<T> {
     ///
     /// This does not indicate that the parser is complete,
     ///   as more objects may be able to be emitted.
-    Object(T),
+    Object(O),
 }
 
-impl<T> From<ParseStatus<T>> for Parsed<T> {
-    fn from(status: ParseStatus<T>) -> Self {
+impl<T: Token, O> From<ParseStatus<T, O>> for Parsed<O> {
+    fn from(status: ParseStatus<T, O>) -> Self {
         match status {
             ParseStatus::Incomplete => Parsed::Incomplete,
             ParseStatus::Object(x) => Parsed::Object(x),
@@ -440,6 +473,7 @@ impl<T> From<ParseStatus<T>> for Parsed<T> {
 pub mod test {
     use std::{assert_matches::assert_matches, iter::once};
 
+    use super::super::Token as XirToken;
     use super::*;
     use crate::{span::DUMMY_SPAN as DS, sym::GlobalSymbolIntern};
 
@@ -456,16 +490,17 @@ pub mod test {
     }
 
     impl ParseState for EchoState {
-        type Object = Token;
+        type Token = XirToken;
+        type Object = XirToken;
         type Error = EchoStateError;
 
-        fn parse_token(self, tok: Token) -> TransitionResult<Self> {
+        fn parse_token(self, tok: XirToken) -> TransitionResult<Self> {
             match tok {
-                Token::Comment(..) => Transition(Self::Done).with(tok),
-                Token::Close(..) => {
+                XirToken::Comment(..) => Transition(Self::Done).with(tok),
+                XirToken::Close(..) => {
                     Transition(self).err(EchoStateError::InnerError(tok))
                 }
-                Token::Text(..) => Transition(self).dead(tok),
+                XirToken::Text(..) => Transition(self).dead(tok),
                 _ => Transition(self).with(tok),
             }
         }
@@ -477,7 +512,7 @@ pub mod test {
 
     #[derive(Debug, PartialEq, Eq)]
     enum EchoStateError {
-        InnerError(Token),
+        InnerError(XirToken),
     }
 
     impl Display for EchoStateError {
@@ -497,7 +532,7 @@ pub mod test {
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {
         // EchoState is placed into a Done state given Comment.
-        let tok = Token::Comment("foo".into(), DS);
+        let tok = XirToken::Comment("foo".into(), DS);
         let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);
@@ -518,7 +553,7 @@ pub mod test {
     #[test]
     fn fails_on_end_of_stream_when_not_in_accepting_state() {
         let span = Span::new(10, 20, "ctx".intern());
-        let mut toks = [Token::Close(None, span)].into_iter();
+        let mut toks = [XirToken::Close(None, span)].into_iter();
 
         let mut sut = Sut::from(&mut toks);
 
@@ -538,8 +573,8 @@ pub mod test {
 
     #[test]
     fn returns_state_specific_error() {
-        // Token::Close causes EchoState to produce an error.
-        let errtok = Token::Close(None, DS);
+        // XirToken::Close causes EchoState to produce an error.
+        let errtok = XirToken::Close(None, DS);
         let mut toks = [errtok.clone()].into_iter();
 
         let mut sut = Sut::from(&mut toks);
@@ -564,10 +599,10 @@ pub mod test {
 
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
-        let recovery = Token::Comment("recov".into(), DS);
+        let recovery = XirToken::Comment("recov".into(), DS);
         let mut toks = [
             // Used purely to populate a Span.
-            Token::Close(None, span),
+            XirToken::Close(None, span),
             // Recovery token here:
             recovery.clone(),
         ]
@@ -605,7 +640,7 @@ pub mod test {
     #[test]
     fn unhandled_dead_state_results_in_error() {
         // A Text will cause our parser to return Dead.
-        let tok = Token::Text("dead".into(), DS);
+        let tok = XirToken::Text("dead".into(), DS);
         let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);
