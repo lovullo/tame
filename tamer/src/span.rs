@@ -322,6 +322,51 @@ impl Span {
             None => None,
         }
     }
+
+    /// Create two zero-length spans representing respectively the first and
+    ///   last offsets in the span.
+    ///
+    /// The second endpoint will be [`None`] if the offset cannot be
+    ///   represented by [`global::SourceFileSize`].
+    ///
+    /// ```
+    /// # use tamer::span::{Span, Context};
+    /// # use tamer::sym::GlobalSymbolIntern;
+    /// #
+    /// # let ctx: Context = "some/path/foo".intern().into();
+    /// #
+    /// // [..... .....]
+    /// //    [A===]
+    /// //    2    6
+    /// let A = Span::new(2, 6, ctx);
+    ///
+    /// assert_eq!(
+    ///   A.endpoints(),
+    ///   (
+    ///       Span::new(2, 0, ctx),
+    ///       Some(Span::new(8, 0, ctx)),
+    ///   ),
+    /// );
+    /// ```
+    pub const fn endpoints(self) -> (Self, Option<Self>) {
+        (
+            // First endpoint.
+            Self {
+                offset: self.offset,
+                len: 0,
+                ..self
+            },
+            // Second endpoint.
+            match self.offset.checked_add(self.len as u32) {
+                Some(offset) => Some(Self {
+                    offset,
+                    len: 0,
+                    ..self
+                }),
+                None => None,
+            },
+        )
+    }
 }
 
 impl Into<u64> for Span {
@@ -583,5 +628,16 @@ mod test {
         let span = Span::new(10, 50, ctx);
 
         assert_eq!((span, span), span.into());
+    }
+
+    #[test]
+    pub fn span_endpoints() {
+        let ctx: Context = "end".intern().into();
+        let span = Span::new(10, 20, ctx);
+
+        let (start, end) = span.endpoints();
+
+        assert_eq!(start, Span::new(10, 0, ctx));
+        assert_eq!(end, Some(Span::new(30, 0, ctx)));
     }
 }

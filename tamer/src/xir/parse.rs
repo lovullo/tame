@@ -201,7 +201,7 @@ impl<S: ParseState, I: TokenStream> Parser<S, I> {
         if self.state.is_accepting() {
             Ok(())
         } else {
-            let span = self.last_span;
+            let span = self.last_span.and_then(|s| s.endpoints().1);
             Err((self, ParseError::UnexpectedEof(span)))
         }
     }
@@ -228,7 +228,13 @@ impl<S: ParseState, I: TokenStream> Iterator for Parser<S, I> {
 
         match otok {
             None if self.state.is_accepting() => None,
-            None => Some(Err(ParseError::UnexpectedEof(self.last_span))),
+
+            // The EOF occurred at the end of the last encountered span,
+            //   if any.
+            None => Some(Err(ParseError::UnexpectedEof(
+                self.last_span.and_then(|s| s.endpoints().1),
+            ))),
+
             Some(tok) => {
                 // Store the most recently encountered Span for error
                 //   reporting in case we encounter an EOF.
@@ -435,7 +441,7 @@ pub mod test {
     use std::{assert_matches::assert_matches, iter::once};
 
     use super::*;
-    use crate::span::DUMMY_SPAN as DS;
+    use crate::{span::DUMMY_SPAN as DS, sym::GlobalSymbolIntern};
 
     #[derive(Debug, PartialEq, Eq)]
     enum EchoState {
@@ -511,7 +517,8 @@ pub mod test {
 
     #[test]
     fn fails_on_end_of_stream_when_not_in_accepting_state() {
-        let mut toks = [Token::Close(None, DS)].into_iter();
+        let span = Span::new(10, 20, "ctx".intern());
+        let mut toks = [Token::Close(None, span)].into_iter();
 
         let mut sut = Sut::from(&mut toks);
 
@@ -523,7 +530,10 @@ pub mod test {
         //   and that EchoState::default does not start in an accepting
         //     state,
         //   we must fail when we encounter the end of the stream.
-        assert_eq!(Some(Err(ParseError::UnexpectedEof(Some(DS)))), sut.next());
+        assert_eq!(
+            Some(Err(ParseError::UnexpectedEof(span.endpoints().1))),
+            sut.next()
+        );
     }
 
     #[test]
@@ -550,12 +560,14 @@ pub mod test {
 
     #[test]
     fn fails_when_parser_is_finalized_in_non_accepting_state() {
+        let span = Span::new(10, 10, "ctx".intern());
+
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
         let recovery = Token::Comment("recov".into(), DS);
         let mut toks = [
             // Used purely to populate a Span.
-            Token::Close(None, DS),
+            Token::Close(None, span),
             // Recovery token here:
             recovery.clone(),
         ]
@@ -574,7 +586,7 @@ pub mod test {
         let result = sut.finalize();
         assert_matches!(
             result,
-            Err((_, ParseError::UnexpectedEof(Some(span)))) if span == DS
+            Err((_, ParseError::UnexpectedEof(s))) if s == span.endpoints().1
         );
 
         // The sut should have been re-returned,
