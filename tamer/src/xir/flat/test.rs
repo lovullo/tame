@@ -22,12 +22,11 @@
 //! These tests take place within the context of the XIR parsing framework,
 //!   so they are one layer of abstraction away from unit tests.
 
-use super::super::parse::ParseError;
 use super::*;
 use crate::convert::ExpectInto;
+use crate::parse::{ParseError, Parsed};
 use crate::span::DUMMY_SPAN;
 use crate::sym::GlobalSymbolIntern;
-use crate::xir::parse::Parsed;
 
 const S: Span = DUMMY_SPAN;
 const S2: Span = S.offset_add(1).unwrap();

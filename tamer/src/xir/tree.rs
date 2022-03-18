@@ -175,17 +175,20 @@
 
 use super::{
     attr::{Attr, AttrList, AttrParseError, AttrParseState},
-    parse::{
-        ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
-        TransitionResult,
-    },
-    QName, Token, Token as XirToken, TokenResultStream, TokenStream,
+    QName, Token, Token as XirToken, TokenStream,
 };
 
-use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
+use crate::{
+    parse::{
+        ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
+        Transition, TransitionResult,
+    },
+    span::Span,
+    sym::SymbolId,
+};
 use std::{error::Error, fmt::Display, result};
 
-type Parsed = super::parse::Parsed<Tree>;
+type Parsed = crate::parse::Parsed<Tree>;
 
 /// A XIR tree (XIRT).
 ///
@@ -772,7 +775,7 @@ pub fn attr_parser_from<'a>(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = result::Result<Attr, ParseError<XirToken, StackError>>>
 {
-    use super::parse::Parsed;
+    use crate::parse::Parsed;
 
     AttrParseState::parse(toks).filter_map(|parsed| match parsed {
         Ok(Parsed::Object(attr)) => Some(Ok(attr)),

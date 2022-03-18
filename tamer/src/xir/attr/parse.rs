@@ -20,11 +20,9 @@
 //! Parse XIR attribute [`TokenStream`][super::super::TokenStream]s.
 
 use crate::{
+    parse::{ParseState, Transition, TransitionResult},
     span::Span,
-    xir::{
-        parse::{ParseState, Transition, TransitionResult},
-        QName, Token as XirToken,
-    },
+    xir::{QName, Token as XirToken},
 };
 use std::{error::Error, fmt::Display};
 
@@ -123,8 +121,8 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
+        parse::{ParseStatus, Parsed},
         sym::GlobalSymbolIntern,
-        xir::parse::{ParseStatus, Parsed},
     };
 
     const S: Span = crate::span::DUMMY_SPAN;

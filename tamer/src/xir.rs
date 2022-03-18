@@ -53,6 +53,7 @@
 //! To parse an entire XML document,
 //!   see [`reader`].
 
+use crate::parse;
 use crate::span::Span;
 use crate::sym::{
     st_as_sym, CIdentStaticSymbolId, GlobalSymbolIntern,
@@ -72,7 +73,6 @@ pub use escape::{DefaultEscaper, Escaper};
 pub mod attr;
 pub mod flat;
 pub mod iter;
-pub mod parse;
 pub mod pred;
 pub mod reader;
 pub mod tree;

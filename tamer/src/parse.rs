@@ -1,4 +1,4 @@
-// Basic parsing framework for XIR into XIRT
+// Basic streaming parsing framework
 //
 //  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
 //
@@ -17,7 +17,9 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Basic streaming parsing framework for XIR lowering operations.
+//! Basic streaming parser framework for lowering operations.
+//!
+//! _TODO: Some proper docs and examples!_
 
 use crate::span::Span;
 use std::fmt::Debug;
@@ -58,6 +60,12 @@ impl<T: Token> From<T> for Span {
 ///   type is expected to be processed in real-time as a stream,
 ///     not read into memory.
 pub trait TokenStream<T: Token> = Iterator<Item = T>;
+
+/// A [`Token`] stream that may encounter errors during parsing.
+///
+/// If the stream cannot fail,
+///   consider using [`TokenStream`].
+pub trait TokenResultStream<T: Token, E: Error> = Iterator<Item = Result<T, E>>;
 
 /// A deterministic parsing automaton.
 ///
@@ -473,9 +481,30 @@ impl<T: Token, O> From<ParseStatus<T, O>> for Parsed<O> {
 pub mod test {
     use std::{assert_matches::assert_matches, iter::once};
 
-    use super::super::Token as XirToken;
     use super::*;
     use crate::{span::DUMMY_SPAN as DS, sym::GlobalSymbolIntern};
+
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    enum TestToken {
+        Close(Span),
+        Comment(Span),
+        Text(Span),
+    }
+
+    impl Display for TestToken {
+        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            unimplemented!("fmt::Display")
+        }
+    }
+
+    impl Token for TestToken {
+        fn span(&self) -> Span {
+            use TestToken::*;
+            match self {
+                Close(span) | Comment(span) | Text(span) => *span,
+            }
+        }
+    }
 
     #[derive(Debug, PartialEq, Eq)]
     enum EchoState {
@@ -490,18 +519,17 @@ pub mod test {
     }
 
     impl ParseState for EchoState {
-        type Token = XirToken;
-        type Object = XirToken;
+        type Token = TestToken;
+        type Object = TestToken;
         type Error = EchoStateError;
 
-        fn parse_token(self, tok: XirToken) -> TransitionResult<Self> {
+        fn parse_token(self, tok: TestToken) -> TransitionResult<Self> {
             match tok {
-                XirToken::Comment(..) => Transition(Self::Done).with(tok),
-                XirToken::Close(..) => {
+                TestToken::Comment(..) => Transition(Self::Done).with(tok),
+                TestToken::Close(..) => {
                     Transition(self).err(EchoStateError::InnerError(tok))
                 }
-                XirToken::Text(..) => Transition(self).dead(tok),
-                _ => Transition(self).with(tok),
+                TestToken::Text(..) => Transition(self).dead(tok),
             }
         }
 
@@ -512,7 +540,7 @@ pub mod test {
 
     #[derive(Debug, PartialEq, Eq)]
     enum EchoStateError {
-        InnerError(XirToken),
+        InnerError(TestToken),
     }
 
     impl Display for EchoStateError {
@@ -532,7 +560,7 @@ pub mod test {
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {
         // EchoState is placed into a Done state given Comment.
-        let tok = XirToken::Comment("foo".into(), DS);
+        let tok = TestToken::Comment(DS);
         let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);
@@ -553,7 +581,7 @@ pub mod test {
     #[test]
     fn fails_on_end_of_stream_when_not_in_accepting_state() {
         let span = Span::new(10, 20, "ctx".intern());
-        let mut toks = [XirToken::Close(None, span)].into_iter();
+        let mut toks = [TestToken::Close(span)].into_iter();
 
         let mut sut = Sut::from(&mut toks);
 
@@ -573,8 +601,8 @@ pub mod test {
 
     #[test]
     fn returns_state_specific_error() {
-        // XirToken::Close causes EchoState to produce an error.
-        let errtok = XirToken::Close(None, DS);
+        // TestToken::Close causes EchoState to produce an error.
+        let errtok = TestToken::Close(DS);
         let mut toks = [errtok.clone()].into_iter();
 
         let mut sut = Sut::from(&mut toks);
@@ -599,10 +627,10 @@ pub mod test {
 
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
-        let recovery = XirToken::Comment("recov".into(), DS);
+        let recovery = TestToken::Comment(DS);
         let mut toks = [
             // Used purely to populate a Span.
-            XirToken::Close(None, span),
+            TestToken::Close(span),
             // Recovery token here:
             recovery.clone(),
         ]
@@ -640,7 +668,7 @@ pub mod test {
     #[test]
     fn unhandled_dead_state_results_in_error() {
         // A Text will cause our parser to return Dead.
-        let tok = XirToken::Text("dead".into(), DS);
+        let tok = TestToken::Text(DS);
         let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);

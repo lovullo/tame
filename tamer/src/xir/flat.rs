@@ -40,10 +40,15 @@
 
 use super::{
     attr::{Attr, AttrParseError, AttrParseState},
-    parse::{ParseState, ParseStatus, ParsedResult, TransitionResult},
     QName, Token, Token as XirToken, TokenStream, Whitespace,
 };
-use crate::{span::Span, sym::SymbolId, xir::parse::Transition};
+use crate::{
+    parse::{
+        ParseState, ParseStatus, ParsedResult, Transition, TransitionResult,
+    },
+    span::Span,
+    sym::SymbolId,
+};
 use arrayvec::ArrayVec;
 use std::{error::Error, fmt::Display};
 

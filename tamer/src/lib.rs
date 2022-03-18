@@ -77,6 +77,7 @@ pub mod fs;
 pub mod iter;
 pub mod ld;
 pub mod obj;
+pub mod parse;
 pub mod span;
 pub mod sym;
 pub mod tpwrap;

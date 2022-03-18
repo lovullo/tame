@@ -19,9 +19,10 @@
 
 //! Errors while processing `xmlo` object files.
 
+use crate::parse::ParseError;
 use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
-use crate::xir::{parse::ParseError, tree::StackError, Token};
+use crate::xir::{tree::StackError, Token};
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.
