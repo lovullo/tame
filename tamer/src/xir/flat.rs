@@ -154,11 +154,6 @@ where
         use ParseStatus::{Dead, Incomplete, Object as Obj};
         use State::{AttrExpected, NodeExpected};
 
-        // This awkward-looking take-reassign forces us to be explicit
-        //   about state transitions in every case,
-        //     ensuring that we always have documented proof of what state
-        //     the system winds up in.
-        // The `Invalid` state prevents using `return`.
         match (self, tok) {
             (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
 
