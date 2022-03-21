@@ -273,7 +273,7 @@ impl Display for LocalPart {
 ///
 /// Whitespace here is expected to consist of `[ \n\t\r]`
 ///   (where the first character in that class is a space).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Whitespace(SymbolId);
 
 impl Deref for Whitespace {

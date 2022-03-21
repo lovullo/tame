@@ -85,10 +85,10 @@ impl Default for AttrParseState {
 /// Attribute parsing error.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AttrParseError {
-    /// [`Token::AttrName`] was expected.
+    /// [`XirToken::AttrName`] was expected.
     AttrNameExpected(XirToken),
 
-    /// [`Token::AttrValue`] was expected.
+    /// [`XirToken::AttrValue`] was expected.
     AttrValueExpected(QName, Span, XirToken),
 }
 

@@ -38,6 +38,8 @@ impl PartialEq for Error {
     }
 }
 
+impl Eq for Error {}
+
 impl From<InnerXmlError> for Error {
     fn from(e: InnerXmlError) -> Self {
         Self(e)

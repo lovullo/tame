@@ -40,11 +40,12 @@
 
 use super::{
     attr::{Attr, AttrParseError, AttrParseState},
-    QName, Token, Token as XirToken, TokenStream, Whitespace,
+    QName, Token as XirToken, TokenStream, Whitespace,
 };
 use crate::{
     parse::{
-        ParseState, ParseStatus, ParsedResult, Transition, TransitionResult,
+        ParseState, ParseStatus, ParsedResult, Token, Transition,
+        TransitionResult,
     },
     span::Span,
     sym::SymbolId,
@@ -113,6 +114,47 @@ pub enum Object {
     Whitespace(Whitespace, Span),
 }
 
+impl Token for Object {
+    fn span(&self) -> Span {
+        use Object::*;
+
+        match self {
+            Open(_, span, _)
+            | Close(_, span, _)
+            | Comment(_, span)
+            | Text(_, span)
+            | CData(_, span)
+            | Whitespace(_, span) => *span,
+
+            Attr(attr) => attr.span(),
+        }
+    }
+}
+
+impl Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Object::*;
+
+        match self {
+            Open(qname, span, _) => {
+                Display::fmt(&XirToken::Open(*qname, *span), f)
+            }
+            Close(oqname, span, _) => {
+                Display::fmt(&XirToken::Close(*oqname, *span), f)
+            }
+            Attr(attr) => Display::fmt(&attr, f),
+            Comment(sym, span) => {
+                Display::fmt(&XirToken::Comment(*sym, *span), f)
+            }
+            Text(sym, span) => Display::fmt(&XirToken::Text(*sym, *span), f),
+            CData(sym, span) => Display::fmt(&XirToken::CData(*sym, *span), f),
+            Whitespace(ws, span) => {
+                Display::fmt(&XirToken::Whitespace(*ws, *span), f)
+            }
+        }
+    }
+}
+
 /// XIRF-compatible attribute parser.
 pub trait FlatAttrParseState = ParseState<Token = XirToken, Object = Attr>
 where
@@ -155,17 +197,17 @@ where
     type Object = Object;
     type Error = StateError;
 
-    fn parse_token(self, tok: Token) -> TransitionResult<Self> {
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
         use State::{AttrExpected, Done, NodeExpected, PreRoot};
 
         match (self, tok) {
             // Comments are permitted before and after the first root element.
-            (st @ (PreRoot | Done), Token::Comment(sym, span)) => {
+            (st @ (PreRoot | Done), XirToken::Comment(sym, span)) => {
                 Transition(st).with(Object::Comment(sym, span))
             }
 
-            (PreRoot, tok @ Token::Open(..)) => {
+            (PreRoot, tok @ XirToken::Open(..)) => {
                 Self::parse_node(Default::default(), tok)
             }
 
@@ -213,21 +255,22 @@ where
     /// Parse a token while in a state expecting a node.
     fn parse_node(
         mut stack: ElementStack<MAX_DEPTH>,
-        tok: Token,
+        tok: <Self as ParseState>::Token,
     ) -> TransitionResult<Self> {
         use Object::*;
         use State::{AttrExpected, Done, NodeExpected};
 
         match tok {
-            Token::Open(qname, span) if stack.len() == MAX_DEPTH => Transition(
-                NodeExpected(stack),
-            )
-            .err(StateError::MaxDepthExceeded {
-                open: (qname, span),
-                max: Depth(MAX_DEPTH),
-            }),
+            XirToken::Open(qname, span) if stack.len() == MAX_DEPTH => {
+                Transition(NodeExpected(stack)).err(
+                    StateError::MaxDepthExceeded {
+                        open: (qname, span),
+                        max: Depth(MAX_DEPTH),
+                    },
+                )
+            }
 
-            Token::Open(qname, span) => {
+            XirToken::Open(qname, span) => {
                 let depth = stack.len();
                 stack.push((qname, span));
 
@@ -239,7 +282,7 @@ where
                 ))
             }
 
-            Token::Close(close_oqname, close_span) => {
+            XirToken::Close(close_oqname, close_span) => {
                 match (close_oqname, stack.pop()) {
                     (_, None) => unreachable!("parser should be in Done state"),
 
@@ -273,24 +316,24 @@ where
                 }
             }
 
-            Token::Comment(sym, span) => {
+            XirToken::Comment(sym, span) => {
                 Transition(NodeExpected(stack)).with(Comment(sym, span))
             }
-            Token::Text(sym, span) => {
+            XirToken::Text(sym, span) => {
                 Transition(NodeExpected(stack)).with(Text(sym, span))
             }
-            Token::CData(sym, span) => {
+            XirToken::CData(sym, span) => {
                 Transition(NodeExpected(stack)).with(CData(sym, span))
             }
-            Token::Whitespace(ws, span) => {
+            XirToken::Whitespace(ws, span) => {
                 Transition(NodeExpected(stack)).with(Whitespace(ws, span))
             }
 
             // We should transition to `State::Attr` before encountering any
             //   of these tokens.
-            Token::AttrName(..)
-            | Token::AttrValue(..)
-            | Token::AttrValueFragment(..) => {
+            XirToken::AttrName(..)
+            | XirToken::AttrValue(..)
+            | XirToken::AttrValueFragment(..) => {
                 unreachable!("attribute token in NodeExpected state: {tok:?}")
             }
         }
@@ -309,7 +352,7 @@ pub fn parse<const MAX_DEPTH: usize>(
 #[derive(Debug, Eq, PartialEq)]
 pub enum StateError {
     /// Opening root element tag was expected.
-    RootOpenExpected(Token),
+    RootOpenExpected(XirToken),
 
     /// Opening tag exceeds the maximum nesting depth for this parser.
     MaxDepthExceeded { open: (QName, Span), max: Depth },

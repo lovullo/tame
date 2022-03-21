@@ -26,7 +26,7 @@
 mod parse;
 
 use super::QName;
-use crate::{span::Span, sym::SymbolId};
+use crate::{parse::Token, span::Span, sym::SymbolId};
 use std::fmt::Display;
 
 pub use parse::{AttrParseError, AttrParseState};
@@ -61,6 +61,15 @@ impl Attr {
     #[inline]
     pub fn value(&self) -> SymbolId {
         self.value
+    }
+}
+
+impl Token for Attr {
+    fn span(&self) -> Span {
+        // TODO: This may or may not actually represent the span relative to
+        //   a given parser,
+        //     so we may want to accept a context to bias toward.
+        self.span.1
     }
 }
 

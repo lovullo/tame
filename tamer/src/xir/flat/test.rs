@@ -37,7 +37,7 @@ const S4: Span = S3.offset_add(1).unwrap();
 fn empty_element_self_close() {
     let name = ("ns", "elem").unwrap_into();
 
-    let toks = [Token::Open(name, S), Token::Close(None, S2)].into_iter();
+    let toks = [XirToken::Open(name, S), XirToken::Close(None, S2)].into_iter();
 
     let sut = parse::<1>(toks);
 
@@ -56,7 +56,8 @@ fn empty_element_self_close() {
 fn empty_element_balanced_close() {
     let name = ("ns", "openclose").unwrap_into();
 
-    let toks = [Token::Open(name, S), Token::Close(Some(name), S2)].into_iter();
+    let toks =
+        [XirToken::Open(name, S), XirToken::Close(Some(name), S2)].into_iter();
 
     let sut = parse::<1>(toks);
 
@@ -78,16 +79,16 @@ fn extra_closing_tag() {
     let name = ("ns", "openclose").unwrap_into();
     let toks = [
         // We need an opening tag to actually begin document parsing.
-        Token::Open(name, S),
-        Token::Close(Some(name), S2),
-        Token::Close(Some(name), S3),
+        XirToken::Open(name, S),
+        XirToken::Close(Some(name), S2),
+        XirToken::Close(Some(name), S3),
     ]
     .into_iter();
 
     let sut = parse::<1>(toks);
 
     assert_eq!(
-        Err(ParseError::UnexpectedToken(Token::Close(Some(name), S3),)),
+        Err(ParseError::UnexpectedToken(XirToken::Close(Some(name), S3),)),
         sut.collect::<Result<Vec<Parsed<Object>>, _>>()
     );
 }
@@ -100,16 +101,16 @@ fn extra_self_closing_tag() {
     let name = ("ns", "openclose").unwrap_into();
     let toks = [
         // We need an opening tag to actually begin document parsing.
-        Token::Open(name, S),
-        Token::Close(None, S2),
-        Token::Close(None, S3),
+        XirToken::Open(name, S),
+        XirToken::Close(None, S2),
+        XirToken::Close(None, S3),
     ]
     .into_iter();
 
     let sut = parse::<1>(toks);
 
     assert_eq!(
-        Err(ParseError::UnexpectedToken(Token::Close(None, S3),)),
+        Err(ParseError::UnexpectedToken(XirToken::Close(None, S3),)),
         sut.collect::<Result<Vec<Parsed<Object>>, _>>()
     );
 }
@@ -122,8 +123,8 @@ fn empty_element_unbalanced_close() {
     let close_name = "unbalanced_name".unwrap_into();
 
     let toks = [
-        Token::Open(open_name, S),
-        Token::Close(Some(close_name), S2),
+        XirToken::Open(open_name, S),
+        XirToken::Close(Some(close_name), S2),
     ]
     .into_iter();
 
@@ -149,10 +150,10 @@ fn single_empty_child() {
     let child = "child".unwrap_into();
 
     let toks = [
-        Token::Open(name, S),
-        Token::Open(child, S2),
-        Token::Close(None, S3),
-        Token::Close(Some(name), S4),
+        XirToken::Open(name, S),
+        XirToken::Open(child, S2),
+        XirToken::Close(None, S3),
+        XirToken::Close(Some(name), S4),
     ]
     .into_iter();
 
@@ -175,9 +176,9 @@ fn depth_exceeded() {
     let exceed = "exceed".unwrap_into();
 
     let toks = [
-        Token::Open(name, S),
+        XirToken::Open(name, S),
         // This one exceeds the max depth, ...
-        Token::Open(exceed, S2),
+        XirToken::Open(exceed, S2),
     ]
     .into_iter();
 
@@ -206,12 +207,12 @@ fn empty_element_with_attrs() {
     let val2 = "val2".intern();
 
     let toks = [
-        Token::Open(name, S),
-        Token::AttrName(attr1, S2),
-        Token::AttrValue(val1, S3),
-        Token::AttrName(attr2, S3),
-        Token::AttrValue(val2, S4),
-        Token::Close(None, S4),
+        XirToken::Open(name, S),
+        XirToken::AttrName(attr1, S2),
+        XirToken::AttrValue(val1, S3),
+        XirToken::AttrName(attr2, S3),
+        XirToken::AttrValue(val2, S4),
+        XirToken::Close(None, S4),
     ]
     .into_iter();
 
@@ -238,12 +239,12 @@ fn child_element_after_attrs() {
     let val = "val".intern();
 
     let toks = [
-        Token::Open(name, S),
-        Token::AttrName(attr, S),
-        Token::AttrValue(val, S2),
-        Token::Open(child, S),
-        Token::Close(None, S2),
-        Token::Close(Some(name), S3),
+        XirToken::Open(name, S),
+        XirToken::AttrName(attr, S),
+        XirToken::AttrValue(val, S2),
+        XirToken::Open(child, S),
+        XirToken::Close(None, S2),
+        XirToken::Close(Some(name), S3),
     ]
     .into_iter();
 
@@ -269,12 +270,12 @@ fn element_with_empty_sibling_children() {
     let childb = "childb".unwrap_into();
 
     let toks = [
-        Token::Open(parent, S),
-        Token::Open(childa, S2),
-        Token::Close(None, S3),
-        Token::Open(childb, S2),
-        Token::Close(None, S3),
-        Token::Close(Some(parent), S2),
+        XirToken::Open(parent, S),
+        XirToken::Open(childa, S2),
+        XirToken::Close(None, S3),
+        XirToken::Open(childb, S2),
+        XirToken::Close(None, S3),
+        XirToken::Close(Some(parent), S2),
     ]
     .into_iter();
 
@@ -302,12 +303,12 @@ fn element_with_child_with_attributes() {
     let value = "attr value".intern();
 
     let toks = [
-        Token::Open(parent, S),
-        Token::Open(child, S),
-        Token::AttrName(attr, S),
-        Token::AttrValue(value, S2),
-        Token::Close(None, S3),
-        Token::Close(Some(parent), S3),
+        XirToken::Open(parent, S),
+        XirToken::Open(child, S),
+        XirToken::AttrName(attr, S),
+        XirToken::AttrValue(value, S2),
+        XirToken::Close(None, S3),
+        XirToken::Close(Some(parent), S3),
     ]
     .into_iter();
 
@@ -332,9 +333,9 @@ fn element_with_text() {
     let text = "inner text".into();
 
     let toks = [
-        Token::Open(parent, S),
-        Token::Text(text, S2),
-        Token::Close(Some(parent), S3),
+        XirToken::Open(parent, S),
+        XirToken::Text(text, S2),
+        XirToken::Close(Some(parent), S3),
     ]
     .into_iter();
 
@@ -353,7 +354,7 @@ fn element_with_text() {
 #[test]
 fn not_accepting_state_if_element_open() {
     let name = "unclosed".unwrap_into();
-    let toks = [Token::Open(name, S)].into_iter();
+    let toks = [XirToken::Open(name, S)].into_iter();
 
     let mut sut = parse::<1>(toks);
 
@@ -374,10 +375,10 @@ fn comment_before_or_after_root_ok() {
     let cend = "end comment".intern();
 
     let toks = [
-        Token::Comment(cstart, S),
-        Token::Open(name, S2),
-        Token::Close(None, S3),
-        Token::Comment(cend, S4),
+        XirToken::Comment(cstart, S),
+        XirToken::Open(name, S2),
+        XirToken::Close(None, S3),
+        XirToken::Comment(cend, S4),
     ]
     .into_iter();
 
@@ -407,10 +408,10 @@ fn content_after_root_close_error() {
     let name = "root".unwrap_into();
 
     let toks = [
-        Token::Open(name, S),
-        Token::Close(None, S2),
+        XirToken::Open(name, S),
+        XirToken::Close(None, S2),
         // Document ends here
-        Token::Open(name, S3),
+        XirToken::Open(name, S3),
     ]
     .into_iter();
 
@@ -418,7 +419,7 @@ fn content_after_root_close_error() {
 
     assert_eq!(
         Result::<Vec<Parsed<Object>>, _>::Err(ParseError::UnexpectedToken(
-            Token::Open(name, S3)
+            XirToken::Open(name, S3)
         )),
         sut.collect()
     );
@@ -429,13 +430,13 @@ fn content_after_root_close_error() {
 fn content_before_root_open_error() {
     let text = "foo".intern();
 
-    let toks = [Token::Text(text, S)].into_iter();
+    let toks = [XirToken::Text(text, S)].into_iter();
 
     let sut = parse::<1>(toks);
 
     assert_eq!(
         Result::<Vec<Parsed<Object>>, _>::Err(ParseError::StateError(
-            StateError::RootOpenExpected(Token::Text(text, S))
+            StateError::RootOpenExpected(XirToken::Text(text, S))
         )),
         sut.collect()
     );
