@@ -25,9 +25,6 @@ use super::xmle::{
     xir::lower_iter,
     XmleSections,
 };
-use crate::sym::SymbolId;
-use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
-use crate::xir::writer::XmlWriter;
 use crate::{
     asg::{Asg, DefaultAsg, IdentObject},
     xir::DefaultEscaper,
@@ -43,13 +40,19 @@ use crate::{
     obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader},
     xir::Escaper,
 };
+use crate::{parse::ParseState, sym::SymbolId};
+use crate::{parse::Parsed, xir::writer::XmlWriter};
+use crate::{
+    sym::{GlobalSymbolIntern, GlobalSymbolResolve},
+    xir::flat,
+};
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
-use std::error::Error;
 use std::fs;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::{error::Error, iter};
 
 type LinkerAsg = DefaultAsg<IdentObject>;
 type LinkerAsgBuilderState = AsgBuilderState<FxBuildHasher>;
@@ -195,10 +198,32 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
             use crate::iter::into_iter_while_ok;
             use crate::xir::reader::XmlXirReader;
 
+            // TODO: This entire block is a WIP and will be incrementally
+            //   abstracted away.
             into_iter_while_ok(XmlXirReader::new(file, escaper), |toks| {
-                let xmlo: XmloReader<_> = toks.into();
-                depgraph.import_xmlo(xmlo, state)
-            })??
+                into_iter_while_ok(flat::State::<64>::parse(toks), |xirf| {
+                    let mut xmlo = XmloReader::parse(iter::empty());
+
+                    let foo = xirf.map(|parsed| match parsed {
+                        Parsed::Incomplete => Ok(Parsed::Incomplete),
+                        Parsed::Object(obj) => {
+                            let item: flat::Object = obj;
+                            xmlo.feed_tok(item)
+                        }
+                    });
+
+                    into_iter_while_ok(foo, |xmlo_out| {
+                        // TODO: Transitionary---we do not want to filter.
+                        depgraph.import_xmlo(
+                            xmlo_out.filter_map(|parsed| match parsed {
+                                Parsed::Incomplete => None,
+                                Parsed::Object(obj) => Some(Ok(obj)),
+                            }),
+                            state,
+                        )
+                    })
+                })
+            })????
         }
     };
 

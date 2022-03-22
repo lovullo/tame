@@ -262,7 +262,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   [`Iterator`] implementation.
     /// The pull system also uses this method to provided data to the
     ///   parser.
-    fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
+    pub fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
         // Store the most recently encountered Span for error
         //   reporting in case we encounter an EOF.
         self.last_span = Some(tok.span());

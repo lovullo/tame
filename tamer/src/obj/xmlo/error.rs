@@ -34,7 +34,7 @@ use std::fmt::Display;
 /// This drastically simplifies the reader and [`Result`] chaining.
 ///
 /// TODO: These errors provide no context (byte offset).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum XmloError {
     /// XML parsing error (legacy, quick-xml).
     XmlError(XmlError),

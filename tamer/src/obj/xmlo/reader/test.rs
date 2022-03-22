@@ -20,23 +20,33 @@
 use std::assert_matches::assert_matches;
 
 use super::*;
-use crate::{convert::ExpectInto, span::DUMMY_SPAN as DS, xir::Token};
+use crate::{
+    convert::ExpectInto,
+    parse::{ParseError, ParseState},
+    span::DUMMY_SPAN as DS,
+    xir::{
+        attr::Attr,
+        flat::{Depth, Object as Xirf},
+    },
+};
 
-type Sut<B> = XmloReader<B>;
-
-#[test]
-fn fail_unexpected_eof() {
-    let mut sut = Sut::from_reader([].into_iter());
-    assert_matches!(sut.next(), Some(Err(XmloError::UnexpectedEof)));
-}
+type Sut = XmloReader;
 
 #[test]
 fn fails_on_invalid_root() {
-    let mut sut = Sut::from_reader(
-        [Token::Open("not-a-valid-package-node".unwrap_into(), DS)].into_iter(),
+    let mut sut = Sut::parse(
+        [Xirf::Open(
+            "not-a-valid-package-node".unwrap_into(),
+            DS,
+            Depth(0),
+        )]
+        .into_iter(),
     );
 
-    assert_matches!(sut.next(), Some(Err(XmloError::UnexpectedRoot)));
+    assert_matches!(
+        sut.next(),
+        Some(Err(ParseError::StateError(XmloError::UnexpectedRoot)))
+    );
 }
 
 //#[test]
@@ -45,17 +55,25 @@ fn _parses_package_attrs() {
     let relroot = "../../".into();
     let elig = "elig-class-yields".into();
 
-    let mut sut = Sut::from_reader(
+    let mut sut = Sut::parse(
         [
-            Token::Open("package".unwrap_into(), DS),
-            Token::AttrName("name".unwrap_into(), DS),
-            Token::AttrValue(name, DS),
-            Token::AttrName("__rootpath".unwrap_into(), DS),
-            Token::AttrValue(relroot, DS),
-            Token::AttrName("program".unwrap_into(), DS),
-            Token::AttrValue(crate::sym::st::raw::L_TRUE, DS),
-            Token::AttrName(("preproc", "elig-class-yields").unwrap_into(), DS),
-            Token::AttrValue(elig, DS),
+            Xirf::Open("package".unwrap_into(), DS, Depth(0)),
+            Xirf::Attr(Attr::new("name".unwrap_into(), name, (DS, DS))),
+            Xirf::Attr(Attr::new(
+                "__rootpath".unwrap_into(),
+                relroot,
+                (DS, DS),
+            )),
+            Xirf::Attr(Attr::new(
+                "program".unwrap_into(),
+                crate::sym::st::raw::L_TRUE,
+                (DS, DS),
+            )),
+            Xirf::Attr(Attr::new(
+                ("preproc", "elig-class-yields").unwrap_into(),
+                elig,
+                (DS, DS),
+            )),
         ]
         .into_iter(),
     );
@@ -70,11 +88,10 @@ fn _parses_package_attrs() {
 fn _parses_package_attrs_with_ns_prefix() {
     let name = "pkgrootns".into();
 
-    let mut sut = Sut::from_reader(
+    let mut sut = Sut::parse(
         [
-            Token::Open(("lv", "package").unwrap_into(), DS),
-            Token::AttrName("name".unwrap_into(), DS),
-            Token::AttrValue(name, DS),
+            Xirf::Open(("lv", "package").unwrap_into(), DS, Depth(0)),
+            Xirf::Attr(Attr::new("name".unwrap_into(), name, (DS, DS))),
         ]
         .into_iter(),
     );

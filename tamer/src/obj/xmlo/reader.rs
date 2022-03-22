@@ -44,68 +44,45 @@ mod new {
     //! This module will be merged into [`super`] once complete;
     //!   it exists to make feature-flagging less confusing and error-prone.
 
-    use super::{XmloError, XmloEvent, XmloResult};
+    use super::{XmloError, XmloEvent};
+    use crate::parse::{ParseState, Transition};
     use crate::sym::st::*;
-    use crate::xir::{Token, TokenStream};
+    use crate::xir::flat::Object as Xirf;
 
     qname_const! {
         QN_LV_PACKAGE: L_LV:L_PACKAGE,
         QN_PACKAGE: :L_PACKAGE,
     }
 
-    #[derive(Debug)]
-    pub struct XmloReader<I: TokenStream> {
-        reader: I,
-        seen_root: bool,
+    #[derive(Debug, Default, PartialEq, Eq)]
+    pub enum XmloReader {
+        #[default]
+        Ready,
     }
 
-    impl<I> XmloReader<I>
-    where
-        I: TokenStream,
-    {
-        pub fn from_reader(reader: I) -> Self {
-            Self {
-                reader,
-                seen_root: false,
-            }
-        }
+    impl ParseState for XmloReader {
+        type Token = Xirf;
+        type Object = XmloEvent;
+        type Error = XmloError;
 
-        pub fn read_event(&mut self) -> XmloResult<XmloEvent> {
-            let token = self.reader.next().ok_or(XmloError::UnexpectedEof)?;
+        fn parse_token(
+            self,
+            tok: Self::Token,
+        ) -> crate::parse::TransitionResult<Self> {
+            use XmloReader::Ready;
 
-            if !self.seen_root {
-                match token {
-                    Token::Open(QN_LV_PACKAGE | QN_PACKAGE, _) => {
-                        todo!("PackageAttrs removed");
-                    }
-
-                    _ => return Err(XmloError::UnexpectedRoot),
+            match (self, tok) {
+                (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, _, _)) => {
+                    todo!("PackageAttrs removed");
                 }
-            }
 
-            match token {
-                todo => todo!("read_event: {:?}", todo),
+                (Ready, _) => Transition(Ready).err(XmloError::UnexpectedRoot),
             }
         }
-    }
 
-    impl<I> Iterator for XmloReader<I>
-    where
-        I: TokenStream,
-    {
-        type Item = XmloResult<XmloEvent>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            Some(self.read_event())
-        }
-    }
-
-    impl<I> From<I> for XmloReader<I>
-    where
-        I: TokenStream,
-    {
-        fn from(toks: I) -> Self {
-            Self::from_reader(toks)
+        fn is_accepting(&self) -> bool {
+            // TODO
+            todo!("XmloReader::is_accepting")
         }
     }
 }
