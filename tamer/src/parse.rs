@@ -239,11 +239,47 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     pub fn finalize(
         self,
     ) -> Result<(), (Self, ParseError<S::Token, S::Error>)> {
+        self.assert_accepting().map_err(|err| (self, err))
+    }
+
+    /// Return [`Ok`] if the parser is in an accepting state,
+    ///   otherwise [`Err`] with [`ParseError::UnexpectedEof`].
+    ///
+    /// See [`finalize`](Self::finalize) for the public-facing method.
+    fn assert_accepting(&self) -> Result<(), ParseError<S::Token, S::Error>> {
         if self.state.is_accepting() {
             Ok(())
         } else {
             let span = self.last_span.and_then(|s| s.endpoints().1);
-            Err((self, ParseError::UnexpectedEof(span)))
+            Err(ParseError::UnexpectedEof(span))
+        }
+    }
+
+    /// Feed an input token to the parser.
+    ///
+    /// This _pushes_ data into the parser,
+    ///   rather than the typical pull system used by [`Parser`]'s
+    ///   [`Iterator`] implementation.
+    /// The pull system also uses this method to provided data to the
+    ///   parser.
+    fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
+        // Store the most recently encountered Span for error
+        //   reporting in case we encounter an EOF.
+        self.last_span = Some(tok.span());
+
+        let result;
+        (Transition(self.state), result) =
+            take(&mut self.state).parse_token(tok);
+
+        use ParseStatus::*;
+        match result {
+            // Nothing handled this dead state,
+            //   and we cannot discard a lookahead token,
+            //   so we have no choice but to produce an error.
+            Ok(Dead(invalid)) => Err(ParseError::UnexpectedToken(invalid)),
+
+            Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
+            Err(e) => Err(e.into()),
         }
     }
 }
@@ -268,39 +304,12 @@ impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
         let otok = self.toks.next();
 
         match otok {
-            None if self.state.is_accepting() => None,
+            None => match self.assert_accepting() {
+                Ok(()) => None,
+                Err(e) => Some(Err(e)),
+            },
 
-            // The EOF occurred at the end of the last encountered span,
-            //   if any.
-            None => Some(Err(ParseError::UnexpectedEof(
-                self.last_span.and_then(|s| s.endpoints().1),
-            ))),
-
-            Some(tok) => {
-                // Store the most recently encountered Span for error
-                //   reporting in case we encounter an EOF.
-                self.last_span = Some(tok.span());
-
-                let result;
-                (Transition(self.state), result) =
-                    take(&mut self.state).parse_token(tok);
-
-                use ParseStatus::*;
-                match result {
-                    // Nothing handled this dead state,
-                    //   and we cannot discard a lookahead token,
-                    //   so we have no choice but to produce an error.
-                    Ok(Dead(invalid)) => {
-                        Some(Err(ParseError::UnexpectedToken(invalid)))
-                    }
-
-                    Ok(parsed @ (Incomplete | Object(..))) => {
-                        Some(Ok(parsed.into()))
-                    }
-
-                    Err(e) => Some(Err(e.into())),
-                }
-            }
+            Some(tok) => Some(self.feed_tok(tok)),
         }
     }
 }
