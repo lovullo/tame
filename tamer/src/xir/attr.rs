@@ -33,25 +33,20 @@ pub use parse::{AttrParseError, AttrParseState};
 
 /// Element attribute.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Attr {
-    name: QName,
-    value: SymbolId,
-    /// Spans for the attribute name and value respectively.
-    span: (Span, Span),
-}
+pub struct Attr(pub QName, pub SymbolId, pub (Span, Span));
 
 impl Attr {
     /// Construct a new simple attribute with a name, value, and respective
     ///   [`Span`]s.
     #[inline]
     pub fn new(name: QName, value: SymbolId, span: (Span, Span)) -> Self {
-        Self { name, value, span }
+        Self(name, value, span)
     }
 
     /// Attribute name.
     #[inline]
     pub fn name(&self) -> QName {
-        self.name
+        self.0
     }
 
     /// Retrieve the value from the attribute.
@@ -60,7 +55,7 @@ impl Attr {
     ///   this returns an owned value.
     #[inline]
     pub fn value(&self) -> SymbolId {
-        self.value
+        self.1
     }
 }
 
@@ -69,13 +64,13 @@ impl Token for Attr {
         // TODO: This may or may not actually represent the span relative to
         //   a given parser,
         //     so we may want to accept a context to bias toward.
-        self.span.1
+        self.2 .1
     }
 }
 
 impl Display for Attr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "`@{}=\"{}\"` at {}", self.name, self.value, self.span.0)
+        write!(f, "`@{}=\"{}\"` at {}", self.0, self.1, self.2 .0)
     }
 }
 
