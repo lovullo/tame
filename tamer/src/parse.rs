@@ -21,8 +21,10 @@
 //!
 //! _TODO: Some proper docs and examples!_
 
+use crate::iter::{TripIter, TrippableIterator};
 use crate::span::Span;
 use std::fmt::Debug;
+use std::iter::{self, Empty};
 use std::mem::take;
 use std::{error::Error, fmt::Display};
 
@@ -262,7 +264,12 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   [`Iterator`] implementation.
     /// The pull system also uses this method to provided data to the
     ///   parser.
-    pub fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
+    ///
+    /// This method is intentionally private,
+    ///   since push parsers are currently supported only internally.
+    /// The only thing preventing this being public is formalization and a
+    ///   commitment to maintain it.
+    fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
         // Store the most recently encountered Span for error
         //   reporting in case we encounter an EOF.
         self.last_span = Some(tok.span());
@@ -280,6 +287,101 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
             Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
             Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Lower the IR produced by this [`Parser`] into another IR by piping
+    ///   the output to a new parser defined by the [`ParseState`] `LS`.
+    ///
+    /// This parser consumes tokens `S::Token` and produces the IR
+    ///   `S::Output`.
+    /// If there is some other [`ParseState`] `LS` such that
+    ///   `LS::Token == S::Output`
+    ///     (that is—the output of this parser is the input to another),
+    ///     then this method will wire the two together into a new iterator
+    ///       that produces `LS::Output`.
+    ///
+    /// Visually, we have,
+    ///   within the provided closure `f`,
+    ///   a [`LowerIter`] that acts as this pipeline:
+    ///
+    /// ```text
+    /// (S::Token) -> (S::Output == LS::Token) -> (LS::Output)
+    /// ```
+    ///
+    /// The new iterator is a [`LowerIter`],
+    ///   and scoped to the provided closure `f`.
+    /// The outer [`Result`] of `Self`'s [`ParsedResult`] is stripped by
+    ///   a [`TripIter`] before being provided as input to a new push
+    ///   [`Parser`] utilizing `LS`.
+    /// A push parser,
+    ///   rather than pulling tokens from a [`TokenStream`],
+    ///   has tokens pushed into it;
+    ///     this parser is created automatically for you.
+    ///
+    /// _TODO_: There's no way to access the inner parser for error recovery
+    ///   after tripping the [`TripIter`].
+    /// Consequently,
+    ///   this API (likely the return type) will change.
+    #[inline]
+    pub fn lower_while_ok<LS, U>(
+        &mut self,
+        f: impl FnOnce(&mut LowerIter<S, I, LS>) -> U,
+    ) -> Result<U, ParseError<S::Token, S::Error>>
+    where
+        LS: ParseState<Token = S::Object>,
+        <S as ParseState>::Object: Token,
+    {
+        self.while_ok(|toks| {
+            // TODO: This parser is not accessible after error recovery!
+            let lower = LS::parse(iter::empty());
+            f(&mut LowerIter { lower, toks })
+        })
+    }
+}
+
+/// An IR lowering operation that pipes the output of one [`Parser`] to the
+///   input of another.
+///
+/// This is produced by [`Parser::lower_while_ok`].
+pub struct LowerIter<'a, 'b, S, I, LS>
+where
+    S: ParseState,
+    I: TokenStream<S::Token>,
+    LS: ParseState<Token = S::Object>,
+    <S as ParseState>::Object: Token,
+{
+    /// A push [`Parser`].
+    lower: Parser<LS, Empty<LS::Token>>,
+
+    /// Source tokens from higher-level [`Parser`],
+    ///   with the outer [`Result`] having been stripped by a [`TripIter`].
+    toks: &'a mut TripIter<
+        'b,
+        Parser<S, I>,
+        Parsed<S::Object>,
+        ParseError<S::Token, S::Error>,
+    >,
+}
+
+impl<'a, 'b, S, I, LS> Iterator for LowerIter<'a, 'b, S, I, LS>
+where
+    S: ParseState,
+    I: TokenStream<S::Token>,
+    LS: ParseState<Token = S::Object>,
+    <S as ParseState>::Object: Token,
+{
+    type Item = ParsedResult<LS>;
+
+    /// Pull a token through the higher-level [`Parser`],
+    ///   push it to the lowering parser,
+    ///   and yield the resulting [`ParseResult`].
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.toks.next() {
+            None => None,
+            Some(Parsed::Incomplete) => Some(Ok(Parsed::Incomplete)),
+            Some(Parsed::Object(obj)) => Some(self.lower.feed_tok(obj)),
         }
     }
 }

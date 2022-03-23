@@ -39,7 +39,7 @@ pub type XmloResult<T> = Result<T, XmloError>;
 
 #[cfg(feature = "wip-xmlo-xir-reader")]
 mod new {
-    //! Re-implementation of `XmloReader` using a [`TokenStream`].
+    //! Re-implementation of `XmloReader` as a [`ParseState`].
     //!
     //! This module will be merged into [`super`] once complete;
     //!   it exists to make feature-flagging less confusing and error-prone.

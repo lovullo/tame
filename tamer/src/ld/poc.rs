@@ -48,11 +48,11 @@ use crate::{
 };
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
+use std::error::Error;
 use std::fs;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use std::{error::Error, iter};
 
 type LinkerAsg = DefaultAsg<IdentObject>;
 type LinkerAsgBuilderState = AsgBuilderState<FxBuildHasher>;
@@ -201,28 +201,20 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
             // TODO: This entire block is a WIP and will be incrementally
             //   abstracted away.
             into_iter_while_ok(XmlXirReader::new(file, escaper), |toks| {
-                into_iter_while_ok(flat::State::<64>::parse(toks), |xirf| {
-                    let mut xmlo = XmloReader::parse(iter::empty());
-
-                    let foo = xirf.map(|parsed| match parsed {
-                        Parsed::Incomplete => Ok(Parsed::Incomplete),
-                        Parsed::Object(obj) => {
-                            let item: flat::Object = obj;
-                            xmlo.feed_tok(item)
-                        }
-                    });
-
-                    into_iter_while_ok(foo, |xmlo_out| {
-                        // TODO: Transitionary---we do not want to filter.
-                        depgraph.import_xmlo(
-                            xmlo_out.filter_map(|parsed| match parsed {
-                                Parsed::Incomplete => None,
-                                Parsed::Object(obj) => Some(Ok(obj)),
-                            }),
-                            state,
-                        )
-                    })
-                })
+                flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _>(
+                    |xirf| {
+                        into_iter_while_ok(xirf, |xmlo_out| {
+                            // TODO: Transitionary---we do not want to filter.
+                            depgraph.import_xmlo(
+                                xmlo_out.filter_map(|parsed| match parsed {
+                                    Parsed::Incomplete => None,
+                                    Parsed::Object(obj) => Some(Ok(obj)),
+                                }),
+                                state,
+                            )
+                        })
+                    },
+                )
             })????
         }
     };
