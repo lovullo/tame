@@ -22,13 +22,19 @@ use std::assert_matches::assert_matches;
 use super::*;
 use crate::{
     convert::ExpectInto,
-    parse::{ParseError, ParseState},
-    span::DUMMY_SPAN as DS,
+    parse::{ParseError, ParseState, Parsed},
+    span::{Span, DUMMY_SPAN},
     xir::{
         attr::Attr,
         flat::{Depth, Object as Xirf},
+        QName,
     },
 };
+
+const S1: Span = DUMMY_SPAN;
+const S2: Span = S1.offset_add(1).unwrap();
+const S3: Span = S2.offset_add(1).unwrap();
+const S4: Span = S3.offset_add(1).unwrap();
 
 type Sut = XmloReader;
 
@@ -37,7 +43,7 @@ fn fails_on_invalid_root() {
     let mut sut = Sut::parse(
         [Xirf::Open(
             "not-a-valid-package-node".unwrap_into(),
-            DS,
+            S1,
             Depth(0),
         )]
         .into_iter(),
@@ -49,54 +55,81 @@ fn fails_on_invalid_root() {
     );
 }
 
-//#[test]
-fn _parses_package_attrs() {
+fn common_parses_package_attrs(package: QName) {
     let name = "pkgroot".into();
     let relroot = "../../".into();
     let elig = "elig-class-yields".into();
 
-    let mut sut = Sut::parse(
-        [
-            Xirf::Open("package".unwrap_into(), DS, Depth(0)),
-            Xirf::Attr(Attr::new("name".unwrap_into(), name, (DS, DS))),
-            Xirf::Attr(Attr::new(
-                "__rootpath".unwrap_into(),
-                relroot,
-                (DS, DS),
-            )),
-            Xirf::Attr(Attr::new(
-                "program".unwrap_into(),
-                crate::sym::st::raw::L_TRUE,
-                (DS, DS),
-            )),
-            Xirf::Attr(Attr::new(
-                ("preproc", "elig-class-yields").unwrap_into(),
-                elig,
-                (DS, DS),
-            )),
-        ]
-        .into_iter(),
+    let toks = [
+        Xirf::Open(package, S1, Depth(0)),
+        Xirf::Attr(Attr::new("name".unwrap_into(), name, (S2, S3))),
+        Xirf::Attr(Attr::new("__rootpath".unwrap_into(), relroot, (S2, S3))),
+        Xirf::Attr(Attr::new(
+            "program".unwrap_into(),
+            crate::sym::st::raw::L_TRUE,
+            (S3, S4),
+        )),
+        Xirf::Attr(Attr::new(
+            ("preproc", "elig-class-yields").unwrap_into(),
+            elig,
+            (S3, S4),
+        )),
+        Xirf::Close(Some(package), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    let sut = Sut::parse(toks);
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete,
+            Parsed::Object(XmloEvent::PkgName(name)),
+            Parsed::Object(XmloEvent::PkgRootPath(relroot)),
+            Parsed::Object(XmloEvent::PkgProgramFlag),
+            Parsed::Object(XmloEvent::PkgEligClassYields(elig)),
+            Parsed::Incomplete,
+        ]),
+        sut.collect(),
     );
-
-    let _result = sut.next();
-
-    todo!()
 }
 
 // The linker does not [yet] parse namespaces.
-//#[test]
-fn _parses_package_attrs_with_ns_prefix() {
-    let name = "pkgrootns".into();
+#[test]
+fn parses_package_attrs_without_ns_prefix() {
+    common_parses_package_attrs("package".unwrap_into());
+}
 
-    let mut sut = Sut::parse(
-        [
-            Xirf::Open(("lv", "package").unwrap_into(), DS, Depth(0)),
-            Xirf::Attr(Attr::new("name".unwrap_into(), name, (DS, DS))),
-        ]
-        .into_iter(),
+// The linker does not [yet] parse namespaces.
+#[test]
+fn parses_package_attrs_with_ns_prefix() {
+    common_parses_package_attrs(("lv", "package").unwrap_into());
+}
+
+// Maintains BC with existing system,
+//   but this ought to reject in the future.
+#[test]
+fn ignores_unknown_package_attr() {
+    let package = "package".unwrap_into();
+    let name = "pkgroot".into();
+
+    let toks = [
+        Xirf::Open(package, S1, Depth(0)),
+        Xirf::Attr(Attr::new("name".unwrap_into(), name, (S2, S3))),
+        // This is ignored.
+        Xirf::Attr(Attr::new("unknown".unwrap_into(), name, (S2, S3))),
+        Xirf::Close(Some(package), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    let sut = Sut::parse(toks);
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete,
+            Parsed::Object(XmloEvent::PkgName(name)),
+            Parsed::Incomplete, // The unknown attribute
+            Parsed::Incomplete,
+        ]),
+        sut.collect(),
     );
-
-    let _result = sut.next();
-
-    todo!()
 }

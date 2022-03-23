@@ -45,19 +45,26 @@ mod new {
     //!   it exists to make feature-flagging less confusing and error-prone.
 
     use super::{XmloError, XmloEvent};
-    use crate::parse::{ParseState, Transition};
+    use crate::parse::{ParseState, Transition, TransitionResult};
     use crate::sym::st::*;
+    use crate::xir::attr::Attr;
     use crate::xir::flat::Object as Xirf;
 
     qname_const! {
         QN_LV_PACKAGE: L_LV:L_PACKAGE,
         QN_PACKAGE: :L_PACKAGE,
+        QN_NAME: :L_NAME,
+        QN_UUROOTPATH: :L_UUROOTPATH,
+        QN_PROGRAM: :L_PROGRAM,
+        QN_PREPROC_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
     }
 
     #[derive(Debug, Default, PartialEq, Eq)]
     pub enum XmloReader {
         #[default]
         Ready,
+        Package,
+        Done,
     }
 
     impl ParseState for XmloReader {
@@ -65,24 +72,40 @@ mod new {
         type Object = XmloEvent;
         type Error = XmloError;
 
-        fn parse_token(
-            self,
-            tok: Self::Token,
-        ) -> crate::parse::TransitionResult<Self> {
-            use XmloReader::Ready;
+        fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+            use XmloReader::{Done, Package, Ready};
 
             match (self, tok) {
-                (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, _, _)) => {
-                    todo!("PackageAttrs removed");
+                (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ..)) => {
+                    Transition(Package).incomplete()
                 }
 
                 (Ready, _) => Transition(Ready).err(XmloError::UnexpectedRoot),
+
+                (Package, Xirf::Attr(Attr(name, value, _))) => {
+                    Transition(Package).with(match name {
+                        QN_NAME => XmloEvent::PkgName(value),
+                        QN_UUROOTPATH => XmloEvent::PkgRootPath(value),
+                        QN_PROGRAM => XmloEvent::PkgProgramFlag,
+                        QN_PREPROC_ELIG_CLASS_YIELDS => {
+                            XmloEvent::PkgEligClassYields(value)
+                        }
+                        // Ignore unknown attributes for now to maintain BC,
+                        //   since no strict xmlo schema has been defined.
+                        _ => return Transition(Package).incomplete(),
+                    })
+                }
+
+                // Empty package (should we allow this?);
+                //   XIRF guarantees a matching closing tag.
+                (Package, Xirf::Close(..)) => Transition(Done).incomplete(),
+
+                todo => todo!("{todo:?}"),
             }
         }
 
         fn is_accepting(&self) -> bool {
-            // TODO
-            todo!("XmloReader::is_accepting")
+            *self == Self::Done
         }
     }
 }
