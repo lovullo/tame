@@ -18,7 +18,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{SymAttrs, XmloError};
-use crate::sym::SymbolId;
+use crate::{
+    parse::{ParseState, Transition, TransitionResult},
+    sym::{st::*, SymbolId},
+    xir::{attr::Attr, flat::Object as Xirf},
+};
 
 // While the _use_ is gated, this isn't, to ensure that we still try to
 // compile it while the flag is off (and so it's parsed by the language
@@ -29,7 +33,7 @@ mod quickxml;
 pub use quickxml::XmloReader;
 
 #[cfg(feature = "wip-xmlo-xir-reader")]
-pub use new::XmloReader;
+pub use XmloReaderState as XmloReader;
 
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
 ///
@@ -37,76 +41,62 @@ pub use new::XmloReader;
 ///   potentially fail in error.
 pub type XmloResult<T> = Result<T, XmloError>;
 
-#[cfg(feature = "wip-xmlo-xir-reader")]
-mod new {
-    //! Re-implementation of `XmloReader` as a [`ParseState`].
-    //!
-    //! This module will be merged into [`super`] once complete;
-    //!   it exists to make feature-flagging less confusing and error-prone.
+qname_const! {
+    QN_LV_PACKAGE: L_LV:L_PACKAGE,
+    QN_PACKAGE: :L_PACKAGE,
+    QN_NAME: :L_NAME,
+    QN_UUROOTPATH: :L_UUROOTPATH,
+    QN_PROGRAM: :L_PROGRAM,
+    QN_PREPROC_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
+}
 
-    use super::{XmloError, XmloEvent};
-    use crate::parse::{ParseState, Transition, TransitionResult};
-    use crate::sym::st::*;
-    use crate::xir::attr::Attr;
-    use crate::xir::flat::Object as Xirf;
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum XmloReaderState {
+    #[default]
+    Ready,
+    Package,
+    Done,
+}
 
-    qname_const! {
-        QN_LV_PACKAGE: L_LV:L_PACKAGE,
-        QN_PACKAGE: :L_PACKAGE,
-        QN_NAME: :L_NAME,
-        QN_UUROOTPATH: :L_UUROOTPATH,
-        QN_PROGRAM: :L_PROGRAM,
-        QN_PREPROC_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
-    }
+impl ParseState for XmloReaderState {
+    type Token = Xirf;
+    type Object = XmloEvent;
+    type Error = XmloError;
 
-    #[derive(Debug, Default, PartialEq, Eq)]
-    pub enum XmloReader {
-        #[default]
-        Ready,
-        Package,
-        Done,
-    }
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+        use XmloReaderState::{Done, Package, Ready};
 
-    impl ParseState for XmloReader {
-        type Token = Xirf;
-        type Object = XmloEvent;
-        type Error = XmloError;
-
-        fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
-            use XmloReader::{Done, Package, Ready};
-
-            match (self, tok) {
-                (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ..)) => {
-                    Transition(Package).incomplete()
-                }
-
-                (Ready, _) => Transition(Ready).err(XmloError::UnexpectedRoot),
-
-                (Package, Xirf::Attr(Attr(name, value, _))) => {
-                    Transition(Package).with(match name {
-                        QN_NAME => XmloEvent::PkgName(value),
-                        QN_UUROOTPATH => XmloEvent::PkgRootPath(value),
-                        QN_PROGRAM => XmloEvent::PkgProgramFlag,
-                        QN_PREPROC_ELIG_CLASS_YIELDS => {
-                            XmloEvent::PkgEligClassYields(value)
-                        }
-                        // Ignore unknown attributes for now to maintain BC,
-                        //   since no strict xmlo schema has been defined.
-                        _ => return Transition(Package).incomplete(),
-                    })
-                }
-
-                // Empty package (should we allow this?);
-                //   XIRF guarantees a matching closing tag.
-                (Package, Xirf::Close(..)) => Transition(Done).incomplete(),
-
-                todo => todo!("{todo:?}"),
+        match (self, tok) {
+            (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ..)) => {
+                Transition(Package).incomplete()
             }
-        }
 
-        fn is_accepting(&self) -> bool {
-            *self == Self::Done
+            (Ready, _) => Transition(Ready).err(XmloError::UnexpectedRoot),
+
+            (Package, Xirf::Attr(Attr(name, value, _))) => {
+                Transition(Package).with(match name {
+                    QN_NAME => XmloEvent::PkgName(value),
+                    QN_UUROOTPATH => XmloEvent::PkgRootPath(value),
+                    QN_PROGRAM => XmloEvent::PkgProgramFlag,
+                    QN_PREPROC_ELIG_CLASS_YIELDS => {
+                        XmloEvent::PkgEligClassYields(value)
+                    }
+                    // Ignore unknown attributes for now to maintain BC,
+                    //   since no strict xmlo schema has been defined.
+                    _ => return Transition(Package).incomplete(),
+                })
+            }
+
+            // Empty package (should we allow this?);
+            //   XIRF guarantees a matching closing tag.
+            (Package, Xirf::Close(..)) => Transition(Done).incomplete(),
+
+            todo => todo!("{todo:?}"),
         }
+    }
+
+    fn is_accepting(&self) -> bool {
+        *self == Self::Done
     }
 }
 

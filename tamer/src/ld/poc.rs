@@ -25,6 +25,9 @@ use super::xmle::{
     xir::lower_iter,
     XmleSections,
 };
+use crate::sym::SymbolId;
+use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
+use crate::xir::writer::XmlWriter;
 use crate::{
     asg::{Asg, DefaultAsg, IdentObject},
     xir::DefaultEscaper,
@@ -39,12 +42,6 @@ use crate::{
 use crate::{
     obj::xmlo::{AsgBuilder, AsgBuilderState, XmloReader},
     xir::Escaper,
-};
-use crate::{parse::ParseState, sym::SymbolId};
-use crate::{parse::Parsed, xir::writer::XmlWriter};
-use crate::{
-    sym::{GlobalSymbolIntern, GlobalSymbolResolve},
-    xir::flat,
 };
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
@@ -196,7 +193,8 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
         #[cfg(feature = "wip-xmlo-xir-reader")]
         {
             use crate::iter::into_iter_while_ok;
-            use crate::xir::reader::XmlXirReader;
+            use crate::parse::{ParseState, Parsed};
+            use crate::xir::{flat, reader::XmlXirReader};
 
             // TODO: This entire block is a WIP and will be incrementally
             //   abstracted away.
