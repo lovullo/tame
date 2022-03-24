@@ -35,6 +35,58 @@ pub use quickxml::XmloReader;
 #[cfg(feature = "wip-xmlo-xir-reader")]
 pub use XmloReaderState as XmloReader;
 
+/// `xmlo` reader events.
+///
+/// All data are parsed rather than being returned as [`u8`] slices,
+///   which avoids having to deal with awkward borrows or data copying since
+///   these data will likely be persisted in memory anyway.
+///
+/// To avoid extra data copying,
+///   we should instead prefer not to put data into object files that won't
+///   be useful and can't be easily skipped without parsing.
+#[derive(Debug, PartialEq, Eq)]
+pub enum XmloEvent {
+    /// Canonical package name.
+    PkgName(SymbolId),
+    /// Relative path from package to project root.
+    PkgRootPath(SymbolId),
+    /// Indicates that the package is a program.
+    PkgProgramFlag,
+    /// Name of package eligibility classification.
+    PkgEligClassYields(SymbolId),
+
+    /// Symbol declaration.
+    ///
+    /// This represents an entry in the symbol table,
+    ///   which includes a symbol along with its variable metadata as
+    ///   [`SymAttrs`].
+    SymDecl(SymbolId, SymAttrs),
+
+    /// Begin adjacency list for a given symbol and interpret subsequent
+    ///   symbols as edges (dependencies).
+    SymDepStart(SymbolId),
+
+    /// A symbol reference whose interpretation is dependent on the current
+    ///   state.
+    Symbol(SymbolId),
+
+    /// Text (compiled code) fragment for a given symbol.
+    ///
+    /// This contains the compiler output for a given symbol,
+    ///   and is returned here as an owned value.
+    /// Given that fragments can be quite large,
+    ///   a caller not interested in these data should choose to skip
+    ///   fragments entirely rather than simply ignoring fragment events.
+    Fragment(SymbolId, SymbolId),
+
+    /// End-of-header.
+    ///
+    /// The header of an `xmlo` file is defined as the symbol table;
+    ///   dependency list; and fragments.
+    /// This event is emitted at the closing `preproc:fragment` node.
+    Eoh,
+}
+
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
 ///
 /// This is the result of every [`XmloReader`] operation that could
@@ -98,58 +150,6 @@ impl ParseState for XmloReaderState {
     fn is_accepting(&self) -> bool {
         *self == Self::Done
     }
-}
-
-/// `xmlo` reader events.
-///
-/// All data are parsed rather than being returned as [`u8`] slices,
-///   which avoids having to deal with awkward borrows or data copying since
-///   these data will likely be persisted in memory anyway.
-///
-/// To avoid extra data copying,
-///   we should instead prefer not to put data into object files that won't
-///   be useful and can't be easily skipped without parsing.
-#[derive(Debug, PartialEq, Eq)]
-pub enum XmloEvent {
-    /// Canonical package name.
-    PkgName(SymbolId),
-    /// Relative path from package to project root.
-    PkgRootPath(SymbolId),
-    /// Indicates that the package is a program.
-    PkgProgramFlag,
-    /// Name of package eligibility classification.
-    PkgEligClassYields(SymbolId),
-
-    /// Symbol declaration.
-    ///
-    /// This represents an entry in the symbol table,
-    ///   which includes a symbol along with its variable metadata as
-    ///   [`SymAttrs`].
-    SymDecl(SymbolId, SymAttrs),
-
-    /// Begin adjacency list for a given symbol and interpret subsequent
-    ///   symbols as edges (dependencies).
-    SymDepStart(SymbolId),
-
-    /// A symbol reference whose interpretation is dependent on the current
-    ///   state.
-    Symbol(SymbolId),
-
-    /// Text (compiled code) fragment for a given symbol.
-    ///
-    /// This contains the compiler output for a given symbol,
-    ///   and is returned here as an owned value.
-    /// Given that fragments can be quite large,
-    ///   a caller not interested in these data should choose to skip
-    ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(SymbolId, SymbolId),
-
-    /// End-of-header.
-    ///
-    /// The header of an `xmlo` file is defined as the symbol table;
-    ///   dependency list; and fragments.
-    /// This event is emitted at the closing `preproc:fragment` node.
-    Eoh,
 }
 
 #[cfg(feature = "wip-xmlo-xir-reader")]
