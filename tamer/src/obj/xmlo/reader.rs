@@ -19,7 +19,7 @@
 
 use super::{SymAttrs, XmloError};
 use crate::{
-    parse::{ParseState, Transition, TransitionResult},
+    parse::{self, ParseState, Transition, TransitionResult},
     sym::{st::*, SymbolId},
     xir::{attr::Attr, flat::Object as Xirf},
 };
@@ -87,6 +87,8 @@ pub enum XmloEvent {
     Eoh,
 }
 
+impl parse::Object for XmloEvent {}
+
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
 ///
 /// This is the result of every [`XmloReader`] operation that could
@@ -126,7 +128,7 @@ impl ParseState for XmloReaderState {
             (Ready, _) => Transition(Ready).err(XmloError::UnexpectedRoot),
 
             (Package, Xirf::Attr(Attr(name, value, _))) => {
-                Transition(Package).with(match name {
+                Transition(Package).ok(match name {
                     QN_NAME => XmloEvent::PkgName(value),
                     QN_UUROOTPATH => XmloEvent::PkgRootPath(value),
                     QN_PROGRAM => XmloEvent::PkgProgramFlag,

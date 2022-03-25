@@ -54,6 +54,16 @@ impl<T: Token> From<T> for Span {
     }
 }
 
+/// An IR object produced by a lowering operation on one or more [`Token`]s.
+///
+/// Note that an [`Object`] may also be a [`Token`] if it will be in turn
+///   fed to another [`Parser`] for lowering.
+///
+/// This trait exists to disambiguate an otherwise unbounded type for
+///   [`From`] conversions,
+///     used in the [`Transition`] API to provide greater flexibility.
+pub trait Object: Debug + PartialEq + Eq {}
+
 /// An infallible [`Token`] stream.
 ///
 /// If the token stream originates from an operation that could potentially
@@ -96,7 +106,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     type Token: Token;
 
     /// Objects produced by a parser utilizing these states.
-    type Object: Debug + PartialEq + Eq;
+    type Object: Object;
 
     /// Errors specific to this set of states.
     type Error: Debug + Error + PartialEq + Eq;
@@ -150,10 +160,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
 ///
 /// This is used by [`ParseState::parse_token`];
 ///   see that function for rationale.
-pub type ParseStateResult<S> = Result<
-    ParseStatus<<S as ParseState>::Token, <S as ParseState>::Object>,
-    <S as ParseState>::Error,
->;
+pub type ParseStateResult<S> = Result<ParseStatus<S>, <S as ParseState>::Error>;
 
 /// A state transition with associated data.
 ///
@@ -182,8 +189,31 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This allows [`ParseState::parse_token`] to emit a parsed object and
     ///   corresponds to [`ParseStatus::Object`].
-    pub fn with(self, obj: S::Object) -> TransitionResult<S> {
-        TransitionResult(self, Ok(ParseStatus::Object(obj)))
+    pub fn ok<T>(self, obj: T) -> TransitionResult<S>
+    where
+        T: Into<ParseStatus<S>>,
+    {
+        TransitionResult(self, Ok(obj.into()))
+    }
+
+    /// A transition with corresponding error.
+    ///
+    /// This indicates a parsing failure.
+    /// The state ought to be suitable for error recovery.
+    pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
+        TransitionResult(self, Err(err.into()))
+    }
+
+    /// A state transition with corresponding [`Result`].
+    ///
+    /// This translates the provided [`Result`] in a manner equivalent to
+    ///   [`Transition::ok`] and [`Transition::err`].
+    pub fn result<T, E>(self, result: Result<T, E>) -> TransitionResult<S>
+    where
+        T: Into<ParseStatus<S>>,
+        E: Into<S::Error>,
+    {
+        TransitionResult(self, result.map(Into::into).map_err(Into::into))
     }
 
     /// A state transition indicating that more data is needed before an
@@ -201,14 +231,6 @@ impl<S: ParseState> Transition<S> {
     ///   lookahead.
     pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
         TransitionResult(self, Ok(ParseStatus::Dead(tok)))
-    }
-
-    /// A transition with corresponding error.
-    ///
-    /// This indicates a parsing failure.
-    /// The state ought to be suitable for error recovery.
-    pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
-        TransitionResult(self, Err(err.into()))
     }
 }
 
@@ -583,7 +605,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> From<I> for Parser<S, I> {
 
 /// Result of a parsing operation.
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseStatus<T, O> {
+pub enum ParseStatus<S: ParseState> {
     /// Additional tokens are needed to complete parsing of the next object.
     Incomplete,
 
@@ -591,7 +613,7 @@ pub enum ParseStatus<T, O> {
     ///
     /// This does not indicate that the parser is complete,
     ///   as more objects may be able to be emitted.
-    Object(O),
+    Object(S::Object),
 
     /// Parser encountered a dead state relative to the given token.
     ///
@@ -616,7 +638,13 @@ pub enum ParseStatus<T, O> {
     ///
     /// If there is no parent context to handle the token,
     ///   [`Parser`] must yield an error.
-    Dead(T),
+    Dead(S::Token),
+}
+
+impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
+    fn from(obj: T) -> Self {
+        Self::Object(obj)
+    }
 }
 
 /// Result of a parsing operation.
@@ -636,8 +664,8 @@ pub enum Parsed<O> {
     Object(O),
 }
 
-impl<T: Token, O> From<ParseStatus<T, O>> for Parsed<O> {
-    fn from(status: ParseStatus<T, O>) -> Self {
+impl<S: ParseState> From<ParseStatus<S>> for Parsed<S::Object> {
+    fn from(status: ParseStatus<S>) -> Self {
         match status {
             ParseStatus::Incomplete => Parsed::Incomplete,
             ParseStatus::Object(x) => Parsed::Object(x),
@@ -677,6 +705,8 @@ pub mod test {
         }
     }
 
+    impl Object for TestToken {}
+
     #[derive(Debug, PartialEq, Eq)]
     enum EchoState {
         Empty,
@@ -696,7 +726,7 @@ pub mod test {
 
         fn parse_token(self, tok: TestToken) -> TransitionResult<Self> {
             match tok {
-                TestToken::Comment(..) => Transition(Self::Done).with(tok),
+                TestToken::Comment(..) => Transition(Self::Done).ok(tok),
                 TestToken::Close(..) => {
                     Transition(self).err(EchoStateError::InnerError(tok))
                 }

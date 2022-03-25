@@ -180,7 +180,7 @@ use super::{
 
 use crate::{
     parse::{
-        ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
+        self, ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
         Transition, TransitionResult,
     },
     span::Span,
@@ -281,6 +281,8 @@ impl Tree {
         }
     }
 }
+
+impl parse::Object for Tree {}
 
 /// Element node.
 ///
@@ -564,7 +566,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                 .map(ElementStack::consume_child_or_complete)
                 .map(|new_stack| match new_stack {
                     Stack::ClosedElement(ele) => {
-                        Transition(Empty).with(Tree::Element(ele))
+                        Transition(Empty).ok(Tree::Element(ele))
                     }
                     _ => Transition(new_stack).incomplete(),
                 })
@@ -577,7 +579,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                     .map(ElementStack::consume_child_or_complete)
                     .map(|new_stack| match new_stack {
                         Stack::ClosedElement(ele) => {
-                            Transition(Empty).with(Tree::Element(ele))
+                            Transition(Empty).ok(Tree::Element(ele))
                         }
                         _ => Transition(new_stack).incomplete(),
                     })

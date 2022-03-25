@@ -44,7 +44,7 @@ use super::{
 };
 use crate::{
     parse::{
-        ParseState, ParseStatus, ParsedResult, Token, Transition,
+        self, ParseState, ParseStatus, ParsedResult, Token, Transition,
         TransitionResult,
     },
     span::Span,
@@ -131,6 +131,8 @@ impl Token for Object {
     }
 }
 
+impl parse::Object for Object {}
+
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Object::*;
@@ -204,7 +206,7 @@ where
         match (self, tok) {
             // Comments are permitted before and after the first root element.
             (st @ (PreRoot | Done), XirToken::Comment(sym, span)) => {
-                Transition(st).with(Object::Comment(sym, span))
+                Transition(st).ok(Object::Comment(sym, span))
             }
 
             (PreRoot, tok @ XirToken::Open(..)) => {
@@ -224,7 +226,7 @@ where
                     }
                     (Transition(sa), Ok(Obj(attr))) => {
                         Transition(AttrExpected(stack, sa))
-                            .with(Object::Attr(attr))
+                            .ok(Object::Attr(attr))
                     }
                     (_, Ok(Dead(lookahead))) => {
                         Self::parse_node(stack, lookahead)
@@ -280,7 +282,7 @@ where
                 stack.push((qname, span));
 
                 // Delegate to the attribute parser until it is complete.
-                Transition(AttrExpected(stack, SA::default())).with(Open(
+                Transition(AttrExpected(stack, SA::default())).ok(Open(
                     qname,
                     span,
                     Depth(depth),
@@ -303,7 +305,7 @@ where
                     }
 
                     // Final closing tag (for root node) completes the document.
-                    (..) if stack.len() == 0 => Transition(Done).with(Close(
+                    (..) if stack.len() == 0 => Transition(Done).ok(Close(
                         close_oqname,
                         close_span,
                         Depth(0),
@@ -312,7 +314,7 @@ where
                     (..) => {
                         let depth = stack.len();
 
-                        Transition(NodeExpected(stack)).with(Close(
+                        Transition(NodeExpected(stack)).ok(Close(
                             close_oqname,
                             close_span,
                             Depth(depth),
@@ -322,16 +324,16 @@ where
             }
 
             XirToken::Comment(sym, span) => {
-                Transition(NodeExpected(stack)).with(Comment(sym, span))
+                Transition(NodeExpected(stack)).ok(Comment(sym, span))
             }
             XirToken::Text(sym, span) => {
-                Transition(NodeExpected(stack)).with(Text(sym, span))
+                Transition(NodeExpected(stack)).ok(Text(sym, span))
             }
             XirToken::CData(sym, span) => {
-                Transition(NodeExpected(stack)).with(CData(sym, span))
+                Transition(NodeExpected(stack)).ok(CData(sym, span))
             }
             XirToken::Whitespace(ws, span) => {
-                Transition(NodeExpected(stack)).with(Whitespace(ws, span))
+                Transition(NodeExpected(stack)).ok(Whitespace(ws, span))
             }
 
             // We should transition to `State::Attr` before encountering any

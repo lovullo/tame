@@ -58,7 +58,7 @@ impl ParseState for AttrParseState {
             (Empty, invalid) => Transition(Empty).dead(invalid),
 
             (Name(name, nspan), XirToken::AttrValue(value, vspan)) => {
-                Transition(Empty).with(Attr::new(name, value, (nspan, vspan)))
+                Transition(Empty).ok(Attr::new(name, value, (nspan, vspan)))
             }
 
             (Name(name, nspan), invalid) => {
