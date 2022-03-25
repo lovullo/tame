@@ -217,7 +217,7 @@ where
 
             (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
 
-            (AttrExpected(stack, sa), tok) => match sa.parse_token(tok) {
+            (AttrExpected(stack, sa), tok) => match sa.parse_token(tok).into() {
                 (Transition(sa), Ok(Incomplete)) => {
                     Transition(AttrExpected(stack, sa)).incomplete()
                 }

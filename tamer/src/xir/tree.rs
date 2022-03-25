@@ -541,7 +541,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
             // Attribute parsing.
             (AttrState(estack, attrs, sa), tok) => {
                 use ParseStatus::*;
-                match sa.parse_token(tok) {
+                match sa.parse_token(tok).into() {
                     (Transition(sa), Ok(Incomplete)) => {
                         Transition(AttrState(estack, attrs, sa)).incomplete()
                     }

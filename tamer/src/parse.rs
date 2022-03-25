@@ -24,9 +24,11 @@
 use crate::iter::{TripIter, TrippableIterator};
 use crate::span::Span;
 use std::fmt::Debug;
+use std::hint::unreachable_unchecked;
 use std::iter::{self, Empty};
 use std::mem::take;
-use std::{error::Error, fmt::Display};
+use std::ops::{ControlFlow, FromResidual, Try};
+use std::{convert::Infallible, error::Error, fmt::Display};
 
 /// Result of applying a [`Token`] to a [`ParseState`],
 ///   with any error having been wrapped in a [`ParseError`].
@@ -94,10 +96,10 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     type Token: Token;
 
     /// Objects produced by a parser utilizing these states.
-    type Object;
+    type Object: Debug + PartialEq + Eq;
 
     /// Errors specific to this set of states.
-    type Error: Error + PartialEq + Eq;
+    type Error: Debug + Error + PartialEq + Eq;
 
     /// Construct a parser.
     ///
@@ -153,6 +155,17 @@ pub type ParseStateResult<S> = Result<
     <S as ParseState>::Error,
 >;
 
+/// A state transition with associated data.
+///
+/// Conceptually,
+///   imagine the act of a state transition producing data.
+/// See [`Transition`] for convenience methods for producing this tuple.
+#[derive(Debug, PartialEq, Eq)]
+pub struct TransitionResult<S: ParseState>(
+    pub Transition<S>,
+    pub ParseStateResult<S>,
+);
+
 /// Denotes a state transition.
 ///
 /// This newtype was created to produce clear, self-documenting code;
@@ -169,16 +182,16 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This allows [`ParseState::parse_token`] to emit a parsed object and
     ///   corresponds to [`ParseStatus::Object`].
-    pub fn with(self, obj: S::Object) -> (Self, ParseStateResult<S>) {
-        (self, Ok(ParseStatus::Object(obj)))
+    pub fn with(self, obj: S::Object) -> TransitionResult<S> {
+        TransitionResult(self, Ok(ParseStatus::Object(obj)))
     }
 
     /// A state transition indicating that more data is needed before an
     ///   object can be emitted.
     ///
     /// This corresponds to [`ParseStatus::Incomplete`].
-    pub fn incomplete(self) -> (Self, ParseStateResult<S>) {
-        (self, Ok(ParseStatus::Incomplete))
+    pub fn incomplete(self) -> TransitionResult<S> {
+        TransitionResult(self, Ok(ParseStatus::Incomplete))
     }
 
     /// A dead state transition.
@@ -186,25 +199,72 @@ impl<S: ParseState> Transition<S> {
     /// This corresponds to [`ParseStatus::Dead`],
     ///   and a calling parser should use the provided [`Token`] as
     ///   lookahead.
-    pub fn dead(self, tok: S::Token) -> (Self, ParseStateResult<S>) {
-        (self, Ok(ParseStatus::Dead(tok)))
+    pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
+        TransitionResult(self, Ok(ParseStatus::Dead(tok)))
     }
 
     /// A transition with corresponding error.
     ///
     /// This indicates a parsing failure.
     /// The state ought to be suitable for error recovery.
-    pub fn err<E: Into<S::Error>>(self, err: E) -> (Self, ParseStateResult<S>) {
-        (self, Err(err.into()))
+    pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
+        TransitionResult(self, Err(err.into()))
     }
 }
 
-/// A state transition with associated data.
-///
-/// Conceptually,
-///   imagine the act of a state transition producing data.
-/// See [`Transition`] for convenience methods for producing this tuple.
-pub type TransitionResult<S> = (Transition<S>, ParseStateResult<S>);
+impl<S: ParseState> Into<(Transition<S>, ParseStateResult<S>)>
+    for TransitionResult<S>
+{
+    fn into(self) -> (Transition<S>, ParseStateResult<S>) {
+        (self.0, self.1)
+    }
+}
+
+impl<S: ParseState> Try for TransitionResult<S> {
+    type Output = (Transition<S>, ParseStateResult<S>);
+    type Residual = (Transition<S>, ParseStateResult<S>);
+
+    fn from_output(output: Self::Output) -> Self {
+        match output {
+            (st, result) => Self(st, result),
+        }
+    }
+
+    fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
+        match self.into() {
+            (st, Ok(x)) => ControlFlow::Continue((st, Ok(x))),
+            (st, Err(e)) => ControlFlow::Break((st, Err(e))),
+        }
+    }
+}
+
+impl<S: ParseState> FromResidual<(Transition<S>, ParseStateResult<S>)>
+    for TransitionResult<S>
+{
+    fn from_residual(residual: (Transition<S>, ParseStateResult<S>)) -> Self {
+        match residual {
+            (st, result) => Self(st, result),
+        }
+    }
+}
+
+impl<S: ParseState> FromResidual<Result<Infallible, TransitionResult<S>>>
+    for TransitionResult<S>
+{
+    fn from_residual(
+        residual: Result<Infallible, TransitionResult<S>>,
+    ) -> Self {
+        match residual {
+            Err(e) => e,
+            // SAFETY: This match arm doesn't seem to be required in
+            //   core::result::Result's FromResidual implementation,
+            //     but as of 1.61 nightly it is here.
+            // Since this is Infallable,
+            //   it cannot occur.
+            Ok(_) => unsafe { unreachable_unchecked() },
+        }
+    }
+}
 
 /// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
@@ -275,7 +335,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         self.last_span = Some(tok.span());
 
         let result;
-        (Transition(self.state), result) =
+        TransitionResult(Transition(self.state), result) =
             take(&mut self.state).parse_token(tok);
 
         use ParseStatus::*;

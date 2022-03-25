@@ -54,6 +54,9 @@
 // This simply removes a boilerplate `Default` impl;
 //   we can do without if this does not get finalized.
 #![feature(derive_default_enum)]
+// For `Try` and `FromResidual`,
+//   allowing us to write our own `?`-compatible types.
+#![feature(try_trait_v2)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 

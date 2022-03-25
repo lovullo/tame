@@ -143,7 +143,7 @@ mod test {
                 Transition(AttrParseState::default()),
                 Ok(ParseStatus::Dead(tok.clone()))
             ),
-            sut.parse_token(tok)
+            sut.parse_token(tok).into()
         );
     }
 
@@ -174,12 +174,12 @@ mod test {
 
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
-        let (Transition(sut), result) =
+        let TransitionResult(Transition(sut), result) =
             sut.parse_token(XirToken::AttrName(attr, S));
         assert_eq!(result, Ok(ParseStatus::Incomplete));
 
         // But we provide something else unexpected.
-        let (Transition(sut), result) =
+        let TransitionResult(Transition(sut), result) =
             sut.parse_token(XirToken::Close(None, S2));
         assert_eq!(
             result,
@@ -200,7 +200,7 @@ mod test {
         // Rather than checking for that state,
         //   let's actually attempt a recovery.
         let recover = "value".intern();
-        let (Transition(sut), result) =
+        let TransitionResult(Transition(sut), result) =
             sut.parse_token(XirToken::AttrValue(recover, S2));
         assert_eq!(
             result,
