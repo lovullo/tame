@@ -217,18 +217,23 @@ where
 
             (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
 
-            (AttrExpected(stack, sa), tok) => match sa.parse_token(tok).into() {
-                (Transition(sa), Ok(Incomplete)) => {
-                    Transition(AttrExpected(stack, sa)).incomplete()
+            (AttrExpected(stack, sa), tok) => {
+                match sa.parse_token(tok).into() {
+                    (Transition(sa), Ok(Incomplete)) => {
+                        Transition(AttrExpected(stack, sa)).incomplete()
+                    }
+                    (Transition(sa), Ok(Obj(attr))) => {
+                        Transition(AttrExpected(stack, sa))
+                            .with(Object::Attr(attr))
+                    }
+                    (_, Ok(Dead(lookahead))) => {
+                        Self::parse_node(stack, lookahead)
+                    }
+                    (Transition(sa), Err(x)) => {
+                        Transition(AttrExpected(stack, sa)).err(x)
+                    }
                 }
-                (Transition(sa), Ok(Obj(attr))) => {
-                    Transition(AttrExpected(stack, sa)).with(Object::Attr(attr))
-                }
-                (_, Ok(Dead(lookahead))) => Self::parse_node(stack, lookahead),
-                (Transition(sa), Err(x)) => {
-                    Transition(AttrExpected(stack, sa)).err(x)
-                }
-            },
+            }
 
             (Done, tok) => Transition(Done).dead(tok),
         }

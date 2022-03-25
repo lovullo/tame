@@ -31,6 +31,24 @@ use crate::sym::{st, GlobalSymbolResolve, SymbolId};
 use std::convert::TryFrom;
 use std::result::Result;
 
+/// Value dimensionality.
+///
+/// This indicates the number of subscripts needed to access a scalar
+///   value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Dim {
+    Scalar = 0,
+    Vector = 1,
+    Matrix = 2,
+}
+
+impl Into<u8> for Dim {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+
 /// Symbol attributes.
 ///
 /// This is a subset of all available attributes available on the
@@ -60,15 +78,7 @@ pub struct SymAttrs {
     pub ty: Option<SymType>,
 
     /// Number of dimensions.
-    ///
-    /// This determines the number of subscripts needed to access a scalar
-    ///   value.
-    /// A value of `0` indicates a scalar;
-    ///   a value of `1` indicates a vector;
-    ///   a value of `2` indicates a matrix;
-    ///   and a value of `n` indicates a multi-dimensional array of
-    ///     depth `n`.
-    pub dim: Option<u8>,
+    pub dim: Option<Dim>,
 
     /// Type of underlying data.
     ///

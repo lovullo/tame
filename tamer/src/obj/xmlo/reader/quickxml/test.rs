@@ -446,7 +446,7 @@ xmlo_tests! {
             XmloEvent::SymDecl(
                 "sym-nonempty".intern(),
                 SymAttrs {
-                    dim: Some(2),
+                    dim: Some(Dim::Matrix),
                     pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
@@ -696,12 +696,12 @@ sym_tests! {
     }
 
     dim_0: [dim="0"] => SymAttrs {
-        dim: Some(0),
+        dim: Some(Dim::Scalar),
         ..Default::default()
     }
 
     dim_1: [dim="1"] => SymAttrs {
-        dim: Some(1),
+        dim: Some(Dim::Vector),
         ..Default::default()
     }
 
@@ -769,7 +769,7 @@ sym_tests! {
             // see macro for src relpath
             src: Some("foo".intern()),
             ty: Some(SymType::Class),
-            dim: Some(1),
+            dim: Some(Dim::Vector),
             dtype: Some(SymDtype::Float),
             extern_: true,
             ..Default::default()

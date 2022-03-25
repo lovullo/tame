@@ -49,6 +49,7 @@
 
 use super::super::{SymAttrs, SymType};
 use super::{XmloError, XmloEvent, XmloResult};
+use crate::obj::xmlo::Dim;
 use crate::sym::{GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId};
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
@@ -357,7 +358,7 @@ where
                 }
 
                 b"dim" => {
-                    sym_attrs.dim = Some(Self::dim_to_u8(&attr.value)?);
+                    sym_attrs.dim = Some(Self::char_to_dim(&attr.value)?);
                 }
 
                 b"dtype" => {
@@ -594,23 +595,16 @@ where
         Ok(XmloEvent::Fragment(id, text))
     }
 
-    /// Convert single-character `@dim` to a [`u8`].
-    ///
-    /// Errors
-    /// ======
-    /// - [`XmloError::InvalidDim`] if first character is not an ASCII
-    ///   digit,
-    ///     or if there is more than one character.
-    fn dim_to_u8(value: &[u8]) -> XmloResult<u8> {
-        // Technically this could allow for incorrect inputs (we only take
-        // the first character)
-        if value.len() > 1 || !value[0].is_ascii_digit() {
-            return Err(XmloError::InvalidDim(unsafe {
+    /// Convert single-character `@dim` to a [`Dim`].
+    fn char_to_dim(value: &[u8]) -> XmloResult<Dim> {
+        match value {
+            [b'0'] => Ok(Dim::Scalar),
+            [b'1'] => Ok(Dim::Vector),
+            [b'2'] => Ok(Dim::Matrix),
+            _ => Err(XmloError::InvalidDim(unsafe {
                 String::from_utf8_unchecked(value.to_vec())
-            }));
+            })),
         }
-
-        Ok(value[0] - b'0')
     }
 }
 

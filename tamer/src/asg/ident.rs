@@ -236,14 +236,14 @@ impl TryFrom<&SymAttrs> for IdentKind {
                 Ok($to)
             };
             ($to:expr, dim) => {
-                Ok($to(Dim(attrs.dim.ok_or(Self::Error::MissingDim)?)))
+                Ok($to(Dim(attrs.dim.ok_or(Self::Error::MissingDim)? as u8)))
             };
             ($to:expr, dtype) => {
                 Ok($to(attrs.dtype.ok_or(Self::Error::MissingDtype)?))
             };
             ($to:expr, dim, dtype) => {
                 Ok($to(
-                    Dim(attrs.dim.ok_or(Self::Error::MissingDim)?),
+                    Dim(attrs.dim.ok_or(Self::Error::MissingDim)? as u8),
                     attrs.dtype.ok_or(Self::Error::MissingDtype)?,
                 ))
             };
@@ -367,6 +367,7 @@ pub type DataType = SymDtype;
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::obj::xmlo::Dim as XmloDim;
     use std::convert::TryInto;
 
     #[test]
@@ -404,10 +405,10 @@ mod test {
         ($name:ident, $src:expr => $dest:expr, dim) => {
             #[test]
             fn $name() {
-                let dim = 1;
+                let dim = XmloDim::Vector;
 
                 assert_eq!(
-                    Ok($dest(Dim(dim))),
+                    Ok($dest(Dim(dim.into()))),
                     SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),
@@ -456,11 +457,11 @@ mod test {
         ($name:ident, $src:expr => $dest:expr, dim, dtype) => {
             #[test]
             fn $name() {
-                let dim = 1;
+                let dim = XmloDim::Vector;
                 let dtype = SymDtype::Float;
 
                 assert_eq!(
-                    Ok($dest(Dim(dim), dtype)),
+                    Ok($dest(Dim(dim.into()), dtype)),
                     SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),
