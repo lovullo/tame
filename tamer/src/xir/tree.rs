@@ -542,18 +542,18 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
             (AttrState(estack, attrs, sa), tok) => {
                 use ParseStatus::*;
                 match sa.parse_token(tok) {
-                    Ok((Transition(sa), Incomplete)) => {
+                    (Transition(sa), Ok(Incomplete)) => {
                         Transition(AttrState(estack, attrs, sa)).incomplete()
                     }
-                    Ok((Transition(sa), Object(attr))) => {
+                    (Transition(sa), Ok(Object(attr))) => {
                         Transition(AttrState(estack, attrs.push(attr), sa))
                             .incomplete()
                     }
-                    Ok((_, Dead(lookahead))) => {
+                    (_, Ok(Dead(lookahead))) => {
                         BuddingElement(estack.consume_attrs(attrs))
                             .parse_token(lookahead)
                     }
-                    Err((Transition(sa), x)) => {
+                    (Transition(sa), Err(x)) => {
                         Transition(AttrState(estack, attrs, sa)).err(x.into())
                     }
                 }

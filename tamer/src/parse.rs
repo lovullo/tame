@@ -169,16 +169,16 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This allows [`ParseState::parse_token`] to emit a parsed object and
     ///   corresponds to [`ParseStatus::Object`].
-    pub fn with(self, obj: S::Object) -> TransitionResult<S> {
-        Ok((self, ParseStatus::Object(obj)))
+    pub fn with(self, obj: S::Object) -> (Self, ParseStateResult<S>) {
+        (self, Ok(ParseStatus::Object(obj)))
     }
 
     /// A state transition indicating that more data is needed before an
     ///   object can be emitted.
     ///
     /// This corresponds to [`ParseStatus::Incomplete`].
-    pub fn incomplete(self) -> TransitionResult<S> {
-        Ok((self, ParseStatus::Incomplete))
+    pub fn incomplete(self) -> (Self, ParseStateResult<S>) {
+        (self, Ok(ParseStatus::Incomplete))
     }
 
     /// A dead state transition.
@@ -186,16 +186,16 @@ impl<S: ParseState> Transition<S> {
     /// This corresponds to [`ParseStatus::Dead`],
     ///   and a calling parser should use the provided [`Token`] as
     ///   lookahead.
-    pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
-        Ok((self, ParseStatus::Dead(tok)))
+    pub fn dead(self, tok: S::Token) -> (Self, ParseStateResult<S>) {
+        (self, Ok(ParseStatus::Dead(tok)))
     }
 
     /// A transition with corresponding error.
     ///
     /// This indicates a parsing failure.
     /// The state ought to be suitable for error recovery.
-    pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
-        Err((self, err.into()))
+    pub fn err<E: Into<S::Error>>(self, err: E) -> (Self, ParseStateResult<S>) {
+        (self, Err(err.into()))
     }
 }
 
@@ -204,16 +204,7 @@ impl<S: ParseState> Transition<S> {
 /// Conceptually,
 ///   imagine the act of a state transition producing data.
 /// See [`Transition`] for convenience methods for producing this tuple.
-///
-/// See also [`result_tup0_invert`] if this common [`Transition`] in the
-///   inner tuple is inconvenient to work with.
-pub type TransitionResult<S> = Result<
-    (
-        Transition<S>,
-        ParseStatus<<S as ParseState>::Token, <S as ParseState>::Object>,
-    ),
-    (Transition<S>, <S as ParseState>::Error),
->;
+pub type TransitionResult<S> = (Transition<S>, ParseStateResult<S>);
 
 /// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
@@ -234,20 +225,6 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     toks: I,
     state: S,
     last_span: Option<Span>,
-}
-
-/// Invert a [`Result`] containing a tuple for both [`Ok`] and [`Err`]
-///   variants where first index of the tuple is a common `C`.
-///
-/// The result is a tuple with the common type in the first index,
-///   and the second index containing the remaining [`Result`] data.
-pub fn result_tup0_invert<C, T, E>(
-    result: Result<(C, T), (C, E)>,
-) -> (C, Result<T, E>) {
-    match result {
-        Ok((c, t)) => (c, Ok(t)),
-        Err((c, e)) => (c, Err(e)),
-    }
 }
 
 impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
@@ -299,7 +276,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
         let result;
         (Transition(self.state), result) =
-            result_tup0_invert(take(&mut self.state).parse_token(tok));
+            take(&mut self.state).parse_token(tok);
 
         use ParseStatus::*;
         match result {

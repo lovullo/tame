@@ -121,7 +121,7 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
-        parse::{result_tup0_invert, ParseStatus, Parsed},
+        parse::{ParseStatus, Parsed},
         sym::GlobalSymbolIntern,
     };
 
@@ -137,12 +137,12 @@ mod test {
         // There is no state that we can transition to,
         //   and we're in an empty accepting state.
         assert_eq!(
-            // Make sure we're in the same state we started in so that
-            //   we know we can accommodate recovery token(s).
-            Ok((
+            (
+                // Make sure we're in the same state we started in so that
+                //   we know we can accommodate recovery token(s).
                 Transition(AttrParseState::default()),
-                ParseStatus::Dead(tok.clone())
-            )),
+                Ok(ParseStatus::Dead(tok.clone()))
+            ),
             sut.parse_token(tok)
         );
     }
@@ -175,12 +175,12 @@ mod test {
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
         let (Transition(sut), result) =
-            result_tup0_invert(sut.parse_token(XirToken::AttrName(attr, S)));
+            sut.parse_token(XirToken::AttrName(attr, S));
         assert_eq!(result, Ok(ParseStatus::Incomplete));
 
         // But we provide something else unexpected.
         let (Transition(sut), result) =
-            result_tup0_invert(sut.parse_token(XirToken::Close(None, S2)));
+            sut.parse_token(XirToken::Close(None, S2));
         assert_eq!(
             result,
             Err(AttrParseError::AttrValueExpected(
@@ -200,9 +200,8 @@ mod test {
         // Rather than checking for that state,
         //   let's actually attempt a recovery.
         let recover = "value".intern();
-        let (Transition(sut), result) = result_tup0_invert(
-            sut.parse_token(XirToken::AttrValue(recover, S2)),
-        );
+        let (Transition(sut), result) =
+            sut.parse_token(XirToken::AttrValue(recover, S2));
         assert_eq!(
             result,
             Ok(ParseStatus::Object(Attr::new(attr, recover, (S, S2)))),
