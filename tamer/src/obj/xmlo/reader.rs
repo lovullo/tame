@@ -170,23 +170,11 @@ impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
                 Transition(Done).incomplete()
             }
 
-            // TODO: This is all boilerplate; abstract away state stitching.
             // TOOD: It'd be nice to augment errors with the symbol table
             //   span as well (e.g. "while processing symbol table at <loc>").
-            (Symtable(span, ss), tok) => match ss.parse_token(tok).into() {
-                (Transition(ss), Ok(Incomplete)) => {
-                    Transition(Symtable(span, ss)).incomplete()
-                }
-                (Transition(ss), Ok(Obj(obj))) => {
-                    Transition(Symtable(span, ss)).ok(Self::Object::from(obj))
-                }
-                (Transition(ss), Ok(Dead(tok))) => {
-                    Transition(Symtable(span, ss)).dead(tok)
-                }
-                (Transition(ss), Err(e)) => {
-                    Transition(Symtable(span, ss)).err(e)
-                }
-            },
+            (Symtable(span, ss), tok) => {
+                ss.delegate(tok, |ss| Symtable(span, ss))
+            }
 
             todo => todo!("{todo:?}"),
         }
@@ -277,7 +265,7 @@ impl ParseState for SymtableState {
 impl From<(SymbolId, SymAttrs, Span)> for XmloEvent {
     fn from(tup: (SymbolId, SymAttrs, Span)) -> Self {
         match tup {
-            (sym, attrs, span) => Self::SymDecl(sym, attrs, span)
+            (sym, attrs, span) => Self::SymDecl(sym, attrs, span),
         }
     }
 }

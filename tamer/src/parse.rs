@@ -154,6 +154,45 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///   It is acceptable to attempt to parse just one of those attributes,
     ///     or it is acceptable to parse all the way until the end.
     fn is_accepting(&self) -> bool;
+
+    /// Delegate parsing to a compatible, stitched [`ParseState`].
+    ///
+    /// This helps to combine two state machines that speak the same input
+    ///   language
+    ///   (share the same [`Self::Token`]),
+    ///     handling the boilerplate of delegating [`Self::Token`] from a
+    ///     parent state~`SP` to `Self`.
+    ///
+    /// Token delegation happens after [`Self`] has been entered from a
+    ///   parent [`ParseState`] context~`SP`,
+    ///     so stitching the start and accepting states must happen elsewhere
+    ///     (for now).
+    ///
+    /// This assumes that no lookahead token from [`ParseStatus::Dead`] will
+    ///   need to be handled by the parent state~`SP`.
+    ///
+    /// _TODO: More documentation once this is finalized._
+    fn delegate<SP>(
+        self,
+        tok: Self::Token,
+        into: impl FnOnce(Self) -> SP,
+    ) -> TransitionResult<SP>
+    where
+        SP: ParseState<Token = Self::Token>,
+        Self::Object: Into<<SP as ParseState>::Object>,
+        Self::Error: Into<<SP as ParseState>::Error>,
+    {
+        use ParseStatus::{Dead, Incomplete, Object as Obj};
+
+        let (Transition(newst), result) = self.parse_token(tok).into();
+
+        Transition(into(newst)).result(match result {
+            Ok(Incomplete) => Ok(Incomplete),
+            Ok(Obj(obj)) => Ok(Obj(obj.into())),
+            Ok(Dead(tok)) => Ok(Dead(tok)),
+            Err(e) => Err(e.into()),
+        })
+    }
 }
 
 /// Result of applying a [`Token`] to a [`ParseState`].
