@@ -50,6 +50,7 @@
 use super::super::{SymAttrs, SymType};
 use super::{XmloError, XmloEvent, XmloResult};
 use crate::obj::xmlo::Dim;
+use crate::span::UNKNOWN_SPAN;
 use crate::sym::{GlobalSymbolInternUnchecked, GlobalSymbolResolve, SymbolId};
 #[cfg(test)]
 use crate::test::quick_xml::MockBytesStart as BytesStart;
@@ -230,7 +231,7 @@ where
                     let mut event = Self::process_sym(&self.pkg_name, &ele)?;
 
                     match &mut event {
-                        XmloEvent::SymDecl(_, attrs)
+                        XmloEvent::SymDecl(_, attrs, _)
                             if attrs.ty == Some(SymType::Map) =>
                         {
                             attrs.from = Self::process_map_from(
@@ -410,8 +411,10 @@ where
 
         sym_attrs.pkg_name = *pkg_name;
 
-        name.map(|name_sym| XmloEvent::SymDecl(name_sym, sym_attrs))
-            .ok_or(XmloError::UnassociatedSym)
+        name.map(|name_sym| {
+            XmloEvent::SymDecl(name_sym, sym_attrs, UNKNOWN_SPAN)
+        })
+        .ok_or(XmloError::UnassociatedSym(UNKNOWN_SPAN))
     }
 
     /// Process `preproc:from` for `preproc:sym[@type="map"]` elements.
@@ -601,9 +604,10 @@ where
             [b'0'] => Ok(Dim::Scalar),
             [b'1'] => Ok(Dim::Vector),
             [b'2'] => Ok(Dim::Matrix),
-            _ => Err(XmloError::InvalidDim(unsafe {
-                String::from_utf8_unchecked(value.to_vec())
-            })),
+            _ => Err(XmloError::InvalidDim(
+                unsafe { value.intern_utf8_unchecked() },
+                UNKNOWN_SPAN,
+            )),
         }
     }
 }

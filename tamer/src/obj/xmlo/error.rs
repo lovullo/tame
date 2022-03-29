@@ -20,6 +20,7 @@
 //! Errors while processing `xmlo` object files.
 
 use crate::parse::ParseError;
+use crate::span::Span;
 use crate::sym::SymbolId;
 use crate::tpwrap::quick_xml::{Error as XmlError, InnerXmlError};
 use crate::xir::{tree::StackError, Token};
@@ -43,13 +44,13 @@ pub enum XmloError {
     /// The root node was not an `lv:package`.
     UnexpectedRoot,
     /// A `preproc:sym` node was found, but is missing `@name`.
-    UnassociatedSym,
+    UnassociatedSym(Span),
     /// The provided `preproc:sym/@type` is unknown or invalid.
     InvalidType(String),
     /// The provided `preproc:sym/@dtype` is unknown or invalid.
     InvalidDtype(String),
     /// The provided `preproc:sym/@dim` is invalid.
-    InvalidDim(String),
+    InvalidDim(SymbolId, Span),
     /// A `preproc:sym-dep` element was found, but is missing `@name`.
     UnassociatedSymDep,
     /// The `preproc:sym[@type="map"]` contains unexpected or invalid data.
@@ -85,9 +86,10 @@ impl Display for XmloError {
             Self::UnexpectedRoot => {
                 write!(fmt, "unexpected package root (is this a package?)")
             }
-            Self::UnassociatedSym => write!(
+            Self::UnassociatedSym(span) => write!(
                 fmt,
-                "unassociated symbol table entry: preproc:sym/@name missing"
+                "unassociated symbol table entry: \
+                     preproc:sym/@name missing at {span}"
             ),
             Self::InvalidType(ty) => {
                 write!(fmt, "invalid preproc:sym/@type `{}`", ty)
@@ -95,8 +97,8 @@ impl Display for XmloError {
             Self::InvalidDtype(dtype) => {
                 write!(fmt, "invalid preproc:sym/@dtype `{}`", dtype)
             }
-            Self::InvalidDim(dim) => {
-                write!(fmt, "invalid preproc:sym/@dim `{}`", dim)
+            Self::InvalidDim(dim, span) => {
+                write!(fmt, "invalid preproc:sym/@dim `{dim}` at {span}")
             }
             Self::InvalidMapFrom(msg) => {
                 write!(fmt, "invalid preproc:sym[@type=\"map\"]: {}", msg)

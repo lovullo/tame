@@ -477,6 +477,7 @@ pub mod st {
         L_SRC: cid "src",
         L_STATIC: cid "static",
         L_SYM: cid "sym",
+        L_SYMTABLE: cid "symtable",
         L_TITLE: cid "title",
         L_TPL: cid "tpl",
         L_TRUE: cid "true",
@@ -519,7 +520,8 @@ pub mod st16 {
         <u16>;
 
         // Special contexts.
-        CTX_DUMMY: ctx "#!DUMMY",
+        CTX_DUMMY: ctx "#!UNKNOWN",
+        CTX_UNKNOWN: ctx "#!DUMMY",
         CTX_LINKER: ctx "#!LINKER",
 
         // [Symbols will be added here as they are needed.]

@@ -24,6 +24,7 @@ use crate::{
     convert::ExpectInto,
     parse::{ParseError, ParseState, Parsed},
     span::{Span, DUMMY_SPAN},
+    sym::GlobalSymbolIntern,
     xir::{
         attr::Attr,
         flat::{Depth, Object as Xirf},
@@ -36,7 +37,7 @@ const S2: Span = S1.offset_add(1).unwrap();
 const S3: Span = S2.offset_add(1).unwrap();
 const S4: Span = S3.offset_add(1).unwrap();
 
-type Sut = XmloReader;
+type Sut = XmloReaderState;
 
 #[test]
 fn fails_on_invalid_root() {
@@ -109,15 +110,14 @@ fn parses_package_attrs_with_ns_prefix() {
 //   but this ought to reject in the future.
 #[test]
 fn ignores_unknown_package_attr() {
-    let package = "package".unwrap_into();
     let name = "pkgroot".into();
 
     let toks = [
-        Xirf::Open(package, S1, Depth(0)),
+        Xirf::Open(QN_PACKAGE, S1, Depth(0)),
         Xirf::Attr(Attr::new("name".unwrap_into(), name, (S2, S3))),
         // This is ignored.
         Xirf::Attr(Attr::new("unknown".unwrap_into(), name, (S2, S3))),
-        Xirf::Close(Some(package), S2, Depth(0)),
+        Xirf::Close(Some(QN_PACKAGE), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -132,4 +132,145 @@ fn ignores_unknown_package_attr() {
         ]),
         sut.collect(),
     );
+}
+
+#[test]
+fn xmlo_symtable_parser() {
+    const SSTUB: Span = DUMMY_SPAN.offset_add(50).unwrap();
+
+    #[derive(Debug, Default, PartialEq, Eq)]
+    enum StubSymtableState {
+        #[default]
+        None,
+    }
+
+    impl ParseState for StubSymtableState {
+        type Token = Xirf;
+        type Object = (SymbolId, SymAttrs, Span);
+        type Error = XmloError;
+
+        fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+            match tok {
+                Xirf::Attr(Attr(QN_NAME, name, (s1, s2))) => {
+                    assert_eq!(s1, S1);
+                    assert_eq!(s2, S2);
+
+                    Transition(Self::None).ok((
+                        name,
+                        SymAttrs::default(),
+                        SSTUB,
+                    ))
+                }
+                tok => panic!("test expects @name but got {tok:?}"),
+            }
+        }
+
+        fn is_accepting(&self) -> bool {
+            *self == Self::None
+        }
+    }
+
+    let symname = "symname".into();
+    let attrs = SymAttrs::default();
+
+    let toks = [
+        Xirf::Open(QN_PACKAGE, S1, Depth(0)),
+        Xirf::Open(QN_SYMTABLE, S2, Depth(1)),
+        // Our stub parser doesn't need an opening or closing tag.
+        // Note that S1 and S2 are expected.
+        Xirf::Attr(Attr(QN_NAME, symname, (S1, S2))), // @name
+        Xirf::Close(Some(QN_SYMTABLE), S4, Depth(1)),
+    ]
+    .into_iter();
+
+    let sut = XmloReaderState::<StubSymtableState>::parse(toks);
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete, // <package
+            Parsed::Incomplete, // <preproc:symtable
+            // SSTUB is used to prove that StubSymtableState was used,
+            //   instead of the SS default (no, not a ship).
+            Parsed::Object(XmloEvent::SymDecl(symname, attrs, SSTUB)),
+            Parsed::Incomplete, // </preproc:symtable>
+        ]),
+        sut.collect(),
+    );
+}
+
+#[test]
+fn symtable_err_missing_sym_name() {
+    let toks = [
+        Xirf::Open(QN_SYM, S1, Depth(0)),
+        // No attributes, but importantly, no name.
+        Xirf::Close(Some(QN_SYMTABLE), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    let mut sut = SymtableState::parse(toks);
+
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)),);
+
+    assert_eq!(
+        sut.next(),
+        Some(Err(ParseError::StateError(XmloError::UnassociatedSym(S1)))),
+    );
+}
+
+macro_rules! symtable_tests {
+    ($($name:ident: [$($key:ident=$val:literal),*] => $expect:expr)*) => {
+        $(
+            #[test]
+            fn $name() {
+                let name = stringify!($name).intern();
+
+                let toks = [
+                    Xirf::Open(QN_SYM, S1, Depth(0)),
+                    Xirf::Attr(Attr::new(QN_NAME, name, (S2, S3))),
+                    $(
+                        Xirf::Attr(Attr::new(
+                            stringify!($key).unwrap_into(),
+                            $val.unwrap_into(),
+                            (S2, S3)
+                        )),
+                    )*
+                    Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+                ]
+                    .into_iter();
+
+                assert_eq!(
+                    Ok(vec![
+                        Parsed::Incomplete,  // Opening tag
+                        Parsed::Incomplete,  // @name
+                        $(
+                            // For each attribute ($key here is necessary
+                            //   for macro iteration).
+                            #[allow(unused)]
+                            #[doc=stringify!($key)]
+                            Parsed::Incomplete,
+                        )*
+                        Parsed::Object((name, $expect, S1)),
+                    ]),
+                    SymtableState::parse(toks).collect(),
+                );
+            }
+        )*
+    }
+}
+
+symtable_tests! {
+    dim_0: [dim="0"] => SymAttrs {
+        dim: Some(Dim::Scalar),
+        ..Default::default()
+    }
+
+    dim_1: [dim="1"] => SymAttrs {
+        dim: Some(Dim::Vector),
+        ..Default::default()
+    }
+
+    dim_2: [dim="2"] => SymAttrs {
+        dim: Some(Dim::Matrix),
+        ..Default::default()
+    }
 }

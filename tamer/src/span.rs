@@ -435,6 +435,10 @@ impl Display for Span {
     }
 }
 
+/// A placeholder span indicating that a span is expected but is not yet
+///   known.
+pub const UNKNOWN_SPAN: Span = Span::st_ctx(crate::sym::st16::CTX_UNKNOWN);
+
 /// A dummy span that can be used in contexts where a span is expected but
 ///   is not important.
 ///

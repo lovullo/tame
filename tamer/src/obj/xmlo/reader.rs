@@ -19,7 +19,9 @@
 
 use super::{SymAttrs, XmloError};
 use crate::{
-    parse::{self, ParseState, Transition, TransitionResult},
+    obj::xmlo::Dim,
+    parse::{self, ParseState, ParseStatus, Transition, TransitionResult},
+    span::Span,
     sym::{st::*, SymbolId},
     xir::{attr::Attr, flat::Object as Xirf},
 };
@@ -60,7 +62,7 @@ pub enum XmloEvent {
     /// This represents an entry in the symbol table,
     ///   which includes a symbol along with its variable metadata as
     ///   [`SymAttrs`].
-    SymDecl(SymbolId, SymAttrs),
+    SymDecl(SymbolId, SymAttrs, Span),
 
     /// Begin adjacency list for a given symbol and interpret subsequent
     ///   symbols as edges (dependencies).
@@ -101,24 +103,37 @@ qname_const! {
     QN_NAME: :L_NAME,
     QN_UUROOTPATH: :L_UUROOTPATH,
     QN_PROGRAM: :L_PROGRAM,
-    QN_PREPROC_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
+    QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
+    QN_SYMTABLE: L_PREPROC:L_SYMTABLE,
+    QN_SYM: L_PREPROC:L_SYM,
+    QN_DIM: :L_DIM,
 }
 
+pub trait XmloSymtableState =
+    ParseState<Token = Xirf, Object = (SymbolId, SymAttrs, Span)>
+    where <Self as ParseState>::Error: Into<XmloError>;
+
 #[derive(Debug, Default, PartialEq, Eq)]
-pub enum XmloReaderState {
+pub enum XmloReaderState<SS: XmloSymtableState = SymtableState> {
+    /// Parser has not yet processed any input.
     #[default]
     Ready,
+    /// Processing `package` attributes.
     Package,
+    /// Expecting a symbol declaration or end of symbol table.
+    Symtable(Span, SS),
+    /// `xmlo` file has been fully read.
     Done,
 }
 
-impl ParseState for XmloReaderState {
+impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
     type Token = Xirf;
     type Object = XmloEvent;
     type Error = XmloError;
 
     fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
-        use XmloReaderState::{Done, Package, Ready};
+        use ParseStatus::{Dead, Incomplete, Object as Obj};
+        use XmloReaderState::*;
 
         match (self, tok) {
             (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ..)) => {
@@ -132,7 +147,7 @@ impl ParseState for XmloReaderState {
                     QN_NAME => XmloEvent::PkgName(value),
                     QN_UUROOTPATH => XmloEvent::PkgRootPath(value),
                     QN_PROGRAM => XmloEvent::PkgProgramFlag,
-                    QN_PREPROC_ELIG_CLASS_YIELDS => {
+                    QN_ELIG_CLASS_YIELDS => {
                         XmloEvent::PkgEligClassYields(value)
                     }
                     // Ignore unknown attributes for now to maintain BC,
@@ -145,6 +160,35 @@ impl ParseState for XmloReaderState {
             //   XIRF guarantees a matching closing tag.
             (Package, Xirf::Close(..)) => Transition(Done).incomplete(),
 
+            (Package, Xirf::Open(QN_SYMTABLE, span, ..)) => {
+                Transition(Symtable(span, SS::default())).incomplete()
+            }
+
+            (Symtable(_, ss), Xirf::Close(Some(QN_SYMTABLE), ..))
+                if ss.is_accepting() =>
+            {
+                Transition(Done).incomplete()
+            }
+
+            // TODO: This is all boilerplate; abstract away state stitching.
+            // TOOD: It'd be nice to augment errors with the symbol table
+            //   span as well (e.g. "while processing symbol table at <loc>").
+            (Symtable(span, ss), tok) => match ss.parse_token(tok).into() {
+                (Transition(ss), Ok(Incomplete)) => {
+                    Transition(Symtable(span, ss)).incomplete()
+                }
+                (Transition(ss), Ok(Obj((name, attrs, span)))) => {
+                    Transition(Symtable(span, ss))
+                        .ok(XmloEvent::SymDecl(name, attrs, span))
+                }
+                (Transition(ss), Ok(Dead(tok))) => {
+                    Transition(Symtable(span, ss)).dead(tok)
+                }
+                (Transition(ss), Err(e)) => {
+                    Transition(Symtable(span, ss)).err(e)
+                }
+            },
+
             todo => todo!("{todo:?}"),
         }
     }
@@ -154,6 +198,82 @@ impl ParseState for XmloReaderState {
     }
 }
 
-#[cfg(feature = "wip-xmlo-xir-reader")]
+/// Symbol table parser operating within a delimited context.
+///
+/// This parser expects a parent [`ParserState`] to indicate when symtable
+///   parsing ought to start and end—
+///     this parser does not recognize any opening or closing tags.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum SymtableState {
+    /// Symbol table declaration found;
+    ///   symbols declarations expected.
+    #[default]
+    Ready,
+    /// Processing a symbol.
+    Sym(Span, Option<SymbolId>, SymAttrs),
+}
+
+impl parse::Object for (SymbolId, SymAttrs, Span) {}
+
+impl ParseState for SymtableState {
+    type Token = Xirf;
+    type Object = (SymbolId, SymAttrs, Span);
+    type Error = XmloError;
+
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+        use SymtableState::*;
+
+        match (self, tok) {
+            (Ready, Xirf::Open(QN_SYM, span, _)) => {
+                Transition(Sym(span, None, SymAttrs::default())).incomplete()
+            }
+
+            (Sym(span, None, attrs), Xirf::Close(..)) => {
+                Transition(Sym(span, None, attrs))
+                    .err(XmloError::UnassociatedSym(span))
+            }
+
+            // Completed symbol.
+            (Sym(span, Some(name), attrs), Xirf::Close(..)) => {
+                Transition(Ready).ok((name, attrs, span))
+            }
+
+            // Symbol @name found.
+            (Sym(span, None, attrs), Xirf::Attr(Attr(QN_NAME, name, _))) => {
+                Transition(Sym(span, Some(name), attrs)).incomplete()
+            }
+
+            (Sym(span, name, mut attrs), Xirf::Attr(Attr(key, value, _))) => {
+                match key {
+                    QN_DIM => {
+                        use crate::sym::st::raw::{N0, N1, N2};
+
+                        let result = match value {
+                            N0 => Ok(Dim::Scalar),
+                            N1 => Ok(Dim::Vector),
+                            N2 => Ok(Dim::Matrix),
+                            _ => Err(XmloError::InvalidDim(value, span)),
+                        }
+                        .and_then(|dim| {
+                            attrs.dim.replace(dim);
+                            Ok(ParseStatus::Incomplete)
+                        });
+
+                        Transition(Sym(span, name, attrs)).result(result)
+                    }
+                    QN_NAME => unreachable!("@name already processed"),
+                    todo => todo!("{todo}"),
+                }
+            }
+
+            todo => todo!("{todo:?}"),
+        }
+    }
+
+    fn is_accepting(&self) -> bool {
+        *self == Self::Ready
+    }
+}
+
 #[cfg(test)]
 mod test;

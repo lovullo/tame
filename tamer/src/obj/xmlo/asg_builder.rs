@@ -213,7 +213,7 @@ where
                     self.add_dep_lookup(sym, dep_sym);
                 }
 
-                (IS::None, XmloEvent::SymDecl(sym, attrs)) => {
+                (IS::None, XmloEvent::SymDecl(sym, attrs, _span)) => {
                     if let Some(sym_src) = attrs.src {
                         found.insert(sym_src);
                     } else {
@@ -361,6 +361,7 @@ mod test {
     use super::*;
     use crate::asg::{DefaultAsg, FragmentText, IdentObject};
     use crate::obj::xmlo::{SymAttrs, SymType};
+    use crate::span::UNKNOWN_SPAN;
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 
@@ -456,6 +457,7 @@ mod test {
                     src: Some(src_a),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             Ok(XmloEvent::SymDecl(
                 sym,
@@ -463,6 +465,7 @@ mod test {
                     src: Some(src_b),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
         ];
 
@@ -507,6 +510,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             // These three will be roots
             Ok(XmloEvent::SymDecl(
@@ -516,6 +520,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             Ok(XmloEvent::SymDecl(
                 sym_map,
@@ -524,6 +529,7 @@ mod test {
                     ty: Some(SymType::Map),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             Ok(XmloEvent::SymDecl(
                 sym_retmap,
@@ -532,6 +538,7 @@ mod test {
                     ty: Some(SymType::RetMap),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
         ];
 
@@ -623,6 +630,7 @@ mod test {
                 ty: Some(SymType::Meta),
                 ..Default::default()
             },
+            UNKNOWN_SPAN,
         ))];
 
         let _ = sut.import_xmlo(evs.into_iter(), state).unwrap();
@@ -648,7 +656,7 @@ mod test {
         let sym = "sym".intern();
         let bad_attrs = SymAttrs::default();
 
-        let evs = vec![Ok(XmloEvent::SymDecl(sym, bad_attrs))];
+        let evs = vec![Ok(XmloEvent::SymDecl(sym, bad_attrs, UNKNOWN_SPAN))];
 
         let result = sut
             .import_xmlo(evs.into_iter(), SutState::new())
@@ -671,6 +679,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             // Incompatible
             Ok(XmloEvent::SymDecl(
@@ -680,6 +689,7 @@ mod test {
                     ty: Some(SymType::Map),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
         ];
 
@@ -703,6 +713,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             // Redeclare
             Ok(XmloEvent::SymDecl(
@@ -711,6 +722,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
         ];
 
@@ -735,6 +747,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             Ok(XmloEvent::Fragment(sym, frag.clone())),
         ];
@@ -788,6 +801,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             )),
             Ok(XmloEvent::Fragment(sym, frag.clone())),
         ];

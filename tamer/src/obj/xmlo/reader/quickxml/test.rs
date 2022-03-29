@@ -66,6 +66,7 @@ xmlo_tests! {
         }
     }
 
+    // DONE
     fn sym_fails_without_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
@@ -75,7 +76,7 @@ xmlo_tests! {
         }));
 
         match sut.read_event() {
-            Err(XmloError::UnassociatedSym) => (),
+            Err(XmloError::UnassociatedSym(_)) => (),
             bad => panic!("expected XmloError::UnassociatedSym: {:?}", bad),
         }
     }
@@ -415,6 +416,7 @@ xmlo_tests! {
                     pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             ),
             result
         );
@@ -450,6 +452,7 @@ xmlo_tests! {
                     pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             ),
             result
         );
@@ -513,6 +516,7 @@ xmlo_tests! {
                     pkg_name: Some("pkg/name".intern()),
                     ..Default::default()
                 },
+                UNKNOWN_SPAN,
             ),
             result
         );
@@ -671,9 +675,10 @@ macro_rules! sym_tests {
                 assert_eq!(
                     XmloEvent::SymDecl(
                         stringify!($name).intern(),
-                        expected_attrs
+                        expected_attrs,
+                        UNKNOWN_SPAN,
                     ),
-                    result
+                    result,
                 );
                 Ok(())
             }
@@ -805,7 +810,11 @@ fn generated_true() -> XmloResult<()> {
     };
 
     assert_eq!(
-        XmloEvent::SymDecl("generated_true".intern(), expected_attrs),
+        XmloEvent::SymDecl(
+            "generated_true".intern(),
+            expected_attrs,
+            UNKNOWN_SPAN,
+        ),
         result
     );
 
@@ -820,7 +829,7 @@ fn fails_on_non_ascii_dim() {
     sym_test_reader_event!(sut, fail_sym, dim = "X1");
 
     match sut.read_event() {
-        Err(XmloError::InvalidDim(msg)) => assert!(msg.contains("X1")),
+        Err(XmloError::InvalidDim(dim, _)) => assert_eq!(dim, "X1".intern()),
         bad => panic!("expected failure: {:?}", bad),
     }
 }
@@ -833,7 +842,7 @@ fn fails_on_multi_char_dim() {
     sym_test_reader_event!(sut, fail_sym, dim = "11");
 
     match sut.read_event() {
-        Err(XmloError::InvalidDim(msg)) => assert!(msg.contains("11")),
+        Err(XmloError::InvalidDim(dim, _)) => assert_eq!(dim, "11".intern()),
         bad => panic!("expected failure: {:?}", bad),
     }
 }
