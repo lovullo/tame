@@ -177,9 +177,8 @@ impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
                 (Transition(ss), Ok(Incomplete)) => {
                     Transition(Symtable(span, ss)).incomplete()
                 }
-                (Transition(ss), Ok(Obj((name, attrs, span)))) => {
-                    Transition(Symtable(span, ss))
-                        .ok(XmloEvent::SymDecl(name, attrs, span))
+                (Transition(ss), Ok(Obj(obj))) => {
+                    Transition(Symtable(span, ss)).ok(Self::Object::from(obj))
                 }
                 (Transition(ss), Ok(Dead(tok))) => {
                     Transition(Symtable(span, ss)).dead(tok)
@@ -272,6 +271,14 @@ impl ParseState for SymtableState {
 
     fn is_accepting(&self) -> bool {
         *self == Self::Ready
+    }
+}
+
+impl From<(SymbolId, SymAttrs, Span)> for XmloEvent {
+    fn from(tup: (SymbolId, SymAttrs, Span)) -> Self {
+        match tup {
+            (sym, attrs, span) => Self::SymDecl(sym, attrs, span)
+        }
     }
 }
 
