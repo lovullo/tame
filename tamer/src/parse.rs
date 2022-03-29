@@ -155,7 +155,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///     or it is acceptable to parse all the way until the end.
     fn is_accepting(&self) -> bool;
 
-    /// Delegate parsing to a compatible, stitched [`ParseState`].
+    /// Delegate parsing from a compatible, stitched [`ParseState`]~`SP`.
     ///
     /// This helps to combine two state machines that speak the same input
     ///   language
@@ -170,12 +170,15 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///
     /// This assumes that no lookahead token from [`ParseStatus::Dead`] will
     ///   need to be handled by the parent state~`SP`.
+    /// To handle a token of lookahead,
+    ///   use [`Self::delegate_lookahead`] instead.
     ///
     /// _TODO: More documentation once this is finalized._
-    fn delegate<SP>(
+    fn delegate<C, SP>(
         self,
+        context: C,
         tok: Self::Token,
-        into: impl FnOnce(Self) -> SP,
+        into: impl FnOnce(C, Self) -> SP,
     ) -> TransitionResult<SP>
     where
         SP: ParseState<Token = Self::Token>,
@@ -186,12 +189,46 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
 
         let (Transition(newst), result) = self.parse_token(tok).into();
 
-        Transition(into(newst)).result(match result {
+        // This does not use `delegate_lookahead` so that we can have
+        //   `into: impl FnOnce` instead of `Fn`.
+        Transition(into(context, newst)).result(match result {
             Ok(Incomplete) => Ok(Incomplete),
             Ok(Obj(obj)) => Ok(Obj(obj.into())),
             Ok(Dead(tok)) => Ok(Dead(tok)),
             Err(e) => Err(e.into()),
         })
+    }
+
+    /// Delegate parsing from a compatible, stitched [`ParseState`]~`SP` with
+    ///   support for a lookahead token.
+    ///
+    /// This does the same thing as [`Self::delegate`],
+    ///   but allows for the handling of a lookahead token from [`Self`]
+    ///   rather than simply proxying [`ParseStatus::Dead`].
+    ///
+    /// _TODO: More documentation once this is finalized._
+    fn delegate_lookahead<C, SP>(
+        self,
+        context: C,
+        tok: Self::Token,
+        into: impl FnOnce(C, Self) -> SP,
+        lookahead: impl FnOnce(C, Self, Self::Token) -> TransitionResult<SP>,
+    ) -> TransitionResult<SP>
+    where
+        SP: ParseState<Token = Self::Token>,
+        Self::Object: Into<<SP as ParseState>::Object>,
+        Self::Error: Into<<SP as ParseState>::Error>,
+    {
+        use ParseStatus::{Dead, Incomplete, Object as Obj};
+
+        let (Transition(newst), result) = self.parse_token(tok).into();
+
+        match result {
+            Ok(Incomplete) => Transition(into(context, newst)).incomplete(),
+            Ok(Obj(obj)) => Transition(into(context, newst)).ok(obj.into()),
+            Ok(Dead(tok)) => lookahead(context, newst, tok),
+            Err(e) => Transition(into(context, newst)).err(e),
+        }
     }
 }
 

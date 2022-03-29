@@ -132,7 +132,6 @@ impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
     type Error = XmloError;
 
     fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
-        use ParseStatus::{Dead, Incomplete, Object as Obj};
         use XmloReaderState::*;
 
         match (self, tok) {
@@ -172,9 +171,7 @@ impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
 
             // TOOD: It'd be nice to augment errors with the symbol table
             //   span as well (e.g. "while processing symbol table at <loc>").
-            (Symtable(span, ss), tok) => {
-                ss.delegate(tok, |ss| Symtable(span, ss))
-            }
+            (Symtable(span, ss), tok) => ss.delegate(span, tok, Symtable),
 
             todo => todo!("{todo:?}"),
         }
@@ -187,7 +184,7 @@ impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
 
 /// Symbol table parser operating within a delimited context.
 ///
-/// This parser expects a parent [`ParserState`] to indicate when symtable
+/// This parser expects a parent [`ParseState`] to indicate when symtable
 ///   parsing ought to start and end—
 ///     this parser does not recognize any opening or closing tags.
 #[derive(Debug, Default, PartialEq, Eq)]

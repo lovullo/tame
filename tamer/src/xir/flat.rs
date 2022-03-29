@@ -44,8 +44,7 @@ use super::{
 };
 use crate::{
     parse::{
-        self, ParseState, ParseStatus, ParsedResult, Token, Transition,
-        TransitionResult,
+        self, ParseState, ParsedResult, Token, Transition, TransitionResult,
     },
     span::Span,
     sym::SymbolId,
@@ -157,6 +156,12 @@ impl Display for Object {
     }
 }
 
+impl From<Attr> for Object {
+    fn from(attr: Attr) -> Self {
+        Self::Attr(attr)
+    }
+}
+
 /// XIRF-compatible attribute parser.
 pub trait FlatAttrParseState = ParseState<Token = XirToken, Object = Attr>
 where
@@ -200,7 +205,6 @@ where
     type Error = StateError;
 
     fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
-        use ParseStatus::{Dead, Incomplete, Object as Obj};
         use State::{AttrExpected, Done, NodeExpected, PreRoot};
 
         match (self, tok) {
@@ -219,23 +223,12 @@ where
 
             (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
 
-            (AttrExpected(stack, sa), tok) => {
-                match sa.parse_token(tok).into() {
-                    (Transition(sa), Ok(Incomplete)) => {
-                        Transition(AttrExpected(stack, sa)).incomplete()
-                    }
-                    (Transition(sa), Ok(Obj(attr))) => {
-                        Transition(AttrExpected(stack, sa))
-                            .ok(Object::Attr(attr))
-                    }
-                    (_, Ok(Dead(lookahead))) => {
-                        Self::parse_node(stack, lookahead)
-                    }
-                    (Transition(sa), Err(x)) => {
-                        Transition(AttrExpected(stack, sa)).err(x)
-                    }
-                }
-            }
+            (AttrExpected(stack, sa), tok) => sa.delegate_lookahead(
+                stack,
+                tok,
+                AttrExpected,
+                |stack, _, lookahead| Self::parse_node(stack, lookahead),
+            ),
 
             (Done, tok) => Transition(Done).dead(tok),
         }
