@@ -463,6 +463,7 @@ xmlo_tests! {
         assert_eq!(Some("preproc:sym".into()), sut.reader.read_to_end_name);
     }
 
+    // DONE
     // `map` symbols include information about their source
     // fields.
     fn sym_map_from(sut) {
@@ -525,6 +526,7 @@ xmlo_tests! {
         assert_eq!(None, sut.reader.read_to_end_name);
     }
 
+    // DONE
     fn sym_map_from_missing_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             // Notice Start, not Empty
@@ -555,44 +557,10 @@ xmlo_tests! {
             )),
         }));
 
-        match sut.read_event() {
-            Err(XmloError::InvalidMapFrom(msg)) => {
-                assert!(msg.contains("preproc:from"))
-            }
-            bad => panic!("expected XmloError: {:?}", bad),
-        }
-    }
-
-    fn sym_map_from_unexpected_data(sut) {
-        sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
-            // Notice Start, not Empty
-            0 => Ok(XmlEvent::Start(MockBytesStart::new(
-                b"preproc:sym",
-                Some(MockAttributes::new(vec![
-                    MockAttribute::new(
-                        b"name", b"sym-map-from-bad",
-                    ),
-                    MockAttribute::new(
-                        b"type", b"map",
-                    ),
-                ])),
-            ))),
-
-            // garbage
-            1 => Ok(XmlEvent::Empty(MockBytesStart::new(
-                b"preproc:nonsense",
-                Some(MockAttributes::new(vec![])),
-            ))),
-
-            _ => Err(InnerXmlError::UnexpectedEof(
-                format!("MockXmlReader out of events: {}", event_i).into(),
-            )),
-        }));
-
-        match sut.read_event() {
-            Err(XmloError::InvalidMapFrom(_)) => (),
-            bad => panic!("expected XmloError: {:?}", bad),
-        }
+        assert_eq!(
+            sut.read_event(),
+            Err(XmloError::MapFromNameMissing("sym-map-from-bad".into(), UNKNOWN_SPAN))
+        );
     }
 
     fn read_events_via_iterator(sut) {

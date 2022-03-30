@@ -231,12 +231,13 @@ where
                     let mut event = Self::process_sym(&self.pkg_name, &ele)?;
 
                     match &mut event {
-                        XmloEvent::SymDecl(_, attrs, _)
+                        XmloEvent::SymDecl(name, attrs, _)
                             if attrs.ty == Some(SymType::Map) =>
                         {
                             attrs.from = Self::process_map_from(
                                 &mut self.reader,
                                 &mut self.sub_buffer,
+                                *name,
                             )?;
 
                             Ok(event)
@@ -432,6 +433,7 @@ where
     fn process_map_from<'a>(
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,
+        name: SymbolId,
     ) -> XmloResult<Option<SymbolId>> {
         let mut from = None;
 
@@ -441,9 +443,9 @@ where
                     if from.is_some() {
                         // This feature isn't actually utilized for the
                         //   input map.
-                        return Err(XmloError::InvalidMapFrom(
-                            "multiple preproc:from found for input map entry"
-                                .into(),
+                        return Err(XmloError::MapFromMultiple(
+                            name,
+                            UNKNOWN_SPAN,
                         ));
                     }
 
@@ -453,8 +455,9 @@ where
                             .filter_map(Result::ok)
                             .find(|attr| attr.key == b"name")
                             .map_or(
-                                Err(XmloError::InvalidMapFrom(
-                                    "preproc:from/@name missing".into(),
+                                Err(XmloError::MapFromNameMissing(
+                                    name,
+                                    UNKNOWN_SPAN,
                                 )),
                                 |attr| {
                                     Ok(unsafe {
@@ -470,7 +473,7 @@ where
                 // Note that whitespace counts as text
                 XmlEvent::Text(_) => (),
 
-                _ => Err(XmloError::InvalidMapFrom("unexpected data".into()))?,
+                _ => todo!("unexpected preproc:sym[type=\"map\"] input"),
             };
         }
 

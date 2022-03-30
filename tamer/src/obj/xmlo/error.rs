@@ -53,8 +53,10 @@ pub enum XmloError {
     InvalidDim(SymbolId, Span),
     /// A `preproc:sym-dep` element was found, but is missing `@name`.
     UnassociatedSymDep,
-    /// The `preproc:sym[@type="map"]` contains unexpected or invalid data.
-    InvalidMapFrom(String),
+    /// The `preproc:sym[@type="map"]` is missing a @name.
+    MapFromNameMissing(SymbolId, Span),
+    /// Multiple `preproc:from` nodes found.
+    MapFromMultiple(SymbolId, Span),
     /// Invalid dependency in adjacency list
     ///   (`preproc:sym-dep/preproc:sym-ref`).
     MalformedSymRef(String),
@@ -100,8 +102,19 @@ impl Display for XmloError {
             Self::InvalidDim(dim, span) => {
                 write!(fmt, "invalid preproc:sym/@dim `{dim}` at {span}")
             }
-            Self::InvalidMapFrom(msg) => {
-                write!(fmt, "invalid preproc:sym[@type=\"map\"]: {}", msg)
+            Self::MapFromNameMissing(sym, span) => {
+                write!(
+                    fmt,
+                    "preproc:sym[@type=\"map\"]/preproc:from/@name missing \
+                               for symbol `{sym}` at {span}"
+                )
+            }
+            Self::MapFromMultiple(sym, span) => {
+                write!(
+                    fmt,
+                    "preproc:sym[@type=\"map\"]/preproc:from must appear \
+                               only once for symbol `{sym}` at {span}"
+                )
             }
             Self::UnassociatedSymDep => write!(
                 fmt,

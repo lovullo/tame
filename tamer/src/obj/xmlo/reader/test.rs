@@ -23,7 +23,7 @@ use super::*;
 use crate::{
     convert::ExpectInto,
     obj::xmlo::{SymDtype, SymType},
-    parse::{ParseError, ParseState, Parsed},
+    parse::{ParseError, ParseState, ParseStatus, Parsed},
     span::{Span, DUMMY_SPAN},
     sym::GlobalSymbolIntern,
     xir::{
@@ -414,5 +414,99 @@ fn symtable_sym_generated_true() {
             Parsed::Object((name, expected, SSYM)),
         ]),
         SymtableState::parse(toks).collect(),
+    );
+}
+
+// `map` symbols include information about their source
+// fields.
+#[test]
+fn symtable_map_from() {
+    let name = "sym-map-from".into();
+    let map_from = "from-a".into();
+
+    let toks = [
+        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
+        Xirf::Attr(Attr(QN_TYPE, raw::L_MAP, (S3, S4))),
+        // <preproc:from>
+        Xirf::Open(QN_FROM, S2, Depth(1)),
+        Xirf::Attr(Attr(QN_NAME, map_from, (S2, S3))),
+        Xirf::Close(None, S4, Depth(1)),
+        // />
+        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    let expected = SymAttrs {
+        ty: Some(SymType::Map),
+        from: Some(map_from),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete, // Opening tag
+            Parsed::Incomplete, // @name
+            Parsed::Incomplete, // @type
+            Parsed::Incomplete, //   <preproc:from
+            Parsed::Incomplete, //   @name
+            Parsed::Incomplete, //   />
+            Parsed::Object((name, expected, SSYM)),
+        ]),
+        SymtableState::parse(toks).collect(),
+    );
+}
+
+#[test]
+fn symtable_map_from_missing_name() {
+    let name = "sym-map-from-missing".into();
+
+    let toks = [
+        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
+        Xirf::Attr(Attr(QN_TYPE, raw::L_MAP, (S3, S4))),
+        // <preproc:from>
+        Xirf::Open(QN_FROM, S2, Depth(1)),
+        // @name missing
+        Xirf::Close(None, S4, Depth(1)),
+        // />
+        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::MapFromNameMissing(name, S2))), // />
+        SymtableState::parse(toks)
+            .collect::<Result<Vec<Parsed<<SymtableState as ParseState>::Object>>, _>>(),
+    );
+}
+
+// Multiple `from` nodes used to be a thing but are no longer utilized.
+#[test]
+fn symtable_map_from_multiple() {
+    let name = "sym-map-from-missing".into();
+
+    let toks = [
+        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
+        Xirf::Attr(Attr(QN_TYPE, raw::L_MAP, (S3, S4))),
+        // <preproc:from>
+        Xirf::Open(QN_FROM, S2, Depth(1)),
+        Xirf::Attr(Attr(QN_NAME, "ok".into(), (S2, S3))),
+        Xirf::Close(None, S4, Depth(1)),
+        // />
+        // <preproc:from> again (err)
+        Xirf::Open(QN_FROM, S3, Depth(1)),
+        Xirf::Attr(Attr(QN_NAME, "bad".into(), (S2, S3))),
+        Xirf::Close(None, S4, Depth(1)),
+        // />
+        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::MapFromMultiple(name, S3))), // />
+        SymtableState::parse(toks)
+            .collect::<Result<Vec<Parsed<<SymtableState as ParseState>::Object>>, _>>(),
     );
 }

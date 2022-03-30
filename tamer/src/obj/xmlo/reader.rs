@@ -117,6 +117,7 @@ qname_const! {
     QN_UUROOTPATH: :L_UUROOTPATH,
     QN_VIRTUAL: :L_VIRTUAL,
     QN_YIELDS: :L_YIELDS,
+    QN_FROM: L_PREPROC:L_FROM,
 }
 
 pub trait XmloSymtableState =
@@ -205,6 +206,8 @@ pub enum SymtableState {
     Ready,
     /// Processing a symbol.
     Sym(Span, Option<SymbolId>, SymAttrs),
+    /// Awaiting a symbol map name.
+    SymMapFrom(Span, SymbolId, SymAttrs, Span),
 }
 
 impl parse::Object for (SymbolId, SymAttrs, Span) {}
@@ -242,6 +245,37 @@ impl ParseState for SymtableState {
                 Xirf::Attr(Attr(key, value, (_, span_attrval))),
             ) => Self::parse_sym_attr(&mut attrs, key, value, span_attrval)
                 .transition(Sym(span_sym, name, attrs)),
+
+            // `preproc:from` supported only for `type="map"`.
+            // TODO: The compiler really ought to just make this an
+            //   attribute now so we can simplify parsing here.
+            (
+                Sym(span_sym, Some(name), attrs),
+                Xirf::Open(QN_FROM, span_from, _),
+            ) if attrs.ty == Some(SymType::Map) => {
+                Transition(SymMapFrom(span_sym, name, attrs, span_from))
+                    .incomplete()
+            }
+
+            (
+                SymMapFrom(span_sym, name, mut attrs, span_from),
+                Xirf::Attr(Attr(QN_NAME, from_name, _)),
+            ) => match attrs.from.replace(from_name) {
+                Some(_) => Err(XmloError::MapFromMultiple(name, span_from)),
+                None => Ok(()),
+            }
+            .transition(SymMapFrom(span_sym, name, attrs, span_from)),
+
+            (SymMapFrom(span_sym, name, attrs, span_from), Xirf::Close(..)) => {
+                if attrs.from.is_none() {
+                    return Transition(SymMapFrom(
+                        span_sym, name, attrs, span_from,
+                    ))
+                    .err(XmloError::MapFromNameMissing(name, span_from));
+                }
+
+                Transition(Sym(span_sym, Some(name), attrs)).incomplete()
+            }
 
             todo => todo!("{todo:?}"),
         }
