@@ -66,11 +66,11 @@ pub enum XmloEvent {
 
     /// Begin adjacency list for a given symbol and interpret subsequent
     ///   symbols as edges (dependencies).
-    SymDepStart(SymbolId),
+    SymDepStart(SymbolId, Span),
 
     /// A symbol reference whose interpretation is dependent on the current
     ///   state.
-    Symbol(SymbolId),
+    Symbol(SymbolId, Span),
 
     /// Text (compiled code) fragment for a given symbol.
     ///
@@ -103,6 +103,7 @@ qname_const! {
     QN_DTYPE: :L_DTYPE,
     QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
     QN_EXTERN: :L_EXTERN,
+    QN_FROM: L_PREPROC:L_FROM,
     QN_GENERATED: L_PREPROC:L_GENERATED,
     QN_ISOVERRIDE: :L_ISOVERRIDE,
     QN_LV_PACKAGE: L_LV:L_PACKAGE,
@@ -113,31 +114,44 @@ qname_const! {
     QN_SRC: :L_SRC,
     QN_SYM: L_PREPROC:L_SYM,
     QN_SYMTABLE: L_PREPROC:L_SYMTABLE,
+    QN_SYM_DEPS: L_PREPROC:L_SYM_DEPS,
+    QN_SYM_DEP: L_PREPROC:L_SYM_DEP,
+    QN_SYM_REF: L_PREPROC:L_SYM_REF,
     QN_TYPE: :L_TYPE,
     QN_UUROOTPATH: :L_UUROOTPATH,
     QN_VIRTUAL: :L_VIRTUAL,
     QN_YIELDS: :L_YIELDS,
-    QN_FROM: L_PREPROC:L_FROM,
 }
 
-pub trait XmloSymtableState =
-    ParseState<Token = Xirf, Object = (SymbolId, SymAttrs, Span)>
-    where <Self as ParseState>::Error: Into<XmloError>;
+/// A parser capable of being composed with [`XmloReaderState`].
+pub trait XmloState = ParseState<Token = Xirf>
+where
+    <Self as ParseState>::Error: Into<XmloError>,
+    <Self as ParseState>::Object: Into<XmloEvent>;
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub enum XmloReaderState<SS: XmloSymtableState = SymtableState> {
+pub enum XmloReaderState<
+    SS: XmloState = SymtableState,
+    SD: XmloState = SymDepsState,
+> {
     /// Parser has not yet processed any input.
     #[default]
     Ready,
     /// Processing `package` attributes.
     Package,
-    /// Expecting a symbol declaration or end of symbol table.
+    /// Expecting a symbol declaration or closing `preproc:symtable`.
     Symtable(Span, SS),
+    /// Symbol dependencies are expected next.
+    SymDepsExpected,
+    /// Expecting symbol dependency list or closing `preproc:sym-deps`.
+    SymDeps(Span, SD),
+    /// End of header parsing.
+    Eoh,
     /// `xmlo` file has been fully read.
     Done,
 }
 
-impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
+impl<SS: XmloState, SD: XmloState> ParseState for XmloReaderState<SS, SD> {
     type Token = Xirf;
     type Object = XmloEvent;
     type Error = XmloError;
@@ -177,19 +191,35 @@ impl<SS: XmloSymtableState> ParseState for XmloReaderState<SS> {
             (Symtable(_, ss), Xirf::Close(Some(QN_SYMTABLE), ..))
                 if ss.is_accepting() =>
             {
-                Transition(Done).incomplete()
+                Transition(SymDepsExpected).incomplete()
             }
 
             // TOOD: It'd be nice to augment errors with the symbol table
             //   span as well (e.g. "while processing symbol table at <loc>").
             (Symtable(span, ss), tok) => ss.delegate(span, tok, Symtable),
 
+            (SymDepsExpected, Xirf::Open(QN_SYM_DEPS, span, _)) => {
+                Transition(SymDeps(span, SD::default())).incomplete()
+            }
+
+            (SymDeps(_, sd), Xirf::Close(Some(QN_SYM_DEPS), ..))
+                if sd.is_accepting() =>
+            {
+                Transition(Eoh).incomplete()
+            }
+
+            (SymDeps(span, sd), tok) => sd.delegate(span, tok, SymDeps),
+
+            (Eoh, Xirf::Close(Some(QN_PACKAGE), ..)) => {
+                Transition(Done).incomplete()
+            }
+
             todo => todo!("{todo:?}"),
         }
     }
 
     fn is_accepting(&self) -> bool {
-        *self == Self::Done
+        *self == Self::Eoh || *self == Self::Done
     }
 }
 
@@ -424,6 +454,76 @@ impl From<(SymbolId, SymAttrs, Span)> for XmloEvent {
         match tup {
             (sym, attrs, span) => Self::SymDecl(sym, attrs, span),
         }
+    }
+}
+
+/// Symbol dependency list (graph adjacency list) parser for
+///   `preproc:sym-deps` children.
+///
+/// This parser expects a parent [`ParseState`] to indicate when dependency
+///   parsing ought to start and end—
+///     this parser does not recognize any opening or closing
+///     `preproc:sym-deps` tags.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum SymDepsState {
+    /// Symbol table declaration found;
+    ///   symbols declarations expected.
+    #[default]
+    Ready,
+    SymUnnamed(Span),
+    Sym(Span, SymbolId),
+    SymRefUnnamed(Span, SymbolId, Span),
+    SymRefDone(Span, SymbolId, Span),
+}
+
+impl ParseState for SymDepsState {
+    type Token = Xirf;
+    type Object = XmloEvent;
+    type Error = XmloError;
+
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+        use SymDepsState::*;
+
+        match (self, tok) {
+            (Ready, Xirf::Open(QN_SYM_DEP, span, _)) => {
+                Transition(SymUnnamed(span)).incomplete()
+            }
+
+            (SymUnnamed(span), Xirf::Attr(Attr(QN_NAME, name, _))) => {
+                Transition(Sym(span, name))
+                    .ok(XmloEvent::SymDepStart(name, span))
+            }
+
+            (SymUnnamed(span), _) => Transition(SymUnnamed(span))
+                .err(XmloError::UnassociatedSymDep(span)),
+
+            (Sym(span, name), Xirf::Open(QN_SYM_REF, span_ref, _)) => {
+                Transition(SymRefUnnamed(span, name, span_ref)).incomplete()
+            }
+
+            (
+                SymRefUnnamed(span, name, span_ref),
+                Xirf::Attr(Attr(QN_NAME, ref_name, (_, span_ref_name))),
+            ) => Transition(SymRefDone(span, name, span_ref))
+                .ok(XmloEvent::Symbol(ref_name, span_ref_name)),
+
+            (SymRefUnnamed(span, name, span_ref), _) => {
+                Transition(SymRefUnnamed(span, name, span_ref))
+                    .err(XmloError::MalformedSymRef(name, span_ref))
+            }
+
+            (SymRefDone(span, name, _), Xirf::Close(..)) => {
+                Transition(Sym(span, name)).incomplete()
+            }
+
+            (Sym(..), Xirf::Close(..)) => Transition(Ready).incomplete(),
+
+            todo => todo!("sym-deps {todo:?}"),
+        }
+    }
+
+    fn is_accepting(&self) -> bool {
+        *self == Self::Ready
     }
 }
 

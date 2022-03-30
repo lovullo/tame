@@ -81,6 +81,24 @@ pub trait TokenStream<T: Token> = Iterator<Item = T>;
 ///   consider using [`TokenStream`].
 pub trait TokenResultStream<T: Token, E: Error> = Iterator<Item = Result<T, E>>;
 
+/// A [`ParserState`] capable of being automatically stitched together with
+///   a parent [`ParserState`] `SP` to create a composite parser.
+///
+/// Conceptually,
+///   this can be visualized as combining the state machines of multiple
+///   parsers into one larger state machine.
+///
+/// The term _state stitching_ refers to a particular pattern able to be
+///   performed automatically by this parsing framework;
+///     it is not necessary for parser composition,
+///       provided that you perform the necessary wiring yourself in absence
+///       of state stitching.
+pub trait StitchableParseState<SP: ParseState> = ParseState
+where
+    SP: ParseState<Token = <Self as ParseState>::Token>,
+    <Self as ParseState>::Object: Into<<SP as ParseState>::Object>,
+    <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;
+
 /// A deterministic parsing automaton.
 ///
 /// These states are utilized by a [`Parser`].
@@ -177,13 +195,11 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     fn delegate<C, SP>(
         self,
         context: C,
-        tok: Self::Token,
+        tok: <Self as ParseState>::Token,
         into: impl FnOnce(C, Self) -> SP,
     ) -> TransitionResult<SP>
     where
-        SP: ParseState<Token = Self::Token>,
-        Self::Object: Into<<SP as ParseState>::Object>,
-        Self::Error: Into<<SP as ParseState>::Error>,
+        Self: StitchableParseState<SP>,
     {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
 
@@ -210,14 +226,16 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     fn delegate_lookahead<C, SP>(
         self,
         context: C,
-        tok: Self::Token,
+        tok: <Self as ParseState>::Token,
         into: impl FnOnce(C, Self) -> SP,
-        lookahead: impl FnOnce(C, Self, Self::Token) -> TransitionResult<SP>,
+        lookahead: impl FnOnce(
+            C,
+            Self,
+            <Self as ParseState>::Token,
+        ) -> TransitionResult<SP>,
     ) -> TransitionResult<SP>
     where
-        SP: ParseState<Token = Self::Token>,
-        Self::Object: Into<<SP as ParseState>::Object>,
-        Self::Error: Into<<SP as ParseState>::Error>,
+        Self: StitchableParseState<SP>,
     {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
 

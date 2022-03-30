@@ -182,6 +182,7 @@ xmlo_tests! {
         );
     }
 
+    // DONE
     fn sym_dep_event(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
@@ -212,14 +213,15 @@ xmlo_tests! {
 
         assert_eq!(
             vec![
-                XmloEvent::SymDepStart("depsym".intern()),
-                XmloEvent::Symbol("dep1".intern()),
-                XmloEvent::Symbol("dep2".intern()),
+                XmloEvent::SymDepStart("depsym".intern(), UNKNOWN_SPAN),
+                XmloEvent::Symbol("dep1".intern(), UNKNOWN_SPAN),
+                XmloEvent::Symbol("dep2".intern(), UNKNOWN_SPAN),
             ],
             result
         );
     }
 
+    // DONE
     fn sym_dep_fails_with_missing_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::Start(MockBytesStart::new(
@@ -229,11 +231,12 @@ xmlo_tests! {
         }));
 
         match sut.read_event() {
-            Err(XmloError::UnassociatedSymDep) => (),
+            Err(XmloError::UnassociatedSymDep(_)) => (),
             bad => panic!("expected XmloError: {:?}", bad),
         }
     }
 
+    // DONE
     fn sym_dep_malformed_ref_missing_name(sut) {
         sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
             0 => Ok(XmlEvent::Start(MockBytesStart::new(
@@ -253,44 +256,11 @@ xmlo_tests! {
         }));
 
         match sut.read_event() {
-            Err(XmloError::MalformedSymRef(msg)) => {
-                assert!(msg.contains("preproc:sym-ref/@name"))
+            Err(XmloError::MalformedSymRef(name, _)) => {
+                assert_eq!(name, "depsymbad".into());
             },
             bad => panic!("expected XmloError: {:?}", bad),
         }
-    }
-
-    fn sym_dep_malformed_ref_unexpected_element(sut) {
-        sut.reader.next_event = Some(Box::new(|_, event_i| match event_i {
-            0 => Ok(XmlEvent::Start(MockBytesStart::new(
-                b"preproc:sym-dep",
-                Some(MockAttributes::new(vec![MockAttribute::new(
-                    b"name", b"depsym-unexpected",
-                )])),
-            ))),
-            // text is okay (e.g. whitespace)
-            1 => Ok(XmlEvent::Text(MockBytesText::new(
-                b"      ",
-            ))),
-            // unexpected (not a preproc:sym-ref)
-            2 => Ok(XmlEvent::Empty(MockBytesStart::new(
-                b"preproc:unexpected",
-                Some(MockAttributes::new(vec![])),
-            ))),
-            _ => Err(InnerXmlError::UnexpectedEof(
-                format!("MockXmlReader out of events: {}", event_i).into(),
-            )),
-        }));
-
-        match sut.read_event() {
-            Err(XmloError::MalformedSymRef(msg)) => {
-                assert!(msg.contains("depsym-unexpected"))
-            },
-            bad => panic!("expected XmloError: {:?}", bad),
-        }
-
-        // We should have gotten past the text
-        assert_eq!(3, sut.reader.event_i, "Did not ignore Text");
     }
 
     fn eoh_after_fragments(sut) {

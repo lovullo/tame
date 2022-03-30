@@ -510,11 +510,12 @@ where
             .with_checks(false)
             .filter_map(Result::ok)
             .find(|attr| attr.key == b"name")
-            .map_or(Err(XmloError::UnassociatedSymDep), |attr| {
-                Ok(unsafe { attr.value.intern_utf8_unchecked() })
-            })?;
+            .map_or(
+                Err(XmloError::UnassociatedSymDep(UNKNOWN_SPAN)),
+                |attr| Ok(unsafe { attr.value.intern_utf8_unchecked() }),
+            )?;
 
-        event_queue.push_back(XmloEvent::SymDepStart(name));
+        event_queue.push_back(XmloEvent::SymDepStart(name, UNKNOWN_SPAN));
 
         loop {
             match reader.read_event(buffer)? {
@@ -529,7 +530,7 @@ where
                             .find(|attr| attr.key == b"name")
                             .map_or(
                                 Err(XmloError::MalformedSymRef(
-                                    "preproc:sym-ref/@name missing".into(),
+                                    name, UNKNOWN_SPAN
                                 )),
                                 |attr| {
                                     Ok(unsafe {
@@ -537,6 +538,7 @@ where
                                     })
                                 },
                             )?,
+                        UNKNOWN_SPAN,
                     ));
                 }
 
@@ -547,10 +549,11 @@ where
                 // Note that whitespace counts as text
                 XmlEvent::Text(_) => (),
 
-                _ => return Err(XmloError::MalformedSymRef(format!(
+                // This is handled in a better way in the new parser.
+                _ => panic!(
                     "preproc:sym-dep must contain only preproc:sym-ref children for `{}`",
                     name.lookup_str(),
-                )))
+                )
             }
         }
 

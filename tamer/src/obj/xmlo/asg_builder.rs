@@ -205,11 +205,11 @@ where
                     // Unused
                 }
 
-                (IS::None | IS::SymDep(_), XmloEvent::SymDepStart(sym)) => {
+                (IS::None | IS::SymDep(_), XmloEvent::SymDepStart(sym, _)) => {
                     istate = IS::SymDep(sym);
                 }
 
-                (IS::SymDep(sym), XmloEvent::Symbol(dep_sym)) => {
+                (IS::SymDep(sym), XmloEvent::Symbol(dep_sym, _)) => {
                     self.add_dep_lookup(sym, dep_sym);
                 }
 
@@ -361,7 +361,7 @@ mod test {
     use super::*;
     use crate::asg::{DefaultAsg, FragmentText, IdentObject};
     use crate::obj::xmlo::{SymAttrs, SymType};
-    use crate::span::UNKNOWN_SPAN;
+    use crate::span::{DUMMY_SPAN, UNKNOWN_SPAN};
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 
@@ -425,9 +425,9 @@ mod test {
         let sym_to2 = "to2".intern();
 
         let evs = vec![
-            Ok(XmloEvent::SymDepStart(sym_from)),
-            Ok(XmloEvent::Symbol(sym_to1)),
-            Ok(XmloEvent::Symbol(sym_to2)),
+            Ok(XmloEvent::SymDepStart(sym_from, DUMMY_SPAN)),
+            Ok(XmloEvent::Symbol(sym_to1, DUMMY_SPAN)),
+            Ok(XmloEvent::Symbol(sym_to2, DUMMY_SPAN)),
         ];
 
         let _ = sut

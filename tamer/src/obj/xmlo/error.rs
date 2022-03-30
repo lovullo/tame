@@ -52,14 +52,14 @@ pub enum XmloError {
     /// The provided `preproc:sym/@dim` is invalid.
     InvalidDim(SymbolId, Span),
     /// A `preproc:sym-dep` element was found, but is missing `@name`.
-    UnassociatedSymDep,
+    UnassociatedSymDep(Span),
     /// The `preproc:sym[@type="map"]` is missing a @name.
     MapFromNameMissing(SymbolId, Span),
     /// Multiple `preproc:from` nodes found.
     MapFromMultiple(SymbolId, Span),
     /// Invalid dependency in adjacency list
     ///   (`preproc:sym-dep/preproc:sym-ref`).
-    MalformedSymRef(String),
+    MalformedSymRef(SymbolId, Span),
     /// A `preproc:fragment` element was found, but is missing `@id`.
     UnassociatedFragment,
     /// A `preproc:fragment` element was found, but is missing `text()`.
@@ -116,12 +116,17 @@ impl Display for XmloError {
                                only once for symbol `{sym}` at {span}"
                 )
             }
-            Self::UnassociatedSymDep => write!(
+            Self::UnassociatedSymDep(span) => write!(
                 fmt,
-                "unassociated dependency list: preproc:sym-dep/@name missing"
+                "unassociated dependency list: preproc:sym-dep/@name \
+                   missing at {span}"
             ),
-            Self::MalformedSymRef(msg) => {
-                write!(fmt, "malformed dependency ref: {}", msg)
+            Self::MalformedSymRef(name, span) => {
+                write!(
+                    fmt,
+                    "malformed dependency ref for symbol \
+                       {name} at {span}"
+                )
             }
             Self::UnassociatedFragment => write!(
                 fmt,

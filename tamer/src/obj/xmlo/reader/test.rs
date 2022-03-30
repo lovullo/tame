@@ -23,7 +23,7 @@ use super::*;
 use crate::{
     convert::ExpectInto,
     obj::xmlo::{SymDtype, SymType},
-    parse::{ParseError, ParseState, ParseStatus, Parsed},
+    parse::{ParseError, ParseState, Parsed},
     span::{Span, DUMMY_SPAN},
     sym::GlobalSymbolIntern,
     xir::{
@@ -37,6 +37,7 @@ const S1: Span = DUMMY_SPAN;
 const S2: Span = S1.offset_add(1).unwrap();
 const S3: Span = S2.offset_add(1).unwrap();
 const S4: Span = S3.offset_add(1).unwrap();
+const S5: Span = S4.offset_add(1).unwrap();
 
 type Sut = XmloReaderState;
 
@@ -130,70 +131,6 @@ fn ignores_unknown_package_attr() {
             Parsed::Object(XmloEvent::PkgName(name)),
             Parsed::Incomplete, // The unknown attribute
             Parsed::Incomplete,
-        ]),
-        sut.collect(),
-    );
-}
-
-#[test]
-fn xmlo_symtable_parser() {
-    const SSTUB: Span = DUMMY_SPAN.offset_add(50).unwrap();
-
-    #[derive(Debug, Default, PartialEq, Eq)]
-    enum StubSymtableState {
-        #[default]
-        None,
-    }
-
-    impl ParseState for StubSymtableState {
-        type Token = Xirf;
-        type Object = (SymbolId, SymAttrs, Span);
-        type Error = XmloError;
-
-        fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
-            match tok {
-                Xirf::Attr(Attr(QN_NAME, name, (s1, s2))) => {
-                    assert_eq!(s1, S1);
-                    assert_eq!(s2, S2);
-
-                    Transition(Self::None).ok((
-                        name,
-                        SymAttrs::default(),
-                        SSTUB,
-                    ))
-                }
-                tok => panic!("test expects @name but got {tok:?}"),
-            }
-        }
-
-        fn is_accepting(&self) -> bool {
-            *self == Self::None
-        }
-    }
-
-    let symname = "symname".into();
-    let attrs = SymAttrs::default();
-
-    let toks = [
-        Xirf::Open(QN_PACKAGE, S1, Depth(0)),
-        Xirf::Open(QN_SYMTABLE, S2, Depth(1)),
-        // Our stub parser doesn't need an opening or closing tag.
-        // Note that S1 and S2 are expected.
-        Xirf::Attr(Attr(QN_NAME, symname, (S1, S2))), // @name
-        Xirf::Close(Some(QN_SYMTABLE), S4, Depth(1)),
-    ]
-    .into_iter();
-
-    let sut = XmloReaderState::<StubSymtableState>::parse(toks);
-
-    assert_eq!(
-        Ok(vec![
-            Parsed::Incomplete, // <package
-            Parsed::Incomplete, // <preproc:symtable
-            // SSTUB is used to prove that StubSymtableState was used,
-            //   instead of the SS default (no, not a ship).
-            Parsed::Object(XmloEvent::SymDecl(symname, attrs, SSTUB)),
-            Parsed::Incomplete, // </preproc:symtable>
         ]),
         sut.collect(),
     );
@@ -505,8 +442,136 @@ fn symtable_map_from_multiple() {
     .into_iter();
 
     assert_eq!(
-        Err(ParseError::StateError(XmloError::MapFromMultiple(name, S3))), // />
+        Err(ParseError::StateError(XmloError::MapFromMultiple(name, S3))),
         SymtableState::parse(toks)
             .collect::<Result<Vec<Parsed<<SymtableState as ParseState>::Object>>, _>>(),
+    );
+}
+
+#[test]
+fn sym_dep_event() {
+    let name = "depsym".into();
+    let dep1 = "dep1".into();
+    let dep2 = "dep2".into();
+
+    let toks = [
+        Xirf::Open(QN_SYM_DEP, S1, Depth(0)),
+        Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
+        // <preproc:sym-ref
+        Xirf::Open(QN_SYM_REF, S2, Depth(1)),
+        Xirf::Attr(Attr(QN_NAME, dep1, (S3, S4))),
+        Xirf::Close(None, S4, Depth(1)),
+        // />
+        // <preproc:sym-ref
+        Xirf::Open(QN_SYM_REF, S3, Depth(1)),
+        Xirf::Attr(Attr(QN_NAME, dep2, (S4, S5))),
+        Xirf::Close(None, S4, Depth(1)),
+        // />
+        Xirf::Close(Some(QN_SYM_DEP), S5, Depth(0)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete, // <preproc:sym-ref
+            Parsed::Object(XmloEvent::SymDepStart(name, S1)), // @name
+            Parsed::Incomplete, // <preproc:sym-ref
+            Parsed::Object(XmloEvent::Symbol(dep1, S4)), // @name
+            Parsed::Incomplete, // />
+            Parsed::Incomplete, // <preproc:sym-ref
+            Parsed::Object(XmloEvent::Symbol(dep2, S5)), // @name
+            Parsed::Incomplete, // />
+            Parsed::Incomplete, // </preproc:sym-dep>
+        ]),
+        SymDepsState::parse(toks).collect()
+    );
+}
+
+#[test]
+fn sym_dep_missing_name() {
+    let toks = [
+        Xirf::Open(QN_SYM_DEP, S1, Depth(0)),
+        // missing @name, causes error
+        Xirf::Open(QN_SYM_REF, S2, Depth(1)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::UnassociatedSymDep(S1))),
+        SymDepsState::parse(toks)
+            .collect::<Result<Vec<Parsed<<SymDepsState as ParseState>::Object>>, _>>(),
+    );
+}
+
+#[test]
+fn sym_ref_missing_name() {
+    let name = "depsym".into();
+
+    let toks = [
+        Xirf::Open(QN_SYM_DEP, S1, Depth(0)),
+        Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
+        Xirf::Open(QN_SYM_REF, S2, Depth(1)),
+        // missing @name, causes error
+        Xirf::Close(None, S3, Depth(1)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::MalformedSymRef(name, S2))),
+        SymDepsState::parse(toks)
+            .collect::<Result<Vec<Parsed<<SymDepsState as ParseState>::Object>>, _>>(),
+    );
+}
+
+/// Very lightly test the default parser composition.
+///
+/// This test should do just enough to verify that parser state stitching has
+///   occurred.
+#[test]
+fn xmlo_composite_parsers_header() {
+    let sym_name = "sym".into();
+    let symdep_name = "symdep".into();
+
+    let toks_header = [
+        Xirf::Open(QN_PACKAGE, S1, Depth(0)),
+        // <preproc:symtable>
+        Xirf::Open(QN_SYMTABLE, S2, Depth(1)),
+        //   <preproc:sym
+        Xirf::Open(QN_SYM, S3, Depth(2)),
+        Xirf::Attr(Attr(QN_NAME, sym_name, (S2, S3))),
+        Xirf::Close(None, S4, Depth(2)),
+        //   />
+        Xirf::Close(Some(QN_SYMTABLE), S4, Depth(1)),
+        // </preproc:symtable>
+        // <preproc:sym-deps>
+        Xirf::Open(QN_SYM_DEPS, S2, Depth(1)),
+        //   <preproc:sym-dep
+        Xirf::Open(QN_SYM_DEP, S3, Depth(3)),
+        Xirf::Attr(Attr(QN_NAME, symdep_name, (S2, S3))),
+        Xirf::Close(Some(QN_SYM_DEP), S4, Depth(3)),
+        //   </preproc:sym-dep>
+        Xirf::Close(Some(QN_SYM_DEPS), S3, Depth(1)),
+        // </preproc:sym-deps>
+        // No closing root node:
+        //   ensure that we can just end at the header without parsing further.
+    ]
+    .into_iter();
+
+    let sut = Sut::parse(toks_header);
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Object(XmloEvent::SymDecl(
+                sym_name,
+                Default::default(),
+                S3
+            )),
+            Parsed::Object(XmloEvent::SymDepStart(symdep_name, S3)),
+        ]),
+        sut.filter(|parsed| match parsed {
+            Ok(Parsed::Incomplete) => false,
+            _ => true,
+        })
+        .collect(),
     );
 }
