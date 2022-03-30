@@ -46,9 +46,9 @@ pub enum XmloError {
     /// A `preproc:sym` node was found, but is missing `@name`.
     UnassociatedSym(Span),
     /// The provided `preproc:sym/@type` is unknown or invalid.
-    InvalidType(String),
+    InvalidType(SymbolId, Span),
     /// The provided `preproc:sym/@dtype` is unknown or invalid.
-    InvalidDtype(String),
+    InvalidDtype(SymbolId, Span),
     /// The provided `preproc:sym/@dim` is invalid.
     InvalidDim(SymbolId, Span),
     /// A `preproc:sym-dep` element was found, but is missing `@name`.
@@ -91,11 +91,11 @@ impl Display for XmloError {
                 "unassociated symbol table entry: \
                      preproc:sym/@name missing at {span}"
             ),
-            Self::InvalidType(ty) => {
-                write!(fmt, "invalid preproc:sym/@type `{}`", ty)
+            Self::InvalidType(ty, span) => {
+                write!(fmt, "invalid preproc:sym/@type `{ty}` at {span}")
             }
-            Self::InvalidDtype(dtype) => {
-                write!(fmt, "invalid preproc:sym/@dtype `{}`", dtype)
+            Self::InvalidDtype(dtype, span) => {
+                write!(fmt, "invalid preproc:sym/@dtype `{dtype}` at {span}")
             }
             Self::InvalidDim(dim, span) => {
                 write!(fmt, "invalid preproc:sym/@dim `{dim}` at {span}")

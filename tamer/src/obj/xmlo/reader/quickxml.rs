@@ -352,9 +352,10 @@ where
                 b"type" => {
                     sym_attrs.ty =
                         Some((*attr.value).try_into().map_err(|_| {
-                            XmloError::InvalidType(unsafe {
-                                String::from_utf8_unchecked(attr.value.to_vec())
-                            })
+                            XmloError::InvalidType(
+                                unsafe { attr.value.intern_utf8_unchecked() },
+                                UNKNOWN_SPAN,
+                            )
                         })?);
                 }
 
@@ -365,9 +366,10 @@ where
                 b"dtype" => {
                     sym_attrs.dtype =
                         Some((*attr.value).try_into().map_err(|_| {
-                            XmloError::InvalidDtype(unsafe {
-                                String::from_utf8_unchecked(attr.value.to_vec())
-                            })
+                            XmloError::InvalidDtype(
+                                unsafe { attr.value.intern_utf8_unchecked() },
+                                UNKNOWN_SPAN,
+                            )
                         })?);
                 }
 

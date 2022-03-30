@@ -19,11 +19,11 @@
 
 use super::{SymAttrs, XmloError};
 use crate::{
-    obj::xmlo::Dim,
+    obj::xmlo::{Dim, SymDtype, SymType},
     parse::{self, ParseState, ParseStatus, Transition, TransitionResult},
     span::Span,
     sym::{st::*, SymbolId},
-    xir::{attr::Attr, flat::Object as Xirf},
+    xir::{attr::Attr, flat::Object as Xirf, QName},
 };
 
 // While the _use_ is gated, this isn't, to ensure that we still try to
@@ -98,15 +98,25 @@ impl parse::Object for XmloEvent {}
 pub type XmloResult<T> = Result<T, XmloError>;
 
 qname_const! {
-    QN_LV_PACKAGE: L_LV:L_PACKAGE,
-    QN_PACKAGE: :L_PACKAGE,
-    QN_NAME: :L_NAME,
-    QN_UUROOTPATH: :L_UUROOTPATH,
-    QN_PROGRAM: :L_PROGRAM,
-    QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
-    QN_SYMTABLE: L_PREPROC:L_SYMTABLE,
-    QN_SYM: L_PREPROC:L_SYM,
+    QN_DESC: :L_DESC,
     QN_DIM: :L_DIM,
+    QN_DTYPE: :L_DTYPE,
+    QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
+    QN_EXTERN: :L_EXTERN,
+    QN_GENERATED: L_PREPROC:L_GENERATED,
+    QN_ISOVERRIDE: :L_ISOVERRIDE,
+    QN_LV_PACKAGE: L_LV:L_PACKAGE,
+    QN_NAME: :L_NAME,
+    QN_PACKAGE: :L_PACKAGE,
+    QN_PARENT: :L_PARENT,
+    QN_PROGRAM: :L_PROGRAM,
+    QN_SRC: :L_SRC,
+    QN_SYM: L_PREPROC:L_SYM,
+    QN_SYMTABLE: L_PREPROC:L_SYMTABLE,
+    QN_TYPE: :L_TYPE,
+    QN_UUROOTPATH: :L_UUROOTPATH,
+    QN_VIRTUAL: :L_VIRTUAL,
+    QN_YIELDS: :L_YIELDS,
 }
 
 pub trait XmloSymtableState =
@@ -227,27 +237,14 @@ impl ParseState for SymtableState {
                 Transition(Sym(span, Some(name), attrs)).incomplete()
             }
 
-            (Sym(span, name, mut attrs), Xirf::Attr(Attr(key, value, _))) => {
-                match key {
-                    QN_DIM => {
-                        use crate::sym::st::raw::{N0, N1, N2};
+            (
+                Sym(_tspan, name, mut attrs),
+                Xirf::Attr(Attr(key, value, (_, span))),
+            ) => {
+                let result = Self::parse_sym_attr(&mut attrs, key, value, span)
+                    .map(|_: ()| ParseStatus::Incomplete);
 
-                        let result = match value {
-                            N0 => Ok(Dim::Scalar),
-                            N1 => Ok(Dim::Vector),
-                            N2 => Ok(Dim::Matrix),
-                            _ => Err(XmloError::InvalidDim(value, span)),
-                        }
-                        .and_then(|dim| {
-                            attrs.dim.replace(dim);
-                            Ok(ParseStatus::Incomplete)
-                        });
-
-                        Transition(Sym(span, name, attrs)).result(result)
-                    }
-                    QN_NAME => unreachable!("@name already processed"),
-                    todo => todo!("{todo}"),
-                }
+                Transition(Sym(span, name, attrs)).result(result)
             }
 
             todo => todo!("{todo:?}"),
@@ -256,6 +253,139 @@ impl ParseState for SymtableState {
 
     fn is_accepting(&self) -> bool {
         *self == Self::Ready
+    }
+}
+
+impl SymtableState {
+    /// Parse attributes of a `preproc:symtable/preproc:sym` element,
+    ///   representing attributes of a symbol in the symbol table.
+    ///
+    /// Note that `@name` is expected to have already been processed by the
+    ///   caller and is not expected to occur a second time.
+    fn parse_sym_attr(
+        attrs: &mut SymAttrs,
+        key: QName,
+        value: SymbolId,
+        span: Span,
+    ) -> Result<(), XmloError> {
+        use raw::L_TRUE;
+
+        match key {
+            QN_DIM => {
+                attrs.dim.replace(
+                    Self::parse_dim(value)
+                        .ok_or(XmloError::InvalidDim(value, span))?,
+                );
+            }
+            QN_DTYPE => {
+                attrs.dtype.replace(
+                    Self::parse_dtype(value)
+                        .ok_or(XmloError::InvalidDtype(value, span))?,
+                );
+            }
+            QN_TYPE => {
+                attrs.ty.replace(
+                    Self::parse_symtype(value)
+                        .ok_or(XmloError::InvalidType(value, span))?,
+                );
+            }
+
+            QN_SRC => {
+                attrs.src.replace(value);
+            }
+            QN_EXTERN => {
+                attrs.extern_ = value == L_TRUE;
+            }
+            QN_YIELDS => {
+                attrs.yields.replace(value);
+            }
+            QN_PARENT => {
+                attrs.parent.replace(value);
+            }
+            QN_DESC => {
+                attrs.desc.replace(value);
+            }
+            QN_VIRTUAL => {
+                attrs.virtual_ = value == L_TRUE;
+            }
+            QN_ISOVERRIDE => {
+                attrs.override_ = value == L_TRUE;
+            }
+            QN_GENERATED => {
+                attrs.generated = value == L_TRUE;
+            }
+
+            // If we actually hit this,
+            //   we may want to add a proper error to provide more context.
+            // It is not expected to be hit,
+            //   since it would mean that there is a duplicate attribute and
+            //   this xmlo file is hopefully produced by the compiler.
+            QN_NAME => panic!(
+                "preproc:sym/@name already processed \
+                                 (duplicate attribute); \
+                                 the xmlo file is corrupt"
+            ),
+
+            // To maintain BC,
+            //   ignore unknown attrs for now until we are confident that we
+            //   have a comprehensive schema.
+            // TODO: Error here.
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    /// Parse a numeric `preproc:sym/@dim` attribute.
+    fn parse_dim(value: SymbolId) -> Option<Dim> {
+        use raw::*;
+
+        match value {
+            N0 => Some(Dim::Scalar),
+            N1 => Some(Dim::Vector),
+            N2 => Some(Dim::Matrix),
+            _ => None,
+        }
+    }
+
+    /// Parse a `preproc:sym/@dtype` attribute.
+    fn parse_dtype(value: SymbolId) -> Option<SymDtype> {
+        use raw::*;
+
+        match value {
+            L_BOOLEAN => Some(SymDtype::Boolean),
+            L_INTEGER => Some(SymDtype::Integer),
+            L_FLOAT => Some(SymDtype::Float),
+            L_EMPTY => Some(SymDtype::Empty),
+            _ => None,
+        }
+    }
+
+    /// Parse a `preproc:sym/@type` attribute.
+    fn parse_symtype(value: SymbolId) -> Option<SymType> {
+        use raw::*;
+
+        match value {
+            L_CGEN => Some(SymType::Cgen),
+            L_CLASS => Some(SymType::Class),
+            L_CONST => Some(SymType::Const),
+            L_FUNC => Some(SymType::Func),
+            L_GEN => Some(SymType::Gen),
+            L_LPARAM => Some(SymType::Lparam),
+            L_PARAM => Some(SymType::Param),
+            L_RATE => Some(SymType::Rate),
+            L_TPL => Some(SymType::Tpl),
+            L_TYPE => Some(SymType::Type),
+            L_RETMAP_HEAD => Some(SymType::RetMapHead),
+            L_RETMAP => Some(SymType::RetMap),
+            L_RETMAP_TAIL => Some(SymType::RetMapTail),
+            L_MAP_HEAD => Some(SymType::MapHead),
+            L_MAP => Some(SymType::Map),
+            L_MAP_TAIL => Some(SymType::MapTail),
+            L_META => Some(SymType::Meta),
+            L_WORKSHEET => Some(SymType::Worksheet),
+            _ => None,
+        }
     }
 }
 

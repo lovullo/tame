@@ -686,6 +686,7 @@ macro_rules! sym_tests {
     }
 }
 
+// DONE
 sym_tests! {
     src: [src="foo/bar/baz"] => SymAttrs {
         // see macro for src relpath
@@ -781,6 +782,7 @@ sym_tests! {
         }
 }
 
+// DONE
 // can't be tested using the above
 #[test]
 fn generated_true() -> XmloResult<()> {
@@ -821,6 +823,7 @@ fn generated_true() -> XmloResult<()> {
     Ok(())
 }
 
+// DONE
 #[test]
 fn fails_on_non_ascii_dim() {
     let stub_data: &[u8] = &[];
@@ -834,6 +837,7 @@ fn fails_on_non_ascii_dim() {
     }
 }
 
+// DONE
 #[test]
 fn fails_on_multi_char_dim() {
     let stub_data: &[u8] = &[];
@@ -847,6 +851,7 @@ fn fails_on_multi_char_dim() {
     }
 }
 
+// DONE
 #[test]
 fn fails_on_invalid_type() {
     let stub_data: &[u8] = &[];
@@ -855,11 +860,12 @@ fn fails_on_invalid_type() {
     sym_test_reader_event!(sut, fail_sym, type = "foo");
 
     match sut.read_event() {
-        Err(XmloError::InvalidType(msg)) => assert!(msg.contains("foo")),
+        Err(XmloError::InvalidType(ty, _)) => assert_eq!(ty, "foo".into()),
         bad => panic!("expected failure: {:?}", bad),
     }
 }
 
+// DONE
 #[test]
 fn fails_on_invalid_dtype() {
     let stub_data: &[u8] = &[];
@@ -868,20 +874,7 @@ fn fails_on_invalid_dtype() {
     sym_test_reader_event!(sut, fail_sym, dtype = "foo");
 
     match sut.read_event() {
-        Err(XmloError::InvalidDtype(msg)) => assert!(msg.contains("foo")),
-        bad => panic!("expected failure: {:?}", bad),
-    }
-}
-
-#[test]
-fn fails_when_missing_sym_name() {
-    let stub_data: &[u8] = &[];
-    let mut sut = Sut::new(stub_data);
-
-    sym_test_reader_event!(sut, fail_sym, dtype = "foo");
-
-    match sut.read_event() {
-        Err(XmloError::InvalidDtype(msg)) => assert!(msg.contains("foo")),
+        Err(XmloError::InvalidDtype(dty, _)) => assert_eq!(dty, "foo".into()),
         bad => panic!("expected failure: {:?}", bad),
     }
 }

@@ -22,6 +22,7 @@ use std::assert_matches::assert_matches;
 use super::*;
 use crate::{
     convert::ExpectInto,
+    obj::xmlo::{SymDtype, SymType},
     parse::{ParseError, ParseState, Parsed},
     span::{Span, DUMMY_SPAN},
     sym::GlobalSymbolIntern,
@@ -217,6 +218,8 @@ fn symtable_err_missing_sym_name() {
     );
 }
 
+const SA: Span = S4;
+
 macro_rules! symtable_tests {
     ($($name:ident: [$($key:ident=$val:literal),*] => $expect:expr)*) => {
         $(
@@ -226,12 +229,12 @@ macro_rules! symtable_tests {
 
                 let toks = [
                     Xirf::Open(QN_SYM, S1, Depth(0)),
-                    Xirf::Attr(Attr::new(QN_NAME, name, (S2, S3))),
+                    Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
                     $(
-                        Xirf::Attr(Attr::new(
+                        Xirf::Attr(Attr(
                             stringify!($key).unwrap_into(),
                             $val.unwrap_into(),
-                            (S2, S3)
+                            (S3, SA)
                         )),
                     )*
                     Xirf::Close(Some(QN_SYM), S2, Depth(0)),
@@ -239,18 +242,22 @@ macro_rules! symtable_tests {
                     .into_iter();
 
                 assert_eq!(
-                    Ok(vec![
-                        Parsed::Incomplete,  // Opening tag
-                        Parsed::Incomplete,  // @name
-                        $(
-                            // For each attribute ($key here is necessary
-                            //   for macro iteration).
-                            #[allow(unused)]
-                            #[doc=stringify!($key)]
-                            Parsed::Incomplete,
-                        )*
-                        Parsed::Object((name, $expect, S1)),
-                    ]),
+                    match $expect {
+                        Ok(expected) =>
+                            Ok(vec![
+                                Parsed::Incomplete,  // Opening tag
+                                Parsed::Incomplete,  // @name
+                                $(
+                                    // For each attribute ($key here is necessary
+                                    //   for macro iteration).
+                                    #[allow(unused)]
+                                    #[doc=stringify!($key)]
+                                    Parsed::Incomplete,
+                                )*
+                                Parsed::Object((name, expected, SA)),
+                            ]),
+                        Err(expected) => Err(ParseError::StateError(expected)),
+                    },
                     SymtableState::parse(toks).collect(),
                 );
             }
@@ -259,18 +266,142 @@ macro_rules! symtable_tests {
 }
 
 symtable_tests! {
-    dim_0: [dim="0"] => SymAttrs {
+    src: [src="foo/bar/baz"] => Ok(SymAttrs {
+        // see macro for src relpath
+        src: Some("foo/bar/baz".intern()),
+        ..Default::default()
+    })
+
+    // note that this doesn't test every type; we're not going to
+    // duplicate the mapping for all of them here
+    tycgen: [type="cgen"] => Ok(SymAttrs {
+        ty: Some(SymType::Cgen),
+        ..Default::default()
+    })
+
+    badtype: [type="bad"] => Err(XmloError::InvalidType("bad".into(), SA))
+
+    dim_0: [dim="0"] => Ok(SymAttrs {
         dim: Some(Dim::Scalar),
         ..Default::default()
-    }
+    })
 
-    dim_1: [dim="1"] => SymAttrs {
+    dim_1: [dim="1"] => Ok(SymAttrs {
         dim: Some(Dim::Vector),
         ..Default::default()
-    }
+    })
 
-    dim_2: [dim="2"] => SymAttrs {
+    dim_2: [dim="2"] => Ok(SymAttrs {
         dim: Some(Dim::Matrix),
         ..Default::default()
-    }
+    })
+
+    dim_highnum: [dim="3"] => Err(XmloError::InvalidDim("3".into(), SA))
+
+    dim_nonum: [dim="X1"] => Err(XmloError::InvalidDim("X1".into(), SA))
+
+    dtyboolean: [dtype="boolean"] => Ok(SymAttrs {
+        dtype: Some(SymDtype::Boolean),
+        ..Default::default()
+    })
+
+    dtyinteger: [dtype="integer"] => Ok(SymAttrs {
+        dtype: Some(SymDtype::Integer),
+        ..Default::default()
+    })
+
+    dtyfloat: [dtype="float"] => Ok(SymAttrs {
+        dtype: Some(SymDtype::Float),
+        ..Default::default()
+    })
+
+    dtyempty: [dtype="empty"] => Ok(SymAttrs {
+        dtype: Some(SymDtype::Empty),
+        ..Default::default()
+    })
+
+    dtybad: [dtype="bad"] => Err(XmloError::InvalidDtype("bad".into(), SA))
+
+    extern_true: [extern="true"] => Ok(SymAttrs {
+        extern_: true,
+        ..Default::default()
+    })
+
+    // The compiler will never produce nonsense values, so we'll just
+    // provide a sane default rather than adding extra checks (and
+    // hopefully we don't regret this)
+    extern_crap: [extern="nonsense"] => Ok(SymAttrs {
+        extern_: false,
+        ..Default::default()
+    })
+
+    parent: [parent="foo"] => Ok(SymAttrs {
+        parent: Some("foo".intern()),
+        ..Default::default()
+    })
+
+    yields: [yields="yield"] => Ok(SymAttrs {
+        yields: Some("yield".intern()),
+        ..Default::default()
+    })
+
+    desc: [desc="Description"] => Ok(SymAttrs {
+        desc: Some("Description".into()),
+        ..Default::default()
+    })
+
+    r#virtual: [virtual="true"] => Ok(SymAttrs {
+        virtual_: true,
+        ..Default::default()
+    })
+
+    r#override: [isoverride="true"] => Ok(SymAttrs {
+        override_: true,
+        ..Default::default()
+    })
+
+    // Multiple attributes at once
+    multi: [src="foo", type="class", dim="1", dtype="float", extern="true"]
+        => Ok(SymAttrs {
+            // see macro for src relpath
+            src: Some("foo".intern()),
+            ty: Some(SymType::Class),
+            dim: Some(Dim::Vector),
+            dtype: Some(SymDtype::Float),
+            extern_: true,
+            ..Default::default()
+        })
+}
+
+// Can't be tested using the above macro because of the attr name.
+#[test]
+fn symtable_sym_generated_true() {
+    let name = "generated_true".into();
+
+    let toks = [
+        Xirf::Open(QN_SYM, S1, Depth(0)),
+        Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
+        Xirf::Attr(Attr(
+            ("preproc", "generated").unwrap_into(),
+            raw::L_TRUE,
+            (S3, S4),
+        )),
+        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    let expected = SymAttrs {
+        generated: true,
+        ..Default::default()
+    };
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete, // Opening tag
+            Parsed::Incomplete, // @name
+            Parsed::Incomplete, // @preproc:generated
+            Parsed::Object((name, expected, S4)),
+        ]),
+        SymtableState::parse(toks).collect(),
+    );
 }
