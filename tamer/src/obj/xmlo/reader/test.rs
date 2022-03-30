@@ -218,7 +218,10 @@ fn symtable_err_missing_sym_name() {
     );
 }
 
-const SA: Span = S4;
+/// The span expected by the below `preproc:sym` tests for the emitted object.
+const SSYM: Span = S1;
+/// The span expected by failures associated with symbol attributes.
+const SATTRVAL: Span = S4;
 
 macro_rules! symtable_tests {
     ($($name:ident: [$($key:ident=$val:literal),*] => $expect:expr)*) => {
@@ -228,13 +231,13 @@ macro_rules! symtable_tests {
                 let name = stringify!($name).intern();
 
                 let toks = [
-                    Xirf::Open(QN_SYM, S1, Depth(0)),
+                    Xirf::Open(QN_SYM, SSYM, Depth(0)),
                     Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
                     $(
                         Xirf::Attr(Attr(
                             stringify!($key).unwrap_into(),
                             $val.unwrap_into(),
-                            (S3, SA)
+                            (S3, SATTRVAL)
                         )),
                     )*
                     Xirf::Close(Some(QN_SYM), S2, Depth(0)),
@@ -254,7 +257,7 @@ macro_rules! symtable_tests {
                                     #[doc=stringify!($key)]
                                     Parsed::Incomplete,
                                 )*
-                                Parsed::Object((name, expected, SA)),
+                                Parsed::Object((name, expected, SSYM)),
                             ]),
                         Err(expected) => Err(ParseError::StateError(expected)),
                     },
@@ -279,7 +282,9 @@ symtable_tests! {
         ..Default::default()
     })
 
-    badtype: [type="bad"] => Err(XmloError::InvalidType("bad".into(), SA))
+    badtype: [type="bad"] => Err(
+        XmloError::InvalidType("bad".into(), SATTRVAL)
+    )
 
     dim_0: [dim="0"] => Ok(SymAttrs {
         dim: Some(Dim::Scalar),
@@ -296,9 +301,13 @@ symtable_tests! {
         ..Default::default()
     })
 
-    dim_highnum: [dim="3"] => Err(XmloError::InvalidDim("3".into(), SA))
+    dim_highnum: [dim="3"] => Err(
+        XmloError::InvalidDim("3".into(), SATTRVAL)
+    )
 
-    dim_nonum: [dim="X1"] => Err(XmloError::InvalidDim("X1".into(), SA))
+    dim_nonum: [dim="X1"] => Err(
+        XmloError::InvalidDim("X1".into(), SATTRVAL)
+    )
 
     dtyboolean: [dtype="boolean"] => Ok(SymAttrs {
         dtype: Some(SymDtype::Boolean),
@@ -320,7 +329,9 @@ symtable_tests! {
         ..Default::default()
     })
 
-    dtybad: [dtype="bad"] => Err(XmloError::InvalidDtype("bad".into(), SA))
+    dtybad: [dtype="bad"] => Err(
+        XmloError::InvalidDtype("bad".into(), SATTRVAL)
+    )
 
     extern_true: [extern="true"] => Ok(SymAttrs {
         extern_: true,
@@ -379,7 +390,7 @@ fn symtable_sym_generated_true() {
     let name = "generated_true".into();
 
     let toks = [
-        Xirf::Open(QN_SYM, S1, Depth(0)),
+        Xirf::Open(QN_SYM, SSYM, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, (S2, S3))),
         Xirf::Attr(Attr(
             ("preproc", "generated").unwrap_into(),
@@ -400,7 +411,7 @@ fn symtable_sym_generated_true() {
             Parsed::Incomplete, // Opening tag
             Parsed::Incomplete, // @name
             Parsed::Incomplete, // @preproc:generated
-            Parsed::Object((name, expected, S4)),
+            Parsed::Object((name, expected, SSYM)),
         ]),
         SymtableState::parse(toks).collect(),
     );

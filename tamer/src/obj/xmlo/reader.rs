@@ -238,10 +238,10 @@ impl ParseState for SymtableState {
             }
 
             (
-                Sym(_tspan, name, mut attrs),
-                Xirf::Attr(Attr(key, value, (_, span))),
-            ) => Self::parse_sym_attr(&mut attrs, key, value, span)
-                .transition(Sym(span, name, attrs)),
+                Sym(span_sym, name, mut attrs),
+                Xirf::Attr(Attr(key, value, (_, span_attrval))),
+            ) => Self::parse_sym_attr(&mut attrs, key, value, span_attrval)
+                .transition(Sym(span_sym, name, attrs)),
 
             todo => todo!("{todo:?}"),
         }
