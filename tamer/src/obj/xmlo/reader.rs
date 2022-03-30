@@ -20,7 +20,7 @@
 use super::{SymAttrs, XmloError};
 use crate::{
     obj::xmlo::{Dim, SymDtype, SymType},
-    parse::{self, ParseState, ParseStatus, Transition, TransitionResult},
+    parse::{self, ParseState, Transition, TransitionResult, Transitionable},
     span::Span,
     sym::{st::*, SymbolId},
     xir::{attr::Attr, flat::Object as Xirf, QName},
@@ -240,12 +240,8 @@ impl ParseState for SymtableState {
             (
                 Sym(_tspan, name, mut attrs),
                 Xirf::Attr(Attr(key, value, (_, span))),
-            ) => {
-                let result = Self::parse_sym_attr(&mut attrs, key, value, span)
-                    .map(|_: ()| ParseStatus::Incomplete);
-
-                Transition(Sym(span, name, attrs)).result(result)
-            }
+            ) => Self::parse_sym_attr(&mut attrs, key, value, span)
+                .transition(Sym(span, name, attrs)),
 
             todo => todo!("{todo:?}"),
         }

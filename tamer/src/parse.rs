@@ -364,6 +364,44 @@ impl<S: ParseState> FromResidual<Result<Infallible, TransitionResult<S>>>
     }
 }
 
+/// An object able to be used as data for a state [`Transition`].
+///
+/// This flips the usual order of things:
+///   rather than using a method of [`Transition`] to provide data,
+///     this starts with the data and produces a transition from it.
+/// This is sometimes necessary to satisfy ownership/borrowing rules.
+///
+/// This trait simply removes boilerplate associated with storing
+///   intermediate values and translating into the resulting type.
+pub trait Transitionable<S: ParseState> {
+    /// Perform a state transition to `S` using [`Self`] as the associated
+    ///   data.
+    ///
+    /// This may be necessary to satisfy ownership/borrowing rules when
+    ///   state data from `S` is used to compute [`Self`].
+    fn transition(self, to: S) -> TransitionResult<S>;
+}
+
+impl<S, E> Transitionable<S> for Result<ParseStatus<S>, E>
+where
+    S: ParseState,
+    <S as ParseState>::Error: From<E>,
+{
+    fn transition(self, to: S) -> TransitionResult<S> {
+        Transition(to).result(self)
+    }
+}
+
+impl<S, E> Transitionable<S> for Result<(), E>
+where
+    S: ParseState,
+    <S as ParseState>::Error: From<E>,
+{
+    fn transition(self, to: S) -> TransitionResult<S> {
+        Transition(to).result(self.map(|_| ParseStatus::Incomplete))
+    }
+}
+
 /// A streaming parser defined by a [`ParseState`] with exclusive
 ///   mutable access to an underlying [`TokenStream`].
 ///
