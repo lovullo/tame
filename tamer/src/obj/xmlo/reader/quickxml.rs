@@ -588,9 +588,10 @@ where
         let id = filtered
             .find(|attr| attr.key == b"id")
             .filter(|attr| &*attr.value != b"")
-            .map_or(Err(XmloError::UnassociatedFragment), |attr| {
-                Ok(unsafe { attr.value.intern_utf8_unchecked() })
-            })?;
+            .map_or(
+                Err(XmloError::UnassociatedFragment(UNKNOWN_SPAN)),
+                |attr| Ok(unsafe { attr.value.intern_utf8_unchecked() }),
+            )?;
 
         let text = match reader.read_event(buffer)? {
             XmlEvent::Text(ev) => {
@@ -600,10 +601,10 @@ where
                 // compiler.
                 Ok(unsafe { ev.escaped().clone_uninterned_utf8_unchecked() })
             }
-            _ => Err(XmloError::MissingFragmentText(id)),
+            _ => Err(XmloError::MissingFragmentText(id, UNKNOWN_SPAN)),
         }?;
 
-        Ok(XmloEvent::Fragment(id, text))
+        Ok(XmloEvent::Fragment(id, text, UNKNOWN_SPAN))
     }
 
     /// Convert single-character `@dim` to a [`Dim`].

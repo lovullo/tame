@@ -248,7 +248,10 @@ where
                 }
 
                 // Fragments follow SymDeps.
-                (IS::None | IS::SymDep(_), XmloEvent::Fragment(sym, text)) => {
+                (
+                    IS::None | IS::SymDep(_),
+                    XmloEvent::Fragment(sym, text, _),
+                ) => {
                     istate = IS::None;
 
                     let frag = self
@@ -747,9 +750,9 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                UNKNOWN_SPAN,
+                DUMMY_SPAN,
             )),
-            Ok(XmloEvent::Fragment(sym, frag.clone())),
+            Ok(XmloEvent::Fragment(sym, frag.clone(), DUMMY_SPAN)),
         ];
 
         let _ = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
@@ -776,7 +779,7 @@ mod test {
         let sym = "sym".intern();
 
         // Note: missing `SymDecl`.
-        let evs = vec![Ok(XmloEvent::Fragment(sym, "foo".into()))];
+        let evs = vec![Ok(XmloEvent::Fragment(sym, "foo".into(), DUMMY_SPAN))];
 
         let result = sut
             .import_xmlo(evs.into_iter(), SutState::new())
@@ -801,9 +804,9 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                UNKNOWN_SPAN,
+                DUMMY_SPAN,
             )),
-            Ok(XmloEvent::Fragment(sym, frag.clone())),
+            Ok(XmloEvent::Fragment(sym, frag.clone(), DUMMY_SPAN)),
         ];
 
         let result = sut

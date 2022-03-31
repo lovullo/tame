@@ -450,10 +450,13 @@ pub mod st {
         L_EXTERN: cid "extern",
         L_FALSE: cid "false",
         L_FLOAT: cid "float",
+        L_FRAGMENT: cid "fragment",
+        L_FRAGMENTS: cid "fragments",
         L_FROM: cid "from",
         L_FUNC: cid "func",
         L_GEN: cid "gen",
         L_GENERATED: cid "generated",
+        L_ID: cid "id",
         L_INTEGER: cid "integer",
         L_ISOVERRIDE: cid "isoverride",
         L_L: cid "l",
@@ -502,6 +505,9 @@ pub mod st {
         URI_LV_RATER: uri "http://www.lovullo.com/rater",
         URI_LV_PREPROC: uri "http://www.lovullo.com/rater/preproc",
         URI_LV_LINKER: uri "http://www.lovullo.com/rater/linker",
+
+        // TODO: Whitespace type
+        WS_EMPTY: str "",
 
         // [Symbols will be added here as they are needed.]
 

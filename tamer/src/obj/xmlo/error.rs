@@ -61,9 +61,9 @@ pub enum XmloError {
     ///   (`preproc:sym-dep/preproc:sym-ref`).
     MalformedSymRef(SymbolId, Span),
     /// A `preproc:fragment` element was found, but is missing `@id`.
-    UnassociatedFragment,
+    UnassociatedFragment(Span),
     /// A `preproc:fragment` element was found, but is missing `text()`.
-    MissingFragmentText(SymbolId),
+    MissingFragmentText(SymbolId, Span),
     /// Token stream ended unexpectedly.
     UnexpectedEof,
 }
@@ -128,14 +128,13 @@ impl Display for XmloError {
                        {name} at {span}"
                 )
             }
-            Self::UnassociatedFragment => write!(
+            Self::UnassociatedFragment(span) => write!(
                 fmt,
-                "unassociated fragment: preproc:fragment/@id missing"
+                "unassociated fragment: preproc:fragment/@id missing at {span}"
             ),
-            Self::MissingFragmentText(symname) => write!(
+            Self::MissingFragmentText(sym, span) => write!(
                 fmt,
-                "fragment found, but missing text for symbol `{}`",
-                symname,
+                "fragment found, but missing text for symbol `{sym}` at {span}",
             ),
             Self::UnexpectedEof => write!(fmt, "unexpected EOF"),
         }

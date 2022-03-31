@@ -519,7 +519,98 @@ fn sym_ref_missing_name() {
     assert_eq!(
         Err(ParseError::StateError(XmloError::MalformedSymRef(name, S2))),
         SymDepsState::parse(toks)
-            .collect::<Result<Vec<Parsed<<SymDepsState as ParseState>::Object>>, _>>(),
+            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+    );
+}
+
+#[test]
+fn sym_fragment_event() {
+    let id1 = "fragsym1".into();
+    let id2 = "fragsym2".into();
+    let frag1 = "fragment text 1".into();
+    let frag2 = "fragment text 2".into();
+
+    let toks = [
+        // first
+        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        Xirf::Attr(Attr(QN_ID, id1, (S2, S3))),
+        Xirf::Text(frag1, S4),
+        Xirf::Close(Some(QN_FRAGMENT), S5, Depth(0)),
+        // second
+        Xirf::Open(QN_FRAGMENT, S2, Depth(0)),
+        Xirf::Attr(Attr(QN_ID, id2, (S3, S4))),
+        Xirf::Text(frag2, S5),
+        Xirf::Close(Some(QN_FRAGMENT), S5, Depth(0)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete, // <preproc:fragment
+            Parsed::Incomplete, // @id
+            Parsed::Object(XmloEvent::Fragment(id1, frag1, S1)), // text
+            Parsed::Incomplete, // </preproc:fragment>
+            Parsed::Incomplete, // <preproc:fragment
+            Parsed::Incomplete, // @id
+            Parsed::Object(XmloEvent::Fragment(id2, frag2, S2)), // text
+            Parsed::Incomplete, // </preproc:fragment>
+        ]),
+        FragmentsState::parse(toks).collect()
+    );
+}
+
+#[test]
+fn sym_fragment_missing_id() {
+    let toks = [
+        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        // missing @id
+        Xirf::Text("text".into(), S4),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::UnassociatedFragment(S1))),
+        FragmentsState::parse(toks)
+            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+    );
+}
+
+// Yes, this happened.
+#[test]
+fn sym_fragment_empty_id() {
+    let toks = [
+        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        // empty @id
+        Xirf::Attr(Attr(QN_ID, "".into(), (S3, S4))),
+        Xirf::Text("text".into(), S4),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::UnassociatedFragment(S1))),
+        FragmentsState::parse(toks)
+            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+    );
+}
+
+#[test]
+fn sym_fragment_missing_text() {
+    let id = "fragsym".into();
+
+    let toks = [
+        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        Xirf::Attr(Attr(QN_ID, id, (S3, S4))),
+        // missing text
+        Xirf::Close(Some(QN_FRAGMENT), S5, Depth(0)),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Err(ParseError::StateError(XmloError::MissingFragmentText(
+            id, S1
+        ))),
+        FragmentsState::parse(toks)
+            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
     );
 }
 
@@ -531,6 +622,8 @@ fn sym_ref_missing_name() {
 fn xmlo_composite_parsers_header() {
     let sym_name = "sym".into();
     let symdep_name = "symdep".into();
+    let symfrag_id = "symfrag".into();
+    let frag = "fragment text".into();
 
     let toks_header = [
         Xirf::Open(QN_PACKAGE, S1, Depth(0)),
@@ -552,6 +645,16 @@ fn xmlo_composite_parsers_header() {
         //   </preproc:sym-dep>
         Xirf::Close(Some(QN_SYM_DEPS), S3, Depth(1)),
         // </preproc:sym-deps>
+        // <preproc:fragments>
+        Xirf::Open(QN_FRAGMENTS, S2, Depth(1)),
+        //   <preproc:fragment
+        Xirf::Open(QN_FRAGMENT, S4, Depth(2)),
+        Xirf::Attr(Attr(QN_ID, symfrag_id, (S2, S3))),
+        Xirf::Text(frag, S5),
+        Xirf::Close(Some(QN_FRAGMENT), S4, Depth(2)),
+        //   </preproc:fragment>
+        Xirf::Close(Some(QN_FRAGMENTS), S3, Depth(1)),
+        // </preproc:fragments>
         // No closing root node:
         //   ensure that we can just end at the header without parsing further.
     ]
@@ -567,6 +670,7 @@ fn xmlo_composite_parsers_header() {
                 S3
             )),
             Parsed::Object(XmloEvent::SymDepStart(symdep_name, S3)),
+            Parsed::Object(XmloEvent::Fragment(symfrag_id, frag, S4)),
         ]),
         sut.filter(|parsed| match parsed {
             Ok(Parsed::Incomplete) => false,

@@ -263,6 +263,7 @@ xmlo_tests! {
         }
     }
 
+    // DONE (part of composite)
     fn eoh_after_fragments(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
             Ok(XmlEvent::End(MockBytesEnd::new(b"preproc:fragments")))
@@ -273,6 +274,7 @@ xmlo_tests! {
         assert_eq!(XmloEvent::Eoh, result);
     }
 
+    // DONE
     fn fragment_event(sut) {
         let expected = "fragment text";
 
@@ -295,7 +297,7 @@ xmlo_tests! {
 
         assert!(matches!(
             result,
-            XmloEvent::Fragment(sym, given)
+            XmloEvent::Fragment(sym, given, _)
                 if sym == "fragsym".intern() && given.lookup_str() == expected
         ));
     }
@@ -309,11 +311,12 @@ xmlo_tests! {
         }));
 
         match sut.read_event() {
-            Err(XmloError::UnassociatedFragment) => (),
+            Err(XmloError::UnassociatedFragment(_)) => (),
             bad => panic!("expected XmloError: {:?}", bad),
         }
     }
 
+    // DONE
     // Yes, this happened.
     fn fragment_fails_with_empty_id(sut) {
         sut.reader.next_event = Some(Box::new(|_, _| {
@@ -326,11 +329,12 @@ xmlo_tests! {
         }));
 
         match sut.read_event() {
-            Err(XmloError::UnassociatedFragment) => (),
+            Err(XmloError::UnassociatedFragment(_)) => (),
             bad => panic!("expected XmloError: {:?}", bad),
         }
     }
 
+    // DONE
     fn fragment_fails_with_missing_text(sut) {
         sut.reader.next_text = Some(Err(InnerXmlError::TextNotFound));
 
@@ -344,7 +348,7 @@ xmlo_tests! {
         }));
 
         match sut.read_event() {
-            Err(XmloError::MissingFragmentText(symname)) => {
+            Err(XmloError::MissingFragmentText(symname, _)) => {
                 assert_eq!("fragsym".intern(), symname)
             }
             bad => panic!("expected XmloError: {:?}", bad),

@@ -79,7 +79,7 @@ pub enum XmloEvent {
     /// Given that fragments can be quite large,
     ///   a caller not interested in these data should choose to skip
     ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(SymbolId, SymbolId),
+    Fragment(SymbolId, SymbolId, Span),
 
     /// End-of-header.
     ///
@@ -103,8 +103,11 @@ qname_const! {
     QN_DTYPE: :L_DTYPE,
     QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
     QN_EXTERN: :L_EXTERN,
+    QN_FRAGMENT: L_PREPROC:L_FRAGMENT,
+    QN_FRAGMENTS: L_PREPROC:L_FRAGMENTS,
     QN_FROM: L_PREPROC:L_FROM,
     QN_GENERATED: L_PREPROC:L_GENERATED,
+    QN_ID: :L_ID,
     QN_ISOVERRIDE: :L_ISOVERRIDE,
     QN_LV_PACKAGE: L_LV:L_PACKAGE,
     QN_NAME: :L_NAME,
@@ -114,8 +117,8 @@ qname_const! {
     QN_SRC: :L_SRC,
     QN_SYM: L_PREPROC:L_SYM,
     QN_SYMTABLE: L_PREPROC:L_SYMTABLE,
-    QN_SYM_DEPS: L_PREPROC:L_SYM_DEPS,
     QN_SYM_DEP: L_PREPROC:L_SYM_DEP,
+    QN_SYM_DEPS: L_PREPROC:L_SYM_DEPS,
     QN_SYM_REF: L_PREPROC:L_SYM_REF,
     QN_TYPE: :L_TYPE,
     QN_UUROOTPATH: :L_UUROOTPATH,
@@ -133,6 +136,7 @@ where
 pub enum XmloReaderState<
     SS: XmloState = SymtableState,
     SD: XmloState = SymDepsState,
+    SF: XmloState = FragmentsState,
 > {
     /// Parser has not yet processed any input.
     #[default]
@@ -145,13 +149,19 @@ pub enum XmloReaderState<
     SymDepsExpected,
     /// Expecting symbol dependency list or closing `preproc:sym-deps`.
     SymDeps(Span, SD),
+    /// Compiled text fragments are expected next.
+    FragmentsExpected,
+    /// Expecting text fragment or closing `preproc:fragments`.
+    Fragments(Span, SF),
     /// End of header parsing.
     Eoh,
     /// `xmlo` file has been fully read.
     Done,
 }
 
-impl<SS: XmloState, SD: XmloState> ParseState for XmloReaderState<SS, SD> {
+impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
+    for XmloReaderState<SS, SD, SF>
+{
     type Token = Xirf;
     type Object = XmloEvent;
     type Error = XmloError;
@@ -205,10 +215,22 @@ impl<SS: XmloState, SD: XmloState> ParseState for XmloReaderState<SS, SD> {
             (SymDeps(_, sd), Xirf::Close(Some(QN_SYM_DEPS), ..))
                 if sd.is_accepting() =>
             {
-                Transition(Eoh).incomplete()
+                Transition(FragmentsExpected).incomplete()
             }
 
             (SymDeps(span, sd), tok) => sd.delegate(span, tok, SymDeps),
+
+            (FragmentsExpected, Xirf::Open(QN_FRAGMENTS, span, _)) => {
+                Transition(Fragments(span, SF::default())).incomplete()
+            }
+
+            (Fragments(_, sf), Xirf::Close(Some(QN_FRAGMENTS), ..))
+                if sf.is_accepting() =>
+            {
+                Transition(Eoh).incomplete()
+            }
+
+            (Fragments(span, sf), tok) => sf.delegate(span, tok, Fragments),
 
             (Eoh, Xirf::Close(Some(QN_PACKAGE), ..)) => {
                 Transition(Done).incomplete()
@@ -519,6 +541,64 @@ impl ParseState for SymDepsState {
             (Sym(..), Xirf::Close(..)) => Transition(Ready).incomplete(),
 
             todo => todo!("sym-deps {todo:?}"),
+        }
+    }
+
+    fn is_accepting(&self) -> bool {
+        *self == Self::Ready
+    }
+}
+
+/// Text fragment (compiled code) parser for `preproc:fragments` children.
+///
+/// This parser expects a parent [`ParseState`] to indicate when dependency
+///   parsing ought to start and end—
+///     this parser does not recognize any opening or closing
+///     `preproc:fragments` tags.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum FragmentsState {
+    #[default]
+    Ready,
+    FragmentUnnamed(Span),
+    Fragment(Span, SymbolId),
+    FragmentDone(Span, SymbolId),
+}
+
+impl ParseState for FragmentsState {
+    type Token = Xirf;
+    type Object = XmloEvent;
+    type Error = XmloError;
+
+    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+        use FragmentsState::*;
+
+        match (self, tok) {
+            (Ready, Xirf::Open(QN_FRAGMENT, span, _)) => {
+                Transition(FragmentUnnamed(span)).incomplete()
+            }
+
+            (FragmentUnnamed(span), Xirf::Attr(Attr(QN_ID, id, _)))
+                if id != raw::WS_EMPTY =>
+            {
+                Transition(Fragment(span, id)).incomplete()
+            }
+
+            (FragmentUnnamed(span), _) => Transition(FragmentUnnamed(span))
+                .err(XmloError::UnassociatedFragment(span)),
+
+            (Fragment(span, id), Xirf::Text(text, _)) => {
+                Transition(FragmentDone(span, id))
+                    .ok(XmloEvent::Fragment(id, text, span))
+            }
+
+            (Fragment(span, id), _) => Transition(Fragment(span, id))
+                .err(XmloError::MissingFragmentText(id, span)),
+
+            (FragmentDone(..), Xirf::Close(..)) => {
+                Transition(Ready).incomplete()
+            }
+
+            todo => todo!("{todo:?}"),
         }
     }
 
