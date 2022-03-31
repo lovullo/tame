@@ -122,57 +122,57 @@
 
       <inline-template>
         <for-each>
-          <set state_const="STATE_AK" state_upper="AK" state_lower="ak" state_name="Alaska"         />
-          <set state_const="STATE_AL" state_upper="AL" state_lower="al" state_name="Alabama"        />
-          <set state_const="STATE_AR" state_upper="AR" state_lower="ar" state_name="Arkansas"       />
-          <set state_const="STATE_AZ" state_upper="AZ" state_lower="az" state_name="Arizona"        />
-          <set state_const="STATE_CA" state_upper="CA" state_lower="ca" state_name="California"     />
-          <set state_const="STATE_CO" state_upper="CO" state_lower="co" state_name="Colorado"       />
-          <set state_const="STATE_CT" state_upper="CT" state_lower="ct" state_name="Connecticut"    />
-          <set state_const="STATE_DC" state_upper="DC" state_lower="dc" state_name="Washington DC"  />
-          <set state_const="STATE_DE" state_upper="DE" state_lower="de" state_name="Delaware"       />
-          <set state_const="STATE_FL" state_upper="FL" state_lower="fl" state_name="Florida"        />
-          <set state_const="STATE_GA" state_upper="GA" state_lower="ga" state_name="Georgia"        />
-          <set state_const="STATE_HI" state_upper="HI" state_lower="hi" state_name="Hawaii"         />
-          <set state_const="STATE_IA" state_upper="IA" state_lower="ia" state_name="Iowa"           />
-          <set state_const="STATE_ID" state_upper="ID" state_lower="id" state_name="Idaho"          />
-          <set state_const="STATE_IL" state_upper="IL" state_lower="il" state_name="Illinois"       />
-          <set state_const="STATE_IN" state_upper="IN" state_lower="in" state_name="Indiana"        />
-          <set state_const="STATE_KS" state_upper="KS" state_lower="ks" state_name="Kansas"         />
-          <set state_const="STATE_KY" state_upper="KY" state_lower="ky" state_name="Kentucky"       />
-          <set state_const="STATE_LA" state_upper="LA" state_lower="la" state_name="Louisiana"      />
-          <set state_const="STATE_MA" state_upper="MA" state_lower="ma" state_name="Massachusetts"  />
-          <set state_const="STATE_MD" state_upper="MD" state_lower="md" state_name="Maryland"       />
-          <set state_const="STATE_ME" state_upper="ME" state_lower="me" state_name="Maine"          />
-          <set state_const="STATE_MI" state_upper="MI" state_lower="mi" state_name="Michigan"       />
-          <set state_const="STATE_MN" state_upper="MN" state_lower="mn" state_name="Minnesota"      />
-          <set state_const="STATE_MO" state_upper="MO" state_lower="mo" state_name="Missouri"       />
-          <set state_const="STATE_MS" state_upper="MS" state_lower="ms" state_name="Mississippi"    />
-          <set state_const="STATE_MT" state_upper="MT" state_lower="mt" state_name="Montana"        />
-          <set state_const="STATE_NC" state_upper="NC" state_lower="nc" state_name="North Carolina" />
-          <set state_const="STATE_ND" state_upper="ND" state_lower="nd" state_name="North Dakota"   />
-          <set state_const="STATE_NE" state_upper="NE" state_lower="ne" state_name="Nebraska"       />
-          <set state_const="STATE_NH" state_upper="NH" state_lower="nh" state_name="New Hampshire"  />
-          <set state_const="STATE_NJ" state_upper="NJ" state_lower="nj" state_name="New Jersey"     />
-          <set state_const="STATE_NM" state_upper="NM" state_lower="nm" state_name="New Mexico"     />
-          <set state_const="STATE_NV" state_upper="NV" state_lower="nv" state_name="Nevada"         />
-          <set state_const="STATE_NY" state_upper="NY" state_lower="ny" state_name="New York"       />
-          <set state_const="STATE_OH" state_upper="OH" state_lower="oh" state_name="Ohio"           />
-          <set state_const="STATE_OK" state_upper="OK" state_lower="ok" state_name="Oklahoma"       />
-          <set state_const="STATE_OR" state_upper="OR" state_lower="or" state_name="Oregon"         />
-          <set state_const="STATE_PA" state_upper="PA" state_lower="pa" state_name="Pennsylvania"   />
-          <set state_const="STATE_RI" state_upper="RI" state_lower="ri" state_name="Rhode Island"   />
-          <set state_const="STATE_SC" state_upper="SC" state_lower="sc" state_name="South Carolina" />
-          <set state_const="STATE_SD" state_upper="SD" state_lower="sd" state_name="South Dakota"   />
-          <set state_const="STATE_TN" state_upper="TN" state_lower="tn" state_name="Tennessee"      />
-          <set state_const="STATE_TX" state_upper="TX" state_lower="tx" state_name="Texas"          />
-          <set state_const="STATE_UT" state_upper="UT" state_lower="ut" state_name="Utah"           />
-          <set state_const="STATE_VA" state_upper="VA" state_lower="va" state_name="Virginia"       />
-          <set state_const="STATE_VT" state_upper="VT" state_lower="vt" state_name="Vermont"        />
-          <set state_const="STATE_WA" state_upper="WA" state_lower="wa" state_name="Washington"     />
-          <set state_const="STATE_WI" state_upper="WI" state_lower="wi" state_name="Wisconsin"      />
-          <set state_const="STATE_WV" state_upper="WV" state_lower="wv" state_name="West Virginia"  />
-          <set state_const="STATE_WY" state_upper="WY" state_lower="wy" state_name="Wyoming"        />
+          <set state_const="STATE_AK" state_upper="AK" state_lower="ak" upper_lower="Ak" state_name="Alaska"         />
+          <set state_const="STATE_AL" state_upper="AL" state_lower="al" upper_lower="Al" state_name="Alabama"        />
+          <set state_const="STATE_AR" state_upper="AR" state_lower="ar" upper_lower="Ar" state_name="Arkansas"       />
+          <set state_const="STATE_AZ" state_upper="AZ" state_lower="az" upper_lower="Az" state_name="Arizona"        />
+          <set state_const="STATE_CA" state_upper="CA" state_lower="ca" upper_lower="Ca" state_name="California"     />
+          <set state_const="STATE_CO" state_upper="CO" state_lower="co" upper_lower="Co" state_name="Colorado"       />
+          <set state_const="STATE_CT" state_upper="CT" state_lower="ct" upper_lower="Ct" state_name="Connecticut"    />
+          <set state_const="STATE_DC" state_upper="DC" state_lower="dc" upper_lower="Dc" state_name="Washington DC"  />
+          <set state_const="STATE_DE" state_upper="DE" state_lower="de" upper_lower="De" state_name="Delaware"       />
+          <set state_const="STATE_FL" state_upper="FL" state_lower="fl" upper_lower="Fl" state_name="Florida"        />
+          <set state_const="STATE_GA" state_upper="GA" state_lower="ga" upper_lower="Ga" state_name="Georgia"        />
+          <set state_const="STATE_HI" state_upper="HI" state_lower="hi" upper_lower="Hi" state_name="Hawaii"         />
+          <set state_const="STATE_IA" state_upper="IA" state_lower="ia" upper_lower="Ia" state_name="Iowa"           />
+          <set state_const="STATE_ID" state_upper="ID" state_lower="id" upper_lower="Id" state_name="Idaho"          />
+          <set state_const="STATE_IL" state_upper="IL" state_lower="il" upper_lower="Il" state_name="Illinois"       />
+          <set state_const="STATE_IN" state_upper="IN" state_lower="in" upper_lower="In" state_name="Indiana"        />
+          <set state_const="STATE_KS" state_upper="KS" state_lower="ks" upper_lower="Ks" state_name="Kansas"         />
+          <set state_const="STATE_KY" state_upper="KY" state_lower="ky" upper_lower="Ky" state_name="Kentucky"       />
+          <set state_const="STATE_LA" state_upper="LA" state_lower="la" upper_lower="La" state_name="Louisiana"      />
+          <set state_const="STATE_MA" state_upper="MA" state_lower="ma" upper_lower="Ma" state_name="Massachusetts"  />
+          <set state_const="STATE_MD" state_upper="MD" state_lower="md" upper_lower="Md" state_name="Maryland"       />
+          <set state_const="STATE_ME" state_upper="ME" state_lower="me" upper_lower="Me" state_name="Maine"          />
+          <set state_const="STATE_MI" state_upper="MI" state_lower="mi" upper_lower="Mi" state_name="Michigan"       />
+          <set state_const="STATE_MN" state_upper="MN" state_lower="mn" upper_lower="Mn" state_name="Minnesota"      />
+          <set state_const="STATE_MO" state_upper="MO" state_lower="mo" upper_lower="Mo" state_name="Missouri"       />
+          <set state_const="STATE_MS" state_upper="MS" state_lower="ms" upper_lower="Ms" state_name="Mississippi"    />
+          <set state_const="STATE_MT" state_upper="MT" state_lower="mt" upper_lower="Mt" state_name="Montana"        />
+          <set state_const="STATE_NC" state_upper="NC" state_lower="nc" upper_lower="Nc" state_name="North Carolina" />
+          <set state_const="STATE_ND" state_upper="ND" state_lower="nd" upper_lower="Nd" state_name="North Dakota"   />
+          <set state_const="STATE_NE" state_upper="NE" state_lower="ne" upper_lower="Ne" state_name="Nebraska"       />
+          <set state_const="STATE_NH" state_upper="NH" state_lower="nh" upper_lower="Nh" state_name="New Hampshire"  />
+          <set state_const="STATE_NJ" state_upper="NJ" state_lower="nj" upper_lower="Nj" state_name="New Jersey"     />
+          <set state_const="STATE_NM" state_upper="NM" state_lower="nm" upper_lower="Nm" state_name="New Mexico"     />
+          <set state_const="STATE_NV" state_upper="NV" state_lower="nv" upper_lower="Nv" state_name="Nevada"         />
+          <set state_const="STATE_NY" state_upper="NY" state_lower="ny" upper_lower="Ny" state_name="New York"       />
+          <set state_const="STATE_OH" state_upper="OH" state_lower="oh" upper_lower="Oh" state_name="Ohio"           />
+          <set state_const="STATE_OK" state_upper="OK" state_lower="ok" upper_lower="Ok" state_name="Oklahoma"       />
+          <set state_const="STATE_OR" state_upper="OR" state_lower="or" upper_lower="Or" state_name="Oregon"         />
+          <set state_const="STATE_PA" state_upper="PA" state_lower="pa" upper_lower="Pa" state_name="Pennsylvania"   />
+          <set state_const="STATE_RI" state_upper="RI" state_lower="ri" upper_lower="Ri" state_name="Rhode Island"   />
+          <set state_const="STATE_SC" state_upper="SC" state_lower="sc" upper_lower="Sc" state_name="South Carolina" />
+          <set state_const="STATE_SD" state_upper="SD" state_lower="sd" upper_lower="Sd" state_name="South Dakota"   />
+          <set state_const="STATE_TN" state_upper="TN" state_lower="tn" upper_lower="Tn" state_name="Tennessee"      />
+          <set state_const="STATE_TX" state_upper="TX" state_lower="tx" upper_lower="Tx" state_name="Texas"          />
+          <set state_const="STATE_UT" state_upper="UT" state_lower="ut" upper_lower="Ut" state_name="Utah"           />
+          <set state_const="STATE_VA" state_upper="VA" state_lower="va" upper_lower="Va" state_name="Virginia"       />
+          <set state_const="STATE_VT" state_upper="VT" state_lower="vt" upper_lower="Vt" state_name="Vermont"        />
+          <set state_const="STATE_WA" state_upper="WA" state_lower="wa" upper_lower="Wa" state_name="Washington"     />
+          <set state_const="STATE_WI" state_upper="WI" state_lower="wi" upper_lower="Wi" state_name="Wisconsin"      />
+          <set state_const="STATE_WV" state_upper="WV" state_lower="wv" upper_lower="Wv" state_name="West Virginia"  />
+          <set state_const="STATE_WY" state_upper="WY" state_lower="wy" upper_lower="Wy" state_name="Wyoming"        />
         </for-each>
 
         <param-copy name="@values@" />
