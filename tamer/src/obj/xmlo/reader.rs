@@ -86,7 +86,7 @@ pub enum XmloEvent {
     /// The header of an `xmlo` file is defined as the symbol table;
     ///   dependency list; and fragments.
     /// This event is emitted at the closing `preproc:fragment` node.
-    Eoh,
+    Eoh(Span),
 }
 
 impl parse::Object for XmloEvent {}
@@ -212,7 +212,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Transition(SymDeps(span, SD::default())).incomplete()
             }
 
-            (SymDeps(_, sd), Xirf::Close(Some(QN_SYM_DEPS), ..))
+            (SymDeps(_, sd), Xirf::Close(None | Some(QN_SYM_DEPS), ..))
                 if sd.is_accepting() =>
             {
                 Transition(FragmentsExpected).incomplete()
@@ -224,17 +224,19 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Transition(Fragments(span, SF::default())).incomplete()
             }
 
-            (Fragments(_, sf), Xirf::Close(Some(QN_FRAGMENTS), ..))
-                if sf.is_accepting() =>
-            {
-                Transition(Eoh).incomplete()
-            }
+            (
+                Fragments(_, sf),
+                Xirf::Close(None | Some(QN_FRAGMENTS), span, _),
+            ) if sf.is_accepting() => Transition(Eoh).ok(XmloEvent::Eoh(span)),
 
             (Fragments(span, sf), tok) => sf.delegate(span, tok, Fragments),
 
             (Eoh, Xirf::Close(Some(QN_PACKAGE), ..)) => {
                 Transition(Done).incomplete()
             }
+
+            // TODO: For whitespace, which can be stripped by XIRF.
+            (st, Xirf::Text(..)) => Transition(st).incomplete(),
 
             todo => todo!("{todo:?}"),
         }
@@ -260,6 +262,8 @@ pub enum SymtableState {
     Sym(Span, Option<SymbolId>, SymAttrs),
     /// Awaiting a symbol map name.
     SymMapFrom(Span, SymbolId, SymAttrs, Span),
+    /// Used by functions to declare their parameters.
+    SymRef(Span, SymbolId, SymAttrs, Span),
 }
 
 impl parse::Object for (SymbolId, SymAttrs, Span) {}
@@ -273,6 +277,8 @@ impl ParseState for SymtableState {
         use SymtableState::*;
 
         match (self, tok) {
+            (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
+
             (Ready, Xirf::Open(QN_SYM, span, _)) => {
                 Transition(Sym(span, None, SymAttrs::default())).incomplete()
             }
@@ -304,7 +310,9 @@ impl ParseState for SymtableState {
             (
                 Sym(span_sym, Some(name), attrs),
                 Xirf::Open(QN_FROM, span_from, _),
-            ) if attrs.ty == Some(SymType::Map) => {
+            ) if attrs.ty == Some(SymType::Map)
+                || attrs.ty == Some(SymType::RetMap) =>
+            {
                 Transition(SymMapFrom(span_sym, name, attrs, span_from))
                     .incomplete()
             }
@@ -328,6 +336,25 @@ impl ParseState for SymtableState {
 
                 Transition(Sym(span_sym, Some(name), attrs)).incomplete()
             }
+
+            // TODO: These don't yield any events;
+            //   can they be removed from the compiler?
+            // The old XmloReader ignored these.
+            (
+                Sym(span_sym, Some(name), attrs),
+                Xirf::Open(QN_SYM_REF, span_ref, _),
+            ) => {
+                Transition(SymRef(span_sym, name, attrs, span_ref)).incomplete()
+            }
+
+            (SymRef(span_sym, name, attrs, _), Xirf::Close(..)) => {
+                Transition(Sym(span_sym, Some(name), attrs)).incomplete()
+            }
+
+            (st @ SymRef(..), _) => Transition(st).incomplete(),
+
+            // TODO: For whitespace, which can be stripped by XIRF.
+            (st, Xirf::Text(..)) => Transition(st).incomplete(),
 
             todo => todo!("{todo:?}"),
         }
@@ -507,6 +534,8 @@ impl ParseState for SymDepsState {
         use SymDepsState::*;
 
         match (self, tok) {
+            (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
+
             (Ready, Xirf::Open(QN_SYM_DEP, span, _)) => {
                 Transition(SymUnnamed(span)).incomplete()
             }
@@ -529,9 +558,19 @@ impl ParseState for SymDepsState {
             ) => Transition(SymRefDone(span, name, span_ref))
                 .ok(XmloEvent::Symbol(ref_name, span_ref_name)),
 
+            // TODO: For xmlns attributes, which will go away in XIRF.
+            (SymRefUnnamed(span, name, span_ref), Xirf::Attr(..)) => {
+                Transition(SymRefUnnamed(span, name, span_ref)).incomplete()
+            }
+
             (SymRefUnnamed(span, name, span_ref), _) => {
                 Transition(SymRefUnnamed(span, name, span_ref))
                     .err(XmloError::MalformedSymRef(name, span_ref))
+            }
+
+            // TODO: For xmlns attributes, which will go away in XIRF.
+            (SymRefDone(span, name, ref_span), Xirf::Attr(..)) => {
+                Transition(SymRefDone(span, name, ref_span)).incomplete()
             }
 
             (SymRefDone(span, name, _), Xirf::Close(..)) => {
@@ -539,6 +578,9 @@ impl ParseState for SymDepsState {
             }
 
             (Sym(..), Xirf::Close(..)) => Transition(Ready).incomplete(),
+
+            // TODO: For whitespace, which can be stripped by XIRF.
+            (st, Xirf::Text(..)) => Transition(st).incomplete(),
 
             todo => todo!("sym-deps {todo:?}"),
         }
@@ -573,14 +615,34 @@ impl ParseState for FragmentsState {
         use FragmentsState::*;
 
         match (self, tok) {
+            (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
+
             (Ready, Xirf::Open(QN_FRAGMENT, span, _)) => {
                 Transition(FragmentUnnamed(span)).incomplete()
             }
 
-            (FragmentUnnamed(span), Xirf::Attr(Attr(QN_ID, id, _)))
-                if id != raw::WS_EMPTY =>
+            // TODO: For whitespace, which can be stripped by XIRF.
+            (Ready, Xirf::Text(..)) => Transition(Ready).incomplete(),
+
+            (FragmentUnnamed(span), Xirf::Attr(Attr(QN_ID, id, _))) => {
+                match id {
+                    // See "compiler bug" comment below.
+                    raw::WS_EMPTY => {
+                        Transition(FragmentUnnamed(span)).incomplete()
+                    }
+                    id => Transition(Fragment(span, id)).incomplete(),
+                }
+            }
+
+            (FragmentUnnamed(span), Xirf::Attr(Attr(key, ..)))
+                if key != QN_ID =>
             {
-                Transition(Fragment(span, id)).incomplete()
+                Transition(FragmentUnnamed(span)).incomplete()
+            }
+
+            // Compiler bug: `<preproc:fragment id="" />` in `rater/core/base`.
+            (FragmentUnnamed(_span), Xirf::Close(None, ..)) => {
+                Transition(Ready).incomplete()
             }
 
             (FragmentUnnamed(span), _) => Transition(FragmentUnnamed(span))
@@ -591,8 +653,12 @@ impl ParseState for FragmentsState {
                     .ok(XmloEvent::Fragment(id, text, span))
             }
 
-            (Fragment(span, id), _) => Transition(Fragment(span, id))
-                .err(XmloError::MissingFragmentText(id, span)),
+            // TODO: Also a compiler bug, for some generated classes.
+            // This needs fixing in the compiler.
+            (Fragment(_span, _id), Xirf::Close(..)) => {
+                //eprintln!("warning: empty fragment text for {id} at {span}");
+                Transition(Ready).incomplete()
+            }
 
             (FragmentDone(..), Xirf::Close(..)) => {
                 Transition(Ready).incomplete()

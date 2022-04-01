@@ -180,12 +180,17 @@ where
         let first = state.is_first();
         let found = state.found.get_or_insert(Default::default());
 
+        // Package currently being processed.
+        let mut pkg_name = None;
+
         use AsgBuilderInternalState as IS;
         let mut istate = IS::None;
 
         while let Some(ev) = xmlo.next() {
             match (istate, ev?) {
                 (IS::None, XmloEvent::PkgName(name)) => {
+                    pkg_name = Some(name);
+
                     if first {
                         state.name = Some(name);
                     }
@@ -221,6 +226,11 @@ where
                         let kindval = (&attrs).try_into()?;
 
                         let mut src: Source = attrs.into();
+
+                        // This used to come from SymAttrs in the old XmloReader.
+                        if src.pkg_name.is_none() {
+                            src.pkg_name = pkg_name;
+                        }
 
                         // Existing convention is to omit @src of local package
                         // (in this case, the program being linked)
@@ -266,7 +276,7 @@ where
                 // may change in the future, in which case this
                 // responsibility can be delegated to the linker (to produce
                 // an `Iterator` that stops at EOH).
-                (IS::None, XmloEvent::Eoh) => break,
+                (IS::None, XmloEvent::Eoh(_)) => break,
 
                 (istate, ev) => {
                     todo!("unexpected state transition: {istate:?} -> {ev:?}")
@@ -652,6 +662,48 @@ mod test {
         );
     }
 
+    // This used to be set in SymAttrs by XmloReader,
+    //   but that's no longer true with the new reader.
+    #[test]
+    fn sym_decl_pkg_name_set_if_empty_and_not_first() {
+        let mut sut = Sut::new();
+
+        let sym = "sym".intern();
+        let pkg_name = "pkg name".intern();
+
+        let state = AsgBuilderState::<RandomState> {
+            name: Some("first pkg".into()),
+            ..Default::default()
+        };
+
+        let evs = vec![
+            Ok(XmloEvent::PkgName(pkg_name)),
+            Ok(XmloEvent::SymDecl(
+                sym,
+                SymAttrs {
+                    ty: Some(SymType::Meta),
+                    ..Default::default()
+                },
+                UNKNOWN_SPAN,
+            )),
+        ];
+
+        let _ = sut.import_xmlo(evs.into_iter(), state).unwrap();
+
+        assert_eq!(
+            // `pkg_name` retained
+            &IdentObject::Ident(
+                sym,
+                IdentKind::Meta,
+                Source {
+                    pkg_name: Some(pkg_name),
+                    ..Default::default()
+                },
+            ),
+            sut.get(sut.lookup(sym).unwrap()).unwrap(),
+        );
+    }
+
     #[test]
     fn ident_kind_conversion_error_propagates() {
         let mut sut = Sut::new();
@@ -837,7 +889,7 @@ mod test {
 
         let evs = vec![
             // Stop here.
-            Ok(XmloEvent::Eoh),
+            Ok(XmloEvent::Eoh(DUMMY_SPAN)),
             // Shouldn't make it to this one.
             Ok(XmloEvent::PkgName(pkg_name)),
         ];

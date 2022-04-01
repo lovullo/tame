@@ -258,7 +258,7 @@ where
             },
 
             XmlEvent::End(ele) if ele.name() == b"preproc:fragments" => {
-                Ok(XmloEvent::Eoh)
+                Ok(XmloEvent::Eoh(UNKNOWN_SPAN))
             }
 
             // Ignore and recurse, looking for something we can process
@@ -424,12 +424,6 @@ where
     ///
     /// Map symbols contain additional information describing source
     ///   inputs external to the system.
-    ///
-    /// Errors
-    /// ======
-    /// - [`XmloError::InvalidMapFrom`] if `@name` missing or if unexpected
-    ///   data (e.g. elements) are encountered.
-    /// - [`XmloError::XmlError`] on XML parsing failure.
     fn process_map_from<'a>(
         reader: &mut XmlReader<B>,
         buffer: &mut Vec<u8>,

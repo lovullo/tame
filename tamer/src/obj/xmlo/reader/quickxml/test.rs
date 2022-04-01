@@ -271,7 +271,7 @@ xmlo_tests! {
 
         let result = sut.read_event()?;
 
-        assert_eq!(XmloEvent::Eoh, result);
+        assert_eq!(XmloEvent::Eoh(UNKNOWN_SPAN), result);
     }
 
     // DONE

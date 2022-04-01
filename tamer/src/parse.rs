@@ -81,8 +81,8 @@ pub trait TokenStream<T: Token> = Iterator<Item = T>;
 ///   consider using [`TokenStream`].
 pub trait TokenResultStream<T: Token, E: Error> = Iterator<Item = Result<T, E>>;
 
-/// A [`ParserState`] capable of being automatically stitched together with
-///   a parent [`ParserState`] `SP` to create a composite parser.
+/// A [`ParseState`] capable of being automatically stitched together with
+///   a parent [`ParseState`] `SP` to create a composite parser.
 ///
 /// Conceptually,
 ///   this can be visualized as combining the state machines of multiple
