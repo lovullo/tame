@@ -99,7 +99,7 @@ where
     <Self as ParseState>::Object: Into<<SP as ParseState>::Object>,
     <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;
 
-/// A deterministic parsing automaton.
+/// A parsing automaton.
 ///
 /// These states are utilized by a [`Parser`].
 ///
@@ -110,15 +110,8 @@ where
 ///   automaton may store metadata that is subsequently emitted once an
 ///   accepting state has been reached.
 /// Whatever the underlying automaton,
-///   a `(state, token)` pair must uniquely determine the next parser
-///   action.
-///
-/// Intuitively,
-///   since only one [`Parser`] may hold a mutable reference to
-///   an underlying [`TokenStream`] at any given point,
-///   this does in fact represent the current state of the entire
-///     [`TokenStream`] at the current position for a given parser
-///     composition.
+///   a `(state, token, context)` triple must uniquely determine the next
+///   parser action.
 pub trait ParseState: Default + PartialEq + Eq + Debug {
     /// Input tokens to the parser.
     type Token: Token;
