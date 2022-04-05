@@ -20,7 +20,10 @@
 use super::{SymAttrs, XmloError};
 use crate::{
     obj::xmlo::{Dim, SymDtype, SymType},
-    parse::{self, ParseState, Transition, TransitionResult, Transitionable},
+    parse::{
+        self, EmptyContext, NoContext, ParseState, Transition,
+        TransitionResult, Transitionable,
+    },
     span::Span,
     sym::{st::*, SymbolId},
     xir::{attr::Attr, flat::Object as Xirf, QName},
@@ -127,7 +130,7 @@ qname_const! {
 }
 
 /// A parser capable of being composed with [`XmloReaderState`].
-pub trait XmloState = ParseState<Token = Xirf>
+pub trait XmloState = ParseState<Token = Xirf, Context = EmptyContext>
 where
     <Self as ParseState>::Error: Into<XmloError>,
     <Self as ParseState>::Object: Into<XmloEvent>;
@@ -166,7 +169,11 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
     type Object = XmloEvent;
     type Error = XmloError;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        ctx: NoContext,
+    ) -> TransitionResult<Self> {
         use XmloReaderState::*;
 
         match (self, tok) {
@@ -206,7 +213,9 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
 
             // TOOD: It'd be nice to augment errors with the symbol table
             //   span as well (e.g. "while processing symbol table at <loc>").
-            (Symtable(span, ss), tok) => ss.delegate(span, tok, Symtable),
+            (Symtable(span, ss), tok) => {
+                ss.delegate(ctx, tok, |ss| Symtable(span, ss))
+            }
 
             (SymDepsExpected, Xirf::Open(QN_SYM_DEPS, span, _)) => {
                 Transition(SymDeps(span, SD::default())).incomplete()
@@ -218,7 +227,9 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Transition(FragmentsExpected).incomplete()
             }
 
-            (SymDeps(span, sd), tok) => sd.delegate(span, tok, SymDeps),
+            (SymDeps(span, sd), tok) => {
+                sd.delegate(ctx, tok, |sd| SymDeps(span, sd))
+            }
 
             (FragmentsExpected, Xirf::Open(QN_FRAGMENTS, span, _)) => {
                 Transition(Fragments(span, SF::default())).incomplete()
@@ -229,7 +240,9 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Xirf::Close(None | Some(QN_FRAGMENTS), span, _),
             ) if sf.is_accepting() => Transition(Eoh).ok(XmloEvent::Eoh(span)),
 
-            (Fragments(span, sf), tok) => sf.delegate(span, tok, Fragments),
+            (Fragments(span, sf), tok) => {
+                sf.delegate(ctx, tok, |sf| Fragments(span, sf))
+            }
 
             (Eoh, Xirf::Close(Some(QN_PACKAGE), ..)) => {
                 Transition(Done).incomplete()
@@ -273,7 +286,11 @@ impl ParseState for SymtableState {
     type Object = (SymbolId, SymAttrs, Span);
     type Error = XmloError;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        _: NoContext,
+    ) -> TransitionResult<Self> {
         use SymtableState::*;
 
         match (self, tok) {
@@ -530,7 +547,11 @@ impl ParseState for SymDepsState {
     type Object = XmloEvent;
     type Error = XmloError;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        _: NoContext,
+    ) -> TransitionResult<Self> {
         use SymDepsState::*;
 
         match (self, tok) {
@@ -611,7 +632,11 @@ impl ParseState for FragmentsState {
     type Object = XmloEvent;
     type Error = XmloError;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        _: NoContext,
+    ) -> TransitionResult<Self> {
         use FragmentsState::*;
 
         match (self, tok) {

@@ -20,7 +20,7 @@
 //! Parse XIR attribute [`TokenStream`][super::super::TokenStream]s.
 
 use crate::{
-    parse::{ParseState, Transition, TransitionResult},
+    parse::{NoContext, ParseState, Transition, TransitionResult},
     span::Span,
     xir::{QName, Token as XirToken},
 };
@@ -47,7 +47,11 @@ impl ParseState for AttrParseState {
     type Object = Attr;
     type Error = AttrParseError;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        _: NoContext,
+    ) -> TransitionResult<Self> {
         use AttrParseState::{Empty, Name};
 
         match (self, tok) {
@@ -121,7 +125,7 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
-        parse::{ParseStatus, Parsed},
+        parse::{EmptyContext, ParseStatus, Parsed},
         sym::GlobalSymbolIntern,
     };
 
@@ -143,7 +147,7 @@ mod test {
                 Transition(AttrParseState::default()),
                 Ok(ParseStatus::Dead(tok.clone()))
             ),
-            sut.parse_token(tok).into()
+            sut.parse_token(tok, &mut EmptyContext).into()
         );
     }
 
@@ -175,12 +179,12 @@ mod test {
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
         let TransitionResult(Transition(sut), result) =
-            sut.parse_token(XirToken::AttrName(attr, S));
+            sut.parse_token(XirToken::AttrName(attr, S), &mut EmptyContext);
         assert_eq!(result, Ok(ParseStatus::Incomplete));
 
         // But we provide something else unexpected.
         let TransitionResult(Transition(sut), result) =
-            sut.parse_token(XirToken::Close(None, S2));
+            sut.parse_token(XirToken::Close(None, S2), &mut EmptyContext);
         assert_eq!(
             result,
             Err(AttrParseError::AttrValueExpected(
@@ -200,8 +204,8 @@ mod test {
         // Rather than checking for that state,
         //   let's actually attempt a recovery.
         let recover = "value".intern();
-        let TransitionResult(Transition(sut), result) =
-            sut.parse_token(XirToken::AttrValue(recover, S2));
+        let TransitionResult(Transition(sut), result) = sut
+            .parse_token(XirToken::AttrValue(recover, S2), &mut EmptyContext);
         assert_eq!(
             result,
             Ok(ParseStatus::Object(Attr::new(attr, recover, (S, S2)))),

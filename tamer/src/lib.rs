@@ -57,6 +57,14 @@
 // For `Try` and `FromResidual`,
 //   allowing us to write our own `?`-compatible types.
 #![feature(try_trait_v2)]
+// Used primarily for convenience,
+//   rather than having to create type constructors as type aliases that are
+//   not associated with a trait.
+// However,
+//   this also allows for the associated type default to be overridden by
+//   the implementer,
+//     in which case this feature's only substitute is a type parameter.
+#![feature(associated_type_defaults)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 

@@ -27,7 +27,7 @@ use std::fmt::Debug;
 use std::hint::unreachable_unchecked;
 use std::iter::{self, Empty};
 use std::mem::take;
-use std::ops::{ControlFlow, FromResidual, Try};
+use std::ops::{ControlFlow, Deref, DerefMut, FromResidual, Try};
 use std::{convert::Infallible, error::Error, fmt::Display};
 
 /// Result of applying a [`Token`] to a [`ParseState`],
@@ -129,6 +129,8 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     /// Errors specific to this set of states.
     type Error: Debug + Error + PartialEq + Eq;
 
+    type Context: Default + Debug = EmptyContext;
+
     /// Construct a parser.
     ///
     /// Whether this method is helpful or provides any clarity depends on
@@ -154,7 +156,24 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///        which in turn makes it easier to compose parsers
     ///          (which conceptually involves stitching together state
     ///            machines).
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self>;
+    ///
+    /// Since a [`ParseState`] produces a new version of itself with each
+    ///   invocation,
+    ///     it is functionally pure.
+    /// Generally,
+    ///   Rust/LLVM are able to optimize moves into direct assignments.
+    /// However,
+    ///   there are circumstances where this is _not_ the case,
+    ///   in which case [`Context`] can be used to provide a mutable context
+    ///     owned by the caller (e.g. [`Parser`]) to store additional
+    ///     information that is not subject to Rust's move semantics.
+    /// If this is not necessary,
+    ///   see [`NoContext`].
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        ctx: &mut Self::Context,
+    ) -> TransitionResult<Self>;
 
     /// Whether the current state represents an accepting state.
     ///
@@ -192,22 +211,24 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///   use [`Self::delegate_lookahead`] instead.
     ///
     /// _TODO: More documentation once this is finalized._
-    fn delegate<C, SP>(
+    fn delegate<SP, C>(
         self,
-        context: C,
+        mut context: C,
         tok: <Self as ParseState>::Token,
-        into: impl FnOnce(C, Self) -> SP,
+        into: impl FnOnce(Self) -> SP,
     ) -> TransitionResult<SP>
     where
         Self: StitchableParseState<SP>,
+        C: AsMut<<Self as ParseState>::Context>,
     {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
 
-        let (Transition(newst), result) = self.parse_token(tok).into();
+        let (Transition(newst), result) =
+            self.parse_token(tok, context.as_mut()).into();
 
         // This does not use `delegate_lookahead` so that we can have
         //   `into: impl FnOnce` instead of `Fn`.
-        Transition(into(context, newst)).result(match result {
+        Transition(into(newst)).result(match result {
             Ok(Incomplete) => Ok(Incomplete),
             Ok(Obj(obj)) => Ok(Obj(obj.into())),
             Ok(Dead(tok)) => Ok(Dead(tok)),
@@ -223,30 +244,134 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     ///   rather than simply proxying [`ParseStatus::Dead`].
     ///
     /// _TODO: More documentation once this is finalized._
-    fn delegate_lookahead<C, SP>(
+    fn delegate_lookahead<SP, C>(
         self,
-        context: C,
+        mut context: C,
         tok: <Self as ParseState>::Token,
-        into: impl FnOnce(C, Self) -> SP,
-        lookahead: impl FnOnce(
-            C,
-            Self,
-            <Self as ParseState>::Token,
-        ) -> TransitionResult<SP>,
-    ) -> TransitionResult<SP>
+        into: impl FnOnce(Self) -> SP,
+    ) -> ControlFlow<TransitionResult<SP>, (Self, <Self as ParseState>::Token, C)>
     where
         Self: StitchableParseState<SP>,
+        C: AsMut<<Self as ParseState>::Context>,
     {
+        use ControlFlow::*;
         use ParseStatus::{Dead, Incomplete, Object as Obj};
 
-        let (Transition(newst), result) = self.parse_token(tok).into();
+        // NB: Rust/LLVM are generally able to elide these moves into direct
+        //   assignments,
+        //     but sometimes this does not work
+        //       (e.g. XIRF's use of `ArrayVec`).
+        // If your [`ParseState`] has a lot of `memcpy`s or other
+        //   performance issues,
+        //     move heavy objects into `context`.
+        let (Transition(newst), result) =
+            self.parse_token(tok, context.as_mut()).into();
 
         match result {
-            Ok(Incomplete) => Transition(into(context, newst)).incomplete(),
-            Ok(Obj(obj)) => Transition(into(context, newst)).ok(obj.into()),
-            Ok(Dead(tok)) => lookahead(context, newst, tok),
-            Err(e) => Transition(into(context, newst)).err(e),
+            Ok(Incomplete) => Break(Transition(into(newst)).incomplete()),
+            Ok(Obj(obj)) => Break(Transition(into(newst)).ok(obj.into())),
+            Ok(Dead(tok)) => Continue((newst, tok, context)),
+            Err(e) => Break(Transition(into(newst)).err(e)),
         }
+    }
+}
+
+/// Empty [`Context`] for [`ParseState`]s with pure functional
+///   implementations with no mutable state.
+///
+/// Using this value means that a [`ParseState`] does not require a
+///   context.
+/// All [`Context`]s implement [`AsMut<EmptyContext>`](AsMut),
+///   and so all pure [`ParseState`]s have contexts compatible with every
+///   other parser for composition
+///     (provided that the other invariants in [`StitchableParseState`] are
+///       met).
+///
+/// This can be clearly represented in function signatures using
+///   [`EmptyContext`].
+#[derive(Debug, PartialEq, Eq, Default)]
+pub struct EmptyContext;
+
+impl AsMut<EmptyContext> for EmptyContext {
+    fn as_mut(&mut self) -> &mut EmptyContext {
+        self
+    }
+}
+
+/// A [`ParseState`] does not require any mutable [`Context`].
+///
+/// A [`ParseState`] using this context is pure
+///   (has no mutable state),
+///     returning a new version of itself on each state change.
+///
+/// This type is intended to be self-documenting:
+///   `_: EmptyContext` is nicer to readers than `_: &mut EmptyContext`.
+///
+/// See [`EmptyContext`] for more information.
+pub type NoContext<'a> = &'a mut EmptyContext;
+
+/// Mutable context for [`ParseState`].
+///
+/// [`ParseState`]s are immutable and pure---they
+///   are invoked via [`ParseState::parse_token`] and return a new version
+///   of themselves representing their new state.
+/// Rust/LLVM are generally able to elide intermediate values and moves,
+///   optimizing these parsers away into assignments.
+///
+/// However,
+///   there are circumstances where moves may not be elided and may retain
+///   their `memcpy` equivalents.
+/// To work around this,
+///   [`ParseState::parse_token`] accepts a mutable [`Context`] reference
+///   which is held by the parent [`Parser`],
+///     which can be mutated in-place without worrying about Rust's move
+///     semantics.
+///
+/// Plainly: you should only use this if you have to.
+/// This was added because certain parsers may be invoked millions of times
+///   for each individual token in systems with many source packages,
+///     which may otherwise result in millions of `memcpy`s.
+///
+/// When composing two [`ParseState`]s `A<B, C>`,
+///   a [`Context<B, C>`](Context) must be contravariant over `B` and~`C`.
+/// Concretely,
+///   this means that [`AsMut<B::Context>`](AsMut) and
+///   [`AsMut<C::Context>`](AsMut) must be implemented for `A::Context`.
+/// This almost certainly means that `A::Context` is a product type.
+/// Consequently,
+///   a single [`Parser`] is able to hold a composite [`Context`] in a
+///   single memory location.
+///
+/// [`Context<T>`](Context) implements [`Deref<T>`](Deref) for convenience.
+///
+/// If your [`ParseState`] does not require a mutable [`Context`],
+///   see [`NoContext`].
+#[derive(Debug, Default)]
+pub struct Context<T: Debug + Default>(T, EmptyContext);
+
+impl<T: Debug + Default> AsMut<EmptyContext> for Context<T> {
+    fn as_mut(&mut self) -> &mut EmptyContext {
+        &mut self.1
+    }
+}
+
+impl<T: Debug + Default> Deref for Context<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: Debug + Default> DerefMut for Context<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T: Debug + Default> From<T> for Context<T> {
+    fn from(x: T) -> Self {
+        Context(x, EmptyContext)
     }
 }
 
@@ -382,6 +507,20 @@ impl<S: ParseState> FromResidual<Result<Infallible, TransitionResult<S>>>
     }
 }
 
+impl<S: ParseState> FromResidual<ControlFlow<TransitionResult<S>, Infallible>>
+    for TransitionResult<S>
+{
+    fn from_residual(
+        residual: ControlFlow<TransitionResult<S>, Infallible>,
+    ) -> Self {
+        match residual {
+            ControlFlow::Break(result) => result,
+            // SAFETY: Infallible, so cannot hit.
+            ControlFlow::Continue(_) => unsafe { unreachable_unchecked() },
+        }
+    }
+}
+
 /// An object able to be used as data for a state [`Transition`].
 ///
 /// This flips the usual order of things:
@@ -439,6 +578,7 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     toks: I,
     state: S,
     last_span: Option<Span>,
+    ctx: S::Context,
 }
 
 impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
@@ -490,7 +630,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
         let result;
         TransitionResult(Transition(self.state), result) =
-            take(&mut self.state).parse_token(tok);
+            take(&mut self.state).parse_token(tok, &mut self.ctx);
 
         use ParseStatus::*;
         match result {
@@ -731,6 +871,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> From<I> for Parser<S, I> {
             toks,
             state: Default::default(),
             last_span: None,
+            ctx: Default::default(),
         }
     }
 }
@@ -856,7 +997,11 @@ pub mod test {
         type Object = TestToken;
         type Error = EchoStateError;
 
-        fn parse_token(self, tok: TestToken) -> TransitionResult<Self> {
+        fn parse_token(
+            self,
+            tok: TestToken,
+            _: NoContext,
+        ) -> TransitionResult<Self> {
             match tok {
                 TestToken::Comment(..) => Transition(Self::Done).ok(tok),
                 TestToken::Close(..) => {

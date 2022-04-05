@@ -180,8 +180,8 @@ use super::{
 
 use crate::{
     parse::{
-        self, ParseError, ParseResult, ParseState, ParseStatus, ParsedResult,
-        Transition, TransitionResult,
+        self, EmptyContext, NoContext, ParseError, ParseResult, ParseState,
+        ParseStatus, ParsedResult, Transition, TransitionResult,
     },
     span::Span,
     sym::SymbolId,
@@ -504,7 +504,8 @@ where
 
 pub trait StackAttrParseState = ParseState<Token = XirToken, Object = Attr>
 where
-    <Self as ParseState>::Error: Into<StackError>;
+    <Self as ParseState>::Error: Into<StackError>,
+    EmptyContext: AsMut<<Self as ParseState>::Context>;
 
 impl<SA: StackAttrParseState> Default for Stack<SA> {
     fn default() -> Self {
@@ -517,7 +518,11 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
     type Object = Tree;
     type Error = StackError;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        ctx: NoContext,
+    ) -> TransitionResult<Self> {
         use Stack::*;
 
         match (self, tok) {
@@ -543,7 +548,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
             // Attribute parsing.
             (AttrState(estack, attrs, sa), tok) => {
                 use ParseStatus::*;
-                match sa.parse_token(tok).into() {
+                match sa.parse_token(tok, ctx.as_mut()).into() {
                     (Transition(sa), Ok(Incomplete)) => {
                         Transition(AttrState(estack, attrs, sa)).incomplete()
                     }
@@ -553,7 +558,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                     }
                     (_, Ok(Dead(lookahead))) => {
                         BuddingElement(estack.consume_attrs(attrs))
-                            .parse_token(lookahead)
+                            .parse_token(lookahead, ctx)
                     }
                     (Transition(sa), Err(x)) => {
                         Transition(AttrState(estack, attrs, sa)).err(x.into())

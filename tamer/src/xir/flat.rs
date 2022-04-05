@@ -44,7 +44,8 @@ use super::{
 };
 use crate::{
     parse::{
-        self, ParseState, ParsedResult, Token, Transition, TransitionResult,
+        self, Context, ParseState, ParsedResult, Token, Transition,
+        TransitionResult,
     },
     span::Span,
     sym::SymbolId,
@@ -163,9 +164,11 @@ impl From<Attr> for Object {
 }
 
 /// XIRF-compatible attribute parser.
-pub trait FlatAttrParseState = ParseState<Token = XirToken, Object = Attr>
-where
-    <Self as ParseState>::Error: Into<StateError>;
+pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
+    ParseState<Token = XirToken, Object = Attr>
+    where
+        <Self as ParseState>::Error: Into<StateError>,
+        StateContext<MAX_DEPTH>: AsMut<<Self as ParseState>::Context>;
 
 /// Stack of element [`QName`] and [`Span`] pairs,
 ///   representing the current level of nesting.
@@ -180,31 +183,36 @@ type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum State<const MAX_DEPTH: usize, SA = AttrParseState>
 where
-    SA: FlatAttrParseState,
+    SA: FlatAttrParseState<MAX_DEPTH>,
 {
     /// Document parsing has not yet begun.
     #[default]
     PreRoot,
-
     /// Parsing nodes.
-    NodeExpected(ElementStack<MAX_DEPTH>),
-
+    NodeExpected,
     /// Delegating to attribute parser.
-    AttrExpected(ElementStack<MAX_DEPTH>, SA),
-
+    AttrExpected(SA),
     /// End of document has been reached.
     Done,
 }
 
+pub type StateContext<const MAX_DEPTH: usize> =
+    Context<ElementStack<MAX_DEPTH>>;
+
 impl<const MAX_DEPTH: usize, SA> ParseState for State<MAX_DEPTH, SA>
 where
-    SA: FlatAttrParseState,
+    SA: FlatAttrParseState<MAX_DEPTH>,
 {
     type Token = XirToken;
     type Object = Object;
     type Error = StateError;
+    type Context = StateContext<MAX_DEPTH>;
 
-    fn parse_token(self, tok: Self::Token) -> TransitionResult<Self> {
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        stack: &mut Self::Context,
+    ) -> TransitionResult<Self> {
         use State::{AttrExpected, Done, NodeExpected, PreRoot};
 
         match (self, tok) {
@@ -213,22 +221,20 @@ where
                 Transition(st).ok(Object::Comment(sym, span))
             }
 
-            (PreRoot, tok @ XirToken::Open(..)) => {
-                Self::parse_node(Default::default(), tok)
-            }
+            (PreRoot, tok @ XirToken::Open(..)) => Self::parse_node(tok, stack),
 
             (PreRoot, tok) => {
                 Transition(PreRoot).err(StateError::RootOpenExpected(tok))
             }
 
-            (NodeExpected(stack), tok) => Self::parse_node(stack, tok),
+            (NodeExpected, tok) => Self::parse_node(tok, stack),
 
-            (AttrExpected(stack, sa), tok) => sa.delegate_lookahead(
-                stack,
-                tok,
-                AttrExpected,
-                |stack, _, lookahead| Self::parse_node(stack, lookahead),
-            ),
+            (AttrExpected(sa), tok) => {
+                let (_sa, lookahead, stack) =
+                    sa.delegate_lookahead(stack, tok, AttrExpected)?;
+
+                Self::parse_node(lookahead, stack)
+            }
 
             (Done, tok) => Transition(Done).dead(tok),
         }
@@ -250,24 +256,22 @@ where
 
 impl<const MAX_DEPTH: usize, SA> State<MAX_DEPTH, SA>
 where
-    SA: FlatAttrParseState,
+    SA: FlatAttrParseState<MAX_DEPTH>,
 {
     /// Parse a token while in a state expecting a node.
     fn parse_node(
-        mut stack: ElementStack<MAX_DEPTH>,
         tok: <Self as ParseState>::Token,
+        stack: &mut ElementStack<MAX_DEPTH>,
     ) -> TransitionResult<Self> {
         use Object::*;
         use State::{AttrExpected, Done, NodeExpected};
 
         match tok {
             XirToken::Open(qname, span) if stack.len() == MAX_DEPTH => {
-                Transition(NodeExpected(stack)).err(
-                    StateError::MaxDepthExceeded {
-                        open: (qname, span),
-                        max: Depth(MAX_DEPTH),
-                    },
-                )
+                Transition(NodeExpected).err(StateError::MaxDepthExceeded {
+                    open: (qname, span),
+                    max: Depth(MAX_DEPTH),
+                })
             }
 
             XirToken::Open(qname, span) => {
@@ -275,7 +279,7 @@ where
                 stack.push((qname, span));
 
                 // Delegate to the attribute parser until it is complete.
-                Transition(AttrExpected(stack, SA::default())).ok(Open(
+                Transition(AttrExpected(SA::default())).ok(Open(
                     qname,
                     span,
                     Depth(depth),
@@ -289,7 +293,7 @@ where
                     (Some(qname), Some((open_qname, open_span)))
                         if qname != open_qname =>
                     {
-                        Transition(NodeExpected(stack)).err(
+                        Transition(NodeExpected).err(
                             StateError::UnbalancedTag {
                                 open: (open_qname, open_span),
                                 close: (qname, close_span),
@@ -307,7 +311,7 @@ where
                     (..) => {
                         let depth = stack.len();
 
-                        Transition(NodeExpected(stack)).ok(Close(
+                        Transition(NodeExpected).ok(Close(
                             close_oqname,
                             close_span,
                             Depth(depth),
@@ -317,16 +321,16 @@ where
             }
 
             XirToken::Comment(sym, span) => {
-                Transition(NodeExpected(stack)).ok(Comment(sym, span))
+                Transition(NodeExpected).ok(Comment(sym, span))
             }
             XirToken::Text(sym, span) => {
-                Transition(NodeExpected(stack)).ok(Text(sym, span))
+                Transition(NodeExpected).ok(Text(sym, span))
             }
             XirToken::CData(sym, span) => {
-                Transition(NodeExpected(stack)).ok(CData(sym, span))
+                Transition(NodeExpected).ok(CData(sym, span))
             }
             XirToken::Whitespace(ws, span) => {
-                Transition(NodeExpected(stack)).ok(Whitespace(ws, span))
+                Transition(NodeExpected).ok(Whitespace(ws, span))
             }
 
             // We should transition to `State::Attr` before encountering any
