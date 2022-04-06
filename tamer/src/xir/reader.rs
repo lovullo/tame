@@ -99,6 +99,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
     pub fn refill_buf(&mut self) -> Option<Result<Token>> {
         // Clear any previous buffer to free unneeded data.
         self.tokbuf.clear();
+        self.readbuf.clear();
 
         match self.reader.read_event(&mut self.readbuf) {
             // This is the only time we'll consider the iterator to be done.
