@@ -76,9 +76,6 @@ extern crate static_assertions;
 #[macro_use]
 extern crate lazy_static;
 
-#[cfg(feature = "wip-frontends")]
-pub mod frontend;
-
 #[macro_use]
 pub mod xir;
 
