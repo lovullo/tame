@@ -19,7 +19,7 @@
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 ?>
-<?xml-stylesheet type="text/xsl" href="../../rater/summary.xsl"?>
+<?xml version="1.0"?>
 <lv:package
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:c="http://www.lovullo.com/calc"

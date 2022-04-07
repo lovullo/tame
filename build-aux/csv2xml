@@ -62,7 +62,7 @@ BEGIN {
 
   # output package header
   printf \
-    "<?xml-stylesheet type=\"text/xsl\" href=\"%1$srater/summary.xsl\"?>\n" \
+    "<?xml version=\"1.0\"?>\n" \
     "<package\n" \
     "  xmlns=\"http://www.lovullo.com/rater\"\n" \
     "  xmlns:c=\"http://www.lovullo.com/calc\"\n" \
