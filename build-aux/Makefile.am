@@ -194,20 +194,20 @@ c1map: $(dest_c1map)
 
 # These are deprecated and will be removed in a future version of TAME (in
 # favor of CSVM tables).
-%.xml: %.dat rater/core/tdat.xmlo
+%.xml: %.dat rater/core/tdat.xmlo rater/tools/tdat2xml
 	rater/tools/tdat2xml $< > $@
 
 %.xml: %.typelist
 	rater/tame/build-aux/list2typedef $(*F) < $< > $@
 
-%.csvo: %.csvm
+%.csvo: %.csvm rater/tools/csvm2csv
 	rater/tools/csvm2csv $< > $@
-%.csvo: %.csvi
+%.csvo: %.csvi rater/tools/csvi
 	rater/tools/csvi $< > $@
 %.csvo: %.csv
 	cp $< $@
 
-%.xml: %.csvo
+%.xml: %.csvo rater/tools/csv2xml
 	rater/tools/csv2xml $< > $@
 
 # All lookup tables rely on rater/core/vector/package.  This rule applies to
