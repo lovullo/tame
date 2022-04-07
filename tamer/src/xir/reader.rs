@@ -22,10 +22,15 @@
 //! This uses [`quick_xml`] as the parser.
 
 use super::{DefaultEscaper, Error, Escaper, Token};
-use crate::{span::DUMMY_SPAN, sym::GlobalSymbolInternBytes};
+use crate::{
+    span::{DUMMY_SPAN, UNKNOWN_SPAN},
+    sym::GlobalSymbolInternBytes,
+};
 use quick_xml::{
     self,
-    events::{attributes::Attributes, BytesStart, Event as QuickXmlEvent},
+    events::{
+        attributes::Attributes, BytesDecl, BytesStart, Event as QuickXmlEvent,
+    },
 };
 use std::{collections::VecDeque, io::BufRead, result};
 
@@ -163,9 +168,57 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         .map(|text| Token::Comment(text, DUMMY_SPAN)),
                 ),
 
+                // TODO: This must appear in the Prolog.
+                QuickXmlEvent::Decl(decl) => match Self::validate_decl(&decl) {
+                    Err(x) => Some(Err(x)),
+                    Ok(()) => self.refill_buf(),
+                },
+
+                // We do not support processor instructions.
+                // TODO: Convert this into an error/warning?
+                // Previously `xml-stylesheet` was present in some older
+                //   source files and may linger for a bit after cleanup.
+                QuickXmlEvent::PI(..) => self.refill_buf(),
+
                 x => todo!("event: {:?}", x),
             },
         }
+    }
+
+    /// Validate an that an XML declaration contains expected values.
+    ///
+    /// A declaration looks like `<?xml version="1.0" encoding="utf-8"?>`,
+    ///   where `@encoding` is optional but `@version` is not.
+    /// It may also contain `@standalone`,
+    ///   but we do not check for that.
+    ///
+    /// We expect version 1.0 and UTF-8 encoding.
+    /// Failing when these expectations are voilated helps to ensure that
+    ///   people unfamiliar with the system do not have expectations that
+    ///   are going to be unmet,
+    ///     which may result in subtle (or even serious) problems.
+    fn validate_decl(decl: &BytesDecl) -> Result<()> {
+        // NB: `quick-xml` docs state that `version` returns the quotes,
+        //   but it does not.
+        let ver = &decl.version()?[..];
+        if ver != b"1.0" {
+            Err(Error::UnsupportedXmlVersion(
+                ver.intern_utf8()?,
+                UNKNOWN_SPAN,
+            ))?
+        }
+
+        if let Some(enc) = decl.encoding() {
+            match &enc?[..] {
+                b"utf-8" | b"UTF-8" => (),
+                invalid => Err(Error::UnsupportedEncoding(
+                    invalid.intern_utf8()?,
+                    UNKNOWN_SPAN,
+                ))?,
+            }
+        }
+
+        Ok(())
     }
 
     /// Parse opening element and its attributes into a XIR [`Token`]

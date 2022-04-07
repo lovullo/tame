@@ -431,3 +431,52 @@ fn attr_value_invalid_utf8() {
         _ => panic!("unexpected failure"),
     }
 }
+
+#[test]
+fn valid_xml_decl_no_encoding() {
+    new_sut!(sut = r#"<?xml version="1.0"?><root />"#);
+
+    assert_eq!(
+        Ok(vec![
+            Token::Open("root".unwrap_into(), DUMMY_SPAN),
+            Token::Close(None, DUMMY_SPAN),
+        ]),
+        sut.collect()
+    );
+}
+
+#[test]
+fn valid_xml_decl_with_encoding_lower() {
+    new_sut!(sut = r#"<?xml version="1.0" encoding="utf-8"?>"#);
+
+    assert_eq!(Ok(vec![]), sut.collect());
+}
+
+#[test]
+fn valid_xml_decl_with_encoding_upper() {
+    new_sut!(sut = r#"<?xml version="1.0" encoding="UTF-8"?>"#);
+
+    assert_eq!(Ok(vec![]), sut.collect());
+}
+
+// Only 1.0 supported.
+#[test]
+fn invalid_xml_decl_version() {
+    new_sut!(sut = r#"<?xml version="1.1"?>"#);
+
+    assert_eq!(
+        Err(Error::UnsupportedXmlVersion("1.1".intern(), UNKNOWN_SPAN)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+// Only UTF-8 supported.
+#[test]
+fn invalid_xml_encoding() {
+    new_sut!(sut = r#"<?xml version="1.0" encoding="latin-1"?>"#);
+
+    assert_eq!(
+        Err(Error::UnsupportedEncoding("latin-1".intern(), UNKNOWN_SPAN)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
