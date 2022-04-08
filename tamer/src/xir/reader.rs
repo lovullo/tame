@@ -23,14 +23,15 @@
 
 use super::{error::SpanlessError, DefaultEscaper, Error, Escaper, Token};
 use crate::{
-    span::{UNKNOWN_CONTEXT as UC, UNKNOWN_SPAN},
-    sym::GlobalSymbolInternBytes,
+    span::UNKNOWN_CONTEXT as UC,
+    sym::{st::raw::WS_EMPTY, GlobalSymbolInternBytes},
 };
 use quick_xml::{
     self,
     events::{
         attributes::Attributes, BytesDecl, BytesStart, Event as QuickXmlEvent,
     },
+    Error as QuickXmlError,
 };
 use std::{borrow::Cow, collections::VecDeque, io::BufRead, result};
 
@@ -111,10 +112,12 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         match self.reader.read_event(&mut self.readbuf) {
             // TODO: To provide better spans and error messages,
             //   we need to map specific types of errors.
-            Err(inner) => {
+            // But we don't encounter much of anything here with how we make
+            //   use of quick-xml.
+            Err(inner) => Some(Err({
                 let span = UC.span_or_zz(prev_pos, 0);
-                Some(Err(SpanlessError::from(inner).with_span(span)))
-            }
+                SpanlessError::from(inner).with_span(span)
+            })),
 
             Ok(ev) => match ev {
                 // This is the only time we'll consider the iterator to be
@@ -290,13 +293,45 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         let addr = ele.as_ptr() as usize - 1;
         let len = ele.name().len();
 
+        match ele.name().last() {
+            None => {
+                // TODO: QName should be self-validating.  Move this.
+                return Err(Error::InvalidQName(
+                    WS_EMPTY,
+                    // <>
+                    //  |  where QName should be
+                    UC.span_or_zz(pos + 1, 0),
+                ));
+            }
+
+            // Quick-and-dirty guess as to whether they may have missed the
+            //   element name and included an attribute instead,
+            //     which quick-xml does not check for.
+            Some(b'"' | b'\'') => {
+                return Err({
+                    // <foo="bar" ...>
+                    //  |-------|
+                    let span = UC.span_or_zz(pos + 1, len);
+
+                    Error::InvalidQName(
+                        ele.name()
+                            .intern_utf8()
+                            .map_err(Error::from_with_span(span))?,
+                        span,
+                    )
+                });
+            }
+
+            _ => (),
+        };
+
         // `ele` contains every byte up to the [self-]closing tag.
         ele.name()
             .try_into()
             .map_err(Error::from_with_span(UC.span_or_zz(pos + 1, len)))
             .and_then(|qname| {
-                let noattr_add: usize =
-                    (ele.attributes_raw().len() == 0).into();
+                let has_attrs = ele.attributes_raw().len() > 0;
+                let noattr_add: usize = (!has_attrs).into();
 
                 // <tag ... />
                 // |--|  name + '<'
@@ -305,17 +340,48 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 // |---| name + '<' + '>'
                 let span = UC.span_or_zz(pos, len + 1 + noattr_add);
 
-                Self::parse_attrs(
-                    escaper,
-                    tokbuf,
-                    ele.attributes(),
-                    addr - pos, // offset relative to _beginning_ of buffer
-                )?;
+                if has_attrs {
+                    let found = Self::parse_attrs(
+                        escaper,
+                        tokbuf,
+                        ele.attributes(),
+                        addr - pos, // offset relative to _beginning_ of buf
+                        pos,
+                    )?;
+
+                    // Given this input, quick-xml ignores the bytes entirely:
+                    //   <foo bar>
+                    //        ^^^| missing `="value"`
+                    //
+                    // The whitespace check is to handle input like this:
+                    //   <foo />
+                    //       ^ whitespace making `attributes_raw().len` > 0
+                    if !found
+                        && ele
+                            .attributes_raw()
+                            .iter()
+                            .find(|b| !Self::is_whitespace(**b))
+                            .is_some()
+                    {
+                        return Err(Error::AttrValueExpected(
+                            None,
+                            UC.span_or_zz(pos + ele.len() + 1, 0),
+                        ));
+                    }
+                }
 
                 // The first token will be immediately returned
                 //   via the Iterator.
                 Ok(Token::Open(qname, span))
             })
+    }
+
+    /// quick-xml's whitespace predicate.
+    fn is_whitespace(b: u8) -> bool {
+        match b {
+            b' ' | b'\r' | b'\n' | b'\t' => true,
+            _ => false,
+        }
     }
 
     /// Parse attributes into a XIR [`Token`] stream.
@@ -344,15 +410,38 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         tokbuf: &mut VecDeque<Token>,
         mut attrs: Attributes<'a>,
         ele_ptr: usize,
-    ) -> Result<()> {
+        ele_pos: usize,
+    ) -> Result<bool> {
+        let mut found = false;
+
         // Disable checks to allow duplicate attributes;
         //   XIR does not enforce this,
         //     because it needs to accommodate semantically invalid XML for
         //     later analysis.
         for result in attrs.with_checks(false) {
-            // TODO: We'll need to map this quick-xml error to provide more
-            //   detailed messages and spans.
-            let attr = result.map_err(Error::from_with_span(UNKNOWN_SPAN))?;
+            found = true;
+
+            let attr = result.map_err(|e| match e {
+                QuickXmlError::NoEqAfterName(pos) => {
+                    // TODO: quick-xml doesn't give us the name,
+                    //   but we should discover it.
+                    Error::AttrValueExpected(
+                        None,
+                        UC.span_or_zz(ele_pos + pos, 0),
+                    )
+                }
+
+                QuickXmlError::UnquotedValue(pos) => {
+                    // TODO: name and span length
+                    Error::AttrValueUnquoted(
+                        None,
+                        UC.span_or_zz(ele_pos + pos, 0),
+                    )
+                }
+
+                // fallback
+                e => Error::from_with_span(UC.span_or_zz(ele_pos, 0))(e),
+            })?;
 
             let keyoffset = attr.key.as_ptr() as usize;
             let name_offset = keyoffset - ele_ptr;
@@ -402,7 +491,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             tokbuf.push_front(Token::AttrValue(value, span_value));
         }
 
-        Ok(())
+        Ok(found)
     }
 }
 

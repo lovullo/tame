@@ -19,6 +19,7 @@
 
 //! XIR error information.
 
+use super::QName;
 use crate::{span::Span, sym::SymbolId, tpwrap::quick_xml};
 use std::{fmt::Display, str::Utf8Error};
 
@@ -50,6 +51,16 @@ pub enum Error {
     /// TAMER expects UTF-8 encoding for everything,
     ///   which should not be an unreasonable expectation.
     UnsupportedEncoding(SymbolId, Span),
+    /// The named attribute is missing a value.
+    ///
+    /// The span is expected to placed at the offset where the value is
+    ///   expected.
+    /// The character `=` may or may not be present.
+    AttrValueExpected(Option<QName>, Span),
+    /// An attribute value was found but was not quoted.
+    ///
+    /// The symbol here should be the name of the attribute.
+    AttrValueUnquoted(Option<QName>, Span),
 
     // TODO: Better error translation.
     QuickXmlError(quick_xml::Error, Span),
@@ -65,31 +76,33 @@ impl Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Error::*;
+
         match self {
-            Self::NCColon(sym, span) => {
+            NCColon(sym, span) => {
                 write!(f, "NCName `{sym}` cannot contain ':' at {span}",)
             }
-            Self::NotWhitespace(s) => {
+            NotWhitespace(s) => {
                 write!(f, "string contains non-ASCII-whitespace: `{}`", s)
             }
-            Self::InvalidQName(qname, span) => {
+            InvalidQName(qname, span) => {
                 write!(f, "invalid QName `{qname}` at {span}")
             }
-            Self::InvalidUtf8(inner, bytes, span) => {
+            InvalidUtf8(inner, bytes, span) => {
                 write!(
                     f,
                     "{inner} for string `{}` with bytes `{bytes:?}` at {span}",
                     String::from_utf8_lossy(bytes)
                 )
             }
-            Self::UnsupportedXmlVersion(ver, span) => {
+            UnsupportedXmlVersion(ver, span) => {
                 write!(
                     f,
                     "expected XML version `1.0` at {span}, \
                        but found unsupported version `{ver}`"
                 )
             }
-            Self::UnsupportedEncoding(enc, span) => {
+            UnsupportedEncoding(enc, span) => {
                 // TODO: when we have hints,
                 //   indicate that they can also entirely remove this
                 //   attribute to resolve the error
@@ -99,8 +112,25 @@ impl Display for Error {
                        but found unsupported encoding `{enc}`"
                 )
             }
+            AttrValueExpected(Some(name), span) => {
+                write!(f, "value expected for attribute `{name}` at {span}")
+            }
+            // TODO: Parsers should provide the name.
+            AttrValueExpected(None, span) => {
+                write!(f, "value expected for attribute at {span}")
+            }
+            AttrValueUnquoted(Some(name), span) => {
+                write!(
+                    f,
+                    "value for attribute `{name}` is missing quotes at {span}"
+                )
+            }
+            // TODO: Parsers should provide the name.
+            AttrValueUnquoted(None, span) => {
+                write!(f, "value for attribute is missing quotes at {span}")
+            }
             // TODO: Translate error messages
-            Self::QuickXmlError(inner, span) => {
+            QuickXmlError(inner, span) => {
                 write!(f, "internal parser error: {inner} at {span}")
             }
         }

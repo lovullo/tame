@@ -641,3 +641,164 @@ fn invalid_xml_encoding() {
         sut.collect::<Result<Vec<_>>>()
     );
 }
+
+//
+// quick-xml parser shortcomings
+//
+// There are certain problems quick-xml does not catch that we will catch
+//   ourselves.
+// This is not intended to be comprehensive,
+//   but is intended to catch what might be common-enough errors that they
+//   deserve friendly output from the compiler,
+//     rather than resulting in more obscure errors down the line after
+//     we've left the context of XML.
+//
+// Ultimately,
+//   the writing may be on the wall for quick-xml,
+//   but at the time of writing there are more important things to focus on,
+//     so we will make do for now.
+//
+
+// quick-xml's behavior here is alarming---it simply doesn't see it as an
+//   attribute at all and skips the tokens.
+// We must detect this on our own.
+#[test]
+fn attr_single_no_value_no_eq() {
+    new_sut!(sut = r#" <foo attr>"#);
+    //           ____/          |
+    //         /               10
+    //       /     where the `="value"` should be
+    //      |
+    //   WS to make sure we add the file-relative pos
+    // and not just have the span relative to the element
+
+    let span = UC.span(10, 0);
+
+    assert_eq!(
+        Err(Error::AttrValueExpected(None, span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn attr_single_no_value_with_eq() {
+    new_sut!(sut = r#" <foo attr=>"#);
+    //                           |
+    //                           11
+    //             where the `"value"` should be
+
+    let span = UC.span(11, 0);
+
+    assert_eq!(
+        Err(Error::AttrValueExpected(None, span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn attr_multi_no_value_no_eq() {
+    new_sut!(sut = r#" <foo attr another>"#);
+    //                          |
+    //                          10
+    //             where the `="value"` should be
+
+    let span = UC.span(10, 0);
+
+    assert_eq!(
+        // quick-xml doesn't provide the name
+        Err(Error::AttrValueExpected(None, span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn attr_multi_no_value_with_eq() {
+    new_sut!(sut = r#" <foo attr= another=>"#);
+    //                           |
+    //                           11
+    //   quick-xml interprets this as an unquoted value
+
+    // TODO: quick-xml does not give us the length so we'll have to figure
+    //   it out ourselves.
+    let span = UC.span(11, 0);
+
+    assert_eq!(
+        Err(Error::AttrValueUnquoted(None, span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn attr_multiple_no_value_no_eq_then_good() {
+    new_sut!(sut = r#" <foo attr good="value">"#);
+    //                          |
+    //                          10
+    //             where the `="value"` should be
+
+    let span = UC.span(10, 0);
+
+    assert_eq!(
+        // quick-xml doesn't provide the name
+        Err(Error::AttrValueExpected(None, span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn empty_element_qname_no_attrs() {
+    new_sut!(sut = r#"<>"#);
+    //                 |
+    //                 1
+    //        where the QName should be
+
+    let span = UC.span(1, 0);
+
+    assert_eq!(
+        Err(Error::InvalidQName("".intern(), span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn empty_element_qname_with_space_no_attrs() {
+    new_sut!(sut = r#"<  >"#);
+    //                 |
+    //                 1
+    //        where the QName should be
+
+    let span = UC.span(1, 0);
+
+    assert_eq!(
+        Err(Error::InvalidQName("".intern(), span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn empty_element_qname_with_attr() {
+    new_sut!(sut = r#"<foo="bar">"#);
+    //                 |-------|
+    //                 1      10
+
+    let span = UC.span(1, 9);
+
+    assert_eq!(
+        Err(Error::InvalidQName("foo=\"bar\"".intern(), span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
+
+#[test]
+fn empty_element_qname_with_space_with_attr() {
+    new_sut!(sut = r#"<  foo="bar">"#);
+    //                 |
+    //                 1
+    //   quick-xml interprets the space as a "" QName
+
+    let span = UC.span(1, 0);
+
+    assert_eq!(
+        Err(Error::InvalidQName("".intern(), span)),
+        sut.collect::<Result<Vec<_>>>()
+    );
+}
