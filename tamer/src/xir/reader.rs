@@ -23,7 +23,7 @@
 
 use super::{error::SpanlessError, DefaultEscaper, Error, Escaper, Token};
 use crate::{
-    span::UNKNOWN_CONTEXT as UC,
+    span::Context,
     sym::{st::raw::WS_EMPTY, GlobalSymbolInternBytes},
 };
 use quick_xml::{
@@ -60,6 +60,9 @@ where
     /// Inner parser.
     reader: quick_xml::Reader<B>,
 
+    /// Parsing context for reader.
+    ctx: Context,
+
     /// Buffer for [`quick_xml::Reader`].
     readbuf: Vec<u8>,
 
@@ -77,7 +80,7 @@ where
 }
 
 impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
-    pub fn new(reader: B, escaper: &'s S) -> Self {
+    pub fn new(reader: B, escaper: &'s S, ctx: Context) -> Self {
         let mut reader = quick_xml::Reader::from_reader(reader);
 
         // XIR must support mismatched tags so that we are able to represent
@@ -87,6 +90,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
         Self {
             reader,
+            ctx,
             readbuf: Vec::new(),
             // This capacity is largely arbitrary,
             //   but [`Token`]s are small enough that it likely does not
@@ -107,6 +111,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         self.tokbuf.clear();
         self.readbuf.clear();
 
+        let ctx = self.ctx;
         let prev_pos = self.reader.buffer_position();
 
         match self.reader.read_event(&mut self.readbuf) {
@@ -115,7 +120,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             // But we don't encounter much of anything here with how we make
             //   use of quick-xml.
             Err(inner) => Some(Err({
-                let span = UC.span_or_zz(prev_pos, 0);
+                let span = ctx.span_or_zz(prev_pos, 0);
                 SpanlessError::from(inner).with_span(span)
             })),
 
@@ -130,13 +135,14 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         &mut self.tokbuf,
                         ele,
                         prev_pos,
+                        ctx,
                     )
                     .and_then(|open| {
                         let new_pos = self.reader.buffer_position();
 
                         // `<tag ... />`
                         //           ||
-                        let span = UC.span_or_zz(new_pos - 2, 2);
+                        let span = ctx.span_or_zz(new_pos - 2, 2);
 
                         // Tag is self-closing, but this does not yet
                         //   handle whitespace before the `/`
@@ -152,12 +158,13 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     &mut self.tokbuf,
                     ele,
                     prev_pos,
+                    ctx,
                 )),
 
                 QuickXmlEvent::End(ele) => Some({
                     // </foo>
                     // |----|  name + '<' + '/' + '>'
-                    let span = UC.span_or_zz(prev_pos, ele.name().len() + 3);
+                    let span = ctx.span_or_zz(prev_pos, ele.name().len() + 3);
 
                     ele.name()
                         .try_into()
@@ -180,7 +187,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 QuickXmlEvent::Text(bytes) => Some({
                     // <text>foo bar</text>
                     //       |-----|
-                    let span = UC.span_or_zz(prev_pos, bytes.len());
+                    let span = ctx.span_or_zz(prev_pos, bytes.len());
 
                     bytes
                         .intern_utf8()
@@ -194,7 +201,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 QuickXmlEvent::Comment(bytes) => Some({
                     // <!-- foo -->
                     // |----------|  " foo " + "<!--" + "-->"
-                    let span = UC.span_or_zz(prev_pos, bytes.len() + 7);
+                    let span = ctx.span_or_zz(prev_pos, bytes.len() + 7);
 
                     bytes
                         .intern_utf8()
@@ -204,7 +211,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                 // TODO: This must appear in the Prolog.
                 QuickXmlEvent::Decl(decl) => {
-                    match Self::validate_decl(&decl, prev_pos) {
+                    match Self::validate_decl(&decl, prev_pos, ctx) {
                         Err(x) => Some(Err(x)),
                         Ok(()) => self.refill_buf(),
                     }
@@ -233,12 +240,12 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
     ///   people unfamiliar with the system do not have expectations that
     ///   are going to be unmet,
     ///     which may result in subtle (or even serious) problems.
-    fn validate_decl(decl: &BytesDecl, pos: usize) -> Result<()> {
+    fn validate_decl(decl: &BytesDecl, pos: usize, ctx: Context) -> Result<()> {
         // Starts after `<?`, which we want to include.
         let decl_ptr = decl.as_ptr() as usize - 2 + pos;
 
         // Fallback span that covers the entire declaration.
-        let decl_span = UC.span_or_zz(pos, decl.len() + 4);
+        let decl_span = ctx.span_or_zz(pos, decl.len() + 4);
 
         let ver =
             &decl.version().map_err(Error::from_with_span(decl_span))?[..];
@@ -249,7 +256,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             // <?xml version="X.Y"?>
             //                |-|
             let ver_pos = (ver.as_ptr() as usize) - decl_ptr;
-            let span = UC.span_or_zz(ver_pos, ver.len());
+            let span = ctx.span_or_zz(ver_pos, ver.len());
 
             Err(Error::UnsupportedXmlVersion(
                 ver.intern_utf8().map_err(Error::from_with_span(span))?,
@@ -262,7 +269,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 b"utf-8" | b"UTF-8" => (),
                 invalid => {
                     let enc_pos = (invalid.as_ptr() as usize) - decl_ptr;
-                    let span = UC.span_or_zz(enc_pos, invalid.len());
+                    let span = ctx.span_or_zz(enc_pos, invalid.len());
 
                     Err(Error::UnsupportedEncoding(
                         invalid
@@ -288,6 +295,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         tokbuf: &mut VecDeque<Token>,
         ele: BytesStart,
         pos: usize,
+        ctx: Context,
     ) -> Result<Token> {
         // Starts after the opening tag `<`, so adjust.
         let addr = ele.as_ptr() as usize - 1;
@@ -300,7 +308,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     WS_EMPTY,
                     // <>
                     //  |  where QName should be
-                    UC.span_or_zz(pos + 1, 0),
+                    ctx.span_or_zz(pos + 1, 0),
                 ));
             }
 
@@ -311,7 +319,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 return Err({
                     // <foo="bar" ...>
                     //  |-------|
-                    let span = UC.span_or_zz(pos + 1, len);
+                    let span = ctx.span_or_zz(pos + 1, len);
 
                     Error::InvalidQName(
                         ele.name()
@@ -328,7 +336,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         // `ele` contains every byte up to the [self-]closing tag.
         ele.name()
             .try_into()
-            .map_err(Error::from_with_span(UC.span_or_zz(pos + 1, len)))
+            .map_err(Error::from_with_span(ctx.span_or_zz(pos + 1, len)))
             .and_then(|qname| {
                 let has_attrs = ele.attributes_raw().len() > 0;
                 let noattr_add: usize = (!has_attrs).into();
@@ -338,7 +346,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 //
                 // <tag>..</tag>
                 // |---| name + '<' + '>'
-                let span = UC.span_or_zz(pos, len + 1 + noattr_add);
+                let span = ctx.span_or_zz(pos, len + 1 + noattr_add);
 
                 if has_attrs {
                     let found = Self::parse_attrs(
@@ -347,6 +355,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         ele.attributes(),
                         addr - pos, // offset relative to _beginning_ of buf
                         pos,
+                        ctx,
                     )?;
 
                     // Given this input, quick-xml ignores the bytes entirely:
@@ -365,7 +374,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     {
                         return Err(Error::AttrValueExpected(
                             None,
-                            UC.span_or_zz(pos + ele.len() + 1, 0),
+                            ctx.span_or_zz(pos + ele.len() + 1, 0),
                         ));
                     }
                 }
@@ -411,6 +420,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         mut attrs: Attributes<'a>,
         ele_ptr: usize,
         ele_pos: usize,
+        ctx: Context,
     ) -> Result<bool> {
         let mut found = false;
 
@@ -427,7 +437,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     //   but we should discover it.
                     Error::AttrValueExpected(
                         None,
-                        UC.span_or_zz(ele_pos + pos, 0),
+                        ctx.span_or_zz(ele_pos + pos, 0),
                     )
                 }
 
@@ -435,12 +445,12 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     // TODO: name and span length
                     Error::AttrValueUnquoted(
                         None,
-                        UC.span_or_zz(ele_pos + pos, 0),
+                        ctx.span_or_zz(ele_pos + pos, 0),
                     )
                 }
 
                 // fallback
-                e => Error::from_with_span(UC.span_or_zz(ele_pos, 0))(e),
+                e => Error::from_with_span(ctx.span_or_zz(ele_pos, 0))(e),
             })?;
 
             let keyoffset = attr.key.as_ptr() as usize;
@@ -460,8 +470,8 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
             let value_offset = valoffset - ele_ptr;
 
-            let span_name = UC.span_or_zz(name_offset, attr.key.len());
-            let span_value = UC.span_or_zz(value_offset, attr.value.len());
+            let span_name = ctx.span_or_zz(name_offset, attr.key.len());
+            let span_value = ctx.span_or_zz(value_offset, attr.value.len());
 
             // The name must be parsed as a QName.
             let name = attr

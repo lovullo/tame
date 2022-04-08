@@ -23,7 +23,7 @@ use super::*;
 use crate::sym::GlobalSymbolIntern;
 use crate::{
     convert::ExpectInto,
-    span::UNKNOWN_CONTEXT as UC,
+    span::DUMMY_CONTEXT as DC,
     xir::{Error, Token},
 };
 
@@ -83,7 +83,7 @@ macro_rules! new_sut {
 
     (b $sut:ident = $data:expr) => {
         let escaper = MockEscaper::default();
-        let $sut = Sut::new($data, &escaper);
+        let $sut = Sut::new($data, &escaper, DC);
     };
 }
 
@@ -94,8 +94,8 @@ fn empty_node_without_prefix_or_attributes() {
     //              0        10
     //                   A      B
 
-    let a = UC.span(0, 11);
-    let b = UC.span(12, 2);
+    let a = DC.span(0, 11);
+    let b = DC.span(12, 2);
 
     assert_eq!(
         Ok(vec![
@@ -114,10 +114,10 @@ fn does_not_resolve_xmlns() {
     //                0    5 7   11 14     22  25
     //                  A      B        C      D
 
-    let a = UC.span(0, 6);
-    let b = UC.span(7, 5);
-    let c = UC.span(14, 9);
-    let d = UC.span(25, 2);
+    let a = DC.span(0, 6);
+    let b = DC.span(7, 5);
+    let c = DC.span(14, 9);
+    let d = DC.span(25, 2);
 
     assert_eq!(
         Ok(vec![
@@ -139,10 +139,10 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
     //                0          12 14   20  23     31  34
     //                      A          B         C      D
 
-    let a = UC.span(0, 13);
-    let b = UC.span(14, 7);
-    let c = UC.span(23, 9);
-    let d = UC.span(34, 2);
+    let a = DC.span(0, 13);
+    let b = DC.span(14, 7);
+    let c = DC.span(23, 9);
+    let d = DC.span(34, 2);
 
     // Should be the QName, _unresolved_.
     assert_eq!(
@@ -165,7 +165,7 @@ fn prefix_with_empty_local_name_invalid_qname() {
     //                 1
     //                 A
 
-    let a = UC.span(1, 2);
+    let a = DC.span(1, 2);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -185,14 +185,14 @@ fn multiple_attrs_ordered() {
     //                0  3 5 7  10 13   18 21 25 28  31
     //                 A    B   C  D    E    F    G  H
 
-    let a = UC.span(0, 4);
-    let b = UC.span(5, 3);
-    let c = UC.span(10, 1);
-    let d = UC.span(13, 3);
-    let e = UC.span(18, 1);
-    let f = UC.span(21, 5);
-    let g = UC.span(28, 1);
-    let h = UC.span(31, 2);
+    let a = DC.span(0, 4);
+    let b = DC.span(5, 3);
+    let c = DC.span(10, 1);
+    let d = DC.span(13, 3);
+    let e = DC.span(18, 1);
+    let f = DC.span(21, 5);
+    let g = DC.span(28, 1);
+    let h = DC.span(31, 2);
 
     assert_eq!(
         Ok(vec![
@@ -219,10 +219,10 @@ fn empty_attr_value() {
     //              zero-length span, where
     //               the value _would_ be
 
-    let a = UC.span(0, 4);
-    let b = UC.span(5, 5);
-    let c = UC.span(12, 0);
-    let d = UC.span(14, 2);
+    let a = DC.span(0, 4);
+    let b = DC.span(5, 5);
+    let c = DC.span(12, 0);
+    let d = DC.span(14, 2);
 
     assert_eq!(
         Ok(vec![
@@ -245,12 +245,12 @@ fn permits_duplicate_attrs() {
     //                0  3 5  8  11 14 17 20 23
     //                 A    B    C    D   E  F
 
-    let a = UC.span(0, 4);
-    let b = UC.span(5, 4);
-    let c = UC.span(11, 1);
-    let d = UC.span(14, 4);
-    let e = UC.span(20, 1);
-    let f = UC.span(23, 2);
+    let a = DC.span(0, 4);
+    let b = DC.span(5, 4);
+    let c = DC.span(11, 1);
+    let d = DC.span(14, 4);
+    let e = DC.span(20, 1);
+    let f = DC.span(23, 2);
 
     assert_eq!(
         Ok(vec![
@@ -275,10 +275,10 @@ fn child_node_self_closing() {
     //    note that this includes '>' when there are no attrs,
     // since that results in a more intuitive span (subject to change)
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 6);
-    let c = UC.span(13, 2);
-    let d = UC.span(15, 7);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 6);
+    let c = DC.span(13, 2);
+    let d = DC.span(15, 7);
 
     assert_eq!(
         Ok(vec![
@@ -298,12 +298,12 @@ fn sibling_nodes() {
     //                0    5`6  11 13`15 20 22`24  30
     //                  A      B   C    D   E    F
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 6);
-    let c = UC.span(13, 2);
-    let d = UC.span(15, 6);
-    let e = UC.span(22, 2);
-    let f = UC.span(24, 7);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 6);
+    let c = DC.span(13, 2);
+    let d = DC.span(15, 6);
+    let e = DC.span(22, 2);
+    let f = DC.span(24, 7);
 
     assert_eq!(
         Ok(vec![
@@ -325,12 +325,12 @@ fn child_node_with_attrs() {
     //                0    5`6  11 13  18 20 23`25  31
     //                  A     B     C    D   E    F
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 6);
-    let c = UC.span(13, 3);
-    let d = UC.span(18, 3);
-    let e = UC.span(23, 2);
-    let f = UC.span(25, 7);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 6);
+    let c = DC.span(13, 3);
+    let d = DC.span(18, 3);
+    let e = DC.span(23, 2);
+    let f = DC.span(25, 7);
 
     assert_eq!(
         Ok(vec![
@@ -352,9 +352,9 @@ fn child_text() {
     //                0    5`6   12`13  19
     //                  A      B      C
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 7);
-    let c = UC.span(13, 7);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 7);
+    let c = DC.span(13, 7);
 
     assert_eq!(
         Ok(vec![
@@ -373,12 +373,12 @@ fn mixed_child_content() {
     //                0    5`6 9 12`13`16  21   27
     //                  A    B  C   D   E     F
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 3);
-    let c = UC.span(9, 4);
-    let d = UC.span(13, 3);
-    let e = UC.span(16, 5);
-    let f = UC.span(21, 7);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 3);
+    let c = DC.span(9, 4);
+    let d = DC.span(13, 3);
+    let e = DC.span(16, 5);
+    let f = DC.span(21, 7);
 
     assert_eq!(
         Ok(vec![
@@ -411,14 +411,14 @@ fn mixed_child_content_with_newlines() {
     //                      19
     // A   B     C   D    E F    G    H
 
-    let a = UC.span(0, 1);
-    let b = UC.span(1, 6);
-    let c = UC.span(7, 3);
-    let d = UC.span(10, 6);
-    let e = UC.span(17, 2);
-    let f = UC.span(19, 1);
-    let g = UC.span(20, 7);
-    let h = UC.span(27, 1);
+    let a = DC.span(0, 1);
+    let b = DC.span(1, 6);
+    let c = DC.span(7, 3);
+    let d = DC.span(10, 6);
+    let e = DC.span(17, 2);
+    let f = DC.span(19, 1);
+    let g = DC.span(20, 7);
+    let h = DC.span(27, 1);
 
     assert_eq!(
         Ok(vec![
@@ -442,10 +442,10 @@ fn comment() {
     //                0        10`11 16`17         30`31  37
     //                     A       B          C         D
 
-    let a = UC.span(0, 11);
-    let b = UC.span(11, 6);
-    let c = UC.span(17, 14);
-    let d = UC.span(31, 7);
+    let a = DC.span(0, 11);
+    let b = DC.span(11, 6);
+    let c = DC.span(17, 14);
+    let d = DC.span(31, 7);
 
     assert_eq!(
         Ok(vec![
@@ -471,10 +471,10 @@ lines-->
     // 0    5`6                             37'38`39  45
     //   A                     B               C    D
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 32);
-    let c = UC.span(38, 1);
-    let d = UC.span(39, 7);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 32);
+    let c = DC.span(38, 1);
+    let d = DC.span(39, 7);
 
     assert_eq!(
         Ok(vec![
@@ -495,10 +495,10 @@ fn permits_mismatched_tags() {
     //                0    5`6  11 13`15      25
     //                  A      B   C      D
 
-    let a = UC.span(0, 6);
-    let b = UC.span(6, 6);
-    let c = UC.span(13, 2);
-    let d = UC.span(15, 11);
+    let a = DC.span(0, 6);
+    let b = DC.span(6, 6);
+    let c = DC.span(13, 2);
+    let d = DC.span(15, 11);
 
     assert_eq!(
         Ok(vec![
@@ -517,7 +517,7 @@ fn node_name_invalid_utf8() {
     new_sut!(b sut = bytes);
 
     // We report at the QName, not the start tag.
-    let span = UC.span(1, 1);
+    let span = DC.span(1, 1);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -539,7 +539,7 @@ fn attr_name_invalid_utf8() {
 
     new_sut!(sut = s);
 
-    let span = UC.span(3, 1);
+    let span = DC.span(3, 1);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -561,7 +561,7 @@ fn attr_value_invalid_utf8() {
 
     new_sut!(sut = s);
 
-    let span = UC.span(9, 4);
+    let span = DC.span(9, 4);
 
     let result = sut.collect::<Result<Vec<_>>>();
 
@@ -585,8 +585,8 @@ fn valid_xml_decl_no_encoding() {
     //  We do not yet emit a token for
     //       XML declarations
 
-    let a = UC.span(21, 5);
-    let b = UC.span(27, 2);
+    let a = DC.span(21, 5);
+    let b = DC.span(27, 2);
 
     assert_eq!(
         Ok(vec![
@@ -619,7 +619,7 @@ fn invalid_xml_decl_version() {
     //                              15 17
 
     // Unlike above, we do actually calculate a span here.
-    let span = UC.span(15, 3);
+    let span = DC.span(15, 3);
 
     assert_eq!(
         Err(Error::UnsupportedXmlVersion("1.1".intern(), span)),
@@ -634,7 +634,7 @@ fn invalid_xml_encoding() {
     //                                              |-----|
     //                                             30    37
 
-    let span = UC.span(30, 7);
+    let span = DC.span(30, 7);
 
     assert_eq!(
         Err(Error::UnsupportedEncoding("latin-1".intern(), span)),
@@ -672,7 +672,7 @@ fn attr_single_no_value_no_eq() {
     //   WS to make sure we add the file-relative pos
     // and not just have the span relative to the element
 
-    let span = UC.span(10, 0);
+    let span = DC.span(10, 0);
 
     assert_eq!(
         Err(Error::AttrValueExpected(None, span)),
@@ -687,7 +687,7 @@ fn attr_single_no_value_with_eq() {
     //                           11
     //             where the `"value"` should be
 
-    let span = UC.span(11, 0);
+    let span = DC.span(11, 0);
 
     assert_eq!(
         Err(Error::AttrValueExpected(None, span)),
@@ -702,7 +702,7 @@ fn attr_multi_no_value_no_eq() {
     //                          10
     //             where the `="value"` should be
 
-    let span = UC.span(10, 0);
+    let span = DC.span(10, 0);
 
     assert_eq!(
         // quick-xml doesn't provide the name
@@ -720,7 +720,7 @@ fn attr_multi_no_value_with_eq() {
 
     // TODO: quick-xml does not give us the length so we'll have to figure
     //   it out ourselves.
-    let span = UC.span(11, 0);
+    let span = DC.span(11, 0);
 
     assert_eq!(
         Err(Error::AttrValueUnquoted(None, span)),
@@ -735,7 +735,7 @@ fn attr_multiple_no_value_no_eq_then_good() {
     //                          10
     //             where the `="value"` should be
 
-    let span = UC.span(10, 0);
+    let span = DC.span(10, 0);
 
     assert_eq!(
         // quick-xml doesn't provide the name
@@ -751,7 +751,7 @@ fn empty_element_qname_no_attrs() {
     //                 1
     //        where the QName should be
 
-    let span = UC.span(1, 0);
+    let span = DC.span(1, 0);
 
     assert_eq!(
         Err(Error::InvalidQName("".intern(), span)),
@@ -766,7 +766,7 @@ fn empty_element_qname_with_space_no_attrs() {
     //                 1
     //        where the QName should be
 
-    let span = UC.span(1, 0);
+    let span = DC.span(1, 0);
 
     assert_eq!(
         Err(Error::InvalidQName("".intern(), span)),
@@ -780,7 +780,7 @@ fn empty_element_qname_with_attr() {
     //                 |-------|
     //                 1      10
 
-    let span = UC.span(1, 9);
+    let span = DC.span(1, 9);
 
     assert_eq!(
         Err(Error::InvalidQName("foo=\"bar\"".intern(), span)),
@@ -795,7 +795,7 @@ fn empty_element_qname_with_space_with_attr() {
     //                 1
     //   quick-xml interprets the space as a "" QName
 
-    let span = UC.span(1, 0);
+    let span = DC.span(1, 0);
 
     assert_eq!(
         Err(Error::InvalidQName("".intern(), span)),

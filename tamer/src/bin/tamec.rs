@@ -23,15 +23,11 @@
 extern crate tamer;
 
 use getopts::{Fail, Options};
+use std::env;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
-use std::{env, io::BufWriter};
-use tamer::{
-    iter::into_iter_while_ok,
-    xir::{reader::XmlXirReader, DefaultEscaper},
-};
 
 #[cfg(feature = "wip-frontends")]
 use {std::io::BufReader, tamer::fs::File};
@@ -63,17 +59,26 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
             #[cfg(feature = "wip-frontends")]
             {
-                use tamer::xir::writer::XmlWriter;
+                use std::io::BufWriter;
+                use tamer::{
+                    fs::PathFile,
+                    iter::into_iter_while_ok,
+                    xir::{
+                        reader::XmlXirReader, writer::XmlWriter, DefaultEscaper,
+                    },
+                };
 
                 let escaper = DefaultEscaper::default();
-                let file: BufReader<fs::File> = File::open(source)?;
                 let mut fout = BufWriter::new(fs::File::create(dest)?);
+
+                let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
+                    PathFile::open(source)?;
 
                 // Parse into XIR and re-lower into XML,
                 //   which is similar to a copy but proves that we're able
                 //   to parse source files.
                 into_iter_while_ok(
-                    XmlXirReader::new(file, &escaper),
+                    XmlXirReader::new(file, &escaper, ctx),
                     |toks| toks.write(&mut fout, Default::default(), &escaper),
                 )??;
             }

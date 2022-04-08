@@ -45,6 +45,9 @@ use std::io::{BufReader, Read, Result};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
+use crate::span::{Context, UNKNOWN_CONTEXT};
+use crate::sym::GlobalSymbolIntern;
+
 /// A file.
 pub trait File
 where
@@ -67,20 +70,19 @@ impl<F: File + Read> File for BufReader<F> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PathFile<F: File>(PathBuf, F);
-
-impl<F: File> Into<(PathBuf, F)> for PathFile<F> {
-    fn into(self) -> (PathBuf, F) {
-        (self.0, self.1)
-    }
-}
+pub struct PathFile<F: File>(pub PathBuf, pub F, pub Context);
 
 impl<F: File> File for PathFile<F> {
     fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let buf = path.as_ref().to_path_buf();
         let file = F::open(&buf)?;
 
-        Ok(Self(buf, file))
+        let ctx = buf
+            .to_str()
+            .map(|s| s.intern().into())
+            .unwrap_or(UNKNOWN_CONTEXT);
+
+        Ok(Self(buf, file, ctx))
     }
 }
 
@@ -224,10 +226,14 @@ mod test {
         let path: PathBuf = "buf/path".into();
         let result: PathFile<DummyFile> = File::open(path.clone()).unwrap();
 
-        assert_eq!(PathFile(path.clone(), DummyFile(path.clone())), result);
-
-        // Tuple conversion.
-        assert_eq!((path.clone(), DummyFile(path.clone())), result.into());
+        assert_eq!(
+            PathFile(
+                path.clone(),
+                DummyFile(path.clone()),
+                "buf/path".intern().into()
+            ),
+            result
+        );
     }
 
     mod canonicalizer {

@@ -176,17 +176,18 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     escaper: &S,
     state: LinkerAsgBuilderState,
 ) -> Result<LinkerAsgBuilderState, Box<dyn Error>> {
-    let cfile: PathFile<BufReader<fs::File>> = match fs.open(path_str)? {
-        VisitOnceFile::FirstVisit(file) => file,
-        VisitOnceFile::Visited => return Ok(state),
-    };
-
-    let (path, file) = cfile.into();
+    let PathFile(path, file, ctx): PathFile<BufReader<fs::File>> =
+        match fs.open(path_str)? {
+            VisitOnceFile::FirstVisit(file) => file,
+            VisitOnceFile::Visited => return Ok(state),
+        };
 
     let mut state = {
         #[cfg(not(feature = "wip-xmlo-xir-reader"))]
         {
             let xmlo: XmloReader<_> = file.into();
+            let _ctx = ctx; // suppress warning
+
             depgraph.import_xmlo(xmlo, state)?
         }
 
@@ -198,22 +199,28 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
 
             // TODO: This entire block is a WIP and will be incrementally
             //   abstracted away.
-            into_iter_while_ok(XmlXirReader::new(file, escaper), |toks| {
-                flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _>(
-                    |xirf| {
-                        into_iter_while_ok(xirf, |xmlo_out| {
-                            // TODO: Transitionary---we do not want to filter.
-                            depgraph.import_xmlo(
-                                xmlo_out.filter_map(|parsed| match parsed {
-                                    Parsed::Incomplete => None,
-                                    Parsed::Object(obj) => Some(Ok(obj)),
-                                }),
-                                state,
-                            )
+            into_iter_while_ok(
+                XmlXirReader::new(file, escaper, ctx),
+                |toks| {
+                    flat::State::<64>::parse(toks)
+                        .lower_while_ok::<XmloReader, _>(|xirf| {
+                            into_iter_while_ok(xirf, |xmlo_out| {
+                                // TODO: Transitionary---we do not want to filter.
+                                depgraph.import_xmlo(
+                                    xmlo_out.filter_map(
+                                        |parsed| match parsed {
+                                            Parsed::Incomplete => None,
+                                            Parsed::Object(obj) => {
+                                                Some(Ok(obj))
+                                            }
+                                        },
+                                    ),
+                                    state,
+                                )
+                            })
                         })
-                    },
-                )
-            })????
+                },
+            )????
         }
     };
 
