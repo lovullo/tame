@@ -185,7 +185,7 @@
 
 use crate::{
     global,
-    sym::{ContextStaticSymbolId, SymbolId},
+    sym::{st16, ContextStaticSymbolId, SymbolId},
 };
 use std::{convert::TryInto, fmt::Display};
 
@@ -437,7 +437,7 @@ impl Display for Span {
 
 /// A placeholder span indicating that a span is expected but is not yet
 ///   known.
-pub const UNKNOWN_SPAN: Span = Span::st_ctx(crate::sym::st16::CTX_UNKNOWN);
+pub const UNKNOWN_SPAN: Span = Span::st_ctx(st16::CTX_UNKNOWN);
 
 /// A dummy span that can be used in contexts where a span is expected but
 ///   is not important.
@@ -447,7 +447,7 @@ pub const UNKNOWN_SPAN: Span = Span::st_ctx(crate::sym::st16::CTX_UNKNOWN);
 ///   messages and source analysis.
 ///
 /// Additional dummy spans can be derived from this one.
-pub const DUMMY_SPAN: Span = Span::st_ctx(crate::sym::st16::CTX_DUMMY);
+pub const DUMMY_SPAN: Span = Span::st_ctx(st16::CTX_DUMMY);
 
 /// Context for byte offsets (e.g. a source file).
 ///
@@ -460,6 +460,62 @@ pub const DUMMY_SPAN: Span = Span::st_ctx(crate::sym::st16::CTX_DUMMY);
 ///   it must be kept as small as possible.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Context(PathIndex);
+
+impl Context {
+    /// Produce a [`Span`] within the given context.
+    #[inline]
+    pub fn span(
+        self,
+        offset: global::SourceFileSize,
+        len: global::FrontendTokenLength,
+    ) -> Span {
+        Span::new(offset, len, self)
+    }
+
+    /// Attempt to produce a [`Span`] of the given length at the given
+    ///   offset,
+    ///     otherwise fall back to a `(0,0)` (ZZ) span.
+    ///
+    /// If the offset cannot be stored,
+    ///   then the length will always be `0` even if it could otherwise be
+    ///   represented;
+    ///     `(0,0)` indicates no span,
+    ///       whereas `(0,N)` would indicate a span of length `N` at
+    ///       offset `0`,
+    ///         which would not be true.
+    ///
+    /// If the offset can be represented but not the length,
+    ///   then a zero-length span at that offset will be produced,
+    ///   which still provides useful information.
+    /// This may be the case for very large objects,
+    ///   like compiled text fragments.
+    ///
+    /// The rationale here is that spans are intended to be informative.
+    /// If we are unable to provide that information due to exceptional
+    ///   circumstances
+    ///     (very large file or very large token),
+    ///     then it's better to provide _some_ information than to bail out
+    ///       with an error and interrupt the entire process,
+    ///         potentially masking errors in the process.
+    #[inline]
+    pub fn span_or_zz(self, offset: usize, len: usize) -> Span {
+        self.span(offset.try_into().unwrap_or(0), len.try_into().unwrap_or(0))
+    }
+}
+
+/// A placeholder context indicating that a context is expected but is not
+///   yet known.
+pub const UNKNOWN_CONTEXT: Context = Context(PathIndex(st16::raw::CTX_UNKNOWN));
+
+/// A dummy context that can be used where a span is expected but is not
+///   important.
+///
+/// This is intended primarily for tests;
+///   you should always use an appropriate span to permit sensible error
+///   messages and source analysis.
+///
+/// See also [`UNKNOWN_CONTEXT`].
+pub const DUMMY_CONTEXT: Context = Context(PathIndex(st16::raw::CTX_DUMMY));
 
 impl<P: Into<PathIndex>> From<P> for Context {
     fn from(path: P) -> Self {

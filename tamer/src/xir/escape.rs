@@ -62,7 +62,7 @@ use crate::sym::{
 };
 use std::{borrow::Cow, cell::RefCell, collections::hash_map::Entry};
 
-use super::Error;
+use super::error::SpanlessError;
 
 /// XIR escaper and unescaper.
 ///
@@ -86,7 +86,7 @@ pub trait Escaper: Default {
 
     /// Unescape raw bytes such that any relevant escape sequences are
     ///   parsed into their text representation.
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, Error>;
+    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError>;
 
     /// Escape the given symbol and produce a [`SymbolId`] representing
     ///   the escaped value suitable for writing.
@@ -112,7 +112,7 @@ pub trait Escaper: Default {
     /// Unescape the provided raw value and return a [`SymbolId`]
     ///   representing the unescaped value.
     #[inline]
-    fn unescape(&self, escaped: SymbolId) -> Result<SymbolId, Error> {
+    fn unescape(&self, escaped: SymbolId) -> Result<SymbolId, SpanlessError> {
         Ok(
             match Self::unescape_bytes(escaped.lookup_str().as_bytes())? {
                 // We got back what we sent in,
@@ -139,7 +139,7 @@ impl Escaper for QuickXmlEscaper {
     }
 
     #[inline]
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, Error> {
+    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
         // For some reason,
         //   quick-xml has made EscapeError explicitly private to the crate,
         //     and so it is opaque to us.
@@ -240,7 +240,7 @@ impl<S: Escaper> Escaper for CachingEscaper<S> {
     }
 
     #[inline]
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, Error> {
+    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
         S::unescape_bytes(value)
     }
 
@@ -261,7 +261,7 @@ impl<S: Escaper> Escaper for CachingEscaper<S> {
     }
 
     #[inline]
-    fn unescape(&self, escaped: SymbolId) -> Result<SymbolId, Error> {
+    fn unescape(&self, escaped: SymbolId) -> Result<SymbolId, SpanlessError> {
         Ok(match self.tounesc.borrow_mut().entry(escaped) {
             Entry::Occupied(unescaped) => *unescaped.get(),
             Entry::Vacant(entry) => {
@@ -293,7 +293,7 @@ impl Escaper for NullEscaper {
     }
 
     #[inline]
-    fn unescape_bytes(_value: &[u8]) -> Result<Cow<[u8]>, Error> {
+    fn unescape_bytes(_value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
         panic!("NullEscaper should not be used for unescaping")
     }
 }
@@ -341,7 +341,9 @@ mod test {
                 unreachable!("escape_bytes should not be called")
             }
 
-            fn unescape_bytes(_: &[u8]) -> result::Result<Cow<[u8]>, Error> {
+            fn unescape_bytes(
+                _: &[u8],
+            ) -> result::Result<Cow<[u8]>, SpanlessError> {
                 unreachable!("unescape_bytes should not be called")
             }
 
@@ -350,7 +352,10 @@ mod test {
                 *self.escape_map.get(&given).expect("unexpected escape")
             }
 
-            fn unescape(&self, given: SymbolId) -> Result<SymbolId, Error> {
+            fn unescape(
+                &self,
+                given: SymbolId,
+            ) -> Result<SymbolId, SpanlessError> {
                 *self.unescape_count.borrow_mut().entry(given).or_default() +=
                     1;
                 Ok(*self.unescape_map.get(&given).expect("unexpected unescape"))

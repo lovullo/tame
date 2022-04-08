@@ -532,8 +532,8 @@ pub mod st16 {
         <u16>;
 
         // Special contexts.
-        CTX_DUMMY: ctx "#!UNKNOWN",
-        CTX_UNKNOWN: ctx "#!DUMMY",
+        CTX_DUMMY: ctx "#!DUMMY",
+        CTX_UNKNOWN: ctx "#!UNKNOWN",
         CTX_LINKER: ctx "#!LINKER",
 
         // [Symbols will be added here as they are needed.]

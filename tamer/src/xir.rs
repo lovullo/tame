@@ -26,30 +26,6 @@
 //!   or even general-purpose---it
 //!     exists to solve concerns specific to TAMER's construction.
 //!
-//! Parsing and Safety
-//! ==================
-//! Many XIR elements know how to safely parse into themselves,
-//!   exposing [`TryFrom`] traits that will largely do the right thing for
-//!   you.
-//! For example,
-//!   [`QName`] is able to construct itself from a byte slice and from a
-//!     string tuple,
-//!       among other things.
-//!
-//! ```
-//! use tamer::xir::QName;
-//! use tamer::sym::GlobalSymbolIntern;
-//!
-//!# fn main() -> Result<(), tamer::xir::Error> {
-//! let src = "foo:bar".as_bytes();
-//! let qname = QName::try_from(src)?;
-//!
-//! assert_eq!(qname, ("foo", "bar").try_into()?);
-//!
-//!# Ok(())
-//!# }
-//! ```
-//!
 //! To parse an entire XML document,
 //!   see [`reader`].
 
@@ -69,6 +45,8 @@ pub use error::Error;
 
 mod escape;
 pub use escape::{DefaultEscaper, Escaper};
+
+use self::error::SpanlessError;
 
 pub mod attr;
 pub mod flat;
@@ -162,7 +140,7 @@ impl NCName {
 }
 
 impl TryFrom<&[u8]> for NCName {
-    type Error = Error;
+    type Error = SpanlessError;
 
     /// Attempt to parse a byte slice into an [`NCName`].
     ///
@@ -173,7 +151,7 @@ impl TryFrom<&[u8]> for NCName {
     /// The string will be interned for you.
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         match value.contains(&b':') {
-            true => Err(Error::NCColon(value.to_owned())),
+            true => Err(SpanlessError::NCColon(value.intern_utf8()?)),
             false => Ok(NCName(value.intern_utf8()?)),
         }
     }
@@ -194,11 +172,11 @@ impl PartialEq<SymbolId> for NCName {
 }
 
 impl TryFrom<&str> for NCName {
-    type Error = Error;
+    type Error = SpanlessError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if value.contains(':') {
-            return Err(Error::NCColon(value.into()));
+            return Err(SpanlessError::NCColon(value.into()));
         }
 
         Ok(Self(value.intern()))
@@ -242,7 +220,7 @@ impl From<NCName> for LocalPart {
 }
 
 impl TryFrom<&str> for Prefix {
-    type Error = Error;
+    type Error = SpanlessError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(Self(value.try_into()?))
@@ -250,7 +228,7 @@ impl TryFrom<&str> for Prefix {
 }
 
 impl TryFrom<&str> for LocalPart {
-    type Error = Error;
+    type Error = SpanlessError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(Self(value.try_into()?))
@@ -398,7 +376,7 @@ where
 }
 
 impl TryFrom<&str> for QName {
-    type Error = Error;
+    type Error = SpanlessError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(QName(None, value.try_into()?))
@@ -406,7 +384,7 @@ impl TryFrom<&str> for QName {
 }
 
 impl TryFrom<&[u8]> for QName {
-    type Error = Error;
+    type Error = SpanlessError;
 
     /// Attempt to parse a byte slice into a [`QName`].
     ///
@@ -419,7 +397,7 @@ impl TryFrom<&[u8]> for QName {
             // Leading colon means we're missing a prefix, trailing means
             //   that we have no local part.
             Some(pos) if pos == 0 || pos == name.len() - 1 => {
-                Err(Error::InvalidQName(name.to_owned()))
+                Err(SpanlessError::InvalidQName(name.intern_utf8()?))
             }
 
             // There is _at least_ one colon in the string.
@@ -621,7 +599,7 @@ mod test {
         fn ncname_try_into_from_str_fails_with_colon() {
             assert_eq!(
                 NCName::try_from("look:a-colon"),
-                Err(Error::NCColon("look:a-colon".into()))
+                Err(SpanlessError::NCColon("look:a-colon".into()))
             );
         }
 
@@ -636,7 +614,7 @@ mod test {
         fn ncname_from_byte_slice_fails_with_colon() {
             assert_eq!(
                 NCName::try_from(b"a:colon" as &[u8]),
-                Err(Error::NCColon("a:colon".into()))
+                Err(SpanlessError::NCColon("a:colon".into()))
             );
         }
 

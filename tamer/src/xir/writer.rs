@@ -323,9 +323,10 @@ mod test {
 
     use super::*;
     use crate::{
+        convert::ExpectInto,
         span::Span,
         sym::GlobalSymbolIntern,
-        xir::{QName, Whitespace},
+        xir::{error::SpanlessError, QName, Whitespace},
     };
 
     type TestResult = std::result::Result<(), Error>;
@@ -342,7 +343,9 @@ mod test {
             Cow::Owned(esc)
         }
 
-        fn unescape_bytes(_: &[u8]) -> result::Result<Cow<[u8]>, XirError> {
+        fn unescape_bytes(
+            _: &[u8],
+        ) -> result::Result<Cow<[u8]>, SpanlessError> {
             unreachable!("Writer should not be unescaping!")
         }
     }
@@ -354,7 +357,7 @@ mod test {
 
     #[test]
     fn writes_beginning_node_tag_without_prefix() -> TestResult {
-        let name = QName::new_local("no-prefix".try_into()?);
+        let name = QName::new_local("no-prefix".unwrap_into());
         let result = Token::Open(name, *S)
             .write_new(Default::default(), &MockEscaper::default())?;
 
@@ -366,7 +369,7 @@ mod test {
 
     #[test]
     fn writes_beginning_node_tag_with_prefix() -> TestResult {
-        let name = QName::try_from(("prefix", "element-name"))?;
+        let name = ("prefix", "element-name").unwrap_into();
         let result = Token::Open(name, *S)
             .write_new(Default::default(), &MockEscaper::default())?;
 
@@ -378,7 +381,7 @@ mod test {
 
     #[test]
     fn closes_open_node_when_opening_another() -> TestResult {
-        let name = QName::try_from(("p", "another-element"))?;
+        let name = ("p", "another-element").unwrap_into();
         let result = Token::Open(name, *S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
 
@@ -401,7 +404,7 @@ mod test {
 
     #[test]
     fn closing_tag_when_node_expected() -> TestResult {
-        let name = QName::try_from(("a", "closed-element"))?;
+        let name = ("a", "closed-element").unwrap_into();
 
         let result = Token::Close(Some(name), *S)
             .write_new(WriterState::NodeExpected, &MockEscaper::default())?;
@@ -416,7 +419,7 @@ mod test {
     // to explicitly support outputting malformed XML.
     #[test]
     fn closes_open_node_with_closing_tag() -> TestResult {
-        let name = QName::try_from(("b", "closed-element"))?;
+        let name = ("b", "closed-element").unwrap_into();
 
         let result = Token::Close(Some(name), *S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
@@ -441,8 +444,8 @@ mod test {
 
     #[test]
     fn writes_attr_name_to_open_node() -> TestResult {
-        let name_ns = QName::try_from(("some", "attr"))?;
-        let name_local = QName::new_local("nons".try_into()?);
+        let name_ns = ("some", "attr").unwrap_into();
+        let name_local = "nons".unwrap_into();
 
         // Namespace prefix
         let result = Token::AttrName(name_ns, *S)
@@ -552,14 +555,14 @@ mod test {
     // practice.
     #[test]
     fn test_valid_sequence_of_tokens() -> TestResult {
-        let root: QName = ("r", "root").try_into()?;
+        let root: QName = ("r", "root").unwrap_into();
 
         let result = vec![
             Token::Open(root, *S),
-            Token::AttrName(("an", "attr").try_into()?, *S),
+            Token::AttrName(("an", "attr").unwrap_into(), *S),
             Token::AttrValue("value".intern(), *S),
             Token::Text("text".intern(), *S),
-            Token::Open(("c", "child").try_into()?, *S),
+            Token::Open(("c", "child").unwrap_into(), *S),
             Token::Whitespace(" ".try_into()?, *S),
             Token::Close(None, *S),
             Token::Close(Some(root), *S),

@@ -26,17 +26,19 @@ use std::{fmt::Display, str::Utf8Error};
 #[derive(Debug, PartialEq)]
 pub enum Error {
     /// Provided name contains a `':'`.
-    NCColon(Vec<u8>),
+    NCColon(SymbolId, Span),
     /// Provided string contains non-ASCII-whitespace characters.
     NotWhitespace(String),
     /// Provided QName is not valid.
-    InvalidQName(Vec<u8>),
+    InvalidQName(SymbolId, Span),
     /// A UTF-8 error together with the byte slice that caused it.
     ///
     /// By storing the raw bytes instead of a string,
     ///   we allow the displayer to determine how to handle invalid UTF-8
     ///   encodings.
-    InvalidUtf8(Utf8Error, Vec<u8>),
+    /// Further,
+    ///   we cannot intern strings that are not valid UTF-8.
+    InvalidUtf8(Utf8Error, Vec<u8>, Span),
     /// XML 1.0 only.
     ///
     /// Other versions are not widely in use
@@ -49,31 +51,34 @@ pub enum Error {
     ///   which should not be an unreasonable expectation.
     UnsupportedEncoding(SymbolId, Span),
 
-    // TODO: Better error translation and spans.
-    QuickXmlError(quick_xml::Error),
+    // TODO: Better error translation.
+    QuickXmlError(quick_xml::Error, Span),
+}
+
+impl Error {
+    pub fn from_with_span<E: Into<SpanlessError>>(
+        span: Span,
+    ) -> impl FnOnce(E) -> Self {
+        move |e: E| e.into().with_span(span)
+    }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NCColon(bytes) => {
-                write!(
-                    f,
-                    "NCName `{}` cannot contain ':'",
-                    String::from_utf8_lossy(bytes)
-                )
+            Self::NCColon(sym, span) => {
+                write!(f, "NCName `{sym}` cannot contain ':' at {span}",)
             }
             Self::NotWhitespace(s) => {
                 write!(f, "string contains non-ASCII-whitespace: `{}`", s)
             }
-            Self::InvalidQName(bytes) => {
-                write!(f, "invalid QName `{}`", String::from_utf8_lossy(bytes))
+            Self::InvalidQName(qname, span) => {
+                write!(f, "invalid QName `{qname}` at {span}")
             }
-            Self::InvalidUtf8(inner, bytes) => {
+            Self::InvalidUtf8(inner, bytes, span) => {
                 write!(
                     f,
-                    "{} for string `{}`",
-                    inner,
+                    "{inner} for string `{}` with bytes `{bytes:?}` at {span}",
                     String::from_utf8_lossy(bytes)
                 )
             }
@@ -94,9 +99,9 @@ impl Display for Error {
                        but found unsupported encoding `{enc}`"
                 )
             }
-            // TODO: See Error TODO
-            Self::QuickXmlError(inner) => {
-                write!(f, "internal parser error: {:?}", inner)
+            // TODO: Translate error messages
+            Self::QuickXmlError(inner, span) => {
+                write!(f, "internal parser error: {inner} at {span}")
             }
         }
     }
@@ -105,19 +110,77 @@ impl Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::InvalidUtf8(err, ..) => Some(err),
+            Self::InvalidUtf8(e, ..) => Some(e),
+            Self::QuickXmlError(e, ..) => Some(e),
             _ => None,
         }
     }
 }
 
-impl From<(Utf8Error, &[u8])> for Error {
+/// An [`Error`] that requires its [`Span`] to be filled in by the caller.
+///
+/// These errors should not be converted automatically,
+///   since only the caller can know the correct information to provide for
+///   a useful [`Span`].
+/// Failure to provide a useful span will betray the user when they need us
+///   the most:
+///     debugging an error.
+///
+/// As such,
+///   please do not implement `From<SpanlessError> for Error`;
+///   use [`SpanlessError::with_span`] instead.
+#[derive(Debug, PartialEq)]
+pub enum SpanlessError {
+    NCColon(SymbolId),
+    InvalidQName(SymbolId),
+    InvalidUtf8(Utf8Error, Vec<u8>),
+    QuickXmlError(quick_xml::Error),
+}
+
+impl SpanlessError {
+    pub fn with_span(self, span: Span) -> Error {
+        match self {
+            Self::NCColon(sym) => Error::NCColon(sym, span),
+            Self::InvalidQName(qname) => Error::InvalidQName(qname, span),
+            Self::InvalidUtf8(inner, bytes) => {
+                Error::InvalidUtf8(inner, bytes, span)
+            }
+            Self::QuickXmlError(inner) => Error::QuickXmlError(inner, span),
+        }
+    }
+
+    pub fn into_with_span<E>(span: Span) -> impl FnOnce(E) -> Error
+    where
+        E: Into<SpanlessError>,
+    {
+        move |e: E| e.into().with_span(span)
+    }
+}
+
+impl std::error::Error for SpanlessError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidUtf8(inner, ..) => Some(inner),
+            Self::QuickXmlError(inner) => Some(inner),
+            _ => None,
+        }
+    }
+}
+
+impl Display for SpanlessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // This isn't friendly, since it shouldn't occur.
+        write!(f, "internal error: missing span for error: {self:?}")
+    }
+}
+
+impl From<(Utf8Error, &[u8])> for SpanlessError {
     fn from((err, bytes): (Utf8Error, &[u8])) -> Self {
         Self::InvalidUtf8(err, bytes.to_owned())
     }
 }
 
-impl<E: Into<quick_xml::Error>> From<E> for Error {
+impl<E: Into<quick_xml::Error>> From<E> for SpanlessError {
     fn from(err: E) -> Self {
         Self::QuickXmlError(err.into())
     }

@@ -21,9 +21,9 @@
 //!
 //! This uses [`quick_xml`] as the parser.
 
-use super::{DefaultEscaper, Error, Escaper, Token};
+use super::{error::SpanlessError, DefaultEscaper, Error, Escaper, Token};
 use crate::{
-    span::{DUMMY_SPAN, UNKNOWN_SPAN},
+    span::{UNKNOWN_CONTEXT as UC, UNKNOWN_SPAN},
     sym::GlobalSymbolInternBytes,
 };
 use quick_xml::{
@@ -32,7 +32,7 @@ use quick_xml::{
         attributes::Attributes, BytesDecl, BytesStart, Event as QuickXmlEvent,
     },
 };
-use std::{collections::VecDeque, io::BufRead, result};
+use std::{borrow::Cow, collections::VecDeque, io::BufRead, result};
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -106,23 +106,39 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         self.tokbuf.clear();
         self.readbuf.clear();
 
-        match self.reader.read_event(&mut self.readbuf) {
-            // This is the only time we'll consider the iterator to be done.
-            Ok(QuickXmlEvent::Eof) => None,
+        let prev_pos = self.reader.buffer_position();
 
-            Err(inner) => Some(Err(inner.into())),
+        match self.reader.read_event(&mut self.readbuf) {
+            // TODO: To provide better spans and error messages,
+            //   we need to map specific types of errors.
+            Err(inner) => {
+                let span = UC.span_or_zz(prev_pos, 0);
+                Some(Err(SpanlessError::from(inner).with_span(span)))
+            }
 
             Ok(ev) => match ev {
+                // This is the only time we'll consider the iterator to be
+                //   done.
+                QuickXmlEvent::Eof => None,
+
                 QuickXmlEvent::Empty(ele) => Some(
                     Self::parse_element_open(
                         &self.escaper,
                         &mut self.tokbuf,
                         ele,
+                        prev_pos,
                     )
                     .and_then(|open| {
+                        let new_pos = self.reader.buffer_position();
+
+                        // `<tag ... />`
+                        //           ||
+                        let span = UC.span_or_zz(new_pos - 2, 2);
+
                         // Tag is self-closing, but this does not yet
-                        //   handle whitespace before the `/`.
-                        self.tokbuf.push_front(Token::Close(None, DUMMY_SPAN));
+                        //   handle whitespace before the `/`
+                        //     (as indicated in the span above).
+                        self.tokbuf.push_front(Token::Close(None, span));
 
                         Ok(open)
                     }),
@@ -132,13 +148,19 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     &self.escaper,
                     &mut self.tokbuf,
                     ele,
+                    prev_pos,
                 )),
 
-                QuickXmlEvent::End(ele) => {
-                    Some(ele.name().try_into().map_err(Error::from).and_then(
-                        |qname| Ok(Token::Close(Some(qname), DUMMY_SPAN)),
-                    ))
-                }
+                QuickXmlEvent::End(ele) => Some({
+                    // </foo>
+                    // |----|  name + '<' + '/' + '>'
+                    let span = UC.span_or_zz(prev_pos, ele.name().len() + 3);
+
+                    ele.name()
+                        .try_into()
+                        .map_err(Error::from_with_span(span))
+                        .and_then(|qname| Ok(Token::Close(Some(qname), span)))
+                }),
 
                 // quick_xml emits a useless text event if the first byte is
                 //   a '<'.
@@ -152,35 +174,46 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 //     unescape it again.
                 QuickXmlEvent::CData(bytes) => todo!("CData: {:?}", bytes),
 
-                QuickXmlEvent::Text(bytes) => Some(
+                QuickXmlEvent::Text(bytes) => Some({
+                    // <text>foo bar</text>
+                    //       |-----|
+                    let span = UC.span_or_zz(prev_pos, bytes.len());
+
                     bytes
                         .intern_utf8()
-                        .map_err(Error::from)
+                        .map_err(Into::into)
                         .and_then(|sym| self.escaper.unescape(sym))
-                        .map(|unesc| Token::Text(unesc, DUMMY_SPAN)),
-                ),
+                        .map_err(Error::from_with_span(span))
+                        .and_then(|unesc| Ok(Token::Text(unesc, span)))
+                }),
 
                 // Comments are _not_ returned escaped.
-                QuickXmlEvent::Comment(bytes) => Some(
+                QuickXmlEvent::Comment(bytes) => Some({
+                    // <!-- foo -->
+                    // |----------|  " foo " + "<!--" + "-->"
+                    let span = UC.span_or_zz(prev_pos, bytes.len() + 7);
+
                     bytes
                         .intern_utf8()
-                        .map_err(Error::from)
-                        .map(|text| Token::Comment(text, DUMMY_SPAN)),
-                ),
+                        .map_err(Error::from_with_span(span))
+                        .and_then(|comment| Ok(Token::Comment(comment, span)))
+                }),
 
                 // TODO: This must appear in the Prolog.
-                QuickXmlEvent::Decl(decl) => match Self::validate_decl(&decl) {
-                    Err(x) => Some(Err(x)),
-                    Ok(()) => self.refill_buf(),
-                },
+                QuickXmlEvent::Decl(decl) => {
+                    match Self::validate_decl(&decl, prev_pos) {
+                        Err(x) => Some(Err(x)),
+                        Ok(()) => self.refill_buf(),
+                    }
+                }
 
-                // We do not support processor instructions.
+                // We do not support processor instructions or doctypes.
                 // TODO: Convert this into an error/warning?
                 // Previously `xml-stylesheet` was present in some older
                 //   source files and may linger for a bit after cleanup.
-                QuickXmlEvent::PI(..) => self.refill_buf(),
-
-                x => todo!("event: {:?}", x),
+                QuickXmlEvent::PI(..) | QuickXmlEvent::DocType(..) => {
+                    self.refill_buf()
+                }
             },
         }
     }
@@ -197,24 +230,44 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
     ///   people unfamiliar with the system do not have expectations that
     ///   are going to be unmet,
     ///     which may result in subtle (or even serious) problems.
-    fn validate_decl(decl: &BytesDecl) -> Result<()> {
+    fn validate_decl(decl: &BytesDecl, pos: usize) -> Result<()> {
+        // Starts after `<?`, which we want to include.
+        let decl_ptr = decl.as_ptr() as usize - 2 + pos;
+
+        // Fallback span that covers the entire declaration.
+        let decl_span = UC.span_or_zz(pos, decl.len() + 4);
+
+        let ver =
+            &decl.version().map_err(Error::from_with_span(decl_span))?[..];
+
         // NB: `quick-xml` docs state that `version` returns the quotes,
         //   but it does not.
-        let ver = &decl.version()?[..];
         if ver != b"1.0" {
+            // <?xml version="X.Y"?>
+            //                |-|
+            let ver_pos = (ver.as_ptr() as usize) - decl_ptr;
+            let span = UC.span_or_zz(ver_pos, ver.len());
+
             Err(Error::UnsupportedXmlVersion(
-                ver.intern_utf8()?,
-                UNKNOWN_SPAN,
+                ver.intern_utf8().map_err(Error::from_with_span(span))?,
+                span,
             ))?
         }
 
         if let Some(enc) = decl.encoding() {
-            match &enc?[..] {
+            match &enc.map_err(Error::from_with_span(decl_span))?[..] {
                 b"utf-8" | b"UTF-8" => (),
-                invalid => Err(Error::UnsupportedEncoding(
-                    invalid.intern_utf8()?,
-                    UNKNOWN_SPAN,
-                ))?,
+                invalid => {
+                    let enc_pos = (invalid.as_ptr() as usize) - decl_ptr;
+                    let span = UC.span_or_zz(enc_pos, invalid.len());
+
+                    Err(Error::UnsupportedEncoding(
+                        invalid
+                            .intern_utf8()
+                            .map_err(Error::from_with_span(span))?,
+                        span,
+                    ))?
+                }
             }
         }
 
@@ -231,16 +284,37 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         escaper: &'s S,
         tokbuf: &mut VecDeque<Token>,
         ele: BytesStart,
+        pos: usize,
     ) -> Result<Token> {
+        // Starts after the opening tag `<`, so adjust.
+        let addr = ele.as_ptr() as usize - 1;
+        let len = ele.name().len();
+
+        // `ele` contains every byte up to the [self-]closing tag.
         ele.name()
             .try_into()
-            .map_err(Error::from)
+            .map_err(Error::from_with_span(UC.span_or_zz(pos + 1, len)))
             .and_then(|qname| {
-                Self::parse_attrs(escaper, tokbuf, ele.attributes())?;
+                let noattr_add: usize =
+                    (ele.attributes_raw().len() == 0).into();
+
+                // <tag ... />
+                // |--|  name + '<'
+                //
+                // <tag>..</tag>
+                // |---| name + '<' + '>'
+                let span = UC.span_or_zz(pos, len + 1 + noattr_add);
+
+                Self::parse_attrs(
+                    escaper,
+                    tokbuf,
+                    ele.attributes(),
+                    addr - pos, // offset relative to _beginning_ of buffer
+                )?;
 
                 // The first token will be immediately returned
                 //   via the Iterator.
-                Ok(Token::Open(qname, DUMMY_SPAN))
+                Ok(Token::Open(qname, span))
             })
     }
 
@@ -250,20 +324,61 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
     ///
     /// This does not yet handle whitespace between attributes,
     ///   or around `=`.
+    ///
+    /// Note About Pointer Arithmetic
+    /// =============================
+    /// `ele_ptr` is expected to be a pointer to the buffer containing the
+    ///   bytes read from the source file.
+    /// Attributes reference this buffer,
+    ///   so we can use pointer arithmetic to determine the offset within
+    ///   the buffer relative to the node.
+    /// This works because the underlying buffer is a `Vec`,
+    ///   which is contiguous in memory.
+    ///
+    /// However, since this is a `Vec`,
+    ///   it is important that the address be retrieved _after_ quick-xml
+    ///   read events,
+    ///     otherwise the buffer may be expanded and will be reallocated.
     fn parse_attrs<'a>(
         escaper: &'s S,
         tokbuf: &mut VecDeque<Token>,
         mut attrs: Attributes<'a>,
+        ele_ptr: usize,
     ) -> Result<()> {
         // Disable checks to allow duplicate attributes;
         //   XIR does not enforce this,
         //     because it needs to accommodate semantically invalid XML for
         //     later analysis.
         for result in attrs.with_checks(false) {
-            let attr = result?;
+            // TODO: We'll need to map this quick-xml error to provide more
+            //   detailed messages and spans.
+            let attr = result.map_err(Error::from_with_span(UNKNOWN_SPAN))?;
+
+            let keyoffset = attr.key.as_ptr() as usize;
+            let name_offset = keyoffset - ele_ptr;
+
+            // Accommodates zero-length values (e.g. `key=""`) with a
+            //   zero-length span at the location the value _would_ be.
+            let valoffset = match attr.value {
+                Cow::Borrowed(b) => b.as_ptr() as usize,
+
+                // This should never happen since we have a reference to the
+                //   underlying buffer.
+                Cow::Owned(_) => unreachable!(
+                    "internal error: unexpected owned attribute value"
+                ),
+            };
+
+            let value_offset = valoffset - ele_ptr;
+
+            let span_name = UC.span_or_zz(name_offset, attr.key.len());
+            let span_value = UC.span_or_zz(value_offset, attr.value.len());
 
             // The name must be parsed as a QName.
-            let name = attr.key.try_into()?;
+            let name = attr
+                .key
+                .try_into()
+                .map_err(Error::from_with_span(span_name))?;
 
             // The attribute value,
             //   having just been read from XML,
@@ -273,11 +388,18 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             //     that's okay as long as we can read it again,
             //       but we probably should still throw an error if we
             //       encounter such a situation.
-            let value =
-                escaper.unescape(attr.value.as_ref().intern_utf8()?)?.into();
+            let value = escaper
+                .unescape(
+                    attr.value
+                        .as_ref()
+                        .intern_utf8()
+                        .map_err(Error::from_with_span(span_value))?,
+                )
+                .map_err(Error::from_with_span(span_value))?
+                .into();
 
-            tokbuf.push_front(Token::AttrName(name, DUMMY_SPAN));
-            tokbuf.push_front(Token::AttrValue(value, DUMMY_SPAN));
+            tokbuf.push_front(Token::AttrName(name, span_name));
+            tokbuf.push_front(Token::AttrValue(value, span_value));
         }
 
         Ok(())
