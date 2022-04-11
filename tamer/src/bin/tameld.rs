@@ -28,7 +28,6 @@ extern crate tamer;
 
 use getopts::{Fail, Options};
 use std::env;
-use std::error::Error;
 use tamer::ld::poc::{self, TameldError};
 
 /// Types of commands
