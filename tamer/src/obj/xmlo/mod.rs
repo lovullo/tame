@@ -79,7 +79,7 @@ mod error;
 mod ir;
 mod reader;
 
-pub use asg_builder::{AsgBuilder, AsgBuilderState};
+pub use asg_builder::{AsgBuilder, AsgBuilderError, AsgBuilderState};
 pub use error::XmloError;
 pub use ir::{Dim, SymAttrs, SymDtype, SymType};
 pub use reader::{XmloEvent, XmloReader};

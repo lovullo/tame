@@ -29,7 +29,7 @@ extern crate tamer;
 use getopts::{Fail, Options};
 use std::env;
 use std::error::Error;
-use tamer::ld::poc;
+use tamer::ld::poc::{self, TameldError};
 
 /// Types of commands
 enum Command {
@@ -50,7 +50,7 @@ enum Emit {
 }
 
 /// Entrypoint for the linker
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<(), TameldError> {
     let args: Vec<String> = env::args().collect();
     let program = &args[0];
     let opts = get_opts();
