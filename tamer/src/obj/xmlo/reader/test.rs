@@ -39,7 +39,7 @@ const S3: Span = S2.offset_add(1).unwrap();
 const S4: Span = S3.offset_add(1).unwrap();
 const S5: Span = S4.offset_add(1).unwrap();
 
-type Sut = XmloReaderState;
+type Sut = XmloReader;
 
 #[test]
 fn fails_on_invalid_root() {

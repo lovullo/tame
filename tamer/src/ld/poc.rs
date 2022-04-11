@@ -31,12 +31,15 @@ use crate::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,
     },
+    iter::into_iter_while_ok,
     ld::xmle::Sections,
     obj::xmlo::{
         AsgBuilder, AsgBuilderError, AsgBuilderState, XmloError, XmloReader,
     },
     parse::ParseError,
+    parse::{ParseState, Parsed},
     sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId},
+    xir::reader::XmlXirReader,
     xir::{
         flat::{self, Object as XirfToken, StateError as XirfError},
         writer::{Error as XirWriterError, XmlWriter},
@@ -134,8 +137,6 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
         GraphMl::new(&g)
             .pretty_print(true)
             .export_node_weights(Box::new(|node| {
-                // eprintln!("{:?}", node);
-
                 let (name, kind, generated) = match node {
                     Some(n) => {
                         let generated = match n.src() {
@@ -181,47 +182,25 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
             VisitOnceFile::Visited => return Ok(state),
         };
 
-    let mut state = {
-        #[cfg(not(feature = "wip-xmlo-xir-reader"))]
-        {
-            let xmlo: XmloReader<_> = file.into();
-            let _ctx = ctx; // suppress warning
-
-            depgraph.import_xmlo(xmlo, state)?
-        }
-
-        #[cfg(feature = "wip-xmlo-xir-reader")]
-        {
-            use crate::iter::into_iter_while_ok;
-            use crate::parse::{ParseState, Parsed};
-            use crate::xir::reader::XmlXirReader;
-
-            // TODO: This entire block is a WIP and will be incrementally
-            //   abstracted away.
-            into_iter_while_ok(
-                XmlXirReader::new(file, escaper, ctx),
-                |toks| {
-                    flat::State::<64>::parse(toks)
-                        .lower_while_ok::<XmloReader, _>(|xirf| {
-                            into_iter_while_ok(xirf, |xmlo_out| {
-                                // TODO: Transitionary---we do not want to filter.
-                                depgraph.import_xmlo(
-                                    xmlo_out.filter_map(
-                                        |parsed| match parsed {
-                                            Parsed::Incomplete => None,
-                                            Parsed::Object(obj) => {
-                                                Some(Ok(obj))
-                                            }
-                                        },
-                                    ),
-                                    state,
-                                )
-                            })
-                        })
+    // TODO: This entire block is a WIP and will be incrementally
+    //   abstracted away.
+    let mut state =
+        into_iter_while_ok(XmlXirReader::new(file, escaper, ctx), |toks| {
+            flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _>(
+                |xirf| {
+                    into_iter_while_ok(xirf, |xmlo_out| {
+                        // TODO: Transitionary---we do not want to filter.
+                        depgraph.import_xmlo(
+                            xmlo_out.filter_map(|parsed| match parsed {
+                                Parsed::Incomplete => None,
+                                Parsed::Object(obj) => Some(Ok(obj)),
+                            }),
+                            state,
+                        )
+                    })
                 },
-            )????
-        }
-    };
+            )
+        })????;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();

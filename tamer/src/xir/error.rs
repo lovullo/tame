@@ -20,7 +20,7 @@
 //! XIR error information.
 
 use super::QName;
-use crate::{span::Span, sym::SymbolId, tpwrap::quick_xml};
+use crate::{span::Span, sym::SymbolId};
 use std::{fmt::Display, str::Utf8Error};
 
 /// Error attempting to produce a XIR object.
@@ -63,7 +63,7 @@ pub enum Error {
     AttrValueUnquoted(Option<QName>, Span),
 
     // TODO: Better error translation.
-    QuickXmlError(quick_xml::Error, Span),
+    QuickXmlError(QuickXmlError, Span),
 }
 
 impl Error {
@@ -164,7 +164,7 @@ pub enum SpanlessError {
     NCColon(SymbolId),
     InvalidQName(SymbolId),
     InvalidUtf8(Utf8Error, Vec<u8>),
-    QuickXmlError(quick_xml::Error),
+    QuickXmlError(QuickXmlError),
 }
 
 impl SpanlessError {
@@ -210,8 +210,52 @@ impl From<(Utf8Error, &[u8])> for SpanlessError {
     }
 }
 
-impl<E: Into<quick_xml::Error>> From<E> for SpanlessError {
+impl<E: Into<QuickXmlError>> From<E> for SpanlessError {
     fn from(err: E) -> Self {
         Self::QuickXmlError(err.into())
+    }
+}
+
+/// Thin wrapper around [`quick_xml::Error`] to implement [`PartialEq`].
+///
+/// This will always yield `false`,
+///   but allows us to derive the trait on types using [`Error`];
+///     otherwise, this madness propagates indefinitely.
+#[derive(Debug)]
+pub struct QuickXmlError(pub quick_xml::Error);
+
+impl PartialEq for QuickXmlError {
+    /// [`quick_xml::Error`] does not implement [`PartialEq`] and so this
+    ///   will always yield `false`.
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl Eq for QuickXmlError {}
+
+impl From<quick_xml::Error> for QuickXmlError {
+    fn from(e: quick_xml::Error) -> Self {
+        Self(e)
+    }
+}
+
+impl Into<quick_xml::Error> for QuickXmlError {
+    fn into(self) -> quick_xml::Error {
+        self.0
+    }
+}
+
+impl Display for QuickXmlError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // NB: If we eventually use `source` to display a hierarchy of
+        //   errors, then we likely do not want the duplication here.
+        self.0.fmt(fmt)
+    }
+}
+
+impl std::error::Error for QuickXmlError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
     }
 }

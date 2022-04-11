@@ -51,7 +51,3 @@ paste = ">= 1.0.5"
 # expecting it so that it can skip those compilation steps.
 wip-frontends = []
 
-# Use the XIR-based reader for parsing xmlo files in tameld.  This flag will
-# exist only while reimplementing the XmloReader.
-wip-xmlo-xir-reader = []
-

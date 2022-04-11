@@ -88,7 +88,6 @@ pub mod obj;
 pub mod parse;
 pub mod span;
 pub mod sym;
-pub mod tpwrap;
 
 #[cfg(test)]
 pub mod test;

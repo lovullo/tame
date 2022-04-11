@@ -29,17 +29,6 @@ use crate::{
     xir::{attr::Attr, flat::Object as Xirf, QName},
 };
 
-// While the _use_ is gated, this isn't, to ensure that we still try to
-// compile it while the flag is off (and so it's parsed by the language
-// server).
-mod quickxml;
-
-#[cfg(not(feature = "wip-xmlo-xir-reader"))]
-pub use quickxml::XmloReader;
-
-#[cfg(feature = "wip-xmlo-xir-reader")]
-pub use XmloReaderState as XmloReader;
-
 /// `xmlo` reader events.
 ///
 /// All data are parsed rather than being returned as [`u8`] slices,
@@ -129,14 +118,14 @@ qname_const! {
     QN_YIELDS: :L_YIELDS,
 }
 
-/// A parser capable of being composed with [`XmloReaderState`].
+/// A parser capable of being composed with [`XmloReader`].
 pub trait XmloState = ParseState<Token = Xirf, Context = EmptyContext>
 where
     <Self as ParseState>::Error: Into<XmloError>,
     <Self as ParseState>::Object: Into<XmloEvent>;
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub enum XmloReaderState<
+pub enum XmloReader<
     SS: XmloState = SymtableState,
     SD: XmloState = SymDepsState,
     SF: XmloState = FragmentsState,
@@ -163,7 +152,7 @@ pub enum XmloReaderState<
 }
 
 impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
-    for XmloReaderState<SS, SD, SF>
+    for XmloReader<SS, SD, SF>
 {
     type Token = Xirf;
     type Object = XmloEvent;
@@ -174,7 +163,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
         tok: Self::Token,
         ctx: NoContext,
     ) -> TransitionResult<Self> {
-        use XmloReaderState::*;
+        use XmloReader::*;
 
         match (self, tok) {
             (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ..)) => {

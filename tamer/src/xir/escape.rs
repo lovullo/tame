@@ -204,8 +204,6 @@ pub struct CachingEscaper<S: Escaper> {
 }
 
 impl<S: Escaper> CachingEscaper<S> {
-    // TODO: remove allow along with wip-xmlo-xir-reader
-    #[allow(dead_code)]
     pub fn new(inner: S) -> Self {
         // We know we'll encounter more than the statically allocated
         //   symbols,
@@ -226,8 +224,6 @@ impl<S: Escaper> CachingEscaper<S> {
         }
     }
 
-    // TODO: remove allow along with wip-xmlo-xir-reader
-    #[allow(dead_code)]
     pub fn into_inner(self) -> S {
         self.inner
     }
@@ -278,48 +274,12 @@ impl<S: Escaper> Escaper for CachingEscaper<S> {
     }
 }
 
-/// Perform no escaping or unescaping.
-///
-/// _This should be removed after development of the XIR-based readers!_
-#[cfg(not(feature = "wip-xmlo-xir-reader"))]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NullEscaper {}
-
-#[cfg(not(feature = "wip-xmlo-xir-reader"))]
-impl Escaper for NullEscaper {
-    #[inline]
-    fn escape_bytes(value: &[u8]) -> Cow<[u8]> {
-        Cow::Borrowed(value)
-    }
-
-    #[inline]
-    fn unescape_bytes(_value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
-        panic!("NullEscaper should not be used for unescaping")
-    }
-}
-
-#[cfg(feature = "wip-xmlo-xir-reader")]
 pub type DefaultEscaper = CachingEscaper<QuickXmlEscaper>;
-#[cfg(not(feature = "wip-xmlo-xir-reader"))]
-pub type DefaultEscaper = NullEscaper;
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::sym::GlobalSymbolIntern;
-
-    // Simple sanity check to ensure that the default escaper actually does
-    //   some sort of escaping.
-    #[cfg(feature = "wip-xmlo-xir-reader")]
-    #[test]
-    fn default_escaper_escapes() {
-        let sut = DefaultEscaper::default();
-
-        assert_eq!(
-            "foo&lt;bar".intern(),
-            sut.escape("foo<bar".intern()).into(),
-        );
-    }
 
     mod cache {
         use super::*;
