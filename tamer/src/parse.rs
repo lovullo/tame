@@ -22,7 +22,7 @@
 //! _TODO: Some proper docs and examples!_
 
 use crate::iter::{TripIter, TrippableIterator};
-use crate::span::Span;
+use crate::span::{Span, UNKNOWN_SPAN};
 use std::fmt::Debug;
 use std::hint::unreachable_unchecked;
 use std::iter::{self, Empty};
@@ -570,7 +570,7 @@ where
 pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     toks: I,
     state: S,
-    last_span: Option<Span>,
+    last_span: Span,
     ctx: S::Context,
 }
 
@@ -599,8 +599,10 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         if self.state.is_accepting() {
             Ok(())
         } else {
-            let span = self.last_span.and_then(|s| s.endpoints().1);
-            Err(ParseError::UnexpectedEof(span))
+            let endpoints = self.last_span.endpoints();
+            Err(ParseError::UnexpectedEof(
+                endpoints.1.unwrap_or(endpoints.0),
+            ))
         }
     }
 
@@ -619,7 +621,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
         // Store the most recently encountered Span for error
         //   reporting in case we encounter an EOF.
-        self.last_span = Some(tok.span());
+        self.last_span = tok.span();
 
         let result;
         TransitionResult(Transition(self.state), result) =
@@ -790,7 +792,7 @@ pub enum ParseError<T: Token, E: Error + PartialEq + Eq> {
     /// If this parser follows another,
     ///   then the combinator ought to substitute a missing span with
     ///   whatever span preceded this invocation.
-    UnexpectedEof(Option<Span>),
+    UnexpectedEof(Span),
 
     /// The parser reached an unhandled dead state.
     ///
@@ -833,13 +835,8 @@ impl<T: Token, E: Error + PartialEq + Eq> From<E> for ParseError<T, E> {
 impl<T: Token, E: Error + PartialEq + Eq> Display for ParseError<T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnexpectedEof(ospan) => {
-                write!(f, "unexpected end of input at ")?;
-
-                match ospan {
-                    None => write!(f, "<unknown location>"),
-                    Some(span) => write!(f, "{}", span),
-                }
+            Self::UnexpectedEof(span) => {
+                write!(f, "unexpected end of input at {span}")
             }
             Self::UnexpectedToken(tok) => {
                 write!(f, "unexpected {}", tok)
@@ -863,7 +860,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> From<I> for Parser<S, I> {
         Self {
             toks,
             state: Default::default(),
-            last_span: None,
+            last_span: UNKNOWN_SPAN,
             ctx: Default::default(),
         }
     }
@@ -1065,7 +1062,7 @@ pub mod test {
         //     state,
         //   we must fail when we encounter the end of the stream.
         assert_eq!(
-            Some(Err(ParseError::UnexpectedEof(span.endpoints().1))),
+            Some(Err(ParseError::UnexpectedEof(span.endpoints().1.unwrap()))),
             sut.next()
         );
     }
@@ -1120,7 +1117,7 @@ pub mod test {
         let result = sut.finalize();
         assert_matches!(
             result,
-            Err((_, ParseError::UnexpectedEof(s))) if s == span.endpoints().1
+            Err((_, ParseError::UnexpectedEof(s))) if s == span.endpoints().1.unwrap()
         );
 
         // The sut should have been re-returned,

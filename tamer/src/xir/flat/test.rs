@@ -364,7 +364,7 @@ fn not_accepting_state_if_element_open() {
     );
 
     // Element was not closed.
-    assert_eq!(Some(Err(ParseError::UnexpectedEof(Some(S)))), sut.next());
+    assert_eq!(Some(Err(ParseError::UnexpectedEof(S))), sut.next());
 }
 
 // XML permits comment nodes before and after the document root element.
