@@ -31,7 +31,7 @@
 //!        position within this file"?
 //!
 //! A span contains a [`Context`] representing the source location.
-//! A context's path is a [`PathIndex`],
+//! A context's path is a [`PathSymbolId`],
 //!   which represents an interned string slice,
 //!     _not_ a [`PathBuf`](std::path::PathBuf) or
 //!     [`OsStr`](std::ffi::OsStr).
@@ -234,7 +234,7 @@ impl Span {
     /// Create a constant span from a static context.
     pub const fn st_ctx(sym: ContextStaticSymbolId) -> Self {
         Self {
-            ctx: Context(PathIndex(sym.as_sym())),
+            ctx: Context(sym.as_sym()),
             offset: 0,
             len: 0,
         }
@@ -452,14 +452,14 @@ pub const DUMMY_SPAN: Span = Span::st_ctx(st16::CTX_DUMMY);
 /// Context for byte offsets (e.g. a source file).
 ///
 /// A context is lifetime-free and [`Copy`]-able,
-///   with the assumption that an interned [`PathIndex`] will only need to
-///   be resolved to its underlying value in a diagnostic context where the
-///   internment system is readily available.
+///   with the assumption that an interned [`PathSymbolId`] will only need
+///   to be resolved to its underlying value in a diagnostic context where
+///   the internment system is readily available.
 ///
 /// Since this is used within [`Span`],
 ///   it must be kept as small as possible.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Context(PathIndex);
+pub struct Context(PathSymbolId);
 
 impl Context {
     /// Produce a [`Span`] within the given context.
@@ -505,7 +505,7 @@ impl Context {
 
 /// A placeholder context indicating that a context is expected but is not
 ///   yet known.
-pub const UNKNOWN_CONTEXT: Context = Context(PathIndex(st16::raw::CTX_UNKNOWN));
+pub const UNKNOWN_CONTEXT: Context = Context(st16::raw::CTX_UNKNOWN);
 
 /// A dummy context that can be used where a span is expected but is not
 ///   important.
@@ -515,43 +515,15 @@ pub const UNKNOWN_CONTEXT: Context = Context(PathIndex(st16::raw::CTX_UNKNOWN));
 ///   messages and source analysis.
 ///
 /// See also [`UNKNOWN_CONTEXT`].
-pub const DUMMY_CONTEXT: Context = Context(PathIndex(st16::raw::CTX_DUMMY));
+pub const DUMMY_CONTEXT: Context = Context(st16::raw::CTX_DUMMY);
 
-impl<P: Into<PathIndex>> From<P> for Context {
-    fn from(path: P) -> Self {
-        Self(path.into())
-    }
-}
-
-impl Display for Context {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-/// An interned path.
-///
-/// This is interned as a string slice ([`SymbolId`]),
-///   not a `PathBuf`.
-/// Consequently,
-///   it is not an `OsStr`.
-///
-/// This newtype emphasizes that it differs from typical symbol usage,
-///   especially given that it'll always use the 16-bit interner,
-///   _not_ necessarily whatever global interner is used for all other
-///   symbols.
-/// In the future,
-///   these may be interned separately.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct PathIndex(PathSymbolId);
-
-impl From<PathSymbolId> for PathIndex {
+impl From<PathSymbolId> for Context {
     fn from(sym: PathSymbolId) -> Self {
         Self(sym)
     }
 }
 
-impl Display for PathIndex {
+impl Display for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
