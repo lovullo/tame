@@ -20,7 +20,8 @@
 //! Parse XIR attribute [`TokenStream`][super::super::TokenStream]s.
 
 use crate::{
-    parse::{NoContext, ParseState, Transition, TransitionResult},
+    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    parse::{NoContext, ParseState, Token, Transition, TransitionResult},
     span::Span,
     xir::{QName, Token as XirToken},
 };
@@ -99,16 +100,12 @@ pub enum AttrParseError {
 impl Display for AttrParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AttrNameExpected(tok) => {
-                write!(f, "attribute name expected, found {}", tok)
+            Self::AttrNameExpected(_) => {
+                write!(f, "attribute name expected")
             }
 
-            Self::AttrValueExpected(name, span, tok) => {
-                write!(
-                    f,
-                    "expected value for `@{}` at {}, found {}",
-                    name, span, tok
-                )
+            Self::AttrValueExpected(name, _span, _tok) => {
+                write!(f, "expected value for `@{name}`",)
             }
         }
     }
@@ -117,6 +114,18 @@ impl Display for AttrParseError {
 impl Error for AttrParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         None
+    }
+}
+
+impl Diagnostic for AttrParseError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        match self {
+            Self::AttrNameExpected(tok) => tok.span().mark_error().into(),
+
+            Self::AttrValueExpected(_name, span, _tok) => {
+                span.mark_error().into()
+            }
+        }
     }
 }
 

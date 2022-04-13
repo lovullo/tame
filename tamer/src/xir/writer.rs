@@ -316,17 +316,14 @@ impl<I: TokenStream, S: Escaper> XmlWriter<S> for I {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        borrow::Cow,
-        convert::{TryFrom, TryInto},
-    };
+    use std::borrow::Cow;
 
     use super::*;
     use crate::{
         convert::ExpectInto,
         span::Span,
         sym::GlobalSymbolIntern,
-        xir::{error::SpanlessError, QName, Whitespace},
+        xir::{error::SpanlessError, QName},
     };
 
     type TestResult = std::result::Result<(), Error>;
@@ -433,7 +430,7 @@ mod test {
     // Intended for alignment of attributes, primarily.
     #[test]
     fn whitespace_within_open_node() -> TestResult {
-        let result = Token::Whitespace(Whitespace::try_from(" \t ")?, *S)
+        let result = Token::Whitespace(" \t ".unwrap_into(), *S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
 
         assert_eq!(result.0, b" \t ");
@@ -563,7 +560,7 @@ mod test {
             Token::AttrValue("value".intern(), *S),
             Token::Text("text".intern(), *S),
             Token::Open(("c", "child").unwrap_into(), *S),
-            Token::Whitespace(" ".try_into()?, *S),
+            Token::Whitespace(" ".unwrap_into(), *S),
             Token::Close(None, *S),
             Token::Close(Some(root), *S),
         ]

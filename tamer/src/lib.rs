@@ -81,6 +81,7 @@ pub mod xir;
 
 pub mod asg;
 pub mod convert;
+pub mod diagnose;
 pub mod fs;
 pub mod iter;
 pub mod ld;

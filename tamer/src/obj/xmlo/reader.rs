@@ -170,7 +170,9 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Transition(Package).incomplete()
             }
 
-            (Ready, _) => Transition(Ready).err(XmloError::UnexpectedRoot),
+            (Ready, tok) => {
+                Transition(Ready).err(XmloError::UnexpectedRoot(tok))
+            }
 
             (Package, Xirf::Attr(Attr(name, value, _))) => {
                 Transition(Package).ok(match name {

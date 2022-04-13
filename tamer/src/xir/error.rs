@@ -20,7 +20,11 @@
 //! XIR error information.
 
 use super::QName;
-use crate::{span::Span, sym::SymbolId};
+use crate::{
+    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    span::Span,
+    sym::SymbolId,
+};
 use std::{fmt::Display, str::Utf8Error};
 
 /// Error attempting to produce a XIR object.
@@ -29,7 +33,7 @@ pub enum Error {
     /// Provided name contains a `':'`.
     NCColon(SymbolId, Span),
     /// Provided string contains non-ASCII-whitespace characters.
-    NotWhitespace(String),
+    NotWhitespace(SymbolId, Span),
     /// Provided QName is not valid.
     InvalidQName(SymbolId, Span),
     /// A UTF-8 error together with the byte slice that caused it.
@@ -79,59 +83,52 @@ impl Display for Error {
         use Error::*;
 
         match self {
-            NCColon(sym, span) => {
-                write!(f, "NCName `{sym}` cannot contain ':' at {span}",)
+            NCColon(sym, _) => {
+                write!(f, "NCName `{sym}` cannot contain `:`",)
             }
-            NotWhitespace(s) => {
-                write!(f, "string contains non-ASCII-whitespace: `{}`", s)
+
+            NotWhitespace(_s, _) => {
+                write!(f, "whitespace expected")
             }
-            InvalidQName(qname, span) => {
-                write!(f, "invalid QName `{qname}` at {span}")
+
+            InvalidQName(qname, _) => {
+                write!(f, "invalid QName `{qname}`")
             }
-            InvalidUtf8(inner, bytes, span) => {
-                write!(
-                    f,
-                    "{inner} for string `{}` with bytes `{bytes:?}` at {span}",
-                    String::from_utf8_lossy(bytes)
-                )
+
+            InvalidUtf8(inner, _bytes, _) => Display::fmt(inner, f),
+
+            UnsupportedXmlVersion(ver, _) => {
+                write!(f, "unsupported XML version `{ver}`")
             }
-            UnsupportedXmlVersion(ver, span) => {
-                write!(
-                    f,
-                    "expected XML version `1.0` at {span}, \
-                       but found unsupported version `{ver}`"
-                )
-            }
-            UnsupportedEncoding(enc, span) => {
+
+            UnsupportedEncoding(enc, _) => {
                 // TODO: when we have hints,
                 //   indicate that they can also entirely remove this
                 //   attribute to resolve the error
-                write!(
-                    f,
-                    "expected `utf-8` or `UTF-8` encoding at {span}, \
-                       but found unsupported encoding `{enc}`"
-                )
+                write!(f, "unsupported encoding `{enc}`")
             }
-            AttrValueExpected(Some(name), span) => {
-                write!(f, "value expected for attribute `{name}` at {span}")
+
+            AttrValueExpected(Some(name), _) => {
+                write!(f, "value expected for attribute `@{name}`")
             }
+
             // TODO: Parsers should provide the name.
-            AttrValueExpected(None, span) => {
-                write!(f, "value expected for attribute at {span}")
+            AttrValueExpected(None, _) => {
+                write!(f, "value expected for attribute")
             }
-            AttrValueUnquoted(Some(name), span) => {
-                write!(
-                    f,
-                    "value for attribute `{name}` is missing quotes at {span}"
-                )
+
+            AttrValueUnquoted(Some(name), _) => {
+                write!(f, "attribute `@{name}` missing quotes")
             }
+
             // TODO: Parsers should provide the name.
-            AttrValueUnquoted(None, span) => {
-                write!(f, "value for attribute is missing quotes at {span}")
+            AttrValueUnquoted(None, _) => {
+                write!(f, "value for attribute is missing quotes")
             }
+
             // TODO: Translate error messages
-            QuickXmlError(inner, span) => {
-                write!(f, "internal parser error: {inner} at {span}")
+            QuickXmlError(inner, _) => {
+                write!(f, "internal parser error: {inner}")
             }
         }
     }
@@ -143,6 +140,54 @@ impl std::error::Error for Error {
             Self::InvalidUtf8(e, ..) => Some(e),
             Self::QuickXmlError(e, ..) => Some(e),
             _ => None,
+        }
+    }
+}
+
+impl Diagnostic for Error {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        use Error::*;
+
+        match self {
+            // NB: This is often constructed from a QName and so we may not
+            //   have as much context as we would like;
+            //     don't be too specific.
+            NCColon(_, span) => span.error("unexpected `:` here").into(),
+
+            NotWhitespace(_, span) => {
+                span.error("whitespace expected here").into()
+            }
+
+            InvalidQName(_, span) => span.mark_error().into(),
+
+            InvalidUtf8(_, bytes, span) => {
+                span.error(format!("has byte sequence `{bytes:?}`",)).into()
+            }
+
+            UnsupportedXmlVersion(_, span) => {
+                // TODO: suggested fix: replacement of span with `1.0`
+                span.error("expected version `1.0`").into()
+            }
+
+            UnsupportedEncoding(_, span) => {
+                // TODO: suggested fix: remove attribute and whitespace
+                span.error("expected `utf-8` or `UTF-8`").into()
+            }
+
+            AttrValueExpected(_, span) => {
+                span.error("attribute value expected").into()
+            }
+
+            AttrValueUnquoted(_, span) => {
+                // TODO: suggested fix: wrap in quotes
+                span.error("quotes expected around this value").into()
+            }
+
+            QuickXmlError(_, span) => {
+                // TODO: note saying that this should probably be reported
+                //   to provide a better error
+                span.mark_error().into()
+            }
         }
     }
 }
@@ -162,6 +207,7 @@ impl std::error::Error for Error {
 #[derive(Debug, PartialEq)]
 pub enum SpanlessError {
     NCColon(SymbolId),
+    NotWhitespace(SymbolId),
     InvalidQName(SymbolId),
     InvalidUtf8(Utf8Error, Vec<u8>),
     QuickXmlError(QuickXmlError),
@@ -171,6 +217,7 @@ impl SpanlessError {
     pub fn with_span(self, span: Span) -> Error {
         match self {
             Self::NCColon(sym) => Error::NCColon(sym, span),
+            Self::NotWhitespace(sym) => Error::NotWhitespace(sym, span),
             Self::InvalidQName(qname) => Error::InvalidQName(qname, span),
             Self::InvalidUtf8(inner, bytes) => {
                 Error::InvalidUtf8(inner, bytes, span)

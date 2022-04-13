@@ -21,6 +21,7 @@
 //!
 //! _TODO: Some proper docs and examples!_
 
+use crate::diagnose::{Annotate, AnnotatedSpan, Diagnostic};
 use crate::iter::{TripIter, TrippableIterator};
 use crate::span::{Span, UNKNOWN_SPAN};
 use std::fmt::Debug;
@@ -120,7 +121,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     type Object: Object;
 
     /// Errors specific to this set of states.
-    type Error: Debug + Error + PartialEq + Eq;
+    type Error: Debug + Diagnostic + PartialEq + Eq;
 
     type Context: Default + Debug = EmptyContext;
 
@@ -777,7 +778,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
 /// Parsers may return their own unique errors via the
 ///   [`StateError`][ParseError::StateError] variant.
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseError<T: Token, E: Error + PartialEq + Eq> {
+pub enum ParseError<T: Token, E: Diagnostic + PartialEq + Eq> {
     /// Token stream ended unexpectedly.
     ///
     /// This error means that the parser was expecting more input before
@@ -812,8 +813,10 @@ pub enum ParseError<T: Token, E: Error + PartialEq + Eq> {
     StateError(E),
 }
 
-impl<T: Token, EA: Error + PartialEq + Eq> ParseError<T, EA> {
-    pub fn inner_into<EB: Error + PartialEq + Eq>(self) -> ParseError<T, EB>
+impl<T: Token, EA: Diagnostic + PartialEq + Eq> ParseError<T, EA> {
+    pub fn inner_into<EB: Diagnostic + PartialEq + Eq>(
+        self,
+    ) -> ParseError<T, EB>
     where
         EA: Into<EB>,
     {
@@ -826,31 +829,56 @@ impl<T: Token, EA: Error + PartialEq + Eq> ParseError<T, EA> {
     }
 }
 
-impl<T: Token, E: Error + PartialEq + Eq> From<E> for ParseError<T, E> {
+impl<T: Token, E: Diagnostic + PartialEq + Eq> From<E> for ParseError<T, E> {
     fn from(e: E) -> Self {
         Self::StateError(e)
     }
 }
 
-impl<T: Token, E: Error + PartialEq + Eq> Display for ParseError<T, E> {
+impl<T: Token, E: Diagnostic + PartialEq + Eq> Display for ParseError<T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnexpectedEof(span) => {
-                write!(f, "unexpected end of input at {span}")
+            Self::UnexpectedEof(_) => {
+                write!(f, "unexpected end of input")
             }
-            Self::UnexpectedToken(tok) => {
-                write!(f, "unexpected {}", tok)
+            Self::UnexpectedToken(_tok) => {
+                write!(f, "unexpected input")
             }
             Self::StateError(e) => Display::fmt(e, f),
         }
     }
 }
 
-impl<T: Token, E: Error + PartialEq + Eq + 'static> Error for ParseError<T, E> {
+impl<T: Token, E: Diagnostic + PartialEq + Eq + 'static> Error
+    for ParseError<T, E>
+{
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::StateError(e) => Some(e),
             _ => None,
+        }
+    }
+}
+
+impl<T: Token, E: Diagnostic + PartialEq + Eq + 'static> Diagnostic
+    for ParseError<T, E>
+{
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        use ParseError::*;
+
+        match self {
+            // TODO: More information from the underlying parser on what was expected.
+            UnexpectedEof(span) => {
+                span.error("unexpected end of input here").into()
+            }
+
+            UnexpectedToken(tok) => {
+                tok.span().error("this was unexpected").into()
+            }
+
+            // TODO: Is there any additional useful context we can augment
+            //   this with?
+            StateError(e) => e.describe(),
         }
     }
 }
@@ -1020,6 +1048,12 @@ pub mod test {
     impl Error for EchoStateError {
         fn source(&self) -> Option<&(dyn Error + 'static)> {
             None
+        }
+    }
+
+    impl Diagnostic for EchoStateError {
+        fn describe(&self) -> Vec<AnnotatedSpan> {
+            unimplemented!()
         }
     }
 

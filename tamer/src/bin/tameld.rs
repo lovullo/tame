@@ -28,7 +28,10 @@ extern crate tamer;
 
 use getopts::{Fail, Options};
 use std::env;
-use tamer::ld::poc::{self, TameldError};
+use tamer::{
+    diagnose::{Reporter, VisualReporter},
+    ld::poc::{self, TameldError},
+};
 
 /// Types of commands
 enum Command {
@@ -56,14 +59,20 @@ pub fn main() -> Result<(), TameldError> {
     let usage =
         opts.usage(&format!("Usage: {} [OPTIONS] -o OUTPUT FILE", program));
 
+    let mut reporter = VisualReporter;
+
     match parse_options(opts, args) {
         Ok(Command::Link(input, output, emit)) => match emit {
             Emit::Xmle => poc::xmle(&input, &output),
             Emit::Graphml => poc::graphml(&input, &output),
         }
         .or_else(|e| {
-            eprintln!("error: {}", e);
-            eprintln!("fatal: failed to link `{}`", output);
+            // POC: Rendering to a string ensures buffering so that we don't
+            //   interleave output between processes,
+            //     but we ought to reuse a buffer when we support multiple
+            //     errors.
+            let report = reporter.render_to_string(&e)?;
+            println!("{report}\nfatal: failed to link `{}`", output);
 
             std::process::exit(1);
         }),

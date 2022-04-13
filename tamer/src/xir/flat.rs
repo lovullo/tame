@@ -43,6 +43,7 @@ use super::{
     QName, Token as XirToken, TokenStream, Whitespace,
 };
 use crate::{
+    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     parse::{
         self, Context, ParseState, ParsedResult, Token, Transition,
         TransitionResult,
@@ -377,35 +378,25 @@ impl Display for StateError {
         use StateError::*;
 
         match self {
-            RootOpenExpected(tok) => {
-                write!(
-                    f,
-                    "opening root element tag expected, \
-                       but found {tok}"
-                )
+            RootOpenExpected(_tok) => {
+                write!(f, "missing opening root element",)
             }
 
             MaxDepthExceeded {
-                open: (name, span),
+                open: (_name, _),
                 max,
             } => {
                 write!(
                     f,
-                    "maximum element nesting depth of {max} exceeded \
-                       by `{name}` at {span}"
+                    "maximum XML element nesting depth of `{max}` exceeded"
                 )
             }
 
             UnbalancedTag {
-                open: (open_name, open_span),
-                close: (close_name, close_span),
+                open: (open_name, _),
+                close: (_close_name, _),
             } => {
-                write!(
-                    f,
-                    "expected closing tag `{open_name}`, \
-                       but found `{close_name}` at {close_span} \
-                       (opening tag at {open_span})",
-                )
+                write!(f, "expected closing tag for `{open_name}`")
             }
 
             AttrError(e) => Display::fmt(e, f),
@@ -415,7 +406,55 @@ impl Display for StateError {
 
 impl Error for StateError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        todo!()
+        match self {
+            Self::AttrError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl Diagnostic for StateError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        use StateError::*;
+
+        match self {
+            RootOpenExpected(tok) => {
+                // TODO: Should the span be the first byte,
+                //   or should we delegate that question to an e.g. `SpanLike`?
+                tok.span()
+                    .error("an opening root node was expected here")
+                    .into()
+            }
+
+            MaxDepthExceeded {
+                open: (_, span),
+                max,
+            } => span
+                .error(format!(
+                    "this opening tag increases the level of nesting \
+                       past the limit of {max}"
+                ))
+                .into(),
+
+            UnbalancedTag {
+                open: (open_name, open_span),
+                close: (close_name, close_span),
+            } => {
+                // TODO: hint saying that the nesting could be wrong, etc;
+                //   we can't just suggest a replacement,
+                //     since that's not necessarily the problem
+                vec![
+                    open_span
+                        .note(format!("element `{open_name}` is opened here")),
+                    close_span.error(format!(
+                        "expected `</{open_name}>`, \
+                           but found closing tag for `{close_name}`"
+                    )),
+                ]
+            }
+
+            AttrError(e) => e.describe(),
+        }
     }
 }
 

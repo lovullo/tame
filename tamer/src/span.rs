@@ -517,9 +517,9 @@ pub const UNKNOWN_CONTEXT: Context = Context(st16::raw::CTX_UNKNOWN);
 /// See also [`UNKNOWN_CONTEXT`].
 pub const DUMMY_CONTEXT: Context = Context(st16::raw::CTX_DUMMY);
 
-impl From<PathSymbolId> for Context {
-    fn from(sym: PathSymbolId) -> Self {
-        Self(sym)
+impl<P: Into<PathSymbolId>> From<P> for Context {
+    fn from(sym: P) -> Self {
+        Self(sym.into())
     }
 }
 

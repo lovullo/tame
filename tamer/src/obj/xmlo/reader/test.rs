@@ -43,18 +43,14 @@ type Sut = XmloReader;
 
 #[test]
 fn fails_on_invalid_root() {
-    let mut sut = Sut::parse(
-        [Xirf::Open(
-            "not-a-valid-package-node".unwrap_into(),
-            S1,
-            Depth(0),
-        )]
-        .into_iter(),
-    );
+    let tok =
+        Xirf::Open("not-a-valid-package-node".unwrap_into(), S1, Depth(0));
+
+    let mut sut = Sut::parse([tok.clone()].into_iter());
 
     assert_matches!(
         sut.next(),
-        Some(Err(ParseError::StateError(XmloError::UnexpectedRoot)))
+        Some(Err(ParseError::StateError(XmloError::UnexpectedRoot(etok)))) if etok == tok
     );
 }
 

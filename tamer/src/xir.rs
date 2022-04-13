@@ -263,7 +263,7 @@ impl Deref for Whitespace {
 }
 
 impl TryFrom<&str> for Whitespace {
-    type Error = Error;
+    type Error = SpanlessError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         // We do not expect this to ever be a large value based on how we
@@ -271,7 +271,7 @@ impl TryFrom<&str> for Whitespace {
         // If it is, well, someone's doing something they ought not to be
         //   and we're not going to optimize for it.
         if !value.as_bytes().iter().all(u8::is_ascii_whitespace) {
-            return Err(Error::NotWhitespace(value.into()));
+            return Err(SpanlessError::NotWhitespace(value.into()));
         }
 
         Ok(Self(value.intern()))
@@ -656,7 +656,7 @@ mod test {
 
         assert_eq!(
             Whitespace::try_from("not ws!"),
-            Err(Error::NotWhitespace("not ws!".into()))
+            Err(SpanlessError::NotWhitespace("not ws!".into(),))
         );
 
         Ok(())

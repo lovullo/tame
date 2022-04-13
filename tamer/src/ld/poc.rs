@@ -27,6 +27,7 @@ use super::xmle::{
 };
 use crate::{
     asg::{Asg, DefaultAsg, IdentObject},
+    diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,
@@ -49,7 +50,8 @@ use crate::{
 use fxhash::FxBuildHasher;
 use petgraph_graphml::GraphMl;
 use std::{
-    fmt::Display,
+    error::Error,
+    fmt::{self, Display},
     fs,
     io::{self, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
@@ -257,8 +259,8 @@ pub enum TameldError {
     XmloParseError(ParseError<XirfToken, XmloError>),
     AsgBuilderError(AsgBuilderError),
     XirWriterError(XirWriterError),
-
     CycleError(Vec<Vec<SymbolId>>),
+    Fmt(fmt::Error),
 }
 
 impl From<io::Error> for TameldError {
@@ -303,6 +305,12 @@ impl From<XirWriterError> for TameldError {
     }
 }
 
+impl From<fmt::Error> for TameldError {
+    fn from(e: fmt::Error) -> Self {
+        Self::Fmt(e)
+    }
+}
+
 impl Display for TameldError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -313,8 +321,7 @@ impl Display for TameldError {
             Self::XmloParseError(e) => Display::fmt(e, f),
             Self::AsgBuilderError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
-
-            TameldError::CycleError(cycles) => {
+            Self::CycleError(cycles) => {
                 for cycle in cycles {
                     writeln!(
                         f,
@@ -329,6 +336,36 @@ impl Display for TameldError {
 
                 Ok(())
             }
+            Self::Fmt(e) => Display::fmt(e, f),
+        }
+    }
+}
+
+impl Error for TameldError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Io(e) => Some(e),
+            Self::SortError(e) => Some(e),
+            Self::XirError(e) => Some(e),
+            Self::XirfParseError(e) => Some(e),
+            Self::XmloParseError(e) => Some(e),
+            Self::AsgBuilderError(e) => Some(e),
+            Self::XirWriterError(e) => Some(e),
+            Self::CycleError(..) => None,
+            Self::Fmt(e) => Some(e),
+        }
+    }
+}
+
+impl Diagnostic for TameldError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        match self {
+            Self::XirError(e) => e.describe(),
+            Self::XirfParseError(e) => e.describe(),
+            Self::XmloParseError(e) => e.describe(),
+
+            // TODO (will fall back to rendering just the error `Display`)
+            _ => vec![],
         }
     }
 }

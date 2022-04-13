@@ -403,11 +403,11 @@ mod test {
     fn xmlo_error_returned() {
         let mut sut = Sut::new();
 
-        let evs = vec![Err(XmloError::UnexpectedRoot)];
+        let evs = vec![Err(XmloError::UnassociatedSym(DUMMY_SPAN))];
         let result = sut.import_xmlo(evs.into_iter(), SutState::new());
 
         assert_eq!(
-            AsgBuilderError::XmloError(XmloError::UnexpectedRoot),
+            AsgBuilderError::XmloError(XmloError::UnassociatedSym(DUMMY_SPAN)),
             result.expect_err("expected error to be proxied"),
         );
     }

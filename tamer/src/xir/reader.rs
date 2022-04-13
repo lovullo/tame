@@ -360,7 +360,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                     // Given this input, quick-xml ignores the bytes entirely:
                     //   <foo bar>
-                    //        ^^^| missing `="value"`
+                    //        |--| missing `="value"`
                     //
                     // The whitespace check is to handle input like this:
                     //   <foo />

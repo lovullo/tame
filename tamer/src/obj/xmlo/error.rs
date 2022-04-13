@@ -19,8 +19,11 @@
 
 //! Errors while processing `xmlo` object files.
 
+use crate::diagnose::{Annotate, AnnotatedSpan, Diagnostic};
+use crate::parse::Token;
 use crate::span::Span;
 use crate::sym::SymbolId;
+use crate::xir::flat::Object as XirfToken;
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.
@@ -35,7 +38,7 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq)]
 pub enum XmloError {
     /// The root node was not an `lv:package`.
-    UnexpectedRoot,
+    UnexpectedRoot(XirfToken),
     /// A `preproc:sym` node was found, but is missing `@name`.
     UnassociatedSym(Span),
     /// The provided `preproc:sym/@type` is unknown or invalid.
@@ -57,65 +60,54 @@ pub enum XmloError {
     UnassociatedFragment(Span),
     /// A `preproc:fragment` element was found, but is missing `text()`.
     MissingFragmentText(SymbolId, Span),
-    /// Token stream ended unexpectedly.
-    UnexpectedEof,
 }
 
 impl Display for XmloError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use XmloError::*;
+
         match self {
-            Self::UnexpectedRoot => {
-                write!(fmt, "unexpected package root (is this a package?)")
+            UnexpectedRoot(_tok) => {
+                write!(fmt, "expected `package` root element")
             }
-            Self::UnassociatedSym(span) => write!(
-                fmt,
-                "unassociated symbol table entry: \
-                     preproc:sym/@name missing at {span}"
-            ),
-            Self::InvalidType(ty, span) => {
-                write!(fmt, "invalid preproc:sym/@type `{ty}` at {span}")
+
+            UnassociatedSym(_) => {
+                write!(fmt, "unassociated symbol table entry")
             }
-            Self::InvalidDtype(dtype, span) => {
-                write!(fmt, "invalid preproc:sym/@dtype `{dtype}` at {span}")
+
+            InvalidType(ty, _) => {
+                write!(fmt, "invalid symbol type `{ty}`")
             }
-            Self::InvalidDim(dim, span) => {
-                write!(fmt, "invalid preproc:sym/@dim `{dim}` at {span}")
+
+            InvalidDtype(dtype, _) => {
+                write!(fmt, "invalid symbol dtype `{dtype}`")
             }
-            Self::MapFromNameMissing(sym, span) => {
-                write!(
-                    fmt,
-                    "preproc:sym[@type=\"map\"]/preproc:from/@name missing \
-                               for symbol `{sym}` at {span}"
-                )
+
+            InvalidDim(dim, _) => {
+                write!(fmt, "invalid dimensionality `{dim}`")
             }
-            Self::MapFromMultiple(sym, span) => {
-                write!(
-                    fmt,
-                    "preproc:sym[@type=\"map\"]/preproc:from must appear \
-                               only once for symbol `{sym}` at {span}"
-                )
+
+            MapFromNameMissing(sym, _) => {
+                write!(fmt, "map `from` name missing for symbol `{sym}`")
             }
-            Self::UnassociatedSymDep(span) => write!(
-                fmt,
-                "unassociated dependency list: preproc:sym-dep/@name \
-                   missing at {span}"
-            ),
-            Self::MalformedSymRef(name, span) => {
-                write!(
-                    fmt,
-                    "malformed dependency ref for symbol \
-                       {name} at {span}"
-                )
+
+            MapFromMultiple(sym, _) => {
+                write!(fmt, "multiple map `from` for `{sym}`")
             }
-            Self::UnassociatedFragment(span) => write!(
-                fmt,
-                "unassociated fragment: preproc:fragment/@id missing at {span}"
-            ),
-            Self::MissingFragmentText(sym, span) => write!(
-                fmt,
-                "fragment found, but missing text for symbol `{sym}` at {span}",
-            ),
-            Self::UnexpectedEof => write!(fmt, "unexpected EOF"),
+
+            UnassociatedSymDep(_) => {
+                write!(fmt, "unassociated dependency list")
+            }
+
+            MalformedSymRef(name, _) => {
+                write!(fmt, "malformed dependency ref for symbol {name}")
+            }
+
+            UnassociatedFragment(_) => write!(fmt, "unassociated fragment"),
+
+            MissingFragmentText(sym, _) => {
+                write!(fmt, "missing fragment text for symbol `{sym}`",)
+            }
         }
     }
 }
@@ -123,5 +115,88 @@ impl Display for XmloError {
 impl std::error::Error for XmloError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
+    }
+}
+
+impl Diagnostic for XmloError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        use XmloError::*;
+
+        let malformed = "this `xmlo` file is malformed or corrupt; \
+                           try removing it to force it to be rebuilt,
+                             and please report this error";
+
+        // Note that these errors _could_ potentially be more descriptive
+        //   and contain more spans,
+        //     but they are internal compiler errors and so it's not yet
+        //     deemed to be worth the effort.
+        match self {
+            UnexpectedRoot(tok) => {
+                // TODO: If we recommend `<package`,
+                //   we ought to have a span that guarantees that `<` will
+                //   be included.
+                tok.span()
+                    .error("`<package` expected here")
+                    .with_help(
+                        "an `xmlo` file was expected, \
+                           but this appears to be something else",
+                    )
+                    .into()
+            }
+
+            UnassociatedSym(span) => span
+                .internal_error("`@name` is missing")
+                .with_help(malformed)
+                .into(),
+
+            InvalidType(_ty, span) => span
+                .internal_error("the type `{ty}` is unknown")
+                .with_help(malformed)
+                .into(),
+
+            InvalidDtype(_dtype, span) => span
+                .internal_error("the dtype `{dtype}` is unknown")
+                .with_help(malformed)
+                .into(),
+
+            InvalidDim(_dim, span) => span
+                .internal_error(
+                    "the number of dimensions must be `0`, `1`, or `2`",
+                )
+                .with_help(malformed)
+                .into(),
+
+            MapFromNameMissing(_sym, span) => span
+                .internal_error("`@name` is missing")
+                .with_help(malformed)
+                .into(),
+
+            MapFromMultiple(_sym, span) => span
+                .internal_error(
+                    "this is an unexpected extra `preproc:from` for `{sym}`",
+                )
+                .with_help(malformed)
+                .into(),
+
+            UnassociatedSymDep(span) => span
+                .internal_error("`@name` is missing")
+                .with_help(malformed)
+                .into(),
+
+            MalformedSymRef(_name, span) => span
+                .internal_error("`@name` is missing")
+                .with_help(malformed)
+                .into(),
+
+            UnassociatedFragment(span) => span
+                .internal_error("@id is missing")
+                .with_help(malformed)
+                .into(),
+
+            MissingFragmentText(_sym, span) => span
+                .internal_error("missing fragment text")
+                .with_help(malformed)
+                .into(),
+        }
     }
 }
