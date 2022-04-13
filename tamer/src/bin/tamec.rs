@@ -17,20 +17,26 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! This is the TAME compiler.  Its job is to take each of the source code
-//! files and produce a compiled file.
+//! This is the TAME compiler.
+//!
+//! `tamec` compiles source code into object files that are later linked
+//!   into a final executable using [`tameld`](../tameld).
 
 extern crate tamer;
 
 use getopts::{Fail, Options};
-use std::env;
-use std::error::Error;
-use std::ffi::OsStr;
-use std::fs;
-use std::path::Path;
-
-#[cfg(feature = "wip-frontends")]
-use {std::io::BufReader, tamer::fs::File};
+use std::{
+    env,
+    error::Error,
+    ffi::OsStr,
+    fmt::{self, Display},
+    fs, io,
+    path::Path,
+};
+use tamer::{
+    diagnose::{AnnotatedSpan, Diagnostic, Reporter, VisualReporter},
+    xir,
+};
 
 /// Types of commands
 enum Command {
@@ -39,7 +45,7 @@ enum Command {
 }
 
 /// Entrypoint for the compiler
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<(), TamecError> {
     let args: Vec<String> = env::args().collect();
     let program = &args[0];
     let opts = get_opts();
@@ -55,35 +61,54 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             let dest = Path::new(&output);
 
             #[cfg(not(feature = "wip-frontends"))]
-            fs::copy(source, dest)?;
-
-            #[cfg(feature = "wip-frontends")]
             {
-                use std::io::BufWriter;
-                use tamer::{
-                    fs::PathFile,
-                    iter::into_iter_while_ok,
-                    xir::{
-                        reader::XmlXirReader, writer::XmlWriter, DefaultEscaper,
-                    },
-                };
-
-                let escaper = DefaultEscaper::default();
-                let mut fout = BufWriter::new(fs::File::create(dest)?);
-
-                let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
-                    PathFile::open(source)?;
-
-                // Parse into XIR and re-lower into XML,
-                //   which is similar to a copy but proves that we're able
-                //   to parse source files.
-                into_iter_while_ok(
-                    XmlXirReader::new(file, &escaper, ctx),
-                    |toks| toks.write(&mut fout, Default::default(), &escaper),
-                )??;
+                fs::copy(source, dest)?;
+                Ok(())
             }
 
+            #[cfg(feature = "wip-frontends")]
             Ok(())
+                .and_then(|_| {
+                    use std::io::{BufReader, BufWriter};
+                    use tamer::{
+                        fs::{File, PathFile},
+                        iter::into_iter_while_ok,
+                        xir::{
+                            reader::XmlXirReader, writer::XmlWriter,
+                            DefaultEscaper,
+                        },
+                    };
+
+                    let escaper = DefaultEscaper::default();
+                    let mut fout = BufWriter::new(fs::File::create(dest)?);
+
+                    let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
+                        PathFile::open(source)?;
+
+                    // Parse into XIR and re-lower into XML,
+                    //   which is similar to a copy but proves that we're able
+                    //   to parse source files.
+                    into_iter_while_ok(
+                        XmlXirReader::new(file, &escaper, ctx),
+                        |toks| {
+                            toks.write(&mut fout, Default::default(), &escaper)
+                        },
+                    )??;
+
+                    Ok(())
+                })
+                .or_else(|e: TamecError| {
+                    let mut reporter = VisualReporter::new();
+
+                    // POC: Rendering to a string ensures buffering so that we don't
+                    //   interleave output between processes,
+                    //     but we ought to reuse a buffer when we support multiple
+                    //     errors.
+                    let report = reporter.render_to_string(&e)?;
+                    println!("{report}\nfatal: failed to link `{}`", output);
+
+                    std::process::exit(1);
+                })
         }
         Ok(Command::Usage) => {
             println!("{}", usage);
@@ -151,6 +176,78 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
     };
 
     Ok(Command::Compile(input, emit, output))
+}
+
+/// Compiler (`tamec`) error.
+///
+/// This represents the aggregation of all possible errors that can occur
+///   during compile-time.
+/// This cannot include panics,
+///   but efforts have been made to reduce panics to situations that
+///   represent the equivalent of assertions.
+#[derive(Debug)]
+pub enum TamecError {
+    Io(io::Error),
+    XirError(xir::Error),
+    XirWriterError(xir::writer::Error),
+    Fmt(fmt::Error),
+}
+
+impl From<io::Error> for TamecError {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
+impl From<xir::Error> for TamecError {
+    fn from(e: xir::Error) -> Self {
+        Self::XirError(e)
+    }
+}
+
+impl From<xir::writer::Error> for TamecError {
+    fn from(e: xir::writer::Error) -> Self {
+        Self::XirWriterError(e)
+    }
+}
+
+impl From<fmt::Error> for TamecError {
+    fn from(e: fmt::Error) -> Self {
+        Self::Fmt(e)
+    }
+}
+
+impl Display for TamecError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(e) => Display::fmt(e, f),
+            Self::XirError(e) => Display::fmt(e, f),
+            Self::XirWriterError(e) => Display::fmt(e, f),
+            Self::Fmt(e) => Display::fmt(e, f),
+        }
+    }
+}
+
+impl Error for TamecError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Io(e) => Some(e),
+            Self::XirError(e) => Some(e),
+            Self::XirWriterError(e) => Some(e),
+            Self::Fmt(e) => Some(e),
+        }
+    }
+}
+
+impl Diagnostic for TamecError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        match self {
+            Self::XirError(e) => e.describe(),
+
+            // TODO (will fall back to rendering just the error `Display`)
+            _ => vec![],
+        }
+    }
 }
 
 #[cfg(test)]
