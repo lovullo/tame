@@ -65,6 +65,9 @@
 //   the implementer,
 //     in which case this feature's only substitute is a type parameter.
 #![feature(associated_type_defaults)]
+// Convenience features that are easily replaced if not stabalized.
+#![feature(nonzero_min_max)]
+#![feature(nonzero_ops)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 

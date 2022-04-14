@@ -24,7 +24,10 @@
 //!   the diagnostic output is visually similar.
 
 mod report;
+mod resolver;
+
 pub use report::{Reporter, VisualReporter};
+pub use resolver::*;
 
 use core::fmt;
 use std::{error::Error, fmt::Display};
