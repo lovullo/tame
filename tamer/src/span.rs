@@ -556,7 +556,6 @@ assert_eq_size!(ClosedByteInterval, u64);
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::sym::GlobalSymbolIntern;
 
     // Little endian check.
     //
@@ -590,9 +589,9 @@ mod test {
 
     #[test]
     fn span_at_later_offset_in_same_context_compares_greater() {
-        let ctx = "imaginary".intern();
-        let first = Span::new(10, 5, ctx);
-        let second = Span::new(20, 5, ctx);
+        let ctx = Context::from("imaginary");
+        let first = ctx.span(10, 5);
+        let second = ctx.span(20, 5);
 
         // These two assertions must be identical.
         assert!(second > first);
@@ -601,19 +600,19 @@ mod test {
 
     #[test]
     fn spans_order_by_context_start_and_len() {
-        let ctxa = "context a".intern();
-        let ctxb = "context b".intern();
+        let ctxa = Context::from("context a");
+        let ctxb = Context::from("context b");
 
         // Sanity check, otherwise this test won't work as expected.
-        assert!(ctxa < ctxb);
+        assert!(ctxa.0 < ctxb.0);
 
-        let sa1 = Span::new(10, 1, ctxa);
-        let sa2 = Span::new(22, 1, ctxa);
-        let sa3 = Span::new(35, 1, ctxa);
+        let sa1 = ctxa.span(10, 1);
+        let sa2 = ctxa.span(22, 1);
+        let sa3 = ctxa.span(35, 1);
 
-        let sb1 = Span::new(11, 1, ctxb);
-        let sb2 = Span::new(20, 1, ctxb);
-        let sb3 = Span::new(33, 1, ctxb);
+        let sb1 = ctxb.span(11, 1);
+        let sb2 = ctxb.span(20, 1);
+        let sb3 = ctxb.span(33, 1);
 
         let mut spans = vec![sa3, sb2, sb1, sa2, sa1, sb3];
         spans.sort();
@@ -622,23 +621,23 @@ mod test {
     }
 
     #[test]
-    pub fn retrieve_span_components() {
-        let ctx: Context = "foo".intern().into();
+    fn retrieve_span_components() {
+        let ctx = Context::from("foo");
         let offset = 100;
         let len = 50;
 
-        let span = Span::new(offset, len, ctx);
+        let span = ctx.span(offset, len);
 
         assert_eq!((offset, len, ctx), (span.offset(), span.len(), span.ctx()));
     }
 
     #[test]
-    pub fn span_offset_add() {
-        let ctx: Context = "addtest".intern().into();
+    fn span_offset_add() {
+        let ctx = Context::from("addtest");
         let offset = 10;
         let len = 5;
 
-        let span = Span::new(offset, len, ctx);
+        let span = ctx.span(offset, len);
 
         // Successful add.
         assert_eq!(
@@ -655,17 +654,17 @@ mod test {
     }
 
     #[test]
-    pub fn span_into_twospan() {
-        let ctx: Context = "foo".intern().into();
-        let span = Span::new(10, 50, ctx);
+    fn span_into_twospan() {
+        let ctx = Context::from("foo");
+        let span = ctx.span(10, 50);
 
         assert_eq!((span, span), span.into());
     }
 
     #[test]
-    pub fn span_endpoints() {
-        let ctx: Context = "end".intern().into();
-        let span = Span::new(10, 20, ctx);
+    fn span_endpoints() {
+        let ctx = Context::from("end");
+        let span = ctx.span(10, 20);
 
         let (start, end) = span.endpoints();
 
