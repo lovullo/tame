@@ -185,12 +185,18 @@
 
 use crate::{
     global,
-    sym::{st16, ContextStaticSymbolId, SymbolId},
+    sym::{st16, ContextStaticSymbolId, GlobalSymbolResolve, SymbolId},
 };
-use std::{convert::TryInto, fmt::Display};
+use std::{convert::TryInto, fmt::Display, path::Path};
 
 /// A symbol size sufficient for holding interned paths.
 pub type PathSymbolId = SymbolId<u16>;
+
+/// Size of a [`Span`]'s `offset` field.
+pub type SpanOffsetSize = global::SourceFileSize;
+
+/// Size of a [`Span`]'s `len` field.
+pub type SpanLenSize = global::FrontendTokenLength;
 
 /// Description of a source location and byte interval for some object.
 ///
@@ -207,10 +213,10 @@ pub type PathSymbolId = SymbolId<u16>;
 #[derive(Debug, Clone, Copy)]
 pub struct Span {
     /// Token length (ending byte offset - `offset`).
-    len: global::FrontendTokenLength,
+    len: SpanLenSize,
 
     /// Starting 0-indexed byte position, inclusive.
-    offset: global::SourceFileSize,
+    offset: SpanOffsetSize,
 
     /// Context onto which byte offsets are mapped,
     ///   such as a source file.
@@ -220,8 +226,8 @@ pub struct Span {
 impl Span {
     /// Create a new span from its constituent parts.
     pub fn new<C: Into<Context>>(
-        offset: global::SourceFileSize,
-        len: global::FrontendTokenLength,
+        offset: SpanOffsetSize,
+        len: SpanLenSize,
         ctx: C,
     ) -> Self {
         Self {
@@ -289,14 +295,14 @@ impl Span {
     }
 
     /// Byte offset of the beginning of the span relative to its context.
-    pub fn offset(&self) -> global::SourceFileSize {
+    pub fn offset(&self) -> SpanOffsetSize {
         self.offset
     }
 
     /// Length of the span in bytes.
     ///
     /// The interval of the span is `[offset, offset+len]`.
-    pub fn len(&self) -> global::FrontendTokenLength {
+    pub fn len(&self) -> SpanLenSize {
         self.len
     }
 
@@ -311,12 +317,9 @@ impl Span {
     ///
     /// This attempts to offset a span relative to its current offset by the
     ///   provided value.
-    /// If the resulting offset exceeds [`global::SourceFileSize`],
+    /// If the resulting offset exceeds [`SpanOffsetSize`],
     ///   the result will be [`None`].
-    pub const fn offset_add(
-        self,
-        value: global::SourceFileSize,
-    ) -> Option<Self> {
+    pub const fn offset_add(self, value: SpanOffsetSize) -> Option<Self> {
         match self.offset.checked_add(value) {
             Some(offset) => Some(Self { offset, ..self }),
             None => None,
@@ -327,7 +330,7 @@ impl Span {
     ///   last offsets in the span.
     ///
     /// The second endpoint will be [`None`] if the offset cannot be
-    ///   represented by [`global::SourceFileSize`].
+    ///   represented by [`SpanOffsetSize`].
     ///
     /// ```
     /// # use tamer::span::{Span, Context};
@@ -458,17 +461,13 @@ pub const DUMMY_SPAN: Span = Span::st_ctx(st16::CTX_DUMMY);
 ///
 /// Since this is used within [`Span`],
 ///   it must be kept as small as possible.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Context(PathSymbolId);
 
 impl Context {
     /// Produce a [`Span`] within the given context.
     #[inline]
-    pub fn span(
-        self,
-        offset: global::SourceFileSize,
-        len: global::FrontendTokenLength,
-    ) -> Span {
+    pub fn span(self, offset: SpanOffsetSize, len: SpanLenSize) -> Span {
         Span::new(offset, len, self)
     }
 
@@ -529,10 +528,16 @@ impl Display for Context {
     }
 }
 
+impl AsRef<Path> for Context {
+    fn as_ref(&self) -> &Path {
+        &Path::new(self.0.lookup_str())
+    }
+}
+
 /// A closed interval (range of values including its endpoints) representing
 ///   source bytes associated with a token.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct ClosedByteInterval<T = global::SourceFileSize>(pub T, pub T)
+pub struct ClosedByteInterval<T = SpanOffsetSize>(pub T, pub T)
 where
     T: Copy + PartialOrd;
 
@@ -650,7 +655,7 @@ mod test {
         );
 
         // Fail, do not wrap.
-        assert_eq!(span.offset_add(global::SourceFileSize::MAX), None);
+        assert_eq!(span.offset_add(SpanOffsetSize::MAX), None);
     }
 
     #[test]
