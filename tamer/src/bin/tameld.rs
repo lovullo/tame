@@ -29,7 +29,7 @@ extern crate tamer;
 use getopts::{Fail, Options};
 use std::env;
 use tamer::{
-    diagnose::{Reporter, VisualReporter},
+    diagnose::{FsSpanResolver, Reporter, VisualReporter},
     ld::poc::{self, TameldError},
 };
 
@@ -59,7 +59,7 @@ pub fn main() -> Result<(), TameldError> {
     let usage =
         opts.usage(&format!("Usage: {} [OPTIONS] -o OUTPUT FILE", program));
 
-    let mut reporter = VisualReporter::new();
+    let mut reporter = VisualReporter::new(FsSpanResolver);
 
     match parse_options(opts, args) {
         Ok(Command::Link(input, output, emit)) => match emit {

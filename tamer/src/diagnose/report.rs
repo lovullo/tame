@@ -19,8 +19,8 @@
 
 //! Rendering of diagnostic information.
 
-use super::{AnnotatedSpan, Diagnostic};
-use crate::span::UNKNOWN_SPAN;
+use super::{AnnotatedSpan, Diagnostic, Label, Level, SpanResolver};
+use crate::span::{Span, SpanOffsetSize, UNKNOWN_SPAN};
 use std::fmt::{self, Write};
 
 pub trait Reporter {
@@ -62,21 +62,50 @@ pub trait Reporter {
 ///     and including helpful information that walks the user through
 ///       understanding why the error occurred and how to approach resolving
 ///       it.
-pub struct VisualReporter;
+pub struct VisualReporter<R: SpanResolver> {
+    resolver: R,
+}
 
-impl VisualReporter {
-    pub fn new() -> Self {
-        Self
+impl<R: SpanResolver> VisualReporter<R> {
+    pub fn new(resolver: R) -> Self {
+        Self { resolver }
+    }
+
+    /// Render a raw [`Span`] that could not be resolved into a [`ResolvedSpan`].
+    ///
+    /// This is not ideal,
+    ///   but provides reasonable fallback information in a situation where
+    ///   the diagnostic system fails.
+    /// The user still has enough information to diagnose the problem,
+    ///   albeit presented in a significantly less friendly way.
+    fn render_fallback_span_offset(
+        to: &mut impl Write,
+        span: Span,
+    ) -> fmt::Result {
+        writeln!(
+            to,
+            " offset {}--{}",
+            span.offset(),
+            span.offset() + span.len() as SpanOffsetSize
+        )
+    }
+
+    fn render_label(
+        to: &mut impl Write,
+        level: Level,
+        label: Label,
+    ) -> fmt::Result {
+        writeln!(to, "      {level}: {label}")
     }
 }
 
-impl Reporter for VisualReporter {
+impl<R: SpanResolver> Reporter for VisualReporter<R> {
     // _TODO: This is a proof-of-concept._
     fn render(
         &mut self,
         diagnostic: &impl Diagnostic,
         to: &mut impl Write,
-    ) -> Result<(), fmt::Error> {
+    ) -> fmt::Result {
         // TODO: not only errors; get the max level from the annotated spans
         writeln!(to, "error: {}", diagnostic)?;
 
@@ -84,17 +113,39 @@ impl Reporter for VisualReporter {
 
         for AnnotatedSpan(span, level, olabel) in diagnostic.describe() {
             if span != prev_span {
-                writeln!(
-                    to,
-                    "  --> {} offset {}--{}",
-                    span.ctx(),
-                    span.offset(),
-                    span.offset() + span.len() as u32
-                )?;
+                write!(to, "  --> {}", span.ctx(),)?;
+
+                match self.resolver.resolve(span) {
+                    // We should never mask an error with our own;
+                    //   the diagnostic system is supposed to _help_ the
+                    //   user in diagnosing problems,
+                    //     not hinder them by masking it.
+                    Err(e) => {
+                        Self::render_fallback_span_offset(to, span)?;
+
+                        // Let the user know that something bad happened,
+                        //   even though this probably won't make any sense.
+                        Self::render_label(
+                            to,
+                            Level::Help,
+                            format!(
+                                "there was an error trying to look up \
+                                       information about this span: {e}"
+                            )
+                            .into(),
+                        )?;
+                    }
+                    Ok(rspan) => match rspan.line() {
+                        Some(line) => {
+                            writeln!(to, ":{}", line)?;
+                        }
+                        None => Self::render_fallback_span_offset(to, span)?,
+                    },
+                }
             }
 
             if let Some(label) = olabel {
-                writeln!(to, "      {level}: {label}")?;
+                Self::render_label(to, level, label)?;
             }
 
             prev_span = span;
@@ -131,10 +182,18 @@ mod test {
     //!   and separate reporters will be provided for machine-readable
     //!   formats if that is what is needed.
 
-    use crate::{diagnose::Annotate, span::Context};
+    use crate::{
+        diagnose::{Annotate, BufSpanResolver},
+        span::Context,
+    };
 
     use super::*;
-    use std::{error::Error, fmt::Display};
+    use std::{
+        collections::HashMap,
+        error::Error,
+        fmt::Display,
+        io::{self, Cursor},
+    };
 
     #[derive(Debug)]
     struct StubError(String, Vec<AnnotatedSpan>);
@@ -157,9 +216,33 @@ mod test {
         }
     }
 
+    const FILE_FOO_BAR: &[u8] =
+        b"foo/bar line 1\nfoo/bar line 2\nfoo/bar line 3\nfoo/bar line 4";
+    //    |------------|  |------------|  |------------|  |------------|
+    //    0           13  15          28  30          43  45          58
+    //       len: 14
+
+    const FILE_BAR_BAZ: &[u8] =
+        b"bar/baz line 1\nbar/baz line2\nbar/baz line3\nbar/baz line4";
+    // Offsets for this are the same as `FILE_FOO_BAR`.
+
     macro_rules! assert_report {
         ($msg:expr, $aspans:expr, $expected:expr) => {
-            let mut sut = VisualReporter::new();
+            let mut resolver = HashMap::<Context, BufSpanResolver<_>>::new();
+
+            let ctx_foo_bar = Context::from("foo/bar");
+            let ctx_bar_baz = Context::from("bar/baz");
+
+            resolver.insert(
+                ctx_foo_bar,
+                BufSpanResolver::new(Cursor::new(FILE_FOO_BAR), ctx_foo_bar),
+            );
+            resolver.insert(
+                ctx_bar_baz,
+                BufSpanResolver::new(Cursor::new(FILE_BAR_BAZ), ctx_bar_baz),
+            );
+
+            let mut sut = VisualReporter::new(resolver);
 
             assert_eq!(
                 sut.render_to_string(&StubError($msg.into(), $aspans)),
@@ -188,14 +271,14 @@ mod test {
             // Context and span are rendered without a label.
             "\
 error: single span no label
-  --> foo/bar offset 50--55
+  --> foo/bar:4
 "
         );
     }
 
     #[test]
     fn span_error_with_label() {
-        let span = Context::from("bar/baz").span(60, 2);
+        let span = Context::from("bar/baz").span(30, 2);
 
         assert_report!(
             "single span with label",
@@ -203,7 +286,7 @@ error: single span no label
             // Context and span are rendered without a label.
             "\
 error: single span with label
-  --> bar/baz offset 60--62
+  --> bar/baz:3
       error: span label here
 "
         );
@@ -212,7 +295,7 @@ error: single span with label
     #[test]
     fn adjacent_eq_span_no_labels_collapsed() {
         let ctx = Context::from("foo/bar");
-        let span = ctx.span(50, 5);
+        let span = ctx.span(50, 1);
 
         assert_report!(
             "multiple adjacent same span no label",
@@ -223,15 +306,15 @@ error: single span with label
             //   duplicate spans without some additional context.
             "\
 error: multiple adjacent same span no label
-  --> foo/bar offset 50--55
+  --> foo/bar:4
 "
         );
     }
 
     #[test]
     fn adjacent_eq_span_labels_collapsed() {
-        let ctx = Context::from("baz/quux");
-        let span = ctx.span(50, 5);
+        let ctx = Context::from("bar/baz");
+        let span = ctx.span(10, 5);
 
         assert_report!(
             "multiple adjacent same span with labels",
@@ -244,7 +327,7 @@ error: multiple adjacent same span no label
             //   spans are the same.
             "\
 error: multiple adjacent same span with labels
-  --> baz/quux offset 50--55
+  --> bar/baz:1
       error: A label
       error: C label
 "
@@ -253,10 +336,10 @@ error: multiple adjacent same span with labels
 
     #[test]
     fn adjacent_eq_context_neq_offset_len_spans_not_collapsed() {
-        let ctx = Context::from("quux/quuux");
+        let ctx = Context::from("bar/baz");
 
         assert_report!(
-            "multiple adjacent different context",
+            "eq context neq offset/len",
             vec![
                 // -->
                 ctx.span(10, 5).mark_error(),
@@ -272,15 +355,15 @@ error: multiple adjacent same span with labels
                 ctx.span(10, 6).error("B', not adjacent"),
             ],
             "\
-error: multiple adjacent different context
-  --> quux/quuux offset 10--15
+error: eq context neq offset/len
+  --> bar/baz:1
       error: A, first label
-  --> quux/quuux offset 10--16
+  --> bar/baz:1
       error: B, different length
       error: B, collapse
-  --> quux/quuux offset 15--21
+  --> bar/baz:2
       error: C, different offset
-  --> quux/quuux offset 10--16
+  --> bar/baz:1
       error: B', not adjacent
 "
         );
@@ -318,16 +401,16 @@ error: multiple adjacent different context
             ],
             "\
 error: multiple adjacent different context
-  --> foo/bar offset 10--13
+  --> foo/bar:1
       error: A, first
       error: A, collapsed
-  --> bar/baz offset 10--13
+  --> bar/baz:1
       error: B, first
       error: B, collapsed
-  --> foo/bar offset 10--13
+  --> foo/bar:1
       error: A, not collapsed
-  --> bar/baz offset 10--13
-  --> foo/bar offset 10--13
+  --> bar/baz:1
+  --> foo/bar:1
 "
         );
     }
@@ -347,12 +430,49 @@ error: multiple adjacent different context
             ],
             "\
 error: multiple spans with labels of different severity level
-  --> foo/bar offset 50--55
+  --> foo/bar:4
       internal error: an internal error
       error: an error
       note: a note
       help: a help message
 "
+        );
+    }
+
+    // If a span fails to resolve
+    //   (maybe the file cannot be read for some reason,
+    //     or maybe there's some bug in TAMER such that the context is
+    //     incorrect and cannot be resolved),
+    //   we should still provide what information we _can_ rather than
+    //     masking the original error with an error of our own.
+    // The diagnostic system is supposed to aid the user in resolving
+    //   issues,
+    //     not make them _more_ difficult to resolve.
+    #[test]
+    fn fallback_when_span_fails_to_resolve() {
+        let ctx = Context::from("unknown/context");
+
+        // Doesn't matter what this is.
+        let span = ctx.span(50, 5);
+
+        // This could change between Rust versions or OSes.
+        let ioerr = io::ErrorKind::NotFound;
+
+        // It's not ideal that the help appears first,
+        //   but this should only happen under very exceptional
+        //   circumstances so it's not worth trying to resolve.
+        // If you're reading this and it's trivial to swap these with the
+        //   current state of the system,
+        //     go for it.
+        assert_report!(
+            "unresolvable context fallback",
+            vec![span.error("an error we do not want to suppress"),],
+            format!("\
+error: unresolvable context fallback
+  --> unknown/context offset 50--55
+      help: there was an error trying to look up information about this span: {ioerr}
+      error: an error we do not want to suppress
+")
         );
     }
 }

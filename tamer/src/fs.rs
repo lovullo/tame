@@ -196,6 +196,29 @@ where
     }
 }
 
+/// Vanilla filesystem access.
+///
+/// This provides access to the filesystem as one would expect.
+/// The actual operations are delegated to `F`.
+#[derive(Debug)]
+pub struct VanillaFilesystem<F: File> {
+    _file: PhantomData<F>,
+}
+
+impl<F: File> Default for VanillaFilesystem<F> {
+    fn default() -> Self {
+        Self {
+            _file: Default::default(),
+        }
+    }
+}
+
+impl<F: File> Filesystem<F> for VanillaFilesystem<F> {
+    fn open<P: AsRef<Path>>(&mut self, path: P) -> Result<F> {
+        F::open(path)
+    }
+}
+
 pub trait Canonicalizer {
     fn canonicalize<P: AsRef<Path>>(path: P) -> Result<PathBuf>;
 }

@@ -22,6 +22,8 @@
 use crate::span::{Context, Span};
 use std::{
     collections::HashMap,
+    error::Error,
+    fmt::Display,
     fs,
     hash::BuildHasher,
     io::{self, BufRead, BufReader, Seek},
@@ -471,6 +473,25 @@ pub enum SpanResolverError {
 impl From<io::Error> for SpanResolverError {
     fn from(e: io::Error) -> Self {
         Self::Io(e.kind())
+    }
+}
+
+impl Display for SpanResolverError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(kind) => Display::fmt(kind, f),
+            Self::ContextMismatch { given, expected } => write!(
+                f,
+                "attempted to read context {given} \
+                   using a resolver for context {expected}"
+            ),
+        }
+    }
+}
+
+impl Error for SpanResolverError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 

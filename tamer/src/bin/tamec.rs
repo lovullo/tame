@@ -34,7 +34,9 @@ use std::{
     path::Path,
 };
 use tamer::{
-    diagnose::{AnnotatedSpan, Diagnostic, Reporter, VisualReporter},
+    diagnose::{
+        AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
+    },
     xir,
 };
 
@@ -98,7 +100,7 @@ pub fn main() -> Result<(), TamecError> {
                     Ok(())
                 })
                 .or_else(|e: TamecError| {
-                    let mut reporter = VisualReporter::new();
+                    let mut reporter = VisualReporter::new(FsSpanResolver);
 
                     // POC: Rendering to a string ensures buffering so that we don't
                     //   interleave output between processes,
