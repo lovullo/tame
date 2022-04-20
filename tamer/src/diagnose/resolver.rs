@@ -21,7 +21,11 @@
 
 use crate::span::{Context, Span};
 use std::{
-    io::{self, BufRead},
+    collections::HashMap,
+    fs,
+    hash::BuildHasher,
+    io::{self, BufRead, BufReader, Seek},
+    mem::take,
     num::NonZeroU32,
 };
 
@@ -83,14 +87,14 @@ pub trait SpanResolver {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ResolvedSpan {
     /// The original [`Span`] whose resolution was requested.
-    span: Span,
+    pub span: Span,
 
     /// The lines of source code that correspond to this [`Span`],
     ///   if known.
     ///
     /// It should be the case that the [`Context`] of each [`SourceLine`] of
     ///   this field is equal to the [`Context`] of the `span` field.
-    lines: Vec<SourceLine>,
+    pub lines: Vec<SourceLine>,
 
     /// Column offset pair within the first and last [`SourceLine`]s.
     ///
@@ -103,7 +107,13 @@ pub struct ResolvedSpan {
     ///
     /// If there are no `lines` available,
     ///   then the columns are not known and will be [`None`].
-    columns: Option<(NonZeroU32, NonZeroU32)>,
+    pub columns: Option<(NonZeroU32, NonZeroU32)>,
+}
+
+impl ResolvedSpan {
+    pub fn line(&self) -> Option<NonZeroU32> {
+        self.lines.get(0).map(|line| line.line)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -127,18 +137,76 @@ pub struct SourceLine {
 }
 
 /// Resolve a [`Span`] using any generic [`BufRead`].
-pub struct BufSpanResolver<R: BufRead> {
+pub struct BufSpanResolver<R: BufRead + Seek> {
     reader: R,
     ctx: Context,
+    line_num: NonZeroU32,
 }
 
-impl<R: BufRead> BufSpanResolver<R> {
+impl<R: BufRead + Seek> BufSpanResolver<R> {
     pub fn new(reader: R, ctx: Context) -> Self {
-        Self { reader, ctx }
+        Self {
+            reader,
+            ctx,
+            line_num: NonZeroU32::MIN,
+        }
+    }
+
+    /// Rewind the buffer for the provided [`Span`],
+    ///   if necessary.
+    ///
+    /// If `span` precedes the current buffer position,
+    ///   the buffer will be rewound and the line count reset.
+    /// This is heavy-handed,
+    ///   but avoids maintaining a line cache that may never be needed.
+    /// This may be worth optimizing in the future depending on how TAMER's
+    ///   diagnostic and query facilities evolve,
+    ///     but it's not worth it at the time of writing.
+    fn rewind_for_span(&mut self, span: Span) -> Result<(), SpanResolverError> {
+        if span.offset() as usize <= self.reader.stream_position()? as usize {
+            self.reader.rewind()?;
+            self.line_num = NonZeroU32::MIN;
+        }
+
+        Ok(())
+    }
+
+    /// Attempt to read another [`Line`],
+    ///   stopping after the provided [`Span`] has been fully read.
+    ///
+    /// A line is delimited by `b'\n'`.
+    /// If the seek position in the underlying reader is beyond the end of
+    ///   the span,
+    ///     [`None`] will be returned early instead of reading until EOF.
+    ///
+    /// This method _does not rewind_;
+    ///   see [`BufSpanResolver::rewind_for_span`].
+    fn read_next_line(
+        &mut self,
+        mut buf: Vec<u8>,
+        span: Span,
+    ) -> Result<Option<Line>, SpanResolverError> {
+        let offset_end = span.offset() as usize + span.len().max(1) as usize;
+        let prev_bytes_read = self.reader.stream_position()? as usize;
+
+        if prev_bytes_read >= offset_end {
+            return Ok(None);
+        }
+
+        // Clear any previous line.
+        buf.clear();
+
+        match self.reader.read_until(b'\n', &mut buf)? {
+            0 => Ok(None),
+            _ => Ok(Some(Line {
+                bytes: Some(buf.into()),
+                offset_start: prev_bytes_read,
+            })),
+        }
     }
 }
 
-impl<R: BufRead> SpanResolver for BufSpanResolver<R> {
+impl<R: BufRead + Seek> SpanResolver for BufSpanResolver<R> {
     fn resolve(
         &mut self,
         span: Span,
@@ -150,61 +218,36 @@ impl<R: BufRead> SpanResolver for BufSpanResolver<R> {
             });
         }
 
-        // Line length will not often exceed this capacity
-        //   (but it's okay if it does).
+        /// New buffer expected to be able to hold the majority of lines
+        ///   that are read without having to expand capacity.
         fn new_line_buf() -> Vec<u8> {
             Vec::with_capacity(128)
         }
 
-        let mut lines = Vec::new();
-
+        let mut lines = Vec::<SourceLine>::new();
         let mut buf = new_line_buf();
-        let mut pos = 0;
-        let mut line = NonZeroU32::MIN;
 
-        loop {
-            let bytes = self.reader.read_until(b'\n', &mut buf)?;
-            if bytes == 0 {
-                // TODO: Do we care that we may not have found anything for
-                //   this span?
-                break;
-            }
+        self.rewind_for_span(span)?;
 
-            let new_pos = pos + bytes;
-
-            if new_pos > span.offset() as usize {
-                let tail_offset = match buf.last() {
-                    Some(b)
-                        if (new_pos - 1) != span.offset() as usize
-                            && *b == b'\n' =>
-                    {
-                        buf.pop();
-                        1
-                    }
-                    _ => 0,
-                };
+        while let Some(mut line) = self.read_next_line(buf, span)? {
+            if line.at_or_beyond(span) {
+                let (text, line_span) = line.format_for(span);
 
                 lines.push(SourceLine {
-                    line,
-                    span: self.ctx.span_or_zz(pos, new_pos - pos - tail_offset),
-                    text: buf,
+                    line: self.line_num,
+                    text,
+                    span: line_span,
                 });
-
-                buf = new_line_buf();
-
-                let end = (span.offset() + span.len() as u32) as usize;
-
-                if new_pos - tail_offset >= end {
-                    break;
-                }
             }
 
-            buf.clear();
-            pos = new_pos;
+            buf = line.take_buf().unwrap_or_else(new_line_buf);
 
-            // Saturating because I don't think we have to worry about
-            //   (legitimate) inputs with billions of lines.
-            line = line.saturating_add(1);
+            // Saturating add will handle billions of lines,
+            //   which is not expected to happen,
+            //   but avoids a panic at the cost of inaccurate information in
+            //     the unlikely event that it does
+            //       (bad input).
+            self.line_num = self.line_num.saturating_add(1);
         }
 
         Ok(ResolvedSpan {
@@ -212,6 +255,204 @@ impl<R: BufRead> SpanResolver for BufSpanResolver<R> {
             lines,
             columns: None,
         })
+    }
+}
+
+/// Raw bytes associated with a source line.
+///
+/// This simply forces the acknowledgement of how the last byte of the line
+///   is handled.
+enum LineBytes {
+    /// Line ends with `b'\n'`.
+    WithNewline(Vec<u8>),
+
+    /// Line has been trimmed and no longer ends with `b'n'`.
+    WithoutNewline(Vec<u8>),
+
+    /// Line ended at EOF,
+    ///   and so does not end with `b'\n'`.
+    WithEof(Vec<u8>),
+
+    /// EOF reached (no line).
+    Eof,
+}
+
+impl LineBytes {
+    /// The total number of bytes read for this line,
+    ///   regardless of the number of bytes that will be returned to the
+    ///   caller.
+    ///
+    /// For example,
+    ///   a line that has been stripped of its trailing newline will return
+    ///   the length of the line as if the newline were still present.
+    fn read_len(&self) -> usize {
+        match self {
+            Self::WithNewline(bytes) | Self::WithEof(bytes) => bytes.len(),
+            Self::WithoutNewline(bytes) => bytes.len() + 1,
+            Self::Eof => 0,
+        }
+    }
+
+    /// Trim a trailing newline,
+    ///   if the last byte on the line is `b'\n'` and it has not been trimmed
+    ///   already.
+    fn trim_nl(self) -> Self {
+        match self {
+            Self::WithNewline(mut bytes) if bytes.last() == Some(&b'\n') => {
+                bytes.pop();
+                Self::WithoutNewline(bytes)
+            }
+            _ => self,
+        }
+    }
+
+    /// Yield the inner line buffer,
+    ///   if available.
+    fn into_buf(self) -> Option<Vec<u8>> {
+        match self {
+            Self::Eof => None,
+            Self::WithNewline(buf)
+            | Self::WithoutNewline(buf)
+            | Self::WithEof(buf) => Some(buf),
+        }
+    }
+}
+
+impl From<Vec<u8>> for LineBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        match bytes.last() {
+            // TODO: Do we care that we may not have found anything for
+            //   this span?
+            None => LineBytes::Eof,
+
+            Some(&b'\n') => LineBytes::WithNewline(bytes),
+            Some(_) => LineBytes::WithEof(bytes),
+        }
+    }
+}
+
+/// A source line's bytes and its starting offset relative to the beginning
+///   of the underlying buffer
+///     (its seek position).
+///
+/// The various interpretations of positions and offsets can be confusing.
+/// It can be visualized as such:
+///
+/// ```text
+///              "foo\nbar\nbaz"
+///     offset:   0123 4567 8
+/// bytes_read:   1234 5678 9
+///                  /  \
+///      `bytes` ends    next line starts
+/// and too bytes_read     (offset is previous `bytes_read`)
+/// ```
+struct Line {
+    bytes: Option<LineBytes>,
+    offset_start: usize,
+}
+
+impl Line {
+    /// Number of bytes read relative to the start of the source buffer
+    ///   (e.g. file).
+    fn total_bytes_read(&self) -> usize {
+        self.offset_start
+            + self.bytes.as_ref().map(LineBytes::read_len).unwrap_or(0)
+    }
+
+    /// Maximum offset read.
+    ///
+    /// The offset is the number of bytes read minus one
+    ///   (see visualization on [`Line`] doc).
+    /// Technically,
+    ///   if the read position is 0,
+    ///   then there is no offset since we have not yet reached a byte,
+    ///     but this method will still return `0` in that case.
+    fn total_offset_read(&self) -> usize {
+        self.total_bytes_read().saturating_sub(1)
+    }
+
+    /// Whether the line contains bytes referenced by the provided [`Span`],
+    ///   or exceeds the span's offset.
+    ///
+    /// This does _not_ answer whether the line is within range of the
+    ///   span---once
+    ///     it becomes true,
+    ///       it will remain true from that position onward.
+    fn at_or_beyond(&self, span: Span) -> bool {
+        self.total_offset_read() >= span.offset() as usize
+    }
+
+    /// Format the line buffer and provide an associated line [`Span`]
+    ///   that provides a source context suitable for the provided span.
+    ///
+    /// Roughly,
+    ///   this means that any trailing newline will be stripped unless it is
+    ///   directly referenced by the `span` offset
+    ///     (starts _at_ the newline).
+    fn format_for(&mut self, span: Span) -> (Vec<u8>, Span) {
+        // Trim the newline (if any) unless the span starts at the last
+        //   byte,
+        //     which would reference the newline character itself.
+        if span.offset() as usize != self.total_offset_read() {
+            self.bytes = take(&mut self.bytes).map(LineBytes::trim_nl);
+        }
+
+        let offset_start = self.offset_start;
+        let buf = self.take_buf().unwrap_or(vec![]);
+        let span = span.ctx().span_or_zz(offset_start, buf.len());
+
+        (buf, span)
+    }
+
+    /// Take ownership of the line buffer.
+    ///
+    /// This exists to reuse the buffer for another [`Line`].
+    fn take_buf(&mut self) -> Option<Vec<u8>> {
+        take(&mut self.bytes).and_then(LineBytes::into_buf)
+    }
+}
+
+/// Resolve spans by reading [`Context`]s from a filesystem.
+///
+/// This uses [`BufSpanResolver`].
+pub struct FsSpanResolver;
+
+impl SpanResolver for FsSpanResolver {
+    fn resolve(
+        &mut self,
+        span: Span,
+    ) -> Result<ResolvedSpan, SpanResolverError> {
+        let file = fs::File::open(span.ctx())?;
+
+        let mut resolver =
+            BufSpanResolver::new(BufReader::new(file), span.ctx());
+
+        // After this,
+        //   the file is dropped and the descriptor closed,
+        //   which is good in the sense that we don't want a lot of files open,
+        //     but may be inefficient if there are a lot of reports for a
+        //     single file.
+        // If you're reading this message because of performance issues,
+        //   then now's the time to do something better,
+        //     like maintain a short-lived cache that limits open file
+        //     descriptors
+        //       (ring buffer, maybe?).
+        resolver.resolve(span)
+    }
+}
+
+impl<R, S> SpanResolver for HashMap<Context, R, S>
+where
+    R: SpanResolver,
+    S: BuildHasher,
+{
+    fn resolve(
+        &mut self,
+        span: Span,
+    ) -> Result<ResolvedSpan, SpanResolverError> {
+        self.get_mut(&span.ctx())
+            .ok_or(SpanResolverError::Io(io::ErrorKind::NotFound))
+            .and_then(|resolver| resolver.resolve(span))
     }
 }
 
@@ -235,7 +476,7 @@ impl From<io::Error> for SpanResolverError {
 
 #[cfg(test)]
 mod test {
-    use std::io;
+    use std::io::{self, Cursor};
 
     use crate::convert::ExpectInto;
 
@@ -274,7 +515,7 @@ mod test {
 
         let span = ctx.span(7, 4);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -301,7 +542,7 @@ mod test {
 
         let span = ctx.span(19, 1);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -331,7 +572,7 @@ mod test {
 
         let span = ctx.span(16, 4);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -358,7 +599,7 @@ mod test {
 
         let span = ctx.span(12, 11);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -395,7 +636,7 @@ mod test {
 
         let span = ctx.span(0, 6);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -428,7 +669,7 @@ mod test {
 
         let span = ctx.span(13, 1);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -462,7 +703,7 @@ mod test {
 
         let span = ctx.span(10, 0);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -494,7 +735,7 @@ mod test {
 
         let span = ctx.span(13, 0);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -530,7 +771,7 @@ mod test {
 
         let span = ctx.span(7, 0);
 
-        let mut sut = BufSpanResolver::new(buf.as_bytes(), ctx);
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
         assert_eq!(
             Ok(ResolvedSpan {
@@ -546,5 +787,116 @@ mod test {
         );
     }
 
-    // TODO: Read later span then previous (requires rewinding)
+    // Re-using the reader to resolve multiple spans requires that it
+    //   persist its state between calls.
+    #[test]
+    fn resolve_multiple_spans() {
+        let ctx = Context::from("multi");
+        let buf = "line 1\nline 2\nline 3";
+        //                 |----|  |----|
+        //                 7   12  14  19
+        //                   A       B
+
+        let span_a = ctx.span(7, 6);
+        let span_b = ctx.span(14, 6);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_a,
+                lines: vec![SourceLine {
+                    line: 2.unwrap_into(),
+                    span: span_a,
+                    text: "line 2".into(),
+                }],
+                columns: None,
+            }),
+            sut.resolve(span_a),
+        );
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_b,
+                lines: vec![SourceLine {
+                    line: 3.unwrap_into(),
+                    span: span_b,
+                    text: "line 3".into(),
+                }],
+                columns: None,
+            }),
+            sut.resolve(span_b),
+        );
+    }
+
+    #[test]
+    fn resolve_same_span_multiple_times() {
+        let ctx = Context::from("multi");
+        let buf = "line 1\nline 2\nline 3";
+        //                 |----|
+        //                 7   12
+        //                   A
+
+        let span = ctx.span(7, 6);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
+
+        (1..=2).for_each(|_| {
+            assert_eq!(
+                Ok(ResolvedSpan {
+                    span: span,
+                    lines: vec![SourceLine {
+                        line: 2.unwrap_into(),
+                        span: span,
+                        text: "line 2".into(),
+                    }],
+                    columns: None,
+                }),
+                sut.resolve(span),
+            );
+        });
+    }
+
+    #[test]
+    fn resolve_earlier_span_after_later() {
+        let ctx = Context::from("multi");
+        let buf = "line 1\nline 2\nline 3";
+        //         |----|  |----|
+        //         0    5  7   12
+        //        earlier   later
+
+        let span_later = ctx.span(7, 6);
+        let span_earlier = ctx.span(0, 6);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
+
+        // First, the later span.
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_later,
+                lines: vec![SourceLine {
+                    line: 2.unwrap_into(),
+                    span: span_later,
+                    text: "line 2".into(),
+                }],
+                columns: None,
+            }),
+            sut.resolve(span_later),
+        );
+
+        // Then a span that comes before it,
+        //   which requires rewinding.
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_earlier,
+                lines: vec![SourceLine {
+                    line: 1.unwrap_into(),
+                    span: span_earlier,
+                    text: "line 1".into(),
+                }],
+                columns: None,
+            }),
+            sut.resolve(span_earlier),
+        );
+    }
 }

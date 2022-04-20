@@ -49,7 +49,7 @@ use crate::span::{Context, UNKNOWN_CONTEXT};
 use crate::sym::GlobalSymbolIntern;
 
 /// A file.
-pub trait File
+pub trait File: Read
 where
     Self: Sized,
 {
@@ -86,6 +86,12 @@ impl<F: File> File for PathFile<F> {
     }
 }
 
+impl<F: File> Read for PathFile<F> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.1.read(buf)
+    }
+}
+
 /// A filesystem.
 ///
 /// Opening a file (using [`open`](Filesystem::open)) proxies to `F::open`.
@@ -115,6 +121,15 @@ pub enum VisitOnceFile<F: File> {
 impl<F: File> File for VisitOnceFile<F> {
     fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         F::open(path).map(|file| Self::FirstVisit(file))
+    }
+}
+
+impl<F: File> Read for VisitOnceFile<F> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match self {
+            Self::FirstVisit(file) => file.read(buf),
+            Self::Visited => Ok(0),
+        }
     }
 }
 
