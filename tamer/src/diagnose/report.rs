@@ -19,7 +19,9 @@
 
 //! Rendering of diagnostic information.
 
-use super::{AnnotatedSpan, Diagnostic, Label, Level, SpanResolver};
+use super::{
+    AnnotatedSpan, Diagnostic, Label, Level, ResolvedSpan, SpanResolver,
+};
 use crate::span::{Span, SpanOffsetSize, UNKNOWN_SPAN};
 use std::fmt::{self, Write};
 
@@ -97,6 +99,61 @@ impl<R: SpanResolver> VisualReporter<R> {
     ) -> fmt::Result {
         writeln!(to, "      {level}: {label}")
     }
+
+    /// Attempt to render column offset.
+    ///
+    /// The happy path simply outputs `":N\n"`,
+    ///   where `N` is the column number.
+    ///
+    /// If the column is not available,
+    ///   then the line did not contain valid UTF-8.
+    /// In this case,
+    ///   raw relative byte offsets are output along with help information
+    ///   notifying the user of the issue;
+    ///     this is hopefully enough information to quickly diagnose the
+    ///     problem.
+    fn render_col(to: &mut impl Write, rspan: ResolvedSpan) -> fmt::Result {
+        let span = rspan.span;
+
+        match rspan.col() {
+            Some(col) => writeln!(to, ":{}", col)?,
+
+            // The column is unavailable,
+            //   which means that the line must have contained invalid UTF-8.
+            // Output what we can in an attempt to help the user debug.
+            None => {
+                let rel = rspan
+                    .first_line_span()
+                    .and_then(|lspan| span.relative_to(lspan))
+                    .unwrap_or(UNKNOWN_SPAN);
+
+                writeln!(
+                    to,
+                    " bytes {}--{}",
+                    rel.offset(),
+                    rel.endpoints_saturated().1.offset()
+                )?;
+
+                Self::render_label(
+                    to,
+                    Level::Help,
+                    "unable to calculate columns because the line is \
+                       not a valid UTF-8 string"
+                        .into(),
+                )?;
+
+                Self::render_label(
+                    to,
+                    Level::Help,
+                    "you have been provided with 0-indexed \
+                       line-relative inclusive byte offsets"
+                        .into(),
+                )?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl<R: SpanResolver> Reporter for VisualReporter<R> {
@@ -137,7 +194,8 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
                     }
                     Ok(rspan) => match rspan.line() {
                         Some(line) => {
-                            writeln!(to, ":{}", line)?;
+                            write!(to, ":{}", line)?;
+                            Self::render_col(to, rspan)?;
                         }
                         None => Self::render_fallback_span_offset(to, span)?,
                     },
@@ -223,8 +281,12 @@ mod test {
     //       len: 14
 
     const FILE_BAR_BAZ: &[u8] =
-        b"bar/baz line 1\nbar/baz line2\nbar/baz line3\nbar/baz line4";
+        b"bar/baz line 1\nbar/baz line 2\nbar/baz line 3\nbar/baz line 4";
     // Offsets for this are the same as `FILE_FOO_BAR`.
+
+    const FILE_INVALID_UTF8: &[u8] = b"bad \xC0!";
+    //                                |----   |
+    //                                0       5
 
     macro_rules! assert_report {
         ($msg:expr, $aspans:expr, $expected:expr) => {
@@ -232,6 +294,7 @@ mod test {
 
             let ctx_foo_bar = Context::from("foo/bar");
             let ctx_bar_baz = Context::from("bar/baz");
+            let ctx_inv_utf = Context::from("invalid/utf8");
 
             resolver.insert(
                 ctx_foo_bar,
@@ -240,6 +303,13 @@ mod test {
             resolver.insert(
                 ctx_bar_baz,
                 BufSpanResolver::new(Cursor::new(FILE_BAR_BAZ), ctx_bar_baz),
+            );
+            resolver.insert(
+                ctx_inv_utf,
+                BufSpanResolver::new(
+                    Cursor::new(FILE_INVALID_UTF8),
+                    ctx_inv_utf,
+                ),
             );
 
             let mut sut = VisualReporter::new(resolver);
@@ -271,7 +341,7 @@ mod test {
             // Context and span are rendered without a label.
             "\
 error: single span no label
-  --> foo/bar:4
+  --> foo/bar:4:6
 "
         );
     }
@@ -286,7 +356,7 @@ error: single span no label
             // Context and span are rendered without a label.
             "\
 error: single span with label
-  --> bar/baz:3
+  --> bar/baz:3:1
       error: span label here
 "
         );
@@ -306,7 +376,7 @@ error: single span with label
             //   duplicate spans without some additional context.
             "\
 error: multiple adjacent same span no label
-  --> foo/bar:4
+  --> foo/bar:4:6
 "
         );
     }
@@ -327,7 +397,7 @@ error: multiple adjacent same span no label
             //   spans are the same.
             "\
 error: multiple adjacent same span with labels
-  --> bar/baz:1
+  --> bar/baz:1:11
       error: A label
       error: C label
 "
@@ -356,14 +426,14 @@ error: multiple adjacent same span with labels
             ],
             "\
 error: eq context neq offset/len
-  --> bar/baz:1
+  --> bar/baz:1:11
       error: A, first label
-  --> bar/baz:1
+  --> bar/baz:1:11
       error: B, different length
       error: B, collapse
-  --> bar/baz:2
+  --> bar/baz:2:1
       error: C, different offset
-  --> bar/baz:1
+  --> bar/baz:1:11
       error: B', not adjacent
 "
         );
@@ -401,16 +471,16 @@ error: eq context neq offset/len
             ],
             "\
 error: multiple adjacent different context
-  --> foo/bar:1
+  --> foo/bar:1:11
       error: A, first
       error: A, collapsed
-  --> bar/baz:1
+  --> bar/baz:1:11
       error: B, first
       error: B, collapsed
-  --> foo/bar:1
+  --> foo/bar:1:11
       error: A, not collapsed
-  --> bar/baz:1
-  --> foo/bar:1
+  --> bar/baz:1:11
+  --> foo/bar:1:11
 "
         );
     }
@@ -430,7 +500,7 @@ error: multiple adjacent different context
             ],
             "\
 error: multiple spans with labels of different severity level
-  --> foo/bar:4
+  --> foo/bar:4:6
       internal error: an internal error
       error: an error
       note: a note
@@ -473,6 +543,35 @@ error: unresolvable context fallback
       help: there was an error trying to look up information about this span: {ioerr}
       error: an error we do not want to suppress
 ")
+        );
+    }
+
+    /// If the span columns cannot be determined,
+    ///   we can still display everything else.
+    /// Such a thing should only happen if the line contains invalid UTF-8,
+    ///   so we want to be able to help the user track down the invalid byte.
+    #[test]
+    fn fallback_when_column_fails_to_resolve() {
+        let ctx = Context::from("invalid/utf8");
+
+        let span = ctx.span(4, 2);
+
+        // It's not ideal that the help appears first,
+        //   but this should only happen under very exceptional
+        //   circumstances so it's not worth trying to resolve.
+        // If you're reading this and it's trivial to swap these with the
+        //   current state of the system,
+        //     go for it.
+        assert_report!(
+            "column resolution failure",
+            vec![span.error("an error we do not want to suppress"),],
+            "\
+error: column resolution failure
+  --> invalid/utf8:1 bytes 4--6
+      help: unable to calculate columns because the line is not a valid UTF-8 string
+      help: you have been provided with 0-indexed line-relative inclusive byte offsets
+      error: an error we do not want to suppress
+"
         );
     }
 }

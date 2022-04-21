@@ -29,7 +29,9 @@ use std::{
     io::{self, BufRead, BufReader, Seek},
     mem::take,
     num::NonZeroU32,
+    str::Utf8Error,
 };
+use unicode_width::UnicodeWidthChar;
 
 /// Resolves [`Span`]s into line:column source locations.
 ///
@@ -97,24 +99,56 @@ pub struct ResolvedSpan {
     /// It should be the case that the [`Context`] of each [`SourceLine`] of
     ///   this field is equal to the [`Context`] of the `span` field.
     pub lines: Vec<SourceLine>,
-
-    /// Column offset pair within the first and last [`SourceLine`]s.
-    ///
-    /// Column begins at `1`,
-    ///   so if the [`Span`] begins at the first byte within
-    ///   `lines.first()`,
-    ///     the first column will have a value of `1`.
-    /// The ending column represens the 1-indexed offset relative to
-    ///   `lines.last()`.
-    ///
-    /// If there are no `lines` available,
-    ///   then the columns are not known and will be [`None`].
-    pub columns: Option<(NonZeroU32, NonZeroU32)>,
 }
 
 impl ResolvedSpan {
     pub fn line(&self) -> Option<NonZeroU32> {
         self.lines.get(0).map(|line| line.line)
+    }
+
+    pub fn col(&self) -> Option<Column> {
+        self.lines.get(0).and_then(|line| line.column)
+    }
+
+    pub fn first_line_span(&self) -> Option<Span> {
+        self.lines.get(0).map(|line| line.span)
+    }
+}
+
+/// Source column offsets.
+///
+/// A "column" is somewhat loosely defined as a terminal cell.
+/// Certain unicode characters occupy more than one cell,
+///   while others occupy none.
+/// Consequently,
+///   a column can be thought of a "visual [`Span`]",
+///     representing what the user would perceive as a column in a fixed
+///     with font rather than a byte offset.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Column {
+    /// A 1-indexed column number.
+    At(NonZeroU32),
+
+    /// A range of 1-indexed columns, inclusive.
+    Endpoints(NonZeroU32, NonZeroU32),
+
+    /// Immediately before a column.
+    ///
+    /// This is conceptually like a bar cursor
+    ///   (non-block)
+    ///   that places itself between two columns.
+    /// It is caused by a zero-length [`Span`].
+    Before(NonZeroU32),
+}
+
+impl Display for Column {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // Coerces to a single column number.
+            Self::At(at) | Self::Endpoints(at, _) | Self::Before(at) => {
+                Display::fmt(at, f)
+            }
+        }
     }
 }
 
@@ -123,18 +157,16 @@ pub struct SourceLine {
     /// 1-indexed line number relative to the entire source [`Context`].
     line: NonZeroU32,
 
+    /// 1-indexed column number(s) relative to the beginning of the line.
+    ///
+    /// If the line contains invalid UTF-8,
+    ///   this may be [`None`].
+    column: Option<Column>,
+
     /// The [`Span`] representing the entire source line.
     span: Span,
 
     /// Source code text of the line _excluding_ the newline.
-    ///
-    /// This is stored as a byte vector,
-    ///   rather than a string,
-    ///   so that we can still output source code verbatim even if it is
-    ///     invalid UTF-8.
-    /// This could also allow for potential future enhancements,
-    ///   like outputting binary data as stylized hexadecimal
-    ///     (e.g. a future `xmlo` replacement).
     text: Vec<u8>,
 }
 
@@ -233,10 +265,11 @@ impl<R: BufRead + Seek> SpanResolver for BufSpanResolver<R> {
 
         while let Some(mut line) = self.read_next_line(buf, span)? {
             if line.at_or_beyond(span) {
-                let (text, line_span) = line.format_for(span);
+                let (text, line_span, column) = line.format_for(span);
 
                 lines.push(SourceLine {
                     line: self.line_num,
+                    column,
                     text,
                     span: line_span,
                 });
@@ -252,11 +285,7 @@ impl<R: BufRead + Seek> SpanResolver for BufSpanResolver<R> {
             self.line_num = self.line_num.saturating_add(1);
         }
 
-        Ok(ResolvedSpan {
-            span,
-            lines,
-            columns: None,
-        })
+        Ok(ResolvedSpan { span, lines })
     }
 }
 
@@ -316,6 +345,15 @@ impl LineBytes {
             Self::WithNewline(buf)
             | Self::WithoutNewline(buf)
             | Self::WithEof(buf) => Some(buf),
+        }
+    }
+
+    fn as_str(&self) -> Result<&str, Utf8Error> {
+        match self {
+            Self::Eof => Ok(&""),
+            Self::WithNewline(buf)
+            | Self::WithoutNewline(buf)
+            | Self::WithEof(buf) => std::str::from_utf8(buf),
         }
     }
 }
@@ -384,6 +422,31 @@ impl Line {
         self.total_offset_read() >= span.offset() as usize
     }
 
+    /// Line buffer as a UTF-8 slice.
+    fn line_as_str(&self) -> Result<&str, Utf8Error> {
+        self.bytes
+            .as_ref()
+            .map(LineBytes::as_str)
+            .unwrap_or(Ok(&""))
+    }
+
+    /// Produce formatted output for a line containing invalid UTF-8 data.
+    ///
+    /// This still produces the actual line so that we can help the user
+    ///   track down the invalid byte sequences,
+    ///     but it is unable to resolve columns.
+    ///
+    /// This is delegated to by [`Line::format_for`].
+    fn format_invalid_utf8_for(
+        &mut self,
+        span: Span,
+    ) -> (Vec<u8>, Span, Option<Column>) {
+        let bytes = self.take_buf().unwrap_or(vec![]);
+        let span = span.ctx().span_or_zz(0, bytes.len());
+
+        (bytes, span, None)
+    }
+
     /// Format the line buffer and provide an associated line [`Span`]
     ///   that provides a source context suitable for the provided span.
     ///
@@ -391,19 +454,126 @@ impl Line {
     ///   this means that any trailing newline will be stripped unless it is
     ///   directly referenced by the `span` offset
     ///     (starts _at_ the newline).
-    fn format_for(&mut self, span: Span) -> (Vec<u8>, Span) {
-        // Trim the newline (if any) unless the span starts at the last
-        //   byte,
-        //     which would reference the newline character itself.
+    fn format_for(&mut self, span: Span) -> (Vec<u8>, Span, Option<Column>) {
+        // Trim any newline unless the span starts at the last byte,
+        //   which would reference the newline character itself.
         if span.offset() as usize != self.total_offset_read() {
             self.bytes = take(&mut self.bytes).map(LineBytes::trim_nl);
         }
 
+        let line = match self.line_as_str() {
+            Ok(s) => s,
+            Err(_) => return self.format_invalid_utf8_for(span),
+        };
+
+        let column = self.resolve_columns(line, span);
+
         let offset_start = self.offset_start;
         let buf = self.take_buf().unwrap_or(vec![]);
-        let span = span.ctx().span_or_zz(offset_start, buf.len());
+        let line_span = span.ctx().span_or_zz(offset_start, buf.len());
 
-        (buf, span)
+        (buf, line_span, Some(column))
+    }
+
+    /// Determine the [`Span`] endpoint offsets relative to the line start.
+    fn relative_byte_offsets(&self, span: Span) -> (usize, usize) {
+        let span_offset_end =
+            span.offset() as usize + span.len().max(1) as usize - 1;
+
+        (
+            (span.offset() as usize).saturating_sub(self.offset_start),
+            span_offset_end.saturating_sub(self.offset_start),
+        )
+    }
+
+    /// Determine the 1-indexed column number for each [`Span`] endpoint,
+    ///   relative to the start of the line.
+    ///
+    /// For multi-line spans,
+    ///   the column endpoints for the first line will continue to the end
+    ///   of the line,
+    ///     columns for the middle lines will encompass the entire line,
+    ///     and the last line will begin at column 1.
+    /// That is:
+    ///
+    /// ```text
+    ///    span start
+    ///    v
+    /// line 1
+    /// line 2
+    /// line 4
+    ///    ^ span end
+    ///
+    /// # Will have its columns reported as:
+    /// line 1
+    ///    |-|  [4,6]
+    /// line 2
+    /// |----|  [1,6]
+    /// line 4
+    /// |^^|    [1,4]
+    /// ```
+    fn resolve_columns(&self, line: &str, span: Span) -> Column {
+        // The max(1) here is intended to accommodate zero-length spans.
+        let span_offset_end =
+            span.offset() as usize + span.len().max(1) as usize - 1;
+
+        // We should stop calculating widths after this offset,
+        //   which is EOL or the span ending offset,
+        //   whichever comes first.
+        let max_offset = self.total_offset_read().min(span_offset_end);
+
+        // This will produce `(index, width)` pairs for the line until we
+        //   reach `max_offset` above.
+        let widths = line.char_indices().map_while(|(i, c)| {
+            (i <= max_offset).then(|| (i, c.width().unwrap_or(0)))
+        });
+
+        let (rel_start, rel_end) = self.relative_byte_offsets(span);
+
+        // Count columns according to character widths in a single pass over
+        //   the line.
+        //
+        // Note that this is summing the two column values _independently_;
+        //   this is not the most efficient way to proceed,
+        //     but it is good enough for our uses without starting to get
+        //     creative,
+        //       for which there are a number of possible approaches.
+        // Once we start processing spans in bulk
+        //   (e.g. using the diagnostic system to produce information for
+        //     every identifier in a file),
+        //   additional optimizations will be needed anyway,
+        //     so there's no use in doing something more complicated until
+        //     we know specifically what use cases we'll be optimizing for.
+        let (start, end) = widths.fold((1, 0), |(start, end), (i, width)| {
+            (
+                (i < rel_start).then(|| start + width).unwrap_or(start),
+                (i <= rel_end).then(|| end + width).unwrap_or(end),
+            )
+        });
+
+        // If the system is operating correctly,
+        //   both column endpoints should be non-zero.
+        // With that said,
+        //   we never want the diagnostic system to panic,
+        //   so play it safe anyway just in case.
+        //
+        // When we start processing spans in bulk we may wish to tighten our
+        //   guarantees to eliminate these checks.
+        let (col_start, col_end) = (
+            NonZeroU32::new(start.try_into().unwrap_or(0))
+                .unwrap_or(NonZeroU32::MIN),
+            NonZeroU32::new(end.try_into().unwrap_or(0))
+                .unwrap_or(NonZeroU32::MIN),
+        );
+
+        // Start will only be > end (by 1) if the span begins on a newline.
+        if span.len() == 0 {
+            Column::Before(col_start)
+        } else if col_start >= col_end {
+            Column::At(col_start)
+        } else {
+            Column::Endpoints(col_start, col_end)
+        }
     }
 
     /// Take ownership of the line buffer.
@@ -543,10 +713,13 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        4.unwrap_into()
+                    )),
                     span: ctx.span(7, 6),
                     text: "line 2".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -570,10 +743,10 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 3.unwrap_into(),
+                    column: Some(Column::At(6.unwrap_into(),)),
                     span: ctx.span(14, 6),
                     text: "line 3".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -600,17 +773,21 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 3.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        3.unwrap_into(),
+                        6.unwrap_into()
+                    )),
                     span: ctx.span(14, 6),
                     text: "line 3".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
     }
 
+    // A first and last line.
     #[test]
-    fn multiple_lines() {
+    fn multiple_lines_first_last() {
         let ctx = Context::from("foobar");
         let buf = "line 1\nline start 2\nend line 3";
         //                 |    |-----+- +-|      |
@@ -628,16 +805,80 @@ mod test {
                 lines: vec![
                     SourceLine {
                         line: 2.unwrap_into(),
+                        // From the point, to the end of the line.
+                        column: Some(Column::Endpoints(
+                            6.unwrap_into(),
+                            12.unwrap_into()
+                        )),
                         span: ctx.span(7, 12),
                         text: "line start 2".into(),
                     },
                     SourceLine {
                         line: 3.unwrap_into(),
+                        // From the beginning of the line, to the point.
+                        column: Some(Column::Endpoints(
+                            1.unwrap_into(),
+                            3.unwrap_into()
+                        )),
                         span: ctx.span(20, 10),
                         text: "end line 3".into(),
                     },
                 ],
-                columns: None,
+            }),
+            sut.resolve(span),
+        );
+    }
+
+    // If there are more than two lines,
+    //   middle lines' column ranges span the entire line.
+    #[test]
+    fn multiple_lines_middle_line_endpoints() {
+        let ctx = Context::from("foobar");
+        let buf = "line start 1\nline 2\nend line 3";
+        //         |    |-----+- +----+- +-|      |
+        //         |    5     |  |    |  |22      |
+        //         |----------|  |----|  |--------|
+        //         0         11  13  18  20      29
+
+        let span = ctx.span(5, 18);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span,
+                lines: vec![
+                    SourceLine {
+                        line: 1.unwrap_into(),
+                        // From the point, to the end of the line.
+                        column: Some(Column::Endpoints(
+                            6.unwrap_into(),
+                            12.unwrap_into()
+                        )),
+                        span: ctx.span(0, 12),
+                        text: "line start 1".into(),
+                    },
+                    SourceLine {
+                        line: 2.unwrap_into(),
+                        // Entire line.
+                        column: Some(Column::Endpoints(
+                            1.unwrap_into(),
+                            6.unwrap_into()
+                        )),
+                        span: ctx.span(13, 6),
+                        text: "line 2".into(),
+                    },
+                    SourceLine {
+                        line: 3.unwrap_into(),
+                        // From the beginning of the line, to the point.
+                        column: Some(Column::Endpoints(
+                            1.unwrap_into(),
+                            3.unwrap_into()
+                        )),
+                        span: ctx.span(20, 10),
+                        text: "end line 3".into(),
+                    },
+                ],
             }),
             sut.resolve(span),
         );
@@ -664,10 +905,13 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 1.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        6.unwrap_into()
+                    )),
                     span: ctx.span(0, 6),
                     text: "line 1".into(),
                 },],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -697,6 +941,7 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::At(7.unwrap_into())),
                     // Trailing newline _is not_ stripped since it was
                     //   explicitly referenced;
                     //     we don't want our line span to not contain the
@@ -704,7 +949,6 @@ mod test {
                     span: ctx.span(7, 7),
                     text: "line 2\n".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -731,10 +975,10 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::Before(4.unwrap_into())),
                     span: ctx.span(7, 6),
                     text: "line 2".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -763,6 +1007,7 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::Before(7.unwrap_into())),
                     // Trailing newline _is not_ stripped since it was
                     //   explicitly referenced;
                     //     we don't want our line span to not contain the
@@ -770,7 +1015,6 @@ mod test {
                     span: ctx.span(7, 7),
                     text: "line 2\n".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -799,10 +1043,10 @@ mod test {
                 span,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::Before(1.unwrap_into())),
                     span: ctx.span(7, 6),
                     text: "line 2".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span),
         );
@@ -828,10 +1072,13 @@ mod test {
                 span: span_a,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        6.unwrap_into()
+                    )),
                     span: span_a,
                     text: "line 2".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span_a),
         );
@@ -841,10 +1088,13 @@ mod test {
                 span: span_b,
                 lines: vec![SourceLine {
                     line: 3.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        6.unwrap_into()
+                    )),
                     span: span_b,
                     text: "line 3".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span_b),
         );
@@ -868,10 +1118,13 @@ mod test {
                     span: span,
                     lines: vec![SourceLine {
                         line: 2.unwrap_into(),
+                        column: Some(Column::Endpoints(
+                            1.unwrap_into(),
+                            6.unwrap_into()
+                        )),
                         span: span,
                         text: "line 2".into(),
                     }],
-                    columns: None,
                 }),
                 sut.resolve(span),
             );
@@ -897,10 +1150,13 @@ mod test {
                 span: span_later,
                 lines: vec![SourceLine {
                     line: 2.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        6.unwrap_into()
+                    )),
                     span: span_later,
                     text: "line 2".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span_later),
         );
@@ -912,12 +1168,208 @@ mod test {
                 span: span_earlier,
                 lines: vec![SourceLine {
                     line: 1.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        6.unwrap_into()
+                    )),
                     span: span_earlier,
                     text: "line 1".into(),
                 }],
-                columns: None,
             }),
             sut.resolve(span_earlier),
+        );
+    }
+
+    // We cannot properly determine the column if a line contains invalid
+    //   unicode,
+    //     because we cannot confidently determine how the line ought to be
+    //     displayed to the user
+    //       (that's up to their terminal).
+    //
+    // But we should display what we can,
+    //   which means still producing the line itself,
+    //   so that we can help the user track down the bad byte sequence that
+    //     was almost certainly unintentional and may have even come from
+    //     pasting text from another document.
+    #[test]
+    fn invalid_unicode_no_column() {
+        let ctx = Context::from("invalid-unicode");
+
+        let mut buf = b"bad \xC0!\n".to_vec();
+        //              |----   |
+        //              0       5
+
+        let span = ctx.span(0, 4);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf.clone()), ctx);
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span,
+                lines: vec![SourceLine {
+                    line: 1.unwrap_into(),
+                    column: None,
+                    span: ctx.span(0, 6),
+                    text: {
+                        // Make sure we're still trimming despite the
+                        //   error.
+                        buf.pop();
+                        buf.into()
+                    },
+                }],
+            }),
+            sut.resolve(span),
+        );
+    }
+
+    // Account for the width of unicode characters with a fixed-width font,
+    //   in a manner similar to POSIX `wcwidth(3)`.
+    // TAMER uses the `unicode-width` crate,
+    //   which is the same crate used by Rustc.
+    #[test]
+    fn unicode_width() {
+        let ctx = Context::from("unicode-width");
+
+        let buf = "0:\0\n1:“\n2:😊";
+        //         |-|   |-|  |--|
+        // bytes:  0 2   4 8  10 15
+        //   col:  1 2   1 3  1  4
+
+        // Remember: spans are _byte_-oriented.
+        let span_0 = ctx.span(0, 3);
+        let span_1 = ctx.span(4, 5);
+        let span_2 = ctx.span(10, 6);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_0,
+                lines: vec![SourceLine {
+                    line: 1.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        2.unwrap_into()
+                    )),
+                    span: span_0,
+                    text: "0:\0".into(),
+                }],
+            }),
+            sut.resolve(span_0),
+        );
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_1,
+                lines: vec![SourceLine {
+                    line: 2.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        3.unwrap_into()
+                    )),
+                    span: span_1,
+                    text: "1:“".into(),
+                }],
+            }),
+            sut.resolve(span_1),
+        );
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_2,
+                lines: vec![SourceLine {
+                    line: 3.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        4.unwrap_into()
+                    )),
+                    span: span_2,
+                    text: "2:😊".into(),
+                }],
+            }),
+            sut.resolve(span_2),
+        );
+    }
+
+    // If a span somehow points to a byte that does not represent a valid
+    //   UTF-8 character boundary,
+    //     then we still want to produce sensible output.
+    //
+    // The behavior here is a consequence of implementation details.
+    // This test merely acknowledges the behavior to show that it has been
+    //   considered,
+    //     and to bring attention to the issue if the implementation details
+    //     cause a change in behavior.
+    // At this time,
+    //   there's no compelling reason to complicate the implementation to
+    //   add additional checks that would produce more intuitive column
+    //   values for these cases that are very unlikely to occur.
+    #[test]
+    fn at_invalid_char_boundary() {
+        let ctx = Context::from("unicode-width");
+
+        // Charcater is 4 bytes.
+        let buf = "(😊)";
+        //         |--|
+        // bytes:  0  5
+        //   col:  1  4
+
+        // Ends at the first byte of the multibyte char.
+        let span_end_bad = ctx.span(0, 2);
+        // Starts at byte 2 of 4 for the multibyte char.
+        let span_start_bad = ctx.span(3, 2);
+        // _Both_ starts _and_ ends in the middle of the char.
+        let span_all_bad = ctx.span(2, 1);
+
+        let line_span = ctx.span(0, 6);
+
+        let mut sut = BufSpanResolver::new(Cursor::new(buf.clone()), ctx);
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_end_bad,
+                lines: vec![SourceLine {
+                    line: 1.unwrap_into(),
+                    column: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        3.unwrap_into()
+                    )),
+                    span: line_span,
+                    text: buf.clone().into(),
+                }],
+            }),
+            sut.resolve(span_end_bad),
+        );
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_start_bad,
+                lines: vec![SourceLine {
+                    line: 1.unwrap_into(),
+                    // Intuitively this really should be [2,4],
+                    //   but the implementation shouldn't change to
+                    //   accommodate this very unlikely case.
+                    column: Some(Column::At(4.unwrap_into(),)),
+                    span: line_span,
+                    text: buf.clone().into(),
+                }],
+            }),
+            sut.resolve(span_start_bad),
+        );
+
+        assert_eq!(
+            Ok(ResolvedSpan {
+                span: span_all_bad,
+                lines: vec![SourceLine {
+                    line: 1.unwrap_into(),
+                    // Also unideal,
+                    //   but see comment for previous assertion.
+                    column: Some(Column::At(4.unwrap_into(),)),
+                    span: line_span,
+                    text: buf.clone().into(),
+                }],
+            }),
+            sut.resolve(span_all_bad),
         );
     }
 }

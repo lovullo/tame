@@ -141,6 +141,7 @@ dependencies = [
  "petgraph-graphml",
  "quick-xml",
  "static_assertions",
+ "unicode-width",
 ]
 
 [[package]]
