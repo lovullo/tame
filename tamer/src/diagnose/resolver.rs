@@ -103,7 +103,7 @@ pub struct ResolvedSpan {
 
 impl ResolvedSpan {
     pub fn line(&self) -> Option<NonZeroU32> {
-        self.lines.get(0).map(|line| line.line)
+        self.lines.get(0).map(|line| line.num)
     }
 
     pub fn col(&self) -> Option<Column> {
@@ -155,7 +155,7 @@ impl Display for Column {
 #[derive(Debug, PartialEq, Eq)]
 pub struct SourceLine {
     /// 1-indexed line number relative to the entire source [`Context`].
-    line: NonZeroU32,
+    num: NonZeroU32,
 
     /// 1-indexed column number(s) relative to the beginning of the line.
     ///
@@ -268,7 +268,7 @@ impl<R: BufRead + Seek> SpanResolver for BufSpanResolver<R> {
                 let (text, line_span, column) = line.format_for(span);
 
                 lines.push(SourceLine {
-                    line: self.line_num,
+                    num: self.line_num,
                     column,
                     text,
                     span: line_span,
@@ -712,7 +712,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         4.unwrap_into()
@@ -742,7 +742,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 3.unwrap_into(),
+                    num: 3.unwrap_into(),
                     column: Some(Column::At(6.unwrap_into(),)),
                     span: ctx.span(14, 6),
                     text: "line 3".into(),
@@ -772,7 +772,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 3.unwrap_into(),
+                    num: 3.unwrap_into(),
                     column: Some(Column::Endpoints(
                         3.unwrap_into(),
                         6.unwrap_into()
@@ -804,7 +804,7 @@ mod test {
                 span,
                 lines: vec![
                     SourceLine {
-                        line: 2.unwrap_into(),
+                        num: 2.unwrap_into(),
                         // From the point, to the end of the line.
                         column: Some(Column::Endpoints(
                             6.unwrap_into(),
@@ -814,7 +814,7 @@ mod test {
                         text: "line start 2".into(),
                     },
                     SourceLine {
-                        line: 3.unwrap_into(),
+                        num: 3.unwrap_into(),
                         // From the beginning of the line, to the point.
                         column: Some(Column::Endpoints(
                             1.unwrap_into(),
@@ -849,7 +849,7 @@ mod test {
                 span,
                 lines: vec![
                     SourceLine {
-                        line: 1.unwrap_into(),
+                        num: 1.unwrap_into(),
                         // From the point, to the end of the line.
                         column: Some(Column::Endpoints(
                             6.unwrap_into(),
@@ -859,7 +859,7 @@ mod test {
                         text: "line start 1".into(),
                     },
                     SourceLine {
-                        line: 2.unwrap_into(),
+                        num: 2.unwrap_into(),
                         // Entire line.
                         column: Some(Column::Endpoints(
                             1.unwrap_into(),
@@ -869,7 +869,7 @@ mod test {
                         text: "line 2".into(),
                     },
                     SourceLine {
-                        line: 3.unwrap_into(),
+                        num: 3.unwrap_into(),
                         // From the beginning of the line, to the point.
                         column: Some(Column::Endpoints(
                             1.unwrap_into(),
@@ -904,7 +904,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         6.unwrap_into()
@@ -940,7 +940,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::At(7.unwrap_into())),
                     // Trailing newline _is not_ stripped since it was
                     //   explicitly referenced;
@@ -974,7 +974,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Before(4.unwrap_into())),
                     span: ctx.span(7, 6),
                     text: "line 2".into(),
@@ -1006,7 +1006,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Before(7.unwrap_into())),
                     // Trailing newline _is not_ stripped since it was
                     //   explicitly referenced;
@@ -1042,7 +1042,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Before(1.unwrap_into())),
                     span: ctx.span(7, 6),
                     text: "line 2".into(),
@@ -1071,7 +1071,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_a,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         6.unwrap_into()
@@ -1087,7 +1087,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_b,
                 lines: vec![SourceLine {
-                    line: 3.unwrap_into(),
+                    num: 3.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         6.unwrap_into()
@@ -1117,7 +1117,7 @@ mod test {
                 Ok(ResolvedSpan {
                     span: span,
                     lines: vec![SourceLine {
-                        line: 2.unwrap_into(),
+                        num: 2.unwrap_into(),
                         column: Some(Column::Endpoints(
                             1.unwrap_into(),
                             6.unwrap_into()
@@ -1149,7 +1149,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_later,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         6.unwrap_into()
@@ -1167,7 +1167,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_earlier,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         6.unwrap_into()
@@ -1207,7 +1207,7 @@ mod test {
             Ok(ResolvedSpan {
                 span,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     column: None,
                     span: ctx.span(0, 6),
                     text: {
@@ -1246,7 +1246,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_0,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         2.unwrap_into()
@@ -1262,7 +1262,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_1,
                 lines: vec![SourceLine {
-                    line: 2.unwrap_into(),
+                    num: 2.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         3.unwrap_into()
@@ -1278,7 +1278,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_2,
                 lines: vec![SourceLine {
-                    line: 3.unwrap_into(),
+                    num: 3.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         4.unwrap_into()
@@ -1329,7 +1329,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_end_bad,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
                         3.unwrap_into()
@@ -1345,7 +1345,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_start_bad,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     // Intuitively this really should be [2,4],
                     //   but the implementation shouldn't change to
                     //   accommodate this very unlikely case.
@@ -1361,7 +1361,7 @@ mod test {
             Ok(ResolvedSpan {
                 span: span_all_bad,
                 lines: vec![SourceLine {
-                    line: 1.unwrap_into(),
+                    num: 1.unwrap_into(),
                     // Also unideal,
                     //   but see comment for previous assertion.
                     column: Some(Column::At(4.unwrap_into(),)),
