@@ -220,6 +220,10 @@ pub struct Span {
 
     /// Context onto which byte offsets are mapped,
     ///   such as a source file.
+    ///
+    /// N.B.: This is an unaligned field,
+    ///   and accessing it frequently may have a negative impact on
+    ///   performance.
     ctx: Context,
 }
 
@@ -369,6 +373,49 @@ impl Span {
                 None => None,
             },
         )
+    }
+
+    /// Create two zero-length spans representing respectively the first and
+    ///   last offsets in the span,
+    ///     saturating the ending offset if it cannot be represented by
+    ///     [`SpanOffsetSize`].
+    ///
+    /// Aside from the saturation,
+    ///   this is identical to [`Span::endpoints`].
+    pub fn endpoints_saturated(self) -> (Self, Self) {
+        let endpoints = self.endpoints();
+
+        (
+            endpoints.0,
+            endpoints.1.unwrap_or(Self {
+                offset: SpanOffsetSize::MAX,
+                ..endpoints.0
+            }),
+        )
+    }
+
+    /// Adjust span such that its offset is relative to the provided span.
+    ///
+    /// If the provide `rel_span` does not precede this span,
+    ///   [`None`] will be returned.
+    ///
+    /// If the two spans do not share the same [`Context`],
+    ///   no comparison can be made and [`None`] will be returned.
+    pub fn relative_to(self, rel_span: Span) -> Option<Self> {
+        // Note that this is unaligned.
+        if self.ctx() != rel_span.ctx() {
+            return None;
+        }
+
+        if self.offset() < rel_span.offset() {
+            return None;
+        }
+
+        Some(Self {
+            ctx: self.ctx,
+            offset: self.offset.saturating_sub(rel_span.offset),
+            len: self.len,
+        })
     }
 }
 
@@ -675,5 +722,29 @@ mod test {
 
         assert_eq!(start, Span::new(10, 0, ctx));
         assert_eq!(end, Some(Span::new(30, 0, ctx)));
+    }
+
+    #[test]
+    fn span_endpoints_exceeding_max_offset() {
+        let ctx = Context::from("end");
+        let offset = SpanOffsetSize::MAX - 5;
+        let span = ctx.span(offset, 10);
+
+        let (start, end) = span.endpoints();
+
+        assert_eq!(start, Span::new(offset, 0, ctx));
+        assert_eq!(end, None);
+    }
+
+    #[test]
+    fn span_endpoints_saturated() {
+        let ctx = Context::from("end");
+        let offset = SpanOffsetSize::MAX - 5;
+        let span = ctx.span(offset, 10);
+
+        let (start, end) = span.endpoints_saturated();
+
+        assert_eq!(start, Span::new(offset, 0, ctx));
+        assert_eq!(end, Span::new(SpanOffsetSize::MAX, 0, ctx));
     }
 }
