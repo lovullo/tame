@@ -66,7 +66,7 @@ use std::{
 };
 
 #[derive(Debug)]
-struct StubError(String, Vec<AnnotatedSpan>);
+struct StubError(String, Vec<AnnotatedSpan<'static>>);
 
 impl Display for StubError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

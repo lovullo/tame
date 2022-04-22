@@ -30,7 +30,7 @@ pub use report::{Reporter, VisualReporter};
 pub use resolver::*;
 
 use core::fmt;
-use std::{error::Error, fmt::Display};
+use std::{borrow::Cow, error::Error, fmt::Display};
 
 use crate::span::Span;
 
@@ -92,23 +92,23 @@ impl Display for Level {
 ///
 /// See [`AnnotatedSpan`].
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Label(String);
+pub struct Label<'a>(Cow<'a, str>);
 
-impl Display for Label {
+impl<'a> Display for Label<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
     }
 }
 
-impl From<String> for Label {
+impl<'a> From<String> for Label<'a> {
     fn from(s: String) -> Self {
-        Self(s)
+        Self(Cow::Owned(s))
     }
 }
 
-impl From<&str> for Label {
-    fn from(s: &str) -> Self {
-        String::from(s).into()
+impl<'a> From<&'a str> for Label<'a> {
+    fn from(s: &'a str) -> Self {
+        Self(Cow::Borrowed(s))
     }
 }
 
@@ -118,17 +118,20 @@ impl From<&str> for Label {
 ///   diagnostic message by describing important source locations that
 ///   contribute to a given diagnostic event.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct AnnotatedSpan(Span, Level, Option<Label>);
+pub struct AnnotatedSpan<'l>(Span, Level, Option<Label<'l>>);
 
-impl AnnotatedSpan {
-    pub fn with_help<L: Into<Label>>(self, label: L) -> [AnnotatedSpan; 2] {
+impl<'l> AnnotatedSpan<'l> {
+    pub fn with_help<L: Into<Label<'l>>>(
+        self,
+        label: L,
+    ) -> [AnnotatedSpan<'l>; 2] {
         let span = self.0;
         [self, span.help(label)]
     }
 }
 
-impl From<AnnotatedSpan> for Vec<AnnotatedSpan> {
-    fn from(x: AnnotatedSpan) -> Self {
+impl<'l> From<AnnotatedSpan<'l>> for Vec<AnnotatedSpan<'l>> {
+    fn from(x: AnnotatedSpan<'l>) -> Self {
         vec![x]
     }
 }
@@ -150,7 +153,10 @@ pub trait Annotate: Sized {
     ///     given that they can only work around it,
     ///     this method mandates a help label that provides additional
     ///     context and a possible workaround.
-    fn internal_error<L: Into<Label>>(self, label: L) -> AnnotatedSpan {
+    fn internal_error<'l, L: Into<Label<'l>>>(
+        self,
+        label: L,
+    ) -> AnnotatedSpan<'l> {
         self.annotate(Level::InternalError, Some(label.into()))
     }
 
@@ -164,7 +170,7 @@ pub trait Annotate: Sized {
     ///     simply mark the location of the error.
     ///
     /// (This is not named `err` since it does not return an [`Err`].)
-    fn error<L: Into<Label>>(self, label: L) -> AnnotatedSpan {
+    fn error<'l, L: Into<Label<'l>>>(self, label: L) -> AnnotatedSpan<'l> {
         self.annotate(Level::Error, Some(label.into()))
     }
 
@@ -177,7 +183,7 @@ pub trait Annotate: Sized {
     /// With that said,
     ///   if the repeat message seems psychologically beneficial in context,
     ///   you may wish to use [`Annotate::error`] anyway.
-    fn mark_error(self) -> AnnotatedSpan {
+    fn mark_error(self) -> AnnotatedSpan<'static> {
         self.annotate(Level::Error, None)
     }
 
@@ -189,7 +195,7 @@ pub trait Annotate: Sized {
     ///     defined,
     ///       then a note span may indicate the location of the identifier
     ///       definition.
-    fn note<L: Into<Label>>(self, label: L) -> AnnotatedSpan {
+    fn note<'l, L: Into<Label<'l>>>(self, label: L) -> AnnotatedSpan<'l> {
         self.annotate(Level::Note, Some(label.into()))
     }
 
@@ -199,7 +205,7 @@ pub trait Annotate: Sized {
     /// While the other severity levels denote factual information,
     ///   this provides more loose guidance.
     /// It may also include concrete suggested fixes.
-    fn help<L: Into<Label>>(self, label: L) -> AnnotatedSpan {
+    fn help<'l, L: Into<Label<'l>>>(self, label: L) -> AnnotatedSpan<'l> {
         self.annotate(Level::Help, Some(label.into()))
     }
 }
