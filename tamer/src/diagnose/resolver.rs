@@ -29,6 +29,8 @@ use std::{
     io::{self, BufRead, BufReader, Seek},
     mem::take,
     num::NonZeroU32,
+    ops::Deref,
+    slice::SliceIndex,
     str::Utf8Error,
 };
 use unicode_width::UnicodeWidthChar;
@@ -69,6 +71,35 @@ pub trait SpanResolver {
     ) -> Result<ResolvedSpan, SpanResolverError>;
 }
 
+/// Wrapper around a non-empty [`Vec`].
+///
+/// This is for correctness,
+///   not performance.
+/// This type is half-assed and is only what we need for this module.
+#[derive(Debug, PartialEq, Eq)]
+struct NonEmptyVec<T>(Vec<T>);
+
+impl<T> NonEmptyVec<T> {
+    fn new(from: Vec<T>) -> Option<Self> {
+        if from.is_empty() {
+            return None;
+        }
+
+        Some(NonEmptyVec(from))
+    }
+
+    /// Returns the first element of the [`Vec`].
+    fn first(&self) -> &T {
+        self.0.first().unwrap()
+    }
+}
+
+impl<T> AsRef<Vec<T>> for NonEmptyVec<T> {
+    fn as_ref(&self) -> &Vec<T> {
+        &self.0
+    }
+}
+
 /// A [`Span`] resolved to its source location.
 ///
 /// [`Span`] itself is optimized for size---it
@@ -98,20 +129,22 @@ pub struct ResolvedSpan {
     ///
     /// It should be the case that the [`Context`] of each [`SourceLine`] of
     ///   this field is equal to the [`Context`] of the `span` field.
-    pub lines: Vec<SourceLine>,
+    ///
+    /// _This vector will always have at least one line._
+    lines: NonEmptyVec<SourceLine>,
 }
 
 impl ResolvedSpan {
-    pub fn line(&self) -> Option<NonZeroU32> {
-        self.lines.get(0).map(|line| line.num)
+    pub fn line_num(&self) -> NonZeroU32 {
+        self.lines.first().num
     }
 
-    pub fn col(&self) -> Option<Column> {
-        self.lines.get(0).and_then(|line| line.column)
+    pub fn col_num(&self) -> Option<Column> {
+        self.lines.first().column
     }
 
-    pub fn first_line_span(&self) -> Option<Span> {
-        self.lines.get(0).map(|line| line.span)
+    pub fn first_line_span(&self) -> Span {
+        self.lines.first().span
     }
 }
 
@@ -285,7 +318,18 @@ impl<R: BufRead + Seek> SpanResolver for BufSpanResolver<R> {
             self.line_num = self.line_num.saturating_add(1);
         }
 
-        Ok(ResolvedSpan { span, lines })
+        // The empty check should be redundant,
+        //   but is meant to guarantee that we actually do have lines.
+        let pos = self.reader.stream_position()? as usize;
+        let nelines = (pos >= span.endpoints_saturated().1.offset() as usize)
+            .then(|| NonEmptyVec::new(lines))
+            .flatten()
+            .ok_or(SpanResolverError::OutOfRange(pos - 1))?;
+
+        Ok(ResolvedSpan {
+            span,
+            lines: nelines,
+        })
     }
 }
 
@@ -638,6 +682,13 @@ pub enum SpanResolverError {
         given: Context,
         expected: Context,
     },
+
+    /// The [`Span`] was not in range of the provided buffer.
+    ///
+    /// This means that the span's offset+len ≥ EOF.
+    /// The provided size is the maximum offset of the buffer
+    ///   (seek position - 1).
+    OutOfRange(usize),
 }
 
 impl From<io::Error> for SpanResolverError {
@@ -655,6 +706,9 @@ impl Display for SpanResolverError {
                 "attempted to read context {given} \
                    using a resolver for context {expected}"
             ),
+            Self::OutOfRange(eof_pos) => {
+                write!(f, "span exceeds context size of {eof_pos} bytes")
+            }
         }
     }
 }

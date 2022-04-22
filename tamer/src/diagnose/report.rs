@@ -115,16 +115,15 @@ impl<R: SpanResolver> VisualReporter<R> {
     fn render_col(to: &mut impl Write, rspan: ResolvedSpan) -> fmt::Result {
         let span = rspan.span;
 
-        match rspan.col() {
+        match rspan.col_num() {
             Some(col) => writeln!(to, ":{}", col)?,
 
             // The column is unavailable,
             //   which means that the line must have contained invalid UTF-8.
             // Output what we can in an attempt to help the user debug.
             None => {
-                let rel = rspan
-                    .first_line_span()
-                    .and_then(|lspan| span.relative_to(lspan))
+                let rel = span
+                    .relative_to(rspan.first_line_span())
                     .unwrap_or(UNKNOWN_SPAN);
 
                 writeln!(
@@ -192,13 +191,10 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
                             .into(),
                         )?;
                     }
-                    Ok(rspan) => match rspan.line() {
-                        Some(line) => {
-                            write!(to, ":{}", line)?;
-                            Self::render_col(to, rspan)?;
-                        }
-                        None => Self::render_fallback_span_offset(to, span)?,
-                    },
+                    Ok(rspan) => {
+                        write!(to, ":{}", rspan.line_num())?;
+                        Self::render_col(to, rspan)?;
+                    }
                 }
             }
 

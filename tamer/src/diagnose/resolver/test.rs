@@ -39,6 +39,31 @@ fn rejects_context_mismatch() {
     );
 }
 
+#[test]
+fn rejects_span_with_endpoint_past_eof() {
+    let ctx = Context::from("pasteof");
+    let buf = "01234";
+
+    // Intentionally the byte _directly_ after EOF.
+    let span_high_offset = ctx.span(5, 0);
+    let span_high_len = ctx.span(3, 5);
+
+    let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
+
+    assert_eq!(
+        Err(SpanResolverError::OutOfRange(4)),
+        sut.resolve(span_high_offset),
+    );
+
+    assert_eq!(
+        Err(SpanResolverError::OutOfRange(4)),
+        sut.resolve(span_high_len),
+    );
+
+    // Sanity check just to verify that we don't have an off-by-1 error
+    assert!(sut.resolve(ctx.span(0, 5)).is_ok());
+}
+
 // Span starts on the first byte of the line.
 //
 // In particular,
@@ -61,7 +86,7 @@ fn first_byte_of_line() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -69,7 +94,8 @@ fn first_byte_of_line() {
                 )),
                 span: ctx.span(7, 6),
                 text: "line 2".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -91,12 +117,13 @@ fn last_byte_of_line() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 3.unwrap_into(),
                 column: Some(Column::At(6.unwrap_into(),)),
                 span: ctx.span(14, 6),
                 text: "line 3".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -121,7 +148,7 @@ fn last_byte_of_file_no_trailing_nl() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 3.unwrap_into(),
                 column: Some(Column::Endpoints(
                     3.unwrap_into(),
@@ -129,7 +156,8 @@ fn last_byte_of_file_no_trailing_nl() {
                 )),
                 span: ctx.span(14, 6),
                 text: "line 3".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -152,7 +180,7 @@ fn multiple_lines_first_last() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![
+            lines: NonEmptyVec::new(vec![
                 SourceLine {
                     num: 2.unwrap_into(),
                     // From the point, to the end of the line.
@@ -173,7 +201,8 @@ fn multiple_lines_first_last() {
                     span: ctx.span(20, 10),
                     text: "end line 3".into(),
                 },
-            ],
+            ])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -197,7 +226,7 @@ fn multiple_lines_middle_line_endpoints() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![
+            lines: NonEmptyVec::new(vec![
                 SourceLine {
                     num: 1.unwrap_into(),
                     // From the point, to the end of the line.
@@ -228,7 +257,8 @@ fn multiple_lines_middle_line_endpoints() {
                     span: ctx.span(20, 10),
                     text: "end line 3".into(),
                 },
-            ],
+            ])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -253,7 +283,7 @@ fn first_line() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -261,7 +291,8 @@ fn first_line() {
                 )),
                 span: ctx.span(0, 6),
                 text: "line 1".into(),
-            },],
+            },])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -289,7 +320,7 @@ fn newline_between_lines() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::At(7.unwrap_into())),
                 // Trailing newline _is not_ stripped since it was
@@ -298,7 +329,8 @@ fn newline_between_lines() {
                 //     requested span.
                 span: ctx.span(7, 7),
                 text: "line 2\n".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -323,12 +355,13 @@ fn zero_length_span() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Before(4.unwrap_into())),
                 span: ctx.span(7, 6),
                 text: "line 2".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -355,7 +388,7 @@ fn zero_length_span_at_eol() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Before(7.unwrap_into())),
                 // Trailing newline _is not_ stripped since it was
@@ -364,7 +397,8 @@ fn zero_length_span_at_eol() {
                 //     requested span.
                 span: ctx.span(7, 7),
                 text: "line 2\n".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -391,12 +425,13 @@ fn zero_length_span_at_bol() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Before(1.unwrap_into())),
                 span: ctx.span(7, 6),
                 text: "line 2".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -420,7 +455,7 @@ fn resolve_multiple_spans() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_a,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -428,7 +463,8 @@ fn resolve_multiple_spans() {
                 )),
                 span: span_a,
                 text: "line 2".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_a),
     );
@@ -436,7 +472,7 @@ fn resolve_multiple_spans() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_b,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 3.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -444,7 +480,8 @@ fn resolve_multiple_spans() {
                 )),
                 span: span_b,
                 text: "line 3".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_b),
     );
@@ -466,7 +503,7 @@ fn resolve_same_span_multiple_times() {
         assert_eq!(
             Ok(ResolvedSpan {
                 span: span,
-                lines: vec![SourceLine {
+                lines: NonEmptyVec::new(vec![SourceLine {
                     num: 2.unwrap_into(),
                     column: Some(Column::Endpoints(
                         1.unwrap_into(),
@@ -474,7 +511,8 @@ fn resolve_same_span_multiple_times() {
                     )),
                     span: span,
                     text: "line 2".into(),
-                }],
+                }])
+                .unwrap(),
             }),
             sut.resolve(span),
         );
@@ -498,7 +536,7 @@ fn resolve_earlier_span_after_later() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_later,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -506,7 +544,8 @@ fn resolve_earlier_span_after_later() {
                 )),
                 span: span_later,
                 text: "line 2".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_later),
     );
@@ -516,7 +555,7 @@ fn resolve_earlier_span_after_later() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_earlier,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -524,7 +563,8 @@ fn resolve_earlier_span_after_later() {
                 )),
                 span: span_earlier,
                 text: "line 1".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_earlier),
     );
@@ -556,7 +596,7 @@ fn invalid_unicode_no_column() {
     assert_eq!(
         Ok(ResolvedSpan {
             span,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 column: None,
                 span: ctx.span(0, 6),
@@ -566,7 +606,8 @@ fn invalid_unicode_no_column() {
                     buf.pop();
                     buf.into()
                 },
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span),
     );
@@ -595,7 +636,7 @@ fn unicode_width() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_0,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -603,7 +644,8 @@ fn unicode_width() {
                 )),
                 span: span_0,
                 text: "0:\0".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_0),
     );
@@ -611,7 +653,7 @@ fn unicode_width() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_1,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -619,7 +661,8 @@ fn unicode_width() {
                 )),
                 span: span_1,
                 text: "1:“".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_1),
     );
@@ -627,7 +670,7 @@ fn unicode_width() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_2,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 3.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -635,7 +678,8 @@ fn unicode_width() {
                 )),
                 span: span_2,
                 text: "2:😊".into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_2),
     );
@@ -678,7 +722,7 @@ fn at_invalid_char_boundary() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_end_bad,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 column: Some(Column::Endpoints(
                     1.unwrap_into(),
@@ -686,7 +730,8 @@ fn at_invalid_char_boundary() {
                 )),
                 span: line_span,
                 text: buf.clone().into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_end_bad),
     );
@@ -694,7 +739,7 @@ fn at_invalid_char_boundary() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_start_bad,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 // Intuitively this really should be [2,4],
                 //   but the implementation shouldn't change to
@@ -702,7 +747,8 @@ fn at_invalid_char_boundary() {
                 column: Some(Column::At(4.unwrap_into(),)),
                 span: line_span,
                 text: buf.clone().into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_start_bad),
     );
@@ -710,14 +756,15 @@ fn at_invalid_char_boundary() {
     assert_eq!(
         Ok(ResolvedSpan {
             span: span_all_bad,
-            lines: vec![SourceLine {
+            lines: NonEmptyVec::new(vec![SourceLine {
                 num: 1.unwrap_into(),
                 // Also unideal,
                 //   but see comment for previous assertion.
                 column: Some(Column::At(4.unwrap_into(),)),
                 span: line_span,
                 text: buf.clone().into(),
-            }],
+            }])
+            .unwrap(),
         }),
         sut.resolve(span_all_bad),
     );
