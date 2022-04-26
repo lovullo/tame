@@ -46,7 +46,7 @@
 //!
 //! assert_eq!(2, span.offset());
 //! assert_eq!(6, span.len());
-//! assert_eq!(ctx, span.ctx());
+//! assert_eq!(ctx, span.context());
 //!
 //! // From a closed byte interval
 //! let spani = Span::from_byte_interval((10, 25), "some/path/bar".intern());
@@ -313,7 +313,7 @@ impl Span {
     /// The context to which the span applies.
     ///
     /// The context is, for example, a file.
-    pub fn ctx(&self) -> Context {
+    pub fn context(&self) -> Context {
         self.ctx
     }
 
@@ -403,7 +403,7 @@ impl Span {
     ///   no comparison can be made and [`None`] will be returned.
     pub fn relative_to(self, rel_span: Span) -> Option<Self> {
         // Note that this is unaligned.
-        if self.ctx() != rel_span.ctx() {
+        if self.context() != rel_span.context() {
             return None;
         }
 
@@ -680,7 +680,10 @@ mod test {
 
         let span = ctx.span(offset, len);
 
-        assert_eq!((offset, len, ctx), (span.offset(), span.len(), span.ctx()));
+        assert_eq!(
+            (offset, len, ctx),
+            (span.offset(), span.len(), span.context())
+        );
     }
 
     #[test]

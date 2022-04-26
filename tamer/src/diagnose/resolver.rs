@@ -160,7 +160,7 @@ pub trait ResolvedSpanData {
     fn first_line_span(&self) -> Span;
 
     /// [`Context`] of the [`Span`] used for resolution.
-    fn ctx(&self) -> Context;
+    fn context(&self) -> Context;
 
     /// The original [`Span`] before resolution.
     fn unresolved_span(&self) -> Span;
@@ -179,8 +179,8 @@ impl ResolvedSpanData for ResolvedSpan {
         self.lines.first().span
     }
 
-    fn ctx(&self) -> Context {
-        self.span.ctx()
+    fn context(&self) -> Context {
+        self.span.context()
     }
 
     fn unresolved_span(&self) -> Span {
@@ -313,9 +313,9 @@ impl<R: BufRead + Seek> SpanResolver for BufSpanResolver<R> {
         &mut self,
         span: Span,
     ) -> Result<ResolvedSpan, SpanResolverError> {
-        if self.ctx != span.ctx() {
+        if self.ctx != span.context() {
             return Err(SpanResolverError::ContextMismatch {
-                given: span.ctx(),
+                given: span.context(),
                 expected: self.ctx,
             });
         }
@@ -521,7 +521,7 @@ impl Line {
         span: Span,
     ) -> (Vec<u8>, Span, Option<Column>) {
         let bytes = self.take_buf().unwrap_or(vec![]);
-        let span = span.ctx().span_or_zz(0, bytes.len());
+        let span = span.context().span_or_zz(0, bytes.len());
 
         (bytes, span, None)
     }
@@ -549,7 +549,7 @@ impl Line {
 
         let offset_start = self.offset_start;
         let buf = self.take_buf().unwrap_or(vec![]);
-        let line_span = span.ctx().span_or_zz(offset_start, buf.len());
+        let line_span = span.context().span_or_zz(offset_start, buf.len());
 
         (buf, line_span, Some(column))
     }
@@ -671,10 +671,10 @@ impl SpanResolver for FsSpanResolver {
         &mut self,
         span: Span,
     ) -> Result<ResolvedSpan, SpanResolverError> {
-        let file = fs::File::open(span.ctx())?;
+        let file = fs::File::open(span.context())?;
 
         let mut resolver =
-            BufSpanResolver::new(BufReader::new(file), span.ctx());
+            BufSpanResolver::new(BufReader::new(file), span.context());
 
         // After this,
         //   the file is dropped and the descriptor closed,
@@ -699,7 +699,7 @@ where
         &mut self,
         span: Span,
     ) -> Result<ResolvedSpan, SpanResolverError> {
-        self.get_mut(&span.ctx())
+        self.get_mut(&span.context())
             .ok_or(SpanResolverError::Io(io::ErrorKind::NotFound))
             .and_then(|resolver| resolver.resolve(span))
     }

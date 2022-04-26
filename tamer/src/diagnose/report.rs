@@ -136,11 +136,11 @@ impl MaybeResolvedSpan {
     fn header(&self) -> SpanHeader {
         match self {
             Self::Resolved(rspan) => {
-                SpanHeader(rspan.ctx(), HeaderLineNum::Resolved(&rspan))
+                SpanHeader(rspan.context(), HeaderLineNum::Resolved(&rspan))
             }
 
             Self::Unresolved(span, _) => {
-                SpanHeader(span.ctx(), HeaderLineNum::Unresolved(*span))
+                SpanHeader(span.context(), HeaderLineNum::Unresolved(*span))
             }
         }
     }
