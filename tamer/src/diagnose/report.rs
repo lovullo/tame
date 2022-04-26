@@ -20,9 +20,7 @@
 //! Rendering of diagnostic information.
 
 use super::{
-    resolver::{
-        ResolvedSpan, ResolvedSpanData, SpanResolver, SpanResolverError,
-    },
+    resolver::{ResolvedSpanData, SpanResolver, SpanResolverError},
     AnnotatedSpan, Diagnostic, Label, Level,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
@@ -95,7 +93,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
                     self.resolver.resolve(span).map_err(|e| (e, span)),
                 );
 
-                write!(to, "  {}", mspan.header())?;
+                write!(to, "  {}", DefaultSpanHeader::from(&mspan))?;
 
                 for label in mspan.system_labels() {
                     write!(to, "{label}\n")?;
@@ -113,7 +111,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
     }
 }
 
-/// A [`Span`] that may have been resolved into a [`ResolvedSpan`].
+/// A [`Span`] that may have been resolved.
 ///
 /// The span will remain unresolved if an error occurred,
 ///   in which case the error will be provided.
@@ -126,25 +124,12 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 ///     (e.g. error)
 ///     never be masked by an error of our own.
 #[derive(Debug)]
-enum MaybeResolvedSpan {
-    Resolved(ResolvedSpan),
+enum MaybeResolvedSpan<S: ResolvedSpanData> {
+    Resolved(S),
     Unresolved(Span, SpanResolverError),
 }
 
-impl MaybeResolvedSpan {
-    /// Span header containing the (hopefully resolved) context.
-    fn header(&self) -> SpanHeader {
-        match self {
-            Self::Resolved(rspan) => {
-                SpanHeader(rspan.context(), HeaderLineNum::Resolved(&rspan))
-            }
-
-            Self::Unresolved(span, _) => {
-                SpanHeader(span.context(), HeaderLineNum::Unresolved(*span))
-            }
-        }
-    }
-
+impl<S: ResolvedSpanData> MaybeResolvedSpan<S> {
     /// We should never mask an error with our own;
     ///   the diagnostic system is supposed to _help_ the user in diagnosing
     ///   problems,
@@ -182,16 +167,18 @@ impl MaybeResolvedSpan {
     }
 }
 
-impl From<Result<ResolvedSpan, (SpanResolverError, Span)>>
-    for MaybeResolvedSpan
+impl<S: ResolvedSpanData> From<Result<S, (SpanResolverError, Span)>>
+    for MaybeResolvedSpan<S>
 {
-    fn from(result: Result<ResolvedSpan, (SpanResolverError, Span)>) -> Self {
+    fn from(result: Result<S, (SpanResolverError, Span)>) -> Self {
         match result {
             Ok(rspan) => Self::Resolved(rspan),
             Err((e, span)) => Self::Unresolved(span, e),
         }
     }
 }
+
+type DefaultSpanHeader<'s, S> = SpanHeader<HeaderLineNum<'s, S>>;
 
 /// Header describing the context of a (hopefully resolved) span.
 ///
@@ -200,12 +187,31 @@ impl From<Result<ResolvedSpan, (SpanResolverError, Span)>>
 ///     visually distinguishable from surrounding lines to allow the user to
 ///     quickly skip between reports.
 #[derive(Debug)]
-struct SpanHeader<'s>(Context, HeaderLineNum<'s>);
+struct SpanHeader<L: Display>(Context, L);
 
-impl<'s> Display for SpanHeader<'s> {
+impl<L: Display> Display for SpanHeader<L> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(ctx, line) = self;
         write!(f, "--> {ctx}{line}\n")
+    }
+}
+
+impl<'s, S, L> From<&'s MaybeResolvedSpan<S>> for SpanHeader<L>
+where
+    S: ResolvedSpanData,
+    L: Display + From<&'s MaybeResolvedSpan<S>>,
+{
+    /// Span header containing the (hopefully resolved) context.
+    fn from(mspan: &'s MaybeResolvedSpan<S>) -> Self {
+        match mspan {
+            MaybeResolvedSpan::Resolved(rspan) => {
+                SpanHeader(rspan.context(), L::from(mspan))
+            }
+
+            MaybeResolvedSpan::Unresolved(span, _) => {
+                SpanHeader(span.context(), L::from(mspan))
+            }
+        }
     }
 }
 
@@ -217,12 +223,12 @@ impl<'s> Display for SpanHeader<'s> {
 /// If a span could not be resolved,
 ///   offsets should be rendered in place of lines and columns.
 #[derive(Debug)]
-enum HeaderLineNum<'s> {
+enum HeaderLineNum<'s, S: ResolvedSpanData> {
     Unresolved(Span),
-    Resolved(&'s ResolvedSpan),
+    Resolved(&'s S),
 }
 
-impl<'s> Display for HeaderLineNum<'s> {
+impl<'s, S: ResolvedSpanData> Display for HeaderLineNum<'s, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             // This is not ideal,
@@ -241,9 +247,20 @@ impl<'s> Display for HeaderLineNum<'s> {
             }
 
             Self::Resolved(rspan) => {
-                let col = HeaderColNum(rspan);
+                let col = HeaderColNum(*rspan);
                 write!(f, ":{}{col}", rspan.line_num())
             }
+        }
+    }
+}
+
+impl<'s, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<S>>
+    for HeaderLineNum<'s, S>
+{
+    fn from(mspan: &'s MaybeResolvedSpan<S>) -> Self {
+        match mspan {
+            MaybeResolvedSpan::Resolved(rspan) => Self::Resolved(rspan),
+            MaybeResolvedSpan::Unresolved(span, _) => Self::Unresolved(*span),
         }
     }
 }
@@ -254,12 +271,11 @@ impl<'s> Display for HeaderLineNum<'s> {
 ///   it should fall back to displaying byte offsets relative to the start
 ///   of the line.
 #[derive(Debug)]
-struct HeaderColNum<'s>(&'s ResolvedSpan);
+struct HeaderColNum<'s, S: ResolvedSpanData>(&'s S);
 
-impl<'s> Display for HeaderColNum<'s> {
+impl<'s, S: ResolvedSpanData> Display for HeaderColNum<'s, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(rspan) = self;
-        let span = rspan.unresolved_span();
 
         match rspan.col_num() {
             Some(col) => write!(f, ":{}", col),
@@ -268,7 +284,8 @@ impl<'s> Display for HeaderColNum<'s> {
             //   which means that the line must have contained invalid UTF-8.
             // Output what we can in an attempt to help the user debug.
             None => {
-                let rel = span
+                let rel = rspan
+                    .unresolved_span()
                     .relative_to(rspan.first_line_span())
                     .unwrap_or(UNKNOWN_SPAN);
 
@@ -297,6 +314,163 @@ impl<'l> Display for SpanLabel<'l> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{
+        convert::ExpectInto, diagnose::resolver::Column, span::DUMMY_CONTEXT,
+    };
+    use std::num::NonZeroU32;
 
     mod integration;
+
+    #[derive(Default)]
+    struct StubResolvedSpan {
+        span: Option<Span>,
+        first_line_span: Option<Span>,
+        line_num: Option<NonZeroU32>,
+        col_num: Option<Column>,
+        context: Option<Context>,
+    }
+
+    impl ResolvedSpanData for StubResolvedSpan {
+        fn line_num(&self) -> NonZeroU32 {
+            self.line_num.expect("missing stub line_num")
+        }
+
+        fn col_num(&self) -> Option<Column> {
+            self.col_num
+        }
+
+        fn first_line_span(&self) -> Span {
+            self.first_line_span.expect("missing stub first_line_span")
+        }
+
+        fn context(&self) -> Context {
+            self.context.expect("missing stub ctx")
+        }
+
+        fn unresolved_span(&self) -> Span {
+            self.span.expect("missing stub unresolved span")
+        }
+    }
+
+    #[test]
+    fn header_col_with_available_col() {
+        let rspan = StubResolvedSpan {
+            col_num: Some(Column::Endpoints(5.unwrap_into(), 5.unwrap_into())),
+            ..Default::default()
+        };
+
+        let sut = HeaderColNum(&rspan);
+
+        assert_eq!(":5", format!("{}", sut));
+    }
+
+    #[test]
+    fn header_col_without_available_col() {
+        let rspan = StubResolvedSpan {
+            span: Some(DUMMY_CONTEXT.span(5, 2)),
+            first_line_span: Some(DUMMY_CONTEXT.span(3, 7)),
+            col_num: None,
+            ..Default::default()
+        };
+
+        let sut = HeaderColNum(&rspan);
+
+        assert_eq!(" bytes 2--4", format!("{}", sut));
+    }
+
+    // Note that line is coupled with `HeaderColNum`,
+    //   tested above.
+    // The coupling is not ideal,
+    //   but it keeps it simple and we don't concretely benefit from the
+    //   decoupling for now.
+    #[test]
+    fn line_with_resolved_span() {
+        let rspan = StubResolvedSpan {
+            line_num: Some(5.unwrap_into()),
+            col_num: Some(Column::Endpoints(3.unwrap_into(), 3.unwrap_into())),
+            ..Default::default()
+        };
+
+        let sut = HeaderLineNum::Resolved(&rspan);
+
+        assert_eq!(":5:3", format!("{}", sut));
+    }
+
+    // Does _not_ use `HeaderColNum`,
+    //   unlike the above,
+    //   because the line was not resolved.
+    #[test]
+    fn line_with_unresolved_span_without_resolved_col() {
+        let sut = HeaderLineNum::Unresolved::<StubResolvedSpan>(
+            DUMMY_CONTEXT.span(3, 4),
+        );
+
+        assert_eq!(" offset 3--7", format!("{}", sut));
+    }
+
+    #[test]
+    fn span_header() {
+        struct StubLine;
+
+        impl Display for StubLine {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "[:stub line]")
+            }
+        }
+
+        let ctx = "header".unwrap_into();
+        let sut = SpanHeader(ctx, StubLine);
+
+        assert_eq!("--> header[:stub line]\n", format!("{}", sut));
+    }
+
+    #[test]
+    fn span_header_from_mspan() {
+        struct StubLine(String);
+
+        impl Display for StubLine {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "[:stub {}]", self.0)
+            }
+        }
+
+        impl<'s, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<S>> for StubLine {
+            fn from(mspan: &'s MaybeResolvedSpan<S>) -> Self {
+                match mspan {
+                    MaybeResolvedSpan::Resolved(_) => Self("resolved".into()),
+                    MaybeResolvedSpan::Unresolved(..) => {
+                        Self("unresolved".into())
+                    }
+                }
+            }
+        }
+
+        let ctx = Context::from("mspan/header");
+
+        assert_eq!(
+            format!(
+                "{}",
+                SpanHeader::<StubLine>::from(&MaybeResolvedSpan::Resolved(
+                    StubResolvedSpan {
+                        context: Some(ctx),
+                        ..Default::default()
+                    },
+                ))
+            ),
+            "--> mspan/header[:stub resolved]\n",
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                SpanHeader::<StubLine>::from(&MaybeResolvedSpan::<
+                    StubResolvedSpan,
+                >::Unresolved(
+                    ctx.span(0, 0),
+                    SpanResolverError::OutOfRange(0),
+                ))
+            ),
+            "--> mspan/header[:stub unresolved]\n",
+        );
+    }
 }
