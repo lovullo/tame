@@ -119,7 +119,10 @@ fn last_byte_of_line() {
             span,
             lines: NonEmptyVec::new(vec![SourceLine {
                 num: 3.unwrap_into(),
-                column: Some(Column::At(6.unwrap_into(),)),
+                column: Some(Column::Endpoints(
+                    6.unwrap_into(),
+                    6.unwrap_into()
+                )),
                 span: ctx.span(14, 6),
                 text: "line 3".into(),
             }])
@@ -322,7 +325,10 @@ fn newline_between_lines() {
             span,
             lines: NonEmptyVec::new(vec![SourceLine {
                 num: 2.unwrap_into(),
-                column: Some(Column::At(7.unwrap_into())),
+                column: Some(Column::Endpoints(
+                    7.unwrap_into(),
+                    7.unwrap_into()
+                )),
                 // Trailing newline _is not_ stripped since it was
                 //   explicitly referenced;
                 //     we don't want our line span to not contain the
@@ -744,7 +750,10 @@ fn at_invalid_char_boundary() {
                 // Intuitively this really should be [2,4],
                 //   but the implementation shouldn't change to
                 //   accommodate this very unlikely case.
-                column: Some(Column::At(4.unwrap_into(),)),
+                column: Some(Column::Endpoints(
+                    4.unwrap_into(),
+                    4.unwrap_into()
+                )),
                 span: line_span,
                 text: buf.clone().into(),
             }])
@@ -760,7 +769,10 @@ fn at_invalid_char_boundary() {
                 num: 1.unwrap_into(),
                 // Also unideal,
                 //   but see comment for previous assertion.
-                column: Some(Column::At(4.unwrap_into(),)),
+                column: Some(Column::Endpoints(
+                    4.unwrap_into(),
+                    4.unwrap_into()
+                )),
                 span: line_span,
                 text: buf.clone().into(),
             }])

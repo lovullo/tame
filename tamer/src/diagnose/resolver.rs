@@ -177,9 +177,6 @@ impl ResolvedSpan {
 ///     with font rather than a byte offset.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Column {
-    /// A 1-indexed column number.
-    At(NonZeroU32),
-
     /// A range of 1-indexed columns, inclusive.
     Endpoints(NonZeroU32, NonZeroU32),
 
@@ -196,9 +193,7 @@ impl Display for Column {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // Coerces to a single column number.
-            Self::At(at) | Self::Endpoints(at, _) | Self::Before(at) => {
-                Display::fmt(at, f)
-            }
+            Self::Endpoints(at, _) | Self::Before(at) => Display::fmt(at, f),
         }
     }
 }
@@ -631,10 +626,8 @@ impl Line {
         // Start will only be > end (by 1) if the span begins on a newline.
         if span.len() == 0 {
             Column::Before(col_start)
-        } else if col_start >= col_end {
-            Column::At(col_start)
         } else {
-            Column::Endpoints(col_start, col_end)
+            Column::Endpoints(col_start, col_end.max(col_start))
         }
     }
 

@@ -20,8 +20,8 @@
 //! Rendering of diagnostic information.
 
 use super::{
-    AnnotatedSpan, Diagnostic, Label, Level, ResolvedSpan,
-    SpanResolver, SpanResolverError,
+    AnnotatedSpan, Diagnostic, Label, Level, ResolvedSpan, SpanResolver,
+    SpanResolverError,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::fmt::{self, Display, Write};
