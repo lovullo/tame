@@ -20,10 +20,11 @@
 //! Rendering of diagnostic information.
 
 use super::{
-    AnnotatedSpan, Diagnostic, Label, Level, ResolvedSpan, SpanResolver,
+    AnnotatedSpan, Diagnostic, Label, Level, ResolvedSpan,
+    SpanResolver, SpanResolverError,
 };
-use crate::span::{Span, SpanOffsetSize, UNKNOWN_SPAN};
-use std::fmt::{self, Write};
+use crate::span::{Context, Span, UNKNOWN_SPAN};
+use std::fmt::{self, Display, Write};
 
 pub trait Reporter {
     /// Render diagnostic report.
@@ -72,87 +73,6 @@ impl<R: SpanResolver> VisualReporter<R> {
     pub fn new(resolver: R) -> Self {
         Self { resolver }
     }
-
-    /// Render a raw [`Span`] that could not be resolved into a [`ResolvedSpan`].
-    ///
-    /// This is not ideal,
-    ///   but provides reasonable fallback information in a situation where
-    ///   the diagnostic system fails.
-    /// The user still has enough information to diagnose the problem,
-    ///   albeit presented in a significantly less friendly way.
-    fn render_fallback_span_offset(
-        to: &mut impl Write,
-        span: Span,
-    ) -> fmt::Result {
-        writeln!(
-            to,
-            " offset {}--{}",
-            span.offset(),
-            span.offset() + span.len() as SpanOffsetSize
-        )
-    }
-
-    fn render_label(
-        to: &mut impl Write,
-        level: Level,
-        label: Label,
-    ) -> fmt::Result {
-        writeln!(to, "      {level}: {label}")
-    }
-
-    /// Attempt to render column offset.
-    ///
-    /// The happy path simply outputs `":N\n"`,
-    ///   where `N` is the column number.
-    ///
-    /// If the column is not available,
-    ///   then the line did not contain valid UTF-8.
-    /// In this case,
-    ///   raw relative byte offsets are output along with help information
-    ///   notifying the user of the issue;
-    ///     this is hopefully enough information to quickly diagnose the
-    ///     problem.
-    fn render_col(to: &mut impl Write, rspan: ResolvedSpan) -> fmt::Result {
-        let span = rspan.span;
-
-        match rspan.col_num() {
-            Some(col) => writeln!(to, ":{}", col)?,
-
-            // The column is unavailable,
-            //   which means that the line must have contained invalid UTF-8.
-            // Output what we can in an attempt to help the user debug.
-            None => {
-                let rel = span
-                    .relative_to(rspan.first_line_span())
-                    .unwrap_or(UNKNOWN_SPAN);
-
-                writeln!(
-                    to,
-                    " bytes {}--{}",
-                    rel.offset(),
-                    rel.endpoints_saturated().1.offset()
-                )?;
-
-                Self::render_label(
-                    to,
-                    Level::Help,
-                    "unable to calculate columns because the line is \
-                       not a valid UTF-8 string"
-                        .into(),
-                )?;
-
-                Self::render_label(
-                    to,
-                    Level::Help,
-                    "you have been provided with 0-indexed \
-                       line-relative inclusive byte offsets"
-                        .into(),
-                )?;
-            }
-        }
-
-        Ok(())
-    }
 }
 
 impl<R: SpanResolver> Reporter for VisualReporter<R> {
@@ -169,43 +89,209 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 
         for AnnotatedSpan(span, level, olabel) in diagnostic.describe() {
             if span != prev_span {
-                write!(to, "  --> {}", span.ctx(),)?;
+                let mspan = MaybeResolvedSpan::from(
+                    self.resolver.resolve(span).map_err(|e| (e, span)),
+                );
 
-                match self.resolver.resolve(span) {
-                    // We should never mask an error with our own;
-                    //   the diagnostic system is supposed to _help_ the
-                    //   user in diagnosing problems,
-                    //     not hinder them by masking it.
-                    Err(e) => {
-                        Self::render_fallback_span_offset(to, span)?;
+                write!(to, "  {}", mspan.header())?;
 
-                        // Let the user know that something bad happened,
-                        //   even though this probably won't make any sense.
-                        Self::render_label(
-                            to,
-                            Level::Help,
-                            format!(
-                                "there was an error trying to look up \
-                                       information about this span: {e}"
-                            )
-                            .into(),
-                        )?;
-                    }
-                    Ok(rspan) => {
-                        write!(to, ":{}", rspan.line_num())?;
-                        Self::render_col(to, rspan)?;
-                    }
+                for label in mspan.system_labels() {
+                    write!(to, "{label}\n")?;
                 }
             }
 
             if let Some(label) = olabel {
-                Self::render_label(to, level, label)?;
+                writeln!(to, "{}", SpanLabel(level, label))?;
             }
 
             prev_span = span;
         }
 
         Ok(())
+    }
+}
+
+/// A [`Span`] that may have been resolved into a [`ResolvedSpan`].
+///
+/// The span will remain unresolved if an error occurred,
+///   in which case the error will be provided.
+/// The idea is to provide as much fallback information as is useful to the
+///   user so that they can still debug the problem without the benefit of
+///   the resolved context.
+///
+/// Furthermore,
+///   it is important that the underlying diagnostic message
+///     (e.g. error)
+///     never be masked by an error of our own.
+#[derive(Debug)]
+enum MaybeResolvedSpan {
+    Resolved(ResolvedSpan),
+    Unresolved(Span, SpanResolverError),
+}
+
+impl MaybeResolvedSpan {
+    /// Span header containing the (hopefully resolved) context.
+    fn header(&self) -> SpanHeader {
+        match self {
+            Self::Resolved(rspan) => {
+                SpanHeader(rspan.span.ctx(), HeaderLineNum::Resolved(&rspan))
+            }
+
+            Self::Unresolved(span, _) => {
+                SpanHeader(span.ctx(), HeaderLineNum::Unresolved(*span))
+            }
+        }
+    }
+
+    /// We should never mask an error with our own;
+    ///   the diagnostic system is supposed to _help_ the user in diagnosing
+    ///   problems,
+    ///     not hinder them by masking it.
+    fn system_labels(&self) -> Vec<SpanLabel<'static>> {
+        match self {
+            Self::Resolved(rspan) if rspan.col_num().is_none() => vec![
+                SpanLabel(
+                    Level::Help,
+                    "unable to calculate columns because the line is \
+                        not a valid UTF-8 string"
+                        .into(),
+                ),
+                SpanLabel(
+                    Level::Help,
+                    "you have been provided with 0-indexed \
+                        line-relative inclusive byte offsets"
+                        .into(),
+                ),
+            ],
+
+            Self::Unresolved(_, e) => {
+                vec![SpanLabel(
+                    Level::Help,
+                    format!(
+                        "there was an error trying to look up \
+                         information about this span: {e}"
+                    )
+                    .into(),
+                )]
+            }
+
+            _ => vec![],
+        }
+    }
+}
+
+impl From<Result<ResolvedSpan, (SpanResolverError, Span)>>
+    for MaybeResolvedSpan
+{
+    fn from(result: Result<ResolvedSpan, (SpanResolverError, Span)>) -> Self {
+        match result {
+            Ok(rspan) => Self::Resolved(rspan),
+            Err((e, span)) => Self::Unresolved(span, e),
+        }
+    }
+}
+
+/// Header describing the context of a (hopefully resolved) span.
+///
+/// The ideal header contains the context along with the line, and column
+///   numbers,
+///     visually distinguishable from surrounding lines to allow the user to
+///     quickly skip between reports.
+#[derive(Debug)]
+struct SpanHeader<'s>(Context, HeaderLineNum<'s>);
+
+impl<'s> Display for SpanHeader<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(ctx, line) = self;
+        write!(f, "--> {ctx}{line}\n")
+    }
+}
+
+/// Span line number or fallback representation.
+///
+/// This is also responsible for attempting to produce a column number,
+///   provided that a line number is available.
+///
+/// If a span could not be resolved,
+///   offsets should be rendered in place of lines and columns.
+#[derive(Debug)]
+enum HeaderLineNum<'s> {
+    /// Failed to resolve the [`Span`] into a [`ResolvedSpan`].
+    Unresolved(Span),
+
+    /// The [`Span`] was resolved into one or more [`SourceLine`]s.
+    Resolved(&'s ResolvedSpan),
+}
+
+impl<'s> Display for HeaderLineNum<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            // This is not ideal,
+            //   but provides reasonable fallback information in a
+            //   situation where the diagnostic system fails.
+            // The user still has enough information to diagnose the
+            //   problem,
+            //     albeit presented in a significantly less friendly way.
+            Self::Unresolved(span) => {
+                write!(
+                    f,
+                    " offset {}--{}",
+                    span.offset(),
+                    span.endpoints_saturated().1.offset(),
+                )
+            }
+
+            Self::Resolved(rspan) => {
+                let col = HeaderColNum(rspan);
+                write!(f, ":{}{col}", rspan.line_num())
+            }
+        }
+    }
+}
+
+/// Column number or fallback representation.
+///
+/// If a column could not be resolved,
+///   it should fall back to displaying byte offsets relative to the start
+///   of the line.
+#[derive(Debug)]
+struct HeaderColNum<'s>(&'s ResolvedSpan);
+
+impl<'s> Display for HeaderColNum<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(rspan) = self;
+        let span = rspan.span;
+
+        match rspan.col_num() {
+            Some(col) => write!(f, ":{}", col),
+
+            // The column is unavailable,
+            //   which means that the line must have contained invalid UTF-8.
+            // Output what we can in an attempt to help the user debug.
+            None => {
+                let rel = span
+                    .relative_to(rspan.first_line_span())
+                    .unwrap_or(UNKNOWN_SPAN);
+
+                write!(
+                    f,
+                    " bytes {}--{}",
+                    rel.offset(),
+                    rel.endpoints_saturated().1.offset()
+                )
+            }
+        }
+    }
+}
+
+/// A label describing a span.
+#[derive(Debug)]
+struct SpanLabel<'l>(Level, Label<'l>);
+
+impl<'l> Display for SpanLabel<'l> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(level, label) = self;
+        write!(f, "      {level}: {label}")
     }
 }
 

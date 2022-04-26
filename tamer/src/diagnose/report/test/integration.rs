@@ -97,8 +97,8 @@ const FILE_BAR_BAZ: &[u8] =
 // Offsets for this are the same as `FILE_FOO_BAR`.
 
 const FILE_INVALID_UTF8: &[u8] = b"bad \xC0!";
-//                                |----   |
-//                                0       5
+//                                 |----   |
+//                                 0       5
 
 macro_rules! assert_report {
     ($msg:expr, $aspans:expr, $expected:expr) => {
