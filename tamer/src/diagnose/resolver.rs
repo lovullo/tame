@@ -122,7 +122,7 @@ impl<T> AsRef<Vec<T>> for NonEmptyVec<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ResolvedSpan {
     /// The original [`Span`] whose resolution was requested.
-    pub span: Span,
+    span: Span,
 
     /// The lines of source code that correspond to this [`Span`],
     ///   if known.
@@ -135,16 +135,34 @@ pub struct ResolvedSpan {
 }
 
 impl ResolvedSpan {
+    /// Line number representing the offset of the [`Span`].
     pub fn line_num(&self) -> NonZeroU32 {
         self.lines.first().num
     }
 
+    /// Column number(s) relative to the beginning of the line.
+    ///
+    /// The column may not be able to be resolved if the line contains
+    ///   invalid UTF-8 data.
     pub fn col_num(&self) -> Option<Column> {
         self.lines.first().column
     }
 
+    /// A [`Span`] representing the first line.
+    ///
+    /// Note that many spans have only one line associated with them.
     pub fn first_line_span(&self) -> Span {
         self.lines.first().span
+    }
+
+    /// [`Context`] of the [`Span`] used for resolution.
+    pub fn ctx(&self) -> Context {
+        self.span.ctx()
+    }
+
+    /// The original [`Span`] before resolution.
+    pub fn unresolved_span(&self) -> Span {
+        self.span
     }
 }
 

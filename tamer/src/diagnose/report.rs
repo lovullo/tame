@@ -134,7 +134,7 @@ impl MaybeResolvedSpan {
     fn header(&self) -> SpanHeader {
         match self {
             Self::Resolved(rspan) => {
-                SpanHeader(rspan.span.ctx(), HeaderLineNum::Resolved(&rspan))
+                SpanHeader(rspan.ctx(), HeaderLineNum::Resolved(&rspan))
             }
 
             Self::Unresolved(span, _) => {
@@ -260,7 +260,7 @@ struct HeaderColNum<'s>(&'s ResolvedSpan);
 impl<'s> Display for HeaderColNum<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(rspan) = self;
-        let span = rspan.span;
+        let span = rspan.unresolved_span();
 
         match rspan.col_num() {
             Some(col) => write!(f, ":{}", col),
