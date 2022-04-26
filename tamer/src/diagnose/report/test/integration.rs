@@ -52,11 +52,9 @@
 //!   and separate reporters will be provided for machine-readable
 //!   formats if that is what is needed.
 
-use crate::{
-    diagnose::{Annotate, BufSpanResolver},
-    span::Context,
-};
+use crate::span::Context;
 
+use super::super::super::{resolver::BufSpanResolver, Annotate};
 use super::*;
 use std::{
     collections::HashMap,

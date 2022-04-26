@@ -29,8 +29,6 @@ use std::{
     io::{self, BufRead, BufReader, Seek},
     mem::take,
     num::NonZeroU32,
-    ops::Deref,
-    slice::SliceIndex,
     str::Utf8Error,
 };
 use unicode_width::UnicodeWidthChar;
@@ -134,34 +132,58 @@ pub struct ResolvedSpan {
     lines: NonEmptyVec<SourceLine>,
 }
 
-impl ResolvedSpan {
+/// Data interpreted from a [`ResolvedSpan`] or equivalent.
+pub trait ResolvedSpanData {
     /// Line number representing the offset of the [`Span`].
-    pub fn line_num(&self) -> NonZeroU32 {
-        self.lines.first().num
-    }
+    ///
+    /// This is intended to answer the question of "what line?",
+    ///   to which one would typically reply with the line that a particular
+    ///   issue starts on.
+    ///
+    /// More concretely,
+    ///   this is the line number expected to appear in a report heading
+    ///   alongside the context,
+    ///     or in an error summary
+    ///     (e.g. "path/to/file:1:2").
+    fn line_num(&self) -> NonZeroU32;
 
-    /// Column number(s) relative to the beginning of the line.
+    /// Column number(s) relative to the beginning of the first line
+    ///   representing the offset of the [`Span`].
     ///
     /// The column may not be able to be resolved if the line contains
     ///   invalid UTF-8 data.
-    pub fn col_num(&self) -> Option<Column> {
-        self.lines.first().column
-    }
+    fn col_num(&self) -> Option<Column>;
 
     /// A [`Span`] representing the first line.
     ///
     /// Note that many spans have only one line associated with them.
-    pub fn first_line_span(&self) -> Span {
+    fn first_line_span(&self) -> Span;
+
+    /// [`Context`] of the [`Span`] used for resolution.
+    fn ctx(&self) -> Context;
+
+    /// The original [`Span`] before resolution.
+    fn unresolved_span(&self) -> Span;
+}
+
+impl ResolvedSpanData for ResolvedSpan {
+    fn line_num(&self) -> NonZeroU32 {
+        self.lines.first().num
+    }
+
+    fn col_num(&self) -> Option<Column> {
+        self.lines.first().column
+    }
+
+    fn first_line_span(&self) -> Span {
         self.lines.first().span
     }
 
-    /// [`Context`] of the [`Span`] used for resolution.
-    pub fn ctx(&self) -> Context {
+    fn ctx(&self) -> Context {
         self.span.ctx()
     }
 
-    /// The original [`Span`] before resolution.
-    pub fn unresolved_span(&self) -> Span {
+    fn unresolved_span(&self) -> Span {
         self.span
     }
 }

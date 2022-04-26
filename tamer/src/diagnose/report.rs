@@ -20,8 +20,10 @@
 //! Rendering of diagnostic information.
 
 use super::{
-    AnnotatedSpan, Diagnostic, Label, Level, ResolvedSpan, SpanResolver,
-    SpanResolverError,
+    resolver::{
+        ResolvedSpan, ResolvedSpanData, SpanResolver, SpanResolverError,
+    },
+    AnnotatedSpan, Diagnostic, Label, Level,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::fmt::{self, Display, Write};
@@ -216,10 +218,7 @@ impl<'s> Display for SpanHeader<'s> {
 ///   offsets should be rendered in place of lines and columns.
 #[derive(Debug)]
 enum HeaderLineNum<'s> {
-    /// Failed to resolve the [`Span`] into a [`ResolvedSpan`].
     Unresolved(Span),
-
-    /// The [`Span`] was resolved into one or more [`SourceLine`]s.
     Resolved(&'s ResolvedSpan),
 }
 

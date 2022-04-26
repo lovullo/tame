@@ -27,7 +27,7 @@ mod report;
 mod resolver;
 
 pub use report::{Reporter, VisualReporter};
-pub use resolver::*;
+pub use resolver::FsSpanResolver;
 
 use core::fmt;
 use std::{borrow::Cow, error::Error, fmt::Display};
