@@ -58,8 +58,8 @@ pub trait Reporter {
     ///     ensuring both that the user is made aware of the problem
     ///     and that we're not inadvertently suppressing the actual
     ///       diagnostic messages that were requested.
-    fn render<'l, D: Diagnostic>(&mut self, diagnostic: &'l D)
-        -> Report<'l, D>;
+    fn render<'d, D: Diagnostic>(&mut self, diagnostic: &'d D)
+        -> Report<'d, D>;
 }
 
 /// Render diagnostic report in a highly visual way.
@@ -82,10 +82,10 @@ impl<R: SpanResolver> VisualReporter<R> {
 }
 
 impl<R: SpanResolver> Reporter for VisualReporter<R> {
-    fn render<'l, D: Diagnostic>(
+    fn render<'d, D: Diagnostic>(
         &mut self,
-        diagnostic: &'l D,
-    ) -> Report<'l, D> {
+        diagnostic: &'d D,
+    ) -> Report<'d, D> {
         // TODO: Avoid duplicate lookups of the same span,
         //   or at least adjacent ones.
         let mspans = diagnostic
@@ -108,14 +108,14 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 }
 
 #[derive(Debug)]
-pub struct Report<'l, D: Diagnostic> {
-    msg: Message<'l, D>,
-    secs: Vec<Section<'l>>,
+pub struct Report<'d, D: Diagnostic> {
+    msg: Message<'d, D>,
+    secs: Vec<Section<'d>>,
     level: Level,
 }
 
-impl<'l, D: Diagnostic> Report<'l, D> {
-    fn empty(msg: Message<'l, D>) -> Self {
+impl<'d, D: Diagnostic> Report<'d, D> {
+    fn empty(msg: Message<'d, D>) -> Self {
         Self {
             msg,
             secs: Vec::new(),
@@ -124,8 +124,8 @@ impl<'l, D: Diagnostic> Report<'l, D> {
     }
 }
 
-impl<'l, D: Diagnostic> Extend<Section<'l>> for Report<'l, D> {
-    fn extend<T: IntoIterator<Item = Section<'l>>>(&mut self, secs: T) {
+impl<'d, D: Diagnostic> Extend<Section<'d>> for Report<'d, D> {
+    fn extend<T: IntoIterator<Item = Section<'d>>>(&mut self, secs: T) {
         for sec in secs {
             self.level = self.level.min(sec.level());
             self.secs.push(sec.consider_squash(self.secs.last()));
@@ -133,7 +133,7 @@ impl<'l, D: Diagnostic> Extend<Section<'l>> for Report<'l, D> {
     }
 }
 
-impl<'l, D: Diagnostic> Display for Report<'l, D> {
+impl<'d, D: Diagnostic> Display for Report<'d, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{level}: {msg}\n", level = self.level, msg = self.msg)?;
         self.secs.iter().try_for_each(|sec| sec.fmt(f))
@@ -141,27 +141,27 @@ impl<'l, D: Diagnostic> Display for Report<'l, D> {
 }
 
 #[derive(Debug)]
-struct Message<'l, D: Diagnostic>(&'l D);
+struct Message<'d, D: Diagnostic>(&'d D);
 
-impl<'l, D: Diagnostic> Display for Message<'l, D> {
+impl<'d, D: Diagnostic> Display for Message<'d, D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self.0, f)
     }
 }
 
 #[derive(Debug)]
-enum Section<'l> {
+enum Section<'d> {
     /// Section is delimited from surrounding sections with a heading.
-    Delimited(SpanHeading, SystemLabels, Option<SpanLabel<'l>>, Span),
+    Delimited(SpanHeading, SystemLabels, Option<SpanLabel<'d>>, Span),
 
     /// Section is squashed into the preceding section by eliding its
     ///   heading.
     ///
     /// This term originates from `git rebase` for a similar operation.
-    Squashed(Option<SpanLabel<'l>>, Span),
+    Squashed(Option<SpanLabel<'d>>, Span),
 }
 
-impl<'s, 'l> Section<'l> {
+impl<'s, 'd> Section<'d> {
     fn level(&self) -> Level {
         match self {
             Self::Delimited(_, _, olabel, _) | Self::Squashed(olabel, _) => {
@@ -191,11 +191,11 @@ impl<'s, 'l> Section<'l> {
     }
 }
 
-impl<'l, 'a, S> From<MaybeResolvedSpan<'l, S>> for Section<'l>
+impl<'d, 'a, S> From<MaybeResolvedSpan<'d, S>> for Section<'d>
 where
     S: ResolvedSpanData,
 {
-    fn from(mspan: MaybeResolvedSpan<'l, S>) -> Self {
+    fn from(mspan: MaybeResolvedSpan<'d, S>) -> Self {
         let heading = SpanHeading::from(&mspan);
         let syslabels = mspan.system_labels();
 
@@ -214,7 +214,7 @@ where
     }
 }
 
-impl<'l> Display for Section<'l> {
+impl<'d> Display for Section<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let olabel = match self {
             Self::Delimited(heading, syslabels, olabel, _) => {
@@ -255,12 +255,12 @@ impl Display for SystemLabels {
 ///     (e.g. error)
 ///     never be masked by an error of our own.
 #[derive(Debug, PartialEq, Eq)]
-enum MaybeResolvedSpan<'l, S: ResolvedSpanData> {
-    Resolved(S, Option<SpanLabel<'l>>),
-    Unresolved(Span, Option<SpanLabel<'l>>, SpanResolverError),
+enum MaybeResolvedSpan<'d, S: ResolvedSpanData> {
+    Resolved(S, Option<SpanLabel<'d>>),
+    Unresolved(Span, Option<SpanLabel<'d>>, SpanResolverError),
 }
 
-impl<'l, S: ResolvedSpanData> MaybeResolvedSpan<'l, S> {
+impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
     /// We should never mask an error with our own;
     ///   the diagnostic system is supposed to _help_ the user in diagnosing
     ///   problems,
@@ -314,12 +314,12 @@ impl Display for SpanHeading {
     }
 }
 
-impl<'s, 'l, S> From<&'s MaybeResolvedSpan<'l, S>> for SpanHeading
+impl<'s, 'd, S> From<&'s MaybeResolvedSpan<'d, S>> for SpanHeading
 where
     S: ResolvedSpanData,
 {
     /// Span header containing the (hopefully resolved) context.
-    fn from(mspan: &'s MaybeResolvedSpan<'l, S>) -> Self {
+    fn from(mspan: &'s MaybeResolvedSpan<'d, S>) -> Self {
         match mspan {
             MaybeResolvedSpan::Resolved(rspan, _) => SpanHeading(
                 rspan.context(),
@@ -423,15 +423,15 @@ impl Display for HeadingColNum {
 
 /// A label describing a span.
 #[derive(Debug, PartialEq, Eq)]
-struct SpanLabel<'l>(Level, Label<'l>);
+struct SpanLabel<'d>(Level, Label<'d>);
 
-impl<'l> SpanLabel<'l> {
+impl<'d> SpanLabel<'d> {
     fn level(&self) -> Level {
         self.0
     }
 }
 
-impl<'l> Display for SpanLabel<'l> {
+impl<'d> Display for SpanLabel<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(level, label) = self;
         write!(f, "      {level}: {label}")
