@@ -29,7 +29,10 @@ use super::{
     AnnotatedSpan, Diagnostic, Label, Level,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
-use std::fmt::{self, Display, Write};
+use std::{
+    fmt::{self, Display, Write},
+    num::NonZeroU32,
+};
 
 pub trait Reporter {
     /// Render diagnostic report.
@@ -111,7 +114,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
     }
 }
 
-type DefaultReport<'s, 'l, S> = Report<'s, 'l, HeadingLineNum<'s, S>>;
+type DefaultReport<'s, 'l> = Report<'s, 'l, HeadingLineNum>;
 
 #[derive(Debug)]
 struct Report<'s, 'l, L: Display> {
@@ -359,14 +362,37 @@ where
 /// If a span could not be resolved,
 ///   offsets should be rendered in place of lines and columns.
 #[derive(Debug)]
-enum HeadingLineNum<'s, S: ResolvedSpanData> {
+enum HeadingLineNum {
+    Resolved {
+        line_num: NonZeroU32,
+        col_num: Option<Column>,
+        first_line_span: Span,
+        unresolved_span: Span,
+    },
+
     Unresolved(Span),
-    Resolved(&'s S),
 }
 
-impl<'s, S: ResolvedSpanData> Display for HeadingLineNum<'s, S> {
+impl Display for HeadingLineNum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Resolved {
+                line_num,
+                col_num,
+                first_line_span,
+                unresolved_span,
+            } => {
+                let col =
+                    col_num.map(HeadingColNum::Resolved).unwrap_or_else(|| {
+                        HeadingColNum::Unresolved {
+                            unresolved_span: *unresolved_span,
+                            first_line_span: *first_line_span,
+                        }
+                    });
+
+                write!(f, ":{}{col}", line_num)
+            }
+
             // This is not ideal,
             //   but provides reasonable fallback information in a
             //   situation where the diagnostic system fails.
@@ -381,28 +407,22 @@ impl<'s, S: ResolvedSpanData> Display for HeadingLineNum<'s, S> {
                     span.endpoints_saturated().1.offset(),
                 )
             }
-
-            Self::Resolved(rspan) => {
-                let col = rspan
-                    .col_num()
-                    .map(HeadingColNum::Resolved)
-                    .unwrap_or_else(|| HeadingColNum::Unresolved {
-                        unresolved_span: rspan.unresolved_span(),
-                        first_line_span: rspan.first_line_span(),
-                    });
-
-                write!(f, ":{}{col}", rspan.line_num())
-            }
         }
     }
 }
 
 impl<'s, 'l, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<'l, S>>
-    for HeadingLineNum<'s, S>
+    for HeadingLineNum
 {
     fn from(mspan: &'s MaybeResolvedSpan<S>) -> Self {
         match mspan {
-            MaybeResolvedSpan::Resolved(rspan, _) => Self::Resolved(rspan),
+            MaybeResolvedSpan::Resolved(rspan, _) => Self::Resolved {
+                line_num: rspan.line_num(),
+                col_num: rspan.col_num(),
+                first_line_span: rspan.first_line_span(),
+                unresolved_span: rspan.unresolved_span(),
+            },
+
             MaybeResolvedSpan::Unresolved(span, _, _) => {
                 Self::Unresolved(*span)
             }
@@ -537,13 +557,12 @@ mod test {
     //   decoupling for now.
     #[test]
     fn line_with_resolved_span() {
-        let rspan = StubResolvedSpan {
-            line_num: Some(5.unwrap_into()),
+        let sut = HeadingLineNum::Resolved {
+            line_num: 5.unwrap_into(),
             col_num: Some(Column::Endpoints(3.unwrap_into(), 3.unwrap_into())),
-            ..Default::default()
+            first_line_span: UNKNOWN_SPAN,
+            unresolved_span: UNKNOWN_SPAN,
         };
-
-        let sut = HeadingLineNum::Resolved(&rspan);
 
         assert_eq!(":5:3", format!("{}", sut));
     }
@@ -553,9 +572,7 @@ mod test {
     //   because the line was not resolved.
     #[test]
     fn line_with_unresolved_span_without_resolved_col() {
-        let sut = HeadingLineNum::Unresolved::<StubResolvedSpan>(
-            DUMMY_CONTEXT.span(3, 4),
-        );
+        let sut = HeadingLineNum::Unresolved(DUMMY_CONTEXT.span(3, 4));
 
         assert_eq!(" offset 3--7", format!("{}", sut));
     }
