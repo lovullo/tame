@@ -49,15 +49,20 @@ pub trait Diagnostic: Error + Sized {
 ///
 /// Levels are used both for entire reports and for styling of individual
 ///   [`AnnotatedSpan`]s.
-#[derive(Debug, PartialEq, Eq, Clone)]
+///
+/// Lower levels are more severe
+///   (e.g. level 1 is the worst).
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
+#[repr(u8)]
 pub enum Level {
     /// An error internal to TAMER that the user cannot resolve,
     ///   but may be able to work around.
-    InternalError,
+    InternalError = 1,
 
     /// A user-resolvable error.
     ///
     /// These represent errors resulting from the user's input.
+    #[default]
     Error,
 
     /// Useful information that supplements other messages.

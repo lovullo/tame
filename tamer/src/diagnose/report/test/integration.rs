@@ -306,7 +306,7 @@ fn severity_levels_reflected() {
             span.help("a help message"),
         ],
         "\
-error: multiple spans with labels of different severity level
+internal error: multiple spans with labels of different severity level
   --> foo/bar:4:6
       internal error: an internal error
       error: an error
