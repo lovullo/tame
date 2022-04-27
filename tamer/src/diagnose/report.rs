@@ -58,7 +58,8 @@ pub trait Reporter {
     ///     ensuring both that the user is made aware of the problem
     ///     and that we're not inadvertently suppressing the actual
     ///       diagnostic messages that were requested.
-    fn render<'l>(&mut self, diagnostic: &'l impl Diagnostic) -> Report<'l>;
+    fn render<'l, D: Diagnostic>(&mut self, diagnostic: &'l D)
+        -> Report<'l, D>;
 }
 
 /// Render diagnostic report in a highly visual way.
@@ -81,7 +82,10 @@ impl<R: SpanResolver> VisualReporter<R> {
 }
 
 impl<R: SpanResolver> Reporter for VisualReporter<R> {
-    fn render<'l>(&mut self, diagnostic: &'l impl Diagnostic) -> Report<'l> {
+    fn render<'l, D: Diagnostic>(
+        &mut self,
+        diagnostic: &'l D,
+    ) -> Report<'l, D> {
         // TODO: Avoid duplicate lookups of the same span,
         //   or at least adjacent ones.
         let mspans = diagnostic
@@ -97,23 +101,21 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
             })
             .collect::<Vec<_>>();
 
-        let message = Message(diagnostic.to_string());
-
-        let mut report = Report::empty(message);
+        let mut report = Report::empty(Message(diagnostic));
         report.extend(mspans.into_iter().map(Into::into));
         report
     }
 }
 
 #[derive(Debug)]
-pub struct Report<'l> {
-    msg: Message,
+pub struct Report<'l, D: Diagnostic> {
+    msg: Message<'l, D>,
     secs: Vec<Section<'l>>,
     level: Level,
 }
 
-impl<'l> Report<'l> {
-    fn empty(msg: Message) -> Self {
+impl<'l, D: Diagnostic> Report<'l, D> {
+    fn empty(msg: Message<'l, D>) -> Self {
         Self {
             msg,
             secs: Vec::new(),
@@ -122,7 +124,7 @@ impl<'l> Report<'l> {
     }
 }
 
-impl<'l> Extend<Section<'l>> for Report<'l> {
+impl<'l, D: Diagnostic> Extend<Section<'l>> for Report<'l, D> {
     fn extend<T: IntoIterator<Item = Section<'l>>>(&mut self, secs: T) {
         for sec in secs {
             self.level = self.level.min(sec.level());
@@ -131,7 +133,7 @@ impl<'l> Extend<Section<'l>> for Report<'l> {
     }
 }
 
-impl<'l> Display for Report<'l> {
+impl<'l, D: Diagnostic> Display for Report<'l, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{level}: {msg}\n", level = self.level, msg = self.msg)?;
         self.secs.iter().try_for_each(|sec| sec.fmt(f))
@@ -139,11 +141,11 @@ impl<'l> Display for Report<'l> {
 }
 
 #[derive(Debug)]
-struct Message(String);
+struct Message<'l, D: Diagnostic>(&'l D);
 
-impl Display for Message {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+impl<'l, D: Diagnostic> Display for Message<'l, D> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self.0, f)
     }
 }
 
