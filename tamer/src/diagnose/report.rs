@@ -365,9 +365,7 @@ where
 enum HeadingLineNum {
     Resolved {
         line_num: NonZeroU32,
-        col_num: Option<Column>,
-        first_line_span: Span,
-        unresolved_span: Span,
+        col: HeadingColNum,
     },
 
     Unresolved(Span),
@@ -376,21 +374,8 @@ enum HeadingLineNum {
 impl Display for HeadingLineNum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Resolved {
-                line_num,
-                col_num,
-                first_line_span,
-                unresolved_span,
-            } => {
-                let col =
-                    col_num.map(HeadingColNum::Resolved).unwrap_or_else(|| {
-                        HeadingColNum::Unresolved {
-                            unresolved_span: *unresolved_span,
-                            first_line_span: *first_line_span,
-                        }
-                    });
-
-                write!(f, ":{}{col}", line_num)
+            Self::Resolved { line_num, col } => {
+                write!(f, ":{line_num}{col}")
             }
 
             // This is not ideal,
@@ -418,9 +403,13 @@ impl<'s, 'l, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<'l, S>>
         match mspan {
             MaybeResolvedSpan::Resolved(rspan, _) => Self::Resolved {
                 line_num: rspan.line_num(),
-                col_num: rspan.col_num(),
-                first_line_span: rspan.first_line_span(),
-                unresolved_span: rspan.unresolved_span(),
+                col: rspan
+                    .col_num()
+                    .map(HeadingColNum::Resolved)
+                    .unwrap_or_else(|| HeadingColNum::Unresolved {
+                        unresolved_span: rspan.unresolved_span(),
+                        first_line_span: rspan.first_line_span(),
+                    }),
             },
 
             MaybeResolvedSpan::Unresolved(span, _, _) => {
@@ -559,9 +548,10 @@ mod test {
     fn line_with_resolved_span() {
         let sut = HeadingLineNum::Resolved {
             line_num: 5.unwrap_into(),
-            col_num: Some(Column::Endpoints(3.unwrap_into(), 3.unwrap_into())),
-            first_line_span: UNKNOWN_SPAN,
-            unresolved_span: UNKNOWN_SPAN,
+            col: HeadingColNum::Resolved(Column::Endpoints(
+                3.unwrap_into(),
+                3.unwrap_into(),
+            )),
         };
 
         assert_eq!(":5:3", format!("{}", sut));
