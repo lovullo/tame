@@ -106,7 +106,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
             .collect::<Vec<_>>();
 
         let message = Message(diagnostic.to_string());
-        let mut report = DefaultReport::empty(message);
+        let mut report = Report::empty(message);
 
         report.extend(mspans.iter().map(Into::into));
 
@@ -114,16 +114,14 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
     }
 }
 
-type DefaultReport<'s, 'l> = Report<'s, 'l, HeadingLineNum>;
-
 #[derive(Debug)]
-struct Report<'s, 'l, L: Display> {
+struct Report<'s, 'l> {
     msg: Message,
-    secs: Vec<Section<'s, 'l, L>>,
+    secs: Vec<Section<'s, 'l>>,
     level: Level,
 }
 
-impl<'s, 'l, L: Display> Report<'s, 'l, L> {
+impl<'s, 'l> Report<'s, 'l> {
     fn empty(msg: Message) -> Self {
         Self {
             msg,
@@ -133,8 +131,8 @@ impl<'s, 'l, L: Display> Report<'s, 'l, L> {
     }
 }
 
-impl<'s, 'l, L: Display> Extend<Section<'s, 'l, L>> for Report<'s, 'l, L> {
-    fn extend<T: IntoIterator<Item = Section<'s, 'l, L>>>(&mut self, secs: T) {
+impl<'s, 'l> Extend<Section<'s, 'l>> for Report<'s, 'l> {
+    fn extend<T: IntoIterator<Item = Section<'s, 'l>>>(&mut self, secs: T) {
         for sec in secs {
             self.level = self.level.min(sec.level());
             self.secs.push(sec.consider_squash(self.secs.last()));
@@ -142,7 +140,7 @@ impl<'s, 'l, L: Display> Extend<Section<'s, 'l, L>> for Report<'s, 'l, L> {
     }
 }
 
-impl<'s, 'l, L: Display> Display for Report<'s, 'l, L> {
+impl<'s, 'l> Display for Report<'s, 'l> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{level}: {msg}\n", level = self.level, msg = self.msg)?;
         self.secs.iter().try_for_each(|sec| sec.fmt(f))
@@ -159,14 +157,9 @@ impl Display for Message {
 }
 
 #[derive(Debug)]
-enum Section<'s, 'l, L: Display> {
+enum Section<'s, 'l> {
     /// Section is delimited from surrounding sections with a heading.
-    Delimited(
-        SpanHeading<L>,
-        SystemLabels,
-        Option<&'s SpanLabel<'l>>,
-        Span,
-    ),
+    Delimited(SpanHeading, SystemLabels, Option<&'s SpanLabel<'l>>, Span),
 
     /// Section is squashed into the preceding section by eliding its
     ///   heading.
@@ -175,7 +168,7 @@ enum Section<'s, 'l, L: Display> {
     Squashed(Option<&'s SpanLabel<'l>>, Span),
 }
 
-impl<'s, 'l, L: Display> Section<'s, 'l, L> {
+impl<'s, 'l> Section<'s, 'l> {
     fn level(&self) -> Level {
         match self {
             Self::Delimited(_, _, olabel, _) | Self::Squashed(olabel, _) => {
@@ -205,9 +198,8 @@ impl<'s, 'l, L: Display> Section<'s, 'l, L> {
     }
 }
 
-impl<'s, 'l, 'a, L, S> From<&'s MaybeResolvedSpan<'l, S>> for Section<'s, 'l, L>
+impl<'s, 'l, 'a, S> From<&'s MaybeResolvedSpan<'l, S>> for Section<'s, 'l>
 where
-    L: Display + From<&'s MaybeResolvedSpan<'l, S>>,
     S: ResolvedSpanData,
 {
     fn from(mspan: &'s MaybeResolvedSpan<'l, S>) -> Self {
@@ -220,7 +212,7 @@ where
     }
 }
 
-impl<'s, 'l, L: Display> Display for Section<'s, 'l, L> {
+impl<'s, 'l> Display for Section<'s, 'l> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let olabel = match self {
             Self::Delimited(heading, syslabels, olabel, _) => {
@@ -326,29 +318,38 @@ impl<'l, S: ResolvedSpanData> MaybeResolvedSpan<'l, S> {
 ///     visually distinguishable from surrounding lines to allow the user to
 ///     quickly skip between reports.
 #[derive(Debug)]
-struct SpanHeading<L: Display>(Context, L);
+struct SpanHeading(Context, HeadingLineNum);
 
-impl<L: Display> Display for SpanHeading<L> {
+impl Display for SpanHeading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(ctx, line) = self;
         write!(f, "--> {ctx}{line}")
     }
 }
 
-impl<'s, 'l, S, L> From<&'s MaybeResolvedSpan<'l, S>> for SpanHeading<L>
+impl<'s, 'l, S> From<&'s MaybeResolvedSpan<'l, S>> for SpanHeading
 where
     S: ResolvedSpanData,
-    L: Display + From<&'s MaybeResolvedSpan<'l, S>>,
 {
     /// Span header containing the (hopefully resolved) context.
     fn from(mspan: &'s MaybeResolvedSpan<'l, S>) -> Self {
         match mspan {
-            MaybeResolvedSpan::Resolved(rspan, _) => {
-                SpanHeading(rspan.context(), L::from(mspan))
-            }
+            MaybeResolvedSpan::Resolved(rspan, _) => SpanHeading(
+                rspan.context(),
+                HeadingLineNum::Resolved(
+                    rspan.line_num(),
+                    rspan
+                        .col_num()
+                        .map(HeadingColNum::Resolved)
+                        .unwrap_or_else(|| HeadingColNum::Unresolved {
+                            unresolved_span: rspan.unresolved_span(),
+                            first_line_span: rspan.first_line_span(),
+                        }),
+                ),
+            ),
 
             MaybeResolvedSpan::Unresolved(span, _, _) => {
-                SpanHeading(span.context(), L::from(mspan))
+                SpanHeading(span.context(), HeadingLineNum::Unresolved(*span))
             }
         }
     }
@@ -363,18 +364,14 @@ where
 ///   offsets should be rendered in place of lines and columns.
 #[derive(Debug)]
 enum HeadingLineNum {
-    Resolved {
-        line_num: NonZeroU32,
-        col: HeadingColNum,
-    },
-
+    Resolved(NonZeroU32, HeadingColNum),
     Unresolved(Span),
 }
 
 impl Display for HeadingLineNum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Resolved { line_num, col } => {
+            Self::Resolved(line_num, col) => {
                 write!(f, ":{line_num}{col}")
             }
 
@@ -391,29 +388,6 @@ impl Display for HeadingLineNum {
                     span.offset(),
                     span.endpoints_saturated().1.offset(),
                 )
-            }
-        }
-    }
-}
-
-impl<'s, 'l, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<'l, S>>
-    for HeadingLineNum
-{
-    fn from(mspan: &'s MaybeResolvedSpan<S>) -> Self {
-        match mspan {
-            MaybeResolvedSpan::Resolved(rspan, _) => Self::Resolved {
-                line_num: rspan.line_num(),
-                col: rspan
-                    .col_num()
-                    .map(HeadingColNum::Resolved)
-                    .unwrap_or_else(|| HeadingColNum::Unresolved {
-                        unresolved_span: rspan.unresolved_span(),
-                        first_line_span: rspan.first_line_span(),
-                    }),
-            },
-
-            MaybeResolvedSpan::Unresolved(span, _, _) => {
-                Self::Unresolved(*span)
             }
         }
     }
@@ -481,7 +455,9 @@ impl<'l> Display for SpanLabel<'l> {
 mod test {
     use super::*;
     use crate::{
-        convert::ExpectInto, diagnose::resolver::Column, span::DUMMY_CONTEXT,
+        convert::ExpectInto,
+        diagnose::resolver::Column,
+        span::{DUMMY_CONTEXT, DUMMY_SPAN},
     };
     use std::num::NonZeroU32;
 
@@ -546,13 +522,13 @@ mod test {
     //   decoupling for now.
     #[test]
     fn line_with_resolved_span() {
-        let sut = HeadingLineNum::Resolved {
-            line_num: 5.unwrap_into(),
-            col: HeadingColNum::Resolved(Column::Endpoints(
+        let sut = HeadingLineNum::Resolved(
+            5.unwrap_into(),
+            HeadingColNum::Resolved(Column::Endpoints(
                 3.unwrap_into(),
                 3.unwrap_into(),
             )),
-        };
+        );
 
         assert_eq!(":5:3", format!("{}", sut));
     }
@@ -567,73 +543,65 @@ mod test {
         assert_eq!(" offset 3--7", format!("{}", sut));
     }
 
+    // Whether you call this a unit or integration test depends on your
+    //   perspective---it's
+    //     either an integration test,
+    //       or we're testing privates.
+    // Neither are ideal,
+    //   but decoupling isn't worth the type burden that results.
     #[test]
     fn span_heading() {
-        struct StubLine;
-
-        impl Display for StubLine {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "[:stub line]")
-            }
-        }
-
         let ctx = "header".unwrap_into();
-        let sut = SpanHeading(ctx, StubLine);
+        let sut = SpanHeading(
+            ctx,
+            HeadingLineNum::Resolved(
+                2.unwrap_into(),
+                HeadingColNum::Resolved(Column::Endpoints(
+                    6.unwrap_into(),
+                    6.unwrap_into(),
+                )),
+            ),
+        );
 
-        assert_eq!("--> header[:stub line]", format!("{}", sut));
+        assert_eq!("--> header:2:6", format!("{}", sut));
     }
 
     #[test]
     fn span_heading_from_mspan() {
-        struct StubLine(String);
-
-        impl Display for StubLine {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "[:stub {}]", self.0)
-            }
-        }
-
-        impl<'s, 'l, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<'l, S>>
-            for StubLine
-        {
-            fn from(mspan: &'s MaybeResolvedSpan<S>) -> Self {
-                match mspan {
-                    MaybeResolvedSpan::Resolved(..) => Self("resolved".into()),
-                    MaybeResolvedSpan::Unresolved(..) => {
-                        Self("unresolved".into())
-                    }
-                }
-            }
-        }
-
         let ctx = Context::from("mspan/header");
 
         assert_eq!(
             format!(
                 "{}",
-                SpanHeading::<StubLine>::from(&MaybeResolvedSpan::Resolved(
+                SpanHeading::from(&MaybeResolvedSpan::Resolved(
                     StubResolvedSpan {
                         context: Some(ctx),
-                        ..Default::default()
+                        line_num: Some(1.unwrap_into()),
+                        col_num: Some(Column::Endpoints(
+                            2.unwrap_into(),
+                            3.unwrap_into()
+                        )),
+                        first_line_span: Some(DUMMY_SPAN),
+                        span: Some(DUMMY_SPAN),
                     },
                     None
                 ))
             ),
-            "--> mspan/header[:stub resolved]",
+            "--> mspan/header:1:2",
         );
 
         assert_eq!(
             format!(
                 "{}",
-                SpanHeading::<StubLine>::from(&MaybeResolvedSpan::<
-                    StubResolvedSpan,
-                >::Unresolved(
-                    ctx.span(0, 0),
-                    None,
-                    SpanResolverError::OutOfRange(0),
-                ))
+                SpanHeading::from(
+                    &MaybeResolvedSpan::<StubResolvedSpan>::Unresolved(
+                        ctx.span(0, 0),
+                        None,
+                        SpanResolverError::OutOfRange(0),
+                    )
+                )
             ),
-            "--> mspan/header[:stub unresolved]",
+            "--> mspan/header offset 0--0",
         );
     }
 }
