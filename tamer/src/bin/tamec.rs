@@ -106,7 +106,7 @@ pub fn main() -> Result<(), TamecError> {
                     //   interleave output between processes,
                     //     but we ought to reuse a buffer when we support multiple
                     //     errors.
-                    let report = reporter.render_to_string(&e)?;
+                    let report = reporter.render(&e).to_string();
                     println!("{report}\nfatal: failed to link `{}`", output);
 
                     std::process::exit(1);

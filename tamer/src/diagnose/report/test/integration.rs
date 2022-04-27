@@ -122,8 +122,8 @@ macro_rules! assert_report {
         let mut sut = VisualReporter::new(resolver);
 
         assert_eq!(
-            sut.render_to_string(&StubError($msg.into(), $aspans)),
-            Ok($expected.into()),
+            sut.render(&StubError($msg.into(), $aspans)).to_string(),
+            $expected,
         );
     };
 }
