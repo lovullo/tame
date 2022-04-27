@@ -25,7 +25,7 @@
 //     rather than using both.
 
 use super::{
-    resolver::{ResolvedSpanData, SpanResolver, SpanResolverError},
+    resolver::{Column, ResolvedSpanData, SpanResolver, SpanResolverError},
     AnnotatedSpan, Diagnostic, Label, Level,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
@@ -383,7 +383,14 @@ impl<'s, S: ResolvedSpanData> Display for HeadingLineNum<'s, S> {
             }
 
             Self::Resolved(rspan) => {
-                let col = HeadingColNum(*rspan);
+                let col = rspan
+                    .col_num()
+                    .map(HeadingColNum::Resolved)
+                    .unwrap_or_else(|| HeadingColNum::Unresolved {
+                        unresolved_span: rspan.unresolved_span(),
+                        first_line_span: rspan.first_line_span(),
+                    });
+
                 write!(f, ":{}{col}", rspan.line_num())
             }
         }
@@ -409,22 +416,28 @@ impl<'s, 'l, S: ResolvedSpanData> From<&'s MaybeResolvedSpan<'l, S>>
 ///   it should fall back to displaying byte offsets relative to the start
 ///   of the line.
 #[derive(Debug)]
-struct HeadingColNum<'s, S: ResolvedSpanData>(&'s S);
+enum HeadingColNum {
+    Resolved(Column),
+    Unresolved {
+        unresolved_span: Span,
+        first_line_span: Span,
+    },
+}
 
-impl<'s, S: ResolvedSpanData> Display for HeadingColNum<'s, S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self(rspan) = self;
-
-        match rspan.col_num() {
-            Some(col) => write!(f, ":{}", col),
+impl Display for HeadingColNum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Resolved(col) => write!(f, ":{}", col),
 
             // The column is unavailable,
             //   which means that the line must have contained invalid UTF-8.
             // Output what we can in an attempt to help the user debug.
-            None => {
-                let rel = rspan
-                    .unresolved_span()
-                    .relative_to(rspan.first_line_span())
+            Self::Unresolved {
+                unresolved_span,
+                first_line_span,
+            } => {
+                let rel = unresolved_span
+                    .relative_to(*first_line_span)
                     .unwrap_or(UNKNOWN_SPAN);
 
                 write!(
@@ -498,26 +511,21 @@ mod test {
 
     #[test]
     fn header_col_with_available_col() {
-        let rspan = StubResolvedSpan {
-            col_num: Some(Column::Endpoints(5.unwrap_into(), 5.unwrap_into())),
-            ..Default::default()
-        };
-
-        let sut = HeadingColNum(&rspan);
+        let sut = HeadingColNum::Resolved(Column::Endpoints(
+            5.unwrap_into(),
+            // Second endpoint is ignored.
+            6.unwrap_into(),
+        ));
 
         assert_eq!(":5", format!("{}", sut));
     }
 
     #[test]
     fn header_col_without_available_col() {
-        let rspan = StubResolvedSpan {
-            span: Some(DUMMY_CONTEXT.span(5, 2)),
-            first_line_span: Some(DUMMY_CONTEXT.span(3, 7)),
-            col_num: None,
-            ..Default::default()
+        let sut = HeadingColNum::Unresolved {
+            unresolved_span: DUMMY_CONTEXT.span(5, 2),
+            first_line_span: DUMMY_CONTEXT.span(3, 7),
         };
-
-        let sut = HeadingColNum(&rspan);
 
         assert_eq!(" bytes 2--4", format!("{}", sut));
     }
