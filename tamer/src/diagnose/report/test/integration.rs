@@ -347,7 +347,7 @@ fn fallback_when_span_fails_to_resolve() {
             format!("\
 error: unresolvable context fallback
   --> unknown/context offset 50--55
-      help: there was an error trying to look up information about this span: {ioerr}
+      help: an error occurred while trying to look up information about this span: {ioerr}
       error: an error we do not want to suppress
 ")
         );

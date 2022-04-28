@@ -128,7 +128,10 @@ impl<'d, D: Diagnostic> Extend<Section<'d>> for Report<'d, D> {
     fn extend<T: IntoIterator<Item = Section<'d>>>(&mut self, secs: T) {
         for sec in secs {
             self.level = self.level.min(sec.level());
-            self.secs.push(sec.consider_squash(self.secs.last()));
+
+            // Add the section if it cannot be squashed into the previous.
+            let remain = sec.maybe_squash_into(self.secs.last_mut());
+            self.secs.extend(remain);
         }
     }
 }
@@ -149,44 +152,56 @@ impl<'d, D: Diagnostic> Display for Message<'d, D> {
     }
 }
 
-#[derive(Debug)]
-enum Section<'d> {
-    /// Section is delimited from surrounding sections with a heading.
-    Delimited(SpanHeading, SystemLabels, Option<SpanLabel<'d>>, Span),
-
-    /// Section is squashed into the preceding section by eliding its
-    ///   heading.
-    ///
-    /// This term originates from `git rebase` for a similar operation.
-    Squashed(Option<SpanLabel<'d>>, Span),
+/// A section of a [`Report`] describing a [`Span`].
+///
+/// Adjacent sections describing the same [`Span`] ought to be squashed
+///   (see [`Section::maybe_squash_into`]),
+///   but not non-adjacent ones,
+///     since reports ought to be able to produce narratives that may
+///       revisit previous spans in an attempt to describe what occurred and
+///       how to correct it.
+///
+/// Each section is delimited by a heading that provides a summary context
+///   and enough of a visual distinction to be able to skim diagnostic
+///   messages quickly.
+#[derive(Debug, PartialEq, Eq)]
+struct Section<'d> {
+    heading: SpanHeading,
+    labels: Vec<SpanLabel<'d>>,
+    level: Level,
+    span: Span,
 }
 
 impl<'s, 'd> Section<'d> {
     fn level(&self) -> Level {
-        match self {
-            Self::Delimited(_, _, olabel, _) | Self::Squashed(olabel, _) => {
-                olabel
-                    .as_ref()
-                    .map(|label| label.level())
-                    .unwrap_or(Level::default())
-            }
-        }
+        self.level
     }
 
-    fn unresolved_span(&self) -> Span {
-        match self {
-            Self::Delimited(.., span) | Self::Squashed(.., span) => *span,
-        }
-    }
-
-    fn consider_squash(self, prev: Option<&Self>) -> Self {
-        match (prev, self) {
-            (Some(prev), Self::Delimited(.., olabel, span))
-                if prev.unresolved_span() == span =>
-            {
-                Self::Squashed(olabel, span)
+    /// Squash self into the provided [`Section`] if they represent the same
+    ///   [`Span`],
+    ///     otherwise do nothing.
+    ///
+    /// If squashed,
+    ///   [`None`] is returned.
+    /// Otherwise [`Some`] is returned with `self`.
+    /// This return value can be used with [`Extend`] to extend a vector of
+    ///   sections with the value after this operation.
+    ///
+    /// The term "squash" is borrowed from `git rebase`.
+    fn maybe_squash_into(
+        self,
+        extend: Option<&mut Section<'d>>,
+    ) -> Option<Self> {
+        match extend {
+            Some(extend_sec) if self.span == extend_sec.span => {
+                // TODO: At the time of writing this will cause duplication of
+                //   system labels,
+                //     which is not desirable.
+                extend_sec.labels.extend(self.labels);
+                None
             }
-            (_, orig) => orig,
+
+            _ => Some(self),
         }
     }
 }
@@ -197,48 +212,37 @@ where
 {
     fn from(mspan: MaybeResolvedSpan<'d, S>) -> Self {
         let heading = SpanHeading::from(&mspan);
-        let syslabels = mspan.system_labels();
+        let mut labels = mspan.system_labels();
 
-        match mspan {
-            MaybeResolvedSpan::Resolved(rspan, label) => Section::Delimited(
-                heading,
-                syslabels,
-                label,
-                rspan.unresolved_span(),
-            ),
-
-            MaybeResolvedSpan::Unresolved(span, label, _) => {
-                Section::Delimited(heading, syslabels, label, span)
+        let (span, olabel) = match mspan {
+            MaybeResolvedSpan::Resolved(rspan, olabel) => {
+                (rspan.unresolved_span(), olabel)
             }
+            MaybeResolvedSpan::Unresolved(span, olabel, _) => (span, olabel),
+        };
+
+        let level = olabel.as_ref().map(SpanLabel::level).unwrap_or_default();
+
+        labels.extend(olabel);
+
+        Section {
+            heading,
+            labels,
+            span,
+            level,
         }
     }
 }
 
 impl<'d> Display for Section<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let olabel = match self {
-            Self::Delimited(heading, syslabels, olabel, _) => {
-                write!(f, "  {heading}\n")?;
-                syslabels.fmt(f)?;
-                olabel
-            }
-            Self::Squashed(olabel, _) => olabel,
-        };
+        write!(f, "  {heading}\n", heading = self.heading)?;
 
-        if let Some(label) = olabel {
+        for label in self.labels.iter() {
             write!(f, "{label}\n")?;
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct SystemLabels(Vec<SpanLabel<'static>>);
-
-impl Display for SystemLabels {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.iter().try_for_each(|label| write!(f, "{label}\n"))
     }
 }
 
@@ -265,8 +269,8 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
     ///   the diagnostic system is supposed to _help_ the user in diagnosing
     ///   problems,
     ///     not hinder them by masking it.
-    fn system_labels(&self) -> SystemLabels {
-        SystemLabels(match self {
+    fn system_labels(&self) -> Vec<SpanLabel<'static>> {
+        match self {
             Self::Resolved(rspan, _) if rspan.col_num().is_none() => vec![
                 SpanLabel(
                     Level::Help,
@@ -286,7 +290,7 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
                 vec![SpanLabel(
                     Level::Help,
                     format!(
-                        "there was an error trying to look up \
+                        "an error occurred while trying to look up \
                          information about this span: {e}"
                     )
                     .into(),
@@ -294,7 +298,7 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
             }
 
             _ => vec![],
-        })
+        }
     }
 }
 
@@ -304,7 +308,7 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
 ///   numbers,
 ///     visually distinguishable from surrounding lines to allow the user to
 ///     quickly skip between reports.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct SpanHeading(Context, HeadingLineNum);
 
 impl Display for SpanHeading {
@@ -349,7 +353,7 @@ where
 ///
 /// If a span could not be resolved,
 ///   offsets should be rendered in place of lines and columns.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum HeadingLineNum {
     Resolved(NonZeroU32, HeadingColNum),
     Unresolved(Span),
@@ -385,7 +389,7 @@ impl Display for HeadingLineNum {
 /// If a column could not be resolved,
 ///   it should fall back to displaying byte offsets relative to the start
 ///   of the line.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum HeadingColNum {
     Resolved(Column),
     Unresolved {
@@ -446,7 +450,7 @@ mod test {
         diagnose::resolver::Column,
         span::{DUMMY_CONTEXT, DUMMY_SPAN},
     };
-    use std::num::NonZeroU32;
+    use std::{io, num::NonZeroU32};
 
     mod integration;
 
@@ -554,41 +558,115 @@ mod test {
     }
 
     #[test]
-    fn span_heading_from_mspan() {
-        let ctx = Context::from("mspan/header");
+    fn section_from_mspan_resolved() {
+        let ctx = Context::from("mspan/sec");
+        let span = ctx.span(2, 3);
 
         assert_eq!(
-            format!(
-                "{}",
-                SpanHeading::from(&MaybeResolvedSpan::Resolved(
-                    StubResolvedSpan {
-                        context: Some(ctx),
-                        line_num: Some(1.unwrap_into()),
-                        col_num: Some(Column::Endpoints(
+            Section::from(MaybeResolvedSpan::Resolved(
+                StubResolvedSpan {
+                    context: Some(ctx),
+                    line_num: Some(1.unwrap_into()),
+                    col_num: Some(Column::Endpoints(
+                        2.unwrap_into(),
+                        3.unwrap_into()
+                    )),
+                    first_line_span: Some(DUMMY_SPAN),
+                    span: Some(span),
+                },
+                Some(SpanLabel(Level::Note, "test label".into())),
+            )),
+            Section {
+                heading: SpanHeading(
+                    ctx,
+                    HeadingLineNum::Resolved(
+                        1.unwrap_into(),
+                        HeadingColNum::Resolved(Column::Endpoints(
                             2.unwrap_into(),
                             3.unwrap_into()
-                        )),
-                        first_line_span: Some(DUMMY_SPAN),
-                        span: Some(DUMMY_SPAN),
-                    },
-                    None
-                ))
-            ),
-            "--> mspan/header:1:2",
+                        ))
+                    )
+                ),
+                labels: vec![SpanLabel(Level::Note, "test label".into())],
+                span,
+                // Derived from label.
+                level: Level::Note,
+            }
         );
+    }
+
+    #[test]
+    fn section_from_mspan_resolved_no_label() {
+        let ctx = Context::from("mspan/sec-no-label");
+        let span = ctx.span(3, 4);
 
         assert_eq!(
-            format!(
-                "{}",
-                SpanHeading::from(
-                    &MaybeResolvedSpan::<StubResolvedSpan>::Unresolved(
-                        ctx.span(0, 0),
-                        None,
-                        SpanResolverError::OutOfRange(0),
+            Section::from(MaybeResolvedSpan::Resolved(
+                StubResolvedSpan {
+                    context: Some(ctx),
+                    line_num: Some(2.unwrap_into()),
+                    col_num: Some(Column::Endpoints(
+                        1.unwrap_into(),
+                        2.unwrap_into()
+                    )),
+                    first_line_span: Some(DUMMY_SPAN),
+                    span: Some(span),
+                },
+                None,
+            )),
+            Section {
+                heading: SpanHeading(
+                    ctx,
+                    HeadingLineNum::Resolved(
+                        2.unwrap_into(),
+                        HeadingColNum::Resolved(Column::Endpoints(
+                            1.unwrap_into(),
+                            2.unwrap_into()
+                        ))
                     )
-                )
-            ),
-            "--> mspan/header offset 0--0",
+                ),
+                labels: vec![],
+                span,
+                // Level is normally derived from the label,
+                //   so in this case it gets defaulted.
+                level: Level::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn section_from_mspan_unresolved() {
+        let ctx = Context::from("mspan/sec-unresolved");
+        let span = ctx.span(2, 3);
+
+        let mspan = MaybeResolvedSpan::Unresolved::<StubResolvedSpan>(
+            span,
+            Some(SpanLabel(Level::Note, "test label".into())),
+            SpanResolverError::Io(io::ErrorKind::NotFound),
+        );
+
+        let syslabels = mspan.system_labels();
+
+        assert_eq!(
+            Section::from(mspan),
+            Section {
+                heading: SpanHeading(ctx, HeadingLineNum::Unresolved(span),),
+                labels: vec![
+                    SpanLabel(
+                        Level::Help,
+                        // Clone inner so that we don't need to implement
+                        //   `Clone` for `SpanLabel`.
+                        syslabels
+                            .first()
+                            .expect("missing system label")
+                            .1
+                            .clone(),
+                    ),
+                    SpanLabel(Level::Note, "test label".into()),
+                ],
+                span,
+                level: Level::Note,
+            }
         );
     }
 }
