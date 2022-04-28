@@ -86,8 +86,9 @@ impl Diagnostic for StubError {
 
 const FILE_FOO_BAR: &[u8] =
     b"foo/bar line 1\nfoo/bar line 2\nfoo/bar line 3\nfoo/bar line 4";
-//    |------------|  |------------|  |------------|  |------------|
-//    0           13  15          28  30          43  45          58
+//    |-------+--+-|  |-------+--+-|  |-------+--+-|  |-------+--+-|
+//    0       |  |13  15      |  |28  30      |  |43  45      |  |58
+//            8 11           23  26          38  41          53  56
 //       len: 14
 
 const FILE_BAR_BAZ: &[u8] =
@@ -140,7 +141,7 @@ fn no_spans() {
 
 #[test]
 fn span_error_no_label() {
-    let span = Context::from("foo/bar").span(50, 5);
+    let span = Context::from("foo/bar").span(53, 4);
 
     assert_report!(
         "single span no label",
@@ -148,17 +149,17 @@ fn span_error_no_label() {
         // Context and span are rendered without a label.
         "\
 error: single span no label
-  --> foo/bar:4:6
+  --> foo/bar:4:9
    |
    | foo/bar line 4
-   |
+   |         ^^^^
 "
     );
 }
 
 #[test]
 fn span_error_with_label() {
-    let span = Context::from("bar/baz").span(30, 2);
+    let span = Context::from("bar/baz").span(30, 3);
 
     assert_report!(
         "single span with label",
@@ -169,7 +170,7 @@ error: single span with label
   --> bar/baz:3:1
    |
    | bar/baz line 3
-   |
+   | ^^^
    = error: span label here
 "
     );
@@ -178,7 +179,7 @@ error: single span with label
 #[test]
 fn adjacent_eq_span_no_labels_collapsed() {
     let ctx = Context::from("foo/bar");
-    let span = ctx.span(50, 1);
+    let span = ctx.span(53, 1);
 
     assert_report!(
         "multiple adjacent same span no label",
@@ -189,10 +190,10 @@ fn adjacent_eq_span_no_labels_collapsed() {
         //   duplicate spans without some additional context.
         "\
 error: multiple adjacent same span no label
-  --> foo/bar:4:6
+  --> foo/bar:4:9
    |
    | foo/bar line 4
-   |
+   |         ^
 "
     );
 }
@@ -200,7 +201,7 @@ error: multiple adjacent same span no label
 #[test]
 fn adjacent_eq_span_labels_collapsed() {
     let ctx = Context::from("bar/baz");
-    let span = ctx.span(10, 5);
+    let span = ctx.span(8, 6);
 
     assert_report!(
         "multiple adjacent same span with labels",
@@ -213,10 +214,10 @@ fn adjacent_eq_span_labels_collapsed() {
         //   spans are the same.
         "\
 error: multiple adjacent same span with labels
-  --> bar/baz:1:11
+  --> bar/baz:1:9
    |
    | bar/baz line 1
-   |
+   |         ^^^^^^
    = error: A label
    = error: C label
 "
@@ -231,43 +232,43 @@ fn adjacent_eq_context_neq_offset_len_spans_not_collapsed() {
         "eq context neq offset/len",
         vec![
             // -->
-            ctx.span(0, 5).mark_error(),
-            ctx.span(0, 5).error("A, first label"), // collapse
+            ctx.span(0, 3).mark_error(),
+            ctx.span(0, 3).error("A, first label"), // collapse
             // -->
-            ctx.span(0, 6).error("B, different length"),
-            ctx.span(0, 6).mark_error(), // collapse
-            ctx.span(0, 6).error("B, collapse"),
+            ctx.span(0, 7).error("B, different length"),
+            ctx.span(0, 7).mark_error(), // collapse
+            ctx.span(0, 7).error("B, collapse"),
             // -->
-            ctx.span(15, 6).error("C, different offset"),
+            ctx.span(15, 4).error("C, different offset"),
             // -->
-            // Back to (10, 6), but not adjacent to previous
-            ctx.span(0, 6).error("B', not adjacent"),
+            // Back to (0, 7), but not adjacent to previous
+            ctx.span(0, 7).error("B', not adjacent"),
         ],
         "\
 error: eq context neq offset/len
   --> bar/baz:1:1
    |
    | bar/baz line 1
-   |
+   | ^^^
    = error: A, first label
 
   --> bar/baz:1:1
    |
    | bar/baz line 1
-   |
+   | ^^^^^^^
    = error: B, different length
    = error: B, collapse
 
   --> bar/baz:2:1
    |
    | bar/baz line 2
-   |
+   | ^^^^
    = error: C, different offset
 
   --> bar/baz:1:1
    |
    | bar/baz line 1
-   |
+   | ^^^^^^^
    = error: B', not adjacent
 "
     );
@@ -277,8 +278,8 @@ error: eq context neq offset/len
 fn adjacent_neq_context_spans_not_collapsed() {
     // Note that the offsets and lengths are purposefully the same to
     //   ensure that the differentiator is exclusively the context.
-    let span_a = Context::from("foo/bar").span(10, 3);
-    let span_b = Context::from("bar/baz").span(10, 3);
+    let span_a = Context::from("foo/bar").span(0, 7);
+    let span_b = Context::from("bar/baz").span(0, 7);
 
     assert_report!(
         "multiple adjacent different context",
@@ -305,35 +306,35 @@ fn adjacent_neq_context_spans_not_collapsed() {
         ],
         "\
 error: multiple adjacent different context
-  --> foo/bar:1:11
+  --> foo/bar:1:1
    |
    | foo/bar line 1
-   |
+   | ^^^^^^^
    = error: A, first
    = error: A, collapsed
 
-  --> bar/baz:1:11
+  --> bar/baz:1:1
    |
    | bar/baz line 1
-   |
+   | ^^^^^^^
    = error: B, first
    = error: B, collapsed
 
-  --> foo/bar:1:11
+  --> foo/bar:1:1
    |
    | foo/bar line 1
-   |
+   | ^^^^^^^
    = error: A, not collapsed
 
-  --> bar/baz:1:11
+  --> bar/baz:1:1
    |
    | bar/baz line 1
-   |
+   | ^^^^^^^
 
-  --> foo/bar:1:11
+  --> foo/bar:1:1
    |
    | foo/bar line 1
-   |
+   | ^^^^^^^
 "
     );
 }
@@ -341,7 +342,7 @@ error: multiple adjacent different context
 #[test]
 fn severity_levels_reflected() {
     let ctx = Context::from("foo/bar");
-    let span = ctx.span(50, 5);
+    let span = ctx.span(53, 6);
 
     assert_report!(
         "multiple spans with labels of different severity level",
@@ -353,10 +354,10 @@ fn severity_levels_reflected() {
         ],
         "\
 internal error: multiple spans with labels of different severity level
-  --> foo/bar:4:6
+  --> foo/bar:4:9
    |
    | foo/bar line 4
-   |
+   |         ^^^^^^
    = internal error: an internal error
    = error: an error
    = note: a note
@@ -370,7 +371,7 @@ fn multi_line_span() {
     let ctx = Context::from("foo/bar");
 
     // First two lines.
-    let span = ctx.span(0, 29);
+    let span = ctx.span(8, 19);
 
     // This is obviously terrible-looking;
     //   it'll be condensed as this evolves further.
@@ -379,13 +380,13 @@ fn multi_line_span() {
         vec![span.error("label to be on last line")],
         "\
 error: multi-line span
-  --> foo/bar:1:1
+  --> foo/bar:1:9
    |
    | foo/bar line 1
-   |
+   |         ^^^^^^
    |
    | foo/bar line 2
-   |
+   | ^^^^^^^^^^^^
    = error: label to be on last line
 "
     );
@@ -460,4 +461,48 @@ error: column resolution failure
    = help: you have been provided with 0-indexed line-relative inclusive byte offsets
 ")
         );
+}
+
+#[test]
+fn offset_at_newline_marked() {
+    let ctx = Context::from("foo/bar");
+
+    // This represents the newline of line 1.
+    let span = ctx.span(14, 1);
+
+    assert_report!(
+        "offset at newline",
+        vec![span.mark_error()],
+        // Note that the trailing newline _should not be rendered_,
+        //   which would otherwise result in an extra (un-guttered) line
+        //   between the source line and the mark line.
+        "\
+error: offset at newline
+  --> foo/bar:1:15
+   |
+   | foo/bar line 1
+   |               ^
+"
+    );
+}
+
+#[test]
+fn zero_length_span_column() {
+    let ctx = Context::from("foo/bar");
+
+    // Before the space, after "bar".
+    let span = ctx.span(7, 0);
+
+    assert_report!(
+        "offset at newline",
+        vec![span.mark_error()],
+        // Renders _at_ the character it comes before.
+        "\
+error: offset at newline
+  --> foo/bar:1:8
+   |
+   | foo/bar line 1
+   |        ^
+"
+    );
 }

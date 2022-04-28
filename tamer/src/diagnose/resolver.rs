@@ -218,6 +218,22 @@ pub enum Column {
     Before(NonZeroU32),
 }
 
+impl Column {
+    pub fn start(&self) -> NonZeroU32 {
+        match self {
+            Self::Endpoints(start, _) => *start,
+            Self::Before(start) => *start,
+        }
+    }
+
+    pub fn end(&self) -> NonZeroU32 {
+        match self {
+            Self::Endpoints(_, end) => *end,
+            Self::Before(end) => *end,
+        }
+    }
+}
+
 impl Display for Column {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -270,7 +286,15 @@ impl Display for SourceLine {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // TODO: Just store String instead of a byte vector so we're not
         //   validating UTF-8 twice.
-        write!(f, "{}", String::from_utf8_lossy(&self.text))
+        let s = String::from_utf8_lossy(&self.text);
+
+        let disp = if self.text.last() == Some(&b'\n') {
+            &s[0..s.len() - 1]
+        } else {
+            &s[..]
+        };
+
+        f.write_str(disp)
     }
 }
 

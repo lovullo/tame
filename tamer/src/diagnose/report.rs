@@ -261,6 +261,7 @@ impl<'s, 'd> Section<'d> {
         extend: Option<&mut Section<'d>>,
     ) -> Option<Self> {
         match extend {
+            // TODO: Take highest level.
             Some(extend_sec) if self.span == extend_sec.span => {
                 // TODO: At the time of writing this will cause duplication of
                 //   system labels,
@@ -540,7 +541,6 @@ impl<'d> Display for SectionSourceLine<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "   |\n")?;
         write!(f, "   | {src}\n", src = self.src)?;
-        write!(f, "   |\n")?;
         write!(f, "{}", self.mark)
     }
 }
@@ -556,6 +556,19 @@ struct LineMark<'d> {
 
 impl<'d> Display for LineMark<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.col {
+            Some(col) => {
+                let underline = "^"
+                    .repeat((col.end().get() - col.start().get()) as usize + 1);
+                let lpad = col.start().get() as usize - 1;
+
+                write!(f, "   | {:lpad$}{underline}\n", "")?;
+            }
+            _ => {
+                write!(f, "   |\n")?;
+            }
+        }
+
         if let Some(label) = self.label.as_ref() {
             write!(f, "   = {level}: {label}\n", level = self.level)?;
         }
@@ -897,4 +910,6 @@ mod test {
 
     // TODO: Section squashing is currently only covered by integration
     //   tests!
+
+    // TODO: Most `Display::fmt` only covered by integration tests!
 }
