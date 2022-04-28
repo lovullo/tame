@@ -164,6 +164,9 @@ pub trait ResolvedSpanData {
 
     /// The original [`Span`] before resolution.
     fn unresolved_span(&self) -> Span;
+
+    /// Consume self and yield owned inner [`SourceLine`]s.
+    fn into_lines(self) -> Vec<SourceLine>;
 }
 
 impl ResolvedSpanData for ResolvedSpan {
@@ -185,6 +188,10 @@ impl ResolvedSpanData for ResolvedSpan {
 
     fn unresolved_span(&self) -> Span {
         self.span
+    }
+
+    fn into_lines(self) -> Vec<SourceLine> {
+        self.lines.0
     }
 }
 
@@ -220,7 +227,7 @@ impl Display for Column {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SourceLine {
     /// 1-indexed line number relative to the entire source [`Context`].
     num: NonZeroU32,
@@ -236,6 +243,27 @@ pub struct SourceLine {
 
     /// Source code text of the line _excluding_ the newline.
     text: Vec<u8>,
+}
+
+impl SourceLine {
+    pub fn column(&self) -> Option<Column> {
+        self.column
+    }
+
+    #[cfg(test)]
+    pub fn new_stub(
+        num: NonZeroU32,
+        column: Option<Column>,
+        span: Span,
+        text: Vec<u8>,
+    ) -> Self {
+        Self {
+            num,
+            column,
+            span,
+            text,
+        }
+    }
 }
 
 /// Resolve a [`Span`] using any generic [`BufRead`].

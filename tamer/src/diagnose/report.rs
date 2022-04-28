@@ -25,7 +25,9 @@
 //     rather than using both.
 
 use super::{
-    resolver::{Column, ResolvedSpanData, SpanResolver, SpanResolverError},
+    resolver::{
+        Column, ResolvedSpanData, SourceLine, SpanResolver, SpanResolverError,
+    },
     AnnotatedSpan, Diagnostic, Label, Level,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
@@ -130,32 +132,32 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
     ///   the diagnostic system is supposed to _help_ the user in diagnosing
     ///   problems,
     ///     not hinder them by masking it.
-    fn system_labels(&self) -> Vec<SpanLabel<'static>> {
+    fn system_lines(&self) -> Vec<SectionLine<'static>> {
         match self {
             Self::Resolved(rspan, _) if rspan.col_num().is_none() => vec![
-                SpanLabel(
+                SectionLine::Footnote(SpanLabel(
                     Level::Help,
                     "unable to calculate columns because the line is \
                         not a valid UTF-8 string"
                         .into(),
-                ),
-                SpanLabel(
+                )),
+                SectionLine::Footnote(SpanLabel(
                     Level::Help,
                     "you have been provided with 0-indexed \
                         line-relative inclusive byte offsets"
                         .into(),
-                ),
+                )),
             ],
 
             Self::Unresolved(_, _, e) => {
-                vec![SpanLabel(
+                vec![SectionLine::Footnote(SpanLabel(
                     Level::Help,
                     format!(
                         "an error occurred while trying to look up \
                          information about this span: {e}"
                     )
                     .into(),
-                )]
+                ))]
             }
 
             _ => vec![],
@@ -223,9 +225,9 @@ impl<'d, D: Diagnostic> Display for Message<'d, D> {
 #[derive(Debug, PartialEq, Eq)]
 struct Section<'d> {
     heading: SpanHeading,
-    labels: Vec<SpanLabel<'d>>,
     level: Level,
     span: Span,
+    body: Vec<SectionLine<'d>>,
 }
 
 impl<'s, 'd> Section<'d> {
@@ -253,7 +255,7 @@ impl<'s, 'd> Section<'d> {
                 // TODO: At the time of writing this will cause duplication of
                 //   system labels,
                 //     which is not desirable.
-                extend_sec.labels.extend(self.labels);
+                extend_sec.body.extend(self.body);
                 None
             }
 
@@ -268,24 +270,53 @@ where
 {
     fn from(mspan: MaybeResolvedSpan<'d, S>) -> Self {
         let heading = SpanHeading::from(&mspan);
-        let mut labels = mspan.system_labels();
+        let mut body = mspan.system_lines();
 
-        let (span, olabel) = match mspan {
-            MaybeResolvedSpan::Resolved(rspan, olabel) => {
-                (rspan.unresolved_span(), olabel)
+        let (span, level) = match mspan {
+            MaybeResolvedSpan::Resolved(rspan, oslabel) => {
+                let span = rspan.unresolved_span();
+                let src = rspan.into_lines();
+
+                let (level, mut olabel) = match oslabel {
+                    Some(SpanLabel(level, label)) => (level, Some(label)),
+                    None => (Default::default(), None),
+                };
+
+                let nlines = src.len();
+
+                body.extend(src.into_iter().enumerate().map(|(i, srcline)| {
+                    let col = srcline.column();
+
+                    SectionLine::SourceLine(SectionSourceLine {
+                        src: srcline,
+                        mark: LineMark {
+                            col,
+                            level,
+                            label: if i == nlines - 1 {
+                                olabel.take()
+                            } else {
+                                None
+                            },
+                        },
+                    })
+                }));
+
+                (span, level)
             }
-            MaybeResolvedSpan::Unresolved(span, olabel, _) => (span, olabel),
+            MaybeResolvedSpan::Unresolved(span, olabel, _) => {
+                let level =
+                    olabel.as_ref().map(SpanLabel::level).unwrap_or_default();
+
+                body.extend(olabel.map(SectionLine::Footnote));
+                (span, level)
+            }
         };
-
-        let level = olabel.as_ref().map(SpanLabel::level).unwrap_or_default();
-
-        labels.extend(olabel);
 
         Section {
             heading,
-            labels,
             span,
             level,
+            body,
         }
     }
 }
@@ -294,8 +325,10 @@ impl<'d> Display for Section<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "  {heading}\n", heading = self.heading)?;
 
-        for label in self.labels.iter() {
-            write!(f, "{label}\n")?;
+        for line in self.body.iter() {
+            // Let each line have control over its own newline so that it
+            //   can fully suppress itself if it's not relevant.
+            line.fmt(f)?;
         }
 
         Ok(())
@@ -442,6 +475,59 @@ impl<'d> Display for SpanLabel<'d> {
     }
 }
 
+/// A possibly-annotated line of output.
+///
+/// Note that a section line doesn't necessarily correspond to a single line
+///   of output on a terminal;
+///     lines are likely to be annotated.
+#[derive(Debug, PartialEq, Eq)]
+enum SectionLine<'d> {
+    SourceLine(SectionSourceLine<'d>),
+    Footnote(SpanLabel<'d>),
+}
+
+impl<'d> Display for SectionLine<'d> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::SourceLine(line) => line.fmt(f),
+            Self::Footnote(label) => write!(f, "{label}\n"),
+        }
+    }
+}
+
+/// A line representing possibly-annotated source code.
+#[derive(Debug, PartialEq, Eq)]
+struct SectionSourceLine<'d> {
+    src: SourceLine,
+    mark: LineMark<'d>,
+}
+
+impl<'d> Display for SectionSourceLine<'d> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO
+        write!(f, "{}", self.mark)
+    }
+}
+
+/// A type of line annotation that marks columns and provides labels,
+///   if available.
+#[derive(Debug, PartialEq, Eq)]
+struct LineMark<'d> {
+    level: Level,
+    col: Option<Column>,
+    label: Option<Label<'d>>,
+}
+
+impl<'d> Display for LineMark<'d> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(label) = self.label.as_ref() {
+            write!(f, "      {level}: {label}\n", level = self.level)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -461,6 +547,7 @@ mod test {
         line_num: Option<NonZeroU32>,
         col_num: Option<Column>,
         context: Option<Context>,
+        src_lines: Option<Vec<SourceLine>>,
     }
 
     impl ResolvedSpanData for StubResolvedSpan {
@@ -482,6 +569,10 @@ mod test {
 
         fn unresolved_span(&self) -> Span {
             self.span.expect("missing stub unresolved span")
+        }
+
+        fn into_lines(self) -> Vec<SourceLine> {
+            self.src_lines.unwrap_or_default()
         }
     }
 
@@ -562,17 +653,33 @@ mod test {
         let ctx = Context::from("mspan/sec");
         let span = ctx.span(2, 3);
 
+        let col_1 = Column::Endpoints(2.unwrap_into(), 3.unwrap_into());
+        let col_2 = Column::Endpoints(1.unwrap_into(), 4.unwrap_into());
+
+        let src_lines = vec![
+            SourceLine::new_stub(
+                1.unwrap_into(),
+                Some(col_1),
+                span,
+                "line 1".into(),
+            ),
+            SourceLine::new_stub(
+                2.unwrap_into(),
+                Some(col_2),
+                span,
+                "line 2".into(),
+            ),
+        ];
+
         assert_eq!(
             Section::from(MaybeResolvedSpan::Resolved(
                 StubResolvedSpan {
                     context: Some(ctx),
                     line_num: Some(1.unwrap_into()),
-                    col_num: Some(Column::Endpoints(
-                        2.unwrap_into(),
-                        3.unwrap_into()
-                    )),
+                    col_num: Some(col_1),
                     first_line_span: Some(DUMMY_SPAN),
                     span: Some(span),
+                    src_lines: Some(src_lines.clone()),
                 },
                 Some(SpanLabel(Level::Note, "test label".into())),
             )),
@@ -587,10 +694,29 @@ mod test {
                         ))
                     )
                 ),
-                labels: vec![SpanLabel(Level::Note, "test label".into())],
                 span,
                 // Derived from label.
                 level: Level::Note,
+                body: vec![
+                    SectionLine::SourceLine(SectionSourceLine {
+                        src: src_lines[0].clone(),
+                        mark: LineMark {
+                            level: Level::Note,
+                            col: Some(col_1),
+                            // Label goes on the last source line.
+                            label: None,
+                        }
+                    }),
+                    SectionLine::SourceLine(SectionSourceLine {
+                        src: src_lines[1].clone(),
+                        mark: LineMark {
+                            level: Level::Note,
+                            col: Some(col_2),
+                            // Label at last source line
+                            label: Some("test label".into()),
+                        }
+                    }),
+                ],
             }
         );
     }
@@ -611,6 +737,7 @@ mod test {
                     )),
                     first_line_span: Some(DUMMY_SPAN),
                     span: Some(span),
+                    src_lines: None,
                 },
                 None,
             )),
@@ -625,11 +752,11 @@ mod test {
                         ))
                     )
                 ),
-                labels: vec![],
                 span,
                 // Level is normally derived from the label,
                 //   so in this case it gets defaulted.
                 level: Level::default(),
+                body: vec![],
             }
         );
     }
@@ -645,27 +772,29 @@ mod test {
             SpanResolverError::Io(io::ErrorKind::NotFound),
         );
 
-        let syslabels = mspan.system_labels();
-
         assert_eq!(
             Section::from(mspan),
             Section {
                 heading: SpanHeading(ctx, HeadingLineNum::Unresolved(span),),
-                labels: vec![
-                    SpanLabel(
-                        Level::Help,
-                        // Clone inner so that we don't need to implement
-                        //   `Clone` for `SpanLabel`.
-                        syslabels
-                            .first()
-                            .expect("missing system label")
-                            .1
-                            .clone(),
-                    ),
-                    SpanLabel(Level::Note, "test label".into()),
-                ],
                 span,
                 level: Level::Note,
+                body: vec![
+                    SectionLine::Footnote(SpanLabel(
+                        Level::Help,
+                        // This hard-coding is not ideal,
+                        //   as it makes the test fragile.
+                        format!(
+                            "an error occurred while trying to look up \
+                             information about this span: {}",
+                            io::ErrorKind::NotFound
+                        )
+                        .into()
+                    )),
+                    SectionLine::Footnote(SpanLabel(
+                        Level::Note,
+                        "test label".into()
+                    )),
+                ],
             }
         );
     }

@@ -316,6 +316,24 @@ internal error: multiple spans with labels of different severity level
     );
 }
 
+#[test]
+fn multi_line_span() {
+    let ctx = Context::from("foo/bar");
+
+    // First two lines.
+    let span = ctx.span(0, 29);
+
+    assert_report!(
+        "multi-line span",
+        vec![span.error("label to be on last line")],
+        "\
+error: multi-line span
+  --> foo/bar:1:1
+      error: label to be on last line
+"
+    );
+}
+
 // If a span fails to resolve
 //   (maybe the file cannot be read for some reason,
 //     or maybe there's some bug in TAMER such that the context is
