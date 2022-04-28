@@ -438,7 +438,7 @@ impl Diagnostic for StateError {
 
             UnbalancedTag {
                 open: (open_name, open_span),
-                close: (close_name, close_span),
+                close: (_close_name, close_span),
             } => {
                 // TODO: hint saying that the nesting could be wrong, etc;
                 //   we can't just suggest a replacement,
@@ -446,10 +446,9 @@ impl Diagnostic for StateError {
                 vec![
                     open_span
                         .note(format!("element `{open_name}` is opened here")),
-                    close_span.error(format!(
-                        "expected `</{open_name}>`, \
-                           but found closing tag for `{close_name}`"
-                    )),
+                    // No need to state the close name since the source line
+                    //   will be highlighted by the diagnostic message.
+                    close_span.error(format!("expected `</{open_name}>`")),
                 ]
             }
 
