@@ -107,6 +107,62 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
     }
 }
 
+/// A [`Span`] that may have been resolved.
+///
+/// The span will remain unresolved if an error occurred,
+///   in which case the error will be provided.
+/// The idea is to provide as much fallback information as is useful to the
+///   user so that they can still debug the problem without the benefit of
+///   the resolved context.
+///
+/// Furthermore,
+///   it is important that the underlying diagnostic message
+///     (e.g. error)
+///     never be masked by an error of our own.
+#[derive(Debug, PartialEq, Eq)]
+enum MaybeResolvedSpan<'d, S: ResolvedSpanData> {
+    Resolved(S, Option<SpanLabel<'d>>),
+    Unresolved(Span, Option<SpanLabel<'d>>, SpanResolverError),
+}
+
+impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
+    /// We should never mask an error with our own;
+    ///   the diagnostic system is supposed to _help_ the user in diagnosing
+    ///   problems,
+    ///     not hinder them by masking it.
+    fn system_labels(&self) -> Vec<SpanLabel<'static>> {
+        match self {
+            Self::Resolved(rspan, _) if rspan.col_num().is_none() => vec![
+                SpanLabel(
+                    Level::Help,
+                    "unable to calculate columns because the line is \
+                        not a valid UTF-8 string"
+                        .into(),
+                ),
+                SpanLabel(
+                    Level::Help,
+                    "you have been provided with 0-indexed \
+                        line-relative inclusive byte offsets"
+                        .into(),
+                ),
+            ],
+
+            Self::Unresolved(_, _, e) => {
+                vec![SpanLabel(
+                    Level::Help,
+                    format!(
+                        "an error occurred while trying to look up \
+                         information about this span: {e}"
+                    )
+                    .into(),
+                )]
+            }
+
+            _ => vec![],
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Report<'d, D: Diagnostic> {
     msg: Message<'d, D>,
@@ -243,62 +299,6 @@ impl<'d> Display for Section<'d> {
         }
 
         Ok(())
-    }
-}
-
-/// A [`Span`] that may have been resolved.
-///
-/// The span will remain unresolved if an error occurred,
-///   in which case the error will be provided.
-/// The idea is to provide as much fallback information as is useful to the
-///   user so that they can still debug the problem without the benefit of
-///   the resolved context.
-///
-/// Furthermore,
-///   it is important that the underlying diagnostic message
-///     (e.g. error)
-///     never be masked by an error of our own.
-#[derive(Debug, PartialEq, Eq)]
-enum MaybeResolvedSpan<'d, S: ResolvedSpanData> {
-    Resolved(S, Option<SpanLabel<'d>>),
-    Unresolved(Span, Option<SpanLabel<'d>>, SpanResolverError),
-}
-
-impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
-    /// We should never mask an error with our own;
-    ///   the diagnostic system is supposed to _help_ the user in diagnosing
-    ///   problems,
-    ///     not hinder them by masking it.
-    fn system_labels(&self) -> Vec<SpanLabel<'static>> {
-        match self {
-            Self::Resolved(rspan, _) if rspan.col_num().is_none() => vec![
-                SpanLabel(
-                    Level::Help,
-                    "unable to calculate columns because the line is \
-                        not a valid UTF-8 string"
-                        .into(),
-                ),
-                SpanLabel(
-                    Level::Help,
-                    "you have been provided with 0-indexed \
-                        line-relative inclusive byte offsets"
-                        .into(),
-                ),
-            ],
-
-            Self::Unresolved(_, _, e) => {
-                vec![SpanLabel(
-                    Level::Help,
-                    format!(
-                        "an error occurred while trying to look up \
-                         information about this span: {e}"
-                    )
-                    .into(),
-                )]
-            }
-
-            _ => vec![],
-        }
     }
 }
 
