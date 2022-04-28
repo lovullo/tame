@@ -170,8 +170,7 @@ error: single span with label
   --> bar/baz:3:1
    |
    | bar/baz line 3
-   | ^^^
-   = error: span label here
+   | ^^^ error: span label here
 "
     );
 }
@@ -217,8 +216,7 @@ error: multiple adjacent same span with labels
   --> bar/baz:1:9
    |
    | bar/baz line 1
-   |         ^^^^^^
-   = error: A label
+   |         ^^^^^^ error: A label
    = error: C label
 "
     );
@@ -233,7 +231,10 @@ fn adjacent_eq_context_neq_offset_len_spans_not_collapsed() {
         vec![
             // -->
             ctx.span(0, 3).mark_error(),
-            ctx.span(0, 3).error("A, first label"), // collapse
+            // Note that this appears _after_ a marked span,
+            //   and so the error will not be displayed on the same line as
+            //   the mark.
+            ctx.span(0, 3).error("A, first label, after mark"), // collapse
             // -->
             ctx.span(0, 7).error("B, different length"),
             ctx.span(0, 7).mark_error(), // collapse
@@ -250,26 +251,23 @@ error: eq context neq offset/len
    |
    | bar/baz line 1
    | ^^^
-   = error: A, first label
+   = error: A, first label, after mark
 
   --> bar/baz:1:1
    |
    | bar/baz line 1
-   | ^^^^^^^
-   = error: B, different length
+   | ^^^^^^^ error: B, different length
    = error: B, collapse
 
   --> bar/baz:2:1
    |
    | bar/baz line 2
-   | ^^^^
-   = error: C, different offset
+   | ^^^^ error: C, different offset
 
   --> bar/baz:1:1
    |
    | bar/baz line 1
-   | ^^^^^^^
-   = error: B', not adjacent
+   | ^^^^^^^ error: B', not adjacent
 "
     );
 }
@@ -286,11 +284,14 @@ fn adjacent_neq_context_spans_not_collapsed() {
         vec![
             // -->
             span_a.mark_error(),
-            span_a.error("A, first"),
+            // Note that this appears _after_ a marked span,
+            //   and so the error will not be displayed on the same line as
+            //   the mark.
+            span_a.error("A, first, after marked"),
             span_a.error("A, collapsed"),
             span_a.mark_error(), // collapsed, same
             // -->
-            span_b.error("B, first"),
+            span_b.error("B, first, no marked"),
             span_b.error("B, collapsed"),
             span_b.mark_error(), // collapsed, same
             // -->
@@ -310,21 +311,19 @@ error: multiple adjacent different context
    |
    | foo/bar line 1
    | ^^^^^^^
-   = error: A, first
+   = error: A, first, after marked
    = error: A, collapsed
 
   --> bar/baz:1:1
    |
    | bar/baz line 1
-   | ^^^^^^^
-   = error: B, first
+   | ^^^^^^^ error: B, first, no marked
    = error: B, collapsed
 
   --> foo/bar:1:1
    |
    | foo/bar line 1
-   | ^^^^^^^
-   = error: A, not collapsed
+   | ^^^^^^^ error: A, not collapsed
 
   --> bar/baz:1:1
    |
@@ -357,8 +356,7 @@ internal error: multiple spans with labels of different severity level
   --> foo/bar:4:9
    |
    | foo/bar line 4
-   |         !!!!!!
-   = internal error: an internal error
+   |         !!!!!! internal error: an internal error
    = error: an error
    = note: a note
    = help: a help message
@@ -386,8 +384,7 @@ error: multi-line span
    |         ^^^^^^
    |
    | foo/bar line 2
-   | ^^^^^^^^^^^^
-   = error: label to be on last line
+   | ^^^^^^^^^^^^ error: label to be on last line
 "
     );
 }
@@ -524,26 +521,22 @@ internal error: multiple level mark styles
   --> foo/bar:1:1
    |
    | foo/bar line 1
-   | !!!!!!!
-   = internal error: A
+   | !!!!!!! internal error: A
 
   --> foo/bar:2:1
    |
    | foo/bar line 2
-   | ^^^^^^^
-   = error: B
+   | ^^^^^^^ error: B
 
   --> foo/bar:3:1
    |
    | foo/bar line 3
-   | -------
-   = note: C
+   | ------- note: C
 
   --> foo/bar:4:1
    |
    | foo/bar line 4
-   | -------
-   = help: D
+   | ------- help: D
 "
     );
 }
