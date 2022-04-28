@@ -558,8 +558,11 @@ impl<'d> Display for LineMark<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.col {
             Some(col) => {
-                let underline = "^"
-                    .repeat((col.end().get() - col.start().get()) as usize + 1);
+                let underline =
+                    self.level.mark_char().to_string().repeat(
+                        (col.end().get() - col.start().get()) as usize + 1,
+                    );
+
                 let lpad = col.start().get() as usize - 1;
 
                 write!(f, "   | {:lpad$}{underline}\n", "")?;
@@ -574,6 +577,22 @@ impl<'d> Display for LineMark<'d> {
         }
 
         Ok(())
+    }
+}
+
+trait MarkChar {
+    fn mark_char(&self) -> char;
+}
+
+impl MarkChar for Level {
+    /// Character used to underline the columns applicable to a given span
+    ///   underneath a source line.
+    fn mark_char(&self) -> char {
+        match self {
+            Level::InternalError => '!',
+            Level::Error => '^',
+            Level::Note | Level::Help => '-',
+        }
     }
 }
 

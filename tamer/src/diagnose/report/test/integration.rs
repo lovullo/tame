@@ -357,7 +357,7 @@ internal error: multiple spans with labels of different severity level
   --> foo/bar:4:9
    |
    | foo/bar line 4
-   |         ^^^^^^
+   |         !!!!!!
    = internal error: an internal error
    = error: an error
    = note: a note
@@ -503,6 +503,47 @@ error: offset at newline
    |
    | foo/bar line 1
    |        ^
+"
+    );
+}
+
+#[test]
+fn error_level_mark_styling() {
+    let ctx = Context::from("foo/bar");
+
+    assert_report!(
+        "multiple level mark styles",
+        vec![
+            ctx.span(0, 7).internal_error("A"),
+            ctx.span(15, 7).error("B"),
+            ctx.span(30, 7).note("C"),
+            ctx.span(45, 7).help("D"),
+        ],
+        "\
+internal error: multiple level mark styles
+  --> foo/bar:1:1
+   |
+   | foo/bar line 1
+   | !!!!!!!
+   = internal error: A
+
+  --> foo/bar:2:1
+   |
+   | foo/bar line 2
+   | ^^^^^^^
+   = error: B
+
+  --> foo/bar:3:1
+   |
+   | foo/bar line 3
+   | -------
+   = note: C
+
+  --> foo/bar:4:1
+   |
+   | foo/bar line 4
+   | -------
+   = help: D
 "
     );
 }
