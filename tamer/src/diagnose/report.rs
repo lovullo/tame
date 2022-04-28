@@ -32,7 +32,7 @@ use super::{
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Display, Write},
     num::NonZeroU32,
 };
 
@@ -197,7 +197,17 @@ impl<'d, D: Diagnostic> Extend<Section<'d>> for Report<'d, D> {
 impl<'d, D: Diagnostic> Display for Report<'d, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{level}: {msg}\n", level = self.level, msg = self.msg)?;
-        self.secs.iter().try_for_each(|sec| sec.fmt(f))
+
+        self.secs.iter().try_fold(true, |first, sec| {
+            if !first {
+                f.write_char('\n')?;
+            }
+
+            sec.fmt(f)?;
+            Ok(false)
+        })?;
+
+        Ok(())
     }
 }
 
@@ -255,7 +265,14 @@ impl<'s, 'd> Section<'d> {
                 // TODO: At the time of writing this will cause duplication of
                 //   system labels,
                 //     which is not desirable.
-                extend_sec.body.extend(self.body);
+                extend_sec.body.extend(
+                    // TODO: The system wastefully allocates duplicate source
+                    //   lines when resolving spans only to discard them here.
+                    self.body
+                        .into_iter()
+                        .filter_map(SectionLine::into_footnote),
+                );
+
                 None
             }
 
@@ -270,7 +287,9 @@ where
 {
     fn from(mspan: MaybeResolvedSpan<'d, S>) -> Self {
         let heading = SpanHeading::from(&mspan);
-        let mut body = mspan.system_lines();
+        let syslines = mspan.system_lines();
+
+        let mut body = Vec::new();
 
         let (span, level) = match mspan {
             MaybeResolvedSpan::Resolved(rspan, oslabel) => {
@@ -311,6 +330,8 @@ where
                 (span, level)
             }
         };
+
+        body.extend(syslines);
 
         Section {
             heading,
@@ -471,7 +492,7 @@ impl<'d> SpanLabel<'d> {
 impl<'d> Display for SpanLabel<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(level, label) = self;
-        write!(f, "      {level}: {label}")
+        write!(f, "   = {level}: {label}")
     }
 }
 
@@ -484,6 +505,19 @@ impl<'d> Display for SpanLabel<'d> {
 enum SectionLine<'d> {
     SourceLine(SectionSourceLine<'d>),
     Footnote(SpanLabel<'d>),
+}
+
+impl<'d> SectionLine<'d> {
+    fn into_footnote(self) -> Option<Self> {
+        match self {
+            Self::SourceLine(SectionSourceLine {
+                mark: LineMark { level, label, .. },
+                ..
+            }) => label.map(|l| Self::Footnote(SpanLabel(level, l))),
+
+            Self::Footnote(..) => Some(self),
+        }
+    }
 }
 
 impl<'d> Display for SectionLine<'d> {
@@ -504,7 +538,9 @@ struct SectionSourceLine<'d> {
 
 impl<'d> Display for SectionSourceLine<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO
+        write!(f, "   |\n")?;
+        write!(f, "   | {src}\n", src = self.src)?;
+        write!(f, "   |\n")?;
         write!(f, "{}", self.mark)
     }
 }
@@ -521,7 +557,7 @@ struct LineMark<'d> {
 impl<'d> Display for LineMark<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(label) = self.label.as_ref() {
-            write!(f, "      {level}: {label}\n", level = self.level)?;
+            write!(f, "   = {level}: {label}\n", level = self.level)?;
         }
 
         Ok(())
@@ -780,6 +816,10 @@ mod test {
                 level: Level::Note,
                 body: vec![
                     SectionLine::Footnote(SpanLabel(
+                        Level::Note,
+                        "test label".into()
+                    )),
+                    SectionLine::Footnote(SpanLabel(
                         Level::Help,
                         // This hard-coding is not ideal,
                         //   as it makes the test fragile.
@@ -790,12 +830,71 @@ mod test {
                         )
                         .into()
                     )),
-                    SectionLine::Footnote(SpanLabel(
-                        Level::Note,
-                        "test label".into()
-                    )),
                 ],
             }
         );
     }
+
+    #[test]
+    fn section_footnote_into_footnote() {
+        assert_eq!(
+            SectionLine::Footnote(SpanLabel(
+                Level::Note,
+                "test footnote".into()
+            ))
+            .into_footnote(),
+            Some(SectionLine::Footnote(SpanLabel(
+                Level::Note,
+                "test footnote".into()
+            ))),
+        );
+    }
+
+    #[test]
+    fn section_src_line_with_label_into_footnote() {
+        assert_eq!(
+            SectionLine::SourceLine(SectionSourceLine {
+                src: SourceLine::new_stub(
+                    1.unwrap_into(),
+                    None,
+                    DUMMY_SPAN,
+                    "discarded".into()
+                ),
+                mark: LineMark {
+                    level: Level::Help,
+                    col: None,
+                    label: Some("kept label".into())
+                }
+            })
+            .into_footnote(),
+            Some(SectionLine::Footnote(SpanLabel(
+                Level::Help,
+                "kept label".into()
+            ))),
+        );
+    }
+
+    #[test]
+    fn section_src_line_without_label_into_footnote() {
+        assert_eq!(
+            SectionLine::SourceLine(SectionSourceLine {
+                src: SourceLine::new_stub(
+                    1.unwrap_into(),
+                    None,
+                    DUMMY_SPAN,
+                    "discarded".into()
+                ),
+                mark: LineMark {
+                    level: Level::Help,
+                    col: None,
+                    label: None,
+                }
+            })
+            .into_footnote(),
+            None
+        );
+    }
+
+    // TODO: Section squashing is currently only covered by integration
+    //   tests!
 }

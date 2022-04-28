@@ -266,6 +266,14 @@ impl SourceLine {
     }
 }
 
+impl Display for SourceLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO: Just store String instead of a byte vector so we're not
+        //   validating UTF-8 twice.
+        write!(f, "{}", String::from_utf8_lossy(&self.text))
+    }
+}
+
 /// Resolve a [`Span`] using any generic [`BufRead`].
 pub struct BufSpanResolver<R: BufRead + Seek> {
     reader: R,

@@ -149,6 +149,9 @@ fn span_error_no_label() {
         "\
 error: single span no label
   --> foo/bar:4:6
+   |
+   | foo/bar line 4
+   |
 "
     );
 }
@@ -164,7 +167,10 @@ fn span_error_with_label() {
         "\
 error: single span with label
   --> bar/baz:3:1
-      error: span label here
+   |
+   | bar/baz line 3
+   |
+   = error: span label here
 "
     );
 }
@@ -184,6 +190,9 @@ fn adjacent_eq_span_no_labels_collapsed() {
         "\
 error: multiple adjacent same span no label
   --> foo/bar:4:6
+   |
+   | foo/bar line 4
+   |
 "
     );
 }
@@ -205,8 +214,11 @@ fn adjacent_eq_span_labels_collapsed() {
         "\
 error: multiple adjacent same span with labels
   --> bar/baz:1:11
-      error: A label
-      error: C label
+   |
+   | bar/baz line 1
+   |
+   = error: A label
+   = error: C label
 "
     );
 }
@@ -219,29 +231,44 @@ fn adjacent_eq_context_neq_offset_len_spans_not_collapsed() {
         "eq context neq offset/len",
         vec![
             // -->
-            ctx.span(10, 5).mark_error(),
-            ctx.span(10, 5).error("A, first label"), // collapse
+            ctx.span(0, 5).mark_error(),
+            ctx.span(0, 5).error("A, first label"), // collapse
             // -->
-            ctx.span(10, 6).error("B, different length"),
-            ctx.span(10, 6).mark_error(), // collapse
-            ctx.span(10, 6).error("B, collapse"),
+            ctx.span(0, 6).error("B, different length"),
+            ctx.span(0, 6).mark_error(), // collapse
+            ctx.span(0, 6).error("B, collapse"),
             // -->
             ctx.span(15, 6).error("C, different offset"),
             // -->
             // Back to (10, 6), but not adjacent to previous
-            ctx.span(10, 6).error("B', not adjacent"),
+            ctx.span(0, 6).error("B', not adjacent"),
         ],
         "\
 error: eq context neq offset/len
-  --> bar/baz:1:11
-      error: A, first label
-  --> bar/baz:1:11
-      error: B, different length
-      error: B, collapse
+  --> bar/baz:1:1
+   |
+   | bar/baz line 1
+   |
+   = error: A, first label
+
+  --> bar/baz:1:1
+   |
+   | bar/baz line 1
+   |
+   = error: B, different length
+   = error: B, collapse
+
   --> bar/baz:2:1
-      error: C, different offset
-  --> bar/baz:1:11
-      error: B', not adjacent
+   |
+   | bar/baz line 2
+   |
+   = error: C, different offset
+
+  --> bar/baz:1:1
+   |
+   | bar/baz line 1
+   |
+   = error: B', not adjacent
 "
     );
 }
@@ -279,15 +306,34 @@ fn adjacent_neq_context_spans_not_collapsed() {
         "\
 error: multiple adjacent different context
   --> foo/bar:1:11
-      error: A, first
-      error: A, collapsed
+   |
+   | foo/bar line 1
+   |
+   = error: A, first
+   = error: A, collapsed
+
   --> bar/baz:1:11
-      error: B, first
-      error: B, collapsed
+   |
+   | bar/baz line 1
+   |
+   = error: B, first
+   = error: B, collapsed
+
   --> foo/bar:1:11
-      error: A, not collapsed
+   |
+   | foo/bar line 1
+   |
+   = error: A, not collapsed
+
   --> bar/baz:1:11
+   |
+   | bar/baz line 1
+   |
+
   --> foo/bar:1:11
+   |
+   | foo/bar line 1
+   |
 "
     );
 }
@@ -308,10 +354,13 @@ fn severity_levels_reflected() {
         "\
 internal error: multiple spans with labels of different severity level
   --> foo/bar:4:6
-      internal error: an internal error
-      error: an error
-      note: a note
-      help: a help message
+   |
+   | foo/bar line 4
+   |
+   = internal error: an internal error
+   = error: an error
+   = note: a note
+   = help: a help message
 "
     );
 }
@@ -323,13 +372,21 @@ fn multi_line_span() {
     // First two lines.
     let span = ctx.span(0, 29);
 
+    // This is obviously terrible-looking;
+    //   it'll be condensed as this evolves further.
     assert_report!(
         "multi-line span",
         vec![span.error("label to be on last line")],
         "\
 error: multi-line span
   --> foo/bar:1:1
-      error: label to be on last line
+   |
+   | foo/bar line 1
+   |
+   |
+   | foo/bar line 2
+   |
+   = error: label to be on last line
 "
     );
 }
@@ -365,8 +422,8 @@ fn fallback_when_span_fails_to_resolve() {
             format!("\
 error: unresolvable context fallback
   --> unknown/context offset 50--55
-      help: an error occurred while trying to look up information about this span: {ioerr}
-      error: an error we do not want to suppress
+   = error: an error we do not want to suppress
+   = help: an error occurred while trying to look up information about this span: {ioerr}
 ")
         );
 }
@@ -381,6 +438,8 @@ fn fallback_when_column_fails_to_resolve() {
 
     let span = ctx.span(4, 2);
 
+    let lossy = String::from_utf8_lossy(FILE_INVALID_UTF8);
+
     // It's not ideal that the help appears first,
     //   but this should only happen under very exceptional
     //   circumstances so it's not worth trying to resolve.
@@ -390,12 +449,15 @@ fn fallback_when_column_fails_to_resolve() {
     assert_report!(
             "column resolution failure",
             vec![span.error("an error we do not want to suppress"),],
-            "\
+            format!("\
 error: column resolution failure
   --> invalid/utf8:1 bytes 4--6
-      help: unable to calculate columns because the line is not a valid UTF-8 string
-      help: you have been provided with 0-indexed line-relative inclusive byte offsets
-      error: an error we do not want to suppress
-"
+   |
+   | {lossy}
+   |
+   = error: an error we do not want to suppress
+   = help: unable to calculate columns because the line is not a valid UTF-8 string
+   = help: you have been provided with 0-indexed line-relative inclusive byte offsets
+")
         );
 }
