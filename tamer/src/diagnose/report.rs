@@ -304,23 +304,26 @@ where
 
                 let nlines = src.len();
 
-                body.extend(src.into_iter().enumerate().filter_map(
-                    |(i, srcline)| {
-                        let label =
-                            if i == nlines - 1 { olabel.take() } else { None };
+                src.into_iter().enumerate().for_each(|(i, srcline)| {
+                    let label =
+                        if i == nlines - 1 { olabel.take() } else { None };
 
-                        if let Some(col) = srcline.column() {
-                            Some(SectionLine::SourceLine(SectionSourceLine {
-                                src: srcline,
-                                mark: LineMark { col, level, label },
-                            }))
-                        } else {
-                            label.map(|l| {
-                                SectionLine::Footnote(SpanLabel(level, l))
-                            })
-                        }
-                    },
-                ));
+                    if let Some(col) = srcline.column() {
+                        body.extend(vec![
+                            SectionLine::SourceLinePadding,
+                            SectionLine::SourceLine(srcline.into()),
+                            SectionLine::SourceLineMark(LineMark {
+                                col,
+                                level,
+                                label,
+                            }),
+                        ]);
+                    } else {
+                        body.extend(label.map(|l| {
+                            SectionLine::Footnote(SpanLabel(level, l))
+                        }));
+                    }
+                });
 
                 (span, level)
             }
@@ -498,24 +501,23 @@ impl<'d> Display for SpanLabel<'d> {
     }
 }
 
-/// A possibly-annotated line of output.
-///
-/// Note that a section line doesn't necessarily correspond to a single line
-///   of output on a terminal;
-///     lines are likely to be annotated.
+/// Line of output in a [`Section`] body.
 #[derive(Debug, PartialEq, Eq)]
 enum SectionLine<'d> {
-    SourceLine(SectionSourceLine<'d>),
+    SourceLinePadding,
+    SourceLine(SectionSourceLine),
+    SourceLineMark(LineMark<'d>),
     Footnote(SpanLabel<'d>),
 }
 
 impl<'d> SectionLine<'d> {
     fn into_footnote(self) -> Option<Self> {
         match self {
-            Self::SourceLine(SectionSourceLine {
-                mark: LineMark { level, label, .. },
-                ..
-            }) => label.map(|l| Self::Footnote(SpanLabel(level, l))),
+            Self::SourceLinePadding => None,
+            Self::SourceLine(..) => None,
+            Self::SourceLineMark(LineMark { level, label, .. }) => {
+                label.map(|l| Self::Footnote(SpanLabel(level, l)))
+            }
 
             Self::Footnote(..) => Some(self),
         }
@@ -525,24 +527,26 @@ impl<'d> SectionLine<'d> {
 impl<'d> Display for SectionLine<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::SourceLine(line) => line.fmt(f),
+            Self::SourceLinePadding => write!(f, "   |\n"),
+            Self::SourceLine(line) => write!(f, "   |{line}\n"),
+            Self::SourceLineMark(mark) => write!(f, "   |{mark}\n"),
             Self::Footnote(label) => write!(f, "{label}\n"),
         }
     }
 }
 
-/// A line representing possibly-annotated source code.
 #[derive(Debug, PartialEq, Eq)]
-struct SectionSourceLine<'d> {
-    src: SourceLine,
-    mark: LineMark<'d>,
+struct SectionSourceLine(SourceLine);
+
+impl From<SourceLine> for SectionSourceLine {
+    fn from(line: SourceLine) -> Self {
+        Self(line)
+    }
 }
 
-impl<'d> Display for SectionSourceLine<'d> {
+impl Display for SectionSourceLine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "   |\n")?;
-        write!(f, "   | {src}\n", src = self.src)?;
-        write!(f, "   |{}", self.mark)
+        write!(f, " {line}", line = self.0)
     }
 }
 
@@ -575,7 +579,7 @@ impl<'d> Display for LineMark<'d> {
             write!(f, " {level}: {label}", level = self.level)?;
         }
 
-        write!(f, "\n")
+        Ok(())
     }
 }
 
@@ -765,23 +769,21 @@ mod test {
                 // Derived from label.
                 level: Level::Note,
                 body: vec![
-                    SectionLine::SourceLine(SectionSourceLine {
-                        src: src_lines[0].clone(),
-                        mark: LineMark {
-                            level: Level::Note,
-                            col: col_1,
-                            // Label goes on the last source line.
-                            label: None,
-                        }
+                    SectionLine::SourceLinePadding,
+                    SectionLine::SourceLine(src_lines[0].clone().into()),
+                    SectionLine::SourceLineMark(LineMark {
+                        level: Level::Note,
+                        col: col_1,
+                        // Label goes on the last source line.
+                        label: None,
                     }),
-                    SectionLine::SourceLine(SectionSourceLine {
-                        src: src_lines[1].clone(),
-                        mark: LineMark {
-                            level: Level::Note,
-                            col: col_2,
-                            // Label at last source line
-                            label: Some("test label".into()),
-                        }
+                    SectionLine::SourceLinePadding,
+                    SectionLine::SourceLine(src_lines[1].clone().into()),
+                    SectionLine::SourceLineMark(LineMark {
+                        level: Level::Note,
+                        col: col_2,
+                        // Label at last source line
+                        label: Some("test label".into()),
                     }),
                 ],
             }
@@ -882,20 +884,29 @@ mod test {
     }
 
     #[test]
-    fn section_src_line_with_label_into_footnote() {
+    fn section_src_line_into_footnote() {
         assert_eq!(
-            SectionLine::SourceLine(SectionSourceLine {
-                src: SourceLine::new_stub(
+            SectionLine::SourceLine(
+                SourceLine::new_stub(
                     1.unwrap_into(),
                     None,
                     DUMMY_SPAN,
                     "discarded".into()
-                ),
-                mark: LineMark {
-                    level: Level::Help,
-                    col: Column::Before(1.unwrap_into()),
-                    label: Some("kept label".into())
-                }
+                )
+                .into()
+            )
+            .into_footnote(),
+            None
+        );
+    }
+
+    #[test]
+    fn section_mark_with_label_into_footnote() {
+        assert_eq!(
+            SectionLine::SourceLineMark(LineMark {
+                level: Level::Help,
+                col: Column::Before(1.unwrap_into()),
+                label: Some("kept label".into())
             })
             .into_footnote(),
             Some(SectionLine::Footnote(SpanLabel(
@@ -906,20 +917,12 @@ mod test {
     }
 
     #[test]
-    fn section_src_line_without_label_into_footnote() {
+    fn section_mark_without_label_into_footnote() {
         assert_eq!(
-            SectionLine::SourceLine(SectionSourceLine {
-                src: SourceLine::new_stub(
-                    1.unwrap_into(),
-                    None,
-                    DUMMY_SPAN,
-                    "discarded".into()
-                ),
-                mark: LineMark {
-                    level: Level::Help,
-                    col: Column::Before(1.unwrap_into()),
-                    label: None,
-                }
+            SectionLine::SourceLineMark(LineMark {
+                level: Level::Help,
+                col: Column::Before(1.unwrap_into()),
+                label: None,
             })
             .into_footnote(),
             None
