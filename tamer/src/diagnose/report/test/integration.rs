@@ -436,23 +436,12 @@ fn fallback_when_column_fails_to_resolve() {
 
     let span = ctx.span(4, 2);
 
-    let lossy = String::from_utf8_lossy(FILE_INVALID_UTF8);
-
-    // It's not ideal that the help appears first,
-    //   but this should only happen under very exceptional
-    //   circumstances so it's not worth trying to resolve.
-    // If you're reading this and it's trivial to swap these with the
-    //   current state of the system,
-    //     go for it.
     assert_report!(
             "column resolution failure",
             vec![span.error("an error we do not want to suppress"),],
             format!("\
 error: column resolution failure
   --> invalid/utf8:1 bytes 4--6
-   |
-   | {lossy}
-   |
    = error: an error we do not want to suppress
    = help: unable to calculate columns because the line is not a valid UTF-8 string
    = help: you have been provided with 0-indexed line-relative inclusive byte offsets

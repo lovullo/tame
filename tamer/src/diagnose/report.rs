@@ -304,22 +304,23 @@ where
 
                 let nlines = src.len();
 
-                body.extend(src.into_iter().enumerate().map(|(i, srcline)| {
-                    let col = srcline.column();
+                body.extend(src.into_iter().enumerate().filter_map(
+                    |(i, srcline)| {
+                        let label =
+                            if i == nlines - 1 { olabel.take() } else { None };
 
-                    SectionLine::SourceLine(SectionSourceLine {
-                        src: srcline,
-                        mark: LineMark {
-                            col,
-                            level,
-                            label: if i == nlines - 1 {
-                                olabel.take()
-                            } else {
-                                None
-                            },
-                        },
-                    })
-                }));
+                        if let Some(col) = srcline.column() {
+                            Some(SectionLine::SourceLine(SectionSourceLine {
+                                src: srcline,
+                                mark: LineMark { col, level, label },
+                            }))
+                        } else {
+                            label.map(|l| {
+                                SectionLine::Footnote(SpanLabel(level, l))
+                            })
+                        }
+                    },
+                ));
 
                 (span, level)
             }
@@ -541,7 +542,7 @@ impl<'d> Display for SectionSourceLine<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "   |\n")?;
         write!(f, "   | {src}\n", src = self.src)?;
-        write!(f, "{}", self.mark)
+        write!(f, "   |{}", self.mark)
     }
 }
 
@@ -550,34 +551,24 @@ impl<'d> Display for SectionSourceLine<'d> {
 #[derive(Debug, PartialEq, Eq)]
 struct LineMark<'d> {
     level: Level,
-    col: Option<Column>,
+    col: Column,
     label: Option<Label<'d>>,
 }
 
 impl<'d> Display for LineMark<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "   |")?;
+        let Self { col, level, .. } = self;
 
-        if let Some(col) = self.col {
-            let underline = self
-                .level
-                .mark_char()
-                .to_string()
-                .repeat((col.end().get() - col.start().get()) as usize + 1);
+        let underline = level
+            .mark_char()
+            .to_string()
+            .repeat((col.end().get() - col.start().get()) as usize + 1);
 
-            let lpad = col.start().get() as usize - 1;
+        let lpad = col.start().get() as usize - 1;
 
-            write!(f, " {:lpad$}{underline}", "")?;
-        } else {
-            write!(f, "\n")?;
-        }
+        write!(f, " {:lpad$}{underline}", "")?;
 
         if let Some(label) = self.label.as_ref() {
-            if self.col.is_none() {
-                // Render as a footnote.
-                write!(f, "   =")?;
-            }
-
             // TODO: If the span is at the end of a long line,
             //   this is more likely to wrap on the user's terminal and be
             //   unpleasant to read.
@@ -778,7 +769,7 @@ mod test {
                         src: src_lines[0].clone(),
                         mark: LineMark {
                             level: Level::Note,
-                            col: Some(col_1),
+                            col: col_1,
                             // Label goes on the last source line.
                             label: None,
                         }
@@ -787,7 +778,7 @@ mod test {
                         src: src_lines[1].clone(),
                         mark: LineMark {
                             level: Level::Note,
-                            col: Some(col_2),
+                            col: col_2,
                             // Label at last source line
                             label: Some("test label".into()),
                         }
@@ -902,7 +893,7 @@ mod test {
                 ),
                 mark: LineMark {
                     level: Level::Help,
-                    col: None,
+                    col: Column::Before(1.unwrap_into()),
                     label: Some("kept label".into())
                 }
             })
@@ -926,7 +917,7 @@ mod test {
                 ),
                 mark: LineMark {
                     level: Level::Help,
-                    col: None,
+                    col: Column::Before(1.unwrap_into()),
                     label: None,
                 }
             })
