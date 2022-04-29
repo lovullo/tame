@@ -124,21 +124,19 @@ where
     diagnostic.describe().into_iter().scan(
         UNKNOWN_SPAN,
         move |prev_span, AnnotatedSpan(span, level, olabel)| {
-            let slabel = olabel.map(|label| SpanLabel(level, label));
-
             // Avoid re-resolving
             //   (and allocating memory for the source lines of)
             //   a span that was just resolved,
             //     which will just be squashed with the previous anyway.
             if *prev_span == span {
-                return Some(MaybeResolvedSpan::Elided(span, slabel));
+                return Some(MaybeResolvedSpan::Elided(span, level, olabel));
             }
 
             *prev_span = span;
 
             Some(match resolve(span) {
-                Ok(rspan) => MaybeResolvedSpan::Resolved(rspan, slabel),
-                Err(e) => MaybeResolvedSpan::Unresolved(span, slabel, e),
+                Ok(rspan) => MaybeResolvedSpan::Resolved(rspan, level, olabel),
+                Err(e) => MaybeResolvedSpan::Unresolved(span, level, olabel, e),
             })
         },
     )
@@ -158,9 +156,9 @@ where
 ///     never be masked by an error of our own.
 #[derive(Debug, PartialEq, Eq)]
 enum MaybeResolvedSpan<'d, S: ResolvedSpanData> {
-    Resolved(S, Option<SpanLabel<'d>>),
-    Elided(Span, Option<SpanLabel<'d>>),
-    Unresolved(Span, Option<SpanLabel<'d>>, SpanResolverError),
+    Resolved(S, Level, Option<Label<'d>>),
+    Elided(Span, Level, Option<Label<'d>>),
+    Unresolved(Span, Level, Option<Label<'d>>, SpanResolverError),
 }
 
 impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
@@ -170,30 +168,30 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
     ///     not hinder them by masking it.
     fn system_lines(&self) -> Vec<SectionLine<'static>> {
         match self {
-            Self::Resolved(rspan, _) if rspan.col_num().is_none() => vec![
-                SectionLine::Footnote(SpanLabel(
+            Self::Resolved(rspan, ..) if rspan.col_num().is_none() => vec![
+                SectionLine::Footnote(
                     Level::Help,
                     "unable to calculate columns because the line is \
                         not a valid UTF-8 string"
                         .into(),
-                )),
-                SectionLine::Footnote(SpanLabel(
+                ),
+                SectionLine::Footnote(
                     Level::Help,
                     "you have been provided with 0-indexed \
                         line-relative inclusive byte offsets"
                         .into(),
-                )),
+                ),
             ],
 
-            Self::Unresolved(_, _, e) => {
-                vec![SectionLine::Footnote(SpanLabel(
+            Self::Unresolved(.., e) => {
+                vec![SectionLine::Footnote(
                     Level::Help,
                     format!(
                         "an error occurred while trying to look up \
                          information about this span: {e}"
                     )
                     .into(),
-                ))]
+                )]
             }
 
             _ => vec![],
@@ -363,14 +361,9 @@ where
         let mut line_max = NonZeroU32::MIN;
 
         let (span, level) = match mspan {
-            MaybeResolvedSpan::Resolved(rspan, oslabel) => {
+            MaybeResolvedSpan::Resolved(rspan, level, mut olabel) => {
                 let span = rspan.unresolved_span();
                 let src = rspan.into_lines();
-
-                let (level, mut olabel) = match oslabel {
-                    Some(SpanLabel(level, label)) => (level, Some(label)),
-                    None => (Default::default(), None),
-                };
 
                 let nlines = src.len();
 
@@ -396,20 +389,19 @@ where
                             }),
                         ]);
                     } else {
-                        body.extend(label.map(|l| {
-                            SectionLine::Footnote(SpanLabel(level, l))
-                        }));
+                        body.extend(
+                            label.map(|l| SectionLine::Footnote(level, l)),
+                        );
                     }
                 });
 
                 (span, level)
             }
-            MaybeResolvedSpan::Elided(span, olabel)
-            | MaybeResolvedSpan::Unresolved(span, olabel, _) => {
-                let level =
-                    olabel.as_ref().map(SpanLabel::level).unwrap_or_default();
-
-                body.extend(olabel.map(SectionLine::Footnote));
+            MaybeResolvedSpan::Elided(span, level, olabel)
+            | MaybeResolvedSpan::Unresolved(span, level, olabel, _) => {
+                body.extend(
+                    olabel.map(|label| SectionLine::Footnote(level, label)),
+                );
                 (span, level)
             }
         };
@@ -466,7 +458,7 @@ where
     /// Span header containing the (hopefully resolved) context.
     fn from(mspan: &'s MaybeResolvedSpan<'d, S>) -> Self {
         match mspan {
-            MaybeResolvedSpan::Resolved(rspan, _) => SpanHeading(
+            MaybeResolvedSpan::Resolved(rspan, _, _) => SpanHeading(
                 rspan.context(),
                 HeadingLineNum::Resolved(
                     rspan.line_num(),
@@ -483,8 +475,8 @@ where
             // Note that elided will be squashed anyway,
             //   so the fact that this results in an unresolved heading is
             //   okay.
-            MaybeResolvedSpan::Elided(span, _)
-            | MaybeResolvedSpan::Unresolved(span, _, _) => {
+            MaybeResolvedSpan::Elided(span, _, _)
+            | MaybeResolvedSpan::Unresolved(span, _, _, _) => {
                 SpanHeading(span.context(), HeadingLineNum::Unresolved(*span))
             }
         }
@@ -570,30 +562,13 @@ impl Display for HeadingColNum {
     }
 }
 
-/// A label describing a span.
-#[derive(Debug, PartialEq, Eq)]
-struct SpanLabel<'d>(Level, Label<'d>);
-
-impl<'d> SpanLabel<'d> {
-    fn level(&self) -> Level {
-        self.0
-    }
-}
-
-impl<'d> Display for SpanLabel<'d> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self(level, label) = self;
-        write!(f, " {level}: {label}")
-    }
-}
-
 /// Line of output in a [`Section`] body.
 #[derive(Debug, PartialEq, Eq)]
 enum SectionLine<'d> {
     SourceLinePadding,
     SourceLine(SectionSourceLine),
     SourceLineMark(LineMark<'d>),
-    Footnote(SpanLabel<'d>),
+    Footnote(Level, Label<'d>),
 }
 
 impl<'d> SectionLine<'d> {
@@ -634,7 +609,7 @@ impl<'d> SectionLine<'d> {
             Self::SourceLinePadding => None,
             Self::SourceLine(..) => None,
             Self::SourceLineMark(LineMark { level, label, .. }) => {
-                label.map(|l| Self::Footnote(SpanLabel(level, l)))
+                label.map(|l| Self::Footnote(level, l))
             }
 
             Self::Footnote(..) => Some(self),
@@ -648,7 +623,7 @@ impl<'d> Display for SectionLine<'d> {
             Self::SourceLinePadding => Ok(()),
             Self::SourceLine(line) => line.fmt(f),
             Self::SourceLineMark(mark) => mark.fmt(f),
-            Self::Footnote(label) => label.fmt(f),
+            Self::Footnote(level, label) => write!(f, " {level}: {label}"),
         }
     }
 }

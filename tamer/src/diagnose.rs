@@ -62,7 +62,6 @@ pub enum Level {
     /// A user-resolvable error.
     ///
     /// These represent errors resulting from the user's input.
-    #[default]
     Error,
 
     /// Useful information that supplements other messages.
@@ -79,6 +78,7 @@ pub enum Level {
     /// Unlike other severity levels which provide concrete factual
     ///   information,
     ///     help messages may be more speculative.
+    #[default]
     Help,
 }
 

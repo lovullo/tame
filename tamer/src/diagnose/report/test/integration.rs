@@ -153,7 +153,7 @@ fn no_spans() {
         "test with no spans",
         vec![],
         // No spans will result in the `Display` of the error only.
-        "error: test with no spans\n"
+        "help: test with no spans\n"
     );
 }
 

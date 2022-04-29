@@ -172,7 +172,8 @@ fn section_from_mspan_resolved() {
                 span: Some(span),
                 src_lines: Some(src_lines.clone()),
             },
-            Some(SpanLabel(Level::Note, "test label".into())),
+            Level::Note,
+            Some("test label".into()),
         )),
         Section {
             heading: SpanHeading(
@@ -229,6 +230,7 @@ fn section_from_mspan_resolved_no_label() {
                 span: Some(span),
                 src_lines: None,
             },
+            Level::Note,
             None,
         )),
         Section {
@@ -243,9 +245,7 @@ fn section_from_mspan_resolved_no_label() {
                 )
             ),
             span,
-            // Level is normally derived from the label,
-            //   so in this case it gets defaulted.
-            level: Level::default(),
+            level: Level::Note,
             body: vec![],
             // Line comes from `src_lines`.
             line_max: 1.unwrap_into(),
@@ -260,7 +260,8 @@ fn section_from_mspan_unresolved() {
 
     let mspan = MaybeResolvedSpan::Unresolved::<StubResolvedSpan>(
         span,
-        Some(SpanLabel(Level::Note, "test label".into())),
+        Level::Note,
+        Some("test label".into()),
         SpanResolverError::Io(io::ErrorKind::NotFound),
     );
 
@@ -271,11 +272,8 @@ fn section_from_mspan_unresolved() {
             span,
             level: Level::Note,
             body: vec![
-                SectionLine::Footnote(SpanLabel(
-                    Level::Note,
-                    "test label".into()
-                )),
-                SectionLine::Footnote(SpanLabel(
+                SectionLine::Footnote(Level::Note, "test label".into()),
+                SectionLine::Footnote(
                     Level::Help,
                     // This hard-coding is not ideal,
                     //   as it makes the test fragile.
@@ -285,7 +283,7 @@ fn section_from_mspan_unresolved() {
                         io::ErrorKind::NotFound
                     )
                     .into()
-                )),
+                ),
             ],
             line_max: 1.unwrap_into(),
         }
@@ -295,12 +293,9 @@ fn section_from_mspan_unresolved() {
 #[test]
 fn section_footnote_into_footnote() {
     assert_eq!(
-        SectionLine::Footnote(SpanLabel(Level::Note, "test footnote".into()))
+        SectionLine::Footnote(Level::Note, "test footnote".into())
             .into_footnote(),
-        Some(SectionLine::Footnote(SpanLabel(
-            Level::Note,
-            "test footnote".into()
-        ))),
+        Some(SectionLine::Footnote(Level::Note, "test footnote".into())),
     );
 }
 
@@ -330,10 +325,7 @@ fn section_mark_with_label_into_footnote() {
             label: Some("kept label".into())
         })
         .into_footnote(),
-        Some(SectionLine::Footnote(SpanLabel(
-            Level::Help,
-            "kept label".into()
-        ))),
+        Some(SectionLine::Footnote(Level::Help, "kept label".into())),
     );
 }
 
