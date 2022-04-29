@@ -351,13 +351,9 @@ impl<'d> Display for Section<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "  {heading}\n", heading = self.heading)?;
 
-        for line in self.body.iter() {
-            // Let each line have control over its own newline so that it
-            //   can fully suppress itself if it's not relevant.
-            line.fmt(f)?;
-        }
-
-        Ok(())
+        self.body.iter().try_for_each(|line| {
+            write!(f, "   {delim}{line}\n", delim = line.gutter_delim())
+        })
     }
 }
 
@@ -497,7 +493,7 @@ impl<'d> SpanLabel<'d> {
 impl<'d> Display for SpanLabel<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(level, label) = self;
-        write!(f, "   = {level}: {label}")
+        write!(f, " {level}: {label}")
     }
 }
 
@@ -511,6 +507,23 @@ enum SectionLine<'d> {
 }
 
 impl<'d> SectionLine<'d> {
+    /// Delimiter used to separate the gutter from the body.
+    ///
+    /// For example:
+    ///
+    /// ```text
+    ///    |
+    /// 12 | source line
+    ///    | ^^^^^^
+    ///    = note: notice the delim change for this footnote
+    /// ```
+    fn gutter_delim(&self) -> char {
+        match self {
+            Self::Footnote(..) => '=',
+            _ => '|',
+        }
+    }
+
     fn into_footnote(self) -> Option<Self> {
         match self {
             Self::SourceLinePadding => None,
@@ -527,10 +540,10 @@ impl<'d> SectionLine<'d> {
 impl<'d> Display for SectionLine<'d> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::SourceLinePadding => write!(f, "   |\n"),
-            Self::SourceLine(line) => write!(f, "   |{line}\n"),
-            Self::SourceLineMark(mark) => write!(f, "   |{mark}\n"),
-            Self::Footnote(label) => write!(f, "{label}\n"),
+            Self::SourceLinePadding => Ok(()),
+            Self::SourceLine(line) => line.fmt(f),
+            Self::SourceLineMark(mark) => mark.fmt(f),
+            Self::Footnote(label) => label.fmt(f),
         }
     }
 }
