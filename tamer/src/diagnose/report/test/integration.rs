@@ -99,6 +99,19 @@ const FILE_INVALID_UTF8: &[u8] = b"bad \xC0!";
 //                                 |----   |
 //                                 0       5
 
+const FILE_MANY_LINES: &[u8] = b"\
+      01\n02\n03\n04\n05\n06\n07\n08\n09\
+\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\
+\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\
+\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\
+\n40\n41\n42\n43\n44\n45\n46\n47\n48\n49\
+\n50\n51\n52\n53\n54\n55\n56\n57\n58\n59\
+\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\
+\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\
+\n80\n81\n82\n83\n84\n85\n86\n87\n88\n89\
+\n90\n91\n92\n93\n94\n95\n96\n97\n98\n99\
+\n100";
+
 macro_rules! assert_report {
     ($msg:expr, $aspans:expr, $expected:expr) => {
         let mut resolver = HashMap::<Context, BufSpanResolver<_>>::new();
@@ -106,6 +119,7 @@ macro_rules! assert_report {
         let ctx_foo_bar = Context::from("foo/bar");
         let ctx_bar_baz = Context::from("bar/baz");
         let ctx_inv_utf = Context::from("invalid/utf8");
+        let ctx_mny_lns = Context::from("many/lines");
 
         resolver.insert(
             ctx_foo_bar,
@@ -118,6 +132,10 @@ macro_rules! assert_report {
         resolver.insert(
             ctx_inv_utf,
             BufSpanResolver::new(Cursor::new(FILE_INVALID_UTF8), ctx_inv_utf),
+        );
+        resolver.insert(
+            ctx_mny_lns,
+            BufSpanResolver::new(Cursor::new(FILE_MANY_LINES), ctx_mny_lns),
         );
 
         let mut sut = VisualReporter::new(resolver);
@@ -151,7 +169,7 @@ fn span_error_no_label() {
 error: single span no label
   --> foo/bar:4:9
    |
-   | foo/bar line 4
+ 4 | foo/bar line 4
    |         ^^^^
 "
     );
@@ -169,7 +187,7 @@ fn span_error_with_label() {
 error: single span with label
   --> bar/baz:3:1
    |
-   | bar/baz line 3
+ 3 | bar/baz line 3
    | ^^^ error: span label here
 "
     );
@@ -191,7 +209,7 @@ fn adjacent_eq_span_no_labels_collapsed() {
 error: multiple adjacent same span no label
   --> foo/bar:4:9
    |
-   | foo/bar line 4
+ 4 | foo/bar line 4
    |         ^
 "
     );
@@ -215,7 +233,7 @@ fn adjacent_eq_span_labels_collapsed() {
 error: multiple adjacent same span with labels
   --> bar/baz:1:9
    |
-   | bar/baz line 1
+ 1 | bar/baz line 1
    |         ^^^^^^ error: A label
    = error: C label
 "
@@ -249,24 +267,24 @@ fn adjacent_eq_context_neq_offset_len_spans_not_collapsed() {
 error: eq context neq offset/len
   --> bar/baz:1:1
    |
-   | bar/baz line 1
+ 1 | bar/baz line 1
    | ^^^
    = error: A, first label, after mark
 
   --> bar/baz:1:1
    |
-   | bar/baz line 1
+ 1 | bar/baz line 1
    | ^^^^^^^ error: B, different length
    = error: B, collapse
 
   --> bar/baz:2:1
    |
-   | bar/baz line 2
+ 2 | bar/baz line 2
    | ^^^^ error: C, different offset
 
   --> bar/baz:1:1
    |
-   | bar/baz line 1
+ 1 | bar/baz line 1
    | ^^^^^^^ error: B', not adjacent
 "
     );
@@ -309,30 +327,30 @@ fn adjacent_neq_context_spans_not_collapsed() {
 error: multiple adjacent different context
   --> foo/bar:1:1
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    | ^^^^^^^
    = error: A, first, after marked
    = error: A, collapsed
 
   --> bar/baz:1:1
    |
-   | bar/baz line 1
+ 1 | bar/baz line 1
    | ^^^^^^^ error: B, first, no marked
    = error: B, collapsed
 
   --> foo/bar:1:1
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    | ^^^^^^^ error: A, not collapsed
 
   --> bar/baz:1:1
    |
-   | bar/baz line 1
+ 1 | bar/baz line 1
    | ^^^^^^^
 
   --> foo/bar:1:1
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    | ^^^^^^^
 "
     );
@@ -355,7 +373,7 @@ fn severity_levels_reflected() {
 internal error: multiple spans with labels of different severity level
   --> foo/bar:4:9
    |
-   | foo/bar line 4
+ 4 | foo/bar line 4
    |         !!!!!! internal error: an internal error
    = error: an error
    = note: a note
@@ -380,10 +398,10 @@ fn multi_line_span() {
 error: multi-line span
   --> foo/bar:1:9
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    |         ^^^^^^
    |
-   | foo/bar line 2
+ 2 | foo/bar line 2
    | ^^^^^^^^^^^^ error: label to be on last line
 "
     );
@@ -466,7 +484,7 @@ fn offset_at_newline_marked() {
 error: offset at newline
   --> foo/bar:1:15
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    |               ^
 "
     );
@@ -487,7 +505,7 @@ fn zero_length_span_column() {
 error: offset at newline
   --> foo/bar:1:8
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    |        ^
 "
     );
@@ -509,23 +527,59 @@ fn error_level_mark_styling() {
 internal error: multiple level mark styles
   --> foo/bar:1:1
    |
-   | foo/bar line 1
+ 1 | foo/bar line 1
    | !!!!!!! internal error: A
 
   --> foo/bar:2:1
    |
-   | foo/bar line 2
+ 2 | foo/bar line 2
    | ^^^^^^^ error: B
 
   --> foo/bar:3:1
    |
-   | foo/bar line 3
+ 3 | foo/bar line 3
    | ------- note: C
 
   --> foo/bar:4:1
    |
-   | foo/bar line 4
+ 4 | foo/bar line 4
    | ------- help: D
+"
+    );
+}
+
+// This tests _both_ that wide gutters can exist and that the width of a
+//   later section is applied across other sections.
+#[test]
+fn wide_gutter_normalized_across_sections() {
+    let ctx = Context::from("many/lines");
+
+    let span_1 = ctx.span(0, 2); // 01
+    let span_100 = ctx.span(3 * 99, 3); // 100
+
+    assert_report!(
+        "wide gutter",
+        vec![
+            span_1.mark_error(),
+            span_100.mark_error(),
+            span_1.mark_error(),
+        ],
+        "\
+error: wide gutter
+   --> many/lines:1:1
+    |
+  1 | 01
+    | ^^
+
+   --> many/lines:100:1
+    |
+100 | 100
+    | ^^^
+
+   --> many/lines:1:1
+    |
+  1 | 01
+    | ^^
 "
     );
 }

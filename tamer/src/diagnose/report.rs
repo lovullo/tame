@@ -34,6 +34,7 @@ use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::{
     fmt::{self, Display, Write},
     num::NonZeroU32,
+    ops::Add,
 };
 
 pub trait Reporter {
@@ -105,6 +106,11 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 
         let mut report = Report::empty(Message(diagnostic));
         report.extend(mspans.into_iter().map(Into::into));
+
+        // Make each section's gutters the same size,
+        //   which is more aesthetically pleasing.
+        report.normalize_gutters();
+
         report
     }
 }
@@ -170,6 +176,7 @@ pub struct Report<'d, D: Diagnostic> {
     msg: Message<'d, D>,
     secs: Vec<Section<'d>>,
     level: Level,
+    line_max: NonZeroU32,
 }
 
 impl<'d, D: Diagnostic> Report<'d, D> {
@@ -178,6 +185,17 @@ impl<'d, D: Diagnostic> Report<'d, D> {
             msg,
             secs: Vec::new(),
             level: Level::default(),
+            line_max: NonZeroU32::MIN,
+        }
+    }
+
+    /// Make all sections' gutters the same width.
+    ///
+    /// This is only necessary because [`Section`] is expected to be wholly
+    ///   self-contained when rendering.
+    fn normalize_gutters(&mut self) {
+        for sec in self.secs.iter_mut() {
+            sec.line_max = self.line_max;
         }
     }
 }
@@ -186,6 +204,7 @@ impl<'d, D: Diagnostic> Extend<Section<'d>> for Report<'d, D> {
     fn extend<T: IntoIterator<Item = Section<'d>>>(&mut self, secs: T) {
         for sec in secs {
             self.level = self.level.min(sec.level());
+            self.line_max = self.line_max.max(sec.line_max);
 
             // Add the section if it cannot be squashed into the previous.
             let remain = sec.maybe_squash_into(self.secs.last_mut());
@@ -238,6 +257,7 @@ struct Section<'d> {
     level: Level,
     span: Span,
     body: Vec<SectionLine<'d>>,
+    line_max: NonZeroU32,
 }
 
 impl<'s, 'd> Section<'d> {
@@ -280,6 +300,25 @@ impl<'s, 'd> Section<'d> {
             _ => Some(self),
         }
     }
+
+    /// Maximum width of the text in the gutter.
+    ///
+    /// Note that the gutter contains a single character of padding before
+    ///   its delimiter,
+    ///     which this width _does not_ account for.
+    ///
+    /// The minimum width is 2.
+    ///
+    /// ```text
+    ///   --> heading
+    ///    |
+    ///  1 | source line
+    /// ^^
+    ///  gutter width is 2
+    /// ```
+    fn gutter_text_width(&self) -> usize {
+        self.line_max.log10().add(1).max(2) as usize
+    }
 }
 
 impl<'d, 'a, S> From<MaybeResolvedSpan<'d, S>> for Section<'d>
@@ -291,6 +330,7 @@ where
         let syslines = mspan.system_lines();
 
         let mut body = Vec::new();
+        let mut line_max = NonZeroU32::MIN;
 
         let (span, level) = match mspan {
             MaybeResolvedSpan::Resolved(rspan, oslabel) => {
@@ -305,6 +345,13 @@ where
                 let nlines = src.len();
 
                 src.into_iter().enumerate().for_each(|(i, srcline)| {
+                    let line_num = srcline.num();
+
+                    // Note that lines are intentionally _not_ ordered,
+                    //   since reports may jump around a file to produce a
+                    //   narrative.
+                    line_max = line_max.max(line_num);
+
                     let label =
                         if i == nlines - 1 { olabel.take() } else { None };
 
@@ -343,16 +390,24 @@ where
             span,
             level,
             body,
+            line_max,
         }
     }
 }
 
 impl<'d> Display for Section<'d> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "  {heading}\n", heading = self.heading)?;
+        let gutterw = self.gutter_text_width();
+
+        // The heading has a hanging indentation,
+        //   which is accomplished by simply omitting spaces above the
+        //   gutter's `" |"`,
+        //     which amounts to two characters wide.
+        write!(f, "{:gutterw$}{heading}\n", "", heading = self.heading)?;
 
         self.body.iter().try_for_each(|line| {
-            write!(f, "   {delim}{line}\n", delim = line.gutter_delim())
+            line.fmt_gutter(gutterw, f)?;
+            write!(f, "{line}\n")
         })
     }
 }
@@ -507,20 +562,35 @@ enum SectionLine<'d> {
 }
 
 impl<'d> SectionLine<'d> {
-    /// Delimiter used to separate the gutter from the body.
+    /// Format the gutter to the left of the section body for this line.
+    ///
+    /// Note that the provided `text_width` _does not include_ a single
+    ///   character of padding and a single-character delimiter that are
+    ///   expected to follow.
+    /// The width is guaranteed to be at least as wide as the number of
+    ///   characters needed to represent the line number in base-10.
     ///
     /// For example:
     ///
     /// ```text
     ///    |
-    /// 12 | source line
-    ///    | ^^^^^^
+    ///  1 | source line
+    ///    | ------
     ///    = note: notice the delim change for this footnote
+    /// ^^
+    ///  gutter `text_width` of 2
     /// ```
-    fn gutter_delim(&self) -> char {
+    fn fmt_gutter(
+        &self,
+        text_width: usize,
+        f: &mut fmt::Formatter,
+    ) -> fmt::Result {
         match self {
-            Self::Footnote(..) => '=',
-            _ => '|',
+            Self::SourceLinePadding | Self::SourceLineMark(..) => {
+                write!(f, "{:text_width$} |", "")
+            }
+            Self::SourceLine(src) => write!(f, "{:>text_width$} |", src.num()),
+            Self::Footnote(..) => write!(f, "{:text_width$} =", ""),
         }
     }
 
@@ -550,6 +620,12 @@ impl<'d> Display for SectionLine<'d> {
 
 #[derive(Debug, PartialEq, Eq)]
 struct SectionSourceLine(SourceLine);
+
+impl SectionSourceLine {
+    fn num(&self) -> NonZeroU32 {
+        self.0.num()
+    }
+}
 
 impl From<SourceLine> for SectionSourceLine {
     fn from(line: SourceLine) -> Self {
@@ -799,6 +875,7 @@ mod test {
                         label: Some("test label".into()),
                     }),
                 ],
+                line_max: 2.unwrap_into(),
             }
         );
     }
@@ -839,6 +916,8 @@ mod test {
                 //   so in this case it gets defaulted.
                 level: Level::default(),
                 body: vec![],
+                // Line comes from `src_lines`.
+                line_max: 1.unwrap_into(),
             }
         );
     }
@@ -877,6 +956,7 @@ mod test {
                         .into()
                     )),
                 ],
+                line_max: 1.unwrap_into(),
             }
         );
     }

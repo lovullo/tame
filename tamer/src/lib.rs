@@ -68,6 +68,7 @@
 // Convenience features that are easily replaced if not stabalized.
 #![feature(nonzero_min_max)]
 #![feature(nonzero_ops)]
+#![feature(int_log)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 

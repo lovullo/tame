@@ -262,6 +262,10 @@ pub struct SourceLine {
 }
 
 impl SourceLine {
+    pub fn num(&self) -> NonZeroU32 {
+        self.num
+    }
+
     pub fn column(&self) -> Option<Column> {
         self.column
     }
