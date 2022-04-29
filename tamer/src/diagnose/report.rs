@@ -302,7 +302,7 @@ impl<'s, 'd> Section<'d> {
         let src = rspan.into_lines();
         let nlines = src.len();
 
-        let mut body = Vec::new();
+        let mut body = Vec::with_capacity(4);
         let mut line_max = NonZeroU32::MIN;
 
         src.into_iter().enumerate().for_each(|(i, srcline)| {
@@ -315,20 +315,7 @@ impl<'s, 'd> Section<'d> {
 
             let label = if i == nlines - 1 { olabel.take() } else { None };
 
-            if let Some(col) = srcline.column() {
-                body.extend(vec![
-                    SectionLine::SourceLinePadding,
-                    SectionLine::SourceLine(srcline.into()),
-                    SectionLine::SourceLineMark(LineMark { col, level, label }),
-                ]);
-            } else {
-                body.extend(vec![
-                    SectionLine::SourceLinePadding,
-                    SectionLine::SourceLine(srcline.into()),
-                    SectionLine::SourceLinePadding,
-                ]);
-                body.extend(label.map(|l| SectionLine::Footnote(level, l)));
-            }
+            Self::render_src(&mut body, srcline, level, label);
         });
 
         // System messages should appear _after_ all requested diagnostic
@@ -365,6 +352,36 @@ impl<'s, 'd> Section<'d> {
             span,
             body,
             line_max: NonZeroU32::MIN,
+        }
+    }
+
+    /// Render a `SourceLine` to the body with the appropriate annotations.
+    ///
+    /// If the columns are known,
+    ///   then the span will be marked along with an optional label.
+    /// Otherwise,
+    ///   the line will be rendered without annotations,
+    ///     with any optional label appearing as a footnote.
+    fn render_src(
+        dest: &mut Vec<SectionLine<'d>>,
+        src: SourceLine,
+        level: Level,
+        label: Option<Label<'d>>,
+    ) {
+        if let Some(col) = src.column() {
+            dest.extend(vec![
+                SectionLine::SourceLinePadding,
+                SectionLine::SourceLine(src.into()),
+                SectionLine::SourceLineMark(LineMark { col, level, label }),
+            ]);
+        } else {
+            dest.extend(vec![
+                SectionLine::SourceLinePadding,
+                SectionLine::SourceLine(src.into()),
+                SectionLine::SourceLinePadding,
+            ]);
+
+            dest.extend(label.map(|l| SectionLine::Footnote(level, l)));
         }
     }
 
