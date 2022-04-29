@@ -309,14 +309,11 @@ impl<'s, 'd> Section<'d> {
         extend: Option<&mut Section<'d>>,
     ) -> Option<Self> {
         match extend {
-            // TODO: Take highest level.
             Some(extend_sec) if self.span == extend_sec.span => {
                 // TODO: At the time of writing this will cause duplication of
                 //   system labels,
                 //     which is not desirable.
                 extend_sec.body.extend(
-                    // TODO: The system wastefully allocates duplicate source
-                    //   lines when resolving spans only to discard them here.
                     self.body
                         .into_iter()
                         .filter_map(SectionLine::into_footnote),
