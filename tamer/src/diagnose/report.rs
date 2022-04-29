@@ -289,6 +289,88 @@ struct Section<'d> {
 }
 
 impl<'s, 'd> Section<'d> {
+    /// Create a new section from a resolved span.
+    fn new_resolved<S: ResolvedSpanData>(
+        rspan: S,
+        level: Level,
+        mut olabel: Option<Label<'d>>,
+        syslines: Vec<SectionLine<'static>>,
+    ) -> Self {
+        let heading = SpanHeading::from(&rspan);
+
+        let span = rspan.unresolved_span();
+        let src = rspan.into_lines();
+        let nlines = src.len();
+
+        let mut body = Vec::new();
+        let mut line_max = NonZeroU32::MIN;
+
+        src.into_iter().enumerate().for_each(|(i, srcline)| {
+            let line_num = srcline.num();
+
+            // Note that lines are intentionally _not_ ordered,
+            //   since reports may jump around a file to produce a
+            //   narrative.
+            line_max = line_max.max(line_num);
+
+            let label = if i == nlines - 1 { olabel.take() } else { None };
+
+            if let Some(col) = srcline.column() {
+                body.extend(vec![
+                    SectionLine::SourceLinePadding,
+                    SectionLine::SourceLine(srcline.into()),
+                    SectionLine::SourceLineMark(LineMark { col, level, label }),
+                ]);
+            } else {
+                body.extend(vec![
+                    SectionLine::SourceLinePadding,
+                    SectionLine::SourceLine(srcline.into()),
+                    SectionLine::SourceLinePadding,
+                ]);
+                body.extend(label.map(|l| SectionLine::Footnote(level, l)));
+            }
+        });
+
+        // System messages should appear _after_ all requested diagnostic
+        //   messages.
+        body.extend(syslines);
+
+        Section {
+            heading,
+            span,
+            level,
+            body,
+            line_max,
+        }
+    }
+
+    /// Create a new section from a span that failed to resolve.
+    fn new_unresolved(
+        span: Span,
+        level: Level,
+        olabel: Option<Label<'d>>,
+        syslines: Vec<SectionLine<'static>>,
+    ) -> Self {
+        let mut body = Vec::new();
+
+        body.extend(olabel.map(|label| SectionLine::Footnote(level, label)));
+        body.extend(syslines);
+
+        Section {
+            heading: SpanHeading(
+                span.context(),
+                HeadingLineNum::Unresolved(span),
+            ),
+            level,
+            span,
+            body,
+            line_max: NonZeroU32::MIN,
+        }
+    }
+
+    /// Most severe [`Level`] associated with this section.
+    ///
+    /// This value is updated as lines are added to the body.
     fn level(&self) -> Level {
         self.level
     }
@@ -350,71 +432,18 @@ where
     S: ResolvedSpanData,
 {
     fn from(mspan: MaybeResolvedSpan<'d, S>) -> Self {
-        let heading = SpanHeading::from(&mspan);
         let syslines = mspan.system_lines();
 
-        let mut body = Vec::new();
-        let mut line_max = NonZeroU32::MIN;
-
-        let (span, level) = match mspan {
-            MaybeResolvedSpan::Resolved(rspan, level, mut olabel) => {
-                let span = rspan.unresolved_span();
-                let src = rspan.into_lines();
-
-                let nlines = src.len();
-
-                src.into_iter().enumerate().for_each(|(i, srcline)| {
-                    let line_num = srcline.num();
-
-                    // Note that lines are intentionally _not_ ordered,
-                    //   since reports may jump around a file to produce a
-                    //   narrative.
-                    line_max = line_max.max(line_num);
-
-                    let label =
-                        if i == nlines - 1 { olabel.take() } else { None };
-
-                    if let Some(col) = srcline.column() {
-                        body.extend(vec![
-                            SectionLine::SourceLinePadding,
-                            SectionLine::SourceLine(srcline.into()),
-                            SectionLine::SourceLineMark(LineMark {
-                                col,
-                                level,
-                                label,
-                            }),
-                        ]);
-                    } else {
-                        body.extend(vec![
-                            SectionLine::SourceLinePadding,
-                            SectionLine::SourceLine(srcline.into()),
-                            SectionLine::SourceLinePadding,
-                        ]);
-                        body.extend(
-                            label.map(|l| SectionLine::Footnote(level, l)),
-                        );
-                    }
-                });
-
-                (span, level)
+        match mspan {
+            MaybeResolvedSpan::Resolved(rspan, level, olabel) => {
+                Self::new_resolved(rspan, level, olabel, syslines)
             }
+            // Note that elided will be squashed,
+            //   so it's okay that it's marked as unresolved here.
             MaybeResolvedSpan::Elided(span, level, olabel)
             | MaybeResolvedSpan::Unresolved(span, level, olabel, _) => {
-                body.extend(
-                    olabel.map(|label| SectionLine::Footnote(level, label)),
-                );
-                (span, level)
+                Self::new_unresolved(span, level, olabel, syslines)
             }
-        };
-
-        body.extend(syslines);
-
-        Section {
-            heading,
-            span,
-            level,
-            body,
-            line_max,
         }
     }
 }
@@ -452,35 +481,21 @@ impl Display for SpanHeading {
     }
 }
 
-impl<'s, 'd, S> From<&'s MaybeResolvedSpan<'d, S>> for SpanHeading
-where
-    S: ResolvedSpanData,
-{
+impl<S: ResolvedSpanData> From<&S> for SpanHeading {
     /// Span header containing the (hopefully resolved) context.
-    fn from(mspan: &'s MaybeResolvedSpan<'d, S>) -> Self {
-        match mspan {
-            MaybeResolvedSpan::Resolved(rspan, _, _) => SpanHeading(
-                rspan.context(),
-                HeadingLineNum::Resolved(
-                    rspan.line_num(),
-                    rspan
-                        .col_num()
-                        .map(HeadingColNum::Resolved)
-                        .unwrap_or_else(|| HeadingColNum::Unresolved {
-                            unresolved_span: rspan.unresolved_span(),
-                            first_line_span: rspan.first_line_span(),
-                        }),
+    fn from(rspan: &S) -> Self {
+        SpanHeading(
+            rspan.context(),
+            HeadingLineNum::Resolved(
+                rspan.line_num(),
+                rspan.col_num().map(HeadingColNum::Resolved).unwrap_or_else(
+                    || HeadingColNum::Unresolved {
+                        unresolved_span: rspan.unresolved_span(),
+                        first_line_span: rspan.first_line_span(),
+                    },
                 ),
             ),
-
-            // Note that elided will be squashed anyway,
-            //   so the fact that this results in an unresolved heading is
-            //   okay.
-            MaybeResolvedSpan::Elided(span, _, _)
-            | MaybeResolvedSpan::Unresolved(span, _, _, _) => {
-                SpanHeading(span.context(), HeadingLineNum::Unresolved(*span))
-            }
-        }
+        )
     }
 }
 
