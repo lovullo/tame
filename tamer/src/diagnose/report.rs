@@ -386,6 +386,11 @@ where
                             }),
                         ]);
                     } else {
+                        body.extend(vec![
+                            SectionLine::SourceLinePadding,
+                            SectionLine::SourceLine(srcline.into()),
+                            SectionLine::SourceLinePadding,
+                        ]);
                         body.extend(
                             label.map(|l| SectionLine::Footnote(level, l)),
                         );

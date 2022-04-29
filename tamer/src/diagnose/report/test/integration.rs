@@ -453,6 +453,7 @@ fn fallback_when_column_fails_to_resolve() {
     let ctx = Context::from("invalid/utf8");
 
     let span = ctx.span(4, 2);
+    let lossy = String::from_utf8_lossy(FILE_INVALID_UTF8);
 
     assert_report!(
             "column resolution failure",
@@ -460,6 +461,9 @@ fn fallback_when_column_fails_to_resolve() {
             format!("\
 error: column resolution failure
   --> invalid/utf8:1 bytes 4--6
+   |
+ 1 | {lossy}
+   |
    = error: an error we do not want to suppress
    = help: unable to calculate columns because the line is not a valid UTF-8 string
    = help: you have been provided with 0-indexed line-relative inclusive byte offsets
