@@ -310,9 +310,8 @@ impl<'s, 'd> Section<'d> {
     ) -> Option<Self> {
         match extend {
             Some(extend_sec) if self.span == extend_sec.span => {
-                // TODO: At the time of writing this will cause duplication of
-                //   system labels,
-                //     which is not desirable.
+                // Note that system labels shouldn't exist for elided spans
+                //   and so they should not be duplicated when squashing.
                 extend_sec.body.extend(
                     self.body
                         .into_iter()
