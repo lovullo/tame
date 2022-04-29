@@ -91,21 +91,19 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
     ) -> Report<'d, D> {
         // TODO: Avoid duplicate lookups of the same span,
         //   or at least adjacent ones.
-        let mspans = diagnostic
-            .describe()
-            .into_iter()
-            .map(|AnnotatedSpan(span, level, olabel)| {
+        let mspans = diagnostic.describe().into_iter().map(
+            |AnnotatedSpan(span, level, olabel)| {
                 let slabel = olabel.map(|label| SpanLabel(level, label));
 
                 match self.resolver.resolve(span) {
                     Ok(rspan) => MaybeResolvedSpan::Resolved(rspan, slabel),
                     Err(e) => MaybeResolvedSpan::Unresolved(span, slabel, e),
                 }
-            })
-            .collect::<Vec<_>>();
+            },
+        );
 
         let mut report = Report::empty(Message(diagnostic));
-        report.extend(mspans.into_iter().map(Into::into));
+        report.extend(mspans.map(Into::into));
 
         // Make each section's gutters the same size,
         //   which is more aesthetically pleasing.
