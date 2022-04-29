@@ -610,7 +610,7 @@ fn invalid_unicode_no_column() {
                     // Make sure we're still trimming despite the
                     //   error.
                     buf.pop();
-                    buf.into()
+                    String::from_utf8_lossy(&buf).into()
                 },
             }])
             .unwrap(),

@@ -257,8 +257,8 @@ pub struct SourceLine {
     /// The [`Span`] representing the entire source line.
     span: Span,
 
-    /// Source code text of the line _excluding_ the newline.
-    text: Vec<u8>,
+    /// Source code text of the line.
+    text: String,
 }
 
 impl SourceLine {
@@ -271,7 +271,7 @@ impl SourceLine {
         num: NonZeroU32,
         column: Option<Column>,
         span: Span,
-        text: Vec<u8>,
+        text: String,
     ) -> Self {
         Self {
             num,
@@ -284,14 +284,12 @@ impl SourceLine {
 
 impl Display for SourceLine {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // TODO: Just store String instead of a byte vector so we're not
-        //   validating UTF-8 twice.
-        let s = String::from_utf8_lossy(&self.text);
+        let text = &self.text;
 
-        let disp = if self.text.last() == Some(&b'\n') {
-            &s[0..s.len() - 1]
+        let disp = if text.chars().last() == Some('\n') {
+            &text[0..text.len() - 1]
         } else {
-            &s[..]
+            &text[..]
         };
 
         f.write_str(disp)
@@ -571,19 +569,15 @@ impl Line {
 
     /// Produce formatted output for a line containing invalid UTF-8 data.
     ///
-    /// This still produces the actual line so that we can help the user
-    ///   track down the invalid byte sequences,
-    ///     but it is unable to resolve columns.
-    ///
     /// This is delegated to by [`Line::format_for`].
     fn format_invalid_utf8_for(
         &mut self,
         span: Span,
-    ) -> (Vec<u8>, Span, Option<Column>) {
+    ) -> (String, Span, Option<Column>) {
         let bytes = self.take_buf().unwrap_or(vec![]);
         let span = span.context().span_or_zz(0, bytes.len());
 
-        (bytes, span, None)
+        (String::from_utf8_lossy(&bytes).into(), span, None)
     }
 
     /// Format the line buffer and provide an associated line [`Span`]
@@ -593,7 +587,7 @@ impl Line {
     ///   this means that any trailing newline will be stripped unless it is
     ///   directly referenced by the `span` offset
     ///     (starts _at_ the newline).
-    fn format_for(&mut self, span: Span) -> (Vec<u8>, Span, Option<Column>) {
+    fn format_for(&mut self, span: Span) -> (String, Span, Option<Column>) {
         // Trim any newline unless the span starts at the last byte,
         //   which would reference the newline character itself.
         if span.offset() as usize != self.total_offset_read() {
@@ -611,7 +605,15 @@ impl Line {
         let buf = self.take_buf().unwrap_or(vec![]);
         let line_span = span.context().span_or_zz(offset_start, buf.len());
 
-        (buf, line_span, Some(column))
+        // SAFETY: We have already verified above,
+        //   by `line`,
+        //   that this represents a valid UTF-8 string,
+        //     otherwise we would not have reached this line.
+        // Refactoring could likely avoid the need to convert to a string
+        //   separately from the original check.
+        let strbuf = unsafe { String::from_utf8_unchecked(buf) };
+
+        (strbuf, line_span, Some(column))
     }
 
     /// Determine the [`Span`] endpoint offsets relative to the line start.
