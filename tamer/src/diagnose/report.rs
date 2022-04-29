@@ -26,7 +26,8 @@
 
 use super::{
     resolver::{
-        Column, ResolvedSpanData, SourceLine, SpanResolver, SpanResolverError,
+        Column, ResolvedSpan, ResolvedSpanData, SourceLine, SpanResolver,
+        SpanResolverError,
     },
     AnnotatedSpan, Diagnostic, Label, Level,
 };
@@ -89,18 +90,8 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
         &mut self,
         diagnostic: &'d D,
     ) -> Report<'d, D> {
-        // TODO: Avoid duplicate lookups of the same span,
-        //   or at least adjacent ones.
-        let mspans = diagnostic.describe().into_iter().map(
-            |AnnotatedSpan(span, level, olabel)| {
-                let slabel = olabel.map(|label| SpanLabel(level, label));
-
-                match self.resolver.resolve(span) {
-                    Ok(rspan) => MaybeResolvedSpan::Resolved(rspan, slabel),
-                    Err(e) => MaybeResolvedSpan::Unresolved(span, slabel, e),
-                }
-            },
-        );
+        let mspans =
+            describe_resolved(|span| self.resolver.resolve(span), diagnostic);
 
         let mut report = Report::empty(Message(diagnostic));
         report.extend(mspans.map(Into::into));
@@ -111,6 +102,46 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 
         report
     }
+}
+
+/// Request a diagnostic description and immediately resolve the provided
+///   [`AnnotatedSpan`]s into [`MaybeResolvedSpan`]s.
+///
+/// Adjacent identical [`Span`]s are elided such that the first one is
+///   resolved but the second one produces [`MaybeResolvedSpan::Elided`];
+///     this avoids the expensive column resolution and source line
+///     allocation for a span that was just processed and whose section will
+///     be squashed anyway
+///       (see [`Section::maybe_squash_into`]).
+fn describe_resolved<'d, D, F>(
+    mut resolve: F,
+    diagnostic: &'d D,
+) -> impl Iterator<Item = MaybeResolvedSpan<'d, ResolvedSpan>>
+where
+    D: Diagnostic,
+    F: FnMut(Span) -> Result<ResolvedSpan, SpanResolverError>,
+{
+    diagnostic.describe().into_iter().scan(
+        UNKNOWN_SPAN,
+        move |prev_span, AnnotatedSpan(span, level, olabel)| {
+            let slabel = olabel.map(|label| SpanLabel(level, label));
+
+            // Avoid re-resolving
+            //   (and allocating memory for the source lines of)
+            //   a span that was just resolved,
+            //     which will just be squashed with the previous anyway.
+            if *prev_span == span {
+                return Some(MaybeResolvedSpan::Elided(span, slabel));
+            }
+
+            *prev_span = span;
+
+            Some(match resolve(span) {
+                Ok(rspan) => MaybeResolvedSpan::Resolved(rspan, slabel),
+                Err(e) => MaybeResolvedSpan::Unresolved(span, slabel, e),
+            })
+        },
+    )
 }
 
 /// A [`Span`] that may have been resolved.
@@ -128,6 +159,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 #[derive(Debug, PartialEq, Eq)]
 enum MaybeResolvedSpan<'d, S: ResolvedSpanData> {
     Resolved(S, Option<SpanLabel<'d>>),
+    Elided(Span, Option<SpanLabel<'d>>),
     Unresolved(Span, Option<SpanLabel<'d>>, SpanResolverError),
 }
 
@@ -372,7 +404,8 @@ where
 
                 (span, level)
             }
-            MaybeResolvedSpan::Unresolved(span, olabel, _) => {
+            MaybeResolvedSpan::Elided(span, olabel)
+            | MaybeResolvedSpan::Unresolved(span, olabel, _) => {
                 let level =
                     olabel.as_ref().map(SpanLabel::level).unwrap_or_default();
 
@@ -447,7 +480,11 @@ where
                 ),
             ),
 
-            MaybeResolvedSpan::Unresolved(span, _, _) => {
+            // Note that elided will be squashed anyway,
+            //   so the fact that this results in an unresolved heading is
+            //   okay.
+            MaybeResolvedSpan::Elided(span, _)
+            | MaybeResolvedSpan::Unresolved(span, _, _) => {
                 SpanHeading(span.context(), HeadingLineNum::Unresolved(*span))
             }
         }
