@@ -21,11 +21,10 @@
 
 // Constant functions are still in their infancy as of the time of writing
 //   (October 2021).
-// These two features are used by [`sym::prefill::st_as_sym`] to provide
+// These this feature is used by [`sym::prefill::st_as_sym`] to provide
 //   polymorphic symbol types despite Rust's lack of support for constant
 //   trait methods.
 // See that function for more information.
-#![feature(const_fn_trait_bound)]
 #![feature(const_transmute_copy)]
 // This is used to unwrap const Option results rather than providing
 //   panicing alternatives.
@@ -51,9 +50,6 @@
 // We _could_ do without,
 //   but this provides a nicer API.
 #![feature(explicit_generic_args_with_impl_trait)]
-// This simply removes a boilerplate `Default` impl;
-//   we can do without if this does not get finalized.
-#![feature(derive_default_enum)]
 // For `Try` and `FromResidual`,
 //   allowing us to write our own `?`-compatible types.
 #![feature(try_trait_v2)]

@@ -56,7 +56,7 @@ test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 AC_SUBST([CARGO_FLAGS], "--frozen --offline")
 
 # This is a nightly version at the time of writing
-rustc_ver_req=1.57.0
+rustc_ver_req=1.62
 
 AC_CHECK_PROGS(RUSTC, [rustc])
 AC_MSG_CHECKING([rustc $RUST_TC version >= $rustc_ver_req])
