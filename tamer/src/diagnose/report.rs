@@ -17,7 +17,13 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Rendering of diagnostic information.
+//! Rendering of diagnostic report.
+//!
+//! This module is responsible for [resolving](super::resolver) and
+//!   rendering spans into a formatted [`Report`],
+//!     which in turn can be rendered into a string with [`Display::fmt`].
+//!
+//! See the [parent module](super) for more summary information.
 
 // NB: `write!` together with `\n` is preferred to `writeln!` so that there
 //   is only a single sequence of characters to search for while tracking
@@ -38,6 +44,10 @@ use std::{
     ops::Add,
 };
 
+/// Render a [`Report`] with detailed diagnostic information.
+///
+/// Rendering of reports is layered---this
+///   report can be further rendered into a string using [`Display::fmt`].
 pub trait Reporter {
     /// Render diagnostic report.
     ///
@@ -199,15 +209,49 @@ impl<'d, S: ResolvedSpanData> MaybeResolvedSpan<'d, S> {
     }
 }
 
+/// Diagnostic report.
+///
+/// This contains the raw data that,
+///   when rendered with [`Display::fmt`],
+///   will produce a robust report to help guide the user through diagnosing
+///     and resolving problems.
 #[derive(Debug)]
 pub struct Report<'d, D: Diagnostic> {
+    /// Summary message of the contents of the report.
+    ///
+    /// This message should be suitable on its own,
+    ///   e.g. a typical one-line error message.
     msg: Message<'d, D>,
-    secs: Vec<Section<'d>>,
+
+    /// The largest severity level found within all of the [`Section`]s of
+    ///   the report.
+    ///
+    /// This level should be used alongside the summary message to describe
+    ///   how severe of a problem this report represents.
     level: Level,
+
+    /// Sections of the report.
+    ///
+    /// A section contains a header describing a location in the source
+    ///   code (line and column numbers),
+    ///     followed by annotated source code and descriptive labels.
+    secs: Vec<Section<'d>>,
+
+    /// The maximum line number encountered in each of the [`Section`]s of
+    ///   the report.
+    ///
+    /// This number is used to determine the gutter width,
+    ///   which contains the line numbers of the annotated source lines.
+    /// It can be propagated to all [`Section`]s using
+    ///   [`normalize_gutters`](Report::normalize_gutters).
     line_max: NonZeroU32,
 }
 
 impl<'d, D: Diagnostic> Report<'d, D> {
+    /// Create an empty report.
+    ///
+    /// To add to the body of the report,
+    ///   use [`Extend::extend`].
     fn empty(msg: Message<'d, D>) -> Self {
         Self {
             msg,
@@ -229,6 +273,12 @@ impl<'d, D: Diagnostic> Report<'d, D> {
 }
 
 impl<'d, D: Diagnostic> Extend<Section<'d>> for Report<'d, D> {
+    /// Extend the body of the report.
+    ///
+    /// This tracks the most severe [`Level`] and highest line number seen.
+    /// Further,
+    ///   adjacent sections may be squashed if they meet certain criteria
+    ///     (see [`Section::maybe_squash_into`]).
     fn extend<T: IntoIterator<Item = Section<'d>>>(&mut self, secs: T) {
         for sec in secs {
             self.level = self.level.min(sec.level());
@@ -258,6 +308,7 @@ impl<'d, D: Diagnostic> Display for Report<'d, D> {
     }
 }
 
+/// Summary diagnostic message.
 #[derive(Debug)]
 struct Message<'d, D: Diagnostic>(&'d D);
 
@@ -281,10 +332,27 @@ impl<'d, D: Diagnostic> Display for Message<'d, D> {
 ///   messages quickly.
 #[derive(Debug, PartialEq, Eq)]
 struct Section<'d> {
+    /// Heading that delimits the beginning of each section.
+    ///
+    /// The heading describes the location of its principal [`Span`].
     heading: SpanHeading,
+
+    /// The most severe [`Level`] encountered in this section body.
     level: Level,
+
+    /// The principal [`Span`] that this section describes.
+    ///
+    /// If a section contains information about multiple spans,
+    ///   this represents the one that the user should focus on.
     span: Span,
+
+    /// Annotated source lines and labels.
     body: Vec<SectionLine<'d>>,
+
+    /// The largest line number encountered in this section.
+    ///
+    /// This is used to determine how wide to render the gutter,
+    ///   which contain the line numbers for source lines.
     line_max: NonZeroU32,
 }
 
@@ -598,9 +666,25 @@ impl Display for HeadingColNum {
 /// Line of output in a [`Section`] body.
 #[derive(Debug, PartialEq, Eq)]
 enum SectionLine<'d> {
+    /// Padding for a possibly annotated source line.
+    ///
+    /// A padding line is intended to add extra space above or below a
+    ///   source line to make it easier to read.
+    /// Padding lines contain a gutter,
+    ///   but no line number.
     SourceLinePadding,
+
+    /// A line of source code.
     SourceLine(SectionSourceLine),
+
+    /// Source line annotations
+    ///   (marks and labels).
     SourceLineMark(LineMark<'d>),
+
+    /// A label that is not rendered as a line annotation.
+    ///
+    /// Footnotes are intended too appear at the end of a [`Section`] and
+    ///   contain supplemental information.
     Footnote(Level, Label<'d>),
 }
 
@@ -637,6 +721,10 @@ impl<'d> SectionLine<'d> {
         }
     }
 
+    /// Attempt to convert a line into a footnote.
+    ///
+    /// If there is no [`Level`] and [`Label`] available,
+    ///   [`None`] is returned.
     fn into_footnote(self) -> Option<Self> {
         match self {
             Self::SourceLinePadding => None,
@@ -661,6 +749,7 @@ impl<'d> Display for SectionLine<'d> {
     }
 }
 
+/// A [`SourceLine`] displayed within a [`Section`].
 #[derive(Debug, PartialEq, Eq)]
 struct SectionSourceLine(SourceLine);
 
@@ -684,6 +773,12 @@ impl Display for SectionSourceLine {
 
 /// A type of line annotation that marks columns and provides labels,
 ///   if available.
+///
+/// Marks are displayed below a [`SectionSourceLine`] and are intended to
+///   visually display a [`Span`].
+/// Column resolution
+///   (see [`super::resolver`])
+///   exists primarily for mark rendering.
 #[derive(Debug, PartialEq, Eq)]
 struct LineMark<'d> {
     level: Level,
@@ -715,13 +810,14 @@ impl<'d> Display for LineMark<'d> {
     }
 }
 
+/// Mark styling.
 trait MarkChar {
+    /// Character used to underline the columns applicable to a given span
+    ///   underneath a source line.
     fn mark_char(&self) -> char;
 }
 
 impl MarkChar for Level {
-    /// Character used to underline the columns applicable to a given span
-    ///   underneath a source line.
     fn mark_char(&self) -> char {
         match self {
             Level::InternalError => '!',

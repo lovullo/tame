@@ -22,6 +22,58 @@
 //! This system is heavily motivated by Rust's.
 //! While the data structures and organization may differ,
 //!   the diagnostic output is visually similar.
+//!
+//! Visual Report
+//! -------------
+//! The primary output of the system is a [`Report`](report::Report).
+//! A report consists not only of the diagnostic information provided by the
+//!   system
+//!     (such as error messages),
+//!     but also annotated source code.
+//! Reports attempt to create a narrative that walks the user through why
+//!   and how problems arose,
+//!     and hopefully provides information on how to resolve the problem.
+//!
+//! Here is an example report:
+//!
+//! ```text
+//! error: expected closing tag for `classify`
+//!   --> /home/user/program/foo.xml:16:5
+//!    |
+//! 16 |     <classify as="foo" desc="Example classification">
+//!    |     --------- note: element `classify` is opened here
+//!
+//!   --> /home/user/program/foo.xml:24:5
+//!    |
+//! 24 |     </wrong>
+//!    |     ^^^^^^^^ error: expected `</classify>`
+//! ```
+//!
+//! A single report is produced for each error
+//!   (or other suitable diagnostic event).
+//! The system may produce multiple reports at a time if it discovers
+//!   multiple issues and is able to recover enough to continue to discover
+//!   others.
+//!
+//! Each report is separated into a number of sections,
+//!   with each section delimited by a header.
+//! Each section describes one or more spans related to a range of related
+//!   source lines.
+//! Those source lines are annotated using the [`Span`]s associated with the
+//!   emitted diagnostic data,
+//!     such as an error.
+//!
+//! Each section has a _gutter_ containing the line number of source lines.
+//! The area below the section header and to the right of the gutter is
+//!   called the _body_ of the section.
+//! The gutter will expand as needed to fit the line number.
+//!
+//! _Warning: Reports do not yet strip terminal escape sequences,
+//!   which may interfere with the diagnostic output.
+//! This may represent a security risk depending on your threat model,
+//!   but does require access to the source code being compiled._
+//!
+//! See the [`report`] module for more information.
 
 mod report;
 mod resolver;
