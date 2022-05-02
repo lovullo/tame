@@ -20,7 +20,7 @@
 use super::*;
 use crate::{
     convert::ExpectInto,
-    diagnose::resolver::Column,
+    diagnose::resolve::Column,
     span::{DUMMY_CONTEXT, DUMMY_SPAN},
 };
 use std::{io, num::NonZeroU32};

@@ -19,7 +19,7 @@
 
 //! Rendering of diagnostic report.
 //!
-//! This module is responsible for [resolving](super::resolver) and
+//! This module is responsible for [resolving](super::resolve) and
 //!   rendering spans into a formatted [`Report`],
 //!     which in turn can be rendered into a string with [`Display::fmt`].
 //!
@@ -31,7 +31,7 @@
 //     rather than using both.
 
 use super::{
-    resolver::{
+    resolve::{
         Column, ResolvedSpan, ResolvedSpanData, SourceLine, SpanResolver,
         SpanResolverError,
     },
@@ -777,7 +777,7 @@ impl Display for SectionSourceLine {
 /// Marks are displayed below a [`SectionSourceLine`] and are intended to
 ///   visually display a [`Span`].
 /// Column resolution
-///   (see [`super::resolver`])
+///   (see [`super::resolve`])
 ///   exists primarily for mark rendering.
 #[derive(Debug, PartialEq, Eq)]
 struct LineMark<'d> {

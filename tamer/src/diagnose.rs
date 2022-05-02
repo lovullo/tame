@@ -76,10 +76,10 @@
 //! See the [`report`] module for more information.
 
 mod report;
-mod resolver;
+mod resolve;
 
 pub use report::{Reporter, VisualReporter};
-pub use resolver::FsSpanResolver;
+pub use resolve::FsSpanResolver;
 
 use core::fmt;
 use std::{borrow::Cow, error::Error, fmt::Display};
