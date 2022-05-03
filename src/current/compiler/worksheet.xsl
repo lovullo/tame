@@ -92,8 +92,6 @@
       <preproc:sym-dep name="___worksheet" />
     </preproc:sym-deps>
 
-    <copy-of select="node()" />
-
     <preproc:fragments>
       <preproc:fragment id="___worksheet">
         <text>rater.worksheet = </text>
@@ -133,6 +131,8 @@
         <text>;</text>
       </preproc:fragment>
     </preproc:fragments>
+
+    <copy-of select="node()" />
   </lv:package>
 </template>
 
