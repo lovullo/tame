@@ -515,32 +515,31 @@ pub enum Token {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // _Do not_ render large amounts of text here;
+        //   this is not only a risk depending on what is output,
+        //     but the diagnostic system also quote source lines to provide
+        //     the necessary context.
         match self {
-            Self::Open(qname, span) => write!(f, "`<{}>` at {}", qname, span),
-            Self::Close(Some(qname), span) => {
-                write!(f, "`</{}>` at {}", qname, span)
-            }
+            Self::Open(qname, _) => write!(f, "`<{}>`", qname),
+            Self::Close(Some(qname), _) => write!(f, "`</{}>`", qname),
             // Its context is contained within the Open,
             //   and hopefully any user-visible errors will display that instead.
-            Self::Close(None, span) => {
-                write!(f, "self-closing tag at {}", span)
+            Self::Close(None, _) => {
+                write!(f, "`/>`")
             }
-            Self::AttrName(qname, span) => {
-                write!(f, "`@{}` at {}", qname, span)
+            Self::AttrName(qname, _) => {
+                write!(f, "`@{}`", qname)
             }
-            Self::AttrValue(attr_val, span) => {
-                write!(f, "attribute value `{}` at {}", attr_val, span)
+            Self::AttrValue(attr_val, _) => {
+                write!(f, "attribute value `{}`", attr_val)
             }
-            Self::AttrValueFragment(attr_val, span) => {
-                write!(f, "attribute value fragment `{}` at {}", attr_val, span)
+            Self::AttrValueFragment(attr_val, _) => {
+                write!(f, "attribute value fragment `{}`", attr_val)
             }
-            // TODO: Safe truncated comment.
-            Self::Comment(_, span) => write!(f, "comment at {}", span),
-            // TODO: Safe truncated text.
-            Self::Text(_, span) => write!(f, "text at {}", span),
-            // TODO: Safe truncated CDATA.
-            Self::CData(_, span) => write!(f, "CDATA at {}", span),
-            Self::Whitespace(ws, span) => write!(f, "`{}` at {}", ws, span),
+            Self::Comment(..) => write!(f, "comment"),
+            Self::Text(..) => write!(f, "text"),
+            Self::CData(..) => write!(f, "CDATA"),
+            Self::Whitespace(..) => write!(f, "whitespace"),
         }
     }
 }
