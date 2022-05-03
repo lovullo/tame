@@ -1,6 +1,6 @@
 // TAMER iterators
 //
-//  Copyright (C) 2014-2021 Ryan Specialty Group, LLC.
+//  Copyright (C) 2014-2022 Ryan Specialty Group, LLC.
 //
 //  This file is part of TAME.
 //

@@ -1,5 +1,5 @@
 <!---
-  Copyright (C) 2015-2021 Ryan Specialty Group, Inc.
+  Copyright (C) 2015-2022 Ryan Specialty Group, Inc.
 
   Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License,
