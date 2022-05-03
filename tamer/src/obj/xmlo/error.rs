@@ -60,6 +60,12 @@ pub enum XmloError {
     UnassociatedFragment(Span),
     /// A `preproc:fragment` element was found, but is missing `text()`.
     MissingFragmentText(SymbolId, Span),
+    /// A token of input was unexpected.
+    ///
+    /// Ideally we would provide a better error depending on the context,
+    ///   but this serves as a fallback if the input is completely
+    ///   unexpected.
+    UnexpectedToken(XirfToken),
 }
 
 impl Display for XmloError {
@@ -106,8 +112,10 @@ impl Display for XmloError {
             UnassociatedFragment(_) => write!(fmt, "unassociated fragment"),
 
             MissingFragmentText(sym, _) => {
-                write!(fmt, "missing fragment text for symbol `{sym}`",)
+                write!(fmt, "missing fragment text for symbol `{sym}`")
             }
+
+            UnexpectedToken(tok) => write!(fmt, "unexpected {tok}"),
         }
     }
 }
@@ -123,7 +131,7 @@ impl Diagnostic for XmloError {
         use XmloError::*;
 
         let malformed = "this `xmlo` file is malformed or corrupt; \
-                           try removing it to force it to be rebuilt,
+                           try removing it to force it to be rebuilt, \
                              and please report this error";
 
         // Note that these errors _could_ potentially be more descriptive
@@ -172,9 +180,7 @@ impl Diagnostic for XmloError {
                 .into(),
 
             MapFromMultiple(_sym, span) => span
-                .internal_error(
-                    "this is an unexpected extra `preproc:from` for `{sym}`",
-                )
+                .internal_error("extra `preproc:from` here")
                 .with_help(malformed)
                 .into(),
 
@@ -195,6 +201,12 @@ impl Diagnostic for XmloError {
 
             MissingFragmentText(_sym, span) => span
                 .internal_error("missing fragment text")
+                .with_help(malformed)
+                .into(),
+
+            UnexpectedToken(tok) => tok
+                .span()
+                .internal_error("unknown or unexpected token")
                 .with_help(malformed)
                 .into(),
         }

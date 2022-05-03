@@ -242,7 +242,9 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             // TODO: For whitespace, which can be stripped by XIRF.
             (st, Xirf::Text(..)) => Transition(st).incomplete(),
 
-            todo => todo!("{todo:?}"),
+            (st, unknown) => {
+                Transition(st).err(XmloError::UnexpectedToken(unknown))
+            }
         }
     }
 
@@ -364,7 +366,9 @@ impl ParseState for SymtableState {
             // TODO: For whitespace, which can be stripped by XIRF.
             (st, Xirf::Text(..)) => Transition(st).incomplete(),
 
-            todo => todo!("{todo:?}"),
+            (st, unknown) => {
+                Transition(st).err(XmloError::UnexpectedToken(unknown))
+            }
         }
     }
 
@@ -594,7 +598,9 @@ impl ParseState for SymDepsState {
             // TODO: For whitespace, which can be stripped by XIRF.
             (st, Xirf::Text(..)) => Transition(st).incomplete(),
 
-            todo => todo!("sym-deps {todo:?}"),
+            (st, unknown) => {
+                Transition(st).err(XmloError::UnexpectedToken(unknown))
+            }
         }
     }
 
@@ -680,7 +686,9 @@ impl ParseState for FragmentsState {
                 Transition(Ready).incomplete()
             }
 
-            todo => todo!("{todo:?}"),
+            (st, unknown) => {
+                Transition(st).err(XmloError::UnexpectedToken(unknown))
+            }
         }
     }
 
