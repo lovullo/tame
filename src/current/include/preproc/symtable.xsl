@@ -315,10 +315,6 @@
              not(
                 @type=$ours/@type
                 and (
-                  not( @dtype or $ours/@dtype )
-                  or @dtype = $ours/@dtype
-                )
-                and (
                   @dim=$ours/@dim
                   or $ours/@dim='?'
                 )
