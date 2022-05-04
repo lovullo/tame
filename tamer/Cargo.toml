@@ -46,9 +46,4 @@ unicode-width = "0.1.5"
 # or another.  Once WIP features are finalized, they are enabled by default
 # and the flag removed.
 [features]
-# Process source files using available frontends rather than copying
-# the files verbatim to XMLI files.  This begins the process of moving
-# compilation from XSLT into TAMER, and so the XSLT-based compiler must be
-# expecting it so that it can skip those compilation steps.
-wip-frontends = []
 

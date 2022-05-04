@@ -62,13 +62,6 @@ pub fn main() -> Result<(), TamecError> {
 
             let dest = Path::new(&output);
 
-            #[cfg(not(feature = "wip-frontends"))]
-            {
-                fs::copy(source, dest)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "wip-frontends")]
             Ok(())
                 .and_then(|_| {
                     use std::io::{BufReader, BufWriter};
