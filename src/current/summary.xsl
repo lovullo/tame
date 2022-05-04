@@ -1961,7 +1961,7 @@
           For one-dimensional arrays, column vectors are used; written
           horizontally, their notation is
           \(\left[\begin{array}\\x_0 &amp; x_1 &amp; \ldots &amp; x_n\end{array}\right]^T\),
-          where the \(T\) means "transpose".
+          where the \(T\) means "transpose".
         </p>
         <p>
           In the equations represented above, it is to be assumed that undefined
