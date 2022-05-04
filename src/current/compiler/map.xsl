@@ -346,6 +346,14 @@
   </call-template>
 </template>
 
+<!-- Omit preproc:from for return map entries, which
+     do not contribute to knownFields -->
+<template match="/*[ @lvmc:type='retmap' ]/lvm:pass" mode="preproc:symtable" priority="6">
+  <call-template name="lvmc:mapsym">
+    <with-param name="name" select="@name" />
+  </call-template>
+</template>
+
 
 <template match="lvm:pass" mode="preproc:depgen" priority="5">
   <preproc:sym-dep name=":map:{@name}" />
@@ -619,11 +627,6 @@
 
   <call-template name="lvmc:mapsym">
     <with-param name="name" select="$to" />
-    <with-param name="from">
-      <for-each select=".//lvm:from">
-        <preproc:from name="{@name}" />
-      </for-each>
-    </with-param>
   </call-template>
 </template>
 

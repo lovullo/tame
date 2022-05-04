@@ -1,4 +1,6 @@
 # This number is incremented for every compiler change to force rebuilding
 # of xmlo files.
-5
+6
+
+# 6: Return map omit preproc:sym/preproc:from
 
