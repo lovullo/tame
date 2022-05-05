@@ -41,6 +41,7 @@ type Ix = global::ProgSymSize;
 ///
 /// For more information,
 ///   see [`Asg`].
+#[derive(Debug, Default)]
 pub struct BaseAsg<O> {
     // TODO: private; see `ld::xmle::lower`.
     /// Directed graph on which objects are stored.

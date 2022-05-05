@@ -24,7 +24,7 @@
 //!
 //! Usage
 //! =====
-//! [`AsgBuilder`] accepts any [`Iterator`] of [`XmloEvent`]s,
+//! [`AsgBuilder`] accepts any [`Iterator`] of [`XmloToken`]s,
 //!   but is intended to be paired with [`XmloReader`](super::XmloReader).
 //!
 //! To fully load an `xmlo` file and its dependencies,
@@ -38,7 +38,7 @@
 //!       used to take ownership over the data.
 
 use super::{
-    reader::{XmloEvent, XmloResult},
+    reader::{XmloResult, XmloToken},
     XmloError,
 };
 use crate::asg::{
@@ -147,7 +147,7 @@ where
     /// Its initial value can be provided as [`Default::default`].
     fn import_xmlo(
         &mut self,
-        xmlo: impl Iterator<Item = XmloResult<XmloEvent>>,
+        xmlo: impl Iterator<Item = XmloResult<XmloToken>>,
         state: AsgBuilderState<S>,
     ) -> Result<S>;
 }
@@ -173,7 +173,7 @@ where
 {
     fn import_xmlo(
         &mut self,
-        mut xmlo: impl Iterator<Item = XmloResult<XmloEvent>>,
+        mut xmlo: impl Iterator<Item = XmloResult<XmloToken>>,
         mut state: AsgBuilderState<S>,
     ) -> Result<S> {
         let mut elig = None;
@@ -188,7 +188,7 @@ where
 
         while let Some(ev) = xmlo.next() {
             match (istate, ev?) {
-                (IS::None, XmloEvent::PkgName(name)) => {
+                (IS::None, XmloToken::PkgName(name)) => {
                     pkg_name = Some(name);
 
                     if first {
@@ -196,29 +196,29 @@ where
                     }
                 }
 
-                (IS::None, XmloEvent::PkgRootPath(relroot)) => {
+                (IS::None, XmloToken::PkgRootPath(relroot)) => {
                     if first {
                         state.relroot = Some(relroot);
                     }
                 }
 
-                (IS::None, XmloEvent::PkgEligClassYields(pkg_elig)) => {
+                (IS::None, XmloToken::PkgEligClassYields(pkg_elig)) => {
                     elig = Some(pkg_elig);
                 }
 
-                (IS::None, XmloEvent::PkgProgramFlag) => {
+                (IS::None, XmloToken::PkgProgramFlag) => {
                     // Unused
                 }
 
-                (IS::None | IS::SymDep(_), XmloEvent::SymDepStart(sym, _)) => {
+                (IS::None | IS::SymDep(_), XmloToken::SymDepStart(sym, _)) => {
                     istate = IS::SymDep(sym);
                 }
 
-                (IS::SymDep(sym), XmloEvent::Symbol(dep_sym, _)) => {
+                (IS::SymDep(sym), XmloToken::Symbol(dep_sym, _)) => {
                     self.add_dep_lookup(sym, dep_sym);
                 }
 
-                (IS::None, XmloEvent::SymDecl(sym, attrs, _span)) => {
+                (IS::None, XmloToken::SymDecl(sym, attrs, _span)) => {
                     if let Some(sym_src) = attrs.src {
                         found.insert(sym_src);
                     } else {
@@ -260,7 +260,7 @@ where
                 // Fragments follow SymDeps.
                 (
                     IS::None | IS::SymDep(_),
-                    XmloEvent::Fragment(sym, text, _),
+                    XmloToken::Fragment(sym, text, _),
                 ) => {
                     istate = IS::None;
 
@@ -276,7 +276,7 @@ where
                 // may change in the future, in which case this
                 // responsibility can be delegated to the linker (to produce
                 // an `Iterator` that stops at EOH).
-                (IS::None, XmloEvent::Eoh(_)) => break,
+                (IS::None, XmloToken::Eoh(_)) => break,
 
                 (istate, ev) => {
                     todo!("unexpected state transition: {istate:?} -> {ev:?}")
@@ -389,8 +389,8 @@ mod test {
         let relroot = "some/path".into();
 
         let evs = vec![
-            Ok(XmloEvent::PkgName(name)),
-            Ok(XmloEvent::PkgRootPath(relroot)),
+            Ok(XmloToken::PkgName(name)),
+            Ok(XmloToken::PkgRootPath(relroot)),
         ];
 
         let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
@@ -422,7 +422,7 @@ mod test {
             .declare(elig_sym, IdentKind::Meta, Default::default())
             .unwrap();
 
-        let evs = vec![Ok(XmloEvent::PkgEligClassYields(elig_sym))];
+        let evs = vec![Ok(XmloToken::PkgEligClassYields(elig_sym))];
 
         let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
@@ -438,9 +438,9 @@ mod test {
         let sym_to2 = "to2".intern();
 
         let evs = vec![
-            Ok(XmloEvent::SymDepStart(sym_from, DUMMY_SPAN)),
-            Ok(XmloEvent::Symbol(sym_to1, DUMMY_SPAN)),
-            Ok(XmloEvent::Symbol(sym_to2, DUMMY_SPAN)),
+            Ok(XmloToken::SymDepStart(sym_from, DUMMY_SPAN)),
+            Ok(XmloToken::Symbol(sym_to1, DUMMY_SPAN)),
+            Ok(XmloToken::Symbol(sym_to2, DUMMY_SPAN)),
         ];
 
         let _ = sut
@@ -464,7 +464,7 @@ mod test {
         let src_b = "src_b".intern();
 
         let evs = vec![
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     src: Some(src_a),
@@ -472,7 +472,7 @@ mod test {
                 },
                 UNKNOWN_SPAN,
             )),
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     src: Some(src_b),
@@ -515,7 +515,7 @@ mod test {
         let evs = vec![
             // Note that externs should not be recognized as roots even if
             // their type would be.
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym_extern,
                 SymAttrs {
                     pkg_name: Some(pkg_name),
@@ -526,7 +526,7 @@ mod test {
                 UNKNOWN_SPAN,
             )),
             // These three will be roots
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym_non_extern,
                 SymAttrs {
                     pkg_name: Some(pkg_name),
@@ -535,7 +535,7 @@ mod test {
                 },
                 UNKNOWN_SPAN,
             )),
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym_map,
                 SymAttrs {
                     pkg_name: Some(pkg_name),
@@ -544,7 +544,7 @@ mod test {
                 },
                 UNKNOWN_SPAN,
             )),
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym_retmap,
                 SymAttrs {
                     pkg_name: Some(pkg_name),
@@ -636,7 +636,7 @@ mod test {
             ..Default::default()
         };
 
-        let evs = vec![Ok(XmloEvent::SymDecl(
+        let evs = vec![Ok(XmloToken::SymDecl(
             sym,
             SymAttrs {
                 pkg_name: Some(pkg_name),
@@ -677,8 +677,8 @@ mod test {
         };
 
         let evs = vec![
-            Ok(XmloEvent::PkgName(pkg_name)),
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::PkgName(pkg_name)),
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
@@ -711,7 +711,7 @@ mod test {
         let sym = "sym".intern();
         let bad_attrs = SymAttrs::default();
 
-        let evs = vec![Ok(XmloEvent::SymDecl(sym, bad_attrs, UNKNOWN_SPAN))];
+        let evs = vec![Ok(XmloToken::SymDecl(sym, bad_attrs, UNKNOWN_SPAN))];
 
         let result = sut
             .import_xmlo(evs.into_iter(), SutState::new())
@@ -727,7 +727,7 @@ mod test {
         let sym = "sym".intern();
 
         let evs = vec![
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     extern_: true,
@@ -737,7 +737,7 @@ mod test {
                 UNKNOWN_SPAN,
             )),
             // Incompatible
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     extern_: true,
@@ -762,7 +762,7 @@ mod test {
         let sym = "sym".intern();
 
         let evs = vec![
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
@@ -771,7 +771,7 @@ mod test {
                 UNKNOWN_SPAN,
             )),
             // Redeclare
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
@@ -796,7 +796,7 @@ mod test {
         let frag = FragmentText::from("foo");
 
         let evs = vec![
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     ty: Some(SymType::Meta),
@@ -804,7 +804,7 @@ mod test {
                 },
                 DUMMY_SPAN,
             )),
-            Ok(XmloEvent::Fragment(sym, frag.clone(), DUMMY_SPAN)),
+            Ok(XmloToken::Fragment(sym, frag.clone(), DUMMY_SPAN)),
         ];
 
         let _ = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
@@ -831,7 +831,7 @@ mod test {
         let sym = "sym".intern();
 
         // Note: missing `SymDecl`.
-        let evs = vec![Ok(XmloEvent::Fragment(sym, "foo".into(), DUMMY_SPAN))];
+        let evs = vec![Ok(XmloToken::Fragment(sym, "foo".into(), DUMMY_SPAN))];
 
         let result = sut
             .import_xmlo(evs.into_iter(), SutState::new())
@@ -848,7 +848,7 @@ mod test {
         let frag = FragmentText::from("foo");
 
         let evs = vec![
-            Ok(XmloEvent::SymDecl(
+            Ok(XmloToken::SymDecl(
                 sym,
                 SymAttrs {
                     // Invalid fragment destination
@@ -858,7 +858,7 @@ mod test {
                 },
                 DUMMY_SPAN,
             )),
-            Ok(XmloEvent::Fragment(sym, frag.clone(), DUMMY_SPAN)),
+            Ok(XmloToken::Fragment(sym, frag.clone(), DUMMY_SPAN)),
         ];
 
         let result = sut
@@ -889,9 +889,9 @@ mod test {
 
         let evs = vec![
             // Stop here.
-            Ok(XmloEvent::Eoh(DUMMY_SPAN)),
+            Ok(XmloToken::Eoh(DUMMY_SPAN)),
             // Shouldn't make it to this one.
-            Ok(XmloEvent::PkgName(pkg_name)),
+            Ok(XmloToken::PkgName(pkg_name)),
         ];
 
         let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();

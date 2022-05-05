@@ -82,10 +82,10 @@ fn common_parses_package_attrs(package: QName) {
     assert_eq!(
         Ok(vec![
             Parsed::Incomplete,
-            Parsed::Object(XmloEvent::PkgName(name)),
-            Parsed::Object(XmloEvent::PkgRootPath(relroot)),
-            Parsed::Object(XmloEvent::PkgProgramFlag),
-            Parsed::Object(XmloEvent::PkgEligClassYields(elig)),
+            Parsed::Object(XmloToken::PkgName(name)),
+            Parsed::Object(XmloToken::PkgRootPath(relroot)),
+            Parsed::Object(XmloToken::PkgProgramFlag),
+            Parsed::Object(XmloToken::PkgEligClassYields(elig)),
             Parsed::Incomplete,
         ]),
         sut.collect(),
@@ -124,7 +124,7 @@ fn ignores_unknown_package_attr() {
     assert_eq!(
         Ok(vec![
             Parsed::Incomplete,
-            Parsed::Object(XmloEvent::PkgName(name)),
+            Parsed::Object(XmloToken::PkgName(name)),
             Parsed::Incomplete, // The unknown attribute
             Parsed::Incomplete,
         ]),
@@ -470,12 +470,12 @@ fn sym_dep_event() {
     assert_eq!(
         Ok(vec![
             Parsed::Incomplete, // <preproc:sym-ref
-            Parsed::Object(XmloEvent::SymDepStart(name, S1)), // @name
+            Parsed::Object(XmloToken::SymDepStart(name, S1)), // @name
             Parsed::Incomplete, // <preproc:sym-ref
-            Parsed::Object(XmloEvent::Symbol(dep1, S4)), // @name
+            Parsed::Object(XmloToken::Symbol(dep1, S4)), // @name
             Parsed::Incomplete, // />
             Parsed::Incomplete, // <preproc:sym-ref
-            Parsed::Object(XmloEvent::Symbol(dep2, S5)), // @name
+            Parsed::Object(XmloToken::Symbol(dep2, S5)), // @name
             Parsed::Incomplete, // />
             Parsed::Incomplete, // </preproc:sym-dep>
         ]),
@@ -515,7 +515,7 @@ fn sym_ref_missing_name() {
     assert_eq!(
         Err(ParseError::StateError(XmloError::MalformedSymRef(name, S2))),
         SymDepsState::parse(toks)
-            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+            .collect::<Result<Vec<Parsed<XmloToken>>, _>>(),
     );
 }
 
@@ -544,11 +544,11 @@ fn sym_fragment_event() {
         Ok(vec![
             Parsed::Incomplete, // <preproc:fragment
             Parsed::Incomplete, // @id
-            Parsed::Object(XmloEvent::Fragment(id1, frag1, S1)), // text
+            Parsed::Object(XmloToken::Fragment(id1, frag1, S1)), // text
             Parsed::Incomplete, // </preproc:fragment>
             Parsed::Incomplete, // <preproc:fragment
             Parsed::Incomplete, // @id
-            Parsed::Object(XmloEvent::Fragment(id2, frag2, S2)), // text
+            Parsed::Object(XmloToken::Fragment(id2, frag2, S2)), // text
             Parsed::Incomplete, // </preproc:fragment>
         ]),
         FragmentsState::parse(toks).collect()
@@ -567,7 +567,7 @@ fn sym_fragment_missing_id() {
     assert_eq!(
         Err(ParseError::StateError(XmloError::UnassociatedFragment(S1))),
         FragmentsState::parse(toks)
-            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+            .collect::<Result<Vec<Parsed<XmloToken>>, _>>(),
     );
 }
 
@@ -585,7 +585,7 @@ fn sym_fragment_empty_id() {
     assert_eq!(
         Err(ParseError::StateError(XmloError::UnassociatedFragment(S1))),
         FragmentsState::parse(toks)
-            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+            .collect::<Result<Vec<Parsed<XmloToken>>, _>>(),
     );
 }
 
@@ -608,7 +608,7 @@ fn _sym_fragment_missing_text() {
             id, S1
         ))),
         FragmentsState::parse(toks)
-            .collect::<Result<Vec<Parsed<XmloEvent>>, _>>(),
+            .collect::<Result<Vec<Parsed<XmloToken>>, _>>(),
     );
 }
 
@@ -662,14 +662,14 @@ fn xmlo_composite_parsers_header() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(XmloEvent::SymDecl(
+            Parsed::Object(XmloToken::SymDecl(
                 sym_name,
                 Default::default(),
                 S3
             )),
-            Parsed::Object(XmloEvent::SymDepStart(symdep_name, S3)),
-            Parsed::Object(XmloEvent::Fragment(symfrag_id, frag, S4)),
-            Parsed::Object(XmloEvent::Eoh(S3)),
+            Parsed::Object(XmloToken::SymDepStart(symdep_name, S3)),
+            Parsed::Object(XmloToken::Fragment(symfrag_id, frag, S4)),
+            Parsed::Object(XmloToken::Eoh(S3)),
         ]),
         sut.filter(|parsed| match parsed {
             Ok(Parsed::Incomplete) => false,

@@ -39,7 +39,7 @@ use crate::{
 ///   we should instead prefer not to put data into object files that won't
 ///   be useful and can't be easily skipped without parsing.
 #[derive(Debug, PartialEq, Eq)]
-pub enum XmloEvent {
+pub enum XmloToken {
     /// Canonical package name.
     PkgName(SymbolId),
     /// Relative path from package to project root.
@@ -81,7 +81,7 @@ pub enum XmloEvent {
     Eoh(Span),
 }
 
-impl parse::Object for XmloEvent {}
+impl parse::Object for XmloToken {}
 
 /// A [`Result`] with a hard-coded [`XmloError`] error type.
 ///
@@ -122,7 +122,7 @@ qname_const! {
 pub trait XmloState = ParseState<Token = Xirf, Context = EmptyContext>
 where
     <Self as ParseState>::Error: Into<XmloError>,
-    <Self as ParseState>::Object: Into<XmloEvent>;
+    <Self as ParseState>::Object: Into<XmloToken>;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum XmloReader<
@@ -155,7 +155,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
     for XmloReader<SS, SD, SF>
 {
     type Token = Xirf;
-    type Object = XmloEvent;
+    type Object = XmloToken;
     type Error = XmloError;
 
     fn parse_token(
@@ -176,11 +176,11 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
 
             (Package, Xirf::Attr(Attr(name, value, _))) => {
                 Transition(Package).ok(match name {
-                    QN_NAME => XmloEvent::PkgName(value),
-                    QN_UUROOTPATH => XmloEvent::PkgRootPath(value),
-                    QN_PROGRAM => XmloEvent::PkgProgramFlag,
+                    QN_NAME => XmloToken::PkgName(value),
+                    QN_UUROOTPATH => XmloToken::PkgRootPath(value),
+                    QN_PROGRAM => XmloToken::PkgProgramFlag,
                     QN_ELIG_CLASS_YIELDS => {
-                        XmloEvent::PkgEligClassYields(value)
+                        XmloToken::PkgEligClassYields(value)
                     }
                     // Ignore unknown attributes for now to maintain BC,
                     //   since no strict xmlo schema has been defined.
@@ -229,7 +229,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             (
                 Fragments(_, sf),
                 Xirf::Close(None | Some(QN_FRAGMENTS), span, _),
-            ) if sf.is_accepting() => Transition(Eoh).ok(XmloEvent::Eoh(span)),
+            ) if sf.is_accepting() => Transition(Eoh).ok(XmloToken::Eoh(span)),
 
             (Fragments(span, sf), tok) => {
                 sf.delegate(ctx, tok, |sf| Fragments(span, sf))
@@ -510,7 +510,7 @@ impl SymtableState {
     }
 }
 
-impl From<(SymbolId, SymAttrs, Span)> for XmloEvent {
+impl From<(SymbolId, SymAttrs, Span)> for XmloToken {
     fn from(tup: (SymbolId, SymAttrs, Span)) -> Self {
         match tup {
             (sym, attrs, span) => Self::SymDecl(sym, attrs, span),
@@ -539,7 +539,7 @@ pub enum SymDepsState {
 
 impl ParseState for SymDepsState {
     type Token = Xirf;
-    type Object = XmloEvent;
+    type Object = XmloToken;
     type Error = XmloError;
 
     fn parse_token(
@@ -558,7 +558,7 @@ impl ParseState for SymDepsState {
 
             (SymUnnamed(span), Xirf::Attr(Attr(QN_NAME, name, _))) => {
                 Transition(Sym(span, name))
-                    .ok(XmloEvent::SymDepStart(name, span))
+                    .ok(XmloToken::SymDepStart(name, span))
             }
 
             (SymUnnamed(span), _) => Transition(SymUnnamed(span))
@@ -572,7 +572,7 @@ impl ParseState for SymDepsState {
                 SymRefUnnamed(span, name, span_ref),
                 Xirf::Attr(Attr(QN_NAME, ref_name, (_, span_ref_name))),
             ) => Transition(SymRefDone(span, name, span_ref))
-                .ok(XmloEvent::Symbol(ref_name, span_ref_name)),
+                .ok(XmloToken::Symbol(ref_name, span_ref_name)),
 
             // TODO: For xmlns attributes, which will go away in XIRF.
             (SymRefUnnamed(span, name, span_ref), Xirf::Attr(..)) => {
@@ -626,7 +626,7 @@ pub enum FragmentsState {
 
 impl ParseState for FragmentsState {
     type Token = Xirf;
-    type Object = XmloEvent;
+    type Object = XmloToken;
     type Error = XmloError;
 
     fn parse_token(
@@ -672,7 +672,7 @@ impl ParseState for FragmentsState {
 
             (Fragment(span, id), Xirf::Text(text, _)) => {
                 Transition(FragmentDone(span, id))
-                    .ok(XmloEvent::Fragment(id, text, span))
+                    .ok(XmloToken::Fragment(id, text, span))
             }
 
             // TODO: Also a compiler bug, for some generated classes.
