@@ -123,13 +123,16 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     /// Errors specific to this set of states.
     type Error: Debug + Diagnostic + PartialEq + Eq;
 
-    type Context: Default + Debug = EmptyContext;
+    type Context: Debug = EmptyContext;
 
     /// Construct a parser.
     ///
     /// Whether this method is helpful or provides any clarity depends on
     ///   the context and the types that are able to be inferred.
-    fn parse<I: TokenStream<Self::Token>>(toks: I) -> Parser<Self, I> {
+    fn parse<I: TokenStream<Self::Token>>(toks: I) -> Parser<Self, I>
+    where
+        Self::Context: Default,
+    {
         Parser::from(toks)
     }
 
@@ -681,6 +684,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     where
         LS: ParseState<Token = S::Object>,
         <S as ParseState>::Object: Token,
+        <LS as ParseState>::Context: Default,
     {
         self.while_ok(|toks| {
             // TODO: This parser is not accessible after error recovery!
@@ -883,7 +887,12 @@ impl<T: Token, E: Diagnostic + PartialEq + Eq + 'static> Diagnostic
     }
 }
 
-impl<S: ParseState, I: TokenStream<S::Token>> From<I> for Parser<S, I> {
+impl<S, I> From<I> for Parser<S, I>
+where
+    S: ParseState,
+    I: TokenStream<S::Token>,
+    <S as ParseState>::Context: Default,
+{
     fn from(toks: I) -> Self {
         Self {
             toks,
