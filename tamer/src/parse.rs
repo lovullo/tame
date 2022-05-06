@@ -121,7 +121,7 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     type Object: Object;
 
     /// Errors specific to this set of states.
-    type Error: Debug + Diagnostic + PartialEq + Eq;
+    type Error: Debug + Diagnostic + PartialEq;
 
     type Context: Debug = EmptyContext;
 
@@ -383,7 +383,7 @@ pub type ParseStateResult<S> = Result<ParseStatus<S>, <S as ParseState>::Error>;
 /// Conceptually,
 ///   imagine the act of a state transition producing data.
 /// See [`Transition`] for convenience methods for producing this tuple.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct TransitionResult<S: ParseState>(
     pub Transition<S>,
     pub ParseStateResult<S>,
@@ -782,7 +782,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
 /// Parsers may return their own unique errors via the
 ///   [`StateError`][ParseError::StateError] variant.
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseError<T: Token, E: Diagnostic + PartialEq + Eq> {
+pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     /// Token stream ended unexpectedly.
     ///
     /// This error means that the parser was expecting more input before
@@ -833,7 +833,7 @@ impl<T: Token, EA: Diagnostic + PartialEq + Eq> ParseError<T, EA> {
     }
 }
 
-impl<T: Token, E: Diagnostic + PartialEq + Eq> From<E> for ParseError<T, E> {
+impl<T: Token, E: Diagnostic + PartialEq> From<E> for ParseError<T, E> {
     fn from(e: E) -> Self {
         Self::StateError(e)
     }
