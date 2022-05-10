@@ -123,6 +123,11 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
     /// Errors specific to this set of states.
     type Error: Debug + Diagnostic + PartialEq;
 
+    /// Object provided to parser alongside each token.
+    ///
+    /// This may be used in situations where Rust/LLVM are unable to
+    ///   optimize away moves of interior data associated with the
+    ///   otherwise-immutable [`ParseState`].
     type Context: Debug = EmptyContext;
 
     /// Construct a parser.
