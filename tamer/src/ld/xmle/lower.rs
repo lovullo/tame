@@ -23,7 +23,7 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{Asg, BaseAsg, IdentKind, IdentObject, ObjectRef},
+    asg::{Asg, IdentKind, IdentObject, ObjectRef},
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -37,7 +37,7 @@ pub type SortResult<T> = Result<T, SortError>;
 ///   although function cycles are permitted.
 /// The actual operation performed is a post-order depth-first traversal.
 pub fn sort<'a, S: XmleSections<'a>>(
-    asg: &'a BaseAsg<IdentObject>,
+    asg: &'a Asg<IdentObject>,
     roots: &[ObjectRef],
     mut dest: S,
 ) -> SortResult<S>
@@ -71,10 +71,7 @@ where
     Ok(dest)
 }
 
-fn get_ident<'a, S>(
-    depgraph: &'a BaseAsg<IdentObject>,
-    name: S,
-) -> &'a IdentObject
+fn get_ident<'a, S>(depgraph: &'a Asg<IdentObject>, name: S) -> &'a IdentObject
 where
     S: Into<SymbolId>,
 {
@@ -97,7 +94,7 @@ where
 ///
 /// We loop through all SCCs and check that they are not all functions. If
 ///   they are, we ignore the cycle, otherwise we will return an error.
-fn check_cycles(asg: &BaseAsg<IdentObject>) -> SortResult<()> {
+fn check_cycles(asg: &Asg<IdentObject>) -> SortResult<()> {
     // While `tarjan_scc` does do a topological sort, it does not suit our
     // needs because we need to filter out some allowed cycles. It would
     // still be possible to use this, but we also need to only check nodes
@@ -118,7 +115,7 @@ fn check_cycles(asg: &BaseAsg<IdentObject>) -> SortResult<()> {
             }
 
             let is_all_funcs = scc.iter().all(|nx| {
-                let ident = Asg::get(asg, *nx).expect("missing node");
+                let ident = asg.get(*nx).expect("missing node");
                 matches!(ident.kind(), Some(IdentKind::Func(..)))
             });
 
@@ -185,7 +182,7 @@ mod test {
         sym::GlobalSymbolIntern,
     };
 
-    type TestAsg = BaseAsg<IdentObject>;
+    type TestAsg = Asg<IdentObject>;
 
     /// Create a graph with the expected {ret,}map head/tail identifiers.
     fn make_asg() -> TestAsg {

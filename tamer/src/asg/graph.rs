@@ -20,17 +20,44 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{FragmentText, IdentObjectState, Source, TransitionError};
+use super::object::{
+    FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
+};
+use super::AsgError;
+use crate::global;
 use crate::sym::SymbolId;
-use petgraph::graph::NodeIndex;
+use petgraph::graph::{DiGraph, Graph, NodeIndex};
 use std::fmt::Debug;
 use std::result::Result;
 
 /// Datatype representing node and edge indexes.
-pub trait IndexType: petgraph::graph::IndexType {}
-impl<T: petgraph::graph::IndexType> IndexType for T {}
+pub trait IndexType = petgraph::graph::IndexType;
 
-/// An abstract semantic graph of [objects][super::object].
+/// A [`Result`] with a hard-coded [`AsgError`] error type.
+///
+/// This is the result of every [`Asg`] operation that could potentially
+///   fail in error.
+pub type AsgResult<T> = Result<T, AsgError>;
+
+/// There are currently no data stored on edges ("edge weights").
+pub type AsgEdge = ();
+
+/// Each node of the graph represents an object.
+///
+/// Enclosed in an [`Option`] to permit moving owned values out of the
+///   graph.
+pub type Node<O> = Option<O>;
+
+/// Index size for Graph nodes and edges.
+type Ix = global::ProgSymSize;
+
+/// An abstract semantic graph (ASG) of [objects][super::object].
+///
+/// This implementation is currently based on [`petgraph`].
+///
+/// Identifiers are cached by name for `O(1)` lookup.
+/// Since [`SymbolId`][crate::sym::SymbolId] is used for this purpose,
+///   the index may contain more entries than nodes and may contain gaps.
 ///
 /// This IR focuses on the definition and manipulation of objects and their
 ///   dependencies.
@@ -42,10 +69,157 @@ impl<T: petgraph::graph::IndexType> IndexType for T {}
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-pub trait Asg<O>
+#[derive(Debug, Default)]
+pub struct Asg<O> {
+    // TODO: private; see `ld::xmle::lower`.
+    /// Directed graph on which objects are stored.
+    pub graph: DiGraph<Node<O>, AsgEdge, Ix>,
+
+    /// Map of [`SymbolId`][crate::sym::SymbolId] to node indexes.
+    ///
+    /// This allows for `O(1)` lookup of identifiers in the graph.
+    /// Note that,
+    ///   while we store [`NodeIndex`] internally,
+    ///   the public API encapsulates it within an [`ObjectRef`].
+    index: Vec<NodeIndex<Ix>>,
+
+    /// Empty node indicating that no object exists for a given index.
+    empty_node: NodeIndex<Ix>,
+}
+
+impl<O> Asg<O>
 where
-    O: IdentObjectState<O>,
+    O: IdentObjectState<O> + IdentObjectData,
 {
+    /// Create a new ASG.
+    ///
+    /// See also [`with_capacity`](Asg::with_capacity).
+    pub fn new() -> Self {
+        Self::with_capacity(0, 0)
+    }
+
+    /// Create an ASG with the provided initial capacity.
+    ///
+    /// The value for `objects` will be used as the capacity for the nodes
+    ///   in the graph,
+    ///     as well as the initial index capacity.
+    /// The value for `edges` may be more difficult to consider,
+    ///   since edges are used to represent various relationships between
+    ///   different types of objects,
+    ///     but it's safe to say that each object will have at least one
+    ///     edge to another object.
+    pub fn with_capacity(objects: usize, edges: usize) -> Self {
+        let mut graph = Graph::with_capacity(objects, edges);
+        let mut index = Vec::with_capacity(objects);
+
+        // Exhaust the first index to be used as a placeholder.
+        let empty_node = graph.add_node(None);
+        index.push(empty_node);
+
+        Self {
+            graph,
+            index,
+            empty_node,
+        }
+    }
+
+    /// Get the underlying Graph
+    pub fn into_inner(self) -> DiGraph<Node<O>, AsgEdge, Ix> {
+        self.graph
+    }
+
+    /// Index the provided symbol `name` as representing the identifier `node`.
+    ///
+    /// This index permits `O(1)` identifier lookups.
+    ///
+    /// After an identifier is indexed it is not expected to be reassigned
+    ///   to another node.
+    /// Debug builds contain an assertion that will panic in this instance.
+    ///
+    /// Panics
+    /// ======
+    /// Will panic if unable to allocate more space for the index.
+    fn index_identifier(&mut self, name: SymbolId, node: NodeIndex<Ix>) {
+        let i = name.as_usize();
+
+        if i >= self.index.len() {
+            // If this is ever a problem we can fall back to usize max and
+            // re-compare before panicing
+            let new_size = (i + 1)
+                .checked_next_power_of_two()
+                .expect("internal error: cannot allocate space for ASG index");
+
+            self.index.resize(new_size, self.empty_node);
+        }
+
+        // We should never overwrite indexes
+        debug_assert!(self.index[i] == self.empty_node);
+
+        self.index[i] = node;
+    }
+
+    /// Lookup `ident` or add a missing identifier to the graph and return a
+    ///   reference to it.
+    ///
+    /// See [`IdentObjectState::declare`] for more information.
+    fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
+        self.lookup(ident).unwrap_or_else(|| {
+            let index = self.graph.add_node(Some(O::declare(ident)));
+
+            self.index_identifier(ident, index);
+            ObjectRef::new(index)
+        })
+    }
+
+    /// Perform a state transition on an identifier by name.
+    ///
+    /// Look up `ident` or add a missing identifier if it does not yet exist
+    ///   (see `lookup_or_missing`).
+    /// Then invoke `f` with the located identifier and replace the
+    ///   identifier on the graph with the result.
+    ///
+    /// This will safely restore graph state to the original identifier
+    ///   value on transition failure.
+    fn with_ident_lookup<F>(
+        &mut self,
+        name: SymbolId,
+        f: F,
+    ) -> AsgResult<ObjectRef>
+    where
+        F: FnOnce(O) -> TransitionResult<O>,
+    {
+        let identi = self.lookup_or_missing(name);
+        self.with_ident(identi, f)
+    }
+
+    /// Perform a state transition on an identifier by [`ObjectRef`].
+    ///
+    /// Invoke `f` with the located identifier and replace the identifier on
+    ///   the graph with the result.
+    ///
+    /// This will safely restore graph state to the original identifier
+    ///   value on transition failure.
+    fn with_ident<F>(&mut self, identi: ObjectRef, f: F) -> AsgResult<ObjectRef>
+    where
+        F: FnOnce(O) -> TransitionResult<O>,
+    {
+        let node = self.graph.node_weight_mut(identi.into()).unwrap();
+
+        let obj = node
+            .take()
+            .expect(&format!("internal error: missing object"));
+
+        f(obj)
+            .and_then(|obj| {
+                node.replace(obj);
+                Ok(identi)
+            })
+            .or_else(|(orig, err)| {
+                node.replace(orig);
+                Err(err.into())
+            })
+    }
+
     /// Declare a concrete identifier.
     ///
     /// An identifier declaration is similar to a declaration in a header
@@ -77,12 +251,14 @@ where
     ///
     /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
-    fn declare(
+    pub fn declare(
         &mut self,
         name: SymbolId,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef>;
+    ) -> AsgResult<ObjectRef> {
+        self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
+    }
 
     /// Declare an abstract identifier.
     ///
@@ -104,23 +280,27 @@ where
     /// See [`IdentObjectState::extern_`] and
     ///   [`IdentObjectState::resolve`] for more information on
     ///   compatibility related to extern resolution.
-    fn declare_extern(
+    pub fn declare_extern(
         &mut self,
         name: SymbolId,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef>;
+    ) -> AsgResult<ObjectRef> {
+        self.with_ident_lookup(name, |obj| obj.extern_(kind, src))
+    }
 
     /// Set the fragment associated with a concrete identifier.
     ///
     /// Fragments are intended for use by the [linker][crate::ld].
     /// For more information,
     ///   see [`IdentObjectState::set_fragment`].
-    fn set_fragment(
+    pub fn set_fragment(
         &mut self,
         identi: ObjectRef,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef>;
+    ) -> AsgResult<ObjectRef> {
+        self.with_ident(identi, |obj| obj.set_fragment(text))
+    }
 
     /// Retrieve an object from the graph by [`ObjectRef`].
     ///
@@ -129,7 +309,13 @@ where
     ///   this should never fail so long as references are not shared
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
-    fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&O>;
+    #[inline]
+    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&O> {
+        self.graph.node_weight(index.into().into()).map(|node| {
+            node.as_ref()
+                .expect("internal error: Asg::get missing Node data")
+        })
+    }
 
     /// Attempt to retrieve an identifier from the graph by name.
     ///
@@ -137,7 +323,15 @@ where
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
-    fn lookup(&self, name: SymbolId) -> Option<ObjectRef>;
+    #[inline]
+    pub fn lookup(&self, name: SymbolId) -> Option<ObjectRef> {
+        let i = name.as_usize();
+
+        self.index
+            .get(i)
+            .filter(|ni| ni.index() > 0)
+            .map(|ni| ObjectRef::new(*ni))
+    }
 
     /// Declare that `dep` is a dependency of `ident`.
     ///
@@ -148,10 +342,16 @@ where
     /// See [`add_dep_lookup`][Asg::add_dep_lookup] if identifiers have to
     ///   be looked up by [`SymbolId`] or if they may not yet have been
     ///   declared.
-    fn add_dep(&mut self, ident: ObjectRef, dep: ObjectRef);
+    pub fn add_dep(&mut self, identi: ObjectRef, depi: ObjectRef) {
+        self.graph
+            .update_edge(identi.into(), depi.into(), Default::default());
+    }
 
     /// Check whether `dep` is a dependency of `ident`.
-    fn has_dep(&self, ident: ObjectRef, dep: ObjectRef) -> bool;
+    #[inline]
+    pub fn has_dep(&self, ident: ObjectRef, dep: ObjectRef) -> bool {
+        self.graph.contains_edge(ident.into(), dep.into())
+    }
 
     /// Declare that `dep` is a dependency of `ident`,
     ///   regardless of whether they are known.
@@ -166,18 +366,20 @@ where
     /// See [`IdentObjectState::declare`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
-    fn add_dep_lookup(
+    pub fn add_dep_lookup(
         &mut self,
         ident: SymbolId,
         dep: SymbolId,
-    ) -> (ObjectRef, ObjectRef);
-}
+    ) -> (ObjectRef, ObjectRef) {
+        let identi = self.lookup_or_missing(ident);
+        let depi = self.lookup_or_missing(dep);
 
-/// A [`Result`] with a hard-coded [`AsgError`] error type.
-///
-/// This is the result of every [`Asg`] operation that could potentially
-///   fail in error.
-pub type AsgResult<T> = Result<T, AsgError>;
+        self.graph
+            .update_edge(identi.into(), depi.into(), Default::default());
+
+        (identi, depi)
+    }
+}
 
 /// Reference to an [object][super::object] stored within the [`Asg`].
 ///
@@ -205,69 +407,473 @@ impl From<ObjectRef> for NodeIndex {
     }
 }
 
-/// There are currently no data stored on edges ("edge weights").
-pub type AsgEdge = ();
-
-/// Each node of the graph represents an object.
-///
-/// Enclosed in an [`Option`] to permit moving owned values out of the
-///   graph.
-pub type Node<O> = Option<O>;
-
-/// An error from an ASG operation.
-#[derive(Debug, PartialEq)]
-pub enum AsgError {
-    /// An object could not change state in the manner requested.
-    ///
-    /// See [`Asg::declare`] and [`Asg::set_fragment`] for more
-    ///   information.
-    /// See also [`TransitionError`].
-    ObjectTransition(TransitionError),
-
-    /// The node was not expected in the current context
-    UnexpectedNode(String),
-}
-
-impl std::fmt::Display for AsgError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::ObjectTransition(err) => std::fmt::Display::fmt(&err, fmt),
-            Self::UnexpectedNode(msg) => {
-                write!(fmt, "unexpected node: {}", msg)
-            }
-        }
-    }
-}
-
-impl std::error::Error for AsgError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::ObjectTransition(err) => err.source(),
-            _ => None,
-        }
-    }
-}
-
-impl From<TransitionError> for AsgError {
-    fn from(err: TransitionError) -> Self {
-        Self::ObjectTransition(err)
-    }
-}
-
 #[cfg(test)]
 mod test {
+    use super::super::error::AsgError;
     use super::*;
+    use crate::asg::{
+        Dim, IdentObject, TransitionError, TransitionResult, UnresolvedError,
+    };
+    use crate::sym::{GlobalSymbolIntern, SymbolId};
+    use std::cell::RefCell;
 
-    mod objref {
-        use super::*;
+    #[derive(Debug, Default, PartialEq)]
+    struct StubIdentObject {
+        given_declare: Option<SymbolId>,
+        given_extern: Option<(IdentKind, Source)>,
+        given_resolve: Option<(IdentKind, Source)>,
+        given_set_fragment: Option<FragmentText>,
+        fail_redeclare: RefCell<Option<TransitionError>>,
+        fail_extern: RefCell<Option<TransitionError>>,
+        fail_set_fragment: RefCell<Option<TransitionError>>,
+        fail_resolved: RefCell<Option<UnresolvedError>>,
+    }
 
-        #[test]
-        fn to_from_nodeindex() {
-            let index = NodeIndex::<u32>::new(5);
-            let objref: ObjectRef = ObjectRef::from(index);
-
-            assert_eq!(index, objref.0);
-            assert_eq!(index, objref.into());
+    impl<'i> IdentObjectData for StubIdentObject {
+        fn name(&self) -> Option<SymbolId> {
+            self.given_declare
         }
+
+        fn kind(&self) -> Option<&IdentKind> {
+            self.given_resolve.as_ref().map(|args| &args.0)
+        }
+
+        fn src(&self) -> Option<&Source> {
+            None
+        }
+
+        fn fragment(&self) -> Option<FragmentText> {
+            None
+        }
+
+        fn as_ident(&self) -> Option<&IdentObject> {
+            None
+        }
+    }
+
+    impl<'i> IdentObjectState<StubIdentObject> for StubIdentObject {
+        fn declare(ident: SymbolId) -> Self {
+            Self {
+                given_declare: Some(ident),
+                ..Default::default()
+            }
+        }
+
+        fn resolve(
+            mut self,
+            kind: IdentKind,
+            src: Source,
+        ) -> TransitionResult<StubIdentObject> {
+            if self.fail_redeclare.borrow().is_some() {
+                let err = self.fail_redeclare.replace(None).unwrap();
+                return Err((self, err));
+            }
+
+            self.given_resolve = Some((kind, src));
+            Ok(self)
+        }
+
+        fn resolved(&self) -> Result<&StubIdentObject, UnresolvedError> {
+            if self.fail_resolved.borrow().is_some() {
+                return Err(self.fail_resolved.replace(None).unwrap());
+            }
+
+            Ok(self)
+        }
+
+        fn extern_(
+            mut self,
+            kind: IdentKind,
+            src: Source,
+        ) -> TransitionResult<StubIdentObject> {
+            if self.fail_extern.borrow().is_some() {
+                let err = self.fail_extern.replace(None).unwrap();
+                return Err((self, err));
+            }
+
+            self.given_extern = Some((kind, src));
+            Ok(self)
+        }
+
+        fn set_fragment(
+            mut self,
+            text: FragmentText,
+        ) -> TransitionResult<StubIdentObject> {
+            if self.fail_set_fragment.borrow().is_some() {
+                let err = self.fail_set_fragment.replace(None).unwrap();
+                return Err((self, err));
+            }
+
+            self.given_set_fragment.replace(text);
+            Ok(self)
+        }
+    }
+
+    type Sut = Asg<StubIdentObject>;
+
+    #[test]
+    fn create_with_capacity() {
+        let node_capacity = 100;
+        let edge_capacity = 300;
+        let sut = Sut::with_capacity(node_capacity, edge_capacity);
+
+        // breaks encapsulation to introspect; the behavior is
+        // transparent to callers (aside from performance
+        // characteristics)
+        let (nc, ec) = sut.graph.capacity();
+        assert!(nc >= node_capacity);
+        assert!(ec >= edge_capacity);
+        assert!(sut.index.capacity() >= node_capacity);
+    }
+
+    #[test]
+    fn declare_new_unique_idents() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        // NB: The index ordering is important!  We first use a larger
+        // index to create a gap, and then use an index within that gap
+        // to ensure that it's not considered an already-defined
+        // identifier.
+        let syma = "syma".intern();
+        let symb = "symab".intern();
+
+        let nodea = sut.declare(
+            syma,
+            IdentKind::Meta,
+            Source {
+                desc: Some("a".into()),
+                ..Default::default()
+            },
+        )?;
+
+        let nodeb = sut.declare(
+            symb,
+            IdentKind::Worksheet,
+            Source {
+                desc: Some("b".into()),
+                ..Default::default()
+            },
+        )?;
+
+        assert_ne!(nodea, nodeb);
+
+        assert_eq!(Some(syma), sut.get(nodea).unwrap().given_declare);
+        assert_eq!(
+            Some((
+                IdentKind::Meta,
+                Source {
+                    desc: Some("a".into()),
+                    ..Default::default()
+                },
+            )),
+            sut.get(nodea).unwrap().given_resolve
+        );
+
+        assert_eq!(Some(symb), sut.get(nodeb).unwrap().given_declare);
+        assert_eq!(
+            Some((
+                IdentKind::Worksheet,
+                Source {
+                    desc: Some("b".into()),
+                    ..Default::default()
+                },
+            )),
+            sut.get(nodeb).unwrap().given_resolve
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn lookup_by_symbol() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "lookup".into();
+        let node = sut.declare(
+            sym,
+            IdentKind::Meta,
+            Source {
+                generated: true,
+                ..Default::default()
+            },
+        )?;
+
+        assert_eq!(Some(node), sut.lookup(sym));
+
+        Ok(())
+    }
+
+    #[test]
+    fn declare_returns_existing() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "symdup".into();
+        let src = Source::default();
+        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+
+        // Remember that our stub does not care about compatibility.
+        let rekind = IdentKind::Class(Dim::from_u8(3));
+        let resrc = Source {
+            desc: Some("redeclare".into()),
+            ..Default::default()
+        };
+        let redeclare = sut.declare(sym, rekind.clone(), resrc.clone())?;
+
+        // We don't care what the objects are for this test, just that the
+        // same node is referenced.
+        assert_eq!(node, redeclare);
+
+        assert_eq!(Some((rekind, resrc)), sut.get(node).unwrap().given_resolve,);
+
+        Ok(())
+    }
+
+    // Builds upon declare_returns_existing.
+    #[test]
+    fn declare_fails_if_transition_fails() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "symdup".intern();
+        let src = Source {
+            desc: Some("orig".into()),
+            ..Default::default()
+        };
+
+        // Set up an object to fail redeclaration.
+        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+        let obj = sut.get(node).unwrap();
+        let terr = TransitionError::ExternResolution {
+            name: "test fail".into(),
+            expected: IdentKind::Meta,
+            given: IdentKind::Meta,
+        };
+        obj.fail_redeclare.replace(Some(terr.clone()));
+
+        // Should invoke StubIdentObject::redeclare on the above `obj`.
+        let result = sut.declare(sym, IdentKind::Meta, Source::default());
+
+        if let Err(err) = result {
+            // The node should have been restored.
+            let obj = sut.get(node).unwrap();
+            assert_eq!(src, obj.given_resolve.as_ref().unwrap().1);
+
+            assert_eq!(AsgError::ObjectTransition(terr), err);
+
+            Ok(())
+        } else {
+            panic!("failure expected: {:?}", result);
+        }
+    }
+
+    #[test]
+    fn declare_extern_returns_existing() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "symext".intern();
+        let src = Source::default();
+        let node = sut.declare_extern(sym, IdentKind::Meta, src.clone())?;
+
+        // Remember that our stub does not care about compatibility.
+        let rekind = IdentKind::Class(Dim::from_u8(3));
+        let resrc = Source {
+            desc: Some("redeclare".into()),
+            ..Default::default()
+        };
+        let redeclare =
+            sut.declare_extern(sym, rekind.clone(), resrc.clone())?;
+
+        // We don't care what the objects are for this test, just that the
+        // same node is referenced.
+        assert_eq!(node, redeclare);
+        assert_eq!(Some((rekind, resrc)), sut.get(node).unwrap().given_extern);
+
+        Ok(())
+    }
+
+    // Builds upon declare_returns_existing.
+    #[test]
+    fn declare_extern_fails_if_transition_fails() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "symdup".intern();
+        let src = Source {
+            desc: Some("orig".into()),
+            ..Default::default()
+        };
+
+        // Set up an object to fail redeclaration.
+        let node = sut.declare_extern(sym, IdentKind::Meta, src.clone())?;
+        let obj = sut.get(node).unwrap();
+
+        // It doesn't matter that this isn't the error that'll actually be
+        // returned, as long as it's some sort of TransitionError.
+        let terr = TransitionError::ExternResolution {
+            name: "test fail".into(),
+            expected: IdentKind::Meta,
+            given: IdentKind::Meta,
+        };
+        obj.fail_extern.replace(Some(terr.clone()));
+
+        // Should invoke StubIdentObject::extern_ on the above `obj`.
+        let result =
+            sut.declare_extern(sym, IdentKind::Meta, Source::default());
+
+        if let Err(err) = result {
+            // The node should have been restored.
+            let obj = sut.get(node).unwrap();
+
+            assert_eq!(src, obj.given_extern.as_ref().unwrap().1);
+            assert_eq!(AsgError::ObjectTransition(terr), err);
+
+            Ok(())
+        } else {
+            panic!("failure expected: {:?}", result);
+        }
+    }
+
+    #[test]
+    fn add_fragment_to_ident() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "tofrag".intern();
+        let src = Source {
+            generated: true,
+            ..Default::default()
+        };
+        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+
+        let fragment = "a fragment".intern();
+        let node_with_frag = sut.set_fragment(node, fragment)?;
+
+        // Attaching a fragment should _replace_ the node, not create a
+        // new one
+        assert_eq!(
+            node, node_with_frag,
+            "fragment node does not match original node"
+        );
+
+        let obj = sut.get(node).unwrap();
+
+        assert_eq!(Some(sym), obj.given_declare);
+        assert_eq!(Some((IdentKind::Meta, src)), obj.given_resolve);
+        assert_eq!(Some(fragment), obj.given_set_fragment);
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_fragment_to_ident_fails_if_transition_fails() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "failfrag".intern();
+        let src = Source {
+            generated: true,
+            ..Default::default()
+        };
+
+        // The failure will come from terr below, not this.
+        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+        let obj = sut.get(node).unwrap();
+
+        // It doesn't matter that this isn't the error that'll actually be
+        // returned, as long as it's some sort of TransitionError.
+        let terr = TransitionError::BadFragmentDest {
+            name: String::from("test fail"),
+        };
+        obj.fail_set_fragment.replace(Some(terr.clone()));
+
+        let result = sut
+            .set_fragment(node, "".into())
+            .expect_err("error expected");
+
+        // The node should have been restored.
+        let obj = sut.get(node).unwrap();
+
+        assert_eq!(sym, *obj.given_declare.as_ref().unwrap());
+        assert_eq!(AsgError::ObjectTransition(terr), result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_ident_dep_to_ident() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "sym".intern();
+        let dep = "dep".intern();
+
+        let symnode = sut.declare(sym, IdentKind::Meta, Source::default())?;
+        let depnode = sut.declare(dep, IdentKind::Meta, Source::default())?;
+
+        sut.add_dep(symnode, depnode);
+        assert!(sut.has_dep(symnode, depnode));
+
+        // sanity check if we re-add a dep
+        sut.add_dep(symnode, depnode);
+        assert!(sut.has_dep(symnode, depnode));
+
+        Ok(())
+    }
+
+    // same as above test
+    #[test]
+    fn add_dep_lookup_existing() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "sym".intern();
+        let dep = "dep".intern();
+
+        let _ = sut.declare(sym, IdentKind::Meta, Source::default())?;
+        let _ = sut.declare(dep, IdentKind::Meta, Source::default())?;
+
+        let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
+        assert!(sut.has_dep(symnode, depnode));
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_dep_lookup_missing() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "sym".intern();
+        let dep = "dep".intern();
+
+        // both of these are missing
+        let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
+        assert!(sut.has_dep(symnode, depnode));
+
+        assert_eq!(Some(sym), sut.get(symnode).unwrap().given_declare);
+        assert_eq!(Some(dep), sut.get(depnode).unwrap().given_declare);
+
+        Ok(())
+    }
+
+    #[test]
+    fn declare_return_missing_symbol() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let sym = "sym".intern();
+        let dep = "dep".intern();
+
+        // both of these are missing, see add_dep_lookup_missing
+        let (symnode, _) = sut.add_dep_lookup(sym, dep);
+
+        let src = Source {
+            desc: Some("redeclare missing".into()),
+            ..Default::default()
+        };
+
+        // Check with a declared value
+        let declared = sut.declare(sym, IdentKind::Meta, src.clone())?;
+
+        assert_eq!(symnode, declared);
+
+        let obj = sut.get(declared).unwrap();
+
+        assert_eq!(Some(sym), obj.given_declare);
+        assert_eq!(Some((IdentKind::Meta, src)), obj.given_resolve);
+
+        Ok(())
     }
 }

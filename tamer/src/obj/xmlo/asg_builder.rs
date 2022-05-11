@@ -42,8 +42,8 @@ use super::{
     XmloError,
 };
 use crate::asg::{
-    Asg, AsgError, IdentKind, IdentKindError, IdentObjectState, ObjectRef,
-    Source,
+    Asg, AsgError, IdentKind, IdentKindError, IdentObjectData,
+    IdentObjectState, ObjectRef, Source,
 };
 use crate::sym::SymbolId;
 use std::collections::HashSet;
@@ -165,11 +165,10 @@ enum AsgBuilderInternalState {
     SymDep(SymbolId),
 }
 
-impl<O, S, G> AsgBuilder<O, S> for G
+impl<O, S> AsgBuilder<O, S> for Asg<O>
 where
-    O: IdentObjectState<O>,
+    O: IdentObjectState<O> + IdentObjectData,
     S: BuildHasher + Default,
-    G: Asg<O>,
 {
     fn import_xmlo(
         &mut self,

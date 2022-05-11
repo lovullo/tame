@@ -61,7 +61,7 @@
 //!
 //! ```
 //! use tamer::global;
-//! use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, Source};
+//! use tamer::asg::{DefaultAsg, IdentKind, IdentObject, Source};
 //! use tamer::sym::{Interner, DefaultProgInterner};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -110,7 +110,7 @@
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
+//! # use tamer::asg::{DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -156,7 +156,7 @@
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::asg::{Asg, DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
+//! # use tamer::asg::{DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -190,15 +190,13 @@
 //! # }
 //! ```
 
-mod base;
+mod error;
 mod graph;
 mod ident;
 mod object;
 
-// TODO: Stop exposing this.  See `ld::xmle::lower`.
-pub use base::BaseAsg;
-
-pub use graph::{Asg, AsgError, AsgResult, IndexType, ObjectRef};
+pub use error::AsgError;
+pub use graph::{Asg, AsgResult, IndexType, ObjectRef};
 pub use ident::{DataType, Dim, IdentKind, IdentKindError};
 pub use object::{
     FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
@@ -206,4 +204,4 @@ pub use object::{
 };
 
 /// Default concrete ASG implementation.
-pub type DefaultAsg<O> = base::BaseAsg<O>;
+pub type DefaultAsg<O> = graph::Asg<O>;

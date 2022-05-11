@@ -26,7 +26,7 @@ use super::xmle::{
     XmleSections,
 };
 use crate::{
-    asg::{Asg, DefaultAsg, IdentObject},
+    asg::{DefaultAsg, IdentObject},
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
