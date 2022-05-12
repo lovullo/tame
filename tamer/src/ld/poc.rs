@@ -26,7 +26,7 @@ use super::xmle::{
     XmleSections,
 };
 use crate::{
-    asg::{DefaultAsg, IdentObject},
+    asg::DefaultAsg,
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
@@ -57,7 +57,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-type LinkerAsg = DefaultAsg<IdentObject>;
+type LinkerAsg = DefaultAsg;
 type LinkerAsgBuilderState = AsgBuilderState<FxBuildHasher>;
 
 pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {

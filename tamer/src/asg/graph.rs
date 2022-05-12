@@ -20,10 +20,8 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{
-    FragmentText, IdentObjectData, IdentObjectState, Source, TransitionResult,
-};
-use super::AsgError;
+use super::object::{FragmentText, IdentObjectState, Source, TransitionResult};
+use super::{AsgError, IdentObject};
 use crate::global;
 use crate::sym::SymbolId;
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
@@ -46,7 +44,7 @@ pub type AsgEdge = ();
 ///
 /// Enclosed in an [`Option`] to permit moving owned values out of the
 ///   graph.
-pub type Node<O> = Option<O>;
+pub type Node = Option<IdentObject>;
 
 /// Index size for Graph nodes and edges.
 type Ix = global::ProgSymSize;
@@ -70,10 +68,10 @@ type Ix = global::ProgSymSize;
 /// For more information,
 ///   see the [module-level documentation][self].
 #[derive(Debug, Default)]
-pub struct Asg<O> {
+pub struct Asg {
     // TODO: private; see `ld::xmle::lower`.
     /// Directed graph on which objects are stored.
-    pub graph: DiGraph<Node<O>, AsgEdge, Ix>,
+    pub graph: DiGraph<Node, AsgEdge, Ix>,
 
     /// Map of [`SymbolId`][crate::sym::SymbolId] to node indexes.
     ///
@@ -87,10 +85,7 @@ pub struct Asg<O> {
     empty_node: NodeIndex<Ix>,
 }
 
-impl<O> Asg<O>
-where
-    O: IdentObjectState<O> + IdentObjectData,
-{
+impl Asg {
     /// Create a new ASG.
     ///
     /// See also [`with_capacity`](Asg::with_capacity).
@@ -124,7 +119,7 @@ where
     }
 
     /// Get the underlying Graph
-    pub fn into_inner(self) -> DiGraph<Node<O>, AsgEdge, Ix> {
+    pub fn into_inner(self) -> DiGraph<Node, AsgEdge, Ix> {
         self.graph
     }
 
@@ -164,7 +159,7 @@ where
     /// See [`IdentObjectState::declare`] for more information.
     fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
         self.lookup(ident).unwrap_or_else(|| {
-            let index = self.graph.add_node(Some(O::declare(ident)));
+            let index = self.graph.add_node(Some(IdentObject::declare(ident)));
 
             self.index_identifier(ident, index);
             ObjectRef::new(index)
@@ -186,7 +181,7 @@ where
         f: F,
     ) -> AsgResult<ObjectRef>
     where
-        F: FnOnce(O) -> TransitionResult<O>,
+        F: FnOnce(IdentObject) -> TransitionResult<IdentObject>,
     {
         let identi = self.lookup_or_missing(name);
         self.with_ident(identi, f)
@@ -201,7 +196,7 @@ where
     ///   value on transition failure.
     fn with_ident<F>(&mut self, identi: ObjectRef, f: F) -> AsgResult<ObjectRef>
     where
-        F: FnOnce(O) -> TransitionResult<O>,
+        F: FnOnce(IdentObject) -> TransitionResult<IdentObject>,
     {
         let node = self.graph.node_weight_mut(identi.into()).unwrap();
 
@@ -310,7 +305,7 @@ where
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
     #[inline]
-    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&O> {
+    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&IdentObject> {
         self.graph.node_weight(index.into().into()).map(|node| {
             node.as_ref()
                 .expect("internal error: Asg::get missing Node data")
@@ -411,105 +406,11 @@ impl From<ObjectRef> for NodeIndex {
 mod test {
     use super::super::error::AsgError;
     use super::*;
-    use crate::asg::{
-        Dim, IdentObject, TransitionError, TransitionResult, UnresolvedError,
-    };
-    use crate::sym::{GlobalSymbolIntern, SymbolId};
-    use std::cell::RefCell;
+    use crate::asg::Dim;
+    use crate::sym::GlobalSymbolIntern;
+    use std::assert_matches::assert_matches;
 
-    #[derive(Debug, Default, PartialEq)]
-    struct StubIdentObject {
-        given_declare: Option<SymbolId>,
-        given_extern: Option<(IdentKind, Source)>,
-        given_resolve: Option<(IdentKind, Source)>,
-        given_set_fragment: Option<FragmentText>,
-        fail_redeclare: RefCell<Option<TransitionError>>,
-        fail_extern: RefCell<Option<TransitionError>>,
-        fail_set_fragment: RefCell<Option<TransitionError>>,
-        fail_resolved: RefCell<Option<UnresolvedError>>,
-    }
-
-    impl<'i> IdentObjectData for StubIdentObject {
-        fn name(&self) -> Option<SymbolId> {
-            self.given_declare
-        }
-
-        fn kind(&self) -> Option<&IdentKind> {
-            self.given_resolve.as_ref().map(|args| &args.0)
-        }
-
-        fn src(&self) -> Option<&Source> {
-            None
-        }
-
-        fn fragment(&self) -> Option<FragmentText> {
-            None
-        }
-
-        fn as_ident(&self) -> Option<&IdentObject> {
-            None
-        }
-    }
-
-    impl<'i> IdentObjectState<StubIdentObject> for StubIdentObject {
-        fn declare(ident: SymbolId) -> Self {
-            Self {
-                given_declare: Some(ident),
-                ..Default::default()
-            }
-        }
-
-        fn resolve(
-            mut self,
-            kind: IdentKind,
-            src: Source,
-        ) -> TransitionResult<StubIdentObject> {
-            if self.fail_redeclare.borrow().is_some() {
-                let err = self.fail_redeclare.replace(None).unwrap();
-                return Err((self, err));
-            }
-
-            self.given_resolve = Some((kind, src));
-            Ok(self)
-        }
-
-        fn resolved(&self) -> Result<&StubIdentObject, UnresolvedError> {
-            if self.fail_resolved.borrow().is_some() {
-                return Err(self.fail_resolved.replace(None).unwrap());
-            }
-
-            Ok(self)
-        }
-
-        fn extern_(
-            mut self,
-            kind: IdentKind,
-            src: Source,
-        ) -> TransitionResult<StubIdentObject> {
-            if self.fail_extern.borrow().is_some() {
-                let err = self.fail_extern.replace(None).unwrap();
-                return Err((self, err));
-            }
-
-            self.given_extern = Some((kind, src));
-            Ok(self)
-        }
-
-        fn set_fragment(
-            mut self,
-            text: FragmentText,
-        ) -> TransitionResult<StubIdentObject> {
-            if self.fail_set_fragment.borrow().is_some() {
-                let err = self.fail_set_fragment.replace(None).unwrap();
-                return Err((self, err));
-            }
-
-            self.given_set_fragment.replace(text);
-            Ok(self)
-        }
-    }
-
-    type Sut = Asg<StubIdentObject>;
+    type Sut = Asg;
 
     #[test]
     fn create_with_capacity() {
@@ -517,9 +418,6 @@ mod test {
         let edge_capacity = 300;
         let sut = Sut::with_capacity(node_capacity, edge_capacity);
 
-        // breaks encapsulation to introspect; the behavior is
-        // transparent to callers (aside from performance
-        // characteristics)
         let (nc, ec) = sut.graph.capacity();
         assert!(nc >= node_capacity);
         assert!(ec >= edge_capacity);
@@ -557,28 +455,26 @@ mod test {
 
         assert_ne!(nodea, nodeb);
 
-        assert_eq!(Some(syma), sut.get(nodea).unwrap().given_declare);
+        let givena = sut.get(nodea).unwrap();
+        assert_eq!(syma, givena.name());
+        assert_eq!(Some(&IdentKind::Meta), givena.kind());
         assert_eq!(
-            Some((
-                IdentKind::Meta,
-                Source {
-                    desc: Some("a".into()),
-                    ..Default::default()
-                },
-            )),
-            sut.get(nodea).unwrap().given_resolve
+            Some(&Source {
+                desc: Some("a".into()),
+                ..Default::default()
+            },),
+            givena.src()
         );
 
-        assert_eq!(Some(symb), sut.get(nodeb).unwrap().given_declare);
+        let givenb = sut.get(nodeb).unwrap();
+        assert_eq!(symb, givenb.name());
+        assert_eq!(Some(&IdentKind::Worksheet), givenb.kind());
         assert_eq!(
-            Some((
-                IdentKind::Worksheet,
-                Source {
-                    desc: Some("b".into()),
-                    ..Default::default()
-                },
-            )),
-            sut.get(nodeb).unwrap().given_resolve
+            Some(&Source {
+                desc: Some("b".into()),
+                ..Default::default()
+            }),
+            givenb.src()
         );
 
         Ok(())
@@ -604,32 +500,6 @@ mod test {
     }
 
     #[test]
-    fn declare_returns_existing() -> AsgResult<()> {
-        let mut sut = Sut::new();
-
-        let sym = "symdup".into();
-        let src = Source::default();
-        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
-
-        // Remember that our stub does not care about compatibility.
-        let rekind = IdentKind::Class(Dim::from_u8(3));
-        let resrc = Source {
-            desc: Some("redeclare".into()),
-            ..Default::default()
-        };
-        let redeclare = sut.declare(sym, rekind.clone(), resrc.clone())?;
-
-        // We don't care what the objects are for this test, just that the
-        // same node is referenced.
-        assert_eq!(node, redeclare);
-
-        assert_eq!(Some((rekind, resrc)), sut.get(node).unwrap().given_resolve,);
-
-        Ok(())
-    }
-
-    // Builds upon declare_returns_existing.
-    #[test]
     fn declare_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
@@ -641,28 +511,14 @@ mod test {
 
         // Set up an object to fail redeclaration.
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
-        let obj = sut.get(node).unwrap();
-        let terr = TransitionError::ExternResolution {
-            name: "test fail".into(),
-            expected: IdentKind::Meta,
-            given: IdentKind::Meta,
-        };
-        obj.fail_redeclare.replace(Some(terr.clone()));
-
-        // Should invoke StubIdentObject::redeclare on the above `obj`.
         let result = sut.declare(sym, IdentKind::Meta, Source::default());
 
-        if let Err(err) = result {
-            // The node should have been restored.
-            let obj = sut.get(node).unwrap();
-            assert_eq!(src, obj.given_resolve.as_ref().unwrap().1);
+        assert_matches!(result, Err(AsgError::ObjectTransition(..)));
 
-            assert_eq!(AsgError::ObjectTransition(terr), err);
+        // The node should have been restored.
+        assert_eq!(Some(&src), sut.get(node).unwrap().src());
 
-            Ok(())
-        } else {
-            panic!("failure expected: {:?}", result);
-        }
+        Ok(())
     }
 
     #[test]
@@ -671,21 +527,16 @@ mod test {
 
         let sym = "symext".intern();
         let src = Source::default();
-        let node = sut.declare_extern(sym, IdentKind::Meta, src.clone())?;
+        let kind = IdentKind::Class(Dim::from_u8(3));
+        let node = sut.declare_extern(sym, kind.clone(), src.clone())?;
 
-        // Remember that our stub does not care about compatibility.
-        let rekind = IdentKind::Class(Dim::from_u8(3));
         let resrc = Source {
             desc: Some("redeclare".into()),
             ..Default::default()
         };
-        let redeclare =
-            sut.declare_extern(sym, rekind.clone(), resrc.clone())?;
+        let redeclare = sut.declare_extern(sym, kind.clone(), resrc.clone())?;
 
-        // We don't care what the objects are for this test, just that the
-        // same node is referenced.
         assert_eq!(node, redeclare);
-        assert_eq!(Some((rekind, resrc)), sut.get(node).unwrap().given_extern);
 
         Ok(())
     }
@@ -701,34 +552,18 @@ mod test {
             ..Default::default()
         };
 
-        // Set up an object to fail redeclaration.
-        let node = sut.declare_extern(sym, IdentKind::Meta, src.clone())?;
-        let obj = sut.get(node).unwrap();
+        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
 
-        // It doesn't matter that this isn't the error that'll actually be
-        // returned, as long as it's some sort of TransitionError.
-        let terr = TransitionError::ExternResolution {
-            name: "test fail".into(),
-            expected: IdentKind::Meta,
-            given: IdentKind::Meta,
-        };
-        obj.fail_extern.replace(Some(terr.clone()));
-
-        // Should invoke StubIdentObject::extern_ on the above `obj`.
+        // Changes kind, which is invalid.
         let result =
-            sut.declare_extern(sym, IdentKind::Meta, Source::default());
+            sut.declare_extern(sym, IdentKind::Worksheet, Source::default());
 
-        if let Err(err) = result {
-            // The node should have been restored.
-            let obj = sut.get(node).unwrap();
+        assert_matches!(result, Err(AsgError::ObjectTransition(..)));
 
-            assert_eq!(src, obj.given_extern.as_ref().unwrap().1);
-            assert_eq!(AsgError::ObjectTransition(terr), err);
+        // The node should have been restored.
+        assert_eq!(Some(&src), sut.get(node).unwrap().src());
 
-            Ok(())
-        } else {
-            panic!("failure expected: {:?}", result);
-        }
+        Ok(())
     }
 
     #[test]
@@ -754,9 +589,10 @@ mod test {
 
         let obj = sut.get(node).unwrap();
 
-        assert_eq!(Some(sym), obj.given_declare);
-        assert_eq!(Some((IdentKind::Meta, src)), obj.given_resolve);
-        assert_eq!(Some(fragment), obj.given_set_fragment);
+        assert_eq!(sym, obj.name());
+        assert_eq!(Some(&IdentKind::Meta), obj.kind());
+        assert_eq!(Some(&src), obj.src());
+        assert_eq!(Some(fragment), obj.fragment());
 
         Ok(())
     }
@@ -773,24 +609,18 @@ mod test {
 
         // The failure will come from terr below, not this.
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
-        let obj = sut.get(node).unwrap();
 
-        // It doesn't matter that this isn't the error that'll actually be
-        // returned, as long as it's some sort of TransitionError.
-        let terr = TransitionError::BadFragmentDest {
-            name: String::from("test fail"),
-        };
-        obj.fail_set_fragment.replace(Some(terr.clone()));
+        // The first set will succeed.
+        sut.set_fragment(node, "".into())?;
 
-        let result = sut
-            .set_fragment(node, "".into())
-            .expect_err("error expected");
+        // This will fail.
+        let result = sut.set_fragment(node, "".into());
 
         // The node should have been restored.
         let obj = sut.get(node).unwrap();
 
-        assert_eq!(sym, *obj.given_declare.as_ref().unwrap());
-        assert_eq!(AsgError::ObjectTransition(terr), result);
+        assert_eq!(sym, obj.name());
+        assert_matches!(result, Err(AsgError::ObjectTransition(..)));
 
         Ok(())
     }
@@ -843,8 +673,8 @@ mod test {
         let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
         assert!(sut.has_dep(symnode, depnode));
 
-        assert_eq!(Some(sym), sut.get(symnode).unwrap().given_declare);
-        assert_eq!(Some(dep), sut.get(depnode).unwrap().given_declare);
+        assert_eq!(sym, sut.get(symnode).unwrap().name());
+        assert_eq!(dep, sut.get(depnode).unwrap().name());
 
         Ok(())
     }
@@ -871,8 +701,9 @@ mod test {
 
         let obj = sut.get(declared).unwrap();
 
-        assert_eq!(Some(sym), obj.given_declare);
-        assert_eq!(Some((IdentKind::Meta, src)), obj.given_resolve);
+        assert_eq!(sym, obj.name());
+        assert_eq!(Some(&IdentKind::Meta), obj.kind());
+        assert_eq!(Some(&src), obj.src());
 
         Ok(())
     }

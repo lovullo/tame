@@ -41,10 +41,7 @@ use super::{
     reader::{XmloResult, XmloToken},
     XmloError,
 };
-use crate::asg::{
-    Asg, AsgError, IdentKind, IdentKindError, IdentObjectData,
-    IdentObjectState, ObjectRef, Source,
-};
+use crate::asg::{Asg, AsgError, IdentKind, IdentKindError, ObjectRef, Source};
 use crate::sym::SymbolId;
 use std::collections::HashSet;
 use std::convert::TryInto;
@@ -130,9 +127,8 @@ where
 /// For more information on what data are processed,
 ///   see [`AsgBuilderState`].
 /// See the [module-level documentation](self) for example usage.
-pub trait AsgBuilder<O, S>
+pub trait AsgBuilder<S>
 where
-    O: IdentObjectState<O>,
     S: BuildHasher,
 {
     /// Import [`XmloResult`]s into an [`Asg`].
@@ -165,9 +161,8 @@ enum AsgBuilderInternalState {
     SymDep(SymbolId),
 }
 
-impl<O, S> AsgBuilder<O, S> for Asg<O>
+impl<S> AsgBuilder<S> for Asg
 where
-    O: IdentObjectState<O> + IdentObjectData,
     S: BuildHasher + Default,
 {
     fn import_xmlo(
@@ -377,7 +372,7 @@ mod test {
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
 
-    type Sut<'i> = DefaultAsg<IdentObject>;
+    type Sut = DefaultAsg;
     type SutState<'i> = AsgBuilderState<RandomState>;
 
     #[test]

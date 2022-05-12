@@ -37,7 +37,7 @@ pub type SortResult<T> = Result<T, SortError>;
 ///   although function cycles are permitted.
 /// The actual operation performed is a post-order depth-first traversal.
 pub fn sort<'a, S: XmleSections<'a>>(
-    asg: &'a Asg<IdentObject>,
+    asg: &'a Asg,
     roots: &[ObjectRef],
     mut dest: S,
 ) -> SortResult<S>
@@ -71,7 +71,7 @@ where
     Ok(dest)
 }
 
-fn get_ident<'a, S>(depgraph: &'a Asg<IdentObject>, name: S) -> &'a IdentObject
+fn get_ident<'a, S>(depgraph: &'a Asg, name: S) -> &'a IdentObject
 where
     S: Into<SymbolId>,
 {
@@ -94,7 +94,7 @@ where
 ///
 /// We loop through all SCCs and check that they are not all functions. If
 ///   they are, we ignore the cycle, otherwise we will return an error.
-fn check_cycles(asg: &Asg<IdentObject>) -> SortResult<()> {
+fn check_cycles(asg: &Asg) -> SortResult<()> {
     // While `tarjan_scc` does do a topological sort, it does not suit our
     // needs because we need to filter out some allowed cycles. It would
     // still be possible to use this, but we also need to only check nodes
@@ -182,11 +182,9 @@ mod test {
         sym::GlobalSymbolIntern,
     };
 
-    type TestAsg = Asg<IdentObject>;
-
     /// Create a graph with the expected {ret,}map head/tail identifiers.
-    fn make_asg() -> TestAsg {
-        let mut asg = TestAsg::new();
+    fn make_asg() -> Asg {
+        let mut asg = Asg::new();
 
         let text = "dummy fragment".intern();
 

@@ -30,10 +30,10 @@ use test::Bencher;
 
 mod base {
     use super::*;
-    use tamer::asg::{DefaultAsg, IdentKind, IdentObject, Source};
+    use tamer::asg::{DefaultAsg, IdentKind, Source};
     use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
-    type Sut = DefaultAsg<IdentObject>;
+    type Sut = DefaultAsg;
 
     fn interned_n(n: u16) -> Vec<SymbolId> {
         (0..n).map(|i| i.to_string().intern()).collect()

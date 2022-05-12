@@ -67,7 +67,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Be sure to choose size and initial capacities appropriate for your
 //! // situation.
-//! let mut asg = DefaultAsg::<IdentObject>::with_capacity(
+//! let mut asg = DefaultAsg::with_capacity(
 //!     1024,
 //!     1024,
 //! );
@@ -114,7 +114,7 @@
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<IdentObject>::with_capacity(
+//! # let mut asg = DefaultAsg::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
@@ -160,7 +160,7 @@
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::<IdentObject>::with_capacity(
+//! # let mut asg = DefaultAsg::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
@@ -204,4 +204,4 @@ pub use object::{
 };
 
 /// Default concrete ASG implementation.
-pub type DefaultAsg<O> = graph::Asg<O>;
+pub type DefaultAsg = graph::Asg;

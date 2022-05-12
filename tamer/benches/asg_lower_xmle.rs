@@ -24,11 +24,11 @@ extern crate test;
 
 use test::Bencher;
 
-use tamer::asg::{DataType, DefaultAsg, IdentKind, IdentObject, Source};
+use tamer::asg::{DataType, DefaultAsg, IdentKind, Source};
 use tamer::ld::xmle::{lower::sort, Sections};
 use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
-type TestAsg = DefaultAsg<IdentObject>;
+type TestAsg = DefaultAsg;
 
 fn interned_n(n: u16) -> Vec<SymbolId> {
     (0..n).map(|i| i.to_string().intern()).collect()
