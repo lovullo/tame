@@ -20,7 +20,7 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::ident::IdentKind;
-use super::object::{FragmentText, IdentObjectState, Source, TransitionResult};
+use super::object::{FragmentText, Source, TransitionResult};
 use super::{AsgError, IdentObject};
 use crate::global;
 use crate::sym::SymbolId;
@@ -156,7 +156,7 @@ impl Asg {
     /// Lookup `ident` or add a missing identifier to the graph and return a
     ///   reference to it.
     ///
-    /// See [`IdentObjectState::declare`] for more information.
+    /// See [`IdentObject::declare`] for more information.
     fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
         self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(IdentObject::declare(ident)));
@@ -242,7 +242,7 @@ impl Asg {
     ///
     /// For more information on state transitions that can occur when
     ///   redeclaring an identifier that already exists,
-    ///     see [`IdentObjectState::resolve`].
+    ///     see [`IdentObject::resolve`].
     ///
     /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
@@ -272,8 +272,8 @@ impl Asg {
     ///         on the graph will not be altered.
     /// Resolution will otherwise fail in error.
     ///
-    /// See [`IdentObjectState::extern_`] and
-    ///   [`IdentObjectState::resolve`] for more information on
+    /// See [`IdentObject::extern_`] and
+    ///   [`IdentObject::resolve`] for more information on
     ///   compatibility related to extern resolution.
     pub fn declare_extern(
         &mut self,
@@ -288,7 +288,7 @@ impl Asg {
     ///
     /// Fragments are intended for use by the [linker][crate::ld].
     /// For more information,
-    ///   see [`IdentObjectState::set_fragment`].
+    ///   see [`IdentObject::set_fragment`].
     pub fn set_fragment(
         &mut self,
         identi: ObjectRef,
@@ -358,7 +358,7 @@ impl Asg {
     ///   a missing identifier will be added as a placeholder,
     ///     allowing the ASG to be built with partial information as
     ///     identifiers continue to be discovered.
-    /// See [`IdentObjectState::declare`] for more information.
+    /// See [`IdentObject::declare`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
     pub fn add_dep_lookup(

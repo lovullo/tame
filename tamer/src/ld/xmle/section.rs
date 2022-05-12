@@ -26,7 +26,7 @@
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
-use crate::asg::{IdentKind, IdentObject, IdentObjectState, UnresolvedError};
+use crate::asg::{IdentKind, IdentObject, UnresolvedError};
 use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::mem::take;

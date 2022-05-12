@@ -312,7 +312,7 @@ mod object {
 
     mod ident {
         use super::*;
-        use tamer::asg::{IdentKind, IdentObject, IdentObjectState, Source};
+        use tamer::asg::{IdentKind, IdentObject, Source};
         use tamer::sym::GlobalSymbolIntern;
 
         type Sut = IdentObject;

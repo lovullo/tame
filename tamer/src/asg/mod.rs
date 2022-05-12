@@ -199,8 +199,8 @@ pub use error::AsgError;
 pub use graph::{Asg, AsgResult, IndexType, ObjectRef};
 pub use ident::{DataType, Dim, IdentKind, IdentKindError};
 pub use object::{
-    FragmentText, IdentObject, IdentObjectData, IdentObjectState, Source,
-    TransitionError, TransitionResult, UnresolvedError,
+    FragmentText, IdentObject, Source, TransitionError, TransitionResult,
+    UnresolvedError,
 };
 
 /// Default concrete ASG implementation.
