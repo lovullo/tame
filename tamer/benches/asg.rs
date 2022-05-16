@@ -117,19 +117,15 @@ mod base {
         let mut sut = Sut::new();
         let xs = interned_n(1_000);
 
-        let orefs = xs
-            .iter()
-            .map(|sym| {
-                sut.declare(*sym, IdentKind::Meta, Source::default())
-                    .unwrap()
-            })
-            .collect::<Vec<_>>();
+        xs.iter().for_each(|sym| {
+            sut.declare(*sym, IdentKind::Meta, Source::default())
+                .unwrap();
+        });
 
         // Bench only the resolution, not initial declare.
         bench.iter(|| {
-            orefs
-                .iter()
-                .map(|oref| sut.set_fragment(*oref, "".into())) // see N.B.
+            xs.iter()
+                .map(|sym| sut.set_fragment(*sym, "".into())) // see N.B.
                 .for_each(drop);
         });
     }

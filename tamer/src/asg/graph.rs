@@ -291,10 +291,10 @@ impl Asg {
     ///   see [`IdentObject::set_fragment`].
     pub fn set_fragment(
         &mut self,
-        identi: ObjectRef,
+        name: SymbolId,
         text: FragmentText,
     ) -> AsgResult<ObjectRef> {
-        self.with_ident(identi, |obj| obj.set_fragment(text))
+        self.with_ident_lookup(name, |obj| obj.set_fragment(text))
     }
 
     /// Retrieve an object from the graph by [`ObjectRef`].
@@ -578,7 +578,7 @@ mod test {
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
 
         let fragment = "a fragment".intern();
-        let node_with_frag = sut.set_fragment(node, fragment)?;
+        let node_with_frag = sut.set_fragment(sym, fragment)?;
 
         // Attaching a fragment should _replace_ the node, not create a
         // new one
@@ -611,10 +611,10 @@ mod test {
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
 
         // The first set will succeed.
-        sut.set_fragment(node, "".into())?;
+        sut.set_fragment(sym, "".into())?;
 
         // This will fail.
-        let result = sut.set_fragment(node, "".into());
+        let result = sut.set_fragment(sym, "".into());
 
         // The node should have been restored.
         let obj = sut.get(node).unwrap();

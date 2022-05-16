@@ -157,24 +157,25 @@
 //! ```
 //! # use tamer::global;
 //! # use tamer::asg::{DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
-//! # use tamer::sym::{Interner, DefaultProgInterner};
+//! # use tamer::sym::{Interner, GlobalSymbolIntern};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let mut asg = DefaultAsg::with_capacity(
 //! #     1024,
 //! #     1024,
 //! # );
-//! # let interner = DefaultProgInterner::new();
 //! #
+//! let sym = "ident".intern();
+//!
 //! // Fragments can be attached to resolved identifiers.
 //! let ident = asg.declare(
-//!     interner.intern("ident"), IdentKind::Meta, Source::default()
+//!     sym, IdentKind::Meta, Source::default()
 //! )?;
-//! asg.set_fragment(ident, FragmentText::from("test fragment"))?;
+//! asg.set_fragment(sym, FragmentText::from("test fragment"))?;
 //!
 //! assert_eq!(
 //!     Some(&IdentObject::IdentFragment(
-//!         interner.intern("ident"),
+//!         sym,
 //!         IdentKind::Meta,
 //!         Source::default(),
 //!         FragmentText::from("test fragment"),
@@ -183,7 +184,7 @@
 //! );
 //!
 //! // But overwriting will fail
-//! let bad = asg.set_fragment(ident, FragmentText::from("overwrite"));
+//! let bad = asg.set_fragment(sym, FragmentText::from("overwrite"));
 //! assert!(bad.is_err());
 //! #
 //! # Ok(()) // main

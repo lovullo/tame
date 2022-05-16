@@ -188,37 +188,33 @@ mod test {
 
         let text = "dummy fragment".intern();
 
-        asg.declare(
-            st::L_MAP_UUUHEAD.into(),
-            IdentKind::MapHead,
-            Default::default(),
-        )
-        .and_then(|id| asg.set_fragment(id, text))
-        .unwrap();
+        {
+            let sym = st::L_MAP_UUUHEAD.into();
+            asg.declare(sym, IdentKind::MapHead, Default::default())
+                .unwrap();
+            asg.set_fragment(sym, text).unwrap();
+        }
 
-        asg.declare(
-            st::L_MAP_UUUTAIL.into(),
-            IdentKind::MapTail,
-            Default::default(),
-        )
-        .and_then(|id| asg.set_fragment(id, text))
-        .unwrap();
+        {
+            let sym = st::L_MAP_UUUTAIL.into();
+            asg.declare(sym, IdentKind::MapTail, Default::default())
+                .unwrap();
+            asg.set_fragment(sym, text).unwrap();
+        }
 
-        asg.declare(
-            st::L_RETMAP_UUUHEAD.into(),
-            IdentKind::RetMapHead,
-            Default::default(),
-        )
-        .and_then(|id| asg.set_fragment(id, text))
-        .unwrap();
+        {
+            let sym = st::L_RETMAP_UUUHEAD.into();
+            asg.declare(sym, IdentKind::RetMapHead, Default::default())
+                .unwrap();
+            asg.set_fragment(sym, text).unwrap();
+        }
 
-        asg.declare(
-            st::L_RETMAP_UUUTAIL.into(),
-            IdentKind::RetMapTail,
-            Default::default(),
-        )
-        .and_then(|id| asg.set_fragment(id, text))
-        .unwrap();
+        {
+            let sym = st::L_RETMAP_UUUTAIL.into();
+            asg.declare(sym, IdentKind::RetMapTail, Default::default())
+                .unwrap();
+            asg.set_fragment(sym, text).unwrap();
+        }
 
         asg
     }
@@ -325,8 +321,7 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym_node, FragmentText::from("foo"))
-            .unwrap();
+        asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym, dep);
 
@@ -392,10 +387,8 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(dep_node, FragmentText::from("bar"))
-            .unwrap();
+        asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym, dep);
         let (_, _) = asg.add_dep_lookup(dep, sym);
@@ -466,14 +459,10 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(sym2_node, FragmentText::from("bar"))
-            .unwrap();
-        asg.set_fragment(dep_node, FragmentText::from("baz"))
-            .unwrap();
-        asg.set_fragment(dep2_node, FragmentText::from("huh"))
-            .unwrap();
+        asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
+        asg.set_fragment(dep, FragmentText::from("baz")).unwrap();
+        asg.set_fragment(dep2, FragmentText::from("huh")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym, dep);
         let (_, _) = asg.add_dep_lookup(dep, sym);
@@ -513,21 +502,18 @@ mod test {
             )
             .unwrap();
 
-        let dep_node = asg
-            .declare(
-                dep,
-                IdentKind::Tpl,
-                Source {
-                    virtual_: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        asg.declare(
+            dep,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        asg.set_fragment(sym_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(dep_node, FragmentText::from("bar"))
-            .unwrap();
+        asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym, dep);
         let (_, _) = asg.add_dep_lookup(sym, dep);
@@ -583,12 +569,9 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym1_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(sym2_node, FragmentText::from("bar"))
-            .unwrap();
-        asg.set_fragment(sym3_node, FragmentText::from("baz"))
-            .unwrap();
+        asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
+        asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym1, sym2);
         let (_, _) = asg.add_dep_lookup(sym2, sym3);
@@ -649,12 +632,9 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym1_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(sym2_node, FragmentText::from("bar"))
-            .unwrap();
-        asg.set_fragment(sym3_node, FragmentText::from("baz"))
-            .unwrap();
+        asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
+        asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym1, sym2);
         let (_, _) = asg.add_dep_lookup(sym2, sym3);
@@ -714,12 +694,9 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym1_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(sym2_node, FragmentText::from("bar"))
-            .unwrap();
-        asg.set_fragment(sym3_node, FragmentText::from("baz"))
-            .unwrap();
+        asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
+        asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym1, sym2);
         let (_, _) = asg.add_dep_lookup(sym2, sym3);
@@ -756,21 +733,18 @@ mod test {
             )
             .unwrap();
 
-        let dep_node = asg
-            .declare(
-                dep,
-                IdentKind::Func(Dim::default(), SymDtype::Empty),
-                Source {
-                    virtual_: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        asg.declare(
+            dep,
+            IdentKind::Func(Dim::default(), SymDtype::Empty),
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        asg.set_fragment(sym_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(dep_node, FragmentText::from("bar"))
-            .unwrap();
+        asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym, dep);
         let (_, _) = asg.add_dep_lookup(dep, sym);
@@ -826,12 +800,9 @@ mod test {
             )
             .unwrap();
 
-        asg.set_fragment(sym1_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(sym2_node, FragmentText::from("bar"))
-            .unwrap();
-        asg.set_fragment(sym3_node, FragmentText::from("baz"))
-            .unwrap();
+        asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
+        asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym1, sym2);
         let (_, _) = asg.add_dep_lookup(sym2, sym3);
@@ -869,33 +840,29 @@ mod test {
             )
             .unwrap();
 
-        let dep_node = asg
-            .declare(
-                dep,
-                IdentKind::Tpl,
-                Source {
-                    virtual_: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        asg.declare(
+            dep,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let ignored_node = asg
-            .declare(
-                ignored,
-                IdentKind::Tpl,
-                Source {
-                    virtual_: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        asg.declare(
+            ignored,
+            IdentKind::Tpl,
+            Source {
+                virtual_: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        asg.set_fragment(sym_node, FragmentText::from("foo"))
-            .unwrap();
-        asg.set_fragment(dep_node, FragmentText::from("bar"))
-            .unwrap();
-        asg.set_fragment(ignored_node, FragmentText::from("baz"))
+        asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
+        asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
+        asg.set_fragment(ignored, FragmentText::from("baz"))
             .unwrap();
 
         let (_, _) = asg.add_dep_lookup(sym, dep);
