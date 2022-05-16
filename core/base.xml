@@ -221,7 +221,9 @@
 
   <section title="Calculations">
     These templates represent calculations that used to be defined as XSLT
-      tempaltes before TAME's template system existed.
+      templates before TAME's template system existed.
+
+    <extern name="___yield" type="rate" dtype="float" dim="0" />
 
     <template name="_yield_"
               desc="Final scalar result provided to caller">
