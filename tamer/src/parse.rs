@@ -44,7 +44,7 @@ pub type ParseResult<S, T> =
 ///
 /// A token may be a lexeme with associated data,
 ///   or a more structured object having been lowered from other IRs.
-pub trait Token: Display + Debug + PartialEq + Eq {
+pub trait Token: Display + Debug + PartialEq {
     /// Retrieve the [`Span`] representing the source location of the token.
     fn span(&self) -> Span;
 }
@@ -63,7 +63,7 @@ impl<T: Token> From<T> for Span {
 /// This trait exists to disambiguate an otherwise unbounded type for
 ///   [`From`] conversions,
 ///     used in the [`Transition`] API to provide greater flexibility.
-pub trait Object: Debug + PartialEq + Eq {}
+pub trait Object: Debug + PartialEq {}
 
 /// An infallible [`Token`] stream.
 ///
