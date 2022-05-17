@@ -39,7 +39,7 @@ use crate::{
     },
     parse::ParseError,
     parse::{ParseState, Parsed},
-    sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId},
+    sym::{GlobalSymbolResolve, SymbolId},
     xir::reader::XmlXirReader,
     xir::{
         flat::{self, Object as XirfToken, StateError as XirfError},
@@ -74,20 +74,12 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
     )?;
 
     let AsgBuilderState {
-        mut roots,
         name,
         relroot,
         found: _,
     } = state;
 
-    roots.extend(
-        vec!["___yield", "___worksheet"]
-            .iter()
-            .map(|name| name.intern())
-            .filter_map(|sym| depgraph.lookup(sym)),
-    );
-
-    let sorted = match sort(&depgraph, &roots, Sections::new()) {
+    let sorted = match sort(&depgraph, Sections::new()) {
         Ok(sections) => sections,
         Err(SortError::Cycles(cycles)) => {
             return Err(TameldError::CycleError(

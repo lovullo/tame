@@ -41,7 +41,7 @@ use super::{
     reader::{XmloResult, XmloToken},
     XmloError,
 };
-use crate::asg::{Asg, AsgError, IdentKind, IdentKindError, ObjectRef, Source};
+use crate::asg::{Asg, AsgError, IdentKindError, Source};
 use crate::sym::SymbolId;
 use std::collections::HashSet;
 use std::convert::TryInto;
@@ -64,24 +64,11 @@ pub type Result<S> = std::result::Result<AsgBuilderState<S>, AsgBuilderError>;
 ///   [`relroot`](AsgBuilderState::relroot) are set only once when the first
 ///   package is processed.
 /// A package is considered to be the first if `name` is [`None`].
-///
-/// [`roots`](AsgBuilderState::roots) is added to as certain identifiers are
-///   discovered that should be used as starting points for a topological
-///   sort.
-/// This is used by the linker to only include dependencies that are
-///   actually used by a particular program.
 #[derive(Debug, Default)]
 pub struct AsgBuilderState<S>
 where
     S: BuildHasher,
 {
-    /// Discovered roots.
-    ///
-    /// Roots represent starting points for a topological sort of the
-    ///   graph.
-    /// They are meaningful to the linker.
-    pub roots: Vec<ObjectRef>,
-
     /// Relative paths to imported packages that have been discovered.
     ///
     /// The caller will use these to perform recursive loads.
@@ -231,22 +218,10 @@ where
                         if first {
                             src.pkg_name = None;
                         }
-
-                        let link_root = matches!(
-                            kindval,
-                            IdentKind::Meta
-                                | IdentKind::Map
-                                | IdentKind::RetMap
-                        );
-
                         if extern_ {
                             self.declare_extern(sym, kindval, src)?;
                         } else {
-                            let node = self.declare(sym, kindval, src)?;
-
-                            if link_root {
-                                state.roots.push(node);
-                            }
+                            self.declare(sym, kindval, src)?;
                         }
                     }
                 }
@@ -274,7 +249,7 @@ where
         }
 
         if let Some(elig_sym) = elig {
-            state.roots.push(
+            self.add_root(
                 self.lookup(elig_sym)
                     .ok_or(AsgBuilderError::BadEligRef(elig_sym))?,
             );
@@ -290,7 +265,7 @@ pub enum AsgBuilderError {
     /// Error with the source `xmlo` file.
     XmloError(XmloError),
 
-    /// Error parsing into [`IdentKind`].
+    /// Error parsing into [`crate::asg::IdentKind`].
     IdentKindError(IdentKindError),
 
     /// [`Asg`] operation error.
@@ -352,7 +327,7 @@ impl Error for AsgBuilderError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::asg::{DefaultAsg, FragmentText, IdentObject};
+    use crate::asg::{DefaultAsg, FragmentText, IdentKind, IdentObject};
     use crate::obj::xmlo::{SymAttrs, SymType};
     use crate::span::{DUMMY_SPAN, UNKNOWN_SPAN};
     use crate::sym::GlobalSymbolIntern;
@@ -404,9 +379,10 @@ mod test {
 
         let evs = vec![Ok(XmloToken::PkgEligClassYields(elig_sym))];
 
-        let state = sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
+        sut.import_xmlo(evs.into_iter(), SutState::new()).unwrap();
 
-        assert!(state.roots.contains(&elig_node));
+        // TODO: Graph should be encapsulated.
+        sut.graph.contains_edge(sut.root(), elig_node.into());
     }
 
     #[test]
@@ -540,14 +516,17 @@ mod test {
         // Both above symbols were local (no `src`).
         assert!(state.found.unwrap().len() == 0);
 
-        assert_eq!(
-            vec![
-                sut.lookup(sym_non_extern).unwrap(),
-                sut.lookup(sym_map).unwrap(),
-                sut.lookup(sym_retmap).unwrap(),
-            ],
-            state.roots
-        );
+        // TODO: Graph should be encapsulated.
+        let root = sut.root();
+        assert!(sut
+            .graph
+            .contains_edge(root, sut.lookup(sym_non_extern).unwrap().into()));
+        assert!(sut
+            .graph
+            .contains_edge(root, sut.lookup(sym_map).unwrap().into()));
+        assert!(sut
+            .graph
+            .contains_edge(root, sut.lookup(sym_retmap).unwrap().into()));
 
         // Note that each of these will have their package names cleared
         // since this is considered to be the first package encountered.

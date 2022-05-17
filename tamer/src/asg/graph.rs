@@ -83,6 +83,10 @@ pub struct Asg {
 
     /// Empty node indicating that no object exists for a given index.
     empty_node: NodeIndex<Ix>,
+
+    /// The root node used for reachability analysis and topological
+    ///   sorting.
+    root_node: NodeIndex<Ix>,
 }
 
 impl Asg {
@@ -111,10 +115,16 @@ impl Asg {
         let empty_node = graph.add_node(None);
         index.push(empty_node);
 
+        // Automatically add the root which will be used to determine what
+        //   identifiers ought to be retained by the final program.
+        // This is not indexed and is not accessable by name.
+        let root_node = graph.add_node(Some(IdentObject::Root));
+
         Self {
             graph,
             index,
             empty_node,
+            root_node,
         }
     }
 
@@ -215,6 +225,28 @@ impl Asg {
             })
     }
 
+    // TODO: This is transitional;
+    //   remove once [`crate::xmlo::asg_builder`] is removed.
+    pub fn root(&self) -> NodeIndex<Ix> {
+        self.root_node
+    }
+
+    /// Add an object as a root.
+    ///
+    /// Roots are always included during a topological sort and any
+    ///   reachability analysis.
+    ///
+    /// Ideally,
+    ///   roots would be minimal and dependencies properly organized such
+    ///   that objects will be included if they are a transitive dependency
+    ///   of some included subsystem.
+    ///
+    /// See also [`IdentKind::is_auto_root`].
+    pub fn add_root(&mut self, identi: ObjectRef) {
+        self.graph
+            .add_edge(self.root_node, identi.into(), Default::default());
+    }
+
     /// Declare a concrete identifier.
     ///
     /// An identifier declaration is similar to a declaration in a header
@@ -252,7 +284,13 @@ impl Asg {
         kind: IdentKind,
         src: Source,
     ) -> AsgResult<ObjectRef> {
+        let is_auto_root = kind.is_auto_root();
+
         self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
+            .and_then(|node| {
+                is_auto_root.then(|| self.add_root(node));
+                Ok(node)
+            })
     }
 
     /// Declare an abstract identifier.
@@ -476,6 +514,39 @@ mod test {
             }),
             givenb.src()
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn declare_kind_auto_root() -> AsgResult<()> {
+        let mut sut = Sut::new();
+
+        let auto_kind = IdentKind::Worksheet;
+        // Sanity check, in case this changes.
+        assert!(auto_kind.is_auto_root());
+
+        let auto_root_node =
+            sut.declare("auto_root".intern(), auto_kind, Default::default())?;
+
+        // Should have been automatically added as a root.
+        assert!(sut
+            .graph
+            .contains_edge(sut.root_node, auto_root_node.into()));
+
+        let no_auto_kind = IdentKind::Tpl;
+        assert!(!no_auto_kind.is_auto_root());
+
+        let no_auto_root_node = sut.declare(
+            "no_auto_root".intern(),
+            no_auto_kind,
+            Default::default(),
+        )?;
+
+        // Non-auto-roots should _not_ be added as roots automatically.
+        assert!(!sut
+            .graph
+            .contains_edge(sut.root_node, no_auto_root_node.into()));
 
         Ok(())
     }

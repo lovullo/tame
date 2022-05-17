@@ -58,8 +58,10 @@ fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
         sut.add_dep(root, *to);
     });
 
+    sut.add_root(root);
+
     bench.iter(|| {
-        drop(sort(&sut, &[root], Sections::new()));
+        drop(sort(&sut, Sections::new()));
     });
 }
 
@@ -92,7 +94,9 @@ fn sort_1_with_1_000_existing_one_edge_per_node_one_path(bench: &mut Bencher) {
 
     let root = orefs[0];
 
+    sut.add_root(root);
+
     bench.iter(|| {
-        drop(sort(&sut, &[root], Sections::new()));
+        drop(sort(&sut, Sections::new()));
     });
 }

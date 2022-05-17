@@ -169,6 +169,15 @@ impl IdentKind {
             Self::Worksheet => st::L_WORKSHEET.as_sym(),
         }
     }
+
+    /// Whether this identifier should be automatically added as a root when
+    ///   declared.
+    pub fn is_auto_root(&self) -> bool {
+        match self {
+            Self::Meta | Self::Map | Self::RetMap | Self::Worksheet => true,
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for IdentKind {

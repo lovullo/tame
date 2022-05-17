@@ -78,6 +78,18 @@ pub enum IdentObject {
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
     IdentFragment(SymbolId, IdentKind, Source, FragmentText),
+
+    /// Represents the root of all reachable identifiers.
+    ///
+    /// Any identifier not reachable from the root will not be linked into
+    ///   the final executable.
+    ///
+    /// There should be only one identifier of this kind.
+    ///
+    /// TODO: This is _not_ an identifier;
+    ///   once the ASG supports other types,
+    ///     do not associate with identifiers.
+    Root,
 }
 
 impl IdentObject {
@@ -88,6 +100,11 @@ impl IdentObject {
             | Self::Ident(name, ..)
             | Self::Extern(name, ..)
             | Self::IdentFragment(name, ..) => *name,
+
+            // This should never be called,
+            //   and can go away when we can stop pretending that the root
+            //   is an identifier.
+            Self::Root => unimplemented!("IdentObject::name for Root"),
         }
     }
 
@@ -99,9 +116,12 @@ impl IdentObject {
     pub fn kind(&self) -> Option<&IdentKind> {
         match self {
             Self::Missing(..) => None,
+
             Self::Ident(_, kind, ..)
             | Self::Extern(_, kind, ..)
             | Self::IdentFragment(_, kind, ..) => Some(kind),
+
+            Self::Root => None,
         }
     }
 
@@ -112,7 +132,8 @@ impl IdentObject {
     ///     [`None`] is returned.
     pub fn src(&self) -> Option<&Source> {
         match self {
-            Self::Missing(..) | Self::Extern(..) => None,
+            Self::Missing(..) | Self::Extern(..) | Self::Root => None,
+
             Self::Ident(_, _, src, ..) | Self::IdentFragment(_, _, src, ..) => {
                 Some(src)
             }
@@ -125,7 +146,11 @@ impl IdentObject {
     ///   [`None`] is returned.
     pub fn fragment(&self) -> Option<FragmentText> {
         match self {
-            Self::Missing(..) | Self::Ident(..) | Self::Extern(..) => None,
+            Self::Missing(..)
+            | Self::Ident(..)
+            | Self::Extern(..)
+            | Self::Root => None,
+
             Self::IdentFragment(_, _, _, text) => Some(*text),
         }
     }
@@ -295,6 +320,11 @@ impl IdentObject {
             }
 
             IdentObject::Ident(..) | IdentObject::IdentFragment(..) => Ok(self),
+
+            // This should never be called.
+            IdentObject::Root => {
+                unimplemented!("IdentObject::resolved on Root")
+            }
         }
     }
 
