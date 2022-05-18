@@ -786,7 +786,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
 ///
 /// Parsers may return their own unique errors via the
 ///   [`StateError`][ParseError::StateError] variant.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     /// Token stream ended unexpectedly.
     ///
@@ -822,7 +822,7 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     StateError(E),
 }
 
-impl<T: Token, EA: Diagnostic + PartialEq + Eq> ParseError<T, EA> {
+impl<T: Token, EA: Diagnostic + PartialEq> ParseError<T, EA> {
     pub fn inner_into<EB: Diagnostic + PartialEq + Eq>(
         self,
     ) -> ParseError<T, EB>
@@ -844,7 +844,7 @@ impl<T: Token, E: Diagnostic + PartialEq> From<E> for ParseError<T, E> {
     }
 }
 
-impl<T: Token, E: Diagnostic + PartialEq + Eq> Display for ParseError<T, E> {
+impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnexpectedEof(_) => {
@@ -858,9 +858,7 @@ impl<T: Token, E: Diagnostic + PartialEq + Eq> Display for ParseError<T, E> {
     }
 }
 
-impl<T: Token, E: Diagnostic + PartialEq + Eq + 'static> Error
-    for ParseError<T, E>
-{
+impl<T: Token, E: Diagnostic + PartialEq + 'static> Error for ParseError<T, E> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::StateError(e) => Some(e),
@@ -869,7 +867,7 @@ impl<T: Token, E: Diagnostic + PartialEq + Eq + 'static> Error
     }
 }
 
-impl<T: Token, E: Diagnostic + PartialEq + Eq + 'static> Diagnostic
+impl<T: Token, E: Diagnostic + PartialEq + 'static> Diagnostic
     for ParseError<T, E>
 {
     fn describe(&self) -> Vec<AnnotatedSpan> {
