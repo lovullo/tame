@@ -141,6 +141,27 @@ pub trait ParseState: Default + PartialEq + Eq + Debug {
         Parser::from(toks)
     }
 
+    /// Construct a parser with a non-default [`ParseState::Context`].
+    ///
+    /// This is useful in two ways:
+    ///
+    ///   1. To allow for parsing using a context that does not implement
+    ///        [`Default`],
+    ///          or whose default is not sufficient; and
+    ///   2. To re-use a context from a previous [`Parser`].
+    ///
+    /// If neither of these apply to your situation,
+    ///   consider [`ParseState::parse`] instead.
+    ///
+    /// To retrieve a context from a parser for re-use,
+    ///   see [`Parser::finalize`].
+    fn parse_with_context<I: TokenStream<Self::Token>>(
+        toks: I,
+        ctx: Self::Context,
+    ) -> Parser<Self, I> {
+        Parser::from((toks, ctx))
+    }
+
     /// Parse a single [`Token`] and optionally perform a state transition.
     ///
     /// The current state is represented by `self`.
@@ -585,6 +606,7 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
 
 impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Indicate that no further parsing will take place using this parser,
+    ///   retrieve any final aggregate state (the context),
     ///   and [`drop`] it.
     ///
     /// Invoking the method is equivalent to stating that the stream has
@@ -594,10 +616,19 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Consequently,
     ///   the caller should expect [`ParseError::UnexpectedEof`] if the
     ///   parser is not in an accepting state.
+    ///
+    /// To re-use the context returned by this method,
+    ///   see [`ParseState::parse_with_context`].
+    /// Note that whether the context is permitted to be reused,
+    ///   or is useful independently to the caller,
+    ///   is a decision made by the [`ParseState`].
     pub fn finalize(
         self,
-    ) -> Result<(), (Self, ParseError<S::Token, S::Error>)> {
-        self.assert_accepting().map_err(|err| (self, err))
+    ) -> Result<S::Context, (Self, ParseError<S::Token, S::Error>)> {
+        match self.assert_accepting() {
+            Ok(()) => Ok(self.ctx),
+            Err(err) => Err((self, err)),
+        }
     }
 
     /// Return [`Ok`] if the parser is in an accepting state,
@@ -896,12 +927,41 @@ where
     I: TokenStream<S::Token>,
     <S as ParseState>::Context: Default,
 {
+    /// Create a new parser with a default context.
+    ///
+    /// This can only be used if the associated [`ParseState::Context`] does
+    ///   not implement [`Default`];
+    ///     otherwise,
+    ///       consider instantiating from a `(TokenStream, Context)` pair.
+    /// See also [`ParseState::parse`] and
+    ///   [`ParseState::parse_with_context`].
     fn from(toks: I) -> Self {
         Self {
             toks,
             state: Default::default(),
             last_span: UNKNOWN_SPAN,
             ctx: Default::default(),
+        }
+    }
+}
+
+impl<S, I, C> From<(I, C)> for Parser<S, I>
+where
+    S: ParseState<Context = C>,
+    I: TokenStream<S::Token>,
+{
+    /// Create a new parser with a provided context.
+    ///
+    /// For more information,
+    ///   see [`ParseState::parse_with_context`].
+    ///
+    /// See also [`ParseState::parse`].
+    fn from((toks, ctx): (I, C)) -> Self {
+        Self {
+            toks,
+            state: Default::default(),
+            last_span: UNKNOWN_SPAN,
+            ctx,
         }
     }
 }
@@ -989,8 +1049,9 @@ pub mod test {
     #[derive(Debug, PartialEq, Eq, Clone)]
     enum TestToken {
         Close(Span),
-        Comment(Span),
+        MarkDone(Span),
         Text(Span),
+        SetCtxVal(u8),
     }
 
     impl Display for TestToken {
@@ -1003,7 +1064,8 @@ pub mod test {
         fn span(&self) -> Span {
             use TestToken::*;
             match self {
-                Close(span) | Comment(span) | Text(span) => *span,
+                Close(span) | MarkDone(span) | Text(span) => *span,
+                _ => UNKNOWN_SPAN,
             }
         }
     }
@@ -1022,22 +1084,33 @@ pub mod test {
         }
     }
 
+    #[derive(Debug, PartialEq, Default)]
+    struct StubContext {
+        val: u8,
+    }
+
     impl ParseState for EchoState {
         type Token = TestToken;
         type Object = TestToken;
         type Error = EchoStateError;
 
+        type Context = StubContext;
+
         fn parse_token(
             self,
             tok: TestToken,
-            _: NoContext,
+            ctx: &mut StubContext,
         ) -> TransitionResult<Self> {
             match tok {
-                TestToken::Comment(..) => Transition(Self::Done).ok(tok),
+                TestToken::MarkDone(..) => Transition(Self::Done).ok(tok),
                 TestToken::Close(..) => {
                     Transition(self).err(EchoStateError::InnerError(tok))
                 }
                 TestToken::Text(..) => Transition(self).dead(tok),
+                TestToken::SetCtxVal(val) => {
+                    ctx.val = val;
+                    Transition(Self::Done).incomplete()
+                }
             }
         }
 
@@ -1074,7 +1147,7 @@ pub mod test {
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {
         // EchoState is placed into a Done state given Comment.
-        let tok = TestToken::Comment(DS);
+        let tok = TestToken::MarkDone(DS);
         let mut toks = once(tok.clone());
 
         let mut sut = Sut::from(&mut toks);
@@ -1141,7 +1214,7 @@ pub mod test {
 
         // Set up so that we have a single token that we can use for
         //   recovery as part of the same iterator.
-        let recovery = TestToken::Comment(DS);
+        let recovery = TestToken::MarkDone(DS);
         let mut toks = [
             // Used purely to populate a Span.
             TestToken::Close(span),
@@ -1192,5 +1265,36 @@ pub mod test {
         //     (since we're not composing parsers),
         //     which causes an error due to an unhandled Dead state.
         assert_eq!(sut.next(), Some(Err(ParseError::UnexpectedToken(tok))),);
+    }
+
+    // A context can be both retrieved from a finished parser and provided
+    //   to a new one.
+    #[test]
+    fn provide_and_retrieve_context() {
+        // First, verify that it's initialized to a default context.
+        let mut toks = vec![TestToken::MarkDone(DS)].into_iter();
+        let mut sut = Sut::from(&mut toks);
+        sut.next().unwrap().unwrap();
+        let ctx = sut.finalize().unwrap();
+        assert_eq!(ctx, Default::default());
+
+        // Next, verify that the context that is manipulated is the context
+        //   that is returned to us.
+        let val = 5;
+        let mut toks = vec![TestToken::SetCtxVal(5)].into_iter();
+        let mut sut = Sut::from(&mut toks);
+        sut.next().unwrap().unwrap();
+        let ctx = sut.finalize().unwrap();
+        assert_eq!(ctx, StubContext { val });
+
+        // Finally, verify that the context provided is the context that is
+        //   used.
+        let val = 10;
+        let given_ctx = StubContext { val };
+        let mut toks = vec![TestToken::MarkDone(DS)].into_iter();
+        let mut sut = EchoState::parse_with_context(&mut toks, given_ctx);
+        sut.next().unwrap().unwrap();
+        let ctx = sut.finalize().unwrap();
+        assert_eq!(ctx, StubContext { val });
     }
 }
