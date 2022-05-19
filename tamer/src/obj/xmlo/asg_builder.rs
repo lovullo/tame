@@ -39,15 +39,15 @@
 
 use super::{
     reader::{XmloResult, XmloToken},
-    XmloError,
+    Dim, SymAttrs, SymType, XmloError,
 };
-use crate::asg::{Asg, AsgError, IdentKindError, Source};
+use crate::asg::{Asg, AsgError, Dim as AsgDim, IdentKind, Source};
 use crate::sym::SymbolId;
-use std::collections::HashSet;
 use std::convert::TryInto;
 use std::error::Error;
 use std::fmt::Display;
 use std::hash::BuildHasher;
+use std::{collections::HashSet, result};
 
 pub type Result<S> = std::result::Result<AsgBuilderState<S>, AsgBuilderError>;
 
@@ -323,12 +323,116 @@ impl Error for AsgBuilderError {
     }
 }
 
+impl TryFrom<SymAttrs> for IdentKind {
+    type Error = IdentKindError;
+
+    /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
+    ///
+    /// Certain [`IdentKind`] require that certain attributes be present,
+    ///   otherwise the conversion will fail.
+    fn try_from(attrs: SymAttrs) -> result::Result<Self, Self::Error> {
+        Self::try_from(&attrs)
+    }
+}
+
+impl TryFrom<&SymAttrs> for IdentKind {
+    type Error = IdentKindError;
+
+    /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
+    ///
+    /// Certain [`IdentKind`] require that certain attributes be present,
+    ///   otherwise the conversion will fail.
+    fn try_from(attrs: &SymAttrs) -> result::Result<Self, Self::Error> {
+        let ty = attrs.ty.as_ref().ok_or(Self::Error::MissingType)?;
+
+        macro_rules! ident {
+            ($to:expr) => {
+                Ok($to)
+            };
+            ($to:expr, dim) => {
+                Ok($to(attrs.dim.ok_or(Self::Error::MissingDim)?.into()))
+            };
+            ($to:expr, dtype) => {
+                Ok($to(attrs.dtype.ok_or(Self::Error::MissingDtype)?))
+            };
+            ($to:expr, dim, dtype) => {
+                Ok($to(
+                    attrs.dim.ok_or(Self::Error::MissingDim)?.into(),
+                    attrs.dtype.ok_or(Self::Error::MissingDtype)?,
+                ))
+            };
+        }
+
+        match ty {
+            SymType::Cgen => ident!(Self::Cgen, dim),
+            SymType::Class => ident!(Self::Class, dim),
+            SymType::Const => ident!(Self::Const, dim, dtype),
+            SymType::Func => ident!(Self::Func, dim, dtype),
+            SymType::Gen => ident!(Self::Gen, dim, dtype),
+            SymType::Lparam => ident!(IdentKind::Lparam, dim, dtype),
+            SymType::Param => ident!(IdentKind::Param, dim, dtype),
+            SymType::Rate => ident!(IdentKind::Rate, dtype),
+            SymType::Tpl => ident!(IdentKind::Tpl),
+            SymType::Type => ident!(IdentKind::Type, dtype),
+            SymType::MapHead => ident!(IdentKind::MapHead),
+            SymType::Map => ident!(IdentKind::Map),
+            SymType::MapTail => ident!(IdentKind::MapTail),
+            SymType::RetMapHead => ident!(IdentKind::RetMapHead),
+            SymType::RetMap => ident!(IdentKind::RetMap),
+            SymType::RetMapTail => ident!(IdentKind::RetMapTail),
+            SymType::Meta => ident!(IdentKind::Meta),
+            SymType::Worksheet => ident!(IdentKind::Worksheet),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum IdentKindError {
+    /// Symbol type was not provided.
+    MissingType,
+
+    /// Number of symbol dimensions were not provided.
+    MissingDim,
+
+    /// Symbol dtype was not provided.
+    MissingDtype,
+}
+
+impl std::fmt::Display for IdentKindError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::MissingType => write!(fmt, "missing symbol type"),
+            Self::MissingDim => write!(fmt, "missing dim"),
+            Self::MissingDtype => write!(fmt, "missing dtype"),
+        }
+    }
+}
+
+impl Error for IdentKindError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+// These are clearly the same thing,
+//   but it's not worth sharing them until a natural shared abstraction
+//   arises.
+impl From<Dim> for AsgDim {
+    fn from(dim: Dim) -> Self {
+        match dim {
+            Dim::Scalar => AsgDim::Scalar,
+            Dim::Vector => AsgDim::Vector,
+            Dim::Matrix => AsgDim::Matrix,
+        }
+    }
+}
+
 // These tests are coupled with BaseAsg, which is not ideal.
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::asg::{DefaultAsg, FragmentText, IdentKind, IdentObject};
-    use crate::obj::xmlo::{SymAttrs, SymType};
+    use crate::obj::xmlo::{SymAttrs, SymDtype, SymType};
     use crate::span::{DUMMY_SPAN, UNKNOWN_SPAN};
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
@@ -856,4 +960,130 @@ mod test {
         // event.
         assert!(state.is_first());
     }
+
+    macro_rules! test_kind {
+        ($name:ident, $src:expr => $dest:expr) => {
+            #[test]
+            fn $name() {
+                assert_eq!(
+                    Ok($dest),
+                    SymAttrs {
+                        ty: Some($src),
+                        ..Default::default()
+                    }
+                    .try_into()
+                );
+            }
+        };
+
+        ($name:ident, $src:expr => $dest:expr, dim) => {
+            #[test]
+            fn $name() {
+                let dim = Dim::Vector;
+
+                assert_eq!(
+                    Ok($dest(AsgDim::Vector)),
+                    SymAttrs {
+                        ty: Some($src),
+                        dim: Some(dim),
+                        ..Default::default()
+                    }
+                    .try_into()
+                );
+
+                // no dim
+                let result = IdentKind::try_from(SymAttrs {
+                    ty: Some($src),
+                    ..Default::default()
+                })
+                .expect_err("must fail when missing dim");
+
+                assert_eq!(IdentKindError::MissingDim, result);
+            }
+        };
+
+        ($name:ident, $src:expr => $dest:expr, dtype) => {
+            #[test]
+            fn $name() {
+                let dtype = SymDtype::Float;
+
+                assert_eq!(
+                    Ok($dest(dtype)),
+                    SymAttrs {
+                        ty: Some($src),
+                        dtype: Some(dtype),
+                        ..Default::default()
+                    }
+                    .try_into()
+                );
+
+                // no dtype
+                let result = IdentKind::try_from(SymAttrs {
+                    ty: Some($src),
+                    ..Default::default()
+                })
+                .expect_err("must fail when missing dtype");
+
+                assert_eq!(IdentKindError::MissingDtype, result);
+            }
+        };
+
+        ($name:ident, $src:expr => $dest:expr, dim, dtype) => {
+            #[test]
+            fn $name() {
+                let dim = Dim::Vector;
+                let dtype = SymDtype::Float;
+
+                assert_eq!(
+                    Ok($dest(AsgDim::Vector, dtype)),
+                    SymAttrs {
+                        ty: Some($src),
+                        dim: Some(dim),
+                        dtype: Some(dtype),
+                        ..Default::default()
+                    }
+                    .try_into()
+                );
+
+                // no dim
+                let dim_result = IdentKind::try_from(SymAttrs {
+                    ty: Some($src),
+                    dtype: Some(dtype),
+                    ..Default::default()
+                })
+                .expect_err("must fail when missing dim");
+
+                assert_eq!(IdentKindError::MissingDim, dim_result);
+
+                // no dtype
+                let dtype_result = IdentKind::try_from(SymAttrs {
+                    ty: Some($src),
+                    dim: Some(dim),
+                    ..Default::default()
+                })
+                .expect_err("must fail when missing dtype");
+
+                assert_eq!(IdentKindError::MissingDtype, dtype_result);
+            }
+        };
+    }
+
+    test_kind!(cgen, SymType::Cgen => IdentKind::Cgen, dim);
+    test_kind!(class, SymType::Class => IdentKind::Class, dim);
+    test_kind!(r#const, SymType::Const => IdentKind::Const, dim, dtype);
+    test_kind!(func, SymType::Func => IdentKind::Func, dim, dtype);
+    test_kind!(gen, SymType::Gen => IdentKind::Gen, dim, dtype);
+    test_kind!(lparam, SymType::Lparam => IdentKind::Lparam, dim, dtype);
+    test_kind!(param, SymType::Param => IdentKind::Param, dim, dtype);
+    test_kind!(rate, SymType::Rate => IdentKind::Rate, dtype);
+    test_kind!(tpl, SymType::Tpl => IdentKind::Tpl);
+    test_kind!(r#type, SymType::Type => IdentKind::Type, dtype);
+    test_kind!(maphead, SymType::MapHead => IdentKind::MapHead);
+    test_kind!(map, SymType::Map => IdentKind::Map);
+    test_kind!(maptail, SymType::MapTail => IdentKind::MapTail);
+    test_kind!(retmaphead, SymType::RetMapHead => IdentKind::RetMapHead);
+    test_kind!(retmap, SymType::RetMap => IdentKind::RetMap);
+    test_kind!(retmaptail, SymType::RetMapTail => IdentKind::RetMapTail);
+    test_kind!(meta, SymType::Meta => IdentKind::Meta);
+    test_kind!(worksheet, SymType::Worksheet => IdentKind::Worksheet);
 }

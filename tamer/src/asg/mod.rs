@@ -198,7 +198,7 @@ mod object;
 
 pub use error::AsgError;
 pub use graph::{Asg, AsgResult, IndexType, ObjectRef};
-pub use ident::{DataType, Dim, IdentKind, IdentKindError};
+pub use ident::{DataType, Dim, IdentKind};
 pub use object::{
     FragmentText, IdentObject, Source, TransitionError, TransitionResult,
     UnresolvedError,
