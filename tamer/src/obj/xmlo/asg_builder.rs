@@ -388,6 +388,25 @@ impl TryFrom<&SymAttrs> for IdentKind {
     }
 }
 
+impl From<SymAttrs> for Source {
+    /// Raise Legacy IR [`SymAttrs`].
+    ///
+    /// This simply extracts a subset of fields from the source attributes.
+    fn from(attrs: SymAttrs) -> Self {
+        Source {
+            pkg_name: attrs.pkg_name,
+            src: attrs.src,
+            generated: attrs.generated,
+            parent: attrs.parent,
+            yields: attrs.yields,
+            desc: attrs.desc,
+            from: attrs.from,
+            virtual_: attrs.virtual_,
+            override_: attrs.override_,
+        }
+    }
+}
+
 // These tests are coupled with BaseAsg, which is not ideal.
 #[cfg(test)]
 mod test {
@@ -1045,4 +1064,41 @@ mod test {
     test_kind!(retmaptail, SymType::RetMapTail => IdentKind::RetMapTail);
     test_kind!(meta, SymType::Meta => IdentKind::Meta);
     test_kind!(worksheet, SymType::Worksheet => IdentKind::Worksheet);
+
+    #[test]
+    fn source_from_sym_attrs() {
+        let nsym: SymbolId = "name".intern();
+        let ssym: SymbolId = "src".intern();
+        let psym: SymbolId = "parent".intern();
+        let ysym: SymbolId = "yields".intern();
+        let fsym: SymbolId = "from".intern();
+
+        let attrs = SymAttrs {
+            pkg_name: Some(nsym),
+            src: Some(ssym),
+            generated: true,
+            parent: Some(psym),
+            yields: Some(ysym),
+            desc: Some("sym desc".into()),
+            from: Some(fsym),
+            virtual_: true,
+            override_: true,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Source {
+                pkg_name: Some(nsym),
+                src: Some(ssym),
+                generated: attrs.generated,
+                parent: attrs.parent,
+                yields: attrs.yields,
+                desc: Some("sym desc".into()),
+                from: Some(fsym),
+                virtual_: true,
+                override_: true,
+            },
+            attrs.into(),
+        );
+    }
 }
