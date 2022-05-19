@@ -1,4 +1,4 @@
-// General numberic types for TAMER
+// General numeric types for TAMER
 //
 //  Copyright (C) 2014-2022 Ryan Specialty Group, LLC.
 //
