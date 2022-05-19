@@ -20,7 +20,7 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::{
-    AsgError, FragmentText, IdentKind, IdentObject, Source, TransitionResult,
+    AsgError, FragmentText, Ident, IdentKind, Source, TransitionResult,
 };
 use crate::global;
 use crate::sym::SymbolId;
@@ -44,7 +44,7 @@ pub type AsgEdge = ();
 ///
 /// Enclosed in an [`Option`] to permit moving owned values out of the
 ///   graph.
-pub type Node = Option<IdentObject>;
+pub type Node = Option<Ident>;
 
 /// Index size for Graph nodes and edges.
 type Ix = global::ProgSymSize;
@@ -59,7 +59,7 @@ type Ix = global::ProgSymSize;
 ///
 /// This IR focuses on the definition and manipulation of objects and their
 ///   dependencies.
-/// See [`IdentObject`]for a summary of valid identifier object state
+/// See [`Ident`]for a summary of valid identifier object state
 ///   transitions.
 ///
 /// Objects are never deleted from the graph,
@@ -118,7 +118,7 @@ impl Asg {
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
         // This is not indexed and is not accessable by name.
-        let root_node = graph.add_node(Some(IdentObject::Root));
+        let root_node = graph.add_node(Some(Ident::Root));
 
         Self {
             graph,
@@ -166,10 +166,10 @@ impl Asg {
     /// Lookup `ident` or add a missing identifier to the graph and return a
     ///   reference to it.
     ///
-    /// See [`IdentObject::declare`] for more information.
+    /// See [`Ident::declare`] for more information.
     fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
         self.lookup(ident).unwrap_or_else(|| {
-            let index = self.graph.add_node(Some(IdentObject::declare(ident)));
+            let index = self.graph.add_node(Some(Ident::declare(ident)));
 
             self.index_identifier(ident, index);
             ObjectRef::new(index)
@@ -191,7 +191,7 @@ impl Asg {
         f: F,
     ) -> AsgResult<ObjectRef>
     where
-        F: FnOnce(IdentObject) -> TransitionResult<IdentObject>,
+        F: FnOnce(Ident) -> TransitionResult<Ident>,
     {
         let identi = self.lookup_or_missing(name);
         self.with_ident(identi, f)
@@ -206,7 +206,7 @@ impl Asg {
     ///   value on transition failure.
     fn with_ident<F>(&mut self, identi: ObjectRef, f: F) -> AsgResult<ObjectRef>
     where
-        F: FnOnce(IdentObject) -> TransitionResult<IdentObject>,
+        F: FnOnce(Ident) -> TransitionResult<Ident>,
     {
         let node = self.graph.node_weight_mut(identi.into()).unwrap();
 
@@ -274,7 +274,7 @@ impl Asg {
     ///
     /// For more information on state transitions that can occur when
     ///   redeclaring an identifier that already exists,
-    ///     see [`IdentObject::resolve`].
+    ///     see [`Ident::resolve`].
     ///
     /// A successful declaration will add an identifier to the graph
     ///   and return an [`ObjectRef`] reference.
@@ -310,8 +310,8 @@ impl Asg {
     ///         on the graph will not be altered.
     /// Resolution will otherwise fail in error.
     ///
-    /// See [`IdentObject::extern_`] and
-    ///   [`IdentObject::resolve`] for more information on
+    /// See [`Ident::extern_`] and
+    ///   [`Ident::resolve`] for more information on
     ///   compatibility related to extern resolution.
     pub fn declare_extern(
         &mut self,
@@ -326,7 +326,7 @@ impl Asg {
     ///
     /// Fragments are intended for use by the [linker][crate::ld].
     /// For more information,
-    ///   see [`IdentObject::set_fragment`].
+    ///   see [`Ident::set_fragment`].
     pub fn set_fragment(
         &mut self,
         name: SymbolId,
@@ -343,7 +343,7 @@ impl Asg {
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
     #[inline]
-    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&IdentObject> {
+    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&Ident> {
         self.graph.node_weight(index.into().into()).map(|node| {
             node.as_ref()
                 .expect("internal error: Asg::get missing Node data")
@@ -396,7 +396,7 @@ impl Asg {
     ///   a missing identifier will be added as a placeholder,
     ///     allowing the ASG to be built with partial information as
     ///     identifiers continue to be discovered.
-    /// See [`IdentObject::declare`] for more information.
+    /// See [`Ident::declare`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
     pub fn add_dep_lookup(
@@ -416,7 +416,7 @@ impl Asg {
 
 /// Reference to an [object][super::object] stored within the [`Asg`].
 ///
-/// IdentObject references are integer offsets,
+/// Ident references are integer offsets,
 ///   not pointers.
 /// See the [module-level documentation][self] for more information.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]

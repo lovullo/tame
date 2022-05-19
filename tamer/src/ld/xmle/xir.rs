@@ -31,7 +31,7 @@
 
 use super::{super::LSPAN, section::XmleSections};
 use crate::{
-    asg::{IdentKind, IdentObject},
+    asg::{Ident, IdentKind},
     sym::{st::*, SymbolId},
     xir::{
         iter::{elem_wrap, ElemWrapIter},
@@ -113,7 +113,7 @@ const DEP_TOK_SIZE: usize = DEP_MAX_ATTRS_KEY_VAL + DEP_CLOSE;
 /// This repeats until no more section object data is available.
 struct DepListIter<'a> {
     /// Source data to lower into `l:deps`.
-    iter: vec::IntoIter<&'a IdentObject>,
+    iter: vec::IntoIter<&'a Ident>,
     /// Constant-size [`Token`] buffer used as a stack.
     toks: ArrayVec<Token, DEP_TOK_SIZE>,
     /// Relative path to project root.
@@ -122,7 +122,7 @@ struct DepListIter<'a> {
 
 impl<'a> DepListIter<'a> {
     #[inline]
-    fn new(iter: vec::IntoIter<&'a IdentObject>, relroot: SymbolId) -> Self {
+    fn new(iter: vec::IntoIter<&'a Ident>, relroot: SymbolId) -> Self {
         Self {
             iter,
             toks: ArrayVec::new(),
@@ -144,8 +144,8 @@ impl<'a> DepListIter<'a> {
         //     TODO: re-order sensibly once we're done.
         self.iter.next().map(|obj| {
             match obj {
-                IdentObject::Ident(sym, kind, src)
-                | IdentObject::IdentFragment(sym, kind, src, _) => (*sym, kind, src),
+                Ident::Ident(sym, kind, src)
+                | Ident::IdentFragment(sym, kind, src, _) => (*sym, kind, src),
                 _ => unreachable!(
                     "identifier should have been filtered out during sorting: {:?}",
                     obj,

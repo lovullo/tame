@@ -23,7 +23,7 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{Asg, IdentKind, IdentObject, ObjectRef},
+    asg::{Asg, Ident, IdentKind, ObjectRef},
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -64,7 +64,7 @@ where
     Ok(dest)
 }
 
-fn get_ident<'a, S>(depgraph: &'a Asg, name: S) -> &'a IdentObject
+fn get_ident<'a, S>(depgraph: &'a Asg, name: S) -> &'a Ident
 where
     S: Into<SymbolId>,
 {
@@ -169,7 +169,7 @@ impl std::error::Error for SortError {
 mod test {
     use super::*;
     use crate::{
-        asg::{FragmentText, IdentObject, Source},
+        asg::{FragmentText, Ident, Source},
         ld::xmle::{section::PushResult, Sections},
         num::{Dim, Dtype},
         sym::GlobalSymbolIntern,
@@ -217,16 +217,16 @@ mod test {
         // We care only about the order of pushes, not the sections they end
         // up in.
         struct StubSections<'a> {
-            pushed: Vec<&'a IdentObject>,
+            pushed: Vec<&'a Ident>,
         }
 
         impl<'a> XmleSections<'a> for StubSections<'a> {
-            fn push(&mut self, ident: &'a IdentObject) -> PushResult {
+            fn push(&mut self, ident: &'a Ident) -> PushResult {
                 self.pushed.push(ident);
                 Ok(())
             }
 
-            fn take_deps(&mut self) -> Vec<&'a IdentObject> {
+            fn take_deps(&mut self) -> Vec<&'a Ident> {
                 unimplemented!()
             }
 
@@ -286,7 +286,7 @@ mod test {
                 // TODO: This will go away once Root is no longer considered
                 //   an identifier.
                 // The real Sections filters this out.
-                Some(&IdentObject::Root),
+                Some(&Ident::Root),
                 // Static tail
                 asg.lookup(st::L_MAP_UUUTAIL.into())
                     .and_then(|id| asg.get(id)),

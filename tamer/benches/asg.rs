@@ -308,10 +308,10 @@ mod object {
 
     mod ident {
         use super::*;
-        use tamer::asg::{IdentKind, IdentObject, Source};
+        use tamer::asg::{Ident, IdentKind, Source};
         use tamer::sym::GlobalSymbolIntern;
 
-        type Sut = IdentObject;
+        type Sut = Ident;
 
         #[bench]
         fn declare_1_000(bench: &mut Bencher) {

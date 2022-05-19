@@ -411,7 +411,7 @@ impl From<SymAttrs> for Source {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::asg::{DefaultAsg, FragmentText, IdentKind, IdentObject};
+    use crate::asg::{DefaultAsg, FragmentText, Ident, IdentKind};
     use crate::num::{Dim, Dtype};
     use crate::obj::xmlo::{SymAttrs, SymType};
     use crate::span::{DUMMY_SPAN, UNKNOWN_SPAN};
@@ -617,7 +617,7 @@ mod test {
         // since this is considered to be the first package encountered.
 
         assert_eq!(
-            &IdentObject::Extern(
+            &Ident::Extern(
                 sym_extern,
                 IdentKind::Meta,
                 Source {
@@ -629,7 +629,7 @@ mod test {
         );
 
         assert_eq!(
-            &IdentObject::Ident(
+            &Ident::Ident(
                 sym_non_extern,
                 IdentKind::Meta,
                 Source {
@@ -641,7 +641,7 @@ mod test {
         );
 
         assert_eq!(
-            &IdentObject::Ident(
+            &Ident::Ident(
                 sym_map,
                 IdentKind::Map,
                 Source {
@@ -653,7 +653,7 @@ mod test {
         );
 
         assert_eq!(
-            &IdentObject::Ident(
+            &Ident::Ident(
                 sym_retmap,
                 IdentKind::RetMap,
                 Source {
@@ -694,7 +694,7 @@ mod test {
 
         assert_eq!(
             // `pkg_name` retained
-            &IdentObject::Ident(
+            &Ident::Ident(
                 sym,
                 IdentKind::Meta,
                 Source {
@@ -736,7 +736,7 @@ mod test {
 
         assert_eq!(
             // `pkg_name` retained
-            &IdentObject::Ident(
+            &Ident::Ident(
                 sym,
                 IdentKind::Meta,
                 Source {
@@ -855,7 +855,7 @@ mod test {
             .expect("ident/fragment was not added to graph");
 
         assert_eq!(
-            Some(&IdentObject::IdentFragment(
+            Some(&Ident::IdentFragment(
                 sym,
                 IdentKind::Meta,
                 Default::default(),
@@ -913,10 +913,7 @@ mod test {
             .expect("ident/fragment was not added to graph");
 
         // The identifier should not have been modified on failure.
-        assert!(matches!(
-            sut.get(node).unwrap(),
-            IdentObject::Extern(_, _, _)
-        ));
+        assert!(matches!(sut.get(node).unwrap(), Ident::Extern(_, _, _)));
     }
 
     #[test]

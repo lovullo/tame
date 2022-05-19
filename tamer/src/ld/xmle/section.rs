@@ -26,7 +26,7 @@
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
-use crate::asg::{IdentKind, IdentObject, UnresolvedError};
+use crate::asg::{Ident, IdentKind, UnresolvedError};
 use crate::sym::SymbolId;
 use fxhash::FxHashSet;
 use std::mem::take;
@@ -44,12 +44,12 @@ pub trait XmleSections<'a> {
     /// Objects are expected to be properly sorted relative to their order
     ///   of execution so that their text fragments are placed in the
     ///   correct order in the final program text.
-    fn push(&mut self, ident: &'a IdentObject) -> PushResult;
+    fn push(&mut self, ident: &'a Ident) -> PushResult;
 
     /// Take the list of objects present in the linked file.
     ///
     /// The order of these objects does not matter.
-    fn take_deps(&mut self) -> Vec<&'a IdentObject>;
+    fn take_deps(&mut self) -> Vec<&'a Ident>;
 
     /// Take the ordered text fragments for the `map` section.
     fn take_map(&mut self) -> Vec<SymbolId>;
@@ -76,7 +76,7 @@ pub struct Sections<'a> {
     /// List of objects present in the linked file.
     ///
     /// The order of these objects does not matter.
-    deps: Vec<&'a IdentObject>,
+    deps: Vec<&'a Ident>,
 
     /// External identifiers mapped into this system.
     map_froms: FxHashSet<SymbolId>,
@@ -105,9 +105,9 @@ impl<'a> Sections<'a> {
 }
 
 impl<'a> XmleSections<'a> for Sections<'a> {
-    fn push(&mut self, ident: &'a IdentObject) -> PushResult {
+    fn push(&mut self, ident: &'a Ident) -> PushResult {
         // TODO: This can go away once we stop treating root as an ident
-        if matches!(ident, IdentObject::Root) {
+        if matches!(ident, Ident::Root) {
             return Ok(());
         }
 
@@ -165,7 +165,7 @@ impl<'a> XmleSections<'a> for Sections<'a> {
     }
 
     #[inline]
-    fn take_deps(&mut self) -> Vec<&'a IdentObject> {
+    fn take_deps(&mut self) -> Vec<&'a Ident> {
         take(&mut self.deps)
     }
 
@@ -264,7 +264,7 @@ impl std::fmt::Display for SectionsError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::asg::{IdentKind, IdentObject, Source};
+    use crate::asg::{Ident, IdentKind, Source};
     use crate::num::{Dim, Dtype};
     use crate::sym::GlobalSymbolIntern;
 
@@ -286,7 +286,7 @@ mod test {
     fn sections_push_adds_dep() -> PushResult {
         let mut sut = Sut::new();
 
-        let a = IdentObject::IdentFragment(
+        let a = Ident::IdentFragment(
             "a".intern(),
             IdentKind::Const(Dim::Scalar, Dtype::Integer),
             Default::default(),
@@ -294,7 +294,7 @@ mod test {
         );
 
         // Different section than a, to be sure that we still add it.
-        let b = IdentObject::IdentFragment(
+        let b = Ident::IdentFragment(
             "b".intern(),
             IdentKind::MapHead,
             Default::default(),
@@ -315,7 +315,7 @@ mod test {
     fn push_ignores_root() {
         let mut sut = Sut::new();
 
-        sut.push(&IdentObject::Root).unwrap();
+        sut.push(&Ident::Root).unwrap();
         assert!(sut.take_deps().is_empty());
     }
 
@@ -325,19 +325,19 @@ mod test {
     fn idents_not_needing_fragments() -> PushResult {
         let mut sut = Sut::new();
 
-        let cgen = IdentObject::Ident(
+        let cgen = Ident::Ident(
             "cgen".intern(),
             IdentKind::Cgen(Dim::Vector),
             Default::default(),
         );
 
-        let gen = IdentObject::Ident(
+        let gen = Ident::Ident(
             "gen".intern(),
             IdentKind::Gen(Dim::Vector, Dtype::Integer),
             Default::default(),
         );
 
-        let lparam = IdentObject::Ident(
+        let lparam = Ident::Ident(
             "lparam".intern(),
             IdentKind::Lparam(Dim::Vector, Dtype::Integer),
             Default::default(),
@@ -365,7 +365,7 @@ mod test {
         let mut sut_a = Sections::new();
         let mut sut_b = Sections::new();
 
-        let a = IdentObject::IdentFragment(
+        let a = Ident::IdentFragment(
             "a".intern(),
             IdentKind::Map,
             Source {
@@ -375,7 +375,7 @@ mod test {
             "mapa".intern(),
         );
 
-        let b = IdentObject::IdentFragment(
+        let b = Ident::IdentFragment(
             "a".intern(),
             IdentKind::Map,
             Source {
@@ -409,7 +409,7 @@ mod test {
     macro_rules! add_syms {
         ($sut:ident, { $($name:ident: $kind:expr,)* }) => {
             $(
-                let $name = IdentObject::IdentFragment(
+                let $name = Ident::IdentFragment(
                     stringify!($name).intern(),
                     $kind,
                     Default::default(),

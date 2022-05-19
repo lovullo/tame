@@ -78,7 +78,7 @@ fn test_writes_deps() -> TestResult {
     let relroot = "relroot-deps".intern();
 
     let objs = [
-        IdentObject::Ident(
+        Ident::Ident(
             "cgentest".intern(),
             IdentKind::Cgen(Dim::Vector),
             Source {
@@ -89,82 +89,74 @@ fn test_writes_deps() -> TestResult {
                 ..Default::default()
             },
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "classtest".intern(),
             IdentKind::Class(Dim::Matrix),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "consttest".intern(),
             IdentKind::Const(Dim::Scalar, Dtype::Boolean),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "functest".intern(),
             IdentKind::Func(Dim::Matrix, Dtype::Integer),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "gentest".intern(),
             IdentKind::Gen(Dim::Matrix, Dtype::Boolean),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "lparamtest".intern(),
             IdentKind::Gen(Dim::Matrix, Dtype::Float),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "paramtest".intern(),
             IdentKind::Gen(Dim::Scalar, Dtype::Integer),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "ratetest".intern(),
             IdentKind::Rate(Dtype::Integer),
             Default::default(),
         ),
-        IdentObject::Ident(
-            "tpltest".intern(),
-            IdentKind::Tpl,
-            Default::default(),
-        ),
-        IdentObject::Ident(
+        Ident::Ident("tpltest".intern(), IdentKind::Tpl, Default::default()),
+        Ident::Ident(
             "typetest".intern(),
             IdentKind::Type(Dtype::Integer),
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "mapheadtest".intern(),
             IdentKind::MapHead,
             Default::default(),
         ),
-        IdentObject::Ident(
-            "maptest".intern(),
-            IdentKind::Map,
-            Default::default(),
-        ),
-        IdentObject::Ident(
+        Ident::Ident("maptest".intern(), IdentKind::Map, Default::default()),
+        Ident::Ident(
             "maptailtest".intern(),
             IdentKind::MapTail,
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "retmapheadtest".intern(),
             IdentKind::RetMapHead,
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "retmaptest".intern(),
             IdentKind::RetMap,
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "retmaptailtest".intern(),
             IdentKind::RetMapTail,
             Default::default(),
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "metatest".intern(),
             IdentKind::Meta,
             Source {
@@ -172,7 +164,7 @@ fn test_writes_deps() -> TestResult {
                 ..Default::default()
             },
         ),
-        IdentObject::Ident(
+        Ident::Ident(
             "worksheettest".intern(),
             IdentKind::Worksheet,
             Default::default(),
@@ -182,15 +174,15 @@ fn test_writes_deps() -> TestResult {
     // Creating a stub to return our deps prevents us from being obstructed
     // by changes to Sections' requirements.
     struct StubSections<'a> {
-        deps: Vec<&'a IdentObject>,
+        deps: Vec<&'a Ident>,
     }
 
     impl<'a> XmleSections<'a> for StubSections<'a> {
-        fn push(&mut self, _ident: &'a IdentObject) -> PushResult {
+        fn push(&mut self, _ident: &'a Ident) -> PushResult {
             unimplemented!()
         }
 
-        fn take_deps(&mut self) -> Vec<&'a IdentObject> {
+        fn take_deps(&mut self) -> Vec<&'a Ident> {
             self.deps.clone()
         }
 
@@ -358,7 +350,7 @@ fn test_writes_map_froms() -> TestResult {
     let mut sections = Sections::new();
     let relroot = "relroot-deps".intern();
 
-    let a = IdentObject::IdentFragment(
+    let a = Ident::IdentFragment(
         "a".intern(),
         IdentKind::Map,
         Source {
@@ -368,7 +360,7 @@ fn test_writes_map_froms() -> TestResult {
         "fraga".intern(),
     );
 
-    let b = IdentObject::IdentFragment(
+    let b = Ident::IdentFragment(
         "a".intern(),
         IdentKind::Map,
         Source {
@@ -432,14 +424,14 @@ macro_rules! test_exec_sec {
             let frag_a = "a fragment".intern();
             let frag_b = "b fragment".intern();
 
-            let a = IdentObject::IdentFragment(
+            let a = Ident::IdentFragment(
                 "a".intern(),
                 $type,
                 Default::default(),
                 frag_a,
             );
 
-            let b = IdentObject::IdentFragment(
+            let b = Ident::IdentFragment(
                 "b".intern(),
                 $type,
                 Default::default(),

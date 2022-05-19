@@ -37,7 +37,7 @@
 //!
 //! Graph Structure
 //! ===============
-//! Each node (vector) in the graph represents an [object][IdentObject],
+//! Each node (vector) in the graph represents an [object][Ident],
 //!   such as an identifier or an expression.
 //! Each directed edge `(A->B)` represents that `A` depends upon `B`.
 //!
@@ -51,7 +51,7 @@
 //! [scc]: https://en.wikipedia.org/wiki/Strongly_connected_component
 //!
 //! Each object may have a number of valid states;
-//!   see [`IdentObject`] for valid object states and transitions.
+//!   see [`Ident`] for valid object states and transitions.
 //!
 //!
 //! How To Use
@@ -61,7 +61,7 @@
 //!
 //! ```
 //! use tamer::global;
-//! use tamer::asg::{DefaultAsg, IdentKind, IdentObject, Source};
+//! use tamer::asg::{DefaultAsg, IdentKind, Ident, Source};
 //! use tamer::sym::{Interner, DefaultProgInterner};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -80,7 +80,7 @@
 //! let identb = asg.declare_extern(identb_sym, IdentKind::Meta, Source::default())?;
 //!
 //! assert_eq!(
-//!     Some(&IdentObject::Extern(identb_sym, IdentKind::Meta, Source::default())),
+//!     Some(&Ident::Extern(identb_sym, IdentKind::Meta, Source::default())),
 //!     asg.get(identb),
 //! );
 //!
@@ -105,12 +105,12 @@
 //!     it is often the case that a dependency will have to be added to the
 //!     graph before it is resolved.
 //! For example,
-//!   [`Asg::add_dep_lookup`] will add an [`IdentObject::Missing`] to the graph
+//!   [`Asg::add_dep_lookup`] will add an [`Ident::Missing`] to the graph
 //!     if either identifier has not yet been declared.
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::asg::{DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
+//! # use tamer::asg::{DefaultAsg, IdentKind, Ident, FragmentText, Source};
 //! # use tamer::sym::{Interner, DefaultProgInterner};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -124,8 +124,8 @@
 //! let identb_sym = interner.intern("identb");
 //! let (identa, identb) = asg.add_dep_lookup(identa_sym, identb_sym);
 //!
-//! assert_eq!(Some(&IdentObject::Missing(identa_sym)), asg.get(identa));
-//! assert_eq!(Some(&IdentObject::Missing(identb_sym)), asg.get(identb));
+//! assert_eq!(Some(&Ident::Missing(identa_sym)), asg.get(identa));
+//! assert_eq!(Some(&Ident::Missing(identb_sym)), asg.get(identb));
 //!
 //! // The identifiers returned above are proper objects on the graph.
 //! assert_eq!(Some(identa), asg.lookup(identa_sym));
@@ -136,7 +136,7 @@
 //! asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
 //!
 //! assert_eq!(
-//!     Some(&IdentObject::Ident(identa_sym, IdentKind::Meta, Source::default())),
+//!     Some(&Ident::Ident(identa_sym, IdentKind::Meta, Source::default())),
 //!     asg.get(identa),
 //! );
 //!
@@ -149,14 +149,14 @@
 //! Fragments
 //! ---------
 //! A compiled fragment can be attached to any resolved identifier (see
-//!   [`IdentObject::Ident`]) using [`Asg::set_fragment`].
-//! Doing so changes the state of the identifier to [`IdentObject::IdentFragment`],
+//!   [`Ident::Ident`]) using [`Asg::set_fragment`].
+//! Doing so changes the state of the identifier to [`Ident::IdentFragment`],
 //!   and it is an error to attempt to overwrite that fragment once it is
 //!   set.
 //!
 //! ```
 //! # use tamer::global;
-//! # use tamer::asg::{DefaultAsg, IdentKind, IdentObject, FragmentText, Source};
+//! # use tamer::asg::{DefaultAsg, IdentKind, Ident, FragmentText, Source};
 //! # use tamer::sym::{Interner, GlobalSymbolIntern};
 //! #
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -174,7 +174,7 @@
 //! asg.set_fragment(sym, FragmentText::from("test fragment"))?;
 //!
 //! assert_eq!(
-//!     Some(&IdentObject::IdentFragment(
+//!     Some(&Ident::IdentFragment(
 //!         sym,
 //!         IdentKind::Meta,
 //!         Source::default(),
@@ -199,8 +199,8 @@ mod object;
 pub use error::AsgError;
 pub use graph::{Asg, AsgResult, IndexType, ObjectRef};
 pub use ident::{
-    FragmentText, IdentKind, IdentObject, Source, TransitionError,
-    TransitionResult, UnresolvedError,
+    FragmentText, Ident, IdentKind, Source, TransitionError, TransitionResult,
+    UnresolvedError,
 };
 
 /// Default concrete ASG implementation.
