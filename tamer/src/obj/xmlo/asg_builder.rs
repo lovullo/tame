@@ -267,8 +267,14 @@ pub enum AsgBuilderError {
     /// Error with the source `xmlo` file.
     XmloError(XmloError),
 
-    /// Error parsing into [`crate::asg::IdentKind`].
-    IdentKindError(IdentKindError),
+    /// Symbol type was not provided.
+    MissingType,
+
+    /// Number of symbol dimensions were not provided.
+    MissingDim,
+
+    /// Symbol dtype was not provided.
+    MissingDtype,
 
     /// [`Asg`] operation error.
     AsgError(AsgError),
@@ -284,9 +290,10 @@ impl Display for AsgBuilderError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::XmloError(e) => e.fmt(fmt),
-            Self::IdentKindError(e) => e.fmt(fmt),
+            Self::MissingType => write!(fmt, "missing symbol type"),
+            Self::MissingDim => write!(fmt, "missing dim"),
+            Self::MissingDtype => write!(fmt, "missing dtype"),
             Self::AsgError(e) => e.fmt(fmt),
-
             Self::BadEligRef(name) => write!(
                 fmt,
                 "internal error: package elig references nonexistant symbol `{}`",
@@ -302,12 +309,6 @@ impl From<XmloError> for AsgBuilderError {
     }
 }
 
-impl From<IdentKindError> for AsgBuilderError {
-    fn from(src: IdentKindError) -> Self {
-        Self::IdentKindError(src)
-    }
-}
-
 impl From<AsgError> for AsgBuilderError {
     fn from(src: AsgError) -> Self {
         Self::AsgError(src)
@@ -318,7 +319,6 @@ impl Error for AsgBuilderError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::XmloError(e) => Some(e),
-            Self::IdentKindError(e) => Some(e),
             Self::AsgError(e) => Some(e),
             _ => None,
         }
@@ -326,7 +326,7 @@ impl Error for AsgBuilderError {
 }
 
 impl TryFrom<SymAttrs> for IdentKind {
-    type Error = IdentKindError;
+    type Error = AsgBuilderError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
@@ -338,7 +338,7 @@ impl TryFrom<SymAttrs> for IdentKind {
 }
 
 impl TryFrom<&SymAttrs> for IdentKind {
-    type Error = IdentKindError;
+    type Error = AsgBuilderError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
@@ -385,34 +385,6 @@ impl TryFrom<&SymAttrs> for IdentKind {
             SymType::Meta => ident!(IdentKind::Meta),
             SymType::Worksheet => ident!(IdentKind::Worksheet),
         }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum IdentKindError {
-    /// Symbol type was not provided.
-    MissingType,
-
-    /// Number of symbol dimensions were not provided.
-    MissingDim,
-
-    /// Symbol dtype was not provided.
-    MissingDtype,
-}
-
-impl std::fmt::Display for IdentKindError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::MissingType => write!(fmt, "missing symbol type"),
-            Self::MissingDim => write!(fmt, "missing dim"),
-            Self::MissingDtype => write!(fmt, "missing dtype"),
-        }
-    }
-}
-
-impl Error for IdentKindError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
     }
 }
 
@@ -766,11 +738,8 @@ mod test {
 
         let evs = vec![Ok(XmloToken::SymDecl(sym, bad_attrs, UNKNOWN_SPAN))];
 
-        let result = sut
-            .import_xmlo(evs.into_iter(), SutState::new())
+        sut.import_xmlo(evs.into_iter(), SutState::new())
             .expect_err("expected IdentKind conversion error");
-
-        assert!(matches!(result, AsgBuilderError::IdentKindError(_)));
     }
 
     #[test]
@@ -988,7 +957,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dim");
 
-                assert_eq!(IdentKindError::MissingDim, result);
+                assert_eq!(AsgBuilderError::MissingDim, result);
             }
         };
 
@@ -1014,7 +983,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dtype");
 
-                assert_eq!(IdentKindError::MissingDtype, result);
+                assert_eq!(AsgBuilderError::MissingDtype, result);
             }
         };
 
@@ -1043,7 +1012,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dim");
 
-                assert_eq!(IdentKindError::MissingDim, dim_result);
+                assert_eq!(AsgBuilderError::MissingDim, dim_result);
 
                 // no dtype
                 let dtype_result = IdentKind::try_from(SymAttrs {
@@ -1053,7 +1022,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dtype");
 
-                assert_eq!(IdentKindError::MissingDtype, dtype_result);
+                assert_eq!(AsgBuilderError::MissingDtype, dtype_result);
             }
         };
     }
