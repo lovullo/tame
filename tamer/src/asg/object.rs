@@ -688,7 +688,7 @@ mod test {
     #[test]
     fn ident_object_kind() {
         let sym: SymbolId = "sym".intern();
-        let kind = IdentKind::Class(Dim::from_u8(5));
+        let kind = IdentKind::Class(Dim::Matrix);
 
         assert_eq!(None, IdentObject::Missing(sym).kind());
 
@@ -872,7 +872,7 @@ mod test {
         #[test]
         fn ident_object() {
             let sym: SymbolId = "extern".intern();
-            let kind = IdentKind::Class(Dim::from_u8(1));
+            let kind = IdentKind::Class(Dim::Vector);
             let src = Source {
                 desc: Some("extern".into()),
                 ..Default::default()
@@ -887,7 +887,7 @@ mod test {
         #[test]
         fn resolved_on_extern() {
             let sym: SymbolId = "extern resolved".intern();
-            let kind = IdentKind::Class(Dim::from_u8(1));
+            let kind = IdentKind::Class(Dim::Vector);
             let pkg_name: SymbolId = "pkg/name".intern();
             let src = Source {
                 pkg_name: Some(pkg_name),
@@ -951,7 +951,7 @@ mod test {
         #[test]
         fn redeclare_compatible_resolves() {
             let sym: SymbolId = "extern_re_pre".intern();
-            let kind = IdentKind::Class(Dim::from_u8(2));
+            let kind = IdentKind::Class(Dim::Matrix);
             let src = Source {
                 desc: Some("okay".into()),
                 ..Default::default()
@@ -969,7 +969,7 @@ mod test {
         #[test]
         fn redeclare_compatible_resolves_post() {
             let sym: SymbolId = "extern_re_post".intern();
-            let kind = IdentKind::Class(Dim::from_u8(1));
+            let kind = IdentKind::Class(Dim::Vector);
             let src = Source {
                 desc: Some("okay".into()),
                 ..Default::default()
@@ -986,7 +986,7 @@ mod test {
         #[test]
         fn redeclare_another_extern() {
             let sym: SymbolId = "extern_extern".intern();
-            let kind = IdentKind::Class(Dim::from_u8(0));
+            let kind = IdentKind::Class(Dim::Scalar);
             let src_first = Source {
                 desc: Some("first src".into()),
                 ..Default::default()
@@ -1009,7 +1009,7 @@ mod test {
         #[test]
         fn redeclare_post_incompatible_kind() {
             let sym: SymbolId = "extern_re_bad_post".intern();
-            let kind = IdentKind::Class(Dim::from_u8(2));
+            let kind = IdentKind::Class(Dim::Matrix);
             let src = Source {
                 desc: Some("bad kind".into()),
                 ..Default::default()
@@ -1053,7 +1053,7 @@ mod test {
         #[test]
         fn redeclare_pre_incompatible_kind() {
             let sym: SymbolId = "extern_re_bad_pre".intern();
-            let kind_given = IdentKind::Class(Dim::from_u8(1));
+            let kind_given = IdentKind::Class(Dim::Vector);
             let src = Source {
                 desc: Some("bad kind".into()),
                 ..Default::default()
@@ -1259,7 +1259,7 @@ mod test {
             // This isn't the purpose of the test, but we want to make
             // sure that the non-virtual override error occurs before
             // the kind error.
-            let bad_kind = IdentKind::Cgen(Dim::from_u8(1));
+            let bad_kind = IdentKind::Cgen(Dim::Vector);
 
             let result = non_virt
                 .clone()
@@ -1312,7 +1312,7 @@ mod test {
                 ..Default::default()
             };
 
-            let bad_kind = IdentKind::Cgen(Dim::from_u8(1));
+            let bad_kind = IdentKind::Cgen(Dim::Vector);
             let result = virt
                 .clone()
                 .resolve(bad_kind.clone(), over_src.clone())
@@ -1488,7 +1488,7 @@ mod test {
                 ..Default::default()
             };
 
-            let bad_kind = IdentKind::Cgen(Dim::from_u8(1));
+            let bad_kind = IdentKind::Cgen(Dim::Vector);
             let result = virt_frag
                 .clone()
                 .resolve(bad_kind.clone(), over_src.clone())

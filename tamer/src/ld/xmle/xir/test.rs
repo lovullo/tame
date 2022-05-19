@@ -80,7 +80,7 @@ fn test_writes_deps() -> TestResult {
     let objs = [
         IdentObject::Ident(
             "cgentest".intern(),
-            IdentKind::Cgen(Dim::from_u8(1)),
+            IdentKind::Cgen(Dim::Vector),
             Source {
                 yields: Some("yieldsValue".intern()),
                 parent: Some("cparent".intern()),
@@ -91,32 +91,32 @@ fn test_writes_deps() -> TestResult {
         ),
         IdentObject::Ident(
             "classtest".intern(),
-            IdentKind::Class(Dim::from_u8(2)),
+            IdentKind::Class(Dim::Matrix),
             Default::default(),
         ),
         IdentObject::Ident(
             "consttest".intern(),
-            IdentKind::Const(Dim::from_u8(0), SymDtype::Boolean),
+            IdentKind::Const(Dim::Scalar, SymDtype::Boolean),
             Default::default(),
         ),
         IdentObject::Ident(
             "functest".intern(),
-            IdentKind::Func(Dim::from_u8(1), SymDtype::Integer),
+            IdentKind::Func(Dim::Matrix, SymDtype::Integer),
             Default::default(),
         ),
         IdentObject::Ident(
             "gentest".intern(),
-            IdentKind::Gen(Dim::from_u8(1), SymDtype::Boolean),
+            IdentKind::Gen(Dim::Matrix, SymDtype::Boolean),
             Default::default(),
         ),
         IdentObject::Ident(
             "lparamtest".intern(),
-            IdentKind::Gen(Dim::from_u8(2), SymDtype::Float),
+            IdentKind::Gen(Dim::Matrix, SymDtype::Float),
             Default::default(),
         ),
         IdentObject::Ident(
             "paramtest".intern(),
-            IdentKind::Gen(Dim::from_u8(0), SymDtype::Integer),
+            IdentKind::Gen(Dim::Scalar, SymDtype::Integer),
             Default::default(),
         ),
         IdentObject::Ident(
@@ -484,4 +484,4 @@ macro_rules! test_exec_sec {
 test_exec_sec!(test_map_exec, QN_L_MAP_EXEC, IdentKind::Map);
 test_exec_sec!(test_retmap_exec, QN_L_RETMAP_EXEC, IdentKind::RetMap);
 test_exec_sec!(test_static, QN_L_STATIC, IdentKind::Worksheet);
-test_exec_sec!(test_exec, QN_L_EXEC, IdentKind::Class(Dim::from_u8(1)));
+test_exec_sec!(test_exec, QN_L_EXEC, IdentKind::Class(Dim::Vector));

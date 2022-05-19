@@ -19,7 +19,7 @@
 
 //! Identifiers (a type of [object][super::object::IdentObject]).
 
-use crate::obj::xmlo::{SymAttrs, SymDtype, SymType};
+use crate::obj::xmlo::{Dim as XmloDim, SymAttrs, SymDtype, SymType};
 use crate::sym::{st, GlobalSymbolResolve, SymbolId};
 use std::convert::TryFrom;
 use std::error::Error;
@@ -245,14 +245,14 @@ impl TryFrom<&SymAttrs> for IdentKind {
                 Ok($to)
             };
             ($to:expr, dim) => {
-                Ok($to(Dim(attrs.dim.ok_or(Self::Error::MissingDim)? as u8)))
+                Ok($to(attrs.dim.ok_or(Self::Error::MissingDim)?.into()))
             };
             ($to:expr, dtype) => {
                 Ok($to(attrs.dtype.ok_or(Self::Error::MissingDtype)?))
             };
             ($to:expr, dim, dtype) => {
                 Ok($to(
-                    Dim(attrs.dim.ok_or(Self::Error::MissingDim)? as u8),
+                    attrs.dim.ok_or(Self::Error::MissingDim)?.into(),
                     attrs.dtype.ok_or(Self::Error::MissingDtype)?,
                 ))
             };
@@ -309,64 +309,46 @@ impl Error for IdentKindError {
     }
 }
 
-/// Identifier dimensions.
+/// Value dimensionality.
 ///
-/// This determines the number of subscripts needed to access a scalar
+/// This indicates the number of subscripts needed to access a scalar
 ///   value.
-/// A value of `0` indicates a scalar;
-///   a value of `1` indicates a vector;
-///   a value of `2` indicates a matrix;
-///   and a value of `n` indicates a multi-dimensional array of
-///     depth `n`.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
-pub struct Dim(u8);
-
-impl Dim {
-    pub fn from_u8(value: u8) -> Self {
-        // We don't expect to format a value this large.
-        // In practice, it should never exceed 2.
-        assert!(value < 10, "Dim value cannot exceed 9");
-
-        Self(value)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Dim {
+    Scalar = 0,
+    Vector = 1,
+    Matrix = 2,
 }
 
-/// Underlying datatype of identifier.
-///
-/// TODO: This will always be 0≤n≤9, so let's introduce a newtype for it.
-impl AsRef<str> for Dim {
-    fn as_ref(&self) -> &str {
-        match self.0 {
-            0 => &"0",
-            1 => &"1",
-            2 => &"2",
-            3 => &"3",
-            4 => &"4",
-            5 => &"5",
-            6 => &"6",
-            7 => &"7",
-            8 => &"8",
-            9 => &"9",
-            _ => unreachable!(),
+// These are clearly the same thing,
+//   but it's not worth sharing them until a natural shared abstraction
+//   arises.
+impl From<XmloDim> for Dim {
+    fn from(dim: XmloDim) -> Self {
+        match dim {
+            XmloDim::Scalar => Dim::Scalar,
+            XmloDim::Vector => Dim::Vector,
+            XmloDim::Matrix => Dim::Matrix,
         }
     }
 }
 
 impl From<Dim> for u8 {
     fn from(dim: Dim) -> Self {
-        dim.0
+        dim as u8
     }
 }
 
 impl From<Dim> for SymbolId {
     fn from(dim: Dim) -> Self {
-        st::decimal1(dim.0).as_sym()
+        st::decimal1(dim as u8).as_sym()
     }
 }
 
 impl std::fmt::Display for Dim {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        (self.0).fmt(fmt)
+        (*self as u8).fmt(fmt)
     }
 }
 
@@ -378,23 +360,6 @@ mod test {
     use super::*;
     use crate::obj::xmlo::Dim as XmloDim;
     use std::convert::TryInto;
-
-    #[test]
-    fn dim_from_u8() {
-        let n = 5u8;
-
-        assert_eq!(Dim(n), Dim::from_u8(n));
-    }
-
-    #[test]
-    fn dim_to_str() {
-        // we'll just test high and low
-        let low: &str = Dim(0).as_ref();
-        let high: &str = Dim(9).as_ref();
-
-        assert_eq!("0", low);
-        assert_eq!("9", high);
-    }
 
     macro_rules! test_kind {
         ($name:ident, $src:expr => $dest:expr) => {
@@ -417,7 +382,7 @@ mod test {
                 let dim = XmloDim::Vector;
 
                 assert_eq!(
-                    Ok($dest(Dim(dim.into()))),
+                    Ok($dest(Dim::Vector)),
                     SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),
@@ -470,7 +435,7 @@ mod test {
                 let dtype = SymDtype::Float;
 
                 assert_eq!(
-                    Ok($dest(Dim(dim.into()), dtype)),
+                    Ok($dest(Dim::Vector, dtype)),
                     SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),

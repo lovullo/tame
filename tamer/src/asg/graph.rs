@@ -598,7 +598,7 @@ mod test {
 
         let sym = "symext".intern();
         let src = Source::default();
-        let kind = IdentKind::Class(Dim::from_u8(3));
+        let kind = IdentKind::Class(Dim::Matrix);
         let node = sut.declare_extern(sym, kind.clone(), src.clone())?;
 
         let resrc = Source {

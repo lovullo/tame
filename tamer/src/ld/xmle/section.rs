@@ -288,7 +288,7 @@ mod test {
 
         let a = IdentObject::IdentFragment(
             "a".intern(),
-            IdentKind::Const(Dim::from_u8(0), SymDtype::Integer),
+            IdentKind::Const(Dim::Scalar, SymDtype::Integer),
             Default::default(),
             "fraga".intern(),
         );
@@ -327,19 +327,19 @@ mod test {
 
         let cgen = IdentObject::Ident(
             "cgen".intern(),
-            IdentKind::Cgen(Dim::from_u8(1)),
+            IdentKind::Cgen(Dim::Vector),
             Default::default(),
         );
 
         let gen = IdentObject::Ident(
             "gen".intern(),
-            IdentKind::Gen(Dim::from_u8(1), SymDtype::Integer),
+            IdentKind::Gen(Dim::Vector, SymDtype::Integer),
             Default::default(),
         );
 
         let lparam = IdentObject::Ident(
             "lparam".intern(),
-            IdentKind::Lparam(Dim::from_u8(1), SymDtype::Integer),
+            IdentKind::Lparam(Dim::Vector, SymDtype::Integer),
             Default::default(),
         );
 
@@ -434,13 +434,13 @@ mod test {
         let mut sut = Sections::new();
 
         add_syms!(sut, {
-            cgen: IdentKind::Cgen(Dim::from_u8(1)),
-            class: IdentKind::Class(Dim::from_u8(2)),
-            const_: IdentKind::Const(Dim::from_u8(0), SymDtype::Boolean),
-            func: IdentKind::Func(Dim::from_u8(1), SymDtype::Integer),
-            gen: IdentKind::Gen(Dim::from_u8(1), SymDtype::Boolean),
-            lparam: IdentKind::Lparam(Dim::from_u8(2), SymDtype::Float),
-            param: IdentKind::Param(Dim::from_u8(0), SymDtype::Integer),
+            cgen: IdentKind::Cgen(Dim::Scalar),
+            class: IdentKind::Class(Dim::Matrix),
+            const_: IdentKind::Const(Dim::Scalar, SymDtype::Boolean),
+            func: IdentKind::Func(Dim::Vector, SymDtype::Integer),
+            gen: IdentKind::Gen(Dim::Vector, SymDtype::Boolean),
+            lparam: IdentKind::Lparam(Dim::Matrix, SymDtype::Float),
+            param: IdentKind::Param(Dim::Scalar, SymDtype::Integer),
             rate: IdentKind::Rate(SymDtype::Integer),
             tpl: IdentKind::Tpl,
             ty: IdentKind::Type(SymDtype::Integer),
