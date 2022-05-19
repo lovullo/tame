@@ -625,7 +625,7 @@ mod test {
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(sym_extern).unwrap()).unwrap(),
+            sut.get_ident(sut.lookup(sym_extern).unwrap()).unwrap(),
         );
 
         assert_eq!(
@@ -637,7 +637,7 @@ mod test {
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(sym_non_extern).unwrap()).unwrap(),
+            sut.get_ident(sut.lookup(sym_non_extern).unwrap()).unwrap(),
         );
 
         assert_eq!(
@@ -649,7 +649,7 @@ mod test {
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(sym_map).unwrap()).unwrap(),
+            sut.get_ident(sut.lookup(sym_map).unwrap()).unwrap(),
         );
 
         assert_eq!(
@@ -661,7 +661,7 @@ mod test {
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(sym_retmap).unwrap()).unwrap(),
+            sut.get_ident(sut.lookup(sym_retmap).unwrap()).unwrap(),
         );
     }
 
@@ -702,7 +702,7 @@ mod test {
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(sym).unwrap()).unwrap(),
+            sut.get_ident(sut.lookup(sym).unwrap()).unwrap(),
         );
     }
 
@@ -744,7 +744,7 @@ mod test {
                     ..Default::default()
                 },
             ),
-            sut.get(sut.lookup(sym).unwrap()).unwrap(),
+            sut.get_ident(sut.lookup(sym).unwrap()).unwrap(),
         );
     }
 
@@ -861,7 +861,7 @@ mod test {
                 Default::default(),
                 frag
             )),
-            sut.get(node),
+            sut.get_ident(node),
         );
     }
 
@@ -913,7 +913,10 @@ mod test {
             .expect("ident/fragment was not added to graph");
 
         // The identifier should not have been modified on failure.
-        assert!(matches!(sut.get(node).unwrap(), Ident::Extern(_, _, _)));
+        assert!(matches!(
+            sut.get_ident(node).unwrap(),
+            Ident::Extern(_, _, _)
+        ));
     }
 
     #[test]

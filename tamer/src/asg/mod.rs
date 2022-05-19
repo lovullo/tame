@@ -37,7 +37,7 @@
 //!
 //! Graph Structure
 //! ===============
-//! Each node (vector) in the graph represents an [object][Ident],
+//! Each node (vector) in the graph represents an [`Object`],
 //!   such as an identifier or an expression.
 //! Each directed edge `(A->B)` represents that `A` depends upon `B`.
 //!
@@ -53,51 +53,6 @@
 //! Each object may have a number of valid states;
 //!   see [`Ident`] for valid object states and transitions.
 //!
-//!
-//! How To Use
-//! ==========
-//! A suitable concrete [`Asg`] implementation is provided by
-//!   [`DefaultAsg`].
-//!
-//! ```
-//! use tamer::global;
-//! use tamer::asg::{DefaultAsg, IdentKind, Ident, Source};
-//! use tamer::sym::{Interner, DefaultProgInterner};
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Be sure to choose size and initial capacities appropriate for your
-//! // situation.
-//! let mut asg = DefaultAsg::with_capacity(
-//!     1024,
-//!     1024,
-//! );
-//!
-//! let interner = DefaultProgInterner::new();
-//! let identa_sym = interner.intern("identa");
-//! let identb_sym = interner.intern("identb");
-//!
-//! let identa = asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
-//! let identb = asg.declare_extern(identb_sym, IdentKind::Meta, Source::default())?;
-//!
-//! assert_eq!(
-//!     Some(&Ident::Extern(identb_sym, IdentKind::Meta, Source::default())),
-//!     asg.get(identb),
-//! );
-//!
-//! // Dependencies can be declared even if an identifier is
-//! // unresolved.  This declares `(identa)->(identb)`.
-//! asg.add_dep(identa, identb);
-//! assert!(asg.has_dep(identa, identb));
-//!
-//! // TODO: extern resolution
-//!
-//! // Identifiers are indexed by symbol name.
-//! assert_eq!(Some(identa), asg.lookup(identa_sym));
-//! #
-//! # Ok(()) // main
-//! # }
-//! ```
-//!
 //! Missing Identifiers
 //! -------------------
 //! Since identifiers in TAME can be defined in any order relative to their
@@ -107,89 +62,6 @@
 //! For example,
 //!   [`Asg::add_dep_lookup`] will add an [`Ident::Missing`] to the graph
 //!     if either identifier has not yet been declared.
-//!
-//! ```
-//! # use tamer::global;
-//! # use tamer::asg::{DefaultAsg, IdentKind, Ident, FragmentText, Source};
-//! # use tamer::sym::{Interner, DefaultProgInterner};
-//! #
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::with_capacity(
-//! #     1024,
-//! #     1024,
-//! # );
-//! # let interner = DefaultProgInterner::new();
-//! #
-//! let identa_sym = interner.intern("identa");
-//! let identb_sym = interner.intern("identb");
-//! let (identa, identb) = asg.add_dep_lookup(identa_sym, identb_sym);
-//!
-//! assert_eq!(Some(&Ident::Missing(identa_sym)), asg.get(identa));
-//! assert_eq!(Some(&Ident::Missing(identb_sym)), asg.get(identb));
-//!
-//! // The identifiers returned above are proper objects on the graph.
-//! assert_eq!(Some(identa), asg.lookup(identa_sym));
-//! assert_eq!(Some(identb), asg.lookup(identb_sym));
-//!
-//! // Once declared, the missing identifier changes state and dependencies
-//! // are retained.
-//! asg.declare(identa_sym, IdentKind::Meta, Source::default())?;
-//!
-//! assert_eq!(
-//!     Some(&Ident::Ident(identa_sym, IdentKind::Meta, Source::default())),
-//!     asg.get(identa),
-//! );
-//!
-//! assert!(asg.has_dep(identa, identb));
-//! #
-//! # Ok(()) // main
-//! # }
-//! ```
-//!
-//! Fragments
-//! ---------
-//! A compiled fragment can be attached to any resolved identifier (see
-//!   [`Ident::Ident`]) using [`Asg::set_fragment`].
-//! Doing so changes the state of the identifier to [`Ident::IdentFragment`],
-//!   and it is an error to attempt to overwrite that fragment once it is
-//!   set.
-//!
-//! ```
-//! # use tamer::global;
-//! # use tamer::asg::{DefaultAsg, IdentKind, Ident, FragmentText, Source};
-//! # use tamer::sym::{Interner, GlobalSymbolIntern};
-//! #
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let mut asg = DefaultAsg::with_capacity(
-//! #     1024,
-//! #     1024,
-//! # );
-//! #
-//! let sym = "ident".intern();
-//!
-//! // Fragments can be attached to resolved identifiers.
-//! let ident = asg.declare(
-//!     sym, IdentKind::Meta, Source::default()
-//! )?;
-//! asg.set_fragment(sym, FragmentText::from("test fragment"))?;
-//!
-//! assert_eq!(
-//!     Some(&Ident::IdentFragment(
-//!         sym,
-//!         IdentKind::Meta,
-//!         Source::default(),
-//!         FragmentText::from("test fragment"),
-//!     )),
-//!     asg.get(ident),
-//! );
-//!
-//! // But overwriting will fail
-//! let bad = asg.set_fragment(sym, FragmentText::from("overwrite"));
-//! assert!(bad.is_err());
-//! #
-//! # Ok(()) // main
-//! # }
-//! ```
 
 mod error;
 mod graph;
@@ -202,6 +74,7 @@ pub use ident::{
     FragmentText, Ident, IdentKind, Source, TransitionError, TransitionResult,
     UnresolvedError,
 };
+pub use object::Object;
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg = graph::Asg;

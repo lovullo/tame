@@ -26,7 +26,7 @@ use super::xmle::{
     XmleSections,
 };
 use crate::{
-    asg::DefaultAsg,
+    asg::{DefaultAsg, Ident, Object},
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
@@ -88,7 +88,13 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
                     .map(|cycle| {
                         let mut path: Vec<SymbolId> = cycle
                             .into_iter()
-                            .map(|obj| depgraph.get(obj).unwrap().name())
+                            .filter_map(|obj| {
+                                depgraph
+                                    .get(obj)
+                                    .unwrap()
+                                    .as_ident_ref()
+                                    .map(Ident::name)
+                            })
                             .collect();
 
                         path.reverse();
@@ -132,7 +138,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
             .pretty_print(true)
             .export_node_weights(Box::new(|node| {
                 let (name, kind, generated) = match node {
-                    Some(n) => {
+                    Some(Object::Ident(n)) => {
                         let generated = match n.src() {
                             Some(src) => src.generated,
                             None => false,
@@ -147,7 +153,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
                     None => (
                         String::from("missing"),
                         "missing".into(),
-                        format!("{}", false),
+                        "false".into(),
                     ),
                 };
 

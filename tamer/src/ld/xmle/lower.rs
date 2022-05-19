@@ -55,7 +55,7 @@ where
 
     while let Some(index) = dfs.next(&asg.graph) {
         let ident = asg.get(index).expect("missing node");
-        dest.push(ident)?;
+        dest.push(ident.unwrap_ident_ref())?;
     }
 
     dest.push(get_ident(asg, st::L_MAP_UUUTAIL))?;
@@ -77,6 +77,7 @@ where
             "missing internal identifier: {}",
             sym.lookup_str()
         ))
+        .unwrap_ident_ref()
 }
 
 /// Check graph for cycles
@@ -109,7 +110,10 @@ fn check_cycles(asg: &Asg) -> SortResult<()> {
 
             let is_all_funcs = scc.iter().all(|nx| {
                 let ident = asg.get(*nx).expect("missing node");
-                matches!(ident.kind(), Some(IdentKind::Func(..)))
+                matches!(
+                    ident.as_ident_ref().and_then(Ident::kind),
+                    Some(IdentKind::Func(..))
+                )
             });
 
             if is_all_funcs {
@@ -276,22 +280,22 @@ mod test {
             vec![
                 // Static head
                 asg.lookup(st::L_MAP_UUUHEAD.into())
-                    .and_then(|id| asg.get(id)),
+                    .and_then(|id| asg.get_ident(id)),
                 asg.lookup(st::L_RETMAP_UUUHEAD.into())
-                    .and_then(|id| asg.get(id)),
+                    .and_then(|id| asg.get_ident(id)),
                 // Post-order
-                asg.get(adepdep),
-                asg.get(adep),
-                asg.get(a),
+                asg.get_ident(adepdep),
+                asg.get_ident(adep),
+                asg.get_ident(a),
                 // TODO: This will go away once Root is no longer considered
                 //   an identifier.
                 // The real Sections filters this out.
                 Some(&Ident::Root),
                 // Static tail
                 asg.lookup(st::L_MAP_UUUTAIL.into())
-                    .and_then(|id| asg.get(id)),
+                    .and_then(|id| asg.get_ident(id)),
                 asg.lookup(st::L_RETMAP_UUUTAIL.into())
-                    .and_then(|id| asg.get(id)),
+                    .and_then(|id| asg.get_ident(id)),
             ]
             .into_iter()
             .collect::<Option<Vec<_>>>()

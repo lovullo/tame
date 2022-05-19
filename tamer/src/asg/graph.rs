@@ -20,7 +20,7 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::{
-    AsgError, FragmentText, Ident, IdentKind, Source, TransitionResult,
+    AsgError, FragmentText, Ident, IdentKind, Object, Source, TransitionResult,
 };
 use crate::global;
 use crate::sym::SymbolId;
@@ -44,7 +44,7 @@ pub type AsgEdge = ();
 ///
 /// Enclosed in an [`Option`] to permit moving owned values out of the
 ///   graph.
-pub type Node = Option<Ident>;
+pub type Node = Option<Object>;
 
 /// Index size for Graph nodes and edges.
 type Ix = global::ProgSymSize;
@@ -118,7 +118,7 @@ impl Asg {
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
         // This is not indexed and is not accessable by name.
-        let root_node = graph.add_node(Some(Ident::Root));
+        let root_node = graph.add_node(Some(Ident::Root.into()));
 
         Self {
             graph,
@@ -169,7 +169,7 @@ impl Asg {
     /// See [`Ident::declare`] for more information.
     fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
         self.lookup(ident).unwrap_or_else(|| {
-            let index = self.graph.add_node(Some(Ident::declare(ident)));
+            let index = self.graph.add_node(Some(Ident::declare(ident).into()));
 
             self.index_identifier(ident, index);
             ObjectRef::new(index)
@@ -212,15 +212,16 @@ impl Asg {
 
         let obj = node
             .take()
-            .expect(&format!("internal error: missing object"));
+            .expect("internal error: missing object")
+            .unwrap_ident();
 
         f(obj)
             .and_then(|obj| {
-                node.replace(obj);
+                node.replace(obj.into());
                 Ok(identi)
             })
             .or_else(|(orig, err)| {
-                node.replace(orig);
+                node.replace(orig.into());
                 Err(err.into())
             })
     }
@@ -343,11 +344,20 @@ impl Asg {
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
     #[inline]
-    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&Ident> {
+    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&Object> {
         self.graph.node_weight(index.into().into()).map(|node| {
             node.as_ref()
                 .expect("internal error: Asg::get missing Node data")
         })
+    }
+
+    /// Retrieve an identifier from the graph by [`ObjectRef`].
+    ///
+    /// If the object exists but is not an identifier,
+    ///   [`None`] will be returned.
+    #[inline]
+    pub fn get_ident<I: Into<ObjectRef>>(&self, index: I) -> Option<&Ident> {
+        self.get(index).and_then(Object::as_ident_ref)
     }
 
     /// Attempt to retrieve an identifier from the graph by name.
@@ -493,7 +503,7 @@ mod test {
 
         assert_ne!(nodea, nodeb);
 
-        let givena = sut.get(nodea).unwrap();
+        let givena = sut.get_ident(nodea).unwrap();
         assert_eq!(syma, givena.name());
         assert_eq!(Some(&IdentKind::Meta), givena.kind());
         assert_eq!(
@@ -504,7 +514,7 @@ mod test {
             givena.src()
         );
 
-        let givenb = sut.get(nodeb).unwrap();
+        let givenb = sut.get_ident(nodeb).unwrap();
         assert_eq!(symb, givenb.name());
         assert_eq!(Some(&IdentKind::Worksheet), givenb.kind());
         assert_eq!(
@@ -587,7 +597,7 @@ mod test {
         assert_matches!(result, Err(AsgError::ObjectTransition(..)));
 
         // The node should have been restored.
-        assert_eq!(Some(&src), sut.get(node).unwrap().src());
+        assert_eq!(Some(&src), sut.get_ident(node).unwrap().src());
 
         Ok(())
     }
@@ -632,7 +642,7 @@ mod test {
         assert_matches!(result, Err(AsgError::ObjectTransition(..)));
 
         // The node should have been restored.
-        assert_eq!(Some(&src), sut.get(node).unwrap().src());
+        assert_eq!(Some(&src), sut.get_ident(node).unwrap().src());
 
         Ok(())
     }
@@ -658,7 +668,7 @@ mod test {
             "fragment node does not match original node"
         );
 
-        let obj = sut.get(node).unwrap();
+        let obj = sut.get_ident(node).unwrap();
 
         assert_eq!(sym, obj.name());
         assert_eq!(Some(&IdentKind::Meta), obj.kind());
@@ -688,7 +698,7 @@ mod test {
         let result = sut.set_fragment(sym, "".into());
 
         // The node should have been restored.
-        let obj = sut.get(node).unwrap();
+        let obj = sut.get_ident(node).unwrap();
 
         assert_eq!(sym, obj.name());
         assert_matches!(result, Err(AsgError::ObjectTransition(..)));
@@ -744,8 +754,8 @@ mod test {
         let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
         assert!(sut.has_dep(symnode, depnode));
 
-        assert_eq!(sym, sut.get(symnode).unwrap().name());
-        assert_eq!(dep, sut.get(depnode).unwrap().name());
+        assert_eq!(sym, sut.get_ident(symnode).unwrap().name());
+        assert_eq!(dep, sut.get_ident(depnode).unwrap().name());
 
         Ok(())
     }
@@ -770,7 +780,7 @@ mod test {
 
         assert_eq!(symnode, declared);
 
-        let obj = sut.get(declared).unwrap();
+        let obj = sut.get_ident(declared).unwrap();
 
         assert_eq!(sym, obj.name());
         assert_eq!(Some(&IdentKind::Meta), obj.kind());
