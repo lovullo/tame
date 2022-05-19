@@ -106,11 +106,6 @@ impl<'a> Sections<'a> {
 
 impl<'a> XmleSections<'a> for Sections<'a> {
     fn push(&mut self, ident: &'a Ident) -> PushResult {
-        // TODO: This can go away once we stop treating root as an ident
-        if matches!(ident, Ident::Root) {
-            return Ok(());
-        }
-
         self.deps.push(ident);
 
         // TODO: This cannot happen, so use an API without Option.
@@ -307,16 +302,6 @@ mod test {
         assert_eq!(sut.take_deps(), vec![&a, &b],);
 
         Ok(())
-    }
-
-    // TODO: This can be removed once we no longer treat Root as an
-    //   identifier.
-    #[test]
-    fn push_ignores_root() {
-        let mut sut = Sut::new();
-
-        sut.push(&Ident::Root).unwrap();
-        assert!(sut.take_deps().is_empty());
     }
 
     // Certain identifiers have no fragments because the code is associated

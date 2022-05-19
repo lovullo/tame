@@ -118,7 +118,7 @@ impl Asg {
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
         // This is not indexed and is not accessable by name.
-        let root_node = graph.add_node(Some(Ident::Root.into()));
+        let root_node = graph.add_node(Some(Object::Root));
 
         Self {
             graph,

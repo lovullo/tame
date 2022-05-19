@@ -24,6 +24,15 @@ use super::Ident;
 /// Some object on the ASG.
 #[derive(Debug, PartialEq)]
 pub enum Object {
+    /// Represents the root of all reachable identifiers.
+    ///
+    /// Any identifier not reachable from the root will not be linked into
+    ///   the final executable.
+    ///
+    /// There should be only one object of this kind.
+    Root,
+
+    /// Identifier (a named object).
     Ident(Ident),
 }
 
@@ -33,6 +42,7 @@ impl Object {
     pub fn as_ident_ref(&self) -> Option<&Ident> {
         match self {
             Self::Ident(ident) => Some(ident),
+            _ => None,
         }
     }
 
@@ -47,6 +57,7 @@ impl Object {
     pub fn unwrap_ident(self) -> Ident {
         match self {
             Self::Ident(ident) => ident,
+            x => panic!("internal error: expected Ident, found {x:?}"),
         }
     }
 
@@ -61,6 +72,7 @@ impl Object {
     pub fn unwrap_ident_ref(&self) -> &Ident {
         match self {
             Self::Ident(ident) => ident,
+            x => panic!("internal error: expected Ident, found {x:?}"),
         }
     }
 }

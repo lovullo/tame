@@ -23,7 +23,7 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{Asg, Ident, IdentKind, ObjectRef},
+    asg::{Asg, Ident, IdentKind, Object, ObjectRef},
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -54,8 +54,10 @@ where
     dest.push(get_ident(asg, st::L_RETMAP_UUUHEAD))?;
 
     while let Some(index) = dfs.next(&asg.graph) {
-        let ident = asg.get(index).expect("missing node");
-        dest.push(ident.unwrap_ident_ref())?;
+        match asg.get(index).expect("missing object") {
+            Object::Root => (),
+            Object::Ident(ident) => dest.push(ident)?,
+        }
     }
 
     dest.push(get_ident(asg, st::L_MAP_UUUTAIL))?;
@@ -287,10 +289,6 @@ mod test {
                 asg.get_ident(adepdep),
                 asg.get_ident(adep),
                 asg.get_ident(a),
-                // TODO: This will go away once Root is no longer considered
-                //   an identifier.
-                // The real Sections filters this out.
-                Some(&Ident::Root),
                 // Static tail
                 asg.lookup(st::L_MAP_UUUTAIL.into())
                     .and_then(|id| asg.get_ident(id)),

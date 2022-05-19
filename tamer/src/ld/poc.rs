@@ -118,6 +118,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
     Ok(())
 }
 
+// TODO: This needs to be further generalized.
 pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
     let mut fs = VisitOnceFilesystem::new();
     let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
@@ -150,6 +151,12 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
                             format!("{}", generated),
                         )
                     }
+                    // TODO: We want these filtered.
+                    Some(_) => (
+                        String::from("non-ident"),
+                        "non-ident".into(),
+                        "false".into(),
+                    ),
                     None => (
                         String::from("missing"),
                         "missing".into(),
