@@ -19,9 +19,9 @@
 
 //! Abstract graph as the basis for concrete ASGs.
 
-use super::ident::IdentKind;
-use super::object::{FragmentText, Source, TransitionResult};
-use super::{AsgError, IdentObject};
+use super::{
+    AsgError, FragmentText, IdentKind, IdentObject, Source, TransitionResult,
+};
 use crate::global;
 use crate::sym::SymbolId;
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
@@ -59,8 +59,8 @@ type Ix = global::ProgSymSize;
 ///
 /// This IR focuses on the definition and manipulation of objects and their
 ///   dependencies.
-/// See [`IdentObject`](super::object::IdentObject) for a summary of valid
-///   identifier object state transitions.
+/// See [`IdentObject`]for a summary of valid identifier object state
+///   transitions.
 ///
 /// Objects are never deleted from the graph,
 ///   so [`ObjectRef`]s will remain valid for the lifetime of the ASG.
