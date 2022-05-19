@@ -27,27 +27,10 @@
 //! This IR should be converted into a higher-level IR quickly,
 //!   especially considering that it will be going away in the future.
 
-use crate::sym::{st, GlobalSymbolResolve, SymbolId};
+use crate::num::{Dim, Dtype};
+use crate::sym::SymbolId;
 use std::convert::TryFrom;
 use std::result::Result;
-
-/// Value dimensionality.
-///
-/// This indicates the number of subscripts needed to access a scalar
-///   value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Dim {
-    Scalar = 0,
-    Vector = 1,
-    Matrix = 2,
-}
-
-impl Into<u8> for Dim {
-    fn into(self) -> u8 {
-        self as u8
-    }
-}
 
 /// Symbol attributes.
 ///
@@ -85,7 +68,7 @@ pub struct SymAttrs {
     /// This is not a primitive,
     ///   and mostly represents whether or not floating point computations
     ///   will take place.
-    pub dtype: Option<SymDtype>,
+    pub dtype: Option<Dtype>,
 
     /// Whether the symbol's location will be determined at link-time.
     ///
@@ -237,74 +220,25 @@ impl TryFrom<&[u8]> for SymType {
     }
 }
 
-/// Underlying datatype.
-///
-/// This is the type of scalar data stored within the given symbol.
-///
-/// *NB:* This was _not enforced_ by the XSLT-based compiler.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum SymDtype {
-    /// {⊥,⊤} = {0,1} ⊂ ℤ
-    Boolean,
-    /// ℤ
-    Integer,
-    /// ℝ
-    Float,
-    /// ∅
-    Empty,
-}
-
-impl SymDtype {
-    pub fn as_sym(&self) -> SymbolId {
-        match self {
-            SymDtype::Boolean => st::L_BOOLEAN,
-            SymDtype::Integer => st::L_INTEGER,
-            SymDtype::Float => st::L_FLOAT,
-            SymDtype::Empty => st::L_EMPTY,
-        }
-        .as_sym()
-    }
-}
-
-impl Into<SymbolId> for SymDtype {
-    fn into(self) -> SymbolId {
-        self.as_sym()
-    }
-}
-
-// TODO: Remove after xmle writer is removed
-impl AsRef<str> for SymDtype {
-    /// Produce `xmlo`-compatible representation.
-    fn as_ref(&self) -> &str {
-        self.as_sym().lookup_str()
-    }
-}
-
-impl TryFrom<&[u8]> for SymDtype {
+impl TryFrom<&[u8]> for Dtype {
     type Error = String;
 
     /// Determine data type from source `preproc:sym/@dtype`.
     ///
     /// This raises source `xmlo` data into this IR.
     /// See [`crate::obj::xmlo::XmloReader`].
-    fn try_from(value: &[u8]) -> Result<SymDtype, Self::Error> {
+    fn try_from(value: &[u8]) -> Result<Dtype, Self::Error> {
         match value {
-            b"boolean" => Ok(SymDtype::Boolean),
-            b"integer" => Ok(SymDtype::Integer),
-            b"float" => Ok(SymDtype::Float),
-            b"empty" => Ok(SymDtype::Empty),
+            b"boolean" => Ok(Dtype::Boolean),
+            b"integer" => Ok(Dtype::Integer),
+            b"float" => Ok(Dtype::Float),
+            b"empty" => Ok(Dtype::Empty),
             _ => Err(format!(
                 "unknown symbol dtype `{}`",
                 String::from_utf8(value.to_vec())
                     .unwrap_or("(invalid UTF8)".into())
             )),
         }
-    }
-}
-
-impl std::fmt::Display for SymDtype {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "{}", self.as_sym().lookup_str())
     }
 }
 
@@ -330,15 +264,12 @@ mod test {
 
     #[test]
     fn symdtype_from_u8() {
-        assert_eq!(
-            Ok(SymDtype::Integer),
-            SymDtype::try_from(b"integer" as &[u8])
-        );
+        assert_eq!(Ok(Dtype::Integer), Dtype::try_from(b"integer" as &[u8]));
     }
 
     #[test]
     fn symdtype_failure_from_unknown_u8() {
-        match SymDtype::try_from(b"unknownd" as &[u8]) {
+        match Dtype::try_from(b"unknownd" as &[u8]) {
             Err(s) => assert!(s.contains("unknownd")),
             bad => panic!("expected error: {:?}", bad),
         }
@@ -346,7 +277,7 @@ mod test {
 
     #[test]
     fn symdtype_as_str() {
-        let boolean: &str = SymDtype::Boolean.as_ref();
+        let boolean = Dtype::Boolean.to_string();
         assert_eq!("boolean", boolean);
     }
 }

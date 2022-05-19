@@ -81,5 +81,5 @@ mod reader;
 
 pub use asg_builder::{AsgBuilder, AsgBuilderError, AsgBuilderState};
 pub use error::XmloError;
-pub use ir::{Dim, SymAttrs, SymDtype, SymType};
+pub use ir::{SymAttrs, SymType};
 pub use reader::{XmloReader, XmloToken};

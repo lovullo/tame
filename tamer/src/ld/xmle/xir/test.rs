@@ -20,11 +20,11 @@
 use super::*;
 use crate::ld::xmle::section::PushResult;
 use crate::ld::xmle::Sections;
-use crate::obj::xmlo::SymDtype;
+use crate::num::{Dim, Dtype};
 use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
 use crate::xir::tree::merge_attr_fragments;
 use crate::{
-    asg::{Dim, IdentKind, Source},
+    asg::{IdentKind, Source},
     xir::{
         pred::{not, open},
         tree::parser_from,
@@ -96,32 +96,32 @@ fn test_writes_deps() -> TestResult {
         ),
         IdentObject::Ident(
             "consttest".intern(),
-            IdentKind::Const(Dim::Scalar, SymDtype::Boolean),
+            IdentKind::Const(Dim::Scalar, Dtype::Boolean),
             Default::default(),
         ),
         IdentObject::Ident(
             "functest".intern(),
-            IdentKind::Func(Dim::Matrix, SymDtype::Integer),
+            IdentKind::Func(Dim::Matrix, Dtype::Integer),
             Default::default(),
         ),
         IdentObject::Ident(
             "gentest".intern(),
-            IdentKind::Gen(Dim::Matrix, SymDtype::Boolean),
+            IdentKind::Gen(Dim::Matrix, Dtype::Boolean),
             Default::default(),
         ),
         IdentObject::Ident(
             "lparamtest".intern(),
-            IdentKind::Gen(Dim::Matrix, SymDtype::Float),
+            IdentKind::Gen(Dim::Matrix, Dtype::Float),
             Default::default(),
         ),
         IdentObject::Ident(
             "paramtest".intern(),
-            IdentKind::Gen(Dim::Scalar, SymDtype::Integer),
+            IdentKind::Gen(Dim::Scalar, Dtype::Integer),
             Default::default(),
         ),
         IdentObject::Ident(
             "ratetest".intern(),
-            IdentKind::Rate(SymDtype::Integer),
+            IdentKind::Rate(Dtype::Integer),
             Default::default(),
         ),
         IdentObject::Ident(
@@ -131,7 +131,7 @@ fn test_writes_deps() -> TestResult {
         ),
         IdentObject::Ident(
             "typetest".intern(),
-            IdentKind::Type(SymDtype::Integer),
+            IdentKind::Type(Dtype::Integer),
             Default::default(),
         ),
         IdentObject::Ident(

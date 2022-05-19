@@ -39,10 +39,12 @@
 
 use super::{
     reader::{XmloResult, XmloToken},
-    Dim, SymAttrs, SymType, XmloError,
+    SymAttrs, SymType, XmloError,
 };
-use crate::asg::{Asg, AsgError, Dim as AsgDim, IdentKind, Source};
-use crate::sym::SymbolId;
+use crate::{
+    asg::{Asg, AsgError, IdentKind, Source},
+    sym::SymbolId,
+};
 use std::convert::TryInto;
 use std::error::Error;
 use std::fmt::Display;
@@ -350,14 +352,14 @@ impl TryFrom<&SymAttrs> for IdentKind {
                 Ok($to)
             };
             ($to:expr, dim) => {
-                Ok($to(attrs.dim.ok_or(Self::Error::MissingDim)?.into()))
+                Ok($to(attrs.dim.ok_or(Self::Error::MissingDim)?))
             };
             ($to:expr, dtype) => {
                 Ok($to(attrs.dtype.ok_or(Self::Error::MissingDtype)?))
             };
             ($to:expr, dim, dtype) => {
                 Ok($to(
-                    attrs.dim.ok_or(Self::Error::MissingDim)?.into(),
+                    attrs.dim.ok_or(Self::Error::MissingDim)?,
                     attrs.dtype.ok_or(Self::Error::MissingDtype)?,
                 ))
             };
@@ -414,25 +416,13 @@ impl Error for IdentKindError {
     }
 }
 
-// These are clearly the same thing,
-//   but it's not worth sharing them until a natural shared abstraction
-//   arises.
-impl From<Dim> for AsgDim {
-    fn from(dim: Dim) -> Self {
-        match dim {
-            Dim::Scalar => AsgDim::Scalar,
-            Dim::Vector => AsgDim::Vector,
-            Dim::Matrix => AsgDim::Matrix,
-        }
-    }
-}
-
 // These tests are coupled with BaseAsg, which is not ideal.
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::asg::{DefaultAsg, FragmentText, IdentKind, IdentObject};
-    use crate::obj::xmlo::{SymAttrs, SymDtype, SymType};
+    use crate::num::{Dim, Dtype};
+    use crate::obj::xmlo::{SymAttrs, SymType};
     use crate::span::{DUMMY_SPAN, UNKNOWN_SPAN};
     use crate::sym::GlobalSymbolIntern;
     use std::collections::hash_map::RandomState;
@@ -982,7 +972,7 @@ mod test {
                 let dim = Dim::Vector;
 
                 assert_eq!(
-                    Ok($dest(AsgDim::Vector)),
+                    Ok($dest(Dim::Vector)),
                     SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),
@@ -1005,7 +995,7 @@ mod test {
         ($name:ident, $src:expr => $dest:expr, dtype) => {
             #[test]
             fn $name() {
-                let dtype = SymDtype::Float;
+                let dtype = Dtype::Float;
 
                 assert_eq!(
                     Ok($dest(dtype)),
@@ -1032,10 +1022,10 @@ mod test {
             #[test]
             fn $name() {
                 let dim = Dim::Vector;
-                let dtype = SymDtype::Float;
+                let dtype = Dtype::Float;
 
                 assert_eq!(
-                    Ok($dest(AsgDim::Vector, dtype)),
+                    Ok($dest(Dim::Vector, dtype)),
                     SymAttrs {
                         ty: Some($src),
                         dim: Some(dim),

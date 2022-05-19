@@ -19,7 +19,8 @@
 
 use super::{SymAttrs, XmloError};
 use crate::{
-    obj::xmlo::{Dim, SymDtype, SymType},
+    num::{Dim, Dtype},
+    obj::xmlo::SymType,
     parse::{
         self, EmptyContext, NoContext, ParseState, Transition,
         TransitionResult, Transitionable,
@@ -470,14 +471,14 @@ impl SymtableState {
     }
 
     /// Parse a `preproc:sym/@dtype` attribute.
-    fn parse_dtype(value: SymbolId) -> Option<SymDtype> {
+    fn parse_dtype(value: SymbolId) -> Option<Dtype> {
         use raw::*;
 
         match value {
-            L_BOOLEAN => Some(SymDtype::Boolean),
-            L_INTEGER => Some(SymDtype::Integer),
-            L_FLOAT => Some(SymDtype::Float),
-            L_EMPTY => Some(SymDtype::Empty),
+            L_BOOLEAN => Some(Dtype::Boolean),
+            L_INTEGER => Some(Dtype::Integer),
+            L_FLOAT => Some(Dtype::Float),
+            L_EMPTY => Some(Dtype::Empty),
             _ => None,
         }
     }

@@ -652,8 +652,8 @@ impl From<SymAttrs> for Source {
 
 #[cfg(test)]
 mod test {
-    use super::super::ident::Dim;
     use super::*;
+    use crate::num::Dim;
     use crate::sym::{GlobalSymbolIntern, SymbolId};
 
     // Note that IdentObject has no variants capable of None

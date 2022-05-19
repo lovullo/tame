@@ -22,9 +22,10 @@
 extern crate tamer;
 extern crate test;
 
+use tamer::num::Dtype;
 use test::Bencher;
 
-use tamer::asg::{DataType, DefaultAsg, IdentKind, Source};
+use tamer::asg::{DefaultAsg, IdentKind, Source};
 use tamer::ld::xmle::{lower::sort, Sections};
 use tamer::sym::{GlobalSymbolIntern, SymbolId};
 
@@ -44,7 +45,7 @@ fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
         .map(|sym| {
             sut.declare(
                 *sym,
-                IdentKind::Rate(DataType::Integer),
+                IdentKind::Rate(Dtype::Integer),
                 Source::default(),
             )
             .unwrap()
@@ -75,7 +76,7 @@ fn sort_1_with_1_000_existing_one_edge_per_node_one_path(bench: &mut Bencher) {
         .map(|sym| {
             sut.declare(
                 *sym,
-                IdentKind::Rate(DataType::Integer),
+                IdentKind::Rate(Dtype::Integer),
                 Source::default(),
             )
             .unwrap()

@@ -444,7 +444,7 @@ impl From<ObjectRef> for NodeIndex {
 mod test {
     use super::super::error::AsgError;
     use super::*;
-    use crate::asg::Dim;
+    use crate::num::Dim;
     use crate::sym::GlobalSymbolIntern;
     use std::assert_matches::assert_matches;
 

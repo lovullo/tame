@@ -85,6 +85,7 @@ pub mod diagnose;
 pub mod fs;
 pub mod iter;
 pub mod ld;
+pub mod num;
 pub mod obj;
 pub mod parse;
 pub mod span;

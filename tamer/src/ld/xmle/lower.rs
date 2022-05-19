@@ -169,9 +169,9 @@ impl std::error::Error for SortError {
 mod test {
     use super::*;
     use crate::{
-        asg::{Dim, FragmentText, IdentObject, Source},
+        asg::{FragmentText, IdentObject, Source},
         ld::xmle::{section::PushResult, Sections},
-        obj::xmlo::SymDtype,
+        num::{Dim, Dtype},
         sym::GlobalSymbolIntern,
     };
 
@@ -632,7 +632,7 @@ mod test {
         let sym3_node = asg
             .declare(
                 sym3,
-                IdentKind::Func(Dim::Scalar, SymDtype::Empty),
+                IdentKind::Func(Dim::Scalar, Dtype::Empty),
                 Source {
                     virtual_: true,
                     ..Default::default()
@@ -674,7 +674,7 @@ mod test {
         let sym1_node = asg
             .declare(
                 sym1,
-                IdentKind::Func(Dim::Scalar, SymDtype::Empty),
+                IdentKind::Func(Dim::Scalar, Dtype::Empty),
                 Source {
                     virtual_: true,
                     ..Default::default()
@@ -696,7 +696,7 @@ mod test {
         let sym3_node = asg
             .declare(
                 sym3,
-                IdentKind::Func(Dim::Scalar, SymDtype::Empty),
+                IdentKind::Func(Dim::Scalar, Dtype::Empty),
                 Source {
                     virtual_: true,
                     ..Default::default()
@@ -737,7 +737,7 @@ mod test {
         let sym_node = asg
             .declare(
                 sym,
-                IdentKind::Func(Dim::Scalar, SymDtype::Empty),
+                IdentKind::Func(Dim::Scalar, Dtype::Empty),
                 Source {
                     virtual_: true,
                     ..Default::default()
@@ -747,7 +747,7 @@ mod test {
 
         asg.declare(
             dep,
-            IdentKind::Func(Dim::Scalar, SymDtype::Empty),
+            IdentKind::Func(Dim::Scalar, Dtype::Empty),
             Source {
                 virtual_: true,
                 ..Default::default()
@@ -795,7 +795,7 @@ mod test {
         let sym2_node = asg
             .declare(
                 sym2,
-                IdentKind::Func(Dim::Scalar, SymDtype::Empty),
+                IdentKind::Func(Dim::Scalar, Dtype::Empty),
                 Source {
                     virtual_: true,
                     ..Default::default()

@@ -22,7 +22,8 @@ use std::assert_matches::assert_matches;
 use super::*;
 use crate::{
     convert::ExpectInto,
-    obj::xmlo::{SymDtype, SymType},
+    num::Dtype,
+    obj::xmlo::SymType,
     parse::{ParseError, ParseState, Parsed},
     span::{Span, DUMMY_SPAN},
     sym::GlobalSymbolIntern,
@@ -243,22 +244,22 @@ symtable_tests! {
     )
 
     dtyboolean: [dtype="boolean"] => Ok(SymAttrs {
-        dtype: Some(SymDtype::Boolean),
+        dtype: Some(Dtype::Boolean),
         ..Default::default()
     })
 
     dtyinteger: [dtype="integer"] => Ok(SymAttrs {
-        dtype: Some(SymDtype::Integer),
+        dtype: Some(Dtype::Integer),
         ..Default::default()
     })
 
     dtyfloat: [dtype="float"] => Ok(SymAttrs {
-        dtype: Some(SymDtype::Float),
+        dtype: Some(Dtype::Float),
         ..Default::default()
     })
 
     dtyempty: [dtype="empty"] => Ok(SymAttrs {
-        dtype: Some(SymDtype::Empty),
+        dtype: Some(Dtype::Empty),
         ..Default::default()
     })
 
@@ -311,7 +312,7 @@ symtable_tests! {
             src: Some("foo".intern()),
             ty: Some(SymType::Class),
             dim: Some(Dim::Vector),
-            dtype: Some(SymDtype::Float),
+            dtype: Some(Dtype::Float),
             extern_: true,
             ..Default::default()
         })
