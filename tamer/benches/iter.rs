@@ -53,6 +53,7 @@ mod trip {
         bench.iter(|| {
             into_iter_while_ok(data.clone(), |iter| {
                 iter.for_each(drop);
+                Result::<_, &str>::Ok(())
             })
         });
     }

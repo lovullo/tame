@@ -107,27 +107,13 @@ pub trait TryCollect: Iterator + Sized {
     /// This function exists purely to improve readability and reduce
     ///   boilerplate,
     ///     but at the expense of a somewhat confusing return type.
-    ///
-    /// The outer [`Result`] represents the the source iterator,
-    ///   in the sense of [`TrippableIterator::while_ok`].
-    /// The inner [`Result`] represents the result of the
-    ///   [`try_collect`](TryCollect::try_collect) operation.
-    /// Since these two errors types are expected to be unrelated to
-    ///   one-another
-    ///     (after all, [`TrippableIterator`] exists precisely to decouple
-    ///       the downstream iterators from upstream failures),
-    ///     there is no obvious and correct conversion,
-    ///       and so it is left up to the caller.
-    /// Often,
-    ///   this call is simply suffixed with `??`,
-    ///     leaving the containing function's return type to manage the
-    ///     conversion via [`Into`].
     #[inline]
-    fn try_collect_ok<T, E, B: TryFromIterator<T>>(
+    fn try_collect_ok<T, EI, B: TryFromIterator<T>>(
         mut self,
-    ) -> Result<Result<B, B::Error>, E>
+    ) -> Result<B, B::Error>
     where
-        Self: Iterator<Item = Result<T, E>>,
+        Self: Iterator<Item = Result<T, EI>>,
+        EI: Into<B::Error>,
     {
         // At the time of writing,
         //   `self.while_ok(TryCollect::try_collect)` does not compile,

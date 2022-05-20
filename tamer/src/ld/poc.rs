@@ -193,21 +193,23 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     //   abstracted away.
     let mut state =
         into_iter_while_ok(XmlXirReader::new(file, escaper, ctx), |toks| {
-            flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _>(
+            flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _, _>(
                 |xirf| {
                     into_iter_while_ok(xirf, |xmlo_out| {
                         // TODO: Transitionary---we do not want to filter.
-                        depgraph.import_xmlo(
-                            xmlo_out.filter_map(|parsed| match parsed {
-                                Parsed::Incomplete => None,
-                                Parsed::Object(obj) => Some(Ok(obj)),
-                            }),
-                            state,
-                        )
+                        depgraph
+                            .import_xmlo(
+                                xmlo_out.filter_map(|parsed| match parsed {
+                                    Parsed::Incomplete => None,
+                                    Parsed::Object(obj) => Some(Ok(obj)),
+                                }),
+                                state,
+                            )
+                            .map_err(TameldError::from)
                     })
                 },
             )
-        })????;
+        })?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();

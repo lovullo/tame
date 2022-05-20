@@ -713,20 +713,22 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Consequently,
     ///   this API (likely the return type) will change.
     #[inline]
-    pub fn lower_while_ok<LS, U>(
+    pub fn lower_while_ok<LS, U, E>(
         &mut self,
-        f: impl FnOnce(&mut LowerIter<S, I, LS>) -> U,
-    ) -> Result<U, ParseError<S::Token, S::Error>>
+        f: impl FnOnce(&mut LowerIter<S, I, LS>) -> Result<U, E>,
+    ) -> Result<U, E>
     where
         LS: ParseState<Token = S::Object>,
         <S as ParseState>::Object: Token,
         <LS as ParseState>::Context: Default,
+        ParseError<S::Token, S::Error>: Into<E>,
     {
         self.while_ok(|toks| {
             // TODO: This parser is not accessible after error recovery!
             let lower = LS::parse(iter::empty());
             f(&mut LowerIter { lower, toks })
         })
+        .map_err(Into::into)
     }
 }
 

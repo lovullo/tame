@@ -88,7 +88,7 @@ pub fn main() -> Result<(), TamecError> {
                         |toks| {
                             toks.write(&mut fout, Default::default(), &escaper)
                         },
-                    )??;
+                    )?;
 
                     Ok(())
                 })

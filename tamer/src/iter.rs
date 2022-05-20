@@ -86,6 +86,8 @@
 //!   assert_eq!(None, iter.next());
 //!   assert_eq!(None, iter.next());
 //!   assert!(iter.is_tripped());
+//!
+//!   Ok(())
 //! });
 //!
 //! // The error that caused the trip is returned.

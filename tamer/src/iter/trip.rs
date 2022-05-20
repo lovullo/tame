@@ -51,7 +51,7 @@ use std::marker::PhantomData;
 ///
 /// See those two functions and the [parent module](super) for more
 ///   information and examples.
-pub struct TripIter<'a, I: ResultIterator<T, E>, T, E> {
+pub struct TripIter<'a, I: ResultIterator<T, EI>, T, EI> {
     /// Iterator that will be unwrapped while its item is [`Ok`].
     inner: &'a mut I,
 
@@ -61,14 +61,14 @@ pub struct TripIter<'a, I: ResultIterator<T, E>, T, E> {
     /// If there is an error,
     ///   then we have been tripped and will return [`None`] until the error
     ///   condition has been resolved.
-    state: Result<(), E>,
+    state: Result<(), EI>,
 
     /// Our [`Iterator`] implementation will yield `T`,
     ///   but we don't store it.
     _phantom: PhantomData<T>,
 }
 
-impl<'a, I: ResultIterator<T, E>, T, E> TripIter<'a, I, T, E> {
+impl<'a, I: ResultIterator<T, EI>, T, EI> TripIter<'a, I, T, EI> {
     /// Given a mutable reference to a
     ///   [`ResultIterator<T, E>`](ResultIterator),
     ///     yield a [`TripIter`] that yields the inner `T` value while the
@@ -77,9 +77,10 @@ impl<'a, I: ResultIterator<T, E>, T, E> TripIter<'a, I, T, E> {
     /// See the public [`with_iter_while_ok`] function for more
     ///   information.
     #[inline]
-    fn with_iter_while_ok<F, U>(iter: &'a mut I, f: F) -> Result<U, E>
+    fn with_iter_while_ok<F, U, E>(iter: &'a mut I, f: F) -> Result<U, E>
     where
-        F: FnOnce(&mut Self) -> U,
+        F: FnOnce(&mut Self) -> Result<U, E>,
+        EI: Into<E>,
     {
         let mut biter = Self {
             inner: iter,
@@ -95,7 +96,7 @@ impl<'a, I: ResultIterator<T, E>, T, E> TripIter<'a, I, T, E> {
         //   after the caller is done with it,
         //   to check to see if we have tripped and force the caller to
         //   consider the error.
-        biter.state.and_then(|_| Ok(fret))
+        biter.state.map_err(EI::into).and_then(|_| fret)
     }
 
     /// Whether the iterator has been tripped by an [`Err`] on the
@@ -110,9 +111,9 @@ impl<'a, I: ResultIterator<T, E>, T, E> TripIter<'a, I, T, E> {
     }
 }
 
-impl<'a, I, T, E> Iterator for TripIter<'a, I, T, E>
+impl<'a, I, T, EI> Iterator for TripIter<'a, I, T, EI>
 where
-    I: Iterator<Item = Result<T, E>>,
+    I: Iterator<Item = Result<T, EI>>,
 {
     type Item = T;
 
@@ -141,9 +142,10 @@ where
     }
 }
 
-/// Given a mutable reference to a [`ResultIterator<T, E>`](ResultIterator),
-///   yield a [`TripIter`] that yields the inner `T` value while the
-///   iterator yields an [`Ok`] item.
+/// Given a mutable reference to a
+///   [`ResultIterator<T, EI>`](ResultIterator),
+///     yield a [`TripIter`] that yields the inner `T` value while the
+///     iterator yields an [`Ok`] item.
 ///
 /// Once an [`Err`] is encountered,
 ///   [`TripIter`] trips,
@@ -151,11 +153,21 @@ where
 /// This allows for a recovery mechanism that resumes computation,
 ///   provided that the system expects [`TripIter`] to be resumable.
 ///
-/// The [`TripIter`] is provided via a callback `f`,
+/// The [`TripIter`] is provided as an argument to a callback `f`
 ///   and is valid only for its duration.
 /// This allows us to return either the most recently encountered [`Err`],
-///   otherwise [`Ok`] with the return value of `f`,
+///   otherwise the return value of `f`,
 ///   ensuring that the error causing the trip will not be lost.
+///
+/// The callback function `f` must return a [`Result`] whose error type is
+///   [`Into<E>`](Into);
+///     this allows [`Result`]s to be continuously flattened into a
+///     consistent type,
+///       which is especially useful when nesting [`TripIter`].
+/// This puts the error type in control of the caller via the callback.
+/// Since nested [`TripIter`] using this function must share the same error
+///   type `E`,
+///     this operation is monadic.
 ///
 /// This function accepts a mutable reference to the underlying iterator,
 ///   allowing the caller to retain ownership for further processing after
@@ -180,6 +192,8 @@ where
 ///   assert_eq!(None, iter.next());
 ///   assert_eq!(None, iter.next());
 ///   assert!(iter.is_tripped());
+///
+///   Ok(())
 /// });
 ///
 /// // The error that caused the trip is returned.
@@ -191,19 +205,19 @@ where
 ///
 /// See the [parent module](super) for more information and examples.
 #[inline]
-pub fn with_iter_while_ok<'a, I, T, U, E, F>(
+pub fn with_iter_while_ok<'a, I, T, U, E, EI>(
     from: &'a mut I,
-    f: F,
+    f: impl FnOnce(&mut TripIter<'a, I, T, EI>) -> Result<U, E>,
 ) -> Result<U, E>
 where
-    I: ResultIterator<T, E>,
-    F: FnOnce(&mut TripIter<'a, I, T, E>) -> U,
+    I: ResultIterator<T, EI>,
+    EI: Into<E>,
 {
     TripIter::with_iter_while_ok(from, f)
 }
 
 /// Given an object capable of being converted into a
-///   [`ResultIterator<T, E>`](ResultIterator),
+///   [`ResultIterator<T, EI>`](ResultIterator),
 ///     yield a [`TripIter`] that yields the inner `T` value while the
 ///     iterator yields an [`Ok`] item.
 ///
@@ -226,6 +240,8 @@ where
 ///   assert_eq!(None, iter.next());
 ///   assert_eq!(None, iter.next());
 ///   assert!(iter.is_tripped());
+///
+///   Ok(())
 /// });
 ///
 /// // The error that caused the trip is returned.
@@ -237,10 +253,13 @@ where
 ///
 /// See the [parent module](super) for more information and examples.
 #[inline]
-pub fn into_iter_while_ok<I, T, U, E, F>(from: I, f: F) -> Result<U, E>
+pub fn into_iter_while_ok<I, T, U, E, EI>(
+    from: I,
+    f: impl FnOnce(&mut TripIter<I::IntoIter, T, EI>) -> Result<U, E>,
+) -> Result<U, E>
 where
-    I: IntoIterator<Item = Result<T, E>>,
-    F: FnOnce(&mut TripIter<I::IntoIter, T, E>) -> U,
+    I: IntoIterator<Item = Result<T, EI>>,
+    EI: Into<E>,
 {
     with_iter_while_ok(&mut from.into_iter(), f)
 }
@@ -251,9 +270,9 @@ where
 ///
 /// For more information,
 ///   see the [module-level documentation](self).
-pub trait TrippableIterator<T, E>
+pub trait TrippableIterator<T, EI>
 where
-    Self: Iterator<Item = Result<T, E>> + Sized,
+    Self: Iterator<Item = Result<T, EI>> + Sized,
 {
     /// Given a mutable reference to a
     ///   [`ResultIterator<T, E>`](ResultIterator),
@@ -264,9 +283,10 @@ where
     ///   see [`with_iter_while_ok`] and the
     ///   [module-level documentation](super).
     #[inline]
-    fn while_ok<F, U>(&mut self, f: F) -> Result<U, E>
+    fn while_ok<F, U, E>(&mut self, f: F) -> Result<U, E>
     where
-        F: FnOnce(&mut TripIter<Self, T, E>) -> U,
+        F: FnOnce(&mut TripIter<Self, T, EI>) -> Result<U, E>,
+        EI: Into<E>,
     {
         TripIter::with_iter_while_ok(self, f)
     }
@@ -279,9 +299,10 @@ where
     /// For more information,
     ///   see [`into_iter_while_ok`] and the [module-level documentation](super).
     #[inline]
-    fn into_while_ok<F, U>(mut self, f: F) -> Result<U, E>
+    fn into_while_ok<F, U, E>(mut self, f: F) -> Result<U, E>
     where
-        F: FnOnce(&mut TripIter<Self, T, E>) -> U,
+        F: FnOnce(&mut TripIter<Self, T, EI>) -> Result<U, E>,
+        EI: Into<E>,
     {
         self.while_ok(f)
     }
@@ -300,10 +321,11 @@ mod test {
 
     #[test]
     fn inner_none_yields_none() -> TestResult {
-        let empty = Vec::<Result<(), ()>>::new();
+        let empty = Vec::<TestResult>::new();
 
         into_iter_while_ok(empty, |sut| {
             assert_eq!(None, sut.next());
+            Ok(())
         })
     }
 
@@ -312,12 +334,16 @@ mod test {
         let value1 = "inner1";
         let value2 = "inner2";
 
-        into_iter_while_ok([Ok(value1), Ok(value2)], |sut| {
+        let iter = [Result::<_, ()>::Ok(value1), Ok(value2)];
+
+        into_iter_while_ok(iter, |sut| {
             assert_eq!(Some(value1), sut.next());
             assert_eq!(Some(value2), sut.next());
             assert_eq!(None, sut.next());
 
             assert!(!sut.is_tripped());
+
+            Ok(())
         })
     }
 
@@ -341,6 +367,8 @@ mod test {
                 // Nor should it ever, while tripped.
                 assert_eq!(None, sut.next());
                 assert!(sut.is_tripped());
+
+                Ok("")
             });
 
         assert_eq!(result, Err(err));
@@ -356,6 +384,8 @@ mod test {
                 // Try to consume everything.
                 assert_eq!(None, sut.next());
                 assert_eq!(None, sut.next());
+
+                Ok(())
             }),
         );
 
@@ -367,10 +397,10 @@ mod test {
     fn open_returns_f_ret_after_none() {
         let ret = "retval";
         assert_eq!(
-            Ok(ret),
+            Result::<_, ()>::Ok(ret),
             into_iter_while_ok([Result::<_, ()>::Ok(())], |sut| {
                 sut.next();
-                ret
+                Ok(ret)
             })
         );
     }
@@ -382,7 +412,7 @@ mod test {
             Err(err),
             into_iter_while_ok([Result::<(), _>::Err(err)], |sut| {
                 sut.next();
-                "not used"
+                Ok("not used")
             })
         );
     }
@@ -393,10 +423,10 @@ mod test {
     fn does_not_trip_before_err_is_encountered() {
         let ret = "no next";
         assert_eq!(
-            Ok(ret),
+            Result::<_, &str>::Ok(ret),
             into_iter_while_ok(
                 [Result::<(), _>::Err("will not be seen")],
-                |_| { "no next" }
+                |_| { Ok("no next") }
             )
         );
     }
