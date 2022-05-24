@@ -715,7 +715,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     #[inline]
     pub fn lower_while_ok<LS, U, E>(
         &mut self,
-        f: impl FnOnce(&mut LowerIter<S, I, LS>) -> Result<U, E>,
+        f: impl FnOnce(&mut LowerIter<S, Parser<S, I>, LS>) -> Result<U, E>,
     ) -> Result<U, E>
     where
         LS: ParseState<Token = S::Object>,
@@ -739,7 +739,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
 pub struct LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
-    I: TokenStream<S::Token>,
+    I: Iterator<Item = ParsedResult<S>>,
     LS: ParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
 {
@@ -750,7 +750,7 @@ where
     ///   with the outer [`Result`] having been stripped by a [`TripIter`].
     toks: &'a mut TripIter<
         'b,
-        Parser<S, I>,
+        I,
         Parsed<S::Object>,
         ParseError<S::Token, S::Error>,
     >,
@@ -759,7 +759,7 @@ where
 impl<'a, 'b, S, I, LS> Iterator for LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
-    I: TokenStream<S::Token>,
+    I: Iterator<Item = ParsedResult<S>>,
     LS: ParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
 {
