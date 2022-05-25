@@ -113,7 +113,7 @@ where
 /// Whatever the underlying automaton,
 ///   a `(state, token, context)` triple must uniquely determine the next
 ///   parser action.
-pub trait ParseState: Default + PartialEq + Eq + Debug {
+pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
     /// Input tokens to the parser.
     type Token: Token;
 
@@ -642,6 +642,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             let endpoints = self.last_span.endpoints();
             Err(ParseError::UnexpectedEof(
                 endpoints.1.unwrap_or(endpoints.0),
+                self.state.to_string(),
             ))
         }
     }
@@ -672,7 +673,10 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             // Nothing handled this dead state,
             //   and we cannot discard a lookahead token,
             //   so we have no choice but to produce an error.
-            Ok(Dead(invalid)) => Err(ParseError::UnexpectedToken(invalid)),
+            Ok(Dead(invalid)) => Err(ParseError::UnexpectedToken(
+                invalid,
+                self.state.to_string(),
+            )),
 
             Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
             Err(e) => Err(e.into()),
@@ -835,7 +839,12 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     /// If this parser follows another,
     ///   then the combinator ought to substitute a missing span with
     ///   whatever span preceded this invocation.
-    UnexpectedEof(Span),
+    ///
+    /// The string is intended to describe what was expected to have been
+    ///   available based on the current [`ParseState`].
+    /// It is a heap-allocated string so that a copy of [`ParseState`]
+    ///   needn't be stored.
+    UnexpectedEof(Span, String),
 
     /// The parser reached an unhandled dead state.
     ///
@@ -844,11 +853,11 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     /// If that does not occur,
     ///   [`Parser`] produces this error.
     ///
-    /// In the future,
-    ///   it may be desirable to be able to query [`ParseState`] for what
-    ///   tokens are acceptable at this point,
-    ///     to provide better error messages.
-    UnexpectedToken(T),
+    /// The string is intended to describe what was expected to have been
+    ///   available based on the current [`ParseState`].
+    /// It is a heap-allocated string so that a copy of [`ParseState`]
+    ///   needn't be stored.
+    UnexpectedToken(T, String),
 
     /// A parser-specific error associated with an inner
     ///   [`ParseState`].
@@ -864,8 +873,8 @@ impl<T: Token, EA: Diagnostic + PartialEq> ParseError<T, EA> {
     {
         use ParseError::*;
         match self {
-            UnexpectedEof(x) => UnexpectedEof(x),
-            UnexpectedToken(x) => UnexpectedToken(x),
+            UnexpectedEof(span, desc) => UnexpectedEof(span, desc),
+            UnexpectedToken(x, desc) => UnexpectedToken(x, desc),
             StateError(e) => StateError(e.into()),
         }
     }
@@ -880,11 +889,11 @@ impl<T: Token, E: Diagnostic + PartialEq> From<E> for ParseError<T, E> {
 impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnexpectedEof(_) => {
-                write!(f, "unexpected end of input")
+            Self::UnexpectedEof(_, desc) => {
+                write!(f, "unexpected end of input while {desc}")
             }
-            Self::UnexpectedToken(_tok) => {
-                write!(f, "unexpected input")
+            Self::UnexpectedToken(_, desc) => {
+                write!(f, "unexpected input while {desc}")
             }
             Self::StateError(e) => Display::fmt(e, f),
         }
@@ -907,14 +916,9 @@ impl<T: Token, E: Diagnostic + PartialEq + 'static> Diagnostic
         use ParseError::*;
 
         match self {
-            // TODO: More information from the underlying parser on what was expected.
-            UnexpectedEof(span) => {
-                span.error("unexpected end of input here").into()
-            }
+            UnexpectedEof(span, desc) => span.error(desc).into(),
 
-            UnexpectedToken(tok) => {
-                tok.span().error("this was unexpected").into()
-            }
+            UnexpectedToken(tok, desc) => tok.span().error(desc).into(),
 
             // TODO: Is there any additional useful context we can augment
             //   this with?
@@ -1121,6 +1125,12 @@ pub mod test {
         }
     }
 
+    impl Display for EchoState {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "<EchoState as Display>::fmt")
+        }
+    }
+
     #[derive(Debug, PartialEq, Eq)]
     enum EchoStateError {
         InnerError(TestToken),
@@ -1183,7 +1193,12 @@ pub mod test {
         //     state,
         //   we must fail when we encounter the end of the stream.
         assert_eq!(
-            Some(Err(ParseError::UnexpectedEof(span.endpoints().1.unwrap()))),
+            Some(Err(ParseError::UnexpectedEof(
+                span.endpoints().1.unwrap(),
+                // All the states have the same string
+                //   (at time of writing).
+                EchoState::default().to_string(),
+            ))),
             sut.next()
         );
     }
@@ -1238,7 +1253,7 @@ pub mod test {
         let result = sut.finalize();
         assert_matches!(
             result,
-            Err((_, ParseError::UnexpectedEof(s))) if s == span.endpoints().1.unwrap()
+            Err((_, ParseError::UnexpectedEof(s, _))) if s == span.endpoints().1.unwrap()
         );
 
         // The sut should have been re-returned,
@@ -1266,7 +1281,13 @@ pub mod test {
         //   which is unhandled by any parent context
         //     (since we're not composing parsers),
         //     which causes an error due to an unhandled Dead state.
-        assert_eq!(sut.next(), Some(Err(ParseError::UnexpectedToken(tok))),);
+        assert_eq!(
+            sut.next(),
+            Some(Err(ParseError::UnexpectedToken(
+                tok,
+                EchoState::default().to_string()
+            ))),
+        );
     }
 
     // A context can be both retrieved from a finished parser and provided

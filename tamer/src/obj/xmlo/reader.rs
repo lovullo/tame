@@ -17,6 +17,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::fmt::Display;
+
 use super::{SymAttrs, XmloError};
 use crate::{
     num::{Dim, Dtype},
@@ -251,6 +253,26 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
 
     fn is_accepting(&self) -> bool {
         *self == Self::Eoh || *self == Self::Done
+    }
+}
+
+impl<SS: XmloState, SD: XmloState, SF: XmloState> Display
+    for XmloReader<SS, SD, SF>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use XmloReader::*;
+
+        match self {
+            Ready => write!(f, "awaiting xmlo input"),
+            Package => write!(f, "processing package attributes"),
+            Symtable(_, ss) => Display::fmt(ss, f),
+            SymDepsExpected => write!(f, "expecting symbol dependency list"),
+            SymDeps(_, sd) => Display::fmt(sd, f),
+            FragmentsExpected => write!(f, "expecting start of fragments"),
+            Fragments(_, sf) => Display::fmt(sf, f),
+            Eoh => write!(f, "finished parsing header"),
+            Done => write!(f, "finished parsing xmlo file"),
+        }
     }
 }
 
@@ -511,6 +533,24 @@ impl SymtableState {
     }
 }
 
+impl Display for SymtableState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SymtableState::*;
+
+        match self {
+            Ready => write!(f, "expecting symbol declaration"),
+            Sym(_, Some(sym), _) => write!(f, "parsing symbol `{sym}`"),
+            Sym(_, None, _) => write!(f, "parsing a symbol"),
+            SymMapFrom(_, sym, _, _) => {
+                write!(f, "expecting map name for symbol `{sym}`")
+            }
+            SymRef(_, sym, _, _) => {
+                write!(f, "parsing refs for symbol `{sym}`")
+            }
+        }
+    }
+}
+
 impl From<(SymbolId, SymAttrs, Span)> for XmloToken {
     fn from(tup: (SymbolId, SymAttrs, Span)) -> Self {
         match tup {
@@ -610,6 +650,29 @@ impl ParseState for SymDepsState {
     }
 }
 
+impl Display for SymDepsState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SymDepsState::*;
+
+        match self {
+            Ready => write!(f, "expecting symbol table entry"),
+            SymUnnamed(_) => write!(f, "expecting name for symbol table entry"),
+            Sym(_, sym) => write!(
+                f,
+                "expecting dependencies for symbol table entry `{sym}`"
+            ),
+            SymRefUnnamed(_, sym, _) => write!(
+                f,
+                "expecting dependency name for symbol table entry `{sym}`"
+            ),
+            SymRefDone(_, sym, _) => write!(
+                f,
+                "expending end of dependency for symbol table entry `{sym}`"
+            ),
+        }
+    }
+}
+
 /// Text fragment (compiled code) parser for `preproc:fragments` children.
 ///
 /// This parser expects a parent [`ParseState`] to indicate when dependency
@@ -695,6 +758,25 @@ impl ParseState for FragmentsState {
 
     fn is_accepting(&self) -> bool {
         *self == Self::Ready
+    }
+}
+
+impl Display for FragmentsState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use FragmentsState::*;
+
+        match self {
+            Ready => write!(f, "expecting fragment"),
+            FragmentUnnamed(_) => {
+                write!(f, "expecting fragment association id")
+            }
+            Fragment(_, sym) => {
+                write!(f, "expecting fragment text for symbol `{sym}`")
+            }
+            FragmentDone(_, sym) => {
+                write!(f, "expecting end of fragment for symbol `{sym}`")
+            }
+        }
     }
 }
 

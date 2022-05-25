@@ -163,6 +163,12 @@ impl<'a> From<String> for Label<'a> {
     }
 }
 
+impl<'a> From<&'a String> for Label<'a> {
+    fn from(s: &'a String) -> Self {
+        Self(Cow::Borrowed(s))
+    }
+}
+
 impl<'a> From<&'a str> for Label<'a> {
     fn from(s: &'a str) -> Self {
         Self(Cow::Borrowed(s))

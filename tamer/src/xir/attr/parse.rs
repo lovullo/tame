@@ -87,6 +87,19 @@ impl Default for AttrParseState {
     }
 }
 
+impl Display for AttrParseState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use AttrParseState::*;
+
+        match self {
+            Empty => write!(f, "expecting an attribute"),
+            Name(name, _) => {
+                write!(f, "expecting an attribute value for {name}")
+            }
+        }
+    }
+}
+
 /// Attribute parsing error.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AttrParseError {

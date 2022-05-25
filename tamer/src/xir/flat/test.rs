@@ -22,6 +22,8 @@
 //! These tests take place within the context of the XIR parsing framework,
 //!   so they are one layer of abstraction away from unit tests.
 
+use std::assert_matches::assert_matches;
+
 use super::*;
 use crate::convert::ExpectInto;
 use crate::parse::{ParseError, Parsed};
@@ -87,9 +89,12 @@ fn extra_closing_tag() {
 
     let sut = parse::<1>(toks);
 
-    assert_eq!(
-        Err(ParseError::UnexpectedToken(XirToken::Close(Some(name), S3),)),
-        sut.collect::<Result<Vec<Parsed<Object>>, _>>()
+    assert_matches!(
+        sut.collect::<Result<Vec<Parsed<Object>>, _>>(),
+        Err(ParseError::UnexpectedToken(
+            XirToken::Close(Some(given_name), given_span),
+            _
+        )) if given_name == name && given_span == S3
     );
 }
 
@@ -109,9 +114,10 @@ fn extra_self_closing_tag() {
 
     let sut = parse::<1>(toks);
 
-    assert_eq!(
-        Err(ParseError::UnexpectedToken(XirToken::Close(None, S3),)),
-        sut.collect::<Result<Vec<Parsed<Object>>, _>>()
+    assert_matches!(
+        sut.collect::<Result<Vec<Parsed<Object>>, _>>(),
+        Err(ParseError::UnexpectedToken(XirToken::Close(None, given_span), _))
+            if given_span == S3,
     );
 }
 
@@ -364,7 +370,7 @@ fn not_accepting_state_if_element_open() {
     );
 
     // Element was not closed.
-    assert_eq!(Some(Err(ParseError::UnexpectedEof(S))), sut.next());
+    assert_matches!(sut.next(), Some(Err(ParseError::UnexpectedEof(..))));
 }
 
 // XML permits comment nodes before and after the document root element.
@@ -417,11 +423,11 @@ fn content_after_root_close_error() {
 
     let sut = parse::<1>(toks);
 
-    assert_eq!(
+    assert_matches!(
+        sut.collect(),
         Result::<Vec<Parsed<Object>>, _>::Err(ParseError::UnexpectedToken(
-            XirToken::Open(name, S3)
-        )),
-        sut.collect()
+            XirToken::Open(given_name, given_span),
+        _)) if given_name == name && given_span == S3
     );
 }
 

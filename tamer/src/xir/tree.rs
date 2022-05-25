@@ -617,6 +617,27 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
     }
 }
 
+impl<SA: StackAttrParseState> Display for Stack<SA> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use Stack::*;
+
+        // These are not very descriptive because XIRT is only used in tests
+        //   at the time of writing.
+        // If this results in user-facing errors in the future,
+        //   we should probably output more information.
+        match self {
+            Empty => write!(f, "waiting for a node"),
+            BuddingElement(_) => write!(f, "parsing an element"),
+            ClosedElement(_) => {
+                write!(f, "completing processing of an element")
+            }
+            BuddingAttrList(_, _) => write!(f, "parsing attribute list"),
+            AttrState(_, _, sa) => Display::fmt(sa, f),
+            Done => write!(f, "done parsing"),
+        }
+    }
+}
+
 impl<SA: StackAttrParseState> Stack<SA> {
     fn begin_attrs(
         name: QName,

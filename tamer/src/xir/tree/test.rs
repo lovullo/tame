@@ -17,6 +17,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::assert_matches::assert_matches;
+
 use super::super::parse::ParseError;
 use super::*;
 use crate::convert::ExpectInto;
@@ -384,9 +386,10 @@ fn attr_parser_with_non_attr_token() {
 
     let mut sut = attr_parser_from(&mut toks);
 
-    assert_eq!(
+    assert_matches!(
         sut.next(),
-        Some(Err(ParseError::UnexpectedToken(Token::Open(name, *S))))
+        Some(Err(ParseError::UnexpectedToken(Token::Open(given_name, given_span), _)))
+            if given_name == name && given_span == *S
     );
 }
 
@@ -416,11 +419,11 @@ fn parser_attr_multiple() {
     //   after which some other parser can continue on the same token
     //   stream
     //     (using this token as a lookahead).
-    assert_eq!(
+    assert_matches!(
         sut.next(),
         Some(Err(ParseError::UnexpectedToken(Token::Text(
-            "nohit".into(),
-            *S
-        ))))
+            given_name,
+            given_span,
+        ), _))) if given_name == "nohit".into() && given_span == *S
     );
 }

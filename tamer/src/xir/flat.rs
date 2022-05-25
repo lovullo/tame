@@ -255,6 +255,22 @@ where
     }
 }
 
+impl<const MAX_DEPTH: usize, SA> Display for State<MAX_DEPTH, SA>
+where
+    SA: FlatAttrParseState<MAX_DEPTH>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use State::*;
+
+        match self {
+            PreRoot => write!(f, "expecting document root"),
+            NodeExpected => write!(f, "expecting a node"),
+            AttrExpected(sa) => Display::fmt(sa, f),
+            Done => write!(f, "done parsing"),
+        }
+    }
+}
+
 impl<const MAX_DEPTH: usize, SA> State<MAX_DEPTH, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
