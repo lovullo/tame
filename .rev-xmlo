@@ -1,6 +1,7 @@
 # This number is incremented for every compiler change to force rebuilding
 # of xmlo files.
-6
+7
 
 # 6: Return map omit preproc:sym/preproc:from
+# 7: Add lv:package/@name for worksheet xmlo files
 
