@@ -83,10 +83,14 @@ fn common_parses_package_attrs(package: QName) {
     assert_eq!(
         Ok(vec![
             Parsed::Incomplete,
-            Parsed::Object(XmloToken::PkgName(name)),
-            Parsed::Object(XmloToken::PkgRootPath(relroot)),
-            Parsed::Object(XmloToken::PkgProgramFlag),
-            Parsed::Object(XmloToken::PkgEligClassYields(elig)),
+            Parsed::Object(XmloToken::PkgName(name, S3)),
+            Parsed::Object(XmloToken::PkgRootPath(relroot, S3)),
+            // Span for the program flag is the attr name,
+            //   rather than the value,
+            //   since the value is just a boolean and does not provide as
+            //     useful of context.
+            Parsed::Object(XmloToken::PkgProgramFlag(S3)),
+            Parsed::Object(XmloToken::PkgEligClassYields(elig, S4)),
             Parsed::Incomplete,
         ]),
         sut.collect(),
@@ -125,7 +129,7 @@ fn ignores_unknown_package_attr() {
     assert_eq!(
         Ok(vec![
             Parsed::Incomplete,
-            Parsed::Object(XmloToken::PkgName(name)),
+            Parsed::Object(XmloToken::PkgName(name, S3)),
             Parsed::Incomplete, // The unknown attribute
             Parsed::Incomplete,
         ]),

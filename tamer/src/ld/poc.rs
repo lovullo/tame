@@ -26,7 +26,10 @@ use super::xmle::{
     XmleSections,
 };
 use crate::{
-    asg::{DefaultAsg, Ident, Object},
+    asg::{
+        air::{AirState, AirToken},
+        Asg, AsgError, DefaultAsg, Ident, Object,
+    },
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
@@ -34,11 +37,8 @@ use crate::{
     },
     iter::into_iter_while_ok,
     ld::xmle::Sections,
-    obj::xmlo::{
-        AsgBuilder, AsgBuilderError, AsgBuilderState, XmloError, XmloReader,
-    },
-    parse::ParseError,
-    parse::{ParseState, Parsed},
+    obj::xmlo::{self, XmloError, XmloLowerError, XmloReader, XmloToken},
+    parse::{Lower, ParseError, ParseState, Parsed},
     sym::{GlobalSymbolResolve, SymbolId},
     xir::reader::XmlXirReader,
     xir::{
@@ -58,25 +58,23 @@ use std::{
 };
 
 type LinkerAsg = DefaultAsg;
-type LinkerAsgBuilderState = AsgBuilderState<FxBuildHasher>;
 
 pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
     let mut fs = VisitOnceFilesystem::new();
-    let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let escaper = DefaultEscaper::default();
 
-    let state = load_xmlo(
+    let (depgraph, state) = load_xmlo(
         package_path,
         &mut fs,
-        &mut depgraph,
+        LinkerAsg::with_capacity(65536, 65536),
         &escaper,
-        AsgBuilderState::new(),
+        xmlo::LowerContext::default(),
     )?;
 
-    let AsgBuilderState {
-        name,
+    let xmlo::LowerContext {
+        prog_name: name,
         relroot,
-        found: _,
+        ..
     } = state;
 
     let sorted = match sort(&depgraph, Sections::new()) {
@@ -121,15 +119,14 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
 // TODO: This needs to be further generalized.
 pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
     let mut fs = VisitOnceFilesystem::new();
-    let mut depgraph = LinkerAsg::with_capacity(65536, 65536);
     let escaper = DefaultEscaper::default();
 
-    let _ = load_xmlo(
+    let (depgraph, _) = load_xmlo(
         package_path,
         &mut fs,
-        &mut depgraph,
+        LinkerAsg::with_capacity(65536, 65536),
         &escaper,
-        AsgBuilderState::new(),
+        xmlo::LowerContext::default(),
     )?;
 
     // if we move away from petgraph, we will need to abstract this away
@@ -179,37 +176,55 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
 fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     path_str: P,
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
-    depgraph: &mut LinkerAsg,
+    asg: Asg,
     escaper: &S,
-    state: LinkerAsgBuilderState,
-) -> Result<LinkerAsgBuilderState, TameldError> {
+    state: xmlo::LowerContext,
+) -> Result<(Asg, xmlo::LowerContext), TameldError> {
     let PathFile(path, file, ctx): PathFile<BufReader<fs::File>> =
         match fs.open(path_str)? {
             VisitOnceFile::FirstVisit(file) => file,
-            VisitOnceFile::Visited => return Ok(state),
+            VisitOnceFile::Visited => return Ok((asg, state)),
         };
 
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
-    let mut state =
-        into_iter_while_ok(XmlXirReader::new(file, escaper, ctx), |toks| {
+    let (mut asg, mut state) = into_iter_while_ok::<_, _, _, TameldError, _>(
+        XmlXirReader::new(file, escaper, ctx),
+        |toks| {
             flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _, _>(
-                |xirf| {
-                    into_iter_while_ok(xirf, |xmlo_out| {
-                        // TODO: Transitionary---we do not want to filter.
-                        depgraph
-                            .import_xmlo(
-                                xmlo_out.filter_map(|parsed| match parsed {
-                                    Parsed::Incomplete => None,
-                                    Parsed::Object(obj) => Some(Ok(obj)),
-                                }),
-                                state,
-                            )
-                            .map_err(TameldError::from)
-                    })
+                |xmlo| {
+                    let mut iter = xmlo.scan(false, |st, rtok| {
+                        match st {
+                            true => None,
+                            false => {
+                                *st = matches!(rtok, Ok(Parsed::Object(XmloToken::Eoh(..))));
+                                Some(rtok)
+                            },
+                        }
+                    });
+
+                    Lower::<XmloReader, xmlo::LowerState>::lower_with_context_while_ok(
+                        &mut iter,
+                        state,
+                        |air| {
+                            let (_, asg) = Lower::<xmlo::LowerState, AirState>::lower_with_context_while_ok(
+                                    air,
+                                    asg,
+                                    |end| {
+                                        end.fold(
+                                            Result::<(), TameldError>::Ok(()),
+                                            |x, _| x,
+                                        )
+                                    },
+                                )?;
+
+                            Ok(asg)
+                        },
+                    )
                 },
             )
-        })?;
+        },
+    )?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();
@@ -222,10 +237,10 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
         path_buf.push(str);
         path_buf.set_extension("xmlo");
 
-        state = load_xmlo(path_buf, fs, depgraph, escaper, state)?;
+        (asg, state) = load_xmlo(path_buf, fs, asg, escaper, state)?;
     }
 
-    Ok(state)
+    Ok((asg, state))
 }
 
 fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
@@ -264,7 +279,8 @@ pub enum TameldError {
     XirError(XirError),
     XirfParseError(ParseError<XirToken, XirfError>),
     XmloParseError(ParseError<XirfToken, XmloError>),
-    AsgBuilderError(AsgBuilderError),
+    XmloLowerError(ParseError<XmloToken, XmloLowerError>),
+    AirLowerError(ParseError<AirToken, AsgError>),
     XirWriterError(XirWriterError),
     CycleError(Vec<Vec<SymbolId>>),
     Fmt(fmt::Error),
@@ -300,9 +316,15 @@ impl From<ParseError<XirToken, XirfError>> for TameldError {
     }
 }
 
-impl From<AsgBuilderError> for TameldError {
-    fn from(e: AsgBuilderError) -> Self {
-        Self::AsgBuilderError(e)
+impl From<ParseError<XmloToken, XmloLowerError>> for TameldError {
+    fn from(e: ParseError<XmloToken, XmloLowerError>) -> Self {
+        Self::XmloLowerError(e)
+    }
+}
+
+impl From<ParseError<AirToken, AsgError>> for TameldError {
+    fn from(e: ParseError<AirToken, AsgError>) -> Self {
+        Self::AirLowerError(e)
     }
 }
 
@@ -326,7 +348,8 @@ impl Display for TameldError {
             Self::XirError(e) => Display::fmt(e, f),
             Self::XirfParseError(e) => Display::fmt(e, f),
             Self::XmloParseError(e) => Display::fmt(e, f),
-            Self::AsgBuilderError(e) => Display::fmt(e, f),
+            Self::XmloLowerError(e) => Display::fmt(e, f),
+            Self::AirLowerError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
             Self::CycleError(cycles) => {
                 for cycle in cycles {
@@ -356,7 +379,8 @@ impl Error for TameldError {
             Self::XirError(e) => Some(e),
             Self::XirfParseError(e) => Some(e),
             Self::XmloParseError(e) => Some(e),
-            Self::AsgBuilderError(e) => Some(e),
+            Self::XmloLowerError(e) => Some(e),
+            Self::AirLowerError(e) => Some(e),
             Self::XirWriterError(e) => Some(e),
             Self::CycleError(..) => None,
             Self::Fmt(e) => Some(e),
@@ -370,6 +394,8 @@ impl Diagnostic for TameldError {
             Self::XirError(e) => e.describe(),
             Self::XirfParseError(e) => e.describe(),
             Self::XmloParseError(e) => e.describe(),
+            Self::XmloLowerError(e) => e.describe(),
+            Self::AirLowerError(e) => e.describe(),
 
             // TODO (will fall back to rendering just the error `Display`)
             _ => vec![],

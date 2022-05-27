@@ -24,24 +24,21 @@ use std::{
     fmt::{self, Display},
 };
 
+use crate::diagnose::{AnnotatedSpan, Diagnostic};
+
 use super::TransitionError;
 
 /// An error from an ASG operation.
 #[derive(Debug, PartialEq)]
 pub enum AsgError {
     /// An object could not change state in the manner requested.
-    ObjectTransition(TransitionError),
-    /// The node was not expected in the current context
-    UnexpectedNode(String),
+    IdentTransition(TransitionError),
 }
 
 impl Display for AsgError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::ObjectTransition(err) => Display::fmt(&err, fmt),
-            Self::UnexpectedNode(msg) => {
-                write!(fmt, "unexpected node: {}", msg)
-            }
+            Self::IdentTransition(err) => Display::fmt(&err, fmt),
         }
     }
 }
@@ -49,14 +46,20 @@ impl Display for AsgError {
 impl Error for AsgError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::ObjectTransition(err) => err.source(),
-            _ => None,
+            Self::IdentTransition(err) => err.source(),
         }
     }
 }
 
 impl From<TransitionError> for AsgError {
     fn from(err: TransitionError) -> Self {
-        Self::ObjectTransition(err)
+        Self::IdentTransition(err)
+    }
+}
+
+impl Diagnostic for AsgError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        // TODO: This won't be useful until we have spans.
+        vec![]
     }
 }

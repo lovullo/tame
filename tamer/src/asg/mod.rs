@@ -68,6 +68,8 @@ mod graph;
 mod ident;
 mod object;
 
+pub mod air;
+
 pub use error::AsgError;
 pub use graph::{Asg, AsgResult, IndexType, ObjectRef};
 pub use ident::{

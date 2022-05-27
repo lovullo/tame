@@ -24,7 +24,7 @@ use crate::{
     num::{Dim, Dtype},
     obj::xmlo::SymType,
     parse::{
-        self, EmptyContext, NoContext, ParseState, Transition,
+        self, EmptyContext, NoContext, ParseState, Token, Transition,
         TransitionResult, Transitionable,
     },
     span::Span,
@@ -44,13 +44,13 @@ use crate::{
 #[derive(Debug, PartialEq, Eq)]
 pub enum XmloToken {
     /// Canonical package name.
-    PkgName(SymbolId),
+    PkgName(SymbolId, Span),
     /// Relative path from package to project root.
-    PkgRootPath(SymbolId),
+    PkgRootPath(SymbolId, Span),
     /// Indicates that the package is a program.
-    PkgProgramFlag,
+    PkgProgramFlag(Span),
     /// Name of package eligibility classification.
-    PkgEligClassYields(SymbolId),
+    PkgEligClassYields(SymbolId, Span),
 
     /// Symbol declaration.
     ///
@@ -86,11 +86,49 @@ pub enum XmloToken {
 
 impl parse::Object for XmloToken {}
 
-/// A [`Result`] with a hard-coded [`XmloError`] error type.
-///
-/// This is the result of every [`XmloReader`] operation that could
-///   potentially fail in error.
-pub type XmloResult<T> = Result<T, XmloError>;
+impl Token for XmloToken {
+    fn span(&self) -> Span {
+        use XmloToken::*;
+
+        match self {
+            // Note that even the spans for the package metadata are
+            //   important since these initial tokens seed
+            //   `Parser::last_span`,
+            //     which is used for early error messages.
+            PkgName(_, span)
+            | PkgRootPath(_, span)
+            | PkgProgramFlag(span)
+            | PkgEligClassYields(_, span)
+            | SymDecl(.., span)
+            | SymDepStart(.., span)
+            | Symbol(.., span)
+            | Fragment(.., span)
+            | Eoh(span) => *span,
+        }
+    }
+}
+
+impl Display for XmloToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use XmloToken::*;
+
+        match self {
+            PkgName(sym, _) => write!(f, "package name `{sym}`"),
+            PkgRootPath(sym, _) => write!(f, "package root path `{sym}`"),
+            PkgProgramFlag(_) => write!(f, "package program flag"),
+            PkgEligClassYields(sym, _) => {
+                write!(f, "package eligibility classification `{sym}`")
+            }
+            SymDecl(sym, ..) => write!(f, "symbol `{sym}` declaration"),
+            SymDepStart(sym, ..) => {
+                write!(f, "beginning of symbol `{sym}` dependency list")
+            }
+            Symbol(sym, ..) => write!(f, "symbol `{sym}`"),
+            Fragment(sym, ..) => write!(f, "symbol `{sym}` code fragment"),
+            Eoh(..) => write!(f, "end of header"),
+        }
+    }
+}
 
 qname_const! {
     QN_DESC: :L_DESC,
@@ -137,7 +175,7 @@ pub enum XmloReader<
     #[default]
     Ready,
     /// Processing `package` attributes.
-    Package,
+    Package(Span),
     /// Expecting a symbol declaration or closing `preproc:symtable`.
     Symtable(Span, SS),
     /// Symbol dependencies are expected next.
@@ -169,33 +207,36 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
         use XmloReader::*;
 
         match (self, tok) {
-            (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ..)) => {
-                Transition(Package).incomplete()
+            (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, span, ..)) => {
+                Transition(Package(span)).incomplete()
             }
 
             (Ready, tok) => {
                 Transition(Ready).err(XmloError::UnexpectedRoot(tok))
             }
 
-            (Package, Xirf::Attr(Attr(name, value, _))) => {
-                Transition(Package).ok(match name {
-                    QN_NAME => XmloToken::PkgName(value),
-                    QN_UUROOTPATH => XmloToken::PkgRootPath(value),
-                    QN_PROGRAM => XmloToken::PkgProgramFlag,
+            (Package(span), Xirf::Attr(Attr(name, value, aspan))) => {
+                // TODO: These spans do not encompass the entire token for errors,
+                //   which can result in confusing output depending on the context;
+                //     we ought to retain _both_ token- and value-spans.
+                Transition(Package(span)).ok(match name {
+                    QN_NAME => XmloToken::PkgName(value, aspan.1),
+                    QN_UUROOTPATH => XmloToken::PkgRootPath(value, aspan.1),
+                    QN_PROGRAM => XmloToken::PkgProgramFlag(aspan.0), // yes 0
                     QN_ELIG_CLASS_YIELDS => {
-                        XmloToken::PkgEligClassYields(value)
+                        XmloToken::PkgEligClassYields(value, aspan.1)
                     }
                     // Ignore unknown attributes for now to maintain BC,
                     //   since no strict xmlo schema has been defined.
-                    _ => return Transition(Package).incomplete(),
+                    _ => return Transition(Package(span)).incomplete(),
                 })
             }
 
             // Empty package (should we allow this?);
             //   XIRF guarantees a matching closing tag.
-            (Package, Xirf::Close(..)) => Transition(Done).incomplete(),
+            (Package(_), Xirf::Close(..)) => Transition(Done).incomplete(),
 
-            (Package, Xirf::Open(QN_SYMTABLE, span, ..)) => {
+            (Package(_), Xirf::Open(QN_SYMTABLE, span, ..)) => {
                 Transition(Symtable(span, SS::default())).incomplete()
             }
 
@@ -264,7 +305,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> Display
 
         match self {
             Ready => write!(f, "awaiting xmlo input"),
-            Package => write!(f, "processing package attributes"),
+            Package(_) => write!(f, "processing package attributes"),
             Symtable(_, ss) => Display::fmt(ss, f),
             SymDepsExpected => write!(f, "expecting symbol dependency list"),
             SymDeps(_, sd) => Display::fmt(sd, f),

@@ -61,10 +61,18 @@ impl Attr {
 
 impl Token for Attr {
     fn span(&self) -> Span {
-        // TODO: This may or may not actually represent the span relative to
-        //   a given parser,
-        //     so we may want to accept a context to bias toward.
-        self.2 .1
+        // TODO: This ought to represent the _entire_ token.
+        //   However,
+        //     this is complicated by the closing quote,
+        //     which is not present in _either_ span,
+        //       so we'll need to formalize that first;
+        //         simply adding a single byte offset seems unwise,
+        //           given that this is not responsible for producing the
+        //           spans to begin with;
+        //             I'd prefer help from XIR.
+        match self {
+            Attr(.., (span, _)) => *span,
+        }
     }
 }
 

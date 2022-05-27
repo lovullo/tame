@@ -67,7 +67,7 @@ type Ix = global::ProgSymSize;
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Asg {
     // TODO: private; see `ld::xmle::lower`.
     /// Directed graph on which objects are stored.
@@ -89,11 +89,18 @@ pub struct Asg {
     root_node: NodeIndex<Ix>,
 }
 
+impl Default for Asg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Asg {
     /// Create a new ASG.
     ///
     /// See also [`with_capacity`](Asg::with_capacity).
     pub fn new() -> Self {
+        // TODO: Determine a proper initial capacity.
         Self::with_capacity(0, 0)
     }
 
@@ -167,7 +174,7 @@ impl Asg {
     ///   reference to it.
     ///
     /// See [`Ident::declare`] for more information.
-    fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
+    pub(super) fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
         self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(Ident::declare(ident).into()));
 
@@ -246,6 +253,14 @@ impl Asg {
     pub fn add_root(&mut self, identi: ObjectRef) {
         self.graph
             .add_edge(self.root_node, identi.into(), Default::default());
+    }
+
+    /// Whether an object is rooted.
+    ///
+    /// See [`Asg::add_root`] for more information about roots.
+    #[cfg(test)]
+    pub(super) fn is_rooted(&self, identi: ObjectRef) -> bool {
+        self.graph.contains_edge(self.root_node, identi.into())
     }
 
     /// Declare a concrete identifier.
@@ -594,7 +609,7 @@ mod test {
         let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
         let result = sut.declare(sym, IdentKind::Meta, Source::default());
 
-        assert_matches!(result, Err(AsgError::ObjectTransition(..)));
+        assert_matches!(result, Err(AsgError::IdentTransition(..)));
 
         // The node should have been restored.
         assert_eq!(Some(&src), sut.get_ident(node).unwrap().src());
@@ -639,7 +654,7 @@ mod test {
         let result =
             sut.declare_extern(sym, IdentKind::Worksheet, Source::default());
 
-        assert_matches!(result, Err(AsgError::ObjectTransition(..)));
+        assert_matches!(result, Err(AsgError::IdentTransition(..)));
 
         // The node should have been restored.
         assert_eq!(Some(&src), sut.get_ident(node).unwrap().src());
@@ -701,7 +716,7 @@ mod test {
         let obj = sut.get_ident(node).unwrap();
 
         assert_eq!(sym, obj.name());
-        assert_matches!(result, Err(AsgError::ObjectTransition(..)));
+        assert_matches!(result, Err(AsgError::IdentTransition(..)));
 
         Ok(())
     }

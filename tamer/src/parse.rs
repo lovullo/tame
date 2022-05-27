@@ -65,6 +65,8 @@ impl<T: Token> From<T> for Span {
 ///     used in the [`Transition`] API to provide greater flexibility.
 pub trait Object: Debug + PartialEq {}
 
+impl Object for () {}
+
 /// An infallible [`Token`] stream.
 ///
 /// If the token stream originates from an operation that could potentially
@@ -730,7 +732,8 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         self.while_ok(|toks| {
             // TODO: This parser is not accessible after error recovery!
             let lower = LS::parse(iter::empty());
-            f(&mut LowerIter { lower, toks })
+            let mut iter = LowerIter { lower, toks };
+            f(&mut iter)
         })
         .map_err(Into::into)
     }
@@ -758,6 +761,62 @@ where
         Parsed<S::Object>,
         ParseError<S::Token, S::Error>,
     >,
+}
+
+impl<'a, 'b, S, I, LS> LowerIter<'a, 'b, S, I, LS>
+where
+    S: ParseState,
+    I: Iterator<Item = ParsedResult<S>>,
+    LS: ParseState<Token = S::Object>,
+    <S as ParseState>::Object: Token,
+{
+    /// Consume inner parser and yield its context.
+    #[inline]
+    fn finalize(self) -> Result<LS::Context, ParseError<LS::Token, LS::Error>> {
+        self.lower.finalize().map_err(|(_, e)| e)
+    }
+}
+
+/// Lowering operation from one [`ParseState`] to another.
+pub trait Lower<S, LS>
+where
+    S: ParseState,
+    LS: ParseState<Token = S::Object>,
+    <S as ParseState>::Object: Token,
+{
+    /// Perform a lowering operation between two parsers where the context
+    ///   is both received and returned.
+    ///
+    /// This allows state to be shared among parsers.
+    ///
+    /// See [`ParseState::parse_with_context`] for more information.
+    fn lower_with_context_while_ok<U, E>(
+        &mut self,
+        ctx: LS::Context,
+        f: impl FnOnce(&mut LowerIter<S, Self, LS>) -> Result<U, E>,
+    ) -> Result<(U, LS::Context), E>
+    where
+        Self: Iterator<Item = ParsedResult<S>> + Sized,
+        ParseError<S::Token, S::Error>: Into<E>,
+        ParseError<LS::Token, LS::Error>: Into<E>,
+    {
+        self.while_ok(|toks| {
+            let lower = LS::parse_with_context(iter::empty(), ctx);
+            let mut iter = LowerIter { lower, toks };
+            let val = f(&mut iter)?;
+
+            iter.finalize().map_err(Into::into).map(|ctx| (val, ctx))
+        })
+    }
+}
+
+impl<S, LS, I> Lower<S, LS> for I
+where
+    I: Iterator<Item = ParsedResult<S>> + Sized,
+    S: ParseState,
+    LS: ParseState<Token = S::Object>,
+    <S as ParseState>::Object: Token,
+{
 }
 
 impl<'a, 'b, S, I, LS> Iterator for LowerIter<'a, 'b, S, I, LS>
