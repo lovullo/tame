@@ -719,7 +719,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Consequently,
     ///   this API (likely the return type) will change.
     #[inline]
-    pub fn lower_while_ok<LS, U, E>(
+    pub fn lower<LS, U, E>(
         &mut self,
         f: impl FnOnce(&mut LowerIter<S, Parser<S, I>, LS>) -> Result<U, E>,
     ) -> Result<U, E>
@@ -742,7 +742,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
 /// An IR lowering operation that pipes the output of one [`Parser`] to the
 ///   input of another.
 ///
-/// This is produced by [`Parser::lower_while_ok`].
+/// This is produced by [`Parser::lower`].
 pub struct LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
@@ -790,7 +790,7 @@ where
     /// This allows state to be shared among parsers.
     ///
     /// See [`ParseState::parse_with_context`] for more information.
-    fn lower_with_context_while_ok<U, E>(
+    fn lower_with_context<U, E>(
         &mut self,
         ctx: LS::Context,
         f: impl FnOnce(&mut LowerIter<S, Self, LS>) -> Result<U, E>,

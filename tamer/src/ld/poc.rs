@@ -191,7 +191,7 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     let (mut asg, mut state) = into_iter_while_ok::<_, _, _, TameldError, _>(
         XmlXirReader::new(file, escaper, ctx),
         |toks| {
-            flat::State::<64>::parse(toks).lower_while_ok::<XmloReader, _, _>(
+            flat::State::<64>::parse(toks).lower::<XmloReader, _, _>(
                 |xmlo| {
                     let mut iter = xmlo.scan(false, |st, rtok| {
                         match st {
@@ -203,11 +203,11 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                         }
                     });
 
-                    Lower::<XmloReader, xmlo::LowerState>::lower_with_context_while_ok(
+                    Lower::<XmloReader, xmlo::LowerState>::lower_with_context(
                         &mut iter,
                         state,
                         |air| {
-                            let (_, asg) = Lower::<xmlo::LowerState, AirState>::lower_with_context_while_ok(
+                            let (_, asg) = Lower::<xmlo::LowerState, AirState>::lower_with_context(
                                     air,
                                     asg,
                                     |end| {
