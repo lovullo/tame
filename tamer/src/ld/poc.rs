@@ -191,15 +191,17 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     let (mut asg, mut state) = into_iter_while_ok::<_, _, _, TameldError, _>(
         XmlXirReader::new(file, escaper, ctx),
         |toks| {
-            flat::State::<64>::parse(toks).lower::<XmloReader, _, _>(
+            Lower::<flat::State<64>, XmloReader>::lower(
+                &mut flat::State::<64>::parse(toks),
                 |xmlo| {
-                    let mut iter = xmlo.scan(false, |st, rtok| {
-                        match st {
-                            true => None,
-                            false => {
-                                *st = matches!(rtok, Ok(Parsed::Object(XmloToken::Eoh(..))));
-                                Some(rtok)
-                            },
+                    let mut iter = xmlo.scan(false, |st, rtok| match st {
+                        true => None,
+                        false => {
+                            *st = matches!(
+                                rtok,
+                                Ok(Parsed::Object(XmloToken::Eoh(..)))
+                            );
+                            Some(rtok)
                         }
                     });
 

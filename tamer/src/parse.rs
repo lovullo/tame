@@ -684,65 +684,12 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             Err(e) => Err(e.into()),
         }
     }
-
-    /// Lower the IR produced by this [`Parser`] into another IR by piping
-    ///   the output to a new parser defined by the [`ParseState`] `LS`.
-    ///
-    /// This parser consumes tokens `S::Token` and produces the IR
-    ///   `S::Output`.
-    /// If there is some other [`ParseState`] `LS` such that
-    ///   `LS::Token == S::Output`
-    ///     (that is—the output of this parser is the input to another),
-    ///     then this method will wire the two together into a new iterator
-    ///       that produces `LS::Output`.
-    ///
-    /// Visually, we have,
-    ///   within the provided closure `f`,
-    ///   a [`LowerIter`] that acts as this pipeline:
-    ///
-    /// ```text
-    /// (S::Token) -> (S::Output == LS::Token) -> (LS::Output)
-    /// ```
-    ///
-    /// The new iterator is a [`LowerIter`],
-    ///   and scoped to the provided closure `f`.
-    /// The outer [`Result`] of `Self`'s [`ParsedResult`] is stripped by
-    ///   a [`TripIter`] before being provided as input to a new push
-    ///   [`Parser`] utilizing `LS`.
-    /// A push parser,
-    ///   rather than pulling tokens from a [`TokenStream`],
-    ///   has tokens pushed into it;
-    ///     this parser is created automatically for you.
-    ///
-    /// _TODO_: There's no way to access the inner parser for error recovery
-    ///   after tripping the [`TripIter`].
-    /// Consequently,
-    ///   this API (likely the return type) will change.
-    #[inline]
-    pub fn lower<LS, U, E>(
-        &mut self,
-        f: impl FnOnce(&mut LowerIter<S, Parser<S, I>, LS>) -> Result<U, E>,
-    ) -> Result<U, E>
-    where
-        LS: ParseState<Token = S::Object>,
-        <S as ParseState>::Object: Token,
-        <LS as ParseState>::Context: Default,
-        ParseError<S::Token, S::Error>: Into<E>,
-    {
-        self.while_ok(|toks| {
-            // TODO: This parser is not accessible after error recovery!
-            let lower = LS::parse(iter::empty());
-            let mut iter = LowerIter { lower, toks };
-            f(&mut iter)
-        })
-        .map_err(Into::into)
-    }
 }
 
 /// An IR lowering operation that pipes the output of one [`Parser`] to the
 ///   input of another.
 ///
-/// This is produced by [`Parser::lower`].
+/// This is produced by [`Lower`].
 pub struct LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
@@ -784,12 +731,66 @@ where
     LS: ParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
 {
+    /// Lower the IR produced by this [`Parser`] into another IR by piping
+    ///   the output to a new parser defined by the [`ParseState`] `LS`.
+    ///
+    /// This parser consumes tokens `S::Token` and produces the IR
+    ///   `S::Output`.
+    /// If there is some other [`ParseState`] `LS` such that
+    ///   `LS::Token == S::Output`
+    ///     (that is—the output of this parser is the input to another),
+    ///     then this method will wire the two together into a new iterator
+    ///       that produces `LS::Output`.
+    ///
+    /// Visually, we have,
+    ///   within the provided closure `f`,
+    ///   a [`LowerIter`] that acts as this pipeline:
+    ///
+    /// ```text
+    /// (S::Token) -> (S::Output == LS::Token) -> (LS::Output)
+    /// ```
+    ///
+    /// The new iterator is a [`LowerIter`],
+    ///   and scoped to the provided closure `f`.
+    /// The outer [`Result`] of `Self`'s [`ParsedResult`] is stripped by
+    ///   a [`TripIter`] before being provided as input to a new push
+    ///   [`Parser`] utilizing `LS`.
+    /// A push parser,
+    ///   rather than pulling tokens from a [`TokenStream`],
+    ///   has tokens pushed into it;
+    ///     this parser is created automatically for you.
+    ///
+    /// _TODO_: There's no way to access the inner parser for error recovery
+    ///   after tripping the [`TripIter`].
+    /// Consequently,
+    ///   this API (likely the return type) will change.
+    #[inline]
+    fn lower<U, E>(
+        &mut self,
+        f: impl FnOnce(&mut LowerIter<S, Self, LS>) -> Result<U, E>,
+    ) -> Result<U, E>
+    where
+        Self: Iterator<Item = ParsedResult<S>> + Sized,
+        <LS as ParseState>::Context: Default,
+        ParseError<S::Token, S::Error>: Into<E>,
+        ParseError<LS::Token, LS::Error>: Into<E>,
+    {
+        self.while_ok(|toks| {
+            // TODO: This parser is not accessible after error recovery!
+            let lower = LS::parse(iter::empty());
+            let mut iter = LowerIter { lower, toks };
+            f(&mut iter)
+        })
+        .map_err(Into::into)
+    }
+
     /// Perform a lowering operation between two parsers where the context
     ///   is both received and returned.
     ///
     /// This allows state to be shared among parsers.
     ///
-    /// See [`ParseState::parse_with_context`] for more information.
+    /// See [`Lower::lower`] and [`ParseState::parse_with_context`] for more
+    ///   information.
     fn lower_with_context<U, E>(
         &mut self,
         ctx: LS::Context,
