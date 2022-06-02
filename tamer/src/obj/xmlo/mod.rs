@@ -74,14 +74,14 @@
 //! </package>
 //! ```
 
+mod air;
 mod error;
 mod ir;
-mod lower;
 mod reader;
 
 pub use error::XmloError;
 pub use ir::{SymAttrs, SymType};
 // TODO: Encapsulate LowerContext once it is no longer needed by the caller
 //   in `poc.rs`.
-pub use lower::{LowerContext, LowerState, XmloLowerError};
+pub use air::{XmloAirContext, XmloAirError, XmloToAir};
 pub use reader::{XmloReader, XmloToken};

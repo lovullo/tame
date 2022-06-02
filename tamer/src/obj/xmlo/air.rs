@@ -1,4 +1,4 @@
-// Lower `xmlo` object file into the ASG
+// Lower `xmlo` object file into AIR
 //
 //  Copyright (C) 2014-2022 Ryan Specialty Group, LLC.
 //
@@ -39,9 +39,9 @@ use super::XmloToken;
 
 /// Persistent `xmlo` lowering context to be shared among all `xmlo` files.
 ///
-/// TODO: Continue refactoring this into [`LowerState`] and the ASG itself.
+/// TODO: Continue refactoring this into [`XmloToAir`] and the ASG itself.
 #[derive(Debug)]
-pub struct LowerContext {
+pub struct XmloAirContext {
     /// Relative paths to imported packages that have been discovered.
     ///
     /// The caller will use these to perform recursive loads.
@@ -65,7 +65,7 @@ pub struct LowerContext {
     first: bool,
 }
 
-impl Default for LowerContext {
+impl Default for XmloAirContext {
     fn default() -> Self {
         Self {
             found: None,
@@ -76,7 +76,7 @@ impl Default for LowerContext {
     }
 }
 
-impl LowerContext {
+impl XmloAirContext {
     /// Whether this is the first discovered package.
     #[inline]
     fn is_first(&self) -> bool {
@@ -89,7 +89,7 @@ type PackageName = SymbolId;
 /// State machine for lowering into the [`Asg`](crate::asg::Asg) via
 ///   [`AirToken`].
 #[derive(Debug, PartialEq, Eq, Default)]
-pub enum LowerState {
+pub enum XmloToAir {
     #[default]
     PackageExpected,
     Package(PackageName, Span),
@@ -98,19 +98,19 @@ pub enum LowerState {
     Done(Span),
 }
 
-impl ParseState for LowerState {
+impl ParseState for XmloToAir {
     type Token = XmloToken;
     type Object = AirToken;
-    type Error = XmloLowerError;
+    type Error = XmloAirError;
 
-    type Context = LowerContext;
+    type Context = XmloAirContext;
 
     fn parse_token(
         self,
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
-        use LowerState::*;
+        use XmloToAir::*;
 
         match (self, tok) {
             (PackageExpected, XmloToken::PkgName(name, span)) => {
@@ -239,9 +239,9 @@ impl ParseState for LowerState {
     }
 }
 
-impl Display for LowerState {
+impl Display for XmloToAir {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use LowerState::*;
+        use XmloToAir::*;
 
         match self {
             PackageExpected => write!(f, "expecting package definition"),
@@ -257,7 +257,7 @@ impl Display for LowerState {
 }
 
 impl TryFrom<SymAttrs> for IdentKind {
-    type Error = XmloLowerError;
+    type Error = XmloAirError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
@@ -269,7 +269,7 @@ impl TryFrom<SymAttrs> for IdentKind {
 }
 
 impl TryFrom<&SymAttrs> for IdentKind {
-    type Error = XmloLowerError;
+    type Error = XmloAirError;
 
     /// Attempt to raise [`SymAttrs`] into an [`IdentKind`].
     ///
@@ -342,7 +342,7 @@ impl From<SymAttrs> for Source {
 ///
 /// TODO: Spans are needed!
 #[derive(Debug, PartialEq)]
-pub enum XmloLowerError {
+pub enum XmloAirError {
     /// Symbol type was not provided.
     MissingType,
 
@@ -359,7 +359,7 @@ pub enum XmloLowerError {
     BadEligRef(SymbolId),
 }
 
-impl Display for XmloLowerError {
+impl Display for XmloAirError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::MissingType => write!(fmt, "missing symbol type"),
@@ -374,9 +374,9 @@ impl Display for XmloLowerError {
     }
 }
 
-impl Diagnostic for XmloLowerError {
+impl Diagnostic for XmloAirError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
-        use XmloLowerError::*;
+        use XmloAirError::*;
 
         match self {
             // TODO: Missing spans!
@@ -385,7 +385,7 @@ impl Diagnostic for XmloLowerError {
     }
 }
 
-impl Error for XmloLowerError {
+impl Error for XmloAirError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -403,7 +403,7 @@ mod test {
         sym::GlobalSymbolIntern,
     };
 
-    type Sut = LowerState;
+    type Sut = XmloToAir;
 
     const S1: Span = DUMMY_SPAN;
     const S2: Span = S1.offset_add(1).unwrap();
@@ -643,7 +643,7 @@ mod test {
         // This is all that's needed to not consider this to be the first
         //   package,
         //     so that pkg_name is retained below.
-        let ctx = LowerContext {
+        let ctx = XmloAirContext {
             first: false,
             ..Default::default()
         };
@@ -686,7 +686,7 @@ mod test {
         let sym = "sym".into();
         let pkg_name = "pkg name".into();
 
-        let ctx = LowerContext {
+        let ctx = XmloAirContext {
             first: false,
             ..Default::default()
         };
@@ -796,7 +796,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dim");
 
-                assert_eq!(XmloLowerError::MissingDim, result);
+                assert_eq!(XmloAirError::MissingDim, result);
             }
         };
 
@@ -822,7 +822,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dtype");
 
-                assert_eq!(XmloLowerError::MissingDtype, result);
+                assert_eq!(XmloAirError::MissingDtype, result);
             }
         };
 
@@ -851,7 +851,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dim");
 
-                assert_eq!(XmloLowerError::MissingDim, dim_result);
+                assert_eq!(XmloAirError::MissingDim, dim_result);
 
                 // no dtype
                 let dtype_result = IdentKind::try_from(SymAttrs {
@@ -861,7 +861,7 @@ mod test {
                 })
                 .expect_err("must fail when missing dtype");
 
-                assert_eq!(XmloLowerError::MissingDtype, dtype_result);
+                assert_eq!(XmloAirError::MissingDtype, dtype_result);
             }
         };
     }

@@ -36,7 +36,10 @@ use crate::{
         VisitOnceFilesystem,
     },
     ld::xmle::Sections,
-    obj::xmlo::{self, XmloError, XmloLowerError, XmloReader, XmloToken},
+    obj::xmlo::{
+        XmloAirContext, XmloAirError, XmloError, XmloReader, XmloToAir,
+        XmloToken,
+    },
     parse::{Lower, ParseError, Parsed, ParsedObject, UnknownToken},
     sym::{GlobalSymbolResolve, SymbolId},
     xir::reader::XmlXirReader,
@@ -67,10 +70,10 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
         &mut fs,
         LinkerAsg::with_capacity(65536, 65536),
         &escaper,
-        xmlo::LowerContext::default(),
+        XmloAirContext::default(),
     )?;
 
-    let xmlo::LowerContext {
+    let XmloAirContext {
         prog_name: name,
         relroot,
         ..
@@ -125,7 +128,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
         &mut fs,
         LinkerAsg::with_capacity(65536, 65536),
         &escaper,
-        xmlo::LowerContext::default(),
+        XmloAirContext::default(),
     )?;
 
     // if we move away from petgraph, we will need to abstract this away
@@ -177,8 +180,8 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
     asg: Asg,
     escaper: &S,
-    state: xmlo::LowerContext,
-) -> Result<(Asg, xmlo::LowerContext), TameldError> {
+    state: XmloAirContext,
+) -> Result<(Asg, XmloAirContext), TameldError> {
     let PathFile(path, file, ctx): PathFile<BufReader<fs::File>> =
         match fs.open(path_str)? {
             VisitOnceFile::FirstVisit(file) => file,
@@ -187,12 +190,11 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
 
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
-    let (mut asg, mut state) = Lower::<
-        ParsedObject<XirToken, XirError>,
-        flat::State<64>,
-    >::lower::<_, TameldError>(
-        &mut XmlXirReader::new(file, escaper, ctx),
-        |toks| {
+    let (mut asg, mut state) =
+        Lower::<ParsedObject<XirToken, XirError>, flat::State<64>>::lower::<
+            _,
+            TameldError,
+        >(&mut XmlXirReader::new(file, escaper, ctx), |toks| {
             Lower::<flat::State<64>, XmloReader>::lower(toks, |xmlo| {
                 let mut iter = xmlo.scan(false, |st, rtok| match st {
                     true => None,
@@ -205,27 +207,27 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                     }
                 });
 
-                Lower::<XmloReader, xmlo::LowerState>::lower_with_context(
+                Lower::<XmloReader, XmloToAir>::lower_with_context(
                     &mut iter,
                     state,
                     |air| {
-                        let (_, asg) = Lower::<xmlo::LowerState, AirState>::lower_with_context(
-                                    air,
-                                    asg,
-                                    |end| {
-                                        end.fold(
-                                            Result::<(), TameldError>::Ok(()),
-                                            |x, _| x,
-                                        )
-                                    },
-                                )?;
+                        let (_, asg) =
+                            Lower::<XmloToAir, AirState>::lower_with_context(
+                                air,
+                                asg,
+                                |end| {
+                                    end.fold(
+                                        Result::<(), TameldError>::Ok(()),
+                                        |x, _| x,
+                                    )
+                                },
+                            )?;
 
                         Ok(asg)
                     },
                 )
             })
-        },
-    )?;
+        })?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();
@@ -280,7 +282,7 @@ pub enum TameldError {
     XirParseError(ParseError<UnknownToken, XirError>),
     XirfParseError(ParseError<XirToken, XirfError>),
     XmloParseError(ParseError<XirfToken, XmloError>),
-    XmloLowerError(ParseError<XmloToken, XmloLowerError>),
+    XmloLowerError(ParseError<XmloToken, XmloAirError>),
     AirLowerError(ParseError<AirToken, AsgError>),
     XirWriterError(XirWriterError),
     CycleError(Vec<Vec<SymbolId>>),
@@ -317,8 +319,8 @@ impl From<ParseError<XirToken, XirfError>> for TameldError {
     }
 }
 
-impl From<ParseError<XmloToken, XmloLowerError>> for TameldError {
-    fn from(e: ParseError<XmloToken, XmloLowerError>) -> Self {
+impl From<ParseError<XmloToken, XmloAirError>> for TameldError {
+    fn from(e: ParseError<XmloToken, XmloAirError>) -> Self {
         Self::XmloLowerError(e)
     }
 }
