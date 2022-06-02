@@ -111,12 +111,12 @@ impl Display for AirToken {
 ///   all state is stored on the ASG itself,
 ///     which is the parsing context.
 #[derive(Debug, PartialEq, Eq, Default)]
-pub enum AirState {
+pub enum AirAggregate {
     #[default]
     Empty,
 }
 
-impl ParseState for AirState {
+impl ParseState for AirAggregate {
     type Token = AirToken;
     type Object = ();
     type Error = AsgError;
@@ -131,7 +131,7 @@ impl ParseState for AirState {
         tok: Self::Token,
         asg: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
-        use AirState::*;
+        use AirAggregate::*;
         use AirToken::*;
 
         match (self, tok) {
@@ -167,9 +167,9 @@ impl ParseState for AirState {
     }
 }
 
-impl Display for AirState {
+impl Display for AirAggregate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use AirState::*;
+        use AirAggregate::*;
 
         // This is not terribly useful beyond indicating which parser caused
         //   an error.
@@ -192,7 +192,7 @@ mod test {
 
     use super::*;
 
-    type Sut = AirState;
+    type Sut = AirAggregate;
 
     #[test]
     fn ident_decl() {

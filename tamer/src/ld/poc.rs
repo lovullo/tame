@@ -27,7 +27,7 @@ use super::xmle::{
 };
 use crate::{
     asg::{
-        air::{AirState, AirToken},
+        air::{AirAggregate, AirToken},
         Asg, AsgError, DefaultAsg, Ident, Object,
     },
     diagnose::{AnnotatedSpan, Diagnostic},
@@ -190,11 +190,12 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
 
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
-    let (mut asg, mut state) =
-        Lower::<ParsedObject<XirToken, XirError>, flat::State<64>>::lower::<
-            _,
-            TameldError,
-        >(&mut XmlXirReader::new(file, escaper, ctx), |toks| {
+    let (mut asg, mut state) = Lower::<
+        ParsedObject<XirToken, XirError>,
+        flat::State<64>,
+    >::lower::<_, TameldError>(
+        &mut XmlXirReader::new(file, escaper, ctx),
+        |toks| {
             Lower::<flat::State<64>, XmloReader>::lower(toks, |xmlo| {
                 let mut iter = xmlo.scan(false, |st, rtok| match st {
                     true => None,
@@ -212,7 +213,7 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                     state,
                     |air| {
                         let (_, asg) =
-                            Lower::<XmloToAir, AirState>::lower_with_context(
+                            Lower::<XmloToAir, AirAggregate>::lower_with_context(
                                 air,
                                 asg,
                                 |end| {
@@ -227,7 +228,8 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                     },
                 )
             })
-        })?;
+        },
+    )?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();
