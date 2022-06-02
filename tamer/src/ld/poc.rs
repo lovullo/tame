@@ -35,10 +35,9 @@ use crate::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,
     },
-    iter::into_iter_while_ok,
     ld::xmle::Sections,
     obj::xmlo::{self, XmloError, XmloLowerError, XmloReader, XmloToken},
-    parse::{Lower, ParseError, ParseState, Parsed},
+    parse::{Lower, ParseError, Parsed, ParsedObject, UnknownToken},
     sym::{GlobalSymbolResolve, SymbolId},
     xir::reader::XmlXirReader,
     xir::{
@@ -188,28 +187,29 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
 
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
-    let (mut asg, mut state) = into_iter_while_ok::<_, _, _, TameldError, _>(
-        XmlXirReader::new(file, escaper, ctx),
+    let (mut asg, mut state) = Lower::<
+        ParsedObject<XirToken, XirError>,
+        flat::State<64>,
+    >::lower::<_, TameldError>(
+        &mut XmlXirReader::new(file, escaper, ctx),
         |toks| {
-            Lower::<flat::State<64>, XmloReader>::lower(
-                &mut flat::State::<64>::parse(toks),
-                |xmlo| {
-                    let mut iter = xmlo.scan(false, |st, rtok| match st {
-                        true => None,
-                        false => {
-                            *st = matches!(
-                                rtok,
-                                Ok(Parsed::Object(XmloToken::Eoh(..)))
-                            );
-                            Some(rtok)
-                        }
-                    });
+            Lower::<flat::State<64>, XmloReader>::lower(toks, |xmlo| {
+                let mut iter = xmlo.scan(false, |st, rtok| match st {
+                    true => None,
+                    false => {
+                        *st = matches!(
+                            rtok,
+                            Ok(Parsed::Object(XmloToken::Eoh(..)))
+                        );
+                        Some(rtok)
+                    }
+                });
 
-                    Lower::<XmloReader, xmlo::LowerState>::lower_with_context(
-                        &mut iter,
-                        state,
-                        |air| {
-                            let (_, asg) = Lower::<xmlo::LowerState, AirState>::lower_with_context(
+                Lower::<XmloReader, xmlo::LowerState>::lower_with_context(
+                    &mut iter,
+                    state,
+                    |air| {
+                        let (_, asg) = Lower::<xmlo::LowerState, AirState>::lower_with_context(
                                     air,
                                     asg,
                                     |end| {
@@ -220,11 +220,10 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                                     },
                                 )?;
 
-                            Ok(asg)
-                        },
-                    )
-                },
-            )
+                        Ok(asg)
+                    },
+                )
+            })
         },
     )?;
 
@@ -278,7 +277,7 @@ fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
 pub enum TameldError {
     Io(io::Error),
     SortError(SortError),
-    XirError(XirError),
+    XirParseError(ParseError<UnknownToken, XirError>),
     XirfParseError(ParseError<XirToken, XirfError>),
     XmloParseError(ParseError<XirfToken, XmloError>),
     XmloLowerError(ParseError<XmloToken, XmloLowerError>),
@@ -300,9 +299,9 @@ impl From<SortError> for TameldError {
     }
 }
 
-impl From<XirError> for TameldError {
-    fn from(e: XirError) -> Self {
-        Self::XirError(e)
+impl From<ParseError<UnknownToken, XirError>> for TameldError {
+    fn from(e: ParseError<UnknownToken, XirError>) -> Self {
+        Self::XirParseError(e)
     }
 }
 
@@ -347,7 +346,7 @@ impl Display for TameldError {
         match self {
             Self::Io(e) => Display::fmt(e, f),
             Self::SortError(e) => Display::fmt(e, f),
-            Self::XirError(e) => Display::fmt(e, f),
+            Self::XirParseError(e) => Display::fmt(e, f),
             Self::XirfParseError(e) => Display::fmt(e, f),
             Self::XmloParseError(e) => Display::fmt(e, f),
             Self::XmloLowerError(e) => Display::fmt(e, f),
@@ -378,7 +377,7 @@ impl Error for TameldError {
         match self {
             Self::Io(e) => Some(e),
             Self::SortError(e) => Some(e),
-            Self::XirError(e) => Some(e),
+            Self::XirParseError(e) => Some(e),
             Self::XirfParseError(e) => Some(e),
             Self::XmloParseError(e) => Some(e),
             Self::XmloLowerError(e) => Some(e),
@@ -393,7 +392,7 @@ impl Error for TameldError {
 impl Diagnostic for TameldError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
-            Self::XirError(e) => e.describe(),
+            Self::XirParseError(e) => e.describe(),
             Self::XirfParseError(e) => e.describe(),
             Self::XmloParseError(e) => e.describe(),
             Self::XmloLowerError(e) => e.describe(),

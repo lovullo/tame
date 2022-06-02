@@ -565,6 +565,8 @@ impl parse::Token for Token {
     }
 }
 
+impl parse::Object for Token {}
+
 #[cfg(test)]
 mod test {
     use super::*;

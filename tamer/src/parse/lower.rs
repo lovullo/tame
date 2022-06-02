@@ -19,9 +19,15 @@
 
 //! IR lowering operation between [`Parser`]s.
 
-use super::{ParseError, ParseState, Parsed, ParsedResult, Parser, Token};
-use crate::iter::{TripIter, TrippableIterator};
-use std::iter;
+use super::{
+    NoContext, Object, ParseError, ParseState, Parsed, ParsedResult, Parser,
+    Token, TransitionResult, UnknownToken,
+};
+use crate::{
+    diagnose::Diagnostic,
+    iter::{TripIter, TrippableIterator},
+};
+use std::{fmt::Display, iter, marker::PhantomData};
 
 #[cfg(doc)]
 use super::TokenStream;
@@ -179,5 +185,58 @@ where
             Some(Parsed::Incomplete) => Some(Ok(Parsed::Incomplete)),
             Some(Parsed::Object(obj)) => Some(self.lower.feed_tok(obj)),
         }
+    }
+}
+
+/// Representation of a [`ParseState`] producing some type of [`Object`].
+///
+/// This is intended to be used not as a value,
+///   but as a type for lowering operations.
+/// This is useful when a parser does not make use of [`ParseState`] but
+///   still wishes to participate in a lowering pipeline.
+/// The type of [`Token`] will always be [`UnknownToken`],
+///   so this is only useful at the head of such a pipeline.
+#[derive(Debug)]
+pub struct ParsedObject<O: Object, E: Diagnostic + PartialEq> {
+    _phantom: PhantomData<(O, E)>,
+}
+
+impl<O: Object, E: Diagnostic + PartialEq> PartialEq for ParsedObject<O, E> {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl<O: Object, E: Diagnostic + PartialEq> Eq for ParsedObject<O, E> {}
+
+impl<O: Object, E: Diagnostic + PartialEq> Default for ParsedObject<O, E> {
+    fn default() -> Self {
+        Self {
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<O: Object, E: Diagnostic + PartialEq> Display for ParsedObject<O, E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<generic data>")
+    }
+}
+
+impl<O: Object, E: Diagnostic + PartialEq> ParseState for ParsedObject<O, E> {
+    type Token = UnknownToken;
+    type Object = O;
+    type Error = E;
+
+    fn parse_token(
+        self,
+        _tok: Self::Token,
+        _: NoContext,
+    ) -> TransitionResult<Self> {
+        unreachable!("ParsedObject must be used for type information only")
+    }
+
+    fn is_accepting(&self) -> bool {
+        unreachable!("ParsedObject must be used for type information only")
     }
 }

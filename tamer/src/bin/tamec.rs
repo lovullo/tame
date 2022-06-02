@@ -37,6 +37,7 @@ use tamer::{
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
+    parse::{ParseError, Parsed, UnknownToken},
     xir,
 };
 
@@ -86,7 +87,12 @@ pub fn main() -> Result<(), TamecError> {
                     into_iter_while_ok(
                         XmlXirReader::new(file, &escaper, ctx),
                         |toks| {
-                            toks.write(&mut fout, Default::default(), &escaper)
+                            toks.filter_map(|parsed| match parsed {
+                                Parsed::Object(tok) => Some(tok),
+                                _ => None,
+                            })
+                            .write(&mut fout, Default::default(), &escaper)
+                            .map_err(TamecError::from)
                         },
                     )?;
 
@@ -183,7 +189,7 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
 #[derive(Debug)]
 pub enum TamecError {
     Io(io::Error),
-    XirError(xir::Error),
+    XirParseError(ParseError<UnknownToken, xir::Error>),
     XirWriterError(xir::writer::Error),
     Fmt(fmt::Error),
 }
@@ -194,9 +200,9 @@ impl From<io::Error> for TamecError {
     }
 }
 
-impl From<xir::Error> for TamecError {
-    fn from(e: xir::Error) -> Self {
-        Self::XirError(e)
+impl From<ParseError<UnknownToken, xir::Error>> for TamecError {
+    fn from(e: ParseError<UnknownToken, xir::Error>) -> Self {
+        Self::XirParseError(e)
     }
 }
 
@@ -216,7 +222,7 @@ impl Display for TamecError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(e) => Display::fmt(e, f),
-            Self::XirError(e) => Display::fmt(e, f),
+            Self::XirParseError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
             Self::Fmt(e) => Display::fmt(e, f),
         }
@@ -227,7 +233,7 @@ impl Error for TamecError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(e) => Some(e),
-            Self::XirError(e) => Some(e),
+            Self::XirParseError(e) => Some(e),
             Self::XirWriterError(e) => Some(e),
             Self::Fmt(e) => Some(e),
         }
@@ -237,7 +243,7 @@ impl Error for TamecError {
 impl Diagnostic for TamecError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
-            Self::XirError(e) => e.describe(),
+            Self::XirParseError(e) => e.describe(),
 
             // TODO (will fall back to rendering just the error `Display`)
             _ => vec![],

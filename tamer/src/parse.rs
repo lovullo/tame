@@ -27,7 +27,7 @@ mod parser;
 mod state;
 
 pub use error::ParseError;
-pub use lower::{Lower, LowerIter};
+pub use lower::{Lower, LowerIter, ParsedObject};
 pub use parser::{Parsed, ParsedResult, Parser};
 pub use state::{
     context::{Context, Empty as EmptyContext, NoContext},
@@ -35,9 +35,11 @@ pub use state::{
     Transitionable,
 };
 
-use crate::span::Span;
-use std::fmt::Debug;
-use std::{error::Error, fmt::Display};
+use crate::span::{Span, DUMMY_SPAN};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+};
 
 /// A single datum from a streaming IR with an associated [`Span`].
 ///
@@ -51,6 +53,26 @@ pub trait Token: Display + Debug + PartialEq {
 impl<T: Token> From<T> for Span {
     fn from(tok: T) -> Self {
         tok.span()
+    }
+}
+
+/// A type of [`Token`] that is not relevant.
+///
+/// This may be used when a [`Token`] type is required but only incidental,
+///   such as for use with a [`ParseState`] in the context of a source of a
+///   lowering operation.
+#[derive(Debug, PartialEq)]
+pub struct UnknownToken;
+
+impl Token for UnknownToken {
+    fn span(&self) -> Span {
+        DUMMY_SPAN
+    }
+}
+
+impl Display for UnknownToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<unknown token>")
     }
 }
 

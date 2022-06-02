@@ -17,15 +17,19 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::borrow::Cow;
-
 use super::*;
+use crate::parse::UnknownToken;
 use crate::sym::GlobalSymbolIntern;
 use crate::{
     convert::ExpectInto,
+    parse::{
+        ParseError::StateError as PE,
+        Parsed::{self, Object as O},
+    },
     span::DUMMY_CONTEXT as DC,
     xir::{Error, Token},
 };
+use std::borrow::Cow;
 
 /// These tests use [`quick_xml`] directly,
 ///   rather than mocking it,
@@ -44,6 +48,8 @@ use crate::{
 ///           redundant checks.
 
 type Sut<'a, B, S> = XmlXirReader<'a, B, S>;
+type SutResultCollect =
+    result::Result<Vec<Parsed<Token>>, ParseError<UnknownToken, Error>>;
 
 #[derive(Debug, Default)]
 struct MockEscaper {}
@@ -99,8 +105,8 @@ fn empty_node_without_prefix_or_attributes() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("empty-node".unwrap_into(), a),
-            Token::Close(None, b),
+            O(Token::Open("empty-node".unwrap_into(), a)),
+            O(Token::Close(None, b)),
         ]),
         sut.collect(),
     );
@@ -121,11 +127,11 @@ fn does_not_resolve_xmlns() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("no-ns".unwrap_into(), a),
+            O(Token::Open("no-ns".unwrap_into(), a)),
             // Since we didn't parse @xmlns, it's still an attribute.
-            Token::AttrName("xmlns".unwrap_into(), b),
-            Token::AttrValue("noresolve:UNESC".intern(), c),
-            Token::Close(None, d),
+            O(Token::AttrName("xmlns".unwrap_into(), b)),
+            O(Token::AttrValue("noresolve:UNESC".intern(), c)),
+            O(Token::Close(None, d)),
         ]),
         sut.collect(),
     );
@@ -147,10 +153,10 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
     // Should be the QName, _unresolved_.
     assert_eq!(
         Ok(vec![
-            Token::Open(("x", "empty-node").unwrap_into(), a),
-            Token::AttrName(("xmlns", "x").unwrap_into(), b),
-            Token::AttrValue("noresolve:UNESC".intern(), c),
-            Token::Close(None, d),
+            O(Token::Open(("x", "empty-node").unwrap_into(), a)),
+            O(Token::AttrName(("xmlns", "x").unwrap_into(), b)),
+            O(Token::AttrValue("noresolve:UNESC".intern(), c)),
+            O(Token::Close(None, d)),
         ]),
         sut.collect(),
     );
@@ -167,12 +173,12 @@ fn prefix_with_empty_local_name_invalid_qname() {
 
     let a = DC.span(1, 2);
 
-    let result = sut.collect::<Result<Vec<_>>>();
+    let result = sut.collect::<SutResultCollect>();
 
     match result {
         Ok(_) => panic!("expected failure"),
         Err(given) => {
-            assert_eq!(Error::InvalidQName("x:".into(), a), given);
+            assert_eq!(PE(Error::InvalidQName("x:".into(), a)), given);
         }
     }
 }
@@ -196,14 +202,14 @@ fn multiple_attrs_ordered() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("ele".unwrap_into(), a),
-            Token::AttrName("foo".unwrap_into(), b),
-            Token::AttrValue("a:UNESC".intern(), c),
-            Token::AttrName("bar".unwrap_into(), d),
-            Token::AttrValue("b:UNESC".intern(), e),
-            Token::AttrName(("b", "baz").unwrap_into(), f),
-            Token::AttrValue("c:UNESC".intern(), g),
-            Token::Close(None, h),
+            O(Token::Open("ele".unwrap_into(), a)),
+            O(Token::AttrName("foo".unwrap_into(), b)),
+            O(Token::AttrValue("a:UNESC".intern(), c)),
+            O(Token::AttrName("bar".unwrap_into(), d)),
+            O(Token::AttrValue("b:UNESC".intern(), e)),
+            O(Token::AttrName(("b", "baz").unwrap_into(), f)),
+            O(Token::AttrValue("c:UNESC".intern(), g)),
+            O(Token::Close(None, h)),
         ]),
         sut.collect(),
     );
@@ -226,10 +232,10 @@ fn empty_attr_value() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("ele".unwrap_into(), a),
-            Token::AttrName("empty".unwrap_into(), b),
-            Token::AttrValue(":UNESC".intern(), c),
-            Token::Close(None, d),
+            O(Token::Open("ele".unwrap_into(), a)),
+            O(Token::AttrName("empty".unwrap_into(), b)),
+            O(Token::AttrValue(":UNESC".intern(), c)),
+            O(Token::Close(None, d)),
         ]),
         sut.collect(),
     );
@@ -254,12 +260,12 @@ fn permits_duplicate_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("dup".unwrap_into(), a),
-            Token::AttrName("attr".unwrap_into(), b),
-            Token::AttrValue("a:UNESC".intern(), c),
-            Token::AttrName("attr".unwrap_into(), d),
-            Token::AttrValue("b:UNESC".intern(), e),
-            Token::Close(None, f),
+            O(Token::Open("dup".unwrap_into(), a)),
+            O(Token::AttrName("attr".unwrap_into(), b)),
+            O(Token::AttrValue("a:UNESC".intern(), c)),
+            O(Token::AttrName("attr".unwrap_into(), d)),
+            O(Token::AttrValue("b:UNESC".intern(), e)),
+            O(Token::Close(None, f)),
         ]),
         sut.collect(),
     );
@@ -282,10 +288,10 @@ fn child_node_self_closing() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("root".unwrap_into(), a),
-            Token::Open("child".unwrap_into(), b),
-            Token::Close(None, c),
-            Token::Close(Some("root".unwrap_into()), d),
+            O(Token::Open("root".unwrap_into(), a)),
+            O(Token::Open("child".unwrap_into(), b)),
+            O(Token::Close(None, c)),
+            O(Token::Close(Some("root".unwrap_into()), d)),
         ]),
         sut.collect(),
     );
@@ -307,12 +313,12 @@ fn sibling_nodes() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("root".unwrap_into(), a),
-            Token::Open("child".unwrap_into(), b),
-            Token::Close(None, c),
-            Token::Open("child".unwrap_into(), d),
-            Token::Close(None, e),
-            Token::Close(Some("root".unwrap_into()), f),
+            O(Token::Open("root".unwrap_into(), a)),
+            O(Token::Open("child".unwrap_into(), b)),
+            O(Token::Close(None, c)),
+            O(Token::Open("child".unwrap_into(), d)),
+            O(Token::Close(None, e)),
+            O(Token::Close(Some("root".unwrap_into()), f)),
         ]),
         sut.collect(),
     );
@@ -334,12 +340,12 @@ fn child_node_with_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("root".unwrap_into(), a),
-            Token::Open("child".unwrap_into(), b),
-            Token::AttrName("foo".unwrap_into(), c),
-            Token::AttrValue("bar:UNESC".intern(), d),
-            Token::Close(None, e),
-            Token::Close(Some("root".unwrap_into()), f),
+            O(Token::Open("root".unwrap_into(), a)),
+            O(Token::Open("child".unwrap_into(), b)),
+            O(Token::AttrName("foo".unwrap_into(), c)),
+            O(Token::AttrValue("bar:UNESC".intern(), d)),
+            O(Token::Close(None, e)),
+            O(Token::Close(Some("root".unwrap_into()), f)),
         ]),
         sut.collect(),
     );
@@ -358,9 +364,9 @@ fn child_text() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("text".unwrap_into(), a),
-            Token::Text("foo bar:UNESC".into(), b),
-            Token::Close(Some("text".unwrap_into()), c),
+            O(Token::Open("text".unwrap_into(), a)),
+            O(Token::Text("foo bar:UNESC".into(), b)),
+            O(Token::Close(Some("text".unwrap_into()), c)),
         ]),
         sut.collect(),
     );
@@ -382,12 +388,12 @@ fn mixed_child_content() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("text".unwrap_into(), a),
-            Token::Text("foo:UNESC".into(), b),
-            Token::Open("em".unwrap_into(), c),
-            Token::Text("bar:UNESC".into(), d),
-            Token::Close(Some("em".unwrap_into()), e),
-            Token::Close(Some("text".unwrap_into()), f),
+            O(Token::Open("text".unwrap_into(), a)),
+            O(Token::Text("foo:UNESC".into(), b)),
+            O(Token::Open("em".unwrap_into(), c)),
+            O(Token::Text("bar:UNESC".into(), d)),
+            O(Token::Close(Some("em".unwrap_into()), e)),
+            O(Token::Close(Some("text".unwrap_into()), f)),
         ]),
         sut.collect(),
     );
@@ -422,14 +428,14 @@ fn mixed_child_content_with_newlines() {
 
     assert_eq!(
         Ok(vec![
-            Token::Text("\n:UNESC".into(), a),
-            Token::Open("root".unwrap_into(), b),
-            Token::Text("\n  :UNESC".into(), c),
-            Token::Open("child".unwrap_into(), d),
-            Token::Close(None, e),
-            Token::Text("\n:UNESC".into(), f),
-            Token::Close(Some("root".unwrap_into()), g),
-            Token::Text("\n:UNESC".into(), h),
+            O(Token::Text("\n:UNESC".into(), a)),
+            O(Token::Open("root".unwrap_into(), b)),
+            O(Token::Text("\n  :UNESC".into(), c)),
+            O(Token::Open("child".unwrap_into(), d)),
+            O(Token::Close(None, e)),
+            O(Token::Text("\n:UNESC".into(), f)),
+            O(Token::Close(Some("root".unwrap_into()), g)),
+            O(Token::Text("\n:UNESC".into(), h)),
         ]),
         sut.collect(),
     );
@@ -449,10 +455,10 @@ fn comment() {
 
     assert_eq!(
         Ok(vec![
-            Token::Comment("root".into(), a),
-            Token::Open("root".unwrap_into(), b),
-            Token::Comment("<child>".into(), c),
-            Token::Close(Some("root".unwrap_into()), d),
+            O(Token::Comment("root".into(), a)),
+            O(Token::Open("root".unwrap_into(), b)),
+            O(Token::Comment("<child>".into(), c)),
+            O(Token::Close(Some("root".unwrap_into()), d)),
         ]),
         sut.collect(),
     );
@@ -478,10 +484,10 @@ lines-->
 
     assert_eq!(
         Ok(vec![
-            Token::Open("mult".unwrap_into(), a),
-            Token::Comment("comment\non multiple\nlines".into(), b),
-            Token::Text("\n:UNESC".into(), c),
-            Token::Close(Some("mult".unwrap_into()), d),
+            O(Token::Open("mult".unwrap_into(), a)),
+            O(Token::Comment("comment\non multiple\nlines".into(), b)),
+            O(Token::Text("\n:UNESC".into(), c)),
+            O(Token::Close(Some("mult".unwrap_into()), d)),
         ]),
         sut.collect(),
     );
@@ -502,12 +508,12 @@ fn permits_mismatched_tags() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("root".unwrap_into(), a),
-            Token::Open("child".unwrap_into(), b),
-            Token::Close(None, c),
-            Token::Close(Some("mismatch".unwrap_into()), d),
+            O(Token::Open("root".unwrap_into(), a)),
+            O(Token::Open("child".unwrap_into(), b)),
+            O(Token::Close(None, c)),
+            O(Token::Close(Some("mismatch".unwrap_into()), d)),
         ]),
-        sut.collect::<Result<Vec<_>>>(),
+        sut.collect(),
     );
 }
 
@@ -519,11 +525,11 @@ fn node_name_invalid_utf8() {
     // We report at the QName, not the start tag.
     let span = DC.span(1, 1);
 
-    let result = sut.collect::<Result<Vec<_>>>();
+    let result = sut.collect::<SutResultCollect>();
 
     match result {
         Ok(_) => panic!("expected failure"),
-        Err(Error::InvalidUtf8(_, bytes, given_span)) => {
+        Err(PE(Error::InvalidUtf8(_, bytes, given_span))) => {
             assert_eq!(bytes, &[INVALID_UTF8_BYTE]);
             assert_eq!(span, given_span);
         }
@@ -541,11 +547,11 @@ fn attr_name_invalid_utf8() {
 
     let span = DC.span(3, 1);
 
-    let result = sut.collect::<Result<Vec<_>>>();
+    let result = sut.collect::<SutResultCollect>();
 
     match result {
         Ok(_) => panic!("expected failure"),
-        Err(Error::InvalidUtf8(_, bytes, given_span)) => {
+        Err(PE(Error::InvalidUtf8(_, bytes, given_span))) => {
             assert_eq!(bytes, &[INVALID_UTF8_BYTE]);
             assert_eq!(span, given_span);
         }
@@ -563,11 +569,11 @@ fn attr_value_invalid_utf8() {
 
     let span = DC.span(9, 4);
 
-    let result = sut.collect::<Result<Vec<_>>>();
+    let result = sut.collect::<SutResultCollect>();
 
     match result {
         Ok(_) => panic!("expected failure"),
-        Err(Error::InvalidUtf8(_, bytes, given_span)) => {
+        Err(PE(Error::InvalidUtf8(_, bytes, given_span))) => {
             // Doesn't make it to the Escaper.
             assert_eq!(bytes, &[b'b', b'a', b'd', INVALID_UTF8_BYTE]);
             assert_eq!(span, given_span);
@@ -590,8 +596,8 @@ fn valid_xml_decl_no_encoding() {
 
     assert_eq!(
         Ok(vec![
-            Token::Open("root".unwrap_into(), a),
-            Token::Close(None, b),
+            O(Token::Open("root".unwrap_into(), a)),
+            O(Token::Close(None, b)),
         ]),
         sut.collect()
     );
@@ -622,8 +628,8 @@ fn invalid_xml_decl_version() {
     let span = DC.span(15, 3);
 
     assert_eq!(
-        Err(Error::UnsupportedXmlVersion("1.1".intern(), span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::UnsupportedXmlVersion("1.1".intern(), span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -637,8 +643,8 @@ fn invalid_xml_encoding() {
     let span = DC.span(30, 7);
 
     assert_eq!(
-        Err(Error::UnsupportedEncoding("latin-1".intern(), span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::UnsupportedEncoding("latin-1".intern(), span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -675,8 +681,8 @@ fn attr_single_no_value_no_eq() {
     let span = DC.span(10, 0);
 
     assert_eq!(
-        Err(Error::AttrValueExpected(None, span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::AttrValueExpected(None, span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -690,8 +696,8 @@ fn attr_single_no_value_with_eq() {
     let span = DC.span(11, 0);
 
     assert_eq!(
-        Err(Error::AttrValueExpected(None, span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::AttrValueExpected(None, span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -706,8 +712,8 @@ fn attr_multi_no_value_no_eq() {
 
     assert_eq!(
         // quick-xml doesn't provide the name
-        Err(Error::AttrValueExpected(None, span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::AttrValueExpected(None, span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -723,8 +729,8 @@ fn attr_multi_no_value_with_eq() {
     let span = DC.span(11, 0);
 
     assert_eq!(
-        Err(Error::AttrValueUnquoted(None, span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::AttrValueUnquoted(None, span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -739,8 +745,8 @@ fn attr_multiple_no_value_no_eq_then_good() {
 
     assert_eq!(
         // quick-xml doesn't provide the name
-        Err(Error::AttrValueExpected(None, span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::AttrValueExpected(None, span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -754,8 +760,8 @@ fn empty_element_qname_no_attrs() {
     let span = DC.span(1, 0);
 
     assert_eq!(
-        Err(Error::InvalidQName("".intern(), span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::InvalidQName("".intern(), span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -769,8 +775,8 @@ fn empty_element_qname_with_space_no_attrs() {
     let span = DC.span(1, 0);
 
     assert_eq!(
-        Err(Error::InvalidQName("".intern(), span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::InvalidQName("".intern(), span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -783,8 +789,8 @@ fn empty_element_qname_with_attr() {
     let span = DC.span(1, 9);
 
     assert_eq!(
-        Err(Error::InvalidQName("foo=\"bar\"".intern(), span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::InvalidQName("foo=\"bar\"".intern(), span))),
+        sut.collect::<SutResultCollect>()
     );
 }
 
@@ -798,7 +804,7 @@ fn empty_element_qname_with_space_with_attr() {
     let span = DC.span(1, 0);
 
     assert_eq!(
-        Err(Error::InvalidQName("".intern(), span)),
-        sut.collect::<Result<Vec<_>>>()
+        Err(PE(Error::InvalidQName("".intern(), span))),
+        sut.collect::<SutResultCollect>()
     );
 }

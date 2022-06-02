@@ -23,6 +23,7 @@
 
 use super::{error::SpanlessError, DefaultEscaper, Error, Escaper, Token};
 use crate::{
+    parse::{ParseError, Parsed, ParsedObject, ParsedResult},
     span::Context,
     sym::{st::raw::WS_EMPTY, GlobalSymbolInternBytes},
 };
@@ -510,7 +511,7 @@ where
     B: BufRead,
     S: Escaper,
 {
-    type Item = Result<Token>;
+    type Item = ParsedResult<ParsedObject<Token, Error>>;
 
     /// Produce the next XIR [`Token`] from the input.
     ///
@@ -519,8 +520,12 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.tokbuf
             .pop_back()
-            .map(Result::Ok)
-            .or_else(|| self.refill_buf())
+            .map(|tok| Ok(Parsed::Object(tok)))
+            .or_else(|| {
+                self.refill_buf().map(|result| {
+                    result.map(Parsed::Object).map_err(ParseError::StateError)
+                })
+            })
     }
 }
 
