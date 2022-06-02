@@ -29,7 +29,7 @@ use crate::{
     sym::GlobalSymbolIntern,
     xir::{
         attr::Attr,
-        flat::{Depth, Object as Xirf},
+        flat::{Depth, XirfToken as Xirf},
         QName,
     },
 };

@@ -23,7 +23,7 @@ use crate::diagnose::{Annotate, AnnotatedSpan, Diagnostic};
 use crate::parse::Token;
 use crate::span::Span;
 use crate::sym::SymbolId;
-use crate::xir::flat::Object as XirfToken;
+use crate::xir::flat::XirfToken;
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.

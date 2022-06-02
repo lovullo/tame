@@ -29,7 +29,7 @@ use crate::{
     },
     span::Span,
     sym::{st::*, SymbolId},
-    xir::{attr::Attr, flat::Object as Xirf, QName},
+    xir::{attr::Attr, flat::XirfToken as Xirf, QName},
 };
 
 /// `xmlo` reader events.

@@ -45,8 +45,8 @@ fn empty_element_self_close() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(name, S, Depth(0))),
-            Parsed::Object(Object::Close(None, S2, Depth(0))),
+            Parsed::Object(XirfToken::Open(name, S, Depth(0))),
+            Parsed::Object(XirfToken::Close(None, S2, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -65,8 +65,8 @@ fn empty_element_balanced_close() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(name, S, Depth(0))),
-            Parsed::Object(Object::Close(Some(name), S2, Depth(0))),
+            Parsed::Object(XirfToken::Open(name, S, Depth(0))),
+            Parsed::Object(XirfToken::Close(Some(name), S2, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -90,7 +90,7 @@ fn extra_closing_tag() {
     let sut = parse::<1>(toks);
 
     assert_matches!(
-        sut.collect::<Result<Vec<Parsed<Object>>, _>>(),
+        sut.collect::<Result<Vec<Parsed<XirfToken>>, _>>(),
         Err(ParseError::UnexpectedToken(
             XirToken::Close(Some(given_name), given_span),
             _
@@ -115,7 +115,7 @@ fn extra_self_closing_tag() {
     let sut = parse::<1>(toks);
 
     assert_matches!(
-        sut.collect::<Result<Vec<Parsed<Object>>, _>>(),
+        sut.collect::<Result<Vec<Parsed<XirfToken>>, _>>(),
         Err(ParseError::UnexpectedToken(XirToken::Close(None, given_span), _))
             if given_span == S3,
     );
@@ -138,11 +138,11 @@ fn empty_element_unbalanced_close() {
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Parsed::Object(Object::Open(open_name, S, Depth(0)))))
+        Some(Ok(Parsed::Object(XirfToken::Open(open_name, S, Depth(0)))))
     );
     assert_eq!(
         sut.next(),
-        Some(Err(ParseError::StateError(StateError::UnbalancedTag {
+        Some(Err(ParseError::StateError(XirToXirfError::UnbalancedTag {
             open: (open_name, S),
             close: (close_name, S2),
         })))
@@ -167,10 +167,10 @@ fn single_empty_child() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(name, S, Depth(0))),
-            Parsed::Object(Object::Open(child, S2, Depth(1))),
-            Parsed::Object(Object::Close(None, S3, Depth(1))),
-            Parsed::Object(Object::Close(Some(name), S4, Depth(0))),
+            Parsed::Object(XirfToken::Open(name, S, Depth(0))),
+            Parsed::Object(XirfToken::Open(child, S2, Depth(1))),
+            Parsed::Object(XirfToken::Close(None, S3, Depth(1))),
+            Parsed::Object(XirfToken::Close(Some(name), S4, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -192,14 +192,16 @@ fn depth_exceeded() {
     let mut sut = parse::<1>(toks);
 
     assert_eq!(
-        Some(Ok(Parsed::Object(Object::Open(name, S, Depth(0))))),
+        Some(Ok(Parsed::Object(XirfToken::Open(name, S, Depth(0))))),
         sut.next()
     );
     assert_eq!(
-        Some(Err(ParseError::StateError(StateError::MaxDepthExceeded {
-            open: (exceed, S2),
-            max: Depth(1),
-        }))),
+        Some(Err(ParseError::StateError(
+            XirToXirfError::MaxDepthExceeded {
+                open: (exceed, S2),
+                max: Depth(1),
+            }
+        ))),
         sut.next()
     );
 }
@@ -226,12 +228,12 @@ fn empty_element_with_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(name, S, Depth(0))),
+            Parsed::Object(XirfToken::Open(name, S, Depth(0))),
             Parsed::Incomplete,
-            Parsed::Object(Object::Attr(Attr::new(attr1, val1, (S2, S3)))),
+            Parsed::Object(XirfToken::Attr(Attr::new(attr1, val1, (S2, S3)))),
             Parsed::Incomplete,
-            Parsed::Object(Object::Attr(Attr::new(attr2, val2, (S3, S4)))),
-            Parsed::Object(Object::Close(None, S4, Depth(0))),
+            Parsed::Object(XirfToken::Attr(Attr::new(attr2, val2, (S3, S4)))),
+            Parsed::Object(XirfToken::Close(None, S4, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -258,12 +260,12 @@ fn child_element_after_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(name, S, Depth(0))),
+            Parsed::Object(XirfToken::Open(name, S, Depth(0))),
             Parsed::Incomplete,
-            Parsed::Object(Object::Attr(Attr::new(attr, val, (S, S2)))),
-            Parsed::Object(Object::Open(child, S, Depth(1))),
-            Parsed::Object(Object::Close(None, S2, Depth(1))),
-            Parsed::Object(Object::Close(Some(name), S3, Depth(0))),
+            Parsed::Object(XirfToken::Attr(Attr::new(attr, val, (S, S2)))),
+            Parsed::Object(XirfToken::Open(child, S, Depth(1))),
+            Parsed::Object(XirfToken::Close(None, S2, Depth(1))),
+            Parsed::Object(XirfToken::Close(Some(name), S3, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -289,12 +291,12 @@ fn element_with_empty_sibling_children() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(parent, S, Depth(0))),
-            Parsed::Object(Object::Open(childa, S2, Depth(1))),
-            Parsed::Object(Object::Close(None, S3, Depth(1))),
-            Parsed::Object(Object::Open(childb, S2, Depth(1))),
-            Parsed::Object(Object::Close(None, S3, Depth(1))),
-            Parsed::Object(Object::Close(Some(parent), S2, Depth(0))),
+            Parsed::Object(XirfToken::Open(parent, S, Depth(0))),
+            Parsed::Object(XirfToken::Open(childa, S2, Depth(1))),
+            Parsed::Object(XirfToken::Close(None, S3, Depth(1))),
+            Parsed::Object(XirfToken::Open(childb, S2, Depth(1))),
+            Parsed::Object(XirfToken::Close(None, S3, Depth(1))),
+            Parsed::Object(XirfToken::Close(Some(parent), S2, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -322,12 +324,12 @@ fn element_with_child_with_attributes() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(parent, S, Depth(0))),
-            Parsed::Object(Object::Open(child, S, Depth(1))),
+            Parsed::Object(XirfToken::Open(parent, S, Depth(0))),
+            Parsed::Object(XirfToken::Open(child, S, Depth(1))),
             Parsed::Incomplete,
-            Parsed::Object(Object::Attr(Attr::new(attr, value, (S, S2)))),
-            Parsed::Object(Object::Close(None, S3, Depth(1))),
-            Parsed::Object(Object::Close(Some(parent), S3, Depth(0))),
+            Parsed::Object(XirfToken::Attr(Attr::new(attr, value, (S, S2)))),
+            Parsed::Object(XirfToken::Close(None, S3, Depth(1))),
+            Parsed::Object(XirfToken::Close(Some(parent), S3, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -349,9 +351,9 @@ fn element_with_text() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Open(parent, S, Depth(0))),
-            Parsed::Object(Object::Text(text, S2)),
-            Parsed::Object(Object::Close(Some(parent), S3, Depth(0))),
+            Parsed::Object(XirfToken::Open(parent, S, Depth(0))),
+            Parsed::Object(XirfToken::Text(text, S2)),
+            Parsed::Object(XirfToken::Close(Some(parent), S3, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -365,7 +367,7 @@ fn not_accepting_state_if_element_open() {
     let mut sut = parse::<1>(toks);
 
     assert_eq!(
-        Some(Ok(Parsed::Object(Object::Open(name, S, Depth(0))))),
+        Some(Ok(Parsed::Object(XirfToken::Open(name, S, Depth(0))))),
         sut.next()
     );
 
@@ -392,10 +394,10 @@ fn comment_before_or_after_root_ok() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(Object::Comment(cstart, S)),
-            Parsed::Object(Object::Open(name, S2, Depth(0))),
-            Parsed::Object(Object::Close(None, S3, Depth(0))),
-            Parsed::Object(Object::Comment(cend, S4)),
+            Parsed::Object(XirfToken::Comment(cstart, S)),
+            Parsed::Object(XirfToken::Open(name, S2, Depth(0))),
+            Parsed::Object(XirfToken::Close(None, S3, Depth(0))),
+            Parsed::Object(XirfToken::Comment(cend, S4)),
         ]),
         sut.collect(),
     );
@@ -425,7 +427,7 @@ fn content_after_root_close_error() {
 
     assert_matches!(
         sut.collect(),
-        Result::<Vec<Parsed<Object>>, _>::Err(ParseError::UnexpectedToken(
+        Result::<Vec<Parsed<XirfToken>>, _>::Err(ParseError::UnexpectedToken(
             XirToken::Open(given_name, given_span),
         _)) if given_name == name && given_span == S3
     );
@@ -441,8 +443,8 @@ fn content_before_root_open_error() {
     let sut = parse::<1>(toks);
 
     assert_eq!(
-        Result::<Vec<Parsed<Object>>, _>::Err(ParseError::StateError(
-            StateError::RootOpenExpected(XirToken::Text(text, S))
+        Result::<Vec<Parsed<XirfToken>>, _>::Err(ParseError::StateError(
+            XirToXirfError::RootOpenExpected(XirToken::Text(text, S))
         )),
         sut.collect()
     );

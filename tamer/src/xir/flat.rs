@@ -20,14 +20,14 @@
 //! Lightly-parsed XIR as a flat stream (XIRF).
 //!
 //! XIRF lightly parses a raw XIR [`TokenStream`] into a stream of
-//!   [`Object`]s that are,
+//!   [`XirfToken`]s that are,
 //!     like a [`TokenStream`],
 //!     flat in structure.
 //! It provides the following features over raw XIR:
 //!
 //!   1. All closing tags must correspond to a matching opening tag at the
 //!        same depth;
-//!   2. [`Object`] exposes the [`Depth`] of each opening/closing tag;
+//!   2. [`XirfToken`] exposes the [`Depth`] of each opening/closing tag;
 //!   3. Attribute tokens are parsed into [`Attr`] objects;
 //!   4. Documents must begin with an element and end with the closing of
 //!        that element;
@@ -73,7 +73,7 @@ impl Display for Depth {
 ///   but are still validated to ensure that they are well-formed and that
 ///   the XML is well-structured.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Object {
+pub enum XirfToken {
     /// Opening tag of an element.
     Open(QName, Span, Depth),
 
@@ -97,7 +97,7 @@ pub enum Object {
 
     /// Character data as part of an element.
     ///
-    /// See also [`CData`](Object::CData) variant.
+    /// See also [`CData`](XirfToken::CData) variant.
     Text(SymbolId, Span),
 
     /// CData node (`<![CDATA[...]]>`).
@@ -115,9 +115,9 @@ pub enum Object {
     Whitespace(Whitespace, Span),
 }
 
-impl Token for Object {
+impl Token for XirfToken {
     fn span(&self) -> Span {
-        use Object::*;
+        use XirfToken::*;
 
         match self {
             Open(_, span, _)
@@ -132,11 +132,11 @@ impl Token for Object {
     }
 }
 
-impl parse::Object for Object {}
+impl parse::Object for XirfToken {}
 
-impl Display for Object {
+impl Display for XirfToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Object::*;
+        use XirfToken::*;
 
         match self {
             Open(qname, span, _) => {
@@ -158,7 +158,7 @@ impl Display for Object {
     }
 }
 
-impl From<Attr> for Object {
+impl From<Attr> for XirfToken {
     fn from(attr: Attr) -> Self {
         Self::Attr(attr)
     }
@@ -168,7 +168,7 @@ impl From<Attr> for Object {
 pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
     ParseState<Token = XirToken, Object = Attr>
     where
-        <Self as ParseState>::Error: Into<StateError>,
+        <Self as ParseState>::Error: Into<XirToXirfError>,
         StateContext<MAX_DEPTH>: AsMut<<Self as ParseState>::Context>;
 
 /// Stack of element [`QName`] and [`Span`] pairs,
@@ -182,7 +182,7 @@ type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
 ///
 /// This parser is a pushdown automaton that parses a single XML document.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub enum State<const MAX_DEPTH: usize, SA = AttrParseState>
+pub enum XirToXirf<const MAX_DEPTH: usize, SA = AttrParseState>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
 {
@@ -200,13 +200,13 @@ where
 pub type StateContext<const MAX_DEPTH: usize> =
     Context<ElementStack<MAX_DEPTH>>;
 
-impl<const MAX_DEPTH: usize, SA> ParseState for State<MAX_DEPTH, SA>
+impl<const MAX_DEPTH: usize, SA> ParseState for XirToXirf<MAX_DEPTH, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
 {
     type Token = XirToken;
-    type Object = Object;
-    type Error = StateError;
+    type Object = XirfToken;
+    type Error = XirToXirfError;
     type Context = StateContext<MAX_DEPTH>;
 
     fn parse_token(
@@ -214,18 +214,18 @@ where
         tok: Self::Token,
         stack: &mut Self::Context,
     ) -> TransitionResult<Self> {
-        use State::{AttrExpected, Done, NodeExpected, PreRoot};
+        use XirToXirf::{AttrExpected, Done, NodeExpected, PreRoot};
 
         match (self, tok) {
             // Comments are permitted before and after the first root element.
             (st @ (PreRoot | Done), XirToken::Comment(sym, span)) => {
-                Transition(st).ok(Object::Comment(sym, span))
+                Transition(st).ok(XirfToken::Comment(sym, span))
             }
 
             (PreRoot, tok @ XirToken::Open(..)) => Self::parse_node(tok, stack),
 
             (PreRoot, tok) => {
-                Transition(PreRoot).err(StateError::RootOpenExpected(tok))
+                Transition(PreRoot).err(XirToXirfError::RootOpenExpected(tok))
             }
 
             (NodeExpected, tok) => Self::parse_node(tok, stack),
@@ -251,16 +251,16 @@ where
         // TODO: It'd be nice if we could also return additional context to
         //   aid the user in diagnosing the problem,
         //     e.g. what element(s) still need closing.
-        *self == State::Done
+        *self == XirToXirf::Done
     }
 }
 
-impl<const MAX_DEPTH: usize, SA> Display for State<MAX_DEPTH, SA>
+impl<const MAX_DEPTH: usize, SA> Display for XirToXirf<MAX_DEPTH, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use State::*;
+        use XirToXirf::*;
 
         match self {
             PreRoot => write!(f, "expecting document root"),
@@ -271,7 +271,7 @@ where
     }
 }
 
-impl<const MAX_DEPTH: usize, SA> State<MAX_DEPTH, SA>
+impl<const MAX_DEPTH: usize, SA> XirToXirf<MAX_DEPTH, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
 {
@@ -280,12 +280,12 @@ where
         tok: <Self as ParseState>::Token,
         stack: &mut ElementStack<MAX_DEPTH>,
     ) -> TransitionResult<Self> {
-        use Object::*;
-        use State::{AttrExpected, Done, NodeExpected};
+        use XirToXirf::{AttrExpected, Done, NodeExpected};
+        use XirfToken::*;
 
         match tok {
             XirToken::Open(qname, span) if stack.len() == MAX_DEPTH => {
-                Transition(NodeExpected).err(StateError::MaxDepthExceeded {
+                Transition(NodeExpected).err(XirToXirfError::MaxDepthExceeded {
                     open: (qname, span),
                     max: Depth(MAX_DEPTH),
                 })
@@ -311,7 +311,7 @@ where
                         if qname != open_qname =>
                     {
                         Transition(NodeExpected).err(
-                            StateError::UnbalancedTag {
+                            XirToXirfError::UnbalancedTag {
                                 open: (open_qname, open_span),
                                 close: (qname, close_span),
                             },
@@ -365,13 +365,13 @@ where
 ///   stream.
 pub fn parse<const MAX_DEPTH: usize>(
     toks: impl TokenStream,
-) -> impl Iterator<Item = ParsedResult<State<MAX_DEPTH>>> {
-    State::<MAX_DEPTH>::parse(toks)
+) -> impl Iterator<Item = ParsedResult<XirToXirf<MAX_DEPTH>>> {
+    XirToXirf::<MAX_DEPTH>::parse(toks)
 }
 
-/// Parsing error from [`State`].
+/// Parsing error from [`XirToXirf`].
 #[derive(Debug, Eq, PartialEq)]
-pub enum StateError {
+pub enum XirToXirfError {
     /// Opening root element tag was expected.
     RootOpenExpected(XirToken),
 
@@ -389,9 +389,9 @@ pub enum StateError {
     AttrError(AttrParseError),
 }
 
-impl Display for StateError {
+impl Display for XirToXirfError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use StateError::*;
+        use XirToXirfError::*;
 
         match self {
             RootOpenExpected(_tok) => {
@@ -420,7 +420,7 @@ impl Display for StateError {
     }
 }
 
-impl Error for StateError {
+impl Error for XirToXirfError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::AttrError(e) => Some(e),
@@ -429,9 +429,9 @@ impl Error for StateError {
     }
 }
 
-impl Diagnostic for StateError {
+impl Diagnostic for XirToXirfError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
-        use StateError::*;
+        use XirToXirfError::*;
 
         match self {
             RootOpenExpected(tok) => {
@@ -473,7 +473,7 @@ impl Diagnostic for StateError {
     }
 }
 
-impl From<AttrParseError> for StateError {
+impl From<AttrParseError> for XirToXirfError {
     fn from(e: AttrParseError) -> Self {
         Self::AttrError(e)
     }
