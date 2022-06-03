@@ -76,9 +76,6 @@ extern crate static_assertions;
 #[macro_use]
 extern crate lazy_static;
 
-#[macro_use]
-pub mod xir;
-
 pub mod asg;
 pub mod convert;
 pub mod diagnose;
@@ -90,6 +87,7 @@ pub mod obj;
 pub mod parse;
 pub mod span;
 pub mod sym;
+pub mod xir;
 
 #[cfg(test)]
 pub mod test;

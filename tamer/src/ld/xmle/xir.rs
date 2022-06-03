@@ -32,41 +32,15 @@
 use super::{super::LSPAN, section::XmleSections};
 use crate::{
     asg::{Ident, IdentKind},
-    sym::{st::*, SymbolId},
+    sym::{st::raw, SymbolId},
     xir::{
         iter::{elem_wrap, ElemWrapIter},
+        st::qname::*,
         QName, Token,
     },
 };
 use arrayvec::ArrayVec;
 use std::{array, collections::hash_set, iter::Chain, vec};
-
-qname_const! {
-    QN_DESC: :L_DESC,
-    QN_DIM: :L_DIM,
-    QN_DTYPE: :L_DTYPE,
-    QN_GENERATED: L_PREPROC:L_GENERATED,
-    QN_L_DEP: L_L:L_DEP,
-    QN_L_EXEC: L_L:L_EXEC,
-    QN_L_FROM: L_L:L_FROM,
-    QN_L_MAP_EXEC: L_L:L_MAP_EXEC,
-    QN_L_MAP_FROM: L_L:L_MAP_FROM,
-    QN_L_RETMAP_EXEC: L_L:L_RETMAP_EXEC,
-    QN_L_STATIC: L_L:L_STATIC,
-    QN_NAME: :L_NAME,
-    QN_PACKAGE: :L_PACKAGE,
-    QN_PARENT: :L_PARENT,
-    QN_PROGRAM: :L_PROGRAM,
-    QN_P_SYM: L_PREPROC:L_SYM,
-    QN_SRC: :L_SRC,
-    QN_TITLE: :L_TITLE,
-    QN_TYPE: :L_TYPE,
-    QN_UUROOTPATH: :L_UUROOTPATH,
-    QN_XMLNS: :L_XMLNS,
-    QN_XMLNS_L: L_XMLNS:L_L,
-    QN_XMLNS_PREPROC: L_XMLNS:L_PREPROC,
-    QN_YIELDS: :L_YIELDS,
-}
 
 const HEADER_SIZE: usize = 14;
 type HeaderIter = array::IntoIter<Token, HEADER_SIZE>;
@@ -167,7 +141,7 @@ impl<'a> DepListIter<'a> {
             }
 
             self.toks_push_attr(QN_GENERATED, match src.generated {
-                true => Some(L_TRUE.as_sym()),
+                true => Some(raw::L_TRUE),
                 false => None,
             });
 

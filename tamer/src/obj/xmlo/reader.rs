@@ -28,8 +28,8 @@ use crate::{
         TransitionResult, Transitionable,
     },
     span::Span,
-    sym::{st::*, SymbolId},
-    xir::{attr::Attr, flat::XirfToken as Xirf, QName},
+    sym::{st::raw, SymbolId},
+    xir::{attr::Attr, flat::XirfToken as Xirf, st::qname::*, QName},
 };
 
 /// `xmlo` reader events.
@@ -128,35 +128,6 @@ impl Display for XmloToken {
             Eoh(..) => write!(f, "end of header"),
         }
     }
-}
-
-qname_const! {
-    QN_DESC: :L_DESC,
-    QN_DIM: :L_DIM,
-    QN_DTYPE: :L_DTYPE,
-    QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
-    QN_EXTERN: :L_EXTERN,
-    QN_FRAGMENT: L_PREPROC:L_FRAGMENT,
-    QN_FRAGMENTS: L_PREPROC:L_FRAGMENTS,
-    QN_FROM: L_PREPROC:L_FROM,
-    QN_GENERATED: L_PREPROC:L_GENERATED,
-    QN_ID: :L_ID,
-    QN_ISOVERRIDE: :L_ISOVERRIDE,
-    QN_LV_PACKAGE: L_LV:L_PACKAGE,
-    QN_NAME: :L_NAME,
-    QN_PACKAGE: :L_PACKAGE,
-    QN_PARENT: :L_PARENT,
-    QN_PROGRAM: :L_PROGRAM,
-    QN_SRC: :L_SRC,
-    QN_SYM: L_PREPROC:L_SYM,
-    QN_SYMTABLE: L_PREPROC:L_SYMTABLE,
-    QN_SYM_DEP: L_PREPROC:L_SYM_DEP,
-    QN_SYM_DEPS: L_PREPROC:L_SYM_DEPS,
-    QN_SYM_REF: L_PREPROC:L_SYM_REF,
-    QN_TYPE: :L_TYPE,
-    QN_UUROOTPATH: :L_UUROOTPATH,
-    QN_VIRTUAL: :L_VIRTUAL,
-    QN_YIELDS: :L_YIELDS,
 }
 
 /// A parser capable of being composed with [`XmloReader`].

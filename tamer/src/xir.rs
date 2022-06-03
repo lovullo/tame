@@ -32,8 +32,7 @@
 use crate::parse;
 use crate::span::Span;
 use crate::sym::{
-    st_as_sym, CIdentStaticSymbolId, GlobalSymbolIntern,
-    GlobalSymbolInternBytes, StaticSymbolId, SymbolId, TameIdentStaticSymbolId,
+    st_as_sym, GlobalSymbolIntern, GlobalSymbolInternBytes, SymbolId,
 };
 use memchr::memchr;
 use std::convert::{TryFrom, TryInto};
@@ -46,13 +45,15 @@ pub use error::Error;
 mod escape;
 pub use escape::{DefaultEscaper, Escaper};
 
-use self::error::SpanlessError;
+use error::SpanlessError;
+use st::qname::QNameCompatibleStaticSymbolId;
 
 pub mod attr;
 pub mod flat;
 pub mod iter;
 pub mod pred;
 pub mod reader;
+pub mod st;
 pub mod tree;
 pub mod writer;
 
@@ -72,44 +73,6 @@ pub trait TokenStream = Iterator<Item = Token>;
 /// If the stream cannot fail,
 ///   consider using [`TokenStream`].
 pub trait TokenResultStream = Iterator<Item = Result<Token, Error>>;
-
-/// A static symbol that can be safely converted into a [`QName`] without
-///   any checks.
-///
-/// This must only be implemented on static symbol types that are known to
-///   be valid QNames.
-pub trait QNameCompatibleStaticSymbolId: StaticSymbolId {}
-
-impl QNameCompatibleStaticSymbolId for CIdentStaticSymbolId {}
-impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
-
-#[doc(hidden)]
-macro_rules! qname_const_inner {
-    ($name:ident = :$local:ident) => {
-        const $name: crate::xir::QName =
-            crate::xir::QName::st_cid_local(&$local);
-    };
-
-    ($name:ident = $prefix:ident:$local:ident) => {
-        const $name: crate::xir::QName =
-            crate::xir::QName::st_cid(&$prefix, &$local);
-    };
-}
-
-/// Construct a series of [`QName`] constants.
-///
-/// The syntax for each constant is `NAME: [PREFIX]:LOCAL`,
-///   where `PREFIX` is optional.
-///
-/// See [`crate::sym::st`] for usable symbol constants.
-#[macro_export]
-macro_rules! qname_const {
-    ($($name:ident: $($prefix:ident)? : $local:ident,)*) => {
-        $(
-            qname_const_inner!($name = $($prefix)?:$local);
-        )*
-    }
-}
 
 /// XML Name minus `":"`.
 ///
