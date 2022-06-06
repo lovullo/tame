@@ -514,8 +514,12 @@ pub struct Context(PathSymbolId);
 impl Context {
     /// Produce a [`Span`] within the given context.
     #[inline]
-    pub fn span(self, offset: SpanOffsetSize, len: SpanLenSize) -> Span {
-        Span::new(offset, len, self)
+    pub const fn span(self, offset: SpanOffsetSize, len: SpanLenSize) -> Span {
+        Span {
+            ctx: self,
+            offset,
+            len,
+        }
     }
 
     /// Attempt to produce a [`Span`] of the given length at the given

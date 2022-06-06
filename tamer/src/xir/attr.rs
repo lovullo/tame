@@ -26,21 +26,109 @@
 mod parse;
 
 use super::QName;
-use crate::{parse::Token, span::Span, sym::SymbolId};
+use crate::{
+    parse::Token,
+    span::{Span, SpanLenSize},
+    sym::SymbolId,
+};
 use std::fmt::Display;
 
 pub use parse::{AttrParseError, AttrParseState};
 
 /// Element attribute.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Attr(pub QName, pub SymbolId, pub (Span, Span));
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attr(pub QName, pub SymbolId, pub AttrSpan);
+
+/// Spans associated with attribute key and value.
+///
+/// The diagram below illustrates the behavior of `AttrSpan`.
+/// Note that the extra spaces surrounding the `=` are intentional to
+///   illustrate what the behavior ought to be.
+/// Spans are represented by `|---|` intervals,
+///   with the byte offset at each end,
+///   and the single-letter span name centered below the interval.
+/// `+` represents intersecting `-` and `|` lines.
+///
+/// ```text
+///   <foo bar  =  "baz" />
+///        |-|     |+-+|
+///        5 7    13| |17
+///        |K       |Q|
+///        |       14 16
+///        |         V |
+///        |-----------|
+///              A
+/// ```
+///
+/// Above we have
+///
+///   - `A` = [`AttrSpan::span`];
+///   - `K` = [`AttrSpan::key_span`];
+///   - `V` = [`AttrSpan::value_span`]; and
+///   - `Q` = [`AttrSpan::value_span_with_quotes`].
+///
+/// Note that this object assumes that the key and value span are adjacent
+///   to one-another in the same [`span::Context`](crate::span::Context).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttrSpan(pub Span, pub Span);
+
+impl AttrSpan {
+    /// A [`Span`] covering the entire attribute token,
+    ///   including the key,
+    ///   _quoted_ value,
+    ///   and everything in-between.
+    pub fn span(&self) -> Span {
+        let AttrSpan(k, _) = self;
+
+        // TODO: Move much of this into `Span`.
+        k.context().span(
+            k.offset(),
+            self.value_span_with_quotes()
+                .endpoints_saturated()
+                .1
+                .offset()
+                .saturating_sub(k.offset())
+                .try_into()
+                .unwrap_or(SpanLenSize::MAX),
+        )
+    }
+
+    /// The span associated with the name of the key.
+    ///
+    /// This does _not_ include the following `=` or any surrounding
+    ///   whitespace.
+    pub fn key_span(&self) -> Span {
+        let AttrSpan(k, _) = self;
+        *k
+    }
+
+    /// The span associated with the string value _inside_ the quotes,
+    ///   not including the quotes themselves.
+    ///
+    /// See [`AttrSpan`]'s documentation for an example.
+    pub fn value_span(&self) -> Span {
+        let AttrSpan(_, v) = self;
+        *v
+    }
+
+    /// The span associated with the string value _including_ the
+    ///   surrounding quotes.
+    ///
+    /// See [`AttrSpan`]'s documentation for an example.
+    pub fn value_span_with_quotes(&self) -> Span {
+        let AttrSpan(_, v) = self;
+
+        v.context()
+            .span(v.offset().saturating_sub(1), v.len().saturating_add(2))
+    }
+}
 
 impl Attr {
     /// Construct a new simple attribute with a name, value, and respective
     ///   [`Span`]s.
     #[inline]
     pub fn new(name: QName, value: SymbolId, span: (Span, Span)) -> Self {
-        Self(name, value, span)
+        Self(name, value, AttrSpan(span.0, span.1))
     }
 
     /// Attribute name.
@@ -61,17 +149,8 @@ impl Attr {
 
 impl Token for Attr {
     fn span(&self) -> Span {
-        // TODO: This ought to represent the _entire_ token.
-        //   However,
-        //     this is complicated by the closing quote,
-        //     which is not present in _either_ span,
-        //       so we'll need to formalize that first;
-        //         simply adding a single byte offset seems unwise,
-        //           given that this is not responsible for producing the
-        //           spans to begin with;
-        //             I'd prefer help from XIR.
         match self {
-            Attr(.., (span, _)) => *span,
+            Attr(.., attr_span) => attr_span.span(),
         }
     }
 }
@@ -147,4 +226,35 @@ impl<const N: usize> From<[Attr; N]> for AttrList {
     }
 }
 
-// See [`super::test`] for tests related to attributes.
+#[cfg(test)]
+mod test {
+    use crate::span::DUMMY_CONTEXT as DC;
+
+    use super::*;
+
+    // See docblock for [`AttrSpan`].
+    const A: Span = DC.span(5, 13); // Entire attribute token
+    const K: Span = DC.span(5, 3); //  Key
+    const V: Span = DC.span(14, 3); // Value without quotes
+    const Q: Span = DC.span(13, 5); // Value with quotes
+
+    #[test]
+    fn attr_span_token() {
+        assert_eq!(AttrSpan(K, V).span(), A);
+    }
+
+    #[test]
+    fn attr_span_value_with_quotes() {
+        assert_eq!(AttrSpan(K, V).value_span_with_quotes(), Q);
+    }
+
+    #[test]
+    fn attr_span_key() {
+        assert_eq!(AttrSpan(K, V).key_span(), K);
+    }
+
+    #[test]
+    fn attr_span_value() {
+        assert_eq!(AttrSpan(K, V).value_span(), V);
+    }
+}

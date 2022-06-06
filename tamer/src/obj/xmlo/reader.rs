@@ -29,7 +29,12 @@ use crate::{
     },
     span::Span,
     sym::{st::raw, SymbolId},
-    xir::{attr::Attr, flat::XirfToken as Xirf, st::qname::*, QName},
+    xir::{
+        attr::{Attr, AttrSpan},
+        flat::XirfToken as Xirf,
+        st::qname::*,
+        QName,
+    },
 };
 
 /// `xmlo` reader events.
@@ -345,7 +350,7 @@ impl ParseState for SymtableState {
 
             (
                 Sym(span_sym, name, mut attrs),
-                Xirf::Attr(Attr(key, value, (_, span_attrval))),
+                Xirf::Attr(Attr(key, value, AttrSpan(_, span_attrval))),
             ) => Self::parse_sym_attr(&mut attrs, key, value, span_attrval)
                 .transition(Sym(span_sym, name, attrs)),
 
@@ -623,7 +628,7 @@ impl ParseState for SymDepsState {
 
             (
                 SymRefUnnamed(span, name, span_ref),
-                Xirf::Attr(Attr(QN_NAME, ref_name, (_, span_ref_name))),
+                Xirf::Attr(Attr(QN_NAME, ref_name, AttrSpan(_, span_ref_name))),
             ) => Transition(SymRefDone(span, name, span_ref))
                 .ok(XmloToken::Symbol(ref_name, span_ref_name)),
 
