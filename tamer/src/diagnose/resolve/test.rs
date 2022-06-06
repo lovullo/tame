@@ -74,9 +74,9 @@ fn rejects_span_with_endpoint_past_eof() {
 fn first_byte_of_line() {
     let ctx = Context::from("foo");
     let buf = "line 1\nline 2\nline 3\nline 4";
-    //                 |--| |
+    //                 [--] |
     //                 7 10 |
-    //                 |----|
+    //                 [----]
     //                     12
 
     let span = ctx.span(7, 4);
@@ -107,7 +107,7 @@ fn last_byte_of_line() {
     let buf = "line 1\nline 2\nline 3\nline 4";
     //                         |    |
     //                         |   19
-    //                         |----|
+    //                         [----]
     //                         14
 
     let span = ctx.span(19, 1);
@@ -139,9 +139,9 @@ fn last_byte_of_line() {
 fn last_byte_of_file_no_trailing_nl() {
     let ctx = Context::from("foo");
     let buf = "line 1\nline 2\nline 3";
-    //                         | |--|
+    //                         | [--]
     //                         | 16 19
-    //                         |----|
+    //                         [----]
     //                         14
 
     let span = ctx.span(16, 4);
@@ -171,9 +171,9 @@ fn last_byte_of_file_no_trailing_nl() {
 fn multiple_lines_first_last() {
     let ctx = Context::from("foobar");
     let buf = "line 1\nline start 2\nend line 3";
-    //                 |    |-----+- +-|      |
+    //                 |    [-----+- +-]      |
     //                 |    12    |  |22      |
-    //                 |----------|  |--------|
+    //                 [----------]  [--------]
     //                 7        18   20      29
 
     let span = ctx.span(12, 11);
@@ -217,9 +217,9 @@ fn multiple_lines_first_last() {
 fn multiple_lines_middle_line_endpoints() {
     let ctx = Context::from("foobar");
     let buf = "line start 1\nline 2\nend line 3";
-    //         |    |-----+- +----+- +-|      |
+    //         |    [-----+- +----+- +-]      |
     //         |    5     |  |    |  |22      |
-    //         |----------|  |----|  |--------|
+    //         [----------]  [----]  [--------]
     //         0         11  13  18  20      29
 
     let span = ctx.span(5, 18);
@@ -276,7 +276,7 @@ fn multiple_lines_middle_line_endpoints() {
 fn first_line() {
     let ctx = Context::from("foobar");
     let buf = "line 1\n";
-    //         |----|
+    //         [----]
     //         0    5
 
     let span = ctx.span(0, 6);
@@ -313,7 +313,7 @@ fn newline_between_lines() {
     let buf = "line 1\nline 2\nline 3";
     //                 |    ||
     //                 |    |13
-    //                 |----|
+    //                 [----]
     //                 7   12
 
     let span = ctx.span(13, 1);
@@ -351,7 +351,7 @@ fn zero_length_span() {
     let buf = "line 1\nline 2\nline 3";
     //                 |  | |
     //                 | 10 |
-    //                 |----|
+    //                 [----]
     //                 7   12
 
     let span = ctx.span(10, 0);
@@ -384,7 +384,7 @@ fn zero_length_span_at_eol() {
     let buf = "line 1\nline 2\nline 3";
     //                 |    ||
     //                 |    |13
-    //                 |----|
+    //                 [----]
     //                 7   12
 
     let span = ctx.span(13, 0);
@@ -421,7 +421,7 @@ fn zero_length_span_at_bol() {
     let buf = "line 1\nline 2\nline 3";
     //                 |    |
     //                 7    |
-    //                 |----|
+    //                 [----]
     //                     12
 
     let span = ctx.span(7, 0);
@@ -449,7 +449,7 @@ fn zero_length_span_at_bol() {
 fn resolve_multiple_spans() {
     let ctx = Context::from("multi");
     let buf = "line 1\nline 2\nline 3";
-    //                 |----|  |----|
+    //                 [----]  [----]
     //                 7   12  14  19
     //                   A       B
 
@@ -497,7 +497,7 @@ fn resolve_multiple_spans() {
 fn resolve_same_span_multiple_times() {
     let ctx = Context::from("multi");
     let buf = "line 1\nline 2\nline 3";
-    //                 |----|
+    //                 [----]
     //                 7   12
     //                   A
 
@@ -529,7 +529,7 @@ fn resolve_same_span_multiple_times() {
 fn resolve_earlier_span_after_later() {
     let ctx = Context::from("multi");
     let buf = "line 1\nline 2\nline 3";
-    //         |----|  |----|
+    //         [----]  [----]
     //         0    5  7   12
     //        earlier   later
 
@@ -592,7 +592,7 @@ fn invalid_unicode_no_column() {
     let ctx = Context::from("invalid-unicode");
 
     let mut buf = b"bad \xC0!\n".to_vec();
-    //              |----   |
+    //              [----   ]
     //              0       5
 
     let span = ctx.span(0, 4);
@@ -628,7 +628,7 @@ fn unicode_width() {
     let ctx = Context::from("unicode-width");
 
     let buf = "0:\0\n1:“\n2:😊";
-    //         |-|   |-|  |--|
+    //         [-]   [-]  [--]
     // bytes:  0 2   4 8  10 15
     //   col:  1 2   1 3  1  4
 
@@ -710,7 +710,7 @@ fn at_invalid_char_boundary() {
 
     // Charcater is 4 bytes.
     let buf = "(😊)";
-    //         |--|
+    //         [--]
     // bytes:  0  5
     //   col:  1  4
 

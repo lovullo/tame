@@ -86,9 +86,11 @@ impl Diagnostic for StubError {
 
 const FILE_FOO_BAR: &[u8] =
     b"foo/bar line 1\nfoo/bar line 2\nfoo/bar line 3\nfoo/bar line 4";
-//    |-------+--+-|  |-------+--+-|  |-------+--+-|  |-------+--+-|
+//    [-------+--+-]  [-------+--+-]  [-------+--+-]  [-------+--+-]
 //    0       |  |13  15      |  |28  30      |  |43  45      |  |58
+//            [--]            [--]            [--]            [--]
 //            8 11           23  26          38  41          53  56
+//
 //       len: 14
 
 const FILE_BAR_BAZ: &[u8] =
@@ -96,7 +98,7 @@ const FILE_BAR_BAZ: &[u8] =
 // Offsets for this are the same as `FILE_FOO_BAR`.
 
 const FILE_INVALID_UTF8: &[u8] = b"bad \xC0!";
-//                                 |----   |
+//                                 [----   ]
 //                                 0       5
 
 const FILE_MANY_LINES: &[u8] = b"\

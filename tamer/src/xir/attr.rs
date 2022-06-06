@@ -44,19 +44,21 @@ pub struct Attr(pub QName, pub SymbolId, pub AttrSpan);
 /// The diagram below illustrates the behavior of `AttrSpan`.
 /// Note that the extra spaces surrounding the `=` are intentional to
 ///   illustrate what the behavior ought to be.
-/// Spans are represented by `|---|` intervals,
+/// Spans are represented by `[---]` intervals,
 ///   with the byte offset at each end,
 ///   and the single-letter span name centered below the interval.
 /// `+` represents intersecting `-` and `|` lines.
 ///
 /// ```text
 ///   <foo bar  =  "baz" />
-///        |-|     |+-+|
+///        [-]     [+-+]
 ///        5 7    13| |17
-///        |K       |Q|
+///        |K       |Q||
+///        |        | ||
+///        |        [-]|
 ///        |       14 16
 ///        |         V |
-///        |-----------|
+///        [-----------]
 ///              A
 /// ```
 ///

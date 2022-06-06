@@ -651,11 +651,11 @@ impl Line {
     ///
     /// # Will have its columns reported as:
     /// line 1
-    ///    |-|  [4,6]
+    ///    [-]  [4,6]
     /// line 2
-    /// |----|  [1,6]
+    /// [----]  [1,6]
     /// line 4
-    /// |^^|    [1,4]
+    /// [--]    [1,4]
     /// ```
     fn resolve_columns(&self, line: &str, span: Span) -> Column {
         // The max(1) here is intended to accommodate zero-length spans.

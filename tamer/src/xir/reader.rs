@@ -164,7 +164,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                 QuickXmlEvent::End(ele) => Some({
                     // </foo>
-                    // |----|  name + '<' + '/' + '>'
+                    // [----]  name + '<' + '/' + '>'
                     let span = ctx.span_or_zz(prev_pos, ele.name().len() + 3);
 
                     ele.name()
@@ -187,7 +187,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                 QuickXmlEvent::Text(bytes) => Some({
                     // <text>foo bar</text>
-                    //       |-----|
+                    //       [-----]
                     let span = ctx.span_or_zz(prev_pos, bytes.len());
 
                     bytes
@@ -201,7 +201,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 // Comments are _not_ returned escaped.
                 QuickXmlEvent::Comment(bytes) => Some({
                     // <!-- foo -->
-                    // |----------|  " foo " + "<!--" + "-->"
+                    // [----------]  " foo " + "<!--" + "-->"
                     let span = ctx.span_or_zz(prev_pos, bytes.len() + 7);
 
                     bytes
@@ -255,7 +255,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         //   but it does not.
         if ver != b"1.0" {
             // <?xml version="X.Y"?>
-            //                |-|
+            //                [-]
             let ver_pos = (ver.as_ptr() as usize) - decl_ptr;
             let span = ctx.span_or_zz(ver_pos, ver.len());
 
@@ -319,7 +319,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             Some(b'"' | b'\'') => {
                 return Err({
                     // <foo="bar" ...>
-                    //  |-------|
+                    //  [-------]
                     let span = ctx.span_or_zz(pos + 1, len);
 
                     Error::InvalidQName(
@@ -343,10 +343,10 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 let noattr_add: usize = (!has_attrs).into();
 
                 // <tag ... />
-                // |--|  name + '<'
+                // [--]  name + '<'
                 //
                 // <tag>..</tag>
-                // |---| name + '<' + '>'
+                // [---] name + '<' + '>'
                 let span = ctx.span_or_zz(pos, len + 1 + noattr_add);
 
                 if has_attrs {
@@ -361,7 +361,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                     // Given this input, quick-xml ignores the bytes entirely:
                     //   <foo bar>
-                    //        |--| missing `="value"`
+                    //        [--] missing `="value"`
                     //
                     // The whitespace check is to handle input like this:
                     //   <foo />

@@ -96,7 +96,7 @@ macro_rules! new_sut {
 #[test]
 fn empty_node_without_prefix_or_attributes() {
     new_sut!(sut = "<empty-node />");
-    //              |---------| ||
+    //              [---------] []
     //              0        10
     //                   A      B
 
@@ -116,7 +116,7 @@ fn empty_node_without_prefix_or_attributes() {
 #[test]
 fn does_not_resolve_xmlns() {
     new_sut!(sut = r#"<no-ns xmlns="noresolve" />"#);
-    //                |----| |---|  |-------|  ||
+    //                [----] [---]  [-------]  []
     //                0    5 7   11 14     22  25
     //                  A      B        C      D
 
@@ -141,7 +141,7 @@ fn does_not_resolve_xmlns() {
 #[test]
 fn empty_node_with_prefix_without_attributes_unresolved() {
     new_sut!(sut = r#"<x:empty-node xmlns:x="noresolve" />"#);
-    //                |-----------| |-----|  |-------|  ||
+    //                [-----------] [-----]  [-------]  []
     //                0          12 14   20  23     31  34
     //                      A          B         C      D
 
@@ -167,7 +167,7 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
 fn prefix_with_empty_local_name_invalid_qname() {
     // No local name (trailing colon).
     new_sut!(sut = r#"<x: xmlns:x="testns" />"#);
-    //                 ||
+    //                 []
     //                 1
     //                 A
 
@@ -187,7 +187,7 @@ fn prefix_with_empty_local_name_invalid_qname() {
 #[test]
 fn multiple_attrs_ordered() {
     new_sut!(sut = r#"<ele foo="a" bar="b" b:baz="c" />"#);
-    //                |--| |-|  |  |-|  |  |---|  |  ||
+    //                [--] [-]  |  [-]  |  [---]  |  []
     //                0  3 5 7  10 13   18 21 25 28  31
     //                 A    B   C  D    E    F    G  H
 
@@ -218,7 +218,7 @@ fn multiple_attrs_ordered() {
 #[test]
 fn empty_attr_value() {
     new_sut!(sut = r#"<ele empty="" />"#);
-    //                |--| |---|  | ||
+    //                [--] [---]  | []
     //                0  3 5   9 12 14
     //                 A    B     C D
     //                           /
@@ -247,7 +247,7 @@ fn empty_attr_value() {
 #[test]
 fn permits_duplicate_attrs() {
     new_sut!(sut = r#"<dup attr="a" attr="b" />"#);
-    //                |--| |--|  |  |--|  |  ||
+    //                [--] [--]  |  [--]  |  []
     //                0  3 5  8  11 14 17 20 23
     //                 A    B    C    D   E  F
 
@@ -274,7 +274,7 @@ fn permits_duplicate_attrs() {
 #[test]
 fn child_node_self_closing() {
     new_sut!(sut = r#"<root><child /></root>"#);
-    //                |----||----| |||-----|
+    //                [----][----] [][-----]
     //                0    5`6  11 13`15  21
     //                   A    B    C    D
     //                  /
@@ -300,7 +300,7 @@ fn child_node_self_closing() {
 #[test]
 fn sibling_nodes() {
     new_sut!(sut = r#"<root><child /><child /></root>"#);
-    //                |----||----| |||----| |||-----|
+    //                [----][----] [][----] [][-----]
     //                0    5`6  11 13`15 20 22`24  30
     //                  A      B   C    D   E    F
 
@@ -327,7 +327,7 @@ fn sibling_nodes() {
 #[test]
 fn child_node_with_attrs() {
     new_sut!(sut = r#"<root><child foo="bar" /></root>"#);
-    //                |----||----| |-|  |-|  |||-----|
+    //                [----][----] [-]  [-]  [][-----]
     //                0    5`6  11 13  18 20 23`25  31
     //                  A     B     C    D   E    F
 
@@ -354,7 +354,7 @@ fn child_node_with_attrs() {
 #[test]
 fn child_text() {
     new_sut!(sut = r#"<text>foo bar</text>"#);
-    //                |----||-----||-----|
+    //                [----][-----][-----]
     //                0    5`6   12`13  19
     //                  A      B      C
 
@@ -375,7 +375,7 @@ fn child_text() {
 #[test]
 fn mixed_child_content() {
     new_sut!(sut = r#"<text>foo<em>bar</em></text>"#);
-    //                |----||-||--||-||---||-----|
+    //                [----][-][--][-][---][-----]
     //                0    5`6 9 12`13`16  21   27
     //                  A    B  C   D   E     F
 
@@ -412,7 +412,7 @@ fn mixed_child_content_with_newlines() {
 "#
     );
     // \n<root>\n  <child />\n</root>\n
-    // |||----|| -||----| |||||-----|||
+    // [][----][ -][----] [][][-----][]
     // 0 1    6`7 9`10 15 17| `20  26`27
     //                      19
     // A   B     C   D    E F    G    H
@@ -444,7 +444,7 @@ fn mixed_child_content_with_newlines() {
 #[test]
 fn comment() {
     new_sut!(sut = r#"<!--root--><root><!--<child>--></root>"#);
-    //                |---------||----||------------||-----|
+    //                [---------][----][------------][-----]
     //                0        10`11 16`17         30`31  37
     //                     A       B          C         D
 
@@ -473,7 +473,7 @@ lines-->
 </mult>"#
     );
     // <mult><!--comment\non multiple\nlines-->\n</mult>
-    // |----||----------- ------------ -------||||-----|
+    // [----][----------- ------------ -------][][-----]
     // 0    5`6                             37'38`39  45
     //   A                     B               C    D
 
@@ -497,7 +497,7 @@ lines-->
 #[test]
 fn permits_mismatched_tags() {
     new_sut!(sut = r#"<root><child /></mismatch>"#);
-    //                |----||----| |||---------|
+    //                [----][----] [][---------]
     //                0    5`6  11 13`15      25
     //                  A      B   C      D
 
@@ -585,7 +585,7 @@ fn attr_value_invalid_utf8() {
 #[test]
 fn valid_xml_decl_no_encoding() {
     new_sut!(sut = r#"<?xml version="1.0"?><root />"#);
-    //                                     |---| ||
+    //                                     [---] []
     //                                     21 25 27
     //                                       A   B
     //  We do not yet emit a token for
@@ -621,7 +621,7 @@ fn valid_xml_decl_with_encoding_upper() {
 #[test]
 fn invalid_xml_decl_version() {
     new_sut!(sut = r#"<?xml version="1.1"?>"#);
-    //                               |-|
+    //                               [-]
     //                              15 17
 
     // Unlike above, we do actually calculate a span here.
@@ -637,7 +637,7 @@ fn invalid_xml_decl_version() {
 #[test]
 fn invalid_xml_encoding() {
     new_sut!(sut = r#"<?xml version="1.0" encoding="latin-1"?>"#);
-    //                                              |-----|
+    //                                              [-----]
     //                                             30    37
 
     let span = DC.span(30, 7);
@@ -783,7 +783,7 @@ fn empty_element_qname_with_space_no_attrs() {
 #[test]
 fn empty_element_qname_with_attr() {
     new_sut!(sut = r#"<foo="bar">"#);
-    //                 |-------|
+    //                 [-------]
     //                 1      10
 
     let span = DC.span(1, 9);
