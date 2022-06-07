@@ -139,6 +139,7 @@ impl Display for XmloToken {
 pub trait XmloState =
     ParseState<Token = Xirf, DeadToken = Xirf, Context = EmptyContext>
     where
+        Self: Default,
         <Self as ParseState>::Error: Into<XmloError>,
         <Self as ParseState>::Object: Into<XmloToken>;
 

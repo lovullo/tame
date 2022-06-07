@@ -506,6 +506,7 @@ where
 pub trait StackAttrParseState =
     ParseState<Token = XirToken, DeadToken = XirToken, Object = Attr>
     where
+        Self: Default,
         <Self as ParseState>::Error: Into<StackError>,
         EmptyContext: AsMut<<Self as ParseState>::Context>;
 

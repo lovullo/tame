@@ -95,7 +95,15 @@ impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
 /// Whatever the underlying automaton,
 ///   a `(state, token, context)` triple must uniquely determine the next
 ///   parser action.
-pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
+///
+/// A [`ParseState`] is not required to implement [`Default`],
+///   but it is afforded a number of API conveniences if it does not require
+///   context for initialization.
+/// This is generally true for standalone parsers,
+///   but is not necessarily true for smaller, specialized parsers intended
+///   for use as components of a larger parser
+///     (in a spirit similar to parser combinators).
+pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     /// Input tokens to the parser.
     type Token: Token;
 
@@ -122,18 +130,20 @@ pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
     ///   see [`Aggregate`].
     type DeadToken: Token = Self::Token;
 
-    /// Construct a parser.
+    /// Construct a parser with a [`Default`] state.
     ///
     /// Whether this method is helpful or provides any clarity depends on
     ///   the context and the types that are able to be inferred.
     fn parse<I: TokenStream<Self::Token>>(toks: I) -> Parser<Self, I>
     where
+        Self: Default,
         Self::Context: Default,
     {
         Parser::from(toks)
     }
 
-    /// Construct a parser with a non-default [`ParseState::Context`].
+    /// Construct a parser with a [`Default`] state but a non-default
+    ///   [`ParseState::Context`].
     ///
     /// This is useful in two ways:
     ///
@@ -150,7 +160,10 @@ pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
     fn parse_with_context<I: TokenStream<Self::Token>>(
         toks: I,
         ctx: Self::Context,
-    ) -> Parser<Self, I> {
+    ) -> Parser<Self, I>
+    where
+        Self: Default,
+    {
         Parser::from((toks, ctx))
     }
 

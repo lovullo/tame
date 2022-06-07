@@ -168,6 +168,7 @@ impl From<Attr> for XirfToken {
 pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
     ParseState<Token = XirToken, DeadToken = XirToken, Object = Attr>
     where
+        Self: Default,
         <Self as ParseState>::Error: Into<XirToXirfError>,
         StateContext<MAX_DEPTH>: AsMut<<Self as ParseState>::Context>;
 

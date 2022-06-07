@@ -24,7 +24,6 @@ use super::{
     TransitionResult,
 };
 use crate::span::{Span, UNKNOWN_SPAN};
-use std::mem::take;
 
 #[cfg(doc)]
 use super::Token;
@@ -79,7 +78,30 @@ impl<S: ParseState> From<ParseStatus<S>> for Parsed<S::Object> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     toks: I,
-    state: S,
+    /// Parsing automaton.
+    ///
+    /// This [`ParseState`] is stored within an [`Option`] to allow for
+    ///   taking ownership for [`ParseState::parse_token`];
+    ///     this is where the functional [`ParseState`] is married with
+    ///       mutable state.
+    ///
+    /// The alternative here is to forego [`Option`] and mandate [`Default`]
+    ///   on [`ParseState`],
+    ///     which used to be the case in an older implementation.
+    /// However,
+    ///   while that requirement was nice to have here,
+    ///   it forces [`ParseState`] to be initialized without context,
+    ///     which significantly reduces the quality of diagnostic output
+    ///     unless augmented by the calling context,
+    ///       which puts a much greater burden on the caller.
+    ///
+    /// This will only ever contain [`None`] during a the call to
+    ///   [`ParseState::parse_token`] in [`Parser::feed_tok`],
+    ///     so it is safe to call [`unwrap`] without worrying about panics.
+    ///
+    /// For more information,
+    ///   see the implementation of [`Parser::feed_tok`].
+    state: Option<S>,
     last_span: Span,
     ctx: S::Context,
 }
@@ -118,13 +140,13 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     fn assert_accepting(
         &self,
     ) -> Result<(), ParseError<S::DeadToken, S::Error>> {
-        if self.state.is_accepting() {
+        if self.state.as_ref().unwrap().is_accepting() {
             Ok(())
         } else {
             let endpoints = self.last_span.endpoints();
             Err(ParseError::UnexpectedEof(
                 endpoints.1.unwrap_or(endpoints.0),
-                self.state.to_string(),
+                self.state.as_ref().unwrap().to_string(),
             ))
         }
     }
@@ -146,9 +168,20 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         //   reporting in case we encounter an EOF.
         self.last_span = tok.span();
 
-        let result;
-        TransitionResult(Transition(self.state), result) =
-            take(&mut self.state).parse_token(tok, &mut self.ctx);
+        // Parse a single token and perform the requested state transition.
+        //
+        // This is where the functional `ParseState` is married with a
+        //   mutable abstraction.
+        // Rust will optimize away this take+move+replace under most
+        //   circumstances;
+        //     if it does not,
+        //       then you should utilize `ctx` as necessary.
+        //
+        // Note that this used to use `mem::take`,
+        //   and the generated assembly was identical in both cases.
+        let TransitionResult(Transition(state), result) =
+            self.state.take().unwrap().parse_token(tok, &mut self.ctx);
+        self.state.replace(state);
 
         use ParseStatus::*;
         match result {
@@ -157,7 +190,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             //   so we have no choice but to produce an error.
             Ok(Dead(invalid)) => Err(ParseError::UnexpectedToken(
                 invalid,
-                self.state.to_string(),
+                self.state.as_ref().unwrap().to_string(),
             )),
 
             Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
@@ -198,7 +231,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
 
 impl<S, I> From<I> for Parser<S, I>
 where
-    S: ParseState,
+    S: ParseState + Default,
     I: TokenStream<S::Token>,
     <S as ParseState>::Context: Default,
 {
@@ -213,7 +246,7 @@ where
     fn from(toks: I) -> Self {
         Self {
             toks,
-            state: Default::default(),
+            state: Some(Default::default()),
             last_span: UNKNOWN_SPAN,
             ctx: Default::default(),
         }
@@ -222,7 +255,7 @@ where
 
 impl<S, I, C> From<(I, C)> for Parser<S, I>
 where
-    S: ParseState<Context = C>,
+    S: ParseState<Context = C> + Default,
     I: TokenStream<S::Token>,
 {
     /// Create a new parser with a provided context.
@@ -234,7 +267,7 @@ where
     fn from((toks, ctx): (I, C)) -> Self {
         Self {
             toks,
-            state: Default::default(),
+            state: Some(Default::default()),
             last_span: UNKNOWN_SPAN,
             ctx,
         }

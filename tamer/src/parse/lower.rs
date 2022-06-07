@@ -73,10 +73,13 @@ where
 }
 
 /// Lowering operation from one [`ParseState`] to another.
+///
+/// Lowering is intended to be used between standalone [`ParseState`]s that
+///   implement [`Default`].
 pub trait Lower<S, LS>
 where
     S: ParseState,
-    LS: ParseState<Token = S::Object>,
+    LS: ParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
 {
     /// Lower the IR produced by this [`Parser`] into another IR by piping
@@ -163,7 +166,7 @@ impl<S, LS, I> Lower<S, LS> for I
 where
     I: Iterator<Item = ParsedResult<S>> + Sized,
     S: ParseState,
-    LS: ParseState<Token = S::Object>,
+    LS: ParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
 {
 }
