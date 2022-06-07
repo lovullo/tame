@@ -77,7 +77,9 @@ impl<S: ParseState> From<ParseStatus<S>> for Parsed<S::Object> {
 ///     completed in an accepting state.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
+    /// Input token stream to be parsed by the [`ParseState`] `S`.
     toks: I,
+
     /// Parsing automaton.
     ///
     /// This [`ParseState`] is stored within an [`Option`] to allow for
@@ -102,7 +104,18 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     /// For more information,
     ///   see the implementation of [`Parser::feed_tok`].
     state: Option<S>,
+
+    /// The span of the last read [`Token`] from the [`TokenStream`] `I`,
+    ///   used to provide context for diagnostic output.
     last_span: Span,
+
+    /// Mutable context provided by mutable reference to each invocation of
+    ///   [`ParseState::parse_token`].
+    ///
+    /// This should be avoided in favor of functional, immutable parsers
+    ///   unless you have a reason to make use of it;
+    ///     it was originally added for situations where Rust is unable to
+    ///     elide the move of [`Parser::state`] in [`Parser::feed_tok`].
     ctx: S::Context,
 }
 
