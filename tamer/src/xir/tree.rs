@@ -503,10 +503,11 @@ where
     Done,
 }
 
-pub trait StackAttrParseState = ParseState<Token = XirToken, Object = Attr>
-where
-    <Self as ParseState>::Error: Into<StackError>,
-    EmptyContext: AsMut<<Self as ParseState>::Context>;
+pub trait StackAttrParseState =
+    ParseState<Token = XirToken, DeadToken = XirToken, Object = Attr>
+    where
+        <Self as ParseState>::Error: Into<StackError>,
+        EmptyContext: AsMut<<Self as ParseState>::Context>;
 
 impl<SA: StackAttrParseState> Default for Stack<SA> {
     fn default() -> Self {

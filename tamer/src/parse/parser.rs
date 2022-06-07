@@ -104,7 +104,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   is a decision made by the [`ParseState`].
     pub fn finalize(
         self,
-    ) -> Result<S::Context, (Self, ParseError<S::Token, S::Error>)> {
+    ) -> Result<S::Context, (Self, ParseError<S::DeadToken, S::Error>)> {
         match self.assert_accepting() {
             Ok(()) => Ok(self.ctx),
             Err(err) => Err((self, err)),
@@ -115,7 +115,9 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   otherwise [`Err`] with [`ParseError::UnexpectedEof`].
     ///
     /// See [`finalize`](Self::finalize) for the public-facing method.
-    fn assert_accepting(&self) -> Result<(), ParseError<S::Token, S::Error>> {
+    fn assert_accepting(
+        &self,
+    ) -> Result<(), ParseError<S::DeadToken, S::Error>> {
         if self.state.is_accepting() {
             Ok(())
         } else {

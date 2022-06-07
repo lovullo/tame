@@ -136,10 +136,11 @@ impl Display for XmloToken {
 }
 
 /// A parser capable of being composed with [`XmloReader`].
-pub trait XmloState = ParseState<Token = Xirf, Context = EmptyContext>
-where
-    <Self as ParseState>::Error: Into<XmloError>,
-    <Self as ParseState>::Object: Into<XmloToken>;
+pub trait XmloState =
+    ParseState<Token = Xirf, DeadToken = Xirf, Context = EmptyContext>
+    where
+        <Self as ParseState>::Error: Into<XmloError>,
+        <Self as ParseState>::Object: Into<XmloToken>;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum XmloReader<

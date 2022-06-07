@@ -32,8 +32,10 @@ use context::{Context, NoContext};
 
 /// Result of some non-parsing operation on a [`Parser`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type ParseResult<S, T> =
-    Result<T, ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>;
+pub type ParseResult<S, T> = Result<
+    T,
+    ParseError<<S as ParseState>::DeadToken, <S as ParseState>::Error>,
+>;
 
 /// Result of a parsing operation.
 #[derive(Debug, PartialEq, Eq)]
@@ -49,11 +51,8 @@ pub enum ParseStatus<S: ParseState> {
 
     /// Parser encountered a dead state relative to the given token.
     ///
-    /// A dead state is an empty accepting state that has no state
-    ///   transition for the given token.
-    /// A state is empty if a [`ParseStatus::Object`] will not be lost if
-    ///   parsing ends at this point
-    ///     (that is---there is no partially-built object).
+    /// A dead state is an accepting state that has no state transition for
+    ///   the given token.
     /// This could simply mean that the parser has completed its job and
     ///   that control must be returned to a parent context.
     ///
@@ -68,9 +67,13 @@ pub enum ParseStatus<S: ParseState> {
     ///   and that the token following it isn't something that can be
     ///   parsed.
     ///
+    /// Certain parsers may aggregate data until reaching a dead state,
+    ///   in which case [`Aggregate`] may be of use to yield both a
+    ///   lookahead token and an aggregate [`ParseStatus::Object`].
+    ///
     /// If there is no parent context to handle the token,
     ///   [`Parser`] must yield an error.
-    Dead(S::Token),
+    Dead(S::DeadToken),
 }
 
 impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
@@ -108,6 +111,16 @@ pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
     ///   optimize away moves of interior data associated with the
     ///   otherwise-immutable [`ParseState`].
     type Context: Debug = context::Empty;
+
+    /// Token returned when the parser cannot perform a state transition.
+    ///
+    /// This is generally the type of the input token itself
+    ///   (and so the same as [`ParseState::Token`]),
+    ///     which can be used as a token of lookahead.
+    /// Parsers may change this type to provide additional data.
+    /// For more information and a practical use case of this,
+    ///   see [`Aggregate`].
+    type DeadToken: Token = Self::Token;
 
     /// Construct a parser.
     ///
@@ -220,7 +233,8 @@ pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
         into: impl FnOnce(Self) -> SP,
     ) -> TransitionResult<SP>
     where
-        Self: StitchableParseState<SP>,
+        Self: StitchableParseState<SP>
+            + ParseState<DeadToken = <SP as ParseState>::DeadToken>,
         C: AsMut<<Self as ParseState>::Context>,
     {
         use ParseStatus::{Dead, Incomplete, Object as Obj};
@@ -233,7 +247,7 @@ pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
         Transition(into(newst)).result(match result {
             Ok(Incomplete) => Ok(Incomplete),
             Ok(Obj(obj)) => Ok(Obj(obj.into())),
-            Ok(Dead(tok)) => Ok(Dead(tok)),
+            Ok(Dead(tok)) => Ok(Dead(tok.into())),
             Err(e) => Err(e.into()),
         })
     }
@@ -251,7 +265,10 @@ pub trait ParseState: Default + PartialEq + Eq + Display + Debug {
         mut context: C,
         tok: <Self as ParseState>::Token,
         into: impl FnOnce(Self) -> SP,
-    ) -> ControlFlow<TransitionResult<SP>, (Self, <Self as ParseState>::Token, C)>
+    ) -> ControlFlow<
+        TransitionResult<SP>,
+        (Self, <Self as ParseState>::DeadToken, C),
+    >
     where
         Self: StitchableParseState<SP>,
         C: AsMut<<Self as ParseState>::Context>,
@@ -301,6 +318,37 @@ where
     SP: ParseState<Token = <Self as ParseState>::Token>,
     <Self as ParseState>::Object: Into<<SP as ParseState>::Object>,
     <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;
+
+/// Indicates that a parser has completed an aggregate operation,
+///   marked by having reached a [dead state](ParseStatus::Dead).
+///
+/// This struct is compatible with [`ParseState::DeadToken`] and is intended
+///   to be used with parsers that continue to aggregate data until they no
+///   longer can.
+/// For example,
+///   an attribute parser may continue to parse element attributes until it
+///   reaches the end of the attribute list,
+///     which cannot be determined until reading a [`ParseState::Token`]
+///     that must result in a [`ParseStatus::Dead`].
+#[derive(Debug, PartialEq, Eq)]
+pub struct Aggregate<O: Object, T: Token>(pub O, pub T);
+
+impl<O: Object, T: Token> Token for Aggregate<O, T> {
+    fn span(&self) -> crate::span::Span {
+        let Aggregate(_, tok) = self;
+        tok.span()
+    }
+}
+
+impl<O: Object, T: Token> Object for Aggregate<O, T> {}
+
+impl<O: Object, T: Token> Display for Aggregate<O, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Aggregate(_obj, tok) => write!(f, "{tok} with associated object"),
+        }
+    }
+}
 
 mod transition {
     use super::{ParseState, ParseStateResult, ParseStatus};
@@ -380,7 +428,7 @@ mod transition {
         /// This corresponds to [`ParseStatus::Dead`],
         ///   and a calling parser should use the provided [`Token`] as
         ///   lookahead.
-        pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
+        pub fn dead(self, tok: S::DeadToken) -> TransitionResult<S> {
             TransitionResult(self, Ok(ParseStatus::Dead(tok)))
         }
     }
