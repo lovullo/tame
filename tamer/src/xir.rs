@@ -50,6 +50,7 @@ use st::qname::QNameCompatibleStaticSymbolId;
 
 pub mod attr;
 pub mod flat;
+pub mod fmt;
 pub mod iter;
 pub mod pred;
 pub mod reader;

@@ -65,6 +65,12 @@
 #![feature(nonzero_min_max)]
 #![feature(nonzero_ops)]
 #![feature(int_log)]
+// Used for const params like `&'static str` in `crate::fmt`.
+// If this is not stabalized,
+//   then we can do without by changing the abstraction;
+//     this is largely experimentation to see if it's useful.
+#![allow(incomplete_features)]
+#![feature(adt_const_params)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 
@@ -79,6 +85,7 @@ extern crate lazy_static;
 pub mod asg;
 pub mod convert;
 pub mod diagnose;
+pub mod fmt;
 pub mod fs;
 pub mod iter;
 pub mod ld;
