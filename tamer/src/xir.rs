@@ -29,7 +29,6 @@
 //! To parse an entire XML document,
 //!   see [`reader`].
 
-use crate::parse;
 use crate::span::Span;
 use crate::sym::{
     st_as_sym, GlobalSymbolIntern, GlobalSymbolInternBytes, SymbolId,
@@ -57,6 +56,9 @@ pub mod reader;
 pub mod st;
 pub mod tree;
 pub mod writer;
+
+#[macro_use]
+pub mod parse;
 
 /// An infallible [`Token`] stream.
 ///
@@ -508,7 +510,7 @@ impl Display for Token {
     }
 }
 
-impl parse::Token for Token {
+impl crate::parse::Token for Token {
     /// Retrieve the [`Span`] associated with a given [`Token`].
     ///
     /// Every token has an associated span.
@@ -529,7 +531,7 @@ impl parse::Token for Token {
     }
 }
 
-impl parse::Object for Token {}
+impl crate::parse::Object for Token {}
 
 #[cfg(test)]
 mod test {

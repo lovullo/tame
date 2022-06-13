@@ -19,9 +19,9 @@
 
 use std::assert_matches::assert_matches;
 
-use super::super::parse::ParseError;
 use super::*;
 use crate::convert::ExpectInto;
+use crate::parse::ParseError;
 use crate::sym::GlobalSymbolIntern;
 
 lazy_static! {

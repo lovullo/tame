@@ -99,7 +99,8 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     ///
     /// This will only ever contain [`None`] during a the call to
     ///   [`ParseState::parse_token`] in [`Parser::feed_tok`],
-    ///     so it is safe to call [`unwrap`] without worrying about panics.
+    ///     so it is safe to call [`unwrap`](Option::unwrap) without
+    ///     worrying about panics.
     ///
     /// For more information,
     ///   see the implementation of [`Parser::feed_tok`].
@@ -120,6 +121,24 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
 }
 
 impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
+    /// Create a parser with a pre-initialized [`ParseState`].
+    ///
+    /// If the provided [`ParseState`] does not require context
+    ///   (and so implements [`Default`]),
+    ///     [`ParseState::parse`] or `Parser::from` may be preferable to
+    ///     this function.
+    pub fn with_state(state: S, toks: I) -> Self
+    where
+        S::Context: Default,
+    {
+        Self {
+            toks,
+            state: Some(state),
+            last_span: UNKNOWN_SPAN,
+            ctx: Default::default(),
+        }
+    }
+
     /// Indicate that no further parsing will take place using this parser,
     ///   retrieve any final aggregate state (the context),
     ///   and [`drop`] it.
@@ -256,6 +275,9 @@ where
     ///       consider instantiating from a `(TokenStream, Context)` pair.
     /// See also [`ParseState::parse`] and
     ///   [`ParseState::parse_with_context`].
+    ///
+    /// If [`ParseState`] does not implement [`Default`],
+    ///   see [`Parser::with_state`].
     fn from(toks: I) -> Self {
         Self {
             toks,

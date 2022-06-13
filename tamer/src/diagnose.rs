@@ -191,6 +191,21 @@ impl<'l> AnnotatedSpan<'l> {
         let span = self.0;
         [self, span.help(label)]
     }
+
+    /// The [`Span`] with which the annotation is associated.
+    pub fn span(&self) -> Span {
+        match self {
+            AnnotatedSpan(span, ..) => *span,
+        }
+    }
+
+    /// A reference to the label of the annotation,
+    ///   if available.
+    pub fn label(&self) -> Option<&Label<'l>> {
+        match self {
+            AnnotatedSpan(.., label) => label.as_ref(),
+        }
+    }
 }
 
 impl<'l> From<AnnotatedSpan<'l>> for Vec<AnnotatedSpan<'l>> {

@@ -85,8 +85,8 @@
 //! See also [`attr_parser_from`] for parsing only attributes partway
 //!   through a token stream.
 //!
-//! [`Parsed::Incomplete`]: super::parse::Parsed::Incomplete
-//! [`Parsed::Object`]: super::parse::Parsed::Object
+//! [`Parsed::Incomplete`]: crate::parse::Parsed::Incomplete
+//! [`Parsed::Object`]: crate::parse::Parsed::Object
 //!
 //! Cost of Parsing
 //! ===============

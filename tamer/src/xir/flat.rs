@@ -45,7 +45,7 @@ use super::{
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     parse::{
-        self, Context, ParseState, ParsedResult, Token, Transition,
+        Context, Object, ParseState, ParsedResult, Token, Transition,
         TransitionResult,
     },
     span::Span,
@@ -132,7 +132,7 @@ impl Token for XirfToken {
     }
 }
 
-impl parse::Object for XirfToken {}
+impl Object for XirfToken {}
 
 impl Display for XirfToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
