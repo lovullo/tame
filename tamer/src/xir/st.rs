@@ -43,13 +43,27 @@ pub mod qname {
     impl QNameCompatibleStaticSymbolId for TameIdentStaticSymbolId {}
 
     #[doc(hidden)]
+    // rustfmt is over-indenting the doc annotations at the time of writing.
+    #[rustfmt::skip]
     macro_rules! qname_const_inner {
         ($name:ident = :$local:ident) => {
+            #[doc=concat!(
+                "QName with no namespace prefix and local name [`",
+                stringify!($local),
+                "`].",
+            )]
             pub const $name: crate::xir::QName =
                 crate::xir::QName::st_cid_local(&$local);
         };
 
         ($name:ident = $prefix:ident:$local:ident) => {
+            #[doc=concat!(
+                "QName with namespace prefix [`",
+                stringify!($prefix),
+                "`] and local name [`",
+                stringify!($local),
+                "`].",
+            )]
             pub const $name: crate::xir::QName =
                 crate::xir::QName::st_cid(&$prefix, &$local);
         };
