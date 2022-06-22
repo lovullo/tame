@@ -94,14 +94,36 @@ macro_rules! new_sut {
 }
 
 #[test]
-fn empty_node_without_prefix_or_attributes() {
-    new_sut!(sut = "<empty-node />");
-    //              [---------] []
+fn empty_node_without_prefix_or_attributes_or_whitespace() {
+    new_sut!(sut = "<empty-node/>");
+    //              [---------][]
     //              0        10
-    //                   A      B
+    //                   A     B
 
     let a = DC.span(0, 11);
-    let b = DC.span(12, 2);
+    let b = DC.span(11, 2);
+
+    assert_eq!(
+        Ok(vec![
+            O(Token::Open("empty-node".unwrap_into(), a)),
+            O(Token::Close(None, b)),
+        ]),
+        sut.collect(),
+    );
+}
+
+#[test]
+fn empty_node_without_prefix_or_attributes() {
+    new_sut!(sut = "<empty-node   />");
+    //              [---------]   []
+    //              0        10  14
+    //                   A        B
+    //
+    //            (extra WS intentional to test
+    //             how it accommodates with spans)
+
+    let a = DC.span(0, 11);
+    let b = DC.span(14, 2);
 
     assert_eq!(
         Ok(vec![
@@ -797,6 +819,24 @@ fn empty_element_qname_with_attr() {
 #[test]
 fn empty_element_qname_with_space_with_attr() {
     new_sut!(sut = r#"<  foo="bar">"#);
+    //                 |
+    //                 1
+    //   quick-xml interprets the space as a "" QName
+
+    let span = DC.span(1, 0);
+
+    assert_eq!(
+        Err(PE(Error::InvalidQName("".intern(), span))),
+        sut.collect::<SutResultCollect>()
+    );
+}
+
+// Same as above test except that we have no attrs.
+// We just want to be sure that we can't have a QName that starts with
+//   whitespace.
+#[test]
+fn space_before_element_name() {
+    new_sut!(sut = r#"< foo />"#);
     //                 |
     //                 1
     //   quick-xml interprets the space as a "" QName

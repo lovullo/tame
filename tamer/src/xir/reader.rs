@@ -137,6 +137,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         ele,
                         prev_pos,
                         ctx,
+                        true,
                     )
                     .and_then(|open| {
                         let new_pos = self.reader.buffer_position();
@@ -160,6 +161,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     ele,
                     prev_pos,
                     ctx,
+                    false,
                 )),
 
                 QuickXmlEvent::End(ele) => Some({
@@ -297,6 +299,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         ele: BytesStart,
         pos: usize,
         ctx: Context,
+        empty_tag: bool,
     ) -> Result<Token> {
         // Starts after the opening tag `<`, so adjust.
         let addr = ele.as_ptr() as usize - 1;
@@ -340,13 +343,13 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             .map_err(Error::from_with_span(ctx.span_or_zz(pos + 1, len)))
             .and_then(|qname| {
                 let has_attrs = ele.attributes_raw().len() > 0;
-                let noattr_add: usize = (!has_attrs).into();
+                let noattr_add: usize = (!has_attrs && !empty_tag).into();
 
-                // <tag ... />
-                // [--]  name + '<'
+                // <tag ... />               <tag/>
+                // [--]  name + '<'          [--] `noattr_add` must be 0
                 //
-                // <tag>..</tag>
-                // [---] name + '<' + '>'
+                // <tag>...</tag>            <tag ...>...</tag>
+                // [---] name + '<' + '>'    [--] name + '<'
                 let span = ctx.span_or_zz(pos, len + 1 + noattr_add);
 
                 if has_attrs {
