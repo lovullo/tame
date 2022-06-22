@@ -294,6 +294,70 @@ fn permits_duplicate_attrs() {
 }
 
 #[test]
+fn open_close_no_child() {
+    new_sut!(sut = r#"<nochild></nochild>"#);
+    //                [-------][--------]
+    //                0       8`9      18
+    //                    A        B
+    //                  /
+    //    note that this includes '>' when there are no attrs,
+    //       since that results in a more intuitive span
+
+    let a = DC.span(0, 9);
+    let b = DC.span(9, 10);
+
+    assert_eq!(
+        Ok(vec![
+            O(Token::Open("nochild".unwrap_into(), a)),
+            O(Token::Close(Some("nochild".unwrap_into()), b)),
+        ]),
+        sut.collect(),
+    );
+}
+
+// Whitespace is permitted after opening tags
+//   (`STag` in the XML spec).
+#[test]
+fn open_close_no_child_open_tag_whitespace() {
+    new_sut!(sut = r#"<nochild   ></nochild>"#);
+    //                [----------][--------]
+    //                0         11`12     21
+    //                      A         B
+
+    let a = DC.span(0, 12);
+    let b = DC.span(12, 10);
+
+    assert_eq!(
+        Ok(vec![
+            O(Token::Open("nochild".unwrap_into(), a)),
+            O(Token::Close(Some("nochild".unwrap_into()), b)),
+        ]),
+        sut.collect(),
+    );
+}
+
+// Space after end tags is explicitly permitted by the XML spec
+//   (`ETag`).
+#[test]
+fn open_close_no_child_close_tag_whitespace() {
+    new_sut!(sut = r#"<nochild></nochild   >"#);
+    //                [-------][-----------]
+    //                0       8`9         21
+    //                    A          B
+
+    let a = DC.span(0, 9);
+    let b = DC.span(9, 13);
+
+    assert_eq!(
+        Ok(vec![
+            O(Token::Open("nochild".unwrap_into(), a)),
+            O(Token::Close(Some("nochild".unwrap_into()), b)),
+        ]),
+        sut.collect(),
+    );
+}
+
+#[test]
 fn child_node_self_closing() {
     new_sut!(sut = r#"<root><child /></root>"#);
     //                [----][----] [][-----]

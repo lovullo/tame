@@ -165,9 +165,14 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 )),
 
                 QuickXmlEvent::End(ele) => Some({
-                    // </foo>
-                    // [----]  name + '<' + '/' + '>'
-                    let span = ctx.span_or_zz(prev_pos, ele.name().len() + 3);
+                    // Only whitespace is permitted following the element
+                    //   name,
+                    //     so we can simply take the delta of the buffer pos.
+                    //
+                    // </foo  >
+                    // [------]  name + '<' + '/' + "  >"
+                    let len = self.reader.buffer_position() - prev_pos;
+                    let span = ctx.span_or_zz(prev_pos, len);
 
                     ele.name()
                         .try_into()
@@ -342,17 +347,21 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             .try_into()
             .map_err(Error::from_with_span(ctx.span_or_zz(pos + 1, len)))
             .and_then(|qname| {
-                let has_attrs = ele.attributes_raw().len() > 0;
-                let noattr_add: usize = (!has_attrs && !empty_tag).into();
+                // The whitespace check is to handle input like this:
+                //   <foo />
+                //       ^ whitespace making `attributes_raw().len` > 0
+                let has_attrs = ele
+                    .attributes_raw()
+                    .iter()
+                    .find(|b| !Self::is_whitespace(**b))
+                    .is_some();
 
-                // <tag ... />               <tag/>
-                // [--]  name + '<'          [--] `noattr_add` must be 0
-                //
-                // <tag>...</tag>            <tag ...>...</tag>
-                // [---] name + '<' + '>'    [--] name + '<'
-                let span = ctx.span_or_zz(pos, len + 1 + noattr_add);
-
-                if has_attrs {
+                // The tail is anything following the last byte of the QName
+                //   in a non-empty tag with no attributes.
+                // For example:
+                //   <foo   >             <foo>          <foo bar="baz">
+                //       ~~~~ tail            ~ tail         (no tail)
+                let tail = if has_attrs {
                     let found = Self::parse_attrs(
                         escaper,
                         tokbuf,
@@ -365,23 +374,33 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     // Given this input, quick-xml ignores the bytes entirely:
                     //   <foo bar>
                     //        [--] missing `="value"`
-                    //
-                    // The whitespace check is to handle input like this:
-                    //   <foo />
-                    //       ^ whitespace making `attributes_raw().len` > 0
-                    if !found
-                        && ele
-                            .attributes_raw()
-                            .iter()
-                            .find(|b| !Self::is_whitespace(**b))
-                            .is_some()
-                    {
+                    if !found {
                         return Err(Error::AttrValueExpected(
                             None,
                             ctx.span_or_zz(pos + ele.len() + 1, 0),
                         ));
                     }
-                }
+
+                    // No tail because of attributes.
+                    0
+                } else {
+                    match empty_tag {
+                        // Empty tag cannot have a tail.
+                        true => 0,
+                        // The "attributes" buffer represents whitespace,
+                        //   so the tail is the number of bytes of
+                        //   whitespace plus the closing '>' tag delimiter.
+                        false => ele.attributes_raw().len() + 1,
+                    }
+                };
+
+                // <tag ... />                   <tag/>
+                // [--] name + '<'               [--] name + '<'
+                //
+                // <tag  >...</tag>              <tag ...>...</tag>
+                // [-----] name + '<' + "  >"    [--] name + '<'
+                //     ~~~ tail
+                let span = ctx.span_or_zz(pos, len + 1 + tail);
 
                 // The first token will be immediately returned
                 //   via the Iterator.
@@ -389,7 +408,13 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
             })
     }
 
-    /// quick-xml's whitespace predicate.
+    /// Whether the byte represents XML whitespace.
+    ///
+    /// This is quick-xml's whitespace predicate,
+    ///   and corresponds to the
+    ///     [nonterminal `S` in the XML specification][xmlspec-s].
+    ///
+    /// [xmlspec-s]: https://www.w3.org/TR/xml/#NT-S
     fn is_whitespace(b: u8) -> bool {
         match b {
             b' ' | b'\r' | b'\n' | b'\t' => true,
