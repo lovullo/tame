@@ -217,7 +217,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         .and_then(|comment| Ok(Token::Comment(comment, span)))
                 }),
 
-                // TODO: This must appear in the Prolog.
+                // TODO: This must appear in the prologue.
                 QuickXmlEvent::Decl(decl) => {
                     match Self::validate_decl(&decl, prev_pos, ctx) {
                         Err(x) => Some(Err(x)),

@@ -236,8 +236,7 @@ impl Ident {
                 Ok(Ident::Ident(name, kind, src))
             }
 
-            // These represent the prolog and epilogue of maps. This
-            // situation will be resolved in the future.
+            // These represent the prologue and epilogue of maps.
             Ident::IdentFragment(
                 _,
                 IdentKind::MapHead
@@ -356,8 +355,7 @@ impl Ident {
                 Ok(self)
             }
 
-            // These represent the prolog and epilogue of maps. This
-            // situation will be resolved in the future.
+            // These represent the prologue and epilogue of maps.
             Ident::IdentFragment(
                 _,
                 IdentKind::MapHead
