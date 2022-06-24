@@ -58,7 +58,7 @@ fn test_produces_header() -> TestResult {
         })
         .collect::<Vec<Token>>();
 
-    assert_eq!(Token::Open(QN_PACKAGE, LSPAN), result[0]);
+    assert_eq!(Token::Open(QN_PACKAGE, LSPAN.into()), result[0]);
 
     Ok(())
 }
@@ -69,7 +69,7 @@ fn test_closes_package() -> TestResult {
 
     let result = lower_iter(empty, "foo".intern(), "relroot".intern()).last();
 
-    assert_eq!(Some(Token::Close(Some(QN_PACKAGE), LSPAN)), result);
+    assert_eq!(Some(Token::Close(Some(QN_PACKAGE), LSPAN.into())), result);
     Ok(())
 }
 

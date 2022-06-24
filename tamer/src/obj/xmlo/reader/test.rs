@@ -29,7 +29,10 @@ use crate::{
     sym::GlobalSymbolIntern,
     xir::{
         attr::Attr,
-        flat::{Depth, XirfToken as Xirf},
+        flat::{
+            test::{close, close_empty, open},
+            Depth, XirfToken as Xirf,
+        },
         QName,
     },
 };
@@ -44,8 +47,7 @@ type Sut = XmloReader;
 
 #[test]
 fn fails_on_invalid_root() {
-    let tok =
-        Xirf::Open("not-a-valid-package-node".unwrap_into(), S1, Depth(0));
+    let tok = open("not-a-valid-package-node", S1, Depth(0));
 
     let mut sut = Sut::parse([tok.clone()].into_iter());
 
@@ -61,7 +63,7 @@ fn common_parses_package_attrs(package: QName) {
     let elig = "elig-class-yields".into();
 
     let toks = [
-        Xirf::Open(package, S1, Depth(0)),
+        open(package, S1, Depth(0)),
         Xirf::Attr(Attr::new("name".unwrap_into(), name, (S2, S3))),
         Xirf::Attr(Attr::new("__rootpath".unwrap_into(), relroot, (S2, S3))),
         Xirf::Attr(Attr::new(
@@ -74,7 +76,7 @@ fn common_parses_package_attrs(package: QName) {
             elig,
             (S3, S4),
         )),
-        Xirf::Close(Some(package), S2, Depth(0)),
+        close(Some(package), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -116,11 +118,11 @@ fn ignores_unknown_package_attr() {
     let name = "pkgroot".into();
 
     let toks = [
-        Xirf::Open(QN_PACKAGE, S1, Depth(0)),
+        open(QN_PACKAGE, S1, Depth(0)),
         Xirf::Attr(Attr::new("name".unwrap_into(), name, (S2, S3))),
         // This is ignored.
         Xirf::Attr(Attr::new("unknown".unwrap_into(), name, (S2, S3))),
-        Xirf::Close(Some(QN_PACKAGE), S2, Depth(0)),
+        close(Some(QN_PACKAGE), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -140,9 +142,9 @@ fn ignores_unknown_package_attr() {
 #[test]
 fn symtable_err_missing_sym_name() {
     let toks = [
-        Xirf::Open(QN_SYM, S1, Depth(0)),
+        open(QN_SYM, S1, Depth(0)),
         // No attributes, but importantly, no name.
-        Xirf::Close(Some(QN_SYMTABLE), S2, Depth(0)),
+        close(Some(QN_SYMTABLE), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -169,7 +171,7 @@ macro_rules! symtable_tests {
                 let name = stringify!($name).intern();
 
                 let toks = [
-                    Xirf::Open(QN_SYM, SSYM, Depth(0)),
+                    open(QN_SYM, SSYM, Depth(0)),
                     Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
                     $(
                         Xirf::Attr(Attr(
@@ -178,7 +180,7 @@ macro_rules! symtable_tests {
                             AttrSpan(S3, SATTRVAL)
                         )),
                     )*
-                    Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+                    close(Some(QN_SYM), S2, Depth(0)),
                 ]
                     .into_iter();
 
@@ -328,14 +330,14 @@ fn symtable_sym_generated_true() {
     let name = "generated_true".into();
 
     let toks = [
-        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        open(QN_SYM, SSYM, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
         Xirf::Attr(Attr(
             ("preproc", "generated").unwrap_into(),
             raw::L_TRUE,
             AttrSpan(S3, S4),
         )),
-        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+        close(Some(QN_SYM), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -363,15 +365,15 @@ fn symtable_map_from() {
     let map_from = "from-a".into();
 
     let toks = [
-        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        open(QN_SYM, SSYM, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
         Xirf::Attr(Attr(QN_TYPE, raw::L_MAP, AttrSpan(S3, S4))),
         // <preproc:from>
-        Xirf::Open(QN_FROM, S2, Depth(1)),
+        open(QN_FROM, S2, Depth(1)),
         Xirf::Attr(Attr(QN_NAME, map_from, AttrSpan(S2, S3))),
-        Xirf::Close(None, S4, Depth(1)),
+        close_empty(S4, Depth(1)),
         // />
-        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+        close(Some(QN_SYM), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -400,15 +402,15 @@ fn symtable_map_from_missing_name() {
     let name = "sym-map-from-missing".into();
 
     let toks = [
-        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        open(QN_SYM, SSYM, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
         Xirf::Attr(Attr(QN_TYPE, raw::L_MAP, AttrSpan(S3, S4))),
         // <preproc:from>
-        Xirf::Open(QN_FROM, S2, Depth(1)),
+        open(QN_FROM, S2, Depth(1)),
         // @name missing
-        Xirf::Close(None, S4, Depth(1)),
+        close_empty(S4, Depth(1)),
         // />
-        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+        close(Some(QN_SYM), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -425,20 +427,20 @@ fn symtable_map_from_multiple() {
     let name = "sym-map-from-missing".into();
 
     let toks = [
-        Xirf::Open(QN_SYM, SSYM, Depth(0)),
+        open(QN_SYM, SSYM, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
         Xirf::Attr(Attr(QN_TYPE, raw::L_MAP, AttrSpan(S3, S4))),
         // <preproc:from>
-        Xirf::Open(QN_FROM, S2, Depth(1)),
+        open(QN_FROM, S2, Depth(1)),
         Xirf::Attr(Attr(QN_NAME, "ok".into(), AttrSpan(S2, S3))),
-        Xirf::Close(None, S4, Depth(1)),
+        close_empty(S4, Depth(1)),
         // />
         // <preproc:from> again (err)
-        Xirf::Open(QN_FROM, S3, Depth(1)),
+        open(QN_FROM, S3, Depth(1)),
         Xirf::Attr(Attr(QN_NAME, "bad".into(), AttrSpan(S2, S3))),
-        Xirf::Close(None, S4, Depth(1)),
+        close_empty(S4, Depth(1)),
         // />
-        Xirf::Close(Some(QN_SYM), S2, Depth(0)),
+        close(Some(QN_SYM), S2, Depth(0)),
     ]
     .into_iter();
 
@@ -456,19 +458,19 @@ fn sym_dep_event() {
     let dep2 = "dep2".into();
 
     let toks = [
-        Xirf::Open(QN_SYM_DEP, S1, Depth(0)),
+        open(QN_SYM_DEP, S1, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
         // <preproc:sym-ref
-        Xirf::Open(QN_SYM_REF, S2, Depth(1)),
+        open(QN_SYM_REF, S2, Depth(1)),
         Xirf::Attr(Attr(QN_NAME, dep1, AttrSpan(S3, S4))),
-        Xirf::Close(None, S4, Depth(1)),
+        close_empty(S4, Depth(1)),
         // />
         // <preproc:sym-ref
-        Xirf::Open(QN_SYM_REF, S3, Depth(1)),
+        open(QN_SYM_REF, S3, Depth(1)),
         Xirf::Attr(Attr(QN_NAME, dep2, AttrSpan(S4, S5))),
-        Xirf::Close(None, S4, Depth(1)),
+        close_empty(S4, Depth(1)),
         // />
-        Xirf::Close(Some(QN_SYM_DEP), S5, Depth(0)),
+        close(Some(QN_SYM_DEP), S5, Depth(0)),
     ]
     .into_iter();
 
@@ -491,9 +493,9 @@ fn sym_dep_event() {
 #[test]
 fn sym_dep_missing_name() {
     let toks = [
-        Xirf::Open(QN_SYM_DEP, S1, Depth(0)),
+        open(QN_SYM_DEP, S1, Depth(0)),
         // missing @name, causes error
-        Xirf::Open(QN_SYM_REF, S2, Depth(1)),
+        open(QN_SYM_REF, S2, Depth(1)),
     ]
     .into_iter();
 
@@ -509,11 +511,11 @@ fn sym_ref_missing_name() {
     let name = "depsym".into();
 
     let toks = [
-        Xirf::Open(QN_SYM_DEP, S1, Depth(0)),
+        open(QN_SYM_DEP, S1, Depth(0)),
         Xirf::Attr(Attr(QN_NAME, name, AttrSpan(S2, S3))),
-        Xirf::Open(QN_SYM_REF, S2, Depth(1)),
+        open(QN_SYM_REF, S2, Depth(1)),
         // missing @name, causes error
-        Xirf::Close(None, S3, Depth(1)),
+        close_empty(S3, Depth(1)),
     ]
     .into_iter();
 
@@ -533,15 +535,15 @@ fn sym_fragment_event() {
 
     let toks = [
         // first
-        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        open(QN_FRAGMENT, S1, Depth(0)),
         Xirf::Attr(Attr(QN_ID, id1, AttrSpan(S2, S3))),
         Xirf::Text(frag1, S4),
-        Xirf::Close(Some(QN_FRAGMENT), S5, Depth(0)),
+        close(Some(QN_FRAGMENT), S5, Depth(0)),
         // second
-        Xirf::Open(QN_FRAGMENT, S2, Depth(0)),
+        open(QN_FRAGMENT, S2, Depth(0)),
         Xirf::Attr(Attr(QN_ID, id2, AttrSpan(S3, S4))),
         Xirf::Text(frag2, S5),
-        Xirf::Close(Some(QN_FRAGMENT), S5, Depth(0)),
+        close(Some(QN_FRAGMENT), S5, Depth(0)),
     ]
     .into_iter();
 
@@ -563,7 +565,7 @@ fn sym_fragment_event() {
 #[test]
 fn sym_fragment_missing_id() {
     let toks = [
-        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        open(QN_FRAGMENT, S1, Depth(0)),
         // missing @id
         Xirf::Text("text".into(), S4),
     ]
@@ -580,7 +582,7 @@ fn sym_fragment_missing_id() {
 #[test]
 fn sym_fragment_empty_id() {
     let toks = [
-        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        open(QN_FRAGMENT, S1, Depth(0)),
         // empty @id
         Xirf::Attr(Attr(QN_ID, "".into(), AttrSpan(S3, S4))),
         Xirf::Text("text".into(), S4),
@@ -601,10 +603,10 @@ fn _sym_fragment_missing_text() {
     let id = "fragsym".into();
 
     let toks = [
-        Xirf::Open(QN_FRAGMENT, S1, Depth(0)),
+        open(QN_FRAGMENT, S1, Depth(0)),
         Xirf::Attr(Attr(QN_ID, id, AttrSpan(S3, S4))),
         // missing text
-        Xirf::Close(Some(QN_FRAGMENT), S5, Depth(0)),
+        close(Some(QN_FRAGMENT), S5, Depth(0)),
     ]
     .into_iter();
 
@@ -629,34 +631,34 @@ fn xmlo_composite_parsers_header() {
     let frag = "fragment text".into();
 
     let toks_header = [
-        Xirf::Open(QN_PACKAGE, S1, Depth(0)),
+        open(QN_PACKAGE, S1, Depth(0)),
         // <preproc:symtable>
-        Xirf::Open(QN_SYMTABLE, S2, Depth(1)),
+        open(QN_SYMTABLE, S2, Depth(1)),
         //   <preproc:sym
-        Xirf::Open(QN_SYM, S3, Depth(2)),
+        open(QN_SYM, S3, Depth(2)),
         Xirf::Attr(Attr(QN_NAME, sym_name, AttrSpan(S2, S3))),
-        Xirf::Close(None, S4, Depth(2)),
+        close_empty(S4, Depth(2)),
         //   />
-        Xirf::Close(Some(QN_SYMTABLE), S4, Depth(1)),
+        close(Some(QN_SYMTABLE), S4, Depth(1)),
         // </preproc:symtable>
         // <preproc:sym-deps>
-        Xirf::Open(QN_SYM_DEPS, S2, Depth(1)),
+        open(QN_SYM_DEPS, S2, Depth(1)),
         //   <preproc:sym-dep
-        Xirf::Open(QN_SYM_DEP, S3, Depth(3)),
+        open(QN_SYM_DEP, S3, Depth(3)),
         Xirf::Attr(Attr(QN_NAME, symdep_name, AttrSpan(S2, S3))),
-        Xirf::Close(Some(QN_SYM_DEP), S4, Depth(3)),
+        close(Some(QN_SYM_DEP), S4, Depth(3)),
         //   </preproc:sym-dep>
-        Xirf::Close(Some(QN_SYM_DEPS), S3, Depth(1)),
+        close(Some(QN_SYM_DEPS), S3, Depth(1)),
         // </preproc:sym-deps>
         // <preproc:fragments>
-        Xirf::Open(QN_FRAGMENTS, S2, Depth(1)),
+        open(QN_FRAGMENTS, S2, Depth(1)),
         //   <preproc:fragment
-        Xirf::Open(QN_FRAGMENT, S4, Depth(2)),
+        open(QN_FRAGMENT, S4, Depth(2)),
         Xirf::Attr(Attr(QN_ID, symfrag_id, AttrSpan(S2, S3))),
         Xirf::Text(frag, S5),
-        Xirf::Close(Some(QN_FRAGMENT), S4, Depth(2)),
+        close(Some(QN_FRAGMENT), S4, Depth(2)),
         //   </preproc:fragment>
-        Xirf::Close(Some(QN_FRAGMENTS), S3, Depth(1)),
+        close(Some(QN_FRAGMENTS), S3, Depth(1)),
         // </preproc:fragments>
         // No closing root node:
         //   ensure that we can just end at the header without parsing further.

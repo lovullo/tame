@@ -20,6 +20,7 @@
 use super::*;
 use crate::parse::UnknownToken;
 use crate::sym::GlobalSymbolIntern;
+use crate::xir::{CloseSpan, OpenSpan};
 use crate::{
     convert::ExpectInto,
     parse::{
@@ -105,8 +106,8 @@ fn empty_node_without_prefix_or_attributes_or_whitespace() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("empty-node".unwrap_into(), a)),
-            O(Token::Close(None, b)),
+            O(Token::Open("empty-node".unwrap_into(), OpenSpan(a, 10))),
+            O(Token::Close(None, CloseSpan(b, 0))),
         ]),
         sut.collect(),
     );
@@ -127,8 +128,8 @@ fn empty_node_without_prefix_or_attributes() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("empty-node".unwrap_into(), a)),
-            O(Token::Close(None, b)),
+            O(Token::Open("empty-node".unwrap_into(), OpenSpan(a, 10))),
+            O(Token::Close(None, CloseSpan(b, 0))),
         ]),
         sut.collect(),
     );
@@ -149,11 +150,11 @@ fn does_not_resolve_xmlns() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("no-ns".unwrap_into(), a)),
+            O(Token::Open("no-ns".unwrap_into(), OpenSpan(a, 5))),
             // Since we didn't parse @xmlns, it's still an attribute.
             O(Token::AttrName("xmlns".unwrap_into(), b)),
             O(Token::AttrValue("noresolve:UNESC".intern(), c)),
-            O(Token::Close(None, d)),
+            O(Token::Close(None, CloseSpan(d, 0))),
         ]),
         sut.collect(),
     );
@@ -175,10 +176,13 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
     // Should be the QName, _unresolved_.
     assert_eq!(
         Ok(vec![
-            O(Token::Open(("x", "empty-node").unwrap_into(), a)),
+            O(Token::Open(
+                ("x", "empty-node").unwrap_into(),
+                OpenSpan(a, 12)
+            )),
             O(Token::AttrName(("xmlns", "x").unwrap_into(), b)),
             O(Token::AttrValue("noresolve:UNESC".intern(), c)),
-            O(Token::Close(None, d)),
+            O(Token::Close(None, CloseSpan(d, 0))),
         ]),
         sut.collect(),
     );
@@ -224,14 +228,14 @@ fn multiple_attrs_ordered() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("ele".unwrap_into(), a)),
+            O(Token::Open("ele".unwrap_into(), OpenSpan(a, 3))),
             O(Token::AttrName("foo".unwrap_into(), b)),
             O(Token::AttrValue("a:UNESC".intern(), c)),
             O(Token::AttrName("bar".unwrap_into(), d)),
             O(Token::AttrValue("b:UNESC".intern(), e)),
             O(Token::AttrName(("b", "baz").unwrap_into(), f)),
             O(Token::AttrValue("c:UNESC".intern(), g)),
-            O(Token::Close(None, h)),
+            O(Token::Close(None, CloseSpan(h, 0))),
         ]),
         sut.collect(),
     );
@@ -254,10 +258,10 @@ fn empty_attr_value() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("ele".unwrap_into(), a)),
+            O(Token::Open("ele".unwrap_into(), OpenSpan(a, 3))),
             O(Token::AttrName("empty".unwrap_into(), b)),
             O(Token::AttrValue(":UNESC".intern(), c)),
-            O(Token::Close(None, d)),
+            O(Token::Close(None, CloseSpan(d, 0))),
         ]),
         sut.collect(),
     );
@@ -282,12 +286,12 @@ fn permits_duplicate_attrs() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("dup".unwrap_into(), a)),
+            O(Token::Open("dup".unwrap_into(), OpenSpan(a, 3))),
             O(Token::AttrName("attr".unwrap_into(), b)),
             O(Token::AttrValue("a:UNESC".intern(), c)),
             O(Token::AttrName("attr".unwrap_into(), d)),
             O(Token::AttrValue("b:UNESC".intern(), e)),
-            O(Token::Close(None, f)),
+            O(Token::Close(None, CloseSpan(f, 0))),
         ]),
         sut.collect(),
     );
@@ -308,8 +312,8 @@ fn open_close_no_child() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("nochild".unwrap_into(), a)),
-            O(Token::Close(Some("nochild".unwrap_into()), b)),
+            O(Token::Open("nochild".unwrap_into(), OpenSpan(a, 7))),
+            O(Token::Close(Some("nochild".unwrap_into()), CloseSpan(b, 7))),
         ]),
         sut.collect(),
     );
@@ -329,8 +333,8 @@ fn open_close_no_child_open_tag_whitespace() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("nochild".unwrap_into(), a)),
-            O(Token::Close(Some("nochild".unwrap_into()), b)),
+            O(Token::Open("nochild".unwrap_into(), OpenSpan(a, 7))),
+            O(Token::Close(Some("nochild".unwrap_into()), CloseSpan(b, 7))),
         ]),
         sut.collect(),
     );
@@ -350,8 +354,8 @@ fn open_close_no_child_close_tag_whitespace() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("nochild".unwrap_into(), a)),
-            O(Token::Close(Some("nochild".unwrap_into()), b)),
+            O(Token::Open("nochild".unwrap_into(), OpenSpan(a, 7))),
+            O(Token::Close(Some("nochild".unwrap_into()), CloseSpan(b, 7))),
         ]),
         sut.collect(),
     );
@@ -374,10 +378,10 @@ fn child_node_self_closing() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("root".unwrap_into(), a)),
-            O(Token::Open("child".unwrap_into(), b)),
-            O(Token::Close(None, c)),
-            O(Token::Close(Some("root".unwrap_into()), d)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(a, 4))),
+            O(Token::Open("child".unwrap_into(), OpenSpan(b, 5))),
+            O(Token::Close(None, CloseSpan(c, 0))),
+            O(Token::Close(Some("root".unwrap_into()), CloseSpan(d, 4))),
         ]),
         sut.collect(),
     );
@@ -399,12 +403,12 @@ fn sibling_nodes() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("root".unwrap_into(), a)),
-            O(Token::Open("child".unwrap_into(), b)),
-            O(Token::Close(None, c)),
-            O(Token::Open("child".unwrap_into(), d)),
-            O(Token::Close(None, e)),
-            O(Token::Close(Some("root".unwrap_into()), f)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(a, 4))),
+            O(Token::Open("child".unwrap_into(), OpenSpan(b, 5))),
+            O(Token::Close(None, CloseSpan(c, 0))),
+            O(Token::Open("child".unwrap_into(), OpenSpan(d, 5))),
+            O(Token::Close(None, CloseSpan(e, 0))),
+            O(Token::Close(Some("root".unwrap_into()), CloseSpan(f, 4))),
         ]),
         sut.collect(),
     );
@@ -426,12 +430,12 @@ fn child_node_with_attrs() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("root".unwrap_into(), a)),
-            O(Token::Open("child".unwrap_into(), b)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(a, 4))),
+            O(Token::Open("child".unwrap_into(), OpenSpan(b, 5))),
             O(Token::AttrName("foo".unwrap_into(), c)),
             O(Token::AttrValue("bar:UNESC".intern(), d)),
-            O(Token::Close(None, e)),
-            O(Token::Close(Some("root".unwrap_into()), f)),
+            O(Token::Close(None, CloseSpan(e, 0))),
+            O(Token::Close(Some("root".unwrap_into()), CloseSpan(f, 4))),
         ]),
         sut.collect(),
     );
@@ -450,9 +454,9 @@ fn child_text() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("text".unwrap_into(), a)),
+            O(Token::Open("text".unwrap_into(), OpenSpan(a, 4))),
             O(Token::Text("foo bar:UNESC".into(), b)),
-            O(Token::Close(Some("text".unwrap_into()), c)),
+            O(Token::Close(Some("text".unwrap_into()), CloseSpan(c, 4))),
         ]),
         sut.collect(),
     );
@@ -474,12 +478,12 @@ fn mixed_child_content() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("text".unwrap_into(), a)),
+            O(Token::Open("text".unwrap_into(), OpenSpan(a, 4))),
             O(Token::Text("foo:UNESC".into(), b)),
-            O(Token::Open("em".unwrap_into(), c)),
+            O(Token::Open("em".unwrap_into(), OpenSpan(c, 2))),
             O(Token::Text("bar:UNESC".into(), d)),
-            O(Token::Close(Some("em".unwrap_into()), e)),
-            O(Token::Close(Some("text".unwrap_into()), f)),
+            O(Token::Close(Some("em".unwrap_into()), CloseSpan(e, 2))),
+            O(Token::Close(Some("text".unwrap_into()), CloseSpan(f, 4))),
         ]),
         sut.collect(),
     );
@@ -515,12 +519,12 @@ fn mixed_child_content_with_newlines() {
     assert_eq!(
         Ok(vec![
             O(Token::Text("\n:UNESC".into(), a)),
-            O(Token::Open("root".unwrap_into(), b)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(b, 4))),
             O(Token::Text("\n  :UNESC".into(), c)),
-            O(Token::Open("child".unwrap_into(), d)),
-            O(Token::Close(None, e)),
+            O(Token::Open("child".unwrap_into(), OpenSpan(d, 5))),
+            O(Token::Close(None, CloseSpan(e, 0))),
             O(Token::Text("\n:UNESC".into(), f)),
-            O(Token::Close(Some("root".unwrap_into()), g)),
+            O(Token::Close(Some("root".unwrap_into()), CloseSpan(g, 4))),
             O(Token::Text("\n:UNESC".into(), h)),
         ]),
         sut.collect(),
@@ -542,9 +546,9 @@ fn comment() {
     assert_eq!(
         Ok(vec![
             O(Token::Comment("root".into(), a)),
-            O(Token::Open("root".unwrap_into(), b)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(b, 4))),
             O(Token::Comment("<child>".into(), c)),
-            O(Token::Close(Some("root".unwrap_into()), d)),
+            O(Token::Close(Some("root".unwrap_into()), CloseSpan(d, 4))),
         ]),
         sut.collect(),
     );
@@ -570,10 +574,10 @@ lines-->
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("mult".unwrap_into(), a)),
+            O(Token::Open("mult".unwrap_into(), OpenSpan(a, 4))),
             O(Token::Comment("comment\non multiple\nlines".into(), b)),
             O(Token::Text("\n:UNESC".into(), c)),
-            O(Token::Close(Some("mult".unwrap_into()), d)),
+            O(Token::Close(Some("mult".unwrap_into()), CloseSpan(d, 4))),
         ]),
         sut.collect(),
     );
@@ -594,10 +598,13 @@ fn permits_mismatched_tags() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("root".unwrap_into(), a)),
-            O(Token::Open("child".unwrap_into(), b)),
-            O(Token::Close(None, c)),
-            O(Token::Close(Some("mismatch".unwrap_into()), d)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(a, 4))),
+            O(Token::Open("child".unwrap_into(), OpenSpan(b, 5))),
+            O(Token::Close(None, CloseSpan(c, 0))),
+            O(Token::Close(
+                Some("mismatch".unwrap_into()),
+                CloseSpan(d, 8)
+            )),
         ]),
         sut.collect(),
     );
@@ -682,8 +689,8 @@ fn valid_xml_decl_no_encoding() {
 
     assert_eq!(
         Ok(vec![
-            O(Token::Open("root".unwrap_into(), a)),
-            O(Token::Close(None, b)),
+            O(Token::Open("root".unwrap_into(), OpenSpan(a, 4))),
+            O(Token::Close(None, CloseSpan(b, 0))),
         ]),
         sut.collect()
     );

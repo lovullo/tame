@@ -40,7 +40,7 @@
 
 use super::{
     attr::{Attr, AttrParseError, AttrParseState},
-    QName, Token as XirToken, TokenStream, Whitespace,
+    CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream, Whitespace,
 };
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
@@ -50,6 +50,7 @@ use crate::{
     },
     span::Span,
     sym::SymbolId,
+    xir::EleSpan,
 };
 use arrayvec::ArrayVec;
 use std::{error::Error, fmt::Display};
@@ -75,7 +76,7 @@ impl Display for Depth {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XirfToken {
     /// Opening tag of an element.
-    Open(QName, Span, Depth),
+    Open(QName, OpenSpan, Depth),
 
     /// Closing tag of an element.
     ///
@@ -84,7 +85,7 @@ pub enum XirfToken {
     /// If the name is [`Some`],
     ///   then the tag is guaranteed to be balanced
     ///     (matching the depth of its opening tag).
-    Close(Option<QName>, Span, Depth),
+    Close(Option<QName>, CloseSpan, Depth),
 
     /// An attribute and its value.
     ///
@@ -120,8 +121,8 @@ impl Token for XirfToken {
         use XirfToken::*;
 
         match self {
-            Open(_, span, _)
-            | Close(_, span, _)
+            Open(_, OpenSpan(span, _), _)
+            | Close(_, CloseSpan(span, _), _)
             | Comment(_, span)
             | Text(_, span)
             | CData(_, span)
@@ -287,14 +288,14 @@ where
         match tok {
             XirToken::Open(qname, span) if stack.len() == MAX_DEPTH => {
                 Transition(NodeExpected).err(XirToXirfError::MaxDepthExceeded {
-                    open: (qname, span),
+                    open: (qname, span.tag_span()),
                     max: Depth(MAX_DEPTH),
                 })
             }
 
             XirToken::Open(qname, span) => {
                 let depth = stack.len();
-                stack.push((qname, span));
+                stack.push((qname, span.tag_span()));
 
                 // Delegate to the attribute parser until it is complete.
                 Transition(AttrExpected(SA::default())).ok(Open(
@@ -314,7 +315,7 @@ where
                         Transition(NodeExpected).err(
                             XirToXirfError::UnbalancedTag {
                                 open: (open_qname, open_span),
-                                close: (qname, close_span),
+                                close: (qname, close_span.tag_span()),
                             },
                         )
                     }
@@ -481,4 +482,4 @@ impl From<AttrParseError> for XirToXirfError {
 }
 
 #[cfg(test)]
-mod test;
+pub mod test;

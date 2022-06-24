@@ -22,16 +22,13 @@ use std::assert_matches::assert_matches;
 use super::*;
 use crate::convert::ExpectInto;
 use crate::parse::ParseError;
+use crate::span::DUMMY_SPAN;
 use crate::sym::GlobalSymbolIntern;
+use crate::xir::test::{close, close_empty, open};
 
-lazy_static! {
-    static ref S: Span =
-        Span::from_byte_interval((0, 0), "test case, 1".intern());
-    static ref S2: Span =
-        Span::from_byte_interval((0, 0), "test case, 2".intern());
-    static ref S3: Span =
-        Span::from_byte_interval((0, 0), "test case, 3".intern());
-}
+const S1: Span = DUMMY_SPAN;
+const S2: Span = S1.offset_add(1).unwrap();
+const S3: Span = S2.offset_add(1).unwrap();
 
 mod tree {
     use super::*;
@@ -42,7 +39,7 @@ mod tree {
             name: "foo".unwrap_into(),
             attrs: AttrList::new(),
             children: vec![],
-            span: (*S, *S2),
+            span: (S1, S2),
         };
 
         let tree = Tree::Element(ele.clone());
@@ -54,7 +51,7 @@ mod tree {
     #[test]
     fn text_from_tree() {
         let text = "foo".intern();
-        let tree = Tree::Text(text, *S);
+        let tree = Tree::Text(text, S1);
 
         assert!(!tree.is_element());
         assert_eq!(None, tree.as_element());
@@ -72,8 +69,8 @@ mod attrs {
         let a = "a".unwrap_into();
         let b = "b".unwrap_into();
 
-        let attra = Attr::new(a, "a value".intern(), (*S, *S2));
-        let attrb = Attr::new(b, "b value".intern(), (*S, *S2));
+        let attra = Attr::new(a, "a value".intern(), (S1, S2));
+        let attrb = Attr::new(b, "b value".intern(), (S1, S2));
 
         let attrs = AttrList::from([attra.clone(), attrb.clone()]);
 
@@ -88,13 +85,13 @@ mod attrs {
 fn empty_element_self_close_from_toks() {
     let name = ("ns", "elem").unwrap_into();
 
-    let toks = [Token::Open(name, *S), Token::Close(None, *S2)].into_iter();
+    let toks = [open(name, S1), close_empty(S2)].into_iter();
 
     let expected = Element {
         name,
         attrs: AttrList::new(),
         children: vec![],
-        span: (*S, *S2),
+        span: (S1, S2),
     };
 
     let mut sut = parse(toks);
@@ -113,14 +110,13 @@ fn empty_element_self_close_from_toks() {
 fn empty_element_balanced_close_from_toks() {
     let name = ("ns", "openclose").unwrap_into();
 
-    let toks =
-        [Token::Open(name, *S), Token::Close(Some(name), *S2)].into_iter();
+    let toks = [open(name, S1), close(Some(name), S2)].into_iter();
 
     let expected = Element {
         name,
         attrs: AttrList::new(),
         children: vec![],
-        span: (*S, *S2),
+        span: (S1, S2),
     };
 
     let mut sut = parse(toks);
@@ -140,11 +136,7 @@ fn empty_element_unbalanced_close_from_toks() {
     let open_name = "open".unwrap_into();
     let close_name = "unbalanced_name".unwrap_into();
 
-    let toks = [
-        Token::Open(open_name, *S),
-        Token::Close(Some(close_name), *S2),
-    ]
-    .into_iter();
+    let toks = [open(open_name, S1), close(Some(close_name), S2)].into_iter();
 
     let mut sut = parse(toks);
 
@@ -152,8 +144,8 @@ fn empty_element_unbalanced_close_from_toks() {
     assert_eq!(
         sut.next(),
         Some(Err(ParseError::StateError(StackError::UnbalancedTag {
-            open: (open_name, *S),
-            close: (close_name, *S2),
+            open: (open_name, S1),
+            close: (close_name, S2),
         })))
     );
 
@@ -170,23 +162,23 @@ fn empty_element_with_attrs_from_toks() {
     let val2 = "val2".intern();
 
     let toks = [
-        Token::Open(name, *S),
-        Token::AttrName(attr1, *S),
-        Token::AttrValue(val1, *S2),
-        Token::AttrName(attr2, *S),
-        Token::AttrValue(val2, *S3),
-        Token::Close(None, *S2),
+        open(name, S1),
+        Token::AttrName(attr1, S1),
+        Token::AttrValue(val1, S2),
+        Token::AttrName(attr2, S1),
+        Token::AttrValue(val2, S3),
+        close_empty(S2),
     ]
     .into_iter();
 
     let expected = Element {
         name,
         attrs: AttrList::from(vec![
-            Attr::new(attr1, val1, (*S, *S2)),
-            Attr::new(attr2, val2, (*S, *S3)),
+            Attr::new(attr1, val1, (S1, S2)),
+            Attr::new(attr2, val2, (S1, S3)),
         ]),
         children: vec![],
-        span: (*S, *S2),
+        span: (S1, S2),
     };
 
     let mut sut = parse(toks);
@@ -211,25 +203,25 @@ fn child_element_after_attrs() {
     let val = "val".intern();
 
     let toks = [
-        Token::Open(name, *S),
-        Token::AttrName(attr, *S),
-        Token::AttrValue(val, *S2),
-        Token::Open(child, *S),
-        Token::Close(None, *S2),
-        Token::Close(Some(name), *S3),
+        open(name, S1),
+        Token::AttrName(attr, S1),
+        Token::AttrValue(val, S2),
+        open(child, S1),
+        close_empty(S2),
+        close(Some(name), S3),
     ]
     .into_iter();
 
     let expected = Element {
         name,
-        attrs: AttrList::from(vec![Attr::new(attr, val, (*S, *S2))]),
+        attrs: AttrList::from(vec![Attr::new(attr, val, (S1, S2))]),
         children: vec![Tree::Element(Element {
             name: child,
             attrs: AttrList::new(),
             children: vec![],
-            span: (*S, *S2),
+            span: (S1, S2),
         })],
-        span: (*S, *S3),
+        span: (S1, S3),
     };
 
     let mut sut = parse(toks);
@@ -253,12 +245,12 @@ fn element_with_empty_sibling_children() {
     let childb = "childb".unwrap_into();
 
     let toks = [
-        Token::Open(parent, *S),
-        Token::Open(childa, *S),
-        Token::Close(None, *S2),
-        Token::Open(childb, *S),
-        Token::Close(None, *S2),
-        Token::Close(Some(parent), *S2),
+        open(parent, S1),
+        open(childa, S1),
+        close_empty(S2),
+        open(childb, S1),
+        close_empty(S2),
+        close(Some(parent), S2),
     ]
     .into_iter();
 
@@ -270,16 +262,16 @@ fn element_with_empty_sibling_children() {
                 name: childa,
                 attrs: AttrList::new(),
                 children: vec![],
-                span: (*S, *S2),
+                span: (S1, S2),
             }),
             Tree::Element(Element {
                 name: childb,
                 attrs: AttrList::new(),
                 children: vec![],
-                span: (*S, *S2),
+                span: (S1, S2),
             }),
         ],
-        span: (*S, *S2),
+        span: (S1, S2),
     };
 
     let mut sut = parser_from(toks);
@@ -297,12 +289,12 @@ fn element_with_child_with_attributes() {
     let value = "attr value".intern();
 
     let toks = [
-        Token::Open(parent, *S),
-        Token::Open(child, *S),
-        Token::AttrName(attr, *S),
-        Token::AttrValue(value, *S2),
-        Token::Close(None, *S3),
-        Token::Close(Some(parent), *S3),
+        open(parent, S1),
+        open(child, S1),
+        Token::AttrName(attr, S1),
+        Token::AttrValue(value, S2),
+        close_empty(S3),
+        close(Some(parent), S3),
     ]
     .into_iter();
 
@@ -311,11 +303,11 @@ fn element_with_child_with_attributes() {
         attrs: AttrList::new(),
         children: vec![Tree::Element(Element {
             name: child,
-            attrs: AttrList::from([Attr::new(attr, value, (*S, *S2))]),
+            attrs: AttrList::from([Attr::new(attr, value, (S1, S2))]),
             children: vec![],
-            span: (*S, *S3),
+            span: (S1, S3),
         })],
-        span: (*S, *S3),
+        span: (S1, S3),
     };
 
     let mut sut = parser_from(toks);
@@ -330,17 +322,17 @@ fn element_with_text() {
     let text = "inner text".into();
 
     let toks = [
-        Token::Open(parent, *S),
-        Token::Text(text, *S2),
-        Token::Close(Some(parent), *S3),
+        open(parent, S1),
+        Token::Text(text, S2),
+        close(Some(parent), S3),
     ]
     .into_iter();
 
     let expected = Element {
         name: parent,
         attrs: AttrList::new(),
-        children: vec![Tree::Text(text, *S2)],
-        span: (*S, *S3),
+        children: vec![Tree::Text(text, S2)],
+        span: (S1, S3),
     };
 
     let mut sut = parser_from(toks);
@@ -356,18 +348,18 @@ fn parser_from_filters_incomplete() {
     let val = "val1".intern();
 
     let toks = [
-        Token::Open(name, *S),
-        Token::AttrName(attr, *S),
-        Token::AttrValue(val, *S2),
-        Token::Close(None, *S2),
+        open(name, S1),
+        Token::AttrName(attr, S1),
+        Token::AttrValue(val, S2),
+        close_empty(S2),
     ]
     .into_iter();
 
     let expected = Element {
         name,
-        attrs: AttrList::from([Attr::new(attr, val, (*S, *S2))]),
+        attrs: AttrList::from([Attr::new(attr, val, (S1, S2))]),
         children: vec![],
-        span: (*S, *S2),
+        span: (S1, S2),
     };
 
     let mut sut = parser_from(toks);
@@ -382,14 +374,14 @@ fn parser_from_filters_incomplete() {
 #[test]
 fn attr_parser_with_non_attr_token() {
     let name = "unexpected".unwrap_into();
-    let mut toks = [Token::Open(name, *S)].into_iter();
+    let mut toks = [open(name, S1)].into_iter();
 
     let mut sut = attr_parser_from(&mut toks);
 
     assert_matches!(
         sut.next(),
         Some(Err(ParseError::UnexpectedToken(Token::Open(given_name, given_span), _)))
-            if given_name == name && given_span == *S
+            if given_name == name && given_span == S1.into()
     );
 }
 
@@ -401,19 +393,19 @@ fn parser_attr_multiple() {
     let val2 = "val2".intern();
 
     let mut toks = [
-        Token::AttrName(attr1, *S),
-        Token::AttrValue(val1, *S2),
-        Token::AttrName(attr2, *S2),
-        Token::AttrValue(val2, *S3),
+        Token::AttrName(attr1, S1),
+        Token::AttrValue(val1, S2),
+        Token::AttrName(attr2, S2),
+        Token::AttrValue(val2, S3),
         // Token that we should _not_ hit.
-        Token::Text("nohit".into(), *S),
+        Token::Text("nohit".into(), S1),
     ]
     .into_iter();
 
     let mut sut = attr_parser_from(&mut toks);
 
-    assert_eq!(sut.next(), Some(Ok(Attr::new(attr1, val1, (*S, *S2)))));
-    assert_eq!(sut.next(), Some(Ok(Attr::new(attr2, val2, (*S2, *S3)))));
+    assert_eq!(sut.next(), Some(Ok(Attr::new(attr1, val1, (S1, S2)))));
+    assert_eq!(sut.next(), Some(Ok(Attr::new(attr2, val2, (S2, S3)))));
 
     // Parsing must stop after the last attribute,
     //   after which some other parser can continue on the same token
@@ -424,6 +416,6 @@ fn parser_attr_multiple() {
         Some(Err(ParseError::UnexpectedToken(Token::Text(
             given_name,
             given_span,
-        ), _))) if given_name == "nohit".into() && given_span == *S
+        ), _))) if given_name == "nohit".into() && given_span == S1
     );
 }

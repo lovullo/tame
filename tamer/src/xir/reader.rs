@@ -21,7 +21,10 @@
 //!
 //! This uses [`quick_xml`] as the parser.
 
-use super::{error::SpanlessError, DefaultEscaper, Error, Escaper, Token};
+use super::{
+    error::SpanlessError, CloseSpan, DefaultEscaper, Error, Escaper, OpenSpan,
+    Token,
+};
 use crate::{
     parse::{ParseError, Parsed, ParsedObject, ParsedResult},
     span::Context,
@@ -149,7 +152,10 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         // Tag is self-closing, but this does not yet
                         //   handle whitespace before the `/`
                         //     (as indicated in the span above).
-                        self.tokbuf.push_front(Token::Close(None, span));
+                        self.tokbuf.push_front(Token::Close(
+                            None,
+                            CloseSpan::empty(span),
+                        ));
 
                         Ok(open)
                     }),
@@ -171,13 +177,22 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     //
                     // </foo  >
                     // [------]  name + '<' + '/' + "  >"
-                    let len = self.reader.buffer_position() - prev_pos;
-                    let span = ctx.span_or_zz(prev_pos, len);
+                    let pos_delta = self.reader.buffer_position() - prev_pos;
+                    let span = ctx.span_or_zz(prev_pos, pos_delta);
+                    let name_len = ele.name().len();
 
                     ele.name()
                         .try_into()
                         .map_err(Error::from_with_span(span))
-                        .and_then(|qname| Ok(Token::Close(Some(qname), span)))
+                        .and_then(|qname| {
+                            Ok(Token::Close(
+                                Some(qname),
+                                CloseSpan(
+                                    span,
+                                    name_len.try_into().unwrap_or(0),
+                                ),
+                            ))
+                        })
                 }),
 
                 // quick_xml emits a useless text event if the first byte is
@@ -404,7 +419,10 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                 // The first token will be immediately returned
                 //   via the Iterator.
-                Ok(Token::Open(qname, span))
+                Ok(Token::Open(
+                    qname,
+                    OpenSpan(span, len.try_into().unwrap_or(0)),
+                ))
             })
     }
 

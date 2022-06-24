@@ -388,7 +388,7 @@ mod test {
         span::{Span, DUMMY_SPAN},
         xir::{
             attr::{Attr, AttrSpan},
-            flat::{Depth, XirfToken},
+            flat::{test::close_empty, Depth, XirfToken},
             st::qname::*,
         },
     };
@@ -443,7 +443,7 @@ mod test {
 
         let attr_name = Attr(QN_NAME, "val_name".into(), AttrSpan(S1, S2));
         let attr_yields = Attr(QN_YIELDS, "val_value".into(), AttrSpan(S2, S3));
-        let tok_dead = XirfToken::Close(None, S3, Depth(0));
+        let tok_dead = close_empty(S3, Depth(0));
 
         let toks = vec![
             XirfToken::Attr(attr_name.clone()),
@@ -478,7 +478,7 @@ mod test {
 
         let attr_name = Attr(QN_NAME, "val_name".into(), AttrSpan(S1, S2));
         let attr_yields = Attr(QN_YIELDS, "val_value".into(), AttrSpan(S2, S3));
-        let tok_dead = XirfToken::Close(None, S3, Depth(0));
+        let tok_dead = close_empty(S3, Depth(0));
 
         // @yields then @name just to emphasize that order does not matter.
         let toks = vec![
@@ -512,7 +512,7 @@ mod test {
 
         let attr_name = Attr(QN_NAME, "val_name".into(), AttrSpan(S1, S2));
         let attr_yields = Attr(QN_YIELDS, "val_value".into(), AttrSpan(S2, S3));
-        let tok_dead = XirfToken::Close(None, S3, Depth(0));
+        let tok_dead = close_empty(S3, Depth(0));
 
         let toks = vec![
             XirfToken::Attr(attr_name.clone()),
@@ -543,7 +543,7 @@ mod test {
             }
         }
 
-        let tok_dead = XirfToken::Close(None, S3, Depth(0));
+        let tok_dead = close_empty(S3, Depth(0));
 
         let toks = vec![
             // Will cause dead state:
@@ -575,7 +575,7 @@ mod test {
 
         let attr_name = Attr(QN_NAME, "val_name".into(), AttrSpan(S1, S2));
         let attr_src = Attr(QN_SRC, "val_src".into(), AttrSpan(S2, S3));
-        let tok_dead = XirfToken::Close(None, S3, Depth(0));
+        let tok_dead = close_empty(S3, Depth(0));
 
         let toks = vec![
             // `name` and `src` but no optional `yields`.
@@ -619,7 +619,7 @@ mod test {
 
         #[test]
         fn required_missing_values() {
-            let tok_dead = XirfToken::Close(None, S3, Depth(0));
+            let tok_dead = close_empty(S3, Depth(0));
 
             let toks = vec![
                 XirfToken::Attr(ATTR_NAME),
@@ -670,7 +670,7 @@ mod test {
 
             // The dead token doesn't matter;
             //   it needs to be present but is otherwise ignored for this test.
-            let tok_dead = XirfToken::Close(None, S3, Depth(0));
+            let tok_dead = close_empty(S3, Depth(0));
             let err = AttrParseError::MissingRequired(tok_dead, partial);
 
             // When represented as a string,
@@ -706,7 +706,7 @@ mod test {
 
             // The dead token doesn't matter;
             //   it needs to be present but is otherwise ignored for this test.
-            let tok_dead = XirfToken::Close(None, S3, Depth(0));
+            let tok_dead = close_empty(S3, Depth(0));
             let err = AttrParseError::MissingRequired(tok_dead, partial);
 
             let desc = err.describe();
@@ -745,7 +745,7 @@ mod test {
         let attr_unexpected =
             Attr(QN_TYPE, "unexpected".into(), AttrSpan(S1, S2));
         let attr_src = Attr(QN_SRC, "val_src".into(), AttrSpan(S2, S3));
-        let tok_dead = XirfToken::Close(None, S3, Depth(0));
+        let tok_dead = close_empty(S3, Depth(0));
 
         let toks = vec![
             // This is expected:

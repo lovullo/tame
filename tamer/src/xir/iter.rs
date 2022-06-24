@@ -25,7 +25,7 @@
 //!   - [`elem_wrap`] wraps a token stream iterator as the body of an
 //!       element of the given name.
 
-use super::{QName, Token, TokenStream};
+use super::{CloseSpan, OpenSpan, QName, Token, TokenStream};
 use crate::span::Span;
 use std::iter::{once, Chain, Once};
 
@@ -46,10 +46,14 @@ where
 {
     let twospan: (Span, Span) = span.into();
 
+    // TODO: These tokens won't be able to derive name spans,
+    //   but this is only used by the linker at the time of writing for
+    //   generated tokens,
+    //     where the provided span is a dummy linker span anyway.
     ElemWrapIter::new(
-        Token::Open(name, twospan.0),
+        Token::Open(name, OpenSpan::without_name_span(twospan.0)),
         inner,
-        Token::Close(Some(name), twospan.1),
+        Token::Close(Some(name), CloseSpan::without_name_span(twospan.1)),
     )
 }
 
@@ -87,8 +91,8 @@ mod test {
     #[test]
     fn elem_wrap_iter() {
         let inner = vec![
-            Token::Open("foo".unwrap_into(), DUMMY_SPAN),
-            Token::Close(None, DUMMY_SPAN),
+            Token::Open("foo".unwrap_into(), DUMMY_SPAN.into()),
+            Token::Close(None, DUMMY_SPAN.into()),
         ];
 
         let elem_name = "element".unwrap_into();
@@ -102,10 +106,10 @@ mod test {
         assert_eq!(
             result.collect::<Vec<_>>(),
             vec![
-                Token::Open(elem_name, twospan.0),
+                Token::Open(elem_name, twospan.0.into()),
                 inner[0].clone(),
                 inner[1].clone(),
-                Token::Close(Some(elem_name), twospan.1),
+                Token::Close(Some(elem_name), twospan.1.into()),
             ]
         );
     }

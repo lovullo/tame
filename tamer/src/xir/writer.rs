@@ -321,9 +321,13 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
-        span::Span,
+        span::{Span, DUMMY_SPAN},
         sym::GlobalSymbolIntern,
-        xir::{error::SpanlessError, QName},
+        xir::{
+            error::SpanlessError,
+            test::{close, close_empty, open},
+            QName,
+        },
     };
 
     type TestResult = std::result::Result<(), Error>;
@@ -347,15 +351,12 @@ mod test {
         }
     }
 
-    lazy_static! {
-        static ref S: Span =
-            Span::from_byte_interval((0, 0), "test case".intern());
-    }
+    const S: Span = DUMMY_SPAN;
 
     #[test]
     fn writes_beginning_node_tag_without_prefix() -> TestResult {
         let name = QName::new_local("no-prefix".unwrap_into());
-        let result = Token::Open(name, *S)
+        let result = open(name, S)
             .write_new(Default::default(), &MockEscaper::default())?;
 
         assert_eq!(result.0, b"<no-prefix");
@@ -366,8 +367,8 @@ mod test {
 
     #[test]
     fn writes_beginning_node_tag_with_prefix() -> TestResult {
-        let name = ("prefix", "element-name").unwrap_into();
-        let result = Token::Open(name, *S)
+        let name = ("prefix", "element-name");
+        let result = open(name, S)
             .write_new(Default::default(), &MockEscaper::default())?;
 
         assert_eq!(result.0, b"<prefix:element-name");
@@ -378,8 +379,8 @@ mod test {
 
     #[test]
     fn closes_open_node_when_opening_another() -> TestResult {
-        let name = ("p", "another-element").unwrap_into();
-        let result = Token::Open(name, *S)
+        let name = ("p", "another-element");
+        let result = open(name, S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
 
         assert_eq!(result.0, b"><p:another-element");
@@ -390,7 +391,7 @@ mod test {
 
     #[test]
     fn closes_open_node_as_empty_element() -> TestResult {
-        let result = Token::Close(None, *S)
+        let result = close_empty(S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
 
         assert_eq!(result.0, b"/>");
@@ -401,9 +402,9 @@ mod test {
 
     #[test]
     fn closing_tag_when_node_expected() -> TestResult {
-        let name = ("a", "closed-element").unwrap_into();
+        let name = ("a", "closed-element");
 
-        let result = Token::Close(Some(name), *S)
+        let result = close(Some(name), S)
             .write_new(WriterState::NodeExpected, &MockEscaper::default())?;
 
         assert_eq!(result.0, b"</a:closed-element>");
@@ -416,9 +417,9 @@ mod test {
     // to explicitly support outputting malformed XML.
     #[test]
     fn closes_open_node_with_closing_tag() -> TestResult {
-        let name = ("b", "closed-element").unwrap_into();
+        let name = ("b", "closed-element");
 
-        let result = Token::Close(Some(name), *S)
+        let result = close(Some(name), S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
 
         assert_eq!(result.0, b"></b:closed-element>");
@@ -430,7 +431,7 @@ mod test {
     // Intended for alignment of attributes, primarily.
     #[test]
     fn whitespace_within_open_node() -> TestResult {
-        let result = Token::Whitespace(" \t ".unwrap_into(), *S)
+        let result = Token::Whitespace(" \t ".unwrap_into(), S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
 
         assert_eq!(result.0, b" \t ");
@@ -445,13 +446,13 @@ mod test {
         let name_local = "nons".unwrap_into();
 
         // Namespace prefix
-        let result = Token::AttrName(name_ns, *S)
+        let result = Token::AttrName(name_ns, S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
         assert_eq!(result.0, b" some:attr");
         assert_eq!(result.1, WriterState::AttrNameAdjacent);
 
         // No namespace prefix
-        let result = Token::AttrName(name_local, *S)
+        let result = Token::AttrName(name_local, S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
         assert_eq!(result.0, b" nons");
         assert_eq!(result.1, WriterState::AttrNameAdjacent);
@@ -463,7 +464,7 @@ mod test {
     fn writes_attr_value_when_adjacent_to_attr() -> TestResult {
         let value = "test str".intern();
 
-        let result = Token::AttrValue(value, *S).write_new(
+        let result = Token::AttrValue(value, S).write_new(
             WriterState::AttrNameAdjacent,
             &MockEscaper::default(),
         )?;
@@ -481,9 +482,9 @@ mod test {
         let value_right = " right".intern();
 
         let result = vec![
-            Token::AttrValueFragment(value_left, *S),
-            Token::AttrValueFragment(value_mid, *S),
-            Token::AttrValue(value_right, *S),
+            Token::AttrValueFragment(value_left, S),
+            Token::AttrValueFragment(value_mid, S),
+            Token::AttrValue(value_right, S),
         ]
         .into_iter()
         .write_new(WriterState::AttrNameAdjacent, &MockEscaper::default())?;
@@ -499,13 +500,13 @@ mod test {
         let text = "test unescaped".intern();
 
         // When a node is expected.
-        let result = Token::Text(text, *S)
+        let result = Token::Text(text, S)
             .write_new(WriterState::NodeExpected, &MockEscaper::default())?;
         assert_eq!(result.0, b"test unescaped:ESC");
         assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        let result = Token::Text(text, *S)
+        let result = Token::Text(text, S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
         assert_eq!(result.0, b">test unescaped:ESC");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -520,13 +521,13 @@ mod test {
         let comment = "comment > escaped".intern();
 
         // When a node is expected.
-        let result = Token::Comment(comment, *S)
+        let result = Token::Comment(comment, S)
             .write_new(WriterState::NodeExpected, &MockEscaper::default())?;
         assert_eq!(result.0, b"<!--comment > escaped-->");
         assert_eq!(result.1, WriterState::NodeExpected);
 
         // When a node is still open.
-        let result = Token::Comment(comment, *S)
+        let result = Token::Comment(comment, S)
             .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
         assert_eq!(result.0, b"><!--comment > escaped-->");
         assert_eq!(result.1, WriterState::NodeExpected);
@@ -537,7 +538,7 @@ mod test {
     #[test]
     fn unsupported_transition_results_in_error() -> TestResult {
         assert!(matches!(
-            Token::AttrValue("".intern(), *S).write(
+            Token::AttrValue("".intern(), S).write(
                 &mut vec![],
                 WriterState::NodeExpected,
                 &MockEscaper::default()
@@ -555,14 +556,14 @@ mod test {
         let root: QName = ("r", "root").unwrap_into();
 
         let result = vec![
-            Token::Open(root, *S),
-            Token::AttrName(("an", "attr").unwrap_into(), *S),
-            Token::AttrValue("value".intern(), *S),
-            Token::Text("text".intern(), *S),
-            Token::Open(("c", "child").unwrap_into(), *S),
-            Token::Whitespace(" ".unwrap_into(), *S),
-            Token::Close(None, *S),
-            Token::Close(Some(root), *S),
+            open(root, S),
+            Token::AttrName(("an", "attr").unwrap_into(), S),
+            Token::AttrValue("value".intern(), S),
+            Token::Text("text".intern(), S),
+            open(("c", "child"), S),
+            Token::Whitespace(" ".unwrap_into(), S),
+            close_empty(S),
+            close(Some(root), S),
         ]
         .into_iter()
         .write_new(Default::default(), &MockEscaper::default())?;

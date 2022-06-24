@@ -186,6 +186,7 @@ use crate::{
     },
     span::Span,
     sym::SymbolId,
+    xir::{CloseSpan, OpenSpan},
 };
 use std::{error::Error, fmt::Display, result};
 
@@ -530,23 +531,24 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
 
         match (self, tok) {
             // Open a root element (or lack of context).
-            (Empty, Token::Open(name, span)) => {
+            (Empty, Token::Open(name, OpenSpan(span, _))) => {
                 Self::begin_attrs(name, span, None)
             }
 
             // Open a child element.
-            (BuddingElement(pstack), Token::Open(name, span)) => {
+            (BuddingElement(pstack), Token::Open(name, OpenSpan(span, _))) => {
                 Self::begin_attrs(name, span, Some(pstack.store()))
             }
 
             // Open a child element in attribute parsing context.
-            (BuddingAttrList(pstack, attr_list), Token::Open(name, span)) => {
-                Self::begin_attrs(
-                    name,
-                    span,
-                    Some(pstack.consume_attrs(attr_list).store()),
-                )
-            }
+            (
+                BuddingAttrList(pstack, attr_list),
+                Token::Open(name, OpenSpan(span, _)),
+            ) => Self::begin_attrs(
+                name,
+                span,
+                Some(pstack.consume_attrs(attr_list).store()),
+            ),
 
             // Attribute parsing.
             (AttrState(estack, attrs, sa), tok) => {
@@ -569,20 +571,8 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                 }
             }
 
-            (BuddingElement(stack), Token::Close(name, span)) => stack
-                .try_close(name, span)
-                .map(ElementStack::consume_child_or_complete)
-                .map(|new_stack| match new_stack {
-                    Stack::ClosedElement(ele) => {
-                        Transition(Empty).ok(Tree::Element(ele))
-                    }
-                    _ => Transition(new_stack).incomplete(),
-                })
-                .unwrap_or_else(|err| Transition(Empty).err(err)),
-
-            (BuddingAttrList(stack, attr_list), Token::Close(name, span)) => {
+            (BuddingElement(stack), Token::Close(name, CloseSpan(span, _))) => {
                 stack
-                    .consume_attrs(attr_list)
                     .try_close(name, span)
                     .map(ElementStack::consume_child_or_complete)
                     .map(|new_stack| match new_stack {
@@ -593,6 +583,21 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                     })
                     .unwrap_or_else(|err| Transition(Empty).err(err))
             }
+
+            (
+                BuddingAttrList(stack, attr_list),
+                Token::Close(name, CloseSpan(span, _)),
+            ) => stack
+                .consume_attrs(attr_list)
+                .try_close(name, span)
+                .map(ElementStack::consume_child_or_complete)
+                .map(|new_stack| match new_stack {
+                    Stack::ClosedElement(ele) => {
+                        Transition(Empty).ok(Tree::Element(ele))
+                    }
+                    _ => Transition(new_stack).incomplete(),
+                })
+                .unwrap_or_else(|err| Transition(Empty).err(err)),
 
             (BuddingElement(mut ele), Token::Text(value, span)) => {
                 ele.element.children.push(Tree::Text(value, span));

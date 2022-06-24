@@ -149,6 +149,7 @@ mod test {
         convert::ExpectInto,
         parse::{EmptyContext, ParseStatus, Parsed},
         sym::GlobalSymbolIntern,
+        xir::test::{close_empty, open},
     };
 
     const S: Span = crate::span::DUMMY_SPAN;
@@ -156,7 +157,7 @@ mod test {
 
     #[test]
     fn dead_if_first_token_is_non_attr() {
-        let tok = XirToken::Open("foo".unwrap_into(), S);
+        let tok = open("foo", S);
 
         let sut = AttrParseState::default();
 
@@ -206,14 +207,10 @@ mod test {
 
         // But we provide something else unexpected.
         let TransitionResult(Transition(sut), result) =
-            sut.parse_token(XirToken::Close(None, S2), &mut EmptyContext);
+            sut.parse_token(close_empty(S2), &mut EmptyContext);
         assert_eq!(
             result,
-            Err(AttrParseError::AttrValueExpected(
-                attr,
-                S,
-                XirToken::Close(None, S2)
-            ))
+            Err(AttrParseError::AttrValueExpected(attr, S, close_empty(S2)))
         );
 
         // We should not be in an accepting state,

@@ -33,7 +33,7 @@ use crate::{
         attr::{Attr, AttrSpan},
         flat::XirfToken as Xirf,
         st::qname::*,
-        QName,
+        EleSpan, QName,
     },
 };
 
@@ -186,7 +186,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
 
         match (self, tok) {
             (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, span, ..)) => {
-                Transition(Package(span)).incomplete()
+                Transition(Package(span.tag_span())).incomplete()
             }
 
             (Ready, tok) => {
@@ -215,7 +215,8 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             (Package(_), Xirf::Close(..)) => Transition(Done).incomplete(),
 
             (Package(_), Xirf::Open(QN_SYMTABLE, span, ..)) => {
-                Transition(Symtable(span, SS::default())).incomplete()
+                Transition(Symtable(span.tag_span(), SS::default()))
+                    .incomplete()
             }
 
             (Symtable(_, ss), Xirf::Close(Some(QN_SYMTABLE), ..))
@@ -231,7 +232,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             }
 
             (SymDepsExpected, Xirf::Open(QN_SYM_DEPS, span, _)) => {
-                Transition(SymDeps(span, SD::default())).incomplete()
+                Transition(SymDeps(span.tag_span(), SD::default())).incomplete()
             }
 
             (SymDeps(_, sd), Xirf::Close(None | Some(QN_SYM_DEPS), ..))
@@ -245,13 +246,16 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             }
 
             (FragmentsExpected, Xirf::Open(QN_FRAGMENTS, span, _)) => {
-                Transition(Fragments(span, SF::default())).incomplete()
+                Transition(Fragments(span.tag_span(), SF::default()))
+                    .incomplete()
             }
 
             (
                 Fragments(_, sf),
                 Xirf::Close(None | Some(QN_FRAGMENTS), span, _),
-            ) if sf.is_accepting() => Transition(Eoh).ok(XmloToken::Eoh(span)),
+            ) if sf.is_accepting() => {
+                Transition(Eoh).ok(XmloToken::Eoh(span.tag_span()))
+            }
 
             (Fragments(span, sf), tok) => {
                 sf.delegate(ctx, tok, |sf| Fragments(span, sf))
@@ -332,7 +336,8 @@ impl ParseState for SymtableState {
             (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
 
             (Ready, Xirf::Open(QN_SYM, span, _)) => {
-                Transition(Sym(span, None, SymAttrs::default())).incomplete()
+                Transition(Sym(span.tag_span(), None, SymAttrs::default()))
+                    .incomplete()
             }
 
             (Sym(span, None, attrs), Xirf::Close(..)) => {
@@ -365,8 +370,13 @@ impl ParseState for SymtableState {
             ) if attrs.ty == Some(SymType::Map)
                 || attrs.ty == Some(SymType::RetMap) =>
             {
-                Transition(SymMapFrom(span_sym, name, attrs, span_from))
-                    .incomplete()
+                Transition(SymMapFrom(
+                    span_sym,
+                    name,
+                    attrs,
+                    span_from.tag_span(),
+                ))
+                .incomplete()
             }
 
             (
@@ -395,9 +405,8 @@ impl ParseState for SymtableState {
             (
                 Sym(span_sym, Some(name), attrs),
                 Xirf::Open(QN_SYM_REF, span_ref, _),
-            ) => {
-                Transition(SymRef(span_sym, name, attrs, span_ref)).incomplete()
-            }
+            ) => Transition(SymRef(span_sym, name, attrs, span_ref.tag_span()))
+                .incomplete(),
 
             (SymRef(span_sym, name, attrs, _), Xirf::Close(..)) => {
                 Transition(Sym(span_sym, Some(name), attrs)).incomplete()
@@ -613,7 +622,7 @@ impl ParseState for SymDepsState {
             (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
 
             (Ready, Xirf::Open(QN_SYM_DEP, span, _)) => {
-                Transition(SymUnnamed(span)).incomplete()
+                Transition(SymUnnamed(span.tag_span())).incomplete()
             }
 
             (SymUnnamed(span), Xirf::Attr(Attr(QN_NAME, name, _))) => {
@@ -625,7 +634,8 @@ impl ParseState for SymDepsState {
                 .err(XmloError::UnassociatedSymDep(span)),
 
             (Sym(span, name), Xirf::Open(QN_SYM_REF, span_ref, _)) => {
-                Transition(SymRefUnnamed(span, name, span_ref)).incomplete()
+                Transition(SymRefUnnamed(span, name, span_ref.tag_span()))
+                    .incomplete()
             }
 
             (
@@ -723,7 +733,7 @@ impl ParseState for FragmentsState {
             (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
 
             (Ready, Xirf::Open(QN_FRAGMENT, span, _)) => {
-                Transition(FragmentUnnamed(span)).incomplete()
+                Transition(FragmentUnnamed(span.tag_span())).incomplete()
             }
 
             // TODO: For whitespace, which can be stripped by XIRF.

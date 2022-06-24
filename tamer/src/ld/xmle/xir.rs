@@ -36,7 +36,7 @@ use crate::{
     xir::{
         iter::{elem_wrap, ElemWrapIter},
         st::qname::*,
-        QName, Token,
+        CloseSpan, OpenSpan, QName, Token,
     },
 };
 use arrayvec::ArrayVec;
@@ -126,7 +126,7 @@ impl<'a> DepListIter<'a> {
                 ),
             }
         }).and_then(|(sym, kind, src)| {
-            self.toks.push(Token::Close(None, LSPAN));
+            self.toks.push(Token::Close(None, CloseSpan::empty(LSPAN)));
 
             self.toks_push_attr(QN_DESC, src.desc);
             self.toks_push_attr(QN_YIELDS, src.yields);
@@ -148,7 +148,7 @@ impl<'a> DepListIter<'a> {
             self.toks_push_attr(QN_NAME, Some(sym));
             self.toks_push_obj_attrs(kind);
 
-            Some(Token::Open(QN_P_SYM, LSPAN))
+            Some(Token::Open(QN_P_SYM, OpenSpan::without_name_span(LSPAN)))
         })
     }
 
@@ -240,12 +240,12 @@ impl MapFromsIter {
     #[inline]
     fn refill_toks(&mut self) -> Option<Token> {
         self.iter.next().and_then(|from| {
-            self.toks.push(Token::Close(None, LSPAN));
+            self.toks.push(Token::Close(None, CloseSpan::empty(LSPAN)));
 
             self.toks.push(Token::AttrValue(from, LSPAN));
             self.toks.push(Token::AttrName(QN_NAME, LSPAN));
 
-            Some(Token::Open(QN_L_FROM, LSPAN))
+            Some(Token::Open(QN_L_FROM, OpenSpan::without_name_span(LSPAN)))
         })
     }
 }

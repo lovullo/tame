@@ -138,7 +138,7 @@ mod writer {
         Writer as QuickXmlWriter,
     };
     use std::borrow::Cow;
-    use tamer::xir::{writer::XmlWriter, Escaper};
+    use tamer::xir::{writer::XmlWriter, CloseSpan, Escaper, OpenSpan};
     use tamer::{span::Span, xir::DefaultEscaper};
 
     const FRAGMENT: &str = r#"<fragment>
@@ -214,12 +214,12 @@ This is pretend fragment text.  We need a lot of it.</fragment>
         bench.iter(|| {
             (0..1000).for_each(|_| {
                 vec![
-                    Token::Open(name, span),
+                    Token::Open(name, OpenSpan::without_name_span(span)),
                     Token::AttrName(attr1, span),
                     Token::AttrValue(val1.into(), span),
                     Token::AttrName(attr2, span),
                     Token::AttrValue(val2.into(), span),
-                    Token::Close(None, span),
+                    Token::Close(None, CloseSpan::empty(span)),
                 ]
                 .into_iter()
                 .write(&mut buf, Default::default(), &escaper)

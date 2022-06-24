@@ -28,8 +28,12 @@
 //!
 //! To parse an entire XML document,
 //!   see [`reader`].
+//!
+//! _Note:_ XIR refers to "opening" and "closing" tags,
+//!   as opposed to "start" and "end" as used in the XML specification.
+//! TAMER uses a uniform terminology for all delimited data.
 
-use crate::span::Span;
+use crate::span::{Span, SpanLenSize};
 use crate::sym::{
     st_as_sym, GlobalSymbolIntern, GlobalSymbolInternBytes, SymbolId,
 };
@@ -396,6 +400,162 @@ impl Display for QName {
     }
 }
 
+/// A span representing an opening (starting) element tag.
+///
+/// See [`EleSpan`] for more information.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct OpenSpan(Span, EleNameLen);
+
+impl OpenSpan {
+    pub fn without_name_span(span: Span) -> Self {
+        Self(span, 0)
+    }
+}
+
+/// A span representing a closing (ending) element tag.
+///
+/// See [`EleSpan`] for more information.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct CloseSpan(Span, EleNameLen);
+
+impl CloseSpan {
+    /// A [`CloseSpan`] representing the closing of an empty tag.
+    ///
+    /// This type of span has no element name.
+    pub fn empty(span: Span) -> Self {
+        Self::without_name_span(span)
+    }
+
+    pub fn without_name_span(span: Span) -> Self {
+        Self(span, 0)
+    }
+}
+
+/// Number of bytes of whitespace following an element name in
+///   [`EleSpan`].
+pub type EleNameLen = SpanLenSize;
+
+/// Spans associated with an element opening or closing tag.
+///
+/// The diagram below illustrates the behavior of [`EleSpan`].
+/// Spans are represented by `[---]` intervals,
+///   with the byte offset at each end,
+///   and the single-letter span name centered below the interval.
+///
+/// ```text
+///   <open  >          <open ...>     </close  >          <empty ' />
+///   |[--]  |          |[--]          | [---]  |          |[---] ' []
+///   |1  4  |          |1  4          | 2   6  |          |1   5 ' 9`10
+///   | N    |          | N |          |   N    |          |  N | ' T
+///   |      |          |   |          |        |          |    | '
+///   [------]          [---]          [--------]          [----] '
+///   0      7          0   4          0        9          0    5 '
+///      T                T                T                 T    '
+/// ```
+///
+/// Above we have
+///
+///   - `T` = [`EleSpan::span`]; and
+///   - `N` = [`EleSpan::name_span`].
+///
+/// The purpose of the `T` span is to represent the entire token that has
+///   been emitted by XIR.
+/// If an opening tag does not contain any attributes,
+///   then `T` represents the entire opening tag with both the opening and
+///   closing angle brackets.
+/// If an opening tag is expected to contain attributes,
+///   then only the opening angle bracket is included.
+/// A closing tag is entirely contained by `T`.
+///
+/// The empty tag is separated into two tokens in XIR---a
+///   [`Token::Open`] and a [`Token::Close`] with a [`None`] for the name.
+/// Unlike a typical closing tag,
+///   there is no `N` span available for the closing token,
+///     and so requesting one via [`EleSpan::name_span`] will simply
+///     return the `T` span,
+///       rather than complicating the API with an [`Option`].
+/// It is generally assumed that reporting on element names will occur
+///   within the context of the _opening_ tag.
+///
+/// The tag may contain whitespace following the element name,
+///   as permitted by `STag` and `ETag` in the
+///     [XML specification][xmlspec-tag].
+///
+/// [xmlspec-tag]: https://www.w3.org/TR/xml/#dt-stag
+pub trait EleSpan {
+    /// A [`Span`] encompassing the entire opening element token.
+    ///
+    /// Note that what exactly this token represents varies.
+    fn span(&self) -> Span;
+
+    /// Span representing the relevant portion of the element tag.
+    ///
+    /// This is a more descriptive alias of [`EleSpan::span`] that may be
+    ///   appropriate in certain contexts.
+    fn tag_span(&self) -> Span {
+        self.span()
+    }
+
+    /// A [`Span`] representing only the element name,
+    ///   if available.
+    ///
+    /// An element name is _not_ available for empty tags.
+    /// Rather than complicating the API with [`Option`],
+    ///   [`EleSpan::span`] is returned instead.
+    fn name_span(&self) -> Span;
+}
+
+impl EleSpan for OpenSpan {
+    fn span(&self) -> Span {
+        match self {
+            Self(t, _) => *t,
+        }
+    }
+
+    fn name_span(&self) -> Span {
+        match self {
+            // <open  ...>
+            //  ^^^^ offset '<' and length of name
+            //
+            // If the length is 0,
+            //   then this will result in a 0-length span at the location
+            //   that the element name ought to be,
+            //     and so the resulting span will still be useful.
+            // This should not happen for tokens read using XIR,
+            //   but may happen for system-generated tokens.
+            Self(t, name_len) => {
+                t.context().span(t.offset().saturating_add(1), *name_len)
+            }
+        }
+    }
+}
+
+impl EleSpan for CloseSpan {
+    fn span(&self) -> Span {
+        match self {
+            Self(t, _) => *t,
+        }
+    }
+
+    fn name_span(&self) -> Span {
+        match self {
+            // If the length of the element name is 0,
+            //   then this must be an empty tag,
+            //     which contains no independent element name.
+            //
+            // <foo ' />
+            //      ' ^^
+            Self(_t, 0) => self.span(),
+
+            // </close  >
+            //   ^^^^^ offset '</' and length of name
+            Self(t, name_len) => {
+                t.context().span(t.offset().saturating_add(2), *name_len)
+            }
+        }
+    }
+}
+
 /// Lightly-structured XML tokens with associated [`Span`]s.
 ///
 /// This is a streamable IR for XML.
@@ -406,7 +566,7 @@ impl Display for QName {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     /// Opening tag of an element.
-    Open(QName, Span),
+    Open(QName, OpenSpan),
 
     /// Closing tag of an element.
     ///
@@ -430,7 +590,7 @@ pub enum Token {
     ///     given especially that bindings after `@` in patterns have not
     ///     yet been stabalized at the time of writing (but are very
     ///     close!).
-    Close(Option<QName>, Span),
+    Close(Option<QName>, CloseSpan),
 
     /// Element attribute name.
     AttrName(QName, Span),
@@ -518,8 +678,8 @@ impl crate::parse::Token for Token {
         use Token::*;
 
         match self {
-            Open(_, span)
-            | Close(_, span)
+            Open(_, OpenSpan(span, _))
+            | Close(_, CloseSpan(span, _))
             | AttrName(_, span)
             | AttrValue(_, span)
             | AttrValueFragment(_, span)
@@ -534,16 +694,68 @@ impl crate::parse::Token for Token {
 impl crate::parse::Object for Token {}
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
+    use crate::convert::ExpectInto;
     use crate::sym::GlobalSymbolIntern;
     use std::convert::TryInto;
+    use std::fmt::Debug;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    lazy_static! {
-        static ref S: Span =
-            Span::from_byte_interval((0, 0), "test case".intern());
+    // Prefer [`open`] below when possible.
+    impl From<Span> for OpenSpan {
+        fn from(span: Span) -> Self {
+            Self::without_name_span(span)
+        }
+    }
+
+    // Prefer [`close`] below when possible.
+    impl From<Span> for CloseSpan {
+        fn from(span: Span) -> Self {
+            Self::without_name_span(span)
+        }
+    }
+
+    /// Hastily and lazily produce a [`XirfToken::Open`].
+    ///
+    /// This function is not suitable for production use as it does not
+    ///   produce a complete [`OpenSpan`].
+    pub fn open<Q: TryInto<QName>, S: Into<OpenSpan>>(
+        qname: Q,
+        span: S,
+    ) -> Token
+    where
+        <Q as TryInto<QName>>::Error: Debug,
+    {
+        Token::Open(qname.unwrap_into(), span.into())
+    }
+
+    /// Hastily and lazily produce a [`XirfToken::Close`] for an empty tag.
+    ///
+    /// This is [`close`] with the omission of the `qname` argument; the
+    ///   type parameter `Q` cannot be inferred if the value is [`None`].
+    ///
+    /// This function is not suitable for production use as it does not
+    ///   produce a complete [`OpenSpan`].
+    pub fn close_empty<S: Into<CloseSpan>>(span: S) -> Token {
+        Token::Close(None, span.into())
+    }
+
+    /// Hastily and lazily produce a [`XirfToken::Close`].
+    ///
+    /// See also [`close_empty`] if `Q` cannot be inferred.
+    ///
+    /// This function is not suitable for production use as it does not
+    ///   produce a complete [`OpenSpan`].
+    pub fn close<Q: TryInto<QName>, S: Into<CloseSpan>>(
+        qname: Option<Q>,
+        span: S,
+    ) -> Token
+    where
+        <Q as TryInto<QName>>::Error: Debug,
+    {
+        Token::Close(qname.map(ExpectInto::unwrap_into), span.into())
     }
 
     mod name {
@@ -634,5 +846,59 @@ mod test {
         assert_eq!(" ".intern(), Whitespace::try_from(" ")?.into(),);
 
         Ok(())
+    }
+
+    mod ele_span {
+        use super::*;
+        use crate::span::DUMMY_CONTEXT as DC;
+
+        #[test]
+        fn open_without_attrs() {
+            // See docblock for [`EleSpan`].
+            const T: Span = DC.span(0, 8); // Relevant portion of tag
+            const N: Span = DC.span(1, 4); // Element name
+
+            let sut = OpenSpan(T, N.len());
+
+            assert_eq!(sut.span(), T);
+            assert_eq!(sut.name_span(), N);
+        }
+
+        #[test]
+        fn open_with_attrs() {
+            // See docblock for [`EleSpan`].
+            const T: Span = DC.span(0, 5); // Relevant portion of tag
+            const N: Span = DC.span(1, 4); // Element name
+
+            let sut = OpenSpan(T, N.len());
+
+            assert_eq!(sut.span(), T);
+            assert_eq!(sut.name_span(), N);
+        }
+
+        #[test]
+        fn close() {
+            // See docblock for [`EleSpan`].
+            const T: Span = DC.span(0, 10); // Relevant portion of tag
+            const N: Span = DC.span(2, 5); //  Element name
+
+            let sut = CloseSpan(T, N.len());
+
+            assert_eq!(sut.span(), T);
+            assert_eq!(sut.name_span(), N);
+        }
+
+        #[test]
+        fn close_empty() {
+            // See docblock for [`EleSpan`].
+            const T: Span = DC.span(9, 2); // Relevant portion of tag
+
+            let sut = CloseSpan(T, 0);
+
+            assert_eq!(sut.span(), T);
+            // There is no name,
+            //   only Zuul.
+            assert_eq!(sut.name_span(), T);
+        }
     }
 }
