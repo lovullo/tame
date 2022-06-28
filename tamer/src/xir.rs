@@ -598,6 +598,22 @@ pub enum Token {
     /// Element attribute value.
     AttrValue(SymbolId, Span),
 
+    /// Delimiter indicating that attribute parsing has ended and that the
+    ///   next token will be either a [`Token::Close`] for this element or a
+    ///   child [`Token::Open`].
+    ///
+    /// This token allows for streaming attribute aggregation without
+    ///   lookahead,
+    ///     and corresponds to the `>` terminal for start tags.
+    /// The token must be present if there is one or more attributes,
+    ///   but is otherwise omitted,
+    ///     with the `>` terminal considered part of [`Token::Open`] and
+    ///     included in its span.
+    ///
+    /// There is no corresponding attribute opening delimiter;
+    ///   such is implied by [`Token::AttrName`].
+    AttrEnd(Span),
+
     /// A portion of an element attribute value.
     ///
     /// This allows for concatenating values into an attribute value without
@@ -659,6 +675,7 @@ impl Display for Token {
             Self::AttrValue(attr_val, _) => {
                 write!(f, "attribute value `{}`", attr_val)
             }
+            Self::AttrEnd(_) => write!(f, "end of attribute list"),
             Self::AttrValueFragment(attr_val, _) => {
                 write!(f, "attribute value fragment `{}`", attr_val)
             }
@@ -682,6 +699,7 @@ impl crate::parse::Token for Token {
             | Close(_, CloseSpan(span, _))
             | AttrName(_, span)
             | AttrValue(_, span)
+            | AttrEnd(span)
             | AttrValueFragment(_, span)
             | Comment(_, span)
             | Text(_, span)

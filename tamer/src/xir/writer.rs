@@ -255,6 +255,11 @@ impl<S: Escaper> XmlWriter<S> for Token {
                 Ok(W::AttrFragmentAdjacent)
             }
 
+            // AttrEnd is ignored by the writer,
+            //   effectively making it optional for internal XIR generators
+            //   that are used only for output.
+            (Self::AttrEnd(..), st) => Ok(st),
+
             // TODO: We have no way of knowing if text should be formatted
             //   as CData,
             //     which may also be beneficial to avoid escaping if we
@@ -490,6 +495,17 @@ mod test {
         .write_new(WriterState::AttrNameAdjacent, &MockEscaper::default())?;
 
         assert_eq!(result.0, br#"="left:ESC mid:ESC right:ESC""#);
+        assert_eq!(result.1, WriterState::NodeOpen);
+
+        Ok(())
+    }
+
+    #[test]
+    fn ignores_attr_end() -> TestResult {
+        let result = Token::AttrEnd(S)
+            .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
+
+        assert_eq!(result.0, b"");
         assert_eq!(result.1, WriterState::NodeOpen);
 
         Ok(())

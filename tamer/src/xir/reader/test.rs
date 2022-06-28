@@ -140,13 +140,15 @@ fn empty_node_without_prefix_or_attributes() {
 fn does_not_resolve_xmlns() {
     new_sut!(sut = r#"<no-ns xmlns="noresolve" />"#);
     //                [----] [---]  [-------]  []
-    //                0    5 7   11 14     22  25
-    //                  A      B        C      D
+    //                0    5 7   11 14     22 /25
+    //                  A      B        C    D E
+    //
 
     let a = DC.span(0, 6);
     let b = DC.span(7, 5);
     let c = DC.span(14, 9);
-    let d = DC.span(25, 2);
+    let d = DC.span(25, 0);
+    let e = DC.span(25, 2);
 
     assert_eq!(
         Ok(vec![
@@ -154,7 +156,8 @@ fn does_not_resolve_xmlns() {
             // Since we didn't parse @xmlns, it's still an attribute.
             O(Token::AttrName("xmlns".unwrap_into(), b)),
             O(Token::AttrValue("noresolve:UNESC".intern(), c)),
-            O(Token::Close(None, CloseSpan(d, 0))),
+            O(Token::AttrEnd(d)),
+            O(Token::Close(None, CloseSpan(e, 0))),
         ]),
         sut.collect(),
     );
@@ -165,13 +168,14 @@ fn does_not_resolve_xmlns() {
 fn empty_node_with_prefix_without_attributes_unresolved() {
     new_sut!(sut = r#"<x:empty-node xmlns:x="noresolve" />"#);
     //                [-----------] [-----]  [-------]  []
-    //                0          12 14   20  23     31  34
-    //                      A          B         C      D
+    //                0          12 14   20  23     31 /34
+    //                      A          B         C    D E
 
     let a = DC.span(0, 13);
     let b = DC.span(14, 7);
     let c = DC.span(23, 9);
-    let d = DC.span(34, 2);
+    let d = DC.span(34, 0);
+    let e = DC.span(34, 2);
 
     // Should be the QName, _unresolved_.
     assert_eq!(
@@ -182,7 +186,8 @@ fn empty_node_with_prefix_without_attributes_unresolved() {
             )),
             O(Token::AttrName(("xmlns", "x").unwrap_into(), b)),
             O(Token::AttrValue("noresolve:UNESC".intern(), c)),
-            O(Token::Close(None, CloseSpan(d, 0))),
+            O(Token::AttrEnd(d)),
+            O(Token::Close(None, CloseSpan(e, 0))),
         ]),
         sut.collect(),
     );
@@ -214,8 +219,8 @@ fn prefix_with_empty_local_name_invalid_qname() {
 fn multiple_attrs_ordered() {
     new_sut!(sut = r#"<ele foo="a" bar="b" b:baz="c" />"#);
     //                [--] [-]  |  [-]  |  [---]  |  []
-    //                0  3 5 7  10 13   18 21 25 28  31
-    //                 A    B   C  D    E    F    G  H
+    //                0  3 5 7  10 13   18 21 25 28 /31
+    //                 A    B   C  D    E    F    GH I
 
     let a = DC.span(0, 4);
     let b = DC.span(5, 3);
@@ -224,7 +229,8 @@ fn multiple_attrs_ordered() {
     let e = DC.span(18, 1);
     let f = DC.span(21, 5);
     let g = DC.span(28, 1);
-    let h = DC.span(31, 2);
+    let h = DC.span(31, 0);
+    let i = DC.span(31, 2);
 
     assert_eq!(
         Ok(vec![
@@ -235,7 +241,8 @@ fn multiple_attrs_ordered() {
             O(Token::AttrValue("b:UNESC".intern(), e)),
             O(Token::AttrName(("b", "baz").unwrap_into(), f)),
             O(Token::AttrValue("c:UNESC".intern(), g)),
-            O(Token::Close(None, CloseSpan(h, 0))),
+            O(Token::AttrEnd(h)),
+            O(Token::Close(None, CloseSpan(i, 0))),
         ]),
         sut.collect(),
     );
@@ -245,8 +252,8 @@ fn multiple_attrs_ordered() {
 fn empty_attr_value() {
     new_sut!(sut = r#"<ele empty="" />"#);
     //                [--] [---]  | []
-    //                0  3 5   9 12 14
-    //                 A    B     C D
+    //                0  3 5   9 12'14
+    //                 A    B     CDE
     //                           /
     //              zero-length span, where
     //               the value _would_ be
@@ -254,14 +261,43 @@ fn empty_attr_value() {
     let a = DC.span(0, 4);
     let b = DC.span(5, 5);
     let c = DC.span(12, 0);
-    let d = DC.span(14, 2);
+    let d = DC.span(14, 0);
+    let e = DC.span(14, 2);
 
     assert_eq!(
         Ok(vec![
             O(Token::Open("ele".unwrap_into(), OpenSpan(a, 3))),
             O(Token::AttrName("empty".unwrap_into(), b)),
             O(Token::AttrValue(":UNESC".intern(), c)),
-            O(Token::Close(None, CloseSpan(d, 0))),
+            O(Token::AttrEnd(d)),
+            O(Token::Close(None, CloseSpan(e, 0))),
+        ]),
+        sut.collect(),
+    );
+}
+
+#[test]
+fn open_node_attr() {
+    new_sut!(sut = r#"<ele foobar="baz"></ele>"#);
+    //                [--] [----]  [-] |[----]
+    //                0  3 5   10 13 15|18  22
+    //                 A     B      C  D   E
+    //                                /
+    //                    AttrEnd here contains '>'
+
+    let a = DC.span(0, 4);
+    let b = DC.span(5, 6);
+    let c = DC.span(13, 3);
+    let d = DC.span(17, 1);
+    let e = DC.span(18, 6);
+
+    assert_eq!(
+        Ok(vec![
+            O(Token::Open("ele".unwrap_into(), OpenSpan(a, 3))),
+            O(Token::AttrName("foobar".unwrap_into(), b)),
+            O(Token::AttrValue("baz:UNESC".intern(), c)),
+            O(Token::AttrEnd(d)),
+            O(Token::Close(Some("ele".unwrap_into()), CloseSpan(e, 3))),
         ]),
         sut.collect(),
     );
@@ -274,15 +310,16 @@ fn empty_attr_value() {
 fn permits_duplicate_attrs() {
     new_sut!(sut = r#"<dup attr="a" attr="b" />"#);
     //                [--] [--]  |  [--]  |  []
-    //                0  3 5  8  11 14 17 20 23
-    //                 A    B    C    D   E  F
+    //                0  3 5  8  11 14 17 20/23
+    //                 A    B    C    D   EF G
 
     let a = DC.span(0, 4);
     let b = DC.span(5, 4);
     let c = DC.span(11, 1);
     let d = DC.span(14, 4);
     let e = DC.span(20, 1);
-    let f = DC.span(23, 2);
+    let f = DC.span(23, 0);
+    let g = DC.span(23, 2);
 
     assert_eq!(
         Ok(vec![
@@ -291,7 +328,8 @@ fn permits_duplicate_attrs() {
             O(Token::AttrValue("a:UNESC".intern(), c)),
             O(Token::AttrName("attr".unwrap_into(), d)),
             O(Token::AttrValue("b:UNESC".intern(), e)),
-            O(Token::Close(None, CloseSpan(f, 0))),
+            O(Token::AttrEnd(f)),
+            O(Token::Close(None, CloseSpan(g, 0))),
         ]),
         sut.collect(),
     );
@@ -418,15 +456,16 @@ fn sibling_nodes() {
 fn child_node_with_attrs() {
     new_sut!(sut = r#"<root><child foo="bar" /></root>"#);
     //                [----][----] [-]  [-]  [][-----]
-    //                0    5`6  11 13  18 20 23`25  31
-    //                  A     B     C    D   E    F
+    //                0    5`6  11 13  18 20/23`25  31
+    //                  A     B     C    D E F    G
 
     let a = DC.span(0, 6);
     let b = DC.span(6, 6);
     let c = DC.span(13, 3);
     let d = DC.span(18, 3);
-    let e = DC.span(23, 2);
-    let f = DC.span(25, 7);
+    let e = DC.span(23, 0);
+    let f = DC.span(23, 2);
+    let g = DC.span(25, 7);
 
     assert_eq!(
         Ok(vec![
@@ -434,8 +473,9 @@ fn child_node_with_attrs() {
             O(Token::Open("child".unwrap_into(), OpenSpan(b, 5))),
             O(Token::AttrName("foo".unwrap_into(), c)),
             O(Token::AttrValue("bar:UNESC".intern(), d)),
-            O(Token::Close(None, CloseSpan(e, 0))),
-            O(Token::Close(Some("root".unwrap_into()), CloseSpan(f, 4))),
+            O(Token::AttrEnd(e)),
+            O(Token::Close(None, CloseSpan(f, 0))),
+            O(Token::Close(Some("root".unwrap_into()), CloseSpan(g, 4))),
         ]),
         sut.collect(),
     );

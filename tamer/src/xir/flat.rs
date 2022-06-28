@@ -356,7 +356,8 @@ where
             //   of these tokens.
             XirToken::AttrName(..)
             | XirToken::AttrValue(..)
-            | XirToken::AttrValueFragment(..) => {
+            | XirToken::AttrValueFragment(..)
+            | XirToken::AttrEnd(..) => {
                 unreachable!("attribute token in NodeExpected state: {tok:?}")
             }
         }
