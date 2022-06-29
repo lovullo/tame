@@ -371,8 +371,6 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     .find(|b| !Self::is_whitespace(**b))
                     .is_some();
 
-                let attr_len = ele.attributes_raw().len();
-
                 // The tail is anything following the last byte of the QName
                 //   in a non-empty tag with no attributes.
                 // For example:
@@ -398,17 +396,6 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         ));
                     }
 
-                    //      (empty)               (open)
-                    // <foo bar="baz" />     <foo bar="baz"></foo>
-                    //                |                    |
-                    //            zero-length             '>'
-                    let attr_end_span = ctx.span_or_zz(
-                        pos + 1 + len + attr_len,
-                        if empty_tag { 0 } else { 1 },
-                    );
-
-                    tokbuf.push_front(Token::AttrEnd(attr_end_span));
-
                     // No tail because of attributes.
                     0
                 } else {
@@ -418,7 +405,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         // The "attributes" buffer represents whitespace,
                         //   so the tail is the number of bytes of
                         //   whitespace plus the closing '>' tag delimiter.
-                        false => attr_len + 1,
+                        false => ele.attributes_raw().len() + 1,
                     }
                 };
 

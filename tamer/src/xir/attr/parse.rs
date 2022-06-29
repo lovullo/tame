@@ -37,19 +37,10 @@ use super::Attr;
 ///       they do not influence the automaton's state transitions.
 /// The actual parsing operation is therefore a FSM,
 ///   not a PDA.
-///
-/// This parse may be used to parse a portion of an attribute list,
-///   but it cannot continue after having read a [`XirToken::AttrEnd`],
-///   indicating the end of the attribute list.
 #[derive(Debug, Eq, PartialEq)]
 pub enum AttrParseState {
-    /// Expecting attribute name or end of attribute list.
     Empty,
-    /// Attribute value expected.
     Name(QName, Span),
-    /// End of attribute list;
-    ///   no further attributes expected.
-    End(Span),
 }
 
 impl ParseState for AttrParseState {
@@ -62,18 +53,14 @@ impl ParseState for AttrParseState {
         tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self> {
-        use AttrParseState::{Empty, End, Name};
+        use AttrParseState::{Empty, Name};
 
         match (self, tok) {
             (Empty, XirToken::AttrName(name, span)) => {
                 Transition(Name(name, span)).incomplete()
             }
 
-            (Empty, XirToken::AttrEnd(span)) => {
-                Transition(End(span)).incomplete()
-            }
-
-            (Empty | End(_), invalid) => Transition(Empty).dead(invalid),
+            (Empty, invalid) => Transition(Empty).dead(invalid),
 
             (Name(name, nspan), XirToken::AttrValue(value, vspan)) => {
                 Transition(Empty).ok(Attr::new(name, value, (nspan, vspan)))
@@ -90,7 +77,7 @@ impl ParseState for AttrParseState {
 
     #[inline]
     fn is_accepting(&self) -> bool {
-        matches!(self, Self::Empty | Self::End(..))
+        *self == Self::Empty
     }
 }
 
@@ -108,9 +95,6 @@ impl Display for AttrParseState {
             Empty => write!(f, "expecting an attribute"),
             Name(name, _) => {
                 write!(f, "expecting an attribute value for {name}")
-            }
-            End(_) => {
-                write!(f, "finished with attribute parsing")
             }
         }
     }
@@ -160,24 +144,20 @@ impl Diagnostic for AttrParseError {
 
 #[cfg(test)]
 mod test {
-    use std::assert_matches::assert_matches;
-
     use super::*;
     use crate::{
         convert::ExpectInto,
-        parse::{EmptyContext, ParseError, ParseStatus, Parsed},
+        parse::{EmptyContext, ParseStatus, Parsed},
         sym::GlobalSymbolIntern,
         xir::test::{close_empty, open},
     };
 
-    const S1: Span = crate::span::DUMMY_SPAN;
-    const S2: Span = S1.offset_add(1).unwrap();
-    const S3: Span = S2.offset_add(1).unwrap();
-    const S4: Span = S3.offset_add(1).unwrap();
+    const S: Span = crate::span::DUMMY_SPAN;
+    const S2: Span = S.offset_add(1).unwrap();
 
     #[test]
     fn dead_if_first_token_is_non_attr() {
-        let tok = open("foo", S1);
+        let tok = open("foo", S);
 
         let sut = AttrParseState::default();
 
@@ -199,8 +179,7 @@ mod test {
         let attr = "attr".unwrap_into();
         let val = "val".intern();
 
-        // AttrEnd not required.
-        let toks = [XirToken::AttrName(attr, S1), XirToken::AttrValue(val, S2)]
+        let toks = [XirToken::AttrName(attr, S), XirToken::AttrValue(val, S2)]
             .into_iter();
 
         let sut = AttrParseState::parse(toks);
@@ -208,18 +187,12 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete,
-                Parsed::Object(Attr::new(attr, val, (S1, S2))),
+                Parsed::Object(Attr::new(attr, val, (S, S2))),
             ]),
             sut.collect()
         );
     }
 
-    // TODO: A proper token will not be substituted;
-    //   parsers are now expected to recover themselves rather than expect
-    //   an external system to substitute tokens,
-    //     unless such an explicit recovery mode is provided to be
-    //     configured by the caller.
-    // The default recovery mode should drop the attribute entirely.
     #[test]
     fn parse_fails_when_attribute_value_missing_but_can_recover() {
         let attr = "bad".unwrap_into();
@@ -229,7 +202,7 @@ mod test {
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
         let TransitionResult(Transition(sut), result) =
-            sut.parse_token(XirToken::AttrName(attr, S1), &mut EmptyContext);
+            sut.parse_token(XirToken::AttrName(attr, S), &mut EmptyContext);
         assert_eq!(result, Ok(ParseStatus::Incomplete));
 
         // But we provide something else unexpected.
@@ -237,7 +210,7 @@ mod test {
             sut.parse_token(close_empty(S2), &mut EmptyContext);
         assert_eq!(
             result,
-            Err(AttrParseError::AttrValueExpected(attr, S1, close_empty(S2)))
+            Err(AttrParseError::AttrValueExpected(attr, S, close_empty(S2)))
         );
 
         // We should not be in an accepting state,
@@ -254,46 +227,10 @@ mod test {
             .parse_token(XirToken::AttrValue(recover, S2), &mut EmptyContext);
         assert_eq!(
             result,
-            Ok(ParseStatus::Object(Attr::new(attr, recover, (S1, S2)))),
+            Ok(ParseStatus::Object(Attr::new(attr, recover, (S, S2)))),
         );
 
         // Finally, we should now be in an accepting state.
         assert!(sut.is_accepting());
-    }
-
-    // If `AttrEnd` is encountered,
-    //   every otherwise-valid token after that point is rejected.
-    #[test]
-    fn parsing_ends_at_attr_end() {
-        let name = "attr".unwrap_into();
-        let val = "val".intern();
-
-        let toks = [
-            // This is valid.
-            XirToken::AttrName(name, S1),
-            XirToken::AttrValue(val, S2),
-            // But the list ends here.
-            XirToken::AttrEnd(S3),
-            // And so this token is invalid now.
-            XirToken::AttrName(name, S4),
-        ]
-        .into_iter();
-
-        let mut sut = AttrParseState::parse(toks);
-
-        // The valid attribute should yield.
-        assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
-        assert_eq!(
-            Some(Ok(Parsed::Object(Attr::new(name, val, (S1, S2))))),
-            sut.next()
-        );
-
-        // But we must stop parsing after this.
-        assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // AttrEnd
-        assert_matches!(
-            sut.next(),
-            Some(Err(ParseError::UnexpectedToken(given_tok, _)))
-                if given_tok == XirToken::AttrName(name, S4),
-        );
     }
 }
