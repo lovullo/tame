@@ -147,7 +147,7 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
-        parse::{EmptyContext, ParseStatus, Parsed},
+        parse::{EmptyContext, ParseError, ParseStatus, Parsed},
         sym::GlobalSymbolIntern,
         xir::test::{close_empty, open},
     };
@@ -196,41 +196,44 @@ mod test {
     #[test]
     fn parse_fails_when_attribute_value_missing_but_can_recover() {
         let attr = "bad".unwrap_into();
+        let recover = "value".intern();
 
-        let sut = AttrParseState::default();
+        let toks = vec![
+            XirToken::AttrName(attr, S),
+            close_empty(S2),
+            XirToken::AttrValue(recover, S2),
+        ];
+
+        let mut sut = AttrParseState::parse(toks.into_iter());
 
         // This token indicates that we're expecting a value to come next in
         //   the token stream.
-        let TransitionResult(Transition(sut), result) =
-            sut.parse_token(XirToken::AttrName(attr, S), &mut EmptyContext);
-        assert_eq!(result, Ok(ParseStatus::Incomplete));
+        assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
 
         // But we provide something else unexpected.
-        let TransitionResult(Transition(sut), result) =
-            sut.parse_token(close_empty(S2), &mut EmptyContext);
         assert_eq!(
-            result,
-            Err(AttrParseError::AttrValueExpected(attr, S, close_empty(S2)))
+            sut.next(),
+            Some(Err(ParseError::StateError(
+                AttrParseError::AttrValueExpected(attr, S, close_empty(S2))
+            )))
         );
 
         // We should not be in an accepting state,
         //   given that we haven't finished parsing the attribute.
-        assert!(!sut.is_accepting());
+        let (mut sut, _) =
+            sut.finalize().expect_err("unexpected accepting state");
 
         // Despite this error,
         //   we should remain in a state that permits recovery should a
         //   proper token be substituted.
         // Rather than checking for that state,
         //   let's actually attempt a recovery.
-        let recover = "value".intern();
-        let TransitionResult(Transition(sut), result) = sut
-            .parse_token(XirToken::AttrValue(recover, S2), &mut EmptyContext);
         assert_eq!(
-            result,
-            Ok(ParseStatus::Object(Attr::new(attr, recover, (S, S2)))),
+            sut.next(),
+            Some(Ok(Parsed::Object(Attr::new(attr, recover, (S, S2))))),
         );
 
         // Finally, we should now be in an accepting state.
-        assert!(sut.is_accepting());
+        sut.finalize().expect("expected accepting state");
     }
 }

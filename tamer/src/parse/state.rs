@@ -381,8 +381,8 @@ mod transition {
     /// See [`Transition`] for convenience methods for producing this tuple.
     #[derive(Debug, PartialEq)]
     pub struct TransitionResult<S: ParseState>(
-        pub Transition<S>,
-        pub ParseStateResult<S>,
+        pub(in super::super) Transition<S>,
+        pub(in super::super) ParseStateResult<S>,
     );
 
     /// Denotes a state transition.
