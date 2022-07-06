@@ -185,7 +185,13 @@ where
     ///   and yield the resulting [`ParsedResult`].
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match self.toks.next() {
+        let tok = self
+            .lower
+            .take_lookahead_tok()
+            .map(Parsed::Object)
+            .or_else(|| self.toks.next());
+
+        match tok {
             None => None,
             Some(Parsed::Incomplete) => Some(Ok(Parsed::Incomplete)),
             Some(Parsed::Object(obj)) => Some(self.lower.feed_tok(obj)),
@@ -243,5 +249,83 @@ impl<O: Object, E: Diagnostic + PartialEq> ParseState for ParsedObject<O, E> {
 
     fn is_accepting(&self) -> bool {
         unreachable!("ParsedObject must be used for type information only")
+    }
+}
+
+// See `super::test` for more information on why there are so few tests
+//   here.
+#[cfg(test)]
+mod test {
+    use super::super::{
+        parser::test::{StubError, StubObject, StubParseState, StubToken},
+        Transition,
+    };
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq, Default)]
+    struct StubEchoParseState {}
+
+    impl Display for StubEchoParseState {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "StubEchoParseState")
+        }
+    }
+
+    impl ParseState for StubEchoParseState {
+        type Token = StubToken;
+        type Object = StubToken;
+        type Error = StubError;
+
+        fn parse_token(
+            self,
+            tok: Self::Token,
+            _: &mut Self::Context,
+        ) -> TransitionResult<Self> {
+            Transition(self).ok(tok)
+        }
+
+        fn is_accepting(&self) -> bool {
+            true
+        }
+    }
+
+    // Similar to tests in parse::parser::test.
+    #[test]
+    fn can_emit_object_with_lookahead_for_lower_iter() {
+        let given = 27; // some value
+        let toks = vec![StubToken::YieldWithLookahead(given)];
+
+        Lower::<StubEchoParseState, StubParseState>::lower(
+            &mut StubEchoParseState::parse(toks.into_iter()),
+            |sut| {
+                // We have a single token,
+                //   and this consumes it,
+                //   but it should introduce a lookahead token.
+                assert_eq!(
+                    sut.next(),
+                    Some(Ok(Parsed::Object(StubObject::FromYield(given))))
+                );
+
+                // The token of lookahead should still be available to the parser,
+                //   and this should consume it.
+                assert_eq!(
+                    sut.next(),
+                    Some(Ok(Parsed::Object(StubObject::FromLookahead(given)))),
+                    "lookahead token did not take effect"
+                );
+
+                // And now this should be the end,
+                //   provided that the lookahead token was actually consumed and not
+                //   copied and retained.
+                assert_eq!(
+                    sut.next(),
+                    None,
+                    "expected end of both input stream and lookahead"
+                );
+
+                Ok::<(), StubError>(())
+            },
+        )
+        .unwrap();
     }
 }

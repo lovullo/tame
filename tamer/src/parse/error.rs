@@ -76,6 +76,20 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     ///   needn't be stored.
     UnexpectedToken(T, String),
 
+    /// The parser contains an outstanding token of lookahead that is no
+    ///   longer
+    ///     (or possibly never was)
+    ///   part of the token stream,
+    ///     and would therefore be lost if the parser is finalized.
+    ///
+    /// The parser must consume the next token,
+    ///   which will be the token of lookahead,
+    ///   after which it may finalize provided that it is in an accepting
+    ///     state.
+    ///
+    /// See [`Parser::take_lookahead_tok`] for more information.
+    Lookahead(Span, String),
+
     /// A parser-specific error associated with an inner
     ///   [`ParseState`].
     StateError(E),
@@ -92,6 +106,7 @@ impl<T: Token, EA: Diagnostic + PartialEq> ParseError<T, EA> {
         match self {
             UnexpectedEof(span, desc) => UnexpectedEof(span, desc),
             UnexpectedToken(x, desc) => UnexpectedToken(x, desc),
+            Lookahead(span, desc) => Lookahead(span, desc),
             StateError(e) => StateError(e.into()),
         }
     }
@@ -111,6 +126,20 @@ impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
             }
             Self::UnexpectedToken(_, desc) => {
                 write!(f, "unexpected input while {desc}")
+            }
+            // This is not really something the user should have to deal
+            //   with,
+            //     but maybe this will provide enough information that the
+            //     user can alter the input in such a way as to avoid this
+            //     condition.
+            // It likely represents a bug in the parser,
+            //   or at the very least poor handling of unexpected input.
+            Self::Lookahead(_, desc) => {
+                write!(
+                    f,
+                    "internal error: attempt to finalize parsing with \
+                       outstanding token of lookahead while {desc}"
+                )
             }
             Self::StateError(e) => Display::fmt(e, f),
         }
@@ -134,9 +163,8 @@ impl<T: Token, E: Diagnostic + PartialEq + 'static> Diagnostic
 
         match self {
             UnexpectedEof(span, desc) => span.error(desc).into(),
-
             UnexpectedToken(tok, desc) => tok.span().error(desc).into(),
-
+            Lookahead(span, desc) => span.error(desc).into(),
             // TODO: Is there any additional useful context we can augment
             //   this with?
             StateError(e) => e.describe(),

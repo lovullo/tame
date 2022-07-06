@@ -379,11 +379,52 @@ mod transition {
     /// Conceptually,
     ///   imagine the act of a state transition producing data.
     /// See [`Transition`] for convenience methods for producing this tuple.
+    ///
+    /// Sometimes a parser is not able to complete the operation requested
+    ///   based on the provided input token.
+    /// Since TAMER uses a streaming parsing framework that places strict
+    ///   limits on control flow,
+    ///     a single token can be returned as lookahead to indicate that the
+    ///     token could not be parsed yet and should be provided once again
+    ///     in place of the next token from the input stream.
+    /// This allows,
+    ///   for example,
+    ///   for multiple data to be emitted in response to a single token.
+    ///
+    /// This struct is opaque to ensure that critical invariants involving
+    ///   transitions and lookahead are properly upheld;
+    ///     callers must use the appropriate parsing APIs.
     #[derive(Debug, PartialEq)]
     pub struct TransitionResult<S: ParseState>(
+        /// New parser state.
         pub(in super::super) Transition<S>,
+        /// Result of the parsing operation.
         pub(in super::super) ParseStateResult<S>,
+        /// Optional unused token to use as a lookahead token in place of
+        ///   the next token from the input stream.
+        pub(in super::super) Option<S::Token>,
     );
+
+    impl<S: ParseState> TransitionResult<S> {
+        /// Indicate that this transition include a single token of lookahead,
+        ///   which should be provided back to the parser in place of the
+        ///   next token from the input stream.
+        pub fn with_lookahead(self, lookahead: S::Token) -> Self {
+            match self {
+                Self(transition, result, None) => {
+                    Self(transition, result, Some(lookahead))
+                }
+
+                // This represents a problem with the parser;
+                //   we should never specify a lookahead token more than once.
+                // This could be enforced statically with the type system if
+                //   ever such a thing is deemed to be worth doing.
+                Self(.., Some(prev)) => panic!(
+                    "internal error: lookahead token overwrite: {prev:?}"
+                ),
+            }
+        }
+    }
 
     /// Denotes a state transition.
     ///
@@ -391,7 +432,7 @@ mod transition {
     ///   parsers can get confusing to read with all of the types involved,
     ///     so this provides a mental synchronization point.
     ///
-    /// This also provides some convenience methods to help remote boilerplate
+    /// This also provides some convenience methods to help remove boilerplate
     ///   and further improve code clarity.
     #[derive(Debug, PartialEq, Eq)]
     pub struct Transition<S: ParseState>(pub S);
@@ -405,7 +446,7 @@ mod transition {
         where
             T: Into<ParseStatus<S>>,
         {
-            TransitionResult(self, Ok(obj.into()))
+            TransitionResult(self, Ok(obj.into()), None)
         }
 
         /// A transition with corresponding error.
@@ -413,7 +454,7 @@ mod transition {
         /// This indicates a parsing failure.
         /// The state ought to be suitable for error recovery.
         pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
-            TransitionResult(self, Err(err.into()))
+            TransitionResult(self, Err(err.into()), None)
         }
 
         /// A state transition with corresponding [`Result`].
@@ -425,7 +466,11 @@ mod transition {
             T: Into<ParseStatus<S>>,
             E: Into<S::Error>,
         {
-            TransitionResult(self, result.map(Into::into).map_err(Into::into))
+            TransitionResult(
+                self,
+                result.map(Into::into).map_err(Into::into),
+                None,
+            )
         }
 
         /// A state transition indicating that more data is needed before an
@@ -433,7 +478,7 @@ mod transition {
         ///
         /// This corresponds to [`ParseStatus::Incomplete`].
         pub fn incomplete(self) -> TransitionResult<S> {
-            TransitionResult(self, Ok(ParseStatus::Incomplete))
+            TransitionResult(self, Ok(ParseStatus::Incomplete), None)
         }
 
         /// A dead state transition.
@@ -442,7 +487,7 @@ mod transition {
         ///   and a calling parser should use the provided [`Token`] as
         ///   lookahead.
         pub fn dead(self, tok: S::DeadToken) -> TransitionResult<S> {
-            TransitionResult(self, Ok(ParseStatus::Dead(tok)))
+            TransitionResult(self, Ok(ParseStatus::Dead(tok)), None)
         }
     }
 
@@ -460,7 +505,7 @@ mod transition {
 
         fn from_output(output: Self::Output) -> Self {
             match output {
-                (st, result) => Self(st, result),
+                (st, result) => Self(st, result, None),
             }
         }
 
@@ -479,7 +524,7 @@ mod transition {
             residual: (Transition<S>, ParseStateResult<S>),
         ) -> Self {
             match residual {
-                (st, result) => Self(st, result),
+                (st, result) => Self(st, result, None),
             }
         }
     }
