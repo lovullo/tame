@@ -136,12 +136,11 @@ impl Display for XmloToken {
 }
 
 /// A parser capable of being composed with [`XmloReader`].
-pub trait XmloState =
-    ParseState<Token = Xirf, DeadToken = Xirf, Context = EmptyContext>
-    where
-        Self: Default,
-        <Self as ParseState>::Error: Into<XmloError>,
-        <Self as ParseState>::Object: Into<XmloToken>;
+pub trait XmloState = ParseState<Token = Xirf, Context = EmptyContext>
+where
+    Self: Default,
+    <Self as ParseState>::Error: Into<XmloError>,
+    <Self as ParseState>::Object: Into<XmloToken>;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum XmloReader<
@@ -227,9 +226,12 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
 
             // TOOD: It'd be nice to augment errors with the symbol table
             //   span as well (e.g. "while processing symbol table at <loc>").
-            (Symtable(span, ss), tok) => {
-                ss.delegate(ctx, tok, |ss| Symtable(span, ss))
-            }
+            (Symtable(span, ss), tok) => ss.delegate(
+                tok,
+                ctx,
+                |ss| Transition(Symtable(span, ss)),
+                || unreachable!(), // TODO: currently caught by preceding match
+            ),
 
             (SymDepsExpected, Xirf::Open(QN_SYM_DEPS, span, _)) => {
                 Transition(SymDeps(span.tag_span(), SD::default())).incomplete()
@@ -241,9 +243,12 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Transition(FragmentsExpected).incomplete()
             }
 
-            (SymDeps(span, sd), tok) => {
-                sd.delegate(ctx, tok, |sd| SymDeps(span, sd))
-            }
+            (SymDeps(span, sd), tok) => sd.delegate(
+                tok,
+                ctx,
+                |sd| Transition(SymDeps(span, sd)),
+                || unreachable!(), // TODO: currently caught by preceding match
+            ),
 
             (FragmentsExpected, Xirf::Open(QN_FRAGMENTS, span, _)) => {
                 Transition(Fragments(span.tag_span(), SF::default()))
@@ -257,9 +262,12 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 Transition(Eoh).ok(XmloToken::Eoh(span.tag_span()))
             }
 
-            (Fragments(span, sf), tok) => {
-                sf.delegate(ctx, tok, |sf| Fragments(span, sf))
-            }
+            (Fragments(span, sf), tok) => sf.delegate(
+                tok,
+                ctx,
+                |sf| Transition(Fragments(span, sf)),
+                || unreachable!(), // TODO: currently caught by preceding match
+            ),
 
             (Eoh, Xirf::Close(Some(QN_PACKAGE), ..)) => {
                 Transition(Done).incomplete()

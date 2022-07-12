@@ -190,6 +190,11 @@ impl AttrList {
         self
     }
 
+    pub fn extend<T: IntoIterator<Item = Attr>>(mut self, iter: T) -> Self {
+        self.attrs.extend(iter);
+        self
+    }
+
     /// Search for an attribute of the given `name`.
     ///
     /// _You should use this method only when a linear search makes sense._

@@ -23,11 +23,11 @@ use super::{ParseState, ParseStateResult, ParseStatus};
 use std::{
     convert::Infallible,
     hint::unreachable_unchecked,
-    ops::{ControlFlow, FromResidual, Try},
+    ops::{ControlFlow, FromResidual},
 };
 
 #[cfg(doc)]
-use super::Token;
+use super::{Parser, Token};
 
 /// A state transition with associated data.
 ///
@@ -54,10 +54,7 @@ pub struct TransitionResult<S: ParseState>(
     /// New parser state.
     pub(in super::super) Transition<S>,
     /// Result of the parsing operation.
-    pub(in super::super) ParseStateResult<S>,
-    /// Optional unused token to use as a lookahead token in place of
-    ///   the next token from the input stream.
-    pub(in super::super) Option<S::Token>,
+    pub(in super::super) TransitionData<S>,
 );
 
 impl<S: ParseState> TransitionResult<S> {
@@ -66,22 +63,74 @@ impl<S: ParseState> TransitionResult<S> {
     ///   next token from the input stream.
     pub fn with_lookahead(self, lookahead: S::Token) -> Self {
         match self {
-            Self(transition, result, None) => {
-                Self(transition, result, Some(lookahead))
-            }
+            Self(transition, TransitionData::Result(result, None)) => Self(
+                transition,
+                TransitionData::Result(result, Some(Lookahead(lookahead))),
+            ),
 
             // This represents a problem with the parser;
             //   we should never specify a lookahead token more than once.
             // This could be enforced statically with the type system if
             //   ever such a thing is deemed to be worth doing.
-            Self(.., Some(prev)) => {
+            Self(
+                ..,
+                TransitionData::Result(_, Some(prev))
+                | TransitionData::Dead(prev),
+            ) => {
                 panic!("internal error: lookahead token overwrite: {prev:?}")
             }
         }
     }
 }
 
-/// Denotes a state transition.
+/// Token to use as a lookahead token in place of the next token from the
+///   input stream.
+#[derive(Debug, PartialEq)]
+pub struct Lookahead<S: ParseState>(pub(in super::super) S::Token);
+
+/// Information about the state transition.
+///
+/// Note: Ideally a state wouldn't even be required for
+///   [`Dead`](TransitionData::Dead),
+///     but [`ParseState`] does not implement [`Default`] and [`Parser`]
+///     requires _some_ state exist.
+#[derive(Debug, PartialEq)]
+pub(in super::super) enum TransitionData<S: ParseState> {
+    /// State transition was successful or not attempted,
+    ///   with an optional token of [`Lookahead`].
+    ///
+    /// Note that a successful state transition _does not_ imply a
+    ///   successful [`ParseStateResult`]---the
+    ///     parser may choose to successfully transition into an error
+    ///     recovery state to accommodate future tokens.
+    Result(ParseStateResult<S>, Option<Lookahead<S>>),
+
+    /// No valid state transition exists from the current state for the
+    ///   given input token,
+    ///     which is returned as a token of [`Lookahead`].
+    ///
+    /// A dead state is an accepting state that has no state transition for
+    ///   the given token.
+    /// This could simply mean that the parser has completed its job and
+    ///   that control must be returned to a parent context.
+    /// Note that this differs from an error state,
+    ///   where a parser is unable to reach an accepting state because it
+    ///   received unexpected input.
+    ///
+    /// Note that the parser may still choose to perform a state transition
+    ///   for the sake of error recovery,
+    ///     but note that the dead state is generally interpreted to mean
+    ///       "I have no further work that I am able to perform"
+    ///       and may lead to finalization of the parser.
+    /// If a parser intends to do additional work,
+    ///   it should return an error instead via [`TransitionData::Result`].
+    Dead(Lookahead<S>),
+}
+
+/// A verb denoting a state transition.
+///
+/// This is typically instantiated directly by a [`ParseState`] to perform a
+///   state transition in [`ParseState::parse_token`].
 ///
 /// This newtype was created to produce clear, self-documenting code;
 ///   parsers can get confusing to read with all of the types involved,
@@ -101,7 +150,7 @@ impl<S: ParseState> Transition<S> {
     where
         T: Into<ParseStatus<S>>,
     {
-        TransitionResult(self, Ok(obj.into()), None)
+        TransitionResult(self, TransitionData::Result(Ok(obj.into()), None))
     }
 
     /// A transition with corresponding error.
@@ -109,7 +158,7 @@ impl<S: ParseState> Transition<S> {
     /// This indicates a parsing failure.
     /// The state ought to be suitable for error recovery.
     pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
-        TransitionResult(self, Err(err.into()), None)
+        TransitionResult(self, TransitionData::Result(Err(err.into()), None))
     }
 
     /// A state transition with corresponding [`Result`].
@@ -121,7 +170,13 @@ impl<S: ParseState> Transition<S> {
         T: Into<ParseStatus<S>>,
         E: Into<S::Error>,
     {
-        TransitionResult(self, result.map(Into::into).map_err(Into::into), None)
+        TransitionResult(
+            self,
+            TransitionData::Result(
+                result.map(Into::into).map_err(Into::into),
+                None,
+            ),
+        )
     }
 
     /// A state transition indicating that more data is needed before an
@@ -129,42 +184,28 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This corresponds to [`ParseStatus::Incomplete`].
     pub fn incomplete(self) -> TransitionResult<S> {
-        TransitionResult(self, Ok(ParseStatus::Incomplete), None)
+        TransitionResult(
+            self,
+            TransitionData::Result(Ok(ParseStatus::Incomplete), None),
+        )
     }
 
-    /// A dead state transition.
+    /// A state transition could not be performed and parsing will not
+    ///   continue.
     ///
-    /// This corresponds to [`ParseStatus::Dead`],
-    ///   and a calling parser should use the provided [`Token`] as
-    ///   lookahead.
-    pub fn dead(self, tok: S::DeadToken) -> TransitionResult<S> {
-        TransitionResult(self, Ok(ParseStatus::Dead(tok)), None)
-    }
-}
-
-impl<S: ParseState> Into<(Transition<S>, ParseStateResult<S>)>
-    for TransitionResult<S>
-{
-    fn into(self) -> (Transition<S>, ParseStateResult<S>) {
-        (self.0, self.1)
-    }
-}
-
-impl<S: ParseState> Try for TransitionResult<S> {
-    type Output = (Transition<S>, ParseStateResult<S>);
-    type Residual = (Transition<S>, ParseStateResult<S>);
-
-    fn from_output(output: Self::Output) -> Self {
-        match output {
-            (st, result) => Self(st, result, None),
-        }
-    }
-
-    fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
-        match self.into() {
-            (st, Ok(x)) => ControlFlow::Continue((st, Ok(x))),
-            (st, Err(e)) => ControlFlow::Break((st, Err(e))),
-        }
+    /// A dead state represents an _accepting state_ that has no edge to
+    ///   another state for the given `tok`.
+    /// Rather than throw an error,
+    ///   a parser uses this status to indicate that it has completed
+    ///   parsing and that the token should be utilized elsewhere;
+    ///     the provided token will be used as a token of [`Lookahead`].
+    ///
+    /// If a parser is not prepared to be finalized and needs to yield an
+    ///   object first,
+    ///     use [`Transition::result`] or other methods along with a token
+    ///     of [`Lookahead`].
+    pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
+        TransitionResult(self, TransitionData::Dead(Lookahead(tok)))
     }
 }
 
@@ -173,7 +214,7 @@ impl<S: ParseState> FromResidual<(Transition<S>, ParseStateResult<S>)>
 {
     fn from_residual(residual: (Transition<S>, ParseStateResult<S>)) -> Self {
         match residual {
-            (st, result) => Self(st, result, None),
+            (st, result) => Self(st, TransitionData::Result(result, None)),
         }
     }
 }

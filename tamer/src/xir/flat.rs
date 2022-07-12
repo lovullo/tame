@@ -167,7 +167,7 @@ impl From<Attr> for XirfToken {
 
 /// XIRF-compatible attribute parser.
 pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
-    ParseState<Token = XirToken, DeadToken = XirToken, Object = Attr>
+    ParseState<Token = XirToken, Object = Attr>
     where
         Self: Default,
         <Self as ParseState>::Error: Into<XirToXirfError>,
@@ -232,12 +232,12 @@ where
 
             (NodeExpected, tok) => Self::parse_node(tok, stack),
 
-            (AttrExpected(sa), tok) => {
-                let (_sa, lookahead, stack) =
-                    sa.delegate_lookahead(stack, tok, AttrExpected)?;
-
-                Self::parse_node(lookahead, stack)
-            }
+            (AttrExpected(sa), tok) => sa.delegate(
+                tok,
+                stack,
+                |sa| Transition(AttrExpected(sa)),
+                || Transition(NodeExpected),
+            ),
 
             (Done, tok) => Transition(Done).dead(tok),
         }

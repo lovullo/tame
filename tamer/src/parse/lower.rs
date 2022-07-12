@@ -52,7 +52,7 @@ where
         'b,
         I,
         Parsed<S::Object>,
-        ParseError<S::DeadToken, S::Error>,
+        ParseError<S::Token, S::Error>,
     >,
 }
 
@@ -65,9 +65,7 @@ where
 {
     /// Consume inner parser and yield its context.
     #[inline]
-    fn finalize(
-        self,
-    ) -> Result<LS::Context, ParseError<LS::DeadToken, LS::Error>> {
+    fn finalize(self) -> Result<LS::Context, ParseError<LS::Token, LS::Error>> {
         self.lower.finalize().map_err(|(_, e)| e)
     }
 }
@@ -123,8 +121,8 @@ where
     where
         Self: Iterator<Item = ParsedResult<S>> + Sized,
         <LS as ParseState>::Context: Default,
-        ParseError<S::DeadToken, S::Error>: Into<E>,
-        ParseError<LS::DeadToken, LS::Error>: Into<E>,
+        ParseError<S::Token, S::Error>: Into<E>,
+        ParseError<LS::Token, LS::Error>: Into<E>,
     {
         self.while_ok(|toks| {
             // TODO: This parser is not accessible after error recovery!
@@ -149,8 +147,8 @@ where
     ) -> Result<(U, LS::Context), E>
     where
         Self: Iterator<Item = ParsedResult<S>> + Sized,
-        ParseError<S::DeadToken, S::Error>: Into<E>,
-        ParseError<LS::DeadToken, LS::Error>: Into<E>,
+        ParseError<S::Token, S::Error>: Into<E>,
+        ParseError<LS::Token, LS::Error>: Into<E>,
     {
         self.while_ok(|toks| {
             let lower = LS::parse_with_context(iter::empty(), ctx);

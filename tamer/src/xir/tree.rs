@@ -182,7 +182,7 @@ use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     parse::{
         self, EmptyContext, NoContext, ParseError, ParseResult, ParseState,
-        ParseStatus, ParsedResult, Transition, TransitionResult,
+        ParsedResult, Transition, TransitionResult,
     },
     span::Span,
     sym::SymbolId,
@@ -504,12 +504,11 @@ where
     Done,
 }
 
-pub trait StackAttrParseState =
-    ParseState<Token = XirToken, DeadToken = XirToken, Object = Attr>
-    where
-        Self: Default,
-        <Self as ParseState>::Error: Into<StackError>,
-        EmptyContext: AsMut<<Self as ParseState>::Context>;
+pub trait StackAttrParseState = ParseState<Token = XirToken, Object = Attr>
+where
+    Self: Default,
+    <Self as ParseState>::Error: Into<StackError>,
+    EmptyContext: AsMut<<Self as ParseState>::Context>;
 
 impl<SA: StackAttrParseState> Default for Stack<SA> {
     fn default() -> Self {
@@ -551,25 +550,17 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
             ),
 
             // Attribute parsing.
-            (AttrState(estack, attrs, sa), tok) => {
-                use ParseStatus::*;
-                match sa.parse_token(tok, ctx.as_mut()).into() {
-                    (Transition(sa), Ok(Incomplete)) => {
-                        Transition(AttrState(estack, attrs, sa)).incomplete()
-                    }
-                    (Transition(sa), Ok(Object(attr))) => {
-                        Transition(AttrState(estack, attrs.push(attr), sa))
-                            .incomplete()
-                    }
-                    (_, Ok(Dead(lookahead))) => {
-                        BuddingElement(estack.consume_attrs(attrs))
-                            .parse_token(lookahead, ctx)
-                    }
-                    (Transition(sa), Err(x)) => {
-                        Transition(AttrState(estack, attrs, sa)).err(x.into())
-                    }
-                }
-            }
+            (AttrState(estack, attrs, sa), tok) => sa.delegate_with_obj(
+                tok,
+                ctx,
+                (estack, attrs),
+                |sa, obj, (estack, attrs)| {
+                    Transition(AttrState(estack, attrs.extend(obj), sa))
+                },
+                |(estack, attrs)| {
+                    Transition(BuddingElement(estack.consume_attrs(attrs)))
+                },
+            ),
 
             (BuddingElement(stack), Token::Close(name, CloseSpan(span, _))) => {
                 stack

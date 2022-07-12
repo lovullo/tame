@@ -65,10 +65,8 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
 
     /// The parser reached an unhandled dead state.
     ///
-    /// Once a parser returns [`ParseStatus::Dead`],
-    ///   a parent context must use that provided token as a lookahead.
-    /// If that does not occur,
-    ///   [`Parser`] produces this error.
+    /// For more information,
+    ///   see [`ParseState::delegate`] and [`Parser::feed_tok`].
     ///
     /// The string is intended to describe what was expected to have been
     ///   available based on the current [`ParseState`].

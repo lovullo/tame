@@ -23,7 +23,10 @@ use super::{
     ParseError, ParseResult, ParseState, ParseStatus, TokenStream, Transition,
     TransitionResult,
 };
-use crate::span::{Span, UNKNOWN_SPAN};
+use crate::{
+    parse::state::{Lookahead, TransitionData},
+    span::{Span, UNKNOWN_SPAN},
+};
 
 #[cfg(doc)]
 use super::Token;
@@ -54,9 +57,6 @@ impl<S: ParseState> From<ParseStatus<S>> for Parsed<S::Object> {
         match status {
             ParseStatus::Incomplete => Parsed::Incomplete,
             ParseStatus::Object(x) => Parsed::Object(x),
-            ParseStatus::Dead(_) => {
-                unreachable!("Dead status must be filtered by Parser")
-            }
         }
     }
 }
@@ -75,7 +75,7 @@ impl<S: ParseState> From<ParseStatus<S>> for Parsed<S::Object> {
 ///   if you have not consumed the entire iterator,
 ///   call [`finalize`](Parser::finalize) to ensure that parsing has
 ///     completed in an accepting state.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     /// Input token stream to be parsed by the [`ParseState`] `S`.
     toks: I,
@@ -85,7 +85,7 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     ///
     /// See [`take_lookahead_tok`](Parser::take_lookahead_tok) for more
     ///   information.
-    lookahead: Option<S::Token>,
+    lookahead: Option<Lookahead<S>>,
 
     /// Parsing automaton.
     ///
@@ -108,6 +108,8 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     ///   [`ParseState::parse_token`] in [`Parser::feed_tok`],
     ///     so it is safe to call [`unwrap`](Option::unwrap) without
     ///     worrying about panics.
+    /// This is also why Dead states require transitions,
+    ///   given that [`ParseState`] does not implement [`Default`].
     ///
     /// For more information,
     ///   see the implementation of [`Parser::feed_tok`].
@@ -166,7 +168,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   is a decision made by the [`ParseState`].
     pub fn finalize(
         self,
-    ) -> Result<S::Context, (Self, ParseError<S::DeadToken, S::Error>)> {
+    ) -> Result<S::Context, (Self, ParseError<S::Token, S::Error>)> {
         match self.assert_accepting() {
             Ok(()) => Ok(self.ctx),
             Err(err) => Err((self, err)),
@@ -178,12 +180,10 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///     otherwise [`Err`] with [`ParseError::UnexpectedEof`].
     ///
     /// See [`finalize`](Self::finalize) for the public-facing method.
-    fn assert_accepting(
-        &self,
-    ) -> Result<(), ParseError<S::DeadToken, S::Error>> {
+    fn assert_accepting(&self) -> Result<(), ParseError<S::Token, S::Error>> {
         let st = self.state.as_ref().unwrap();
 
-        if let Some(lookahead) = &self.lookahead {
+        if let Some(Lookahead(lookahead)) = &self.lookahead {
             Err(ParseError::Lookahead(lookahead.span(), st.to_string()))
         } else if st.is_accepting() {
             Ok(())
@@ -208,6 +208,26 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   since push parsers are currently supported only internally.
     /// The only thing preventing this being public is formalization and a
     ///   commitment to maintain it.
+    ///
+    /// Recursion Warning
+    /// -----------------
+    /// If a [`ParseState`] yields an incomplete parse along with a token of
+    ///   lookahead,
+    ///     this will immediately recurse with that token;
+    ///       that situation is common with [`ParseState::delegate`].
+    /// This is intended as an optimization to save a wasteful
+    ///   [`Parsed::Incomplete`] from being propagated down the entire
+    ///   lowering pipeline,
+    ///     but it could potentially result in unbounded recursion if a
+    ///     misbehaving [`ParseState`] continuously yields the same token of
+    ///     lookahead.
+    /// Such behavior would be incorrect,
+    ///   but would otherwise result in recursion across the entire lowering
+    ///   pipeline.
+    ///
+    /// A [`ParseState`] should never yield a token of lookahead unless
+    ///   consuming that same token will result in either a state transition
+    ///   or a dead state.
     ///
     /// Panics
     /// ------
@@ -241,23 +261,47 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         //
         // Note that this used to use `mem::take`,
         //   and the generated assembly was identical in both cases.
-        let TransitionResult(Transition(state), result, lookahead) =
+        //
+        // Note also that this is what Dead states require transitions.
+        let TransitionResult(Transition(state), data) =
             self.state.take().unwrap().parse_token(tok, &mut self.ctx);
         self.state.replace(state);
-        self.lookahead = lookahead;
 
-        use ParseStatus::*;
-        match result {
+        use ParseStatus::{Incomplete, Object};
+        match data {
             // Nothing handled this dead state,
             //   and we cannot discard a lookahead token,
             //   so we have no choice but to produce an error.
-            Ok(Dead(invalid)) => Err(ParseError::UnexpectedToken(
-                invalid,
-                self.state.as_ref().unwrap().to_string(),
-            )),
+            TransitionData::Dead(Lookahead(invalid)) => {
+                Err(ParseError::UnexpectedToken(
+                    invalid,
+                    self.state.as_ref().unwrap().to_string(),
+                ))
+            }
 
-            Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
-            Err(e) => Err(e.into()),
+            // If provided a token of lookahead and an incomplete parse,
+            //   then just try again right away and avoid propagating this
+            //   delay throughout the entire lowering pipeline.
+            // This is likely to happen on a dead state transition during
+            //   parser delegation
+            //     (see [`ParseState::delegate`]).
+            // This will only result in unbounded recursion if the parser
+            //   continues to yield the same token of lookahead
+            //   continuously,
+            //     which represents an implementation flaw in the parser.
+            TransitionData::Result(
+                Ok(Incomplete),
+                Some(Lookahead(lookahead)),
+            ) => self.feed_tok(lookahead),
+
+            TransitionData::Result(result, lookahead) => {
+                self.lookahead = lookahead;
+
+                match result {
+                    Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
+                    Err(e) => Err(e.into()),
+                }
+            }
         }
     }
 
@@ -306,7 +350,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///     but proving correctness is better left to proof systems than
     ///     Rust's type system.
     pub(super) fn take_lookahead_tok(&mut self) -> Option<S::Token> {
-        self.lookahead.take()
+        self.lookahead.take().map(|Lookahead(tok)| tok)
     }
 }
 

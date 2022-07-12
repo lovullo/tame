@@ -23,10 +23,7 @@ mod transition;
 
 use super::{Object, ParseError, Parser, Token, TokenStream};
 use crate::diagnose::Diagnostic;
-use std::{
-    fmt::{Debug, Display},
-    ops::ControlFlow,
-};
+use std::fmt::{Debug, Display};
 pub use transition::*;
 
 #[cfg(doc)]
@@ -34,10 +31,8 @@ use context::{Context, NoContext};
 
 /// Result of some non-parsing operation on a [`Parser`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type ParseResult<S, T> = Result<
-    T,
-    ParseError<<S as ParseState>::DeadToken, <S as ParseState>::Error>,
->;
+pub type ParseResult<S, T> =
+    Result<T, ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>;
 
 /// Result of a parsing operation.
 #[derive(Debug, PartialEq, Eq)]
@@ -50,32 +45,6 @@ pub enum ParseStatus<S: ParseState> {
     /// This does not indicate that the parser is complete,
     ///   as more objects may be able to be emitted.
     Object(S::Object),
-
-    /// Parser encountered a dead state relative to the given token.
-    ///
-    /// A dead state is an accepting state that has no state transition for
-    ///   the given token.
-    /// This could simply mean that the parser has completed its job and
-    ///   that control must be returned to a parent context.
-    ///
-    /// If a parser is _not_ in an accepting state,
-    ///   then an error ought to occur rather than a dead state;
-    ///     the difference between the two is that the token associated with
-    ///       a dead state can be used as a lookahead token in order to
-    ///       produce a state transition at a higher level,
-    ///     whereas an error indicates that parsing has failed.
-    /// Intuitively,
-    ///   this means that a [`ParseStatus::Object`] had just been emitted
-    ///   and that the token following it isn't something that can be
-    ///   parsed.
-    ///
-    /// Certain parsers may aggregate data until reaching a dead state,
-    ///   in which case [`Aggregate`] may be of use to yield both a
-    ///   lookahead token and an aggregate [`ParseStatus::Object`].
-    ///
-    /// If there is no parent context to handle the token,
-    ///   [`Parser`] must yield an error.
-    Dead(S::DeadToken),
 }
 
 impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
@@ -121,16 +90,6 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     ///   optimize away moves of interior data associated with the
     ///   otherwise-immutable [`ParseState`].
     type Context: Debug = context::Empty;
-
-    /// Token returned when the parser cannot perform a state transition.
-    ///
-    /// This is generally the type of the input token itself
-    ///   (and so the same as [`ParseState::Token`]),
-    ///     which can be used as a token of lookahead.
-    /// Parsers may change this type to provide additional data.
-    /// For more information and a practical use case of this,
-    ///   see [`Aggregate`].
-    type DeadToken: Token = Self::Token;
 
     /// Construct a parser with a [`Default`] state.
     ///
@@ -199,6 +158,12 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     ///     information that is not subject to Rust's move semantics.
     /// If this is not necessary,
     ///   see [`NoContext`].
+    ///
+    /// This method must not produce a token of [`Lookahead`] _unless_
+    ///   consuming that token again will result in either a state
+    ///   transition or a dead state indication.
+    /// Otherwise,
+    ///   the system may recurse indefinitely.
     fn parse_token(
         self,
         tok: Self::Token,
@@ -222,90 +187,128 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     ///     or it is acceptable to parse all the way until the end.
     fn is_accepting(&self) -> bool;
 
-    /// Delegate parsing from a compatible, stitched [`ParseState`]~`SP`.
+    /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`.
     ///
     /// This helps to combine two state machines that speak the same input
     ///   language
     ///   (share the same [`Self::Token`]),
     ///     handling the boilerplate of delegating [`Self::Token`] from a
-    ///     parent state~`SP` to `Self`.
+    ///     parent state `SP` to `Self`.
     ///
     /// Token delegation happens after [`Self`] has been entered from a
-    ///   parent [`ParseState`] context~`SP`,
+    ///   parent [`ParseState`] context `SP`,
     ///     so stitching the start and accepting states must happen elsewhere
     ///     (for now).
     ///
-    /// This assumes that no lookahead token from [`ParseStatus::Dead`] will
-    ///   need to be handled by the parent state~`SP`.
-    /// To handle a token of lookahead,
-    ///   use [`Self::delegate_lookahead`] instead.
-    ///
-    /// _TODO: More documentation once this is finalized._
+    /// If the parser indicates a dead state,
+    ///   the token of lookahead will be delegated to the parent `SP` and
+    ///   result in an incomplete parse to the state indicated by the `dead`
+    ///   callback.
+    /// This will cause a [`Parser`] to yield that token of lookahead back
+    ///   to `SP`
+    ///     (or whatever ancestor exists at the root)
+    ///     for re-processing.
+    /// It is expected that the `dead` callback will cause~`SP` to
+    ///   transition into a state that will avoid invoking this parser again
+    ///   with the same token,
+    ///     which may otherwise result in unbounded recursion
+    ///       (see Recursion Warning in [`Parser::feed_tok`]).
     fn delegate<SP, C>(
         self,
-        mut context: C,
         tok: <Self as ParseState>::Token,
-        into: impl FnOnce(Self) -> SP,
+        mut context: C,
+        into: impl FnOnce(Self) -> Transition<SP>,
+        dead: impl FnOnce() -> Transition<SP>,
     ) -> TransitionResult<SP>
-    where
-        Self: StitchableParseState<SP>
-            + ParseState<DeadToken = <SP as ParseState>::DeadToken>,
-        C: AsMut<<Self as ParseState>::Context>,
-    {
-        use ParseStatus::{Dead, Incomplete, Object as Obj};
-
-        let (Transition(newst), result) =
-            self.parse_token(tok, context.as_mut()).into();
-
-        // This does not use `delegate_lookahead` so that we can have
-        //   `into: impl FnOnce` instead of `Fn`.
-        Transition(into(newst)).result(match result {
-            Ok(Incomplete) => Ok(Incomplete),
-            Ok(Obj(obj)) => Ok(Obj(obj.into())),
-            Ok(Dead(tok)) => Ok(Dead(tok.into())),
-            Err(e) => Err(e.into()),
-        })
-    }
-
-    /// Delegate parsing from a compatible, stitched [`ParseState`]~`SP` with
-    ///   support for a lookahead token.
-    ///
-    /// This does the same thing as [`Self::delegate`],
-    ///   but allows for the handling of a lookahead token from [`Self`]
-    ///   rather than simply proxying [`ParseStatus::Dead`].
-    ///
-    /// _TODO: More documentation once this is finalized._
-    fn delegate_lookahead<SP, C>(
-        self,
-        mut context: C,
-        tok: <Self as ParseState>::Token,
-        into: impl FnOnce(Self) -> SP,
-    ) -> ControlFlow<
-        TransitionResult<SP>,
-        (Self, <Self as ParseState>::DeadToken, C),
-    >
     where
         Self: StitchableParseState<SP>,
         C: AsMut<<Self as ParseState>::Context>,
     {
-        use ControlFlow::*;
-        use ParseStatus::{Dead, Incomplete, Object as Obj};
+        use ParseStatus::{Incomplete, Object as Obj};
 
-        // NB: Rust/LLVM are generally able to elide these moves into direct
-        //   assignments,
-        //     but sometimes this does not work
-        //       (e.g. XIRF's use of `ArrayVec`).
-        // If your [`ParseState`] has a lot of `memcpy`s or other
-        //   performance issues,
-        //     move heavy objects into `context`.
-        let (Transition(newst), result) =
-            self.parse_token(tok, context.as_mut()).into();
+        let TransitionResult(Transition(newst), data) =
+            self.parse_token(tok, context.as_mut());
 
-        match result {
-            Ok(Incomplete) => Break(Transition(into(newst)).incomplete()),
-            Ok(Obj(obj)) => Break(Transition(into(newst)).ok(obj.into())),
-            Ok(Dead(tok)) => Continue((newst, tok, context)),
-            Err(e) => Break(Transition(into(newst)).err(e)),
+        match data {
+            // The token of lookahead must bubble up to the ancestor
+            //   [`Parser`] so that it knows to provide that token in place
+            //   of the next from the token stream,
+            //     otherwise the token will be lost.
+            // Since we have stitched together states,
+            //   the dead state simply means that we should transition back
+            //   out of this parser back to `SP` so that it can use the
+            //   token of lookahead.
+            TransitionData::Dead(Lookahead(lookahead)) => {
+                dead().incomplete().with_lookahead(lookahead)
+            }
+            TransitionData::Result(result, lookahead) => TransitionResult(
+                into(newst),
+                TransitionData::Result(
+                    match result {
+                        Ok(Incomplete) => Ok(Incomplete),
+                        Ok(Obj(obj)) => Ok(Obj(obj.into())),
+                        Err(e) => Err(e.into()),
+                    },
+                    lookahead.map(|Lookahead(la)| Lookahead(la)),
+                ),
+            ),
+        }
+    }
+
+    /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`
+    ///   while consuming objects during `SP` state transition.
+    ///
+    /// See [`ParseState::delegate`] for more information.
+    /// This method exists for a XIRT and ought to be removed when it is no
+    ///   longer needed.
+    fn delegate_with_obj<SP, C, X>(
+        self,
+        tok: <Self as ParseState>::Token,
+        mut context: C,
+        env: X,
+        into: impl FnOnce(
+            Self,
+            Option<<Self as ParseState>::Object>,
+            X,
+        ) -> Transition<SP>,
+        dead: impl FnOnce(X) -> Transition<SP>,
+    ) -> TransitionResult<SP>
+    where
+        Self: PartiallyStitchableParseState<SP>,
+        C: AsMut<<Self as ParseState>::Context>,
+    {
+        use ParseStatus::{Incomplete, Object as Obj};
+
+        let TransitionResult(Transition(newst), data) =
+            self.parse_token(tok, context.as_mut());
+
+        match data {
+            TransitionData::Dead(Lookahead(lookahead)) => {
+                dead(env).incomplete().with_lookahead(lookahead)
+            }
+
+            // Consume object and allow processing as part of state
+            //   transition.
+            TransitionData::Result(Ok(Obj(obj)), lookahead) => {
+                TransitionResult(
+                    into(newst, Some(obj), env),
+                    TransitionData::Result(
+                        Ok(Incomplete),
+                        lookahead.map(|Lookahead(la)| Lookahead(la)),
+                    ),
+                )
+            }
+
+            TransitionData::Result(result, lookahead) => TransitionResult(
+                into(newst, None, env),
+                TransitionData::Result(
+                    match result {
+                        Ok(_) => Ok(Incomplete),
+                        Err(e) => Err(e.into()),
+                    },
+                    lookahead.map(|Lookahead(la)| Lookahead(la)),
+                ),
+            ),
         }
     }
 }
@@ -328,42 +331,14 @@ pub type ParseStateResult<S> = Result<ParseStatus<S>, <S as ParseState>::Error>;
 ///     it is not necessary for parser composition,
 ///       provided that you perform the necessary wiring yourself in absence
 ///       of state stitching.
-pub trait StitchableParseState<SP: ParseState> = ParseState
+pub trait StitchableParseState<SP: ParseState> =
+    PartiallyStitchableParseState<SP>
+    where <Self as ParseState>::Object: Into<<SP as ParseState>::Object>;
+
+pub trait PartiallyStitchableParseState<SP: ParseState> = ParseState
 where
     SP: ParseState<Token = <Self as ParseState>::Token>,
-    <Self as ParseState>::Object: Into<<SP as ParseState>::Object>,
     <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;
-
-/// Indicates that a parser has completed an aggregate operation,
-///   marked by having reached a [dead state](ParseStatus::Dead).
-///
-/// This struct is compatible with [`ParseState::DeadToken`] and is intended
-///   to be used with parsers that continue to aggregate data until they no
-///   longer can.
-/// For example,
-///   an attribute parser may continue to parse element attributes until it
-///   reaches the end of the attribute list,
-///     which cannot be determined until reading a [`ParseState::Token`]
-///     that must result in a [`ParseStatus::Dead`].
-#[derive(Debug, PartialEq, Eq)]
-pub struct Aggregate<O: Object, T: Token>(pub O, pub T);
-
-impl<O: Object, T: Token> Token for Aggregate<O, T> {
-    fn span(&self) -> crate::span::Span {
-        let Aggregate(_, tok) = self;
-        tok.span()
-    }
-}
-
-impl<O: Object, T: Token> Object for Aggregate<O, T> {}
-
-impl<O: Object, T: Token> Display for Aggregate<O, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Aggregate(_obj, tok) => write!(f, "{tok} with associated object"),
-        }
-    }
-}
 
 pub mod context {
     use super::Debug;

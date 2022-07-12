@@ -144,10 +144,12 @@ impl Diagnostic for AttrParseError {
 
 #[cfg(test)]
 mod test {
+    use std::assert_matches::assert_matches;
+
     use super::*;
     use crate::{
         convert::ExpectInto,
-        parse::{EmptyContext, ParseError, ParseStatus, Parsed},
+        parse::{ParseError, Parsed},
         sym::GlobalSymbolIntern,
         xir::test::{close_empty, open},
     };
@@ -159,18 +161,13 @@ mod test {
     fn dead_if_first_token_is_non_attr() {
         let tok = open("foo", S);
 
-        let sut = AttrParseState::default();
+        let mut sut = AttrParseState::parse(vec![tok.clone()].into_iter());
 
         // There is no state that we can transition to,
         //   and we're in an empty accepting state.
-        assert_eq!(
-            (
-                // Make sure we're in the same state we started in so that
-                //   we know we can accommodate recovery token(s).
-                Transition(AttrParseState::default()),
-                Ok(ParseStatus::Dead(tok.clone()))
-            ),
-            sut.parse_token(tok, &mut EmptyContext).into()
+        assert_matches!(
+            sut.next(),
+            Some(Err(ParseError::UnexpectedToken(given, _))) if given == tok,
         );
     }
 

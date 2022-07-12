@@ -68,7 +68,7 @@ pub enum AttrParseError<S: AttrParseState> {
     /// The caller must determine whether to proceed with parsing of the
     ///   element despite these problems;
     ///     such recovery is beyond the scope of this parser.
-    MissingRequired(S::Token, S),
+    MissingRequired(S),
 
     /// An attribute was encountered that was not expected by this parser.
     ///
@@ -79,7 +79,7 @@ pub enum AttrParseError<S: AttrParseState> {
 impl<S: AttrParseState> Display for AttrParseError<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::MissingRequired(_, st) => {
+            Self::MissingRequired(st) => {
                 let ele_name = st.element_name();
                 write!(f, "element `{ele_name}` missing required ")?;
 
@@ -105,7 +105,7 @@ impl<S: AttrParseState> Error for AttrParseError<S> {
 impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
-            Self::MissingRequired(_, st) => st
+            Self::MissingRequired(st) => st
                 .element_span()
                 .error(format!(
                     "missing required {}",
@@ -149,10 +149,7 @@ pub trait AttrParseState: ParseState {
     ///   are missing.
     /// The list of missing fields is generated dynamically during
     ///   diagnostic reporting.
-    fn finalize_attr(
-        self,
-        tok_dead: <Self as ParseState>::Token,
-    ) -> Result<<Self as ParseState>::DeadToken, AttrParseError<Self>>;
+    fn finalize_attr(self) -> Result<Self::Object, AttrParseError<Self>>;
 
     /// Names of attributes that are required but do not yet have a value.
     fn required_missing(&self) -> Vec<QName>;
@@ -200,6 +197,8 @@ macro_rules! attr_parse {
         $vis struct $state_name {
             #[doc(hidden)]
             ___ctx: (QName, Span),
+            #[doc(hidden)]
+            ___done: bool,
             $(
                 pub $field: Option<$ty>,
             )*
@@ -209,6 +208,7 @@ macro_rules! attr_parse {
             fn with_element(ele: QName, span: Span) -> Self {
                 Self {
                     ___ctx: (ele, span),
+                    ___done: false,
                     $(
                         $field: None,
                     )*
@@ -229,14 +229,12 @@ macro_rules! attr_parse {
 
             fn finalize_attr(
                 self,
-                tok_dead: <Self as ParseState>::Token,
-            ) -> Result<<Self as ParseState>::DeadToken, AttrParseError<Self>> {
+            ) -> Result<Self::Object, AttrParseError<Self>> {
                 // Validate required fields before we start moving data.
                 $(
                     attr_parse!(@if_missing_req $($fmod)? self.$field {
                         return Err(
                             AttrParseError::MissingRequired(
-                                tok_dead,
                                 self,
                             )
                         )
@@ -251,7 +249,7 @@ macro_rules! attr_parse {
                     )*
                 };
 
-                Ok(parse::Aggregate(obj, tok_dead))
+                Ok(obj)
             }
 
             fn required_missing(&self) -> Vec<QName> {
@@ -265,6 +263,14 @@ macro_rules! attr_parse {
                 )*
 
                 missing
+            }
+        }
+
+        impl $state_name {
+            fn done_with_element(ele: QName, span: Span) -> Self {
+                let mut new = Self::with_element(ele, span);
+                new.___done = true;
+                new
             }
         }
 
@@ -296,9 +302,8 @@ macro_rules! attr_parse {
 
         impl parse::ParseState for $state_name {
             type Token = flat::XirfToken;
-            type Object = ();
+            type Object = $struct_name;
             type Error = AttrParseError<Self>;
-            type DeadToken = parse::Aggregate<$struct_name, Self::Token>;
 
             fn parse_token(
                 mut self,
@@ -330,13 +335,21 @@ macro_rules! attr_parse {
                         ))
                     },
 
+                    // Any tokens received after aggregation is completed
+                    //   must not be processed,
+                    //     otherwise we'll recurse indefinitely.
+                    tok_dead if self.___done => {
+                        Transition(self).dead(tok_dead)
+                    },
+
                     // Aggregation complete (dead state).
                     tok_dead => {
                         let (ele, span) = self.___ctx;
 
-                        self.finalize_attr(tok_dead)
-                            .map(ParseStatus::Dead)
-                            .transition(Self::with_element(ele, span))
+                        self.finalize_attr()
+                            .map(ParseStatus::Object)
+                            .transition(Self::done_with_element(ele, span))
+                            .with_lookahead(tok_dead)
                     }
                 }
             }
@@ -384,7 +397,7 @@ macro_rules! attr_parse {
 mod test {
     use super::*;
     use crate::{
-        parse::{Aggregate, ParseError, ParseState, Parser, TokenStream},
+        parse::{ParseError, ParseState, Parsed, Parser, TokenStream},
         span::{Span, DUMMY_SPAN},
         xir::{
             attr::{Attr, AttrSpan},
@@ -402,9 +415,9 @@ mod test {
     // Random choice of QName for tests.
     const QN_ELE: QName = QN_YIELDS;
 
-    fn parse_aggregate<S>(
+    fn parse_aggregate<S: AttrParseState>(
         toks: impl TokenStream<S::Token>,
-    ) -> Result<S::DeadToken, ParseError<S::DeadToken, S::Error>>
+    ) -> Result<(S::Object, S::Token), ParseError<S::Token, S::Error>>
     where
         S: AttrParseState,
         S::Context: Default,
@@ -415,21 +428,37 @@ mod test {
         ))
     }
 
-    fn parse_aggregate_with<S, I>(
+    fn parse_aggregate_with<S: AttrParseState, I>(
         sut: &mut Parser<S, I>,
-    ) -> Result<S::DeadToken, ParseError<S::DeadToken, S::Error>>
+    ) -> Result<(S::Object, S::Token), ParseError<S::Token, S::Error>>
     where
         S: ParseState,
         S::Context: Default,
         I: TokenStream<S::Token>,
     {
-        match sut.collect::<Result<Vec<_>, _>>() {
-            Err(ParseError::UnexpectedToken(agg, _)) => Ok(agg),
-            Err(other) => Err(other),
-            unexpected => {
-                panic!("expected ParseError::UnexpectedToken: {unexpected:?}")
+        let mut obj = None;
+
+        for item in sut {
+            match item {
+                Ok(Parsed::Object(result)) => {
+                    obj.replace(result);
+                }
+                Ok(Parsed::Incomplete) => continue,
+                // This represents the dead state,
+                //   since this is the top-level parser.
+                Err(ParseError::UnexpectedToken(tok, _)) => {
+                    return Ok((
+                        obj.expect(
+                            "parser did not produce aggregate attribute object",
+                        ),
+                        tok,
+                    ))
+                }
+                Err(other) => return Err(other),
             }
         }
+
+        panic!("expected AttrParseState dead state (obj: {obj:?})");
     }
 
     #[test]
@@ -454,12 +483,12 @@ mod test {
         .into_iter();
 
         assert_eq!(
-            Ok(Aggregate(
+            Ok((
                 ReqValues {
                     name: attr_name,
                     yields: attr_yields,
                 },
-                tok_dead,
+                tok_dead
             )),
             parse_aggregate::<ReqValuesState>(toks),
         );
@@ -490,12 +519,12 @@ mod test {
         .into_iter();
 
         assert_eq!(
-            Ok(Aggregate(
+            Ok((
                 ReqValues {
                     name: attr_name,
                     yields: attr_yields,
                 },
-                tok_dead,
+                tok_dead
             )),
             parse_aggregate::<ReqValuesState>(toks),
         );
@@ -523,12 +552,12 @@ mod test {
         .into_iter();
 
         assert_eq!(
-            Ok(Aggregate(
+            Ok((
                 OptValues {
                     name: Some(attr_name),
                     yields: Some(attr_yields),
                 },
-                tok_dead,
+                tok_dead
             )),
             parse_aggregate::<OptValuesState>(toks),
         );
@@ -552,12 +581,12 @@ mod test {
         .into_iter();
 
         assert_eq!(
-            Ok(Aggregate(
+            Ok((
                 OptMissing {
                     name: None,
                     yields: None,
                 },
-                tok_dead,
+                tok_dead
             )),
             parse_aggregate::<OptMissingState>(toks),
         );
@@ -587,13 +616,13 @@ mod test {
         .into_iter();
 
         assert_eq!(
-            Ok(Aggregate(
+            Ok((
                 Mixed {
                     name: attr_name,
                     src: Some(attr_src),
                     yields: None,
                 },
-                tok_dead,
+                tok_dead
             )),
             parse_aggregate::<MixedState>(toks),
         );
@@ -643,7 +672,6 @@ mod test {
             assert_matches!(
                 err,
                 ParseError::StateError(AttrParseError::MissingRequired(
-                    ref given_tok,
                     ReqMissingState {
                         name: Some(ref given_name),
                         src: None, // cause of the error
@@ -653,7 +681,6 @@ mod test {
                     },
                 )) if given_name == &ATTR_NAME
                     && given_yields == &ATTR_YIELDS
-                    && given_tok == &tok_dead,
             );
         }
 
@@ -668,10 +695,7 @@ mod test {
             partial.name.replace(ATTR_NAME);
             partial.yields.replace(ATTR_YIELDS);
 
-            // The dead token doesn't matter;
-            //   it needs to be present but is otherwise ignored for this test.
-            let tok_dead = close_empty(S3, Depth(0));
-            let err = AttrParseError::MissingRequired(tok_dead, partial);
+            let err = AttrParseError::MissingRequired(partial);
 
             // When represented as a string,
             //   the error should produce _all_ required attributes that do not
@@ -704,11 +728,7 @@ mod test {
             partial.name.replace(ATTR_NAME);
             partial.yields.replace(ATTR_YIELDS);
 
-            // The dead token doesn't matter;
-            //   it needs to be present but is otherwise ignored for this test.
-            let tok_dead = close_empty(S3, Depth(0));
-            let err = AttrParseError::MissingRequired(tok_dead, partial);
-
+            let err = AttrParseError::MissingRequired(partial);
             let desc = err.describe();
 
             // The diagnostic message should reference the element.
@@ -780,12 +800,12 @@ mod test {
         // The final result,
         //   after having failed and recovered.
         assert_eq!(
-            Ok(Aggregate(
+            Ok((
                 Unexpected {
                     name: attr_name,
                     src: attr_src,
                 },
-                tok_dead,
+                tok_dead
             )),
             parse_aggregate_with(&mut sut),
         );
