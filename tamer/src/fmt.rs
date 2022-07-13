@@ -181,6 +181,13 @@ pub type Delim<const LEFT: &'static str, const RIGHT: &'static str, W> =
 ///   so this is _not_ safe against format escapes.
 pub type Tt<W> = Delim<"`", "`", W>;
 
+/// Quote text that would conventionally be delimited in a teletypewriter
+///   font.
+///
+/// This is a more terse alternative to [`Tt`] when formatter composition is
+///   unneeded.
+pub type TtQuote = Tt<Raw>;
+
 /// Prefix with a single space.
 pub type Sp<W> = Prefix<" ", W>;
 

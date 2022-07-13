@@ -84,10 +84,12 @@ pub mod qname {
     }
 
     qname_const! {
+        QN_CLASSIFY: :L_CLASSIFY,
         QN_DESC: :L_DESC,
         QN_DIM: :L_DIM,
         QN_DTYPE: :L_DTYPE,
         QN_ELIG_CLASS_YIELDS: L_PREPROC:L_ELIG_CLASS_YIELDS,
+        QN_EXPORT: :L_EXPORT,
         QN_EXTERN: :L_EXTERN,
         QN_FRAGMENT: L_PREPROC:L_FRAGMENT,
         QN_FRAGMENTS: L_PREPROC:L_FRAGMENTS,
@@ -117,6 +119,7 @@ pub mod qname {
         QN_TITLE: :L_TITLE,
         QN_TYPE: :L_TYPE,
         QN_UUROOTPATH: :L_UUROOTPATH,
+        QN_VALUE: :L_VALUE,
         QN_VIRTUAL: :L_VIRTUAL,
         QN_XMLNS: :L_XMLNS,
         QN_XMLNS_L: L_XMLNS:L_L,

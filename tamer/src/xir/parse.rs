@@ -23,5 +23,6 @@
 //!   processing of the input XML to ensure well-formedness.
 
 mod attr;
+mod ele;
 
 pub use attr::{AttrParseError, AttrParseState};

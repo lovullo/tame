@@ -256,6 +256,57 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     }
 
     /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`
+    ///   until this parser yields an [`Object`].
+    ///
+    /// This method is appropriate for [`ParseState`]s that yield an object
+    ///   after they have completed parsing.
+    /// It is not suitable for [`ParseState`]s that yield multiple objects
+    ///   during parsing,
+    ///     which typically indicate completion with a dead state
+    ///     (see [`ParseState::delegate`]).
+    ///
+    /// _This method is still under development and has outstanding TODOs._
+    fn delegate_until_obj<SP, C>(
+        self,
+        tok: <Self as ParseState>::Token,
+        mut context: C,
+        into: impl FnOnce(Self) -> Transition<SP>,
+        _dead: impl FnOnce() -> Transition<SP>,
+        objf: impl FnOnce(<Self as ParseState>::Object) -> TransitionResult<SP>,
+    ) -> TransitionResult<SP>
+    where
+        Self: PartiallyStitchableParseState<SP>,
+        C: AsMut<<Self as ParseState>::Context>,
+    {
+        use ParseStatus::{Incomplete, Object as Obj};
+
+        let TransitionResult(Transition(newst), data) =
+            self.parse_token(tok, context.as_mut());
+
+        match data {
+            TransitionData::Dead(Lookahead(_lookahead)) => {
+                // Or restrict this to certain types of ParseState
+                todo!("expecting object, so what should we do on Dead?")
+            }
+
+            TransitionData::Result(Ok(Obj(obj)), lookahead) => {
+                objf(obj).maybe_with_lookahead(lookahead)
+            }
+
+            TransitionData::Result(result, lookahead) => TransitionResult(
+                into(newst),
+                TransitionData::Result(
+                    match result {
+                        Ok(_) => Ok(Incomplete),
+                        Err(e) => Err(e.into()),
+                    },
+                    lookahead,
+                ),
+            ),
+        }
+    }
+
+    /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`
     ///   while consuming objects during `SP` state transition.
     ///
     /// See [`ParseState::delegate`] for more information.

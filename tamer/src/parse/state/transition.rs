@@ -81,6 +81,25 @@ impl<S: ParseState> TransitionResult<S> {
             }
         }
     }
+
+    /// Possibly indicate that this transition includes a single token of
+    ///   lookahead.
+    ///
+    /// If the argument is [`None`],
+    ///   this returns `self` unchanged.
+    ///
+    /// This is useful when working with the output of other parsers.
+    /// See [`with_lookahead`](TransitionResult::with_lookahead) for more
+    ///   information.
+    pub(in super::super) fn maybe_with_lookahead(
+        self,
+        lookahead: Option<Lookahead<S::Token>>,
+    ) -> Self {
+        match lookahead {
+            Some(Lookahead(lookahead)) => self.with_lookahead(lookahead),
+            None => self,
+        }
+    }
 }
 
 /// Token to use as a lookahead token in place of the next token from the

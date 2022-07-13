@@ -155,6 +155,16 @@ pub trait AttrParseState: ParseState {
     fn required_missing(&self) -> Vec<QName>;
 }
 
+/// Parse attributes for the given element.
+///
+/// This function is useful when the type of [`AttrParseState`] `S` can be
+///   inferred,
+///     so that the expression reads more like natural language.
+#[cfg(test)] // currently only used by tests; remove when ready
+pub fn parse_attrs<S: AttrParseState>(ele: QName, span: Span) -> S {
+    S::with_element(ele, span)
+}
+
 #[macro_export]
 macro_rules! attr_parse {
     ($(#[$sattr:meta])*
@@ -165,22 +175,12 @@ macro_rules! attr_parse {
             )*
         }
     ) => {
-        use crate::{
-            parse,
-            xir::{
-                attr,
-                parse::{AttrParseError, AttrParseState},
-                flat,
-                QName,
-            }
-        };
-
         $(
             // This provides a nice error on $ty itself at the call site,
             //   rather than relying on `Into::into` to cause the error
             //   later on,
             //     which places the error inside the macro definition.
-            assert_impl_all!($ty: From<attr::Attr>);
+            assert_impl_all!($ty: From<crate::xir::attr::Attr>);
         )*
 
         #[doc=concat!("Parser producing [`", stringify!($struct_name), "`].")]
@@ -196,7 +196,7 @@ macro_rules! attr_parse {
         #[derive(Debug, PartialEq, Eq)]
         $vis struct $state_name {
             #[doc(hidden)]
-            ___ctx: (QName, Span),
+            ___ctx: (crate::xir::QName, Span),
             #[doc(hidden)]
             ___done: bool,
             $(
@@ -204,8 +204,8 @@ macro_rules! attr_parse {
             )*
         }
 
-        impl AttrParseState for $state_name {
-            fn with_element(ele: QName, span: Span) -> Self {
+        impl crate::xir::parse::AttrParseState for $state_name {
+            fn with_element(ele: crate::xir::QName, span: Span) -> Self {
                 Self {
                     ___ctx: (ele, span),
                     ___done: false,
@@ -215,7 +215,7 @@ macro_rules! attr_parse {
                 }
             }
 
-            fn element_name(&self) -> QName {
+            fn element_name(&self) -> crate::xir::QName {
                 match self.___ctx {
                     (name, _) => name,
                 }
@@ -229,12 +229,15 @@ macro_rules! attr_parse {
 
             fn finalize_attr(
                 self,
-            ) -> Result<Self::Object, AttrParseError<Self>> {
+            ) -> Result<
+                Self::Object,
+                crate::xir::parse::AttrParseError<Self>,
+            > {
                 // Validate required fields before we start moving data.
                 $(
-                    attr_parse!(@if_missing_req $($fmod)? self.$field {
+                    $crate::attr_parse!(@if_missing_req $($fmod)? self.$field {
                         return Err(
-                            AttrParseError::MissingRequired(
+                            crate::xir::parse::AttrParseError::MissingRequired(
                                 self,
                             )
                         )
@@ -243,7 +246,7 @@ macro_rules! attr_parse {
 
                 let obj = $struct_name {
                     $(
-                        $field: attr_parse!(
+                        $field: $crate::attr_parse!(
                             @maybe_value $($fmod)? self.$field
                         ),
                     )*
@@ -252,12 +255,12 @@ macro_rules! attr_parse {
                 Ok(obj)
             }
 
-            fn required_missing(&self) -> Vec<QName> {
+            fn required_missing(&self) -> Vec<crate::xir::QName> {
                 #[allow(unused_mut)]
                 let mut missing = vec![];
 
                 $(
-                    attr_parse!(@if_missing_req $($fmod)? self.$field {
+                    $crate::attr_parse!(@if_missing_req $($fmod)? self.$field {
                         missing.push($qname);
                     });
                 )*
@@ -267,7 +270,9 @@ macro_rules! attr_parse {
         }
 
         impl $state_name {
-            fn done_with_element(ele: QName, span: Span) -> Self {
+            fn done_with_element(ele: crate::xir::QName, span: Span) -> Self {
+                use crate::xir::parse::attr::AttrParseState;
+
                 let mut new = Self::with_element(ele, span);
                 new.___done = true;
                 new
@@ -289,9 +294,9 @@ macro_rules! attr_parse {
             )*
         }
 
-        impl parse::Object for $struct_name {}
+        impl crate::parse::Object for $struct_name {}
 
-        impl Display for $state_name {
+        impl std::fmt::Display for $state_name {
             /// Additional error context shown in diagnostic messages for
             ///   certain variants of [`ParseError`].
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -300,18 +305,24 @@ macro_rules! attr_parse {
             }
         }
 
-        impl parse::ParseState for $state_name {
-            type Token = flat::XirfToken;
+        impl crate::parse::ParseState for $state_name {
+            type Token = crate::xir::flat::XirfToken;
             type Object = $struct_name;
-            type Error = AttrParseError<Self>;
+            type Error = crate::xir::parse::AttrParseError<Self>;
 
             fn parse_token(
+                #[allow(unused_mut)]
                 mut self,
                 tok: Self::Token,
-                _: parse::NoContext,
+                _: crate::parse::NoContext,
             ) -> crate::parse::TransitionResult<Self> {
                 use crate::parse::{Transition, Transitionable, ParseStatus};
-                use crate::xir::attr::Attr;
+                use crate::xir::{
+                    flat,
+                    parse::{AttrParseError, AttrParseState}
+                };
+                #[allow(unused_imports)]
+                use crate::xir::attr::Attr; // unused if no attrs
 
                 match tok {
                     $(

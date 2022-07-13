@@ -147,6 +147,16 @@ impl Attr {
     pub fn value(&self) -> SymbolId {
         self.1
     }
+
+    /// [`AttrSpan`] for this attribute.
+    ///
+    /// The attribute span allows deriving a number of different spans;
+    ///   see [`AttrSpan`] for more information.
+    pub fn attr_span(&self) -> &AttrSpan {
+        match self {
+            Attr(.., span) => span,
+        }
+    }
 }
 
 impl Token for Attr {

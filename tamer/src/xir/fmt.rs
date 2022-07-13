@@ -19,10 +19,17 @@
 
 //! XIR formatting types for use with [`crate::fmt`]
 
-use crate::fmt::{AndQualConjList, Prefix, Raw, Tt};
+use crate::fmt::{AndQualConjList, Delim, Prefix, Raw, Tt};
 
 /// Denote an XML attribute by prefixing the value with `@`.
 pub type XmlAttr = Prefix<"@", Raw>;
 
 /// A list of XML attributes [`Tt`]-quoted.
 pub type XmlAttrList = AndQualConjList<"attribute", "attributes", Tt<XmlAttr>>;
+
+/// Opening tag for XML element.
+pub type OpenXmlEle = Delim<"<", ">", Raw>;
+
+/// Opening tag for XML element as teletypewriter
+///   (for use in sentences).
+pub type TtOpenXmlEle = Tt<OpenXmlEle>;
