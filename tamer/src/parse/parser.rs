@@ -85,7 +85,7 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     ///
     /// See [`take_lookahead_tok`](Parser::take_lookahead_tok) for more
     ///   information.
-    lookahead: Option<Lookahead<S>>,
+    lookahead: Option<Lookahead<S::Token>>,
 
     /// Parsing automaton.
     ///

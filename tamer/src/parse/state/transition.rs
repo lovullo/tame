@@ -19,7 +19,7 @@
 
 //! State transitions for parser automata.
 
-use super::{ParseState, ParseStateResult, ParseStatus};
+use super::{ParseState, ParseStateResult, ParseStatus, Token};
 use std::{
     convert::Infallible,
     hint::unreachable_unchecked,
@@ -27,7 +27,7 @@ use std::{
 };
 
 #[cfg(doc)]
-use super::{Parser, Token};
+use super::Parser;
 
 /// A state transition with associated data.
 ///
@@ -86,7 +86,7 @@ impl<S: ParseState> TransitionResult<S> {
 /// Token to use as a lookahead token in place of the next token from the
 ///   input stream.
 #[derive(Debug, PartialEq)]
-pub struct Lookahead<S: ParseState>(pub(in super::super) S::Token);
+pub struct Lookahead<T: Token>(pub(in super::super) T);
 
 /// Information about the state transition.
 ///
@@ -103,7 +103,7 @@ pub(in super::super) enum TransitionData<S: ParseState> {
     ///   successful [`ParseStateResult`]---the
     ///     parser may choose to successfully transition into an error
     ///     recovery state to accommodate future tokens.
-    Result(ParseStateResult<S>, Option<Lookahead<S>>),
+    Result(ParseStateResult<S>, Option<Lookahead<S::Token>>),
 
     /// No valid state transition exists from the current state for the
     ///   given input token,
@@ -124,7 +124,7 @@ pub(in super::super) enum TransitionData<S: ParseState> {
     ///       and may lead to finalization of the parser.
     /// If a parser intends to do additional work,
     ///   it should return an error instead via [`TransitionData::Result`].
-    Dead(Lookahead<S>),
+    Dead(Lookahead<S::Token>),
 }
 
 /// A verb denoting a state transition.

@@ -249,7 +249,7 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
                         Ok(Obj(obj)) => Ok(Obj(obj.into())),
                         Err(e) => Err(e.into()),
                     },
-                    lookahead.map(|Lookahead(la)| Lookahead(la)),
+                    lookahead,
                 ),
             ),
         }
@@ -292,10 +292,7 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
             TransitionData::Result(Ok(Obj(obj)), lookahead) => {
                 TransitionResult(
                     into(newst, Some(obj), env),
-                    TransitionData::Result(
-                        Ok(Incomplete),
-                        lookahead.map(|Lookahead(la)| Lookahead(la)),
-                    ),
+                    TransitionData::Result(Ok(Incomplete), lookahead),
                 )
             }
 
@@ -306,7 +303,7 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
                         Ok(_) => Ok(Incomplete),
                         Err(e) => Err(e.into()),
                     },
-                    lookahead.map(|Lookahead(la)| Lookahead(la)),
+                    lookahead,
                 ),
             ),
         }
