@@ -52,6 +52,7 @@ macro_rules! ele_parse {
     //   context necessary for state transitions.
     (@!ele_expand_body <$objty:ty> $nt:ident $qname:ident
         @ { $($attrbody:tt)* } => $attrmap:expr,
+        $(/ => $closemap:expr,)?
 
         // Nonterminal references are provided as a list.
         $(
@@ -61,6 +62,7 @@ macro_rules! ele_parse {
         ele_parse! {
             @!ele_dfn_body <$objty> $nt $qname
             @ { $($attrbody)* } => $attrmap,
+            / => ele_parse!(@!ele_close $($closemap)?),
 
             <> {
                 $(
@@ -79,6 +81,16 @@ macro_rules! ele_parse {
         }
     };
 
+    // No explicit Close mapping defaults to doing nothing at all
+    //   (so yield Incomplete).
+    (@!ele_close) => {
+        crate::parse::ParseStatus::Incomplete
+    };
+
+    (@!ele_close $close:expr) => {
+        crate::parse::ParseStatus::Object($close)
+    };
+
     (@!ele_dfn_body <$objty:ty> $nt:ident $qname:ident
         // Attribute definition special form.
         @ {
@@ -90,6 +102,10 @@ macro_rules! ele_parse {
                 $field:ident: ($fmatch:tt) => $fty:ty,
             )*
         } => $attrmap:expr,
+
+        // Close expression
+        //   (defaulting to Incomplete via @!ele_expand_body).
+        / => $closemap:expr,
 
         // Nonterminal references.
         <> {
@@ -247,7 +263,7 @@ macro_rules! ele_parse {
                     _: crate::parse::NoContext,
                 ) -> crate::parse::TransitionResult<Self> {
                     use crate::{
-                        parse::{EmptyContext, Transition},
+                        parse::{EmptyContext, Transition, Transitionable},
                         xir::{
                             flat::XirfToken,
                             parse::attr::parse_attrs,
@@ -316,7 +332,7 @@ macro_rules! ele_parse {
                         // XIRF ensures proper nesting,
                         //   so this must be our own closing tag.
                         (ExpectClose_(_), XirfToken::Close(_, span, _)) =>
-                            Transition(Closed_(span.tag_span())).incomplete(),
+                            $closemap.transition(Closed_(span.tag_span())),
 
                         // TODO: Use `is_accepting` guard if we do not utilize
                         //   exhaustiveness check.

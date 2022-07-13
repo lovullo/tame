@@ -307,3 +307,9 @@ where
         Transition(to).result(self.map(|_| ParseStatus::Incomplete))
     }
 }
+
+impl<S: ParseState> Transitionable<S> for ParseStatus<S> {
+    fn transition(self, to: S) -> TransitionResult<S> {
+        Transition(to).ok(self)
+    }
+}

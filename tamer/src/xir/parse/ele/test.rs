@@ -49,7 +49,7 @@ const S6: Span = S5.offset_add(1).unwrap();
 const N: EleNameLen = 10;
 
 #[test]
-fn empty_element_no_attrs() {
+fn empty_element_no_attrs_no_close() {
     #[derive(Debug, PartialEq, Eq)]
     struct Foo;
     impl Object for Foo {}
@@ -70,9 +70,46 @@ fn empty_element_no_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,  // Open
-            Parsed::Object(Foo), // Close (store LA)
-            Parsed::Incomplete,  // Close (take LA)
+            Parsed::Incomplete,  // [Sut]  Open
+            Parsed::Object(Foo), // [Sut@] Close (>LA)
+            Parsed::Incomplete,  // [Sut]  Close (<LA)
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Same as above,
+//   but with an object emitted on Close rather than Incomplete.
+#[test]
+fn empty_element_no_attrs_with_close() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Attr,
+        Close,
+    }
+
+    impl Object for Foo {}
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE {
+            @ {} => Foo::Attr,
+            / => Foo::Close,
+        }
+    }
+
+    let toks = vec![
+        // Length (second argument) here is arbitrary.
+        XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Close(None, CloseSpan::empty(S2), Depth(0)),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete,         // [Sut]  Open
+            Parsed::Object(Foo::Attr),  // [Sut@] Close (>LA)
+            Parsed::Object(Foo::Close), // [Sut]  Close (<LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -267,9 +304,12 @@ fn single_child_element() {
 fn multiple_child_elements_sequential() {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
-        Root,
-        ChildA,
-        ChildB,
+        RootOpen,
+        ChildAOpen,
+        ChildAClose,
+        ChildBOpen,
+        ChildBClose,
+        RootClose,
     }
 
     impl Object for Foo {}
@@ -278,7 +318,8 @@ fn multiple_child_elements_sequential() {
         type Object = Foo;
 
         Sut := QN_PACKAGE {
-            @ {} => Foo::Root,
+            @ {} => Foo::RootOpen,
+            / => Foo::RootClose,
 
             // Order matters here.
             ChildA,
@@ -286,11 +327,13 @@ fn multiple_child_elements_sequential() {
         }
 
         ChildA := QN_CLASSIFY {
-            @ {} => Foo::ChildA,
+            @ {} => Foo::ChildAOpen,
+            / => Foo::ChildAClose,
         }
 
         ChildB := QN_EXPORT {
-            @ {} => Foo::ChildB,
+            @ {} => Foo::ChildBOpen,
+            / => Foo::ChildBClose,
         }
     }
 
@@ -307,15 +350,15 @@ fn multiple_child_elements_sequential() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,          // [Sut]     Root Open
-            Parsed::Object(Foo::Root),   // [Sut@]    ChildA Open (>LA)
-            Parsed::Incomplete,          // [ChildA]  ChildA Open (<LA)
-            Parsed::Object(Foo::ChildA), // [ChildA@] ChildA Close (>LA)
-            Parsed::Incomplete,          // [ChildA]  ChildA Close (<LA)
-            Parsed::Incomplete,          // [ChildB]  ChildB Open
-            Parsed::Object(Foo::ChildB), // [ChildB@] ChildB Close (>LA)
-            Parsed::Incomplete,          // [ChildB]  ChildB Close (<LA)
-            Parsed::Incomplete,          // [Sut]     Root Close
+            Parsed::Incomplete,               // [Sut]     Root Open
+            Parsed::Object(Foo::RootOpen),    // [Sut@]    ChildA Open (>LA)
+            Parsed::Incomplete,               // [ChildA]  ChildA Open (<LA)
+            Parsed::Object(Foo::ChildAOpen),  // [ChildA@] ChildA Close (>LA)
+            Parsed::Object(Foo::ChildAClose), // [ChildA]  ChildA Close (<LA)
+            Parsed::Incomplete,               // [ChildB]  ChildB Open
+            Parsed::Object(Foo::ChildBOpen),  // [ChildB@] ChildB Close (>LA)
+            Parsed::Object(Foo::ChildBClose), // [ChildB]  ChildB Close (<LA)
+            Parsed::Object(Foo::RootClose),   // [Sut]     Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
