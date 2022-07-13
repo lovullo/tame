@@ -321,6 +321,13 @@ fn multiple_child_elements_sequential() {
     );
 }
 
+// TODO: This error recovery seems to be undesirable,
+//     both consuming an element and skipping the requirement;
+//       it is beneficial only in showing that recovery is possible and
+//       accounted for.
+//  Let's revisit once we're further along and have concrete examples to
+//    determine if there is a proper umbrella recovery strategy,
+//      or if it needs to be configurable depending on context.
 #[test]
 fn child_error_and_recovery() {
     #[derive(Debug, PartialEq, Eq)]
