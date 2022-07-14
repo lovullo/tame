@@ -34,7 +34,7 @@ use crate::{
         attr::{Attr, AttrSpan},
         flat::{Depth, XirfToken},
         st::qname::*,
-        CloseSpan, EleNameLen, EleSpan, OpenSpan,
+        CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
     },
 };
 
@@ -520,4 +520,152 @@ fn child_error_and_recovery() {
         ]),
         sut.collect()
     );
+}
+
+// A nonterminal of the form `(A | ... | Z)` should accept the element of
+//   any of the inner nonterminals.
+#[test]
+fn sum_nonterminal_accepts_any_valid_element() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        A,
+        B,
+        C,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_A: QName = QN_PACKAGE;
+    const QN_B: QName = QN_CLASSIFY;
+    const QN_C: QName = QN_EXPORT;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := (A | B | C);
+
+        A := QN_A {
+            @ {} => Foo::A,
+        }
+
+        B := QN_B {
+            @ {} => Foo::B,
+        }
+
+        C := QN_C {
+            @ {} => Foo::C,
+        }
+    }
+
+    use Parsed::*;
+    use XirfToken::{Close, Open};
+
+    // Try each in turn with a fresh instance of `Sut`.
+    [(QN_A, Foo::A), (QN_B, Foo::B), (QN_C, Foo::C)]
+        .into_iter()
+        .for_each(|(qname, obj)| {
+            let toks = vec![
+                Open(qname, OpenSpan(S1, N), Depth(0)),
+                Close(None, CloseSpan::empty(S2), Depth(0)),
+            ];
+
+            assert_eq!(
+                Ok(vec![
+                    Incomplete,  // [X] Open
+                    Object(obj), // [X@] Close (>LA)
+                    Incomplete,  // [X] Close
+                ]),
+                Sut::parse(toks.into_iter()).collect(),
+            );
+        });
+}
+
+#[test]
+fn sum_nonterminal_error_recovery() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        A,
+        B,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_A: QName = QN_PACKAGE;
+    const QN_B: QName = QN_CLASSIFY;
+    let unexpected: QName = "unexpected".unwrap_into();
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := (A | B);
+
+        A := QN_A {
+            @ {} => Foo::A,
+        }
+
+        B := QN_B {
+            @ {} => Foo::B,
+        }
+    }
+
+    // Something >0 just to assert that we're actually paying attention to
+    //   it when consuming tokens during recovery.
+    let depth = Depth(5);
+    let depth_child = Depth(6);
+
+    let toks = vec![
+        // Neither A nor B,
+        //   which will produce an error and enter recovery.
+        XirfToken::Open(unexpected, OpenSpan(S1, N), depth),
+        // A child element to be ignored,
+        //   to ensure that its closing tag will not halt recovery
+        //   prematurely.
+        // This further tests that it's too late to provide a valid opening
+        //   token
+        //     (which is good because we're not at the right depth).
+        XirfToken::Open(QN_A, OpenSpan(S2, N), depth_child),
+        XirfToken::Close(None, CloseSpan::empty(S3), depth_child),
+        // Closing token for the bad element at the corresponding depth,
+        //   which will end recovery.
+        XirfToken::Close(Some(unexpected), CloseSpan(S4, N), depth),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    // The first token of input is the unexpected element,
+    //   and so should result an error.
+    // The referenced span should be the _name_ of the element,
+    //   not the tag,
+    //   since the error is referring not to the fact that an element
+    //     was encountered
+    //       (which was expected),
+    //       but to the fact that the name was not the one expected.
+    assert_eq!(
+        sut.next(),
+        // TODO: This references generated identifiers.
+        Some(Err(ParseError::StateError(SutError_::UnexpectedEle_(
+            unexpected,
+            OpenSpan(S1, N).name_span(),
+        )))),
+    );
+
+    // We should have now entered a recovery mode whereby we discard
+    //   input until we close the element that introduced the error.
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Open child
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // Close child
+
+    // The recovery state must not be in an accepting state,
+    //   because we didn't close at the root depth yet.
+    let (mut sut, _) =
+        sut.finalize().expect_err("recovery must not be accepting");
+
+    // The next token should close the element that is in error,
+    //   and bring us into an accepting state.
+    // But since we are not emitting tokens,
+    //   we'll still be marked as incomplete.
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Close root
+    sut.finalize()
+        .expect("recovery must complete in an accepting state");
 }

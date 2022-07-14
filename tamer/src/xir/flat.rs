@@ -57,7 +57,7 @@ use std::{error::Error, fmt::Display};
 
 /// Tag nesting depth
 ///   (`0` represents the root).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Depth(pub usize);
 
 impl Display for Depth {

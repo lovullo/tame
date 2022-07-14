@@ -19,6 +19,11 @@
 
 //! Element parser generator for parsing of [XIRF](super::super::flat).
 
+use crate::parse::ParseState;
+
+/// A parser accepting a single element.
+pub trait EleParseState: ParseState {}
+
 #[macro_export]
 macro_rules! ele_parse {
     (type Object = $objty:ty; $($rest:tt)*) => {
@@ -41,10 +46,13 @@ macro_rules! ele_parse {
         }
     };
 
-    (@!nonterm_def <$objty:ty> $nt:ident ($ntreffirst:ident $(| $ntref:ident)+), $($rest:tt)*) => {
-        ele_parse!(@!ele_dfn_sum $nt [$ntfirst $($nt)*]);
+    (@!nonterm_def <$objty:ty> $nt:ident
+        ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
+    ) => {
+        ele_parse!(@!ele_dfn_sum <$objty> $nt [$ntref_first $($ntref)*]);
 
         ele_parse! {
+            type Object = $objty;
             $($rest)*
         }
     };
@@ -124,7 +132,6 @@ macro_rules! ele_parse {
             )*
         }
     ) => {
-        // TODO
         paste::paste! {
             crate::attr_parse! {
                 struct [<$nt AttrsState_>] -> [<$nt Attrs_>] {
@@ -148,6 +155,8 @@ macro_rules! ele_parse {
                 /// Recovery state ignoring all remaining tokens for this
                 ///   element.
                 RecoverEleIgnore_(crate::xir::QName, crate::xir::OpenSpan, Depth),
+                // Recovery completed because end tag corresponding to the
+                //   invalid element has been found.
                 RecoverEleIgnoreClosed_(crate::xir::QName, crate::xir::CloseSpan),
                 /// Parsing element attributes.
                 Attrs_([<$nt AttrsState_>]),
@@ -158,6 +167,17 @@ macro_rules! ele_parse {
                 /// Closing tag found and parsing of the element is
                 ///   complete.
                 Closed_(crate::span::Span),
+            }
+
+            impl crate::xir::parse::ele::EleParseState for $nt {}
+
+            impl $nt {
+                /// [`QName`](crate::xir::QName) of the element recognized
+                ///   by this parser.
+                #[allow(dead_code)] // used by sum parser
+                const fn qname() -> crate::xir::QName {
+                    $qname
+                }
             }
 
             impl std::fmt::Display for $nt {
@@ -366,12 +386,199 @@ macro_rules! ele_parse {
         }
     };
 
-    (@!ele_dfn_sum $nt:ident [$($ntref:ident)*]) => {
-        #[derive(Debug, PartialEq, Eq)]
-        enum $nt {
+    (@!ele_dfn_sum <$objty:ty> $nt:ident [$($ntref:ident)*]) => {
+        $(
+            // Provide a (hopefully) helpful error that can be corrected
+            //   rather than any obscure errors that may follow from trying
+            //   to compose parsers that were not generated with this macro.
+            assert_impl_all!($ntref: crate::xir::parse::ele::EleParseState);
+        )*
+
+        paste::paste! {
+            #[doc=concat!(
+                "Parser expecting one of ",
+                $("[`", stringify!($ntref), "`], ",)*
+                "."
+            )]
+            #[derive(Debug, PartialEq, Eq, Default)]
+            enum $nt {
+                #[default]
+                Expecting_,
+                /// Recovery state ignoring all remaining tokens for this
+                ///   element.
+                RecoverEleIgnore_(crate::xir::QName, crate::xir::OpenSpan, Depth),
+                RecoverEleIgnoreClosed_(crate::xir::QName, crate::xir::CloseSpan),
+                $(
+                    $ntref($ntref),
+                )*
+            }
+
+            impl std::fmt::Display for $nt {
+                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    use crate::{
+                        fmt::{DisplayWrapper, ListDisplayWrapper, TtQuote},
+                        xir::fmt::OpenEleSumList,
+                    };
+
+                    let ntrefs = [
+                        $(
+                            $ntref::qname(),
+                        )*
+                    ];
+                    let expected = OpenEleSumList::wrap(&ntrefs);
+
+                    match self {
+                        Self::Expecting_ => {
+                            write!(f, "expecting {expected}")
+                        },
+
+                        Self::RecoverEleIgnore_(name, ..)
+                        | Self::RecoverEleIgnoreClosed_(name, ..) => write!(
+                            f,
+                            "attempting to recover by ignoring element \
+                               with unexpected name {given} \
+                               (expected {expected})",
+                            given = TtQuote::wrap(name),
+                        ),
+
+                        $(
+                            Self::$ntref(st) => std::fmt::Display::fmt(st, f),
+                        )*
+                    }
+                }
+            }
+
+            #[derive(Debug, PartialEq)]
+            enum [<$nt Error_>] {
+                UnexpectedEle_(crate::xir::QName, crate::span::Span),
+                $(
+                    $ntref([<$ntref Error_>]),
+                )*
+            }
+
             $(
-                $ntref($ntref),
+                impl From<[<$ntref Error_>]> for [<$nt Error_>] {
+                    fn from(e: [<$ntref Error_>]) -> Self {
+                        [<$nt Error_>]::$ntref(e)
+                    }
+                }
             )*
+
+            impl std::error::Error for [<$nt Error_>] {
+                fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                    // TODO
+                    None
+                }
+            }
+
+            impl std::fmt::Display for [<$nt Error_>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    use crate::{
+                        fmt::DisplayWrapper,
+                        xir::fmt::TtOpenXmlEle,
+                    };
+
+                    match self {
+                        Self::UnexpectedEle_(qname, _) => {
+                            write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
+                        },
+                        $(
+                            Self::$ntref(e) => std::fmt::Display::fmt(e, f),
+                        )*
+                    }
+                }
+            }
+
+            impl crate::diagnose::Diagnostic for [<$nt Error_>] {
+                fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+                    todo!()
+                }
+            }
+
+            impl crate::parse::ParseState for $nt {
+                type Token = crate::xir::flat::XirfToken;
+                type Object = $objty;
+                type Error = [<$nt Error_>];
+
+                fn parse_token(
+                    self,
+                    tok: Self::Token,
+                    _: crate::parse::NoContext,
+                ) -> crate::parse::TransitionResult<Self> {
+                    use crate::{
+                        parse::{EmptyContext, Transition},
+                        xir::flat::XirfToken,
+                    };
+
+                    use $nt::{Expecting_, RecoverEleIgnore_, RecoverEleIgnoreClosed_};
+
+                    match (self, tok) {
+                        $(
+                            (
+                                Expecting_,
+                                XirfToken::Open(qname, span, depth)
+                            ) if qname == $ntref::qname() => {
+                                $ntref::default().delegate(
+                                    XirfToken::Open(qname, span, depth),
+                                    EmptyContext,
+                                    |si| Transition(Self::$ntref(si)),
+                                    || todo!("inner dead (should not happen here)"),
+                                )
+                            },
+                        )*
+
+                        (Expecting_, XirfToken::Open(qname, span, depth)) => {
+                            Transition(RecoverEleIgnore_(qname, span, depth)).err(
+                                // Use name span rather than full `OpenSpan`
+                                //   since it's specifically the name that
+                                //   was unexpected,
+                                //     not the fact that it's an element.
+                                [<$nt Error_>]::UnexpectedEle_(qname, span.name_span())
+                            )
+                        },
+
+                        // XIRF ensures that the closing tag matches the opening,
+                        //   so we need only check depth.
+                        (
+                            RecoverEleIgnore_(qname, _, depth_open),
+                            XirfToken::Close(_, span, depth_close)
+                        ) if depth_open == depth_close => {
+                            Transition(RecoverEleIgnoreClosed_(qname, span)).incomplete()
+                        },
+
+                        (st @ RecoverEleIgnore_(..), _) => {
+                            Transition(st).incomplete()
+                        },
+
+                        $(
+                            (Self::$ntref(si), tok) => si.delegate(
+                                tok,
+                                EmptyContext,
+                                |si| Transition(Self::$ntref(si)),
+                                || todo!("inner dead"),
+                            ),
+                        )*
+
+                        todo => todo!("sum {todo:?}"),
+                    }
+                }
+
+                fn is_accepting(&self) -> bool {
+                    match self {
+                        Self::RecoverEleIgnoreClosed_(..) => true,
+
+                        // Delegate entirely to the inner ParseState.
+                        // It is desirable to maintain this state even after
+                        //   the inner parser is completed so that the inner
+                        //   state can accurately describe what took place.
+                        $(
+                            Self::$ntref(si) => si.is_accepting(),
+                        )*
+
+                        _ => false,
+                    }
+                }
+            }
         }
     };
 }
