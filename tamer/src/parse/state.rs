@@ -272,7 +272,10 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
         mut context: C,
         into: impl FnOnce(Self) -> Transition<SP>,
         _dead: impl FnOnce() -> Transition<SP>,
-        objf: impl FnOnce(<Self as ParseState>::Object) -> TransitionResult<SP>,
+        objf: impl FnOnce(
+            Self,
+            <Self as ParseState>::Object,
+        ) -> TransitionResult<SP>,
     ) -> TransitionResult<SP>
     where
         Self: PartiallyStitchableParseState<SP>,
@@ -290,7 +293,8 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
             }
 
             TransitionData::Result(Ok(Obj(obj)), lookahead) => {
-                objf(obj).maybe_with_lookahead(lookahead)
+                // TODO: check accepting
+                objf(newst, obj).maybe_with_lookahead(lookahead)
             }
 
             TransitionData::Result(result, lookahead) => TransitionResult(

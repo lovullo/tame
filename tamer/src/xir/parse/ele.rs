@@ -29,8 +29,11 @@ macro_rules! ele_parse {
         ele_parse!(@!nonterm_def <$objty> $nt $($rest)*);
     };
 
-    (@!nonterm_def <$objty:ty> $nt:ident $qname:ident { $($matches:tt)* } $($rest:tt)*) => {
-        ele_parse!(@!ele_expand_body <$objty> $nt $qname $($matches)*);
+    (@!nonterm_def <$objty:ty>
+        $nt:ident $qname:ident $(($($ntp:tt)*))?
+        { $($matches:tt)* } $($rest:tt)*
+    ) => {
+        ele_parse!(@!ele_expand_body <$objty> $nt $qname ($($($ntp)*)?) $($matches)*);
 
         ele_parse! {
             type Object = $objty;
@@ -50,9 +53,9 @@ macro_rules! ele_parse {
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!ele_expand_body <$objty:ty> $nt:ident $qname:ident
+    (@!ele_expand_body <$objty:ty> $nt:ident $qname:ident ($($ntp:tt)*)
         @ { $($attrbody:tt)* } => $attrmap:expr,
-        $(/ => $closemap:expr,)?
+        $(/$(($close_span:ident))? => $closemap:expr,)?
 
         // Nonterminal references are provided as a list.
         $(
@@ -60,9 +63,9 @@ macro_rules! ele_parse {
         )*
     ) => {
         ele_parse! {
-            @!ele_dfn_body <$objty> $nt $qname
+            @!ele_dfn_body <$objty> $nt $qname ($($ntp)*)
             @ { $($attrbody)* } => $attrmap,
-            / => ele_parse!(@!ele_close $($closemap)?),
+            /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
             <> {
                 $(
@@ -91,7 +94,7 @@ macro_rules! ele_parse {
         crate::parse::ParseStatus::Object($close)
     };
 
-    (@!ele_dfn_body <$objty:ty> $nt:ident $qname:ident
+    (@!ele_dfn_body <$objty:ty> $nt:ident $qname:ident ($($open_span:ident)?)
         // Attribute definition special form.
         @ {
             // We must lightly parse attributes here so that we can retrieve
@@ -105,7 +108,7 @@ macro_rules! ele_parse {
 
         // Close expression
         //   (defaulting to Incomplete via @!ele_expand_body).
-        / => $closemap:expr,
+        /$($close_span:ident)? => $closemap:expr,
 
         // Nonterminal references.
         <> {
@@ -277,7 +280,7 @@ macro_rules! ele_parse {
 
                     match (self, tok) {
                         (Expecting_, XirfToken::Open(qname, span, ..)) if qname == $qname => {
-                            Transition(Attrs_(parse_attrs(qname, span.tag_span())))
+                            Transition(Attrs_(parse_attrs(qname, span)))
                                 .incomplete()
                         },
 
@@ -304,13 +307,22 @@ macro_rules! ele_parse {
                                 EmptyContext,
                                 |sa| Transition(Attrs_(sa)),
                                 || unreachable!("see ParseState::delegate_until_obj dead"),
-                                |attrs| {
+                                |#[allow(unused_variables)] sa, attrs| {
                                     let obj = match attrs {
+                                        // Attribute field bindings for `$attrmap`
                                         [<$nt Attrs_>] {
                                             $(
                                                 $field,
                                             )*
-                                        } => $attrmap,
+                                        } => {
+                                            // Optional `OpenSpan` binding
+                                            $(
+                                                use crate::xir::parse::attr::AttrParseState;
+                                                let $open_span = sa.element_span();
+                                            )?
+
+                                            $attrmap
+                                        },
                                     };
 
                                     Transition($ntfirst(Default::default())).ok(obj)
@@ -331,8 +343,12 @@ macro_rules! ele_parse {
 
                         // XIRF ensures proper nesting,
                         //   so this must be our own closing tag.
-                        (ExpectClose_(_), XirfToken::Close(_, span, _)) =>
-                            $closemap.transition(Closed_(span.tag_span())),
+                        (ExpectClose_(_), XirfToken::Close(_, span, _)) => {
+                            $(
+                                let $close_span = span;
+                            )?
+                            $closemap.transition(Closed_(span.tag_span()))
+                        },
 
                         // TODO: Use `is_accepting` guard if we do not utilize
                         //   exhaustiveness check.

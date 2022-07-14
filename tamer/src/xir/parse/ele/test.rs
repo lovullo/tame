@@ -115,6 +115,44 @@ fn empty_element_no_attrs_with_close() {
     );
 }
 
+// Same as above,
+//   but also with opening and closing spans.
+#[test]
+fn empty_element_no_attrs_with_close_with_spans() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Attr(OpenSpan),
+        Close(CloseSpan),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE(ospan) {
+            @ {} => Foo::Attr(ospan),
+            /(cspan) => Foo::Close(cspan),
+        }
+    }
+
+    let toks = vec![
+        // Length (second argument) here is arbitrary.
+        XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Close(None, CloseSpan::empty(S2), Depth(0)),
+    ];
+
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Incomplete,                               // [Sut]  Open
+            Object(Foo::Attr(OpenSpan(S1, N))),       // [Sut@] Close (>LA)
+            Object(Foo::Close(CloseSpan::empty(S2))), // [Sut]  Close (<LA)
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 #[test]
 fn empty_element_with_attr_bindings() {
     #[derive(Debug, PartialEq, Eq)]
@@ -304,31 +342,34 @@ fn single_child_element() {
 fn multiple_child_elements_sequential() {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
-        RootOpen,
-        ChildAOpen,
-        ChildAClose,
+        RootOpen(Span),
+        ChildAOpen(Span),
+        ChildAClose(Span),
         ChildBOpen,
         ChildBClose,
-        RootClose,
+        RootClose(Span),
     }
 
-    impl Object for Foo {}
+    impl crate::parse::Object for Foo {}
 
     ele_parse! {
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
-            @ {} => Foo::RootOpen,
-            / => Foo::RootClose,
+        Sut := QN_PACKAGE(ospan) {
+            @ {} => Foo::RootOpen(ospan.span()),
+            /(cspan) => Foo::RootClose(cspan.span()),
 
             // Order matters here.
             ChildA,
             ChildB,
         }
 
-        ChildA := QN_CLASSIFY {
-            @ {} => Foo::ChildAOpen,
-            / => Foo::ChildAClose,
+        // Demonstrates that span identifier bindings are scoped to the
+        //   nonterminal block
+        //     (so please keep the identifiers the same as above).
+        ChildA := QN_CLASSIFY(ospan) {
+            @ {} => Foo::ChildAOpen(ospan.span()),
+            /(cspan) => Foo::ChildAClose(cspan.span()),
         }
 
         ChildB := QN_EXPORT {
@@ -348,17 +389,18 @@ fn multiple_child_elements_sequential() {
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S5, N), Depth(0)),
     ];
 
+    use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,               // [Sut]     Root Open
-            Parsed::Object(Foo::RootOpen),    // [Sut@]    ChildA Open (>LA)
-            Parsed::Incomplete,               // [ChildA]  ChildA Open (<LA)
-            Parsed::Object(Foo::ChildAOpen),  // [ChildA@] ChildA Close (>LA)
-            Parsed::Object(Foo::ChildAClose), // [ChildA]  ChildA Close (<LA)
-            Parsed::Incomplete,               // [ChildB]  ChildB Open
-            Parsed::Object(Foo::ChildBOpen),  // [ChildB@] ChildB Close (>LA)
-            Parsed::Object(Foo::ChildBClose), // [ChildB]  ChildB Close (<LA)
-            Parsed::Object(Foo::RootClose),   // [Sut]     Root Close
+            Incomplete,                   // [Sut]     Root Open
+            Object(Foo::RootOpen(S1)),    // [Sut@]    ChildA Open (>LA)
+            Incomplete,                   // [ChildA]  ChildA Open (<LA)
+            Object(Foo::ChildAOpen(S2)),  // [ChildA@] ChildA Close (>LA)
+            Object(Foo::ChildAClose(S3)), // [ChildA]  ChildA Close (<LA)
+            Incomplete,                   // [ChildB]  ChildB Open
+            Object(Foo::ChildBOpen),      // [ChildB@] ChildB Close (>LA)
+            Object(Foo::ChildBClose),     // [ChildB]  ChildB Close (<LA)
+            Object(Foo::RootClose(S5)),   // [Sut]     Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

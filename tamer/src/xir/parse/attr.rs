@@ -41,8 +41,7 @@ use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     fmt::ListDisplayWrapper,
     parse::ParseState,
-    span::Span,
-    xir::{attr::Attr, fmt::XmlAttrList, QName},
+    xir::{attr::Attr, fmt::XmlAttrList, EleSpan, OpenSpan, QName},
 };
 use std::{error::Error, fmt::Display};
 
@@ -107,6 +106,7 @@ impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
         match self {
             Self::MissingRequired(st) => st
                 .element_span()
+                .tag_span()
                 .error(format!(
                     "missing required {}",
                     XmlAttrList::wrap(&st.required_missing()),
@@ -129,13 +129,13 @@ pub trait AttrParseState: ParseState {
     /// Begin attribute parsing within the context of the provided element.
     ///
     /// This is used to provide diagnostic information.
-    fn with_element(ele: QName, span: Span) -> Self;
+    fn with_element(ele: QName, span: OpenSpan) -> Self;
 
     /// Name of the element being parsed.
     fn element_name(&self) -> QName;
 
     /// Span associated with the element being parsed.
-    fn element_span(&self) -> Span;
+    fn element_span(&self) -> OpenSpan;
 
     /// Attempt to narrow into the final type by checking the availability
     ///   of required attribute values.
@@ -161,7 +161,7 @@ pub trait AttrParseState: ParseState {
 ///   inferred,
 ///     so that the expression reads more like natural language.
 #[cfg(test)] // currently only used by tests; remove when ready
-pub fn parse_attrs<S: AttrParseState>(ele: QName, span: Span) -> S {
+pub fn parse_attrs<S: AttrParseState>(ele: QName, span: OpenSpan) -> S {
     S::with_element(ele, span)
 }
 
@@ -196,7 +196,7 @@ macro_rules! attr_parse {
         #[derive(Debug, PartialEq, Eq)]
         $vis struct $state_name {
             #[doc(hidden)]
-            ___ctx: (crate::xir::QName, Span),
+            ___ctx: (crate::xir::QName, crate::xir::OpenSpan),
             #[doc(hidden)]
             ___done: bool,
             $(
@@ -205,7 +205,10 @@ macro_rules! attr_parse {
         }
 
         impl crate::xir::parse::AttrParseState for $state_name {
-            fn with_element(ele: crate::xir::QName, span: Span) -> Self {
+            fn with_element(
+                ele: crate::xir::QName,
+                span: crate::xir::OpenSpan
+            ) -> Self {
                 Self {
                     ___ctx: (ele, span),
                     ___done: false,
@@ -221,7 +224,7 @@ macro_rules! attr_parse {
                 }
             }
 
-            fn element_span(&self) -> Span {
+            fn element_span(&self) -> crate::xir::OpenSpan {
                 match self.___ctx {
                     (_, span) => span,
                 }
@@ -270,7 +273,7 @@ macro_rules! attr_parse {
         }
 
         impl $state_name {
-            fn done_with_element(ele: crate::xir::QName, span: Span) -> Self {
+            fn done_with_element(ele: crate::xir::QName, span: OpenSpan) -> Self {
                 use crate::xir::parse::attr::AttrParseState;
 
                 let mut new = Self::with_element(ele, span);
@@ -421,7 +424,7 @@ mod test {
     const S1: Span = DUMMY_SPAN;
     const S2: Span = S1.offset_add(1).unwrap();
     const S3: Span = S2.offset_add(1).unwrap();
-    const SE: Span = S1.offset_add(100).unwrap();
+    const SE: OpenSpan = OpenSpan(S1.offset_add(100).unwrap(), 0);
 
     // Random choice of QName for tests.
     const QN_ELE: QName = QN_YIELDS;
@@ -702,7 +705,7 @@ mod test {
             // Manually construct the partial state rather than parsing tokens.
             // `required_missing_values` above verifies that this state is what
             //   is in fact constructed from a failed parsing attempt.
-            let mut partial = ReqMissingState::with_element(QN_ELE, S1);
+            let mut partial = ReqMissingState::with_element(QN_ELE, SE);
             partial.name.replace(ATTR_NAME);
             partial.yields.replace(ATTR_YIELDS);
 
@@ -735,7 +738,7 @@ mod test {
         /// See also [`error_contains_all_required_missing_attr_names`].
         #[test]
         fn diagnostic_message_contains_all_required_missing_attr_name() {
-            let mut partial = ReqMissingState::with_element(QN_ELE, S1);
+            let mut partial = ReqMissingState::with_element(QN_ELE, SE);
             partial.name.replace(ATTR_NAME);
             partial.yields.replace(ATTR_YIELDS);
 
@@ -743,7 +746,7 @@ mod test {
             let desc = err.describe();
 
             // The diagnostic message should reference the element.
-            assert_eq!(desc[0].span(), S1);
+            assert_eq!(desc[0].span(), SE.span());
 
             // It should re-state the required attributes,
             //   since this is where the user will most likely be looking.
