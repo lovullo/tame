@@ -303,8 +303,17 @@ macro_rules! attr_parse {
             /// Additional error context shown in diagnostic messages for
             ///   certain variants of [`ParseError`].
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                // TODO
-                write!(f, "parsing attributes")
+                use crate::fmt::{DisplayWrapper, TtQuote};
+
+                match self {
+                    Self { ___ctx: (ele, _), .. } => {
+                        write!(
+                            f,
+                            "parsing attributes for element {}",
+                            TtQuote::wrap(ele)
+                        )
+                    }
+                }
             }
         }
 
