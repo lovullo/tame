@@ -250,6 +250,38 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             "lookahead token is available but was not consumed",
         );
 
+        // Human-readable trace that will become part of a failed test
+        //   cases's output.
+        // This describes the state prior to the transition,
+        //   and is left here inline since it also helps to document what
+        //   this method is doing.
+        // This is _not_ intended to be machine-readable or stable,
+        //   so please do not parse it;
+        //     if we want a machine-readable format for e.g. creating a
+        //     visualization of a parse,
+        //       such a system can be created separately.
+        //
+        // Note: if one of these trace blocks does not fully output,
+        //   then you may have a `Display::fmt` or `Debug::fmt` panic,
+        //     like a `todo!` or `unimplemented!`,
+        //     in your `Token` or `ParseState`.
+        #[cfg(test)]
+        {
+            let st = self.state.as_ref().unwrap();
+
+            eprint!(
+                "\
+[Parser::feed_tok] (input IR: {ir})
+|  ==> Parser before tok is {st}.
+|   |  {st:?}
+|
+|  ==> {ir} tok: {tok}
+|   |  {tok:?}
+|\n",
+                ir = S::Token::ir_name()
+            );
+        }
+
         // Parse a single token and perform the requested state transition.
         //
         // This is where the functional `ParseState` is married with a
@@ -266,6 +298,21 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         let TransitionResult(Transition(state), data) =
             self.state.take().unwrap().parse_token(tok, &mut self.ctx);
         self.state.replace(state);
+
+        // Remainder of the trace after the transition.
+        #[cfg(test)]
+        {
+            let newst = self.state.as_ref().unwrap();
+
+            eprint!(
+                "\
+|  ==> Parser after tok is {newst}.
+|   |  {newst:?}
+|   |  Lookahead: {:?}
+= note: this trace was output as a debugging aid because `cfg(test)`.\n\n",
+                data.lookahead_ref()
+            );
+        }
 
         use ParseStatus::{Incomplete, Object};
         match data {
@@ -480,6 +527,10 @@ pub mod test {
     }
 
     impl Token for StubToken {
+        fn ir_name() -> &'static str {
+            "<PARSER TEST IR>"
+        }
+
         fn span(&self) -> Span {
             DUMMY_SPAN
         }
@@ -488,8 +539,8 @@ pub mod test {
     impl Object for StubToken {}
 
     impl Display for StubToken {
-        fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            unimplemented!()
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "(test token)")
         }
     }
 

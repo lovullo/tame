@@ -671,6 +671,10 @@ impl Display for Token {
 }
 
 impl crate::parse::Token for Token {
+    fn ir_name() -> &'static str {
+        "XIR"
+    }
+
     /// Retrieve the [`Span`] associated with a given [`Token`].
     ///
     /// Every token has an associated span.

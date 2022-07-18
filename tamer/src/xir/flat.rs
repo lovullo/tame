@@ -117,6 +117,10 @@ pub enum XirfToken {
 }
 
 impl Token for XirfToken {
+    fn ir_name() -> &'static str {
+        "XIRF"
+    }
+
     fn span(&self) -> Span {
         use XirfToken::*;
 

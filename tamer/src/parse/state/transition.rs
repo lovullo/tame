@@ -146,6 +146,21 @@ pub(in super::super) enum TransitionData<S: ParseState> {
     Dead(Lookahead<S::Token>),
 }
 
+impl<S: ParseState> TransitionData<S> {
+    /// Reference to the token of lookahead,
+    ///   if any.
+    #[cfg(test)]
+    pub(in super::super) fn lookahead_ref(
+        &self,
+    ) -> Option<&Lookahead<S::Token>> {
+        match self {
+            TransitionData::Dead(ref la)
+            | TransitionData::Result(_, Some(ref la)) => Some(la),
+            _ => None,
+        }
+    }
+}
+
 /// A verb denoting a state transition.
 ///
 /// This is typically instantiated directly by a [`ParseState`] to perform a

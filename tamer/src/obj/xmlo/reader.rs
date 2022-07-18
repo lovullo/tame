@@ -92,6 +92,10 @@ pub enum XmloToken {
 impl parse::Object for XmloToken {}
 
 impl Token for XmloToken {
+    fn ir_name() -> &'static str {
+        "xmlo"
+    }
+
     fn span(&self) -> Span {
         use XmloToken::*;
 

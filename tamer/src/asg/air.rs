@@ -73,6 +73,10 @@ pub enum AirToken {
 }
 
 impl Token for AirToken {
+    fn ir_name() -> &'static str {
+        "AIR"
+    }
+
     fn span(&self) -> crate::span::Span {
         // TODO: This can be provided once the xmlo files store source
         //   locations for symbols.

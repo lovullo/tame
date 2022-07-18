@@ -48,6 +48,12 @@ use std::{
 pub trait Token: Display + Debug + PartialEq {
     /// Retrieve the [`Span`] representing the source location of the token.
     fn span(&self) -> Span;
+
+    /// Name of the intermediate representation (IR) this token represents.
+    ///
+    /// This is used for diagnostic information,
+    ///   primarily for debugging TAMER itself.
+    fn ir_name() -> &'static str;
 }
 
 impl<T: Token> From<T> for Span {
@@ -67,6 +73,10 @@ pub struct UnknownToken;
 impl Token for UnknownToken {
     fn span(&self) -> Span {
         DUMMY_SPAN
+    }
+
+    fn ir_name() -> &'static str {
+        "<UNKNOWN IR>"
     }
 }
 
@@ -124,12 +134,16 @@ pub mod test {
     }
 
     impl Display for TestToken {
-        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            unimplemented!("fmt::Display")
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "(test token)")
         }
     }
 
     impl Token for TestToken {
+        fn ir_name() -> &'static str {
+            "<PARSE TEST IR>"
+        }
+
         fn span(&self) -> Span {
             use TestToken::*;
             match self {

@@ -160,6 +160,12 @@ impl Attr {
 }
 
 impl Token for Attr {
+    fn ir_name() -> &'static str {
+        // This may be used by multiple things,
+        //   but it's primarily used by XIRF.
+        "XIRF"
+    }
+
     fn span(&self) -> Span {
         match self {
             Attr(.., attr_span) => attr_span.span(),
