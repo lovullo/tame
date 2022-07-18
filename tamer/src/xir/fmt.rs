@@ -30,9 +30,16 @@ pub type XmlAttrList = AndQualConjList<"attribute", "attributes", Tt<XmlAttr>>;
 /// Opening tag for XML element.
 pub type OpenXmlEle = Delim<"<", ">", Raw>;
 
+/// Opening tag for XML element.
+pub type CloseXmlEle = Delim<"</", ">", Raw>;
+
 /// Opening tag for XML element as teletypewriter
 ///   (for use in sentences).
 pub type TtOpenXmlEle = Tt<OpenXmlEle>;
+
+/// Closing tag for XML element as teletypewriter
+///   (for use in sentences).
+pub type TtCloseXmlEle = Tt<CloseXmlEle>;
 
 /// A choice of a list of opening XML tags.
 pub type OpenEleSumList =

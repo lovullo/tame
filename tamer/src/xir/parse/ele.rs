@@ -184,7 +184,7 @@ macro_rules! ele_parse {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
                         fmt::{DisplayWrapper, TtQuote},
-                        xir::fmt::TtOpenXmlEle,
+                        xir::fmt::{TtOpenXmlEle, TtCloseXmlEle},
                     };
 
                     match self {
@@ -193,7 +193,8 @@ macro_rules! ele_parse {
                             "expecting opening tag {}",
                             TtOpenXmlEle::wrap($qname),
                         ),
-                        Self::RecoverEleIgnore_(name, ..) => write!(
+                        Self::RecoverEleIgnore_(name, ..)
+                        | Self::RecoverEleIgnoreClosed_(name, ..) => write!(
                             f,
                             "attempting to recover by ignoring element \
                                with unexpected name {given} \
@@ -202,7 +203,12 @@ macro_rules! ele_parse {
                             expected = TtQuote::wrap($qname),
                         ),
 
-                        Self::Attrs_(sa) => todo!("Attrs_ Display: {sa:?}"),
+                        Self::Attrs_(sa) => std::fmt::Display::fmt(sa, f),
+                        Self::ExpectClose_(_) => write!(
+                            f,
+                            "expecting closing element {}",
+                            TtCloseXmlEle::wrap($qname)
+                        ),
                         Self::Closed_(_) => write!(
                             f,
                             "element {} closed",
@@ -211,7 +217,6 @@ macro_rules! ele_parse {
                         $(
                             Self::$ntref(st) => std::fmt::Display::fmt(st, f),
                         )*
-                        todo => todo!("other Display: {todo:?}"),
                     }
                 }
             }
