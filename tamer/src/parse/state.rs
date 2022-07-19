@@ -478,6 +478,12 @@ pub mod context {
         }
     }
 
+    impl<T: Debug + Default> AsMut<Context<T>> for Context<T> {
+        fn as_mut(&mut self) -> &mut Context<T> {
+            self
+        }
+    }
+
     impl<T: Debug + Default> Deref for Context<T> {
         type Target = T;
 

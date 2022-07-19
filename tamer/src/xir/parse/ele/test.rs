@@ -24,6 +24,13 @@
 //!     and so testing of that parsing is not duplicated here.
 //! A brief visual inspection of the implementation of `ele_parse`
 //!   should suffice to verify this claim.
+//!
+//! [`Parser`] is configured to output a parse trace to stderr for tests,
+//!   which is visible when a test fails;
+//!     this aids in debugging and study.
+//! To force it to output on a successful test to observe the behavior of
+//!   the system,
+//!     simply force the test to panic at the end.
 
 use crate::{
     convert::ExpectInto,
@@ -44,6 +51,8 @@ const S3: Span = S2.offset_add(1).unwrap();
 const S4: Span = S3.offset_add(1).unwrap();
 const S5: Span = S4.offset_add(1).unwrap();
 const S6: Span = S5.offset_add(1).unwrap();
+const S7: Span = S6.offset_add(1).unwrap();
+const S8: Span = S7.offset_add(1).unwrap();
 
 // Some number (value does not matter).
 const N: EleNameLen = 10;
@@ -522,6 +531,118 @@ fn child_error_and_recovery() {
     );
 }
 
+// This differs from the above test in that we encounter unexpected elements
+//   when we expected to find the end tag.
+// This means that the element _name_ is not in error,
+//   but the fact that an element exists _at all_ is.
+#[test]
+fn child_error_and_recovery_at_close() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open,
+        Close,
+    }
+
+    impl Object for Foo {}
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE {
+            @ {} => Foo::Open,
+            / => Foo::Close,
+        }
+    }
+
+    let unexpected_a = "unexpected a".unwrap_into();
+    let unexpected_b = "unexpected b".unwrap_into();
+    let span_a = OpenSpan(S2, N);
+    let span_b = OpenSpan(S4, N);
+
+    let toks = vec![
+        // The first token is the expected root.
+        XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
+        // Sut is now expecting either attributes
+        //   (of which there are none),
+        //   or a closing element.
+        // In either case,
+        //   an opening element is entirely unexpected.
+        XirfToken::Open(unexpected_a, span_a, Depth(1)),
+        // And so we should ignore it up to this point.
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // Let's do the same thing again.
+        // It may be ideal to have another error exposed for each individual
+        //   element that is unexpected,
+        //     but for now the parser is kept simple and we simply continue
+        //     to ignore elements until we reach the close.
+        XirfToken::Open(unexpected_b, span_b, Depth(1)),
+        // And so we should ignore it up to this point.
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+        // Let's mix it up a bit with some text and make sure that is
+        //   ignored too.
+        XirfToken::Text("unexpected text".unwrap_into(), S5),
+        // Having recovered from the above tokens,
+        //   this will end parsing for `Sut` as expected.
+        XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S6, N), Depth(0)),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    // The first token is expected,
+    //   and we enter attribute parsing for `Sut`.
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut] Open 0
+
+    // The second token _will_ be unexpected,
+    //   but we're parsing attributes for `Sut`,
+    //   so we don't know that yet.
+    // Instead,
+    //   the `Open` ends attribute parsing and yields a token of lookahead.
+    assert_eq!(
+        Some(Ok(Parsed::Object(Foo::Open))), // [Sut@] Open 1 (>LA)
+        sut.next()
+    );
+
+    // The token of lookahead (`Open`) is unexpected for `Sut`,
+    //   which is expecting `Close`.
+    // The token should be consumed and returned in the error,
+    //   _not_ produced as a token of lookahead,
+    //   since we do not want to reprocess bad input.
+    assert_eq!(
+        // TODO: This references generated identifiers.
+        Some(Err(ParseError::StateError(SutError_::CloseExpected_(
+            XirfToken::Open(unexpected_a, span_a, Depth(1)),
+        )))),
+        sut.next(),
+    );
+
+    // The recovery state must not be in an accepting state,
+    //   because we didn't close at the root depth yet.
+    let (mut sut, _) =
+        sut.finalize().expect_err("recovery must not be accepting");
+
+    // The next token is the self-closing `Close` for the unexpected opening
+    //   tag.
+    // Since we are in recovery,
+    //   it should be ignored.
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Close 1
+
+    // We are still in recovery,
+    //   and so we should still be ignoring tokens.
+    // It may be more ideal to throw individual errors per unexpected
+    //   element
+    //     (though doing so may be noisy if there is a lot),
+    //       but for now the parser is kept simple.
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Open 1
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Close 1
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Text
+
+    // Having recovered from the error,
+    //   we should now be able to close successfully.
+    assert_eq!(Some(Ok(Parsed::Object(Foo::Close))), sut.next());
+    sut.finalize()
+        .expect("recovery must complete in an accepting state");
+}
+
 // A nonterminal of the form `(A | ... | Z)` should accept the element of
 //   any of the inner nonterminals.
 #[test]
@@ -579,6 +700,76 @@ fn sum_nonterminal_accepts_any_valid_element() {
                 Sut::parse(toks.into_iter()).collect(),
             );
         });
+}
+
+// Compose sum NTs with a parent element.
+#[test]
+fn sum_nonterminal_as_child_element() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open(QName),
+        Close(QName),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_PACKAGE;
+    const QN_B: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE {
+            @ {} => Foo::Open(QN_ROOT),
+            / => Foo::Close(QN_ROOT),
+
+            // A|B followed by a B.
+            AB,
+            B,
+        }
+
+        AB := (A | B);
+
+        A := QN_A {
+            @ {} => Foo::Open(QN_A),
+            / => Foo::Close(QN_A),
+        }
+
+        B := QN_B {
+            @ {} => Foo::Open(QN_B),
+            / => Foo::Close(QN_B),
+        }
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // A
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // B
+        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S5, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+
+    assert_eq!(
+        Ok(vec![
+            Incomplete,                  // [Sut]  Root Open
+            Object(Foo::Open(QN_ROOT)),  // [Sut@] A Open (>LA)
+            Incomplete,                  // [A]  A Open (<LA)
+            Object(Foo::Open(QN_A)),     // [A@] A Close (>LA)
+            Object(Foo::Close(QN_A)),    // [A]  A Close (<LA)
+            Incomplete,                  // [B]  B Open
+            Object(Foo::Open(QN_B)),     // [B@] B Close (>LA)
+            Object(Foo::Close(QN_B)),    // [B]  B Close (<LA)
+            Object(Foo::Close(QN_ROOT)), // [Sut]  Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
 }
 
 #[test]
@@ -668,4 +859,305 @@ fn sum_nonterminal_error_recovery() {
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Close root
     sut.finalize()
         .expect("recovery must complete in an accepting state");
+}
+
+#[test]
+fn child_repetition() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        RootOpen,
+        ChildOpen(QName),
+        ChildClose(QName),
+        RootClose,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_DIM;
+    const QN_B: QName = QN_CLASSIFY;
+    const QN_C: QName = QN_EXPORT;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE {
+            @ {} => Foo::RootOpen,
+            / => Foo::RootClose,
+
+            // Two adjacent repeating followed by a non-repeating.
+            // While there's nothing inherently concerning here,
+            //   this is just meant to test both types of following states.
+            ChildA[*],
+            ChildB[*],
+            ChildC,
+        }
+
+        ChildA := QN_A {
+            @ {} => Foo::ChildOpen(QN_A),
+            / => Foo::ChildClose(QN_A),
+        }
+
+        ChildB := QN_B {
+            @ {} => Foo::ChildOpen(QN_B),
+            / => Foo::ChildClose(QN_B),
+        }
+
+        ChildC := QN_C {
+            @ {} => Foo::ChildOpen(QN_C),
+            / => Foo::ChildClose(QN_C),
+        }
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // ChildA (1)
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // ChildA (2)
+        XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // ChildB (1)
+        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+        // ChildB (2)
+        XirfToken::Open(QN_B, OpenSpan(S5, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        // ChildC (only)
+        XirfToken::Open(QN_C, OpenSpan(S6, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+
+    // Note that we cannot observe the handoff after the repeating parsers
+    //   below because Parser immediately recur.
+    // For example,
+    //   when ChildA has been closed,
+    //   it awaits the next token to see if it should reset or if it should
+    //   emit a dead state.
+    // If it receives `QN_A`,
+    //   then it'll reset.
+    // However,
+    //   `QN_B` will cause it to emit `dead` with the `Open` token as
+    //   lookahead,
+    //     which then gets turned into `Incomplete` with lookahead by
+    //       `ParseState::delegate`,
+    //     which then causes `Parser` to immediate recur,
+    //       masking the `Incomplete` entirely.
+    // And so what we see below is a cleaner,
+    //   albeit not entirely honest,
+    //   script.
+    //
+    // (Also please note that the above description is true as of the time
+    //   of writing,
+    //     but it's possible that this comment has not been updated since
+    //     then.)
+    assert_eq!(
+        Ok(vec![
+            Incomplete,                    // [Sut]     Root Open
+            Object(Foo::RootOpen),         // [Sut@]    ChildA Open (>LA)
+            Incomplete,                    // [ChildA]  ChildA Open (<LA)
+            Object(Foo::ChildOpen(QN_A)),  // [ChildA@] ChildA Close (>LA)
+            Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close (<LA)
+            Incomplete,                    // [ChildA]  ChildA Open (<LA)
+            Object(Foo::ChildOpen(QN_A)),  // [ChildA@] ChildA Close (>LA)
+            Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close (<LA)
+            Incomplete,                    // [ChildB]  ChildB Open (<LA)
+            Object(Foo::ChildOpen(QN_B)),  // [ChildB@] ChildB Close (>LA)
+            Object(Foo::ChildClose(QN_B)), // [ChildB]  ChildB Close (<LA)
+            Incomplete,                    // [ChildB]  ChildB Open (<LA)
+            Object(Foo::ChildOpen(QN_B)),  // [ChildB@] ChildB Close (>LA)
+            Object(Foo::ChildClose(QN_B)), // [ChildB]  ChildB Close (<LA)
+            Incomplete,                    // [ChildC]  ChildC Open (<LA)
+            Object(Foo::ChildOpen(QN_C)),  // [ChildC@] ChildC Close (>LA)
+            Object(Foo::ChildClose(QN_C)), // [ChildC]  ChildC Close (<LA)
+            Object(Foo::RootClose),        // [Sut]     Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+#[test]
+fn child_repetition_invalid_tok_dead() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        RootOpen,
+        ChildOpen,
+        ChildClose,
+        RootClose,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_CHILD: QName = QN_DIM;
+    let unexpected: QName = "unexpected".unwrap_into();
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE {
+            @ {} => Foo::RootOpen,
+            / => Foo::RootClose,
+
+            Child[*],
+        }
+
+        Child := QN_CHILD {
+            @ {} => Foo::ChildOpen,
+            / => Foo::ChildClose,
+        }
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // Child (success)
+        XirfToken::Open(QN_CHILD, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // Repeat (unexpected)
+        XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    use Parsed::*;
+
+    let mut next = || sut.next();
+
+    assert_eq!(next(), Some(Ok(Incomplete))); // [Sut] Open
+    assert_eq!(next(), Some(Ok(Object(Foo::RootOpen)))); // [Sut@] Open >
+    assert_eq!(next(), Some(Ok(Incomplete))); // [Child] Open <
+    assert_eq!(next(), Some(Ok(Object(Foo::ChildOpen)))); // [Child@] Close >
+    assert_eq!(next(), Some(Ok(Object(Foo::ChildClose)))); // [Child] Close <
+
+    // Intuitively,
+    //   we may want to enter recovery and ignore the element.
+    // But the problem is that we need to emit a dead state so that other
+    //   parsers can handle the input,
+    //     because it may simply be the case that our repetition is over.
+    //
+    // Given that dead state and token of lookahead,
+    //   `Parser` will immediately recurse to re-process the erroneous
+    //   `Open`.
+    // Since the next token expected after the `Child` NT is `Close`,
+    //   this will result in an error and trigger recovery _on `Sut`_,
+    //     which will ignore the erroneous `Open`.
+    assert_eq!(
+        next(),
+        // TODO: This references generated identifiers.
+        Some(Err(ParseError::StateError(SutError_::CloseExpected_(
+            XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
+        )))),
+    );
+
+    // This next token is also ignored as part of recovery.
+    assert_eq!(next(), Some(Ok(Incomplete))); // [Sut] Child Close
+
+    // Finally,
+    //   `Sut` encounters its expected `Close` and ends recovery.
+    assert_eq!(next(), Some(Ok(Object(Foo::RootClose)))); // [Sut] Close
+    sut.finalize()
+        .expect("recovery must complete in an accepting state");
+}
+
+// Repetition on a nonterminal of the form `(A | ... | Z)` will allow any
+//   number of `A` through `Z` in any order.
+// This is similar to the above test.
+#[test]
+fn sum_repetition() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open(QName),
+        Close(QName),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_DIM;
+    const QN_B: QName = QN_CLASSIFY;
+    const QN_C: QName = QN_EXPORT;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_PACKAGE {
+            @ {} => Foo::Open(QN_ROOT),
+            / => Foo::Close(QN_ROOT),
+
+            // A|B|C in any order,
+            //   any number of times.
+            ABC[*],
+        }
+
+        ABC := (A | B | C );
+
+        A := QN_A {
+            @ {} => Foo::Open(QN_A),
+            / => Foo::Close(QN_A),
+        }
+
+        B := QN_B {
+            @ {} => Foo::Open(QN_B),
+            / => Foo::Close(QN_B),
+        }
+
+        C := QN_C {
+            @ {} => Foo::Open(QN_C),
+            / => Foo::Close(QN_C),
+        }
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // A (1)
+        XirfToken::Open(QN_A, OpenSpan(S1, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S2), Depth(1)),
+        // A (2)
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // B (1)
+        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // C (1)
+        XirfToken::Open(QN_C, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+        // B (2)
+        XirfToken::Open(QN_B, OpenSpan(S5, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S7, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+
+    // See notes on preceding repetition test `child_repetition` regarding
+    //   the suppression of `Incomplete` for dead states.
+    assert_eq!(
+        Ok(vec![
+            Incomplete,                  // [Sut]  Root Open
+            Object(Foo::Open(QN_ROOT)),  // [Sut@] A Open (>LA)
+            Incomplete,                  // [A]  A Open (<LA)
+            Object(Foo::Open(QN_A)),     // [A@] A Close (>LA)
+            Object(Foo::Close(QN_A)),    // [A]  A Close (<LA)
+            Incomplete,                  // [A]  A Open
+            Object(Foo::Open(QN_A)),     // [A@] A Close (>LA)
+            Object(Foo::Close(QN_A)),    // [A]  A Close (<LA)
+            Incomplete,                  // [B]  B Open
+            Object(Foo::Open(QN_B)),     // [B@] B Close (>LA)
+            Object(Foo::Close(QN_B)),    // [B]  B Close (<LA)
+            Incomplete,                  // [C]  C Open
+            Object(Foo::Open(QN_C)),     // [C@] C Close (>LA)
+            Object(Foo::Close(QN_C)),    // [C]  C Close (<LA)
+            Incomplete,                  // [B]  B Open
+            Object(Foo::Open(QN_B)),     // [B@] B Close (>LA)
+            Object(Foo::Close(QN_B)),    // [B]  B Close (<LA)
+            Object(Foo::Close(QN_ROOT)), // [Sut]  Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
 }

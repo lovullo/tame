@@ -309,7 +309,7 @@ macro_rules! attr_parse {
                     Self { ___ctx: (ele, _), .. } => {
                         write!(
                             f,
-                            "parsing attributes for element {}",
+                            "expecting attributes for element {}",
                             TtQuote::wrap(ele)
                         )
                     }
