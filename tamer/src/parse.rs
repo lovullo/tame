@@ -46,14 +46,14 @@ use std::{
 /// A token may be a lexeme with associated data,
 ///   or a more structured object having been lowered from other IRs.
 pub trait Token: Display + Debug + PartialEq {
-    /// Retrieve the [`Span`] representing the source location of the token.
-    fn span(&self) -> Span;
-
     /// Name of the intermediate representation (IR) this token represents.
     ///
     /// This is used for diagnostic information,
     ///   primarily for debugging TAMER itself.
     fn ir_name() -> &'static str;
+
+    /// Retrieve the [`Span`] representing the source location of the token.
+    fn span(&self) -> Span;
 }
 
 impl<T: Token> From<T> for Span {
