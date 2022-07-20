@@ -193,13 +193,13 @@ macro_rules! ele_parse {
                 ///   may be a child element,
                 ///     but it may be text,
                 ///     for example.
-                CloseRecoverIgnore_(Depth, crate::span::Span),
+                CloseRecoverIgnore_((crate::span::Span, Depth), crate::span::Span),
                 /// Parsing element attributes.
-                Attrs_(Depth, [<$nt AttrsState_>]),
+                Attrs_((crate::span::Span, Depth), [<$nt AttrsState_>]),
                 $(
-                    $ntref(Depth, $ntref),
+                    $ntref((crate::span::Span, Depth), $ntref),
                 )*
-                ExpectClose_(Depth, ()),
+                ExpectClose_((crate::span::Span, Depth), ()),
                 /// Closing tag found and parsing of the element is
                 ///   complete.
                 Closed_(crate::span::Span),
@@ -238,7 +238,7 @@ macro_rules! ele_parse {
                             given = TtQuote::wrap(name),
                             expected = TtQuote::wrap($qname),
                         ),
-                        Self::CloseRecoverIgnore_(depth, _) => write!(
+                        Self::CloseRecoverIgnore_((_, depth), _) => write!(
                             f,
                             "attempting to recover by ignoring input \
                                until the expected end tag {expected} \
@@ -247,7 +247,7 @@ macro_rules! ele_parse {
                         ),
 
                         Self::Attrs_(_, sa) => std::fmt::Display::fmt(sa, f),
-                        Self::ExpectClose_(depth, _) => write!(
+                        Self::ExpectClose_((_, depth), _) => write!(
                             f,
                             "expecting closing element {} at depth {depth}",
                             TtCloseXmlEle::wrap($qname)
@@ -271,10 +271,15 @@ macro_rules! ele_parse {
                 /// An element was expected,
                 ///   but the name of the element was unexpected.
                 UnexpectedEle_(crate::xir::QName, crate::span::Span),
+
                 /// Unexpected input while expecting an end tag for this
                 ///   element.
-                CloseExpected_(crate::xir::flat::XirfToken),
+                ///
+                /// The span corresponds to the opening tag.
+                CloseExpected_(crate::span::Span, crate::xir::flat::XirfToken),
+
                 Attrs_(crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>),
+
                 $(
                     $ntref([<$ntref Error_>]),
                 )*
@@ -313,10 +318,13 @@ macro_rules! ele_parse {
                     };
 
                     match self {
-                        Self::UnexpectedEle_(name, _) => {
-                            write!(f, "unexpected {}", TtOpenXmlEle::wrap(name))
-                        }
-                        Self::CloseExpected_(tok) => write!(
+                        Self::UnexpectedEle_(name, _) => write!(
+                            f,
+                            "unexpected {unexpected} (expecting {expected})",
+                            unexpected = TtOpenXmlEle::wrap(name),
+                            expected = TtOpenXmlEle::wrap($qname),
+                        ),
+                        Self::CloseExpected_(_, tok) => write!(
                             f,
                             "expected {}, but found {}",
                             TtCloseXmlEle::wrap($qname),
@@ -332,7 +340,35 @@ macro_rules! ele_parse {
 
             impl crate::diagnose::Diagnostic for [<$nt Error_>] {
                 fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-                    todo!()
+                    use crate::{
+                        diagnose::Annotate,
+                        fmt::{DisplayWrapper, TtQuote},
+                        parse::Token,
+                        xir::fmt::{TtCloseXmlEle},
+                    };
+
+                    match self {
+                        Self::UnexpectedEle_(_, ospan) => ospan.error(
+                            format!(
+                                "expected {ele_name} here",
+                                ele_name = TtQuote::wrap($qname)
+                            )
+                        ).into(),
+
+                        Self::CloseExpected_(span, tok) => vec![
+                            span.note("element starts here"),
+                            tok.span().error(format!(
+                                "expected {}",
+                                TtCloseXmlEle::wrap($qname),
+                            )),
+                        ],
+
+                        Self::Attrs_(e) => e.describe(),
+
+                        $(
+                            Self::$ntref(e) => e.describe(),
+                        )*
+                    }
                 }
             }
 
@@ -366,16 +402,20 @@ macro_rules! ele_parse {
                             Expecting_,
                             XirfToken::Open(qname, span, depth)
                         ) if qname == $qname => {
-                            Transition(Attrs_(depth, parse_attrs(qname, span)))
-                                .incomplete()
+                            Transition(Attrs_(
+                                (span.tag_span(), depth),
+                                parse_attrs(qname, span)
+                            )).incomplete()
                         },
 
                         (
                             Closed_(..),
                             XirfToken::Open(qname, span, depth)
                         ) if cfg.repeat && qname == $qname => {
-                            Transition(Attrs_(depth, parse_attrs(qname, span)))
-                                .incomplete()
+                            Transition(Attrs_(
+                                (span.tag_span(), depth),
+                                parse_attrs(qname, span)
+                            )).incomplete()
                         },
 
                         (Expecting_, XirfToken::Open(qname, span, depth)) => {
@@ -391,11 +431,11 @@ macro_rules! ele_parse {
                             Transition(RecoverEleIgnoreClosed_(qname, span)).incomplete()
                         },
 
-                        (Attrs_(depth, sa), tok) => {
+                        (Attrs_(meta, sa), tok) => {
                             sa.delegate_until_obj(
                                 tok,
                                 EmptyContext,
-                                |sa| Transition(Attrs_(depth, sa)),
+                                |sa| Transition(Attrs_(meta, sa)),
                                 || unreachable!("see ParseState::delegate_until_obj dead"),
                                 |#[allow(unused_variables)] sa, attrs| {
                                     let obj = match attrs {
@@ -415,7 +455,7 @@ macro_rules! ele_parse {
                                         },
                                     };
 
-                                    Transition($ntfirst(depth, Default::default()))
+                                    Transition($ntfirst(meta, Default::default()))
                                         .ok(obj)
                                 }
                             )
@@ -435,7 +475,8 @@ macro_rules! ele_parse {
                         // XIRF ensures proper nesting,
                         //   so we do not need to check the element name.
                         (
-                            ExpectClose_(depth, ()) | CloseRecoverIgnore_(depth, _),
+                            ExpectClose_((_, depth), ())
+                            | CloseRecoverIgnore_((_, depth), _),
                             XirfToken::Close(_, span, tok_depth)
                         ) if tok_depth == depth => {
                             $(
@@ -444,11 +485,11 @@ macro_rules! ele_parse {
                             $closemap.transition(Closed_(span.tag_span()))
                         },
 
-                        (ExpectClose_(depth, ()), unexpected_tok) => {
+                        (ExpectClose_(meta @ (otspan, _), ()), unexpected_tok) => {
                             use crate::parse::Token;
                             Transition(
-                                CloseRecoverIgnore_(depth, unexpected_tok.span())
-                            ).err([<$nt Error_>]::CloseExpected_(unexpected_tok))
+                                CloseRecoverIgnore_(meta, unexpected_tok.span())
+                            ).err([<$nt Error_>]::CloseExpected_(otspan, unexpected_tok))
                         }
 
                         // We're still in recovery,
@@ -584,7 +625,32 @@ macro_rules! ele_parse {
 
             impl crate::diagnose::Diagnostic for [<$nt Error_>] {
                 fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-                    todo!()
+                    use crate::{
+                        diagnose::Annotate,
+                        fmt::{DisplayWrapper, ListDisplayWrapper, TtQuote},
+                        xir::fmt::OpenEleSumList,
+                    };
+
+                    let ntrefs = [
+                        $(
+                            $ntref::qname(),
+                        )*
+                    ];
+                    let expected = OpenEleSumList::wrap(&ntrefs);
+
+                    match self {
+                        Self::UnexpectedEle_(qname, span) => {
+                            span.error(format!(
+                                "element {name} cannot appear here \
+                                   (expecting {expected})",
+                                name = TtQuote::wrap(qname),
+                            )).into()
+                        },
+
+                        $(
+                            Self::$ntref(e) => e.describe(),
+                        )*
+                    }
                 }
             }
 

@@ -34,6 +34,7 @@
 
 use crate::{
     convert::ExpectInto,
+    diagnose::Diagnostic,
     parse::{Object, ParseError, ParseState, Parsed},
     span::{Span, DUMMY_SPAN},
     sym::SymbolId,
@@ -270,14 +271,19 @@ fn unexpected_element() {
     //     was encountered
     //       (which was expected),
     //       but to the fact that the name was not the one expected.
+    let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        Some(Err(ParseError::StateError(SutError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::UnexpectedEle_(
             unexpected,
             span.name_span()
-        )))),
-        sut.next(),
+        )),
+        err,
     );
+
+    // The diagnostic should describe the name of the element as being
+    //   invalid.
+    assert_eq!(err.describe()[0].span(), span.name_span());
 
     // We should have now entered a recovery mode whereby we discard
     //   input until we close the element that introduced the error.
@@ -500,13 +506,17 @@ fn child_error_and_recovery() {
     // The token should be consumed and returned in the error,
     //   _not_ produced as a token of lookahead,
     //   since we do not want to reprocess bad input.
+    let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        Some(Err(ParseError::StateError(SutError_::ChildA(
+        ParseError::StateError(SutError_::ChildA(
             ChildAError_::UnexpectedEle_(unexpected, span.name_span())
-        )))),
-        sut.next(),
+        )),
+        err,
     );
+
+    // Diagnostic message should be delegated to the child.
+    assert_eq!(err.describe()[0].span(), span.name_span());
 
     // The next token is the self-closing `Close` for the unexpected opening
     //   tag.
@@ -607,13 +617,24 @@ fn child_error_and_recovery_at_close() {
     // The token should be consumed and returned in the error,
     //   _not_ produced as a token of lookahead,
     //   since we do not want to reprocess bad input.
+    let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        Some(Err(ParseError::StateError(SutError_::CloseExpected_(
+        ParseError::StateError(SutError_::CloseExpected_(
+            OpenSpan(S1, N).tag_span(),
             XirfToken::Open(unexpected_a, span_a, Depth(1)),
-        )))),
-        sut.next(),
+        )),
+        err,
     );
+
+    // The diagnostic information should include a reference to where the
+    //   element was opened
+    //     (so that the user understands what needs closing),
+    //     followed by the span of the token in error
+    //       (which naturally comes after the opening tag).
+    let desc = err.describe();
+    assert_eq!(desc[0].span(), S1); // Span of opening tag we want closed
+    assert_eq!(desc[1].span(), span_a.span()); // Span of error
 
     // The recovery state must not be in an accepting state,
     //   because we didn't close at the root depth yet.
@@ -833,14 +854,18 @@ fn sum_nonterminal_error_recovery() {
     //     was encountered
     //       (which was expected),
     //       but to the fact that the name was not the one expected.
+    let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        sut.next(),
+        err,
         // TODO: This references generated identifiers.
-        Some(Err(ParseError::StateError(SutError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::UnexpectedEle_(
             unexpected,
             OpenSpan(S1, N).name_span(),
-        )))),
+        )),
     );
+
+    // Diagnostic message should describe the name of the element.
+    assert_eq!(err.describe()[0].span(), OpenSpan(S1, N).name_span());
 
     // We should have now entered a recovery mode whereby we discard
     //   input until we close the element that introduced the error.
@@ -1051,6 +1076,7 @@ fn child_repetition_invalid_tok_dead() {
         next(),
         // TODO: This references generated identifiers.
         Some(Err(ParseError::StateError(SutError_::CloseExpected_(
+            OpenSpan(S1, N).tag_span(),
             XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
         )))),
     );
