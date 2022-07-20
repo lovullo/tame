@@ -34,13 +34,13 @@ pub struct EleParseCfg {
     /// Whether to allow zero-or-more repetition for this element.
     ///
     /// This is the Kleene star modifier (`*`).
-    repeat: bool,
+    pub repeat: bool,
 }
 
 #[macro_export]
 macro_rules! ele_parse {
     (type Object = $objty:ty; $($rest:tt)*) => {
-        ele_parse!(@!nonterm_decl <$objty> $($rest)*)
+        ele_parse!(@!nonterm_decl <$objty> $($rest)*);
     };
 
     (@!nonterm_decl <$objty:ty> $nt:ident := $($rest:tt)*) => {
@@ -138,7 +138,7 @@ macro_rules! ele_parse {
             //   `$attrmap`.
             $(
                 $(#[$fattr:meta])*
-                $field:ident: ($fmatch:tt) => $fty:ty,
+                $field:ident: ($($fmatch:tt)+) => $fty:ty,
             )*
         } => $attrmap:expr,
 
@@ -165,7 +165,7 @@ macro_rules! ele_parse {
                 struct [<$nt AttrsState_>] -> [<$nt Attrs_>] {
                     $(
                         $(#[$fattr])*
-                        $field: ($fmatch) => $fty,
+                        $field: ($($fmatch)+) => $fty,
                     )*
                 }
             }
@@ -182,7 +182,11 @@ macro_rules! ele_parse {
                 Expecting_,
                 /// Recovery state ignoring all remaining tokens for this
                 ///   element.
-                RecoverEleIgnore_(crate::xir::QName, crate::xir::OpenSpan, Depth),
+                RecoverEleIgnore_(
+                    crate::xir::QName,
+                    crate::xir::OpenSpan,
+                    crate::xir::flat::Depth
+                ),
                 // Recovery completed because end tag corresponding to the
                 //   invalid element has been found.
                 RecoverEleIgnoreClosed_(crate::xir::QName, crate::xir::CloseSpan),
@@ -193,19 +197,28 @@ macro_rules! ele_parse {
                 ///   may be a child element,
                 ///     but it may be text,
                 ///     for example.
-                CloseRecoverIgnore_((crate::span::Span, Depth), crate::span::Span),
+                CloseRecoverIgnore_(
+                    (crate::span::Span, crate::xir::flat::Depth),
+                    crate::span::Span
+                ),
                 /// Parsing element attributes.
-                Attrs_((crate::span::Span, Depth), [<$nt AttrsState_>]),
+                Attrs_(
+                    (crate::span::Span, crate::xir::flat::Depth),
+                    [<$nt AttrsState_>]
+                ),
                 $(
-                    $ntref((crate::span::Span, Depth), $ntref),
+                    $ntref(
+                        (crate::span::Span, crate::xir::flat::Depth),
+                        $ntref
+                    ),
                 )*
-                ExpectClose_((crate::span::Span, Depth), ()),
+                ExpectClose_((crate::span::Span, crate::xir::flat::Depth), ()),
                 /// Closing tag found and parsing of the element is
                 ///   complete.
                 Closed_(crate::span::Span),
             }
 
-            impl crate::xir::parse::ele::EleParseState for $nt {}
+            impl crate::xir::parse::EleParseState for $nt {}
 
             impl $nt {
                 /// [`QName`](crate::xir::QName) of the element recognized
@@ -376,7 +389,7 @@ macro_rules! ele_parse {
                 type Token = crate::xir::flat::XirfToken;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
-                type Context = crate::parse::Context<crate::xir::parse::ele::EleParseCfg>;
+                type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;
 
                 fn parse_token(
                     self,
@@ -386,8 +399,9 @@ macro_rules! ele_parse {
                     use crate::{
                         parse::{EmptyContext, Transition, Transitionable},
                         xir::{
+                            EleSpan,
                             flat::XirfToken,
-                            parse::attr::parse_attrs,
+                            parse::parse_attrs,
                         },
                     };
 

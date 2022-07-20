@@ -185,6 +185,26 @@ fn optional_with_values() {
     );
 }
 
+// This test would fail at compile time.
+#[test]
+fn attr_value_into() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct Foo;
+
+    impl From<Attr> for Foo {
+        fn from(_: Attr) -> Self {
+            unimplemented!()
+        }
+    }
+
+    attr_parse! {
+        struct OptValuesState -> OptValues {
+            name: (QN_NAME) => Foo,
+            yields: (QN_YIELDS?) => Option<Foo>,
+        }
+    }
+}
+
 #[test]
 fn optional_with_all_missing() {
     attr_parse! {

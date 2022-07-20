@@ -25,4 +25,5 @@
 mod attr;
 mod ele;
 
-pub use attr::{AttrParseError, AttrParseState};
+pub use attr::{parse_attrs, AttrParseError, AttrParseState};
+pub use ele::{EleParseCfg, EleParseState};

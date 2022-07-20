@@ -199,7 +199,6 @@ pub trait AttrParseState: ParseState {
 /// This function is useful when the type of [`AttrParseState`] `S` can be
 ///   inferred,
 ///     so that the expression reads more like natural language.
-#[cfg(test)] // currently only used by tests; remove when ready
 pub fn parse_attrs<S: AttrParseState>(ele: QName, span: OpenSpan) -> S {
     S::with_element(ele, span)
 }
@@ -219,7 +218,7 @@ macro_rules! attr_parse {
             //   rather than relying on `Into::into` to cause the error
             //   later on,
             //     which places the error inside the macro definition.
-            assert_impl_all!($ty: From<crate::xir::attr::Attr>);
+            $crate::attr_parse!(@ty_assert $($fmod)? $ty);
         )*
 
         #[doc=concat!("Parser producing [`", stringify!($struct_name), "`].")]
@@ -240,7 +239,7 @@ macro_rules! attr_parse {
             ___done: bool,
             $(
                 // Value + key span
-                pub $field: Option<($ty, Span)>,
+                pub $field: Option<($ty, crate::span::Span)>,
             )*
         }
 
@@ -313,8 +312,11 @@ macro_rules! attr_parse {
         }
 
         impl $state_name {
-            fn done_with_element(ele: crate::xir::QName, span: OpenSpan) -> Self {
-                use crate::xir::parse::attr::AttrParseState;
+            fn done_with_element(
+                ele: crate::xir::QName,
+                span: crate::xir::OpenSpan,
+            ) -> Self {
+                use crate::xir::parse::AttrParseState;
 
                 let mut new = Self::with_element(ele, span);
                 new.___done = true;
@@ -374,7 +376,7 @@ macro_rules! attr_parse {
                     parse::{AttrParseError, AttrParseState}
                 };
                 #[allow(unused_imports)]
-                use crate::xir::attr::Attr; // unused if no attrs
+                use crate::xir::attr::{Attr, AttrSpan}; // unused if no attrs
 
                 match tok {
                     $(
@@ -402,7 +404,9 @@ macro_rules! attr_parse {
                                 // First time seeing attribute name
                                 None => {
                                     self.$field.replace((
-                                        attr.into(),
+                                        $crate::attr_parse!(
+                                            @into_value $($fmod)? attr
+                                        ),
                                         kspan,
                                     ));
 
@@ -448,6 +452,26 @@ macro_rules! attr_parse {
     };
 
     // Optional attribute if input above is of the form `(QN_FOO?) => ...`.
+    (@ty_assert ? $ty:ty) => {
+        // This type assertion isn't supported by `assert_impl_all!`.
+        // The error isn't the most clear,
+        //   but it's better than nothing and we can improve upon it later
+        //   on.
+        const _: fn() = || {
+            trait OptionFromAttr {}
+            impl<T: From<Attr>> OptionFromAttr for Option<T> {}
+
+            // Fail when `$ty` is not Option<impl From<Attr>>.
+            fn assert_attr_option<T: OptionFromAttr>() {}
+            assert_attr_option::<$ty>();
+        };
+    };
+
+    (@ty_assert $ty:ty) => {
+        assert_impl_all!($ty: From<crate::xir::attr::Attr>);
+    };
+
+    // Optional attribute if input above is of the form `(QN_FOO?) => ...`.
     (@if_missing_req ? $from:ident.$field:ident $body:block) => {
         // This is an optional field;
         //   do nothing.
@@ -458,6 +482,15 @@ macro_rules! attr_parse {
         if $from.$field.is_none() {
             $body
         }
+    };
+
+    // Optional attribute if input above is of the form `(QN_FOO?) => ...`.
+    (@into_value ? $from:ident) => {
+        Some($from.into())
+    };
+
+    (@into_value $from:ident) => {
+        $from.into()
     };
 
     // Optional attribute if input above is of the form `(QN_FOO?) => ...`.
