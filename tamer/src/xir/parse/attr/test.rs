@@ -29,7 +29,7 @@ use crate::{
 };
 use std::assert_matches::assert_matches;
 
-const S1: Span = DUMMY_SPAN;
+const S1: Span = DUMMY_SPAN.offset_add(1).unwrap();
 const S2: Span = S1.offset_add(1).unwrap();
 const S3: Span = S2.offset_add(1).unwrap();
 const SE: OpenSpan = OpenSpan(S1.offset_add(100).unwrap(), 0);
@@ -294,10 +294,10 @@ mod required {
             err,
             ParseError::StateError(AttrParseError::MissingRequired(
                 ReqMissingState {
-                    name: Some(ref given_name),
+                    name: Some((ref given_name, _)),
                     src: None, // cause of the error
                     ty: None, // another cause of the error
-                    yields: Some(ref given_yields),
+                    yields: Some((ref given_yields, _)),
                     ..
                 },
             )) if given_name == &ATTR_NAME
@@ -313,8 +313,8 @@ mod required {
         // `required_missing_values` above verifies that this state is what
         //   is in fact constructed from a failed parsing attempt.
         let mut partial = ReqMissingState::with_element(QN_ELE, SE);
-        partial.name.replace(ATTR_NAME);
-        partial.yields.replace(ATTR_YIELDS);
+        partial.name.replace((ATTR_NAME, S1));
+        partial.yields.replace((ATTR_YIELDS, S2));
 
         let err = AttrParseError::MissingRequired(partial);
 
@@ -346,8 +346,8 @@ mod required {
     #[test]
     fn diagnostic_message_contains_all_required_missing_attr_name() {
         let mut partial = ReqMissingState::with_element(QN_ELE, SE);
-        partial.name.replace(ATTR_NAME);
-        partial.yields.replace(ATTR_YIELDS);
+        partial.name.replace((ATTR_NAME, S1));
+        partial.yields.replace((ATTR_YIELDS, S2));
 
         let err = AttrParseError::MissingRequired(partial);
         let desc = err.describe();
@@ -423,6 +423,78 @@ fn unexpected_attr_with_recovery() {
         Ok((
             Unexpected {
                 name: attr_name,
+                src: attr_src,
+            },
+            tok_dead
+        )),
+        parse_aggregate_with(&mut sut),
+    );
+}
+
+// A duplicate attribute will result in an error,
+//   and recovery will cause the duplicate to be ignored.
+#[test]
+fn duplicate_attr_with_recovery() {
+    attr_parse! {
+        struct DupState -> Dup {
+            name: (QN_NAME) => Attr,
+            src: (QN_SRC) => Attr,
+        }
+    }
+
+    let attr_keep = Attr(QN_NAME, "keep me".into(), AttrSpan(S1, S2));
+    let attr_dup = Attr(QN_NAME, "duplicate".into(), AttrSpan(S2, S3));
+    let attr_src = Attr(QN_SRC, "val_src".into(), AttrSpan(S3, S1));
+    let tok_dead = close_empty(S3, Depth(0));
+
+    let toks = vec![
+        // Both of these have the same name (@name).
+        XirfToken::Attr(attr_keep.clone()),
+        XirfToken::Attr(attr_dup.clone()),
+        // Another attribute just to show that error recovery permits
+        //   further attribute parsing.
+        XirfToken::Attr(attr_src.clone()),
+        // Will cause dead state:
+        tok_dead.clone(),
+    ]
+    .into_iter();
+
+    let mut sut = Parser::with_state(DupState::with_element(QN_ELE, SE), toks);
+
+    // The first token is good,
+    //   since we haven't encountered the attribute yet.
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)));
+
+    // The second one results in an error,
+    //   since the name is the same.
+    let err = sut
+        .next()
+        .unwrap()
+        .expect_err("DuplicateAttr error expected");
+
+    assert_eq!(
+        ParseError::StateError(AttrParseError::DuplicateAttr(
+            attr_dup,
+            attr_keep.attr_span().key_span(),
+            QN_ELE,
+        )),
+        err,
+    );
+
+    // The diagnostic description of this error should contain first a
+    //   reference to the original attribute,
+    //     and then a reference to the duplicate.
+    let desc = err.describe();
+    assert_eq!(desc[0].span(), S1);
+    assert_eq!(desc[1].span(), S2);
+
+    // Once parsing is completed,
+    //   we must have kept the first occurrence of the attribute and
+    //   discarded the second.
+    assert_eq!(
+        Ok((
+            Dup {
+                name: attr_keep,
                 src: attr_src,
             },
             tok_dead

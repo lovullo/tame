@@ -41,11 +41,13 @@ use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     fmt::ListDisplayWrapper,
     parse::ParseState,
+    span::Span,
     xir::{attr::Attr, fmt::XmlAttrList, EleSpan, OpenSpan, QName},
 };
 use std::{error::Error, fmt::Display};
 
 pub type ElementQName = QName;
+pub type FirstSpan = Span;
 
 /// Error while parsing element attributes.
 #[derive(Debug, PartialEq)]
@@ -73,6 +75,19 @@ pub enum AttrParseError<S: AttrParseState> {
     ///
     /// Parsing may recover by simply ignoring this attribute.
     UnexpectedAttr(Attr, ElementQName),
+
+    /// An attribute with the same name as a previous attribute has been
+    ///   encountered within the context of this element.
+    ///
+    /// The duplicate attribute is provided in its entirety.
+    /// The key span of the first-encountered attribute of the same name is
+    ///   included to provide more robust diagnostic information.
+    /// The value of the previous attribute is not included because it is
+    ///   expected that the diagnostic system will render the code
+    ///   associated with the span;
+    ///     displaying an attribute value in an error message is asking for
+    ///     too much trouble given that it is arbitrary text.
+    DuplicateAttr(Attr, FirstSpan, ElementQName),
 }
 
 impl<S: AttrParseState> Display for AttrParseError<S> {
@@ -88,7 +103,16 @@ impl<S: AttrParseState> Display for AttrParseError<S> {
             Self::UnexpectedAttr(attr, ele_name) => {
                 write!(
                     f,
-                    "element `{ele_name}` contains unexpected attribute `{attr}`"
+                    "unexpected attribute `{attr}` for \
+                       element element `{ele_name}`"
+                )
+            }
+
+            Self::DuplicateAttr(attr, _, ele_name) => {
+                write!(
+                    f,
+                    "duplicate attribute `{attr}` for \
+                       element element `{ele_name}`"
                 )
             }
         }
@@ -103,6 +127,8 @@ impl<S: AttrParseState> Error for AttrParseError<S> {
 
 impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
     fn describe(&self) -> Vec<AnnotatedSpan> {
+        use crate::fmt::{DisplayWrapper, TtQuote};
+
         match self {
             Self::MissingRequired(st) => st
                 .element_span()
@@ -118,6 +144,19 @@ impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
                 .key_span()
                 .error(format!("element `{ele_name}` cannot contain `{attr}`"))
                 .into(),
+
+            Self::DuplicateAttr(Attr(name, _, aspan), first_span, _) => {
+                vec![
+                    first_span.note(format!(
+                        "{} previously encountered here",
+                        TtQuote::wrap(name)
+                    )),
+                    aspan.key_span().error(format!(
+                        "{} here is a duplicate",
+                        TtQuote::wrap(name)
+                    )),
+                ]
+            }
         }
     }
 }
@@ -200,7 +239,8 @@ macro_rules! attr_parse {
             #[doc(hidden)]
             ___done: bool,
             $(
-                pub $field: Option<$ty>,
+                // Value + key span
+                pub $field: Option<($ty, Span)>,
             )*
         }
 
@@ -342,10 +382,33 @@ macro_rules! attr_parse {
                         //   forget to import a const for `$qname`.
                         // We don't use `$qname:pat` because we reuse
                         //   `$qname` for error messages.
-                        flat::XirfToken::Attr(attr @ Attr(qn, ..)) if qn == $qname => {
-                            // TODO: Error on prev value
-                            self.$field.replace(attr.into());
-                            Transition(self).incomplete()
+                        flat::XirfToken::Attr(
+                            attr @ Attr(qn, _, AttrSpan(kspan, _))
+                        ) if qn == $qname => {
+                            match self.$field {
+                                // Duplicate attribute name
+                                Some((_, first_kspan)) => {
+                                    let ele_name = self.element_name();
+
+                                    Transition(self).err(
+                                        AttrParseError::DuplicateAttr(
+                                            attr,
+                                            first_kspan,
+                                            ele_name,
+                                        )
+                                    )
+                                }
+
+                                // First time seeing attribute name
+                                None => {
+                                    self.$field.replace((
+                                        attr.into(),
+                                        kspan,
+                                    ));
+
+                                    Transition(self).incomplete()
+                                }
+                            }
                         }
                     )*
 
@@ -402,7 +465,10 @@ macro_rules! attr_parse {
         // This does not produce a great error if the user forgets to use an
         //   `Option` type for optional attributes,
         //     but the comment is better than nothing.
-        $from.$field.unwrap_or(None) // field type must be Option<T>
+        match $from.$field { // field type must be Option<T>
+            Some((value, _kspan)) => value,
+            None => None,
+        }
     };
 
     // Otherwise,
@@ -412,7 +478,9 @@ macro_rules! attr_parse {
         // This assumes that we've already validated via
         //   `@validate_req` above,
         //     and so should never actually panic.
-        $from.$field.unwrap()
+        match $from.$field.unwrap() {
+            (value, _kspan) => value
+        }
     };
 }
 
