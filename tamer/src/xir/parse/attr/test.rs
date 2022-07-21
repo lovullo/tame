@@ -21,6 +21,7 @@ use super::*;
 use crate::{
     parse::{ParseError, ParseState, Parsed, Parser, TokenStream},
     span::{Span, DUMMY_SPAN},
+    sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
         flat::{test::close_empty, Depth, XirfToken},
@@ -185,24 +186,127 @@ fn optional_with_values() {
     );
 }
 
-// This test would fail at compile time.
 #[test]
 fn attr_value_into() {
     #[derive(Debug, PartialEq, Eq)]
-    struct Foo;
+    struct Foo(SymbolId);
 
     impl From<Attr> for Foo {
-        fn from(_: Attr) -> Self {
+        fn from(attr: Attr) -> Self {
+            Foo(attr.value())
+        }
+    }
+
+    attr_parse! {
+        // Note that associated type `ValueError` defaults to `Infallible`,
+        //   which is why `From` is sufficient above.
+        struct ValueIntoState -> ValueInto {
+            name: (QN_NAME) => Foo,
+            yields: (QN_YIELDS?) => Option<Foo>,
+        }
+    }
+
+    let val_name = "val_name".into();
+    let val_yields = "val_yields".into();
+    let attr_name = Attr(QN_NAME, val_name, AttrSpan(S1, S2));
+    let attr_yields = Attr(QN_YIELDS, val_yields, AttrSpan(S2, S3));
+    let tok_dead = close_empty(S3, Depth(0));
+
+    let toks = vec![
+        XirfToken::Attr(attr_name.clone()),
+        XirfToken::Attr(attr_yields.clone()),
+        // Will cause dead state:
+        tok_dead.clone(),
+    ]
+    .into_iter();
+
+    assert_eq!(
+        Ok((
+            ValueInto {
+                name: Foo(val_name),
+                yields: Some(Foo(val_yields)),
+            },
+            tok_dead
+        )),
+        parse_aggregate::<ValueIntoState>(toks),
+    );
+}
+
+// This test would fail at compile time.
+#[test]
+fn attr_value_error() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct Foo;
+
+    impl TryFrom<Attr> for Foo {
+        type Error = FooError;
+
+        fn try_from(attr: Attr) -> Result<Self, Self::Error> {
+            Err(FooError(attr.value()))
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct FooError(SymbolId);
+
+    impl Error for FooError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            None
+        }
+    }
+
+    impl Display for FooError {
+        fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            unimplemented!()
+        }
+    }
+
+    impl Diagnostic for FooError {
+        fn describe(&self) -> Vec<AnnotatedSpan> {
             unimplemented!()
         }
     }
 
     attr_parse! {
-        struct OptValuesState -> OptValues {
+        type ValueError = FooError;
+
+        struct ValueIntoState -> ValueInto {
             name: (QN_NAME) => Foo,
             yields: (QN_YIELDS?) => Option<Foo>,
         }
     }
+
+    let val_name = "val_name".into();
+    let val_yields = "val_yields".into();
+    let attr_name = Attr(QN_NAME, val_name, AttrSpan(S1, S2));
+    let attr_yields = Attr(QN_YIELDS, val_yields, AttrSpan(S2, S3));
+
+    let toks = vec![
+        XirfToken::Attr(attr_name.clone()),
+        XirfToken::Attr(attr_yields.clone()),
+    ];
+
+    let mut sut = Parser::with_state(
+        ValueIntoState::with_element(QN_ELE, SE),
+        toks.into_iter(),
+    );
+
+    assert_eq!(
+        sut.next(),
+        Some(Err(ParseError::StateError(AttrParseError::InvalidValue(
+            FooError(val_name),
+            QN_ELE
+        ))))
+    );
+
+    // TryInto on `Option` inner type.
+    assert_eq!(
+        sut.next(),
+        Some(Err(ParseError::StateError(AttrParseError::InvalidValue(
+            FooError(val_yields),
+            QN_ELE
+        ))))
+    );
 }
 
 #[test]

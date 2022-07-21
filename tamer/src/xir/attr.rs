@@ -177,7 +177,9 @@ impl crate::parse::Object for Attr {}
 
 impl Display for Attr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "`@{}=\"{}\"` at {}", self.0, self.1, self.2 .0)
+        match self {
+            Self(key, value, _) => write!(f, "`@{key}=\"{value}\"`"),
+        }
     }
 }
 

@@ -82,7 +82,7 @@ pub use report::{Reporter, VisualReporter};
 pub use resolve::FsSpanResolver;
 
 use core::fmt;
-use std::{borrow::Cow, error::Error, fmt::Display};
+use std::{borrow::Cow, convert::Infallible, error::Error, fmt::Display};
 
 use crate::span::Span;
 
@@ -95,6 +95,14 @@ pub trait Diagnostic: Error + Sized {
     /// Produce a series of [`AnnotatedSpan`]s describing the source and
     ///   circumstances of the diagnostic event.
     fn describe(&self) -> Vec<AnnotatedSpan>;
+}
+
+impl Diagnostic for Infallible {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        // This should never actually happen unless someone is explicitly
+        //   invoking this method on `Infallible`.
+        unreachable!("Infallible is not supposed to fail")
+    }
 }
 
 /// Diagnostic severity level.
