@@ -183,7 +183,7 @@ impl<S: Escaper> XmlWriter<S> for QName {
     }
 }
 
-impl<S: Escaper> XmlWriter<S> for Token {
+impl<S: Escaper> XmlWriter<S> for &Token {
     fn write<W: Write>(
         self,
         sink: &mut W,
@@ -192,8 +192,9 @@ impl<S: Escaper> XmlWriter<S> for Token {
     ) -> Result {
         type W = WriterState; // More concise
 
+        use Token::*;
         match (self, prev_state) {
-            (Self::Open(name, _), W::NodeExpected | W::NodeOpen) => {
+            (Open(name, _), W::NodeExpected | W::NodeOpen) => {
                 // If a node is still open, then we are a child.
                 prev_state.close_tag_if_open(sink)?;
                 sink.write(b"<")?;
@@ -202,13 +203,13 @@ impl<S: Escaper> XmlWriter<S> for Token {
                 Ok(W::NodeOpen)
             }
 
-            (Self::Close(None, _), W::NodeOpen) => {
+            (Close(None, _), W::NodeOpen) => {
                 sink.write(b"/>")?;
 
                 Ok(W::NodeExpected)
             }
 
-            (Self::Close(Some(name), _), W::NodeExpected | W::NodeOpen) => {
+            (Close(Some(name), _), W::NodeExpected | W::NodeOpen) => {
                 // If open, we're going to produce an element of the form
                 // `<foo></foo>`.
                 prev_state.close_tag_if_open(sink)?;
@@ -220,37 +221,37 @@ impl<S: Escaper> XmlWriter<S> for Token {
                 Ok(W::NodeExpected)
             }
 
-            (Self::AttrName(name, _), W::NodeOpen) => {
+            (AttrName(name, _), W::NodeOpen) => {
                 sink.write(b" ")?;
                 name.write(sink, prev_state, escaper)?;
 
                 Ok(W::AttrNameAdjacent)
             }
 
-            (Self::AttrValue(value, _), W::AttrNameAdjacent) => {
+            (AttrValue(value, _), W::AttrNameAdjacent) => {
                 sink.write(b"=\"")?;
-                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
+                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
                 sink.write(b"\"")?;
 
                 Ok(W::NodeOpen)
             }
 
-            (Self::AttrValue(value, _), W::AttrFragmentAdjacent) => {
-                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
+            (AttrValue(value, _), W::AttrFragmentAdjacent) => {
+                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
                 sink.write(b"\"")?;
 
                 Ok(W::NodeOpen)
             }
 
-            (Self::AttrValueFragment(value, _), W::AttrNameAdjacent) => {
+            (AttrValueFragment(value, _), W::AttrNameAdjacent) => {
                 sink.write(b"=\"")?;
-                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
+                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
 
                 Ok(W::AttrFragmentAdjacent)
             }
 
-            (Self::AttrValueFragment(value, _), W::AttrFragmentAdjacent) => {
-                sink.write(escaper.escape(value).lookup_str().as_bytes())?;
+            (AttrValueFragment(value, _), W::AttrFragmentAdjacent) => {
+                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
 
                 Ok(W::AttrFragmentAdjacent)
             }
@@ -259,9 +260,9 @@ impl<S: Escaper> XmlWriter<S> for Token {
             //   as CData,
             //     which may also be beneficial to avoid escaping if we
             //     haven't yet encountered the unescaped representation.
-            (Self::Text(text, _), W::NodeExpected | W::NodeOpen) => {
+            (Text(text, _), W::NodeExpected | W::NodeOpen) => {
                 prev_state.close_tag_if_open(sink)?;
-                sink.write(escaper.escape(text).lookup_str().as_bytes())?;
+                sink.write(escaper.escape(*text).lookup_str().as_bytes())?;
 
                 Ok(W::NodeExpected)
             }
@@ -269,7 +270,7 @@ impl<S: Escaper> XmlWriter<S> for Token {
             // XXX: While we currently only output comments that have been
             //   _read_ as comments,
             //     that will not always be the case and we must escape `--`!
-            (Self::Comment(comment, _), W::NodeExpected | W::NodeOpen) => {
+            (Comment(comment, _), W::NodeExpected | W::NodeOpen) => {
                 prev_state.close_tag_if_open(sink)?;
                 sink.write(b"<!--")?;
                 sink.write(comment.lookup_str().as_bytes())?;
@@ -278,7 +279,7 @@ impl<S: Escaper> XmlWriter<S> for Token {
                 Ok(W::NodeExpected)
             }
 
-            (Self::Whitespace(ws, _), W::NodeOpen) => {
+            (Whitespace(ws, _), W::NodeOpen) => {
                 sink.write(ws.lookup_str().as_bytes())?;
 
                 Ok(W::NodeOpen)
@@ -286,7 +287,7 @@ impl<S: Escaper> XmlWriter<S> for Token {
 
             // As-of-yet unsupported operations that weren't needed at the
             // time of writing, but were planned for in the design of Xir.
-            (invalid @ Self::AttrName(_, _), W::AttrNameAdjacent) => {
+            (invalid @ AttrName(_, _), W::AttrNameAdjacent) => {
                 Err(Error::Todo(format!("{:?}", invalid), prev_state))
             }
 
