@@ -39,42 +39,55 @@ pub struct EleParseCfg {
 
 #[macro_export]
 macro_rules! ele_parse {
-    (type Object = $objty:ty; $($rest:tt)*) => {
-        ele_parse!(@!nonterm_decl <$objty> $($rest)*);
+    (
+        // Attr has to be first to avoid ambiguity with `$rest`.
+        $(type AttrValueError = $evty:ty;)?
+        type Object = $objty:ty;
+
+        $($rest:tt)*
+    ) => {
+        ele_parse!(@!nonterm_decl <$objty, $($evty)?> $($rest)*);
     };
 
-    (@!nonterm_decl <$objty:ty> $nt:ident := $($rest:tt)*) => {
-        ele_parse!(@!nonterm_def <$objty> $nt $($rest)*);
+    (@!nonterm_decl <$objty:ty, $($evty:ty)?> $nt:ident := $($rest:tt)*) => {
+        ele_parse!(@!nonterm_def <$objty, $($evty)?> $nt $($rest)*);
     };
 
-    (@!nonterm_def <$objty:ty>
+    (@!nonterm_def <$objty:ty, $($evty:ty)?>
         $nt:ident $qname:ident $(($($ntp:tt)*))?
         { $($matches:tt)* } $($rest:tt)*
     ) => {
-        ele_parse!(@!ele_expand_body <$objty> $nt $qname ($($($ntp)*)?) $($matches)*);
+        ele_parse!(@!ele_expand_body <$objty, $($evty)?>
+            $nt $qname ($($($ntp)*)?) $($matches)*
+        );
 
         ele_parse! {
+            $(type AttrValueError = $evty;)?
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_def <$objty:ty> $nt:ident
+    (@!nonterm_def <$objty:ty, $($evty:ty)?> $nt:ident
         ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
     ) => {
-        ele_parse!(@!ele_dfn_sum <$objty> $nt [$ntref_first $($ntref)*]);
+        ele_parse!(@!ele_dfn_sum <$objty>
+            $nt [$ntref_first $($ntref)*]
+        );
 
         ele_parse! {
+            $(type AttrValueError = $evty;)?
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_decl <$objty:ty>) => {};
+    (@!nonterm_decl <$objty:ty, $($evty:ty)?>) => {};
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!ele_expand_body <$objty:ty> $nt:ident $qname:ident ($($ntp:tt)*)
+    (@!ele_expand_body <$objty:ty, $($evty:ty)?>
+        $nt:ident $qname:ident ($($ntp:tt)*)
         @ { $($attrbody:tt)* } => $attrmap:expr,
         $(/$(($close_span:ident))? => $closemap:expr,)?
 
@@ -86,7 +99,7 @@ macro_rules! ele_parse {
         )*
     ) => {
         ele_parse! {
-            @!ele_dfn_body <$objty> $nt $qname ($($ntp)*)
+            @!ele_dfn_body <$objty, $($evty)?> $nt $qname ($($ntp)*)
             @ { $($attrbody)* } => $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
@@ -130,7 +143,9 @@ macro_rules! ele_parse {
         Self::Context::default()
     };
 
-    (@!ele_dfn_body <$objty:ty> $nt:ident $qname:ident ($($open_span:ident)?)
+    (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
+        $nt:ident $qname:ident ($($open_span:ident)?)
+
         // Attribute definition special form.
         @ {
             // We must lightly parse attributes here so that we can retrieve
@@ -162,6 +177,8 @@ macro_rules! ele_parse {
     ) => {
         paste::paste! {
             crate::attr_parse! {
+                $(type ValueError = $evty;)?
+
                 struct [<$nt AttrsState_>] -> [<$nt Attrs_>] {
                     $(
                         $(#[$fattr])*

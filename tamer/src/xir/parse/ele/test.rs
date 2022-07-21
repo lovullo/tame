@@ -32,6 +32,8 @@
 //!   the system,
 //!     simply force the test to panic at the end.
 
+use std::{error::Error, fmt::Display};
+
 use crate::{
     convert::ExpectInto,
     diagnose::Diagnostic,
@@ -169,7 +171,45 @@ fn empty_element_with_attr_bindings() {
     struct Foo(SymbolId, SymbolId, (Span, Span));
     impl Object for Foo {}
 
+    #[derive(Debug, PartialEq, Eq)]
+    struct AttrVal(Attr);
+
+    impl TryFrom<Attr> for AttrVal {
+        // Type must match AttrValueError on `ele_parse!`
+        type Error = AttrValueError;
+
+        fn try_from(attr: Attr) -> Result<Self, Self::Error> {
+            Ok(AttrVal(attr))
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum AttrValueError {}
+
+    impl Error for AttrValueError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            None
+        }
+    }
+
+    impl Display for AttrValueError {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            unimplemented!()
+        }
+    }
+
+    impl Diagnostic for AttrValueError {
+        fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+            unimplemented!()
+        }
+    }
+
     ele_parse! {
+        // AttrValueError should be passed to `attr_parse!`
+        //   (which is invoked by `ele_parse!`)
+        //   as ValueError.
+        type AttrValueError = AttrValueError;
+
         type Object = Foo;
 
         // In practice we wouldn't actually use Attr
@@ -177,12 +217,12 @@ fn empty_element_with_attr_bindings() {
         //     but for the sake of this test we'll keep things simple.
         Sut := QN_PACKAGE {
             @ {
-                name: (QN_NAME) => Attr,
-                value: (QN_VALUE) => Attr,
+                name: (QN_NAME) => AttrVal,
+                value: (QN_VALUE) => AttrVal,
             } => Foo(
-                name.value(),
-                value.value(),
-                (name.attr_span().value_span(), value.attr_span().value_span())
+                name.0.value(),
+                value.0.value(),
+                (name.0.attr_span().value_span(), value.0.attr_span().value_span())
             ),
         }
     }
