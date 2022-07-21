@@ -1227,3 +1227,31 @@ fn sum_repetition() {
         Sut::parse(toks.into_iter()).collect(),
     );
 }
+
+// Ensure that we can actually export the generated identifiers
+//   (add visibility to them).
+// We don't want to always make them public by default because then Rust
+//   forces us to make any other objects they use public,
+//     which is annoying and confusing for things like test cases.
+// Otherwise it wouldn't pose much of a practical issue,
+//   since we could still encapsulate default-pub identifiers within private
+//   modules.
+//
+// This will fail at compile time if there's a problem.
+pub use test_exportable_generated_idents::ExportMe;
+
+mod test_exportable_generated_idents {
+    use super::*;
+
+    ele_parse! {
+        // This is the line that determines visibility of all identifiers
+        //   generated within this macro invocation.
+        vis(pub);
+
+        type Object = ();
+
+        ExportMe := QN_PACKAGE {
+            @ {} => (),
+        }
+    }
+}

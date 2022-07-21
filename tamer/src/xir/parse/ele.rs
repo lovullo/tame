@@ -40,54 +40,61 @@ pub struct EleParseCfg {
 #[macro_export]
 macro_rules! ele_parse {
     (
+        $(vis($vis:vis);)?
+
         // Attr has to be first to avoid ambiguity with `$rest`.
         $(type AttrValueError = $evty:ty;)?
         type Object = $objty:ty;
 
         $($rest:tt)*
     ) => {
-        ele_parse!(@!nonterm_decl <$objty, $($evty)?> $($rest)*);
+        ele_parse!(@!nonterm_decl <$objty, $($evty)?> $($vis)? $($rest)*);
     };
 
-    (@!nonterm_decl <$objty:ty, $($evty:ty)?> $nt:ident := $($rest:tt)*) => {
-        ele_parse!(@!nonterm_def <$objty, $($evty)?> $nt $($rest)*);
+    (@!nonterm_decl <$objty:ty, $($evty:ty)?>
+        $vis:vis $nt:ident := $($rest:tt)*
+    ) => {
+        ele_parse!(@!nonterm_def <$objty, $($evty)?> $vis $nt $($rest)*);
     };
 
     (@!nonterm_def <$objty:ty, $($evty:ty)?>
-        $nt:ident $qname:ident $(($($ntp:tt)*))?
+        $vis:vis $nt:ident $qname:ident $(($($ntp:tt)*))?
         { $($matches:tt)* } $($rest:tt)*
     ) => {
         ele_parse!(@!ele_expand_body <$objty, $($evty)?>
-            $nt $qname ($($($ntp)*)?) $($matches)*
+            $vis $nt $qname ($($($ntp)*)?) $($matches)*
         );
 
         ele_parse! {
+            vis($vis);
             $(type AttrValueError = $evty;)?
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_def <$objty:ty, $($evty:ty)?> $nt:ident
+    (@!nonterm_def <$objty:ty, $($evty:ty)?>
+        $vis:vis $nt:ident
         ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
     ) => {
         ele_parse!(@!ele_dfn_sum <$objty>
-            $nt [$ntref_first $($ntref)*]
+            $vis $nt [$ntref_first $($ntref)*]
         );
 
         ele_parse! {
+            vis($vis);
             $(type AttrValueError = $evty;)?
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_decl <$objty:ty, $($evty:ty)?>) => {};
+    (@!nonterm_decl <$objty:ty, $($evty:ty)?> $vis:vis) => {};
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
     (@!ele_expand_body <$objty:ty, $($evty:ty)?>
-        $nt:ident $qname:ident ($($ntp:tt)*)
+        $vis:vis $nt:ident $qname:ident ($($ntp:tt)*)
         @ { $($attrbody:tt)* } => $attrmap:expr,
         $(/$(($close_span:ident))? => $closemap:expr,)?
 
@@ -99,7 +106,7 @@ macro_rules! ele_parse {
         )*
     ) => {
         ele_parse! {
-            @!ele_dfn_body <$objty, $($evty)?> $nt $qname ($($ntp)*)
+            @!ele_dfn_body <$objty, $($evty)?> $vis $nt $qname ($($ntp)*)
             @ { $($attrbody)* } => $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
@@ -144,7 +151,7 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
-        $nt:ident $qname:ident ($($open_span:ident)?)
+        $vis:vis $nt:ident $qname:ident ($($open_span:ident)?)
 
         // Attribute definition special form.
         @ {
@@ -177,6 +184,7 @@ macro_rules! ele_parse {
     ) => {
         paste::paste! {
             crate::attr_parse! {
+                vis($vis);
                 $(type ValueError = $evty;)?
 
                 struct [<$nt AttrsState_>] -> [<$nt Attrs_>] {
@@ -189,7 +197,7 @@ macro_rules! ele_parse {
 
             #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
             #[derive(Debug, PartialEq, Eq, Default)]
-            enum $nt {
+            $vis enum $nt {
                 #[doc=concat!(
                     "Expecting opening tag for element [`",
                     stringify!($qname),
@@ -297,7 +305,7 @@ macro_rules! ele_parse {
             }
 
             #[derive(Debug, PartialEq)]
-            enum [<$nt Error_>] {
+            $vis enum [<$nt Error_>] {
                 /// An element was expected,
                 ///   but the name of the element was unexpected.
                 UnexpectedEle_(crate::xir::QName, crate::span::Span),
@@ -546,7 +554,7 @@ macro_rules! ele_parse {
         }
     };
 
-    (@!ele_dfn_sum <$objty:ty> $nt:ident [$($ntref:ident)*]) => {
+    (@!ele_dfn_sum <$objty:ty> $vis:vis $nt:ident [$($ntref:ident)*]) => {
         $(
             // Provide a (hopefully) helpful error that can be corrected
             //   rather than any obscure errors that may follow from trying
@@ -561,7 +569,7 @@ macro_rules! ele_parse {
                 "."
             )]
             #[derive(Debug, PartialEq, Eq, Default)]
-            enum $nt {
+            $vis enum $nt {
                 #[default]
                 Expecting_,
                 /// Recovery state ignoring all remaining tokens for this
@@ -618,7 +626,7 @@ macro_rules! ele_parse {
             }
 
             #[derive(Debug, PartialEq)]
-            enum [<$nt Error_>] {
+            $vis enum [<$nt Error_>] {
                 UnexpectedEle_(crate::xir::QName, crate::span::Span),
                 $(
                     $ntref([<$ntref Error_>]),

@@ -228,6 +228,7 @@ pub fn parse_attrs<S: AttrParseState>(ele: QName, span: OpenSpan) -> S {
 #[macro_export]
 macro_rules! attr_parse {
     ($(#[$sattr:meta])*
+        $(vis($vis:vis);)?
         $(type ValueError = $evty:ty;)?
 
         struct $state_name:ident -> $struct_name:ident {
@@ -256,7 +257,7 @@ macro_rules! attr_parse {
         /// This object is exposed for recovery and error reporting on
         ///   [`AttrParseError::MissingRequired`].
         #[derive(Debug, PartialEq, Eq)]
-        struct $state_name {
+        $($vis)? struct $state_name {
             #[doc(hidden)]
             ___ctx: (crate::xir::QName, crate::xir::OpenSpan),
             #[doc(hidden)]
@@ -358,7 +359,7 @@ macro_rules! attr_parse {
             "`]."
         )]
         #[derive(Debug, PartialEq)]
-        struct $struct_name {
+        $($vis)? struct $struct_name {
             $(
                 $(#[$fattr])*
                 pub $field: $ty,
