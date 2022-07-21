@@ -551,7 +551,7 @@ macro_rules! ele_parse {
             // Provide a (hopefully) helpful error that can be corrected
             //   rather than any obscure errors that may follow from trying
             //   to compose parsers that were not generated with this macro.
-            assert_impl_all!($ntref: crate::xir::parse::ele::EleParseState);
+            assert_impl_all!($ntref: crate::xir::parse::EleParseState);
         )*
 
         paste::paste! {
@@ -566,7 +566,11 @@ macro_rules! ele_parse {
                 Expecting_,
                 /// Recovery state ignoring all remaining tokens for this
                 ///   element.
-                RecoverEleIgnore_(crate::xir::QName, crate::xir::OpenSpan, Depth),
+                RecoverEleIgnore_(
+                    crate::xir::QName,
+                    crate::xir::OpenSpan,
+                    crate::xir::flat::Depth,
+                ),
                 RecoverEleIgnoreClosed_(crate::xir::QName, crate::xir::CloseSpan),
                 $(
                     $ntref($ntref),
@@ -689,7 +693,7 @@ macro_rules! ele_parse {
                 type Token = crate::xir::flat::XirfToken;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
-                type Context = crate::parse::Context<crate::xir::parse::ele::EleParseCfg>;
+                type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;
 
                 fn parse_token(
                     self,
@@ -728,6 +732,7 @@ macro_rules! ele_parse {
                         }
 
                         (Expecting_, XirfToken::Open(qname, span, depth)) => {
+                            use crate::xir::EleSpan;
                             Transition(RecoverEleIgnore_(qname, span, depth)).err(
                                 // Use name span rather than full `OpenSpan`
                                 //   since it's specifically the name that
