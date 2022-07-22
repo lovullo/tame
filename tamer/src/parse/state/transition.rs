@@ -149,7 +149,7 @@ pub(in super::super) enum TransitionData<S: ParseState> {
 impl<S: ParseState> TransitionData<S> {
     /// Reference to the token of lookahead,
     ///   if any.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "parser-trace-stderr"))]
     pub(in super::super) fn lookahead_ref(
         &self,
     ) -> Option<&Lookahead<S::Token>> {

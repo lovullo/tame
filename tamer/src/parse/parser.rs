@@ -265,7 +265,11 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         //   then you may have a `Display::fmt` or `Debug::fmt` panic,
         //     like a `todo!` or `unimplemented!`,
         //     in your `Token` or `ParseState`.
-        #[cfg(test)]
+        //
+        // Unfortunately Cargo can't enable this feature for us for
+        //   profiles;
+        //     see <https://github.com/rust-lang/cargo/issues/2911>.
+        #[cfg(any(test, feature = "parser-trace-stderr"))]
         {
             let st = self.state.as_ref().unwrap();
 
@@ -300,17 +304,21 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         self.state.replace(state);
 
         // Remainder of the trace after the transition.
-        #[cfg(test)]
+        #[cfg(any(test, feature = "parser-trace-stderr"))]
         {
             let newst = self.state.as_ref().unwrap();
+            #[cfg(test)]
+            let cfg = "test";
+            #[cfg(feature = "parser-trace-stderr")]
+            let cfg = "feature = \"parser-trace-stderr\"";
 
             eprint!(
                 "\
 |  ==> Parser after tok is {newst}.
 |   |  {newst:?}
-|   |  Lookahead: {:?}
-= note: this trace was output as a debugging aid because `cfg(test)`.\n\n",
-                data.lookahead_ref()
+|   |  Lookahead: {la:?}
+= note: this trace was output as a debugging aid because `cfg({cfg})`.\n\n",
+                la = data.lookahead_ref(),
             );
         }
 
