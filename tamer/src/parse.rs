@@ -25,6 +25,7 @@ mod error;
 mod lower;
 mod parser;
 mod state;
+mod trace;
 
 pub use error::ParseError;
 pub use lower::{Lower, LowerIter, ParsedObject};

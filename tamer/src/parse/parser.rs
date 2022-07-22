@@ -20,6 +20,7 @@
 //! High-level parsing abstraction.
 
 use super::{
+    trace::{self, ParserTrace},
     ParseError, ParseResult, ParseState, ParseStatus, TokenStream, Transition,
     TransitionResult,
 };
@@ -127,6 +128,11 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     ///     it was originally added for situations where Rust is unable to
     ///     elide the move of [`Parser::state`] in [`Parser::feed_tok`].
     ctx: S::Context,
+
+    #[cfg(any(test, feature = "parser-trace-stderr"))]
+    tracer: trace::HumanReadableTrace,
+    #[cfg(not(any(test, feature = "parser-trace-stderr")))]
+    tracer: trace::VoidTrace,
 }
 
 impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
@@ -146,6 +152,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             state: Some(state),
             last_span: UNKNOWN_SPAN,
             ctx: Default::default(),
+            tracer: Default::default(),
         }
     }
 
@@ -250,41 +257,8 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
             "lookahead token is available but was not consumed",
         );
 
-        // Human-readable trace that will become part of a failed test
-        //   cases's output.
-        // This describes the state prior to the transition,
-        //   and is left here inline since it also helps to document what
-        //   this method is doing.
-        // This is _not_ intended to be machine-readable or stable,
-        //   so please do not parse it;
-        //     if we want a machine-readable format for e.g. creating a
-        //     visualization of a parse,
-        //       such a system can be created separately.
-        //
-        // Note: if one of these trace blocks does not fully output,
-        //   then you may have a `Display::fmt` or `Debug::fmt` panic,
-        //     like a `todo!` or `unimplemented!`,
-        //     in your `Token` or `ParseState`.
-        //
-        // Unfortunately Cargo can't enable this feature for us for
-        //   profiles;
-        //     see <https://github.com/rust-lang/cargo/issues/2911>.
-        #[cfg(any(test, feature = "parser-trace-stderr"))]
-        {
-            let st = self.state.as_ref().unwrap();
-
-            eprint!(
-                "\
-[Parser::feed_tok] (input IR: {ir})
-|  ==> Parser before tok is {st}.
-|   |  {st:?}
-|
-|  ==> {ir} tok: {tok}
-|   |  {tok:?}
-|\n",
-                ir = S::Token::ir_name()
-            );
-        }
+        self.tracer
+            .trace_tok_begin(self.state.as_ref().unwrap(), &tok);
 
         // Parse a single token and perform the requested state transition.
         //
@@ -301,52 +275,9 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         // Note also that this is what Dead states require transitions.
         let TransitionResult(Transition(state), data) =
             self.state.take().unwrap().parse_token(tok, &mut self.ctx);
+
+        self.tracer.trace_tok_end(&state, &data);
         self.state.replace(state);
-
-        // Remainder of the trace after the transition.
-        #[cfg(any(test, feature = "parser-trace-stderr"))]
-        {
-            let newst = self.state.as_ref().unwrap();
-
-            eprint!(
-                "\
-|  ==> Parser after tok is {newst}.
-|   |  {newst:?}
-|   |  Lookahead: {la:?}\n",
-                la = data.lookahead_ref(),
-            );
-
-            if let Some(obj) = data.object_ref() {
-                // Note that `Object` does not implement `Display`,
-                //   but you'll see a `Display` representation if the object
-                //   is passed to another `Parser` as a `Token`.
-                eprint!(
-                    "\
-|
-|  ==> Yielded object:
-|   |  {obj:?}\n",
-                );
-            }
-
-            if let Some(err) = data.err_ref() {
-                eprint!(
-                    "\
-|
-|  ==> !!! error: {err}.
-|   |  {err:?}\n",
-                );
-            }
-
-            #[cfg(feature = "parser-trace-stderr")]
-            #[allow(unused_variables)]
-            let cfg = "feature = \"parser-trace-stderr\"";
-            #[cfg(test)] // takes precedence if both are set
-            let cfg = "test";
-            eprint!(
-                "note: this trace was output as a debugging aid \
-                   because `cfg({cfg})`.\n\n",
-            );
-        }
 
         use ParseStatus::{Incomplete, Object};
         match data {
@@ -489,6 +420,7 @@ where
             state: Some(Default::default()),
             last_span: UNKNOWN_SPAN,
             ctx: Default::default(),
+            tracer: Default::default(),
         }
     }
 }
@@ -511,6 +443,7 @@ where
             state: Some(Default::default()),
             last_span: UNKNOWN_SPAN,
             ctx,
+            tracer: Default::default(),
         }
     }
 }
