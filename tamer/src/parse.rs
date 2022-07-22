@@ -214,8 +214,8 @@ pub mod test {
     }
 
     impl Display for EchoStateError {
-        fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            unimplemented!()
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "test EchoStateError")
         }
     }
 
@@ -227,7 +227,7 @@ pub mod test {
 
     impl Diagnostic for EchoStateError {
         fn describe(&self) -> Vec<AnnotatedSpan> {
-            unimplemented!()
+            vec![]
         }
     }
 

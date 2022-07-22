@@ -307,18 +307,31 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
         #[cfg(any(test, feature = "parser-trace-stderr"))]
         {
             let newst = self.state.as_ref().unwrap();
-            #[cfg(test)]
-            let cfg = "test";
-            #[cfg(feature = "parser-trace-stderr")]
-            let cfg = "feature = \"parser-trace-stderr\"";
 
             eprint!(
                 "\
 |  ==> Parser after tok is {newst}.
 |   |  {newst:?}
-|   |  Lookahead: {la:?}
-= note: this trace was output as a debugging aid because `cfg({cfg})`.\n\n",
+|   |  Lookahead: {la:?}\n",
                 la = data.lookahead_ref(),
+            );
+
+            if let Some(err) = data.err_ref() {
+                eprint!(
+                    "\
+|
+|  ==> !!! error: {err}.
+|   |  {err:?}\n",
+                );
+            }
+
+            #[cfg(test)]
+            let cfg = "test";
+            #[cfg(feature = "parser-trace-stderr")]
+            let cfg = "feature = \"parser-trace-stderr\"";
+            eprint!(
+                "note: this trace was output as a debugging aid \
+                   because `cfg({cfg})`.\n\n",
             );
         }
 

@@ -256,14 +256,14 @@ fn attr_value_error() {
     }
 
     impl Display for FooError {
-        fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            unimplemented!()
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "test FooError")
         }
     }
 
     impl Diagnostic for FooError {
         fn describe(&self) -> Vec<AnnotatedSpan> {
-            unimplemented!()
+            vec![]
         }
     }
 

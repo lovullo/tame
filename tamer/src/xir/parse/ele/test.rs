@@ -194,13 +194,13 @@ fn empty_element_with_attr_bindings() {
 
     impl Display for AttrValueError {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            unimplemented!()
+            write!(f, "test AttrValueError")
         }
     }
 
     impl Diagnostic for AttrValueError {
         fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-            unimplemented!()
+            vec![]
         }
     }
 

@@ -159,6 +159,16 @@ impl<S: ParseState> TransitionData<S> {
             _ => None,
         }
     }
+
+    /// Reference to parsing error,
+    ///   if any.
+    #[cfg(any(test, feature = "parser-trace-stderr"))]
+    pub(in super::super) fn err_ref(&self) -> Option<&S::Error> {
+        match self {
+            TransitionData::Result(Err(e), _) => Some(e),
+            _ => None,
+        }
+    }
 }
 
 /// A verb denoting a state transition.
