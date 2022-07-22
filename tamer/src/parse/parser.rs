@@ -325,10 +325,11 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
                 );
             }
 
-            #[cfg(test)]
-            let cfg = "test";
             #[cfg(feature = "parser-trace-stderr")]
+            #[allow(unused_variables)]
             let cfg = "feature = \"parser-trace-stderr\"";
+            #[cfg(test)] // takes precedence if both are set
+            let cfg = "test";
             eprint!(
                 "note: this trace was output as a debugging aid \
                    because `cfg({cfg})`.\n\n",
