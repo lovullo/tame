@@ -316,6 +316,18 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
                 la = data.lookahead_ref(),
             );
 
+            if let Some(obj) = data.object_ref() {
+                // Note that `Object` does not implement `Display`,
+                //   but you'll see a `Display` representation if the object
+                //   is passed to another `Parser` as a `Token`.
+                eprint!(
+                    "\
+|
+|  ==> Yielded object:
+|   |  {obj:?}\n",
+                );
+            }
+
             if let Some(err) = data.err_ref() {
                 eprint!(
                     "\

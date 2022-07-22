@@ -146,10 +146,10 @@ pub(in super::super) enum TransitionData<S: ParseState> {
     Dead(Lookahead<S::Token>),
 }
 
+#[cfg(any(test, feature = "parser-trace-stderr"))]
 impl<S: ParseState> TransitionData<S> {
     /// Reference to the token of lookahead,
     ///   if any.
-    #[cfg(any(test, feature = "parser-trace-stderr"))]
     pub(in super::super) fn lookahead_ref(
         &self,
     ) -> Option<&Lookahead<S::Token>> {
@@ -160,9 +160,19 @@ impl<S: ParseState> TransitionData<S> {
         }
     }
 
+    /// Reference to parsed object,
+    ///   if any.
+    pub(in super::super) fn object_ref(&self) -> Option<&S::Object> {
+        match self {
+            TransitionData::Result(Ok(ParseStatus::Object(obj)), _) => {
+                Some(obj)
+            }
+            _ => None,
+        }
+    }
+
     /// Reference to parsing error,
     ///   if any.
-    #[cfg(any(test, feature = "parser-trace-stderr"))]
     pub(in super::super) fn err_ref(&self) -> Option<&S::Error> {
         match self {
             TransitionData::Result(Err(e), _) => Some(e),
