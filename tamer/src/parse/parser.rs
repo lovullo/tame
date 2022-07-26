@@ -129,8 +129,10 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     ///     elide the move of [`Parser::state`] in [`Parser::feed_tok`].
     ctx: S::Context,
 
-    #[cfg(any(test, feature = "parser-trace-stderr"))]
-    tracer: trace::HumanReadableTrace,
+    #[cfg(test)]
+    tracer: trace::HumanReadableTrace<"`cfg(test)`">,
+    #[cfg(all(not(test), feature = "parser-trace-stderr"))]
+    tracer: trace::HumanReadableTrace<"`cfg(parser-trace-stderr)`">,
     #[cfg(not(any(test, feature = "parser-trace-stderr")))]
     tracer: trace::VoidTrace,
 }

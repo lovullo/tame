@@ -98,9 +98,9 @@ impl ParserTrace for VoidTrace {
 ///
 /// See [module-level](super) documentation for more information.
 #[derive(Debug, PartialEq, Default)]
-pub struct HumanReadableTrace;
+pub struct HumanReadableTrace<const REASON: &'static str>;
 
-impl ParserTrace for HumanReadableTrace {
+impl<const REASON: &'static str> ParserTrace for HumanReadableTrace<REASON> {
     fn trace_tok_begin<S: ParseState>(&mut self, st_orig: &S, tok: &S::Token) {
         eprint!(
             "\
@@ -149,16 +149,9 @@ impl ParserTrace for HumanReadableTrace {
             );
         }
 
-        #[allow(unused_variables)]
-        let cfg = ""; // so that this compiles without matching cfg
-        #[cfg(feature = "parser-trace-stderr")]
-        #[allow(unused_variables)]
-        let cfg = "feature = \"parser-trace-stderr\"";
-        #[cfg(test)] // takes precedence if both are set
-        let cfg = "test";
         eprint!(
             "= note: this trace was output as a debugging aid \
-                because `cfg({cfg})`.\n\n",
+                because {REASON}.\n\n",
         );
     }
 }
