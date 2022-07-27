@@ -38,11 +38,11 @@ use std::fmt::Debug;
 ///
 /// This function is not suitable for production use as it does not produce
 ///   a complete [`OpenSpan`].
-pub fn open<Q: TryInto<QName>, S: Into<OpenSpan>>(
+pub fn open<Q: TryInto<QName>, S: Into<OpenSpan>, T: TextType>(
     qname: Q,
     span: S,
     depth: Depth,
-) -> XirfToken
+) -> XirfToken<T>
 where
     <Q as TryInto<QName>>::Error: Debug,
 {
@@ -56,7 +56,10 @@ where
 ///
 /// This function is not suitable for production use as it does not produce
 ///   a complete [`OpenSpan`].
-pub fn close_empty<S: Into<CloseSpan>>(span: S, depth: Depth) -> XirfToken {
+pub fn close_empty<S: Into<CloseSpan>, T: TextType>(
+    span: S,
+    depth: Depth,
+) -> XirfToken<T> {
     XirfToken::Close(None, span.into(), depth)
 }
 
@@ -66,11 +69,11 @@ pub fn close_empty<S: Into<CloseSpan>>(span: S, depth: Depth) -> XirfToken {
 ///
 /// This function is not suitable for production use as it does not produce
 ///   a complete [`OpenSpan`].
-pub fn close<Q: TryInto<QName>, S: Into<CloseSpan>>(
+pub fn close<Q: TryInto<QName>, S: Into<CloseSpan>, T: TextType>(
     qname: Option<Q>,
     span: S,
     depth: Depth,
-) -> XirfToken
+) -> XirfToken<T>
 where
     <Q as TryInto<QName>>::Error: Debug,
 {
@@ -88,7 +91,7 @@ fn empty_element_self_close() {
 
     let toks = [xir_open(name, S), xir_close_empty(S2)].into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -107,7 +110,7 @@ fn empty_element_balanced_close() {
 
     let toks = [xir_open(name, S), xir_close(Some(name), S2)].into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -133,10 +136,10 @@ fn extra_closing_tag() {
     ]
     .into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_matches!(
-        sut.collect::<Result<Vec<Parsed<XirfToken>>, _>>(),
+        sut.collect::<Result<Vec<Parsed<_>>, _>>(),
         Err(ParseError::UnexpectedToken(
             XirToken::Close(Some(given_name), given_span),
             _
@@ -158,10 +161,10 @@ fn extra_self_closing_tag() {
     ]
     .into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_matches!(
-        sut.collect::<Result<Vec<Parsed<XirfToken>>, _>>(),
+        sut.collect::<Result<Vec<Parsed<_>>, _>>(),
         Err(ParseError::UnexpectedToken(XirToken::Close(None, given_span), _))
             if given_span == S3.into(),
     );
@@ -177,7 +180,7 @@ fn empty_element_unbalanced_close() {
     let toks =
         [xir_open(open_name, S), xir_close(Some(close_name), S2)].into_iter();
 
-    let mut sut = parse::<1>(toks);
+    let mut sut = parse::<1, Text>(toks);
 
     assert_eq!(
         sut.next(),
@@ -206,7 +209,7 @@ fn single_empty_child() {
     ]
     .into_iter();
 
-    let sut = parse::<2>(toks);
+    let sut = parse::<2, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -232,7 +235,7 @@ fn depth_exceeded() {
     .into_iter();
 
     // ...which is set here: MAX_DEPTH here is 1
-    let mut sut = parse::<1>(toks);
+    let mut sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Some(Ok(Parsed::Object(open(name, S, Depth(0))))),
@@ -267,7 +270,7 @@ fn empty_element_with_attrs() {
     ]
     .into_iter();
 
-    let sut = parse::<2>(toks);
+    let sut = parse::<2, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -299,7 +302,7 @@ fn child_element_after_attrs() {
     ]
     .into_iter();
 
-    let sut = parse::<2>(toks);
+    let sut = parse::<2, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -330,7 +333,7 @@ fn element_with_empty_sibling_children() {
     ]
     .into_iter();
 
-    let sut = parse::<2>(toks);
+    let sut = parse::<2, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -363,7 +366,7 @@ fn element_with_child_with_attributes() {
     ]
     .into_iter();
 
-    let sut = parse::<2>(toks);
+    let sut = parse::<2, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -390,12 +393,12 @@ fn element_with_text() {
     ]
     .into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Ok(vec![
             Parsed::Object(open(parent, S, Depth(0))),
-            Parsed::Object(XirfToken::Text(text, S2)),
+            Parsed::Object(XirfToken::Text(Text(text, S2))),
             Parsed::Object(close(Some(parent), S3, Depth(0))),
         ]),
         sut.collect(),
@@ -407,7 +410,7 @@ fn not_accepting_state_if_element_open() {
     let name = "unclosed";
     let toks = [xir_open(name, S)].into_iter();
 
-    let mut sut = parse::<1>(toks);
+    let mut sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Some(Ok(Parsed::Object(open(name, S, Depth(0))))),
@@ -433,7 +436,7 @@ fn comment_before_or_after_root_ok() {
     ]
     .into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Ok(vec![
@@ -466,11 +469,11 @@ fn content_after_root_close_error() {
     ]
     .into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_matches!(
         sut.collect(),
-        Result::<Vec<Parsed<XirfToken>>, _>::Err(ParseError::UnexpectedToken(
+        Result::<Vec<Parsed<_>>, _>::Err(ParseError::UnexpectedToken(
             XirToken::Open(given_name, given_span),
         _)) if given_name == name && given_span == S3.into()
     );
@@ -483,12 +486,56 @@ fn content_before_root_open_error() {
 
     let toks = [XirToken::Text(text, S)].into_iter();
 
-    let sut = parse::<1>(toks);
+    let sut = parse::<1, Text>(toks);
 
     assert_eq!(
-        Result::<Vec<Parsed<XirfToken>>, _>::Err(ParseError::StateError(
+        Result::<Vec<Parsed<_>>, _>::Err(ParseError::StateError(
             XirToXirfError::RootOpenExpected(XirToken::Text(text, S))
         )),
         sut.collect()
     );
+}
+
+#[test]
+fn whitespace_refinement() {
+    // Nothing exhaustive;
+    //   just check some notable examples.
+    vec![
+        ("".into(), true),
+        (" ".into(), true),
+        ("\n".into(), true),
+        ("\n\n\t    ".into(), true),
+        ("   foo   ".into(), false),
+        ("\n         .".into(), false),
+        (".\n         ".into(), false),
+    ]
+    .into_iter()
+    .for_each(|(given, expected)| {
+        let mut sut = parse::<1, RefinedText>(
+            vec![xir_open("root", S), XirToken::Text(given, S)].into_iter(),
+        );
+
+        let _ = sut.next(); // discard root
+
+        match sut.next().unwrap().unwrap() {
+            Parsed::Object(XirfToken::Text(RefinedText::Whitespace(
+                Whitespace(Text(ws, span)),
+            ))) => {
+                assert_eq!(ws, given);
+                assert_eq!(span, S);
+                assert!(expected == true)
+            }
+
+            Parsed::Object(XirfToken::Text(RefinedText::Unrefined(Text(
+                text,
+                span,
+            )))) => {
+                assert_eq!(text, given);
+                assert_eq!(span, S);
+                assert!(expected == false)
+            }
+
+            unexpected => panic!("unexpected token: {unexpected:?}"),
+        }
+    });
 }

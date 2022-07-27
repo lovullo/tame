@@ -387,7 +387,9 @@ macro_rules! attr_parse {
         }
 
         impl crate::parse::ParseState for $state_name {
-            type Token = crate::xir::flat::XirfToken;
+            type Token = crate::xir::flat::XirfToken<
+                crate::xir::flat::RefinedText
+            >;
             type Object = $struct_name;
             type Error = crate::xir::parse::AttrParseError<Self>;
 

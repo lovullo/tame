@@ -279,12 +279,6 @@ impl<S: Escaper> XmlWriter<S> for &Token {
                 Ok(W::NodeExpected)
             }
 
-            (Whitespace(ws, _), W::NodeOpen) => {
-                sink.write(ws.lookup_str().as_bytes())?;
-
-                Ok(W::NodeOpen)
-            }
-
             // As-of-yet unsupported operations that weren't needed at the
             // time of writing, but were planned for in the design of Xir.
             (invalid @ AttrName(_, _), W::AttrNameAdjacent) => {
@@ -429,18 +423,6 @@ mod test {
         Ok(())
     }
 
-    // Intended for alignment of attributes, primarily.
-    #[test]
-    fn whitespace_within_open_node() -> TestResult {
-        let result = Token::Whitespace(" \t ".unwrap_into(), S)
-            .write_new(WriterState::NodeOpen, &MockEscaper::default())?;
-
-        assert_eq!(result.0, b" \t ");
-        assert_eq!(result.1, WriterState::NodeOpen);
-
-        Ok(())
-    }
-
     #[test]
     fn writes_attr_name_to_open_node() -> TestResult {
         let name_ns = ("some", "attr").unwrap_into();
@@ -562,7 +544,6 @@ mod test {
             Token::AttrValue("value".intern(), S),
             Token::Text("text".intern(), S),
             open(("c", "child"), S),
-            Token::Whitespace(" ".unwrap_into(), S),
             close_empty(S),
             close(Some(root), S),
         ]
@@ -571,7 +552,7 @@ mod test {
 
         assert_eq!(
             result.0,
-            br#"<r:root an:attr="value:ESC">text:ESC<c:child /></r:root>"#
+            br#"<r:root an:attr="value:ESC">text:ESC<c:child/></r:root>"#
         );
         assert_eq!(result.1, WriterState::NodeExpected);
 

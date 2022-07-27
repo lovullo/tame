@@ -31,7 +31,7 @@ use crate::{
     sym::{st::raw, SymbolId},
     xir::{
         attr::{Attr, AttrSpan},
-        flat::XirfToken as Xirf,
+        flat::{Text, XirfToken as Xirf},
         st::qname::*,
         EleSpan, QName,
     },
@@ -140,7 +140,7 @@ impl Display for XmloToken {
 }
 
 /// A parser capable of being composed with [`XmloReader`].
-pub trait XmloState = ParseState<Token = Xirf, Context = EmptyContext>
+pub trait XmloState = ParseState<Token = Xirf<Text>, Context = EmptyContext>
 where
     Self: Default,
     <Self as ParseState>::Error: Into<XmloError>,
@@ -176,7 +176,7 @@ pub enum XmloReader<
 impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
     for XmloReader<SS, SD, SF>
 {
-    type Token = Xirf;
+    type Token = Xirf<Text>;
     type Object = XmloToken;
     type Error = XmloError;
 
@@ -333,7 +333,7 @@ pub enum SymtableState {
 impl parse::Object for (SymbolId, SymAttrs, Span) {}
 
 impl ParseState for SymtableState {
-    type Token = Xirf;
+    type Token = Xirf<Text>;
     type Object = (SymbolId, SymAttrs, Span);
     type Error = XmloError;
 
@@ -619,7 +619,7 @@ pub enum SymDepsState {
 }
 
 impl ParseState for SymDepsState {
-    type Token = Xirf;
+    type Token = Xirf<Text>;
     type Object = XmloToken;
     type Error = XmloError;
 
@@ -730,7 +730,7 @@ pub enum FragmentsState {
 }
 
 impl ParseState for FragmentsState {
-    type Token = Xirf;
+    type Token = Xirf<Text>;
     type Object = XmloToken;
     type Error = XmloError;
 
@@ -775,7 +775,7 @@ impl ParseState for FragmentsState {
             (FragmentUnnamed(span), _) => Transition(FragmentUnnamed(span))
                 .err(XmloError::UnassociatedFragment(span)),
 
-            (Fragment(span, id), Xirf::Text(text, _)) => {
+            (Fragment(span, id), Xirf::Text(Text(text, _))) => {
                 Transition(FragmentDone(span, id))
                     .ok(XmloToken::Fragment(id, text, span))
             }

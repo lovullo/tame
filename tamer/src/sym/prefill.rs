@@ -195,9 +195,9 @@ macro_rules! static_symbol_consts {
         #[doc=concat!(
             "Interned `",
             stringify!($ty),
-            "` string `\"",
-            $str,
-            "\"`."
+            "` ",
+            static_symbol_consts!(@!str $ty $str),
+            "."
         )]
         #[doc=""]
         #[doc=concat!(
@@ -227,7 +227,16 @@ macro_rules! static_symbol_consts {
         /// This can be used to help determine a base capacity for
         ///   collections holding [`SymbolId`]s.
         pub const ST_COUNT: usize = $i - 1;
-    }
+    };
+
+    // Whitespace with newlines causes rustdoc parsing issues.
+    (@!str ws $str:expr) => {
+        "whitespace"
+    };
+
+    (@!str $ty:ident $str:expr) => {
+        concat!("string `\"", $str, "\"`")
+    };
 }
 
 /// Statically allocate [`SymbolId`]s for the provided symbols,
@@ -267,9 +276,9 @@ macro_rules! static_symbols {
                 #[doc=concat!(
                     "Raw (untyped) interned `",
                     stringify!($ty),
-                    "` string `\"",
-                    $str,
-                    "\"`."
+                    "` ",
+                    static_symbols!(@!str $ty $str),
+                    "."
                 )]
                 #[doc=""]
                 #[doc=concat!(
@@ -309,7 +318,16 @@ macro_rules! static_symbols {
 
             interner
         }
-    }
+    };
+
+    // Whitespace with newlines causes rustdoc parsing issues.
+    (@!str ws $str:expr) => {
+        "whitespace"
+    };
+
+    (@!str $ty:ident $str:expr) => {
+        concat!("string `\"", $str, "\"`")
+    };
 }
 
 static_symbol_newtypes! {
@@ -353,6 +371,14 @@ static_symbol_newtypes! {
 
     /// Any other generic string that does not fit into any particular type.
     str: GenericStaticSymbolId<global::ProgSymSize>,
+
+    /// Common strings of whitespace
+    ///   (where a character of whitespace is `[ \n]`).
+    ///
+    /// There are certainly other whitespace characters,
+    ///   but this is intended to be conservative to address only the most
+    ///   common cases.
+    ws: WhitespaceStaticSymbolId<global::ProgSymSize>,
 
     /// Static 16-bit [`Span`](crate::span::Span) context.
     ///
@@ -418,6 +444,41 @@ pub mod st {
         fn from(n: u8) -> Self {
             decimal1(n)
         }
+    }
+
+    /// Whether the given [`SymbolId`] is within a group of symbols
+    ///   delimited by markers `a` and `b`.
+    ///
+    /// This provides a _reasonably_ efficient way to compare a [`SymbolId`]
+    ///   against a large set of [`SymbolId`]s.
+    /// There are more efficient ways to accomplish this,
+    ///   though,
+    ///   if performance ever does become a concern;
+    ///     the current implementation is kept simple until then.
+    #[inline]
+    pub fn is_between_markers(
+        a: MarkStaticSymbolId,
+        b: MarkStaticSymbolId,
+        sym: SymbolId,
+    ) -> bool {
+        let symid = sym.as_usize();
+        symid > a.as_usize() && symid < b.as_usize()
+    }
+
+    /// Whether the provided [`SymbolId`] is recognized as a common
+    ///   whitespace symbol in the preinterned symbol list.
+    ///
+    /// If this returns `true`,
+    ///   then this is a quick way to determine that the provided
+    ///   [`SymbolId`] does contain only whitespace.
+    /// However,
+    ///   this is _not_ comprehensive and never will be,
+    ///     so an answer of `false` means "it may or may not be whitespace";
+    ///       you should fall back to other methods of checking for
+    ///       whitespace if this fails.
+    #[inline]
+    pub fn is_common_whitespace(sym: SymbolId) -> bool {
+        is_between_markers(WS_SYM_START, WS_SYM_END, sym)
     }
 
     static_symbols! {
@@ -508,8 +569,57 @@ pub mod st {
         URI_LV_PREPROC: uri "http://www.lovullo.com/rater/preproc",
         URI_LV_LINKER: uri "http://www.lovullo.com/rater/linker",
 
-        // TODO: Whitespace type
-        WS_EMPTY: str "",
+        // Common whitespace.
+        //
+        // _This does not represent all forms of whitespace!_
+        // Clearly,
+        //   but it is worth emphasizing.
+        //
+        // The intent of these whitespace symbols is to provide a means to
+        //   determine whether that symbol represents a common form of
+        //   whitespace,
+        //     before falling back to a more expensive symbol dereference
+        //     and (likely-)linear scan.
+        //
+        // This list is preliminary and ought to be measured by evaluating a
+        //   real-world codebase;
+        //     it ought not to bloat the symbol table,
+        //       but ought to get the most common cases so as not to fall
+        //       back to a more expensive dereferencing of a symbol and
+        //       subsequent scanning.
+        //
+        // There are improvements that can be made here,
+        //   such as aligning the symbol ids such that whitespace can be
+        //   asserted with a bitmask.
+        WS_SYM_START: mark "{{ws start}}",
+        WS_EMPTY: ws "",
+        WS_SP1: ws " ",
+        WS_SP2: ws "  ",
+        WS_SP3: ws "   ",
+        WS_SP4: ws "    ",
+        WS_SP5: ws "     ",
+        WS_SP6: ws "      ",
+        WS_SP7: ws "       ",
+        WS_SP8: ws "        ",
+        WS_LF1: ws "\n",
+        WS_LF2: ws "\n\n",
+        WS_LF1_SP1: ws "\n ",
+        WS_LF1_SP2: ws "\n  ",
+        WS_LF1_SP3: ws "\n   ",
+        WS_LF1_SP4: ws "\n    ",
+        WS_LF1_SP5: ws "\n     ",
+        WS_LF1_SP6: ws "\n      ",
+        WS_LF1_SP7: ws "\n       ",
+        WS_LF1_SP8: ws "\n        ",
+        WS_LF2_SP1: ws "\n\n ",
+        WS_LF2_SP2: ws "\n\n  ",
+        WS_LF2_SP3: ws "\n\n   ",
+        WS_LF2_SP4: ws "\n\n    ",
+        WS_LF2_SP5: ws "\n\n     ",
+        WS_LF2_SP6: ws "\n\n      ",
+        WS_LF2_SP7: ws "\n\n       ",
+        WS_LF2_SP8: ws "\n\n        ",
+        WS_SYM_END: mark "{{ws end}}",
 
         // [Symbols will be added here as they are needed.]
 

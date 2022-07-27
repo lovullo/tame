@@ -117,20 +117,6 @@ mod name {
     }
 }
 
-mod ws {
-    use super::*;
-    use tamer::xir::Whitespace;
-
-    #[bench]
-    fn whitespace_1000(bench: &mut Bencher) {
-        bench.iter(|| {
-            (0..1000)
-                .map(|_| Whitespace::try_from("  \t  "))
-                .for_each(drop);
-        });
-    }
-}
-
 mod writer {
     use super::*;
     use quick_xml::{

@@ -217,49 +217,6 @@ impl Display for LocalPart {
     }
 }
 
-/// A sequence of one or more whitespace characters.
-///
-/// Whitespace here is expected to consist of `[ \n\t\r]`
-///   (where the first character in that class is a space).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Whitespace(SymbolId);
-
-impl Deref for Whitespace {
-    type Target = SymbolId;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl TryFrom<&str> for Whitespace {
-    type Error = SpanlessError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        // We do not expect this to ever be a large value based on how we
-        //   use it.
-        // If it is, well, someone's doing something they ought not to be
-        //   and we're not going to optimize for it.
-        if !value.as_bytes().iter().all(u8::is_ascii_whitespace) {
-            return Err(SpanlessError::NotWhitespace(value.into()));
-        }
-
-        Ok(Self(value.intern()))
-    }
-}
-
-impl From<Whitespace> for SymbolId {
-    fn from(ws: Whitespace) -> Self {
-        ws.0
-    }
-}
-
-impl Display for Whitespace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
 /// A qualified name (namespace prefix and local name).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QName(Option<Prefix>, LocalPart);
@@ -431,8 +388,7 @@ impl CloseSpan {
     }
 }
 
-/// Number of bytes of whitespace following an element name in
-///   [`EleSpan`].
+/// Number of bytes representing the name of the element.
 pub type EleNameLen = SpanLenSize;
 
 /// Spans associated with an element opening or closing tag.
@@ -632,11 +588,6 @@ pub enum Token {
     ///   already present,
     ///     not for producing new CData safely!
     CData(SymbolId, Span),
-
-    /// Similar to `Text`,
-    ///   but intended for use where only whitespace is allowed,
-    ///     such as alignment of attributes.
-    Whitespace(Whitespace, Span),
 }
 
 impl Display for Token {
@@ -665,7 +616,6 @@ impl Display for Token {
             Self::Comment(..) => write!(f, "comment"),
             Self::Text(..) => write!(f, "text"),
             Self::CData(..) => write!(f, "CDATA"),
-            Self::Whitespace(..) => write!(f, "whitespace"),
         }
     }
 }
@@ -689,8 +639,7 @@ impl crate::parse::Token for Token {
             | AttrValueFragment(_, span)
             | Comment(_, span)
             | Text(_, span)
-            | CData(_, span)
-            | Whitespace(_, span) => *span,
+            | CData(_, span) => *span,
         }
     }
 }
@@ -830,26 +779,6 @@ pub mod test {
 
             Ok(())
         }
-    }
-
-    #[test]
-    fn whitespace() -> TestResult {
-        assert_eq!(Whitespace::try_from("  ")?, "  ".try_into()?);
-        assert_eq!(Whitespace::try_from(" \t ")?, " \t ".try_into()?);
-
-        assert_eq!(
-            Whitespace::try_from("not ws!"),
-            Err(SpanlessError::NotWhitespace("not ws!".into(),))
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn whitespace_as_text() -> TestResult {
-        assert_eq!(" ".intern(), Whitespace::try_from(" ")?.into(),);
-
-        Ok(())
     }
 
     mod ele_span {

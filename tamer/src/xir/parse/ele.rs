@@ -314,7 +314,10 @@ macro_rules! ele_parse {
                 ///   element.
                 ///
                 /// The span corresponds to the opening tag.
-                CloseExpected_(crate::span::Span, crate::xir::flat::XirfToken),
+                CloseExpected_(
+                    crate::span::Span,
+                    crate::xir::flat::XirfToken<crate::xir::flat::RefinedText>,
+                ),
 
                 Attrs_(crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>),
 
@@ -411,7 +414,9 @@ macro_rules! ele_parse {
             }
 
             impl crate::parse::ParseState for $nt {
-                type Token = crate::xir::flat::XirfToken;
+                type Token = crate::xir::flat::XirfToken<
+                    crate::xir::flat::RefinedText
+                >;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
                 type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;
@@ -698,7 +703,9 @@ macro_rules! ele_parse {
             }
 
             impl crate::parse::ParseState for $nt {
-                type Token = crate::xir::flat::XirfToken;
+                type Token = crate::xir::flat::XirfToken<
+                    crate::xir::flat::RefinedText
+                >;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
                 type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;

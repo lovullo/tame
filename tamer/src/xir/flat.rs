@@ -33,6 +33,8 @@
 //!        that element;
 //!   5. Parsing will fail if input ends before all elements have been
 //!        closed.
+//!   6. Text nodes may optionally be parsed into [`RefinedText`] to
+//!        distinguish whitespace.
 //!
 //! XIRF lowering does not perform any dynamic memory allocation;
 //!   maximum element nesting depth is set statically depending on the needs
@@ -40,7 +42,8 @@
 
 use super::{
     attr::{Attr, AttrParseError, AttrParseState},
-    CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream, Whitespace,
+    reader::is_xml_whitespace_char,
+    CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream,
 };
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
@@ -49,11 +52,15 @@ use crate::{
         TransitionResult,
     },
     span::Span,
-    sym::SymbolId,
+    sym::{st::is_common_whitespace, GlobalSymbolResolve, SymbolId},
     xir::EleSpan,
 };
 use arrayvec::ArrayVec;
-use std::{error::Error, fmt::Display};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+    marker::PhantomData,
+};
 
 /// Tag nesting depth
 ///   (`0` represents the root).
@@ -74,7 +81,7 @@ impl Display for Depth {
 ///   but are still validated to ensure that they are well-formed and that
 ///   the XML is well-structured.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum XirfToken {
+pub enum XirfToken<T: TextType> {
     /// Opening tag of an element.
     Open(QName, OpenSpan, Depth),
 
@@ -99,7 +106,7 @@ pub enum XirfToken {
     /// Character data as part of an element.
     ///
     /// See also [`CData`](XirfToken::CData) variant.
-    Text(SymbolId, Span),
+    Text(T),
 
     /// CData node (`<![CDATA[...]]>`).
     ///
@@ -109,14 +116,9 @@ pub enum XirfToken {
     ///   already present,
     ///     not for producing new CData safely!
     CData(SymbolId, Span),
-
-    /// Similar to `Text`,
-    ///   but intended for use where only whitespace is allowed,
-    ///     such as alignment of attributes.
-    Whitespace(Whitespace, Span),
 }
 
-impl Token for XirfToken {
+impl<T: TextType> Token for XirfToken<T> {
     fn ir_name() -> &'static str {
         "XIRF"
     }
@@ -128,18 +130,17 @@ impl Token for XirfToken {
             Open(_, OpenSpan(span, _), _)
             | Close(_, CloseSpan(span, _), _)
             | Comment(_, span)
-            | Text(_, span)
-            | CData(_, span)
-            | Whitespace(_, span) => *span,
+            | CData(_, span) => *span,
 
+            Text(text) => text.span(),
             Attr(attr) => attr.span(),
         }
     }
 }
 
-impl Object for XirfToken {}
+impl<T: TextType> Object for XirfToken<T> {}
 
-impl Display for XirfToken {
+impl<T: TextType> Display for XirfToken<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use XirfToken::*;
 
@@ -154,18 +155,112 @@ impl Display for XirfToken {
             Comment(sym, span) => {
                 Display::fmt(&XirToken::Comment(*sym, *span), f)
             }
-            Text(sym, span) => Display::fmt(&XirToken::Text(*sym, *span), f),
+            Text(text) => Display::fmt(text, f),
             CData(sym, span) => Display::fmt(&XirToken::CData(*sym, *span), f),
-            Whitespace(ws, span) => {
-                Display::fmt(&XirToken::Whitespace(*ws, *span), f)
+        }
+    }
+}
+
+impl<T: TextType> From<Attr> for XirfToken<T> {
+    fn from(attr: Attr) -> Self {
+        Self::Attr(attr)
+    }
+}
+
+/// Token of an optionally refined [`Text`].
+///
+/// XIRF is configurable on the type of processing it performs on [`Text`],
+///   including the detection of [`Whitespace`].
+///
+/// See also [`RefinedText`].
+pub trait TextType = From<Text> + Token + Eq;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Text(pub SymbolId, pub Span);
+
+impl Token for Text {
+    fn ir_name() -> &'static str {
+        "XIRF Text"
+    }
+
+    fn span(&self) -> Span {
+        match self {
+            Self(_, span) => *span,
+        }
+    }
+}
+
+impl Display for Text {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO: We'll need care to output text so that it does not mess up
+        //   formatted output.
+        // Further,
+        //   text can be any arbitrary length,
+        //   and so should probably be elided after a certain length.
+        write!(f, "text")
+    }
+}
+
+/// A sequence of one or more whitespace characters.
+///
+/// Whitespace here is expected to consist of `[ \n\t\r]`
+///   (where the first character in that class is a space).
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Whitespace(pub Text);
+
+impl Display for Whitespace {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO: Escape output as necessary so that we can render the symbol
+        //   string.
+        // See also `<Text as Display>::fmt` TODO.
+        write!(f, "whitespace")
+    }
+}
+
+/// Text that has been refined to a more descriptive form.
+///
+/// This type may be used as a [`TextType`] to instruct XIRF to detect
+///   [`Whitespace`].
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum RefinedText {
+    /// Provided [`Text`] has been determined to be [`Whitespace`].
+    Whitespace(Whitespace),
+    /// Provided [`Text`] was not able to be refined into a more specific
+    ///   type.
+    Unrefined(Text),
+}
+
+impl Token for RefinedText {
+    fn ir_name() -> &'static str {
+        "XIRF RefinedText"
+    }
+
+    fn span(&self) -> Span {
+        match self {
+            Self::Whitespace(Whitespace(text)) | Self::Unrefined(text) => {
+                text.span()
             }
         }
     }
 }
 
-impl From<Attr> for XirfToken {
-    fn from(attr: Attr) -> Self {
-        Self::Attr(attr)
+impl Display for RefinedText {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Whitespace(ws) => Display::fmt(ws, f),
+            Self::Unrefined(text) => Display::fmt(text, f),
+        }
+    }
+}
+
+impl From<Text> for RefinedText {
+    fn from(text: Text) -> Self {
+        match text {
+            Text(sym, _) if is_whitespace(sym) => {
+                Self::Whitespace(Whitespace(text))
+            }
+            _ => Self::Unrefined(text),
+        }
     }
 }
 
@@ -187,14 +282,14 @@ type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
 /// XIRF document parser state.
 ///
 /// This parser is a pushdown automaton that parses a single XML document.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub enum XirToXirf<const MAX_DEPTH: usize, SA = AttrParseState>
+#[derive(Debug, PartialEq, Eq)]
+pub enum XirToXirf<const MAX_DEPTH: usize, T, SA = AttrParseState>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
+    T: TextType,
 {
     /// Document parsing has not yet begun.
-    #[default]
-    PreRoot,
+    PreRoot(PhantomData<T>),
     /// Parsing nodes.
     NodeExpected,
     /// Delegating to attribute parser.
@@ -203,15 +298,59 @@ where
     Done,
 }
 
+impl<const MAX_DEPTH: usize, T, SA> Default for XirToXirf<MAX_DEPTH, T, SA>
+where
+    SA: FlatAttrParseState<MAX_DEPTH>,
+    T: TextType,
+{
+    fn default() -> Self {
+        Self::PreRoot(PhantomData::default())
+    }
+}
+
 pub type StateContext<const MAX_DEPTH: usize> =
     Context<ElementStack<MAX_DEPTH>>;
 
-impl<const MAX_DEPTH: usize, SA> ParseState for XirToXirf<MAX_DEPTH, SA>
+/// Whether the given [`SymbolId`] is all whitespace according to
+///   [`is_xml_whitespace_char`].
+///
+/// This will first consult the pre-interned whitespace symbol list using
+///   [`is_common_whitespace`].
+/// If that check fails,
+///   it will resort to looking up the symbol and performing a linear scan
+///   of the string,
+///     terminating early if a non-whitespace character is found.
+///
+/// Note that the empty string is considered to be whitespace.
+#[inline]
+fn is_whitespace(sym: SymbolId) -> bool {
+    // See `sym::prefill`;
+    //   this may require maintenance to keep the prefill list up-to-date
+    //   with common whitespace symbols to avoid symbol lookups.
+    // This common check is purely a performance optimization.
+    is_common_whitespace(sym) || {
+        // If this is called often and is too expensive,
+        //   it may be worth caching metadata about symbols,
+        //     either for XIRF or globally.
+        // This requires multiple dereferences
+        //   (for looking up the intern for the `SymbolId`,
+        //     which may result in multiple (CPU) cache misses,
+        //       but that would have to be profiled since the symbol may
+        //       have just been interned and may be cached still)
+        //   and then a linear scan of the associated `str`,
+        //     though it will terminate as soon as it finds a non-whitespace
+        //     character.
+        sym.lookup_str().chars().all(is_xml_whitespace_char)
+    }
+}
+
+impl<const MAX_DEPTH: usize, T, SA> ParseState for XirToXirf<MAX_DEPTH, T, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
+    T: TextType,
 {
     type Token = XirToken;
-    type Object = XirfToken;
+    type Object = XirfToken<T>;
     type Error = XirToXirfError;
     type Context = StateContext<MAX_DEPTH>;
 
@@ -224,14 +363,21 @@ where
 
         match (self, tok) {
             // Comments are permitted before and after the first root element.
-            (st @ (PreRoot | Done), XirToken::Comment(sym, span)) => {
+            (st @ (PreRoot(_) | Done), XirToken::Comment(sym, span)) => {
                 Transition(st).ok(XirfToken::Comment(sym, span))
             }
 
-            (PreRoot, tok @ XirToken::Open(..)) => Self::parse_node(tok, stack),
+            (PreRoot(_), tok @ XirToken::Open(..)) => {
+                Self::parse_node(tok, stack)
+            }
 
-            (PreRoot, tok) => {
-                Transition(PreRoot).err(XirToXirfError::RootOpenExpected(tok))
+            // Ignore whitespace before root.
+            (st @ PreRoot(_), XirToken::Text(sym, _)) if is_whitespace(sym) => {
+                Transition(st).incomplete()
+            }
+
+            (st @ PreRoot(_), tok) => {
+                Transition(st).err(XirToXirfError::RootOpenExpected(tok))
             }
 
             (NodeExpected, tok) => Self::parse_node(tok, stack),
@@ -261,15 +407,16 @@ where
     }
 }
 
-impl<const MAX_DEPTH: usize, SA> Display for XirToXirf<MAX_DEPTH, SA>
+impl<const MAX_DEPTH: usize, T, SA> Display for XirToXirf<MAX_DEPTH, T, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
+    T: TextType,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use XirToXirf::*;
 
         match self {
-            PreRoot => write!(f, "expecting document root"),
+            PreRoot(_) => write!(f, "expecting document root"),
             NodeExpected => write!(f, "expecting a node"),
             AttrExpected(sa) => Display::fmt(sa, f),
             Done => write!(f, "done parsing"),
@@ -277,9 +424,10 @@ where
     }
 }
 
-impl<const MAX_DEPTH: usize, SA> XirToXirf<MAX_DEPTH, SA>
+impl<const MAX_DEPTH: usize, T, SA> XirToXirf<MAX_DEPTH, T, SA>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
+    T: TextType,
 {
     /// Parse a token while in a state expecting a node.
     fn parse_node(
@@ -287,7 +435,6 @@ where
         stack: &mut ElementStack<MAX_DEPTH>,
     ) -> TransitionResult<Self> {
         use XirToXirf::{AttrExpected, Done, NodeExpected};
-        use XirfToken::*;
 
         match tok {
             XirToken::Open(qname, span) if stack.len() == MAX_DEPTH => {
@@ -302,7 +449,7 @@ where
                 stack.push((qname, span.tag_span()));
 
                 // Delegate to the attribute parser until it is complete.
-                Transition(AttrExpected(SA::default())).ok(Open(
+                Transition(AttrExpected(SA::default())).ok(XirfToken::Open(
                     qname,
                     span,
                     Depth(depth),
@@ -325,16 +472,14 @@ where
                     }
 
                     // Final closing tag (for root node) completes the document.
-                    (..) if stack.len() == 0 => Transition(Done).ok(Close(
-                        close_oqname,
-                        close_span,
-                        Depth(0),
-                    )),
+                    (..) if stack.len() == 0 => Transition(Done).ok(
+                        XirfToken::Close(close_oqname, close_span, Depth(0)),
+                    ),
 
                     (..) => {
                         let depth = stack.len();
 
-                        Transition(NodeExpected).ok(Close(
+                        Transition(NodeExpected).ok(XirfToken::Close(
                             close_oqname,
                             close_span,
                             Depth(depth),
@@ -344,16 +489,12 @@ where
             }
 
             XirToken::Comment(sym, span) => {
-                Transition(NodeExpected).ok(Comment(sym, span))
+                Transition(NodeExpected).ok(XirfToken::Comment(sym, span))
             }
-            XirToken::Text(sym, span) => {
-                Transition(NodeExpected).ok(Text(sym, span))
-            }
+            XirToken::Text(sym, span) => Transition(NodeExpected)
+                .ok(XirfToken::Text(T::from(Text(sym, span)))),
             XirToken::CData(sym, span) => {
-                Transition(NodeExpected).ok(CData(sym, span))
-            }
-            XirToken::Whitespace(ws, span) => {
-                Transition(NodeExpected).ok(Whitespace(ws, span))
+                Transition(NodeExpected).ok(XirfToken::CData(sym, span))
             }
 
             // We should transition to `State::Attr` before encountering any
@@ -369,10 +510,10 @@ where
 
 /// Produce a streaming parser lowering a XIR [`TokenStream`] into a XIRF
 ///   stream.
-pub fn parse<const MAX_DEPTH: usize>(
+pub fn parse<const MAX_DEPTH: usize, T: TextType>(
     toks: impl TokenStream,
-) -> impl Iterator<Item = ParsedResult<XirToXirf<MAX_DEPTH>>> {
-    XirToXirf::<MAX_DEPTH>::parse(toks)
+) -> impl Iterator<Item = ParsedResult<XirToXirf<MAX_DEPTH, T>>> {
+    XirToXirf::<MAX_DEPTH, T>::parse(toks)
 }
 
 /// Parsing error from [`XirToXirf`].

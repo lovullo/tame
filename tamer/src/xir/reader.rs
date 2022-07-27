@@ -368,7 +368,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 let has_attrs = ele
                     .attributes_raw()
                     .iter()
-                    .find(|b| !Self::is_whitespace(**b))
+                    .find(|b| !is_xml_whitespace_u8(**b))
                     .is_some();
 
                 // The tail is anything following the last byte of the QName
@@ -424,20 +424,6 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     OpenSpan(span, len.try_into().unwrap_or(0)),
                 ))
             })
-    }
-
-    /// Whether the byte represents XML whitespace.
-    ///
-    /// This is quick-xml's whitespace predicate,
-    ///   and corresponds to the
-    ///     [nonterminal `S` in the XML specification][xmlspec-s].
-    ///
-    /// [xmlspec-s]: https://www.w3.org/TR/xml/#NT-S
-    fn is_whitespace(b: u8) -> bool {
-        match b {
-            b' ' | b'\r' | b'\n' | b'\t' => true,
-            _ => false,
-        }
     }
 
     /// Parse attributes into a XIR [`Token`] stream.
@@ -549,6 +535,30 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         }
 
         Ok(found)
+    }
+}
+
+/// Whether the byte represents XML whitespace.
+///
+/// This is quick-xml's whitespace predicate,
+///   and corresponds to the
+///     [nonterminal `S` in the XML specification][xmlspec-s].
+///
+/// [xmlspec-s]: https://www.w3.org/TR/xml/#NT-S
+pub fn is_xml_whitespace_u8(b: u8) -> bool {
+    match b {
+        b' ' | b'\r' | b'\n' | b'\t' => true,
+        _ => false,
+    }
+}
+
+/// Whether the character represents XML whitespace.
+///
+/// See [`is_xml_whitespace_u8`].
+pub fn is_xml_whitespace_char(c: char) -> bool {
+    match c {
+        ' ' | '\r' | '\n' | '\t' => true,
+        _ => false,
     }
 }
 

@@ -23,7 +23,7 @@ use crate::diagnose::{Annotate, AnnotatedSpan, Diagnostic};
 use crate::parse::Token;
 use crate::span::Span;
 use crate::sym::SymbolId;
-use crate::xir::flat::XirfToken;
+use crate::xir::flat::{Text, XirfToken};
 use std::fmt::Display;
 
 /// Error during `xmlo` processing.
@@ -38,7 +38,7 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq)]
 pub enum XmloError {
     /// The root node was not an `lv:package`.
-    UnexpectedRoot(XirfToken),
+    UnexpectedRoot(XirfToken<Text>),
     /// A `preproc:sym` node was found, but is missing `@name`.
     UnassociatedSym(Span),
     /// The provided `preproc:sym/@type` is unknown or invalid.
@@ -65,7 +65,7 @@ pub enum XmloError {
     /// Ideally we would provide a better error depending on the context,
     ///   but this serves as a fallback if the input is completely
     ///   unexpected.
-    UnexpectedToken(XirfToken),
+    UnexpectedToken(XirfToken<Text>),
 }
 
 impl Display for XmloError {

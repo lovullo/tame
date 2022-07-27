@@ -42,7 +42,7 @@ use crate::{
     sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
-        flat::{Depth, XirfToken},
+        flat::{Depth, RefinedText, Text, XirfToken},
         st::qname::*,
         CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
     },
@@ -630,7 +630,10 @@ fn child_error_and_recovery_at_close() {
         XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
         // Let's mix it up a bit with some text and make sure that is
         //   ignored too.
-        XirfToken::Text("unexpected text".unwrap_into(), S5),
+        XirfToken::Text(RefinedText::Unrefined(Text(
+            "unexpected text".unwrap_into(),
+            S5,
+        ))),
         // Having recovered from the above tokens,
         //   this will end parsing for `Sut` as expected.
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S6, N), Depth(0)),

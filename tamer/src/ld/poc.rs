@@ -43,7 +43,7 @@ use crate::{
     parse::{Lower, ParseError, Parsed, ParsedObject, UnknownToken},
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
-        flat::{XirToXirf, XirToXirfError, XirfToken},
+        flat::{Text, XirToXirf, XirToXirfError, XirfToken},
         reader::XmlXirReader,
         writer::{Error as XirWriterError, XmlWriter},
         DefaultEscaper, Error as XirError, Escaper, Token as XirToken,
@@ -192,11 +192,11 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     //   abstracted away.
     let (mut asg, mut state) = Lower::<
         ParsedObject<XirToken, XirError>,
-        XirToXirf<64>,
+        XirToXirf<64, Text>,
     >::lower::<_, TameldError>(
         &mut XmlXirReader::new(file, escaper, ctx),
         |toks| {
-            Lower::<XirToXirf<64>, XmloReader>::lower(toks, |xmlo| {
+            Lower::<XirToXirf<64, Text>, XmloReader>::lower(toks, |xmlo| {
                 let mut iter = xmlo.scan(false, |st, rtok| match st {
                     true => None,
                     false => {
@@ -283,7 +283,7 @@ pub enum TameldError {
     SortError(SortError),
     XirParseError(ParseError<UnknownToken, XirError>),
     XirfParseError(ParseError<XirToken, XirToXirfError>),
-    XmloParseError(ParseError<XirfToken, XmloError>),
+    XmloParseError(ParseError<XirfToken<Text>, XmloError>),
     XmloLowerError(ParseError<XmloToken, XmloAirError>),
     AirLowerError(ParseError<AirToken, AsgError>),
     XirWriterError(XirWriterError),
@@ -309,8 +309,8 @@ impl From<ParseError<UnknownToken, XirError>> for TameldError {
     }
 }
 
-impl From<ParseError<XirfToken, XmloError>> for TameldError {
-    fn from(e: ParseError<XirfToken, XmloError>) -> Self {
+impl From<ParseError<XirfToken<Text>, XmloError>> for TameldError {
+    fn from(e: ParseError<XirfToken<Text>, XmloError>) -> Self {
         Self::XmloParseError(e)
     }
 }
