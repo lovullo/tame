@@ -177,8 +177,17 @@ impl crate::parse::Object for Attr {}
 
 impl Display for Attr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Do not display value since it can contain any information and
+        //   mess up formatted output.
+        // If we wish to display that information in the future,
+        //   then we ought to escape and elide it,
+        //   but we must furthermore make sure that it makes sense in all
+        //     contexts;
+        //       many diagnostic messages today expect that outputting an
+        //       attribute will output the name of that attribute and
+        //       nothing more.
         match self {
-            Self(key, value, _) => write!(f, "`@{key}=\"{value}\"`"),
+            Self(key, _value, _) => write!(f, "@{key}"),
         }
     }
 }

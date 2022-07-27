@@ -110,7 +110,7 @@ impl<S: AttrParseState> Display for AttrParseError<S> {
                 write!(
                     f,
                     "unexpected attribute `{attr}` for \
-                       element element `{ele_name}`"
+                       element `{ele_name}`"
                 )
             }
 
