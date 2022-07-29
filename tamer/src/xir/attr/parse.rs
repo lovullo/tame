@@ -150,16 +150,14 @@ mod test {
     use crate::{
         convert::ExpectInto,
         parse::{ParseError, Parsed},
+        span::dummy::*,
         sym::GlobalSymbolIntern,
         xir::test::{close_empty, open},
     };
 
-    const S: Span = crate::span::DUMMY_SPAN;
-    const S2: Span = S.offset_add(1).unwrap();
-
     #[test]
     fn dead_if_first_token_is_non_attr() {
-        let tok = open("foo", S);
+        let tok = open("foo", S1);
 
         let mut sut = AttrParseState::parse(vec![tok.clone()].into_iter());
 
@@ -176,7 +174,7 @@ mod test {
         let attr = "attr".unwrap_into();
         let val = "val".intern();
 
-        let toks = [XirToken::AttrName(attr, S), XirToken::AttrValue(val, S2)]
+        let toks = [XirToken::AttrName(attr, S1), XirToken::AttrValue(val, S2)]
             .into_iter();
 
         let sut = AttrParseState::parse(toks);
@@ -184,7 +182,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete,
-                Parsed::Object(Attr::new(attr, val, (S, S2))),
+                Parsed::Object(Attr::new(attr, val, (S1, S2))),
             ]),
             sut.collect()
         );
@@ -196,7 +194,7 @@ mod test {
         let recover = "value".intern();
 
         let toks = vec![
-            XirToken::AttrName(attr, S),
+            XirToken::AttrName(attr, S1),
             close_empty(S2),
             XirToken::AttrValue(recover, S2),
         ];
@@ -211,7 +209,7 @@ mod test {
         assert_eq!(
             sut.next(),
             Some(Err(ParseError::StateError(
-                AttrParseError::AttrValueExpected(attr, S, close_empty(S2))
+                AttrParseError::AttrValueExpected(attr, S1, close_empty(S2))
             )))
         );
 
@@ -227,7 +225,7 @@ mod test {
         //   let's actually attempt a recovery.
         assert_eq!(
             sut.next(),
-            Some(Ok(Parsed::Object(Attr::new(attr, recover, (S, S2))))),
+            Some(Ok(Parsed::Object(Attr::new(attr, recover, (S1, S2))))),
         );
 
         // Finally, we should now be in an accepting state.

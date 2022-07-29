@@ -399,16 +399,11 @@ mod test {
         num::{Dim, Dtype},
         obj::xmlo::{SymAttrs, SymType},
         parse::Parsed,
-        span::{DUMMY_SPAN, UNKNOWN_SPAN},
+        span::{dummy::*, UNKNOWN_SPAN},
         sym::GlobalSymbolIntern,
     };
 
     type Sut = XmloToAir;
-
-    const S1: Span = DUMMY_SPAN;
-    const S2: Span = S1.offset_add(1).unwrap();
-    const S3: Span = S2.offset_add(1).unwrap();
-    const S4: Span = S3.offset_add(1).unwrap();
 
     #[test]
     fn data_from_package_event() {

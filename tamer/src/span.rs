@@ -490,16 +490,6 @@ impl Display for Span {
 ///   known.
 pub const UNKNOWN_SPAN: Span = Span::st_ctx(st16::CTX_UNKNOWN);
 
-/// A dummy span that can be used in contexts where a span is expected but
-///   is not important.
-///
-/// This is intended primarily for tests;
-///   you should always use an appropriate span to permit sensible error
-///   messages and source analysis.
-///
-/// Additional dummy spans can be derived from this one.
-pub const DUMMY_SPAN: Span = Span::st_ctx(st16::CTX_DUMMY);
-
 /// Context for byte offsets (e.g. a source file).
 ///
 /// A context is lifetime-free and [`Copy`]-able,
@@ -558,16 +548,6 @@ impl Context {
 ///   yet known.
 pub const UNKNOWN_CONTEXT: Context = Context(st16::raw::CTX_UNKNOWN);
 
-/// A dummy context that can be used where a span is expected but is not
-///   important.
-///
-/// This is intended primarily for tests;
-///   you should always use an appropriate span to permit sensible error
-///   messages and source analysis.
-///
-/// See also [`UNKNOWN_CONTEXT`].
-pub const DUMMY_CONTEXT: Context = Context(st16::raw::CTX_DUMMY);
-
 impl<P: Into<PathSymbolId>> From<P> for Context {
     fn from(sym: P) -> Self {
         Self(sym.into())
@@ -609,6 +589,52 @@ impl<T: Copy + PartialOrd> From<(T, T)> for ClosedByteInterval<T> {
 }
 
 assert_eq_size!(ClosedByteInterval, u64);
+
+/// Dummy spans for testing.
+#[cfg(test)]
+pub mod dummy {
+    use super::{st16, Context, Span};
+
+    /// A dummy span that can be used in contexts where a span is expected
+    ///   but is not important.
+    ///
+    /// This is intended primarily for tests;
+    ///   you should always use an appropriate span to permit sensible error
+    ///   messages and source analysis.
+    /// For spans that are actually unknown,
+    ///   use [`super::UNKNOWN_SPAN`].
+    ///
+    /// Additional dummy spans can be derived from this one.
+    pub const DUMMY_SPAN: Span = Span::st_ctx(st16::CTX_DUMMY);
+
+    /// A dummy context that can be used where a span is expected but is not
+    ///   important.
+    ///
+    /// This is intended primarily for tests;
+    ///   you should always use an appropriate span to permit sensible error
+    ///   messages and source analysis.
+    /// For contexts that are actually unknown,
+    ///   use [`super::UNKNOWN_CONTEXT`].
+    ///
+    /// See also [`UNKNOWN_CONTEXT`].
+    pub const DUMMY_CONTEXT: Context = Context(st16::raw::CTX_DUMMY);
+
+    // This name is for brevity;
+    //   we don't want to expose it because we don't want anyone to assume
+    //   that a different name means that it's somehow different from
+    //   `DUMMY_SPAN`.
+    const S0: Span = DUMMY_SPAN;
+
+    pub const S1: Span = S0.offset_add(1).unwrap();
+    pub const S2: Span = S0.offset_add(2).unwrap();
+    pub const S3: Span = S0.offset_add(3).unwrap();
+    pub const S4: Span = S0.offset_add(4).unwrap();
+    pub const S5: Span = S0.offset_add(5).unwrap();
+    pub const S6: Span = S0.offset_add(6).unwrap();
+    pub const S7: Span = S0.offset_add(7).unwrap();
+    pub const S8: Span = S0.offset_add(8).unwrap();
+    pub const S9: Span = S0.offset_add(9).unwrap();
+}
 
 #[cfg(test)]
 mod test {

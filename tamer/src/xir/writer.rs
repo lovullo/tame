@@ -316,7 +316,7 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
-        span::{Span, DUMMY_SPAN},
+        span::{dummy::DUMMY_SPAN, Span},
         sym::GlobalSymbolIntern,
         xir::{
             error::SpanlessError,

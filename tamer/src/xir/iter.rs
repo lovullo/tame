@@ -86,7 +86,7 @@ impl<I: TokenStream> Iterator for ElemWrapIter<I> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{convert::ExpectInto, span::DUMMY_SPAN, xir::Token};
+    use crate::{convert::ExpectInto, span::dummy::DUMMY_SPAN, xir::Token};
 
     #[test]
     fn elem_wrap_iter() {

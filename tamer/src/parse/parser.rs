@@ -456,7 +456,7 @@ pub mod test {
     use crate::{
         diagnose::Diagnostic,
         parse::{Object, Token},
-        span::DUMMY_SPAN,
+        span::dummy::DUMMY_SPAN,
     };
     use std::{assert_matches::assert_matches, error::Error, fmt::Display};
 

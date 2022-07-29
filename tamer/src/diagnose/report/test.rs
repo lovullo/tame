@@ -21,7 +21,7 @@ use super::*;
 use crate::{
     convert::ExpectInto,
     diagnose::resolve::Column,
-    span::{DUMMY_CONTEXT, DUMMY_SPAN},
+    span::dummy::{DUMMY_CONTEXT, DUMMY_SPAN},
 };
 use std::{io, num::NonZeroU32};
 

@@ -262,7 +262,7 @@ impl<const N: usize> From<[Attr; N]> for AttrList {
 
 #[cfg(test)]
 mod test {
-    use crate::span::DUMMY_CONTEXT as DC;
+    use crate::span::dummy::DUMMY_CONTEXT as DC;
 
     use super::*;
 

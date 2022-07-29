@@ -20,7 +20,7 @@
 use super::*;
 use crate::{
     parse::{ParseError, ParseState, Parsed, Parser, TokenStream},
-    span::{Span, DUMMY_SPAN},
+    span::dummy::*,
     sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
@@ -30,9 +30,6 @@ use crate::{
 };
 use std::assert_matches::assert_matches;
 
-const S1: Span = DUMMY_SPAN.offset_add(1).unwrap();
-const S2: Span = S1.offset_add(1).unwrap();
-const S3: Span = S2.offset_add(1).unwrap();
 const SE: OpenSpan = OpenSpan(S1.offset_add(100).unwrap(), 0);
 
 // Random choice of QName for tests.

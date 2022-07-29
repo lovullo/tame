@@ -27,7 +27,7 @@ use std::assert_matches::assert_matches;
 use super::*;
 use crate::convert::ExpectInto;
 use crate::parse::{ParseError, Parsed};
-use crate::span::DUMMY_SPAN;
+use crate::span::dummy::*;
 use crate::sym::GlobalSymbolIntern;
 use crate::xir::test::{
     close as xir_close, close_empty as xir_close_empty, open as xir_open,
@@ -80,22 +80,17 @@ where
     XirfToken::Close(qname.map(ExpectInto::unwrap_into), span.into(), depth)
 }
 
-const S: Span = DUMMY_SPAN;
-const S2: Span = S.offset_add(1).unwrap();
-const S3: Span = S2.offset_add(1).unwrap();
-const S4: Span = S3.offset_add(1).unwrap();
-
 #[test]
 fn empty_element_self_close() {
     let name = ("ns", "elem");
 
-    let toks = [xir_open(name, S), xir_close_empty(S2)].into_iter();
+    let toks = [xir_open(name, S1), xir_close_empty(S2)].into_iter();
 
     let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(name, S, Depth(0))),
+            Parsed::Object(open(name, S1, Depth(0))),
             Parsed::Object(close_empty(S2, Depth(0))),
         ]),
         sut.collect(),
@@ -108,13 +103,13 @@ fn empty_element_self_close() {
 fn empty_element_balanced_close() {
     let name = ("ns", "openclose");
 
-    let toks = [xir_open(name, S), xir_close(Some(name), S2)].into_iter();
+    let toks = [xir_open(name, S1), xir_close(Some(name), S2)].into_iter();
 
     let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(name, S, Depth(0))),
+            Parsed::Object(open(name, S1, Depth(0))),
             Parsed::Object(close(Some(name), S2, Depth(0))),
         ]),
         sut.collect(),
@@ -130,7 +125,7 @@ fn extra_closing_tag() {
     let name = ("ns", "openclose");
     let toks = [
         // We need an opening tag to actually begin document parsing.
-        xir_open(name, S),
+        xir_open(name, S1),
         xir_close(Some(name), S2),
         xir_close(Some(name), S3),
     ]
@@ -155,7 +150,7 @@ fn extra_self_closing_tag() {
     let name = ("ns", "openclose");
     let toks = [
         // We need an opening tag to actually begin document parsing.
-        xir_open(name, S),
+        xir_open(name, S1),
         xir_close_empty(S2),
         xir_close_empty(S3),
     ]
@@ -178,18 +173,18 @@ fn empty_element_unbalanced_close() {
     let close_name = "unbalanced_name".unwrap_into();
 
     let toks =
-        [xir_open(open_name, S), xir_close(Some(close_name), S2)].into_iter();
+        [xir_open(open_name, S1), xir_close(Some(close_name), S2)].into_iter();
 
     let mut sut = parse::<1, Text>(toks);
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Parsed::Object(open(open_name, S, Depth(0)))))
+        Some(Ok(Parsed::Object(open(open_name, S1, Depth(0)))))
     );
     assert_eq!(
         sut.next(),
         Some(Err(ParseError::StateError(XirToXirfError::UnbalancedTag {
-            open: (open_name, S),
+            open: (open_name, S1),
             close: (close_name, S2),
         })))
     );
@@ -202,7 +197,7 @@ fn single_empty_child() {
     let child = "child";
 
     let toks = [
-        xir_open(name, S),
+        xir_open(name, S1),
         xir_open(child, S2),
         xir_close_empty(S3),
         xir_close(Some(name), S4),
@@ -213,7 +208,7 @@ fn single_empty_child() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(name, S, Depth(0))),
+            Parsed::Object(open(name, S1, Depth(0))),
             Parsed::Object(open(child, S2, Depth(1))),
             Parsed::Object(close_empty(S3, Depth(1))),
             Parsed::Object(close(Some(name), S4, Depth(0))),
@@ -228,7 +223,7 @@ fn depth_exceeded() {
     let exceed = "exceed".unwrap_into();
 
     let toks = [
-        xir_open(name, S),
+        xir_open(name, S1),
         // This one exceeds the max depth, ...
         xir_open(exceed, S2),
     ]
@@ -238,7 +233,7 @@ fn depth_exceeded() {
     let mut sut = parse::<1, Text>(toks);
 
     assert_eq!(
-        Some(Ok(Parsed::Object(open(name, S, Depth(0))))),
+        Some(Ok(Parsed::Object(open(name, S1, Depth(0))))),
         sut.next()
     );
     assert_eq!(
@@ -261,7 +256,7 @@ fn empty_element_with_attrs() {
     let val2 = "val2".intern();
 
     let toks = [
-        xir_open(name, S),
+        xir_open(name, S1),
         XirToken::AttrName(attr1, S2),
         XirToken::AttrValue(val1, S3),
         XirToken::AttrName(attr2, S3),
@@ -274,7 +269,7 @@ fn empty_element_with_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(name, S, Depth(0))),
+            Parsed::Object(open(name, S1, Depth(0))),
             Parsed::Incomplete,
             Parsed::Object(XirfToken::Attr(Attr::new(attr1, val1, (S2, S3)))),
             Parsed::Incomplete,
@@ -293,10 +288,10 @@ fn child_element_after_attrs() {
     let val = "val".intern();
 
     let toks = [
-        xir_open(name, S),
-        XirToken::AttrName(attr, S),
+        xir_open(name, S1),
+        XirToken::AttrName(attr, S1),
         XirToken::AttrValue(val, S2),
-        xir_open(child, S),
+        xir_open(child, S1),
         xir_close_empty(S2),
         xir_close(Some(name), S3),
     ]
@@ -306,10 +301,10 @@ fn child_element_after_attrs() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(name, S, Depth(0))),
+            Parsed::Object(open(name, S1, Depth(0))),
             Parsed::Incomplete,
-            Parsed::Object(XirfToken::Attr(Attr::new(attr, val, (S, S2)))),
-            Parsed::Object(open(child, S, Depth(1))),
+            Parsed::Object(XirfToken::Attr(Attr::new(attr, val, (S1, S2)))),
+            Parsed::Object(open(child, S1, Depth(1))),
             Parsed::Object(close_empty(S2, Depth(1))),
             Parsed::Object(close(Some(name), S3, Depth(0))),
         ]),
@@ -324,7 +319,7 @@ fn element_with_empty_sibling_children() {
     let childb = "childb";
 
     let toks = [
-        xir_open(parent, S),
+        xir_open(parent, S1),
         xir_open(childa, S2),
         xir_close_empty(S3),
         xir_open(childb, S2),
@@ -337,7 +332,7 @@ fn element_with_empty_sibling_children() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(parent, S, Depth(0))),
+            Parsed::Object(open(parent, S1, Depth(0))),
             Parsed::Object(open(childa, S2, Depth(1))),
             Parsed::Object(close_empty(S3, Depth(1))),
             Parsed::Object(open(childb, S2, Depth(1))),
@@ -357,9 +352,9 @@ fn element_with_child_with_attributes() {
     let value = "attr value".intern();
 
     let toks = [
-        xir_open(parent, S),
-        xir_open(child, S),
-        XirToken::AttrName(attr, S),
+        xir_open(parent, S1),
+        xir_open(child, S1),
+        XirToken::AttrName(attr, S1),
         XirToken::AttrValue(value, S2),
         xir_close_empty(S3),
         xir_close(Some(parent), S3),
@@ -370,10 +365,10 @@ fn element_with_child_with_attributes() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(parent, S, Depth(0))),
-            Parsed::Object(open(child, S, Depth(1))),
+            Parsed::Object(open(parent, S1, Depth(0))),
+            Parsed::Object(open(child, S1, Depth(1))),
             Parsed::Incomplete,
-            Parsed::Object(XirfToken::Attr(Attr::new(attr, value, (S, S2)))),
+            Parsed::Object(XirfToken::Attr(Attr::new(attr, value, (S1, S2)))),
             Parsed::Object(close_empty(S3, Depth(1))),
             Parsed::Object(close(Some(parent), S3, Depth(0))),
         ]),
@@ -387,7 +382,7 @@ fn element_with_text() {
     let text = "inner text".into();
 
     let toks = [
-        xir_open(parent, S),
+        xir_open(parent, S1),
         XirToken::Text(text, S2),
         xir_close(Some(parent), S3),
     ]
@@ -397,7 +392,7 @@ fn element_with_text() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(open(parent, S, Depth(0))),
+            Parsed::Object(open(parent, S1, Depth(0))),
             Parsed::Object(XirfToken::Text(Text(text, S2))),
             Parsed::Object(close(Some(parent), S3, Depth(0))),
         ]),
@@ -408,12 +403,12 @@ fn element_with_text() {
 #[test]
 fn not_accepting_state_if_element_open() {
     let name = "unclosed";
-    let toks = [xir_open(name, S)].into_iter();
+    let toks = [xir_open(name, S1)].into_iter();
 
     let mut sut = parse::<1, Text>(toks);
 
     assert_eq!(
-        Some(Ok(Parsed::Object(open(name, S, Depth(0))))),
+        Some(Ok(Parsed::Object(open(name, S1, Depth(0))))),
         sut.next()
     );
 
@@ -429,7 +424,7 @@ fn comment_before_or_after_root_ok() {
     let cend = "end comment".intern();
 
     let toks = [
-        XirToken::Comment(cstart, S),
+        XirToken::Comment(cstart, S1),
         xir_open(name, S2),
         xir_close_empty(S3),
         XirToken::Comment(cend, S4),
@@ -440,7 +435,7 @@ fn comment_before_or_after_root_ok() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(XirfToken::Comment(cstart, S)),
+            Parsed::Object(XirfToken::Comment(cstart, S1)),
             Parsed::Object(open(name, S2, Depth(0))),
             Parsed::Object(close_empty(S3, Depth(0))),
             Parsed::Object(XirfToken::Comment(cend, S4)),
@@ -457,7 +452,7 @@ fn whitespace_before_or_after_root_ok() {
     let ws = "  ".unwrap_into();
 
     let toks = [
-        XirToken::Text(ws, S),
+        XirToken::Text(ws, S1),
         xir_open(name, S2),
         xir_close_empty(S3),
         XirToken::Text(ws, S4),
@@ -490,7 +485,7 @@ fn content_after_root_close_error() {
     let name = "root".unwrap_into();
 
     let toks = [
-        xir_open(name, S),
+        xir_open(name, S1),
         xir_close_empty(S2),
         // Document ends here
         xir_open(name, S3),
@@ -512,13 +507,13 @@ fn content_after_root_close_error() {
 fn content_before_root_open_error() {
     let text = "foo".intern();
 
-    let toks = [XirToken::Text(text, S)].into_iter();
+    let toks = [XirToken::Text(text, S1)].into_iter();
 
     let sut = parse::<1, Text>(toks);
 
     assert_eq!(
         Result::<Vec<Parsed<_>>, _>::Err(ParseError::StateError(
-            XirToXirfError::RootOpenExpected(XirToken::Text(text, S))
+            XirToXirfError::RootOpenExpected(XirToken::Text(text, S1))
         )),
         sut.collect()
     );
@@ -540,7 +535,7 @@ fn whitespace_refinement() {
     .into_iter()
     .for_each(|(given, expected)| {
         let mut sut = parse::<1, RefinedText>(
-            vec![xir_open("root", S), XirToken::Text(given, S)].into_iter(),
+            vec![xir_open("root", S1), XirToken::Text(given, S1)].into_iter(),
         );
 
         let _ = sut.next(); // discard root
@@ -550,7 +545,7 @@ fn whitespace_refinement() {
                 Whitespace(Text(ws, span)),
             ))) => {
                 assert_eq!(ws, given);
-                assert_eq!(span, S);
+                assert_eq!(span, S1);
                 assert!(expected == true)
             }
 
@@ -559,7 +554,7 @@ fn whitespace_refinement() {
                 span,
             )))) => {
                 assert_eq!(text, given);
-                assert_eq!(span, S);
+                assert_eq!(span, S1);
                 assert!(expected == false)
             }
 

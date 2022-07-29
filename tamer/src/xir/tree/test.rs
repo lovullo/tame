@@ -22,13 +22,9 @@ use std::assert_matches::assert_matches;
 use super::*;
 use crate::convert::ExpectInto;
 use crate::parse::ParseError;
-use crate::span::DUMMY_SPAN;
+use crate::span::dummy::*;
 use crate::sym::GlobalSymbolIntern;
 use crate::xir::test::{close, close_empty, open};
-
-const S1: Span = DUMMY_SPAN;
-const S2: Span = S1.offset_add(1).unwrap();
-const S3: Span = S2.offset_add(1).unwrap();
 
 mod tree {
     use super::*;

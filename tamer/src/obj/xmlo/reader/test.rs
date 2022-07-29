@@ -25,7 +25,7 @@ use crate::{
     num::Dtype,
     obj::xmlo::SymType,
     parse::{ParseError, ParseState, Parsed},
-    span::{Span, DUMMY_SPAN},
+    span::{dummy::*, Span},
     sym::GlobalSymbolIntern,
     xir::{
         attr::Attr,
@@ -36,12 +36,6 @@ use crate::{
         QName,
     },
 };
-
-const S1: Span = DUMMY_SPAN;
-const S2: Span = S1.offset_add(1).unwrap();
-const S3: Span = S2.offset_add(1).unwrap();
-const S4: Span = S3.offset_add(1).unwrap();
-const S5: Span = S4.offset_add(1).unwrap();
 
 type Sut = XmloReader;
 

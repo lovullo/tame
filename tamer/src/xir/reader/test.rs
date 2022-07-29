@@ -27,7 +27,7 @@ use crate::{
         ParseError::StateError as PE,
         Parsed::{self, Object as O},
     },
-    span::DUMMY_CONTEXT as DC,
+    span::dummy::DUMMY_CONTEXT as DC,
     xir::{Error, Token},
 };
 use std::borrow::Cow;

@@ -36,7 +36,7 @@ pub use state::{
     Transitionable,
 };
 
-use crate::span::{Span, DUMMY_SPAN};
+use crate::span::{Span, UNKNOWN_SPAN};
 use std::{
     error::Error,
     fmt::{Debug, Display},
@@ -73,7 +73,7 @@ pub struct UnknownToken;
 
 impl Token for UnknownToken {
     fn span(&self) -> Span {
-        DUMMY_SPAN
+        UNKNOWN_SPAN
     }
 
     fn ir_name() -> &'static str {
@@ -121,7 +121,7 @@ pub mod test {
     use super::*;
     use crate::{
         diagnose::{AnnotatedSpan, Diagnostic},
-        span::{DUMMY_SPAN as DS, UNKNOWN_SPAN},
+        span::{dummy::DUMMY_SPAN as DS, UNKNOWN_SPAN},
         sym::GlobalSymbolIntern,
     };
     use std::{assert_matches::assert_matches, iter::once};

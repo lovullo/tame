@@ -38,7 +38,7 @@ use crate::{
     convert::ExpectInto,
     diagnose::Diagnostic,
     parse::{Object, ParseError, ParseState, Parsed},
-    span::{Span, DUMMY_SPAN},
+    span::{dummy::*, Span},
     sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
@@ -47,15 +47,6 @@ use crate::{
         CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
     },
 };
-
-const S1: Span = DUMMY_SPAN;
-const S2: Span = S1.offset_add(1).unwrap();
-const S3: Span = S2.offset_add(1).unwrap();
-const S4: Span = S3.offset_add(1).unwrap();
-const S5: Span = S4.offset_add(1).unwrap();
-const S6: Span = S5.offset_add(1).unwrap();
-const S7: Span = S6.offset_add(1).unwrap();
-const S8: Span = S7.offset_add(1).unwrap();
 
 // Some number (value does not matter).
 const N: EleNameLen = 10;

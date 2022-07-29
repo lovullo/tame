@@ -786,7 +786,7 @@ pub mod test {
 
     mod ele_span {
         use super::*;
-        use crate::span::DUMMY_CONTEXT as DC;
+        use crate::span::dummy::DUMMY_CONTEXT as DC;
 
         #[test]
         fn open_without_attrs() {
