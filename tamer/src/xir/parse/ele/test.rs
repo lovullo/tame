@@ -42,7 +42,7 @@ use crate::{
     sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
-        flat::{Depth, RefinedText, Text, XirfToken},
+        flat::{Depth, RefinedText, Text, Whitespace, XirfToken},
         st::qname::*,
         CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
     },
@@ -452,6 +452,87 @@ fn multiple_child_elements_sequential() {
     );
 }
 
+// Even if we do not accept mixed data
+//   (text and elements),
+//   whitespace text ought to be accepted and entirely ignored.
+#[test]
+fn whitespace_ignored_between_elements() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        A,
+        B,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_SUT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_CLASSIFY;
+    const QN_B: QName = QN_EXPORT;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_SUT {
+            @ {} => Foo::Root,
+
+            A,
+            B,
+        }
+
+        A := QN_A {
+            @ {} => Foo::A,
+        }
+
+        B := QN_B {
+            @ {} => Foo::B,
+        }
+    }
+
+    let tok_ws = XirfToken::Text(RefinedText::Whitespace(Whitespace(Text(
+        "  ".unwrap_into(),
+        S1,
+    ))));
+
+    let toks = vec![
+        // Whitespace before start tag.
+        tok_ws.clone(),
+        XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
+        // Whitespace between children.
+        tok_ws.clone(),
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        tok_ws.clone(),
+        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        tok_ws.clone(),
+        XirfToken::Close(Some(QN_SUT), CloseSpan(S5, N), Depth(0)),
+        // Whitespace after end tag.
+        tok_ws.clone(),
+    ];
+
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Incomplete,        // [Sut]  WS
+            Incomplete,        // [Sut]  Root Open
+            Incomplete,        // [Sut@] WS
+            Object(Foo::Root), // [Sut@] A Open (>LA)
+            Incomplete,        // [A]    A Open (<LA)
+            Object(Foo::A),    // [A@]   A Close (>LA)
+            Incomplete,        // [A]    A Close (<LA)
+            Incomplete,        // [A]    WS
+            Incomplete,        // [B]    B Open
+            Object(Foo::B),    // [B@]   B Close (>LA)
+            Incomplete,        // [B]    B Close (<LA)
+            Incomplete,        // [Sut]  WS
+            Incomplete,        // [Sut]  Root Close
+            Incomplete,        // [Sut]  WS
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 // TODO: This error recovery seems to be undesirable,
 //     both consuming an element and skipping the requirement;
 //       it is beneficial only in showing that recovery is possible and
@@ -755,6 +836,66 @@ fn sum_nonterminal_accepts_any_valid_element() {
                 Sut::parse(toks.into_iter()).collect(),
             );
         });
+}
+
+// Whitespace should be accepted around elements.
+#[test]
+fn sum_nonterminal_accepts_whitespace() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        A,
+        B,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_A: QName = QN_PACKAGE;
+    const QN_B: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        type Object = Foo;
+
+        // Sum type requires two NTs but we only use A.
+        Sut := (A | B);
+
+        A := QN_A {
+            @ {} => Foo::A,
+        }
+
+        B := QN_B {
+            @ {} => Foo::B,
+        }
+    }
+
+    use Parsed::*;
+    use XirfToken::{Close, Open};
+
+    let tok_ws = XirfToken::Text(RefinedText::Whitespace(Whitespace(Text(
+        "   ".unwrap_into(),
+        S1,
+    ))));
+
+    // Try each in turn with a fresh instance of `Sut`.
+    let toks = vec![
+        // Leading whitespace.
+        tok_ws.clone(),
+        Open(QN_A, OpenSpan(S1, N), Depth(0)),
+        Close(None, CloseSpan::empty(S2), Depth(0)),
+        // Trailing whitespace.
+        tok_ws.clone(),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            Incomplete,     // [A] WS
+            Incomplete,     // [A] Open
+            Object(Foo::A), // [A@] Close (>LA)
+            Incomplete,     // [A] Close
+            Incomplete,     // [A] WS
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
 }
 
 // Compose sum NTs with a parent element.

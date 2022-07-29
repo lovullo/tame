@@ -139,7 +139,7 @@ macro_rules! ele_parse {
 
     // NT[*] modifier.
     (@!ntref_cfg *) => {
-        crate::parse::Context::from(crate::xir::parse::ele::EleParseCfg {
+        crate::parse::Context::from(crate::xir::parse::EleParseCfg {
             repeat: true,
             ..Default::default()
         })
@@ -430,7 +430,7 @@ macro_rules! ele_parse {
                         parse::{EmptyContext, Transition, Transitionable},
                         xir::{
                             EleSpan,
-                            flat::XirfToken,
+                            flat::{XirfToken, RefinedText},
                             parse::parse_attrs,
                         },
                     };
@@ -474,6 +474,10 @@ macro_rules! ele_parse {
                         ) if depth_open == depth_close => {
                             Transition(RecoverEleIgnoreClosed_(qname, span)).incomplete()
                         },
+
+                        (st, XirfToken::Text(RefinedText::Whitespace(..))) => {
+                            Transition(st).incomplete()
+                        }
 
                         (Attrs_(meta, sa), tok) => {
                             sa.delegate_until_obj(
@@ -717,7 +721,7 @@ macro_rules! ele_parse {
                 ) -> crate::parse::TransitionResult<Self> {
                     use crate::{
                         parse::Transition,
-                        xir::flat::XirfToken,
+                        xir::flat::{XirfToken, RefinedText},
                     };
 
                     use $nt::{
@@ -726,6 +730,10 @@ macro_rules! ele_parse {
                     };
 
                     match (self, tok) {
+                        (st, XirfToken::Text(RefinedText::Whitespace(..))) => {
+                            Transition(st).incomplete()
+                        }
+
                         $(
                             (
                                 Expecting_,
