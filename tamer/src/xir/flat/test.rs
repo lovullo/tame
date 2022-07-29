@@ -393,7 +393,7 @@ fn element_with_text() {
     assert_eq!(
         Ok(vec![
             Parsed::Object(open(parent, S1, Depth(0))),
-            Parsed::Object(XirfToken::Text(Text(text, S2))),
+            Parsed::Object(XirfToken::Text(Text(text, S2), Depth(1))),
             Parsed::Object(close(Some(parent), S3, Depth(0))),
         ]),
         sut.collect(),
@@ -435,10 +435,10 @@ fn comment_before_or_after_root_ok() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(XirfToken::Comment(cstart, S1)),
+            Parsed::Object(XirfToken::Comment(cstart, S1, Depth(0))),
             Parsed::Object(open(name, S2, Depth(0))),
             Parsed::Object(close_empty(S3, Depth(0))),
-            Parsed::Object(XirfToken::Comment(cend, S4)),
+            Parsed::Object(XirfToken::Comment(cend, S4, Depth(0))),
         ]),
         sut.collect(),
     );
@@ -541,18 +541,19 @@ fn whitespace_refinement() {
         let _ = sut.next(); // discard root
 
         match sut.next().unwrap().unwrap() {
-            Parsed::Object(XirfToken::Text(RefinedText::Whitespace(
-                Whitespace(Text(ws, span)),
-            ))) => {
+            Parsed::Object(XirfToken::Text(
+                RefinedText::Whitespace(Whitespace(Text(ws, span))),
+                Depth(1),
+            )) => {
                 assert_eq!(ws, given);
                 assert_eq!(span, S1);
                 assert!(expected == true)
             }
 
-            Parsed::Object(XirfToken::Text(RefinedText::Unrefined(Text(
-                text,
-                span,
-            )))) => {
+            Parsed::Object(XirfToken::Text(
+                RefinedText::Unrefined(Text(text, span)),
+                Depth(1),
+            )) => {
                 assert_eq!(text, given);
                 assert_eq!(span, S1);
                 assert!(expected == false)

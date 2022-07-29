@@ -475,7 +475,12 @@ macro_rules! ele_parse {
                             Transition(RecoverEleIgnoreClosed_(qname, span)).incomplete()
                         },
 
-                        (st, XirfToken::Text(RefinedText::Whitespace(..))) => {
+                        // Depth check is unnecessary since _all_ xir::parse
+                        //   parsers
+                        //     (at least at the time of writing)
+                        //     ignore whitespace,
+                        //       so may as well return early.
+                        (st, XirfToken::Text(RefinedText::Whitespace(..), _)) => {
                             Transition(st).incomplete()
                         }
 
@@ -730,7 +735,12 @@ macro_rules! ele_parse {
                     };
 
                     match (self, tok) {
-                        (st, XirfToken::Text(RefinedText::Whitespace(..))) => {
+                        // Depth check is unnecessary since _all_ xir::parse
+                        //   parsers
+                        //     (at least at the time of writing)
+                        //     ignore whitespace,
+                        //       so may as well return early.
+                        (st, XirfToken::Text(RefinedText::Whitespace(..), _)) => {
                             Transition(st).incomplete()
                         }
 

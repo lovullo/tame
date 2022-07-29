@@ -27,7 +27,7 @@
 //!
 //!   1. All closing tags must correspond to a matching opening tag at the
 //!        same depth;
-//!   2. [`XirfToken`] exposes the [`Depth`] of each opening/closing tag;
+//!   2. [`XirfToken`] exposes the [`Depth`] of each node-related token;
 //!   3. Attribute tokens are parsed into [`Attr`] objects;
 //!   4. Documents must begin with an element and end with the closing of
 //!        that element;
@@ -80,6 +80,11 @@ impl Display for Depth {
 /// Other objects retain the same format as their underlying token,
 ///   but are still validated to ensure that they are well-formed and that
 ///   the XML is well-structured.
+///
+/// Each token representing a child node contains a numeric [`Depth`]
+///   indicating the nesting depth;
+///     this can be used by downstream parsers to avoid maintaining their
+///     own stack in certain cases.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XirfToken<T: TextType> {
     /// Opening tag of an element.
@@ -101,12 +106,12 @@ pub enum XirfToken<T: TextType> {
     Attr(Attr),
 
     /// Comment node.
-    Comment(SymbolId, Span),
+    Comment(SymbolId, Span, Depth),
 
     /// Character data as part of an element.
     ///
     /// See also [`CData`](XirfToken::CData) variant.
-    Text(T),
+    Text(T, Depth),
 
     /// CData node (`<![CDATA[...]]>`).
     ///
@@ -115,7 +120,7 @@ pub enum XirfToken<T: TextType> {
     /// This is intended for reading existing XML data where CData is
     ///   already present,
     ///     not for producing new CData safely!
-    CData(SymbolId, Span),
+    CData(SymbolId, Span, Depth),
 }
 
 impl<T: TextType> Token for XirfToken<T> {
@@ -129,10 +134,10 @@ impl<T: TextType> Token for XirfToken<T> {
         match self {
             Open(_, OpenSpan(span, _), _)
             | Close(_, CloseSpan(span, _), _)
-            | Comment(_, span)
-            | CData(_, span) => *span,
+            | Comment(_, span, _)
+            | CData(_, span, _) => *span,
 
-            Text(text) => text.span(),
+            Text(text, _) => text.span(),
             Attr(attr) => attr.span(),
         }
     }
@@ -152,11 +157,13 @@ impl<T: TextType> Display for XirfToken<T> {
                 Display::fmt(&XirToken::Close(*oqname, *span), f)
             }
             Attr(attr) => Display::fmt(&attr, f),
-            Comment(sym, span) => {
+            Comment(sym, span, _) => {
                 Display::fmt(&XirToken::Comment(*sym, *span), f)
             }
-            Text(text) => Display::fmt(text, f),
-            CData(sym, span) => Display::fmt(&XirToken::CData(*sym, *span), f),
+            Text(text, _) => Display::fmt(text, f),
+            CData(sym, span, _) => {
+                Display::fmt(&XirToken::CData(*sym, *span), f)
+            }
         }
     }
 }
@@ -364,7 +371,8 @@ where
         match (self, tok) {
             // Comments are permitted before and after the first root element.
             (st @ (PreRoot(_) | Done), XirToken::Comment(sym, span)) => {
-                Transition(st).ok(XirfToken::Comment(sym, span))
+                let depth = Depth(stack.len());
+                Transition(st).ok(XirfToken::Comment(sym, span, depth))
             }
 
             // Ignore whitespace before or after root.
@@ -438,6 +446,8 @@ where
     ) -> TransitionResult<Self> {
         use XirToXirf::{AttrExpected, Done, NodeExpected};
 
+        let depth = Depth(stack.len());
+
         match tok {
             XirToken::Open(qname, span) if stack.len() == MAX_DEPTH => {
                 Transition(NodeExpected).err(XirToXirfError::MaxDepthExceeded {
@@ -447,15 +457,11 @@ where
             }
 
             XirToken::Open(qname, span) => {
-                let depth = stack.len();
                 stack.push((qname, span.tag_span()));
 
                 // Delegate to the attribute parser until it is complete.
-                Transition(AttrExpected(SA::default())).ok(XirfToken::Open(
-                    qname,
-                    span,
-                    Depth(depth),
-                ))
+                Transition(AttrExpected(SA::default()))
+                    .ok(XirfToken::Open(qname, span, depth))
             }
 
             XirToken::Close(close_oqname, close_span) => {
@@ -490,13 +496,14 @@ where
                 }
             }
 
-            XirToken::Comment(sym, span) => {
-                Transition(NodeExpected).ok(XirfToken::Comment(sym, span))
-            }
+            XirToken::Comment(sym, span) => Transition(NodeExpected)
+                .ok(XirfToken::Comment(sym, span, depth)),
+
             XirToken::Text(sym, span) => Transition(NodeExpected)
-                .ok(XirfToken::Text(T::from(Text(sym, span)))),
+                .ok(XirfToken::Text(T::from(Text(sym, span)), depth)),
+
             XirToken::CData(sym, span) => {
-                Transition(NodeExpected).ok(XirfToken::CData(sym, span))
+                Transition(NodeExpected).ok(XirfToken::CData(sym, span, depth))
             }
 
             // We should transition to `State::Attr` before encountering any

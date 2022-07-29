@@ -489,10 +489,10 @@ fn whitespace_ignored_between_elements() {
         }
     }
 
-    let tok_ws = XirfToken::Text(RefinedText::Whitespace(Whitespace(Text(
-        "  ".unwrap_into(),
-        S1,
-    ))));
+    let tok_ws = XirfToken::Text(
+        RefinedText::Whitespace(Whitespace(Text("  ".unwrap_into(), S1))),
+        Depth(0),
+    );
 
     let toks = vec![
         // Whitespace before start tag.
@@ -702,10 +702,10 @@ fn child_error_and_recovery_at_close() {
         XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
         // Let's mix it up a bit with some text and make sure that is
         //   ignored too.
-        XirfToken::Text(RefinedText::Unrefined(Text(
-            "unexpected text".unwrap_into(),
-            S5,
-        ))),
+        XirfToken::Text(
+            RefinedText::Unrefined(Text("unexpected text".unwrap_into(), S5)),
+            Depth(1),
+        ),
         // Having recovered from the above tokens,
         //   this will end parsing for `Sut` as expected.
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S6, N), Depth(0)),
@@ -871,10 +871,10 @@ fn sum_nonterminal_accepts_whitespace() {
     use Parsed::*;
     use XirfToken::{Close, Open};
 
-    let tok_ws = XirfToken::Text(RefinedText::Whitespace(Whitespace(Text(
-        "   ".unwrap_into(),
-        S1,
-    ))));
+    let tok_ws = XirfToken::Text(
+        RefinedText::Whitespace(Whitespace(Text("   ".unwrap_into(), S1))),
+        Depth(0),
+    );
 
     // Try each in turn with a fresh instance of `Sut`.
     let toks = vec![

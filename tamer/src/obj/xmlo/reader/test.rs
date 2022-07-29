@@ -531,12 +531,12 @@ fn sym_fragment_event() {
         // first
         open(QN_FRAGMENT, S1, Depth(0)),
         Xirf::Attr(Attr(QN_ID, id1, AttrSpan(S2, S3))),
-        Xirf::Text(Text(frag1, S4)),
+        Xirf::Text(Text(frag1, S4), Depth(1)),
         close(Some(QN_FRAGMENT), S5, Depth(0)),
         // second
         open(QN_FRAGMENT, S2, Depth(0)),
         Xirf::Attr(Attr(QN_ID, id2, AttrSpan(S3, S4))),
-        Xirf::Text(Text(frag2, S5)),
+        Xirf::Text(Text(frag2, S5), Depth(1)),
         close(Some(QN_FRAGMENT), S5, Depth(0)),
     ]
     .into_iter();
@@ -561,7 +561,7 @@ fn sym_fragment_missing_id() {
     let toks = [
         open(QN_FRAGMENT, S1, Depth(0)),
         // missing @id
-        Xirf::Text(Text("text".into(), S4)),
+        Xirf::Text(Text("text".into(), S4), Depth(1)),
     ]
     .into_iter();
 
@@ -579,7 +579,7 @@ fn sym_fragment_empty_id() {
         open(QN_FRAGMENT, S1, Depth(0)),
         // empty @id
         Xirf::Attr(Attr(QN_ID, "".into(), AttrSpan(S3, S4))),
-        Xirf::Text(Text("text".into(), S4)),
+        Xirf::Text(Text("text".into(), S4), Depth(1)),
     ]
     .into_iter();
 
@@ -649,7 +649,7 @@ fn xmlo_composite_parsers_header() {
         //   <preproc:fragment
         open(QN_FRAGMENT, S4, Depth(2)),
         Xirf::Attr(Attr(QN_ID, symfrag_id, AttrSpan(S2, S3))),
-        Xirf::Text(Text(frag, S5)),
+        Xirf::Text(Text(frag, S5), Depth(3)),
         close(Some(QN_FRAGMENT), S4, Depth(2)),
         //   </preproc:fragment>
         close(Some(QN_FRAGMENTS), S3, Depth(1)),

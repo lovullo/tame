@@ -775,7 +775,7 @@ impl ParseState for FragmentsState {
             (FragmentUnnamed(span), _) => Transition(FragmentUnnamed(span))
                 .err(XmloError::UnassociatedFragment(span)),
 
-            (Fragment(span, id), Xirf::Text(Text(text, _))) => {
+            (Fragment(span, id), Xirf::Text(Text(text, _), _)) => {
                 Transition(FragmentDone(span, id))
                     .ok(XmloToken::Fragment(id, text, span))
             }
