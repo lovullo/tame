@@ -22,6 +22,7 @@
 use super::Token;
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
     span::Span,
 };
 use std::{error::Error, fmt::Display};
@@ -122,8 +123,8 @@ impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
             Self::UnexpectedEof(_, desc) => {
                 write!(f, "unexpected end of input while {desc}")
             }
-            Self::UnexpectedToken(_, desc) => {
-                write!(f, "unexpected input while {desc}")
+            Self::UnexpectedToken(tok, desc) => {
+                write!(f, "unexpected {} while {desc}", TtQuote::wrap(tok))
             }
             // This is not really something the user should have to deal
             //   with,
