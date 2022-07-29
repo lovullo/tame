@@ -33,6 +33,7 @@
 //!   as opposed to "start" and "end" as used in the XML specification.
 //! TAMER uses a uniform terminology for all delimited data.
 
+use crate::fmt::DisplayWrapper;
 use crate::span::{Span, SpanLenSize};
 use crate::sym::{
     st_as_sym, GlobalSymbolIntern, GlobalSymbolInternBytes, SymbolId,
@@ -50,6 +51,8 @@ pub use escape::{DefaultEscaper, Escaper};
 
 use error::SpanlessError;
 use st::qname::QNameCompatibleStaticSymbolId;
+
+use self::fmt::{CloseXmlEle, OpenXmlEle, XmlAttr, XmlAttrValueQuote};
 
 pub mod attr;
 pub mod flat;
@@ -597,21 +600,21 @@ impl Display for Token {
         //     but the diagnostic system also quote source lines to provide
         //     the necessary context.
         match self {
-            Self::Open(qname, _) => write!(f, "`<{}>`", qname),
-            Self::Close(Some(qname), _) => write!(f, "`</{}>`", qname),
+            Self::Open(qname, _) => OpenXmlEle::fmt(qname, f),
+            Self::Close(Some(qname), _) => CloseXmlEle::fmt(qname, f),
             // Its context is contained within the Open,
             //   and hopefully any user-visible errors will display that instead.
             Self::Close(None, _) => {
-                write!(f, "`/>`")
+                write!(f, "/>")
             }
-            Self::AttrName(qname, _) => {
-                write!(f, "`@{}`", qname)
-            }
-            Self::AttrValue(attr_val, _) => {
-                write!(f, "attribute value `{}`", attr_val)
-            }
+            Self::AttrName(qname, _) => XmlAttr::fmt(qname, f),
+            Self::AttrValue(attr_val, _) => XmlAttrValueQuote::fmt(attr_val, f),
             Self::AttrValueFragment(attr_val, _) => {
-                write!(f, "attribute value fragment `{}`", attr_val)
+                write!(
+                    f,
+                    "value fragment {}",
+                    XmlAttrValueQuote::wrap(attr_val)
+                )
             }
             Self::Comment(..) => write!(f, "comment"),
             Self::Text(..) => write!(f, "text"),

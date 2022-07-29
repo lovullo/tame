@@ -44,3 +44,6 @@ pub type TtCloseXmlEle = Tt<CloseXmlEle>;
 /// A choice of a list of opening XML tags.
 pub type OpenEleSumList =
     OrQualConjList<"element", "one of elements", TtOpenXmlEle>;
+
+/// Quote an attribute value using double quotes.
+pub type XmlAttrValueQuote = Delim<"\"", "\"", Raw>;
