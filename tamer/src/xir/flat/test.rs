@@ -449,6 +449,34 @@ fn comment_before_or_after_root_ok() {
     );
 }
 
+// Similar to above,
+//   but with whitespace.
+#[test]
+fn whitespace_before_or_after_root_ok() {
+    let name = "root";
+    let ws = "  ".unwrap_into();
+
+    let toks = [
+        XirToken::Text(ws, S),
+        xir_open(name, S2),
+        xir_close_empty(S3),
+        XirToken::Text(ws, S4),
+    ]
+    .into_iter();
+
+    let sut = parse::<1, RefinedText>(toks);
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete,
+            Parsed::Object(open(name, S2, Depth(0))),
+            Parsed::Object(close_empty(S3, Depth(0))),
+            Parsed::Incomplete,
+        ]),
+        sut.collect(),
+    );
+}
+
 // But there must be no content at the end of the document after the closing
 //   root node.
 // This does not test every applicable token;

@@ -367,13 +367,15 @@ where
                 Transition(st).ok(XirfToken::Comment(sym, span))
             }
 
-            (PreRoot(_), tok @ XirToken::Open(..)) => {
-                Self::parse_node(tok, stack)
+            // Ignore whitespace before or after root.
+            (st @ (PreRoot(_) | Done), XirToken::Text(sym, _))
+                if is_whitespace(sym) =>
+            {
+                Transition(st).incomplete()
             }
 
-            // Ignore whitespace before root.
-            (st @ PreRoot(_), XirToken::Text(sym, _)) if is_whitespace(sym) => {
-                Transition(st).incomplete()
+            (PreRoot(_), tok @ XirToken::Open(..)) => {
+                Self::parse_node(tok, stack)
             }
 
             (st @ PreRoot(_), tok) => {
@@ -419,7 +421,7 @@ where
             PreRoot(_) => write!(f, "expecting document root"),
             NodeExpected => write!(f, "expecting a node"),
             AttrExpected(sa) => Display::fmt(sa, f),
-            Done => write!(f, "done parsing"),
+            Done => write!(f, "done parsing document root"),
         }
     }
 }
