@@ -192,11 +192,11 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
     //   abstracted away.
     let (mut asg, mut state) = Lower::<
         ParsedObject<XirToken, XirError>,
-        XirToXirf<64, Text>,
+        XirToXirf<4, Text>,
     >::lower::<_, TameldError>(
         &mut XmlXirReader::new(file, escaper, ctx),
         |toks| {
-            Lower::<XirToXirf<64, Text>, XmloReader>::lower(toks, |xmlo| {
+            Lower::<XirToXirf<4, Text>, XmloReader>::lower(toks, |xmlo| {
                 let mut iter = xmlo.scan(false, |st, rtok| match st {
                     true => None,
                     false => {
