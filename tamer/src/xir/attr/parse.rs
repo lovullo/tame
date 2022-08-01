@@ -21,9 +21,10 @@
 
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    fmt::{DisplayWrapper, Tt},
     parse::{NoContext, ParseState, Token, Transition, TransitionResult},
     span::Span,
-    xir::{QName, Token as XirToken},
+    xir::{fmt::XmlAttr, QName, Token as XirToken},
 };
 use std::{error::Error, fmt::Display};
 
@@ -92,9 +93,13 @@ impl Display for AttrParseState {
         use AttrParseState::*;
 
         match self {
-            Empty => write!(f, "expecting an attribute"),
+            Empty => write!(f, "expecting an attribute name"),
             Name(name, _) => {
-                write!(f, "expecting an attribute value for {name}")
+                write!(
+                    f,
+                    "expecting an attribute value for {}",
+                    Tt::<XmlAttr>::wrap(name),
+                )
             }
         }
     }
