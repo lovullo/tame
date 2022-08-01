@@ -67,6 +67,18 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Depth(pub usize);
 
+impl Depth {
+    /// Yield a new [`Depth`] representing the expected depth of children of
+    ///   an element at the current depth.
+    ///
+    /// That description is probably more confusing than the method name.
+    pub fn child_depth(&self) -> Depth {
+        match self {
+            Depth(depth) => Depth(depth + 1),
+        }
+    }
+}
+
 impl Display for Depth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0, f)

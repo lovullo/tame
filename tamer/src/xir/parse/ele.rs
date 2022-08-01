@@ -98,6 +98,12 @@ macro_rules! ele_parse {
         @ { $($attrbody:tt)* } => $attrmap:expr,
         $(/$(($close_span:ident))? => $closemap:expr,)?
 
+        // Special forms (`[sp](args) => expr`).
+        $(
+            [$special:ident]$(($($special_arg:ident),*))?
+                => $special_map:expr,
+        )?
+
         // Nonterminal references are provided as a list.
         // A configuration specifier can be provided,
         //   currently intended to support the Kleene star.
@@ -109,6 +115,8 @@ macro_rules! ele_parse {
             @!ele_dfn_body <$objty, $($evty)?> $vis $nt $qname ($($ntp)*)
             @ { $($attrbody)* } => $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
+
+            $([$special]$(($($special_arg),*))? => $special_map,)?
 
             <> {
                 $(
@@ -167,6 +175,11 @@ macro_rules! ele_parse {
         // Close expression
         //   (defaulting to Incomplete via @!ele_expand_body).
         /$($close_span:ident)? => $closemap:expr,
+
+        // Non-whitespace text nodes can be mapped into elements with the
+        //   given QName as a preprocessing step,
+        //     allowing them to reuse the existing element NT system.
+        $([text]($text:ident, $text_span:ident) => $text_map:expr,)?
 
         // Nonterminal references.
         <> {
@@ -251,6 +264,19 @@ macro_rules! ele_parse {
                 #[allow(dead_code)] // used by sum parser
                 const fn qname() -> crate::xir::QName {
                     $qname
+                }
+
+                /// Yield the expected depth of child elements,
+                ///   if known.
+                #[allow(dead_code)] // used by text special form
+                fn child_depth(&self) -> Option<Depth> {
+                    match self {
+                        $ntfirst((_, depth), _) => Some(depth.child_depth()),
+                        $(
+                            $ntnext((_, depth), _) => Some(depth.child_depth()),
+                        )*
+                        _ => None,
+                    }
                 }
             }
 
@@ -513,6 +539,34 @@ macro_rules! ele_parse {
                                 }
                             )
                         },
+
+                        // Must come _after_ `Attrs_` above so that
+                        //   attributes are yielded before text that
+                        //   terminates attribute parsing.
+                        $(
+                            // Text nodes are handled a differently because
+                            //   it implies mixed content;
+                            //     the text is "owned" by us,
+                            //       not by the parser we have chosen to
+                            //       delegate _elements_ to.
+                            // But we must be sure to only preempt parsing
+                            //   of text nodes _at our child depth_,
+                            //     so as not to interfere with the text
+                            //     parsing of child elements.
+                            // This also allows us to avoid implementing
+                            //   Text handling in sum parsers.
+                            (
+                                st,
+                                XirfToken::Text(
+                                    RefinedText::Unrefined(
+                                        Text($text, $text_span)
+                                    ),
+                                    depth
+                                )
+                            ) if Some(depth) == st.child_depth() => {
+                                Transition(st).ok($text_map)
+                            }
+                        )?
 
                         $(
                             ($ntprev(depth, st_inner), tok) => {

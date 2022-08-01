@@ -32,7 +32,7 @@
 //!   the system,
 //!     simply force the test to panic at the end.
 
-use std::{error::Error, fmt::Display};
+use std::{assert_matches::assert_matches, error::Error, fmt::Display};
 
 use crate::{
     convert::ExpectInto,
@@ -1360,6 +1360,205 @@ fn sum_repetition() {
             Object(Foo::Close(QN_ROOT)), // [Sut]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Text nodes may appear between elements if a `[text]` special form
+//   specifies a mapping.
+// This is "mixed content" in XML.
+//
+// The `[text]` mapping applies to all text nodes at the child depth of the
+//   element,
+//     meaning it'll preempt sum parser delegation to provide the desired
+//     behavior.
+#[test]
+fn mixed_content_text_nodes() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        A,
+        B,
+        TextRoot(SymbolId, Span),
+        TextA(SymbolId, Span),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_SUT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_CLASSIFY;
+    const QN_B: QName = QN_EXPORT;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_SUT {
+            @ {} => Foo::Root,
+
+            // The `[text]` special form here introduces a `Text` mapping
+            //   for all non-whitespace text node at the same depth as our
+            //   child elements.
+            [text](sym, span) => Foo::TextRoot(sym, span),
+
+            A,
+            AB[*],
+        }
+
+        A := QN_A {
+            @ {} => Foo::A,
+
+            // The child should not have its text processing preempted.
+            [text](sym, span) => Foo::TextA(sym, span),
+
+            // Text should be permitted even though we permit no children.
+        }
+
+        // Used only for `AB`.
+        B := QN_B {
+            @ {} => Foo::B,
+        }
+
+        // We need at least two NTs;
+        //   we don't actually use `B`.
+        AB := (A | B);
+    }
+
+    let tok_ws = XirfToken::Text(
+        RefinedText::Whitespace(Whitespace(Text("  ".unwrap_into(), S1))),
+        Depth(0),
+    );
+
+    let text_root = "text root".into();
+    let text_a = "text a".into();
+
+    let toks = vec![
+        XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
+        // Whitespace will not match the `[text]` special form.
+        tok_ws.clone(),
+        // Text node for the root (Sut).
+        XirfToken::Text(RefinedText::Unrefined(Text(text_root, S1)), Depth(1)),
+        // This child also expects text nodes,
+        //   and should be able to yield its own parse.
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        // If this goes wrong,
+        //   and Sut does not properly check its depth,
+        //   then the parser would erroneously yield `Foo::TextRoot` for
+        //     this token.
+        XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // Now we're about to parse with `AB`,
+        //   which itself cannot handle text.
+        // But text should never reach that parser,
+        //   having been preempted by Sut.
+        XirfToken::Text(RefinedText::Unrefined(Text(text_root, S3)), Depth(1)),
+        // Try to yield A again with text.
+        XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Text(RefinedText::Unrefined(Text(text_a, S4)), Depth(2)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // Finally, some more text permitted at the close.
+        XirfToken::Text(RefinedText::Unrefined(Text(text_root, S5)), Depth(1)),
+        XirfToken::Close(Some(QN_SUT), CloseSpan(S6, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Incomplete,                           // [Sut]  Root Open
+            Incomplete,                           // [Sut@] WS
+            Object(Foo::Root),                    // [Sut@] Text (>LA)
+            Object(Foo::TextRoot(text_root, S1)), // [Sut]  Text (<LA)
+            Incomplete,                           // [A]    A Open (<LA)
+            Object(Foo::A),                       // [A@]   A Text (>LA)
+            Object(Foo::TextA(text_a, S2)),       // [A]    Text (<LA)
+            Incomplete,                           // [A]    A Close
+            Object(Foo::TextRoot(text_root, S3)), // [Sut]  Text
+            Incomplete,                           // [A]    A Open
+            Object(Foo::A),                       // [A@]   A Text (>LA)
+            Object(Foo::TextA(text_a, S4)),       // [A]    Text (<LA)
+            Incomplete,                           // [A]    A Close
+            Object(Foo::TextRoot(text_root, S5)), // [Sut]  Text
+            Incomplete,                           // [Sut]  Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+/// Contrast this test with [`mixed_content_text_nodes`] above.
+#[test]
+fn mixed_content_text_nodes_with_non_mixed_content_child() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        A,
+        TextRoot(SymbolId, Span),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_SUT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        type Object = Foo;
+
+        Sut := QN_SUT {
+            @ {} => Foo::Root,
+
+            // Mixed content permitted at root
+            //   (but we won't be providing text for it in this test).
+            [text](sym, span) => Foo::TextRoot(sym, span),
+
+            // But this child will not permit text.
+            A,
+        }
+
+        A := QN_A {
+            @ {} => Foo::A,
+
+            // Missing `[text`];
+            //   no mixed content permitted.
+        }
+    }
+
+    let text_a = "text a".into();
+
+    let toks = vec![
+        XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        // Even though the root permits text,
+        //   the child `A` does not,
+        //   and so this should result in an error.
+        XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        XirfToken::Close(Some(QN_SUT), CloseSpan(S6, N), Depth(0)),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    use Parsed::*;
+
+    // The first two tokens should parse successfully
+    //   (four calls because of LA).
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Sut] Root Open
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::Root)))); // [Sut@] A Open (>LA)
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [A] A Open (<LA)
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::A)))); // [A@] Text (>LA)
+
+    // The next token is `Text`,
+    //   which is not expected by `A` and so should produce an error.
+    // The error that it produces at the time of writing is different than
+    //   the error that it will eventually produce,
+    //     so let's just expect some sort of error.
+    assert_matches!(sut.next(), Some(Err(_))); // [A] Text (<LA)
+
+    // A then enters recovery,
+    //   completes recovery,
+    //   and parsing finishes.
+    assert_eq!(
+        Ok(vec![
+            Incomplete, // [A]    A Close
+            Incomplete, // [Sut]  Root Close
+        ]),
+        sut.collect()
     );
 }
 
