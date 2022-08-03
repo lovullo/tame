@@ -27,7 +27,7 @@ use std::{
 };
 
 #[cfg(doc)]
-use super::Parser;
+use super::{ClosedParseState, Parser};
 
 /// A state transition with associated data.
 ///
@@ -46,13 +46,19 @@ use super::Parser;
 ///   for example,
 ///   for multiple data to be emitted in response to a single token.
 ///
+/// If a [`ParseState`] is not a [`ClosedParseState`],
+///   the transition will be to its superstate ([`ParseState::Super`]);
+///     this conversion is performed automatically by the [`Transition`]
+///     methods that produce [`TransitionResult`],
+///       (such as [`Transition::ok`]).
+///
 /// This struct is opaque to ensure that critical invariants involving
 ///   transitions and lookahead are properly upheld;
 ///     callers must use the appropriate parsing APIs.
 #[derive(Debug, PartialEq)]
 pub struct TransitionResult<S: ParseState>(
     /// New parser state.
-    pub(in super::super) Transition<S>,
+    pub(in super::super) Transition<S::Super>,
     /// Result of the parsing operation.
     pub(in super::super) TransitionData<S>,
 );
@@ -195,6 +201,19 @@ impl<S: ParseState> TransitionData<S> {
 pub struct Transition<S: ParseState>(pub S);
 
 impl<S: ParseState> Transition<S> {
+    /// Transform a [`Transition`] into a transition of its superstate
+    ///   [`ParseState::Super`].
+    ///
+    /// This is needed because trait specialization does not yet have a path
+    /// to stabilization as of the time of writing,
+    ///   and so `From<Transition<S>> for Transition<S::Super>` cannot be
+    ///   implemented because those types overlap.
+    pub fn into_super(self) -> Transition<S::Super> {
+        match self {
+            Transition(st) => Transition(st.into()),
+        }
+    }
+
     /// A state transition with corresponding data.
     ///
     /// This allows [`ParseState::parse_token`] to emit a parsed object and
@@ -203,7 +222,10 @@ impl<S: ParseState> Transition<S> {
     where
         T: Into<ParseStatus<S>>,
     {
-        TransitionResult(self, TransitionData::Result(Ok(obj.into()), None))
+        TransitionResult(
+            self.into_super(),
+            TransitionData::Result(Ok(obj.into()), None),
+        )
     }
 
     /// A transition with corresponding error.
@@ -211,7 +233,10 @@ impl<S: ParseState> Transition<S> {
     /// This indicates a parsing failure.
     /// The state ought to be suitable for error recovery.
     pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
-        TransitionResult(self, TransitionData::Result(Err(err.into()), None))
+        TransitionResult(
+            self.into_super(),
+            TransitionData::Result(Err(err.into()), None),
+        )
     }
 
     /// A state transition with corresponding [`Result`].
@@ -224,7 +249,7 @@ impl<S: ParseState> Transition<S> {
         E: Into<S::Error>,
     {
         TransitionResult(
-            self,
+            self.into_super(),
             TransitionData::Result(
                 result.map(Into::into).map_err(Into::into),
                 None,
@@ -238,7 +263,7 @@ impl<S: ParseState> Transition<S> {
     /// This corresponds to [`ParseStatus::Incomplete`].
     pub fn incomplete(self) -> TransitionResult<S> {
         TransitionResult(
-            self,
+            self.into_super(),
             TransitionData::Result(Ok(ParseStatus::Incomplete), None),
         )
     }
@@ -258,7 +283,10 @@ impl<S: ParseState> Transition<S> {
     ///     use [`Transition::result`] or other methods along with a token
     ///     of [`Lookahead`].
     pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
-        TransitionResult(self, TransitionData::Dead(Lookahead(tok)))
+        TransitionResult(
+            self.into_super(),
+            TransitionData::Dead(Lookahead(tok)),
+        )
     }
 }
 
@@ -267,7 +295,9 @@ impl<S: ParseState> FromResidual<(Transition<S>, ParseStateResult<S>)>
 {
     fn from_residual(residual: (Transition<S>, ParseStateResult<S>)) -> Self {
         match residual {
-            (st, result) => Self(st, TransitionData::Result(result, None)),
+            (st, result) => {
+                Self(st.into_super(), TransitionData::Result(result, None))
+            }
         }
     }
 }

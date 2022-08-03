@@ -20,6 +20,7 @@
 //! High-level parsing abstraction.
 
 use super::{
+    state::ClosedParseState,
     trace::{self, ParserTrace},
     ParseError, ParseResult, ParseState, ParseStatus, TokenStream, Transition,
     TransitionResult,
@@ -77,7 +78,7 @@ impl<S: ParseState> From<ParseStatus<S>> for Parsed<S::Object> {
 ///   call [`finalize`](Parser::finalize) to ensure that parsing has
 ///     completed in an accepting state.
 #[derive(Debug, PartialEq)]
-pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
+pub struct Parser<S: ClosedParseState, I: TokenStream<S::Token>> {
     /// Input token stream to be parsed by the [`ParseState`] `S`.
     toks: I,
 
@@ -137,7 +138,7 @@ pub struct Parser<S: ParseState, I: TokenStream<S::Token>> {
     tracer: trace::VoidTrace,
 }
 
-impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
+impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Create a parser with a pre-initialized [`ParseState`].
     ///
     /// If the provided [`ParseState`] does not require context
@@ -313,7 +314,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
                 match result {
                     Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
-                    Err(e) => Err(e.into()),
+                    Err(e) => Err(ParseError::from(e)),
                 }
             }
         }
@@ -368,7 +369,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Parser<S, I> {
     }
 }
 
-impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
+impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
     type Item = ParsedResult<S>;
 
     /// Parse a single [`Token`] according to the current
@@ -400,7 +401,7 @@ impl<S: ParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
 
 impl<S, I> From<I> for Parser<S, I>
 where
-    S: ParseState + Default,
+    S: ClosedParseState + Default,
     I: TokenStream<S::Token>,
     <S as ParseState>::Context: Default,
 {
@@ -429,7 +430,7 @@ where
 
 impl<S, I, C> From<(I, C)> for Parser<S, I>
 where
-    S: ParseState<Context = C> + Default,
+    S: ClosedParseState<Context = C> + Default,
     I: TokenStream<S::Token>,
 {
     /// Create a new parser with a provided context.

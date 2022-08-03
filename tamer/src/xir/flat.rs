@@ -48,8 +48,8 @@ use super::{
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     parse::{
-        Context, Object, ParseState, ParsedResult, Token, Transition,
-        TransitionResult,
+        ClosedParseState, Context, Object, ParseState, ParsedResult, Token,
+        Transition, TransitionResult,
     },
     span::Span,
     sym::{st::is_common_whitespace, GlobalSymbolResolve, SymbolId},
@@ -285,7 +285,7 @@ impl From<Text> for RefinedText {
 
 /// XIRF-compatible attribute parser.
 pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
-    ParseState<Token = XirToken, Object = Attr>
+    ClosedParseState<Token = XirToken, Object = Attr>
     where
         Self: Default,
         <Self as ParseState>::Error: Into<XirToXirfError>,

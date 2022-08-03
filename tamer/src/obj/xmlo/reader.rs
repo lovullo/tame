@@ -24,8 +24,8 @@ use crate::{
     num::{Dim, Dtype},
     obj::xmlo::SymType,
     parse::{
-        self, EmptyContext, NoContext, ParseState, Token, Transition,
-        TransitionResult, Transitionable,
+        self, ClosedParseState, EmptyContext, NoContext, ParseState, Token,
+        Transition, TransitionResult, Transitionable,
     },
     span::Span,
     sym::{st::raw, SymbolId},
@@ -140,11 +140,12 @@ impl Display for XmloToken {
 }
 
 /// A parser capable of being composed with [`XmloReader`].
-pub trait XmloState = ParseState<Token = Xirf<Text>, Context = EmptyContext>
-where
-    Self: Default,
-    <Self as ParseState>::Error: Into<XmloError>,
-    <Self as ParseState>::Object: Into<XmloToken>;
+pub trait XmloState =
+    ClosedParseState<Token = Xirf<Text>, Context = EmptyContext>
+    where
+        Self: Default,
+        <Self as ParseState>::Error: Into<XmloError>,
+        <Self as ParseState>::Object: Into<XmloToken>;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum XmloReader<

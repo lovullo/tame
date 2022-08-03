@@ -181,8 +181,8 @@ use super::{
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     parse::{
-        self, EmptyContext, NoContext, ParseError, ParseResult, ParseState,
-        ParsedResult, Transition, TransitionResult,
+        self, ClosedParseState, EmptyContext, NoContext, ParseError,
+        ParseResult, ParseState, ParsedResult, Transition, TransitionResult,
     },
     span::Span,
     sym::SymbolId,
@@ -504,11 +504,12 @@ where
     Done,
 }
 
-pub trait StackAttrParseState = ParseState<Token = XirToken, Object = Attr>
-where
-    Self: Default,
-    <Self as ParseState>::Error: Into<StackError>,
-    EmptyContext: AsMut<<Self as ParseState>::Context>;
+pub trait StackAttrParseState =
+    ClosedParseState<Token = XirToken, Object = Attr>
+    where
+        Self: Default,
+        <Self as ParseState>::Error: Into<StackError>,
+        EmptyContext: AsMut<<Self as ParseState>::Context>;
 
 impl<SA: StackAttrParseState> Default for Stack<SA> {
     fn default() -> Self {

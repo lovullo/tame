@@ -53,6 +53,15 @@ impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
     }
 }
 
+/// A [`ParseState`] that transitions only to itself
+///   (is closed under transition).
+///
+/// These are the only [`ParseState`]s that can be used directly by
+///   [`Parser`],
+///     since [`Parser`] must be able to both handle every provided
+///     [`Transition`] and know how to delegate to inner [`ParseState`]s.
+pub trait ClosedParseState = ParseState<Super = Self>;
+
 /// A parsing automaton.
 ///
 /// These states are utilized by a [`Parser`].
@@ -74,7 +83,10 @@ impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
 ///   but is not necessarily true for smaller, specialized parsers intended
 ///   for use as components of a larger parser
 ///     (in a spirit similar to parser combinators).
-pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
+pub trait ParseState: PartialEq + Eq + Display + Debug + Sized
+where
+    Self: Into<Self::Super>,
+{
     /// Input tokens to the parser.
     type Token: Token;
 
@@ -82,7 +94,33 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     type Object: Object;
 
     /// Errors specific to this set of states.
-    type Error: Debug + Diagnostic + PartialEq;
+    type Error: Debug
+        + Diagnostic
+        + PartialEq
+        + Into<<Self::Super as ParseState>::Error>;
+
+    /// Superstate (parent state).
+    ///
+    /// This is applicable only if the [`ParseState`] is capable of
+    ///   transitioning to a state outside of its own.
+    /// It was initially introduced for implementing trampolines in place of
+    ///   composition-based delegation,
+    ///     the latter of which would otherwise require boxing on
+    ///     (extremely) hot code paths for otherwise-recursive data
+    ///     structures.
+    ///
+    /// Intuitively,
+    ///   the superstate represents a sum type of the pool of all possible
+    ///   [`ParseState`]s that we can request transfer of control to.
+    /// This is the same concept as [`StitchableParseState`],
+    ///   but operating in reverse
+    ///     (delegation via trampoline instead of direct function call).
+    type Super: ClosedParseState<
+        Token = Self::Token,
+        Object = Self::Object,
+        Error = Self::Error,
+        Context = Self::Context,
+    > = Self;
 
     /// Object provided to parser alongside each token.
     ///
@@ -97,7 +135,7 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
     ///   the context and the types that are able to be inferred.
     fn parse<I: TokenStream<Self::Token>>(toks: I) -> Parser<Self, I>
     where
-        Self: Default,
+        Self: ClosedParseState + Default,
         Self::Context: Default,
     {
         Parser::from(toks)
@@ -123,7 +161,7 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
         ctx: Self::Context,
     ) -> Parser<Self, I>
     where
-        Self: Default,
+        Self: ClosedParseState + Default,
     {
         Parser::from((toks, ctx))
     }
@@ -217,7 +255,9 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
         self,
         tok: <Self as ParseState>::Token,
         mut context: C,
-        into: impl FnOnce(Self) -> Transition<SP>,
+        into: impl FnOnce(
+            <Self as ParseState>::Super,
+        ) -> Transition<<SP as ParseState>::Super>,
         dead: impl FnOnce() -> Transition<SP>,
     ) -> TransitionResult<SP>
     where
@@ -270,10 +310,12 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
         self,
         tok: <Self as ParseState>::Token,
         mut context: C,
-        into: impl FnOnce(Self) -> Transition<SP>,
+        into: impl FnOnce(
+            <Self as ParseState>::Super,
+        ) -> Transition<<SP as ParseState>::Super>,
         _dead: impl FnOnce() -> Transition<SP>,
         objf: impl FnOnce(
-            Self,
+            <Self as ParseState>::Super,
             <Self as ParseState>::Object,
         ) -> TransitionResult<SP>,
     ) -> TransitionResult<SP>
@@ -322,10 +364,10 @@ pub trait ParseState: PartialEq + Eq + Display + Debug + Sized {
         mut context: C,
         env: X,
         into: impl FnOnce(
-            Self,
+            <Self as ParseState>::Super,
             Option<<Self as ParseState>::Object>,
             X,
-        ) -> Transition<SP>,
+        ) -> Transition<<SP as ParseState>::Super>,
         dead: impl FnOnce(X) -> Transition<SP>,
     ) -> TransitionResult<SP>
     where

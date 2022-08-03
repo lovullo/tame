@@ -20,8 +20,8 @@
 //! IR lowering operation between [`Parser`]s.
 
 use super::{
-    NoContext, Object, ParseError, ParseState, Parsed, ParsedResult, Parser,
-    Token, TransitionResult, UnknownToken,
+    state::ClosedParseState, NoContext, Object, ParseError, ParseState, Parsed,
+    ParsedResult, Parser, Token, TransitionResult, UnknownToken,
 };
 use crate::{
     diagnose::Diagnostic,
@@ -40,7 +40,7 @@ pub struct LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
     I: Iterator<Item = ParsedResult<S>>,
-    LS: ParseState<Token = S::Object>,
+    LS: ClosedParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
 {
     /// A push [`Parser`].
@@ -60,7 +60,7 @@ impl<'a, 'b, S, I, LS> LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
     I: Iterator<Item = ParsedResult<S>>,
-    LS: ParseState<Token = S::Object>,
+    LS: ClosedParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
 {
     /// Consume inner parser and yield its context.
@@ -77,7 +77,7 @@ where
 pub trait Lower<S, LS>
 where
     S: ParseState,
-    LS: ParseState<Token = S::Object> + Default,
+    LS: ClosedParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
 {
     /// Lower the IR produced by this [`Parser`] into another IR by piping
@@ -164,7 +164,7 @@ impl<S, LS, I> Lower<S, LS> for I
 where
     I: Iterator<Item = ParsedResult<S>> + Sized,
     S: ParseState,
-    LS: ParseState<Token = S::Object> + Default,
+    LS: ClosedParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
 {
 }
@@ -173,7 +173,7 @@ impl<'a, 'b, S, I, LS> Iterator for LowerIter<'a, 'b, S, I, LS>
 where
     S: ParseState,
     I: Iterator<Item = ParsedResult<S>>,
-    LS: ParseState<Token = S::Object>,
+    LS: ClosedParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
 {
     type Item = ParsedResult<LS>;
