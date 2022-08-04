@@ -118,7 +118,6 @@ where
     type Super: ClosedParseState<
         Token = Self::Token,
         Object = Self::Object,
-        Error = Self::Error,
         Context = Self::Context,
     > = Self;
 

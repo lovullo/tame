@@ -40,7 +40,7 @@ pub struct EleParseCfg {
 #[macro_export]
 macro_rules! ele_parse {
     (
-        $(vis($vis:vis);)?
+        $vis:vis enum $super:ident;
 
         // Attr has to be first to avoid ambiguity with `$rest`.
         $(type AttrValueError = $evty:ty;)?
@@ -48,25 +48,40 @@ macro_rules! ele_parse {
 
         $($rest:tt)*
     ) => {
-        ele_parse!(@!nonterm_decl <$objty, $($evty)?> $($vis)? $($rest)*);
+        ele_parse! {@!next $vis $super
+            $(type AttrValueError = $evty;)?
+            type Object = $objty;
+            $($rest)*
+        }
+
+        ele_parse!(@!super_sum <$objty> $vis $super $($rest)*);
+    };
+
+    (@!next $vis:vis $super:ident
+        // Attr has to be first to avoid ambiguity with `$rest`.
+        $(type AttrValueError = $evty:ty;)?
+        type Object = $objty:ty;
+
+        $($rest:tt)*
+    ) => {
+        ele_parse!(@!nonterm_decl <$objty, $($evty)?> $vis $super $($rest)*);
     };
 
     (@!nonterm_decl <$objty:ty, $($evty:ty)?>
-        $vis:vis $nt:ident := $($rest:tt)*
+        $vis:vis $super:ident $nt:ident := $($rest:tt)*
     ) => {
-        ele_parse!(@!nonterm_def <$objty, $($evty)?> $vis $nt $($rest)*);
+        ele_parse!(@!nonterm_def <$objty, $($evty)?> $vis $super $nt $($rest)*);
     };
 
     (@!nonterm_def <$objty:ty, $($evty:ty)?>
-        $vis:vis $nt:ident $qname:ident $(($($ntp:tt)*))?
-        { $($matches:tt)* } $($rest:tt)*
+        $vis:vis $super:ident $nt:ident $qname:ident $(($($ntp:tt)*))?
+        { $($matches:tt)* }; $($rest:tt)*
     ) => {
         ele_parse!(@!ele_expand_body <$objty, $($evty)?>
-            $vis $nt $qname ($($($ntp)*)?) $($matches)*
+            $vis $super $nt $qname ($($($ntp)*)?) $($matches)*
         );
 
-        ele_parse! {
-            vis($vis);
+        ele_parse! {@!next $vis $super
             $(type AttrValueError = $evty;)?
             type Object = $objty;
             $($rest)*
@@ -74,27 +89,27 @@ macro_rules! ele_parse {
     };
 
     (@!nonterm_def <$objty:ty, $($evty:ty)?>
-        $vis:vis $nt:ident
+        $vis:vis $super:ident $nt:ident
         ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
     ) => {
         ele_parse!(@!ele_dfn_sum <$objty>
-            $vis $nt [$ntref_first $($ntref)*]
+            $vis $super $nt [$ntref_first $($ntref)*]
         );
 
-        ele_parse! {
-            vis($vis);
+        ele_parse! {@!next $vis $super
             $(type AttrValueError = $evty;)?
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_decl <$objty:ty, $($evty:ty)?> $vis:vis) => {};
+    (@!nonterm_decl <$objty:ty, $($evty:ty)?> $vis:vis $super:ident) => {};
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
     (@!ele_expand_body <$objty:ty, $($evty:ty)?>
-        $vis:vis $nt:ident $qname:ident ($($ntp:tt)*)
+        $vis:vis $super:ident $nt:ident $qname:ident ($($ntp:tt)*)
+
         @ { $($attrbody:tt)* } => $attrmap:expr,
         $(/$(($close_span:ident))? => $closemap:expr,)?
 
@@ -112,7 +127,7 @@ macro_rules! ele_parse {
         )*
     ) => {
         ele_parse! {
-            @!ele_dfn_body <$objty, $($evty)?> $vis $nt $qname ($($ntp)*)
+            @!ele_dfn_body <$objty, $($evty)?> $vis $super $nt $qname ($($ntp)*)
             @ { $($attrbody)* } => $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
@@ -159,7 +174,7 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
-        $vis:vis $nt:ident $qname:ident ($($open_span:ident)?)
+        $vis:vis $super:ident $nt:ident $qname:ident ($($open_span:ident)?)
 
         // Attribute definition special form.
         @ {
@@ -445,6 +460,7 @@ macro_rules! ele_parse {
                 >;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
+                type Super = $super;
                 type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;
 
                 fn parse_token(
@@ -514,7 +530,7 @@ macro_rules! ele_parse {
                             sa.delegate_until_obj(
                                 tok,
                                 EmptyContext,
-                                |sa| Transition(Attrs_(meta, sa)),
+                                |sa| Transition(Attrs_(meta, sa)).into_super(),
                                 || unreachable!("see ParseState::delegate_until_obj dead"),
                                 |#[allow(unused_variables)] sa, attrs| {
                                     let obj = match attrs {
@@ -573,7 +589,9 @@ macro_rules! ele_parse {
                                 st_inner.delegate(
                                     tok,
                                     &mut ele_parse!(@!ntref_cfg $($ntref_cfg)?),
-                                    |si| Transition($ntprev(depth, si)),
+                                    // TODO: proper trampoline delegation;
+                                    //   this is maintaining BC for now
+                                    |si| Transition($ntprev(depth, si.into())).into_super(),
                                     || Transition($ntnext(depth, Default::default()))
                                 )
                             },
@@ -622,7 +640,7 @@ macro_rules! ele_parse {
         }
     };
 
-    (@!ele_dfn_sum <$objty:ty> $vis:vis $nt:ident [$($ntref:ident)*]) => {
+    (@!ele_dfn_sum <$objty:ty> $vis:vis $super:ident $nt:ident [$($ntref:ident)*]) => {
         $(
             // Provide a (hopefully) helpful error that can be corrected
             //   rather than any obscure errors that may follow from trying
@@ -771,6 +789,7 @@ macro_rules! ele_parse {
                 >;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
+                type Super = $super;
                 type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;
 
                 fn parse_token(
@@ -806,7 +825,8 @@ macro_rules! ele_parse {
                                 $ntref::default().delegate(
                                     XirfToken::Open(qname, span, depth),
                                     &mut Self::Context::default(),
-                                    |si| Transition(Self::$ntref(si)),
+                                    // TODO: proper trampoline delegation
+                                    |si| Transition(Self::$ntref(si.into())).into_super(),
                                     || todo!("inner dead (should not happen here)"),
                                 )
                             },
@@ -846,7 +866,8 @@ macro_rules! ele_parse {
                             (Self::$ntref(si), tok) => si.delegate(
                                 tok,
                                 &mut Self::Context::default(),
-                                |si| Transition(Self::$ntref(si)),
+                                // TODO: proper trampoline delegation
+                                |si| Transition(Self::$ntref(si.into())).into_super(),
                                 || match cfg.repeat {
                                     true => Transition(Expecting_),
                                     false => Transition(Done_),
@@ -882,6 +903,177 @@ macro_rules! ele_parse {
             }
         }
     };
+
+    // Generate superstate sum type.
+    //
+    // This is really annoying because we cannot read the output of another
+    //   macro,
+    //     and so we have to do our best to re-parse the body of the
+    //     original `ele_parse!` invocation without duplicating too much
+    //     logic,
+    //       and we have to do so in a way that we can aggregate all of
+    //       those data.
+    (@!super_sum <$objty:ty> $vis:vis $super:ident
+        $(
+            // NT definition is always followed by `:=`.
+            $nt:ident :=
+                // Identifier if an element NT.
+                $($_i:ident)?
+                // Parenthesis for a sum NT,
+                //   or possibly the span match for an element NT.
+                // So: `:= QN_IDENT(span)` or `:= (A | B | C)`.
+                $( ($($_p:tt)*) )?
+                // Braces for an element NT body.
+                $( {$($_b:tt)*} )?
+            // Element and sum NT both conclude with a semicolon,
+            //   which we need to disambiguate the next `$nt`.
+            ;
+        )*
+    ) => {
+        paste::paste! {
+            /// Superstate representing the union of all related parsers.
+            ///
+            /// This [`ParseState`] allows sub-parsers to independently
+            ///   the states associated with their own subgraph,
+            ///     and then yield a state transition directly to a state of
+            ///     another parser.
+            /// This is conceptually like CPS (continuation passing style),
+            ///   where this [`ParseState`] acts as a trampoline.
+            ///
+            /// This [`ParseState`] is required for use with [`Parser`];
+            ///   see [`ClosedParseState`] for more information.
+            #[derive(Debug, PartialEq, Eq)]
+            $vis enum $super {
+                $(
+                    $nt($nt),
+                )*
+            }
+
+            // Default parser is the first NT.
+            impl Default for $super {
+                fn default() -> Self {
+                    use $super::*;
+                    ele_parse!(@!ntfirst $($nt)*)(Default::default())
+                }
+            }
+
+            $(
+                impl From<$nt> for $super {
+                    fn from(st: $nt) -> Self {
+                        $super::$nt(st)
+                    }
+                }
+            )*
+
+            // TODO: This is used only until we remove composition-based
+            //   delegation in favor of trampolines---the
+            //     composed parsers yield their superstate,
+            //       which we have to convert back.
+            $(
+                impl From<$super> for $nt {
+                    fn from(sup: $super) -> Self {
+                        match sup {
+                            $super::$nt(st) => st,
+                            #[allow(unreachable_patterns)]
+                            _ => unreachable!("From<Super> for NT mismatch"),
+                        }
+                    }
+                }
+            )*
+
+            impl std::fmt::Display for $super {
+                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Self::$nt(e) => std::fmt::Display::fmt(e, f),
+                        )*
+                    }
+                }
+            }
+
+            #[derive(Debug, PartialEq)]
+            $vis enum [<$super Error_>] {
+                $(
+                    $nt([<$nt Error_>]),
+                )*
+            }
+
+            $(
+                impl From<[<$nt Error_>]> for [<$super Error_>] {
+                    fn from(e: [<$nt Error_>]) -> Self {
+                        [<$super Error_>]::$nt(e)
+                    }
+                }
+            )*
+
+            impl std::error::Error for [<$super Error_>] {
+                fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                    // TODO
+                    None
+                }
+            }
+
+            impl std::fmt::Display for [<$super Error_>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Self::$nt(e) => std::fmt::Display::fmt(e, f),
+                        )*
+                    }
+                }
+            }
+
+            impl crate::diagnose::Diagnostic for [<$super Error_>] {
+                fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+                    match self {
+                        $(
+                            Self::$nt(e) => e.describe(),
+                        )*
+                    }
+                }
+            }
+
+            impl crate::parse::ParseState for $super {
+                type Token = crate::xir::flat::XirfToken<
+                    crate::xir::flat::RefinedText
+                >;
+                type Object = $objty;
+                type Error = [<$super Error_>];
+                type Context = crate::parse::Context<crate::xir::parse::EleParseCfg>;
+
+                fn parse_token(
+                    self,
+                    tok: Self::Token,
+                    _cfg: &mut Self::Context,
+                ) -> crate::parse::TransitionResult<Self> {
+                    use crate::parse::Transition;
+
+                    match self {
+                        $(
+                            Self::$nt(st) => st.delegate(
+                                tok,
+                                &mut Self::Context::default(),
+                                Transition,
+                                || todo!("DEAD super sum")
+                            ),
+                        )*
+                    }
+                }
+
+                fn is_accepting(&self) -> bool {
+                    match self {
+                        $(
+                            Self::$nt(si) => si.is_accepting(),
+                        )*
+                    }
+                }
+            }
+        }
+    };
+
+    (@!ntfirst $ntfirst:ident $($nt:ident)*) => {
+        $ntfirst
+    }
 }
 
 #[cfg(test)]

@@ -58,11 +58,12 @@ fn empty_element_no_attrs_no_close() {
     impl Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo,
-        }
+        };
     }
 
     let toks = vec![
@@ -73,9 +74,9 @@ fn empty_element_no_attrs_no_close() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,  // [Sut]  Open
-            Parsed::Object(Foo), // [Sut@] Close (>LA)
-            Parsed::Incomplete,  // [Sut]  Close (<LA)
+            Parsed::Incomplete,  // [Root]  Open
+            Parsed::Object(Foo), // [Root@] Close (>LA)
+            Parsed::Incomplete,  // [Root]  Close (<LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -94,12 +95,13 @@ fn empty_element_no_attrs_with_close() {
     impl Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::Attr,
             / => Foo::Close,
-        }
+        };
     }
 
     let toks = vec![
@@ -110,9 +112,9 @@ fn empty_element_no_attrs_with_close() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,         // [Sut]  Open
-            Parsed::Object(Foo::Attr),  // [Sut@] Close (>LA)
-            Parsed::Object(Foo::Close), // [Sut]  Close (<LA)
+            Parsed::Incomplete,         // [Root]  Open
+            Parsed::Object(Foo::Attr),  // [Root@] Close (>LA)
+            Parsed::Object(Foo::Close), // [Root]  Close (<LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -131,12 +133,13 @@ fn empty_element_no_attrs_with_close_with_spans() {
     impl crate::parse::Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE(ospan) {
+        Root := QN_PACKAGE(ospan) {
             @ {} => Foo::Attr(ospan),
             /(cspan) => Foo::Close(cspan),
-        }
+        };
     }
 
     let toks = vec![
@@ -148,9 +151,9 @@ fn empty_element_no_attrs_with_close_with_spans() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,                               // [Sut]  Open
-            Object(Foo::Attr(OpenSpan(S1, N))),       // [Sut@] Close (>LA)
-            Object(Foo::Close(CloseSpan::empty(S2))), // [Sut]  Close (<LA)
+            Incomplete,                               // [Root]  Open
+            Object(Foo::Attr(OpenSpan(S1, N))),       // [Root@] Close (>LA)
+            Object(Foo::Close(CloseSpan::empty(S2))), // [Root]  Close (<LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -196,6 +199,8 @@ fn empty_element_with_attr_bindings() {
     }
 
     ele_parse! {
+        enum Sut;
+
         // AttrValueError should be passed to `attr_parse!`
         //   (which is invoked by `ele_parse!`)
         //   as ValueError.
@@ -206,7 +211,7 @@ fn empty_element_with_attr_bindings() {
         // In practice we wouldn't actually use Attr
         //   (we'd use an appropriate newtype),
         //     but for the sake of this test we'll keep things simple.
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {
                 name: (QN_NAME) => AttrVal,
                 value: (QN_VALUE) => AttrVal,
@@ -215,7 +220,7 @@ fn empty_element_with_attr_bindings() {
                 value.0.value(),
                 (name.0.attr_span().value_span(), value.0.attr_span().value_span())
             ),
-        }
+        };
     }
 
     let name_val = "bar".into();
@@ -247,12 +252,13 @@ fn empty_element_with_attr_bindings() {
 #[test]
 fn unexpected_element() {
     ele_parse! {
+        enum Sut;
         type Object = ();
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             // symbol soup
             @ {} => (),
-        }
+        };
     }
 
     let unexpected = "unexpected".unwrap_into();
@@ -305,10 +311,10 @@ fn unexpected_element() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
             unexpected,
             span.name_span()
-        )),
+        ))),
         err,
     );
 
@@ -347,17 +353,18 @@ fn single_child_element() {
     impl Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::RootAttr,
 
             Child,
-        }
+        };
 
         Child := QN_CLASSIFY {
             @ {} => Foo::ChildAttr,
-        }
+        };
     }
 
     let toks = vec![
@@ -369,12 +376,12 @@ fn single_child_element() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,             // [Sut]    Root Open
-            Parsed::Object(Foo::RootAttr),  // [Sut@]   Child Open (>LA)
+            Parsed::Incomplete,             // [Root]   Root Open
+            Parsed::Object(Foo::RootAttr),  // [Root@]  Child Open (>LA)
             Parsed::Incomplete,             // [Child]  Child Open (<LA)
             Parsed::Object(Foo::ChildAttr), // [Child@] Child Close (>LA)
             Parsed::Incomplete,             // [Child]  Child Close (<LA)
-            Parsed::Incomplete,             // [Sut]    Root Close
+            Parsed::Incomplete,             // [Root]   Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -399,16 +406,17 @@ fn multiple_child_elements_sequential() {
     impl crate::parse::Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE(ospan) {
+        Root := QN_PACKAGE(ospan) {
             @ {} => Foo::RootOpen(ospan.span()),
             /(cspan) => Foo::RootClose(cspan.span()),
 
             // Order matters here.
             ChildA,
             ChildB,
-        }
+        };
 
         // Demonstrates that span identifier bindings are scoped to the
         //   nonterminal block
@@ -416,12 +424,12 @@ fn multiple_child_elements_sequential() {
         ChildA := QN_CLASSIFY(ospan) {
             @ {} => Foo::ChildAOpen(ospan.span()),
             /(cspan) => Foo::ChildAClose(cspan.span()),
-        }
+        };
 
         ChildB := QN_EXPORT {
             @ {} => Foo::ChildBOpen,
             / => Foo::ChildBClose,
-        }
+        };
     }
 
     let toks = vec![
@@ -438,15 +446,15 @@ fn multiple_child_elements_sequential() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,                   // [Sut]     Root Open
-            Object(Foo::RootOpen(S1)),    // [Sut@]    ChildA Open (>LA)
+            Incomplete,                   // [Root]    Root Open
+            Object(Foo::RootOpen(S1)),    // [Root@]   ChildA Open (>LA)
             Incomplete,                   // [ChildA]  ChildA Open (<LA)
             Object(Foo::ChildAOpen(S2)),  // [ChildA@] ChildA Close (>LA)
             Object(Foo::ChildAClose(S3)), // [ChildA]  ChildA Close (<LA)
             Incomplete,                   // [ChildB]  ChildB Open
             Object(Foo::ChildBOpen),      // [ChildB@] ChildB Close (>LA)
             Object(Foo::ChildBClose),     // [ChildB]  ChildB Close (<LA)
-            Object(Foo::RootClose(S5)),   // [Sut]     Root Close
+            Object(Foo::RootClose(S5)),   // [Root]    Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -471,22 +479,23 @@ fn whitespace_ignored_between_elements() {
     const QN_B: QName = QN_EXPORT;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_SUT {
+        Root := QN_SUT {
             @ {} => Foo::Root,
 
             A,
             B,
-        }
+        };
 
         A := QN_A {
             @ {} => Foo::A,
-        }
+        };
 
         B := QN_B {
             @ {} => Foo::B,
-        }
+        };
     }
 
     let tok_ws = XirfToken::Text(
@@ -514,20 +523,20 @@ fn whitespace_ignored_between_elements() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,        // [Sut]  WS
-            Incomplete,        // [Sut]  Root Open
-            Incomplete,        // [Sut@] WS
-            Object(Foo::Root), // [Sut@] A Open (>LA)
-            Incomplete,        // [A]    A Open (<LA)
-            Object(Foo::A),    // [A@]   A Close (>LA)
-            Incomplete,        // [A]    A Close (<LA)
-            Incomplete,        // [A]    WS
-            Incomplete,        // [B]    B Open
-            Object(Foo::B),    // [B@]   B Close (>LA)
-            Incomplete,        // [B]    B Close (<LA)
-            Incomplete,        // [Sut]  WS
-            Incomplete,        // [Sut]  Root Close
-            Incomplete,        // [Sut]  WS
+            Incomplete,        // [Root]  WS
+            Incomplete,        // [Root]  Root Open
+            Incomplete,        // [Root@] WS
+            Object(Foo::Root), // [Root@] A Open (>LA)
+            Incomplete,        // [A]     A Open (<LA)
+            Object(Foo::A),    // [A@]    A Close (>LA)
+            Incomplete,        // [A]     A Close (<LA)
+            Incomplete,        // [A]     WS
+            Incomplete,        // [B]     B Open
+            Object(Foo::B),    // [B@]    B Close (>LA)
+            Incomplete,        // [B]     B Close (<LA)
+            Incomplete,        // [Root]  WS
+            Incomplete,        // [Root]  Root Close
+            Incomplete,        // [Root]  WS
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -552,9 +561,10 @@ fn child_error_and_recovery() {
     impl Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::Root,
 
             // This is what we're expecting,
@@ -564,15 +574,15 @@ fn child_error_and_recovery() {
             // But we _will_ provide this expected value,
             //   after error recovery ignores the above.
             ChildB,
-        }
+        };
 
         ChildA := QN_CLASSIFY {
             @ {} => Foo::ChildABad,
-        }
+        };
 
         ChildB := QN_EXPORT {
             @ {} => Foo::ChildB,
-        }
+        };
     }
 
     let unexpected = "unexpected".unwrap_into();
@@ -600,16 +610,16 @@ fn child_error_and_recovery() {
     let mut sut = Sut::parse(toks.into_iter());
 
     // The first token is expected,
-    //   and we enter attribute parsing for `Sut`.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut] Open 0
+    //   and we enter attribute parsing for `Root`.
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root] Open 0
 
     // The second token _will_ be unexpected,
-    //   but we're parsing attributes for `Sut`,
+    //   but we're parsing attributes for `Root`,
     //   so we don't know that yet.
     // Instead,
     //   the `Open` ends attribute parsing and yields a token of lookahead.
     assert_eq!(
-        Some(Ok(Parsed::Object(Foo::Root))), // [Sut@] Open 1 (>LA)
+        Some(Ok(Parsed::Object(Foo::Root))), // [Root@] Open 1 (>LA)
         sut.next()
     );
 
@@ -621,9 +631,9 @@ fn child_error_and_recovery() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::ChildA(
+        ParseError::StateError(SutError_::Root(RootError_::ChildA(
             ChildAError_::UnexpectedEle_(unexpected, span.name_span())
-        )),
+        ))),
         err,
     );
 
@@ -647,7 +657,7 @@ fn child_error_and_recovery() {
             Parsed::Incomplete,          // [ChildB]  Open 1
             Parsed::Object(Foo::ChildB), // [ChildB@] Close 1 (>LA)
             Parsed::Incomplete,          // [ChildB]  Close 1 (<LA)
-            Parsed::Incomplete,          // [Sut]     Close 0
+            Parsed::Incomplete,          // [Root]     Close 0
         ]),
         sut.collect()
     );
@@ -668,12 +678,13 @@ fn child_error_and_recovery_at_close() {
     impl Object for Foo {}
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::Open,
             / => Foo::Close,
-        }
+        };
     }
 
     let unexpected_a = "unexpected a".unwrap_into();
@@ -684,7 +695,7 @@ fn child_error_and_recovery_at_close() {
     let toks = vec![
         // The first token is the expected root.
         XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
-        // Sut is now expecting either attributes
+        // Root is now expecting either attributes
         //   (of which there are none),
         //   or a closing element.
         // In either case,
@@ -707,27 +718,27 @@ fn child_error_and_recovery_at_close() {
             Depth(1),
         ),
         // Having recovered from the above tokens,
-        //   this will end parsing for `Sut` as expected.
+        //   this will end parsing for `Root` as expected.
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S6, N), Depth(0)),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
 
     // The first token is expected,
-    //   and we enter attribute parsing for `Sut`.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut] Open 0
+    //   and we enter attribute parsing for `Root`.
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root] Open 0
 
     // The second token _will_ be unexpected,
-    //   but we're parsing attributes for `Sut`,
+    //   but we're parsing attributes for `Root`,
     //   so we don't know that yet.
     // Instead,
     //   the `Open` ends attribute parsing and yields a token of lookahead.
     assert_eq!(
-        Some(Ok(Parsed::Object(Foo::Open))), // [Sut@] Open 1 (>LA)
+        Some(Ok(Parsed::Object(Foo::Open))), // [Root@] Open 1 (>LA)
         sut.next()
     );
 
-    // The token of lookahead (`Open`) is unexpected for `Sut`,
+    // The token of lookahead (`Open`) is unexpected for `Root`,
     //   which is expecting `Close`.
     // The token should be consumed and returned in the error,
     //   _not_ produced as a token of lookahead,
@@ -735,10 +746,10 @@ fn child_error_and_recovery_at_close() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::CloseExpected_(
+        ParseError::StateError(SutError_::Root(RootError_::CloseExpected_(
             OpenSpan(S1, N).tag_span(),
             XirfToken::Open(unexpected_a, span_a, Depth(1)),
-        )),
+        ))),
         err,
     );
 
@@ -760,7 +771,7 @@ fn child_error_and_recovery_at_close() {
     //   tag.
     // Since we are in recovery,
     //   it should be ignored.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Close 1
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root!] Close 1
 
     // We are still in recovery,
     //   and so we should still be ignoring tokens.
@@ -768,9 +779,9 @@ fn child_error_and_recovery_at_close() {
     //   element
     //     (though doing so may be noisy if there is a lot),
     //       but for now the parser is kept simple.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Open 1
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Close 1
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Sut!] Text
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root!] Open 1
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root!] Close 1
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root!] Text
 
     // Having recovered from the error,
     //   we should now be able to close successfully.
@@ -798,27 +809,28 @@ fn sum_nonterminal_accepts_any_valid_element() {
     const QN_C: QName = QN_EXPORT;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := (A | B | C);
+        Root := (A | B | C);
 
         A := QN_A {
             @ {} => Foo::A,
-        }
+        };
 
         B := QN_B {
             @ {} => Foo::B,
-        }
+        };
 
         C := QN_C {
             @ {} => Foo::C,
-        }
+        };
     }
 
     use Parsed::*;
     use XirfToken::{Close, Open};
 
-    // Try each in turn with a fresh instance of `Sut`.
+    // Try each in turn with a fresh instance of `Root`.
     [(QN_A, Foo::A), (QN_B, Foo::B), (QN_C, Foo::C)]
         .into_iter()
         .for_each(|(qname, obj)| {
@@ -829,9 +841,9 @@ fn sum_nonterminal_accepts_any_valid_element() {
 
             assert_eq!(
                 Ok(vec![
-                    Incomplete,  // [X] Open
+                    Incomplete,  // [X]  Open
                     Object(obj), // [X@] Close (>LA)
-                    Incomplete,  // [X] Close
+                    Incomplete,  // [X]  Close
                 ]),
                 Sut::parse(toks.into_iter()).collect(),
             );
@@ -854,18 +866,19 @@ fn sum_nonterminal_accepts_whitespace() {
     const QN_B: QName = QN_CLASSIFY;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
         // Sum type requires two NTs but we only use A.
-        Sut := (A | B);
+        Root := (A | B);
 
         A := QN_A {
             @ {} => Foo::A,
-        }
+        };
 
         B := QN_B {
             @ {} => Foo::B,
-        }
+        };
     }
 
     use Parsed::*;
@@ -876,7 +889,7 @@ fn sum_nonterminal_accepts_whitespace() {
         Depth(0),
     );
 
-    // Try each in turn with a fresh instance of `Sut`.
+    // Try each in turn with a fresh instance of `Root`.
     let toks = vec![
         // Leading whitespace.
         tok_ws.clone(),
@@ -888,11 +901,11 @@ fn sum_nonterminal_accepts_whitespace() {
 
     assert_eq!(
         Ok(vec![
-            Incomplete,     // [A] WS
-            Incomplete,     // [A] Open
+            Incomplete,     // [A]  WS
+            Incomplete,     // [A]  Open
             Object(Foo::A), // [A@] Close (>LA)
-            Incomplete,     // [A] Close
-            Incomplete,     // [A] WS
+            Incomplete,     // [A]  Close
+            Incomplete,     // [A]  WS
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -915,28 +928,29 @@ fn sum_nonterminal_as_child_element() {
     const QN_B: QName = QN_CLASSIFY;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::Open(QN_ROOT),
             / => Foo::Close(QN_ROOT),
 
             // A|B followed by a B.
             AB,
             B,
-        }
+        };
 
         AB := (A | B);
 
         A := QN_A {
             @ {} => Foo::Open(QN_A),
             / => Foo::Close(QN_A),
-        }
+        };
 
         B := QN_B {
             @ {} => Foo::Open(QN_B),
             / => Foo::Close(QN_B),
-        }
+        };
     }
 
     let toks = vec![
@@ -954,15 +968,15 @@ fn sum_nonterminal_as_child_element() {
 
     assert_eq!(
         Ok(vec![
-            Incomplete,                  // [Sut]  Root Open
-            Object(Foo::Open(QN_ROOT)),  // [Sut@] A Open (>LA)
-            Incomplete,                  // [A]  A Open (<LA)
-            Object(Foo::Open(QN_A)),     // [A@] A Close (>LA)
-            Object(Foo::Close(QN_A)),    // [A]  A Close (<LA)
-            Incomplete,                  // [B]  B Open
-            Object(Foo::Open(QN_B)),     // [B@] B Close (>LA)
-            Object(Foo::Close(QN_B)),    // [B]  B Close (<LA)
-            Object(Foo::Close(QN_ROOT)), // [Sut]  Root Close
+            Incomplete,                  // [Root]  Root Open
+            Object(Foo::Open(QN_ROOT)),  // [Root@] A Open (>LA)
+            Incomplete,                  // [A]     A Open (<LA)
+            Object(Foo::Open(QN_A)),     // [A@]    A Close (>LA)
+            Object(Foo::Close(QN_A)),    // [A]     A Close (<LA)
+            Incomplete,                  // [B]     B Open
+            Object(Foo::Open(QN_B)),     // [B@]    B Close (>LA)
+            Object(Foo::Close(QN_B)),    // [B]     B Close (<LA)
+            Object(Foo::Close(QN_ROOT)), // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -984,17 +998,18 @@ fn sum_nonterminal_error_recovery() {
     let unexpected: QName = "unexpected".unwrap_into();
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := (A | B);
+        Root := (A | B);
 
         A := QN_A {
             @ {} => Foo::A,
-        }
+        };
 
         B := QN_B {
             @ {} => Foo::B,
-        }
+        };
     }
 
     // Something >0 just to assert that we're actually paying attention to
@@ -1033,10 +1048,10 @@ fn sum_nonterminal_error_recovery() {
     assert_eq!(
         err,
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
             unexpected,
             OpenSpan(S1, N).name_span(),
-        )),
+        ))),
     );
 
     // Diagnostic message should describe the name of the element.
@@ -1079,9 +1094,10 @@ fn child_repetition() {
     const QN_C: QName = QN_EXPORT;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::RootOpen,
             / => Foo::RootClose,
 
@@ -1091,22 +1107,22 @@ fn child_repetition() {
             ChildA[*],
             ChildB[*],
             ChildC,
-        }
+        };
 
         ChildA := QN_A {
             @ {} => Foo::ChildOpen(QN_A),
             / => Foo::ChildClose(QN_A),
-        }
+        };
 
         ChildB := QN_B {
             @ {} => Foo::ChildOpen(QN_B),
             / => Foo::ChildClose(QN_B),
-        }
+        };
 
         ChildC := QN_C {
             @ {} => Foo::ChildOpen(QN_C),
             / => Foo::ChildClose(QN_C),
-        }
+        };
     }
 
     let toks = vec![
@@ -1156,8 +1172,8 @@ fn child_repetition() {
     //     then.)
     assert_eq!(
         Ok(vec![
-            Incomplete,                    // [Sut]     Root Open
-            Object(Foo::RootOpen),         // [Sut@]    ChildA Open (>LA)
+            Incomplete,                    // [Root]    Root Open
+            Object(Foo::RootOpen),         // [Root@]   ChildA Open (>LA)
             Incomplete,                    // [ChildA]  ChildA Open (<LA)
             Object(Foo::ChildOpen(QN_A)),  // [ChildA@] ChildA Close (>LA)
             Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close (<LA)
@@ -1173,7 +1189,7 @@ fn child_repetition() {
             Incomplete,                    // [ChildC]  ChildC Open (<LA)
             Object(Foo::ChildOpen(QN_C)),  // [ChildC@] ChildC Close (>LA)
             Object(Foo::ChildClose(QN_C)), // [ChildC]  ChildC Close (<LA)
-            Object(Foo::RootClose),        // [Sut]     Root Close
+            Object(Foo::RootClose),        // [Root]    Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -1197,19 +1213,20 @@ fn child_repetition_invalid_tok_dead() {
     let unexpected: QName = "unexpected".unwrap_into();
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::RootOpen,
             / => Foo::RootClose,
 
             Child[*],
-        }
+        };
 
         Child := QN_CHILD {
             @ {} => Foo::ChildOpen,
             / => Foo::ChildClose,
-        }
+        };
     }
 
     let toks = vec![
@@ -1229,8 +1246,8 @@ fn child_repetition_invalid_tok_dead() {
 
     let mut next = || sut.next();
 
-    assert_eq!(next(), Some(Ok(Incomplete))); // [Sut] Open
-    assert_eq!(next(), Some(Ok(Object(Foo::RootOpen)))); // [Sut@] Open >
+    assert_eq!(next(), Some(Ok(Incomplete))); // [Root] Open
+    assert_eq!(next(), Some(Ok(Object(Foo::RootOpen)))); // [Root@] Open >
     assert_eq!(next(), Some(Ok(Incomplete))); // [Child] Open <
     assert_eq!(next(), Some(Ok(Object(Foo::ChildOpen)))); // [Child@] Close >
     assert_eq!(next(), Some(Ok(Object(Foo::ChildClose)))); // [Child] Close <
@@ -1245,23 +1262,25 @@ fn child_repetition_invalid_tok_dead() {
     //   `Parser` will immediately recurse to re-process the erroneous
     //   `Open`.
     // Since the next token expected after the `Child` NT is `Close`,
-    //   this will result in an error and trigger recovery _on `Sut`_,
+    //   this will result in an error and trigger recovery _on `Root`_,
     //     which will ignore the erroneous `Open`.
     assert_eq!(
         next(),
         // TODO: This references generated identifiers.
-        Some(Err(ParseError::StateError(SutError_::CloseExpected_(
-            OpenSpan(S1, N).tag_span(),
-            XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
+        Some(Err(ParseError::StateError(SutError_::Root(
+            RootError_::CloseExpected_(
+                OpenSpan(S1, N).tag_span(),
+                XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
+            )
         )))),
     );
 
     // This next token is also ignored as part of recovery.
-    assert_eq!(next(), Some(Ok(Incomplete))); // [Sut] Child Close
+    assert_eq!(next(), Some(Ok(Incomplete))); // [Root] Child Close
 
     // Finally,
-    //   `Sut` encounters its expected `Close` and ends recovery.
-    assert_eq!(next(), Some(Ok(Object(Foo::RootClose)))); // [Sut] Close
+    //   `Root` encounters its expected `Close` and ends recovery.
+    assert_eq!(next(), Some(Ok(Object(Foo::RootClose)))); // [Root] Close
     sut.finalize()
         .expect("recovery must complete in an accepting state");
 }
@@ -1285,33 +1304,34 @@ fn sum_repetition() {
     const QN_C: QName = QN_EXPORT;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_PACKAGE {
+        Root := QN_PACKAGE {
             @ {} => Foo::Open(QN_ROOT),
             / => Foo::Close(QN_ROOT),
 
             // A|B|C in any order,
             //   any number of times.
             ABC[*],
-        }
+        };
 
         ABC := (A | B | C );
 
         A := QN_A {
             @ {} => Foo::Open(QN_A),
             / => Foo::Close(QN_A),
-        }
+        };
 
         B := QN_B {
             @ {} => Foo::Open(QN_B),
             / => Foo::Close(QN_B),
-        }
+        };
 
         C := QN_C {
             @ {} => Foo::Open(QN_C),
             / => Foo::Close(QN_C),
-        }
+        };
     }
 
     let toks = vec![
@@ -1340,24 +1360,24 @@ fn sum_repetition() {
     //   the suppression of `Incomplete` for dead states.
     assert_eq!(
         Ok(vec![
-            Incomplete,                  // [Sut]  Root Open
-            Object(Foo::Open(QN_ROOT)),  // [Sut@] A Open (>LA)
-            Incomplete,                  // [A]  A Open (<LA)
-            Object(Foo::Open(QN_A)),     // [A@] A Close (>LA)
-            Object(Foo::Close(QN_A)),    // [A]  A Close (<LA)
-            Incomplete,                  // [A]  A Open
-            Object(Foo::Open(QN_A)),     // [A@] A Close (>LA)
-            Object(Foo::Close(QN_A)),    // [A]  A Close (<LA)
-            Incomplete,                  // [B]  B Open
-            Object(Foo::Open(QN_B)),     // [B@] B Close (>LA)
-            Object(Foo::Close(QN_B)),    // [B]  B Close (<LA)
-            Incomplete,                  // [C]  C Open
-            Object(Foo::Open(QN_C)),     // [C@] C Close (>LA)
-            Object(Foo::Close(QN_C)),    // [C]  C Close (<LA)
-            Incomplete,                  // [B]  B Open
-            Object(Foo::Open(QN_B)),     // [B@] B Close (>LA)
-            Object(Foo::Close(QN_B)),    // [B]  B Close (<LA)
-            Object(Foo::Close(QN_ROOT)), // [Sut]  Root Close
+            Incomplete,                  // [Root]  Root Open
+            Object(Foo::Open(QN_ROOT)),  // [Root@] A Open (>LA)
+            Incomplete,                  // [A]     A Open (<LA)
+            Object(Foo::Open(QN_A)),     // [A@]    A Close (>LA)
+            Object(Foo::Close(QN_A)),    // [A]     A Close (<LA)
+            Incomplete,                  // [A]     A Open
+            Object(Foo::Open(QN_A)),     // [A@]    A Close (>LA)
+            Object(Foo::Close(QN_A)),    // [A]     A Close (<LA)
+            Incomplete,                  // [B]     B Open
+            Object(Foo::Open(QN_B)),     // [B@]    B Close (>LA)
+            Object(Foo::Close(QN_B)),    // [B]     B Close (<LA)
+            Incomplete,                  // [C]     C Open
+            Object(Foo::Open(QN_C)),     // [C@]    C Close (>LA)
+            Object(Foo::Close(QN_C)),    // [C]     C Close (<LA)
+            Incomplete,                  // [B]     B Open
+            Object(Foo::Open(QN_B)),     // [B@]    B Close (>LA)
+            Object(Foo::Close(QN_B)),    // [B]     B Close (<LA)
+            Object(Foo::Close(QN_ROOT)), // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -1389,9 +1409,10 @@ fn mixed_content_text_nodes() {
     const QN_B: QName = QN_EXPORT;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_SUT {
+        Root := QN_SUT {
             @ {} => Foo::Root,
 
             // The `[text]` special form here introduces a `Text` mapping
@@ -1401,7 +1422,7 @@ fn mixed_content_text_nodes() {
 
             A,
             AB[*],
-        }
+        };
 
         A := QN_A {
             @ {} => Foo::A,
@@ -1410,12 +1431,12 @@ fn mixed_content_text_nodes() {
             [text](sym, span) => Foo::TextA(sym, span),
 
             // Text should be permitted even though we permit no children.
-        }
+        };
 
         // Used only for `AB`.
         B := QN_B {
             @ {} => Foo::B,
-        }
+        };
 
         // We need at least two NTs;
         //   we don't actually use `B`.
@@ -1434,13 +1455,13 @@ fn mixed_content_text_nodes() {
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
         // Whitespace will not match the `[text]` special form.
         tok_ws.clone(),
-        // Text node for the root (Sut).
+        // Text node for the root (Root).
         XirfToken::Text(RefinedText::Unrefined(Text(text_root, S1)), Depth(1)),
         // This child also expects text nodes,
         //   and should be able to yield its own parse.
         XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
         // If this goes wrong,
-        //   and Sut does not properly check its depth,
+        //   and Root does not properly check its depth,
         //   then the parser would erroneously yield `Foo::TextRoot` for
         //     this token.
         XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
@@ -1448,7 +1469,7 @@ fn mixed_content_text_nodes() {
         // Now we're about to parse with `AB`,
         //   which itself cannot handle text.
         // But text should never reach that parser,
-        //   having been preempted by Sut.
+        //   having been preempted by Root.
         XirfToken::Text(RefinedText::Unrefined(Text(text_root, S3)), Depth(1)),
         // Try to yield A again with text.
         XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
@@ -1462,21 +1483,21 @@ fn mixed_content_text_nodes() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,                           // [Sut]  Root Open
-            Incomplete,                           // [Sut@] WS
-            Object(Foo::Root),                    // [Sut@] Text (>LA)
-            Object(Foo::TextRoot(text_root, S1)), // [Sut]  Text (<LA)
-            Incomplete,                           // [A]    A Open (<LA)
-            Object(Foo::A),                       // [A@]   A Text (>LA)
-            Object(Foo::TextA(text_a, S2)),       // [A]    Text (<LA)
-            Incomplete,                           // [A]    A Close
-            Object(Foo::TextRoot(text_root, S3)), // [Sut]  Text
-            Incomplete,                           // [A]    A Open
-            Object(Foo::A),                       // [A@]   A Text (>LA)
-            Object(Foo::TextA(text_a, S4)),       // [A]    Text (<LA)
-            Incomplete,                           // [A]    A Close
-            Object(Foo::TextRoot(text_root, S5)), // [Sut]  Text
-            Incomplete,                           // [Sut]  Root Close
+            Incomplete,                           // [Root]  Root Open
+            Incomplete,                           // [Root@] WS
+            Object(Foo::Root),                    // [Root@] Text (>LA)
+            Object(Foo::TextRoot(text_root, S1)), // [Root]  Text (<LA)
+            Incomplete,                           // [A]     A Open (<LA)
+            Object(Foo::A),                       // [A@]    A Text (>LA)
+            Object(Foo::TextA(text_a, S2)),       // [A]     Text (<LA)
+            Incomplete,                           // [A]     A Close
+            Object(Foo::TextRoot(text_root, S3)), // [Root]   Text
+            Incomplete,                           // [A]     A Open
+            Object(Foo::A),                       // [A@]    A Text (>LA)
+            Object(Foo::TextA(text_a, S4)),       // [A]     Text (<LA)
+            Incomplete,                           // [A]     A Close
+            Object(Foo::TextRoot(text_root, S5)), // [Root]  Text
+            Incomplete,                           // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -1498,9 +1519,10 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
     const QN_A: QName = QN_CLASSIFY;
 
     ele_parse! {
+        enum Sut;
         type Object = Foo;
 
-        Sut := QN_SUT {
+        Root := QN_SUT {
             @ {} => Foo::Root,
 
             // Mixed content permitted at root
@@ -1509,14 +1531,14 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
 
             // But this child will not permit text.
             A,
-        }
+        };
 
         A := QN_A {
             @ {} => Foo::A,
 
             // Missing `[text`];
             //   no mixed content permitted.
-        }
+        };
     }
 
     let text_a = "text a".into();
@@ -1538,8 +1560,8 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
 
     // The first two tokens should parse successfully
     //   (four calls because of LA).
-    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Sut] Root Open
-    assert_eq!(sut.next(), Some(Ok(Object(Foo::Root)))); // [Sut@] A Open (>LA)
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root] Root Open
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::Root)))); // [Root@] A Open (>LA)
     assert_eq!(sut.next(), Some(Ok(Incomplete))); // [A] A Open (<LA)
     assert_eq!(sut.next(), Some(Ok(Object(Foo::A)))); // [A@] Text (>LA)
 
@@ -1556,7 +1578,7 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
     assert_eq!(
         Ok(vec![
             Incomplete, // [A]    A Close
-            Incomplete, // [Sut]  Root Close
+            Incomplete, // [Root]  Root Close
         ]),
         sut.collect()
     );
@@ -1580,12 +1602,12 @@ mod test_exportable_generated_idents {
     ele_parse! {
         // This is the line that determines visibility of all identifiers
         //   generated within this macro invocation.
-        vis(pub);
+        pub enum Sut;
 
         type Object = ();
 
         ExportMe := QN_PACKAGE {
             @ {} => (),
-        }
+        };
     }
 }
