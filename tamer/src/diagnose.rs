@@ -75,6 +75,9 @@
 //!
 //! See the [`report`] module for more information.
 
+#[macro_use]
+pub mod panic;
+
 mod report;
 mod resolve;
 

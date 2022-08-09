@@ -730,6 +730,7 @@ impl Line {
 /// Resolve spans by reading [`Context`]s from a filesystem.
 ///
 /// This uses [`BufSpanResolver`].
+#[derive(Debug, Default)]
 pub struct FsSpanResolver;
 
 impl SpanResolver for FsSpanResolver {
