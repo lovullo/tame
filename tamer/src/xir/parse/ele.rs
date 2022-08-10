@@ -575,10 +575,6 @@ macro_rules! ele_parse {
                 ),
 
                 Attrs_(crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>),
-
-                $(
-                    $ntref([<$ntref Error_>]),
-                )*
             }
 
             impl From<crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>>
@@ -590,14 +586,6 @@ macro_rules! ele_parse {
                     [<$nt Error_>]::Attrs_(e)
                 }
             }
-
-            $(
-                impl From<[<$ntref Error_>]> for [<$nt Error_>] {
-                    fn from(e: [<$ntref Error_>]) -> Self {
-                        [<$nt Error_>]::$ntref(e)
-                    }
-                }
-            )*
 
             impl std::error::Error for [<$nt Error_>] {
                 fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -627,9 +615,6 @@ macro_rules! ele_parse {
                             TtQuote::wrap(tok)
                         ),
                         Self::Attrs_(e) => std::fmt::Display::fmt(e, f),
-                        $(
-                            Self::$ntref(e) => std::fmt::Display::fmt(e, f),
-                        )*
                     }
                 }
             }
@@ -660,10 +645,6 @@ macro_rules! ele_parse {
                         ],
 
                         Self::Attrs_(e) => e.describe(),
-
-                        $(
-                            Self::$ntref(e) => e.describe(),
-                        )*
                     }
                 }
             }
@@ -960,18 +941,7 @@ macro_rules! ele_parse {
             #[derive(Debug, PartialEq)]
             $vis enum [<$nt Error_>] {
                 UnexpectedEle_(crate::xir::QName, crate::span::Span),
-                $(
-                    $ntref([<$ntref Error_>]),
-                )*
             }
-
-            $(
-                impl From<[<$ntref Error_>]> for [<$nt Error_>] {
-                    fn from(e: [<$ntref Error_>]) -> Self {
-                        [<$nt Error_>]::$ntref(e)
-                    }
-                }
-            )*
 
             impl std::error::Error for [<$nt Error_>] {
                 fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -991,9 +961,6 @@ macro_rules! ele_parse {
                         Self::UnexpectedEle_(qname, _) => {
                             write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
                         },
-                        $(
-                            Self::$ntref(e) => std::fmt::Display::fmt(e, f),
-                        )*
                     }
                 }
             }
@@ -1021,10 +988,6 @@ macro_rules! ele_parse {
                                 name = TtQuote::wrap(qname),
                             )).into()
                         },
-
-                        $(
-                            Self::$ntref(e) => e.describe(),
-                        )*
                     }
                 }
             }
@@ -1213,6 +1176,8 @@ macro_rules! ele_parse {
                 }
             }
 
+            /// Superstate error object representing the union of all
+            ///   related parsers' errors.
             #[derive(Debug, PartialEq)]
             $vis enum [<$super Error_>] {
                 $(
