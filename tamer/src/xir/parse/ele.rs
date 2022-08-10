@@ -19,7 +19,20 @@
 
 //! Element parser generator for parsing of [XIRF](super::super::flat).
 
-use crate::parse::ParseState;
+use arrayvec::ArrayVec;
+
+use crate::{
+    diagnose::{panic::DiagnosticPanic, Annotate},
+    diagnostic_panic,
+    fmt::{DisplayWrapper, TtQuote},
+    parse::{
+        ClosedParseState, Context, ParseState, Token, Transition,
+        TransitionResult,
+    },
+};
+
+#[cfg(doc)]
+use crate::{ele_parse, parse::Parser};
 
 /// A parser accepting a single element.
 pub trait EleParseState: ParseState {}
@@ -41,6 +54,143 @@ pub struct EleParseCfg {
 impl From<EleParseCfg> for () {
     fn from(_: EleParseCfg) -> Self {
         ()
+    }
+}
+
+/// Maximum level of nesting for source XML trees.
+///
+/// Technically this is the maximum level of nesting for _parsing_ those
+///   trees,
+///     which may end up being less than this value.
+///
+/// This should be set to something reasonable,
+///   but is not an alternative to coming up with code conventions that
+///   disallow ridiculous levels of nesting.
+/// TAME does have a lot of nesting with primitives,
+///   but that nesting is easily abstracted with templates.
+/// Templates may expand into ridiculous levels of nesting---this
+///   has no impact on the template expansion phase.
+///
+/// Note that this is assuming that this parser is used only for TAME
+///   sources.
+/// If that's not the case,
+///   this can be made to be configurable like XIRF.
+pub const MAX_DEPTH: usize = 16;
+
+/// Parser stack for trampoline.
+///
+/// This can be used as a call stack for parsers while avoiding creating
+///   otherwise-recursive data structures with composition-based delegation.
+/// However,
+///   it is more similar to CPS,
+///   in that the parser popped off the stack need not be the parser that
+///     initiated the request and merely represents the next step in
+///     a delayed computation.
+/// If such a return context is unneeded,
+///   a [`ParseState`] may implement tail calls by simply not pushing itself
+///   onto the stack before requesting transfer to another [`ParseState`].
+#[derive(Debug, Default)]
+pub struct StateStack<S: ClosedParseState>(ArrayVec<S, MAX_DEPTH>);
+
+pub type StateStackContext<S> = Context<StateStack<S>>;
+
+// Note that public visibility is needed because `ele_parse` expands outside
+//   of this module.
+impl<S: ClosedParseState> StateStack<S> {
+    /// Request a transfer to another [`ParseState`],
+    ///   expecting that control be returned to `ret` after it has
+    ///   completed.
+    ///
+    /// This can be reasoned about like calling a thunk:
+    ///   the return [`ParseState`] is put onto the stack,
+    ///   the target [`ParseState`] is used for the state transition to
+    ///     cause [`Parser`] to perform the call to it,
+    ///   and when it is done
+    ///     (e.g. a dead state),
+    ///     `ret` will be pop'd from the stack and we'll transition back to
+    ///     it.
+    /// Note that this method is not responsible for returning;
+    ///   see [`Self::ret`] to perform a return.
+    ///
+    /// However,
+    ///   the calling [`ParseState`] is not responsible for its return,
+    ///   unlike a typical function call.
+    /// Instead,
+    ///   this _actually_ more closely resembles CPS
+    ///     (continuation passing style),
+    ///     and so [`ele_parse!`] must be careful to ensure that stack
+    ///     operations are properly paired.
+    /// On the upside,
+    ///   if something is erroneously `ret`'d,
+    ///   the parser is guaranteed to be in a consistent state since the
+    ///   entire state has been reified
+    ///     (but the input would then be parsed incorrectly).
+    ///
+    /// Note that tail calls can be implemented by transferring control
+    ///   without pushing an entry on the stack to return to,
+    ///     but that hasn't been formalized \[yet\] and requires extra care.
+    pub fn transfer_with_ret<SA, ST>(
+        &mut self,
+        Transition(ret): Transition<SA>,
+        target: TransitionResult<ST>,
+    ) -> TransitionResult<ST>
+    where
+        SA: ParseState<Super = S::Super>,
+        ST: ParseState,
+    {
+        let Self(stack) = self;
+
+        // TODO: Global configuration to (hopefully) ensure that XIRF will
+        //   actually catch this.
+        if stack.is_full() {
+            // TODO: We need some spans here and ideally convert the
+            //   parenthetical error message into a diagnostic footnote.
+            // TODO: Or should we have a special error type that tells the
+            //   parent `Parser` to panic with context?
+            diagnostic_panic!(
+                vec![],
+                "maximum parsing depth of {} exceeded while attempting \
+                   to push return state {} \
+                   (expected XIRF configuration to prevent this error)",
+                MAX_DEPTH,
+                TtQuote::wrap(ret),
+            );
+        }
+
+        stack.push(ret.into());
+        target
+    }
+
+    /// Return to a previous [`ParseState`] that transferred control away
+    ///   from itself.
+    ///
+    /// Conceptually,
+    ///   this is like returning from a function call,
+    ///   where the function was invoked using [`Self::transfer_with_ret`].
+    /// However,
+    ///   this system is more akin to CPS
+    ///     (continuation passing style);
+    ///       see [`Self::transfer_with_ret`] for important information.
+    pub fn ret(&mut self, lookahead: S::Token) -> TransitionResult<S> {
+        let Self(stack) = self;
+
+        // This should certainly never happen unless there is a bug in the
+        //   `ele_parse!` parser-generator,
+        //     since it means that we're trying to return to a caller that
+        //     does not exist.
+        let st = stack.pop().diagnostic_expect(
+            lookahead
+                .span()
+                .internal_error("while processing this token")
+                .with_help(
+                    "this implies a bug in TAMER's `ele_parse` \
+                       parser-generator",
+                )
+                .into(),
+            "missing expected return ParseState",
+        );
+
+        Transition(st).incomplete().with_lookahead(lookahead)
     }
 }
 
@@ -150,9 +300,9 @@ macro_rules! ele_parse {
             -> {
                 @ ->
                 $(
-                    ($nt::$ntref) [$($ntref_cfg)?],
+                    ($nt::$ntref, $ntref) [$($ntref_cfg)?],
                     ($nt::$ntref) ->
-                )* ($nt::ExpectClose_) [],
+                )* ($nt::ExpectClose_, ()) [],
             }
         }
     };
@@ -179,6 +329,30 @@ macro_rules! ele_parse {
         crate::xir::parse::EleParseCfg {
             repeat: false,
         }
+    };
+
+    // Delegation when the destination type is `()`,
+    //   indicating that the next state is not a child NT
+    //   (it is likely the state expecting a closing tag).
+    (@!ntref_delegate
+        $stack:ident, $ret:expr, (), $_target:expr, $done:expr
+    ) => {
+        $done
+    };
+
+    // Delegate to a child parser by pushing self onto the stack and
+    //   yielding to one of the child's states.
+    // This uses a trampoline,
+    //   which avoids recursive data structures
+    //     (due to `ParseState` composition/stitching)
+    //   and does not grow the call stack.
+    (@!ntref_delegate
+        $stack:ident, $ret:expr, $ntnext_st:ty, $target:expr, $_done:expr
+    ) => {
+        $stack.transfer_with_ret(
+            Transition($ret),
+            $target,
+        )
     };
 
     (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
@@ -212,9 +386,9 @@ macro_rules! ele_parse {
         }
 
         -> {
-            @ -> ($ntfirst:path) [$($ntfirst_cfg:tt)?],
+            @ -> ($ntfirst:path, $ntfirst_st:ty) [$($ntfirst_cfg:tt)?],
             $(
-                ($ntprev:path) -> ($ntnext:path) [$($ntnext_cfg:tt)?],
+                ($ntprev:path) -> ($ntnext:path, $ntnext_st:ty) [$($ntnext_cfg:tt)?],
             )*
         }
     ) => {
@@ -286,7 +460,6 @@ macro_rules! ele_parse {
                             crate::span::Span,
                             crate::xir::flat::Depth
                         ),
-                        $ntref
                     ),
                 )*
                 ExpectClose_(
@@ -295,7 +468,6 @@ macro_rules! ele_parse {
                         crate::span::Span,
                         crate::xir::flat::Depth
                     ),
-                    ()
                 ),
                 /// Closing tag found and parsing of the element is
                 ///   complete.
@@ -321,11 +493,11 @@ macro_rules! ele_parse {
                 /// Yield the expected depth of child elements,
                 ///   if known.
                 #[allow(dead_code)] // used by text special form
-                fn child_depth(&self) -> Option<Depth> {
+                fn child_depth(&self) -> Option<crate::xir::flat::Depth> {
                     match self {
-                        $ntfirst((_, _, depth), _) => Some(depth.child_depth()),
+                        $ntfirst((_, _, depth)) => Some(depth.child_depth()),
                         $(
-                            $ntnext((_, _, depth), _) => Some(depth.child_depth()),
+                            $ntnext((_, _, depth)) => Some(depth.child_depth()),
                         )*
                         _ => None,
                     }
@@ -363,7 +535,7 @@ macro_rules! ele_parse {
                         ),
 
                         Self::Attrs_(_, sa) => std::fmt::Display::fmt(sa, f),
-                        Self::ExpectClose_((_, _, depth), _) => write!(
+                        Self::ExpectClose_((_, _, depth)) => write!(
                             f,
                             "expecting closing element {} at depth {depth}",
                             TtCloseXmlEle::wrap($qname)
@@ -374,8 +546,13 @@ macro_rules! ele_parse {
                             TtQuote::wrap($qname)
                         ),
                         $(
-                            Self::$ntref(_, st) => {
-                                std::fmt::Display::fmt(st, f)
+                            // TODO: A better description.
+                            Self::$ntref(_) => {
+                                write!(
+                                    f,
+                                    "preparing to transition to \
+                                       parser for next child element(s)"
+                                )
                             },
                         )*
                     }
@@ -497,13 +674,15 @@ macro_rules! ele_parse {
                 >;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
+                type Context = crate::xir::parse::StateStackContext<Self::Super>;
                 type Super = $super;
 
                 fn parse_token(
                     self,
                     tok: Self::Token,
-                    _: &mut Self::Context,
-                ) -> crate::parse::TransitionResult<Self> {
+                    #[allow(unused_variables)] // used only if child NTs
+                    stack: &mut Self::Context,
+                ) -> crate::parse::TransitionResult<Self::Super> {
                     use crate::{
                         parse::{EmptyContext, Transition, Transitionable},
                         xir::{
@@ -512,6 +691,10 @@ macro_rules! ele_parse {
                             parse::parse_attrs,
                         },
                     };
+
+                    // Used only by _some_ expansions.
+                    #[allow(unused_imports)]
+                    use crate::xir::flat::Text;
 
                     use $nt::{
                         Attrs_, Expecting_, RecoverEleIgnore_,
@@ -568,10 +751,10 @@ macro_rules! ele_parse {
                         }
 
                         (Attrs_(meta, sa), tok) => {
-                            sa.delegate_until_obj(
+                            sa.delegate_until_obj::<Self, _>(
                                 tok,
                                 EmptyContext,
-                                |sa| Transition(Attrs_(meta, sa)).into_super(),
+                                |sa| Transition(Attrs_(meta, sa)),
                                 || unreachable!("see ParseState::delegate_until_obj dead"),
                                 |#[allow(unused_variables)] sa, attrs| {
                                     let obj = match attrs {
@@ -591,14 +774,24 @@ macro_rules! ele_parse {
                                         },
                                     };
 
-                                    Transition($ntfirst(
-                                        meta,
-                                        ele_parse!(@!ntref_cfg $($ntfirst_cfg)?).into(),
-                                    )).ok(obj)
+                                    // Lookahead is added by `delegate_until_obj`.
+                                    ele_parse!(@!ntref_delegate
+                                        stack,
+                                        $ntfirst(meta),
+                                        $ntfirst_st,
+                                        Transition(
+                                            Into::<$ntfirst_st>::into(
+                                                ele_parse!(@!ntref_cfg $($ntfirst_cfg)?)
+                                            )
+                                        ).ok(obj),
+                                        Transition($ntfirst(meta)).ok(obj)
+                                    )
                                 }
                             )
                         },
 
+                        // TODO: This is partly broken by the trampoline
+                        //   implementation.
                         // Must come _after_ `Attrs_` above so that
                         //   attributes are yielded before text that
                         //   terminates attribute parsing.
@@ -628,19 +821,17 @@ macro_rules! ele_parse {
                         )?
 
                         $(
-                            ($ntprev(meta, st_inner), tok) => {
-                                st_inner.delegate(
-                                    tok,
-                                    EmptyContext,
-                                    // TODO: proper trampoline delegation;
-                                    //   this is maintaining BC for now
-                                    |si| Transition($ntprev(meta, si.into())).into_super(),
-                                    || {
-                                        Transition($ntnext(
-                                            meta,
-                                            ele_parse!(@!ntref_cfg $($ntnext_cfg)?).into()
-                                        ))
-                                    },
+                            ($ntprev(meta), tok) => {
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    $ntnext(meta),
+                                    $ntnext_st,
+                                    Transition(
+                                        Into::<$ntnext_st>::into(
+                                            ele_parse!(@!ntref_cfg $($ntnext_cfg)?)
+                                        )
+                                    ).incomplete().with_lookahead(tok),
+                                    Transition($ntnext(meta)).incomplete().with_lookahead(tok)
                                 )
                             },
                         )*
@@ -648,7 +839,7 @@ macro_rules! ele_parse {
                         // XIRF ensures proper nesting,
                         //   so we do not need to check the element name.
                         (
-                            ExpectClose_((cfg, _, depth), ())
+                            ExpectClose_((cfg, _, depth))
                             | CloseRecoverIgnore_((cfg, _, depth), _),
                             XirfToken::Close(_, span, tok_depth)
                         ) if tok_depth == depth => {
@@ -658,7 +849,7 @@ macro_rules! ele_parse {
                             $closemap.transition(Closed_(cfg, span.tag_span()))
                         },
 
-                        (ExpectClose_(meta @ (_, otspan, _), ()), unexpected_tok) => {
+                        (ExpectClose_(meta @ (_, otspan, _)), unexpected_tok) => {
                             use crate::parse::Token;
                             Transition(
                                 CloseRecoverIgnore_(meta, unexpected_tok.span())
@@ -718,9 +909,6 @@ macro_rules! ele_parse {
                     crate::xir::QName,
                     crate::xir::CloseSpan
                 ),
-                $(
-                    $ntref(crate::xir::parse::EleParseCfg, $ntref),
-                )*
                 /// Inner element has been parsed and is dead;
                 ///   this indicates that this parser is also dead.
                 Done_,
@@ -753,10 +941,6 @@ macro_rules! ele_parse {
                                (expected {expected})",
                             given = TtQuote::wrap(name),
                         ),
-
-                        $(
-                            Self::$ntref(_, st) => std::fmt::Display::fmt(st, f),
-                        )*
 
                         Self::Done_ => write!(f, "done parsing {expected}"),
                     }
@@ -847,13 +1031,14 @@ macro_rules! ele_parse {
                 >;
                 type Object = $objty;
                 type Error = [<$nt Error_>];
+                type Context = crate::xir::parse::StateStackContext<Self::Super>;
                 type Super = $super;
 
                 fn parse_token(
                     self,
                     tok: Self::Token,
-                    _: &mut Self::Context,
-                ) -> crate::parse::TransitionResult<Self> {
+                    stack: &mut Self::Context,
+                ) -> crate::parse::TransitionResult<Self::Super> {
                     use crate::{
                         parse::Transition,
                         xir::{
@@ -882,12 +1067,21 @@ macro_rules! ele_parse {
                                 Expecting_(cfg),
                                 XirfToken::Open(qname, span, depth)
                             ) if qname == $ntref::qname() => {
-                                $ntref::from(EleParseCfg::default()).delegate(
-                                    XirfToken::Open(qname, span, depth),
-                                    &mut Self::Context::default(),
-                                    // TODO: proper trampoline delegation
-                                    |si| Transition(Self::$ntref(cfg, si.into())).into_super(),
-                                    || todo!("inner dead (should not happen here)"),
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    match cfg.repeat {
+                                        true => Expecting_(cfg),
+                                        false => Done_,
+                                    },
+                                    $ntref,
+                                    Transition(
+                                        $ntref::from(
+                                            EleParseCfg::default()
+                                        )
+                                    ).incomplete().with_lookahead(
+                                        XirfToken::Open(qname, span, depth)
+                                    ),
+                                    unreachable!("TODO: remove me (ntref_delegate done)")
                                 )
                             },
                         )*
@@ -922,19 +1116,6 @@ macro_rules! ele_parse {
                             Transition(st).incomplete()
                         },
 
-                        $(
-                            (Self::$ntref(cfg, si), tok) => si.delegate(
-                                tok,
-                                &mut Self::Context::default(),
-                                // TODO: proper trampoline delegation
-                                |si| Transition(Self::$ntref(cfg, si.into())).into_super(),
-                                || match cfg.repeat {
-                                    true => Transition(Expecting_(cfg)),
-                                    false => Transition(Done_),
-                                }
-                            ),
-                        )*
-
                         (st @ Self::Done_, tok) => Transition(st).dead(tok),
 
                         todo => todo!("sum {todo:?}"),
@@ -944,19 +1125,6 @@ macro_rules! ele_parse {
                 fn is_accepting(&self) -> bool {
                     match self {
                         Self::RecoverEleIgnoreClosed_(..) | Self::Done_ => true,
-
-                        // Delegate entirely to the inner ParseState.
-                        // It is desirable to maintain this state even after
-                        //   the inner parser is completed so that the inner
-                        //   state can accurately describe what took place.
-                        // With that said,
-                        //   we will transition to `Done_` on an inner dead
-                        //   state,
-                        //     because of current `delegate` limitations.
-                        $(
-                            Self::$ntref(_, si) => si.is_accepting(),
-                        )*
-
                         _ => false,
                     }
                 }
@@ -1027,22 +1195,6 @@ macro_rules! ele_parse {
                 }
             )*
 
-            // TODO: This is used only until we remove composition-based
-            //   delegation in favor of trampolines---the
-            //     composed parsers yield their superstate,
-            //       which we have to convert back.
-            $(
-                impl From<$super> for $nt {
-                    fn from(sup: $super) -> Self {
-                        match sup {
-                            $super::$nt(st) => st,
-                            #[allow(unreachable_patterns)]
-                            _ => unreachable!("From<Super> for NT mismatch"),
-                        }
-                    }
-                }
-            )*
-
             impl std::fmt::Display for $super {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     match self {
@@ -1101,21 +1253,23 @@ macro_rules! ele_parse {
                 >;
                 type Object = $objty;
                 type Error = [<$super Error_>];
+                type Context = crate::xir::parse::StateStackContext<Self>;
 
                 fn parse_token(
                     self,
                     tok: Self::Token,
-                    _: &mut Self::Context,
+                    stack: &mut Self::Context,
                 ) -> crate::parse::TransitionResult<Self> {
-                    use crate::parse::Transition;
-
                     match self {
                         $(
-                            Self::$nt(st) => st.delegate(
+                            // Pass token directly to child until it reports
+                            //   a dead state,
+                            //     after which we return to the `ParseState`
+                            //     atop of the stack.
+                            Self::$nt(st) => st.delegate_child(
                                 tok,
-                                &mut Self::Context::default(),
-                                Transition,
-                                || todo!("DEAD super sum")
+                                stack,
+                                |tok, stack| stack.ret(tok),
                             ),
                         )*
                     }

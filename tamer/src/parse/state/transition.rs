@@ -19,7 +19,9 @@
 
 //! State transitions for parser automata.
 
-use super::{ParseState, ParseStateResult, ParseStatus, Token};
+use super::{
+    ClosedParseState, ParseState, ParseStateResult, ParseStatus, Token,
+};
 use std::{
     convert::Infallible,
     hint::unreachable_unchecked,
@@ -27,7 +29,7 @@ use std::{
 };
 
 #[cfg(doc)]
-use super::{ClosedParseState, Parser};
+use super::Parser;
 
 /// A state transition with associated data.
 ///
@@ -58,12 +60,20 @@ use super::{ClosedParseState, Parser};
 #[derive(Debug, PartialEq)]
 pub struct TransitionResult<S: ParseState>(
     /// New parser state.
-    pub(in super::super) Transition<S::Super>,
+    pub(in super::super) Transition<S>,
     /// Result of the parsing operation.
     pub(in super::super) TransitionData<S>,
 );
 
 impl<S: ParseState> TransitionResult<S> {
+    pub fn into_super(self) -> TransitionResult<S::Super> {
+        match self {
+            Self(t, data) => {
+                TransitionResult(t.into_super(), data.into_super())
+            }
+        }
+    }
+
     /// Indicate that this transition include a single token of lookahead,
     ///   which should be provided back to the parser in place of the
     ///   next token from the input stream.
@@ -153,6 +163,16 @@ pub(in super::super) enum TransitionData<S: ParseState> {
 }
 
 impl<S: ParseState> TransitionData<S> {
+    pub fn into_super(self) -> TransitionData<S::Super> {
+        match self {
+            Self::Result(st_result, ola) => TransitionData::Result(
+                st_result.map(ParseStatus::into_super).map_err(|e| e.into()),
+                ola,
+            ),
+            Self::Dead(la) => TransitionData::Dead(la),
+        }
+    }
+
     /// Reference to the token of lookahead,
     ///   if any.
     pub(in super::super) fn lookahead_ref(
@@ -218,9 +238,9 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This allows [`ParseState::parse_token`] to emit a parsed object and
     ///   corresponds to [`ParseStatus::Object`].
-    pub fn ok<T>(self, obj: T) -> TransitionResult<S>
+    pub fn ok<T>(self, obj: T) -> TransitionResult<S::Super>
     where
-        T: Into<ParseStatus<S>>,
+        T: Into<ParseStatus<S::Super>>,
     {
         TransitionResult(
             self.into_super(),
@@ -232,10 +252,15 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This indicates a parsing failure.
     /// The state ought to be suitable for error recovery.
-    pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S> {
+    pub fn err<E: Into<S::Error>>(self, err: E) -> TransitionResult<S::Super> {
+        // The first error conversion is into that expected by S,
+        //   which will _then_ (below) be converted into S::Super
+        //   (if they're not the same).
+        let err_s: S::Error = err.into();
+
         TransitionResult(
             self.into_super(),
-            TransitionData::Result(Err(err.into()), None),
+            TransitionData::Result(Err(err_s.into()), None),
         )
     }
 
@@ -243,7 +268,10 @@ impl<S: ParseState> Transition<S> {
     ///
     /// This translates the provided [`Result`] in a manner equivalent to
     ///   [`Transition::ok`] and [`Transition::err`].
-    pub fn result<T, E>(self, result: Result<T, E>) -> TransitionResult<S>
+    pub fn result<T, E>(
+        self,
+        result: Result<T, E>,
+    ) -> TransitionResult<S::Super>
     where
         T: Into<ParseStatus<S>>,
         E: Into<S::Error>,
@@ -251,7 +279,11 @@ impl<S: ParseState> Transition<S> {
         TransitionResult(
             self.into_super(),
             TransitionData::Result(
-                result.map(Into::into).map_err(Into::into),
+                result
+                    .map(Into::into)
+                    .map(ParseStatus::into_super)
+                    .map_err(Into::<S::Error>::into)
+                    .map_err(Into::into),
                 None,
             ),
         )
@@ -261,7 +293,7 @@ impl<S: ParseState> Transition<S> {
     ///   object can be emitted.
     ///
     /// This corresponds to [`ParseStatus::Incomplete`].
-    pub fn incomplete(self) -> TransitionResult<S> {
+    pub fn incomplete(self) -> TransitionResult<S::Super> {
         TransitionResult(
             self.into_super(),
             TransitionData::Result(Ok(ParseStatus::Incomplete), None),
@@ -282,7 +314,7 @@ impl<S: ParseState> Transition<S> {
     ///   object first,
     ///     use [`Transition::result`] or other methods along with a token
     ///     of [`Lookahead`].
-    pub fn dead(self, tok: S::Token) -> TransitionResult<S> {
+    pub fn dead(self, tok: S::Token) -> TransitionResult<S::Super> {
         TransitionResult(
             self.into_super(),
             TransitionData::Dead(Lookahead(tok)),
@@ -290,14 +322,12 @@ impl<S: ParseState> Transition<S> {
     }
 }
 
-impl<S: ParseState> FromResidual<(Transition<S>, ParseStateResult<S>)>
+impl<S: ClosedParseState> FromResidual<(Transition<S>, ParseStateResult<S>)>
     for TransitionResult<S>
 {
     fn from_residual(residual: (Transition<S>, ParseStateResult<S>)) -> Self {
         match residual {
-            (st, result) => {
-                Self(st.into_super(), TransitionData::Result(result, None))
-            }
+            (st, result) => Self(st, TransitionData::Result(result, None)),
         }
     }
 }
@@ -349,7 +379,7 @@ pub trait Transitionable<S: ParseState> {
     ///
     /// This may be necessary to satisfy ownership/borrowing rules when
     ///   state data from `S` is used to compute [`Self`].
-    fn transition(self, to: S) -> TransitionResult<S>;
+    fn transition(self, to: S) -> TransitionResult<S::Super>;
 }
 
 impl<S, E> Transitionable<S> for Result<ParseStatus<S>, E>
@@ -357,7 +387,7 @@ where
     S: ParseState,
     <S as ParseState>::Error: From<E>,
 {
-    fn transition(self, to: S) -> TransitionResult<S> {
+    fn transition(self, to: S) -> TransitionResult<S::Super> {
         Transition(to).result(self)
     }
 }
@@ -367,13 +397,13 @@ where
     S: ParseState,
     <S as ParseState>::Error: From<E>,
 {
-    fn transition(self, to: S) -> TransitionResult<S> {
+    fn transition(self, to: S) -> TransitionResult<S::Super> {
         Transition(to).result(self.map(|_| ParseStatus::Incomplete))
     }
 }
 
 impl<S: ParseState> Transitionable<S> for ParseStatus<S> {
-    fn transition(self, to: S) -> TransitionResult<S> {
-        Transition(to).ok(self)
+    fn transition(self, to: S) -> TransitionResult<S::Super> {
+        Transition(to).ok(self.into_super())
     }
 }

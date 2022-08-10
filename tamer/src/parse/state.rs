@@ -47,6 +47,15 @@ pub enum ParseStatus<S: ParseState> {
     Object(S::Object),
 }
 
+impl<S: ParseState> ParseStatus<S> {
+    pub fn into_super(self) -> ParseStatus<S::Super> {
+        match self {
+            Self::Incomplete => ParseStatus::Incomplete,
+            Self::Object(obj) => ParseStatus::Object(obj),
+        }
+    }
+}
+
 impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
     fn from(obj: T) -> Self {
         Self::Object(obj)
@@ -86,6 +95,7 @@ pub trait ClosedParseState = ParseState<Super = Self>;
 pub trait ParseState: PartialEq + Eq + Display + Debug + Sized
 where
     Self: Into<Self::Super>,
+    Self::Error: Into<<Self::Super as ParseState>::Error>,
 {
     /// Input tokens to the parser.
     type Token: Token;
@@ -205,7 +215,7 @@ where
         self,
         tok: Self::Token,
         ctx: &mut Self::Context,
-    ) -> TransitionResult<Self>;
+    ) -> TransitionResult<Self::Super>;
 
     /// Whether the current state represents an accepting state.
     ///
@@ -254,11 +264,9 @@ where
         self,
         tok: <Self as ParseState>::Token,
         mut context: C,
-        into: impl FnOnce(
-            <Self as ParseState>::Super,
-        ) -> Transition<<SP as ParseState>::Super>,
+        into: impl FnOnce(<Self as ParseState>::Super) -> Transition<SP>,
         dead: impl FnOnce() -> Transition<SP>,
-    ) -> TransitionResult<SP>
+    ) -> TransitionResult<<SP as ParseState>::Super>
     where
         Self: StitchableParseState<SP>,
         C: AsMut<<Self as ParseState>::Context>,
@@ -281,16 +289,50 @@ where
                 dead().incomplete().with_lookahead(lookahead)
             }
             TransitionData::Result(result, lookahead) => TransitionResult(
-                into(newst),
+                into(newst).into_super(),
                 TransitionData::Result(
                     match result {
                         Ok(Incomplete) => Ok(Incomplete),
                         Ok(Obj(obj)) => Ok(Obj(obj.into())),
-                        Err(e) => Err(e.into()),
+                        // First convert the error into `SP::Error`,
+                        //   and then `SP::Super::Error`
+                        //     (which will be the same type if SP is closed).
+                        Err(e) => Err(e.into().into()),
                     },
                     lookahead,
                 ),
             ),
+        }
+    }
+
+    /// Delegate parsing of a token from our superstate
+    ///   [`ParseState::Super`].
+    ///
+    /// This operates just as [`ParseState::delegate`];
+    ///   the API is simplified because [`TransitionResult`] already has
+    ///   data mapped to the superstate.
+    /// `dead` indicates when the child (`self`) has finished parsing.
+    fn delegate_child<C>(
+        self,
+        tok: Self::Token,
+        mut context: C,
+        dead: impl FnOnce(Self::Token, C) -> TransitionResult<Self::Super>,
+    ) -> TransitionResult<Self::Super>
+    where
+        C: AsMut<<Self as ParseState>::Context>,
+    {
+        let TransitionResult(Transition(newst), data) =
+            self.parse_token(tok, context.as_mut());
+
+        match data {
+            TransitionData::Dead(Lookahead(lookahead)) => {
+                dead(lookahead, context)
+            }
+
+            // Since this is child state,
+            //   [`TransitionResult`] has already converted into the
+            //   superstate for us.
+            _ => TransitionResult(Transition(newst), data),
         }
     }
 
@@ -309,15 +351,13 @@ where
         self,
         tok: <Self as ParseState>::Token,
         mut context: C,
-        into: impl FnOnce(
-            <Self as ParseState>::Super,
-        ) -> Transition<<SP as ParseState>::Super>,
+        into: impl FnOnce(<Self as ParseState>::Super) -> Transition<SP>,
         _dead: impl FnOnce() -> Transition<SP>,
         objf: impl FnOnce(
             <Self as ParseState>::Super,
             <Self as ParseState>::Object,
-        ) -> TransitionResult<SP>,
-    ) -> TransitionResult<SP>
+        ) -> TransitionResult<<SP as ParseState>::Super>,
+    ) -> TransitionResult<<SP as ParseState>::Super>
     where
         Self: PartiallyStitchableParseState<SP>,
         C: AsMut<<Self as ParseState>::Context>,
@@ -339,11 +379,14 @@ where
             }
 
             TransitionData::Result(result, lookahead) => TransitionResult(
-                into(newst),
+                into(newst).into_super(),
                 TransitionData::Result(
                     match result {
                         Ok(_) => Ok(Incomplete),
-                        Err(e) => Err(e.into()),
+                        // First convert the error into `SP::Error`,
+                        //   and then `SP::Super::Error`
+                        //     (which will be the same type if SP is closed).
+                        Err(e) => Err(e.into().into()),
                     },
                     lookahead,
                 ),
@@ -356,21 +399,24 @@ where
     ///
     /// See [`ParseState::delegate`] for more information.
     /// This method exists for a XIRT and ought to be removed when it is no
-    ///   longer needed.
+    ///   longer needed;
+    ///     as such,
+    ///       it works only with [`ClosedParseState`].
     fn delegate_with_obj<SP, C, X>(
         self,
         tok: <Self as ParseState>::Token,
         mut context: C,
         env: X,
         into: impl FnOnce(
-            <Self as ParseState>::Super,
+            Self,
             Option<<Self as ParseState>::Object>,
             X,
-        ) -> Transition<<SP as ParseState>::Super>,
+        ) -> Transition<SP>,
         dead: impl FnOnce(X) -> Transition<SP>,
     ) -> TransitionResult<SP>
     where
         Self: PartiallyStitchableParseState<SP>,
+        SP: ClosedParseState,
         C: AsMut<<Self as ParseState>::Context>,
     {
         use ParseStatus::{Incomplete, Object as Obj};
@@ -424,11 +470,19 @@ pub type ParseStateResult<S> = Result<ParseStatus<S>, <S as ParseState>::Error>;
 ///     it is not necessary for parser composition,
 ///       provided that you perform the necessary wiring yourself in absence
 ///       of state stitching.
+///
+/// A [`ParseState`] can only be stitched if it is capable of standing on
+///   its own with a [`Parser`],
+///     meaning it must be a [`ClosedParseState`].
+/// Otherwise,
+///   the parser must return a transition to [`ParseState::Super`],
+///   and delegation from [`ParseState::Super`] itself can be performed with
+///     [`ParseState::delegate_child`].
 pub trait StitchableParseState<SP: ParseState> =
     PartiallyStitchableParseState<SP>
     where <Self as ParseState>::Object: Into<<SP as ParseState>::Object>;
 
-pub trait PartiallyStitchableParseState<SP: ParseState> = ParseState
+pub trait PartiallyStitchableParseState<SP: ParseState> = ClosedParseState
 where
     SP: ParseState<Token = <Self as ParseState>::Token>,
     <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;

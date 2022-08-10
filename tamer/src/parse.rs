@@ -398,4 +398,238 @@ pub mod test {
         let ctx = sut.finalize().unwrap();
         assert_eq!(ctx, StubContext { val });
     }
+
+    // This healthy block of mostly-boilerplate verifies that the practical
+    //   use case of the trampoline system actually type-checks,
+    //     and was used during development as a simpler example than having
+    //     to content with the mammoth `ele_parse!`.
+    // There is no runtime test;
+    //   it will fail to compile if there's a problem.
+    mod superst {
+        use crate::span::dummy::S1;
+
+        use super::*;
+
+        #[derive(Debug, PartialEq, Eq)]
+        enum Sup {
+            SubA(SubA),
+            SubB(SubB),
+        }
+
+        #[derive(Debug, PartialEq, Eq)]
+        enum SubA {
+            A,
+        }
+
+        #[derive(Debug, PartialEq, Eq)]
+        enum SubB {
+            B,
+        }
+
+        impl Display for Sup {
+            fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+
+        impl Display for SubA {
+            fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+
+        impl Display for SubB {
+            fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+
+        impl From<SubA> for Sup {
+            fn from(sub: SubA) -> Self {
+                Self::SubA(sub)
+            }
+        }
+
+        impl From<SubB> for Sup {
+            fn from(sub: SubB) -> Self {
+                Self::SubB(sub)
+            }
+        }
+
+        #[derive(Debug, PartialEq)]
+        enum SupError {
+            SubA(SubAError),
+            SubB(SubBError),
+        }
+        #[derive(Debug, PartialEq)]
+        enum SubAError {}
+        #[derive(Debug, PartialEq)]
+        enum SubBError {}
+
+        impl Error for SupError {
+            fn source(&self) -> Option<&(dyn Error + 'static)> {
+                None
+            }
+        }
+
+        impl Display for SupError {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "SupError")
+            }
+        }
+
+        impl Diagnostic for SupError {
+            fn describe(&self) -> Vec<AnnotatedSpan> {
+                vec![]
+            }
+        }
+
+        impl Error for SubAError {
+            fn source(&self) -> Option<&(dyn Error + 'static)> {
+                None
+            }
+        }
+
+        impl Display for SubAError {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "SubAError")
+            }
+        }
+
+        impl Diagnostic for SubAError {
+            fn describe(&self) -> Vec<AnnotatedSpan> {
+                vec![]
+            }
+        }
+
+        impl Error for SubBError {
+            fn source(&self) -> Option<&(dyn Error + 'static)> {
+                None
+            }
+        }
+
+        impl Display for SubBError {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "SubBError")
+            }
+        }
+
+        impl Diagnostic for SubBError {
+            fn describe(&self) -> Vec<AnnotatedSpan> {
+                vec![]
+            }
+        }
+
+        impl From<SubAError> for SupError {
+            fn from(sub: SubAError) -> Self {
+                Self::SubA(sub)
+            }
+        }
+
+        impl From<SubBError> for SupError {
+            fn from(sub: SubBError) -> Self {
+                Self::SubB(sub)
+            }
+        }
+
+        #[allow(dead_code)] // Used only for type checking atm.
+        #[derive(Debug, PartialEq, Eq)]
+        enum SupToken {
+            ToA,
+            ToB,
+        }
+
+        impl Token for SupToken {
+            fn ir_name() -> &'static str {
+                "SupTest"
+            }
+
+            fn span(&self) -> Span {
+                S1
+            }
+        }
+
+        impl Display for SupToken {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "SupToken")
+            }
+        }
+
+        #[derive(Debug, PartialEq, Eq)]
+        enum SupObject {
+            FromA(SupToken),
+            FromB(SupToken),
+        }
+
+        impl Object for SupObject {}
+
+        impl ParseState for Sup {
+            type Token = SupToken;
+            type Object = SupObject;
+            type Error = SupError;
+
+            fn parse_token(
+                self,
+                tok: Self::Token,
+                ctx: &mut Self::Context,
+            ) -> TransitionResult<Self> {
+                match self {
+                    Self::SubA(st) => st.parse_token(tok, ctx),
+                    Self::SubB(st) => st.parse_token(tok, ctx),
+                }
+            }
+
+            fn is_accepting(&self) -> bool {
+                true
+            }
+        }
+
+        impl ParseState for SubA {
+            type Token = SupToken;
+            type Object = SupObject;
+            type Error = SubAError;
+            type Super = Sup;
+
+            fn parse_token(
+                self,
+                tok: Self::Token,
+                _ctx: &mut Self::Context,
+            ) -> TransitionResult<Self::Super> {
+                match tok {
+                    SupToken::ToA => Transition(self).ok(SupObject::FromA(tok)),
+                    SupToken::ToB => {
+                        Transition(SubB::B).ok(SupObject::FromA(tok))
+                    }
+                }
+            }
+
+            fn is_accepting(&self) -> bool {
+                true
+            }
+        }
+
+        impl ParseState for SubB {
+            type Token = SupToken;
+            type Object = SupObject;
+            type Error = SubBError;
+            type Super = Sup;
+
+            fn parse_token(
+                self,
+                tok: Self::Token,
+                _ctx: &mut Self::Context,
+            ) -> TransitionResult<Self::Super> {
+                match tok {
+                    SupToken::ToA => Transition(self).ok(SupObject::FromB(tok)),
+                    SupToken::ToB => {
+                        Transition(SubA::A).ok(SupObject::FromB(tok))
+                    }
+                }
+            }
+
+            fn is_accepting(&self) -> bool {
+                true
+            }
+        }
+    }
 }
