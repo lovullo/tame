@@ -460,11 +460,8 @@ fn multiple_child_elements_sequential() {
     );
 }
 
-// Even if we do not accept mixed data
-//   (text and elements),
-//   whitespace text ought to be accepted and entirely ignored.
-#[test]
-fn whitespace_ignored_between_elements() {
+// Used by below tests.
+fn x_ignored_between_elements(tok: XirfToken<RefinedText>) {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
         Root,
@@ -498,48 +495,66 @@ fn whitespace_ignored_between_elements() {
         };
     }
 
-    let tok_ws = XirfToken::Text(
-        RefinedText::Whitespace(Whitespace(Text("  ".unwrap_into(), S1))),
-        Depth(0),
-    );
-
     let toks = vec![
         // Whitespace before start tag.
-        tok_ws.clone(),
+        tok.clone(),
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
         // Whitespace between children.
-        tok_ws.clone(),
+        tok.clone(),
         XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        tok_ws.clone(),
+        tok.clone(),
         XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        tok_ws.clone(),
+        tok.clone(),
         XirfToken::Close(Some(QN_SUT), CloseSpan(S5, N), Depth(0)),
         // Whitespace after end tag.
-        tok_ws.clone(),
+        tok.clone(),
     ];
 
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,        // [Root]  WS
+            Incomplete,        // [Root]  tok
             Incomplete,        // [Root]  Root Open
-            Incomplete,        // [Root@] WS
+            Incomplete,        // [Root@] tok
             Object(Foo::Root), // [Root@] A Open (>LA)
             Incomplete,        // [A]     A Open (<LA)
             Object(Foo::A),    // [A@]    A Close (>LA)
             Incomplete,        // [A]     A Close (<LA)
-            Incomplete,        // [A]     WS
+            Incomplete,        // [A]     tok
             Incomplete,        // [B]     B Open
             Object(Foo::B),    // [B@]    B Close (>LA)
             Incomplete,        // [B]     B Close (<LA)
-            Incomplete,        // [Root]  WS
+            Incomplete,        // [Root]  tok
             Incomplete,        // [Root]  Root Close
-            Incomplete,        // [Root]  WS
+            Incomplete,        // [Root]  tok
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
+}
+
+// Even if we do not accept mixed data
+//   (text and elements),
+//   whitespace text ought to be accepted and entirely ignored.
+#[test]
+fn whitespace_ignored_between_elements() {
+    x_ignored_between_elements(XirfToken::Text(
+        RefinedText::Whitespace(Whitespace(Text("  ".unwrap_into(), S1))),
+        Depth(0),
+    ));
+}
+
+// Comments have no semantic meaning,
+//   and ought not to,
+//   because we control the language and can do better.
+#[test]
+fn comments_ignored_between_elements() {
+    x_ignored_between_elements(XirfToken::Comment(
+        "comment".into(),
+        S1,
+        Depth(0),
+    ));
 }
 
 // TODO: This error recovery seems to be undesirable,
@@ -851,8 +866,7 @@ fn sum_nonterminal_accepts_any_valid_element() {
 }
 
 // Whitespace should be accepted around elements.
-#[test]
-fn sum_nonterminal_accepts_whitespace() {
+fn sum_nonterminal_accepts_x(tok: XirfToken<RefinedText>) {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
         A,
@@ -884,31 +898,43 @@ fn sum_nonterminal_accepts_whitespace() {
     use Parsed::*;
     use XirfToken::{Close, Open};
 
-    let tok_ws = XirfToken::Text(
-        RefinedText::Whitespace(Whitespace(Text("   ".unwrap_into(), S1))),
-        Depth(0),
-    );
-
     // Try each in turn with a fresh instance of `Root`.
     let toks = vec![
-        // Leading whitespace.
-        tok_ws.clone(),
+        // Leading.
+        tok.clone(),
         Open(QN_A, OpenSpan(S1, N), Depth(0)),
         Close(None, CloseSpan::empty(S2), Depth(0)),
-        // Trailing whitespace.
-        tok_ws.clone(),
+        // Trailing.
+        tok.clone(),
     ];
 
     assert_eq!(
         Ok(vec![
-            Incomplete,     // [A]  WS
+            Incomplete,     // [A]  tok
             Incomplete,     // [A]  Open
             Object(Foo::A), // [A@] Close (>LA)
             Incomplete,     // [A]  Close
-            Incomplete,     // [A]  WS
+            Incomplete,     // [A]  tok
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
+}
+
+#[test]
+fn sum_nonterminal_accepts_whitespace() {
+    sum_nonterminal_accepts_x(XirfToken::Text(
+        RefinedText::Whitespace(Whitespace(Text("   ".unwrap_into(), S1))),
+        Depth(0),
+    ));
+}
+
+#[test]
+fn sum_nonterminal_accepts_comments() {
+    sum_nonterminal_accepts_x(XirfToken::Comment(
+        "comment".into(),
+        S1,
+        Depth(0),
+    ));
 }
 
 // Compose sum NTs with a parent element.

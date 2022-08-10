@@ -744,9 +744,13 @@ macro_rules! ele_parse {
                         // Depth check is unnecessary since _all_ xir::parse
                         //   parsers
                         //     (at least at the time of writing)
-                        //     ignore whitespace,
+                        //     ignore whitespace and comments,
                         //       so may as well return early.
-                        (st, XirfToken::Text(RefinedText::Whitespace(..), _)) => {
+                        (
+                            st,
+                            XirfToken::Text(RefinedText::Whitespace(..), _)
+                            | XirfToken::Comment(..)
+                        ) => {
                             Transition(st).incomplete()
                         }
 
@@ -1056,9 +1060,13 @@ macro_rules! ele_parse {
                         // Depth check is unnecessary since _all_ xir::parse
                         //   parsers
                         //     (at least at the time of writing)
-                        //     ignore whitespace,
+                        //     ignore whitespace and comments,
                         //       so may as well return early.
-                        (st, XirfToken::Text(RefinedText::Whitespace(..), _)) => {
+                        (
+                            st,
+                            XirfToken::Text(RefinedText::Whitespace(..), _)
+                            | XirfToken::Comment(..)
+                        ) => {
                             Transition(st).incomplete()
                         }
 
