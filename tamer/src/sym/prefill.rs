@@ -509,6 +509,7 @@ pub mod st {
         L_DTYPE: cid "dtype",
         L_ELIG_CLASS_YIELDS: tid "elig-class-yields",
         L_EMPTY: cid "empty",
+        L_EQ: cid "eq",
         L_EXEC: cid "exec",
         L_EXPORT: cid "export",
         L_EXTERN: cid "extern",

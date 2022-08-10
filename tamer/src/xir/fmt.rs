@@ -19,7 +19,9 @@
 
 //! XIR formatting types for use with [`crate::fmt`]
 
-use crate::fmt::{AndQualConjList, Delim, OrQualConjList, Prefix, Raw, Tt};
+use crate::fmt::{
+    AndQualConjList, Delim, OrQualConjList, Prefix, Raw, Suffix, Tt,
+};
 
 /// Denote an XML attribute by prefixing the value with `@`.
 pub type XmlAttr = Prefix<"@", Raw>;
@@ -32,6 +34,12 @@ pub type OpenXmlEle = Delim<"<", ">", Raw>;
 
 /// Opening tag for XML element.
 pub type CloseXmlEle = Delim<"</", ">", Raw>;
+
+/// "`ns:*`" given a namespace prefix `ns`.
+///
+/// TODO: It'd be nice to be able to have Raw require a specific type to
+///   ensure that we're given a prefix.
+pub type XmlPrefixAnyLocal = Suffix<":*", Raw>;
 
 /// Opening tag for XML element as teletypewriter
 ///   (for use in sentences).

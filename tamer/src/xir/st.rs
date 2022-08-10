@@ -140,5 +140,7 @@ pub mod qname {
         QN_XMLNS_L: L_XMLNS:L_L,
         QN_XMLNS_PREPROC: L_XMLNS:L_PREPROC,
         QN_YIELDS: :L_YIELDS,
+
+        QN_C_EQ: L_C:L_EQ,
     }
 }

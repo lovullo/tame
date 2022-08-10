@@ -30,7 +30,7 @@ use crate::{
         ClosedParseState, Context, ParseState, Token, Transition,
         TransitionResult,
     },
-    xir::QName,
+    xir::{Prefix, QName},
 };
 
 #[cfg(doc)]
@@ -201,15 +201,18 @@ impl<S: ClosedParseState> StateStack<S> {
 pub enum NodeMatcher {
     /// Static [`QName`] with a simple equality check.
     QName(QName),
+    /// Any element with a matching [`Prefix`].
+    Prefix(Prefix),
 }
 
 impl NodeMatcher {
     /// Match against the provided [`QName`].
     pub fn matches(&self, qname: QName) -> bool {
-        matches!(
-            self,
-            Self::QName(qn_match) if qn_match == &qname
-        )
+        match self {
+            Self::QName(qn_match) if qn_match == &qname => true,
+            Self::Prefix(prefix) if Some(*prefix) == qname.prefix() => true,
+            _ => false,
+        }
     }
 }
 
@@ -219,10 +222,19 @@ impl From<QName> for NodeMatcher {
     }
 }
 
+impl From<Prefix> for NodeMatcher {
+    fn from(prefix: Prefix) -> Self {
+        Self::Prefix(prefix)
+    }
+}
+
 impl Display for NodeMatcher {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use crate::xir::fmt::XmlPrefixAnyLocal;
+
         match self {
             Self::QName(qname) => Display::fmt(qname, f),
+            Self::Prefix(prefix) => XmlPrefixAnyLocal::fmt(prefix, f),
         }
     }
 }
@@ -516,8 +528,7 @@ macro_rules! ele_parse {
             impl crate::xir::parse::EleParseState for $nt {}
 
             impl $nt {
-                /// [`QName`](crate::xir::QName) of the element recognized
-                ///   by this parser.
+                /// Matcher describing the node recognized by this parser.
                 #[allow(dead_code)] // used by sum parser
                 fn matcher() -> crate::xir::parse::NodeMatcher {
                     crate::xir::parse::NodeMatcher::from($qname)
@@ -548,7 +559,7 @@ macro_rules! ele_parse {
                         Self::Expecting_(_) => write!(
                             f,
                             "expecting opening tag {}",
-                            TtOpenXmlEle::wrap($qname),
+                            TtOpenXmlEle::wrap(Self::matcher()),
                         ),
                         Self::RecoverEleIgnore_(_, name, _, _)
                         | Self::RecoverEleIgnoreClosed_(_, name, _) => write!(
@@ -557,26 +568,28 @@ macro_rules! ele_parse {
                                with unexpected name {given} \
                                (expected {expected})",
                             given = TtQuote::wrap(name),
-                            expected = TtQuote::wrap($qname),
+                            expected = TtQuote::wrap(Self::matcher()),
                         ),
                         Self::CloseRecoverIgnore_((_, _, depth), _) => write!(
                             f,
                             "attempting to recover by ignoring input \
                                until the expected end tag {expected} \
                                at depth {depth}",
-                            expected = TtCloseXmlEle::wrap($qname),
+                            expected = TtCloseXmlEle::wrap(Self::matcher()),
                         ),
 
                         Self::Attrs_(_, sa) => std::fmt::Display::fmt(sa, f),
                         Self::ExpectClose_((_, _, depth)) => write!(
                             f,
                             "expecting closing element {} at depth {depth}",
-                            TtCloseXmlEle::wrap($qname)
+                            // TODO: Actual closing tag name
+                            //   (this may be a prefix).
+                            TtCloseXmlEle::wrap(Self::matcher())
                         ),
                         Self::Closed_(_, _cfg) => write!(
                             f,
                             "done parsing element {}",
-                            TtQuote::wrap($qname)
+                            TtQuote::wrap(Self::matcher())
                         ),
                         $(
                             // TODO: A better description.
@@ -639,12 +652,13 @@ macro_rules! ele_parse {
                             f,
                             "unexpected {unexpected} (expecting {expected})",
                             unexpected = TtOpenXmlEle::wrap(name),
-                            expected = TtOpenXmlEle::wrap($qname),
+                            expected = TtOpenXmlEle::wrap($nt::matcher()),
                         ),
                         Self::CloseExpected_(_, tok) => write!(
                             f,
                             "expected {}, but found {}",
-                            TtCloseXmlEle::wrap($qname),
+                            // TODO: Actual close name.
+                            TtCloseXmlEle::wrap($nt::matcher()),
                             TtQuote::wrap(tok)
                         ),
                         Self::Attrs_(e) => std::fmt::Display::fmt(e, f),
@@ -665,7 +679,7 @@ macro_rules! ele_parse {
                         Self::UnexpectedEle_(_, ospan) => ospan.error(
                             format!(
                                 "expected {ele_name} here",
-                                ele_name = TtQuote::wrap($qname)
+                                ele_name = TtQuote::wrap($nt::matcher())
                             )
                         ).into(),
 
@@ -673,7 +687,8 @@ macro_rules! ele_parse {
                             span.note("element starts here"),
                             tok.span().error(format!(
                                 "expected {}",
-                                TtCloseXmlEle::wrap($qname),
+                                // TODO: Actual close name
+                                TtCloseXmlEle::wrap($nt::matcher()),
                             )),
                         ],
 
@@ -730,7 +745,7 @@ macro_rules! ele_parse {
                         (
                             Closed_(cfg, ..),
                             XirfToken::Open(qname, span, depth)
-                        ) if cfg.repeat && qname == $qname => {
+                        ) if cfg.repeat && Self::matcher().matches(qname) => {
                             Transition(Attrs_(
                                 (cfg, span.tag_span(), depth),
                                 parse_attrs(qname, span)

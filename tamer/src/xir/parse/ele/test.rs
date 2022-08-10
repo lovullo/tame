@@ -43,7 +43,7 @@ use crate::{
     xir::{
         attr::{Attr, AttrSpan},
         flat::{Depth, RefinedText, Text, Whitespace, XirfToken},
-        st::qname::*,
+        st::{prefix::*, qname::*},
         CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
     },
 };
@@ -156,6 +156,77 @@ fn empty_element_no_attrs_with_close_with_spans() {
             Object(Foo::Close(CloseSpan::empty(S2))), // [Root]  Close (<LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Match on a namespace prefix rather than a static QName.
+#[test]
+fn empty_element_ns_prefix() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct Foo;
+    impl Object for Foo {}
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        // This matches `c:*`.
+        Root := NS_C {
+            @ {} => Foo,
+        };
+    }
+
+    let toks = vec![
+        // Just some `c:*`.
+        XirfToken::Open(QN_C_EQ, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Close(None, CloseSpan::empty(S2), Depth(0)),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete,  // [Root]  Open
+            Parsed::Object(Foo), // [Root@] Close (>LA)
+            Parsed::Incomplete,  // [Root]  Close (<LA)
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+#[test]
+fn empty_element_ns_prefix_nomatch() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct Foo;
+    impl Object for Foo {}
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        // This matches `c:*`.
+        Root := NS_C {
+            @ {} => Foo,
+        };
+    }
+
+    let span = OpenSpan(S1, N);
+    // Non `c:*` element.
+    let unexpected = QN_PACKAGE;
+
+    let toks = vec![
+        XirfToken::Open(unexpected, span, Depth(0)),
+        XirfToken::Close(None, CloseSpan::empty(S2), Depth(0)),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let err = sut.next().unwrap().unwrap_err();
+    assert_eq!(
+        // TODO: This references generated identifiers.
+        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
+            unexpected,
+            span.name_span()
+        ))),
+        err,
     );
 }
 
