@@ -727,9 +727,12 @@ macro_rules! ele_parse {
                         //     (at least at the time of writing)
                         //     ignore whitespace and comments,
                         //       so may as well return early.
+                        // TODO: I'm ignoring _all_ text for now to
+                        //   proceed with development; fix.
                         (
                             st,
                             XirfToken::Text(RefinedText::Whitespace(..), _)
+                            | XirfToken::Text(RefinedText::Unrefined(..), _) // XXX
                             | XirfToken::Comment(..)
                         ) => {
                             Transition(st).incomplete()
@@ -774,36 +777,6 @@ macro_rules! ele_parse {
                                 }
                             )
                         },
-
-                        // TODO: This is partly broken by the trampoline
-                        //   implementation.
-                        // Must come _after_ `Attrs_` above so that
-                        //   attributes are yielded before text that
-                        //   terminates attribute parsing.
-                        $(
-                            // Text nodes are handled a differently because
-                            //   it implies mixed content;
-                            //     the text is "owned" by us,
-                            //       not by the parser we have chosen to
-                            //       delegate _elements_ to.
-                            // But we must be sure to only preempt parsing
-                            //   of text nodes _at our child depth_,
-                            //     so as not to interfere with the text
-                            //     parsing of child elements.
-                            // This also allows us to avoid implementing
-                            //   Text handling in sum parsers.
-                            (
-                                st,
-                                XirfToken::Text(
-                                    RefinedText::Unrefined(
-                                        Text($text, $text_span)
-                                    ),
-                                    depth
-                                )
-                            ) if Some(depth) == st.child_depth() => {
-                                Transition(st).ok($text_map)
-                            }
-                        )?
 
                         $(
                             ($ntprev(meta), tok) => {
@@ -1025,9 +998,12 @@ macro_rules! ele_parse {
                         //     (at least at the time of writing)
                         //     ignore whitespace and comments,
                         //       so may as well return early.
+                        // TODO: I'm ignoring _all_ text for now to
+                        //   proceed with development; fix.
                         (
                             st,
                             XirfToken::Text(RefinedText::Whitespace(..), _)
+                            | XirfToken::Text(RefinedText::Unrefined(..), _) // XXX
                             | XirfToken::Comment(..)
                         ) => {
                             Transition(st).incomplete()
