@@ -20,6 +20,7 @@
 //! Element parser generator for parsing of [XIRF](super::super::flat).
 
 use arrayvec::ArrayVec;
+use std::fmt::Display;
 
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate},
@@ -29,6 +30,7 @@ use crate::{
         ClosedParseState, Context, ParseState, Token, Transition,
         TransitionResult,
     },
+    xir::QName,
 };
 
 #[cfg(doc)]
@@ -191,6 +193,37 @@ impl<S: ClosedParseState> StateStack<S> {
         );
 
         Transition(st).incomplete().with_lookahead(lookahead)
+    }
+}
+
+/// Match some type of node.
+#[derive(Debug, PartialEq, Eq)]
+pub enum NodeMatcher {
+    /// Static [`QName`] with a simple equality check.
+    QName(QName),
+}
+
+impl NodeMatcher {
+    /// Match against the provided [`QName`].
+    pub fn matches(&self, qname: QName) -> bool {
+        matches!(
+            self,
+            Self::QName(qn_match) if qn_match == &qname
+        )
+    }
+}
+
+impl From<QName> for NodeMatcher {
+    fn from(qname: QName) -> Self {
+        Self::QName(qname)
+    }
+}
+
+impl Display for NodeMatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::QName(qname) => Display::fmt(qname, f),
+        }
     }
 }
 
@@ -486,8 +519,8 @@ macro_rules! ele_parse {
                 /// [`QName`](crate::xir::QName) of the element recognized
                 ///   by this parser.
                 #[allow(dead_code)] // used by sum parser
-                const fn qname() -> crate::xir::QName {
-                    $qname
+                fn matcher() -> crate::xir::parse::NodeMatcher {
+                    crate::xir::parse::NodeMatcher::from($qname)
                 }
 
                 /// Yield the expected depth of child elements,
@@ -687,7 +720,7 @@ macro_rules! ele_parse {
                         (
                             Expecting_(cfg),
                             XirfToken::Open(qname, span, depth)
-                        ) if qname == $qname => {
+                        ) if $nt::matcher().matches(qname) => {
                             Transition(Attrs_(
                                 (cfg, span.tag_span(), depth),
                                 parse_attrs(qname, span)
@@ -881,7 +914,7 @@ macro_rules! ele_parse {
 
                     let ntrefs = [
                         $(
-                            $ntref::qname(),
+                            $ntref::matcher(),
                         )*
                     ];
                     let expected = OpenEleSumList::wrap(&ntrefs);
@@ -948,7 +981,7 @@ macro_rules! ele_parse {
 
                     let ntrefs = [
                         $(
-                            $ntref::qname(),
+                            $ntref::matcher(),
                         )*
                     ];
                     let expected = OpenEleSumList::wrap(&ntrefs);
@@ -1013,7 +1046,7 @@ macro_rules! ele_parse {
                             (
                                 Expecting_(cfg),
                                 XirfToken::Open(qname, span, depth)
-                            ) if qname == $ntref::qname() => {
+                            ) if $ntref::matcher().matches(qname) => {
                                 ele_parse!(@!ntref_delegate
                                     stack,
                                     match cfg.repeat {
