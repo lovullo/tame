@@ -498,6 +498,7 @@ pub mod st {
         N9: dec "9",
 
         L_BOOLEAN: cid "boolean",
+        L_C: cid "c",
         L_CGEN: cid "cgen",
         L_CLASS: cid "class",
         L_CLASSIFY: cid "classify",
@@ -549,6 +550,7 @@ pub mod st {
         L_SYM_DEP: cid "sym-dep",
         L_SYM_DEPS: cid "sym-deps",
         L_SYM_REF: cid "sym-ref",
+        L_T: cid "t",
         L_TITLE: cid "title",
         L_TPL: cid "tpl",
         L_TRUE: cid "true",

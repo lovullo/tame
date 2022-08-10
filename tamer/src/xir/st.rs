@@ -21,10 +21,25 @@
 //!
 //! This is analogous to [`crate::sym::st`].
 
+use crate::sym::st::*;
+
+pub mod prefix {
+    //! Static [`Prefix`]es.
+
+    use super::super::Prefix;
+    use super::*;
+
+    /// Namespace prefix [`L_C`] used for calculation expressions.
+    pub const NS_C: Prefix = Prefix::st_cid(&L_C);
+
+    /// Namespace prefix [`L_T`] used for short-hand template application.
+    pub const NS_T: Prefix = Prefix::st_cid(&L_T);
+}
+
 pub mod qname {
     //! Static [`QName`]s.
 
-    use crate::sym::st::*;
+    use super::*;
     use crate::sym::{
         CIdentStaticSymbolId, StaticSymbolId, TameIdentStaticSymbolId,
     };

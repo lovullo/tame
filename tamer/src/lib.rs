@@ -73,6 +73,8 @@
 #![feature(adt_const_params)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
+// For sym::prefill recursive macro `static_symbols!`.
+#![recursion_limit = "256"]
 
 pub mod global;
 

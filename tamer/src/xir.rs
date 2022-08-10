@@ -160,6 +160,15 @@ impl TryFrom<&str> for NCName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Prefix(NCName);
 
+impl Prefix {
+    /// Construct a constant [`Prefix`] from a static C-style symbol.
+    pub const fn st_cid<T: QNameCompatibleStaticSymbolId>(
+        prefix_sym: &T,
+    ) -> Self {
+        Self(NCName(st_as_sym(prefix_sym)))
+    }
+}
+
 /// Local name portion of a [`QName`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalPart(NCName);
