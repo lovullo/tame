@@ -401,7 +401,8 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
-        $vis:vis $super:ident $nt:ident $qname:ident ($($open_span:ident)?)
+        $vis:vis $super:ident $nt:ident $qname:ident
+        ($($qname_matched:pat, $open_span:pat)?)
 
         // Attribute definition special form.
         @ {
@@ -484,6 +485,7 @@ macro_rules! ele_parse {
                 CloseRecoverIgnore_(
                     (
                         crate::xir::parse::EleParseCfg,
+                        crate::xir::QName,
                         crate::span::Span,
                         crate::xir::flat::Depth
                     ),
@@ -493,6 +495,7 @@ macro_rules! ele_parse {
                 Attrs_(
                     (
                         crate::xir::parse::EleParseCfg,
+                        crate::xir::QName,
                         crate::span::Span,
                         crate::xir::flat::Depth
                     ),
@@ -502,6 +505,7 @@ macro_rules! ele_parse {
                     $ntref(
                         (
                             crate::xir::parse::EleParseCfg,
+                            crate::xir::QName,
                             crate::span::Span,
                             crate::xir::flat::Depth
                         ),
@@ -510,13 +514,18 @@ macro_rules! ele_parse {
                 ExpectClose_(
                     (
                         crate::xir::parse::EleParseCfg,
+                        crate::xir::QName,
                         crate::span::Span,
                         crate::xir::flat::Depth
                     ),
                 ),
                 /// Closing tag found and parsing of the element is
                 ///   complete.
-                Closed_(crate::xir::parse::EleParseCfg, crate::span::Span),
+                Closed_(
+                    crate::xir::parse::EleParseCfg,
+                    crate::xir::QName,
+                    crate::span::Span
+                ),
             }
 
             impl From<crate::xir::parse::EleParseCfg> for $nt {
@@ -539,9 +548,9 @@ macro_rules! ele_parse {
                 #[allow(dead_code)] // used by text special form
                 fn child_depth(&self) -> Option<crate::xir::flat::Depth> {
                     match self {
-                        $ntfirst((_, _, depth)) => Some(depth.child_depth()),
+                        $ntfirst((_, _, _, depth)) => Some(depth.child_depth()),
                         $(
-                            $ntnext((_, _, depth)) => Some(depth.child_depth()),
+                            $ntnext((_, _, _, depth)) => Some(depth.child_depth()),
                         )*
                         _ => None,
                     }
@@ -570,26 +579,24 @@ macro_rules! ele_parse {
                             given = TtQuote::wrap(name),
                             expected = TtQuote::wrap(Self::matcher()),
                         ),
-                        Self::CloseRecoverIgnore_((_, _, depth), _) => write!(
+                        Self::CloseRecoverIgnore_((_, qname, _, depth), _) => write!(
                             f,
                             "attempting to recover by ignoring input \
                                until the expected end tag {expected} \
                                at depth {depth}",
-                            expected = TtCloseXmlEle::wrap(Self::matcher()),
+                            expected = TtCloseXmlEle::wrap(qname),
                         ),
 
                         Self::Attrs_(_, sa) => std::fmt::Display::fmt(sa, f),
-                        Self::ExpectClose_((_, _, depth)) => write!(
+                        Self::ExpectClose_((_, qname, _, depth)) => write!(
                             f,
                             "expecting closing element {} at depth {depth}",
-                            // TODO: Actual closing tag name
-                            //   (this may be a prefix).
-                            TtCloseXmlEle::wrap(Self::matcher())
+                            TtCloseXmlEle::wrap(qname)
                         ),
-                        Self::Closed_(_, _cfg) => write!(
+                        Self::Closed_(_, qname, _) => write!(
                             f,
                             "done parsing element {}",
-                            TtQuote::wrap(Self::matcher())
+                            TtQuote::wrap(qname),
                         ),
                         $(
                             // TODO: A better description.
@@ -616,6 +623,7 @@ macro_rules! ele_parse {
                 ///
                 /// The span corresponds to the opening tag.
                 CloseExpected_(
+                    crate::xir::QName,
                     crate::span::Span,
                     crate::xir::flat::XirfToken<crate::xir::flat::RefinedText>,
                 ),
@@ -654,11 +662,10 @@ macro_rules! ele_parse {
                             unexpected = TtOpenXmlEle::wrap(name),
                             expected = TtOpenXmlEle::wrap($nt::matcher()),
                         ),
-                        Self::CloseExpected_(_, tok) => write!(
+                        Self::CloseExpected_(qname, _, tok) => write!(
                             f,
                             "expected {}, but found {}",
-                            // TODO: Actual close name.
-                            TtCloseXmlEle::wrap($nt::matcher()),
+                            TtCloseXmlEle::wrap(qname),
                             TtQuote::wrap(tok)
                         ),
                         Self::Attrs_(e) => std::fmt::Display::fmt(e, f),
@@ -683,12 +690,11 @@ macro_rules! ele_parse {
                             )
                         ).into(),
 
-                        Self::CloseExpected_(span, tok) => vec![
+                        Self::CloseExpected_(qname, span, tok) => vec![
                             span.note("element starts here"),
                             tok.span().error(format!(
                                 "expected {}",
-                                // TODO: Actual close name
-                                TtCloseXmlEle::wrap($nt::matcher()),
+                                TtCloseXmlEle::wrap(qname),
                             )),
                         ],
 
@@ -737,7 +743,7 @@ macro_rules! ele_parse {
                             XirfToken::Open(qname, span, depth)
                         ) if $nt::matcher().matches(qname) => {
                             Transition(Attrs_(
-                                (cfg, span.tag_span(), depth),
+                                (cfg, qname, span.tag_span(), depth),
                                 parse_attrs(qname, span)
                             )).incomplete()
                         },
@@ -747,7 +753,7 @@ macro_rules! ele_parse {
                             XirfToken::Open(qname, span, depth)
                         ) if cfg.repeat && Self::matcher().matches(qname) => {
                             Transition(Attrs_(
-                                (cfg, span.tag_span(), depth),
+                                (cfg, qname, span.tag_span(), depth),
                                 parse_attrs(qname, span)
                             )).incomplete()
                         },
@@ -786,7 +792,7 @@ macro_rules! ele_parse {
                             Transition(st).incomplete()
                         }
 
-                        (Attrs_(meta, sa), tok) => {
+                        (Attrs_(meta @ (_, qname, _, _), sa), tok) => {
                             sa.delegate_until_obj::<Self, _>(
                                 tok,
                                 EmptyContext,
@@ -801,8 +807,10 @@ macro_rules! ele_parse {
                                             )*
                                         } => {
                                             // Optional `OpenSpan` binding
+                                            let _ = qname; // avoid unused warning
                                             $(
                                                 use crate::xir::parse::attr::AttrParseState;
+                                                let $qname_matched = qname;
                                                 let $open_span = sa.element_span();
                                             )?
 
@@ -845,21 +853,21 @@ macro_rules! ele_parse {
                         // XIRF ensures proper nesting,
                         //   so we do not need to check the element name.
                         (
-                            ExpectClose_((cfg, _, depth))
-                            | CloseRecoverIgnore_((cfg, _, depth), _),
+                            ExpectClose_((cfg, qname, _, depth))
+                            | CloseRecoverIgnore_((cfg, qname, _, depth), _),
                             XirfToken::Close(_, span, tok_depth)
                         ) if tok_depth == depth => {
                             $(
                                 let $close_span = span;
                             )?
-                            $closemap.transition(Closed_(cfg, span.tag_span()))
+                            $closemap.transition(Closed_(cfg, qname, span.tag_span()))
                         },
 
-                        (ExpectClose_(meta @ (_, otspan, _)), unexpected_tok) => {
+                        (ExpectClose_(meta @ (_, qname, otspan, _)), unexpected_tok) => {
                             use crate::parse::Token;
                             Transition(
                                 CloseRecoverIgnore_(meta, unexpected_tok.span())
-                            ).err([<$nt Error_>]::CloseExpected_(otspan, unexpected_tok))
+                            ).err([<$nt Error_>]::CloseExpected_(qname, otspan, unexpected_tok))
                         }
 
                         // We're still in recovery,

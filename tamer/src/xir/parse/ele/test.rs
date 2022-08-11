@@ -136,7 +136,7 @@ fn empty_element_no_attrs_with_close_with_spans() {
         enum Sut;
         type Object = Foo;
 
-        Root := QN_PACKAGE(ospan) {
+        Root := QN_PACKAGE(_, ospan) {
             @ {} => Foo::Attr(ospan),
             /(cspan) => Foo::Close(cspan),
         };
@@ -163,7 +163,7 @@ fn empty_element_no_attrs_with_close_with_spans() {
 #[test]
 fn empty_element_ns_prefix() {
     #[derive(Debug, PartialEq, Eq)]
-    struct Foo;
+    struct Foo(QName);
     impl Object for Foo {}
 
     ele_parse! {
@@ -171,8 +171,8 @@ fn empty_element_ns_prefix() {
         type Object = Foo;
 
         // This matches `c:*`.
-        Root := NS_C {
-            @ {} => Foo,
+        Root := NS_C(qname, _) {
+            @ {} => Foo(qname),
         };
     }
 
@@ -184,9 +184,9 @@ fn empty_element_ns_prefix() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,  // [Root]  Open
-            Parsed::Object(Foo), // [Root@] Close (>LA)
-            Parsed::Incomplete,  // [Root]  Close (<LA)
+            Parsed::Incomplete,           // [Root]  Open
+            Parsed::Object(Foo(QN_C_EQ)), // [Root@] Close (>LA)
+            Parsed::Incomplete,           // [Root]  Close (<LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -225,6 +225,57 @@ fn empty_element_ns_prefix_nomatch() {
         ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
             unexpected,
             span.name_span()
+        ))),
+        err,
+    );
+}
+
+// When a QName matches a namespace prefix,
+//   that specific QName should be used in subsequent errors,
+//   such as when expecting a closing tag.
+#[test]
+fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct Foo;
+    impl Object for Foo {}
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        // This matches `c:*`.
+        Root := NS_C {
+            @ {} => Foo,
+        };
+    }
+
+    let unexpected = QN_C_GT;
+    let span_unexpected = OpenSpan(S2, N);
+
+    let toks = vec![
+        // Just some `c:*`.
+        XirfToken::Open(QN_C_EQ, OpenSpan(S1, N), Depth(0)),
+        // We're not expecting a child.
+        XirfToken::Open(unexpected, span_unexpected, Depth(1)),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    // The opening tag parses fine,
+    //   and the unexpected tag successfully terminates attribute parsing.
+    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete))); // [Root]  Open
+    assert_eq!(sut.next(), Some(Ok(Parsed::Object(Foo)))); // [Root@] Open (>LA)
+
+    // But then consuming the LA will produce an error,
+    //   since we were not expecting a child.
+    let err = sut.next().unwrap().unwrap_err();
+    assert_eq!(
+        // TODO: This references generated identifiers.
+        ParseError::StateError(SutError_::Root(RootError_::CloseExpected_(
+            // Verify that the error includes the QName that actually matched.
+            QN_C_EQ,
+            OpenSpan(S1, N).tag_span(),
+            XirfToken::Open(unexpected, span_unexpected, Depth(1)),
         ))),
         err,
     );
@@ -480,7 +531,7 @@ fn multiple_child_elements_sequential() {
         enum Sut;
         type Object = Foo;
 
-        Root := QN_PACKAGE(ospan) {
+        Root := QN_PACKAGE(_, ospan) {
             @ {} => Foo::RootOpen(ospan.span()),
             /(cspan) => Foo::RootClose(cspan.span()),
 
@@ -492,7 +543,7 @@ fn multiple_child_elements_sequential() {
         // Demonstrates that span identifier bindings are scoped to the
         //   nonterminal block
         //     (so please keep the identifiers the same as above).
-        ChildA := QN_CLASSIFY(ospan) {
+        ChildA := QN_CLASSIFY(_, ospan) {
             @ {} => Foo::ChildAOpen(ospan.span()),
             /(cspan) => Foo::ChildAClose(cspan.span()),
         };
@@ -833,6 +884,7 @@ fn child_error_and_recovery_at_close() {
     assert_eq!(
         // TODO: This references generated identifiers.
         ParseError::StateError(SutError_::Root(RootError_::CloseExpected_(
+            QN_PACKAGE,
             OpenSpan(S1, N).tag_span(),
             XirfToken::Open(unexpected_a, span_a, Depth(1)),
         ))),
@@ -1366,6 +1418,7 @@ fn child_repetition_invalid_tok_dead() {
         // TODO: This references generated identifiers.
         Some(Err(ParseError::StateError(SutError_::Root(
             RootError_::CloseExpected_(
+                QN_ROOT,
                 OpenSpan(S1, N).tag_span(),
                 XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
             )

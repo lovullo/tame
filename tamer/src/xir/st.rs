@@ -142,5 +142,6 @@ pub mod qname {
         QN_YIELDS: :L_YIELDS,
 
         QN_C_EQ: L_C:L_EQ,
+        QN_C_GT: L_C:L_GT,
     }
 }

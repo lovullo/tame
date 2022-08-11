@@ -521,6 +521,7 @@ pub mod st {
         L_FUNC: cid "func",
         L_GEN: cid "gen",
         L_GENERATED: cid "generated",
+        L_GT: cid "gt",
         L_ID: cid "id",
         L_INTEGER: cid "integer",
         L_ISOVERRIDE: cid "isoverride",
