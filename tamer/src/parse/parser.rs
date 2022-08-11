@@ -260,8 +260,11 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
             "lookahead token is available but was not consumed",
         );
 
-        self.tracer
-            .trace_tok_begin(self.state.as_ref().unwrap(), &tok);
+        self.tracer.trace_tok_begin(
+            self.state.as_ref().unwrap(),
+            &tok,
+            &self.ctx,
+        );
 
         // Parse a single token and perform the requested state transition.
         //
@@ -279,7 +282,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
         let TransitionResult(Transition(state), data) =
             self.state.take().unwrap().parse_token(tok, &mut self.ctx);
 
-        self.tracer.trace_tok_end(&state, &data);
+        self.tracer.trace_tok_end(&state, &data, &self.ctx);
         self.state.replace(state);
 
         use ParseStatus::{Incomplete, Object};

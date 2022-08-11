@@ -47,7 +47,12 @@ pub(super) trait ParserTrace: Default {
     ///
     /// There is no means to return an error and a failure to output the
     ///   trace should not interrupt processing.
-    fn trace_tok_begin<S: ParseState>(&mut self, st_orig: &S, tok: &S::Token);
+    fn trace_tok_begin<S: ParseState>(
+        &mut self,
+        st_orig: &S,
+        tok: &S::Token,
+        ctx: &S::Context,
+    );
 
     /// Output the lower portion of a token trace.
     ///
@@ -60,6 +65,7 @@ pub(super) trait ParserTrace: Default {
         &mut self,
         st_new: &S,
         data: &TransitionData<S>,
+        ctx: &S::Context,
     );
 }
 
@@ -75,6 +81,7 @@ impl ParserTrace for VoidTrace {
         &mut self,
         _st_orig: &S,
         _tok: &S::Token,
+        _ctx: &S::Context,
     ) {
         // Do nothing at all.
     }
@@ -83,6 +90,7 @@ impl ParserTrace for VoidTrace {
         &mut self,
         _st_new: &S,
         _data: &TransitionData<S>,
+        _ctx: &S::Context,
     ) {
         // Do nothing at all.
     }
@@ -101,12 +109,18 @@ impl ParserTrace for VoidTrace {
 pub struct HumanReadableTrace<const REASON: &'static str>;
 
 impl<const REASON: &'static str> ParserTrace for HumanReadableTrace<REASON> {
-    fn trace_tok_begin<S: ParseState>(&mut self, st_orig: &S, tok: &S::Token) {
+    fn trace_tok_begin<S: ParseState>(
+        &mut self,
+        st_orig: &S,
+        tok: &S::Token,
+        ctx: &S::Context,
+    ) {
         eprint!(
             "\
 [Parser::feed_tok] (input IR: {ir})
 | ==> Parser before tok is {st_orig}.
 |  |  {st_orig:?}
+|  |  Context: {ctx:?}
 |
 | ==> {ir} tok: {tok}
 |  |  {tok:?}
@@ -119,12 +133,14 @@ impl<const REASON: &'static str> ParserTrace for HumanReadableTrace<REASON> {
         &mut self,
         st_new: &S,
         data: &TransitionData<S>,
+        ctx: &S::Context,
     ) {
         eprint!(
             "\
 | ==> Parser after tok is {st_new}.
 |  |  {st_new:?}
-|  |  Lookahead: {la:?}\n",
+|  |  Lookahead: {la:?}
+|  |  Context:   {ctx:?}\n",
             la = data.lookahead_ref(),
         );
 
