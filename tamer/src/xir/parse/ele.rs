@@ -932,7 +932,7 @@ macro_rules! ele_parse {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
                         fmt::{DisplayWrapper, ListDisplayWrapper, TtQuote},
-                        xir::fmt::OpenEleSumList,
+                        xir::fmt::EleSumList,
                     };
 
                     let ntrefs = [
@@ -940,7 +940,7 @@ macro_rules! ele_parse {
                             $ntref::matcher(),
                         )*
                     ];
-                    let expected = OpenEleSumList::wrap(&ntrefs);
+                    let expected = EleSumList::wrap(&ntrefs);
 
                     match self {
                         Self::Expecting_(_) => {
@@ -999,7 +999,7 @@ macro_rules! ele_parse {
                     use crate::{
                         diagnose::Annotate,
                         fmt::{DisplayWrapper, ListDisplayWrapper, TtQuote},
-                        xir::fmt::OpenEleSumList,
+                        xir::fmt::EleSumList,
                     };
 
                     let ntrefs = [
@@ -1007,15 +1007,17 @@ macro_rules! ele_parse {
                             $ntref::matcher(),
                         )*
                     ];
-                    let expected = OpenEleSumList::wrap(&ntrefs);
+                    let expected = EleSumList::wrap(&ntrefs);
 
                     match self {
                         Self::UnexpectedEle_(qname, span) => {
-                            span.error(format!(
-                                "element {name} cannot appear here \
-                                   (expecting {expected})",
-                                name = TtQuote::wrap(qname),
-                            )).into()
+                            span
+                                .error(format!(
+                                    "element {name} cannot appear here",
+                                    name = TtQuote::wrap(qname),
+                                ))
+                                .with_help(format!("expecting {expected}"))
+                                .into()
                         },
                     }
                 }

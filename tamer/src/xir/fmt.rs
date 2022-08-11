@@ -20,7 +20,7 @@
 //! XIR formatting types for use with [`crate::fmt`]
 
 use crate::fmt::{
-    AndQualConjList, Delim, OrQualConjList, Prefix, Raw, Suffix, Tt,
+    AndQualConjList, Delim, OrQualConjList, Prefix, Raw, Suffix, Tt, TtQuote,
 };
 
 /// Denote an XML attribute by prefixing the value with `@`.
@@ -49,9 +49,8 @@ pub type TtOpenXmlEle = Tt<OpenXmlEle>;
 ///   (for use in sentences).
 pub type TtCloseXmlEle = Tt<CloseXmlEle>;
 
-/// A choice of a list of opening XML tags.
-pub type OpenEleSumList =
-    OrQualConjList<"element", "one of elements", TtOpenXmlEle>;
+/// A choice of a list of XML elements by name.
+pub type EleSumList = OrQualConjList<"element", "one of elements", TtQuote>;
 
 /// Quote an attribute value using double quotes.
 pub type XmlAttrValueQuote = Delim<"\"", "\"", Raw>;
