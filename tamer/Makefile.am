@@ -47,7 +47,7 @@ html-am:
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
 check-am: check-fmt
-	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test @FEATURES@
+	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --quiet @FEATURES@
 
 check-fmt:
 	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ fmt -- --check
