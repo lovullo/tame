@@ -23,11 +23,10 @@ use arrayvec::ArrayVec;
 use std::fmt::Display;
 
 use crate::{
-    diagnose::{panic::DiagnosticPanic, Annotate},
     diagnostic_panic,
     fmt::{DisplayWrapper, TtQuote},
     parse::{
-        ClosedParseState, Context, ParseState, Token, Transition,
+        ClosedParseState, Context, ParseState, Transition,
         TransitionResult,
     },
     xir::{Prefix, QName},
@@ -112,7 +111,7 @@ impl<S: ClosedParseState> StateStack<S> {
     ///     `ret` will be pop'd from the stack and we'll transition back to
     ///     it.
     /// Note that this method is not responsible for returning;
-    ///   see [`Self::ret`] to perform a return.
+    ///   see [`Self::ret_or_dead`] to perform a return.
     ///
     /// However,
     ///   the calling [`ParseState`] is not responsible for its return,
@@ -163,8 +162,9 @@ impl<S: ClosedParseState> StateStack<S> {
         target
     }
 
-    /// Return to a previous [`ParseState`] that transferred control away
-    ///   from itself.
+    /// Attempt to return to a previous [`ParseState`] that transferred
+    ///   control away from itself,
+    ///     otherwise yield a dead state transition to `deadst`.
     ///
     /// Conceptually,
     ///   this is like returning from a function call,
@@ -173,26 +173,25 @@ impl<S: ClosedParseState> StateStack<S> {
     ///   this system is more akin to CPS
     ///     (continuation passing style);
     ///       see [`Self::transfer_with_ret`] for important information.
-    pub fn ret(&mut self, lookahead: S::Token) -> TransitionResult<S> {
+    ///
+    /// If there is no state to return to on the stack,
+    ///   then it is assumed that we have received more input than expected
+    ///   after having completed a full parse.
+    pub fn ret_or_dead(
+        &mut self,
+        lookahead: S::Token,
+        deadst: S,
+    ) -> TransitionResult<S> {
         let Self(stack) = self;
 
         // This should certainly never happen unless there is a bug in the
         //   `ele_parse!` parser-generator,
         //     since it means that we're trying to return to a caller that
         //     does not exist.
-        let st = stack.pop().diagnostic_expect(
-            lookahead
-                .span()
-                .internal_error("while processing this token")
-                .with_help(
-                    "this implies a bug in TAMER's `ele_parse` \
-                       parser-generator",
-                )
-                .into(),
-            "missing expected return ParseState",
-        );
-
-        Transition(st).incomplete().with_lookahead(lookahead)
+        match stack.pop() {
+            Some(st) => Transition(st).incomplete().with_lookahead(lookahead),
+            None => Transition(deadst).dead(lookahead),
+        }
     }
 }
 
@@ -1121,7 +1120,10 @@ macro_rules! ele_parse {
                             Transition(st).incomplete()
                         },
 
-                        (st @ Self::Done_, tok) => Transition(st).dead(tok),
+                        (
+                            st @ (Done_ | RecoverEleIgnoreClosed_(..)),
+                            tok
+                        ) => Transition(st).dead(tok),
 
                         todo => todo!("sum {todo:?}"),
                     }
@@ -1276,7 +1278,9 @@ macro_rules! ele_parse {
                             Self::$nt(st) => st.delegate_child(
                                 tok,
                                 stack,
-                                |tok, stack| stack.ret(tok),
+                                |deadst, tok, stack| {
+                                    stack.ret_or_dead(tok, deadst)
+                                },
                             ),
                         )*
                     }

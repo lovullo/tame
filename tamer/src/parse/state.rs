@@ -316,7 +316,11 @@ where
         self,
         tok: Self::Token,
         mut context: C,
-        dead: impl FnOnce(Self::Token, C) -> TransitionResult<Self::Super>,
+        dead: impl FnOnce(
+            Self::Super,
+            Self::Token,
+            C,
+        ) -> TransitionResult<Self::Super>,
     ) -> TransitionResult<Self::Super>
     where
         C: AsMut<<Self as ParseState>::Context>,
@@ -326,7 +330,7 @@ where
 
         match data {
             TransitionData::Dead(Lookahead(lookahead)) => {
-                dead(lookahead, context)
+                dead(newst, lookahead, context)
             }
 
             // Since this is child state,

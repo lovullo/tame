@@ -1166,6 +1166,10 @@ fn sum_nonterminal_error_recovery() {
     let depth = Depth(5);
     let depth_child = Depth(6);
 
+    // An extra token to yield after we're done parsing to ensure that we
+    //   properly yield a dead state transition.
+    let dead_tok = XirfToken::Open(QN_A, OpenSpan(S5, N), depth);
+
     let toks = vec![
         // Neither A nor B,
         //   which will produce an error and enter recovery.
@@ -1181,6 +1185,9 @@ fn sum_nonterminal_error_recovery() {
         // Closing token for the bad element at the corresponding depth,
         //   which will end recovery.
         XirfToken::Close(Some(unexpected), CloseSpan(S4, N), depth),
+        // Should result in a dead state post-recovery,
+        //   just as we would expect if we _didn't_ recover.
+        dead_tok.clone(),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -1221,6 +1228,19 @@ fn sum_nonterminal_error_recovery() {
     // But since we are not emitting tokens,
     //   we'll still be marked as incomplete.
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Close root
+
+    // Encountering any tokens post-recovery should result in a dead state
+    //   just the same as if we had closed normally.
+    let err = sut.next().unwrap().unwrap_err();
+    assert_matches!(
+        err,
+        ParseError::UnexpectedToken(given_tok, _) if given_tok == dead_tok,
+    );
+
+    // Having otherwise completed successfully,
+    //   and now yielding dead states,
+    //   we must indicate that parsing has completed successfully so that
+    //     the caller knows that it can safely move on.
     sut.finalize()
         .expect("recovery must complete in an accepting state");
 }
