@@ -26,8 +26,7 @@ use crate::{
     diagnostic_panic,
     fmt::{DisplayWrapper, TtQuote},
     parse::{
-        ClosedParseState, Context, ParseState, Transition,
-        TransitionResult,
+        ClosedParseState, Context, ParseState, Transition, TransitionResult,
     },
     xir::{Prefix, QName},
 };
@@ -721,7 +720,7 @@ macro_rules! ele_parse {
                         parse::{EmptyContext, Transition, Transitionable},
                         xir::{
                             EleSpan,
-                            flat::{XirfToken, RefinedText},
+                            flat::XirfToken,
                             parse::parse_attrs,
                         },
                     };
@@ -774,22 +773,6 @@ macro_rules! ele_parse {
                                 RecoverEleIgnoreClosed_(cfg, qname, span)
                             ).incomplete()
                         },
-
-                        // Depth check is unnecessary since _all_ xir::parse
-                        //   parsers
-                        //     (at least at the time of writing)
-                        //     ignore whitespace and comments,
-                        //       so may as well return early.
-                        // TODO: I'm ignoring _all_ text for now to
-                        //   proceed with development; fix.
-                        (
-                            st,
-                            XirfToken::Text(RefinedText::Whitespace(..), _)
-                            | XirfToken::Text(RefinedText::Unrefined(..), _) // XXX
-                            | XirfToken::Comment(..)
-                        ) => {
-                            Transition(st).incomplete()
-                        }
 
                         (Attrs_(meta @ (_, qname, _, _), sa), tok) => {
                             sa.delegate_until_obj::<Self, _>(
@@ -1039,7 +1022,7 @@ macro_rules! ele_parse {
                     use crate::{
                         parse::Transition,
                         xir::{
-                            flat::{XirfToken, RefinedText},
+                            flat::XirfToken,
                             parse::EleParseCfg,
                         },
                     };
@@ -1050,22 +1033,6 @@ macro_rules! ele_parse {
                     };
 
                     match (self, tok) {
-                        // Depth check is unnecessary since _all_ xir::parse
-                        //   parsers
-                        //     (at least at the time of writing)
-                        //     ignore whitespace and comments,
-                        //       so may as well return early.
-                        // TODO: I'm ignoring _all_ text for now to
-                        //   proceed with development; fix.
-                        (
-                            st,
-                            XirfToken::Text(RefinedText::Whitespace(..), _)
-                            | XirfToken::Text(RefinedText::Unrefined(..), _) // XXX
-                            | XirfToken::Comment(..)
-                        ) => {
-                            Transition(st).incomplete()
-                        }
-
                         $(
                             (
                                 Expecting_(cfg),
@@ -1269,13 +1236,31 @@ macro_rules! ele_parse {
                     tok: Self::Token,
                     stack: &mut Self::Context,
                 ) -> crate::parse::TransitionResult<Self> {
-                    match self {
+                    use crate::parse::Transition;
+
+                    match (self, tok) {
+                        // Depth check is unnecessary since _all_ xir::parse
+                        //   parsers
+                        //     (at least at the time of writing)
+                        //     ignore whitespace and comments,
+                        //       so may as well return early.
+                        // TODO: I'm ignoring _all_ text for now to
+                        //   proceed with development; fix.
+                        (
+                            st,
+                            XirfToken::Text(RefinedText::Whitespace(..), _)
+                            | XirfToken::Text(RefinedText::Unrefined(..), _) // XXX
+                            | XirfToken::Comment(..)
+                        ) => {
+                            Transition(st).incomplete()
+                        }
+
                         $(
                             // Pass token directly to child until it reports
                             //   a dead state,
                             //     after which we return to the `ParseState`
                             //     atop of the stack.
-                            Self::$nt(st) => st.delegate_child(
+                            (Self::$nt(st), tok) => st.delegate_child(
                                 tok,
                                 stack,
                                 |deadst, tok, stack| {
