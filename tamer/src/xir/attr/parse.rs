@@ -77,7 +77,7 @@ impl ParseState for AttrParseState {
     }
 
     #[inline]
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Empty
     }
 }

@@ -487,7 +487,7 @@ macro_rules! attr_parse {
                 }
             }
 
-            fn is_accepting(&self) -> bool {
+            fn is_accepting(&self, _: &Self::Context) -> bool {
                 // We must always be consumed via the dead state.
                 false
             }

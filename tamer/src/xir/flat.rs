@@ -421,7 +421,7 @@ where
     /// Intuitively,
     ///   this means that the parser must have encountered the closing tag
     ///   for the root element.
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         // TODO: It'd be nice if we could also return additional context to
         //   aid the user in diagnosing the problem,
         //     e.g. what element(s) still need closing.

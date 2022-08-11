@@ -1757,6 +1757,58 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
     );
 }
 
+// If there are any parsers that still have work to do
+//   (any on the stack),
+//   we cannot consider ourselves to be done parsing.
+#[test]
+fn superstate_not_accepting_until_root_close() {
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        enum Sut;
+        type Object = ();
+
+        Root := QN_ROOT {
+            @ {} => (),
+
+            A,
+        };
+
+        A := QN_A {
+            @ {} => (),
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // A is in an accepting state here,
+        //   but we haven't yet closed Root and so Sut should not allow us
+        //   to finish parsing at this point.
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    use Parsed::*;
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root]  Open Root
+    assert_eq!(sut.next(), Some(Ok(Object(())))); // [Root@] Open A (>LA)
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [A]     Open A (<LA)
+    assert_eq!(sut.next(), Some(Ok(Object(())))); // [A@]    Close A (>LA)
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [A]     Close A (<LA)
+
+    // Since we haven't yet finished parsing the root,
+    //   this should not be an accepting state even though the active child
+    //   is in an accepting state.
+    let (mut sut, _) = sut
+        .finalize()
+        .expect_err("child accepting must not be accepting for superstate");
+
+    let err = sut.next().unwrap().unwrap_err();
+    assert_matches!(err, ParseError::UnexpectedEof(..),);
+}
+
 // Ensure that we can actually export the generated identifiers
 //   (add visibility to them).
 // We don't want to always make them public by default because then Rust

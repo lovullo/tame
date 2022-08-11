@@ -245,7 +245,7 @@ impl<O: Object, E: Diagnostic + PartialEq> ParseState for ParsedObject<O, E> {
         unreachable!("ParsedObject must be used for type information only")
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         unreachable!("ParsedObject must be used for type information only")
     }
 }
@@ -282,7 +282,7 @@ mod test {
             Transition(self).ok(tok)
         }
 
-        fn is_accepting(&self) -> bool {
+        fn is_accepting(&self, _: &Self::Context) -> bool {
             true
         }
     }

@@ -597,7 +597,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
                 Transition(BuddingElement(ele)).incomplete()
             }
 
-            (st, tok) if st.is_accepting() => Transition(st).dead(tok),
+            (st, tok) if st.is_accepting(ctx) => Transition(st).dead(tok),
 
             (stack, tok) => {
                 todo!(
@@ -611,7 +611,7 @@ impl<SA: StackAttrParseState> ParseState for Stack<SA> {
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Empty || *self == Self::Done
     }
 }

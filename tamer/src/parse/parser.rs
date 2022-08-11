@@ -195,7 +195,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
         if let Some(Lookahead(lookahead)) = &self.lookahead {
             Err(ParseError::Lookahead(lookahead.span(), st.to_string()))
-        } else if st.is_accepting() {
+        } else if st.is_accepting(&self.ctx) {
             Ok(())
         } else {
             let endpoints = self.last_span.endpoints();
@@ -583,7 +583,7 @@ pub mod test {
             }
         }
 
-        fn is_accepting(&self) -> bool {
+        fn is_accepting(&self, _: &Self::Context) -> bool {
             true
         }
     }

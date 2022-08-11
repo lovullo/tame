@@ -198,7 +198,7 @@ pub mod test {
             }
         }
 
-        fn is_accepting(&self) -> bool {
+        fn is_accepting(&self, _: &Self::Context) -> bool {
             *self == Self::Done
         }
     }
@@ -579,7 +579,7 @@ pub mod test {
                 }
             }
 
-            fn is_accepting(&self) -> bool {
+            fn is_accepting(&self, _: &Self::Context) -> bool {
                 true
             }
         }
@@ -603,7 +603,7 @@ pub mod test {
                 }
             }
 
-            fn is_accepting(&self) -> bool {
+            fn is_accepting(&self, _: &Self::Context) -> bool {
                 true
             }
         }
@@ -627,7 +627,7 @@ pub mod test {
                 }
             }
 
-            fn is_accepting(&self) -> bool {
+            fn is_accepting(&self, _: &Self::Context) -> bool {
                 true
             }
         }

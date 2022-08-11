@@ -166,7 +166,7 @@ impl ParseState for AirAggregate {
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Empty
     }
 }

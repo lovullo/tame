@@ -234,7 +234,7 @@ impl ParseState for XmloToAir {
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         matches!(*self, Self::Done(_))
     }
 }

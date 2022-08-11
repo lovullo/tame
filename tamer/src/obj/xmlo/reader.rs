@@ -224,7 +224,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             }
 
             (Symtable(_, ss), Xirf::Close(Some(QN_SYMTABLE), ..))
-                if ss.is_accepting() =>
+                if ss.is_accepting(ctx) =>
             {
                 Transition(SymDepsExpected).incomplete()
             }
@@ -243,7 +243,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             }
 
             (SymDeps(_, sd), Xirf::Close(None | Some(QN_SYM_DEPS), ..))
-                if sd.is_accepting() =>
+                if sd.is_accepting(ctx) =>
             {
                 Transition(FragmentsExpected).incomplete()
             }
@@ -263,7 +263,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             (
                 Fragments(_, sf),
                 Xirf::Close(None | Some(QN_FRAGMENTS), span, _),
-            ) if sf.is_accepting() => {
+            ) if sf.is_accepting(ctx) => {
                 Transition(Eoh).ok(XmloToken::Eoh(span.tag_span()))
             }
 
@@ -287,7 +287,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Eoh || *self == Self::Done
     }
 }
@@ -436,7 +436,7 @@ impl ParseState for SymtableState {
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Ready
     }
 }
@@ -687,7 +687,7 @@ impl ParseState for SymDepsState {
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Ready
     }
 }
@@ -798,7 +798,7 @@ impl ParseState for FragmentsState {
         }
     }
 
-    fn is_accepting(&self) -> bool {
+    fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Ready
     }
 }

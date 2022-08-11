@@ -192,6 +192,12 @@ impl<S: ClosedParseState> StateStack<S> {
             None => Transition(deadst).dead(lookahead),
         }
     }
+
+    /// Test every [`ParseState`] on the stack against the predicate `f`.
+    pub fn all(&self, f: impl Fn(&S) -> bool) -> bool {
+        let Self(stack) = self;
+        stack[..].iter().all(f)
+    }
 }
 
 /// Match some type of node.
@@ -868,7 +874,7 @@ macro_rules! ele_parse {
                     }
                 }
 
-                fn is_accepting(&self) -> bool {
+                fn is_accepting(&self, _: &Self::Context) -> bool {
                     matches!(*self, Self::Closed_(..) | Self::RecoverEleIgnoreClosed_(..))
                 }
             }
@@ -1096,7 +1102,7 @@ macro_rules! ele_parse {
                     }
                 }
 
-                fn is_accepting(&self) -> bool {
+                fn is_accepting(&self, _: &Self::Context) -> bool {
                     match self {
                         Self::RecoverEleIgnoreClosed_(..) | Self::Done_ => true,
                         _ => false,
@@ -1236,7 +1242,10 @@ macro_rules! ele_parse {
                     tok: Self::Token,
                     stack: &mut Self::Context,
                 ) -> crate::parse::TransitionResult<Self> {
-                    use crate::parse::Transition;
+                    use crate::{
+                        parse::Transition,
+                        xir::flat::{XirfToken, RefinedText},
+                    };
 
                     match (self, tok) {
                         // Depth check is unnecessary since _all_ xir::parse
@@ -1271,10 +1280,40 @@ macro_rules! ele_parse {
                     }
                 }
 
-                fn is_accepting(&self) -> bool {
+                fn is_accepting(&self, stack: &Self::Context) -> bool {
+                    // This is short-circuiting,
+                    //   starting at the _bottom_ of the stack and
+                    //   moving upward.
+                    // The idea is that,
+                    //   is we're still in the middle of parsing,
+                    //   then it's almost certain that the [`ParseState`] on
+                    //     the bottom of the stack will not be in an
+                    //     accepting state,
+                    //       and so we can stop checking early.
+                    // In most cases,
+                    //   if we haven't hit EOF early,
+                    //   the stack should be either empty or consist of only
+                    //     the root state.
+                    //
+                    // After having considered the stack,
+                    //   we can then consider the active `ParseState`.
+                    stack.all(|st| st.is_inner_accepting(stack))
+                        && self.is_inner_accepting(stack)
+                }
+            }
+
+            impl $super {
+                /// Whether the inner (active child) [`ParseState`] is in an
+                ///   accepting state.
+                fn is_inner_accepting(
+                    &self,
+                    ctx: &<Self as crate::parse::ParseState>::Context
+                ) -> bool {
+                    use crate::parse::ParseState;
+
                     match self {
                         $(
-                            Self::$nt(si) => si.is_accepting(),
+                            Self::$nt(st) => st.is_accepting(ctx),
                         )*
                     }
                 }

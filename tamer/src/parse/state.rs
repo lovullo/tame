@@ -232,7 +232,7 @@ where
     ///     or the entire list of attributes.
     ///   It is acceptable to attempt to parse just one of those attributes,
     ///     or it is acceptable to parse all the way until the end.
-    fn is_accepting(&self) -> bool;
+    fn is_accepting(&self, ctx: &Self::Context) -> bool;
 
     /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`.
     ///
