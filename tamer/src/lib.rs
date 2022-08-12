@@ -43,13 +43,6 @@
 //   this can be done more verbosely in the usual way,
 //   or we can write our own version.
 #![feature(option_get_or_insert_default)]
-// This allows for e.g. `parse::<N>(foo)`,
-//   where `fn parse<const N: T>(foo: impl Trait)`.
-// Rust devs wanted more time for public testing as of the time of writing
-//   (March 2022).
-// We _could_ do without,
-//   but this provides a nicer API.
-#![feature(explicit_generic_args_with_impl_trait)]
 // For `Try` and `FromResidual`,
 //   allowing us to write our own `?`-compatible types.
 #![feature(try_trait_v2)]
