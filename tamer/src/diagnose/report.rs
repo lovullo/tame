@@ -508,7 +508,7 @@ impl<'s, 'd> Section<'d> {
     ///  gutter width is 2
     /// ```
     fn gutter_text_width(&self) -> usize {
-        self.line_max.log10().add(1).max(2) as usize
+        self.line_max.ilog10().add(1).max(2) as usize
     }
 }
 
