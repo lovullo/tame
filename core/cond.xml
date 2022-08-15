@@ -35,7 +35,7 @@
       <c:case>
         <c:when name="or_a">
           <c:eq>
-            <c:const value="0" type="integer" desc="Return B if A is 0" />
+            <c:const value="0" desc="Return B if A is 0" />
           </c:eq>
         </c:when>
 
@@ -65,7 +65,7 @@
       <param-value name="@name@" />
     </param>
 
-    <c:const value="@value@" type="@type@" desc="@desc@">
+    <c:const value="@value@" desc="@desc@">
       <!-- TODO: non-index option -->
       <c:when name="@name@" index="@index@">
         <c:eq>
@@ -86,14 +86,14 @@
         <if name="@index@">
           <c:when name="@name@" index="@index@">
             <c:gt>
-              <c:const value="0" type="integer" desc="Use override if greater than 0" />
+              <c:const value="0" desc="Use override if greater than 0" />
             </c:gt>
           </c:when>
         </if>
         <unless name="@index@">
           <c:when name="@name@">
             <c:gt>
-              <c:const value="0" type="integer" desc="Use override if greater than 0" />
+              <c:const value="0" desc="Use override if greater than 0" />
             </c:gt>
           </c:when>
         </unless>
@@ -122,11 +122,11 @@
       <c:case>
         <c:when name="@name@" index="@index@">
           <c:eq>
-            <c:const value="0" type="integer" desc="No value" />
+            <c:const value="0" desc="No value" />
           </c:eq>
         </c:when>
 
-        <c:const value="@default@" type="integer" desc="Default value" />
+        <c:const value="@default@" desc="Default value" />
       </c:case>
 
       <c:otherwise>
@@ -155,7 +155,7 @@
           <c:value-of name="@value@" />
         </if>
         <unless name="@value@">
-          <c:const value="@const@" type="float" desc="@desc@" />
+          <c:const value="@const@" desc="@desc@" />
         </unless>
 
         <!-- if this is not provided, then the c:product will be optimized away -->

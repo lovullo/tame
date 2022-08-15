@@ -418,7 +418,7 @@
     <c:vector label="Conditional for {@field@}">
       <!-- the first element will represent the column (field) index -->
       <unless name="@name@">
-        <c:const value="@id@" type="integer" desc="Field index" />
+        <c:const value="@id@" desc="Field index" />
       </unless>
       <if name="@name@">
         <c:value-of name="@name@" />
@@ -431,7 +431,7 @@
 
       <!-- the third element will represent whether or not this field is sequential -->
       <if name="@sequential@">
-        <c:const value="@sequential@" type="boolean" desc="Whether data is sequential" />
+        <c:const value="@sequential@" desc="Whether data is sequential" />
       </if>
       <unless name="@sequential@">
         <!-- if a field name was given, we can get the sequential information
@@ -538,7 +538,7 @@
                 <c:value-of name="i" />
               </c:index>
               <c:index>
-                <c:const value="0" type="integer" desc="Field id" />
+                <c:const value="0" desc="Field id" />
               </c:index>
             </c:value-of>
           </c:arg>
@@ -550,7 +550,7 @@
                 <c:value-of name="i" />
               </c:index>
               <c:index>
-                <c:const value="1" type="integer" desc="Field value" />
+                <c:const value="1" desc="Field value" />
               </c:index>
             </c:value-of>
           </c:arg>
@@ -562,7 +562,7 @@
                 <c:value-of name="i" />
               </c:index>
               <c:index>
-                <c:const value="2" type="integer" desc="Sequential flag" />
+                <c:const value="2" desc="Sequential flag" />
               </c:index>
             </c:value-of>
           </c:arg>
@@ -574,7 +574,7 @@
                 <c:value-of name="i" />
               </c:index>
               <c:index>
-                <c:const value="3" type="integer" desc="Comparison operator" />
+                <c:const value="3" desc="Comparison operator" />
               </c:index>
             </c:value-of>
           </c:arg>

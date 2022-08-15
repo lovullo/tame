@@ -189,7 +189,7 @@
               </c:eq>
             </c:when>
 
-            <c:const value="0" type="integer" desc="No value" />
+            <c:const value="0" desc="No value" />
           </c:case>
 
           <!-- we have values; perform reduction -->
@@ -287,7 +287,7 @@
                 <c:arg name="_maxreduce_i">
                   <c:sum>
                     <c:value-of name="_maxreduce_i" />
-                    <c:const value="-1" type="integer" desc="Decrement index by 1" />
+                    <c:const value="-1" desc="Decrement index by 1" />
                   </c:sum>
                 </c:arg>
               </c:apply>

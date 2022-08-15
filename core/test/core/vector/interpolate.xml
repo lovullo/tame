@@ -171,7 +171,7 @@
                                      step="INTERP_TABLE_STEP"
                                      actual="#300">
             <t:where-eq field="pred">
-              <c:const value="31" type="float"
+              <c:const value="31"
                        desc="Test predicate value" />
             </t:where-eq>
           </t:interpolate-query-field>
@@ -221,7 +221,7 @@
                                      step="INTERP_TABLE_STEP"
                                      actual="#350">
             <t:where-eq field="pred">
-              <c:const value="31" type="float"
+              <c:const value="31"
                        desc="Test predicate value" />
             </t:where-eq>
           </t:interpolate-query-field>

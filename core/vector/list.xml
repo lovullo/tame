@@ -73,7 +73,7 @@
         <c:case>
           <c:when name="__valn">
             <c:eq>
-              <c:const value="0" type="integer" desc="When there are no more elements in the set" />
+              <c:const value="0" desc="When there are no more elements in the set" />
             </c:eq>
           </c:when>
 

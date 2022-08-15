@@ -57,7 +57,7 @@
                 <c:value name="b" type="float" desc="Second set value">
                   <c:value-of name="orig_set">
                     <c:index>
-                      <c:const value="1" type="integer" desc="Second index" />
+                      <c:const value="1" desc="Second index" />
                     </c:index>
                   </c:value-of>
                 </c:value>
@@ -110,14 +110,14 @@
           <c:case>
             <c:when name="step">
               <c:eq>
-                <c:const value="0" type="integer" desc="No step indicates identical values" />
+                <c:const value="0" desc="No step indicates identical values" />
               </c:eq>
             </c:when>
 
             <!-- just return the first value; it's exact and no interpolation is necessary -->
             <c:value-of name="set">
               <c:index>
-                <c:const value="0" type="integer" desc="First index" />
+                <c:const value="0" desc="First index" />
               </c:index>
             </c:value-of>
           </c:case>

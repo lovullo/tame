@@ -68,7 +68,7 @@
 
       <unless name="@default@" eq="">
         <c:otherwise>
-          <c:const value="@default@" type="integer" desc="No mapping" />
+          <c:const value="@default@" desc="No mapping" />
         </c:otherwise>
       </unless>
     </c:cases>

@@ -30,7 +30,7 @@
     <param name="count_set" type="integer" set="vector" desc="Vector to count" />
 
     <c:sum of="count_set" index="k">
-      <c:const value="1" type="integer" desc="Add 1 for each value in the set" />
+      <c:const value="1" desc="Add 1 for each value in the set" />
     </c:sum>
   </function>
 
@@ -51,7 +51,7 @@
           </c:apply>
 
           <!-- ensure the equation is not undefined if length = 0 -->
-          <c:const value="1" type="integer" desc="Add 1 to ensure equation is always defined" />
+          <c:const value="1" desc="Add 1 to ensure equation is always defined" />
         </c:sum>
       </c:quotient>
     </c:ceil>

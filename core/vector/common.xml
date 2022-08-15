@@ -136,7 +136,7 @@
             </c:gte>
           </c:when>
 
-          <c:const value="-1" type="integer" desc="Not found" />
+          <c:const value="-1" desc="Not found" />
         </c:case>
 
 
@@ -199,7 +199,7 @@
   <!-- generates a variable that can be recognized as an empty set (useful for
        defaults to params that require sets) -->
   <rate-each class="always" yields="__empty" generates="__emptySet" index="k">
-    <c:const value="0" type="integer" desc="Nothing" />
+    <c:const value="0" desc="Nothing" />
   </rate-each>
 </package>
 

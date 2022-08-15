@@ -132,11 +132,11 @@
             <c:value-of name="@name@" index="@index@" />
           </if>
           <unless name="@name@">
-            <c:const value="@value@" type="float" desc="@desc@" />
+            <c:const value="@value@" desc="@desc@" />
           </unless>
         </c:product>
 
-        <c:const value="100" type="integer" desc="Convert to rational number" />
+        <c:const value="100" desc="Convert to rational number" />
       </c:quotient>
     </c:sum>
   </template>

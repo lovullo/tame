@@ -94,7 +94,7 @@
                 <c:value-of name="@default@" index="k" />
               </if>
               <unless name="@default@">
-                <c:const value="0" type="integer" desc="Condition not met, but no default" />
+                <c:const value="0" desc="Condition not met, but no default" />
               </unless>
             </c:case>
           </if>
@@ -105,7 +105,7 @@
               <c:case>
                 <c:when name="@yearset@" index="k">
                   <c:gt>
-                    <c:const value="0" type="integer" desc="Only calculate difference if a value is available" />
+                    <c:const value="0" desc="Only calculate difference if a value is available" />
                   </c:gt>
                 </c:when>
 

@@ -42,8 +42,8 @@
 
       <c:arg name="round_real_n">
         <c:expt>
-          <c:const value="10" type="integer" desc="Decimal base" />
-          <c:const value="@precision@" type="integer" desc="Exponent" />
+          <c:const value="10" desc="Decimal base" />
+          <c:const value="@precision@" desc="Exponent" />
         </c:expt>
       </c:arg>
     </c:apply>
@@ -111,7 +111,7 @@
                  desc="Exponential/step divisor">
           <c:product>
             <c:expt>
-              <c:const value="10" type="integer"
+              <c:const value="10"
                        desc="Decimal base" />
               <c:value-of name="@exp@" />
             </c:expt>
@@ -196,7 +196,7 @@
     <c:floor>
       <c:sum>
         <c:value-of name="roundval" />
-        <c:const value="0.5" type="float" desc="Raises value in a manner that it can be properly rounded by a floor" />
+        <c:const value="0.5" desc="Raises value in a manner that it can be properly rounded by a floor" />
       </c:sum>
     </c:floor>
   </function>
@@ -229,7 +229,7 @@
 
     <c:apply name="round_real">
       <c:arg name="round_real_n">
-        <c:const value="100" type="integer" desc="Round to the nearest 100th" />
+        <c:const value="100" desc="Round to the nearest 100th" />
       </c:arg>
 
       <c:arg name="round_real_val">
@@ -248,15 +248,15 @@
         <c:quotient>
           <param-copy name="@values@" />
           <c:expt>
-            <c:const value="10" type="integer" desc="Decimal base" />
-            <c:const value="@digits@" type="integer" desc="Number of digits" />
+            <c:const value="10" desc="Decimal base" />
+            <c:const value="@digits@" desc="Number of digits" />
           </c:expt>
         </c:quotient>
       </c:ceil>
 
       <c:expt>
-        <c:const value="10" type="integer" desc="Decimal base" />
-        <c:const value="@digits@" type="integer" desc="Number of digits" />
+        <c:const value="10" desc="Decimal base" />
+        <c:const value="@digits@" desc="Number of digits" />
       </c:expt>
     </c:product>
   </template>

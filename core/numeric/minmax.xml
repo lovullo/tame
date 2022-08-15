@@ -79,7 +79,7 @@
 
     <c:apply name="max" label="@label@">
       <c:arg name="max1">
-        <c:const value="0" type="integer" desc="Do not allow a value under 0" />
+        <c:const value="0" desc="Do not allow a value under 0" />
       </c:arg>
 
       <c:arg name="max2">
@@ -135,7 +135,7 @@
       <c:arg name="min1">
         <!-- deprecated -->
         <if name="@value@">
-          <c:const value="@value@" type="float" desc="@desc@" />
+          <c:const value="@value@" desc="@desc@" />
         </if>
         <unless name="@value@">
           <c:value-of name="@name@"
@@ -162,7 +162,7 @@
 
     <c:apply name="max" label="{@label@}, minimum of 1">
       <c:arg name="max1">
-        <c:const value="@min@" type="float" desc="Minimum value" />
+        <c:const value="@min@" desc="Minimum value" />
       </c:arg>
 
       <c:arg name="max2">
@@ -179,10 +179,10 @@
     <param name="@desc@" desc="Description" />
 
     <c:gte>
-      <c:const value="@min@" type="float" desc="{@desc@}; minimum" />
+      <c:const value="@min@" desc="{@desc@}; minimum" />
     </c:gte>
     <c:lte>
-      <c:const value="@max@" type="float" desc="{@desc@}; maximum" />
+      <c:const value="@max@" desc="{@desc@}; maximum" />
     </c:lte>
   </template>
 
@@ -238,7 +238,7 @@
               </c:when>
 
               <!-- just return the value provided -->
-              <c:const value="0" type="float" desc="Zero value" />
+              <c:const value="0" desc="Zero value" />
             </c:case>
           </if>
 
@@ -266,8 +266,8 @@
                         </unless>
 
                         <c:quotient label="Percent as real number">
-                          <c:const value="@percent@" type="integer" desc="Whole percent" />
-                          <c:const value="100" type="integer" desc="Divisor to convert percent to real number" />
+                          <c:const value="@percent@" desc="Whole percent" />
+                          <c:const value="100" desc="Divisor to convert percent to real number" />
                         </c:quotient>
                       </if>
 
@@ -279,7 +279,7 @@
                   </unless>
 
                   <if name="@const@">
-                    <c:const value="@const@" type="float" desc="Constant minimum value" />
+                    <c:const value="@const@" desc="Constant minimum value" />
                   </if>
                 </c:value>
               </c:values>
@@ -305,8 +305,8 @@
                         </unless>
 
                         <c:quotient label="Max percent as real number">
-                          <c:const value="@maxpercent@" type="integer" desc="Whole max percent" />
-                          <c:const value="100" type="integer" desc="Divisor to convert max percent to real number" />
+                          <c:const value="@maxpercent@" desc="Whole max percent" />
+                          <c:const value="100" desc="Divisor to convert max percent to real number" />
                         </c:quotient>
                       </c:product>
                     </c:value>

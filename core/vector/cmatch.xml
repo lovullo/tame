@@ -241,7 +241,7 @@
       <match on="@on@">
         <dyn-node name="c:{@cmp@}">
           <if name="@const@">
-            <c:const value="@const@" type="float" desc="Comparison" />
+            <c:const value="@const@" desc="Comparison" />
           </if>
 
           <unless name="@const@">
