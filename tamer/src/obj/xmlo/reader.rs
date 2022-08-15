@@ -205,7 +205,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                     QN_NAME => XmloToken::PkgName(value, aspan.1),
                     QN_UUROOTPATH => XmloToken::PkgRootPath(value, aspan.1),
                     QN_PROGRAM => XmloToken::PkgProgramFlag(aspan.0), // yes 0
-                    QN_ELIG_CLASS_YIELDS => {
+                    QN_P_ELIG_CLASS_YIELDS => {
                         XmloToken::PkgEligClassYields(value, aspan.1)
                     }
                     // Ignore unknown attributes for now to maintain BC,
@@ -218,12 +218,12 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             //   XIRF guarantees a matching closing tag.
             (Package(_), Xirf::Close(..)) => Transition(Done).incomplete(),
 
-            (Package(_), Xirf::Open(QN_SYMTABLE, span, ..)) => {
+            (Package(_), Xirf::Open(QN_P_SYMTABLE, span, ..)) => {
                 Transition(Symtable(span.tag_span(), SS::default()))
                     .incomplete()
             }
 
-            (Symtable(_, ss), Xirf::Close(Some(QN_SYMTABLE), ..))
+            (Symtable(_, ss), Xirf::Close(Some(QN_P_SYMTABLE), ..))
                 if ss.is_accepting(ctx) =>
             {
                 Transition(SymDepsExpected).incomplete()
@@ -238,11 +238,11 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 || unreachable!(), // TODO: currently caught by preceding match
             ),
 
-            (SymDepsExpected, Xirf::Open(QN_SYM_DEPS, span, _)) => {
+            (SymDepsExpected, Xirf::Open(QN_P_SYM_DEPS, span, _)) => {
                 Transition(SymDeps(span.tag_span(), SD::default())).incomplete()
             }
 
-            (SymDeps(_, sd), Xirf::Close(None | Some(QN_SYM_DEPS), ..))
+            (SymDeps(_, sd), Xirf::Close(None | Some(QN_P_SYM_DEPS), ..))
                 if sd.is_accepting(ctx) =>
             {
                 Transition(FragmentsExpected).incomplete()
@@ -255,14 +255,14 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 || unreachable!(), // TODO: currently caught by preceding match
             ),
 
-            (FragmentsExpected, Xirf::Open(QN_FRAGMENTS, span, _)) => {
+            (FragmentsExpected, Xirf::Open(QN_P_FRAGMENTS, span, _)) => {
                 Transition(Fragments(span.tag_span(), SF::default()))
                     .incomplete()
             }
 
             (
                 Fragments(_, sf),
-                Xirf::Close(None | Some(QN_FRAGMENTS), span, _),
+                Xirf::Close(None | Some(QN_P_FRAGMENTS), span, _),
             ) if sf.is_accepting(ctx) => {
                 Transition(Eoh).ok(XmloToken::Eoh(span.tag_span()))
             }
@@ -348,7 +348,7 @@ impl ParseState for SymtableState {
         match (self, tok) {
             (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
 
-            (Ready, Xirf::Open(QN_SYM, span, _)) => {
+            (Ready, Xirf::Open(QN_P_SYM, span, _)) => {
                 Transition(Sym(span.tag_span(), None, SymAttrs::default()))
                     .incomplete()
             }
@@ -379,7 +379,7 @@ impl ParseState for SymtableState {
             //   attribute now so we can simplify parsing here.
             (
                 Sym(span_sym, Some(name), attrs),
-                Xirf::Open(QN_FROM, span_from, _),
+                Xirf::Open(QN_P_FROM, span_from, _),
             ) if attrs.ty == Some(SymType::Map)
                 || attrs.ty == Some(SymType::RetMap) =>
             {
@@ -417,7 +417,7 @@ impl ParseState for SymtableState {
             // The old XmloReader ignored these.
             (
                 Sym(span_sym, Some(name), attrs),
-                Xirf::Open(QN_SYM_REF, span_ref, _),
+                Xirf::Open(QN_P_SYM_REF, span_ref, _),
             ) => Transition(SymRef(span_sym, name, attrs, span_ref.tag_span()))
                 .incomplete(),
 
@@ -496,7 +496,7 @@ impl SymtableState {
             QN_ISOVERRIDE => {
                 attrs.override_ = value == L_TRUE;
             }
-            QN_GENERATED => {
+            QN_P_GENERATED => {
                 attrs.generated = value == L_TRUE;
             }
 
@@ -634,7 +634,7 @@ impl ParseState for SymDepsState {
         match (self, tok) {
             (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
 
-            (Ready, Xirf::Open(QN_SYM_DEP, span, _)) => {
+            (Ready, Xirf::Open(QN_P_SYM_DEP, span, _)) => {
                 Transition(SymUnnamed(span.tag_span())).incomplete()
             }
 
@@ -646,7 +646,7 @@ impl ParseState for SymDepsState {
             (SymUnnamed(span), _) => Transition(SymUnnamed(span))
                 .err(XmloError::UnassociatedSymDep(span)),
 
-            (Sym(span, name), Xirf::Open(QN_SYM_REF, span_ref, _)) => {
+            (Sym(span, name), Xirf::Open(QN_P_SYM_REF, span_ref, _)) => {
                 Transition(SymRefUnnamed(span, name, span_ref.tag_span()))
                     .incomplete()
             }
@@ -745,7 +745,7 @@ impl ParseState for FragmentsState {
         match (self, tok) {
             (Ready, Xirf::Attr(..)) => Transition(Ready).incomplete(),
 
-            (Ready, Xirf::Open(QN_FRAGMENT, span, _)) => {
+            (Ready, Xirf::Open(QN_P_FRAGMENT, span, _)) => {
                 Transition(FragmentUnnamed(span.tag_span())).incomplete()
             }
 

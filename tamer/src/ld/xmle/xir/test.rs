@@ -253,7 +253,7 @@ fn test_writes_deps() -> TestResult {
             Some(ident.kind().unwrap().as_sym())
         );
 
-        let generated = attrs.find(QN_GENERATED).map(|a| a.value());
+        let generated = attrs.find(QN_P_GENERATED).map(|a| a.value());
 
         if let Some(Source {
             generated: true, ..

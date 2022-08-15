@@ -140,7 +140,7 @@ impl<'a> DepListIter<'a> {
                 self.toks.push(Token::AttrName(QN_SRC, LSPAN));
             }
 
-            self.toks_push_attr(QN_GENERATED, match src.generated {
+            self.toks_push_attr(QN_P_GENERATED, match src.generated {
                 true => Some(raw::L_TRUE),
                 false => None,
             });
