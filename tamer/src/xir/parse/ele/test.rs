@@ -1733,6 +1733,367 @@ fn no_mixed_content_super() {
     );
 }
 
+// Using the same superstate node preemption mechanism as `[text]` above,
+//   the superstate can also preempt opening element nodes.
+// This is useful for things that can appear in _any_ context,
+//   such as template applications.
+#[test]
+fn superstate_preempt_element_open_sum() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        RootClose,
+        ChildA,
+        ChildAClose,
+        ChildB,
+        ChildBClose,
+        PreA(Span),
+        PreAClose,
+        PreB(Span),
+        PreBClose,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_CHILDA: QName = QN_NAME;
+    const QN_CHILDB: QName = QN_DIM;
+    const QN_PRE_A: QName = QN_CLASSIFY;
+    const QN_PRE_B: QName = QN_EXPORT;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        [super] {
+            // We can provide a _single_ NT to preempt.
+            // Using a sum type allows us to preempt multiple nodes.
+            PreAB
+        };
+
+        Root := QN_ROOT {
+            @ {} => Foo::Root,
+            / => Foo::RootClose,
+
+            // Note how `AB` is _not_ a child here.
+            ChildA,
+            ChildB,
+        };
+
+        ChildA := QN_CHILDA {
+            @ {} => Foo::ChildA,
+            / => Foo::ChildAClose,
+        };
+
+        ChildB := QN_CHILDB {
+            @ {} => Foo::ChildB,
+            / => Foo::ChildBClose,
+        };
+
+        PreA := QN_PRE_A(_, ospan) {
+            @ {} => Foo::PreA(ospan.span()),
+            / => Foo::PreAClose,
+        };
+
+        PreB := QN_PRE_B(_, ospan) {
+            @ {} => Foo::PreB(ospan.span()),
+            / => Foo::PreBClose,
+        };
+
+        PreAB := (PreA | PreB);
+    }
+
+    let toks = vec![
+        // Yes, we can preempt at the root.
+        // This would allow,
+        //   for example,
+        //   template application as the root element,
+        //     which was _not_ possible in the original TAME.
+        // Note that this would cause the root to be the preempted node
+        //   itself,
+        //     and so it would _take the place of_ the intended root.
+        // This isn't the place to discuss the merits of such a thing.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S1, N), Depth(0)),
+        // Preempted nodes are parsed just as any other node,
+        //   so control has been passed to `PreA`.
+        XirfToken::Close(None, CloseSpan::empty(S1), Depth(0)),
+        //
+        // Now let's open our _expected_ root,
+        //   without preemption.
+        // Note that this is effectively another XML document,
+        //   and XIRF would not allow this.
+        // But we're in control of the token stream here and so we're going
+        //   to do it anyway for convenience.
+        XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
+        // At this point we are performing attribute parsing.
+        // Let's try to preempt;
+        //   we'll want to ensure that attributes will be omitted before the
+        //   preempted node,
+        //     otherwise we'd be a sibling rather than a child.
+        XirfToken::Open(QN_PRE_B, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // Now let's return to normal parsing with the expected child.
+        XirfToken::Open(QN_CHILDA, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // We're now expecting `ChildB`.
+        // Preempt again.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+        // Preemption should not have changed the state of `Root`,
+        //   and so _we should still be expecting `ChildB`_.
+        XirfToken::Open(QN_CHILDB, OpenSpan(S6, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        // We ought to be able to preempt before the closing tag too.
+        XirfToken::Open(QN_PRE_B, OpenSpan(S7, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+        // Adjacent,
+        //   just to be sure that we allow the previous to close before we
+        //   preempt again.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S8, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+        // This poor document has had enough.
+        // Let it close.
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Incomplete,               // [PreA]    A Open
+            Object(Foo::PreA(S1)),    // [PreA@]   A Close (>LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Incomplete,               // [Root]    Root Open
+            Object(Foo::Root),        // [Root@]   B Open (>LA)
+            Incomplete,               // [PreB]    B Open (<LA)
+            Object(Foo::PreB(S3)),    // [PreB]    B Open (<LA)
+            Object(Foo::PreBClose),   // [PreB]    B Close (<LA)
+            Incomplete,               // [ChildA]  ChildA Open
+            Object(Foo::ChildA),      // [ChildA@] ChildA Close (<LA)
+            Object(Foo::ChildAClose), // [ChildA]  ChildA Close (<LA)
+            Incomplete,               // [PreA]    A Open
+            Object(Foo::PreA(S5)),    // [PreA@]   A Close (>LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Incomplete,               // [ChildB]  ChildB Open
+            Object(Foo::ChildB),      // [ChildB@] ChildB Close (<LA)
+            Object(Foo::ChildBClose), // [ChildB]  ChildB Close (<LA)
+            Incomplete,               // [PreB]    B Open (<LA)
+            Object(Foo::PreB(S7)),    // [PreB]    B Open (<LA)
+            Object(Foo::PreBClose),   // [PreB]    B Close (<LA)
+            Incomplete,               // [PreA]    A Open (<LA)
+            Object(Foo::PreA(S8)),    // [PreA]    A Open (<LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Object(Foo::RootClose),   // [Root]  Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Superstate preemption as above,
+//   but using a normal NT instead of Sum NT.
+#[test]
+fn superstate_preempt_element_open_non_sum() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        RootClose,
+        ChildA,
+        ChildAClose,
+        ChildB,
+        ChildBClose,
+        PreA(Span),
+        PreAClose,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_CHILDA: QName = QN_NAME;
+    const QN_CHILDB: QName = QN_DIM;
+    const QN_PRE_A: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        [super] {
+            // We can provide a _single_ NT to preempt.
+            PreA
+        };
+
+        Root := QN_ROOT {
+            @ {} => Foo::Root,
+            / => Foo::RootClose,
+
+            // Note how `AB` is _not_ a child here.
+            ChildA,
+            ChildB,
+        };
+
+        ChildA := QN_CHILDA {
+            @ {} => Foo::ChildA,
+            / => Foo::ChildAClose,
+        };
+
+        ChildB := QN_CHILDB {
+            @ {} => Foo::ChildB,
+            / => Foo::ChildBClose,
+        };
+
+        PreA := QN_PRE_A(_, ospan) {
+            @ {} => Foo::PreA(ospan.span()),
+            / => Foo::PreAClose,
+        };
+    }
+
+    let toks = vec![
+        // Yes, we can preempt at the root.
+        // This would allow,
+        //   for example,
+        //   template application as the root element,
+        //     which was _not_ possible in the original TAME.
+        // Note that this would cause the root to be the preempted node
+        //   itself,
+        //     and so it would _take the place of_ the intended root.
+        // This isn't the place to discuss the merits of such a thing.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S1, N), Depth(0)),
+        // Preempted nodes are parsed just as any other node,
+        //   so control has been passed to `PreA`.
+        XirfToken::Close(None, CloseSpan::empty(S1), Depth(0)),
+        //
+        // Now let's open our _expected_ root,
+        //   without preemption.
+        // Note that this is effectively another XML document,
+        //   and XIRF would not allow this.
+        // But we're in control of the token stream here and so we're going
+        //   to do it anyway for convenience.
+        XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
+        // At this point we are performing attribute parsing.
+        // Let's try to preempt;
+        //   we'll want to ensure that attributes will be omitted before the
+        //   preempted node,
+        //     otherwise we'd be a sibling rather than a child.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // Now let's return to normal parsing with the expected child.
+        XirfToken::Open(QN_CHILDA, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // We're now expecting `ChildB`.
+        // Preempt again.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+        // Preemption should not have changed the state of `Root`,
+        //   and so _we should still be expecting `ChildB`_.
+        XirfToken::Open(QN_CHILDB, OpenSpan(S6, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        // Finally,
+        //   we ought to be able to preempt before the closing tag too.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S7, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+        // This poor document has had enough.
+        // Let it close.
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Incomplete,               // [PreA]    A Open
+            Object(Foo::PreA(S1)),    // [PreA@]   A Close (>LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Incomplete,               // [Root]    Root Open
+            Object(Foo::Root),        // [Root@]   A Open (>LA)
+            Incomplete,               // [PreA]    A Open (<LA)
+            Object(Foo::PreA(S3)),    // [PreA]    A Open (<LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Incomplete,               // [ChildA]  ChildA Open
+            Object(Foo::ChildA),      // [ChildA@] ChildA Close (<LA)
+            Object(Foo::ChildAClose), // [ChildA]  ChildA Close (<LA)
+            Incomplete,               // [PreA]    A Open
+            Object(Foo::PreA(S5)),    // [PreA@]   A Close (>LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Incomplete,               // [ChildB]  ChildB Open
+            Object(Foo::ChildB),      // [ChildB@] ChildB Close (<LA)
+            Object(Foo::ChildBClose), // [ChildB]  ChildB Close (<LA)
+            Incomplete,               // [PreA]    A Open (<LA)
+            Object(Foo::PreA(S7)),    // [PreA]    A Open (<LA)
+            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
+            Object(Foo::RootClose),   // [Root]  Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Layers of preemption
+//   (e.g. nested template applications).
+#[test]
+fn superstate_preempt_element_open_nested() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        RootClose,
+        PreA(Span),
+        PreAClose(Span),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_PRE_A: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        [super] {
+            // We can provide a _single_ NT to preempt.
+            PreA
+        };
+
+        Root := QN_ROOT {
+            @ {} => Foo::Root,
+            / => Foo::RootClose,
+        };
+
+        PreA := QN_PRE_A(_, ospan) {
+            @ {} => Foo::PreA(ospan.span()),
+            /(cspan) => Foo::PreAClose(cspan.span()),
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
+        // First preemption
+        XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+        // And now a second preemption as a child of the first.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S4, N), Depth(2)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(2)),
+        // Adjacent to ensure previous one closed.
+        XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(2)),
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(2)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Incomplete,                 // [Root]  Root Open
+            Object(Foo::Root),          // [Root@] PreA Open (>LA)
+            Incomplete,                 // [PreA]  PreA Open (<LA)
+            Object(Foo::PreA(S3)),      // [PreA@] PreA Open (>LA)
+            Incomplete,                 // [PreA]  PreA Open (<LA)
+            Object(Foo::PreA(S4)),      // [PreA@] PreA Close (>LA)
+            Object(Foo::PreAClose(S4)), // [PreA]  PreA Close (<LA)
+            Incomplete,                 // [PreA]  PreA Open (<LA)
+            Object(Foo::PreA(S5)),      // [PreA@] PreA Close (>LA)
+            Object(Foo::PreAClose(S5)), // [PreA]  PreA Close (<LA)
+            Object(Foo::PreAClose(S3)), // [PreA]  PreA Close
+            Object(Foo::RootClose),     // [Root]  Root Close
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 // If there are any parsers that still have work to do
 //   (any on the stack),
 //   we cannot consider ourselves to be done parsing.
