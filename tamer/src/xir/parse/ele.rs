@@ -50,13 +50,6 @@ pub struct EleParseCfg {
     pub repeat: bool,
 }
 
-// This is an implementation detail for the internal state of EleParseState.
-impl From<EleParseCfg> for () {
-    fn from(_: EleParseCfg) -> Self {
-        ()
-    }
-}
-
 /// Maximum level of nesting for source XML trees.
 ///
 /// Technically this is the maximum level of nesting for _parsing_ those
@@ -252,15 +245,26 @@ macro_rules! ele_parse {
         $(type AttrValueError = $evty:ty;)?
         type Object = $objty:ty;
 
-        $($rest:tt)*
+        $(
+            [super] {
+                $($super_body:tt)*
+            };
+        )?
+
+        // Combination of square brackets above and the prefix here are
+        //   needed for disambiguation.
+        $nt_first:ident := $($nt_defs:tt)*
     ) => {
         ele_parse! {@!next $vis $super
             $(type AttrValueError = $evty;)?
             type Object = $objty;
-            $($rest)*
+            $nt_first := $($nt_defs)*
         }
 
-        ele_parse!(@!super_sum <$objty> $vis $super $($rest)*);
+        ele_parse!(@!super_sum <$objty> $vis $super
+            $([super] { $($super_body)* })?
+            $nt_first := $($nt_defs)*
+        );
     };
 
     (@!next $vis:vis $super:ident
@@ -423,11 +427,6 @@ macro_rules! ele_parse {
         //   (defaulting to Incomplete via @!ele_expand_body).
         /$($close_span:ident)? => $closemap:expr,
 
-        // Non-whitespace text nodes can be mapped into elements with the
-        //   given QName as a preprocessing step,
-        //     allowing them to reuse the existing element NT system.
-        $([text]($text:ident, $text_span:ident) => $text_map:expr,)?
-
         // Nonterminal references.
         <> {
             $(
@@ -547,16 +546,60 @@ macro_rules! ele_parse {
                     crate::xir::parse::NodeMatcher::from($qname)
                 }
 
-                /// Yield the expected depth of child elements,
-                ///   if known.
-                #[allow(dead_code)] // used by text special form
-                fn child_depth(&self) -> Option<crate::xir::flat::Depth> {
+                /// Whether the parser is in a state that can tolerate
+                ///   superstate node preemption.
+                ///
+                /// For more information,
+                ///   see the superstate
+                #[doc=concat!(
+                    " [`", stringify!($super), "::can_preempt_node`]."
+                )]
+                fn can_preempt_node(&self) -> bool {
+                    use $nt::*;
+
                     match self {
-                        $ntfirst((_, _, _, depth)) => Some(depth.child_depth()),
+                        // Preemption before the opening tag is safe,
+                        //   since we haven't started processing yet.
+                        Expecting_(..) => true,
+
+                        // Preemption during recovery would cause tokens to
+                        //   be parsed when they ought to be ignored,
+                        //     so we must process all tokens during recovery.
+                        RecoverEleIgnore_(..)
+                        | CloseRecoverIgnore_(..) => false,
+
+                        // It is _not_ safe to preempt attribute parsing
+                        //   since attribute parsers aggregate until a
+                        //   non-attribute token is encountered;
+                        //     we must allow attribute parsing to finish its
+                        //     job _before_ any preempted nodes are emitted
+                        //     since the attributes came _before_ that node.
+                        Attrs_(..) => false,
+
+                        // These states represent jump states where we're
+                        //   about to transition to the next child parser.
+                        // It's safe to preempt here,
+                        //   since we're not in the middle of parsing.
+                        //
+                        // Note that this includes `ExpectClose_` because of
+                        //   the macro preprocessing,
+                        //     and Rust's exhaustiveness check will ensure
+                        //     that it is accounted for if that changes.
+                        // If we're expecting that the next token is a
+                        //   `Close`,
+                        //     then it must be safe to preempt other nodes
+                        //     that may appear in this context as children.
+                        $ntfirst(..) => true,
                         $(
-                            $ntnext((_, _, _, depth)) => Some(depth.child_depth()),
+                            $ntnext(..) => true,
                         )*
-                        _ => None,
+
+                        // Preemption after closing is similar to preemption
+                        //   in `Expecting_`,
+                        //     in that we're effectively in the parent
+                        //     context.
+                        RecoverEleIgnoreClosed_(..)
+                        | Closed_(..) => true,
                     }
                 }
             }
@@ -730,10 +773,6 @@ macro_rules! ele_parse {
                             parse::parse_attrs,
                         },
                     };
-
-                    // Used only by _some_ expansions.
-                    #[allow(unused_imports)]
-                    use crate::xir::flat::Text;
 
                     use $nt::{
                         Attrs_, Expecting_, RecoverEleIgnore_,
@@ -914,6 +953,38 @@ macro_rules! ele_parse {
                 /// Inner element has been parsed and is dead;
                 ///   this indicates that this parser is also dead.
                 Done_,
+            }
+
+            impl $nt {
+                /// Whether the parser is in a state that can tolerate
+                ///   superstate node preemption.
+                ///
+                /// For more information,
+                ///   see the superstate
+                #[doc=concat!(
+                    " [`", stringify!($super), "::can_preempt_node`]."
+                )]
+                fn can_preempt_node(&self) -> bool {
+                    use $nt::*;
+
+                    match self {
+                        // Preemption before the opening tag is safe,
+                        //   since we haven't started processing yet.
+                        Expecting_(..) => true,
+
+                        // Preemption during recovery would cause tokens to
+                        //   be parsed when they ought to be ignored,
+                        //     so we must process all tokens during recovery.
+                        RecoverEleIgnore_(..) => false,
+
+                        // Preemption after closing is similar to preemption
+                        //   in `Expecting_`,
+                        //     in that we're effectively in the parent
+                        //     context.
+                        RecoverEleIgnoreClosed_(..)
+                        | Done_ => true,
+                    }
+                }
             }
 
             impl std::fmt::Display for $nt {
@@ -1123,6 +1194,14 @@ macro_rules! ele_parse {
     //       those data.
     (@!super_sum <$objty:ty> $vis:vis $super:ident
         $(
+            [super] {
+                // Non-whitespace text nodes can be mapped into elements
+                //   with the given QName as a preprocessing step,
+                //     allowing them to reuse the existing element NT system.
+                $([text]($text:ident, $text_span:ident) => $text_map:expr,)?
+            }
+        )?
+        $(
             // NT definition is always followed by `:=`.
             $nt:ident :=
                 // Identifier if an element NT.
@@ -1247,7 +1326,31 @@ macro_rules! ele_parse {
                         xir::flat::{XirfToken, RefinedText},
                     };
 
+                    // Used only by _some_ expansions.
+                    #[allow(unused_imports)]
+                    use crate::xir::flat::Text;
+
                     match (self, tok) {
+                        // [super] {
+                        $(
+                            // [text] preemption;
+                            //   see `Self::can_preempt_node`.
+                            $(
+                                (
+                                    st,
+                                    XirfToken::Text(
+                                        RefinedText::Unrefined(
+                                            Text($text, $text_span)
+                                        ),
+                                        _,
+                                    )
+                                ) if st.can_preempt_node() => {
+                                    Transition(st).ok($text_map)
+                                },
+                            )?
+                        )?
+                        // }
+
                         // Depth check is unnecessary since _all_ xir::parse
                         //   parsers
                         //     (at least at the time of writing)
@@ -1258,7 +1361,6 @@ macro_rules! ele_parse {
                         (
                             st,
                             XirfToken::Text(RefinedText::Whitespace(..), _)
-                            | XirfToken::Text(RefinedText::Unrefined(..), _) // XXX
                             | XirfToken::Comment(..)
                         ) => {
                             Transition(st).incomplete()
@@ -1314,6 +1416,40 @@ macro_rules! ele_parse {
                     match self {
                         $(
                             Self::$nt(st) => st.is_accepting(ctx),
+                        )*
+                    }
+                }
+
+                /// Whether the inner parser is in a state that can tolerate
+                ///   superstate node preemption.
+                ///
+                /// Node preemption allows us (the superstate) to ask for
+                ///   permission from the inner parser to parse some token
+                ///   ourselves,
+                ///     by asking whether the parser is in a state that
+                ///     would cause semantic issues if we were to do so.
+                ///
+                /// For example,
+                ///   if we were to preempt text nodes while an inner parser
+                ///   was still parsing attributes,
+                ///     then we would emit an object associated with that
+                ///     text before the inner parser had a chance to
+                ///     conclude that attribute parsing has completed and
+                ///     emit the opening object for that node;
+                ///       the result would otherwise be an incorrect
+                ///       `Text, Open` instead of the correct `Open, Text`,
+                ///         which would effectively unparent the text.
+                /// Similarly,
+                ///   if we were to parse our own tokens while an inner
+                ///   parser was performing error recovery in such a way as
+                ///   to ignore all child tokens,
+                ///     then we would emit an object in an incorrect
+                ///     context.
+                #[allow(dead_code)] // TODO: Remove when using for tpl apply
+                fn can_preempt_node(&self) -> bool {
+                    match self {
+                        $(
+                            Self::$nt(st) => st.can_preempt_node(),
                         )*
                     }
                 }

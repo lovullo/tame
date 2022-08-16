@@ -1554,14 +1554,8 @@ fn sum_repetition() {
 }
 
 // Text nodes may appear between elements if a `[text]` special form
-//   specifies a mapping.
+//   specifies a mapping on the superstate.
 // This is "mixed content" in XML.
-//
-// The `[text]` mapping applies to all text nodes at the child depth of the
-//   element,
-//     meaning it'll preempt sum parser delegation to provide the desired
-//     behavior.
-#[ignore] // TODO: ignoring text nodes for now; fix!
 #[test]
 fn mixed_content_text_nodes() {
     #[derive(Debug, PartialEq, Eq)]
@@ -1569,8 +1563,7 @@ fn mixed_content_text_nodes() {
         Root,
         A,
         B,
-        TextRoot(SymbolId, Span),
-        TextA(SymbolId, Span),
+        Text(SymbolId, Span),
     }
 
     impl crate::parse::Object for Foo {}
@@ -1583,14 +1576,17 @@ fn mixed_content_text_nodes() {
         enum Sut;
         type Object = Foo;
 
+        [super] {
+            // The `[text]` special form here introduces a `Text` mapping
+            //   for all non-whitespace text nodes.
+            [text](sym, span) => Foo::Text(sym, span),
+        };
+
         Root := QN_SUT {
             @ {} => Foo::Root,
 
-            // The `[text]` special form here introduces a `Text` mapping
-            //   for all non-whitespace text node at the same depth as our
-            //   child elements.
-            [text](sym, span) => Foo::TextRoot(sym, span),
-
+            // Text allowed at any point between these elements because of
+            //   the `[super]` definition.
             A,
             AB[*],
         };
@@ -1598,10 +1594,8 @@ fn mixed_content_text_nodes() {
         A := QN_A {
             @ {} => Foo::A,
 
-            // The child should not have its text processing preempted.
-            [text](sym, span) => Foo::TextA(sym, span),
-
-            // Text should be permitted even though we permit no children.
+            // Text should be permitted even though we permit no children,
+            //   because of the `[super]` definition.
         };
 
         // Used only for `AB`.
@@ -1626,21 +1620,17 @@ fn mixed_content_text_nodes() {
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
         // Whitespace will not match the `[text]` special form.
         tok_ws.clone(),
-        // Text node for the root (Root).
+        // Text before root open.
+        // This must be emitted as a _child_ of Root,
+        //   meaning that Root must be given the opportunity to report that
+        //   attribute parsing is finished before we emit the object.
         XirfToken::Text(RefinedText::Unrefined(Text(text_root, S1)), Depth(1)),
-        // This child also expects text nodes,
-        //   and should be able to yield its own parse.
         XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        // If this goes wrong,
-        //   and Root does not properly check its depth,
-        //   then the parser would erroneously yield `Foo::TextRoot` for
-        //     this token.
+        // Text within a child.
         XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Now we're about to parse with `AB`,
-        //   which itself cannot handle text.
-        // But text should never reach that parser,
-        //   having been preempted by Root.
+        // Text _after_ a child node,
+        //   which does not require ending attribute parsing before emitting.
         XirfToken::Text(RefinedText::Unrefined(Text(text_root, S3)), Depth(1)),
         // Try to yield A again with text.
         XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
@@ -1654,36 +1644,33 @@ fn mixed_content_text_nodes() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,                           // [Root]  Root Open
-            Incomplete,                           // [Root@] WS
-            Object(Foo::Root),                    // [Root@] Text (>LA)
-            Object(Foo::TextRoot(text_root, S1)), // [Root]  Text (<LA)
-            Incomplete,                           // [A]     A Open (<LA)
-            Object(Foo::A),                       // [A@]    A Text (>LA)
-            Object(Foo::TextA(text_a, S2)),       // [A]     Text (<LA)
-            Incomplete,                           // [A]     A Close
-            Object(Foo::TextRoot(text_root, S3)), // [Root]   Text
-            Incomplete,                           // [A]     A Open
-            Object(Foo::A),                       // [A@]    A Text (>LA)
-            Object(Foo::TextA(text_a, S4)),       // [A]     Text (<LA)
-            Incomplete,                           // [A]     A Close
-            Object(Foo::TextRoot(text_root, S5)), // [Root]  Text
-            Incomplete,                           // [Root]  Root Close
+            Incomplete,                       // [Root]  Root Open
+            Incomplete,                       // [Root@] WS
+            Object(Foo::Root),                // [Root@] Text (>LA)
+            Object(Foo::Text(text_root, S1)), // [Root]  Text (<LA)
+            Incomplete,                       // [A]     A Open (<LA)
+            Object(Foo::A),                   // [A@]    A Text (>LA)
+            Object(Foo::Text(text_a, S2)),    // [A]     Text (<LA)
+            Incomplete,                       // [A]     A Close
+            Object(Foo::Text(text_root, S3)), // [Root]  Text
+            Incomplete,                       // [A]     A Open
+            Object(Foo::A),                   // [A@]    A Text (>LA)
+            Object(Foo::Text(text_a, S4)),    // [A]     Text (<LA)
+            Incomplete,                       // [A]     A Close
+            Object(Foo::Text(text_root, S5)), // [Root]  Text
+            Incomplete,                       // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
 }
 
 /// Contrast this test with [`mixed_content_text_nodes`] above.
-#[ignore] // TODO: ignoring text nodes for now; fix!
-#[allow(dead_code)]
 #[test]
-fn mixed_content_text_nodes_with_non_mixed_content_child() {
+fn no_mixed_content_super() {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
         Root,
         A,
-        TextRoot(SymbolId, Span),
     }
 
     impl crate::parse::Object for Foo {}
@@ -1691,6 +1678,7 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
     const QN_SUT: QName = QN_PACKAGE;
     const QN_A: QName = QN_CLASSIFY;
 
+    // No text permitted.
     ele_parse! {
         enum Sut;
         type Object = Foo;
@@ -1698,19 +1686,11 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
         Root := QN_SUT {
             @ {} => Foo::Root,
 
-            // Mixed content permitted at root
-            //   (but we won't be providing text for it in this test).
-            [text](sym, span) => Foo::TextRoot(sym, span),
-
-            // But this child will not permit text.
             A,
         };
 
         A := QN_A {
             @ {} => Foo::A,
-
-            // Missing `[text`];
-            //   no mixed content permitted.
         };
     }
 
@@ -1719,9 +1699,7 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
     let toks = vec![
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
         XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        // Even though the root permits text,
-        //   the child `A` does not,
-        //   and so this should result in an error.
+        // Text should not be permitted.
         XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         XirfToken::Close(Some(QN_SUT), CloseSpan(S6, N), Depth(0)),
@@ -1738,11 +1716,9 @@ fn mixed_content_text_nodes_with_non_mixed_content_child() {
     assert_eq!(sut.next(), Some(Ok(Incomplete))); // [A] A Open (<LA)
     assert_eq!(sut.next(), Some(Ok(Object(Foo::A)))); // [A@] Text (>LA)
 
-    // The next token is `Text`,
-    //   which is not expected by `A` and so should produce an error.
-    // The error that it produces at the time of writing is different than
-    //   the error that it will eventually produce,
-    //     so let's just expect some sort of error.
+    // The next token is text,
+    //   which is not permitted because of a lack of `[super]` with
+    //   `[text`].
     assert_matches!(sut.next(), Some(Err(_))); // [A] Text (<LA)
 
     // A then enters recovery,
