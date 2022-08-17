@@ -281,6 +281,7 @@ fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
     );
 }
 
+// Static, aggregate attribute objects.
 #[test]
 fn empty_element_with_attr_bindings() {
     #[derive(Debug, PartialEq, Eq)]
@@ -364,6 +365,84 @@ fn empty_element_with_attr_bindings() {
             Parsed::Incomplete,                                 // Attr
             Parsed::Object(Foo(name_val, value_val, (S5, S3))), // Close
             Parsed::Incomplete,                                 // Close (LA)
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Rather than using aggregate attributes,
+//   `[test]` allows for dynamic streaming attribute parsing.
+// This is necessary for elements like short-hand template applications.
+#[test]
+fn element_with_streaming_attrs() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open,
+        Attr(Attr),
+        Child,
+        Close,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_CHILD: QName = QN_DIM;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        Root := QN_ROOT {
+            // symbol soup
+            @ {} => Foo::Open,
+            / => Foo::Close,
+
+            // This binds all attributes in place of `@ {}` above.
+            [attr](attr) => Foo::Attr(attr),
+
+            Child,
+        };
+
+        Child := QN_CHILD {
+            @ {} => Foo::Child,
+        };
+    }
+
+    let attr1 = Attr(QN_NAME, "one".into(), AttrSpan(S2, S3));
+    let attr2 = Attr(QN_TYPE, "two".into(), AttrSpan(S3, S4));
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // These attributes should stream,
+        //   but only _after_ having emitted the opening object from `@ {}`.
+        XirfToken::Attr(attr1.clone()),
+        XirfToken::Attr(attr2.clone()),
+        // A child should halt attribute parsing just the same as `@ {}`
+        //   would without the `[text]` special form.
+        XirfToken::Open(QN_CHILD, OpenSpan(S5, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+    ];
+
+    // Unlike other test cases,
+    //   rather than attribute parsing yielding a single object,
+    //   we will see both the `@ {}` object _and_ individual attributes
+    //   from the `[attr]` map.
+    // Since we are not aggregating,
+    //   and since streaming attributes must be emitted _after_ the opening
+    //     object to ensure proper nesting in the downstream IR,
+    //   the `@ {}` object is emitted immediately upon opening instead of
+    //     emitting an incomplete parse.
+    use Parsed::*;
+    assert_eq!(
+        Ok(vec![
+            Object(Foo::Open),        // [Root]   Root Open
+            Object(Foo::Attr(attr1)), // [Root]   attr1
+            Object(Foo::Attr(attr2)), // [Root]   attr2
+            Incomplete,               // [Child]  Child Open (<LA)
+            Object(Foo::Child),       // [Child@] Child Close (>LA)
+            Incomplete,               // [Child]  Child Close (<LA)
+            Object(Foo::Close),       // [Root]   Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

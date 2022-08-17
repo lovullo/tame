@@ -427,6 +427,9 @@ macro_rules! ele_parse {
         //   (defaulting to Incomplete via @!ele_expand_body).
         /$($close_span:ident)? => $closemap:expr,
 
+        // Streaming (as opposed to aggregate) attribute parsing.
+        $([attr]($attr_stream_binding:ident) => $attr_stream_map:expr,)?
+
         // Nonterminal references.
         <> {
             $(
@@ -806,7 +809,7 @@ macro_rules! ele_parse {
                         xir::{
                             EleSpan,
                             flat::XirfToken,
-                            parse::parse_attrs,
+                            parse::{parse_attrs, EleParseCfg},
                         },
                     };
 
@@ -816,15 +819,37 @@ macro_rules! ele_parse {
                         RecoverEleIgnoreClosed_, ExpectClose_, Closed_
                     };
 
+                    // Needed since `$ntfirst_cfg` cannot be nested within
+                    //   the conditional `[attr]` block.
+                    #[allow(dead_code)]
+                    const NTFIRST_CFG: EleParseCfg =
+                        ele_parse!(@!ntref_cfg $($ntfirst_cfg)?);
+
                     match (self, tok) {
                         (
                             Expecting_(cfg) | NonPreemptableExpecting_(cfg),
                             XirfToken::Open(qname, span, depth)
                         ) if $nt::matches(qname) => {
-                            Transition(Attrs_(
+                            let transition = Transition(Attrs_(
                                 (cfg, qname, span.tag_span(), depth),
                                 parse_attrs(qname, span)
-                            )).incomplete()
+                            ));
+
+                            // Streaming attribute parsing will cause the
+                            //   attribute map to be yielded immediately as
+                            //   the opening object,
+                            //     since we will not be aggregating attrs.
+                            $(
+                                // Used only to match on `[attr]`.
+                                let [<_ $attr_stream_binding>] = ();
+                                return transition.ok($attrmap);
+                            )?
+
+                            // If the `[attr]` special form was _not_
+                            //   provided,
+                            //     we'll be aggregating attributes.
+                            #[allow(unreachable_code)]
+                            transition.incomplete()
                         },
 
                         (
@@ -855,6 +880,50 @@ macro_rules! ele_parse {
                             ).incomplete()
                         },
 
+                        // Streaming attribute matching takes precedence
+                        //   over aggregate.
+                        // This is primarily me being lazy,
+                        //   because it's not worth a robust syntax for
+                        //   something that's rarely used
+                        //     (macro-wise, I mean;
+                        //       it's heavily utilized as a percentage of
+                        //         source file parsed since short-hand
+                        //         template applications are heavily used).
+                        $(
+                            (
+                                st @ Attrs_(..),
+                                XirfToken::Attr($attr_stream_binding),
+                            ) => Transition(st).ok($attr_stream_map),
+
+                            // Override the aggregate attribute parser
+                            //   delegation by forcing the below match to
+                            //   become unreachable
+                            //     (xref anchor <<SATTR>>).
+                            // Since we have already emitted the `$attrmap`
+                            //   object on `Open`,
+                            //     this yields an incomplete parse.
+                            (Attrs_(meta, _), tok) => {
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    $ntfirst(meta),
+                                    $ntfirst_st,
+                                    Transition(
+                                        Into::<$ntfirst_st>::into(
+                                            NTFIRST_CFG
+                                        )
+                                    ).incomplete().with_lookahead(tok),
+                                    Transition($ntfirst(meta))
+                                        .incomplete()
+                                        .with_lookahead(tok)
+                                )
+                            }
+                        )?
+
+                        // This becomes unreachable when the `[attr]` special
+                        //   form is provided,
+                        //     which overrides this match directly above
+                        //       (xref <<SATTR>>).
+                        #[allow(unreachable_patterns)]
                         (Attrs_(meta @ (_, qname, _, _), sa), tok) => {
                             sa.delegate_until_obj::<Self, _>(
                                 tok,
@@ -888,7 +957,7 @@ macro_rules! ele_parse {
                                         $ntfirst_st,
                                         Transition(
                                             Into::<$ntfirst_st>::into(
-                                                ele_parse!(@!ntref_cfg $($ntfirst_cfg)?)
+                                                NTFIRST_CFG
                                             )
                                         ).ok(obj),
                                         Transition($ntfirst(meta)).ok(obj)
