@@ -532,7 +532,7 @@ macro_rules! ele_parse {
                 ///   complete.
                 Closed_(
                     crate::xir::parse::EleParseCfg,
-                    crate::xir::QName,
+                    Option<crate::xir::QName>,
                     crate::span::Span
                 ),
             }
@@ -713,10 +713,16 @@ macro_rules! ele_parse {
                             "expecting closing element {} at depth {depth}",
                             TtCloseXmlEle::wrap(qname)
                         ),
-                        Self::Closed_(_, qname, _) => write!(
+                        Self::Closed_(_, Some(qname), _) => write!(
                             f,
                             "done parsing element {}",
                             TtQuote::wrap(qname),
+                        ),
+                        // Should only happen on an unexpected `Close`.
+                        Self::Closed_(_, None, _) => write!(
+                            f,
+                            "skipped parsing element {}",
+                            TtQuote::wrap(Self::matcher()),
                         ),
                         $(
                             // TODO: A better description.
@@ -737,6 +743,15 @@ macro_rules! ele_parse {
                 /// An element was expected,
                 ///   but the name of the element was unexpected.
                 UnexpectedEle_(crate::xir::QName, crate::span::Span),
+
+                /// A child element was expected,
+                ///   but instead the parent element was closed.
+                ///
+                /// To be clear:
+                ///   the child element is _us_,
+                ///     so the closing parent element is at a depth one
+                ///     higher than we are parsing.
+                UnexpectedClose_(Option<crate::xir::QName>, crate::span::Span),
 
                 /// Unexpected input while expecting an end tag for this
                 ///   element.
@@ -782,12 +797,35 @@ macro_rules! ele_parse {
                             unexpected = TtOpenXmlEle::wrap(name),
                             expected = TtOpenXmlEle::wrap($nt::matcher()),
                         ),
+
+                        Self::UnexpectedClose_(oqname, _) => {
+                            // Unlike Sum NTs,
+                            //   since our `expected` string is small,
+                            //   we can include it in the error summary.
+                            match oqname {
+                                Some(qname) => write!(
+                                    f,
+                                    "unexpected {unexpected} \
+                                       (expecting {expected})",
+                                    unexpected = TtCloseXmlEle::wrap(qname),
+                                    expected = TtCloseXmlEle::wrap($nt::matcher()),
+                                ),
+                                None => write!(
+                                    f,
+                                    "unexpected close of element \
+                                       (expecting {})",
+                                    TtOpenXmlEle::wrap($nt::matcher()),
+                                ),
+                            }
+                        },
+
                         Self::CloseExpected_(qname, _, tok) => write!(
                             f,
                             "expected {}, but found {}",
                             TtCloseXmlEle::wrap(qname),
                             TtQuote::wrap(tok)
                         ),
+
                         Self::Attrs_(e) => std::fmt::Display::fmt(e, f),
                     }
                 }
@@ -809,6 +847,15 @@ macro_rules! ele_parse {
                                 ele_name = TtQuote::wrap($nt::matcher())
                             )
                         ).into(),
+
+                        Self::UnexpectedClose_(_, span) => {
+                            span
+                                .error(format!(
+                                    "expecting {}",
+                                    TtCloseXmlEle::wrap($nt::matcher()),
+                                ))
+                                .into()
+                        }
 
                         Self::CloseExpected_(qname, span, tok) => vec![
                             span.note("element starts here"),
@@ -895,6 +942,28 @@ macro_rules! ele_parse {
                                 parse_attrs(qname, span)
                             )).incomplete()
                         },
+
+                        // `Close` when expecting an element.
+                        // Note that the above repetition check will prevent
+                        //   this error when repeating.
+                        (
+                            Expecting_(cfg) | NonPreemptableExpecting_(cfg),
+                            XirfToken::Close(oqname, cspan, depth)
+                        ) => {
+                            // We have no choice but to close,
+                            //   but downstream IRs lowering probably won't
+                            //   be happy about it.
+                            Transition(Closed_(cfg, oqname, cspan.tag_span())).err(
+                                // The error span should represent the tag,
+                                //     since the fact that we encountered a
+                                //     `Close` at all is the problem.
+                                [<$nt Error_>]::UnexpectedClose_(
+                                    oqname, cspan.tag_span()
+                                )
+                            ).with_lookahead(
+                                XirfToken::Close(oqname, cspan, depth)
+                            )
+                        }
 
                         (
                             Expecting_(cfg) | NonPreemptableExpecting_(cfg),
@@ -1026,7 +1095,7 @@ macro_rules! ele_parse {
                             $(
                                 let $close_span = span;
                             )?
-                            $closemap.transition(Closed_(cfg, qname, span.tag_span()))
+                            $closemap.transition(Closed_(cfg, Some(qname), span.tag_span()))
                         },
 
                         (ExpectClose_(meta @ (_, qname, otspan, _)), unexpected_tok) => {
@@ -1247,6 +1316,10 @@ macro_rules! ele_parse {
             #[derive(Debug, PartialEq)]
             $vis enum [<$nt Error_>] {
                 UnexpectedEle_(crate::xir::QName, crate::span::Span),
+
+                /// A child element was expected,
+                ///   but instead the parent element was closed.
+                UnexpectedClose_(Option<crate::xir::QName>, crate::span::Span),
             }
 
             impl std::error::Error for [<$nt Error_>] {
@@ -1260,12 +1333,28 @@ macro_rules! ele_parse {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
                         fmt::DisplayWrapper,
-                        xir::fmt::TtOpenXmlEle,
+                        xir::fmt::{TtOpenXmlEle, TtCloseXmlEle},
                     };
 
                     match self {
                         Self::UnexpectedEle_(qname, _) => {
                             write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
+                        },
+
+                        Self::UnexpectedClose_(oqname, _) => {
+                            // Don't include expected in the error summary
+                            //   because it can be really large.
+                            match oqname {
+                                Some(qname) => write!(
+                                    f,
+                                    "unexpected {}",
+                                    TtCloseXmlEle::wrap(qname)
+                                ),
+                                None => write!(
+                                    f,
+                                    "unexpected close of element",
+                                ),
+                            }
                         },
                     }
                 }
@@ -1278,6 +1367,12 @@ macro_rules! ele_parse {
                         fmt::{DisplayWrapper, TtQuote, DisplayFn},
                     };
 
+                    // Note that we should place expected values in the help
+                    //   footnote rather than the span label because it can
+                    //   get rather long.
+                    // Maybe in the future the diagnostic renderer can be
+                    //   smart about that based on the terminal width and
+                    //   automatically move into the footer.
                     match self {
                         Self::UnexpectedEle_(qname, span) => {
                             span
@@ -1291,6 +1386,16 @@ macro_rules! ele_parse {
                                 ))
                                 .into()
                         },
+
+                        Self::UnexpectedClose_(_, span) => {
+                            span
+                                .error("element was closed prematurely")
+                                .with_help(format!(
+                                    "expecting {}",
+                                    DisplayFn($nt::fmt_matches_top)
+                                ))
+                                .into()
+                        }
                     }
                 }
             }
@@ -1314,6 +1419,7 @@ macro_rules! ele_parse {
                         xir::{
                             flat::XirfToken,
                             parse::EleParseCfg,
+                            EleSpan,
                         },
                     };
 
@@ -1392,11 +1498,32 @@ macro_rules! ele_parse {
                             tok
                         ) if cfg.repeat => Transition(Done_).dead(tok),
 
+                        // `Close` when expecting an element.
+                        // Note that the above repetition check will prevent
+                        //   this error when repeating.
+                        (
+                            Expecting_(..) | NonPreemptableExpecting_(..),
+                            XirfToken::Close(oqname, cspan, depth)
+                        ) => {
+                            // We have no choice but to close,
+                            //   but downstream IRs lowering probably won't
+                            //   be happy about it.
+                            Transition(Done_).err(
+                                // The error span should represent the tag,
+                                //     since the fact that we encountered a
+                                //     `Close` at all is the problem.
+                                [<$nt Error_>]::UnexpectedClose_(
+                                    oqname, cspan.tag_span()
+                                )
+                            ).with_lookahead(
+                                XirfToken::Close(oqname, cspan, depth)
+                            )
+                        }
+
                         (
                             Expecting_(cfg) | NonPreemptableExpecting_(cfg),
                             XirfToken::Open(qname, span, depth)
                         ) => {
-                            use crate::xir::EleSpan;
                             Transition(RecoverEleIgnore_(cfg, qname, span, depth)).err(
                                 // Use name span rather than full `OpenSpan`
                                 //   since it's specifically the name that

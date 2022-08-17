@@ -1210,6 +1210,158 @@ fn sum_nonterminal_as_child_element() {
     );
 }
 
+// Parent closes before expected (non-Sum) NT is satisfied.
+#[test]
+fn nonterminal_unexpected_close() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open,
+        Child,
+        Close,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_CHILD: QName = QN_PACKAGE;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        Root := QN_PACKAGE {
+            @ {} => Foo::Open,
+            / => Foo::Close,
+
+            Child,
+        };
+
+        Child := QN_CHILD {
+            @ {} => Foo::Child,
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // We're expecting `Child`...but nope.
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    // The first two iterations are expected.
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root] Root Open
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::Open))),); // [Root] Root Close (<LA)
+
+    // But once we encounter the token of lookahead,
+    //   which is `Close`,
+    //   we're in error,
+    //   since we expected `A|B`.
+    let err = sut.next().unwrap().unwrap_err();
+    assert_eq!(
+        err,
+        // TODO: This references generated identifiers.
+        ParseError::StateError(SutError_::Child(
+            ChildError_::UnexpectedClose_(
+                Some(QN_ROOT),
+                CloseSpan(S2, N).tag_span(),
+            )
+        )),
+    );
+
+    // Recovery should complete AB despite our objections,
+    //   and the token of lookahead should allow the root to close
+    //   successfully.
+    assert_eq!(
+        Ok(vec![
+            Object(Foo::Close),  // [Root] Root Close (<LA)
+        ]),
+        sut.collect(),
+    );
+}
+
+// Parent closes before expected Sum NT is satisfied.
+// Same idea as the above test.
+#[test]
+fn nonterminal_unexpected_close_sum() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open,
+        Child,
+        Close,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    // QNames don't matter as long as they are unique.
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_PACKAGE;
+    const QN_B: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        Root := QN_PACKAGE {
+            @ {} => Foo::Open,
+            / => Foo::Close,
+
+            AB,
+        };
+
+        AB := (A | B);
+
+        A := QN_A {
+            @ {} => Foo::Child,
+        };
+
+        B := QN_B {
+            @ {} => Foo::Child,
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // We're expecting `A|B`...but nope.
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    // The first two iterations are expected.
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root] Root Open
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::Open))),); // [Root] Root Close (<LA)
+
+    // But once we encounter the token of lookahead,
+    //   which is `Close`,
+    //   we're in error,
+    //   since we expected `A|B`.
+    let err = sut.next().unwrap().unwrap_err();
+    assert_eq!(
+        err,
+        // TODO: This references generated identifiers.
+        ParseError::StateError(SutError_::AB(ABError_::UnexpectedClose_(
+            Some(QN_ROOT),
+            CloseSpan(S2, N).tag_span(),
+        ))),
+    );
+
+    // Recovery should complete AB despite our objections,
+    //   and the token of lookahead should allow the root to close
+    //   successfully.
+    assert_eq!(
+        Ok(vec![
+            Object(Foo::Close),  // [Root] Root Close (<LA)
+        ]),
+        sut.collect(),
+    );
+}
+
 #[test]
 fn sum_nonterminal_error_recovery() {
     #[derive(Debug, PartialEq, Eq)]
