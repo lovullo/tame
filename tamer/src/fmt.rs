@@ -221,31 +221,60 @@ pub trait ListDisplayWrapper {
     ///   [`ListDisplayWrapper::wrap`] may be used to produce a
     ///   [`Display`]-able object instead.
     fn fmt<T: Display>(list: &[T], f: &mut Formatter) -> Result {
-        let maxi = list.len().saturating_sub(1);
+        let lasti = list.len().saturating_sub(1);
 
         // This can be further abstracted away using the above primitives,
         //   if ever we have a use.
         for next in list.into_iter().enumerate() {
             match next {
-                (0, x) if maxi == 0 => {
-                    Self::Single::fmt(x, f)?;
-                }
+                (i, x) => Self::fmt_nth(lasti, i, x, f)?,
+            };
+        }
 
-                (0, x) => {
-                    Self::First::fmt(x, f)?;
-                }
+        Ok(())
+    }
 
-                (i, x) if maxi == i => {
-                    if i == 1 {
-                        Self::LastOfPair::fmt(x, f)?;
-                    } else {
-                        Self::LastOfMany::fmt(x, f)?;
-                    }
-                }
+    /// Format an item as if it were the `i`th value of a list of length
+    ///   `lasti+1`.
+    ///
+    /// This allows for generating list-like output without the expense of
+    ///   actually producing a list.
+    /// This may be useful when values are stored in different memory
+    ///   location,
+    ///     so that the displaying of those values is a problem of invoking
+    ///     this method on them in the right order,
+    ///       rather than collecting them just for the sake of display.
+    /// If Rust supports `const` array/Vec functions in the future,
+    ///   this may not be necessary anymore,
+    ///     unless we also don't want the space cost of such a
+    ///     precomputation
+    ///       (but it may come with performance benefits from locality).
+    #[inline]
+    fn fmt_nth<T: Display>(
+        lasti: usize,
+        i: usize,
+        item: &T,
+        f: &mut Formatter,
+    ) -> Result {
+        match (i, item) {
+            (0, x) if lasti == 0 => {
+                Self::Single::fmt(x, f)?;
+            }
 
-                (_, x) => {
-                    Self::Middle::fmt(x, f)?;
+            (0, x) => {
+                Self::First::fmt(x, f)?;
+            }
+
+            (i, x) if lasti == i => {
+                if i == 1 {
+                    Self::LastOfPair::fmt(x, f)?;
+                } else {
+                    Self::LastOfMany::fmt(x, f)?;
                 }
+            }
+
+            (_, x) => {
+                Self::Middle::fmt(x, f)?;
             }
         }
 
@@ -545,6 +574,44 @@ mod test {
         assert_eq!(
             DisplayFn(|f| write!(f, "test fmt")).to_string(),
             "test fmt",
+        );
+    }
+
+    // `fmt_nth` is used by the above tests,
+    //   but that's an implementation detail;
+    //     we expose it as a public API so it ought to be tested too.
+    #[test]
+    fn fmt_nth() {
+        type Sut = QualConjList<"thing", "things", "or", Raw>;
+
+        assert_eq!(
+            DisplayFn(|f| Sut::fmt_nth(0, 0, &"foo", f)).to_string(),
+            "thing foo",
+        );
+
+        assert_eq!(
+            DisplayFn(|f| Sut::fmt_nth(1, 0, &"foo", f)).to_string(),
+            "things foo",
+        );
+
+        assert_eq!(
+            DisplayFn(|f| Sut::fmt_nth(1, 1, &"foo", f)).to_string(),
+            " or foo",
+        );
+
+        assert_eq!(
+            DisplayFn(|f| Sut::fmt_nth(2, 0, &"foo", f)).to_string(),
+            "things foo",
+        );
+
+        assert_eq!(
+            DisplayFn(|f| Sut::fmt_nth(2, 1, &"foo", f)).to_string(),
+            ", foo",
+        );
+
+        assert_eq!(
+            DisplayFn(|f| Sut::fmt_nth(2, 2, &"foo", f)).to_string(),
+            ", or foo",
         );
     }
 }
