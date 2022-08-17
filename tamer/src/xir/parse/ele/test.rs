@@ -222,7 +222,7 @@ fn empty_element_ns_prefix_nomatch() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
             unexpected,
             span.name_span()
         ))),
@@ -271,7 +271,7 @@ fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::CloseExpected_(
+        ParseError::StateError(SutError_::Root(RootError_::CloseExpected(
             // Verify that the error includes the QName that actually matched.
             QN_C_EQ,
             OpenSpan(S1, N).tag_span(),
@@ -512,7 +512,7 @@ fn unexpected_element() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
             unexpected,
             span.name_span()
         ))),
@@ -847,9 +847,10 @@ fn child_error_and_recovery() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::ChildA(
-            ChildAError_::UnexpectedEle_(unexpected, span.name_span())
-        )),
+        ParseError::StateError(SutError_::ChildA(ChildAError_::UnexpectedEle(
+            unexpected,
+            span.name_span()
+        ))),
         err,
     );
 
@@ -962,7 +963,7 @@ fn child_error_and_recovery_at_close() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::CloseExpected_(
+        ParseError::StateError(SutError_::Root(RootError_::CloseExpected(
             QN_PACKAGE,
             OpenSpan(S1, N).tag_span(),
             XirfToken::Open(unexpected_a, span_a, Depth(1)),
@@ -1264,12 +1265,10 @@ fn nonterminal_unexpected_close() {
     assert_eq!(
         err,
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Child(
-            ChildError_::UnexpectedClose_(
-                Some(QN_ROOT),
-                CloseSpan(S2, N).tag_span(),
-            )
-        )),
+        ParseError::StateError(SutError_::Child(ChildError_::UnexpectedClose(
+            Some(QN_ROOT),
+            CloseSpan(S2, N).tag_span(),
+        ))),
     );
 
     // Recovery should complete AB despite our objections,
@@ -1345,7 +1344,7 @@ fn nonterminal_unexpected_close_sum() {
     assert_eq!(
         err,
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::AB(ABError_::UnexpectedClose_(
+        ParseError::StateError(SutError_::AB(ABError_::UnexpectedClose(
             Some(QN_ROOT),
             CloseSpan(S2, N).tag_span(),
         ))),
@@ -1435,7 +1434,7 @@ fn sum_nonterminal_error_recovery() {
     assert_eq!(
         err,
         // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle_(
+        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
             unexpected,
             OpenSpan(S1, N).name_span(),
         ))),
@@ -1668,7 +1667,7 @@ fn child_repetition_invalid_tok_dead() {
         next(),
         // TODO: This references generated identifiers.
         Some(Err(ParseError::StateError(SutError_::Root(
-            RootError_::CloseExpected_(
+            RootError_::CloseExpected(
                 QN_ROOT,
                 OpenSpan(S1, N).tag_span(),
                 XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
