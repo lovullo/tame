@@ -543,8 +543,6 @@ macro_rules! ele_parse {
                 }
             }
 
-            impl crate::xir::parse::EleParseState for $nt {}
-
             impl $nt {
                 /// Matcher describing the node recognized by this parser.
                 #[allow(dead_code)] // used by sum parser
@@ -553,12 +551,48 @@ macro_rules! ele_parse {
                     crate::xir::parse::NodeMatcher::from($qname)
                 }
 
-                // Whether the given QName would be matched by any of the
-                //   parsers associated with this type.
-                //
+                /// Whether the given QName would be matched by any of the
+                ///   parsers associated with this type.
                 #[inline]
                 fn matches(qname: crate::xir::QName) -> bool {
                     Self::matcher().matches(qname)
+                }
+
+                /// Number of
+                ///   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
+                ///   considered by this parser.
+                ///
+                /// This is always `1` for this parser.
+                #[allow(dead_code)] // used by Sum NTs
+                const fn matches_n() -> usize {
+                    1
+                }
+
+                /// Format [`Self::matcher`] for display.
+                ///
+                /// This value may be rendered singularly or as part of a
+                ///   list of values joined together by Sum NTs.
+                /// This function receives the number of values to be
+                ///   formatted as `n` and the current 0-indexed offset
+                ///   within that list as `i`.
+                /// This allows for zero-copy rendering of composable NTs.
+                ///
+                /// `i` must be incremented after the operation.
+                #[allow(dead_code)] // used by Sum NTs
+                fn fmt_matches(
+                    n: usize,
+                    i: &mut usize,
+                    f: &mut std::fmt::Formatter
+                ) -> std::fmt::Result {
+                    use crate::{
+                        fmt::ListDisplayWrapper,
+                        xir::fmt::EleSumList,
+                    };
+
+                    EleSumList::fmt_nth(n, *i, &Self::matcher(), f)?;
+                    *i += 1;
+
+                    Ok(())
                 }
 
                 #[allow(dead_code)] // used by sum parser
@@ -1026,13 +1060,6 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_sum <$objty:ty> $vis:vis $super:ident $nt:ident [$($ntref:ident)*]) => {
-        $(
-            // Provide a (hopefully) helpful error that can be corrected
-            //   rather than any obscure errors that may follow from trying
-            //   to compose parsers that were not generated with this macro.
-            assert_impl_all!($ntref: crate::xir::parse::EleParseState);
-        )*
-
         paste::paste! {
             #[doc=concat!(
                 "Parser expecting one of ",
@@ -1089,6 +1116,46 @@ macro_rules! ele_parse {
                     false $(|| $ntref::matches(qname))*
                 }
 
+                // Number of
+                //   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
+                //   considered by this parser.
+                //
+                // This is the sum of the number of matches of each
+                //   constituent NT.
+                const fn matches_n() -> usize {
+                    // Count the number of NTs by adding the number of
+                    //   matches in each.
+                    0 $(+ $ntref::matches_n())*
+                }
+
+                /// Format constituent NTs for display.
+                ///
+                /// This function receives the number of values to be
+                ///   formatted as `n` and the current 0-indexed offset
+                ///   within that list as `i`.
+                /// This allows for zero-copy rendering of composable NTs.
+                ///
+                /// See also [`Self::fmt_matches_top`] to initialize the
+                ///   formatting process with the correct values.
+                fn fmt_matches(
+                    n: usize,
+                    i: &mut usize,
+                    f: &mut std::fmt::Formatter
+                ) -> std::fmt::Result {
+                    $(
+                        $ntref::fmt_matches(n, i, f)?;
+                    )*
+
+                    Ok(())
+                }
+
+                /// Begin formatting using [`Self::fmt_matches`].
+                ///
+                /// This provides the initial values for the function.
+                fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
+                }
+
                 fn cfg(&self) -> crate::xir::parse::EleParseCfg {
                     use $nt::*;
 
@@ -1139,33 +1206,34 @@ macro_rules! ele_parse {
             impl std::fmt::Display for $nt {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
-                        fmt::{DisplayWrapper, ListDisplayWrapper, TtQuote},
-                        xir::fmt::EleSumList,
+                        fmt::{DisplayWrapper, TtQuote},
                     };
-
-                    let ntrefs = [
-                        $(
-                            $ntref::matcher(),
-                        )*
-                    ];
-                    let expected = EleSumList::wrap(&ntrefs);
 
                     match self {
                         Self::Expecting_(_)
                         | Self::NonPreemptableExpecting_(_) => {
-                            write!(f, "expecting {expected}")
+                            write!(f, "expecting ")?;
+                            Self::fmt_matches_top(f)
                         },
 
                         Self::RecoverEleIgnore_(_, name, _, _)
-                        | Self::RecoverEleIgnoreClosed_(_, name, _) => write!(
-                            f,
-                            "attempting to recover by ignoring element \
-                               with unexpected name {given} \
-                               (expected {expected})",
-                            given = TtQuote::wrap(name),
-                        ),
+                        | Self::RecoverEleIgnoreClosed_(_, name, _) => {
+                            write!(
+                                f,
+                                "attempting to recover by ignoring element \
+                                with unexpected name {given} \
+                                (expected",
+                                given = TtQuote::wrap(name),
+                            )?;
 
-                        Self::Done_ => write!(f, "done parsing {expected}"),
+                            Self::fmt_matches_top(f)?;
+                            f.write_str(")")
+                        }
+
+                        Self::Done_ => {
+                            write!(f, "done parsing ")?;
+                            Self::fmt_matches_top(f)
+                        },
                     }
                 }
             }
@@ -1207,16 +1275,8 @@ macro_rules! ele_parse {
                 fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
                     use crate::{
                         diagnose::Annotate,
-                        fmt::{DisplayWrapper, ListDisplayWrapper, TtQuote},
-                        xir::fmt::EleSumList,
+                        fmt::{DisplayWrapper, TtQuote, DisplayFn},
                     };
-
-                    let ntrefs = [
-                        $(
-                            $ntref::matcher(),
-                        )*
-                    ];
-                    let expected = EleSumList::wrap(&ntrefs);
 
                     match self {
                         Self::UnexpectedEle_(qname, span) => {
@@ -1225,7 +1285,10 @@ macro_rules! ele_parse {
                                     "element {name} cannot appear here",
                                     name = TtQuote::wrap(qname),
                                 ))
-                                .with_help(format!("expecting {expected}"))
+                                .with_help(format!(
+                                    "expecting {}",
+                                    DisplayFn($nt::fmt_matches_top)
+                                ))
                                 .into()
                         },
                     }
