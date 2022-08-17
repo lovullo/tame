@@ -389,6 +389,22 @@ impl<'a, W: ListDisplayWrapper + ?Sized, T: Display> Display
     }
 }
 
+/// Wrap a `fmt`-like function to be used as [`Display::fmt`] for this
+///   object.
+///
+/// This works around the problem of having a function expecting a
+///   [`Formatter`],
+///     but not having a [`Formatter`] to call it with.
+/// It also allows for arbitrary (compatible) functions to be used as
+///   [`Display`].
+pub struct DisplayFn<F: Fn(&mut Formatter) -> Result>(pub F);
+
+impl<F: Fn(&mut Formatter) -> Result> Display for DisplayFn<F> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        (self.0)(f)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -521,6 +537,14 @@ mod test {
             QualConjList::<"thing", "things", "or", Delim<"(", ")", Raw>>::wrap(&["a", "b", "c"])
                 .to_string(),
             "things (a), (b), or (c)",
+        );
+    }
+
+    #[test]
+    fn display_fn() {
+        assert_eq!(
+            DisplayFn(|f| write!(f, "test fmt")).to_string(),
+            "test fmt",
         );
     }
 }
