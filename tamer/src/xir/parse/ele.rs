@@ -495,7 +495,7 @@ macro_rules! ele_parse {
                     (
                         crate::xir::parse::EleParseCfg,
                         crate::xir::QName,
-                        crate::span::Span,
+                        crate::xir::OpenSpan,
                         crate::xir::flat::Depth
                     ),
                     crate::span::Span
@@ -505,7 +505,7 @@ macro_rules! ele_parse {
                     (
                         crate::xir::parse::EleParseCfg,
                         crate::xir::QName,
-                        crate::span::Span,
+                        crate::xir::OpenSpan,
                         crate::xir::flat::Depth
                     ),
                     [<$nt AttrsState_>]
@@ -515,7 +515,7 @@ macro_rules! ele_parse {
                         (
                             crate::xir::parse::EleParseCfg,
                             crate::xir::QName,
-                            crate::span::Span,
+                            crate::xir::OpenSpan,
                             crate::xir::flat::Depth
                         ),
                     ),
@@ -524,7 +524,7 @@ macro_rules! ele_parse {
                     (
                         crate::xir::parse::EleParseCfg,
                         crate::xir::QName,
-                        crate::span::Span,
+                        crate::xir::OpenSpan,
                         crate::xir::flat::Depth
                     ),
                 ),
@@ -759,7 +759,7 @@ macro_rules! ele_parse {
                 /// The span corresponds to the opening tag.
                 CloseExpected(
                     crate::xir::QName,
-                    crate::span::Span,
+                    crate::xir::OpenSpan,
                     crate::xir::flat::XirfToken<crate::xir::flat::RefinedText>,
                 ),
 
@@ -837,7 +837,10 @@ macro_rules! ele_parse {
                         diagnose::Annotate,
                         fmt::{DisplayWrapper, TtQuote},
                         parse::Token,
-                        xir::fmt::{TtCloseXmlEle},
+                        xir::{
+                            EleSpan,
+                            fmt::TtCloseXmlEle,
+                        },
                     };
 
                     match self {
@@ -857,8 +860,8 @@ macro_rules! ele_parse {
                                 .into()
                         }
 
-                        Self::CloseExpected(qname, span, tok) => vec![
-                            span.note("element starts here"),
+                        Self::CloseExpected(qname, ospan, tok) => vec![
+                            ospan.span().note("element starts here"),
                             tok.span().error(format!(
                                 "expected {}",
                                 TtCloseXmlEle::wrap(qname),
@@ -912,7 +915,7 @@ macro_rules! ele_parse {
                             XirfToken::Open(qname, span, depth)
                         ) if $nt::matches(qname) => {
                             let transition = Transition(Attrs_(
-                                (cfg, qname, span.tag_span(), depth),
+                                (cfg, qname, span, depth),
                                 parse_attrs(qname, span)
                             ));
 
@@ -938,7 +941,7 @@ macro_rules! ele_parse {
                             XirfToken::Open(qname, span, depth)
                         ) if cfg.repeat && Self::matches(qname) => {
                             Transition(Attrs_(
-                                (cfg, qname, span.tag_span(), depth),
+                                (cfg, qname, span, depth),
                                 parse_attrs(qname, span)
                             )).incomplete()
                         },
@@ -1027,12 +1030,16 @@ macro_rules! ele_parse {
                         //     which overrides this match directly above
                         //       (xref <<SATTR>>).
                         #[allow(unreachable_patterns)]
-                        (Attrs_(meta @ (_, qname, _, _), sa), tok) => {
+                        (Attrs_(meta @ (cfg, qname, span, depth), sa), tok) => {
                             sa.delegate_until_obj::<Self, _>(
                                 tok,
                                 EmptyContext,
                                 |sa| Transition(Attrs_(meta, sa)),
-                                || unreachable!("see ParseState::delegate_until_obj dead"),
+                                // If we enter a dead state then we have
+                                //   failed produce an attribute object,
+                                //     in which case we'll recover by
+                                //     ignoring the entire element.
+                                || Transition(RecoverEleIgnore_(cfg, qname, span, depth)),
                                 |#[allow(unused_variables)] sa, attrs| {
                                     let obj = match attrs {
                                         // Attribute field bindings for `$attrmap`

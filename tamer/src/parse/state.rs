@@ -356,7 +356,7 @@ where
         tok: <Self as ParseState>::Token,
         mut context: C,
         into: impl FnOnce(<Self as ParseState>::Super) -> Transition<SP>,
-        _dead: impl FnOnce() -> Transition<SP>,
+        dead: impl FnOnce() -> Transition<SP>,
         objf: impl FnOnce(
             <Self as ParseState>::Super,
             <Self as ParseState>::Object,
@@ -372,9 +372,8 @@ where
             self.parse_token(tok, context.as_mut());
 
         match data {
-            TransitionData::Dead(Lookahead(_lookahead)) => {
-                // Or restrict this to certain types of ParseState
-                todo!("expecting object, so what should we do on Dead?")
+            TransitionData::Dead(Lookahead(lookahead)) => {
+                dead().incomplete().with_lookahead(lookahead)
             }
 
             TransitionData::Result(Ok(Obj(obj)), lookahead) => {

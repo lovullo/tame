@@ -274,7 +274,7 @@ fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
         ParseError::StateError(SutError_::Root(RootError_::CloseExpected(
             // Verify that the error includes the QName that actually matched.
             QN_C_EQ,
-            OpenSpan(S1, N).tag_span(),
+            OpenSpan(S1, N),
             XirfToken::Open(unexpected, span_unexpected, Depth(1)),
         ))),
         err,
@@ -367,6 +367,79 @@ fn empty_element_with_attr_bindings() {
             Parsed::Incomplete,                                 // Close (LA)
         ]),
         Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// This only tests one scenario under which attribute parsing may fail
+//   (others are tested with `attr_parse!`).
+// Failure to parse an attribute is considered a failure at the element
+//   level and recovery will skip the entire element.
+#[test]
+fn element_with_failed_attr_parsing() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open,
+        Close,
+        Child,
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_CHILD: QName = QN_DIM;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        Root := QN_ROOT {
+            @ {
+                _name: (QN_NAME) => Attr,
+            } => Foo::Open,
+
+            // Important to check that this is not emitted.
+            / => Foo::Close,
+        };
+
+        Child := QN_CHILD {
+            @ {} => Foo::Child,
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // Child elements should be ignored.
+        XirfToken::Open(QN_CHILD, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+        // Recovery ends at the closing tag.
+        XirfToken::Close(Some(QN_ROOT), CloseSpan::empty(S6), Depth(0)),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    use Parsed::*;
+
+    // Root will open normally.
+    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root] Root Open
+
+    // But the child will result in an error because we have not provided a
+    //   required attribute.
+    let err = sut.next().unwrap().unwrap_err();
+    assert_matches!(
+        err,
+        ParseError::StateError(SutError_::Root(RootError_::Attrs(..))),
+    ); // [Root] Child Open (>LA)
+
+    // The remaining tokens should be ignored and we should finish parsing.
+    // Since the opening object was not emitted,
+    //   we must not emit the closing.
+    assert_eq!(
+        Ok(vec![
+            Incomplete, // [Root!] Child Open (<LA)
+            Incomplete, // [Root!] Child Close
+            Incomplete, // [Root]  Root Close
+        ]),
+        sut.collect(),
     );
 }
 
@@ -965,7 +1038,7 @@ fn child_error_and_recovery_at_close() {
         // TODO: This references generated identifiers.
         ParseError::StateError(SutError_::Root(RootError_::CloseExpected(
             QN_PACKAGE,
-            OpenSpan(S1, N).tag_span(),
+            OpenSpan(S1, N),
             XirfToken::Open(unexpected_a, span_a, Depth(1)),
         ))),
         err,
@@ -1669,7 +1742,7 @@ fn child_repetition_invalid_tok_dead() {
         Some(Err(ParseError::StateError(SutError_::Root(
             RootError_::CloseExpected(
                 QN_ROOT,
-                OpenSpan(S1, N).tag_span(),
+                OpenSpan(S1, N),
                 XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
             )
         )))),
