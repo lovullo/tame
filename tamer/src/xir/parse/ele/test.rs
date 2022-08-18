@@ -1232,8 +1232,9 @@ fn sum_nonterminal_as_child_element() {
 
     // QNames don't matter as long as they are unique.
     const QN_ROOT: QName = QN_PACKAGE;
-    const QN_A: QName = QN_PACKAGE;
+    const QN_A: QName = QN_DIM;
     const QN_B: QName = QN_CLASSIFY;
+    const QN_C: QName = QN_VALUE;
 
     ele_parse! {
         enum Sut;
@@ -1243,9 +1244,9 @@ fn sum_nonterminal_as_child_element() {
             @ {} => Foo::Open(QN_ROOT),
             / => Foo::Close(QN_ROOT),
 
-            // A|B followed by a B.
+            // A|B followed by a C.
             AB,
-            B,
+            C,
         };
 
         AB := (A | B);
@@ -1259,6 +1260,11 @@ fn sum_nonterminal_as_child_element() {
             @ {} => Foo::Open(QN_B),
             / => Foo::Close(QN_B),
         };
+
+        C := QN_C {
+            @ {} => Foo::Open(QN_C),
+            / => Foo::Close(QN_C),
+        };
     }
 
     let toks = vec![
@@ -1267,7 +1273,7 @@ fn sum_nonterminal_as_child_element() {
         XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         // B
-        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Open(QN_C, OpenSpan(S3, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S5, N), Depth(0)),
     ];
@@ -1281,162 +1287,12 @@ fn sum_nonterminal_as_child_element() {
             Incomplete,                  // [A]     A Open (<LA)
             Object(Foo::Open(QN_A)),     // [A@]    A Close (>LA)
             Object(Foo::Close(QN_A)),    // [A]     A Close (<LA)
-            Incomplete,                  // [B]     B Open
-            Object(Foo::Open(QN_B)),     // [B@]    B Close (>LA)
-            Object(Foo::Close(QN_B)),    // [B]     B Close (<LA)
+            Incomplete,                  // [C]     B Open
+            Object(Foo::Open(QN_C)),     // [C@]    B Close (>LA)
+            Object(Foo::Close(QN_C)),    // [C]     B Close (<LA)
             Object(Foo::Close(QN_ROOT)), // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
-    );
-}
-
-// Parent closes before expected (non-Sum) NT is satisfied.
-#[test]
-fn nonterminal_unexpected_close() {
-    #[derive(Debug, PartialEq, Eq)]
-    enum Foo {
-        Open,
-        Child,
-        Close,
-    }
-
-    impl crate::parse::Object for Foo {}
-
-    // QNames don't matter as long as they are unique.
-    const QN_ROOT: QName = QN_PACKAGE;
-    const QN_CHILD: QName = QN_PACKAGE;
-
-    ele_parse! {
-        enum Sut;
-        type Object = Foo;
-
-        Root := QN_PACKAGE {
-            @ {} => Foo::Open,
-            / => Foo::Close,
-
-            Child,
-        };
-
-        Child := QN_CHILD {
-            @ {} => Foo::Child,
-        };
-    }
-
-    let toks = vec![
-        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // We're expecting `Child`...but nope.
-        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
-    ];
-
-    use Parsed::*;
-
-    let mut sut = Sut::parse(toks.into_iter());
-
-    // The first two iterations are expected.
-    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root] Root Open
-    assert_eq!(sut.next(), Some(Ok(Object(Foo::Open))),); // [Root] Root Close (<LA)
-
-    // But once we encounter the token of lookahead,
-    //   which is `Close`,
-    //   we're in error,
-    //   since we expected `A|B`.
-    let err = sut.next().unwrap().unwrap_err();
-    assert_eq!(
-        err,
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Child(ChildError_::UnexpectedClose(
-            Some(QN_ROOT),
-            CloseSpan(S2, N).tag_span(),
-        ))),
-    );
-
-    // Recovery should complete AB despite our objections,
-    //   and the token of lookahead should allow the root to close
-    //   successfully.
-    assert_eq!(
-        Ok(vec![
-            Object(Foo::Close),  // [Root] Root Close (<LA)
-        ]),
-        sut.collect(),
-    );
-}
-
-// Parent closes before expected Sum NT is satisfied.
-// Same idea as the above test.
-#[test]
-fn nonterminal_unexpected_close_sum() {
-    #[derive(Debug, PartialEq, Eq)]
-    enum Foo {
-        Open,
-        Child,
-        Close,
-    }
-
-    impl crate::parse::Object for Foo {}
-
-    // QNames don't matter as long as they are unique.
-    const QN_ROOT: QName = QN_PACKAGE;
-    const QN_A: QName = QN_PACKAGE;
-    const QN_B: QName = QN_CLASSIFY;
-
-    ele_parse! {
-        enum Sut;
-        type Object = Foo;
-
-        Root := QN_PACKAGE {
-            @ {} => Foo::Open,
-            / => Foo::Close,
-
-            AB,
-        };
-
-        AB := (A | B);
-
-        A := QN_A {
-            @ {} => Foo::Child,
-        };
-
-        B := QN_B {
-            @ {} => Foo::Child,
-        };
-    }
-
-    let toks = vec![
-        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // We're expecting `A|B`...but nope.
-        XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
-    ];
-
-    use Parsed::*;
-
-    let mut sut = Sut::parse(toks.into_iter());
-
-    // The first two iterations are expected.
-    assert_eq!(sut.next(), Some(Ok(Incomplete))); // [Root] Root Open
-    assert_eq!(sut.next(), Some(Ok(Object(Foo::Open))),); // [Root] Root Close (<LA)
-
-    // But once we encounter the token of lookahead,
-    //   which is `Close`,
-    //   we're in error,
-    //   since we expected `A|B`.
-    let err = sut.next().unwrap().unwrap_err();
-    assert_eq!(
-        err,
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::AB(ABError_::UnexpectedClose(
-            Some(QN_ROOT),
-            CloseSpan(S2, N).tag_span(),
-        ))),
-    );
-
-    // Recovery should complete AB despite our objections,
-    //   and the token of lookahead should allow the root to close
-    //   successfully.
-    assert_eq!(
-        Ok(vec![
-            Object(Foo::Close),  // [Root] Root Close (<LA)
-        ]),
-        sut.collect(),
     );
 }
 
@@ -1477,7 +1333,7 @@ fn sum_nonterminal_error_recovery() {
 
     // An extra token to yield after we're done parsing to ensure that we
     //   properly yield a dead state transition.
-    let dead_tok = XirfToken::Open(QN_A, OpenSpan(S5, N), depth);
+    let dead_tok = XirfToken::Open(QN_NAME, OpenSpan(S5, N), depth);
 
     let toks = vec![
         // Neither A nor B,
@@ -1579,11 +1435,8 @@ fn child_repetition() {
             @ {} => Foo::RootOpen,
             / => Foo::RootClose,
 
-            // Two adjacent repeating followed by a non-repeating.
-            // While there's nothing inherently concerning here,
-            //   this is just meant to test both types of following states.
-            ChildA[*],
-            ChildB[*],
+            ChildA,
+            ChildB,
             ChildC,
         };
 
@@ -1698,7 +1551,7 @@ fn child_repetition_invalid_tok_dead() {
             @ {} => Foo::RootOpen,
             / => Foo::RootClose,
 
-            Child[*],
+            Child,
         };
 
         Child := QN_CHILD {
@@ -1792,7 +1645,7 @@ fn sum_repetition() {
 
             // A|B|C in any order,
             //   any number of times.
-            ABC[*],
+            ABC,
         };
 
         ABC := (A | B | C );
@@ -1897,7 +1750,7 @@ fn mixed_content_text_nodes() {
             // Text allowed at any point between these elements because of
             //   the `[super]` definition.
             A,
-            AB[*],
+            AB,
         };
 
         A := QN_A {
@@ -1907,13 +1760,10 @@ fn mixed_content_text_nodes() {
             //   because of the `[super]` definition.
         };
 
-        // Used only for `AB`.
         B := QN_B {
             @ {} => Foo::B,
         };
 
-        // We need at least two NTs;
-        //   we don't actually use `B`.
         AB := (A | B);
     }
 
@@ -1924,6 +1774,7 @@ fn mixed_content_text_nodes() {
 
     let text_root = "text root".into();
     let text_a = "text a".into();
+    let text_b = "text b".into();
 
     let toks = vec![
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
@@ -1941,9 +1792,9 @@ fn mixed_content_text_nodes() {
         // Text _after_ a child node,
         //   which does not require ending attribute parsing before emitting.
         XirfToken::Text(RefinedText::Unrefined(Text(text_root, S3)), Depth(1)),
-        // Try to yield A again with text.
-        XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Text(RefinedText::Unrefined(Text(text_a, S4)), Depth(2)),
+        // Try to yield B with text.
+        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Text(RefinedText::Unrefined(Text(text_b, S4)), Depth(2)),
         XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
         // Finally, some more text permitted at the close.
         XirfToken::Text(RefinedText::Unrefined(Text(text_root, S5)), Depth(1)),
@@ -1963,9 +1814,9 @@ fn mixed_content_text_nodes() {
             Incomplete,                       // [A]     A Close
             Object(Foo::Text(text_root, S3)), // [Root]  Text
             Incomplete,                       // [A]     A Open
-            Object(Foo::A),                   // [A@]    A Text (>LA)
-            Object(Foo::Text(text_a, S4)),    // [A]     Text (<LA)
-            Incomplete,                       // [A]     A Close
+            Object(Foo::B),                   // [B@]    B Text (>LA)
+            Object(Foo::Text(text_b, S4)),    // [B]     Text (<LA)
+            Incomplete,                       // [B]     B Close
             Object(Foo::Text(text_root, S5)), // [Root]  Text
             Incomplete,                       // [Root]  Root Close
         ]),
@@ -2113,26 +1964,6 @@ fn superstate_preempt_element_open_sum() {
     }
 
     let toks = vec![
-        // Yes, we can preempt at the root.
-        // This would allow,
-        //   for example,
-        //   template application as the root element,
-        //     which was _not_ possible in the original TAME.
-        // Note that this would cause the root to be the preempted node
-        //   itself,
-        //     and so it would _take the place of_ the intended root.
-        // This isn't the place to discuss the merits of such a thing.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S1, N), Depth(0)),
-        // Preempted nodes are parsed just as any other node,
-        //   so control has been passed to `PreA`.
-        XirfToken::Close(None, CloseSpan::empty(S1), Depth(0)),
-        //
-        // Now let's open our _expected_ root,
-        //   without preemption.
-        // Note that this is effectively another XML document,
-        //   and XIRF would not allow this.
-        // But we're in control of the token stream here and so we're going
-        //   to do it anyway for convenience.
         XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
         // At this point we are performing attribute parsing.
         // Let's try to preempt;
@@ -2168,9 +1999,6 @@ fn superstate_preempt_element_open_sum() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,               // [PreA]    A Open
-            Object(Foo::PreA(S1)),    // [PreA@]   A Close (>LA)
-            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
             Incomplete,               // [Root]    Root Open
             Object(Foo::Root),        // [Root@]   B Open (>LA)
             Incomplete,               // [PreB]    B Open (<LA)
@@ -2255,26 +2083,6 @@ fn superstate_preempt_element_open_non_sum() {
     }
 
     let toks = vec![
-        // Yes, we can preempt at the root.
-        // This would allow,
-        //   for example,
-        //   template application as the root element,
-        //     which was _not_ possible in the original TAME.
-        // Note that this would cause the root to be the preempted node
-        //   itself,
-        //     and so it would _take the place of_ the intended root.
-        // This isn't the place to discuss the merits of such a thing.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S1, N), Depth(0)),
-        // Preempted nodes are parsed just as any other node,
-        //   so control has been passed to `PreA`.
-        XirfToken::Close(None, CloseSpan::empty(S1), Depth(0)),
-        //
-        // Now let's open our _expected_ root,
-        //   without preemption.
-        // Note that this is effectively another XML document,
-        //   and XIRF would not allow this.
-        // But we're in control of the token stream here and so we're going
-        //   to do it anyway for convenience.
         XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
         // At this point we are performing attribute parsing.
         // Let's try to preempt;
@@ -2306,9 +2114,6 @@ fn superstate_preempt_element_open_non_sum() {
     use Parsed::*;
     assert_eq!(
         Ok(vec![
-            Incomplete,               // [PreA]    A Open
-            Object(Foo::PreA(S1)),    // [PreA@]   A Close (>LA)
-            Object(Foo::PreAClose),   // [PreA]    A Close (<LA)
             Incomplete,               // [Root]    Root Open
             Object(Foo::Root),        // [Root@]   A Open (>LA)
             Incomplete,               // [PreA]    A Open (<LA)
