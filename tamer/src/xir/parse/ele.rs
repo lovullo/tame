@@ -37,25 +37,19 @@ use crate::{ele_parse, parse::Parser};
 /// A parser accepting a single element.
 pub trait EleParseState: ParseState {}
 
-/// Maximum level of nesting for source XML trees.
+/// Maximum level of parser nesting.
 ///
-/// Technically this is the maximum level of nesting for _parsing_ those
-///   trees,
-///     which may end up being less than this value.
-///
-/// This should be set to something reasonable,
-///   but is not an alternative to coming up with code conventions that
-///   disallow ridiculous levels of nesting.
-/// TAME does have a lot of nesting with primitives,
-///   but that nesting is easily abstracted with templates.
-/// Templates may expand into ridiculous levels of nesting---this
-///   has no impact on the template expansion phase.
+/// Unfortunately,
+///   this limit _does not_ correspond to the level of XML nesting;
+///     parsers composed of Sum NTs,
+///       in particular,
+///       push multiple parsers onto the stack for a single element.
 ///
 /// Note that this is assuming that this parser is used only for TAME
 ///   sources.
 /// If that's not the case,
 ///   this can be made to be configurable like XIRF.
-pub const MAX_DEPTH: usize = 16;
+pub const MAX_DEPTH: usize = 64;
 
 /// Parser stack for trampoline.
 ///
@@ -131,7 +125,7 @@ impl<S: ClosedParseState> StateStack<S> {
                 vec![],
                 "maximum parsing depth of {} exceeded while attempting \
                    to push return state {} \
-                   (expected XIRF configuration to prevent this error)",
+                   (try reducing XML nesting as a workaround)",
                 MAX_DEPTH,
                 TtQuote::wrap(ret),
             );
