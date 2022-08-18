@@ -842,19 +842,23 @@ fn comments_ignored_between_elements() {
 fn child_error_and_recovery() {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
-        Root,
+        RootOpen,
         ChildABad, // Will not yield this one.
         ChildB,
+        RootClose,
     }
 
-    impl Object for Foo {}
+    impl crate::parse::Object for Foo {}
 
     ele_parse! {
         enum Sut;
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::Root,
+            @ {} => Foo::RootOpen,
+
+            // Must be emitted if `RootOpen` is to maintain balance.
+            / => Foo::RootClose,
 
             // This is what we're expecting,
             //   but not what we will provide.
@@ -898,9 +902,11 @@ fn child_error_and_recovery() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
+    use Parsed::*;
+
     // The first token is expected,
     //   and we enter attribute parsing for `Root`.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [Root] Open 0
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // [Root] Open 0
 
     // The second token _will_ be unexpected,
     //   but we're parsing attributes for `Root`,
@@ -908,7 +914,7 @@ fn child_error_and_recovery() {
     // Instead,
     //   the `Open` ends attribute parsing and yields a token of lookahead.
     assert_eq!(
-        Some(Ok(Parsed::Object(Foo::Root))), // [Root@] Open 1 (>LA)
+        Some(Ok(Object(Foo::RootOpen))), // [Root@] Open 1 (>LA)
         sut.next()
     );
 
@@ -934,7 +940,7 @@ fn child_error_and_recovery() {
     //   tag.
     // Since we are in recovery,
     //   it should be ignored.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // [ChildA!] Close 1
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // [ChildA!] Close 1
 
     // Having recovered from the error,
     //   we should happily accept the remaining tokens starting with
@@ -944,10 +950,10 @@ fn child_error_and_recovery() {
     //     but that's not what we're doing yet.
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,          // [ChildB]  Open 1
-            Parsed::Object(Foo::ChildB), // [ChildB@] Close 1 (>LA)
-            Parsed::Incomplete,          // [ChildB]  Close 1 (<LA)
-            Parsed::Incomplete,          // [Root]     Close 0
+            Incomplete,             // [ChildB]  Open 1
+            Object(Foo::ChildB),    // [ChildB@] Close 1 (>LA)
+            Incomplete,             // [ChildB]  Close 1 (<LA)
+            Object(Foo::RootClose), // [Root]    Close 0
         ]),
         sut.collect()
     );
