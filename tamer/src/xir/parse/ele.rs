@@ -983,7 +983,14 @@ macro_rules! ele_parse {
 
                         // TODO: Use `is_accepting` guard if we do not utilize
                         //   exhaustiveness check.
-                        (st @ (Closed_(..) | RecoverEleIgnoreClosed_(..)), tok) => {
+                        (
+                            st @ (
+                                Expecting_
+                                | Closed_(..)
+                                | RecoverEleIgnoreClosed_(..)
+                            ),
+                            tok
+                        ) => {
                             Transition(st).dead(tok)
                         }
 

@@ -661,6 +661,54 @@ fn single_child_element() {
     );
 }
 
+// Since all NTs are zero-or-more,
+//   we should accept when an expecting child is missing
+//     (when we receive `Close` instead of an `Open` for the child).
+#[test]
+fn single_child_element_missing() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Root,
+        Child,
+    }
+
+    impl Object for Foo {}
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        Root := QN_PACKAGE {
+            @ {} => Foo::Root,
+
+            // Expected,
+            //   but will not be provided.
+            Child,
+        };
+
+        // We never yield this.
+        Child := QN_CLASSIFY {
+            @ {} => Foo::Child,
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
+        // Missing child,
+        //   which should be okay.
+        XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S4, N), Depth(0)),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            Parsed::Incomplete,        // [Root]   Root Open
+            Parsed::Object(Foo::Root), // [Root@]  Root Close (<LA)
+            Parsed::Incomplete,        // [Root]   Root Close (>LA)
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 /// Expands off of [`single_child_element`],
 ///   but the former provides a clear indication of whether a single state
 ///   is properly recognized without having to worry about how nonterminals'
@@ -1722,17 +1770,17 @@ fn sum_repetition() {
 fn mixed_content_text_nodes() {
     #[derive(Debug, PartialEq, Eq)]
     enum Foo {
-        Root,
-        A,
-        B,
+        Open(QName),
+        Close(QName),
         Text(SymbolId, Span),
     }
 
     impl crate::parse::Object for Foo {}
 
-    const QN_SUT: QName = QN_PACKAGE;
+    const QN_ROOT: QName = QN_PACKAGE;
     const QN_A: QName = QN_CLASSIFY;
     const QN_B: QName = QN_EXPORT;
+    const QN_C: QName = QN_DIM;
 
     ele_parse! {
         enum Sut;
@@ -1744,27 +1792,39 @@ fn mixed_content_text_nodes() {
             [text](sym, span) => Foo::Text(sym, span),
         };
 
-        Root := QN_SUT {
-            @ {} => Foo::Root,
+        Root := QN_ROOT {
+            @ {} => Foo::Open(QN_ROOT),
+            / => Foo::Close(QN_ROOT),
 
             // Text allowed at any point between these elements because of
             //   the `[super]` definition.
             A,
             AB,
+
+            // Used to verify that Text doesn't force a dead state
+            //   transition away from AB at the close of a `A|B`.
+            C,
         };
 
         A := QN_A {
-            @ {} => Foo::A,
+            @ {} => Foo::Open(QN_A),
+            / => Foo::Close(QN_A),
 
             // Text should be permitted even though we permit no children,
             //   because of the `[super]` definition.
         };
 
         B := QN_B {
-            @ {} => Foo::B,
+            @ {} => Foo::Open(QN_B),
+            / => Foo::Close(QN_B),
         };
 
         AB := (A | B);
+
+        C := QN_C {
+            @ {} => Foo::Open(QN_C),
+            / => Foo::Close(QN_C),
+        };
     }
 
     let tok_ws = XirfToken::Text(
@@ -1774,10 +1834,12 @@ fn mixed_content_text_nodes() {
 
     let text_root = "text root".into();
     let text_a = "text a".into();
+    let text_a2 = "text a2".into();
     let text_b = "text b".into();
+    let text_b2 = "text b2".into();
 
     let toks = vec![
-        XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
         // Whitespace will not match the `[text]` special form.
         tok_ws.clone(),
         // Text before root open.
@@ -1791,14 +1853,26 @@ fn mixed_content_text_nodes() {
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         // Text _after_ a child node,
         //   which does not require ending attribute parsing before emitting.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_root, S3)), Depth(1)),
+        XirfToken::Text(RefinedText::Unrefined(Text(text_a2, S3)), Depth(1)),
         // Try to yield B with text.
         XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
         XirfToken::Text(RefinedText::Unrefined(Text(text_b, S4)), Depth(2)),
         XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // Finally, some more text permitted at the close.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_root, S5)), Depth(1)),
-        XirfToken::Close(Some(QN_SUT), CloseSpan(S6, N), Depth(0)),
+        // Finally, some more text permitted at the close of b.
+        XirfToken::Text(RefinedText::Unrefined(Text(text_b2, S5)), Depth(1)),
+        // Encountering the text at the close should not have transitioned
+        //   us away from the parser,
+        //     so let's verify that we can still parse `AB`.
+        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        // Provide C,
+        //   just so this test doesn't depend on being able to accept zero
+        //   of an NT.
+        // This otherwise has no impact on this test beyond ensuring it
+        //   doesn't fail for reasons unrelated to whitespace.
+        XirfToken::Open(QN_C, OpenSpan(S5, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S6, N), Depth(0)),
     ];
 
     use Parsed::*;
@@ -1806,19 +1880,25 @@ fn mixed_content_text_nodes() {
         Ok(vec![
             Incomplete,                       // [Root]  Root Open
             Incomplete,                       // [Root@] WS
-            Object(Foo::Root),                // [Root@] Text (>LA)
+            Object(Foo::Open(QN_ROOT)),       // [Sut]   Text (>LA)
             Object(Foo::Text(text_root, S1)), // [Root]  Text (<LA)
             Incomplete,                       // [A]     A Open (<LA)
-            Object(Foo::A),                   // [A@]    A Text (>LA)
-            Object(Foo::Text(text_a, S2)),    // [A]     Text (<LA)
-            Incomplete,                       // [A]     A Close
-            Object(Foo::Text(text_root, S3)), // [Root]  Text
-            Incomplete,                       // [A]     A Open
-            Object(Foo::B),                   // [B@]    B Text (>LA)
+            Object(Foo::Open(QN_A)),          // [A@]    A Text (>LA)
+            Object(Foo::Text(text_a, S2)),    // [Sut]   Text (<LA)
+            Object(Foo::Close(QN_A)),         // [A]     A Close
+            Object(Foo::Text(text_a2, S3)),   // [Sut]   Text
+            Incomplete,                       // [B]     B Open
+            Object(Foo::Open(QN_B)),          // [B@]    B Text (>LA)
             Object(Foo::Text(text_b, S4)),    // [B]     Text (<LA)
-            Incomplete,                       // [B]     B Close
-            Object(Foo::Text(text_root, S5)), // [Root]  Text
-            Incomplete,                       // [Root]  Root Close
+            Object(Foo::Close(QN_B)),         // [B]     B Close
+            Object(Foo::Text(text_b2, S5)),   // [Sut]   Text
+            Incomplete,                       // [B]     B Open
+            Object(Foo::Open(QN_B)),          // [B@]    B Text (>LA)
+            Object(Foo::Close(QN_B)),         // [B]     B Close
+            Incomplete,                       // [C]     C Open
+            Object(Foo::Open(QN_C)),          // [C@]    C Text (>LA)
+            Object(Foo::Close(QN_C)),         // [C]     C Close
+            Object(Foo::Close(QN_ROOT)),      // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
