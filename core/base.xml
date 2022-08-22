@@ -46,19 +46,6 @@
             desc="Dummy value; this set is populated upon entering
                   each rate block" />
     </const>
-
-
-    The runtime is responsible for populating \ref{__DATE_YEAR__} with
-    a proper value representing the current year.
-
-    \todo{TAME is deterministic with this one exception; remove it and
-    have users use the params from {\tt datetime} instead if they need this
-    datum.}
-
-    <const name="__DATE_YEAR__" magic="true"
-           value="0" type="integer"
-           desc="Current year"
-           sym="\widehat{D^\gamma}" />
   </section>
 
 
