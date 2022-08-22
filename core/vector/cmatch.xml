@@ -215,25 +215,11 @@
     <template name="_match-{@cmp@}_" desc="Match value {@cmp@}">
       <param name="@on@" desc="Value to assert" />
 
-      <!-- pick one -->
-      <param name="@const@" desc="Match against constant value" />
       <param name="@value@" desc="Match against variable" />
-
-      <if name="@const@">
-        <warning>
-          @const@ is deprecated; use @value@ with a #-prefix instead.
-        </warning>
-      </if>
 
       <match on="@on@">
         <dyn-node name="c:{@cmp@}">
-          <if name="@const@">
-            <c:const value="@const@" desc="Comparison" />
-          </if>
-
-          <unless name="@const@">
-            <c:value-of name="@value@" />
-          </unless>
+          <c:value-of name="@value@" />
         </dyn-node>
       </match>
     </template>
