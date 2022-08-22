@@ -140,7 +140,6 @@
         <unless name="@value@">
           <c:value-of name="@name@"
                       index="@index@"
-                      type="float"
                       label="@desc@" />
         </unless>
       </c:arg>
