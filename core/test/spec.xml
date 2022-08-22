@@ -76,8 +76,7 @@
     -->
     <classify as="expect-ok"
               yields="@result@"
-              desc="All features conform to specifications"
-              keep="true">
+              desc="All features conform to specifications">
       <inline-template>
         <for-each>
           <sym-set name-prefix="expect-conform-"
@@ -154,8 +153,7 @@
             <expand-sequence>
               <expand-sequence>
                 <classify as="expect-conform-{@__prefix@}{@__uniq@}"
-                          desc="{@__full_name@} meets expectations"
-                          keep="true">
+                          desc="{@__full_name@} meets expectations">
                   <inline-template>
                     <for-each>
                       <sym-set name-prefix="expect-that-{@__prefix@}"

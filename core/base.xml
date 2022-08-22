@@ -139,14 +139,12 @@
 
     <classify as="always"
               desc="Always true"
-              yields="alwaysTrue"
-              keep="true" />
+              yields="alwaysTrue" />
 
     <classify as="never"
               any="true"
               desc="Never true"
-              yields="neverTrue"
-              keep="true" />
+              yields="neverTrue" />
   </section>
 
 

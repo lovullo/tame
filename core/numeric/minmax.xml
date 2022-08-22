@@ -202,7 +202,6 @@
     <param name="@generates@" desc="Variable to generate into" />
     <param name="@when@"      desc="Conditional bump" />
     <param name="@class@"     desc="Class to match on" />
-    <param name="@keep@"      desc="Value of keep flag" />
 
     <!-- alternative to @name@ -->
     <param name="@const@" desc="Constant value, instead of named" />
@@ -211,7 +210,7 @@
     <param name="@maxpercent@" desc="Maximum percent" />
 
 
-    <rate yields="_{@generates@}" keep="@keep@">
+    <rate yields="_{@generates@}">
       <c:sum of="@name@" index="k" generates="@generates@" desc="Bumped value">
         <c:cases>
           <!-- if a condition was provided, check it first -->

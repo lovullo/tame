@@ -52,9 +52,6 @@
   <template name="_cmatch-to-vector_" desc="Vectorizes a classification match">
     <param name="@class@" desc="Classification match string" />
     <param name="@generates@" desc="Variable to yield generates (will yield a vector)" />
-    <param name="@keep@" desc="Rate block @keep">
-      <text></text>
-    </param>
 
     <param name="@yields@" desc="Dummy variable to yield generates (useless, but required)">
       <text>__</text>
@@ -74,7 +71,7 @@
 
     <!-- this conversion is as simple as using a generator to yield the value
          of _CMATCH_ for each index -->
-    <rate class="@class@" yields="@yields@" always="true" keep="@keep@">
+    <rate class="@class@" yields="@yields@">
       <c:sum of="_CMATCH_" index="k" generates="@generates@" desc="@gendesc@" sym="@sym@">
         <c:value-of name="_CMATCH_" index="k" />
       </c:sum>
@@ -90,12 +87,8 @@
       <text></text>
     </param>
 
-    <param name="@keep@" desc="Rate block @keep">
-      <text></text>
-    </param>
 
-
-    <rate class="@class@" accumulate="none" yields="@yields@" sym="@sym@" keep="@keep@">
+    <rate class="@class@" yields="@yields@" sym="@sym@">
       <!-- if any single one matches, then we want to yield a 1 -->
       <c:apply name="maxreduce" maxreduce_set="_CMATCH_" />
     </rate>
@@ -124,10 +117,6 @@
       <param-value snake="true" name="@as@" />
     </param>
 
-    <param name="@keep@" desc="Whether to force compilation">
-      <text></text>
-    </param>
-
     <param name="@sym@" desc="Optional yield symbol">
       <text></text>
     </param>
@@ -141,12 +130,10 @@
 
     <t:cmatch-to-scalar class="--{@as@}-pre"
                         yields="__{@yields@}Scalar"
-                        sym="@sym@"
-                        keep="@keep@" />
+                        sym="@sym@" />
 
     <classify as="@as@" yields="@yields@"
               desc="@desc@"
-              keep="@keep@"
               sym="@sym@">
       <match on="__{@yields@}Scalar" />
     </classify>
