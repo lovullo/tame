@@ -50,7 +50,7 @@
   <const name="VALUE_VEC" sym="V"
          type="float"
          desc="Vector of values">
-    <item value="0" />
+    <item value="0" desc="Unused (see VALUE_VEC_INDEX)" />
     <item value="5.5" desc="Same as VALUE_MID" />
   </const>
   <const name="VALUE_VEC_INDEX" sym="\nu"
