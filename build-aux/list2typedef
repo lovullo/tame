@@ -150,6 +150,8 @@ main()
   cat <<EOF
 <?xml version="1.0"?>
 <package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
          title="$typedef Type">
   <typedef name="$typedef" desc="$typedef">
     <enum type="integer">

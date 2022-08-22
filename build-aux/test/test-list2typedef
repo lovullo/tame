@@ -38,6 +38,8 @@ Second'\''s @     @Line
 
   declare -r expected='<?xml version="1.0"?>
 <package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template"
          title="FooType Type">
   <typedef name="FooType" desc="FooType">
     <enum type="integer">

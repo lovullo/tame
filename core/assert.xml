@@ -18,6 +18,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
          xmlns:t="http://www.lovullo.com/rater/apply-template"
          core="true"
          desc="Assertions">

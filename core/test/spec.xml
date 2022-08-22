@@ -49,8 +49,6 @@
 <package xmlns="http://www.lovullo.com/rater"
   xmlns:t="http://www.lovullo.com/rater/apply-template"
   xmlns:c="http://www.lovullo.com/calc"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.lovullo.com/rater ../../rater.xsd"
 
   core="true"
 

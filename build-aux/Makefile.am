@@ -197,7 +197,7 @@ c1map: $(dest_c1map)
 %.xml: %.dat rater/core/tdat.xmlo rater/tools/tdat2xml
 	rater/tools/tdat2xml $< > $@
 
-%.xml: %.typelist
+%.xml: %.typelist rater/tame/build-aux/list2typedef
 	rater/tame/build-aux/list2typedef $(*F) < $< > $@
 
 %.csvo: %.csvm rater/tools/csvm2csv
