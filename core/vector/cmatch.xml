@@ -74,7 +74,7 @@
 
     <!-- this conversion is as simple as using a generator to yield the value
          of _CMATCH_ for each index -->
-    <rate class="@class@" accumulate="none" yields="@yields@" always="true" keep="@keep@">
+    <rate class="@class@" yields="@yields@" always="true" keep="@keep@">
       <c:sum of="_CMATCH_" index="k" generates="@generates@" desc="@gendesc@" sym="@sym@">
         <c:value-of name="_CMATCH_" index="k" />
       </c:sum>

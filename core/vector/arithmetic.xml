@@ -56,7 +56,7 @@
         <text></text>
       </param>
 
-      <rate accumulate="none" yields="@yields@">
+      <rate yields="@yields@">
         <c:sum of="@a@" index="k" generates="@into@" desc="@gendesc@" sym="@sym@">
           <c:value-of name="@a@" index="k" />
           <c:value-of name="@b@" index="k" />

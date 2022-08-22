@@ -102,7 +102,7 @@
       <param-value name="@generates@" />
     </param>
 
-    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="k">
+    <rate-each class="@class@" yields="@yields@" generates="@generates@" index="k">
       <c:apply name="max">
         <c:arg name="max1">
           <c:value-of name="@a@" index="k" />

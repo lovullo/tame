@@ -80,7 +80,7 @@
       <param-value name="@line@" />
     </param>
 
-    <rate-each class="@line@" accumulate="none" yields="@yields@" generates="@into@" index="k">
+    <rate-each class="@line@" yields="@yields@" generates="@into@" index="k">
       <!-- take the dot product of the two vectors (each part of a larger matrix)
            to get the rate for the associated class code -->
       <c:product dot="true" label="Dot product between the class and rate vectors for each location will yield the respective rate per location">

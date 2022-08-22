@@ -149,7 +149,7 @@
     </param>
 
     <!-- simply returns a constant value for the class match -->
-    <rate-each class="@class@" accumulate="none" generates="@generates@" index="k">
+    <rate-each class="@class@" generates="@generates@" index="k">
       <c:product>
         <if name="@value@">
           <c:value-of name="@value@" />

@@ -33,30 +33,6 @@
   <import package="round" export="true" />
 
 
-  <!-- even more trivial, but again, cuts down on code -->
-  <template name="_scalarToAccum_" desc="Simply accumulates a scalar">
-    <param name="@scalar@" desc="Scalar to accumulate" />
-    <param name="@accum@" desc="Accumulator to accumulate into" />
-
-    <!-- this is useless, but required -->
-    <param name="@yields@" desc="Value to yield into, since it's required (useless)">
-      <text>__accum_</text>
-      <param-value name="@accum@" />
-      <text>_</text>
-      <param-value name="@scalar@" />
-    </param>
-
-    <param name="@type@" desc="Accumulation method">
-      <text>all</text>
-    </param>
-
-    <rate yields="@yields@">
-      <accumulate into="@accum@" type="@type@" />
-      <c:value-of name="@scalar@" />
-    </rate>
-  </template>
-
-
   <!--
     Map values falling within adjacent intervals
 

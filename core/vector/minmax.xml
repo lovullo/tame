@@ -315,7 +315,7 @@
       <param-value name="@generates@" />
     </param>
 
-    <rate-each class="@class@" accumulate="none" yields="@yields@" generates="@generates@" index="@index@">
+    <rate-each class="@class@" yields="@yields@" generates="@generates@" index="@index@">
       <c:apply name="maxreduce">
         <c:arg name="maxreduce_set">
           <c:vector>
