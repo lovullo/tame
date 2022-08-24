@@ -335,7 +335,7 @@ macro_rules! ele_parse {
                 @ ->
                 $(
                     ($nt::$ntref, $ntref),
-                    ($nt::$ntref) ->
+                    ($nt::$ntref, $ntref) ->
                 )* ($nt::ExpectClose_, ()),
             }
         }
@@ -407,7 +407,7 @@ macro_rules! ele_parse {
         -> {
             @ -> ($ntfirst:path, $ntfirst_st:ty),
             $(
-                ($ntprev:path) -> ($ntnext:path, $ntnext_st:ty),
+                ($ntprev:path, $ntprev_st:ty) -> ($ntnext:path, $ntnext_st:ty),
             )*
         }
     ) => {
@@ -607,6 +607,26 @@ macro_rules! ele_parse {
                         //   that we can transition away from this parser.
                         RecoverEleIgnoreClosed_(..)
                         | Closed_(..) => false,
+                    }
+                }
+
+                #[allow(dead_code)] // used only when there are child NTs
+                /// Whether the current state represents the last child NT.
+                fn is_last_nt(&self) -> bool {
+                    // This results in `Self::$ntref(..) => true,` for the
+                    //   _last_ NT,
+                    //     and `=> false` for all others.
+                    // If there are no NTs,
+                    //   it results in `Self::Attrs(..) => true,`,
+                    //     which is technically true but will never be
+                    //     called in that context.
+                    match self {
+                        Self::Attrs_(..) => $(
+                            false,
+                            Self::$ntref(..) =>
+                        )* true,
+
+                        _ => false,
                     }
                 }
             }
@@ -836,8 +856,11 @@ macro_rules! ele_parse {
                             )).incomplete()
                         },
 
+                        // We only attempt recovery when encountering an
+                        //   unknown token if we're forced to accept that
+                        //   token.
                         (
-                            Expecting_ | NonPreemptableExpecting_,
+                            NonPreemptableExpecting_,
                             XirfToken::Open(qname, span, depth)
                         ) => {
                             Transition(RecoverEleIgnore_(qname, span, depth)).err(
@@ -939,18 +962,91 @@ macro_rules! ele_parse {
                         },
 
                         $(
+                            // We're transitioning from `(ntprev) -> (ntnext)`.
+                            // If we have a token that matches `ntprev`,
+                            //   we can transition _back_ to that state
+                            //   rather than transitioning forward.
+                            // We can _only_ do this when we know we are
+                            //   transitioning away from this state,
+                            //     otherwise we could return to a previous state,
+                            //     which violates the semantics of the
+                            //     implied DFA.
+                            (
+                                $ntprev(meta),
+                                XirfToken::Open(qname, span, depth)
+                            ) if $ntprev_st::matches(qname) => {
+                                let tok = XirfToken::Open(qname, span, depth);
+
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    $ntprev(meta),
+                                    $ntprev_st,
+                                    // This NT said it could process this token,
+                                    //   so force it to either do so or error,
+                                    //   to ensure that bugs don't cause
+                                    //   infinite processing of lookahead.
+                                    Transition(<$ntprev_st>::NonPreemptableExpecting_)
+                                        .incomplete()
+                                        .with_lookahead(tok),
+                                    Transition($ntprev(meta)).incomplete().with_lookahead(tok)
+                                )
+                            },
+
                             ($ntprev(meta), tok) => {
                                 ele_parse!(@!ntref_delegate
                                     stack,
                                     $ntnext(meta),
                                     $ntnext_st,
-                                    // Since we're just transitioning,
-                                    //   this _must_ accept the token of input,
-                                    //   otherwise error.
                                     Transition(<$ntnext_st>::default())
                                         .incomplete()
                                         .with_lookahead(tok),
                                     Transition($ntnext(meta)).incomplete().with_lookahead(tok)
+                                )
+                            },
+
+                            // Since `ExpectClose_` does not have an
+                            //   `$ntprev` match,
+                            //     we have to handle transitioning back to
+                            //     the previous state as a special case.
+                            // Further,
+                            //   we choose to transition back to this state
+                            //   _no matter what the element_,
+                            //     to force error recovery and diagnostics
+                            //     in that context,
+                            //       which will tell the user what elements
+                            //       were expected in the last NT rather
+                            //       than just telling them a closing tag
+                            //       was expected.
+                            //
+                            // To avoid a bunch of rework of this macro
+                            //   (which can hopefully be done in the future),
+                            //   this match is output for _every_ NT,
+                            //     but takes effect only for the final NT
+                            //     because of the `is_last_nt` predicate.
+                            // _It is important that it only affect the
+                            //   final NT_,
+                            //     otherwise we'll transition back to _any_
+                            //     previous state at the close,
+                            //       which completely defeats the purpose of
+                            //       having ordered states.
+                            (
+                                ExpectClose_(meta),
+                                XirfToken::Open(qname, span, depth)
+                            ) if $ntprev(meta).is_last_nt() => {
+                                let tok = XirfToken::Open(qname, span, depth);
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    $ntprev(meta),
+                                    $ntprev_st,
+                                    // If this NT cannot handle this element,
+                                    //   it should error and enter recovery
+                                    //   to ignore it.
+                                    Transition(<$ntprev_st>::NonPreemptableExpecting_)
+                                        .incomplete()
+                                        .with_lookahead(tok),
+                                    Transition(ExpectClose_(meta))
+                                        .incomplete()
+                                        .with_lookahead(tok)
                                 )
                             },
                         )*

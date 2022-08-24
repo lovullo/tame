@@ -37,7 +37,7 @@ use std::{assert_matches::assert_matches, error::Error, fmt::Display};
 use crate::{
     convert::ExpectInto,
     diagnose::Diagnostic,
-    parse::{Object, ParseError, ParseState, Parsed},
+    parse::{Object, ParseError, ParseState, Parsed, ParsedResult},
     span::{dummy::*, Span},
     sym::SymbolId,
     xir::{
@@ -898,11 +898,15 @@ fn child_error_and_recovery() {
 
     impl crate::parse::Object for Foo {}
 
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_CLASSIFY;
+    const QN_B: QName = QN_EXPORT;
+
     ele_parse! {
         enum Sut;
         type Object = Foo;
 
-        Root := QN_PACKAGE {
+        Root := QN_ROOT {
             @ {} => Foo::RootOpen,
 
             // Must be emitted if `RootOpen` is to maintain balance.
@@ -917,11 +921,11 @@ fn child_error_and_recovery() {
             ChildB,
         };
 
-        ChildA := QN_CLASSIFY {
+        ChildA := QN_A {
             @ {} => Foo::ChildABad,
         };
 
-        ChildB := QN_EXPORT {
+        ChildB := QN_B {
             @ {} => Foo::ChildB,
         };
     }
@@ -931,7 +935,7 @@ fn child_error_and_recovery() {
 
     let toks = vec![
         // The first token is the expected root.
-        XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
         // --> But this one is unexpected (name).
         XirfToken::Open(unexpected, span, Depth(1)),
         // And so we should ignore it up to this point.
@@ -943,9 +947,9 @@ fn child_error_and_recovery() {
         //     for `ChildA`,
         //       which means that we expect `ChildB`.
         // Parsing continues normally.
-        XirfToken::Open(QN_EXPORT, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
-        XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S4, N), Depth(0)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S4, N), Depth(0)),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -967,20 +971,25 @@ fn child_error_and_recovery() {
     );
 
     // The token of lookahead (`Open`) is unexpected for `ChildA`,
-    //   which must throw an error and enter a recovery state.
+    //   when then skips to `ChildB`,
+    //   which is _also_ not expecting it and must throw an error and enter
+    //   a recovery state.
     // The token should be consumed and returned in the error,
     //   _not_ produced as a token of lookahead,
     //   since we do not want to reprocess bad input.
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::ChildA(ChildAError_::UnexpectedEle(
-            unexpected,
-            span.name_span()
-        ))),
         err,
+        // TODO: This references generated identifiers.
+        ParseError::StateError(SutError_::ChildB(ChildBError_::UnexpectedEle(
+            unexpected,
+            span.name_span(),
+        ))),
     );
 
+    // TODO: Can't deal with this until we know exactly what error we'll
+    //   have above;
+    //     see above TODO.
     // Diagnostic message should be delegated to the child.
     assert_eq!(err.describe()[0].span(), span.name_span());
 
@@ -1574,6 +1583,93 @@ fn child_repetition() {
     );
 }
 
+// Once we transition `(S) -> (S')`,
+//   we should not be able to transition back under any circumstance.
+#[test]
+fn child_nt_sequence_no_prev_after_next() {
+    #[derive(Debug, PartialEq, Eq)]
+    enum Foo {
+        Open(QName),
+        Close(QName),
+    }
+
+    impl crate::parse::Object for Foo {}
+
+    const QN_ROOT: QName = QN_PACKAGE;
+    const QN_A: QName = QN_DIM;
+    const QN_B: QName = QN_CLASSIFY;
+
+    ele_parse! {
+        enum Sut;
+        type Object = Foo;
+
+        Root := QN_ROOT {
+            @ {} => Foo::Open(QN_ROOT),
+            / => Foo::Close(QN_ROOT),
+
+            A,
+            B,
+        };
+
+        A := QN_A {
+            @ {} => Foo::Open(QN_A),
+            / => Foo::Close(QN_A),
+        };
+
+        B := QN_B {
+            @ {} => Foo::Open(QN_B),
+            / => Foo::Close(QN_B),
+        };
+    }
+
+    let toks = vec![
+        XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
+        // A
+        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S2), Depth(1)),
+        // A -> A OK
+        XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+        // A -> B
+        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // B -> B OK
+        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+        // B -> A _not_ OK.
+        XirfToken::Open(QN_A, OpenSpan(S6, N), Depth(1)),
+        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+        XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
+    ];
+
+    use Parsed::*;
+
+    assert_eq!(
+        vec![
+            Ok(Incomplete),                 // [Root]  Root Open
+            Ok(Object(Foo::Open(QN_ROOT))), // [Root@] A Open (>LA)
+            Ok(Incomplete),                 // [A]     A Open (<LA)
+            Ok(Object(Foo::Open(QN_A))),    // [A@]    A Close (>LA)
+            Ok(Object(Foo::Close(QN_A))),   // [A]     A Close (<LA)
+            Ok(Incomplete),                 // [A]     A Open (<LA)
+            Ok(Object(Foo::Open(QN_A))),    // [A@]    A Close (>LA)
+            Ok(Object(Foo::Close(QN_A))),   // [A]     A Close (<LA)
+            Ok(Incomplete),                 // [B]     B Open (<LA)
+            Ok(Object(Foo::Open(QN_B))),    // [B@]    B Close (>LA)
+            Ok(Object(Foo::Close(QN_B))),   // [B]     B Close (<LA)
+            Ok(Incomplete),                 // [B]     B Open (<LA)
+            Ok(Object(Foo::Open(QN_B))),    // [B@]    B Close (>LA)
+            Ok(Object(Foo::Close(QN_B))),   // [B]     B Close (<LA)
+            Err(ParseError::StateError(SutError_::B(
+                BError_::UnexpectedEle(QN_A, OpenSpan(S6, N).name_span())
+            ))), // [B!] A Open
+            Ok(Incomplete),                 // [B!] A Close
+            Ok(Object(Foo::Close(QN_ROOT))), // [Root] Root Close
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<ParsedResult<Sut>>>(),
+    );
+}
+
 #[test]
 fn child_repetition_invalid_tok_dead() {
     #[derive(Debug, PartialEq, Eq)]
@@ -1613,7 +1709,7 @@ fn child_repetition_invalid_tok_dead() {
         // Child (success)
         XirfToken::Open(QN_CHILD, OpenSpan(S2, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Repeat (unexpected)
+        // unexpected
         XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
         XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
@@ -1640,18 +1736,15 @@ fn child_repetition_invalid_tok_dead() {
     // Given that dead state and token of lookahead,
     //   `Parser` will immediately recurse to re-process the erroneous
     //   `Open`.
-    // Since the next token expected after the `Child` NT is `Close`,
-    //   this will result in an error and trigger recovery _on `Root`_,
-    //     which will ignore the erroneous `Open`.
+    // The next state after the `Child` NT is expecting a `Close`,
+    //   but upon encountering a `Open` it forces the last NT to perform the
+    //   processing,
+    //     and so the error will occur on `Child`.
     assert_eq!(
         next(),
-        // TODO: This references generated identifiers.
-        Some(Err(ParseError::StateError(SutError_::Root(
-            RootError_::CloseExpected(
-                QN_ROOT,
-                OpenSpan(S1, N),
-                XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
-            )
+        Some(Err(ParseError::StateError(SutError_::Child(
+            // TODO: This references generated identifiers.
+            ChildError_::UnexpectedEle(unexpected, OpenSpan(S2, N).name_span())
         )))),
     );
 

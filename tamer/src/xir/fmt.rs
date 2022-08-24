@@ -26,6 +26,10 @@ use crate::fmt::{
 /// Denote an XML attribute by prefixing the value with `@`.
 pub type XmlAttr = Prefix<"@", Raw>;
 
+/// [`XmlAttr`] formatted as teletypewriter
+///   (for use in sentences).
+pub type TtXmlAttr = Tt<XmlAttr>;
+
 /// A list of XML attributes [`Tt`]-quoted.
 pub type XmlAttrList = AndQualConjList<"attribute", "attributes", Tt<XmlAttr>>;
 
