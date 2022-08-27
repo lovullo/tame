@@ -220,6 +220,7 @@ impl Display for NodeMatcher {
 #[macro_export]
 macro_rules! ele_parse {
     (
+        $(#[$super_attr:meta])*
         $vis:vis enum $super:ident;
 
         // Attr has to be first to avoid ambiguity with `$rest`.
@@ -234,15 +235,17 @@ macro_rules! ele_parse {
 
         // Combination of square brackets above and the prefix here are
         //   needed for disambiguation.
+        $(#[$nt_first_attr:meta])*
         $nt_first:ident := $($nt_defs:tt)*
     ) => {
         ele_parse! {@!next $vis $super
             $(type AttrValueError = $evty;)?
             type Object = $objty;
+            $(#[$nt_first_attr])*
             $nt_first := $($nt_defs)*
         }
 
-        ele_parse!(@!super_sum <$objty> $vis $super
+        ele_parse!(@!super_sum <$objty> $(#[$super_attr])* $vis $super
             $([super] { $($super_body)* })?
             $nt_first := $($nt_defs)*
         );
@@ -259,17 +262,19 @@ macro_rules! ele_parse {
     };
 
     (@!nonterm_decl <$objty:ty, $($evty:ty)?>
-        $vis:vis $super:ident $nt:ident := $($rest:tt)*
+        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident := $($rest:tt)*
     ) => {
-        ele_parse!(@!nonterm_def <$objty, $($evty)?> $vis $super $nt $($rest)*);
+        ele_parse!(@!nonterm_def <$objty, $($evty)?>
+            $vis $super $(#[$nt_attr])* $nt $($rest)*
+        );
     };
 
     (@!nonterm_def <$objty:ty, $($evty:ty)?>
-        $vis:vis $super:ident $nt:ident $qname:ident $(($($ntp:tt)*))?
+        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident $(($($ntp:tt)*))?
         { $($matches:tt)* }; $($rest:tt)*
     ) => {
         ele_parse!(@!ele_expand_body <$objty, $($evty)?>
-            $vis $super $nt $qname ($($($ntp)*)?) $($matches)*
+            $vis $super $(#[$nt_attr])* $nt $qname ($($($ntp)*)?) $($matches)*
         );
 
         ele_parse! {@!next $vis $super
@@ -280,11 +285,11 @@ macro_rules! ele_parse {
     };
 
     (@!nonterm_def <$objty:ty, $($evty:ty)?>
-        $vis:vis $super:ident $nt:ident
+        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident
         ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
     ) => {
         ele_parse!(@!ele_dfn_sum <$objty>
-            $vis $super $nt [$ntref_first $($ntref)*]
+            $vis $super $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
         );
 
         ele_parse! {@!next $vis $super
@@ -299,7 +304,8 @@ macro_rules! ele_parse {
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
     (@!ele_expand_body <$objty:ty, $($evty:ty)?>
-        $vis:vis $super:ident $nt:ident $qname:ident ($($ntp:tt)*)
+        $vis:vis $super:ident
+        $(#[$nt_attr:meta])* $nt:ident $qname:ident ($($ntp:tt)*)
 
         @ { $($attrbody:tt)* } => $attrmap:expr,
         $(/$(($close_span:ident))? => $closemap:expr,)?
@@ -318,7 +324,9 @@ macro_rules! ele_parse {
         )*
     ) => {
         ele_parse! {
-            @!ele_dfn_body <$objty, $($evty)?> $vis $super $nt $qname ($($ntp)*)
+            @!ele_dfn_body <$objty, $($evty)?>
+            $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
+
             @ { $($attrbody)* } => $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
@@ -376,7 +384,7 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
-        $vis:vis $super:ident $nt:ident $qname:ident
+        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident
         ($($qname_matched:pat, $open_span:pat)?)
 
         // Attribute definition special form.
@@ -424,6 +432,8 @@ macro_rules! ele_parse {
                 }
             }
 
+            $(#[$nt_attr])*
+            ///
             #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
             #[derive(Debug, PartialEq, Eq, Default)]
             $vis enum $nt {
@@ -1101,8 +1111,12 @@ macro_rules! ele_parse {
         }
     };
 
-    (@!ele_dfn_sum <$objty:ty> $vis:vis $super:ident $nt:ident [$($ntref:ident)*]) => {
+    (@!ele_dfn_sum <$objty:ty> $vis:vis $super:ident
+        $(#[$nt_attr:meta])* $nt:ident [$($ntref:ident)*]
+    ) => {
         paste::paste! {
+            $(#[$nt_attr])*
+            ///
             #[doc=concat!(
                 "Parser expecting one of ",
                 $("[`", stringify!($ntref), "`], ",)*
@@ -1433,7 +1447,7 @@ macro_rules! ele_parse {
     //     logic,
     //       and we have to do so in a way that we can aggregate all of
     //       those data.
-    (@!super_sum <$objty:ty> $vis:vis $super:ident
+    (@!super_sum <$objty:ty> $(#[$super_attr:meta])* $vis:vis $super:ident
         $(
             [super] {
                 // Non-whitespace text nodes can be mapped into elements
@@ -1448,6 +1462,7 @@ macro_rules! ele_parse {
         )?
         $(
             // NT definition is always followed by `:=`.
+            $(#[$_ident_attr:meta])*
             $nt:ident :=
                 // Identifier if an element NT.
                 $($_i:ident)?
@@ -1463,6 +1478,8 @@ macro_rules! ele_parse {
         )*
     ) => {
         paste::paste! {
+            $(#[$super_attr])*
+            ///
             /// Superstate representing the union of all related parsers.
             ///
             /// This [`ParseState`] allows sub-parsers to independently
@@ -1474,6 +1491,10 @@ macro_rules! ele_parse {
             ///
             /// This [`ParseState`] is required for use with [`Parser`];
             ///   see [`ClosedParseState`] for more information.
+            ///
+            /// [`Parser`]: crate::parse::Parser
+            /// [`ParseState`]: crate::parse::ParseState
+            /// [`ClosedParseState`]: crate::parse::ClosedParseState
             #[derive(Debug, PartialEq, Eq)]
             $vis enum $super {
                 $(
