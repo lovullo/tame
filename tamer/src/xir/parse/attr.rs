@@ -255,7 +255,9 @@ macro_rules! attr_parse {
         #[doc=concat!("[`", stringify!($struct_name), "`].")]
         ///
         /// This object is exposed for recovery and error reporting on
-        ///   [`AttrParseError::MissingRequired`].
+        ///   [`AttrParseError::MissingRequired`][MissingRequired].
+        ///
+        /// [MissingRequired]: crate::xir::parse::AttrParseError::MissingRequired
         #[derive(Debug, PartialEq, Eq)]
         $($vis)? struct $state_name {
             #[doc(hidden)]
@@ -371,6 +373,8 @@ macro_rules! attr_parse {
         impl std::fmt::Display for $state_name {
             /// Additional error context shown in diagnostic messages for
             ///   certain variants of [`ParseError`].
+            ///
+            /// [`ParseError`]: crate::parse::ParseError
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 use crate::fmt::{DisplayWrapper, TtQuote};
 

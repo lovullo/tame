@@ -1725,6 +1725,8 @@ macro_rules! ele_parse {
             impl $super {
                 /// Whether the inner (active child) [`ParseState`] is in an
                 ///   accepting state.
+                ///
+                /// [`ParseState`]: crate::parse::ParseState
                 fn is_inner_accepting(
                     &self,
                     ctx: &<Self as crate::parse::ParseState>::Context
