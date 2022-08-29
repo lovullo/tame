@@ -24,7 +24,8 @@ build:
     artifacts:
         paths:
             - doc/
-            - tamer/target
+            - tamer/target/*/tamec
+            - tamer/target/*/tameld
         expire_in: 30 min
 
 build:doc:tpl:
