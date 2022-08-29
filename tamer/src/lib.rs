@@ -71,7 +71,7 @@
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 // For sym::prefill recursive macro `static_symbols!`.
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 pub mod global;
 
@@ -88,6 +88,7 @@ pub mod fmt;
 pub mod fs;
 pub mod iter;
 pub mod ld;
+pub mod nir;
 pub mod num;
 pub mod obj;
 pub mod parse;

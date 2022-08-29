@@ -29,7 +29,7 @@ use std::{
     env,
     error::Error,
     ffi::OsStr,
-    fmt::{self, Display},
+    fmt::{self, Display, Write},
     fs, io,
     path::Path,
 };
@@ -37,8 +37,14 @@ use tamer::{
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    parse::{ParseError, Parsed, UnknownToken},
-    xir,
+    nir::{XirfToNir, XirfToNirError},
+    parse::{Lower, ParseError, Parsed, ParsedObject, UnknownToken},
+    xir::{
+        self,
+        flat::{RefinedText, XirToXirf, XirToXirfError, XirfToken},
+        writer::XmlWriter,
+        Error as XirError, Token as XirToken,
+    },
 };
 
 /// Types of commands
@@ -62,51 +68,85 @@ pub fn main() -> Result<(), TamecError> {
             }
 
             let dest = Path::new(&output);
+            let mut reporter = VisualReporter::new(FsSpanResolver);
 
             Ok(())
                 .and_then(|_| {
                     use std::io::{BufReader, BufWriter};
                     use tamer::{
                         fs::{File, PathFile},
-                        iter::into_iter_while_ok,
                         xir::{
-                            reader::XmlXirReader, writer::XmlWriter,
+                            reader::XmlXirReader,
                             DefaultEscaper,
                         },
                     };
 
                     let escaper = DefaultEscaper::default();
+                    let mut ebuf = String::new();
+
+                    let mut xmlwriter = Default::default();
                     let mut fout = BufWriter::new(fs::File::create(dest)?);
 
                     let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
                         PathFile::open(source)?;
 
+                    // TODO: This will be progressively refactored as
+                    //   lowering is finalized.
                     // Parse into XIR and re-lower into XML,
                     //   which is similar to a copy but proves that we're able
                     //   to parse source files.
-                    into_iter_while_ok(
-                        XmlXirReader::new(file, &escaper, ctx),
+                    let _ = Lower::<
+                        ParsedObject<XirToken, XirError>,
+                        XirToXirf<64, RefinedText>,
+                    >::lower::<_, TamecError>(
+                        // TODO: We're just echoing back out XIR,
+                        //   which will be the same sans some formatting.
+                        &mut XmlXirReader::new(file, &escaper, ctx)
+                            .inspect(|tok_result| {
+                                match tok_result {
+                                    Ok(Parsed::Object(tok)) => {
+                                        xmlwriter = tok.write(
+                                            &mut fout,
+                                            xmlwriter,
+                                            &escaper
+                                        ).unwrap();
+                                    },
+                                    _ => ()
+                                }
+                            }),
                         |toks| {
-                            toks.filter_map(|parsed| match parsed {
-                                Parsed::Object(tok) => Some(tok),
-                                _ => None,
-                            })
-                            .write(&mut fout, Default::default(), &escaper)
-                            .map_err(TamecError::from)
+                            Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(
+                                toks,
+                                |nir| {
+                                    // TODO: These errors do not yet fail
+                                    //   compilation.
+                                    nir.fold(Ok(()), |x, result| match result {
+                                        Ok(_) => x,
+                                        Err(e) => {
+                                            // See below note about buffering.
+                                            ebuf.clear();
+                                            writeln!(
+                                                ebuf,
+                                                "{}",
+                                                reporter.render(&e)
+                                            )?;
+                                            println!("{ebuf}");
+
+                                            x
+                                        }
+                                    })
+                                },
+                            )
                         },
                     )?;
 
                     Ok(())
                 })
                 .or_else(|e: TamecError| {
-                    let mut reporter = VisualReporter::new(FsSpanResolver);
-
                     // POC: Rendering to a string ensures buffering so that we don't
-                    //   interleave output between processes,
-                    //     but we ought to reuse a buffer when we support multiple
-                    //     errors.
+                    //   interleave output between processes.
                     let report = reporter.render(&e).to_string();
-                    println!("{report}\nfatal: failed to link `{}`", output);
+                    println!("{report}\nfatal: failed to compile `{}`", output);
 
                     std::process::exit(1);
                 })
@@ -190,6 +230,8 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
 pub enum TamecError {
     Io(io::Error),
     XirParseError(ParseError<UnknownToken, xir::Error>),
+    XirfParseError(ParseError<XirToken, XirToXirfError>),
+    NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
     XirWriterError(xir::writer::Error),
     Fmt(fmt::Error),
 }
@@ -203,6 +245,18 @@ impl From<io::Error> for TamecError {
 impl From<ParseError<UnknownToken, xir::Error>> for TamecError {
     fn from(e: ParseError<UnknownToken, xir::Error>) -> Self {
         Self::XirParseError(e)
+    }
+}
+
+impl From<ParseError<XirToken, XirToXirfError>> for TamecError {
+    fn from(e: ParseError<XirToken, XirToXirfError>) -> Self {
+        Self::XirfParseError(e)
+    }
+}
+
+impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>> for TamecError {
+    fn from(e: ParseError<XirfToken<RefinedText>, XirfToNirError>) -> Self {
+        Self::NirParseError(e)
     }
 }
 
@@ -223,6 +277,8 @@ impl Display for TamecError {
         match self {
             Self::Io(e) => Display::fmt(e, f),
             Self::XirParseError(e) => Display::fmt(e, f),
+            Self::XirfParseError(e) => Display::fmt(e, f),
+            Self::NirParseError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
             Self::Fmt(e) => Display::fmt(e, f),
         }
@@ -234,6 +290,8 @@ impl Error for TamecError {
         match self {
             Self::Io(e) => Some(e),
             Self::XirParseError(e) => Some(e),
+            Self::XirfParseError(e) => Some(e),
+            Self::NirParseError(e) => Some(e),
             Self::XirWriterError(e) => Some(e),
             Self::Fmt(e) => Some(e),
         }
@@ -244,6 +302,8 @@ impl Diagnostic for TamecError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
             Self::XirParseError(e) => e.describe(),
+            Self::XirfParseError(e) => e.describe(),
+            Self::NirParseError(e) => e.describe(),
 
             // TODO (will fall back to rendering just the error `Display`)
             _ => vec![],
