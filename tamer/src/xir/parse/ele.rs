@@ -442,24 +442,32 @@ macro_rules! ele_parse {
                     stringify!($qname),
                     "`]."
                 )]
+                #[doc(hidden)]
                 #[default]
                 Expecting_,
+
                 /// Non-preemptable [`Self::Expecting_`].
+                #[doc(hidden)]
                 #[allow(dead_code)] // used by sum parser
                 NonPreemptableExpecting_,
+
                 /// Recovery state ignoring all remaining tokens for this
                 ///   element.
+                #[doc(hidden)]
                 RecoverEleIgnore_(
                     crate::xir::QName,
                     crate::xir::OpenSpan,
                     crate::xir::flat::Depth
                 ),
+
                 // Recovery completed because end tag corresponding to the
                 //   invalid element has been found.
+                #[doc(hidden)]
                 RecoverEleIgnoreClosed_(
                     crate::xir::QName,
                     crate::xir::CloseSpan
                 ),
+
                 /// Recovery state ignoring all tokens when a `Close` is
                 ///   expected.
                 ///
@@ -467,6 +475,7 @@ macro_rules! ele_parse {
                 ///   may be a child element,
                 ///     but it may be text,
                 ///     for example.
+                #[doc(hidden)]
                 CloseRecoverIgnore_(
                     (
                         crate::xir::QName,
@@ -475,7 +484,9 @@ macro_rules! ele_parse {
                     ),
                     crate::span::Span
                 ),
+
                 /// Parsing element attributes.
+                #[doc(hidden)]
                 Attrs_(
                     (
                         crate::xir::QName,
@@ -484,7 +495,9 @@ macro_rules! ele_parse {
                     ),
                     [<$nt AttrsState_>]
                 ),
+
                 $(
+                    #[doc(hidden)]
                     $ntref(
                         (
                             crate::xir::QName,
@@ -493,6 +506,8 @@ macro_rules! ele_parse {
                         ),
                     ),
                 )*
+
+                #[doc(hidden)]
                 ExpectClose_(
                     (
                         crate::xir::QName,
@@ -500,8 +515,10 @@ macro_rules! ele_parse {
                         crate::xir::flat::Depth
                     ),
                 ),
+
                 /// Closing tag found and parsing of the element is
                 ///   complete.
+                #[doc(hidden)]
                 Closed_(
                     Option<crate::xir::QName>,
                     crate::span::Span
@@ -1125,12 +1142,17 @@ macro_rules! ele_parse {
             #[derive(Debug, PartialEq, Eq, Default)]
             $vis enum $nt {
                 #[default]
+                #[doc(hidden)]
                 Expecting_,
-                #[allow(dead_code)] // used by superstate node preemption
+
                 /// Non-preemptable [`Self::Expecting_`].
+                #[doc(hidden)]
+                #[allow(dead_code)] // used by superstate node preemption
                 NonPreemptableExpecting_,
+
                 /// Recovery state ignoring all remaining tokens for this
                 ///   element.
+                #[doc(hidden)]
                 RecoverEleIgnore_(
                     crate::xir::QName,
                     crate::xir::OpenSpan,
