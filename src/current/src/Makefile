@@ -2,12 +2,13 @@
 dslc_src := $(wildcard com/lovullo/dslc/*.java)
 dslc_bin := $(dslc_src:.java=.class)
 
-.PHONY: all all-nodoc dslc clean check info pdf html
+.PHONY: all bin all-nodoc dslc clean check info pdf html
 
 export CLASSPATH=$(DSLC_CLASSPATH)
 
 all: dslc
 dslc: dslc.jar
+bin: dslc
 
 %.class: %.java
 	javac $<

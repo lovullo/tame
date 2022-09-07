@@ -23,9 +23,7 @@ m4_if(ver, [], [m4_exit(1)])
 AC_INIT([tame], [ver], [dev@lovullo.com])
 AC_CONFIG_AUX_DIR([tools])
 AM_INIT_AUTOMAKE([foreign])
-
-# target that should be be added to everything except doc/
-AM_EXTRA_RECURSIVE_TARGETS([all-nodoc])
+AM_EXTRA_RECURSIVE_TARGETS([bin all-nodoc])
 
 # provide more granular version numbers based on the version string, using
 # the format MAJOR.MINOR.REV[-SUFFIX], where SUFFIX can itself contain

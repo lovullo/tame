@@ -17,7 +17,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-.PHONY: check test modindex dist browserify FORCE
+.PHONY: bin check test modindex dist browserify FORCE
 
 namespaces=$(shell find src/ -type d)
 nsindex=$(addsuffix /index.js, $(namespaces))
@@ -27,6 +27,7 @@ nsindex=$(addsuffix /index.js, $(namespaces))
 # used be parent Makefile to prevent doc/ building `all'
 all-nodoc: all
 all: tame-progtest.js
+bin: all
 
 modindex: $(nsindex)
 %/index.js: FORCE

@@ -40,6 +40,7 @@ export DSLC_CLASSPATH
 
 all: applies progtest
 all-nodoc: applies progtest
+bin-local: applies
 
 # the "applies" are hoxsl-generated stylesheets containing definitions to
 # permit partial function application
