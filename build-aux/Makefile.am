@@ -275,11 +275,20 @@ clean:
 		| sed 's/\.csvm$$/\.xml/; s/\.dat$$/\.xml/' \
 		| xargs rm -fv
 
+# A target to be optionally overridden by `bootstrap.mk`.
+.PHONY: bootstrap-if-necessary
+bootstrap-if-necessary: FORCE
+
+# Targets intended to be run before the generation of `suppliers.mk`.
+# This should be used to re-bootstrap the system if necessary
+# (see `bootstrap-if-necessary` target).
+-include bootstrap.mk
+
 # Generates a Makefile that will properly build all package
 # dependencies.  The redirect of ant to /dev/null is because it's still too
 # noisy even with -q---the "BUILD SUCCESSFUL" line is confusing, considering
 # it's merely a small part of a broader build.
-suppliers.mk: $(src_suppliersmk)
+suppliers.mk: $(src_suppliersmk) | bootstrap-if-necessary
 	$(ant) -q pkg-dep >/dev/null
 	find $(path_ui)/program/ -name '*.dep' | xargs cat $(path_ui)/program.dep | sort -u \
 	  > $(path_ui)/package-dfns.dep
