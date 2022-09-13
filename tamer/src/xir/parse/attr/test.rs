@@ -19,6 +19,7 @@
 
 use super::*;
 use crate::{
+    diagnose::AnnotatedSpan,
     parse::{ParseError, ParseState, Parsed, Parser, TokenStream},
     span::dummy::*,
     sym::SymbolId,
@@ -28,7 +29,7 @@ use crate::{
         st::qname::*,
     },
 };
-use std::assert_matches::assert_matches;
+use std::{assert_matches::assert_matches, error::Error, fmt::Display};
 
 const SE: OpenSpan = OpenSpan(S1.offset_add(100).unwrap(), 0);
 
@@ -373,7 +374,7 @@ fn mixed_some_optional_missing() {
 
 mod required {
     use super::*;
-    use crate::sym::st;
+    use crate::{sym::st, xir::EleSpan};
 
     attr_parse! {
         struct ReqMissingState -> ReqMissing {

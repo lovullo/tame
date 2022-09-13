@@ -37,142 +37,13 @@
 //! The parser automatically produces detailed error and diagnostic
 //!   messages.
 
+use super::AttrParseError;
 use crate::{
-    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
-    fmt::ListDisplayWrapper,
+    diagnose::Diagnostic,
     parse::ClosedParseState,
-    span::Span,
-    xir::{attr::Attr, fmt::XmlAttrList, EleSpan, OpenSpan, QName},
+    xir::{OpenSpan, QName},
 };
-use std::{convert::Infallible, error::Error, fmt::Display};
-
-pub type ElementQName = QName;
-pub type FirstSpan = Span;
-
-/// Error while parsing element attributes.
-#[derive(Debug, PartialEq)]
-pub enum AttrParseError<S: AttrParseState> {
-    /// One or more required attributes are missing.
-    ///
-    /// Since required attributes are not checked until parsing is complete,
-    ///   and that determination requires a token of lookahead,
-    ///   this error produces a lookahead token that must be handled by the
-    ///   caller.
-    ///
-    /// This also provices the actual [`AttrParseState`],
-    ///   which can be used to retrieve the missing required attributes
-    ///     (using [`AttrParseState::required_missing`]),
-    ///       can be used to retrieve information about the attributes that
-    ///         _have_ been successfully parsed,
-    ///       and can be used to resume parsing if desired.
-    ///
-    /// The caller must determine whether to proceed with parsing of the
-    ///   element despite these problems;
-    ///     such recovery is beyond the scope of this parser.
-    MissingRequired(S),
-
-    /// An attribute was encountered that was not expected by this parser.
-    ///
-    /// Parsing may recover by simply ignoring this attribute.
-    UnexpectedAttr(Attr, ElementQName),
-
-    /// An attribute with the same name as a previous attribute has been
-    ///   encountered within the context of this element.
-    ///
-    /// The duplicate attribute is provided in its entirety.
-    /// The key span of the first-encountered attribute of the same name is
-    ///   included to provide more robust diagnostic information.
-    /// The value of the previous attribute is not included because it is
-    ///   expected that the diagnostic system will render the code
-    ///   associated with the span;
-    ///     displaying an attribute value in an error message is asking for
-    ///     too much trouble given that it is arbitrary text.
-    DuplicateAttr(Attr, FirstSpan, ElementQName),
-
-    /// An error occurred while parsing an attribute value into the
-    ///   declared type.
-    InvalidValue(S::ValueError, ElementQName),
-}
-
-impl<S: AttrParseState> Display for AttrParseError<S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use crate::fmt::{DisplayWrapper, TtQuote};
-
-        match self {
-            Self::MissingRequired(st) => {
-                let ele_name = st.element_name();
-                write!(f, "element `{ele_name}` missing required ")?;
-
-                XmlAttrList::fmt(&st.required_missing(), f)
-            }
-
-            Self::UnexpectedAttr(attr, ele_name) => {
-                write!(
-                    f,
-                    "unexpected attribute `{attr}` for \
-                       element `{ele_name}`"
-                )
-            }
-
-            Self::DuplicateAttr(attr, _, ele_name) => {
-                write!(
-                    f,
-                    "duplicate attribute `{attr}` for \
-                       element element `{ele_name}`"
-                )
-            }
-
-            Self::InvalidValue(ev, ele_name) => {
-                Display::fmt(ev, f)?;
-                write!(f, " for element {}", TtQuote::wrap(ele_name))
-            }
-        }
-    }
-}
-
-impl<S: AttrParseState> Error for AttrParseError<S> {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
-}
-
-impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
-        use crate::fmt::{DisplayWrapper, TtQuote};
-
-        match self {
-            Self::MissingRequired(st) => st
-                .element_span()
-                .tag_span()
-                .error(format!(
-                    "missing required {}",
-                    XmlAttrList::wrap(&st.required_missing()),
-                ))
-                .into(),
-
-            // TODO: help stating attributes that can appear instead
-            Self::UnexpectedAttr(attr @ Attr(.., aspan), ele_name) => aspan
-                .key_span()
-                .error(format!("element `{ele_name}` cannot contain `{attr}`"))
-                .into(),
-
-            Self::DuplicateAttr(Attr(name, _, aspan), first_span, _) => {
-                vec![
-                    first_span.note(format!(
-                        "{} previously encountered here",
-                        TtQuote::wrap(name)
-                    )),
-                    aspan.key_span().error(format!(
-                        "{} here is a duplicate",
-                        TtQuote::wrap(name)
-                    )),
-                ]
-            }
-
-            Self::InvalidValue(ev, _) => ev.describe(),
-        }
-    }
-}
+use std::convert::Infallible;
 
 /// Attribute parsing automaton.
 ///
@@ -185,7 +56,7 @@ pub trait AttrParseState: ClosedParseState {
     /// The default is [`Infallible`],
     ///   meaning such conversion cannot fail and [`From`] may be used in
     ///   place of [`TryFrom`].
-    type ValueError: Diagnostic = Infallible;
+    type ValueError: Diagnostic + PartialEq = Infallible;
 
     /// Begin attribute parsing within the context of the provided element.
     ///

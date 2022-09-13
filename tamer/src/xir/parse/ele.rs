@@ -19,23 +19,16 @@
 
 //! Element parser generator for parsing of [XIRF](super::super::flat).
 
-use arrayvec::ArrayVec;
-use std::{
-    error::Error,
-    fmt::{Debug, Display},
-    marker::PhantomData,
-};
-
 use crate::{
-    diagnose::Diagnostic,
     diagnostic_panic,
     fmt::{DisplayWrapper, TtQuote},
     parse::{
         ClosedParseState, Context, ParseState, Transition, TransitionResult,
     },
-    span::Span,
     xir::{Prefix, QName},
 };
+use arrayvec::ArrayVec;
+use std::fmt::{Debug, Display};
 
 #[cfg(doc)]
 use crate::{ele_parse, parse::Parser};
@@ -221,6 +214,17 @@ impl Display for NodeMatcher {
             Self::Prefix(prefix) => XmlPrefixAnyLocal::fmt(prefix, f),
         }
     }
+}
+
+pub trait Nt: Debug {
+    fn matcher() -> NodeMatcher;
+}
+
+/// Sum nonterminal.
+///
+/// This trait is used internally by the [`ele_parse!`] parser-generator.
+pub trait SumNt: Debug {
+    fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result;
 }
 
 #[macro_export]
@@ -532,18 +536,11 @@ macro_rules! ele_parse {
             }
 
             impl $nt {
-                /// Matcher describing the node recognized by this parser.
-                #[allow(dead_code)] // used by sum parser
-                #[inline]
-                fn matcher() -> crate::xir::parse::NodeMatcher {
-                    crate::xir::parse::NodeMatcher::from($qname)
-                }
-
                 /// Whether the given QName would be matched by any of the
                 ///   parsers associated with this type.
                 #[inline]
                 fn matches(qname: crate::xir::QName) -> bool {
-                    Self::matcher().matches(qname)
+                    <Self as crate::xir::parse::Nt>::matcher().matches(qname)
                 }
 
                 /// Number of
@@ -556,7 +553,7 @@ macro_rules! ele_parse {
                     1
                 }
 
-                /// Format [`Self::matcher`] for display.
+                /// Format matcher for display.
                 ///
                 /// This value may be rendered singularly or as part of a
                 ///   list of values joined together by Sum NTs.
@@ -574,10 +571,11 @@ macro_rules! ele_parse {
                 ) -> std::fmt::Result {
                     use crate::{
                         fmt::ListDisplayWrapper,
-                        xir::fmt::EleSumList,
+                        xir::{fmt::EleSumList, parse::Nt},
                     };
 
-                    EleSumList::fmt_nth(n, *i, &Self::matcher(), f)?;
+                    let matcher = &<Self as Nt>::matcher();
+                    EleSumList::fmt_nth(n, *i, matcher, f)?;
                     *i += 1;
 
                     Ok(())
@@ -664,11 +662,22 @@ macro_rules! ele_parse {
                 }
             }
 
+            impl crate::xir::parse::Nt for $nt {
+                /// Matcher describing the node recognized by this parser.
+                #[inline]
+                fn matcher() -> crate::xir::parse::NodeMatcher {
+                    crate::xir::parse::NodeMatcher::from($qname)
+                }
+            }
+
             impl std::fmt::Display for $nt {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
                         fmt::{DisplayWrapper, TtQuote},
-                        xir::fmt::{TtOpenXmlEle, TtCloseXmlEle},
+                        xir::{
+                            fmt::{TtOpenXmlEle, TtCloseXmlEle},
+                            parse::Nt,
+                        },
                     };
 
                     match self {
@@ -676,7 +685,7 @@ macro_rules! ele_parse {
                         | Self::NonPreemptableExpecting_ => write!(
                             f,
                             "expecting opening tag {}",
-                            TtOpenXmlEle::wrap(Self::matcher()),
+                            TtOpenXmlEle::wrap(<Self as Nt>::matcher()),
                         ),
                         Self::RecoverEleIgnore_(name, _, _)
                         | Self::RecoverEleIgnoreClosed_(name, _) => write!(
@@ -685,7 +694,7 @@ macro_rules! ele_parse {
                                with unexpected name {given} \
                                (expected {expected})",
                             given = TtQuote::wrap(name),
-                            expected = TtQuote::wrap(Self::matcher()),
+                            expected = TtQuote::wrap(<Self as Nt>::matcher()),
                         ),
                         Self::CloseRecoverIgnore_((qname, _, depth), _) => write!(
                             f,
@@ -710,7 +719,7 @@ macro_rules! ele_parse {
                         Self::Closed_(None, _) => write!(
                             f,
                             "skipped parsing element {}",
-                            TtQuote::wrap(Self::matcher()),
+                            TtQuote::wrap(<Self as Nt>::matcher()),
                         ),
                         $(
                             // TODO: A better description.
@@ -726,101 +735,10 @@ macro_rules! ele_parse {
                 }
             }
 
-            #[derive(Debug, PartialEq)]
-            $vis enum [<$nt Error_>] {
-                /// An element was expected,
-                ///   but the name of the element was unexpected.
-                UnexpectedEle(crate::xir::QName, crate::span::Span),
-
-                /// Unexpected input while expecting an end tag for this
-                ///   element.
-                ///
-                /// The span corresponds to the opening tag.
-                CloseExpected(
-                    crate::xir::QName,
-                    crate::xir::OpenSpan,
-                    crate::xir::flat::XirfToken<crate::xir::flat::RefinedText>,
-                ),
-
-                Attrs(crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>),
-            }
-
-            impl From<crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>>
-                for [<$nt Error_>]
-            {
-                fn from(
-                    e: crate::xir::parse::AttrParseError<[<$nt AttrsState_>]>
-                ) -> Self {
-                    [<$nt Error_>]::Attrs(e)
-                }
-            }
-
-            impl std::error::Error for [<$nt Error_>] {
-                fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-                    // TODO
-                    None
-                }
-            }
-
-            impl std::fmt::Display for [<$nt Error_>] {
-                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    use crate::{
-                        fmt::{DisplayWrapper, TtQuote},
-                        xir::fmt::{TtOpenXmlEle, TtCloseXmlEle},
-                    };
-
-                    match self {
-                        Self::UnexpectedEle(name, _) => write!(
-                            f,
-                            "unexpected {unexpected} (expecting {expected})",
-                            unexpected = TtOpenXmlEle::wrap(name),
-                            expected = TtOpenXmlEle::wrap($nt::matcher()),
-                        ),
-
-                        Self::CloseExpected(qname, _, tok) => write!(
-                            f,
-                            "expected {}, but found {}",
-                            TtCloseXmlEle::wrap(qname),
-                            TtQuote::wrap(tok)
-                        ),
-
-                        Self::Attrs(e) => std::fmt::Display::fmt(e, f),
-                    }
-                }
-            }
-
-            impl crate::diagnose::Diagnostic for [<$nt Error_>] {
-                fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-                    use crate::{
-                        diagnose::Annotate,
-                        fmt::{DisplayWrapper, TtQuote},
-                        parse::Token,
-                        xir::{
-                            EleSpan,
-                            fmt::TtCloseXmlEle,
-                        },
-                    };
-
-                    match self {
-                        Self::UnexpectedEle(_, ospan) => ospan.error(
-                            format!(
-                                "expected {ele_name} here",
-                                ele_name = TtQuote::wrap($nt::matcher())
-                            )
-                        ).into(),
-
-                        Self::CloseExpected(qname, ospan, tok) => vec![
-                            ospan.span().note("element starts here"),
-                            tok.span().error(format!(
-                                "expected {}",
-                                TtCloseXmlEle::wrap(qname),
-                            )),
-                        ],
-
-                        Self::Attrs(e) => e.describe(),
-                    }
-                }
-            }
+            // Used by superstate sum type.
+            #[doc(hidden)]
+            type [<$nt Error_>] =
+                crate::xir::parse::NtError<$nt, [<$nt AttrsState_>]>;
 
             impl crate::parse::ParseState for $nt {
                 type Token = crate::xir::flat::XirfToken<
@@ -1741,62 +1659,6 @@ macro_rules! ele_parse {
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
         $super::$ntfirst($ntfirst::NonPreemptableExpecting_)
-    }
-}
-
-/// Sum nonterminal.
-///
-/// This trait is used internally by the [`ele_parse!`] parser-generator.
-pub trait SumNt: Debug {
-    fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result;
-}
-
-/// Error during parsing of a sum nonterminal.
-#[derive(Debug, PartialEq)]
-pub enum SumNtError<NT: SumNt> {
-    UnexpectedEle(QName, Span, PhantomData<NT>),
-}
-
-impl<NT: SumNt> Error for SumNtError<NT> {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
-
-impl<NT: SumNt> Display for SumNtError<NT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use crate::xir::fmt::TtOpenXmlEle;
-
-        match self {
-            Self::UnexpectedEle(qname, _, _) => {
-                write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
-            }
-        }
-    }
-}
-
-impl<NT: SumNt> Diagnostic for SumNtError<NT> {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-        use crate::{diagnose::Annotate, fmt::DisplayFn};
-
-        // Note that we should place expected values in the help
-        //   footnote rather than the span label because it can
-        //   get rather long.
-        // Maybe in the future the diagnostic renderer can be
-        //   smart about that based on the terminal width and
-        //   automatically move into the footer.
-        match self {
-            Self::UnexpectedEle(qname, span, _) => span
-                .error(format!(
-                    "element {name} cannot appear here",
-                    name = TtQuote::wrap(qname),
-                ))
-                .with_help(format!(
-                    "expecting {}",
-                    DisplayFn(NT::fmt_matches_top)
-                ))
-                .into(),
-        }
     }
 }
 
