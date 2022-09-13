@@ -20,14 +20,20 @@
 //! Element parser generator for parsing of [XIRF](super::super::flat).
 
 use arrayvec::ArrayVec;
-use std::fmt::Display;
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+    marker::PhantomData,
+};
 
 use crate::{
+    diagnose::Diagnostic,
     diagnostic_panic,
     fmt::{DisplayWrapper, TtQuote},
     parse::{
         ClosedParseState, Context, ParseState, Transition, TransitionResult,
     },
+    span::Span,
     xir::{Prefix, QName},
 };
 
@@ -1205,8 +1211,10 @@ macro_rules! ele_parse {
                 ///   within that list as `i`.
                 /// This allows for zero-copy rendering of composable NTs.
                 ///
-                /// See also [`Self::fmt_matches_top`] to initialize the
+                /// See also [`SumNt::fmt_matches_top`] to initialize the
                 ///   formatting process with the correct values.
+                ///
+                /// [`SumNt::fmt_matches_top`]: crate::xir::parse::SumNt
                 fn fmt_matches(
                     n: usize,
                     i: &mut usize,
@@ -1217,13 +1225,6 @@ macro_rules! ele_parse {
                     )*
 
                     Ok(())
-                }
-
-                /// Begin formatting using [`Self::fmt_matches`].
-                ///
-                /// This provides the initial values for the function.
-                fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
                 }
 
                 /// Whether the parser is in a state that can tolerate
@@ -1254,17 +1255,27 @@ macro_rules! ele_parse {
                 }
             }
 
+            impl crate::xir::parse::SumNt for $nt {
+                /// Begin formatting using [`Self::fmt_matches`].
+                ///
+                /// This provides the initial values for the function.
+                fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
+                }
+            }
+
             impl std::fmt::Display for $nt {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
                         fmt::{DisplayWrapper, TtQuote},
+                        xir::parse::SumNt
                     };
 
                     match self {
                         Self::Expecting_
                         | Self::NonPreemptableExpecting_ => {
                             write!(f, "expecting ")?;
-                            Self::fmt_matches_top(f)
+                            <Self as SumNt>::fmt_matches_top(f)
                         },
 
                         Self::RecoverEleIgnore_(name, _, _) => {
@@ -1276,69 +1287,16 @@ macro_rules! ele_parse {
                                 given = TtQuote::wrap(name),
                             )?;
 
-                            Self::fmt_matches_top(f)?;
+                            <Self as SumNt>::fmt_matches_top(f)?;
                             f.write_str(")")
                         }
                     }
                 }
             }
 
-            #[derive(Debug, PartialEq)]
-            $vis enum [<$nt Error_>] {
-                UnexpectedEle(crate::xir::QName, crate::span::Span),
-            }
-
-            impl std::error::Error for [<$nt Error_>] {
-                fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-                    // TODO
-                    None
-                }
-            }
-
-            impl std::fmt::Display for [<$nt Error_>] {
-                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    use crate::{
-                        fmt::DisplayWrapper,
-                        xir::fmt::TtOpenXmlEle,
-                    };
-
-                    match self {
-                        Self::UnexpectedEle(qname, _) => {
-                            write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
-                        },
-                    }
-                }
-            }
-
-            impl crate::diagnose::Diagnostic for [<$nt Error_>] {
-                fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-                    use crate::{
-                        diagnose::Annotate,
-                        fmt::{DisplayWrapper, TtQuote, DisplayFn},
-                    };
-
-                    // Note that we should place expected values in the help
-                    //   footnote rather than the span label because it can
-                    //   get rather long.
-                    // Maybe in the future the diagnostic renderer can be
-                    //   smart about that based on the terminal width and
-                    //   automatically move into the footer.
-                    match self {
-                        Self::UnexpectedEle(qname, span) => {
-                            span
-                                .error(format!(
-                                    "element {name} cannot appear here",
-                                    name = TtQuote::wrap(qname),
-                                ))
-                                .with_help(format!(
-                                    "expecting {}",
-                                    DisplayFn($nt::fmt_matches_top)
-                                ))
-                                .into()
-                        },
-                    }
-                }
-            }
+            // Used by superstate sum type.
+            #[doc(hidden)]
+            type [<$nt Error_>] = crate::xir::parse::SumNtError<$nt>;
 
             impl crate::parse::ParseState for $nt {
                 type Token = crate::xir::flat::XirfToken<
@@ -1427,7 +1385,11 @@ macro_rules! ele_parse {
                                 //   since it's specifically the name that
                                 //   was unexpected,
                                 //     not the fact that it's an element.
-                                [<$nt Error_>]::UnexpectedEle(qname, span.name_span())
+                                Self::Error::UnexpectedEle(
+                                    qname,
+                                    span.name_span(),
+                                    Default::default(),
+                                )
                             )
                         },
 
@@ -1779,6 +1741,62 @@ macro_rules! ele_parse {
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
         $super::$ntfirst($ntfirst::NonPreemptableExpecting_)
+    }
+}
+
+/// Sum nonterminal.
+///
+/// This trait is used internally by the [`ele_parse!`] parser-generator.
+pub trait SumNt: Debug {
+    fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result;
+}
+
+/// Error during parsing of a sum nonterminal.
+#[derive(Debug, PartialEq)]
+pub enum SumNtError<NT: SumNt> {
+    UnexpectedEle(QName, Span, PhantomData<NT>),
+}
+
+impl<NT: SumNt> Error for SumNtError<NT> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+impl<NT: SumNt> Display for SumNtError<NT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use crate::xir::fmt::TtOpenXmlEle;
+
+        match self {
+            Self::UnexpectedEle(qname, _, _) => {
+                write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
+            }
+        }
+    }
+}
+
+impl<NT: SumNt> Diagnostic for SumNtError<NT> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        use crate::{diagnose::Annotate, fmt::DisplayFn};
+
+        // Note that we should place expected values in the help
+        //   footnote rather than the span label because it can
+        //   get rather long.
+        // Maybe in the future the diagnostic renderer can be
+        //   smart about that based on the terminal width and
+        //   automatically move into the footer.
+        match self {
+            Self::UnexpectedEle(qname, span, _) => span
+                .error(format!(
+                    "element {name} cannot appear here",
+                    name = TtQuote::wrap(qname),
+                ))
+                .with_help(format!(
+                    "expecting {}",
+                    DisplayFn(NT::fmt_matches_top)
+                ))
+                .into(),
+        }
     }
 }
 

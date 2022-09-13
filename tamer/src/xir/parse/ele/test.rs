@@ -1429,6 +1429,7 @@ fn sum_nonterminal_error_recovery() {
         ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
             unexpected,
             OpenSpan(S1, N).name_span(),
+            Default::default(),
         ))),
     );
 
