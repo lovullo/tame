@@ -41,7 +41,7 @@ use crate::{
 use super::{AttrParseState, Nt, SumNt};
 
 #[derive(Debug, PartialEq)]
-pub enum NtError<NT: Nt, A: AttrParseState> {
+pub enum NtError<NT: Nt> {
     /// An element was expected,
     ///   but the name of the element was unexpected.
     UnexpectedEle(QName, Span),
@@ -52,23 +52,27 @@ pub enum NtError<NT: Nt, A: AttrParseState> {
     /// The span corresponds to the opening tag.
     CloseExpected(QName, OpenSpan, XirfToken<RefinedText>),
 
-    Attrs(AttrParseError<A>, PhantomData<NT>),
+    Attrs(AttrParseError<NT::AttrState>, PhantomData<NT>),
 }
 
-impl<NT: Nt, A: AttrParseState> From<AttrParseError<A>> for NtError<NT, A> {
+impl<NT, A> From<AttrParseError<A>> for NtError<NT>
+where
+    NT: Nt<AttrState = A>,
+    A: AttrParseState,
+{
     fn from(e: AttrParseError<A>) -> Self {
         Self::Attrs(e, PhantomData::default())
     }
 }
 
-impl<NT: Nt, A: AttrParseState> Error for NtError<NT, A> {
+impl<NT: Nt> Error for NtError<NT> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         // TODO
         None
     }
 }
 
-impl<NT: Nt, A: AttrParseState> Display for NtError<NT, A> {
+impl<NT: Nt> Display for NtError<NT> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use crate::xir::fmt::{TtCloseXmlEle, TtOpenXmlEle};
 
@@ -92,7 +96,7 @@ impl<NT: Nt, A: AttrParseState> Display for NtError<NT, A> {
     }
 }
 
-impl<NT: Nt, A: AttrParseState> Diagnostic for NtError<NT, A> {
+impl<NT: Nt> Diagnostic for NtError<NT> {
     fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
         use crate::{parse::Token, xir::fmt::TtCloseXmlEle};
 
