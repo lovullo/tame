@@ -335,7 +335,7 @@ macro_rules! ele_parse {
         $(
             $ntref:ident,
         )*
-    ) => {
+    ) => { paste::paste! {
         ele_parse! {
             @!ele_dfn_body <$objty, $($evty)?>
             $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
@@ -355,12 +355,12 @@ macro_rules! ele_parse {
             -> {
                 @ ->
                 $(
-                    ($nt::$ntref, $ntref),
-                    ($nt::$ntref, $ntref) ->
-                )* ($nt::ExpectClose_, ()),
+                    ([<$nt ChildNt_>]::$ntref, $ntref),
+                    ([<$nt ChildNt_>]::$ntref, $ntref) ->
+                )* ([<$nt ChildNt_>]::ExpectClose_, ()),
             }
         }
-    };
+    } };
 
     // No explicit Close mapping defaults to doing nothing at all
     //   (so yield Incomplete).
@@ -456,6 +456,28 @@ macro_rules! ele_parse {
                 }
             }
 
+            #[doc=concat!("Child NTs for parent NT [`", stringify!($qname), "`].")]
+            #[derive(Debug, PartialEq, Eq)]
+            $vis enum [<$nt ChildNt_>] {
+                $(
+                    $ntref(
+                        (
+                            crate::xir::QName,
+                            crate::xir::OpenSpan,
+                            crate::xir::flat::Depth
+                        ),
+                    ),
+                )*
+
+                ExpectClose_(
+                    (
+                        crate::xir::QName,
+                        crate::xir::OpenSpan,
+                        crate::xir::flat::Depth
+                    ),
+                ),
+            }
+
             $(#[$nt_attr])*
             ///
             #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
@@ -520,25 +542,8 @@ macro_rules! ele_parse {
                     [<$nt AttrsState_>]
                 ),
 
-                $(
-                    #[doc(hidden)]
-                    $ntref(
-                        (
-                            crate::xir::QName,
-                            crate::xir::OpenSpan,
-                            crate::xir::flat::Depth
-                        ),
-                    ),
-                )*
-
-                #[doc(hidden)]
-                ExpectClose_(
-                    (
-                        crate::xir::QName,
-                        crate::xir::OpenSpan,
-                        crate::xir::flat::Depth
-                    ),
-                ),
+                /// Preparing to pass control (jump) to a child NT's parser.
+                Jmp_([<$nt ChildNt_>]),
 
                 /// Closing tag found and parsing of the element is
                 ///   complete.
@@ -649,10 +654,7 @@ macro_rules! ele_parse {
                         //   `Close`,
                         //     then it must be safe to preempt other nodes
                         //     that may appear in this context as children.
-                        $ntfirst(..) => true,
-                        $(
-                            $ntnext(..) => true,
-                        )*
+                        Jmp_(..) => true,
 
                         // If we're done,
                         //   we want to be able to yield a dead state so
@@ -675,7 +677,7 @@ macro_rules! ele_parse {
                     match self {
                         Self::Attrs_(..) => $(
                             false,
-                            Self::$ntref(..) =>
+                            Self::Jmp_([<$nt ChildNt_>]::$ntref(..)) =>
                         )* true,
 
                         _ => false,
@@ -726,11 +728,6 @@ macro_rules! ele_parse {
                         ),
 
                         Self::Attrs_(_, sa) => std::fmt::Display::fmt(sa, f),
-                        Self::ExpectClose_((qname, _, depth)) => write!(
-                            f,
-                            "expecting closing element {} at depth {depth}",
-                            TtCloseXmlEle::wrap(qname)
-                        ),
                         Self::Closed_(Some(qname), _) => write!(
                             f,
                             "done parsing element {}",
@@ -742,16 +739,14 @@ macro_rules! ele_parse {
                             "skipped parsing element {}",
                             TtQuote::wrap(<Self as Nt>::matcher()),
                         ),
-                        $(
-                            // TODO: A better description.
-                            Self::$ntref(_) => {
-                                write!(
-                                    f,
-                                    "preparing to transition to \
-                                       parser for next child element(s)"
-                                )
-                            },
-                        )*
+                        // TODO: A better description.
+                        Self::Jmp_(_) => {
+                            write!(
+                                f,
+                                "preparing to transition to \
+                                    parser for next child element(s)"
+                            )
+                        }
                     }
                 }
             }
@@ -788,7 +783,8 @@ macro_rules! ele_parse {
                     use $nt::{
                         Attrs_, Expecting_, NonPreemptableExpecting_,
                         RecoverEleIgnore_, CloseRecoverIgnore_,
-                        RecoverEleIgnoreClosed_, ExpectClose_, Closed_
+                        RecoverEleIgnoreClosed_, Closed_,
+                        Jmp_,
                     };
 
                     match (self, tok) {
@@ -874,12 +870,12 @@ macro_rules! ele_parse {
                             (Attrs_(meta, _), tok) => {
                                 ele_parse!(@!ntref_delegate
                                     stack,
-                                    $ntfirst(meta),
+                                    Jmp_($ntfirst(meta)),
                                     $ntfirst_st,
                                     Transition($ntfirst_st::default())
                                            .incomplete()
                                            .with_lookahead(tok),
-                                    Transition($ntfirst(meta))
+                                    Transition(Jmp_($ntfirst(meta)))
                                         .incomplete()
                                         .with_lookahead(tok)
                                 )
@@ -924,10 +920,10 @@ macro_rules! ele_parse {
                                     // Lookahead is added by `delegate_until_obj`.
                                     ele_parse!(@!ntref_delegate
                                         stack,
-                                        $ntfirst(meta),
+                                        Jmp_($ntfirst(meta)),
                                         $ntfirst_st,
                                         Transition(<$ntfirst_st>::default()).ok(obj),
-                                        Transition($ntfirst(meta)).ok(obj)
+                                        Transition(Jmp_($ntfirst(meta))).ok(obj)
                                     )
                                 }
                             )
@@ -944,14 +940,14 @@ macro_rules! ele_parse {
                             //     which violates the semantics of the
                             //     implied DFA.
                             (
-                                $ntprev(meta),
+                                Jmp_($ntprev(meta)),
                                 XirfToken::Open(qname, span, depth)
                             ) if $ntprev_st::matches(qname) => {
                                 let tok = XirfToken::Open(qname, span, depth);
 
                                 ele_parse!(@!ntref_delegate
                                     stack,
-                                    $ntprev(meta),
+                                    Jmp_($ntprev(meta)),
                                     $ntprev_st,
                                     // This NT said it could process this token,
                                     //   so force it to either do so or error,
@@ -960,19 +956,23 @@ macro_rules! ele_parse {
                                     Transition(<$ntprev_st>::non_preemptable())
                                         .incomplete()
                                         .with_lookahead(tok),
-                                    Transition($ntprev(meta)).incomplete().with_lookahead(tok)
+                                    Transition(Jmp_($ntprev(meta)))
+                                        .incomplete()
+                                        .with_lookahead(tok)
                                 )
                             },
 
-                            ($ntprev(meta), tok) => {
+                            (Jmp_($ntprev(meta)), tok) => {
                                 ele_parse!(@!ntref_delegate
                                     stack,
-                                    $ntnext(meta),
+                                    Jmp_($ntnext(meta)),
                                     $ntnext_st,
                                     Transition(<$ntnext_st>::default())
                                         .incomplete()
                                         .with_lookahead(tok),
-                                    Transition($ntnext(meta)).incomplete().with_lookahead(tok)
+                                    Transition(Jmp_($ntnext(meta)))
+                                        .incomplete()
+                                        .with_lookahead(tok)
                                 )
                             },
 
@@ -1002,21 +1002,18 @@ macro_rules! ele_parse {
                             //       which completely defeats the purpose of
                             //       having ordered states.
                             (
-                                ExpectClose_(meta),
+                                Jmp_([<$nt ChildNt_>]::ExpectClose_(meta)),
                                 XirfToken::Open(qname, span, depth)
-                            ) if $ntprev(meta).is_last_nt() => {
+                            ) if Jmp_($ntprev(meta)).is_last_nt() => {
                                 let tok = XirfToken::Open(qname, span, depth);
-                                ele_parse!(@!ntref_delegate
+                                ele_parse!(@!ntref_delegate_nodone
                                     stack,
-                                    $ntprev(meta),
+                                    Jmp_($ntprev(meta)),
                                     $ntprev_st,
                                     // If this NT cannot handle this element,
                                     //   it should error and enter recovery
                                     //   to ignore it.
                                     Transition(<$ntprev_st>::non_preemptable())
-                                        .incomplete()
-                                        .with_lookahead(tok),
-                                    Transition(ExpectClose_(meta))
                                         .incomplete()
                                         .with_lookahead(tok)
                                 )
@@ -1026,7 +1023,7 @@ macro_rules! ele_parse {
                         // XIRF ensures proper nesting,
                         //   so we do not need to check the element name.
                         (
-                            ExpectClose_((qname, _, depth))
+                            Jmp_([<$nt ChildNt_>]::ExpectClose_((qname, _, depth)))
                             | CloseRecoverIgnore_((qname, _, depth), _),
                             XirfToken::Close(_, span, tok_depth)
                         ) if tok_depth == depth => {
@@ -1036,7 +1033,10 @@ macro_rules! ele_parse {
                             $closemap.transition(Closed_(Some(qname), span.tag_span()))
                         },
 
-                        (ExpectClose_(meta @ (qname, otspan, _)), unexpected_tok) => {
+                        (
+                            Jmp_([<$nt ChildNt_>]::ExpectClose_(meta @ (qname, otspan, _))),
+                            unexpected_tok
+                        ) => {
                             use crate::parse::Token;
                             Transition(
                                 CloseRecoverIgnore_(meta, unexpected_tok.span())
