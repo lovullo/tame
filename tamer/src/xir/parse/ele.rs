@@ -393,6 +393,17 @@ macro_rules! ele_parse {
         )
     };
 
+    // Same as above,
+    //   but in situations where we will never transition to a done state.
+    (@!ntref_delegate_nodone
+        $stack:ident, $ret:expr, $ntnext_st:ty, $target:expr
+    ) => {
+        $stack.transfer_with_ret(
+            Transition($ret),
+            $target,
+        )
+    };
+
     (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident
         ($($qname_matched:pat, $open_span:pat)?)
@@ -1248,7 +1259,7 @@ macro_rules! ele_parse {
                                 st @ (Expecting_ | NonPreemptableExpecting_),
                                 XirfToken::Open(qname, span, depth)
                             ) if $ntref::matches(qname) => {
-                                ele_parse!(@!ntref_delegate
+                                ele_parse!(@!ntref_delegate_nodone
                                     stack,
                                     Expecting_,
                                     $ntref,
@@ -1268,8 +1279,7 @@ macro_rules! ele_parse {
                                         }
                                     ).incomplete().with_lookahead(
                                         XirfToken::Open(qname, span, depth)
-                                    ),
-                                    unreachable!("TODO: remove me (ntref_delegate done)")
+                                    )
                                 )
                             },
 
@@ -1277,7 +1287,7 @@ macro_rules! ele_parse {
                                 NonPreemptableExpecting_,
                                 XirfToken::Open(qname, span, depth)
                             ) if $ntref::matches(qname) => {
-                                ele_parse!(@!ntref_delegate
+                                ele_parse!(@!ntref_delegate_nodone
                                     stack,
                                     Expecting_,
                                     $ntref,
@@ -1285,8 +1295,7 @@ macro_rules! ele_parse {
                                         $ntref::NonPreemptableExpecting_
                                     ).incomplete().with_lookahead(
                                         XirfToken::Open(qname, span, depth)
-                                    ),
-                                    unreachable!("TODO: remove me (ntref_delegate done)")
+                                    )
                                 )
                             },
                         )*
