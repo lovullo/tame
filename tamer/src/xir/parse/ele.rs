@@ -25,7 +25,7 @@ use crate::{
     parse::{
         ClosedParseState, Context, ParseState, Transition, TransitionResult,
     },
-    xir::{Prefix, QName},
+    xir::{flat::Depth, OpenSpan, Prefix, QName},
 };
 use arrayvec::ArrayVec;
 use std::fmt::{Debug, Display};
@@ -216,6 +216,9 @@ impl Display for NodeMatcher {
     }
 }
 
+/// Nonterminal.
+///
+/// This trait is used internally by the [`ele_parse!`] parser-generator.
 pub trait Nt: Debug {
     fn matcher() -> NodeMatcher;
 }
@@ -547,6 +550,13 @@ macro_rules! ele_parse {
             }
 
             impl $nt {
+                /// A default state that cannot be preempted by the
+                ///   superstate.
+                #[allow(dead_code)] // not utilized for every NT
+                fn non_preemptable() -> Self {
+                    Self::NonPreemptableExpecting_
+                }
+
                 /// Whether the given QName would be matched by any of the
                 ///   parsers associated with this type.
                 #[inline]
@@ -947,7 +957,7 @@ macro_rules! ele_parse {
                                     //   so force it to either do so or error,
                                     //   to ensure that bugs don't cause
                                     //   infinite processing of lookahead.
-                                    Transition(<$ntprev_st>::NonPreemptableExpecting_)
+                                    Transition(<$ntprev_st>::non_preemptable())
                                         .incomplete()
                                         .with_lookahead(tok),
                                     Transition($ntprev(meta)).incomplete().with_lookahead(tok)
@@ -1003,7 +1013,7 @@ macro_rules! ele_parse {
                                     // If this NT cannot handle this element,
                                     //   it should error and enter recovery
                                     //   to ignore it.
-                                    Transition(<$ntprev_st>::NonPreemptableExpecting_)
+                                    Transition(<$ntprev_st>::non_preemptable())
                                         .incomplete()
                                         .with_lookahead(tok),
                                     Transition(ExpectClose_(meta))
@@ -1075,27 +1085,13 @@ macro_rules! ele_parse {
                 "."
             )]
             #[derive(Debug, PartialEq, Eq, Default)]
-            $vis enum $nt {
-                #[default]
-                #[doc(hidden)]
-                Expecting_,
-
-                /// Non-preemptable [`Self::Expecting_`].
-                #[doc(hidden)]
-                #[allow(dead_code)] // used by superstate node preemption
-                NonPreemptableExpecting_,
-
-                /// Recovery state ignoring all remaining tokens for this
-                ///   element.
-                #[doc(hidden)]
-                RecoverEleIgnore_(
-                    crate::xir::QName,
-                    crate::xir::OpenSpan,
-                    crate::xir::flat::Depth,
-                ),
-            }
+            $vis struct $nt(crate::xir::parse::SumNtState);
 
             impl $nt {
+                fn non_preemptable() -> Self {
+                    Self(crate::xir::parse::SumNtState::NonPreemptableExpecting)
+                }
+
                 // Whether the given QName would be matched by any of the
                 //   parsers associated with this type.
                 //
@@ -1165,21 +1161,8 @@ macro_rules! ele_parse {
                     " [`", stringify!($super), "::can_preempt_node`]."
                 )]
                 fn can_preempt_node(&self) -> bool {
-                    use $nt::*;
-
                     match self {
-                        // Preemption before the opening tag is safe,
-                        //   since we haven't started processing yet.
-                        Expecting_ => true,
-
-                        // The name says it all.
-                        // Instantiated by the superstate.
-                        NonPreemptableExpecting_ => false,
-
-                        // Preemption during recovery would cause tokens to
-                        //   be parsed when they ought to be ignored,
-                        //     so we must process all tokens during recovery.
-                        RecoverEleIgnore_(..) => false,
+                        Self(st) => st.can_preempt_node(),
                     }
                 }
             }
@@ -1197,17 +1180,16 @@ macro_rules! ele_parse {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                     use crate::{
                         fmt::{DisplayWrapper, TtQuote},
-                        xir::parse::SumNt
+                        xir::parse::{SumNt, SumNtState::*},
                     };
 
-                    match self {
-                        Self::Expecting_
-                        | Self::NonPreemptableExpecting_ => {
+                    match self.0 {
+                        Expecting | NonPreemptableExpecting => {
                             write!(f, "expecting ")?;
                             <Self as SumNt>::fmt_matches_top(f)
                         },
 
-                        Self::RecoverEleIgnore_(name, _, _) => {
+                        RecoverEleIgnore(name, _, _) => {
                             write!(
                                 f,
                                 "attempting to recover by ignoring element \
@@ -1246,22 +1228,23 @@ macro_rules! ele_parse {
                         xir::{
                             flat::XirfToken,
                             EleSpan,
+                            parse::SumNtState::{
+                                Expecting,
+                                NonPreemptableExpecting,
+                                RecoverEleIgnore,
+                            },
                         },
                     };
 
-                    use $nt::{
-                        Expecting_, NonPreemptableExpecting_, RecoverEleIgnore_,
-                    };
-
-                    match (self, tok) {
+                    match (self.0, tok) {
                         $(
                             (
-                                st @ (Expecting_ | NonPreemptableExpecting_),
+                                st @ (Expecting | NonPreemptableExpecting),
                                 XirfToken::Open(qname, span, depth)
                             ) if $ntref::matches(qname) => {
                                 ele_parse!(@!ntref_delegate_nodone
                                     stack,
-                                    Expecting_,
+                                    Self(Expecting),
                                     $ntref,
                                     Transition(
                                         // Propagate non-preemption status,
@@ -1270,8 +1253,8 @@ macro_rules! ele_parse {
                                         //   and end up recursing until we
                                         //   hit the `stack` limit.
                                         match st {
-                                            NonPreemptableExpecting_ => {
-                                                $ntref::NonPreemptableExpecting_
+                                            NonPreemptableExpecting => {
+                                                $ntref::non_preemptable()
                                             }
                                             _ => {
                                                 $ntref::default()
@@ -1284,15 +1267,15 @@ macro_rules! ele_parse {
                             },
 
                             (
-                                NonPreemptableExpecting_,
+                                NonPreemptableExpecting,
                                 XirfToken::Open(qname, span, depth)
                             ) if $ntref::matches(qname) => {
                                 ele_parse!(@!ntref_delegate_nodone
                                     stack,
-                                    Expecting_,
+                                    Self(Expecting),
                                     $ntref,
                                     Transition(
-                                        $ntref::NonPreemptableExpecting_
+                                        $ntref::non_preemptable()
                                     ).incomplete().with_lookahead(
                                         XirfToken::Open(qname, span, depth)
                                     )
@@ -1304,10 +1287,10 @@ macro_rules! ele_parse {
                         //   then we're expected to be able to process this
                         //   token or fail trying.
                         (
-                            NonPreemptableExpecting_,
+                            NonPreemptableExpecting,
                             XirfToken::Open(qname, span, depth)
                         ) => {
-                            Transition(RecoverEleIgnore_(qname, span, depth)).err(
+                            Transition(Self(RecoverEleIgnore(qname, span, depth))).err(
                                 // Use name span rather than full `OpenSpan`
                                 //   since it's specifically the name that
                                 //   was unexpected,
@@ -1323,27 +1306,29 @@ macro_rules! ele_parse {
                         // An unexpected token when repeating ends
                         //   repetition and should not result in an error.
                         (
-                            Expecting_ | NonPreemptableExpecting_,
+                            Expecting | NonPreemptableExpecting,
                             tok
-                        ) => Transition(Expecting_).dead(tok),
+                        ) => Transition(Self(Expecting)).dead(tok),
 
                         // XIRF ensures that the closing tag matches the opening,
                         //   so we need only check depth.
                         (
-                            RecoverEleIgnore_(_, _, depth_open),
+                            RecoverEleIgnore(_, _, depth_open),
                             XirfToken::Close(_, _, depth_close)
                         ) if depth_open == depth_close => {
-                            Transition(Expecting_).incomplete()
+                            Transition(Self(Expecting)).incomplete()
                         },
 
-                        (st @ RecoverEleIgnore_(..), _) => {
-                            Transition(st).incomplete()
+                        (st @ RecoverEleIgnore(..), _) => {
+                            Transition(Self(st)).incomplete()
                         },
                     }
                 }
 
                 fn is_accepting(&self, _: &Self::Context) -> bool {
-                    matches!(self, Self::Expecting_)
+                    use crate::xir::parse::SumNtState;
+
+                    matches!(self, Self(SumNtState::Expecting))
                 }
             }
         }
@@ -1544,7 +1529,7 @@ macro_rules! ele_parse {
                                         Transition(st),
                                         Transition(
                                             // Prevent recursing on this token.
-                                            $pre_nt::NonPreemptableExpecting_
+                                            $pre_nt::non_preemptable()
                                         )
                                         .incomplete()
                                         .with_lookahead(XirfToken::Open(
@@ -1667,7 +1652,54 @@ macro_rules! ele_parse {
     };
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
-        $super::$ntfirst($ntfirst::NonPreemptableExpecting_)
+        $super::$ntfirst($ntfirst::non_preemptable())
+    }
+}
+
+/// States for sum nonterminals.
+///
+/// Sum NTs act like a sum type,
+///   transitioning to the appropriate inner NT based on the next token of
+///   input.
+/// Sum NTs have order-based precedence when faced with ambiguity,
+///   like a PEG.
+///
+/// This is expected to be wrapped by a newtype for each Sum NT,
+///   and does not implement [`ParseState`] itself.
+#[derive(Debug, PartialEq, Eq, Default)]
+pub enum SumNtState {
+    /// Expecting an opening tag for an element.
+    #[default]
+    Expecting,
+
+    /// Non-preemptable [`Self::Expecting`].
+    NonPreemptableExpecting,
+
+    /// Recovery state ignoring all remaining tokens for this
+    ///   element.
+    RecoverEleIgnore(QName, OpenSpan, Depth),
+}
+
+impl SumNtState {
+    /// Whether the parser is in a state that can tolerate
+    ///   superstate node preemption.
+    pub fn can_preempt_node(&self) -> bool {
+        use SumNtState::*;
+
+        match self {
+            // Preemption before the opening tag is safe,
+            //   since we haven't started processing yet.
+            Expecting => true,
+
+            // The name says it all.
+            // Instantiated by the superstate.
+            NonPreemptableExpecting => false,
+
+            // Preemption during recovery would cause tokens to
+            //   be parsed when they ought to be ignored,
+            //     so we must process all tokens during recovery.
+            RecoverEleIgnore(..) => false,
+        }
     }
 }
 
