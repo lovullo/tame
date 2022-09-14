@@ -29,7 +29,10 @@ use crate::{
     xir::{flat::Depth, CloseSpan, OpenSpan, Prefix, QName},
 };
 use arrayvec::ArrayVec;
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display, Formatter},
+    marker::PhantomData,
+};
 
 #[cfg(doc)]
 use crate::{ele_parse, parse::Parser};
@@ -577,60 +580,8 @@ macro_rules! ele_parse {
 
             impl std::fmt::Display for $nt {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    use crate::{
-                        fmt::{DisplayWrapper, TtQuote},
-                        xir::{
-                            fmt::{TtOpenXmlEle, TtCloseXmlEle},
-                            parse::{Nt, NtState::*},
-                        },
-                    };
-
-                    let Self(st) = self;
-
-                    match st {
-                        Expecting
-                        | NonPreemptableExpecting => write!(
-                            f,
-                            "expecting opening tag {}",
-                            TtOpenXmlEle::wrap(<Self as Nt>::matcher()),
-                        ),
-                        RecoverEleIgnore(name, _, _)
-                        | RecoverEleIgnoreClosed(name, _) => write!(
-                            f,
-                            "attempting to recover by ignoring element \
-                               with unexpected name {given} \
-                               (expected {expected})",
-                            given = TtQuote::wrap(name),
-                            expected = TtQuote::wrap(<Self as Nt>::matcher()),
-                        ),
-                        CloseRecoverIgnore((qname, _, depth), _) => write!(
-                            f,
-                            "attempting to recover by ignoring input \
-                               until the expected end tag {expected} \
-                               at depth {depth}",
-                            expected = TtCloseXmlEle::wrap(qname),
-                        ),
-
-                        Attrs(_, sa) => std::fmt::Display::fmt(sa, f),
-                        Closed(Some(qname), _) => write!(
-                            f,
-                            "done parsing element {}",
-                            TtQuote::wrap(qname),
-                        ),
-                        // Should only happen on an unexpected `Close`.
-                        Closed(None, _) => write!(
-                            f,
-                            "skipped parsing element {}",
-                            TtQuote::wrap(<Self as Nt>::matcher()),
-                        ),
-                        // TODO: A better description.
-                        Jmp(_) => {
-                            write!(
-                                f,
-                                "preparing to transition to \
-                                    parser for next child element(s)"
-                            )
-                        }
+                    match self {
+                        Self(st) => st.fmt(f),
                     }
                 }
             }
@@ -975,7 +926,7 @@ macro_rules! ele_parse {
                 "."
             )]
             #[derive(Debug, PartialEq, Eq, Default)]
-            $vis struct $nt(crate::xir::parse::SumNtState);
+            $vis struct $nt(crate::xir::parse::SumNtState<$nt>);
 
             impl $nt {
                 fn non_preemptable() -> Self {
@@ -1068,29 +1019,8 @@ macro_rules! ele_parse {
 
             impl std::fmt::Display for $nt {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    use crate::{
-                        fmt::{DisplayWrapper, TtQuote},
-                        xir::parse::{SumNt, SumNtState::*},
-                    };
-
-                    match self.0 {
-                        Expecting | NonPreemptableExpecting => {
-                            write!(f, "expecting ")?;
-                            <Self as SumNt>::fmt_matches_top(f)
-                        },
-
-                        RecoverEleIgnore(name, _, _) => {
-                            write!(
-                                f,
-                                "attempting to recover by ignoring element \
-                                with unexpected name {given} \
-                                (expected",
-                                given = TtQuote::wrap(name),
-                            )?;
-
-                            <Self as SumNt>::fmt_matches_top(f)?;
-                            f.write_str(")")
-                        }
+                    match self {
+                        Self(st) => st.fmt(f),
                     }
                 }
             }
@@ -1180,7 +1110,9 @@ macro_rules! ele_parse {
                             NonPreemptableExpecting,
                             XirfToken::Open(qname, span, depth)
                         ) => {
-                            Transition(Self(RecoverEleIgnore(qname, span, depth))).err(
+                            Transition(Self(
+                                RecoverEleIgnore(qname, span, depth, Default::default())
+                            )).err(
                                 // Use name span rather than full `OpenSpan`
                                 //   since it's specifically the name that
                                 //   was unexpected,
@@ -1203,7 +1135,7 @@ macro_rules! ele_parse {
                         // XIRF ensures that the closing tag matches the opening,
                         //   so we need only check depth.
                         (
-                            RecoverEleIgnore(_, _, depth_open),
+                            RecoverEleIgnore(_, _, depth_open, _),
                             XirfToken::Close(_, _, depth_close)
                         ) if depth_open == depth_close => {
                             Transition(Self(Expecting)).incomplete()
@@ -1217,7 +1149,6 @@ macro_rules! ele_parse {
 
                 fn is_accepting(&self, _: &Self::Context) -> bool {
                     use crate::xir::parse::SumNtState;
-
                     matches!(self, Self(SumNtState::Expecting))
                 }
             }
@@ -1650,6 +1581,57 @@ impl<NT: Nt> NtState<NT> {
     }
 }
 
+impl<NT: Nt> Display for NtState<NT> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        use crate::xir::fmt::{TtCloseXmlEle, TtOpenXmlEle};
+        use NtState::*;
+
+        match self {
+            Expecting | NonPreemptableExpecting => write!(
+                f,
+                "expecting opening tag {}",
+                TtOpenXmlEle::wrap(NT::matcher()),
+            ),
+            RecoverEleIgnore(name, _, _) | RecoverEleIgnoreClosed(name, _) => {
+                write!(
+                    f,
+                    "attempting to recover by ignoring element \
+                    with unexpected name {given} \
+                    (expected {expected})",
+                    given = TtQuote::wrap(name),
+                    expected = TtQuote::wrap(NT::matcher()),
+                )
+            }
+            CloseRecoverIgnore((qname, _, depth), _) => write!(
+                f,
+                "attempting to recover by ignoring input \
+                    until the expected end tag {expected} \
+                    at depth {depth}",
+                expected = TtCloseXmlEle::wrap(qname),
+            ),
+
+            Attrs(_, sa) => Display::fmt(sa, f),
+            Closed(Some(qname), _) => {
+                write!(f, "done parsing element {}", TtQuote::wrap(qname),)
+            }
+            // Should only happen on an unexpected `Close`.
+            Closed(None, _) => write!(
+                f,
+                "skipped parsing element {}",
+                TtQuote::wrap(NT::matcher()),
+            ),
+            // TODO: A better description.
+            Jmp(_) => {
+                write!(
+                    f,
+                    "preparing to transition to \
+                        parser for next child element(s)"
+                )
+            }
+        }
+    }
+}
+
 /// Sum nonterminal.
 ///
 /// This trait is used internally by the [`ele_parse!`] parser-generator.
@@ -1668,7 +1650,7 @@ pub trait SumNt: Debug {
 /// This is expected to be wrapped by a newtype for each Sum NT,
 ///   and does not implement [`ParseState`] itself.
 #[derive(Debug, PartialEq, Eq, Default)]
-pub enum SumNtState {
+pub enum SumNtState<NT: SumNt> {
     /// Expecting an opening tag for an element.
     #[default]
     Expecting,
@@ -1678,10 +1660,10 @@ pub enum SumNtState {
 
     /// Recovery state ignoring all remaining tokens for this
     ///   element.
-    RecoverEleIgnore(QName, OpenSpan, Depth),
+    RecoverEleIgnore(QName, OpenSpan, Depth, PhantomData<NT>),
 }
 
-impl SumNtState {
+impl<NT: SumNt> SumNtState<NT> {
     /// Whether the parser is in a state that can tolerate
     ///   superstate node preemption.
     pub fn can_preempt_node(&self) -> bool {
@@ -1700,6 +1682,32 @@ impl SumNtState {
             //   be parsed when they ought to be ignored,
             //     so we must process all tokens during recovery.
             RecoverEleIgnore(..) => false,
+        }
+    }
+}
+
+impl<NT: SumNt> Display for SumNtState<NT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SumNtState::*;
+
+        match self {
+            Expecting | NonPreemptableExpecting => {
+                write!(f, "expecting ")?;
+                NT::fmt_matches_top(f)
+            }
+
+            RecoverEleIgnore(name, _, _, _) => {
+                write!(
+                    f,
+                    "attempting to recover by ignoring element \
+                    with unexpected name {given} \
+                    (expected",
+                    given = TtQuote::wrap(name),
+                )?;
+
+                NT::fmt_matches_top(f)?;
+                f.write_str(")")
+            }
         }
     }
 }
