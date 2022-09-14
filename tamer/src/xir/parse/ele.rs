@@ -1028,11 +1028,13 @@ macro_rules! ele_parse {
                             Transition(st).incomplete()
                         },
 
-                        // TODO: Use `is_accepting` guard if we do not utilize
-                        //   exhaustiveness check.
+                        // Note that this does not necessarily represent an
+                        //   accepting state
+                        //     (see `is_accepting`).
                         (
                             st @ (
                                 Expecting_
+                                | NonPreemptableExpecting_
                                 | Closed_(..)
                                 | RecoverEleIgnoreClosed_(..)
                             ),
@@ -1040,8 +1042,6 @@ macro_rules! ele_parse {
                         ) => {
                             Transition(st).dead(tok)
                         }
-
-                        todo => todo!("{todo:?}"),
                     }
                 }
 
