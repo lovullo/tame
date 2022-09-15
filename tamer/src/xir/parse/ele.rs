@@ -434,726 +434,719 @@ macro_rules! ele_parse {
                 ($ntprev:path, $ntprev_st:ty) -> ($ntnext:path, $ntnext_st:ty),
             )*
         }
-    ) => {
-        paste::paste! {
-            crate::attr_parse! {
-                vis($vis);
-                $(type ValueError = $evty;)?
+    ) => { paste::paste! {
+        crate::attr_parse! {
+            vis($vis);
+            $(type ValueError = $evty;)?
 
-                struct [<$nt AttrState_>] -> [<$nt Attrs>] {
-                    $(
-                        $(#[$fattr])*
-                        $field: ($($fmatch)+) => $fty,
-                    )*
-                }
-            }
-
-            #[doc(hidden)]
-            #[derive(Debug, PartialEq, Eq)]
-            $vis enum [<$nt ChildNt_>] {
+            struct [<$nt AttrState_>] -> [<$nt Attrs>] {
                 $(
-                    $ntref(
-                        (
-                            crate::xir::QName,
-                            crate::xir::OpenSpan,
-                            crate::xir::flat::Depth
-                        ),
-                    ),
+                    $(#[$fattr])*
+                    $field: ($($fmatch)+) => $fty,
                 )*
+            }
+        }
 
-                ExpectClose_(
+        #[doc(hidden)]
+        #[derive(Debug, PartialEq, Eq)]
+        $vis enum [<$nt ChildNt_>] {
+            $(
+                $ntref(
                     (
                         crate::xir::QName,
                         crate::xir::OpenSpan,
                         crate::xir::flat::Depth
                     ),
                 ),
+            )*
+
+            ExpectClose_(
+                (
+                    crate::xir::QName,
+                    crate::xir::OpenSpan,
+                    crate::xir::flat::Depth
+                ),
+            ),
+        }
+
+        $(#[$nt_attr])*
+        ///
+        #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
+        #[derive(Debug, PartialEq, Eq, Default)]
+        $vis struct $nt(crate::xir::parse::NtState<$nt>);
+
+        impl $nt {
+            /// A default state that cannot be preempted by the superstate.
+            #[allow(dead_code)] // not utilized for every NT
+            fn non_preemptable() -> Self {
+                Self(crate::xir::parse::NtState::NonPreemptableExpecting)
             }
 
-            $(#[$nt_attr])*
+            /// Whether the given QName would be matched by any of the
+            ///   parsers associated with this type.
+            #[inline]
+            fn matches(qname: crate::xir::QName) -> bool {
+                <Self as crate::xir::parse::Nt>::matcher().matches(qname)
+            }
+
+            /// Number of
+            ///   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
+            ///   considered by this parser.
             ///
-            #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
-            #[derive(Debug, PartialEq, Eq, Default)]
-            $vis struct $nt(crate::xir::parse::NtState<$nt>);
+            /// This is always `1` for this parser.
+            #[allow(dead_code)] // used by Sum NTs
+            const fn matches_n() -> usize {
+                1
+            }
 
-            impl $nt {
-                /// A default state that cannot be preempted by the
-                ///   superstate.
-                #[allow(dead_code)] // not utilized for every NT
-                fn non_preemptable() -> Self {
-                    Self(crate::xir::parse::NtState::NonPreemptableExpecting)
-                }
+            /// Format matcher for display.
+            ///
+            /// This value may be rendered singularly or as part of a list of
+            ///   values joined together by Sum NTs.
+            /// This function receives the number of values to be formatted
+            ///   as `n` and the current 0-indexed offset within that list
+            ///   as `i`.
+            /// This allows for zero-copy rendering of composable NTs.
+            ///
+            /// `i` must be incremented after the operation.
+            #[allow(dead_code)] // used by Sum NTs
+            fn fmt_matches(
+                n: usize,
+                i: &mut usize,
+                f: &mut std::fmt::Formatter
+            ) -> std::fmt::Result {
+                use crate::{
+                    fmt::ListDisplayWrapper,
+                    xir::{fmt::EleSumList, parse::Nt},
+                };
 
-                /// Whether the given QName would be matched by any of the
-                ///   parsers associated with this type.
-                #[inline]
-                fn matches(qname: crate::xir::QName) -> bool {
-                    <Self as crate::xir::parse::Nt>::matcher().matches(qname)
-                }
+                let matcher = &<Self as Nt>::matcher();
+                EleSumList::fmt_nth(n, *i, matcher, f)?;
+                *i += 1;
 
-                /// Number of
-                ///   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
-                ///   considered by this parser.
-                ///
-                /// This is always `1` for this parser.
-                #[allow(dead_code)] // used by Sum NTs
-                const fn matches_n() -> usize {
-                    1
-                }
+                Ok(())
+            }
 
-                /// Format matcher for display.
-                ///
-                /// This value may be rendered singularly or as part of a
-                ///   list of values joined together by Sum NTs.
-                /// This function receives the number of values to be
-                ///   formatted as `n` and the current 0-indexed offset
-                ///   within that list as `i`.
-                /// This allows for zero-copy rendering of composable NTs.
-                ///
-                /// `i` must be incremented after the operation.
-                #[allow(dead_code)] // used by Sum NTs
-                fn fmt_matches(
-                    n: usize,
-                    i: &mut usize,
-                    f: &mut std::fmt::Formatter
-                ) -> std::fmt::Result {
-                    use crate::{
-                        fmt::ListDisplayWrapper,
-                        xir::{fmt::EleSumList, parse::Nt},
-                    };
-
-                    let matcher = &<Self as Nt>::matcher();
-                    EleSumList::fmt_nth(n, *i, matcher, f)?;
-                    *i += 1;
-
-                    Ok(())
-                }
-
-                /// Whether the parser is in a state that can tolerate
-                ///   superstate node preemption.
-                ///
-                /// For more information,
-                ///   see the superstate
-                #[doc=concat!(
-                    " [`", stringify!($super), "::can_preempt_node`]."
-                )]
-                fn can_preempt_node(&self) -> bool {
-                    match self {
-                        Self(st) => st.can_preempt_node(),
-                    }
-                }
-
-                #[allow(dead_code)] // used only when there are child NTs
-                /// Whether the current state represents the last child NT.
-                fn is_last_nt(&self) -> bool {
-                    use crate::xir::parse::NtState::*;
-
-                    let Self(st) = self;
-
-                    // This results in `Self::$ntref(..) => true,` for the
-                    //   _last_ NT,
-                    //     and `=> false` for all others.
-                    // If there are no NTs,
-                    //   it results in `Self::Attrs(..) => true,`,
-                    //     which is technically true but will never be
-                    //     called in that context.
-                    match st {
-                        Attrs(..) => $(
-                            false,
-                            Jmp([<$nt ChildNt_>]::$ntref(..)) =>
-                        )* true,
-
-                        _ => false,
-                    }
+            /// Whether the parser is in a state that can tolerate superstate
+            ///   node preemption.
+            ///
+            /// For more information,
+            ///   see the superstate
+            #[doc=concat!(
+                " [`", stringify!($super), "::can_preempt_node`]."
+            )]
+            fn can_preempt_node(&self) -> bool {
+                match self {
+                    Self(st) => st.can_preempt_node(),
                 }
             }
 
-            impl crate::xir::parse::Nt for $nt {
-                type AttrState = [<$nt AttrState_>];
-                type ChildNt = [<$nt ChildNt_>];
+            #[allow(dead_code)] // used only when there are child NTs
+            /// Whether the current state represents the last child NT.
+            fn is_last_nt(&self) -> bool {
+                use crate::xir::parse::NtState::*;
 
-                #[inline]
-                fn matcher() -> crate::xir::parse::NodeMatcher {
-                    crate::xir::parse::NodeMatcher::from($qname)
+                let Self(st) = self;
+
+                // This results in `Self::$ntref(..) => true,` for the
+                //   _last_ NT,
+                //     and `=> false` for all others.
+                // If there are no NTs,
+                //   it results in `Self::Attrs(..) => true,`,
+                //     which is technically true but will never be called in
+                //     that context.
+                match st {
+                    Attrs(..) => $(
+                        false,
+                        Jmp([<$nt ChildNt_>]::$ntref(..)) =>
+                    )* true,
+
+                    _ => false,
                 }
             }
+        }
 
-            impl std::fmt::Display for $nt {
-                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    match self {
-                        Self(st) => st.fmt(f),
-                    }
+        impl crate::xir::parse::Nt for $nt {
+            type AttrState = [<$nt AttrState_>];
+            type ChildNt = [<$nt ChildNt_>];
+
+            #[inline]
+            fn matcher() -> crate::xir::parse::NodeMatcher {
+                crate::xir::parse::NodeMatcher::from($qname)
+            }
+        }
+
+        impl std::fmt::Display for $nt {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    Self(st) => st.fmt(f),
                 }
             }
+        }
 
-            // Used by superstate sum type.
-            #[doc(hidden)]
-            type [<$nt Error_>] = crate::xir::parse::NtError<$nt>;
+        // Used by superstate sum type.
+        #[doc(hidden)]
+        type [<$nt Error_>] = crate::xir::parse::NtError<$nt>;
 
-            impl crate::parse::ParseState for $nt {
-                type Token = crate::xir::flat::XirfToken<
-                    crate::xir::flat::RefinedText
-                >;
-                type Object = $objty;
-                type Error = [<$nt Error_>];
-                type Context = crate::xir::parse::StateStackContext<Self::Super>;
-                type Super = $super;
+        impl crate::parse::ParseState for $nt {
+            type Token = crate::xir::flat::XirfToken<
+                crate::xir::flat::RefinedText
+            >;
+            type Object = $objty;
+            type Error = [<$nt Error_>];
+            type Context = crate::xir::parse::StateStackContext<Self::Super>;
+            type Super = $super;
 
-                fn parse_token(
-                    self,
-                    tok: Self::Token,
-                    #[allow(unused_variables)] // used only if child NTs
-                    stack: &mut Self::Context,
-                ) -> crate::parse::TransitionResult<Self::Super> {
-                    use crate::{
-                        parse::{EmptyContext, Transition, Transitionable},
-                        xir::{
-                            EleSpan,
-                            flat::XirfToken,
-                            parse::{parse_attrs, NtState},
-                        },
-                    };
+            fn parse_token(
+                self,
+                tok: Self::Token,
+                #[allow(unused_variables)] // used only if child NTs
+                stack: &mut Self::Context,
+            ) -> crate::parse::TransitionResult<Self::Super> {
+                use crate::{
+                    parse::{EmptyContext, Transition, Transitionable},
+                    xir::{
+                        EleSpan,
+                        flat::XirfToken,
+                        parse::{parse_attrs, NtState},
+                    },
+                };
 
-                    use NtState::{
-                        Attrs, Expecting, NonPreemptableExpecting,
-                        RecoverEleIgnore, CloseRecoverIgnore,
-                        RecoverEleIgnoreClosed, Closed,
-                        Jmp,
-                    };
+                use NtState::{
+                    Attrs, Expecting, NonPreemptableExpecting,
+                    RecoverEleIgnore, CloseRecoverIgnore,
+                    RecoverEleIgnoreClosed, Closed, Jmp,
+                };
 
-                    let Self(selfst) = self;
+                let Self(selfst) = self;
 
-                    match (selfst, tok) {
-                        (
-                            Expecting | NonPreemptableExpecting,
-                            XirfToken::Open(qname, span, depth)
-                        ) if $nt::matches(qname) => {
-                            let transition = Transition(Self(Attrs(
-                                (qname, span, depth),
-                                parse_attrs(qname, span)
-                            )));
+                match (selfst, tok) {
+                    (
+                        Expecting | NonPreemptableExpecting,
+                        XirfToken::Open(qname, span, depth)
+                    ) if $nt::matches(qname) => {
+                        let transition = Transition(Self(Attrs(
+                            (qname, span, depth),
+                            parse_attrs(qname, span)
+                        )));
 
-                            // Streaming attribute parsing will cause the
-                            //   attribute map to be yielded immediately as
-                            //   the opening object,
-                            //     since we will not be aggregating attrs.
-                            $(
-                                // Used only to match on `[attr]`.
-                                let [<_ $attr_stream_binding>] = ();
-                                return transition.ok($attrmap);
-                            )?
-
-                            // If the `[attr]` special form was _not_
-                            //   provided,
-                            //     we'll be aggregating attributes.
-                            #[allow(unreachable_code)]
-                            transition.incomplete()
-                        },
-
-                        (
-                            Closed(..),
-                            XirfToken::Open(qname, span, depth)
-                        ) if Self::matches(qname) => {
-                            Transition(Self(Attrs(
-                                (qname, span, depth),
-                                parse_attrs(qname, span)
-                            ))).incomplete()
-                        },
-
-                        // We only attempt recovery when encountering an
-                        //   unknown token if we're forced to accept that
-                        //   token.
-                        (
-                            NonPreemptableExpecting,
-                            XirfToken::Open(qname, span, depth)
-                        ) => {
-                            Transition(Self(
-                                RecoverEleIgnore(qname, span, depth)
-                            )).err(
-                                [<$nt Error_>]::UnexpectedEle(qname, span.name_span())
-                            )
-                        },
-
-                        (
-                            RecoverEleIgnore(qname, _, depth_open),
-                            XirfToken::Close(_, span, depth_close)
-                        ) if depth_open == depth_close => {
-                            Transition(Self(
-                                RecoverEleIgnoreClosed(qname, span)
-                            )).incomplete()
-                        },
-
-                        // Streaming attribute matching takes precedence
-                        //   over aggregate.
-                        // This is primarily me being lazy,
-                        //   because it's not worth a robust syntax for
-                        //   something that's rarely used
-                        //     (macro-wise, I mean;
-                        //       it's heavily utilized as a percentage of
-                        //         source file parsed since short-hand
-                        //         template applications are heavily used).
+                        // Streaming attribute parsing will cause the
+                        //   attribute map to be yielded immediately as the
+                        //   opening object,
+                        //     since we will not be aggregating attrs.
                         $(
-                            (
-                                st @ Attrs(..),
-                                XirfToken::Attr($attr_stream_binding),
-                            ) => Transition(Self(st)).ok($attr_stream_map),
+                            // Used only to match on `[attr]`.
+                            let [<_ $attr_stream_binding>] = ();
+                            return transition.ok($attrmap);
+                        )?
 
-                            // Override the aggregate attribute parser
-                            //   delegation by forcing the below match to
-                            //   become unreachable
-                            //     (xref anchor <<SATTR>>).
-                            // Since we have already emitted the `$attrmap`
-                            //   object on `Open`,
-                            //     this yields an incomplete parse.
-                            (Attrs(meta, _), tok) => {
+                        // If the `[attr]` special form was _not_
+                        //   provided,
+                        //     we'll be aggregating attributes.
+                        #[allow(unreachable_code)]
+                        transition.incomplete()
+                    },
+
+                    (
+                        Closed(..),
+                        XirfToken::Open(qname, span, depth)
+                    ) if Self::matches(qname) => {
+                        Transition(Self(Attrs(
+                            (qname, span, depth),
+                            parse_attrs(qname, span)
+                        ))).incomplete()
+                    },
+
+                    // We only attempt recovery when encountering an
+                    //   unknown token if we're forced to accept that token.
+                    (
+                        NonPreemptableExpecting,
+                        XirfToken::Open(qname, span, depth)
+                    ) => {
+                        Transition(Self(
+                            RecoverEleIgnore(qname, span, depth)
+                        )).err(
+                            [<$nt Error_>]::UnexpectedEle(
+                                qname, span.name_span()
+                            )
+                        )
+                    },
+
+                    (
+                        RecoverEleIgnore(qname, _, depth_open),
+                        XirfToken::Close(_, span, depth_close)
+                    ) if depth_open == depth_close => {
+                        Transition(Self(
+                            RecoverEleIgnoreClosed(qname, span)
+                        )).incomplete()
+                    },
+
+                    // Streaming attribute matching takes precedence over
+                    //   aggregate.
+                    // This is primarily me being lazy,
+                    //   because it's not worth a robust syntax for something
+                    //   that's rarely used
+                    //     (macro-wise, I mean;
+                    //       it's heavily utilized as a percentage of
+                    //         source file parsed since short-hand template
+                    //         applications are heavily used).
+                    $(
+                        (
+                            st @ Attrs(..),
+                            XirfToken::Attr($attr_stream_binding),
+                        ) => Transition(Self(st)).ok($attr_stream_map),
+
+                        // Override the aggregate attribute parser
+                        //   delegation by forcing the below match to become
+                        //   unreachable
+                        //     (xref anchor <<SATTR>>).
+                        // Since we have already emitted the `$attrmap`
+                        //   object on `Open`,
+                        //     this yields an incomplete parse.
+                        (Attrs(meta, _), tok) => {
+                            ele_parse!(@!ntref_delegate
+                                stack,
+                                Self(Jmp($ntfirst(meta))),
+                                $ntfirst_st,
+                                Transition($ntfirst_st::default())
+                                       .incomplete()
+                                       .with_lookahead(tok),
+                                Transition(Self(Jmp($ntfirst(meta))))
+                                    .incomplete()
+                                    .with_lookahead(tok)
+                            )
+                        }
+                    )?
+
+                    // This becomes unreachable when the `[attr]` special
+                    //   form is provided,
+                    //     which overrides this match directly above
+                    //       (xref <<SATTR>>).
+                    #[allow(unreachable_patterns)]
+                    (Attrs(meta @ (qname, span, depth), sa), tok) => {
+                        sa.delegate_until_obj::<Self, _>(
+                            tok,
+                            EmptyContext,
+                            |sa| Transition(Self(Attrs(meta, sa))),
+                            // If we enter a dead state then we have
+                            //   failed produce an attribute object,
+                            //     in which case we'll recover by ignoring
+                            //     the entire element.
+                            || Transition(Self(RecoverEleIgnore(qname, span, depth))),
+                            |#[allow(unused_variables)] sa, attrs| {
+                                let obj = match attrs {
+                                    // Attribute field bindings for `$attrmap`
+                                    [<$nt Attrs>] {
+                                        $(
+                                            $field,
+                                        )*
+                                    } => {
+                                        // Optional `OpenSpan` binding
+                                        let _ = qname; // avoid unused warning
+                                        $(
+                                            use crate::xir::parse::attr::AttrParseState;
+                                            let $qname_matched = qname;
+                                            let $open_span = sa.element_span();
+                                        )?
+
+                                        $attrmap
+                                    },
+                                };
+
+                                // Lookahead is added by `delegate_until_obj`.
                                 ele_parse!(@!ntref_delegate
                                     stack,
                                     Self(Jmp($ntfirst(meta))),
                                     $ntfirst_st,
-                                    Transition($ntfirst_st::default())
-                                           .incomplete()
-                                           .with_lookahead(tok),
-                                    Transition(Self(Jmp($ntfirst(meta))))
-                                        .incomplete()
-                                        .with_lookahead(tok)
+                                    Transition(<$ntfirst_st>::default()).ok(obj),
+                                    Transition(Self(Jmp($ntfirst(meta)))).ok(obj)
                                 )
                             }
-                        )?
+                        )
+                    },
 
-                        // This becomes unreachable when the `[attr]` special
-                        //   form is provided,
-                        //     which overrides this match directly above
-                        //       (xref <<SATTR>>).
-                        #[allow(unreachable_patterns)]
-                        (Attrs(meta @ (qname, span, depth), sa), tok) => {
-                            sa.delegate_until_obj::<Self, _>(
-                                tok,
-                                EmptyContext,
-                                |sa| Transition(Self(Attrs(meta, sa))),
-                                // If we enter a dead state then we have
-                                //   failed produce an attribute object,
-                                //     in which case we'll recover by
-                                //     ignoring the entire element.
-                                || Transition(Self(RecoverEleIgnore(qname, span, depth))),
-                                |#[allow(unused_variables)] sa, attrs| {
-                                    let obj = match attrs {
-                                        // Attribute field bindings for `$attrmap`
-                                        [<$nt Attrs>] {
-                                            $(
-                                                $field,
-                                            )*
-                                        } => {
-                                            // Optional `OpenSpan` binding
-                                            let _ = qname; // avoid unused warning
-                                            $(
-                                                use crate::xir::parse::attr::AttrParseState;
-                                                let $qname_matched = qname;
-                                                let $open_span = sa.element_span();
-                                            )?
+                    $(
+                        // We're transitioning from `(ntprev) -> (ntnext)`.
+                        // If we have a token that matches `ntprev`,
+                        //   we can transition _back_ to that state rather
+                        //   than transitioning forward.
+                        // We can _only_ do this when we know we are
+                        //   transitioning away from this state,
+                        //     otherwise we could return to a previous state,
+                        //     which violates the semantics of the implied
+                        //     DFA.
+                        (
+                            Jmp($ntprev(meta)),
+                            XirfToken::Open(qname, span, depth)
+                        ) if $ntprev_st::matches(qname) => {
+                            let tok = XirfToken::Open(qname, span, depth);
 
-                                            $attrmap
-                                        },
-                                    };
-
-                                    // Lookahead is added by `delegate_until_obj`.
-                                    ele_parse!(@!ntref_delegate
-                                        stack,
-                                        Self(Jmp($ntfirst(meta))),
-                                        $ntfirst_st,
-                                        Transition(<$ntfirst_st>::default()).ok(obj),
-                                        Transition(Self(Jmp($ntfirst(meta)))).ok(obj)
-                                    )
-                                }
+                            ele_parse!(@!ntref_delegate
+                                stack,
+                                Self(Jmp($ntprev(meta))),
+                                $ntprev_st,
+                                // This NT said it could process this token,
+                                //   so force it to either do so or error,
+                                //   to ensure that bugs don't cause infinite
+                                //     processing of lookahead.
+                                Transition(<$ntprev_st>::non_preemptable())
+                                    .incomplete()
+                                    .with_lookahead(tok),
+                                Transition(Self(Jmp($ntprev(meta))))
+                                    .incomplete()
+                                    .with_lookahead(tok)
                             )
                         },
 
+                        (Jmp($ntprev(meta)), tok) => {
+                            ele_parse!(@!ntref_delegate
+                                stack,
+                                Self(Jmp($ntnext(meta))),
+                                $ntnext_st,
+                                Transition(<$ntnext_st>::default())
+                                    .incomplete()
+                                    .with_lookahead(tok),
+                                Transition(Self(Jmp($ntnext(meta))))
+                                    .incomplete()
+                                    .with_lookahead(tok)
+                            )
+                        },
+
+                        // Since `ExpectClose_` does not have an `$ntprev`
+                        //   match,
+                        //     we have to handle transitioning back to the
+                        //     previous state as a special case.
+                        // Further,
+                        //   we choose to transition back to this state
+                        //   _no matter what the element_,
+                        //     to force error recovery and diagnostics
+                        //     in that context,
+                        //       which will tell the user what elements were
+                        //       expected in the last NT rather than just
+                        //       telling them a closing tag was expected.
+                        //
+                        // To avoid a bunch of rework of this macro
+                        //   (which can hopefully be done in the future),
+                        //   this match is output for _every_ NT,
+                        //     but takes effect only for the final NT because
+                        //     of the `is_last_nt` predicate.
+                        // _It is important that it only affect the
+                        //   final NT_,
+                        //     otherwise we'll transition back to _any_
+                        //     previous state at the close,
+                        //       which completely defeats the purpose of
+                        //       having ordered states.
+                        (
+                            Jmp([<$nt ChildNt_>]::ExpectClose_(meta)),
+                            XirfToken::Open(qname, span, depth)
+                        ) if Self(Jmp($ntprev(meta))).is_last_nt() => {
+                            let tok = XirfToken::Open(qname, span, depth);
+                            ele_parse!(@!ntref_delegate_nodone
+                                stack,
+                                Self(Jmp($ntprev(meta))),
+                                $ntprev_st,
+                                // If this NT cannot handle this element,
+                                //   it should error and enter recovery to
+                                //   ignore it.
+                                Transition(<$ntprev_st>::non_preemptable())
+                                    .incomplete()
+                                    .with_lookahead(tok)
+                            )
+                        },
+                    )*
+
+                    // XIRF ensures proper nesting,
+                    //   so we do not need to check the element name.
+                    (
+                        Jmp([<$nt ChildNt_>]::ExpectClose_((qname, _, depth)))
+                        | CloseRecoverIgnore((qname, _, depth), _),
+                        XirfToken::Close(_, span, tok_depth)
+                    ) if tok_depth == depth => {
                         $(
-                            // We're transitioning from `(ntprev) -> (ntnext)`.
-                            // If we have a token that matches `ntprev`,
-                            //   we can transition _back_ to that state
-                            //   rather than transitioning forward.
-                            // We can _only_ do this when we know we are
-                            //   transitioning away from this state,
-                            //     otherwise we could return to a previous state,
-                            //     which violates the semantics of the
-                            //     implied DFA.
-                            (
-                                Jmp($ntprev(meta)),
-                                XirfToken::Open(qname, span, depth)
-                            ) if $ntprev_st::matches(qname) => {
-                                let tok = XirfToken::Open(qname, span, depth);
+                            let $close_span = span;
+                        )?
+                        $closemap.transition(Self(Closed(Some(qname), span.tag_span())))
+                    },
 
-                                ele_parse!(@!ntref_delegate
-                                    stack,
-                                    Self(Jmp($ntprev(meta))),
-                                    $ntprev_st,
-                                    // This NT said it could process this token,
-                                    //   so force it to either do so or error,
-                                    //   to ensure that bugs don't cause
-                                    //   infinite processing of lookahead.
-                                    Transition(<$ntprev_st>::non_preemptable())
-                                        .incomplete()
-                                        .with_lookahead(tok),
-                                    Transition(Self(Jmp($ntprev(meta))))
-                                        .incomplete()
-                                        .with_lookahead(tok)
-                                )
-                            },
+                    (
+                        Jmp([<$nt ChildNt_>]::ExpectClose_(meta @ (qname, otspan, _))),
+                        unexpected_tok
+                    ) => {
+                        use crate::parse::Token;
+                        Transition(Self(
+                            CloseRecoverIgnore(meta, unexpected_tok.span())
+                        )).err(
+                            [<$nt Error_>]::CloseExpected(qname, otspan, unexpected_tok)
+                        )
+                    }
 
-                            (Jmp($ntprev(meta)), tok) => {
-                                ele_parse!(@!ntref_delegate
-                                    stack,
-                                    Self(Jmp($ntnext(meta))),
-                                    $ntnext_st,
-                                    Transition(<$ntnext_st>::default())
-                                        .incomplete()
-                                        .with_lookahead(tok),
-                                    Transition(Self(Jmp($ntnext(meta))))
-                                        .incomplete()
-                                        .with_lookahead(tok)
-                                )
-                            },
+                    // We're still in recovery,
+                    //   so this token gets thrown out.
+                    (st @ (RecoverEleIgnore(..) | CloseRecoverIgnore(..)), _) => {
+                        Transition(Self(st)).incomplete()
+                    },
 
-                            // Since `ExpectClose_` does not have an
-                            //   `$ntprev` match,
-                            //     we have to handle transitioning back to
-                            //     the previous state as a special case.
-                            // Further,
-                            //   we choose to transition back to this state
-                            //   _no matter what the element_,
-                            //     to force error recovery and diagnostics
-                            //     in that context,
-                            //       which will tell the user what elements
-                            //       were expected in the last NT rather
-                            //       than just telling them a closing tag
-                            //       was expected.
-                            //
-                            // To avoid a bunch of rework of this macro
-                            //   (which can hopefully be done in the future),
-                            //   this match is output for _every_ NT,
-                            //     but takes effect only for the final NT
-                            //     because of the `is_last_nt` predicate.
-                            // _It is important that it only affect the
-                            //   final NT_,
-                            //     otherwise we'll transition back to _any_
-                            //     previous state at the close,
-                            //       which completely defeats the purpose of
-                            //       having ordered states.
-                            (
-                                Jmp([<$nt ChildNt_>]::ExpectClose_(meta)),
-                                XirfToken::Open(qname, span, depth)
-                            ) if Self(Jmp($ntprev(meta))).is_last_nt() => {
-                                let tok = XirfToken::Open(qname, span, depth);
-                                ele_parse!(@!ntref_delegate_nodone
-                                    stack,
-                                    Self(Jmp($ntprev(meta))),
-                                    $ntprev_st,
-                                    // If this NT cannot handle this element,
-                                    //   it should error and enter recovery
-                                    //   to ignore it.
-                                    Transition(<$ntprev_st>::non_preemptable())
-                                        .incomplete()
-                                        .with_lookahead(tok)
-                                )
-                            },
-                        )*
-
-                        // XIRF ensures proper nesting,
-                        //   so we do not need to check the element name.
-                        (
-                            Jmp([<$nt ChildNt_>]::ExpectClose_((qname, _, depth)))
-                            | CloseRecoverIgnore((qname, _, depth), _),
-                            XirfToken::Close(_, span, tok_depth)
-                        ) if tok_depth == depth => {
-                            $(
-                                let $close_span = span;
-                            )?
-                            $closemap.transition(Self(Closed(Some(qname), span.tag_span())))
-                        },
-
-                        (
-                            Jmp([<$nt ChildNt_>]::ExpectClose_(meta @ (qname, otspan, _))),
-                            unexpected_tok
-                        ) => {
-                            use crate::parse::Token;
-                            Transition(Self(
-                                CloseRecoverIgnore(meta, unexpected_tok.span())
-                            )).err(
-                                [<$nt Error_>]::CloseExpected(qname, otspan, unexpected_tok)
-                            )
-                        }
-
-                        // We're still in recovery,
-                        //   so this token gets thrown out.
-                        (st @ (RecoverEleIgnore(..) | CloseRecoverIgnore(..)), _) => {
-                            Transition(Self(st)).incomplete()
-                        },
-
-                        // Note that this does not necessarily represent an
-                        //   accepting state
-                        //     (see `is_accepting`).
-                        (
-                            st @ (
-                                Expecting
-                                | NonPreemptableExpecting
-                                | Closed(..)
-                                | RecoverEleIgnoreClosed(..)
-                            ),
-                            tok
-                        ) => {
-                            Transition(Self(st)).dead(tok)
-                        }
+                    // Note that this does not necessarily represent an
+                    //   accepting state
+                    //     (see `is_accepting`).
+                    (
+                        st @ (
+                            Expecting
+                            | NonPreemptableExpecting
+                            | Closed(..)
+                            | RecoverEleIgnoreClosed(..)
+                        ),
+                        tok
+                    ) => {
+                        Transition(Self(st)).dead(tok)
                     }
                 }
+            }
 
-                fn is_accepting(&self, _: &Self::Context) -> bool {
-                    use crate::xir::parse::NtState::*;
-                    matches!(*self, Self(Closed(..) | RecoverEleIgnoreClosed(..)))
-                }
+            fn is_accepting(&self, _: &Self::Context) -> bool {
+                use crate::xir::parse::NtState::*;
+                matches!(*self, Self(Closed(..) | RecoverEleIgnoreClosed(..)))
             }
         }
-    };
+    }};
 
     (@!ele_dfn_sum <$objty:ty> $vis:vis $super:ident
         $(#[$nt_attr:meta])* $nt:ident [$($ntref:ident)*]
-    ) => {
-        paste::paste! {
-            $(#[$nt_attr])*
+    ) => {paste::paste! {
+        $(#[$nt_attr])*
+        ///
+        #[doc=concat!(
+            "Parser expecting one of ",
+            $("[`", stringify!($ntref), "`], ",)*
+            "."
+        )]
+        #[derive(Debug, PartialEq, Eq, Default)]
+        $vis struct $nt(crate::xir::parse::SumNtState<$nt>);
+
+        impl $nt {
+            fn non_preemptable() -> Self {
+                Self(crate::xir::parse::SumNtState::NonPreemptableExpecting)
+            }
+
+            // Whether the given QName would be matched by any of the
+            //   parsers associated with this type.
+            //
+            // This is short-circuiting and will return as soon as one
+            //   parser is found,
+            //     so it may be a good idea to order the sum type according
+            //     to the most likely value to be encountered.
+            // At its worst,
+            //   this may be equivalent to a linear search of the parsers.
+            // With that said,
+            //   Rust/LLVM may optimize this in any number of ways,
+            //   especially if each inner parser matches on a QName
+            //     constant.
+            // Let a profiler and disassembly guide you.
+            #[allow(dead_code)] // used by superstate
+            fn matches(qname: crate::xir::QName) -> bool {
+                // If we used an array or a trait,
+                //   then we'd need everything to be a similar type;
+                //     this allows for _any_ type provided that it expands
+                //     into something that contains a `matches` associated
+                //     function of a compatible type.
+                false $(|| $ntref::matches(qname))*
+            }
+
+            // Number of
+            //   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
+            //   considered by this parser.
+            //
+            // This is the sum of the number of matches of each
+            //   constituent NT.
+            const fn matches_n() -> usize {
+                // Count the number of NTs by adding the number of
+                //   matches in each.
+                0 $(+ $ntref::matches_n())*
+            }
+
+            /// Format constituent NTs for display.
             ///
+            /// This function receives the number of values to be
+            ///   formatted as `n` and the current 0-indexed offset within
+            ///   that list as `i`.
+            /// This allows for zero-copy rendering of composable NTs.
+            ///
+            /// See also [`SumNt::fmt_matches_top`] to initialize the
+            ///   formatting process with the correct values.
+            ///
+            /// [`SumNt::fmt_matches_top`]: crate::xir::parse::SumNt
+            fn fmt_matches(
+                n: usize,
+                i: &mut usize,
+                f: &mut std::fmt::Formatter
+            ) -> std::fmt::Result {
+                $(
+                    $ntref::fmt_matches(n, i, f)?;
+                )*
+
+                Ok(())
+            }
+
+            /// Whether the parser is in a state that can tolerate
+            ///   superstate node preemption.
+            ///
+            /// For more information,
+            ///   see the superstate
             #[doc=concat!(
-                "Parser expecting one of ",
-                $("[`", stringify!($ntref), "`], ",)*
-                "."
+                " [`", stringify!($super), "::can_preempt_node`]."
             )]
-            #[derive(Debug, PartialEq, Eq, Default)]
-            $vis struct $nt(crate::xir::parse::SumNtState<$nt>);
-
-            impl $nt {
-                fn non_preemptable() -> Self {
-                    Self(crate::xir::parse::SumNtState::NonPreemptableExpecting)
-                }
-
-                // Whether the given QName would be matched by any of the
-                //   parsers associated with this type.
-                //
-                // This is short-circuiting and will return as soon as one
-                //   parser is found,
-                //     so it may be a good idea to order the sum type
-                //     according to the most likely value to be encountered.
-                // At its worst,
-                //   this may be equivalent to a linear search of the
-                //   parsers.
-                // With that said,
-                //   Rust/LLVM may optimize this in any number of ways,
-                //   especially if each inner parser matches on a QName
-                //   constant.
-                // Let a profiler and disassembly guide you.
-                #[allow(dead_code)] // used by superstate
-                fn matches(qname: crate::xir::QName) -> bool {
-                    // If we used an array or a trait,
-                    //   then we'd need everything to be a similar type;
-                    //     this allows for _any_ type provided that it
-                    //     expands into something that contains a `matches`
-                    //     associated function of a compatible type.
-                    false $(|| $ntref::matches(qname))*
-                }
-
-                // Number of
-                //   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
-                //   considered by this parser.
-                //
-                // This is the sum of the number of matches of each
-                //   constituent NT.
-                const fn matches_n() -> usize {
-                    // Count the number of NTs by adding the number of
-                    //   matches in each.
-                    0 $(+ $ntref::matches_n())*
-                }
-
-                /// Format constituent NTs for display.
-                ///
-                /// This function receives the number of values to be
-                ///   formatted as `n` and the current 0-indexed offset
-                ///   within that list as `i`.
-                /// This allows for zero-copy rendering of composable NTs.
-                ///
-                /// See also [`SumNt::fmt_matches_top`] to initialize the
-                ///   formatting process with the correct values.
-                ///
-                /// [`SumNt::fmt_matches_top`]: crate::xir::parse::SumNt
-                fn fmt_matches(
-                    n: usize,
-                    i: &mut usize,
-                    f: &mut std::fmt::Formatter
-                ) -> std::fmt::Result {
-                    $(
-                        $ntref::fmt_matches(n, i, f)?;
-                    )*
-
-                    Ok(())
-                }
-
-                /// Whether the parser is in a state that can tolerate
-                ///   superstate node preemption.
-                ///
-                /// For more information,
-                ///   see the superstate
-                #[doc=concat!(
-                    " [`", stringify!($super), "::can_preempt_node`]."
-                )]
-                fn can_preempt_node(&self) -> bool {
-                    match self {
-                        Self(st) => st.can_preempt_node(),
-                    }
+            fn can_preempt_node(&self) -> bool {
+                match self {
+                    Self(st) => st.can_preempt_node(),
                 }
             }
+        }
 
-            impl crate::xir::parse::SumNt for $nt {
-                /// Begin formatting using [`Self::fmt_matches`].
-                ///
-                /// This provides the initial values for the function.
-                fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
+        impl crate::xir::parse::SumNt for $nt {
+            /// Begin formatting using [`Self::fmt_matches`].
+            ///
+            /// This provides the initial values for the function.
+            fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
+            }
+        }
+
+        impl std::fmt::Display for $nt {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    Self(st) => st.fmt(f),
                 }
             }
+        }
 
-            impl std::fmt::Display for $nt {
-                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    match self {
-                        Self(st) => st.fmt(f),
-                    }
-                }
-            }
+        // Used by superstate sum type.
+        #[doc(hidden)]
+        type [<$nt Error_>] = crate::xir::parse::SumNtError<$nt>;
 
-            // Used by superstate sum type.
-            #[doc(hidden)]
-            type [<$nt Error_>] = crate::xir::parse::SumNtError<$nt>;
+        impl crate::parse::ParseState for $nt {
+            type Token = crate::xir::flat::XirfToken<
+                crate::xir::flat::RefinedText
+            >;
+            type Object = $objty;
+            type Error = [<$nt Error_>];
+            type Context = crate::xir::parse::StateStackContext<Self::Super>;
+            type Super = $super;
 
-            impl crate::parse::ParseState for $nt {
-                type Token = crate::xir::flat::XirfToken<
-                    crate::xir::flat::RefinedText
-                >;
-                type Object = $objty;
-                type Error = [<$nt Error_>];
-                type Context = crate::xir::parse::StateStackContext<Self::Super>;
-                type Super = $super;
-
-                fn parse_token(
-                    self,
-                    tok: Self::Token,
-                    stack: &mut Self::Context,
-                ) -> crate::parse::TransitionResult<Self::Super> {
-                    use crate::{
-                        parse::Transition,
-                        xir::{
-                            flat::XirfToken,
-                            EleSpan,
-                            parse::SumNtState::{
-                                Expecting,
-                                NonPreemptableExpecting,
-                                RecoverEleIgnore,
-                            },
-                        },
-                    };
-
-                    match (self.0, tok) {
-                        $(
-                            (
-                                st @ (Expecting | NonPreemptableExpecting),
-                                XirfToken::Open(qname, span, depth)
-                            ) if $ntref::matches(qname) => {
-                                ele_parse!(@!ntref_delegate_nodone
-                                    stack,
-                                    Self(Expecting),
-                                    $ntref,
-                                    Transition(
-                                        // Propagate non-preemption status,
-                                        //   otherwise we'll provide a
-                                        //   lookback of the original token
-                                        //   and end up recursing until we
-                                        //   hit the `stack` limit.
-                                        match st {
-                                            NonPreemptableExpecting => {
-                                                $ntref::non_preemptable()
-                                            }
-                                            _ => {
-                                                $ntref::default()
-                                            }
-                                        }
-                                    ).incomplete().with_lookahead(
-                                        XirfToken::Open(qname, span, depth)
-                                    )
-                                )
-                            },
-
-                            (
-                                NonPreemptableExpecting,
-                                XirfToken::Open(qname, span, depth)
-                            ) if $ntref::matches(qname) => {
-                                ele_parse!(@!ntref_delegate_nodone
-                                    stack,
-                                    Self(Expecting),
-                                    $ntref,
-                                    Transition(
-                                        $ntref::non_preemptable()
-                                    ).incomplete().with_lookahead(
-                                        XirfToken::Open(qname, span, depth)
-                                    )
-                                )
-                            },
-                        )*
-
-                        // If we're non-preemptable,
-                        //   then we're expected to be able to process this
-                        //   token or fail trying.
-                        (
+            fn parse_token(
+                self,
+                tok: Self::Token,
+                stack: &mut Self::Context,
+            ) -> crate::parse::TransitionResult<Self::Super> {
+                use crate::{
+                    parse::Transition,
+                    xir::{
+                        flat::XirfToken,
+                        EleSpan,
+                        parse::SumNtState::{
+                            Expecting,
                             NonPreemptableExpecting,
+                            RecoverEleIgnore,
+                        },
+                    },
+                };
+
+                match (self.0, tok) {
+                    $(
+                        (
+                            st @ (Expecting | NonPreemptableExpecting),
                             XirfToken::Open(qname, span, depth)
-                        ) => {
-                            Transition(Self(
-                                RecoverEleIgnore(qname, span, depth, Default::default())
-                            )).err(
-                                // Use name span rather than full `OpenSpan`
-                                //   since it's specifically the name that
-                                //   was unexpected,
-                                //     not the fact that it's an element.
-                                Self::Error::UnexpectedEle(
-                                    qname,
-                                    span.name_span(),
-                                    Default::default(),
+                        ) if $ntref::matches(qname) => {
+                            ele_parse!(@!ntref_delegate_nodone
+                                stack,
+                                Self(Expecting),
+                                $ntref,
+                                Transition(
+                                    // Propagate non-preemption status,
+                                    //   otherwise we'll provide a lookback
+                                    //   of the original token and end up
+                                    //   recursing until we hit the `stack`
+                                    //   limit.
+                                    match st {
+                                        NonPreemptableExpecting => {
+                                            $ntref::non_preemptable()
+                                        }
+                                        _ => {
+                                            $ntref::default()
+                                        }
+                                    }
+                                ).incomplete().with_lookahead(
+                                    XirfToken::Open(qname, span, depth)
                                 )
                             )
                         },
 
-                        // An unexpected token when repeating ends
-                        //   repetition and should not result in an error.
                         (
-                            Expecting | NonPreemptableExpecting,
-                            tok
-                        ) => Transition(Self(Expecting)).dead(tok),
-
-                        // XIRF ensures that the closing tag matches the opening,
-                        //   so we need only check depth.
-                        (
-                            RecoverEleIgnore(_, _, depth_open, _),
-                            XirfToken::Close(_, _, depth_close)
-                        ) if depth_open == depth_close => {
-                            Transition(Self(Expecting)).incomplete()
+                            NonPreemptableExpecting,
+                            XirfToken::Open(qname, span, depth)
+                        ) if $ntref::matches(qname) => {
+                            ele_parse!(@!ntref_delegate_nodone
+                                stack,
+                                Self(Expecting),
+                                $ntref,
+                                Transition(
+                                    $ntref::non_preemptable()
+                                ).incomplete().with_lookahead(
+                                    XirfToken::Open(qname, span, depth)
+                                )
+                            )
                         },
+                    )*
 
-                        (st @ RecoverEleIgnore(..), _) => {
-                            Transition(Self(st)).incomplete()
-                        },
-                    }
-                }
+                    // If we're non-preemptable,
+                    //   then we're expected to be able to process this
+                    //   token or fail trying.
+                    (
+                        NonPreemptableExpecting,
+                        XirfToken::Open(qname, span, depth)
+                    ) => {
+                        Transition(Self(
+                            RecoverEleIgnore(qname, span, depth, Default::default())
+                        )).err(
+                            // Use name span rather than full `OpenSpan`
+                            //   since it's specifically the name that was
+                            //   unexpected,
+                            //     not the fact that it's an element.
+                            Self::Error::UnexpectedEle(
+                                qname,
+                                span.name_span(),
+                                Default::default(),
+                            )
+                        )
+                    },
 
-                fn is_accepting(&self, _: &Self::Context) -> bool {
-                    use crate::xir::parse::SumNtState;
-                    matches!(self, Self(SumNtState::Expecting))
+                    // An unexpected token when repeating ends repetition
+                    //   and should not result in an error.
+                    (
+                        Expecting | NonPreemptableExpecting,
+                        tok
+                    ) => Transition(Self(Expecting)).dead(tok),
+
+                    // XIRF ensures that the closing tag matches the opening,
+                    //   so we need only check depth.
+                    (
+                        RecoverEleIgnore(_, _, depth_open, _),
+                        XirfToken::Close(_, _, depth_close)
+                    ) if depth_open == depth_close => {
+                        Transition(Self(Expecting)).incomplete()
+                    },
+
+                    (st @ RecoverEleIgnore(..), _) => {
+                        Transition(Self(st)).incomplete()
+                    },
                 }
             }
+
+            fn is_accepting(&self, _: &Self::Context) -> bool {
+                use crate::xir::parse::SumNtState;
+                matches!(self, Self(SumNtState::Expecting))
+            }
         }
-    };
+    }};
 
     // Generate superstate sum type.
     //
@@ -1193,284 +1186,281 @@ macro_rules! ele_parse {
             //   which we need to disambiguate the next `$nt`.
             ;
         )*
-    ) => {
-        paste::paste! {
-            $(#[$super_attr])*
-            ///
-            /// Superstate representing the union of all related parsers.
-            ///
-            /// This [`ParseState`] allows sub-parsers to independently
-            ///   the states associated with their own subgraph,
-            ///     and then yield a state transition directly to a state of
-            ///     another parser.
-            /// This is conceptually like CPS (continuation passing style),
-            ///   where this [`ParseState`] acts as a trampoline.
-            ///
-            /// This [`ParseState`] is required for use with [`Parser`];
-            ///   see [`ClosedParseState`] for more information.
-            ///
-            /// [`Parser`]: crate::parse::Parser
-            /// [`ParseState`]: crate::parse::ParseState
-            /// [`ClosedParseState`]: crate::parse::ClosedParseState
-            #[derive(Debug, PartialEq, Eq)]
-            $vis enum $super {
-                $(
-                    $nt($nt),
-                )*
-            }
-
-            // Default parser is the first NT,
-            //   and is non-preemptable to force error handling if the root
-            //   node is unexpected.
-            // Note that this also prevents preemption at the root,
-            //   which is necessary for now anyway since we need to be able
-            //   to statically resolve imports without template expansion in
-            //     NIR
-            //     (otherwise we have a chicken-and-egg problem).
-            impl Default for $super {
-                fn default() -> Self {
-                    ele_parse!(@!ntfirst_init $super, $($nt)*)
-                }
-            }
-
+    ) => { paste::paste! {
+        $(#[$super_attr])*
+        ///
+        /// Superstate representing the union of all related parsers.
+        ///
+        /// This [`ParseState`] allows sub-parsers to independently the
+        ///   states associated with their own subgraph,
+        ///     and then yield a state transition directly to a state of
+        ///     another parser.
+        /// This is conceptually like CPS (continuation passing style),
+        ///   where this [`ParseState`] acts as a trampoline.
+        ///
+        /// This [`ParseState`] is required for use with [`Parser`];
+        ///   see [`ClosedParseState`] for more information.
+        ///
+        /// [`Parser`]: crate::parse::Parser
+        /// [`ParseState`]: crate::parse::ParseState
+        /// [`ClosedParseState`]: crate::parse::ClosedParseState
+        #[derive(Debug, PartialEq, Eq)]
+        $vis enum $super {
             $(
-                impl From<$nt> for $super {
-                    fn from(st: $nt) -> Self {
-                        $super::$nt(st)
-                    }
-                }
+                $nt($nt),
             )*
+        }
 
-            impl std::fmt::Display for $super {
-                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    match self {
-                        $(
-                            Self::$nt(e) => std::fmt::Display::fmt(e, f),
-                        )*
-                    }
+        // Default parser is the first NT,
+        //   and is non-preemptable to force error handling if the root node
+        //   is unexpected.
+        // Note that this also prevents preemption at the root,
+        //   which is necessary for now anyway since we need to be able
+        //   to statically resolve imports without template expansion in
+        //     NIR
+        //     (otherwise we have a chicken-and-egg problem).
+        impl Default for $super {
+            fn default() -> Self {
+                ele_parse!(@!ntfirst_init $super, $($nt)*)
+            }
+        }
+
+        $(
+            impl From<$nt> for $super {
+                fn from(st: $nt) -> Self {
+                    $super::$nt(st)
                 }
             }
+        )*
 
-            /// Superstate error object representing the union of all
-            ///   related parsers' errors.
-            #[derive(Debug, PartialEq)]
-            $vis enum [<$super Error_>] {
-                $(
-                    $nt([<$nt Error_>]),
-                )*
-            }
-
-            $(
-                impl From<[<$nt Error_>]> for [<$super Error_>] {
-                    fn from(e: [<$nt Error_>]) -> Self {
-                        [<$super Error_>]::$nt(e)
-                    }
-                }
-            )*
-
-            impl std::error::Error for [<$super Error_>] {
-                fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-                    // TODO
-                    None
-                }
-            }
-
-            impl std::fmt::Display for [<$super Error_>] {
-                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    match self {
-                        $(
-                            Self::$nt(e) => std::fmt::Display::fmt(e, f),
-                        )*
-                    }
-                }
-            }
-
-            impl crate::diagnose::Diagnostic for [<$super Error_>] {
-                fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-                    match self {
-                        $(
-                            Self::$nt(e) => e.describe(),
-                        )*
-                    }
-                }
-            }
-
-            impl crate::parse::ParseState for $super {
-                type Token = crate::xir::flat::XirfToken<
-                    crate::xir::flat::RefinedText
-                >;
-                type Object = $objty;
-                type Error = [<$super Error_>];
-                type Context = crate::xir::parse::StateStackContext<Self>;
-
-                fn parse_token(
-                    self,
-                    tok: Self::Token,
-                    stack: &mut Self::Context,
-                ) -> crate::parse::TransitionResult<Self> {
-                    use crate::{
-                        parse::Transition,
-                        xir::flat::{XirfToken, RefinedText},
-                    };
-
-                    // Used only by _some_ expansions.
-                    #[allow(unused_imports)]
-                    use crate::xir::flat::Text;
-
-                    match (self, tok) {
-                        // [super] {
-                        $(
-                            // [text] preemption;
-                            //   see `Self::can_preempt_node`.
-                            $(
-                                (
-                                    st,
-                                    XirfToken::Text(
-                                        RefinedText::Unrefined(
-                                            Text($text, $text_span)
-                                        ),
-                                        _,
-                                    )
-                                ) if st.can_preempt_node() => {
-                                    Transition(st).ok($text_map)
-                                },
-                            )?
-
-                            // Preemption NT
-                            $(
-                                (
-                                    st,
-                                    XirfToken::Open(
-                                        qname,
-                                        ospan,
-                                        depth,
-                                    ),
-                                ) if st.can_preempt_node() && $pre_nt::matches(qname) => {
-                                    stack.transfer_with_ret(
-                                        Transition(st),
-                                        Transition(
-                                            // Prevent recursing on this token.
-                                            $pre_nt::non_preemptable()
-                                        )
-                                        .incomplete()
-                                        .with_lookahead(XirfToken::Open(
-                                            qname,
-                                            ospan,
-                                            depth,
-                                        )),
-                                    )
-                                },
-                            )?
-                        )?
-                        // }
-
-                        // Depth check is unnecessary since _all_ xir::parse
-                        //   parsers
-                        //     (at least at the time of writing)
-                        //     ignore whitespace and comments,
-                        //       so may as well return early.
-                        // TODO: I'm ignoring _all_ text for now to
-                        //   proceed with development; fix.
-                        (
-                            st,
-                            XirfToken::Text(RefinedText::Whitespace(..), _)
-                            | XirfToken::Comment(..)
-                        ) => {
-                            Transition(st).incomplete()
-                        }
-
-                        $(
-                            // Pass token directly to child until it reports
-                            //   a dead state,
-                            //     after which we return to the `ParseState`
-                            //     atop of the stack.
-                            (Self::$nt(st), tok) => st.delegate_child(
-                                tok,
-                                stack,
-                                |deadst, tok, stack| {
-                                    stack.ret_or_dead(tok, deadst)
-                                },
-                            ),
-                        )*
-                    }
-                }
-
-                fn is_accepting(&self, stack: &Self::Context) -> bool {
-                    // This is short-circuiting,
-                    //   starting at the _bottom_ of the stack and
-                    //   moving upward.
-                    // The idea is that,
-                    //   is we're still in the middle of parsing,
-                    //   then it's almost certain that the [`ParseState`] on
-                    //     the bottom of the stack will not be in an
-                    //     accepting state,
-                    //       and so we can stop checking early.
-                    // In most cases,
-                    //   if we haven't hit EOF early,
-                    //   the stack should be either empty or consist of only
-                    //     the root state.
-                    //
-                    // After having considered the stack,
-                    //   we can then consider the active `ParseState`.
-                    stack.all(|st| st.is_inner_accepting(stack))
-                        && self.is_inner_accepting(stack)
-                }
-            }
-
-            impl $super {
-                /// Whether the inner (active child) [`ParseState`] is in an
-                ///   accepting state.
-                ///
-                /// [`ParseState`]: crate::parse::ParseState
-                fn is_inner_accepting(
-                    &self,
-                    ctx: &<Self as crate::parse::ParseState>::Context
-                ) -> bool {
-                    use crate::parse::ParseState;
-
-                    match self {
-                        $(
-                            Self::$nt(st) => st.is_accepting(ctx),
-                        )*
-                    }
-                }
-
-                /// Whether the inner parser is in a state that can tolerate
-                ///   superstate node preemption.
-                ///
-                /// Node preemption allows us (the superstate) to ask for
-                ///   permission from the inner parser to parse some token
-                ///   ourselves,
-                ///     by asking whether the parser is in a state that
-                ///     would cause semantic issues if we were to do so.
-                ///
-                /// For example,
-                ///   if we were to preempt text nodes while an inner parser
-                ///   was still parsing attributes,
-                ///     then we would emit an object associated with that
-                ///     text before the inner parser had a chance to
-                ///     conclude that attribute parsing has completed and
-                ///     emit the opening object for that node;
-                ///       the result would otherwise be an incorrect
-                ///       `Text, Open` instead of the correct `Open, Text`,
-                ///         which would effectively unparent the text.
-                /// Similarly,
-                ///   if we were to parse our own tokens while an inner
-                ///   parser was performing error recovery in such a way as
-                ///   to ignore all child tokens,
-                ///     then we would emit an object in an incorrect
-                ///     context.
-                #[allow(dead_code)] // TODO: Remove when using for tpl apply
-                fn can_preempt_node(&self) -> bool {
-                    match self {
-                        $(
-                            Self::$nt(st) => st.can_preempt_node(),
-                        )*
-                    }
+        impl std::fmt::Display for $super {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$nt(e) => std::fmt::Display::fmt(e, f),
+                    )*
                 }
             }
         }
-    };
+
+        /// Superstate error object representing the union of all related
+        ///   parsers' errors.
+        #[derive(Debug, PartialEq)]
+        $vis enum [<$super Error_>] {
+            $(
+                $nt([<$nt Error_>]),
+            )*
+        }
+
+        $(
+            impl From<[<$nt Error_>]> for [<$super Error_>] {
+                fn from(e: [<$nt Error_>]) -> Self {
+                    [<$super Error_>]::$nt(e)
+                }
+            }
+        )*
+
+        impl std::error::Error for [<$super Error_>] {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                // TODO
+                None
+            }
+        }
+
+        impl std::fmt::Display for [<$super Error_>] {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$nt(e) => std::fmt::Display::fmt(e, f),
+                    )*
+                }
+            }
+        }
+
+        impl crate::diagnose::Diagnostic for [<$super Error_>] {
+            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+                match self {
+                    $(
+                        Self::$nt(e) => e.describe(),
+                    )*
+                }
+            }
+        }
+
+        impl crate::parse::ParseState for $super {
+            type Token = crate::xir::flat::XirfToken<
+                crate::xir::flat::RefinedText
+            >;
+            type Object = $objty;
+            type Error = [<$super Error_>];
+            type Context = crate::xir::parse::StateStackContext<Self>;
+
+            fn parse_token(
+                self,
+                tok: Self::Token,
+                stack: &mut Self::Context,
+            ) -> crate::parse::TransitionResult<Self> {
+                use crate::{
+                    parse::Transition,
+                    xir::flat::{XirfToken, RefinedText},
+                };
+
+                // Used only by _some_ expansions.
+                #[allow(unused_imports)]
+                use crate::xir::flat::Text;
+
+                match (self, tok) {
+                    // [super] {
+                    $(
+                        // [text] preemption;
+                        //   see `Self::can_preempt_node`.
+                        $(
+                            (
+                                st,
+                                XirfToken::Text(
+                                    RefinedText::Unrefined(
+                                        Text($text, $text_span)
+                                    ),
+                                    _,
+                                )
+                            ) if st.can_preempt_node() => {
+                                Transition(st).ok($text_map)
+                            },
+                        )?
+
+                        // Preemption NT
+                        $(
+                            (
+                                st,
+                                XirfToken::Open(
+                                    qname,
+                                    ospan,
+                                    depth,
+                                ),
+                            ) if st.can_preempt_node() && $pre_nt::matches(qname) => {
+                                stack.transfer_with_ret(
+                                    Transition(st),
+                                    Transition(
+                                        // Prevent recursing on this token.
+                                        $pre_nt::non_preemptable()
+                                    )
+                                    .incomplete()
+                                    .with_lookahead(XirfToken::Open(
+                                        qname,
+                                        ospan,
+                                        depth,
+                                    )),
+                                )
+                            },
+                        )?
+                    )?
+                    // }
+
+                    // Depth check is unnecessary since _all_ xir::parse
+                    //   parsers
+                    //     (at least at the time of writing)
+                    //     ignore whitespace and comments,
+                    //       so may as well return early.
+                    // TODO: I'm ignoring _all_ text for now to
+                    //   proceed with development; fix.
+                    (
+                        st,
+                        XirfToken::Text(RefinedText::Whitespace(..), _)
+                        | XirfToken::Comment(..)
+                    ) => {
+                        Transition(st).incomplete()
+                    }
+
+                    $(
+                        // Pass token directly to child until it reports
+                        //   a dead state,
+                        //     after which we return to the `ParseState`
+                        //     atop of the stack.
+                        (Self::$nt(st), tok) => st.delegate_child(
+                            tok,
+                            stack,
+                            |deadst, tok, stack| {
+                                stack.ret_or_dead(tok, deadst)
+                            },
+                        ),
+                    )*
+                }
+            }
+
+            fn is_accepting(&self, stack: &Self::Context) -> bool {
+                // This is short-circuiting,
+                //   starting at the _bottom_ of the stack and moving
+                //   upward.
+                // The idea is that,
+                //   is we're still in the middle of parsing,
+                //   then it's almost certain that the [`ParseState`] on the
+                //     bottom of the stack will not be in an accepting
+                //     state,
+                //       and so we can stop checking early.
+                // In most cases,
+                //   if we haven't hit EOF early,
+                //   the stack should be either empty or consist of only the
+                //     root state.
+                //
+                // After having considered the stack,
+                //   we can then consider the active `ParseState`.
+                stack.all(|st| st.is_inner_accepting(stack))
+                    && self.is_inner_accepting(stack)
+            }
+        }
+
+        impl $super {
+            /// Whether the inner (active child) [`ParseState`] is in an
+            ///   accepting state.
+            ///
+            /// [`ParseState`]: crate::parse::ParseState
+            fn is_inner_accepting(
+                &self,
+                ctx: &<Self as crate::parse::ParseState>::Context
+            ) -> bool {
+                use crate::parse::ParseState;
+
+                match self {
+                    $(
+                        Self::$nt(st) => st.is_accepting(ctx),
+                    )*
+                }
+            }
+
+            /// Whether the inner parser is in a state that can tolerate
+            ///   superstate node preemption.
+            ///
+            /// Node preemption allows us (the superstate) to ask for
+            ///   permission from the inner parser to parse some token
+            ///   ourselves,
+            ///     by asking whether the parser is in a state that would
+            ///     cause semantic issues if we were to do so.
+            ///
+            /// For example,
+            ///   if we were to preempt text nodes while an inner parser was
+            ///   still parsing attributes,
+            ///     then we would emit an object associated with that text
+            ///     before the inner parser had a chance to conclude that
+            ///     attribute parsing has completed and emit the opening
+            ///     object for that node;
+            ///       the result would otherwise be an incorrect
+            ///       `Text, Open` instead of the correct `Open, Text`,
+            ///         which would effectively unparent the text.
+            /// Similarly,
+            ///   if we were to parse our own tokens while an inner parser
+            ///   was performing error recovery in such a way as to ignore
+            ///   all child tokens,
+            ///     then we would emit an object in an incorrect context.
+            #[allow(dead_code)] // TODO: Remove when using for tpl apply
+            fn can_preempt_node(&self) -> bool {
+                match self {
+                    $(
+                        Self::$nt(st) => st.can_preempt_node(),
+                    )*
+                }
+            }
+        }
+    }};
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
         $super::$ntfirst($ntfirst::non_preemptable())
