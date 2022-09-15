@@ -62,6 +62,8 @@
 //     when `log10` et al. were renamed to `ilog10` et al:
 //       <https://github.com/rust-lang/rust/pull/100332>
 #![feature(int_log)]
+// Enabled for qualified paths in `matches!`.
+#![feature(more_qualified_paths)]
 // Used for const params like `&'static str` in `crate::fmt`.
 // If this is not stabalized,
 //   then we can do without by changing the abstraction;

@@ -584,16 +584,12 @@ macro_rules! ele_parse {
             }
         }
 
-        // Used by superstate sum type.
-        #[doc(hidden)]
-        type [<$nt Error_>] = crate::xir::parse::NtError<$nt>;
-
         impl crate::parse::ParseState for $nt {
             type Token = crate::xir::flat::XirfToken<
                 crate::xir::flat::RefinedText
             >;
             type Object = $objty;
-            type Error = [<$nt Error_>];
+            type Error = crate::xir::parse::NtError<$nt>;
             type Context = crate::xir::parse::StateStackContext<Self::Super>;
             type Super = $super;
 
@@ -666,7 +662,7 @@ macro_rules! ele_parse {
                         Transition(Self(
                             RecoverEleIgnore(qname, span, depth)
                         )).err(
-                            [<$nt Error_>]::UnexpectedEle(
+                            Self::Error::UnexpectedEle(
                                 qname, span.name_span()
                             )
                         )
@@ -876,7 +872,7 @@ macro_rules! ele_parse {
                         Transition(Self(
                             CloseRecoverIgnore(meta, unexpected_tok.span())
                         )).err(
-                            [<$nt Error_>]::CloseExpected(qname, otspan, unexpected_tok)
+                            Self::Error::CloseExpected(qname, otspan, unexpected_tok)
                         )
                     }
 
@@ -1019,16 +1015,12 @@ macro_rules! ele_parse {
             }
         }
 
-        // Used by superstate sum type.
-        #[doc(hidden)]
-        type [<$nt Error_>] = crate::xir::parse::SumNtError<$nt>;
-
         impl crate::parse::ParseState for $nt {
             type Token = crate::xir::flat::XirfToken<
                 crate::xir::flat::RefinedText
             >;
             type Object = $objty;
-            type Error = [<$nt Error_>];
+            type Error = crate::xir::parse::SumNtError<$nt>;
             type Context = crate::xir::parse::StateStackContext<Self::Super>;
             type Super = $super;
 
@@ -1248,13 +1240,15 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq)]
         $vis enum [<$super Error_>] {
             $(
-                $nt([<$nt Error_>]),
+                $nt(<$nt as crate::parse::ParseState>::Error),
             )*
         }
 
         $(
-            impl From<[<$nt Error_>]> for [<$super Error_>] {
-                fn from(e: [<$nt Error_>]) -> Self {
+            impl From<<$nt as crate::parse::ParseState>::Error>
+                for [<$super Error_>]
+            {
+                fn from(e: <$nt as crate::parse::ParseState>::Error) -> Self {
                     [<$super Error_>]::$nt(e)
                 }
             }

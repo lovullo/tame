@@ -221,11 +221,12 @@ fn empty_element_ns_prefix_nomatch() {
 
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
-            unexpected,
-            span.name_span()
-        ))),
+        ParseError::StateError(<Sut as ParseState>::Error::Root(
+            <Root as ParseState>::Error::UnexpectedEle(
+                unexpected,
+                span.name_span()
+            )
+        )),
         err,
     );
 }
@@ -270,13 +271,14 @@ fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
     //   since we were not expecting a child.
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::CloseExpected(
-            // Verify that the error includes the QName that actually matched.
-            QN_C_EQ,
-            OpenSpan(S1, N),
-            XirfToken::Open(unexpected, span_unexpected, Depth(1)),
-        ))),
+        ParseError::StateError(<Sut as ParseState>::Error::Root(
+            <Root as ParseState>::Error::CloseExpected(
+                // Verify that the error includes the QName that actually matched.
+                QN_C_EQ,
+                OpenSpan(S1, N),
+                XirfToken::Open(unexpected, span_unexpected, Depth(1)),
+            )
+        )),
         err,
     );
 }
@@ -427,7 +429,9 @@ fn element_with_failed_attr_parsing() {
     let err = sut.next().unwrap().unwrap_err();
     assert_matches!(
         err,
-        ParseError::StateError(SutError_::Root(RootError_::Attrs(..))),
+        ParseError::StateError(<Sut as ParseState>::Error::Root(
+            <Root as ParseState>::Error::Attrs(..)
+        )),
     ); // [Root] Child Open (>LA)
 
     // The remaining tokens should be ignored and we should finish parsing.
@@ -584,11 +588,12 @@ fn unexpected_element() {
     //       but to the fact that the name was not the one expected.
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
-            unexpected,
-            span.name_span()
-        ))),
+        ParseError::StateError(<Sut as ParseState>::Error::Root(
+            <Root as ParseState>::Error::UnexpectedEle(
+                unexpected,
+                span.name_span()
+            )
+        )),
         err,
     );
 
@@ -980,11 +985,12 @@ fn child_error_and_recovery() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         err,
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::ChildB(ChildBError_::UnexpectedEle(
-            unexpected,
-            span.name_span(),
-        ))),
+        ParseError::StateError(<Sut as ParseState>::Error::ChildB(
+            <ChildB as ParseState>::Error::UnexpectedEle(
+                unexpected,
+                span.name_span(),
+            )
+        )),
     );
 
     // TODO: Can't deal with this until we know exactly what error we'll
@@ -1098,12 +1104,13 @@ fn child_error_and_recovery_at_close() {
     //   since we do not want to reprocess bad input.
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::CloseExpected(
-            QN_PACKAGE,
-            OpenSpan(S1, N),
-            XirfToken::Open(unexpected_a, span_a, Depth(1)),
-        ))),
+        ParseError::StateError(<Sut as ParseState>::Error::Root(
+            <Root as ParseState>::Error::CloseExpected(
+                QN_PACKAGE,
+                OpenSpan(S1, N),
+                XirfToken::Open(unexpected_a, span_a, Depth(1)),
+            )
+        )),
         err,
     );
 
@@ -1425,12 +1432,13 @@ fn sum_nonterminal_error_recovery() {
     let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
         err,
-        // TODO: This references generated identifiers.
-        ParseError::StateError(SutError_::Root(RootError_::UnexpectedEle(
-            unexpected,
-            OpenSpan(S1, N).name_span(),
-            Default::default(),
-        ))),
+        ParseError::StateError(<Sut as ParseState>::Error::Root(
+            <Root as ParseState>::Error::UnexpectedEle(
+                unexpected,
+                OpenSpan(S1, N).name_span(),
+                Default::default(),
+            )
+        )),
     );
 
     // Diagnostic message should describe the name of the element.
@@ -1661,8 +1669,11 @@ fn child_nt_sequence_no_prev_after_next() {
             Ok(Incomplete),                 // [B]     B Open (<LA)
             Ok(Object(Foo::Open(QN_B))),    // [B@]    B Close (>LA)
             Ok(Object(Foo::Close(QN_B))),   // [B]     B Close (<LA)
-            Err(ParseError::StateError(SutError_::B(
-                BError_::UnexpectedEle(QN_A, OpenSpan(S6, N).name_span())
+            Err(ParseError::StateError(<Sut as ParseState>::Error::B(
+                <B as ParseState>::Error::UnexpectedEle(
+                    QN_A,
+                    OpenSpan(S6, N).name_span()
+                )
             ))), // [B!] A Open
             Ok(Incomplete),                 // [B!] A Close
             Ok(Object(Foo::Close(QN_ROOT))), // [Root] Root Close
@@ -1743,10 +1754,14 @@ fn child_repetition_invalid_tok_dead() {
     //     and so the error will occur on `Child`.
     assert_eq!(
         next(),
-        Some(Err(ParseError::StateError(SutError_::Child(
-            // TODO: This references generated identifiers.
-            ChildError_::UnexpectedEle(unexpected, OpenSpan(S2, N).name_span())
-        )))),
+        Some(Err(ParseError::StateError(
+            <Sut as ParseState>::Error::Child(
+                <Child as ParseState>::Error::UnexpectedEle(
+                    unexpected,
+                    OpenSpan(S2, N).name_span()
+                )
+            )
+        ))),
     );
 
     // This next token is also ignored as part of recovery.
