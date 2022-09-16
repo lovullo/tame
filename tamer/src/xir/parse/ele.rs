@@ -436,10 +436,12 @@ macro_rules! ele_parse {
         }
     ) => { paste::paste! {
         crate::attr_parse! {
+            /// Attribute parser for
+            #[doc=concat!("[`", stringify!($nt), "`].")]
             vis($vis);
             $(type ValueError = $evty;)?
 
-            struct [<$nt AttrState_>] -> [<$nt Attrs>] {
+            struct #[doc(hidden)] [<$nt AttrState_>] -> [<$nt Attrs>] {
                 $(
                     $(#[$fattr])*
                     $field: ($($fmatch)+) => $fty,
@@ -471,7 +473,8 @@ macro_rules! ele_parse {
 
         $(#[$nt_attr])*
         ///
-        #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
+        #[doc=concat!("Parser for element [`", stringify!($qname), "`] ")]
+        #[doc=concat!("with attributes [`", stringify!([<$nt Attrs>]), "`].")]
         #[derive(Debug, PartialEq, Eq, Default)]
         $vis struct $nt(crate::xir::parse::NtState<$nt>);
 

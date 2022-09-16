@@ -102,7 +102,7 @@ macro_rules! attr_parse {
         $(vis($vis:vis);)?
         $(type ValueError = $evty:ty;)?
 
-        struct $state_name:ident -> $struct_name:ident {
+        struct $(#[$st_attr:meta])? $state_name:ident -> $struct_name:ident {
             $(
                 $(#[$fattr:meta])*
                 $field:ident: ($qname:ident $($fmod:tt)?) => $ty:ty,
@@ -117,6 +117,8 @@ macro_rules! attr_parse {
             $crate::attr_parse!(@ty_assert $($fmod)? $ty);
         )*
 
+        $(#[$st_attr])?
+        ///
         #[doc=concat!("Parser producing [`", stringify!($struct_name), "`].")]
         ///
         /// Unlike the final type,
@@ -225,12 +227,6 @@ macro_rules! attr_parse {
         }
 
         $(#[$sattr])*
-        #[doc=""]
-        #[doc=concat!(
-            "This is produced by the parser [`",
-            stringify!($state_name),
-            "`]."
-        )]
         #[derive(Debug, PartialEq)]
         $($vis)? struct $struct_name {
             $(
