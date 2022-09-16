@@ -17,17 +17,26 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Normalized source IR.
+//! An IR that is "near" the source code.
 //!
 //! This IR is "near" the source code written by the user,
-//!   performing only normalization tasks like desugaring.
-//! The hope is that all desugaring will be done by templates in the future.
+//!   performing only basic normalization tasks like desugaring.
+//! It takes a verbose input language and translates it into a much more
+//!   concise internal representation.
+//! The hope is that most desugaring will be done by templates in the future.
+//!
+//! NIR cannot completely normalize the source input because it does not
+//!   have enough information to do so---the
+//!     template system requires a compile-time interpreter that is beyond
+//!     the capabilities of NIR,
+//!       and so a final normalization pass must be done later on in the
+//!       lowering pipeline.
 //!
 //! This is a streaming IR,
 //!   meaning that the equivalent AST is not explicitly represented as a
 //!   tree structure in memory.
 //!
-//! This IR is lossy and does not retain enough information for code
+//! NIR is lossy and does not retain enough information for code
 //!   formatting---that
 //!     type of operation will require a mapping between
 //!     XIRF and NIR,
