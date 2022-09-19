@@ -57,7 +57,7 @@ use crate::{
     diagnose::{Annotate, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
     parse::{Object, Token},
-    span::Span,
+    span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
     xir::{attr::Attr, fmt::TtXmlAttr, QName},
 };
@@ -73,19 +73,27 @@ pub enum Nir {
 
 impl Token for Nir {
     fn ir_name() -> &'static str {
-        todo!()
+        "NIR"
     }
 
     fn span(&self) -> crate::span::Span {
-        todo!()
+        use Nir::*;
+
+        match self {
+            Todo => UNKNOWN_SPAN,
+        }
     }
 }
 
 impl Object for Nir {}
 
 impl Display for Nir {
-    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use Nir::*;
+
+        match self {
+            Todo => write!(f, "TODO"),
+        }
     }
 }
 
