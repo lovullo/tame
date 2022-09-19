@@ -86,6 +86,7 @@ pub fn main() -> Result<(), TamecError> {
 
                     let mut xmlwriter = Default::default();
                     let mut fout = BufWriter::new(fs::File::create(dest)?);
+                    let mut has_err = false;
 
                     let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
                         PathFile::open(source)?;
@@ -123,6 +124,8 @@ pub fn main() -> Result<(), TamecError> {
                                     nir.fold(Ok(()), |x, result| match result {
                                         Ok(_) => x,
                                         Err(e) => {
+                                            has_err = true;
+
                                             // See below note about buffering.
                                             ebuf.clear();
                                             writeln!(
@@ -140,7 +143,15 @@ pub fn main() -> Result<(), TamecError> {
                         },
                     )?;
 
-                    Ok(())
+                    // TODO: Proper error summary,
+                    //   and roll into rest of lowering pipeline.
+                    match has_err {
+                        false => Ok(()),
+                        true => {
+                            println!("fatal: failed to compile `{}`", output);
+                            std::process::exit(1);
+                        }
+                    }
                 })
                 .or_else(|e: TamecError| {
                     // POC: Rendering to a string ensures buffering so that we don't
