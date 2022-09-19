@@ -18,6 +18,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! An incremental rewrite of TAME in Rust.
+//!
+//! There are two entry points to this system:
+//!
+//!   - [`tamec`](../tamec), the TAME compiler; and
+//!   - [`tameld`](../tameld), the TAME linker.
 
 // Constant functions are still in their infancy as of the time of writing
 //   (October 2021).
