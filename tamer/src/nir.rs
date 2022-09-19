@@ -43,6 +43,11 @@
 //!       where the latter is used to gather enough context for formatting
 //!       and the former is used as a concrete representation of what the user
 //!       actually typed.
+//!
+//! For more information on the parser,
+//!   see [`parse`].
+//! The entry point for NIR in the lowering pipeline is exported as
+//!   [`XirfToNir`].
 
 mod parse;
 

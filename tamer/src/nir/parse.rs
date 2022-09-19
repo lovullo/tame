@@ -17,23 +17,90 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Normalized source IR.
+//! NIR parser.
 //!
-//! This IR is "near" the source code written by the user,
-//!   performing only normalization tasks like desugaring.
-//! The hope is that all desugaring will be done by templates in the future.
+//! For general information about NIR,
+//!   see the [parent module](super).
 //!
-//! This is a streaming IR,
-//!   meaning that the equivalent AST is not explicitly represented as a
-//!   tree structure in memory.
+//! The entry point for this parser in the lowering pipeline is
+//!   [`NirParseState`].
+//! The grammar is defined declaratively using the [`ele_parse!`]
+//!   parser-generator,
+//!     which yields a parser compatible with TAME's [`crate::parse`]
+//!     framework.
 //!
-//! This IR is lossy and does not retain enough information for code
-//!   formatting---that
-//!     type of operation will require a mapping between
-//!     XIRF and NIR,
-//!       where the latter is used to gather enough context for formatting
-//!       and the former is used as a concrete representation of what the user
-//!       actually typed.
+//! Grammar Definition
+//! ==================
+//! The grammar can be seen in the TAMER sources;
+//!   if you are viewing the generated documentation,
+//!     it can be viewed by clicking on "source" in the upper-right-hand
+//!     corner of this page,
+//!       or on each individual identifier.
+//!
+//! The grammar defines nonterminals (NTs) of two forms:
+//!
+//!   1. [XIR](crate::xir) elements with their attributes and child NTs; and
+//!   2. Sum NTs of the form `(NT₀ | NT₁ | … | NTₙ)` which match on any of
+//!      inner NTs.
+//!
+//! Terminals are specified in element name and attribute contexts as
+//!   [static QName](crate::xir::st::qname) constants of the form `QN_*`.
+//! These constants are defined in [`crate::xir::st::qname`] and allow the
+//!   to efficiently match on element and attribute names by comparing a
+//!   single 64-bit integer value,
+//!     which in turn may be optimized to compare many possible QName
+//!     values simultaneously.
+//!
+//! The style of the grammar is meant to be a combination of a BNF and Rust
+//!   syntax.
+//!
+//! Repetition and Templates
+//! ------------------------
+//! _All NTs are implicitly defined as zero-or-more_
+//!   (as with the Kleene star),
+//!   and this behavior cannot be overridden.
+//! The rationale for this is somewhat complex,
+//!   but the tradeoff greatly simplifies the [`ele_parse!`]
+//!   parser-generator in recognition of a simple fact about NIR:
+//!     it cannot determine statically whether a source file will conform to
+//!     TAME's grammar when all templates are expanded.
+//!
+//! Templates require an interpreter and are expanded later in the lowering
+//!   pipeline.
+//! NIR is unable to perform that expansion,
+//!   and so we do the best we can do in this situation:
+//!     verify that templates,
+//!       when expanded,
+//!       will expand into primitives known to NIR,
+//!         and validate those primitives when possible.
+//! This can only go so far,
+//!   given that templates can appear virtually anywhere in the source tree.
+//!
+//! Because templates are able to expand into anything that is known to
+//!   NIR's grammar,
+//!     NIR cannot know whether a required element has been provided or not.
+//! Consequently,
+//!   we cannot require that an element be present as part of NIR's grammar,
+//!     since it may have been hidden behind a template application.
+//! For the same reason,
+//!   we cannot place _any_ restrictions on the number of repetitions of a
+//!   particular element.
+//!
+//! The best we can do is therefore to merely validate that,
+//!   whatever _is_ present,
+//!   is conceivably valid at that position within the grammar.
+//! It is then the burden of a future lowering operation to validate the
+//!   grammar post-expansion.
+//!
+//! What NIR therefore provides is an IR that is _closed_ under template
+//!   application---this
+//!     means that,
+//!       when a template _is_ expanded into an application site,
+//!       it _will_ expand into a sequence of parsed NIR tokens and cannot
+//!       possibly expand into anything else.
+//! What the template system does with those tokens is beyond our concern.
+//!
+//! See [`TplKw`] for template tokens that are accepted anywhere.
 
 use super::*;
 
@@ -81,6 +148,8 @@ ele_parse! {
     /// Whether or not a particular expansion is semantically valid is
     ///   beyond the scope of NIR and should be handled as part of another
     ///   lowering operation.
+    ///
+    /// See the [parent module](super) for more information.
     ///
     /// Superstate
     /// ----------
