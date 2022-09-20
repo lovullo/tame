@@ -26,6 +26,7 @@ build:
             - doc/
             - tamer/target/*/tamec
             - tamer/target/*/tameld
+            - tamer/target/doc
         expire_in: 30 min
 
 build:doc:tpl:
