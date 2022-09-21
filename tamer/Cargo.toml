@@ -25,15 +25,15 @@ lto = true
 [dependencies]
 arrayvec = ">= 0.7.1"
 bumpalo = ">= 2.6.0"
-fxhash = ">= 0.2.1"
-petgraph = "0.6.0"
-quick-xml = ">= 0.23.0-alpha3"
-getopts = "0.2"
 exitcode = "1.1.2"
-petgraph-graphml = "3.0.0"
-static_assertions = ">= 1.1.0"
+fxhash = ">= 0.2.1"
+getopts = "0.2"
 memchr = ">= 2.3.4"  # quick-xml expects =2.3.4 at the time
 paste = ">= 1.0.5"
+petgraph = "0.6.0"
+petgraph-graphml = "3.0.0"
+quick-xml = ">= 0.23.0-alpha3"
+static_assertions = ">= 1.1.0"
 unicode-width = "0.1.5"
 
 # Feature flags can be specified using `./configure FEATURES=foo,bar,baz`.
