@@ -823,6 +823,61 @@
   </if>
 </template>
 
+<template match="lv:*[@gt]" mode="preproc:apply-template-cmp" priority="5">
+  <param name="negate" select="false()" />
+  <param name="param-value" />
+  <param name="cmp-value" />
+
+  <if test="
+      ( ( $negate = 'true' ) and not( $param-value &gt; $cmp-value ) )
+      or ( ( $negate = 'false' ) and ( $param-value &gt; $cmp-value ) )
+    ">
+
+    <apply-templates select="*" mode="preproc:apply-template" />
+  </if>
+</template>
+
+<template match="lv:*[@gte]" mode="preproc:apply-template-cmp" priority="5">
+  <param name="negate" select="false()" />
+  <param name="param-value" />
+  <param name="cmp-value" />
+
+  <if test="
+      ( ( $negate = 'true' ) and not( $param-value &gt;= $cmp-value ) )
+      or ( ( $negate = 'false' ) and ( $param-value &gt;= $cmp-value ) )
+    ">
+
+    <apply-templates select="*" mode="preproc:apply-template" />
+  </if>
+</template>
+
+<template match="lv:*[@lt]" mode="preproc:apply-template-cmp" priority="5">
+  <param name="negate" select="false()" />
+  <param name="param-value" />
+  <param name="cmp-value" />
+
+  <if test="
+      ( ( $negate = 'true' ) and not( $param-value &lt; $cmp-value ) )
+      or ( ( $negate = 'false' ) and ( $param-value &lt; $cmp-value ) )
+    ">
+
+    <apply-templates select="*" mode="preproc:apply-template" />
+  </if>
+</template>
+
+<template match="lv:*[@lte]" mode="preproc:apply-template-cmp" priority="5">
+  <param name="negate" select="false()" />
+  <param name="param-value" />
+  <param name="cmp-value" />
+
+  <if test="
+      ( ( $negate = 'true' ) and not( $param-value &lt;= $cmp-value ) )
+      or ( ( $negate = 'false' ) and ( $param-value &lt;= $cmp-value ) )
+    ">
+
+    <apply-templates select="*" mode="preproc:apply-template" />
+  </if>
+</template>
 
 <template mode="preproc:apply-template-cmp" priority="5"
               match="lv:*[ @prefix ]">

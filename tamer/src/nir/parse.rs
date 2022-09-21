@@ -1837,6 +1837,10 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TplParamIdent,
             _eq: (QN_EQ?) => Option<StringLiteral>,
+            _gt: (QN_GT?) => Option<NumLiteral>,
+            _gte: (QN_GTE?) => Option<NumLiteral>,
+            _lt: (QN_LT?) => Option<NumLiteral>,
+            _lte: (QN_LTE?) => Option<NumLiteral>,
             _prefix: (QN_PREFIX?) => Option<StringLiteral>,
             _suffix: (QN_SUFFIX?) => Option<StringLiteral>,
         } => Nir::Todo,
@@ -1853,6 +1857,10 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TplParamIdent,
             _eq: (QN_EQ?) => Option<StringLiteral>,
+            _gt: (QN_GT?) => Option<NumLiteral>,
+            _gte: (QN_GTE?) => Option<NumLiteral>,
+            _lt: (QN_LT?) => Option<NumLiteral>,
+            _lte: (QN_LTE?) => Option<NumLiteral>,
             _prefix: (QN_PREFIX?) => Option<StringLiteral>,
             _suffix: (QN_SUFFIX?) => Option<StringLiteral>,
         } => Nir::Todo,
