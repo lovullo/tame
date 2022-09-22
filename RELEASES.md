@@ -13,10 +13,13 @@ TAME developers: Add new changes under a "NEXT" heading as part of the
 commits that introduce the changes.  To make a new release, run
 `tools/mkrelease`, which will handle updating the heading for you.
 
+v19.1.0 (2022-09-22)
+====================
+Add gt/gte/lt/lte operators to if/unless
 
 v19.0.3 (2022-04-01)
 ====================
-Add upper/lower state code abbrevation
+Add upper/lower state code abbreviation
 
 
 v19.0.2 (2022-03-07)
