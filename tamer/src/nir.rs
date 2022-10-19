@@ -1,4 +1,4 @@
-// Normalized source IR
+// IR that is "near" the source code.
 //
 //  Copyright (C) 2014-2022 Ryan Specialty Group, LLC.
 //
@@ -49,9 +49,14 @@
 //! The entry point for NIR in the lowering pipeline is exported as
 //!   [`XirfToNir`].
 
+mod desugar;
 mod parse;
 
-use std::{convert::Infallible, error::Error, fmt::Display};
+use std::{
+    convert::Infallible,
+    error::Error,
+    fmt::{Debug, Display},
+};
 
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -62,22 +67,33 @@ use crate::{
     xir::{attr::Attr, fmt::TtXmlAttr, QName},
 };
 
+pub use desugar::{DesugarNir, DesugarNirError};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
 
+/// IR that is "near" the source code,
+///   without its syntactic sugar.
+///
+/// This form contains only primitives that cannot be reasonably represented
+///   by other primitives.
+/// This is somewhat arbitrary and may change over time,
+///   but represents a balance between the level of abstraction of the IR
+///   and performance of lowering operations.
+///
+/// See [`SugaredNir`] for more information about the sugared form.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Nir {
+pub enum PlainNir {
     Todo,
 }
 
-impl Token for Nir {
+impl Token for PlainNir {
     fn ir_name() -> &'static str {
-        "NIR"
+        "Plain NIR"
     }
 
-    fn span(&self) -> crate::span::Span {
-        use Nir::*;
+    fn span(&self) -> Span {
+        use PlainNir::*;
 
         match self {
             Todo => UNKNOWN_SPAN,
@@ -85,15 +101,67 @@ impl Token for Nir {
     }
 }
 
-impl Object for Nir {}
+impl Object for PlainNir {}
 
-impl Display for Nir {
+impl Display for PlainNir {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use Nir::*;
+        use PlainNir::*;
 
         match self {
             Todo => write!(f, "TODO"),
         }
+    }
+}
+
+/// Syntactic sugar atop of [`PlainNir`].
+///
+/// NIR contains various syntax features that serve as mere quality-of-life
+///   conveniences for users
+///     ("sugar" to sweeten the experience).
+/// These features do not add an expressiveness to the language,
+///   and are able to be lowered into other primitives without changing
+///   its meaning.
+///
+/// The process of lowering syntactic sugar into primitives is called
+///   "desugaring" and is carried out by the [`DesugarNir`] lowering
+///     operation,
+///       producing [`PlainNir`].
+/// Tokens that do not require desugaring are already represented as
+///   [`PlainNir`] in the [`SugaredNir::Plain`] variant.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SugaredNir {
+    Plain(PlainNir),
+}
+
+impl Token for SugaredNir {
+    fn ir_name() -> &'static str {
+        "Sugared NIR"
+    }
+
+    fn span(&self) -> Span {
+        use SugaredNir::*;
+
+        match self {
+            Plain(nir) => nir.span(),
+        }
+    }
+}
+
+impl Object for SugaredNir {}
+
+impl Display for SugaredNir {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SugaredNir::*;
+
+        match self {
+            Plain(nir) => Display::fmt(nir, f),
+        }
+    }
+}
+
+impl From<PlainNir> for SugaredNir {
+    fn from(nir: PlainNir) -> Self {
+        Self::Plain(nir)
     }
 }
 

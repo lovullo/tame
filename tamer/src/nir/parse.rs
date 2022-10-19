@@ -114,7 +114,7 @@ use crate::{
 };
 
 ele_parse! {
-    /// Parser lowering [XIR](crate::xir) into [NIR](crate::nir).
+    /// Parser lowering [XIR](crate::xir) into [`SugaredNir`].
     ///
     /// TAME's grammar is embedded within XML.
     /// The outer XML document has its own grammar,
@@ -156,13 +156,13 @@ ele_parse! {
     pub enum NirParseState;
 
     type AttrValueError = NirAttrParseError;
-    type Object = Nir;
+    type Object = SugaredNir;
 
     // Text and template expressions may appear at any point within the
     //   program;
     //     see [`NirParseState`] for more information.
     [super] {
-        [text](_sym, _span) => Nir::Todo,
+        [text](_sym, _span) => PlainNir::Todo,
         TplKw
     };
 
@@ -204,7 +204,7 @@ ele_parse! {
             // TODO: Is this still needed?
             // TODO: PkgName type
             _name: (QN_NAME) => PkgPath,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         ImportStmt,
         PkgBodyStmt,
@@ -237,7 +237,7 @@ ele_parse! {
 
             // TODO: Can this go away now?
             _name: (QN_NAME?) => Option<PkgPath>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         ImportStmt,
         PkgBodyStmt,
@@ -251,7 +251,7 @@ ele_parse! {
         @ {
             _pkg: (QN_PACKAGE) => PkgPath,
             _export: (QN_EXPORT?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// A statement that is accepted within the body of a package.
@@ -299,7 +299,7 @@ ele_parse! {
             _dim: (QN_DIM) => NumLiteral,
             _parent: (QN_PARENT?) => Option<AnyIdent>,
             _yields: (QN_YIELDS?) => Option<ValueIdent>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Define an input parameter accepting data from an external system.
@@ -315,7 +315,7 @@ ele_parse! {
             _set: (QN_SET?) => Option<Dim>,
             _default: (QN_DEFAULT?) => Option<ParamDefault>,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Associate static data with an identifier.
@@ -340,7 +340,7 @@ ele_parse! {
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
             // TODO: Misnomer
             _set: (QN_SET?) => Option<Dim>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         ConstStmtBody,
     };
@@ -360,7 +360,7 @@ ele_parse! {
     ConstMatrixRow := QN_SET {
         @ {
             _desc: (QN_DESC) => DescLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         ConstVectorItem,
     };
@@ -370,7 +370,7 @@ ele_parse! {
         @ {
             _value: (QN_VALUE) => NumLiteral,
             _desc: (QN_DESC) => DescLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Define a classification and associate it with an identifier.
@@ -386,7 +386,7 @@ ele_parse! {
             _yields: (QN_YIELDS?) => Option<ValueIdent>,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
             _terminate: (QN_TERMINATE?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         LogExpr,
     };
@@ -413,7 +413,7 @@ ele_parse! {
             // TODO: We'll have private-by-default later.
             //   This is a kludge.
             _local: (QN_LOCAL?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -433,7 +433,7 @@ ele_parse! {
             _yields: (QN_YIELDS?) => Option<ValueIdent>,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
             _gensym: (QN_GENSYM?) => Option<TexMathLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -444,7 +444,7 @@ ele_parse! {
             _name: (QN_NAME) => TypeIdent,
             _desc: (QN_DESC) => DescLiteral,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         InnerTypedefStmt,
     };
@@ -457,7 +457,7 @@ ele_parse! {
     /// This is used for primitives and allows for core types to be exposed
     ///   to the user.
     BaseTypeStmt := QN_BASE_TYPE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
     };
 
     /// Define an enumerated type.
@@ -467,7 +467,7 @@ ele_parse! {
     EnumStmt := QN_ENUM {
         @ {
             _ty: (QN_TYPE) => TypeIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         ItemEnumStmt,
     };
@@ -479,13 +479,13 @@ ele_parse! {
             _name: (QN_NAME) => ConstIdent,
             _value: (QN_VALUE) => NumLiteral,
             _desc: (QN_DESC) => DescLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Define a type whose domain is the union of the domains of multiple
     ///   other types.
     UnionStmt := QN_UNION {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         TypedefStmt,
     };
@@ -500,7 +500,7 @@ ele_parse! {
     /// This is being replaced with the `__yield__` template in `core`
     ///   (this statement predates the template system in TAME).
     YieldStmt := QN_YIELD {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -522,7 +522,7 @@ ele_parse! {
     SectionStmt := QN_SECTION {
         @ {
             _title: (QN_TITLE) => Title,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         PkgBodyStmt,
     };
@@ -533,7 +533,7 @@ ele_parse! {
             _name: (QN_NAME) => FuncIdent,
             _desc: (QN_DESC) => DescLiteral,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         FunctionParamStmt,
         CalcExpr,
@@ -548,7 +548,7 @@ ele_parse! {
             // _TODO: This is a misnomer.
             _set: (QN_SET?) => Option<Dim>,
             _desc: (QN_DESC) => DescLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
 
@@ -574,7 +574,7 @@ ele_parse! {
             _value: (QN_VALUE?) => Option<ValueIdent>,
             _index: (QN_INDEX?) => Option<ValueIdent>,
             _anyof: (QN_ANY_OF?) => Option<TypeIdent>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcPredExpr,
     };
@@ -584,7 +584,7 @@ ele_parse! {
     /// This represents an expression that matches when _any_ of its inner
     ///   [`LogExpr`] expressions match.
     AnyExpr := QN_ANY {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         LogExpr,
     };
@@ -594,7 +594,7 @@ ele_parse! {
     /// This represents an expression that matches when _all_ of its inner
     ///   [`LogExpr`] expressions match.
     AllExpr := QN_ALL {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         LogExpr,
     };
@@ -661,7 +661,7 @@ ele_parse! {
             _label: (QN_LABEL?) => Option<DescLiteral>,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
             _dim: (QN_DIM?) => Option<Dim>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         WhenExpr,
         CalcExpr,
@@ -683,7 +683,7 @@ ele_parse! {
             _dot: (QN_DOT?) => Option<BooleanLiteral>,
             _sym: (QN_SYM?) => Option<TexMathLiteral>,
             _dim: (QN_DIM?) => Option<Dim>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         WhenExpr,
         CalcExpr,
@@ -699,7 +699,7 @@ ele_parse! {
     QuotientExpr := QN_C_QUOTIENT {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -715,7 +715,7 @@ ele_parse! {
     ///     (respectively),
     ///   but TAMER will be relaxing that restriction.
     ExptExpr := QN_C_EXPT {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -730,7 +730,7 @@ ele_parse! {
             _name: (QN_NAME) => ValueIdent,
             _index: (QN_INDEX?) => Option<ValueIdent>,
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         IndexExpr,
         WhenExpr,
@@ -746,7 +746,7 @@ ele_parse! {
     IndexExpr := QN_C_INDEX {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -765,7 +765,7 @@ ele_parse! {
             _desc: (QN_DESC?) => Option<DescLiteral>,
             // _TODO: deprecate?
             _ty: (QN_TYPE?) => Option<TypeIdent>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         WhenExpr,
     };
@@ -774,7 +774,7 @@ ele_parse! {
     CeilExpr := QN_C_CEIL {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -782,7 +782,7 @@ ele_parse! {
     FloorExpr := QN_C_FLOOR {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -802,7 +802,7 @@ ele_parse! {
     CasesExpr := QN_C_CASES {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CaseExpr,
         OtherwiseExpr,
@@ -822,7 +822,7 @@ ele_parse! {
     CaseExpr := QN_C_CASE {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         WhenExpr,
         CalcExpr,
@@ -845,7 +845,7 @@ ele_parse! {
     OtherwiseExpr := QN_C_OTHERWISE {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -856,7 +856,7 @@ ele_parse! {
     ///   which are vectors of vectors.
     /// It is not defined for scalars.
     LengthOfExpr := QN_C_LENGTH_OF {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -870,7 +870,7 @@ ele_parse! {
     /// The result of the let expression is the result of the inner
     ///   [`CalcExpr`].
     LetExpr := QN_C_LET {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         LetValues,
         CalcExpr,
     };
@@ -880,7 +880,7 @@ ele_parse! {
     ///
     /// See [`LetExpr`] for more information.
     LetValues := QN_C_VALUES {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         LetValue,
     };
 
@@ -897,7 +897,7 @@ ele_parse! {
             // Misnomer
             _set: (QN_SET?) => Option<Dim>,
             _desc: (QN_DESC?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -907,7 +907,7 @@ ele_parse! {
     VectorExpr := QN_C_VECTOR {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -924,9 +924,9 @@ ele_parse! {
     ///   `<`[`c:arg`](QN_C_ARG)` name="α"><`[`c:value-of`](QN_C_VALUE_OF)
     ///     `name="x" /></c:arg>`.
     ApplyExpr := QN_C_APPLY {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
-        [attr](_attr) => Nir::Todo,
+        [attr](_attr) => PlainNir::Todo,
 
         ApplyArg,
     };
@@ -939,7 +939,7 @@ ele_parse! {
     ApplyArg := QN_C_ARG {
         @ {
             _name: (QN_NAME) => ParamIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcExpr,
     };
@@ -954,9 +954,9 @@ ele_parse! {
     ///     allowing for concise recursion in terms of only what has changed
     ///     in that recursive step.
     RecurseExpr := QN_C_RECURSE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
-        [attr](_attr) => Nir::Todo,
+        [attr](_attr) => PlainNir::Todo,
 
         ApplyArg,
     };
@@ -967,7 +967,7 @@ ele_parse! {
     /// This terminology originates from Lisp.
     /// It is equivalent to an `unshift` operation.
     ConsExpr := QN_C_CONS {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -977,7 +977,7 @@ ele_parse! {
     CarExpr := QN_C_CAR {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -989,7 +989,7 @@ ele_parse! {
     CdrExpr := QN_C_CDR {
         @ {
             _label: (QN_LABEL?) => Option<DescLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -1011,7 +1011,7 @@ ele_parse! {
             _name: (QN_NAME) => ValueIdent,
             _index: (QN_INDEX?) => Option<ValueIdent>,
             _value: (QN_VALUE?) => Option<ValueIdent>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         CalcPredExpr,
     };
@@ -1031,37 +1031,37 @@ ele_parse! {
 
     /// Equality predicate (=).
     EqCalcPredExpr := QN_C_EQ {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
     /// Non-equality predicate (≠).
     NeCalcPredExpr := QN_C_NE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
     /// Less-than predicate (<).
     LtCalcPredExpr := QN_C_LT {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
     /// Greater-than predicate (>).
     GtCalcPredExpr := QN_C_GT {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
     /// Less-than or equality predicate (≤).
     LteCalcPredExpr := QN_C_LTE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
     /// Greater-than or equality predicate (≥).
     GteCalcPredExpr := QN_C_GTE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         CalcExpr,
     };
 
@@ -1088,7 +1088,7 @@ ele_parse! {
             _xmlns: (QN_XMLNS) => Literal<URI_LV_PROGRAM_MAP>,
             _xmlnslv: (QN_XMLNS_LV) => Literal<URI_LV_RATER>,
             _src: (QN_SRC) => PkgPath,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         MapPkgImportStmt,
         MapImportStmt,
@@ -1106,7 +1106,7 @@ ele_parse! {
         @ {
             _xmlns: (QN_XMLNS) => Literal<URI_LV_PROGRAM_MAP>,
             _xmlnslv: (QN_XMLNS_LV) => Literal<URI_LV_RATER>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         MapPkgImportStmt,
         MapImportStmt,
@@ -1122,7 +1122,7 @@ ele_parse! {
         @ {
             _package: (QN_PACKAGE) => PkgPath,
             _export: (QN_EXPORT?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Import a map package.
@@ -1133,7 +1133,7 @@ ele_parse! {
     MapImportStmt := QN_IMPORT {
         @ {
             _path: (QN_PATH) => PkgPath,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Define the value of a key in the destination.
@@ -1149,7 +1149,7 @@ ele_parse! {
             _scalar: (QN_SCALAR?) => Option<BooleanLiteral>,
             _override: (QN_OVERRIDE?) => Option<BooleanLiteral>,
             _novalidate: (QN_NOVALIDATE?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Map a value into a key of the destination.
@@ -1168,7 +1168,7 @@ ele_parse! {
             _scalar: (QN_SCALAR?) => Option<BooleanLiteral>,
             _override: (QN_OVERRIDE?) => Option<BooleanLiteral>,
             _novalidate: (QN_NOVALIDATE?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         MapStmtBody,
     };
@@ -1183,7 +1183,7 @@ ele_parse! {
             _default: (QN_DEFAULT?) => Option<NumLiteral>,
             _scalar: (QN_SCALAR?) => Option<BooleanLiteral>,
             _novalidate: (QN_NOVALIDATE?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         MapTranslateStmt,
     };
@@ -1193,7 +1193,7 @@ ele_parse! {
         @ {
             _key: (QN_KEY) => StringLiteral,
             _value: (QN_VALUE) => NumLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Yield a vector of values where each item corresponds to the
@@ -1203,7 +1203,7 @@ ele_parse! {
     ///   since the result is a vector,
     ///   not a set.
     MapSetStmt := QN_SET {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         MapSetBody,
     };
@@ -1215,7 +1215,7 @@ ele_parse! {
     MapConstStmt := QN_CONST {
         @ {
             _value: (QN_VALUE) => StringLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Transform a value using some function.
@@ -1227,7 +1227,7 @@ ele_parse! {
     MapTransformStmt := QN_TRANSFORM {
         @ {
             _method: (QN_METHOD) => MapTransformLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         MapStmtBody,
     };
@@ -1259,7 +1259,7 @@ ele_parse! {
 
             _name: (QN_NAME) => PkgPath,
             _pkg: (QN_PACKAGE) => PkgPath,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         ExpandFunctionStmt,
         DisplayStmt,
@@ -1276,7 +1276,7 @@ ele_parse! {
     ExpandFunctionStmt := QN_EXPAND_FUNCTION {
         @ {
             _name: (QN_NAME) => FuncIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Render a simplified, human-readable display of the calculation,
@@ -1284,7 +1284,7 @@ ele_parse! {
     DisplayStmt := QN_DISPLAY {
         @ {
             _name: (QN_NAME) => ValueIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
 
@@ -1377,7 +1377,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TplName,
             _desc: (QN_DESC) => DescLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         TplHeading,
         AnyStmtOrExpr,
@@ -1402,7 +1402,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TplParamIdent,
             _desc: (QN_DESC) => DescLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         TplParamDefault,
     };
@@ -1435,7 +1435,7 @@ ele_parse! {
     TplText := QN_TEXT {
         @ {
             _unique: (QN_UNIQUE?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Default the param to the value of another template param,
@@ -1458,7 +1458,7 @@ ele_parse! {
             _rmunderscore: (QN_RMUNDERSCORE?) => Option<BooleanLiteral>,
             _identifier: (QN_IDENTIFIER?) => Option<BooleanLiteral>,
             _snake: (QN_SNAKE?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Inherit a default value from a metavalue.
@@ -1473,7 +1473,7 @@ ele_parse! {
     TplParamInherit := QN_PARAM_INHERIT {
         @ {
             _meta: (QN_META) => TplMetaIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Sum a numeric value with a numeric template parameter.
@@ -1484,7 +1484,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TplParamIdent,
             _value: (QN_VALUE) => NumLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Look up the [`@yields`](QN_YIELDS) of a [`ClassifyStmt`].
@@ -1505,7 +1505,7 @@ ele_parse! {
     TplParamClassToYields := QN_PARAM_CLASS_TO_YIELDS {
         @ {
             _name: (QN_NAME) => ClassIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Given a numeric literal,
@@ -1550,7 +1550,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TypeIdent,
             _value: (QN_VALUE) => NumLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Look up an attribute from the symbol table for a given identifier.
@@ -1560,7 +1560,7 @@ ele_parse! {
             _value: (QN_VALUE) => SymbolTableKey,
             _prefix: (QN_PREFIX?) => Option<AnyIdent>,
             _ignore_missing: (QN_IGNORE_MISSING?) => Option<BooleanLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Keywords that trigger template expansion.
@@ -1603,7 +1603,7 @@ ele_parse! {
     DynNode := QN_DYN_NODE {
         @ {
             _name: (QN_NAME) => DynNodeLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         // But we can at least restrict it for now by ensuring that it's
         //   used only to contain expressions.
@@ -1619,7 +1619,7 @@ ele_parse! {
     /// See also [`WarningKw`] to provide a message to the user as
     ///   compiler output without failing compilation.
     ErrorKw := QN_ERROR {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         // In addition to text that is globally permitted.
         TplParamValue,
@@ -1635,7 +1635,7 @@ ele_parse! {
     ///     you should consider using [`ErrorKw`] whenever possible to
     ///     ensure that problems are immediately resolved.
     WarningKw := QN_WARNING {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         // In addition to text that is globally permitted.
         TplParamValue,
@@ -1657,7 +1657,7 @@ ele_parse! {
     ///   but this is still needed to support dynamic template application
     ///     (templates whose names are derived from other template inputs).
     ApplyTemplate := QN_APPLY_TEMPLATE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         // TODO
     };
@@ -1670,12 +1670,12 @@ ele_parse! {
     ///     template argument.
     /// See [`ApplyTemplate`] for more information.
     TplApplyShort := NS_T {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above
         //     (which is used only for emitting the opening object).
-        [attr](_attr) => Nir::Todo,
+        [attr](_attr) => PlainNir::Todo,
 
         // Template bodies depend on context,
         //   so we have to just accept everything and defer to a future
@@ -1695,7 +1695,7 @@ ele_parse! {
     ///     and have the unique ability to perform symbol table
     ///     introspection using [`InlineTemplateSymSet`].
     InlineTemplate := QN_INLINE_TEMPLATE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         InlineTemplateForEach,
         AnyStmtOrExpr,
@@ -1710,7 +1710,7 @@ ele_parse! {
     ///     each with the respective [`InlineTemplateArgs`] set as its
     ///     arguments.
     InlineTemplateForEach := QN_FOR_EACH {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         InlineTemplateArgs,
     };
@@ -1727,10 +1727,10 @@ ele_parse! {
     ///
     /// See also parent [`InlineTemplateForEach`].
     InlineTemplateArgSet := QN_SET {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
 
         // Streaming attribute parsing.
-        [attr](_attr) => Nir::Todo,
+        [attr](_attr) => PlainNir::Todo,
 
         // TODO: REMOVE ME
         //   (bug in `ele_parse!` requiring at least one NT in this
@@ -1755,7 +1755,7 @@ ele_parse! {
             _name_prefix: (QN_NAME_PREFIX?) => Option<StringLiteral>,
             _type: (QN_TYPE?) => Option<IdentType>,
             // TODO: Look at XSL sources for others
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Perform template expansion on each successive child node in order,
@@ -1785,7 +1785,7 @@ ele_parse! {
     /// The concept originates from TeX's `\expandafter`, `\edef`, and
     ///   related macros.
     ExpandSequence := QN_EXPAND_SEQUENCE {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         AnyStmtOrExpr,
     };
 
@@ -1795,7 +1795,7 @@ ele_parse! {
     ///   implementation of [`ExpandSequence`];
     ///     see that NT for more information.
     ExpandGroup := QN_EXPAND_GROUP {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         AnyStmtOrExpr,
     };
 
@@ -1805,7 +1805,7 @@ ele_parse! {
     ///   template system from expanding its body beyond a certain point,
     ///     which is sometimes needed for template-producing templates.
     ExpandBarrier := QN_EXPAND_BARRIER {
-        @ {} => Nir::Todo,
+        @ {} => PlainNir::Todo,
         AnyStmtOrExpr,
     };
 
@@ -1818,7 +1818,7 @@ ele_parse! {
     TplParamCopy := QN_PARAM_COPY {
         @ {
             _name: (QN_NAME) => TplParamIdent,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Define a metavalue at this point in the expansion environment.
@@ -1829,7 +1829,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => TplParamIdent,
             _value: (QN_VALUE) => StringLiteral,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
     };
 
     /// Conditionally expand the body if the provided predicate matches.
@@ -1843,7 +1843,7 @@ ele_parse! {
             _lte: (QN_LTE?) => Option<NumLiteral>,
             _prefix: (QN_PREFIX?) => Option<StringLiteral>,
             _suffix: (QN_SUFFIX?) => Option<StringLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         AnyStmtOrExpr,
     };
@@ -1863,7 +1863,7 @@ ele_parse! {
             _lte: (QN_LTE?) => Option<NumLiteral>,
             _prefix: (QN_PREFIX?) => Option<StringLiteral>,
             _suffix: (QN_SUFFIX?) => Option<StringLiteral>,
-        } => Nir::Todo,
+        } => PlainNir::Todo,
 
         AnyStmtOrExpr,
     };

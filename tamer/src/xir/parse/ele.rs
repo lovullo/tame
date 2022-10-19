@@ -582,7 +582,7 @@ macro_rules! ele_parse {
         impl std::fmt::Display for $nt {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 match self {
-                    Self(st) => st.fmt(f),
+                    Self(st) => std::fmt::Display::fmt(st, f),
                 }
             }
         }
@@ -636,7 +636,7 @@ macro_rules! ele_parse {
                         $(
                             // Used only to match on `[attr]`.
                             let [<_ $attr_stream_binding>] = ();
-                            return transition.ok($attrmap);
+                            return transition.ok(<$objty>::from($attrmap));
                         )?
 
                         // If the `[attr]` special form was _not_
@@ -693,7 +693,10 @@ macro_rules! ele_parse {
                         (
                             st @ Attrs(..),
                             XirfToken::Attr($attr_stream_binding),
-                        ) => Transition(Self(st)).ok($attr_stream_map),
+                        ) => {
+                            Transition(Self(st))
+                                .ok(<$objty>::from($attr_stream_map))
+                        },
 
                         // Override the aggregate attribute parser
                         //   delegation by forcing the below match to become
@@ -748,7 +751,7 @@ macro_rules! ele_parse {
                                             let $open_span = sa.element_span();
                                         )?
 
-                                        $attrmap
+                                        <$objty>::from($attrmap)
                                     },
                                 };
 
@@ -1013,7 +1016,7 @@ macro_rules! ele_parse {
         impl std::fmt::Display for $nt {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 match self {
-                    Self(st) => st.fmt(f),
+                    Self(st) => std::fmt::Display::fmt(st, f),
                 }
             }
         }
@@ -1321,7 +1324,7 @@ macro_rules! ele_parse {
                                     _,
                                 )
                             ) if st.can_preempt_node() => {
-                                Transition(st).ok($text_map)
+                                Transition(st).ok(<$objty>::from($text_map))
                             },
                         )?
 

@@ -37,7 +37,7 @@ use tamer::{
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    nir::{XirfToNir, XirfToNirError},
+    nir::{DesugarNir, DesugarNirError, SugaredNir, XirfToNir, XirfToNirError},
     parse::{
         Lower, ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken,
     },
@@ -135,13 +135,15 @@ fn compile<R: Reporter>(
         XirToXirf<64, RefinedText>,
         _,
     >::lower::<_, UnrecoverableError>(src, |toks| {
-        Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
-            nir.fold(Ok(()), |x, result| match result {
-                Ok(_) => x,
-                Err(e) => {
-                    report_err(&e, reporter, &mut ebuf)?;
-                    x
-                }
+        Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |snir| {
+            Lower::<XirfToNir, DesugarNir, _>::lower(snir, |nir| {
+                nir.fold(Ok(()), |x, result| match result {
+                    Ok(_) => x,
+                    Err(e) => {
+                        report_err(&e, reporter, &mut ebuf)?;
+                        x
+                    }
+                })
             })
         })
     })?;
@@ -295,6 +297,7 @@ pub enum RecoverableError {
     XirParseError(ParseError<UnknownToken, xir::Error>),
     XirfParseError(ParseError<XirToken, XirToXirfError>),
     NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
+    DesugarNirError(ParseError<SugaredNir, DesugarNirError>),
 }
 
 impl From<io::Error> for UnrecoverableError {
@@ -327,9 +330,17 @@ impl From<ParseError<XirToken, XirToXirfError>> for RecoverableError {
     }
 }
 
-impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>> for RecoverableError {
+impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>>
+    for RecoverableError
+{
     fn from(e: ParseError<XirfToken<RefinedText>, XirfToNirError>) -> Self {
         Self::NirParseError(e)
+    }
+}
+
+impl From<ParseError<SugaredNir, DesugarNirError>> for RecoverableError {
+    fn from(e: ParseError<SugaredNir, DesugarNirError>) -> Self {
+        Self::DesugarNirError(e)
     }
 }
 
@@ -354,6 +365,7 @@ impl Display for RecoverableError {
             Self::XirParseError(e) => Display::fmt(e, f),
             Self::XirfParseError(e) => Display::fmt(e, f),
             Self::NirParseError(e) => Display::fmt(e, f),
+            Self::DesugarNirError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -375,6 +387,7 @@ impl Error for RecoverableError {
             Self::XirParseError(e) => Some(e),
             Self::XirfParseError(e) => Some(e),
             Self::NirParseError(e) => Some(e),
+            Self::DesugarNirError(e) => Some(e),
         }
     }
 }
@@ -394,6 +407,7 @@ impl Diagnostic for RecoverableError {
             Self::XirParseError(e) => e.describe(),
             Self::XirfParseError(e) => e.describe(),
             Self::NirParseError(e) => e.describe(),
+            Self::DesugarNirError(e) => e.describe(),
         }
     }
 }
