@@ -28,9 +28,9 @@ use getopts::{Fail, Options};
 use std::{
     env,
     error::Error,
-    ffi::OsStr,
     fmt::{self, Display, Write},
-    fs, io,
+    fs::{self, File},
+    io::{self, BufReader, BufWriter},
     path::Path,
 };
 use tamer::{
@@ -38,12 +38,15 @@ use tamer::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
     nir::{XirfToNir, XirfToNirError},
-    parse::{Lower, ParseError, Parsed, ParsedObject, UnknownToken},
+    parse::{
+        Lower, ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken,
+    },
     xir::{
         self,
         flat::{RefinedText, XirToXirf, XirToXirfError, XirfToken},
+        reader::XmlXirReader,
         writer::XmlWriter,
-        Error as XirError, Token as XirToken,
+        DefaultEscaper, Error as XirError, Token as XirToken,
     },
 };
 
@@ -51,6 +54,44 @@ use tamer::{
 enum Command {
     Compile(String, String, String),
     Usage,
+}
+
+/// Create a [`XmlXirReader`] for a source file.
+///
+/// The provided escaper must be shared between all readers and writers in
+///   order to benefit from its caching.
+fn src_reader<'a>(
+    input: &'a String,
+    escaper: &'a DefaultEscaper,
+) -> Result<XmlXirReader<'a, BufReader<File>>, TamecError> {
+    use tamer::fs::{File, PathFile};
+
+    let source = Path::new(input);
+
+    let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
+        PathFile::open(source)?;
+
+    Ok(XmlXirReader::new(file, escaper, ctx))
+}
+
+/// Write each parsed token to the provided buffer.
+///
+/// This is intended to be a temporary function that exists during a
+///   transition period between the XSLT-based TAME and TAMER.
+/// Writing XIR proves that the source file is being successfully parsed and
+///   helps to evaluate system performance.
+fn copy_xml_to<'e, W: io::Write + 'e>(
+    mut fout: W,
+    escaper: &'e DefaultEscaper,
+) -> impl FnMut(&ParsedResult<ParsedObject<XirToken, XirError>>) + 'e {
+    let mut xmlwriter = Default::default();
+
+    move |tok_result| match tok_result {
+        Ok(Parsed::Object(tok)) => {
+            xmlwriter = tok.write(&mut fout, xmlwriter, escaper).unwrap();
+        }
+        _ => (),
+    }
 }
 
 /// Entrypoint for the compiler
@@ -62,59 +103,28 @@ pub fn main() -> Result<(), TamecError> {
 
     match parse_options(opts, args) {
         Ok(Command::Compile(input, _, output)) => {
-            let source = Path::new(&input);
-            if source.extension() != Some(OsStr::new("xml")) {
-                panic!("{}: file format not recognized", input);
-            }
+            let mut reporter = VisualReporter::new(FsSpanResolver);
 
             let dest = Path::new(&output);
-            let mut reporter = VisualReporter::new(FsSpanResolver);
+            let fout = BufWriter::new(fs::File::create(dest)?);
 
             Ok(())
                 .and_then(|_| {
-                    use std::io::{BufReader, BufWriter};
-                    use tamer::{
-                        fs::{File, PathFile},
-                        xir::{
-                            reader::XmlXirReader,
-                            DefaultEscaper,
-                        },
-                    };
-
                     let escaper = DefaultEscaper::default();
                     let mut ebuf = String::new();
 
-                    let mut xmlwriter = Default::default();
-                    let mut fout = BufWriter::new(fs::File::create(dest)?);
                     let mut has_err = false;
-
-                    let PathFile(_, file, ctx): PathFile<BufReader<fs::File>> =
-                        PathFile::open(source)?;
 
                     // TODO: This will be progressively refactored as
                     //   lowering is finalized.
-                    // Parse into XIR and re-lower into XML,
-                    //   which is similar to a copy but proves that we're able
-                    //   to parse source files.
                     let _ = Lower::<
                         ParsedObject<XirToken, XirError>,
                         XirToXirf<64, RefinedText>,
                     >::lower::<_, TamecError>(
                         // TODO: We're just echoing back out XIR,
                         //   which will be the same sans some formatting.
-                        &mut XmlXirReader::new(file, &escaper, ctx)
-                            .inspect(|tok_result| {
-                                match tok_result {
-                                    Ok(Parsed::Object(tok)) => {
-                                        xmlwriter = tok.write(
-                                            &mut fout,
-                                            xmlwriter,
-                                            &escaper
-                                        ).unwrap();
-                                    },
-                                    _ => ()
-                                }
-                            }),
+                        &mut src_reader(&input, &escaper)?
+                            .inspect(copy_xml_to(fout, &escaper)),
                         |toks| {
                             Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(
                                 toks,
