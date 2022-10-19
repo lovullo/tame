@@ -94,6 +94,64 @@ fn copy_xml_to<'e, W: io::Write + 'e>(
     }
 }
 
+/// Compile a source file,
+///   writing to the provided destination path.
+///
+/// NB: Output is presently a _copy_ of the input,
+///   with formatting partially removed.
+fn compile<R: Reporter>(
+    src_path: &String,
+    dest_path: &String,
+    reporter: &mut R,
+) -> Result<(), TamecError> {
+    let dest = Path::new(&dest_path);
+    let fout = BufWriter::new(fs::File::create(dest)?);
+
+    let escaper = DefaultEscaper::default();
+    let mut ebuf = String::new();
+
+    let mut has_err = false;
+
+    // TODO: This will be progressively refactored as
+    //   lowering is finalized.
+    let _ = Lower::<
+        ParsedObject<XirToken, XirError>,
+        XirToXirf<64, RefinedText>,
+    >::lower::<_, TamecError>(
+        // TODO: We're just echoing back out XIR,
+        //   which will be the same sans some formatting.
+        &mut src_reader(src_path, &escaper)?
+            .inspect(copy_xml_to(fout, &escaper)),
+        |toks| {
+            Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(toks, |nir| {
+                nir.fold(Ok(()), |x, result| match result {
+                    Ok(_) => x,
+                    Err(e) => {
+                        has_err = true;
+
+                        // See below note about buffering.
+                        ebuf.clear();
+                        writeln!(ebuf, "{}", reporter.render(&e))?;
+                        println!("{ebuf}");
+
+                        x
+                    }
+                })
+            })
+        },
+    )?;
+
+    // TODO: Proper error summary,
+    //   and roll into rest of lowering pipeline.
+    match has_err {
+        false => Ok(()),
+        true => {
+            println!("fatal: failed to compile `{}`", dest_path);
+            std::process::exit(1);
+        }
+    }
+}
+
 /// Entrypoint for the compiler
 pub fn main() -> Result<(), TamecError> {
     let args: Vec<String> = env::args().collect();
@@ -102,75 +160,22 @@ pub fn main() -> Result<(), TamecError> {
     let usage = opts.usage(&format!("Usage: {} [OPTIONS] INPUT", program));
 
     match parse_options(opts, args) {
-        Ok(Command::Compile(input, _, output)) => {
+        Ok(Command::Compile(src_path, _, dest_path)) => {
             let mut reporter = VisualReporter::new(FsSpanResolver);
 
-            let dest = Path::new(&output);
-            let fout = BufWriter::new(fs::File::create(dest)?);
-
-            Ok(())
-                .and_then(|_| {
-                    let escaper = DefaultEscaper::default();
-                    let mut ebuf = String::new();
-
-                    let mut has_err = false;
-
-                    // TODO: This will be progressively refactored as
-                    //   lowering is finalized.
-                    let _ = Lower::<
-                        ParsedObject<XirToken, XirError>,
-                        XirToXirf<64, RefinedText>,
-                    >::lower::<_, TamecError>(
-                        // TODO: We're just echoing back out XIR,
-                        //   which will be the same sans some formatting.
-                        &mut src_reader(&input, &escaper)?
-                            .inspect(copy_xml_to(fout, &escaper)),
-                        |toks| {
-                            Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(
-                                toks,
-                                |nir| {
-                                    // TODO: These errors do not yet fail
-                                    //   compilation.
-                                    nir.fold(Ok(()), |x, result| match result {
-                                        Ok(_) => x,
-                                        Err(e) => {
-                                            has_err = true;
-
-                                            // See below note about buffering.
-                                            ebuf.clear();
-                                            writeln!(
-                                                ebuf,
-                                                "{}",
-                                                reporter.render(&e)
-                                            )?;
-                                            println!("{ebuf}");
-
-                                            x
-                                        }
-                                    })
-                                },
-                            )
-                        },
-                    )?;
-
-                    // TODO: Proper error summary,
-                    //   and roll into rest of lowering pipeline.
-                    match has_err {
-                        false => Ok(()),
-                        true => {
-                            println!("fatal: failed to compile `{}`", output);
-                            std::process::exit(1);
-                        }
-                    }
-                })
-                .or_else(|e: TamecError| {
+            compile(&src_path, &dest_path, &mut reporter).or_else(
+                |e: TamecError| {
                     // POC: Rendering to a string ensures buffering so that we don't
                     //   interleave output between processes.
                     let report = reporter.render(&e).to_string();
-                    println!("{report}\nfatal: failed to compile `{}`", output);
+                    println!(
+                        "{report}\nfatal: failed to compile `{}`",
+                        dest_path
+                    );
 
                     std::process::exit(1);
-                })
+                },
+            )
         }
         Ok(Command::Usage) => {
             println!("{}", usage);
