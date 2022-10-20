@@ -26,6 +26,7 @@ extern crate tamer;
 
 use getopts::{Fail, Options};
 use std::{
+    cell::RefCell,
     env,
     error::Error,
     fmt::{self, Display, Write},
@@ -108,12 +109,34 @@ fn compile<R: Reporter>(
     let fout = BufWriter::new(fs::File::create(dest)?);
 
     let escaper = DefaultEscaper::default();
-    let mut ebuf = String::new();
 
-    let mut has_err = false;
+    let ebuf = RefCell::new(String::new());
+    let has_err = RefCell::new(false);
 
-    // TODO: This will be progressively refactored as
-    //   lowering is finalized.
+    fn report_err<E: Diagnostic, R: Reporter>(
+        e: &E,
+        reporter: &R,
+        has_err: &RefCell<bool>,
+        ebuf: &mut String,
+    ) -> Result<(), TamecError> {
+        *has_err.borrow_mut() = true;
+
+        // See below note about buffering.
+        ebuf.clear();
+        writeln!(ebuf, "{}", reporter.render(e))?;
+        println!("{ebuf}");
+
+        Ok(())
+    }
+
+    // TODO: You have landed on a commit that is in the middle of
+    //   refactoring this lowering pipline;
+    //     congratulations!
+    //   Specifically,
+    //     this is beginning to derive what these lowering steps have in
+    //     common so that they can be factored out,
+    //       and committing this intermediate state helps with rationalizing
+    //       and understanding the changes.
     let _ = Lower::<
         ParsedObject<XirToken, XirError>,
         XirToXirf<64, RefinedText>,
@@ -123,27 +146,43 @@ fn compile<R: Reporter>(
         &mut src_reader(src_path, &escaper)?
             .inspect(copy_xml_to(fout, &escaper)),
         |toks| {
-            Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(toks, |nir| {
-                nir.fold(Ok(()), |x, result| match result {
-                    Ok(_) => x,
+            Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(
+                &mut toks.filter_map(|result| match result {
+                    Ok(x) => Some(Ok(x)),
                     Err(e) => {
-                        has_err = true;
-
-                        // See below note about buffering.
-                        ebuf.clear();
-                        writeln!(ebuf, "{}", reporter.render(&e))?;
-                        println!("{ebuf}");
-
-                        x
+                        // TODO: This should yield an error,
+                        //   but the types do not yet allow for it.
+                        report_err(
+                            &e,
+                            reporter,
+                            &has_err,
+                            &mut ebuf.borrow_mut(),
+                        )
+                        .unwrap();
+                        None
                     }
-                })
-            })
+                }),
+                |nir| {
+                    nir.fold(Ok(()), |x, result| match result {
+                        Ok(_) => x,
+                        Err(e) => {
+                            report_err(
+                                &e,
+                                reporter,
+                                &has_err,
+                                &mut ebuf.borrow_mut(),
+                            )?;
+                            x
+                        }
+                    })
+                },
+            )
         },
     )?;
 
     // TODO: Proper error summary,
     //   and roll into rest of lowering pipeline.
-    match has_err {
+    match has_err.into_inner() {
         false => Ok(()),
         true => {
             println!("fatal: failed to compile `{}`", dest_path);
