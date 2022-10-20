@@ -102,7 +102,7 @@ fn copy_xml_to<'e, W: io::Write + 'e>(
 fn compile<R: Reporter>(
     src_path: &String,
     dest_path: &String,
-    reporter: &mut R,
+    reporter: &R,
 ) -> Result<(), TamecError> {
     let dest = Path::new(&dest_path);
     let fout = BufWriter::new(fs::File::create(dest)?);
@@ -161,9 +161,9 @@ pub fn main() -> Result<(), TamecError> {
 
     match parse_options(opts, args) {
         Ok(Command::Compile(src_path, _, dest_path)) => {
-            let mut reporter = VisualReporter::new(FsSpanResolver);
+            let reporter = VisualReporter::new(FsSpanResolver);
 
-            compile(&src_path, &dest_path, &mut reporter).or_else(
+            compile(&src_path, &dest_path, &reporter).or_else(
                 |e: TamecError| {
                     // POC: Rendering to a string ensures buffering so that we don't
                     //   interleave output between processes.

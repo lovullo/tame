@@ -59,7 +59,7 @@ pub fn main() -> Result<(), TameldError> {
     let usage =
         opts.usage(&format!("Usage: {} [OPTIONS] -o OUTPUT FILE", program));
 
-    let mut reporter = VisualReporter::new(FsSpanResolver);
+    let reporter = VisualReporter::new(FsSpanResolver);
 
     match parse_options(opts, args) {
         Ok(Command::Link(input, output, emit)) => match emit {

@@ -39,6 +39,7 @@ use super::{
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::{
+    cell::RefCell,
     fmt::{self, Display, Write},
     num::NonZeroU32,
     ops::Add,
@@ -72,8 +73,7 @@ pub trait Reporter {
     ///     ensuring both that the user is made aware of the problem
     ///     and that we're not inadvertently suppressing the actual
     ///       diagnostic messages that were requested.
-    fn render<'d, D: Diagnostic>(&mut self, diagnostic: &'d D)
-        -> Report<'d, D>;
+    fn render<'d, D: Diagnostic>(&self, diagnostic: &'d D) -> Report<'d, D>;
 }
 
 /// Render diagnostic report in a highly visual way.
@@ -86,22 +86,32 @@ pub trait Reporter {
 ///       understanding why the error occurred and how to approach resolving
 ///       it.
 pub struct VisualReporter<R: SpanResolver> {
-    resolver: R,
+    /// Span resolver.
+    ///
+    /// This is responsible for resolving a span to a filename with line and
+    ///   column numbers.
+    ///
+    /// This uses interior mutability since it is in our best interest to
+    ///   permit multiple references to a single resolver---the
+    ///     shared resolver caching is far more important than saving on a
+    ///     cell lock check.
+    resolver: RefCell<R>,
 }
 
 impl<R: SpanResolver> VisualReporter<R> {
     pub fn new(resolver: R) -> Self {
-        Self { resolver }
+        Self {
+            resolver: RefCell::new(resolver),
+        }
     }
 }
 
 impl<R: SpanResolver> Reporter for VisualReporter<R> {
-    fn render<'d, D: Diagnostic>(
-        &mut self,
-        diagnostic: &'d D,
-    ) -> Report<'d, D> {
-        let mspans =
-            describe_resolved(|span| self.resolver.resolve(span), diagnostic);
+    fn render<'d, D: Diagnostic>(&self, diagnostic: &'d D) -> Report<'d, D> {
+        let mspans = describe_resolved(
+            |span| self.resolver.borrow_mut().resolve(span),
+            diagnostic,
+        );
 
         let mut report = Report::empty(Message(diagnostic));
         report.extend(mspans.map(Into::into));

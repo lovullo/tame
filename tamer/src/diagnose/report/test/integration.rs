@@ -140,7 +140,7 @@ macro_rules! assert_report {
             BufSpanResolver::new(Cursor::new(FILE_MANY_LINES), ctx_mny_lns),
         );
 
-        let mut sut = VisualReporter::new(resolver);
+        let sut = VisualReporter::new(resolver);
 
         assert_eq!(
             sut.render(&StubError($msg.into(), $aspans)).to_string(),

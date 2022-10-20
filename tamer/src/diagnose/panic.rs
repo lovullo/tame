@@ -123,7 +123,7 @@ macro_rules! diagnostic_panic {
     ($desc_data:expr, $($panic_args:tt)*) => {{
         use crate::diagnose::Reporter;
 
-        let mut reporter = crate::diagnose::panic::PanicReporter::new(
+        let reporter = crate::diagnose::panic::PanicReporter::new(
             Default::default()
         );
 
