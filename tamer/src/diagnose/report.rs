@@ -74,6 +74,13 @@ pub trait Reporter {
     ///     and that we're not inadvertently suppressing the actual
     ///       diagnostic messages that were requested.
     fn render<'d, D: Diagnostic>(&self, diagnostic: &'d D) -> Report<'d, D>;
+
+    /// Whether any reports have been rendered with an error level or higher.
+    fn has_errors(&self) -> bool;
+
+    /// Number of reports with an error level or higher that have been
+    ///   rendered.
+    fn error_count(&self) -> usize;
 }
 
 /// Render diagnostic report in a highly visual way.
@@ -96,12 +103,16 @@ pub struct VisualReporter<R: SpanResolver> {
     ///     shared resolver caching is far more important than saving on a
     ///     cell lock check.
     resolver: RefCell<R>,
+
+    /// Number of reports with a severity level of error or higher.
+    err_n: RefCell<usize>,
 }
 
 impl<R: SpanResolver> VisualReporter<R> {
     pub fn new(resolver: R) -> Self {
         Self {
             resolver: RefCell::new(resolver),
+            err_n: RefCell::new(0),
         }
     }
 }
@@ -120,7 +131,21 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
         //   which is more aesthetically pleasing.
         report.normalize_gutters();
 
+        if report.level.is_error() {
+            // Not worried about overflow panic
+            //   (you have bigger problems if there are that many errors).
+            *self.err_n.borrow_mut() += 1;
+        }
+
         report
+    }
+
+    fn has_errors(&self) -> bool {
+        self.error_count() > 0
+    }
+
+    fn error_count(&self) -> usize {
+        *self.err_n.borrow()
     }
 }
 

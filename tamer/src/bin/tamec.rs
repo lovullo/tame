@@ -111,16 +111,12 @@ fn compile<R: Reporter>(
     let escaper = DefaultEscaper::default();
 
     let ebuf = RefCell::new(String::new());
-    let has_err = RefCell::new(false);
 
     fn report_err<E: Diagnostic, R: Reporter>(
         e: &E,
         reporter: &R,
-        has_err: &RefCell<bool>,
         ebuf: &mut String,
     ) -> Result<(), TamecError> {
-        *has_err.borrow_mut() = true;
-
         // See below note about buffering.
         ebuf.clear();
         writeln!(ebuf, "{}", reporter.render(e))?;
@@ -155,7 +151,6 @@ fn compile<R: Reporter>(
                         report_err(
                             &e,
                             reporter,
-                            &has_err,
                             &mut ebuf.borrow_mut(),
                         )
                         .unwrap();
@@ -169,7 +164,6 @@ fn compile<R: Reporter>(
                             report_err(
                                 &e,
                                 reporter,
-                                &has_err,
                                 &mut ebuf.borrow_mut(),
                             )?;
                             x
@@ -180,15 +174,17 @@ fn compile<R: Reporter>(
         },
     )?;
 
-    // TODO: Proper error summary,
-    //   and roll into rest of lowering pipeline.
-    match has_err.into_inner() {
-        false => Ok(()),
-        true => {
-            println!("fatal: failed to compile `{}`", dest_path);
-            std::process::exit(1);
-        }
+    // TODO: Proper error summary and exit in `main`.
+    if reporter.has_errors() {
+        println!(
+            "fatal: failed to compile `{}` due to previous {} error(s)",
+            dest_path,
+            reporter.error_count(),
+        );
+        std::process::exit(1);
     }
+
+    Ok(())
 }
 
 /// Entrypoint for the compiler

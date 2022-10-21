@@ -114,33 +114,37 @@ const FILE_MANY_LINES: &[u8] = b"\
 \n90\n91\n92\n93\n94\n95\n96\n97\n98\n99\
 \n100";
 
+fn new_sut() -> impl Reporter {
+    let mut resolver = HashMap::<Context, BufSpanResolver<_>>::new();
+
+    let ctx_foo_bar = Context::from("foo/bar");
+    let ctx_bar_baz = Context::from("bar/baz");
+    let ctx_inv_utf = Context::from("invalid/utf8");
+    let ctx_mny_lns = Context::from("many/lines");
+
+    resolver.insert(
+        ctx_foo_bar,
+        BufSpanResolver::new(Cursor::new(FILE_FOO_BAR), ctx_foo_bar),
+    );
+    resolver.insert(
+        ctx_bar_baz,
+        BufSpanResolver::new(Cursor::new(FILE_BAR_BAZ), ctx_bar_baz),
+    );
+    resolver.insert(
+        ctx_inv_utf,
+        BufSpanResolver::new(Cursor::new(FILE_INVALID_UTF8), ctx_inv_utf),
+    );
+    resolver.insert(
+        ctx_mny_lns,
+        BufSpanResolver::new(Cursor::new(FILE_MANY_LINES), ctx_mny_lns),
+    );
+
+    VisualReporter::new(resolver)
+}
+
 macro_rules! assert_report {
     ($msg:expr, $aspans:expr, $expected:expr) => {
-        let mut resolver = HashMap::<Context, BufSpanResolver<_>>::new();
-
-        let ctx_foo_bar = Context::from("foo/bar");
-        let ctx_bar_baz = Context::from("bar/baz");
-        let ctx_inv_utf = Context::from("invalid/utf8");
-        let ctx_mny_lns = Context::from("many/lines");
-
-        resolver.insert(
-            ctx_foo_bar,
-            BufSpanResolver::new(Cursor::new(FILE_FOO_BAR), ctx_foo_bar),
-        );
-        resolver.insert(
-            ctx_bar_baz,
-            BufSpanResolver::new(Cursor::new(FILE_BAR_BAZ), ctx_bar_baz),
-        );
-        resolver.insert(
-            ctx_inv_utf,
-            BufSpanResolver::new(Cursor::new(FILE_INVALID_UTF8), ctx_inv_utf),
-        );
-        resolver.insert(
-            ctx_mny_lns,
-            BufSpanResolver::new(Cursor::new(FILE_MANY_LINES), ctx_mny_lns),
-        );
-
-        let sut = VisualReporter::new(resolver);
+        let sut = new_sut();
 
         assert_eq!(
             sut.render(&StubError($msg.into(), $aspans)).to_string(),
@@ -588,4 +592,40 @@ error: wide gutter
     | ^^
 "
     );
+}
+
+#[test]
+fn visual_reporter_tracks_errors() {
+    let sut = new_sut();
+    let ctx = Context::from("error/tracking");
+
+    fn feed_aspan(sut: &impl Reporter, aspan: AnnotatedSpan<'static>) {
+        // We do not care about the report value;
+        //   we're only interested in how it tracks errors for this test.
+        let _ = sut.render(&StubError("ignored".into(), vec![aspan]));
+    }
+
+    // We should start with no errors.
+    assert_eq!(sut.error_count(), 0);
+    assert!(!sut.has_errors());
+
+    // Help must not increment.
+    feed_aspan(&sut, ctx.span(0, 1).help("no increment"));
+    assert_eq!(sut.error_count(), 0);
+    assert!(!sut.has_errors());
+
+    // Note must not increment.
+    feed_aspan(&sut, ctx.span(0, 1).note("no increment"));
+    assert_eq!(sut.error_count(), 0);
+    assert!(!sut.has_errors());
+
+    // Error must increment.
+    feed_aspan(&sut, ctx.span(0, 1).error("increment"));
+    assert_eq!(sut.error_count(), 1);
+    assert!(sut.has_errors());
+
+    // Internal error must increment.
+    feed_aspan(&sut, ctx.span(0, 1).error("increment"));
+    assert_eq!(sut.error_count(), 2);
+    assert!(sut.has_errors());
 }

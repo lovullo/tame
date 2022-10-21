@@ -113,8 +113,13 @@ impl Diagnostic for Infallible {
 /// Levels are used both for entire reports and for styling of individual
 ///   [`AnnotatedSpan`]s.
 ///
-/// Lower levels are more severe
-///   (e.g. level 1 is the worst).
+/// Higher severity levels are represented by lower integer values
+///   (e.g. level 1 is the worst),
+///   like DEFCON levels.
+/// The rationale here is that,
+///   provided that you remember that these are 1-indexed,
+///   you do not need to know how many levels exist to know how severe it
+///   is.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum Level {
@@ -143,6 +148,13 @@ pub enum Level {
     ///     help messages may be more speculative.
     #[default]
     Help,
+}
+
+impl Level {
+    /// Whether this error level represents an error.
+    pub fn is_error(self) -> bool {
+        self <= Self::Error
+    }
 }
 
 impl Display for Level {
