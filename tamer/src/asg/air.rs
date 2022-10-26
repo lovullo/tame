@@ -213,7 +213,7 @@ mod test {
 
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
-        let asg = sut.finalize().unwrap();
+        let asg = sut.finalize().unwrap().into_context();
 
         let ident_node =
             asg.lookup(sym).expect("identifier was not added to graph");
@@ -254,7 +254,7 @@ mod test {
 
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
-        let asg = sut.finalize().unwrap();
+        let asg = sut.finalize().unwrap().into_context();
 
         let ident_node =
             asg.lookup(sym).expect("identifier was not added to graph");
@@ -292,7 +292,7 @@ mod test {
 
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
-        let asg = sut.finalize().unwrap();
+        let asg = sut.finalize().unwrap().into_context();
 
         let ident_node = asg
             .lookup(ident)
@@ -325,7 +325,7 @@ mod test {
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentDecl
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentFragment
 
-        let asg = sut.finalize().unwrap();
+        let asg = sut.finalize().unwrap().into_context();
 
         let ident_node =
             asg.lookup(sym).expect("identifier was not added to graph");
@@ -362,7 +362,7 @@ mod test {
 
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
-        let asg = sut.finalize().unwrap();
+        let asg = sut.finalize().unwrap().into_context();
 
         let ident_node = asg
             .lookup(sym)
@@ -401,7 +401,7 @@ mod test {
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentDecl
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentRoot
 
-        let asg = sut.finalize().unwrap();
+        let asg = sut.finalize().unwrap().into_context();
 
         let ident_node = asg
             .lookup(sym)

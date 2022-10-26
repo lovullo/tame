@@ -29,7 +29,7 @@ mod trace;
 
 pub use error::ParseError;
 pub use lower::{Lower, LowerIter, ParsedObject};
-pub use parser::{Parsed, ParsedResult, Parser};
+pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{
     context::{Context, Empty as EmptyContext, NoContext},
     ClosedParseState, ParseResult, ParseState, ParseStatus, Transition,
@@ -376,7 +376,7 @@ pub mod test {
         let mut toks = vec![TestToken::MarkDone(DS)].into_iter();
         let mut sut = Sut::from(&mut toks);
         sut.next().unwrap().unwrap();
-        let ctx = sut.finalize().unwrap();
+        let ctx = sut.finalize().unwrap().into_context();
         assert_eq!(ctx, Default::default());
 
         // Next, verify that the context that is manipulated is the context
@@ -385,7 +385,7 @@ pub mod test {
         let mut toks = vec![TestToken::SetCtxVal(5)].into_iter();
         let mut sut = Sut::from(&mut toks);
         sut.next().unwrap().unwrap();
-        let ctx = sut.finalize().unwrap();
+        let ctx = sut.finalize().unwrap().into_context();
         assert_eq!(ctx, StubContext { val });
 
         // Finally, verify that the context provided is the context that is
@@ -395,7 +395,7 @@ pub mod test {
         let mut toks = vec![TestToken::MarkDone(DS)].into_iter();
         let mut sut = EchoState::parse_with_context(&mut toks, given_ctx);
         sut.next().unwrap().unwrap();
-        let ctx = sut.finalize().unwrap();
+        let ctx = sut.finalize().unwrap().into_context();
         assert_eq!(ctx, StubContext { val });
     }
 

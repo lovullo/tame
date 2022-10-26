@@ -178,9 +178,10 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   is a decision made by the [`ParseState`].
     pub fn finalize(
         self,
-    ) -> Result<S::Context, (Self, ParseError<S::Token, S::Error>)> {
+    ) -> Result<FinalizedParser<S>, (Self, ParseError<S::Token, S::Error>)>
+    {
         match self.assert_accepting() {
-            Ok(()) => Ok(self.ctx),
+            Ok(()) => Ok(FinalizedParser(self.ctx)),
             Err(err) => Err((self, err)),
         }
     }
@@ -450,6 +451,26 @@ where
             last_span: UNKNOWN_SPAN,
             ctx,
             tracer: Default::default(),
+        }
+    }
+}
+
+/// Residual state of a parser that has been finalized with
+///   [`Parser::finalize`].
+///
+/// This type can be used to ensure that parsers are always finalized at the
+///   end of an operation by providing such evidence to a caller.
+///
+/// If the inner [`ParseState::Context`] is empty or no longer needed,
+///   then this can be safely dropped without use.
+#[derive(Debug, PartialEq)]
+pub struct FinalizedParser<S: ParseState>(S::Context);
+
+impl<S: ParseState> FinalizedParser<S> {
+    /// Take ownership over the inner [`ParseState::Context`].
+    pub fn into_context(self) -> S::Context {
+        match self {
+            Self(ctx) => ctx,
         }
     }
 }

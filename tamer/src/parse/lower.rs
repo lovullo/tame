@@ -20,8 +20,8 @@
 //! IR lowering operation between [`Parser`]s.
 
 use super::{
-    state::ClosedParseState, NoContext, Object, ParseError, ParseState, Parsed,
-    Parser, Token, TransitionResult, UnknownToken,
+    state::ClosedParseState, FinalizedParser, NoContext, Object, ParseError,
+    ParseState, Parsed, Parser, Token, TransitionResult, UnknownToken,
 };
 use crate::diagnose::Diagnostic;
 use std::{fmt::Display, iter, marker::PhantomData};
@@ -62,7 +62,7 @@ where
 {
     /// Consume inner parser and yield its context.
     #[inline]
-    fn finalize(self) -> Result<LS::Context, E> {
+    fn finalize(self) -> Result<FinalizedParser<LS>, E> {
         self.lower.finalize().map_err(|(_, e)| e.into())
     }
 }
@@ -129,6 +129,8 @@ where
             _phantom: PhantomData::default(),
         };
         f(&mut iter)
+
+        // TODO: Finalize!
     }
 
     /// Perform a lowering operation between two parsers where the context
@@ -155,7 +157,10 @@ where
         };
         let val = f(&mut iter)?;
 
-        iter.finalize().map(|ctx| (val, ctx))
+        // TODO: Further propagate `FinalizedParser`
+        iter.finalize()
+            .map(FinalizedParser::into_context)
+            .map(|ctx| (val, ctx))
     }
 }
 

@@ -423,7 +423,7 @@ mod test {
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgRootPath
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Eoh
 
-        let ctx = sut.finalize().unwrap();
+        let ctx = sut.finalize().unwrap().into_context();
 
         assert_eq!(Some(name), ctx.prog_name);
         assert_eq!(Some(relroot), ctx.relroot);
@@ -510,7 +510,7 @@ mod test {
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // SymDecl (@src)
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Eoh
 
-        let ctx = sut.finalize().unwrap();
+        let ctx = sut.finalize().unwrap().into_context();
         let mut founds = ctx.found.unwrap().into_iter().collect::<Vec<_>>();
 
         // Just to remove nondeterminism in case the iteration order happens
@@ -621,7 +621,7 @@ mod test {
         );
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Eoh
 
-        let ctx = sut.finalize().unwrap();
+        let ctx = sut.finalize().unwrap().into_context();
 
         // Both above symbols were local (no `src`),
         //   but note that we don't care if it's None or initialized with a
