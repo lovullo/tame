@@ -124,15 +124,6 @@ fn compile<R: Reporter>(
         Ok(())
     }
 
-    // TODO: You have landed on a commit that is in the middle of
-    //   refactoring this lowering pipline;
-    //     congratulations!
-    //   Specifically,
-    //     this is beginning to derive what these lowering steps have in
-    //     common so that they can be factored out,
-    //       and committing this intermediate state helps with rationalizing
-    //       and understanding the changes.
-
     // TODO: We're just echoing back out XIR,
     //   which will be the same sans some formatting.
     let src = &mut src_reader(src_path, &escaper)?
