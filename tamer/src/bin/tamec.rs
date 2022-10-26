@@ -112,8 +112,8 @@ fn compile<R: Reporter>(
 
     let ebuf = RefCell::new(String::new());
 
-    fn report_err<E: Diagnostic, R: Reporter>(
-        e: &E,
+    fn report_err<R: Reporter>(
+        e: &TamecError,
         reporter: &R,
         ebuf: &mut String,
     ) -> Result<(), TamecError> {
@@ -133,46 +133,28 @@ fn compile<R: Reporter>(
     //     common so that they can be factored out,
     //       and committing this intermediate state helps with rationalizing
     //       and understanding the changes.
+
+    // TODO: We're just echoing back out XIR,
+    //   which will be the same sans some formatting.
+    let src = &mut src_reader(src_path, &escaper)?
+        .inspect(copy_xml_to(fout, &escaper))
+        .map(|result| result.map_err(TamecError::from));
+
     let _ = Lower::<
         ParsedObject<XirToken, XirError>,
         XirToXirf<64, RefinedText>,
-    >::lower::<_, TamecError>(
-        // TODO: We're just echoing back out XIR,
-        //   which will be the same sans some formatting.
-        &mut src_reader(src_path, &escaper)?
-            .inspect(copy_xml_to(fout, &escaper)),
-        |toks| {
-            Lower::<XirToXirf<64, RefinedText>, XirfToNir>::lower(
-                &mut toks.filter_map(|result| match result {
-                    Ok(x) => Some(Ok(x)),
-                    Err(e) => {
-                        // TODO: This should yield an error,
-                        //   but the types do not yet allow for it.
-                        report_err(
-                            &e,
-                            reporter,
-                            &mut ebuf.borrow_mut(),
-                        )
-                        .unwrap();
-                        None
-                    }
-                }),
-                |nir| {
-                    nir.fold(Ok(()), |x, result| match result {
-                        Ok(_) => x,
-                        Err(e) => {
-                            report_err(
-                                &e,
-                                reporter,
-                                &mut ebuf.borrow_mut(),
-                            )?;
-                            x
-                        }
-                    })
-                },
-            )
-        },
-    )?;
+        _,
+    >::lower(src, |toks| {
+        Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
+            nir.fold(Ok(()), |x, result| match result {
+                Ok(_) => x,
+                Err(e) => {
+                    report_err(&e, reporter, &mut ebuf.borrow_mut())?;
+                    x
+                }
+            })
+        })
+    })?;
 
     // TODO: Proper error summary and exit in `main`.
     if reporter.has_errors() {

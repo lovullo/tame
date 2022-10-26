@@ -21,52 +21,49 @@
 
 use super::{
     state::ClosedParseState, NoContext, Object, ParseError, ParseState, Parsed,
-    ParsedResult, Parser, Token, TransitionResult, UnknownToken,
+    Parser, Token, TransitionResult, UnknownToken,
 };
-use crate::{
-    diagnose::Diagnostic,
-    iter::{TripIter, TrippableIterator},
-};
+use crate::diagnose::Diagnostic;
 use std::{fmt::Display, iter, marker::PhantomData};
 
 #[cfg(doc)]
 use super::TokenStream;
 
 /// An IR lowering operation that pipes the output of one [`Parser`] to the
-///   input of another.
+///   input of another while propagating errors via a common
+///   [`WidenedError`] type `E`.
 ///
-/// This is produced by [`Lower`].
-pub struct LowerIter<'a, 'b, S, I, LS>
+/// This is produced by [`Lower`] methods.
+pub struct LowerIter<'a, S, I, LS, E>
 where
     S: ParseState,
-    I: Iterator<Item = ParsedResult<S>>,
+    I: Iterator<Item = WidenedParsedResult<S, E>>,
     LS: ClosedParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
+    E: WidenedError<S, LS>,
 {
     /// A push [`Parser`].
     lower: Parser<LS, iter::Empty<LS::Token>>,
 
-    /// Source tokens from higher-level [`Parser`],
-    ///   with the outer [`Result`] having been stripped by a [`TripIter`].
-    toks: &'a mut TripIter<
-        'b,
-        I,
-        Parsed<S::Object>,
-        ParseError<S::Token, S::Error>,
-    >,
+    /// Source tokens from higher-level [`Parser`].
+    toks: &'a mut I,
+
+    /// `S` is used for its associated types only.
+    _phantom: PhantomData<S>,
 }
 
-impl<'a, 'b, S, I, LS> LowerIter<'a, 'b, S, I, LS>
+impl<'a, S, I, LS, E> LowerIter<'a, S, I, LS, E>
 where
     S: ParseState,
-    I: Iterator<Item = ParsedResult<S>>,
+    I: Iterator<Item = WidenedParsedResult<S, E>>,
     LS: ClosedParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
+    E: WidenedError<S, LS>,
 {
     /// Consume inner parser and yield its context.
     #[inline]
-    fn finalize(self) -> Result<LS::Context, ParseError<LS::Token, LS::Error>> {
-        self.lower.finalize().map_err(|(_, e)| e)
+    fn finalize(self) -> Result<LS::Context, E> {
+        self.lower.finalize().map_err(|(_, e)| e.into())
     }
 }
 
@@ -74,11 +71,16 @@ where
 ///
 /// Lowering is intended to be used between standalone [`ParseState`]s that
 ///   implement [`Default`].
-pub trait Lower<S, LS>
+///
+/// It is expected that input tokens have already been widened into `E`
+///   (a [`WidenedError`]) by a previous lowering operation,
+///   or by an introduction parser.
+pub trait Lower<S, LS, E>
 where
     S: ParseState,
     LS: ClosedParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
+    E: WidenedError<S, LS>,
 {
     /// Lower the IR produced by this [`Parser`] into another IR by piping
     ///   the output to a new parser defined by the [`ParseState`] `LS`.
@@ -101,36 +103,32 @@ where
     ///
     /// The new iterator is a [`LowerIter`],
     ///   and scoped to the provided closure `f`.
-    /// The outer [`Result`] of `Self`'s [`ParsedResult`] is stripped by
-    ///   a [`TripIter`] before being provided as input to a new push
-    ///   [`Parser`] utilizing `LS`.
     /// A push parser,
     ///   rather than pulling tokens from a [`TokenStream`],
     ///   has tokens pushed into it;
     ///     this parser is created automatically for you.
     ///
-    /// _TODO_: There's no way to access the inner parser for error recovery
-    ///   after tripping the [`TripIter`].
-    /// Consequently,
-    ///   this API (likely the return type) will change.
+    /// All errors from the parser `LS` are widened to the error type `E`,
+    ///   which is expected to be an aggregate error type
+    ///     (such as a sum type)
+    ///     shared by the already-widened `S`-derived input.
+    /// Errors are propagated to the caller without lowering.
     #[inline]
-    fn lower<U, E>(
+    fn lower<U>(
         &mut self,
-        f: impl FnOnce(&mut LowerIter<S, Self, LS>) -> Result<U, E>,
+        f: impl FnOnce(&mut LowerIter<S, Self, LS, E>) -> Result<U, E>,
     ) -> Result<U, E>
     where
-        Self: Iterator<Item = ParsedResult<S>> + Sized,
+        Self: Iterator<Item = WidenedParsedResult<S, E>> + Sized,
         <LS as ParseState>::Context: Default,
-        ParseError<S::Token, S::Error>: Into<E>,
-        ParseError<LS::Token, LS::Error>: Into<E>,
     {
-        self.while_ok(|toks| {
-            // TODO: This parser is not accessible after error recovery!
-            let lower = LS::parse(iter::empty());
-            let mut iter = LowerIter { lower, toks };
-            f(&mut iter)
-        })
-        .map_err(Into::into)
+        let lower = LS::parse(iter::empty());
+        let mut iter = LowerIter {
+            lower,
+            toks: self,
+            _phantom: PhantomData::default(),
+        };
+        f(&mut iter)
     }
 
     /// Perform a lowering operation between two parsers where the context
@@ -140,62 +138,104 @@ where
     ///
     /// See [`Lower::lower`] and [`ParseState::parse_with_context`] for more
     ///   information.
-    fn lower_with_context<U, E>(
+    #[inline]
+    fn lower_with_context<U>(
         &mut self,
         ctx: LS::Context,
-        f: impl FnOnce(&mut LowerIter<S, Self, LS>) -> Result<U, E>,
+        f: impl FnOnce(&mut LowerIter<S, Self, LS, E>) -> Result<U, E>,
     ) -> Result<(U, LS::Context), E>
     where
-        Self: Iterator<Item = ParsedResult<S>> + Sized,
-        ParseError<S::Token, S::Error>: Into<E>,
-        ParseError<LS::Token, LS::Error>: Into<E>,
+        Self: Iterator<Item = WidenedParsedResult<S, E>> + Sized,
     {
-        self.while_ok(|toks| {
-            let lower = LS::parse_with_context(iter::empty(), ctx);
-            let mut iter = LowerIter { lower, toks };
-            let val = f(&mut iter)?;
+        let lower = LS::parse_with_context(iter::empty(), ctx);
+        let mut iter = LowerIter {
+            lower,
+            toks: self,
+            _phantom: PhantomData::default(),
+        };
+        let val = f(&mut iter)?;
 
-            iter.finalize().map_err(Into::into).map(|ctx| (val, ctx))
-        })
+        iter.finalize().map(|ctx| (val, ctx))
     }
 }
 
-impl<S, LS, I> Lower<S, LS> for I
+impl<S, LS, E, I> Lower<S, LS, E> for I
 where
-    I: Iterator<Item = ParsedResult<S>> + Sized,
+    I: Iterator<Item = WidenedParsedResult<S, E>> + Sized,
     S: ParseState,
     LS: ClosedParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
+    E: WidenedError<S, LS>,
 {
 }
 
-impl<'a, 'b, S, I, LS> Iterator for LowerIter<'a, 'b, S, I, LS>
+impl<'a, S, I, LS, E> Iterator for LowerIter<'a, S, I, LS, E>
 where
     S: ParseState,
-    I: Iterator<Item = ParsedResult<S>>,
+    I: Iterator<Item = WidenedParsedResult<S, E>>,
     LS: ClosedParseState<Token = S::Object>,
     <S as ParseState>::Object: Token,
+    E: WidenedError<S, LS>,
 {
-    type Item = ParsedResult<LS>;
+    type Item = WidenedParsedResult<LS, E>;
 
     /// Pull a token through the higher-level [`Parser`],
     ///   push it to the lowering parser,
-    ///   and yield the resulting [`ParsedResult`].
+    ///   and yield the lowered result.
+    ///
+    /// Errors from `LS` are widened into `E`.
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let tok = self
             .lower
             .take_lookahead_tok()
             .map(Parsed::Object)
+            .map(Ok)
             .or_else(|| self.toks.next());
 
         match tok {
+            // We are done when no tokens remain.
             None => None,
-            Some(Parsed::Incomplete) => Some(Ok(Parsed::Incomplete)),
-            Some(Parsed::Object(obj)) => Some(self.lower.feed_tok(obj)),
+
+            // Errors have already been widened by the previous lowering
+            //   operation.
+            Some(Err(e)) => Some(Err(e)),
+
+            // Incomplete parses are simply propagated,
+            //   since we have no work to do.
+            Some(Ok(Parsed::Incomplete)) => Some(Ok(Parsed::Incomplete)),
+
+            // If a token was successfully parsed,
+            //   then we can do our job and lower it.
+            // This utilizes the push parser `self.lower`.
+            Some(Ok(Parsed::Object(obj))) => {
+                Some(self.lower.feed_tok(obj).map_err(Into::into))
+            }
         }
     }
 }
+
+/// A [`Diagnostic`] error type common to both `S` and `LS`.
+///
+/// This error type must be able to accommodate error variants from all
+///   associated lowering operations.
+/// The most obvious example of such an error type is an enum acting as a
+///   sum type,
+///     where the errors of each lowering operation are contained within
+///     separate variants.
+///
+/// This creates a common type that can be propagated through the lowering
+///   pipeline all the way to the calling terminal parser,
+///     which may then decide what to do
+///       (e.g. report errors and permit recovery,
+///         or terminate at the first sign of trouble).
+pub trait WidenedError<S: ParseState, LS: ParseState> = Diagnostic
+    + From<ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>
+    + From<ParseError<<LS as ParseState>::Token, <LS as ParseState>::Error>>;
+
+/// A [`ParsedResult`](super::ParsedResult) with a [`WidenedError`].
+pub type WidenedParsedResult<S, E> =
+    Result<Parsed<<S as ParseState>::Object>, E>;
 
 /// Representation of a [`ParseState`] producing some type of [`Object`].
 ///
@@ -252,6 +292,8 @@ impl<O: Object, E: Diagnostic + PartialEq> ParseState for ParsedObject<O, E> {
 
 // See `super::test` for more information on why there are so few tests
 //   here.
+// The robust types are quite effective at demanding coherency in spite of
+//   complexity.
 #[cfg(test)]
 mod test {
     use super::super::{
@@ -293,7 +335,7 @@ mod test {
         let given = 27; // some value
         let toks = vec![StubToken::YieldWithLookahead(given)];
 
-        Lower::<StubEchoParseState, StubParseState>::lower(
+        Lower::<StubEchoParseState, StubParseState, _>::lower(
             &mut StubEchoParseState::parse(toks.into_iter()),
             |sut| {
                 // We have a single token,
@@ -321,9 +363,10 @@ mod test {
                     "expected end of both input stream and lookahead"
                 );
 
-                Ok::<(), StubError>(())
+                Ok(Ok::<(), StubError>(()))
             },
         )
+        .unwrap()
         .unwrap();
     }
 }

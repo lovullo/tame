@@ -188,32 +188,32 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
             VisitOnceFile::Visited => return Ok((asg, state)),
         };
 
+    let src = &mut XmlXirReader::new(file, escaper, ctx)
+        .map(|result| result.map_err(TameldError::from));
+
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
     let (mut asg, mut state) = Lower::<
         ParsedObject<XirToken, XirError>,
         XirToXirf<4, Text>,
-    >::lower::<_, TameldError>(
-        &mut XmlXirReader::new(file, escaper, ctx),
-        |toks| {
-            Lower::<XirToXirf<4, Text>, XmloReader>::lower(toks, |xmlo| {
-                let mut iter = xmlo.scan(false, |st, rtok| match st {
-                    true => None,
-                    false => {
-                        *st = matches!(
-                            rtok,
-                            Ok(Parsed::Object(XmloToken::Eoh(..)))
-                        );
-                        Some(rtok)
-                    }
-                });
+        _,
+    >::lower(src, |toks| {
+        Lower::<XirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
+            let mut iter = xmlo.scan(false, |st, rtok| match st {
+                true => None,
+                false => {
+                    *st =
+                        matches!(rtok, Ok(Parsed::Object(XmloToken::Eoh(..))));
+                    Some(rtok)
+                }
+            });
 
-                Lower::<XmloReader, XmloToAir>::lower_with_context(
-                    &mut iter,
-                    state,
-                    |air| {
-                        let (_, asg) =
-                            Lower::<XmloToAir, AirAggregate>::lower_with_context(
+            Lower::<XmloReader, XmloToAir, _>::lower_with_context(
+                &mut iter,
+                state,
+                |air| {
+                    let (_, asg) =
+                            Lower::<XmloToAir, AirAggregate, _>::lower_with_context(
                                 air,
                                 asg,
                                 |end| {
@@ -224,12 +224,11 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                                 },
                             )?;
 
-                        Ok(asg)
-                    },
-                )
-            })
-        },
-    )?;
+                    Ok(asg)
+                },
+            )
+        })
+    })?;
 
     let mut dir: PathBuf = path.clone();
     dir.pop();
