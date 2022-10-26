@@ -222,7 +222,7 @@ where
     /// An accepting state represents a valid state to stop parsing.
     /// If parsing stops at a state that is _not_ accepting,
     ///   then the [`TokenStream`] has ended unexpectedly and should produce
-    ///   a [`ParseError::UnexpectedEof`].
+    ///   a [`ParseError::FinalizeError`].
     ///
     /// It makes sense for there to be exist multiple accepting states for a
     ///   parser.

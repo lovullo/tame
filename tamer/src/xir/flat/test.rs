@@ -26,7 +26,7 @@ use std::assert_matches::assert_matches;
 
 use super::*;
 use crate::convert::ExpectInto;
-use crate::parse::{ParseError, Parsed};
+use crate::parse::{FinalizeError, ParseError, Parsed};
 use crate::span::dummy::*;
 use crate::sym::GlobalSymbolIntern;
 use crate::xir::test::{
@@ -413,7 +413,12 @@ fn not_accepting_state_if_element_open() {
     );
 
     // Element was not closed.
-    assert_matches!(sut.next(), Some(Err(ParseError::UnexpectedEof(..))));
+    assert_matches!(
+        sut.next(),
+        Some(Err(ParseError::FinalizeError(
+            FinalizeError::UnexpectedEof(..)
+        )))
+    );
 }
 
 // XML permits comment nodes before and after the document root element.

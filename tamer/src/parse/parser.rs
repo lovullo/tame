@@ -22,8 +22,8 @@
 use super::{
     state::ClosedParseState,
     trace::{self, ParserTrace},
-    ParseError, ParseResult, ParseState, ParseStatus, TokenStream, Transition,
-    TransitionResult,
+    FinalizeError, ParseError, ParseResult, ParseState, ParseStatus,
+    TokenStream, Transition, TransitionResult,
 };
 use crate::{
     parse::state::{Lookahead, TransitionData},
@@ -168,7 +168,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///     since the parser will have no later opportunity to continue
     ///     parsing.
     /// Consequently,
-    ///   the caller should expect [`ParseError::UnexpectedEof`] if the
+    ///   the caller should expect [`FinalizeError::UnexpectedEof`] if the
     ///   parser is not in an accepting state.
     ///
     /// To re-use the context returned by this method,
@@ -176,10 +176,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Note that whether the context is permitted to be reused,
     ///   or is useful independently to the caller,
     ///   is a decision made by the [`ParseState`].
-    pub fn finalize(
-        self,
-    ) -> Result<FinalizedParser<S>, (Self, ParseError<S::Token, S::Error>)>
-    {
+    pub fn finalize(self) -> Result<FinalizedParser<S>, (Self, FinalizeError)> {
         match self.assert_accepting() {
             Ok(()) => Ok(FinalizedParser(self.ctx)),
             Err(err) => Err((self, err)),
@@ -188,19 +185,19 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
     /// Return [`Ok`] if the parser both has no outstanding lookahead token
     ///   and is in an accepting state,
-    ///     otherwise [`Err`] with [`ParseError::UnexpectedEof`].
+    ///     otherwise [`Err`] with [`FinalizeError::UnexpectedEof`].
     ///
     /// See [`finalize`](Self::finalize) for the public-facing method.
-    fn assert_accepting(&self) -> Result<(), ParseError<S::Token, S::Error>> {
+    fn assert_accepting(&self) -> Result<(), FinalizeError> {
         let st = self.state.as_ref().unwrap();
 
         if let Some(Lookahead(lookahead)) = &self.lookahead {
-            Err(ParseError::Lookahead(lookahead.span(), st.to_string()))
+            Err(FinalizeError::Lookahead(lookahead.span(), st.to_string()))
         } else if st.is_accepting(&self.ctx) {
             Ok(())
         } else {
             let endpoints = self.last_span.endpoints();
-            Err(ParseError::UnexpectedEof(
+            Err(FinalizeError::UnexpectedEof(
                 endpoints.1.unwrap_or(endpoints.0),
                 st.to_string(),
             ))
@@ -318,7 +315,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
 
                 match result {
                     Ok(parsed @ (Incomplete | Object(..))) => Ok(parsed.into()),
-                    Err(e) => Err(ParseError::from(e)),
+                    Err(e) => Err(ParseError::StateError(e)),
                 }
             }
         }
@@ -382,7 +379,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
     ///
     /// If the underlying [`TokenStream`] yields [`None`],
     ///   then the [`ParseState`] must be in an accepting state;
-    ///     otherwise, [`ParseError::UnexpectedEof`] will occur.
+    ///     otherwise, [`ParseError::FinalizeError`] will occur.
     ///
     /// This is intended to be invoked by [`Iterator::next`].
     /// Accepting a token rather than the [`TokenStream`] allows the caller
@@ -395,7 +392,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
         match otok {
             None => match self.assert_accepting() {
                 Ok(()) => None,
-                Err(e) => Some(Err(e)),
+                Err(e) => Some(Err(e.into())),
             },
 
             Some(tok) => Some(self.feed_tok(tok)),
@@ -689,7 +686,7 @@ pub mod test {
             .finalize()
             .expect_err("must not finalize with token of lookahead");
 
-        assert_matches!(err, ParseError::Lookahead(span, _) if span == DUMMY_SPAN);
+        assert_matches!(err, FinalizeError::Lookahead(span, _) if span == DUMMY_SPAN);
     }
 
     // Tests the above,
@@ -715,7 +712,7 @@ pub mod test {
             .finalize()
             .expect_err("must not finalize with token of lookahead");
 
-        assert_matches!(err, ParseError::Lookahead(span, _) if span == DUMMY_SPAN);
+        assert_matches!(err, FinalizeError::Lookahead(span, _) if span == DUMMY_SPAN);
 
         // The token of lookahead should still be available to the parser,
         //   and this should consume it.

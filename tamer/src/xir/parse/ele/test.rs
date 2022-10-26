@@ -37,7 +37,9 @@ use std::{assert_matches::assert_matches, error::Error, fmt::Display};
 use crate::{
     convert::ExpectInto,
     diagnose::Diagnostic,
-    parse::{Object, ParseError, ParseState, Parsed, ParsedResult},
+    parse::{
+        FinalizeError, Object, ParseError, ParseState, Parsed, ParsedResult,
+    },
     span::{dummy::*, Span},
     sym::SymbolId,
     xir::{
@@ -2446,7 +2448,10 @@ fn superstate_not_accepting_until_root_close() {
         .expect_err("child accepting must not be accepting for superstate");
 
     let err = sut.next().unwrap().unwrap_err();
-    assert_matches!(err, ParseError::UnexpectedEof(..),);
+    assert_matches!(
+        err,
+        ParseError::FinalizeError(FinalizeError::UnexpectedEof(..))
+    );
 }
 
 // Ensure that we can actually export the generated identifiers

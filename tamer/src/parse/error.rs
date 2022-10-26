@@ -43,6 +43,98 @@ use super::{ParseState, ParseStatus, Parser};
 ///   [`StateError`][ParseError::StateError] variant.
 #[derive(Debug, PartialEq)]
 pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
+    /// The parser reached an unhandled dead state.
+    ///
+    /// For more information,
+    ///   see [`ParseState::delegate`] and [`Parser::feed_tok`].
+    ///
+    /// The string is intended to describe what was expected to have been
+    ///   available based on the current [`ParseState`].
+    /// It is a heap-allocated string so that a copy of [`ParseState`]
+    ///   needn't be stored.
+    UnexpectedToken(T, String),
+
+    /// A parser-specific error associated with an inner
+    ///   [`ParseState`].
+    StateError(E),
+
+    /// The parser has no more input,
+    ///   but it failed to automatically finalize.
+    ///
+    /// See [`Parser::finalize`] for more information.
+    FinalizeError(FinalizeError),
+}
+
+impl<T: Token, EA: Diagnostic + PartialEq> ParseError<T, EA> {
+    pub fn inner_into<EB: Diagnostic + PartialEq + Eq>(
+        self,
+    ) -> ParseError<T, EB>
+    where
+        EA: Into<EB>,
+    {
+        use ParseError::*;
+        match self {
+            UnexpectedToken(x, desc) => UnexpectedToken(x, desc),
+            StateError(e) => StateError(e.into()),
+            FinalizeError(e) => FinalizeError(e),
+        }
+    }
+}
+
+//impl<T: Token, E: Diagnostic + PartialEq> From<E> for ParseError<T, E> {
+//    fn from(e: E) -> Self {
+//        Self::StateError(e)
+//    }
+//}
+
+impl<T: Token, E: Diagnostic + PartialEq> From<FinalizeError>
+    for ParseError<T, E>
+{
+    fn from(e: FinalizeError) -> Self {
+        Self::FinalizeError(e)
+    }
+}
+
+impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnexpectedToken(tok, desc) => {
+                write!(f, "unexpected {} while {desc}", TtQuote::wrap(tok))
+            }
+            Self::StateError(e) => Display::fmt(e, f),
+            Self::FinalizeError(e) => Display::fmt(e, f),
+        }
+    }
+}
+
+impl<T: Token, E: Diagnostic + PartialEq + 'static> Error for ParseError<T, E> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::UnexpectedToken(_, _) => None,
+            Self::StateError(e) => Some(e),
+            Self::FinalizeError(e) => Some(e),
+        }
+    }
+}
+
+impl<T: Token, E: Diagnostic + PartialEq + 'static> Diagnostic
+    for ParseError<T, E>
+{
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        use ParseError::*;
+
+        match self {
+            UnexpectedToken(tok, desc) => tok.span().error(desc).into(),
+            // TODO: Is there any additional useful context we can augment
+            //   this with?
+            StateError(e) => e.describe(),
+            FinalizeError(e) => e.describe(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FinalizeError {
     /// Token stream ended unexpectedly.
     ///
     /// This error means that the parser was expecting more input before
@@ -64,17 +156,6 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     ///   needn't be stored.
     UnexpectedEof(Span, String),
 
-    /// The parser reached an unhandled dead state.
-    ///
-    /// For more information,
-    ///   see [`ParseState::delegate`] and [`Parser::feed_tok`].
-    ///
-    /// The string is intended to describe what was expected to have been
-    ///   available based on the current [`ParseState`].
-    /// It is a heap-allocated string so that a copy of [`ParseState`]
-    ///   needn't be stored.
-    UnexpectedToken(T, String),
-
     /// The parser contains an outstanding token of lookahead that is no
     ///   longer
     ///     (or possibly never was)
@@ -88,43 +169,13 @@ pub enum ParseError<T: Token, E: Diagnostic + PartialEq> {
     ///
     /// See [`Parser::take_lookahead_tok`] for more information.
     Lookahead(Span, String),
-
-    /// A parser-specific error associated with an inner
-    ///   [`ParseState`].
-    StateError(E),
 }
 
-impl<T: Token, EA: Diagnostic + PartialEq> ParseError<T, EA> {
-    pub fn inner_into<EB: Diagnostic + PartialEq + Eq>(
-        self,
-    ) -> ParseError<T, EB>
-    where
-        EA: Into<EB>,
-    {
-        use ParseError::*;
-        match self {
-            UnexpectedEof(span, desc) => UnexpectedEof(span, desc),
-            UnexpectedToken(x, desc) => UnexpectedToken(x, desc),
-            Lookahead(span, desc) => Lookahead(span, desc),
-            StateError(e) => StateError(e.into()),
-        }
-    }
-}
-
-impl<T: Token, E: Diagnostic + PartialEq> From<E> for ParseError<T, E> {
-    fn from(e: E) -> Self {
-        Self::StateError(e)
-    }
-}
-
-impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for FinalizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::UnexpectedEof(_, desc) => {
                 write!(f, "unexpected end of input while {desc}")
-            }
-            Self::UnexpectedToken(tok, desc) => {
-                write!(f, "unexpected {} while {desc}", TtQuote::wrap(tok))
             }
             // This is not really something the user should have to deal
             //   with,
@@ -140,33 +191,19 @@ impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
                        outstanding token of lookahead while {desc}"
                 )
             }
-            Self::StateError(e) => Display::fmt(e, f),
         }
     }
 }
 
-impl<T: Token, E: Diagnostic + PartialEq + 'static> Error for ParseError<T, E> {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::StateError(e) => Some(e),
-            _ => None,
-        }
-    }
-}
+impl Error for FinalizeError {}
 
-impl<T: Token, E: Diagnostic + PartialEq + 'static> Diagnostic
-    for ParseError<T, E>
-{
+impl Diagnostic for FinalizeError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
-        use ParseError::*;
+        use FinalizeError::*;
 
         match self {
             UnexpectedEof(span, desc) => span.error(desc).into(),
-            UnexpectedToken(tok, desc) => tok.span().error(desc).into(),
             Lookahead(span, desc) => span.error(desc).into(),
-            // TODO: Is there any additional useful context we can augment
-            //   this with?
-            StateError(e) => e.describe(),
         }
     }
 }

@@ -27,7 +27,7 @@ mod parser;
 mod state;
 mod trace;
 
-pub use error::ParseError;
+pub use error::{FinalizeError, ParseError};
 pub use lower::{Lower, LowerIter, ParsedObject};
 pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{
@@ -271,11 +271,13 @@ pub mod test {
         //     state,
         //   we must fail when we encounter the end of the stream.
         assert_eq!(
-            Some(Err(ParseError::UnexpectedEof(
-                span.endpoints().1.unwrap(),
-                // All the states have the same string
-                //   (at time of writing).
-                EchoState::default().to_string(),
+            Some(Err(ParseError::FinalizeError(
+                FinalizeError::UnexpectedEof(
+                    span.endpoints().1.unwrap(),
+                    // All the states have the same string
+                    //   (at time of writing).
+                    EchoState::default().to_string(),
+                )
             ))),
             sut.next()
         );
@@ -331,7 +333,8 @@ pub mod test {
         let result = sut.finalize();
         assert_matches!(
             result,
-            Err((_, ParseError::UnexpectedEof(s, _))) if s == span.endpoints().1.unwrap()
+            Err((_, FinalizeError::UnexpectedEof(s, _)))
+                if s == span.endpoints().1.unwrap()
         );
 
         // The sut should have been re-returned,

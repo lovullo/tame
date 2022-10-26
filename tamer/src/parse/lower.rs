@@ -63,7 +63,11 @@ where
     /// Consume inner parser and yield its context.
     #[inline]
     fn finalize(self) -> Result<FinalizedParser<LS>, E> {
-        self.lower.finalize().map_err(|(_, e)| e.into())
+        // TODO: Propagate `FinalizeError` rather than maintaining API BC
+        //   with `ParseError`.
+        self.lower.finalize().map_err(|(_, e)| {
+            ParseError::<LS::Token, LS::Error>::FinalizeError(e).into()
+        })
     }
 }
 
