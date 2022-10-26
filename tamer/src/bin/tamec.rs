@@ -63,7 +63,7 @@ enum Command {
 fn src_reader<'a>(
     input: &'a String,
     escaper: &'a DefaultEscaper,
-) -> Result<XmlXirReader<'a, BufReader<File>>, TamecError> {
+) -> Result<XmlXirReader<'a, BufReader<File>>, UnrecoverableError> {
     use tamer::fs::{File, PathFile};
 
     let source = Path::new(input);
@@ -103,7 +103,7 @@ fn compile<R: Reporter>(
     src_path: &String,
     dest_path: &String,
     reporter: &mut R,
-) -> Result<(), TamecError> {
+) -> Result<(), UnrecoverableError> {
     let dest = Path::new(&dest_path);
     let fout = BufWriter::new(fs::File::create(dest)?);
 
@@ -112,10 +112,10 @@ fn compile<R: Reporter>(
     let mut ebuf = String::new();
 
     fn report_err<R: Reporter>(
-        e: &TamecError,
+        e: &RecoverableError,
         reporter: &mut R,
         ebuf: &mut String,
-    ) -> Result<(), TamecError> {
+    ) -> Result<(), UnrecoverableError> {
         // See below note about buffering.
         ebuf.clear();
         writeln!(ebuf, "{}", reporter.render(e))?;
@@ -137,13 +137,13 @@ fn compile<R: Reporter>(
     //   which will be the same sans some formatting.
     let src = &mut src_reader(src_path, &escaper)?
         .inspect(copy_xml_to(fout, &escaper))
-        .map(|result| result.map_err(TamecError::from));
+        .map(|result| result.map_err(RecoverableError::from));
 
     let _ = Lower::<
         ParsedObject<XirToken, XirError>,
         XirToXirf<64, RefinedText>,
         _,
-    >::lower(src, |toks| {
+    >::lower::<_, UnrecoverableError>(src, |toks| {
         Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
             nir.fold(Ok(()), |x, result| match result {
                 Ok(_) => x,
@@ -155,21 +155,16 @@ fn compile<R: Reporter>(
         })
     })?;
 
-    // TODO: Proper error summary and exit in `main`.
-    if reporter.has_errors() {
-        println!(
-            "fatal: failed to compile `{}` due to previous {} error(s)",
-            dest_path,
+    match reporter.has_errors() {
+        false => Ok(()),
+        true => Err(UnrecoverableError::ErrorsDuringLowering(
             reporter.error_count(),
-        );
-        std::process::exit(1);
+        )),
     }
-
-    Ok(())
 }
 
 /// Entrypoint for the compiler
-pub fn main() -> Result<(), TamecError> {
+pub fn main() -> Result<(), UnrecoverableError> {
     let args: Vec<String> = env::args().collect();
     let program = &args[0];
     let opts = get_opts();
@@ -180,9 +175,9 @@ pub fn main() -> Result<(), TamecError> {
             let mut reporter = VisualReporter::new(FsSpanResolver);
 
             compile(&src_path, &dest_path, &mut reporter).or_else(
-                |e: TamecError| {
-                    // POC: Rendering to a string ensures buffering so that we don't
-                    //   interleave output between processes.
+                |e: UnrecoverableError| {
+                    // Rendering to a string ensures buffering so that we
+                    //   don't interleave output between processes.
                     let report = reporter.render(&e).to_string();
                     println!(
                         "{report}\nfatal: failed to compile `{}`",
@@ -261,94 +256,153 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
     Ok(Command::Compile(input, emit, output))
 }
 
-/// Compiler (`tamec`) error.
+/// Toplevel `tamec` error representing a failure to complete the requested
+///   operation successfully.
+///
+/// These are errors that will result in aborting execution and exiting with
+///   a non-zero status.
+/// Contrast this with [`RecoverableError`],
+///   which is reported real-time to the user and _does not_ cause the
+///   program to abort until the end of the compilation unit.
+#[derive(Debug)]
+pub enum UnrecoverableError {
+    Io(io::Error),
+    Fmt(fmt::Error),
+    XirWriterError(xir::writer::Error),
+    ErrorsDuringLowering(ErrorCount),
+}
+
+/// Number of errors that occurred during this compilation unit.
+///
+/// Let's hope that this is large enough for the number of errors you may
+///   have in your code.
+type ErrorCount = usize;
+
+/// An error that occurs during the lowering pipeline that may be recovered
+///   from to continue parsing and collection of additional errors.
 ///
 /// This represents the aggregation of all possible errors that can occur
-///   during compile-time.
+///   during lowering.
 /// This cannot include panics,
 ///   but efforts have been made to reduce panics to situations that
 ///   represent the equivalent of assertions.
+///
+/// These errors are distinct from [`UnrecoverableError`],
+///   which represents the errors that could be returned to the toplevel
+///     `main`,
+///   because these errors are intended to be reported to the user _and then
+///     recovered from_ so that compilation may continue and more errors may
+///     be collected;
+///       nobody wants a compiler that reports one error at a time.
+///
+/// Note that an recoverable error,
+///   under a normal compilation strategy,
+///   will result in an [`UnrecoverableError::ErrorsDuringLowering`] at the
+///     end of the compilation unit.
 #[derive(Debug)]
-pub enum TamecError {
-    Io(io::Error),
+pub enum RecoverableError {
     XirParseError(ParseError<UnknownToken, xir::Error>),
     XirfParseError(ParseError<XirToken, XirToXirfError>),
     NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
-    XirWriterError(xir::writer::Error),
-    Fmt(fmt::Error),
 }
 
-impl From<io::Error> for TamecError {
+impl From<io::Error> for UnrecoverableError {
     fn from(e: io::Error) -> Self {
         Self::Io(e)
     }
 }
 
-impl From<ParseError<UnknownToken, xir::Error>> for TamecError {
-    fn from(e: ParseError<UnknownToken, xir::Error>) -> Self {
-        Self::XirParseError(e)
-    }
-}
-
-impl From<ParseError<XirToken, XirToXirfError>> for TamecError {
-    fn from(e: ParseError<XirToken, XirToXirfError>) -> Self {
-        Self::XirfParseError(e)
-    }
-}
-
-impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>> for TamecError {
-    fn from(e: ParseError<XirfToken<RefinedText>, XirfToNirError>) -> Self {
-        Self::NirParseError(e)
-    }
-}
-
-impl From<xir::writer::Error> for TamecError {
-    fn from(e: xir::writer::Error) -> Self {
-        Self::XirWriterError(e)
-    }
-}
-
-impl From<fmt::Error> for TamecError {
+impl From<fmt::Error> for UnrecoverableError {
     fn from(e: fmt::Error) -> Self {
         Self::Fmt(e)
     }
 }
 
-impl Display for TamecError {
+impl From<xir::writer::Error> for UnrecoverableError {
+    fn from(e: xir::writer::Error) -> Self {
+        Self::XirWriterError(e)
+    }
+}
+
+impl From<ParseError<UnknownToken, xir::Error>> for RecoverableError {
+    fn from(e: ParseError<UnknownToken, xir::Error>) -> Self {
+        Self::XirParseError(e)
+    }
+}
+
+impl From<ParseError<XirToken, XirToXirfError>> for RecoverableError {
+    fn from(e: ParseError<XirToken, XirToXirfError>) -> Self {
+        Self::XirfParseError(e)
+    }
+}
+
+impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>> for RecoverableError {
+    fn from(e: ParseError<XirfToken<RefinedText>, XirfToNirError>) -> Self {
+        Self::NirParseError(e)
+    }
+}
+
+impl Display for UnrecoverableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(e) => Display::fmt(e, f),
+            Self::Fmt(e) => Display::fmt(e, f),
+            Self::XirWriterError(e) => Display::fmt(e, f),
+
+            // TODO: Use formatter for dynamic "error(s)"
+            Self::ErrorsDuringLowering(err_count) => {
+                write!(f, "aborting due to previous {err_count} error(s)",)
+            }
+        }
+    }
+}
+
+impl Display for RecoverableError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
             Self::XirParseError(e) => Display::fmt(e, f),
             Self::XirfParseError(e) => Display::fmt(e, f),
             Self::NirParseError(e) => Display::fmt(e, f),
-            Self::XirWriterError(e) => Display::fmt(e, f),
-            Self::Fmt(e) => Display::fmt(e, f),
         }
     }
 }
 
-impl Error for TamecError {
+impl Error for UnrecoverableError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(e) => Some(e),
-            Self::XirParseError(e) => Some(e),
-            Self::XirfParseError(e) => Some(e),
-            Self::NirParseError(e) => Some(e),
-            Self::XirWriterError(e) => Some(e),
             Self::Fmt(e) => Some(e),
+            Self::XirWriterError(e) => Some(e),
+            Self::ErrorsDuringLowering(_) => None,
         }
     }
 }
 
-impl Diagnostic for TamecError {
+impl Error for RecoverableError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::XirParseError(e) => Some(e),
+            Self::XirfParseError(e) => Some(e),
+            Self::NirParseError(e) => Some(e),
+        }
+    }
+}
+
+impl Diagnostic for UnrecoverableError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        match self {
+            // Fall back to `Display`
+            _ => vec![],
+        }
+    }
+}
+
+impl Diagnostic for RecoverableError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
             Self::XirParseError(e) => e.describe(),
             Self::XirfParseError(e) => e.describe(),
             Self::NirParseError(e) => e.describe(),
-
-            // TODO (will fall back to rendering just the error `Display`)
-            _ => vec![],
         }
     }
 }

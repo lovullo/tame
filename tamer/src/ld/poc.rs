@@ -40,7 +40,9 @@ use crate::{
         XmloAirContext, XmloAirError, XmloError, XmloReader, XmloToAir,
         XmloToken,
     },
-    parse::{Lower, ParseError, Parsed, ParsedObject, UnknownToken},
+    parse::{
+        FinalizeError, Lower, ParseError, Parsed, ParsedObject, UnknownToken,
+    },
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
         flat::{Text, XirToXirf, XirToXirfError, XirfToken},
@@ -224,7 +226,7 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
                                 },
                             )?;
 
-                    Ok(asg)
+                    Ok::<_, TameldError>(asg)
                 },
             )
         })
@@ -286,6 +288,7 @@ pub enum TameldError {
     XmloLowerError(ParseError<XmloToken, XmloAirError>),
     AirLowerError(ParseError<AirToken, AsgError>),
     XirWriterError(XirWriterError),
+    FinalizeError(FinalizeError),
     CycleError(Vec<Vec<SymbolId>>),
     Fmt(fmt::Error),
 }
@@ -332,6 +335,12 @@ impl From<ParseError<AirToken, AsgError>> for TameldError {
     }
 }
 
+impl From<FinalizeError> for TameldError {
+    fn from(e: FinalizeError) -> Self {
+        Self::FinalizeError(e)
+    }
+}
+
 impl From<XirWriterError> for TameldError {
     fn from(e: XirWriterError) -> Self {
         Self::XirWriterError(e)
@@ -355,6 +364,7 @@ impl Display for TameldError {
             Self::XmloLowerError(e) => Display::fmt(e, f),
             Self::AirLowerError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
+            Self::FinalizeError(e) => Display::fmt(e, f),
             Self::CycleError(cycles) => {
                 for cycle in cycles {
                     writeln!(
@@ -386,7 +396,8 @@ impl Error for TameldError {
             Self::XmloLowerError(e) => Some(e),
             Self::AirLowerError(e) => Some(e),
             Self::XirWriterError(e) => Some(e),
-            Self::CycleError(..) => None,
+            Self::FinalizeError(e) => Some(e),
+            Self::CycleError(_) => None,
             Self::Fmt(e) => Some(e),
         }
     }
@@ -400,9 +411,13 @@ impl Diagnostic for TameldError {
             Self::XmloParseError(e) => e.describe(),
             Self::XmloLowerError(e) => e.describe(),
             Self::AirLowerError(e) => e.describe(),
+            Self::FinalizeError(e) => e.describe(),
 
-            // TODO (will fall back to rendering just the error `Display`)
-            _ => vec![],
+            Self::Io(_)
+            | Self::SortError(_)
+            | Self::XirWriterError(_)
+            | Self::CycleError(_)
+            | Self::Fmt(_) => vec![],
         }
     }
 }

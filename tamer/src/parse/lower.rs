@@ -20,8 +20,9 @@
 //! IR lowering operation between [`Parser`]s.
 
 use super::{
-    state::ClosedParseState, FinalizedParser, NoContext, Object, ParseError,
-    ParseState, Parsed, Parser, Token, TransitionResult, UnknownToken,
+    state::ClosedParseState, FinalizeError, FinalizedParser, NoContext, Object,
+    ParseError, ParseState, Parsed, Parser, Token, TransitionResult,
+    UnknownToken,
 };
 use crate::diagnose::Diagnostic;
 use std::{fmt::Display, iter, marker::PhantomData};
@@ -62,12 +63,8 @@ where
 {
     /// Consume inner parser and yield its context.
     #[inline]
-    fn finalize(self) -> Result<FinalizedParser<LS>, E> {
-        // TODO: Propagate `FinalizeError` rather than maintaining API BC
-        //   with `ParseError`.
-        self.lower.finalize().map_err(|(_, e)| {
-            ParseError::<LS::Token, LS::Error>::FinalizeError(e).into()
-        })
+    fn finalize(self) -> Result<FinalizedParser<LS>, FinalizeError> {
+        self.lower.finalize().map_err(|(_, e)| e)
     }
 }
 
@@ -79,12 +76,12 @@ where
 /// It is expected that input tokens have already been widened into `E`
 ///   (a [`WidenedError`]) by a previous lowering operation,
 ///   or by an introduction parser.
-pub trait Lower<S, LS, E>
+pub trait Lower<S, LS, EW>
 where
     S: ParseState,
     LS: ClosedParseState<Token = S::Object> + Default,
     <S as ParseState>::Object: Token,
-    E: WidenedError<S, LS>,
+    EW: WidenedError<S, LS>,
 {
     /// Lower the IR produced by this [`Parser`] into another IR by piping
     ///   the output to a new parser defined by the [`ParseState`] `LS`.
@@ -118,12 +115,12 @@ where
     ///     shared by the already-widened `S`-derived input.
     /// Errors are propagated to the caller without lowering.
     #[inline]
-    fn lower<U>(
+    fn lower<U, E>(
         &mut self,
-        f: impl FnOnce(&mut LowerIter<S, Self, LS, E>) -> Result<U, E>,
+        f: impl FnOnce(&mut LowerIter<S, Self, LS, EW>) -> Result<U, E>,
     ) -> Result<U, E>
     where
-        Self: Iterator<Item = WidenedParsedResult<S, E>> + Sized,
+        Self: Iterator<Item = WidenedParsedResult<S, EW>> + Sized,
         <LS as ParseState>::Context: Default,
     {
         let lower = LS::parse(iter::empty());
@@ -145,13 +142,14 @@ where
     /// See [`Lower::lower`] and [`ParseState::parse_with_context`] for more
     ///   information.
     #[inline]
-    fn lower_with_context<U>(
+    fn lower_with_context<U, E>(
         &mut self,
         ctx: LS::Context,
-        f: impl FnOnce(&mut LowerIter<S, Self, LS, E>) -> Result<U, E>,
+        f: impl FnOnce(&mut LowerIter<S, Self, LS, EW>) -> Result<U, E>,
     ) -> Result<(U, LS::Context), E>
     where
-        Self: Iterator<Item = WidenedParsedResult<S, E>> + Sized,
+        Self: Iterator<Item = WidenedParsedResult<S, EW>> + Sized,
+        E: Diagnostic + From<FinalizeError>,
     {
         let lower = LS::parse_with_context(iter::empty(), ctx);
         let mut iter = LowerIter {
@@ -165,6 +163,7 @@ where
         iter.finalize()
             .map(FinalizedParser::into_context)
             .map(|ctx| (val, ctx))
+            .map_err(E::from)
     }
 }
 
@@ -344,7 +343,7 @@ mod test {
         let given = 27; // some value
         let toks = vec![StubToken::YieldWithLookahead(given)];
 
-        Lower::<StubEchoParseState, StubParseState, _>::lower(
+        Lower::<StubEchoParseState, StubParseState, _>::lower::<_, StubError>(
             &mut StubEchoParseState::parse(toks.into_iter()),
             |sut| {
                 // We have a single token,
