@@ -39,7 +39,6 @@ use super::{
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::{
-    cell::RefCell,
     fmt::{self, Display, Write},
     num::NonZeroU32,
     ops::Add,
@@ -73,7 +72,8 @@ pub trait Reporter {
     ///     ensuring both that the user is made aware of the problem
     ///     and that we're not inadvertently suppressing the actual
     ///       diagnostic messages that were requested.
-    fn render<'d, D: Diagnostic>(&self, diagnostic: &'d D) -> Report<'d, D>;
+    fn render<'d, D: Diagnostic>(&mut self, diagnostic: &'d D)
+        -> Report<'d, D>;
 
     /// Whether any reports have been rendered with an error level or higher.
     fn has_errors(&self) -> bool;
@@ -97,32 +97,25 @@ pub struct VisualReporter<R: SpanResolver> {
     ///
     /// This is responsible for resolving a span to a filename with line and
     ///   column numbers.
-    ///
-    /// This uses interior mutability since it is in our best interest to
-    ///   permit multiple references to a single resolver---the
-    ///     shared resolver caching is far more important than saving on a
-    ///     cell lock check.
-    resolver: RefCell<R>,
+    resolver: R,
 
     /// Number of reports with a severity level of error or higher.
-    err_n: RefCell<usize>,
+    err_n: usize,
 }
 
 impl<R: SpanResolver> VisualReporter<R> {
     pub fn new(resolver: R) -> Self {
-        Self {
-            resolver: RefCell::new(resolver),
-            err_n: RefCell::new(0),
-        }
+        Self { resolver, err_n: 0 }
     }
 }
 
 impl<R: SpanResolver> Reporter for VisualReporter<R> {
-    fn render<'d, D: Diagnostic>(&self, diagnostic: &'d D) -> Report<'d, D> {
-        let mspans = describe_resolved(
-            |span| self.resolver.borrow_mut().resolve(span),
-            diagnostic,
-        );
+    fn render<'d, D: Diagnostic>(
+        &mut self,
+        diagnostic: &'d D,
+    ) -> Report<'d, D> {
+        let mspans =
+            describe_resolved(|span| self.resolver.resolve(span), diagnostic);
 
         let mut report = Report::empty(Message(diagnostic));
         report.extend(mspans.map(Into::into));
@@ -134,7 +127,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
         if report.level.is_error() {
             // Not worried about overflow panic
             //   (you have bigger problems if there are that many errors).
-            *self.err_n.borrow_mut() += 1;
+            self.err_n += 1;
         }
 
         report
@@ -145,7 +138,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
     }
 
     fn error_count(&self) -> usize {
-        *self.err_n.borrow()
+        self.err_n
     }
 }
 

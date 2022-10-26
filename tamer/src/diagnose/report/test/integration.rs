@@ -144,7 +144,7 @@ fn new_sut() -> impl Reporter {
 
 macro_rules! assert_report {
     ($msg:expr, $aspans:expr, $expected:expr) => {
-        let sut = new_sut();
+        let mut sut = new_sut();
 
         assert_eq!(
             sut.render(&StubError($msg.into(), $aspans)).to_string(),
@@ -596,10 +596,10 @@ error: wide gutter
 
 #[test]
 fn visual_reporter_tracks_errors() {
-    let sut = new_sut();
+    let sut = &mut new_sut();
     let ctx = Context::from("error/tracking");
 
-    fn feed_aspan(sut: &impl Reporter, aspan: AnnotatedSpan<'static>) {
+    fn feed_aspan(sut: &mut impl Reporter, aspan: AnnotatedSpan<'static>) {
         // We do not care about the report value;
         //   we're only interested in how it tracks errors for this test.
         let _ = sut.render(&StubError("ignored".into(), vec![aspan]));
@@ -610,22 +610,22 @@ fn visual_reporter_tracks_errors() {
     assert!(!sut.has_errors());
 
     // Help must not increment.
-    feed_aspan(&sut, ctx.span(0, 1).help("no increment"));
+    feed_aspan(sut, ctx.span(0, 1).help("no increment"));
     assert_eq!(sut.error_count(), 0);
     assert!(!sut.has_errors());
 
     // Note must not increment.
-    feed_aspan(&sut, ctx.span(0, 1).note("no increment"));
+    feed_aspan(sut, ctx.span(0, 1).note("no increment"));
     assert_eq!(sut.error_count(), 0);
     assert!(!sut.has_errors());
 
     // Error must increment.
-    feed_aspan(&sut, ctx.span(0, 1).error("increment"));
+    feed_aspan(sut, ctx.span(0, 1).error("increment"));
     assert_eq!(sut.error_count(), 1);
     assert!(sut.has_errors());
 
     // Internal error must increment.
-    feed_aspan(&sut, ctx.span(0, 1).error("increment"));
+    feed_aspan(sut, ctx.span(0, 1).error("increment"));
     assert_eq!(sut.error_count(), 2);
     assert!(sut.has_errors());
 }

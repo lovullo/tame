@@ -26,7 +26,6 @@ extern crate tamer;
 
 use getopts::{Fail, Options};
 use std::{
-    cell::RefCell,
     env,
     error::Error,
     fmt::{self, Display, Write},
@@ -103,18 +102,18 @@ fn copy_xml_to<'e, W: io::Write + 'e>(
 fn compile<R: Reporter>(
     src_path: &String,
     dest_path: &String,
-    reporter: &R,
+    reporter: &mut R,
 ) -> Result<(), TamecError> {
     let dest = Path::new(&dest_path);
     let fout = BufWriter::new(fs::File::create(dest)?);
 
     let escaper = DefaultEscaper::default();
 
-    let ebuf = RefCell::new(String::new());
+    let mut ebuf = String::new();
 
     fn report_err<R: Reporter>(
         e: &TamecError,
-        reporter: &R,
+        reporter: &mut R,
         ebuf: &mut String,
     ) -> Result<(), TamecError> {
         // See below note about buffering.
@@ -149,7 +148,7 @@ fn compile<R: Reporter>(
             nir.fold(Ok(()), |x, result| match result {
                 Ok(_) => x,
                 Err(e) => {
-                    report_err(&e, reporter, &mut ebuf.borrow_mut())?;
+                    report_err(&e, reporter, &mut ebuf)?;
                     x
                 }
             })
@@ -178,9 +177,9 @@ pub fn main() -> Result<(), TamecError> {
 
     match parse_options(opts, args) {
         Ok(Command::Compile(src_path, _, dest_path)) => {
-            let reporter = VisualReporter::new(FsSpanResolver);
+            let mut reporter = VisualReporter::new(FsSpanResolver);
 
-            compile(&src_path, &dest_path, &reporter).or_else(
+            compile(&src_path, &dest_path, &mut reporter).or_else(
                 |e: TamecError| {
                     // POC: Rendering to a string ensures buffering so that we don't
                     //   interleave output between processes.
