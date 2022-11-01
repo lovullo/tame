@@ -230,7 +230,7 @@ ele_parse! {
             _xmlns_lv: (QN_XMLNS_LV?) => Option<Literal<URI_LV_RATER>>,
 
             _id: (QN_ID?) => Option<N<{PkgPath}>>,
-            _title: (QN_TITLE?) => Option<N<{PkgTitle}>>,
+            _title: (QN_TITLE?) => Option<N<{Title}>>,
             _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             // TODO: When can we get rid of this?
             _core: (QN_CORE?) => Option<N<{BooleanLiteral}>>,
@@ -403,7 +403,7 @@ ele_parse! {
         @ {
             _class: (QN_CLASS?) => Option<N<{ClassIdent}>>,
             _no: (QN_NO?) => Option<N<{ClassIdentList}>>,
-            _yields: (QN_YIELDS) => N<{CalcIdent}>,
+            _yields: (QN_YIELDS) => N<{ValueIdent}>,
             _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
 
@@ -656,8 +656,8 @@ ele_parse! {
     SumExpr := QN_C_SUM {
         @ {
             _of: (QN_OF?) => Option<N<{ValueIdent}>>,
-            _generates: (QN_GENERATES?) => Option<N<{CalcIdent}>>,
-            _index: (QN_INDEX?) => Option<N<{CalcIdent}>>,
+            _generates: (QN_GENERATES?) => Option<N<{ValueIdent}>>,
+            _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
             _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
@@ -677,8 +677,8 @@ ele_parse! {
     ProductExpr := QN_C_PRODUCT {
         @ {
             _of: (QN_OF?) => Option<N<{ValueIdent}>>,
-            _generates: (QN_GENERATES?) => Option<N<{CalcIdent}>>,
-            _index: (QN_INDEX?) => Option<N<{CalcIdent}>>,
+            _generates: (QN_GENERATES?) => Option<N<{ValueIdent}>>,
+            _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
             _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
             _dot: (QN_DOT?) => Option<N<{BooleanLiteral}>>,
@@ -1376,7 +1376,7 @@ ele_parse! {
     /// Templates are applied using [`ApplyTemplate`] or [`TplApplyShort`].
     TemplateStmt := QN_TEMPLATE {
         @ {
-            _name: (QN_NAME) => N<{TplName}>,
+            _name: (QN_NAME) => N<{TplIdent}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
         } => SugaredNir::Todo,
 

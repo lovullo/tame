@@ -173,7 +173,6 @@ impl Display for SugaredNir {
 pub enum NirSymbolTy {
     AnyIdent,
     BooleanLiteral,
-    CalcIdent,
     ClassIdent,
     ClassIdentList,
     ConstIdent,
@@ -190,17 +189,62 @@ pub enum NirSymbolTy {
     ParamName,
     ParamType,
     PkgPath,
-    PkgTitle,
     ShortDimNumLiteral,
     StringLiteral,
     SymbolTableKey,
     TexMathLiteral,
     Title,
     TplMetaIdent,
-    TplName,
+    TplIdent,
     TplParamIdent,
     TypeIdent,
     ValueIdent,
+}
+
+impl Display for NirSymbolTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use NirSymbolTy::*;
+
+        match self {
+            AnyIdent => write!(f, "any identifier"),
+            BooleanLiteral => write!(
+                f,
+                "boolean literal {fmt_true} or {fmt_false}",
+                fmt_true = TtQuote::wrap("true"),
+                fmt_false = TtQuote::wrap("false"),
+            ),
+            ClassIdent => write!(f, "classification identifier"),
+            ClassIdentList => {
+                write!(f, "space-delimited list of classification identifiers")
+            }
+            ConstIdent => write!(f, "constant identifier"),
+            DescLiteral => write!(f, "description literal"),
+            Dim => write!(f, "dimension declaration"),
+            DynNodeLiteral => write!(f, "dynamic node literal"),
+            FuncIdent => write!(f, "function identifier"),
+            IdentDtype => write!(f, "identifier primitive datatype"),
+            IdentType => write!(f, "identifier type"),
+            MapTransformLiteral => write!(f, "map transformation literal"),
+            NumLiteral => write!(f, "numeric literal"),
+            ParamDefault => write!(f, "param default"),
+            ParamIdent => write!(f, "param identifier"),
+            ParamName => write!(f, "param name"),
+            ParamType => write!(f, "param type"),
+            PkgPath => write!(f, "package path"),
+            ShortDimNumLiteral => {
+                write!(f, "short-hand dimensionalized numeric literal")
+            }
+            StringLiteral => write!(f, "string literal"),
+            SymbolTableKey => write!(f, "symbol table key name"),
+            TexMathLiteral => write!(f, "TeX math literal"),
+            Title => write!(f, "title"),
+            TplMetaIdent => write!(f, "template metadata identifier"),
+            TplIdent => write!(f, "template name"),
+            TplParamIdent => write!(f, "template param identifier"),
+            TypeIdent => write!(f, "type identifier"),
+            ValueIdent => write!(f, "value identifier"),
+        }
+    }
 }
 
 /// A ([`SymbolId`], [`Span`]) pair in an attribute value context that may
