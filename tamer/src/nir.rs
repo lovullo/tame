@@ -133,7 +133,7 @@ impl Display for PlainNir {
 #[derive(Debug, PartialEq, Eq)]
 pub enum SugaredNir {
     /// A primitive token that may have sugared values.
-    Primitive(PlainNir),
+    Todo,
 }
 
 impl Token for SugaredNir {
@@ -145,7 +145,7 @@ impl Token for SugaredNir {
         use SugaredNir::*;
 
         match self {
-            Primitive(nir) => nir.span(),
+            Todo => UNKNOWN_SPAN,
         }
     }
 }
@@ -157,14 +157,8 @@ impl Display for SugaredNir {
         use SugaredNir::*;
 
         match self {
-            Primitive(nir) => Display::fmt(nir, f),
+            Todo => write!(f, "TODO"),
         }
-    }
-}
-
-impl From<PlainNir> for SugaredNir {
-    fn from(nir: PlainNir) -> Self {
-        Self::Primitive(nir)
     }
 }
 

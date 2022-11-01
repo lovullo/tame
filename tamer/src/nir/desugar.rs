@@ -1,4 +1,4 @@
-// Normalized (desugared) IR that is "near" the source code.
+// Normalized (desugared) IR that is "near" the source code
 //
 //  Copyright (C) 2014-2022 Ryan Specialty Group, LLC.
 //
@@ -58,7 +58,7 @@ impl ParseState for DesugarNir {
         use SugaredNir::*;
 
         match tok {
-            Primitive(nir) => Transition(self).ok(nir),
+            Todo => Transition(self).ok(PlainNir::Todo),
         }
     }
 
@@ -87,22 +87,4 @@ impl Diagnostic for DesugarNirError {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-    use crate::parse::Parsed;
-
-    type Sut = DesugarNir;
-
-    // Given the simplicity,
-    //   this just really ensures that the parser terminates.
-    #[test]
-    fn maps_plain_nir() {
-        let toks = vec![SugaredNir::Primitive(PlainNir::Todo)];
-
-        use Parsed::*;
-        assert_eq!(
-            Ok(vec![Object(PlainNir::Todo)]),
-            Sut::parse(toks.into_iter()).collect(),
-        );
-    }
-}
+mod test;
