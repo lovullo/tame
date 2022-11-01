@@ -58,7 +58,7 @@ impl ParseState for DesugarNir {
         use SugaredNir::*;
 
         match tok {
-            Plain(nir) => Transition(self).ok(nir),
+            Primitive(nir) => Transition(self).ok(nir),
         }
     }
 
@@ -97,7 +97,7 @@ mod test {
     //   this just really ensures that the parser terminates.
     #[test]
     fn maps_plain_nir() {
-        let toks = vec![SugaredNir::Plain(PlainNir::Todo)];
+        let toks = vec![SugaredNir::Primitive(PlainNir::Todo)];
 
         use Parsed::*;
         assert_eq!(

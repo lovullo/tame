@@ -102,8 +102,7 @@
 //!
 //! See [`TplKw`] for template tokens that are accepted anywhere.
 
-use super::*;
-
+use super::{NirSymbolTy::*, *};
 use crate::{
     ele_parse,
     sym::st::raw::*,
@@ -112,6 +111,8 @@ use crate::{
         st::{prefix::*, qname::*},
     },
 };
+
+type N<const TY: NirSymbolTy> = SugaredNirSymbol<TY>;
 
 ele_parse! {
     /// Parser lowering [XIR](crate::xir) into [`SugaredNir`].
@@ -203,7 +204,7 @@ ele_parse! {
 
             // TODO: Is this still needed?
             // TODO: PkgName type
-            _name: (QN_NAME) => PkgPath,
+            _name: (QN_NAME) => N<{PkgPath}>,
         } => PlainNir::Todo,
 
         ImportStmt,
@@ -228,15 +229,15 @@ ele_parse! {
             // It can't actually be used on nodes.
             _xmlns_lv: (QN_XMLNS_LV?) => Option<Literal<URI_LV_RATER>>,
 
-            _id: (QN_ID?) => Option<PkgPath>,
-            _title: (QN_TITLE?) => Option<PkgTitle>,
-            _desc: (QN_DESC?) => Option<DescLiteral>,
+            _id: (QN_ID?) => Option<N<{PkgPath}>>,
+            _title: (QN_TITLE?) => Option<N<{PkgTitle}>>,
+            _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             // TODO: When can we get rid of this?
-            _core: (QN_CORE?) => Option<BooleanLiteral>,
-            _program: (QN_PROGRAM?) => Option<BooleanLiteral>,
+            _core: (QN_CORE?) => Option<N<{BooleanLiteral}>>,
+            _program: (QN_PROGRAM?) => Option<N<{BooleanLiteral}>>,
 
             // TODO: Can this go away now?
-            _name: (QN_NAME?) => Option<PkgPath>,
+            _name: (QN_NAME?) => Option<N<{PkgPath}>>,
         } => PlainNir::Todo,
 
         ImportStmt,
@@ -249,8 +250,8 @@ ele_parse! {
     ///   for composing larger systems out of smaller components.
     ImportStmt := QN_IMPORT {
         @ {
-            _pkg: (QN_PACKAGE) => PkgPath,
-            _export: (QN_EXPORT?) => Option<BooleanLiteral>,
+            _pkg: (QN_PACKAGE) => N<{PkgPath}>,
+            _export: (QN_EXPORT?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -293,12 +294,12 @@ ele_parse! {
     ///   declaration.
     ExternStmt := QN_EXTERN {
         @ {
-            _name: (QN_NAME) => AnyIdent,
-            _ty: (QN_TYPE) => IdentType,
-            _dtype: (QN_DTYPE?) => Option<IdentDtype>,
-            _dim: (QN_DIM) => NumLiteral,
-            _parent: (QN_PARENT?) => Option<AnyIdent>,
-            _yields: (QN_YIELDS?) => Option<ValueIdent>,
+            _name: (QN_NAME) => N<{AnyIdent}>,
+            _ty: (QN_TYPE) => N<{IdentType}>,
+            _dtype: (QN_DTYPE?) => Option<N<{IdentDtype}>>,
+            _dim: (QN_DIM) => N<{NumLiteral}>,
+            _parent: (QN_PARENT?) => Option<N<{AnyIdent}>>,
+            _yields: (QN_YIELDS?) => Option<N<{ValueIdent}>>,
         } => PlainNir::Todo,
     };
 
@@ -308,13 +309,13 @@ ele_parse! {
     ///   such as [`ProgramMapStmt`].
     ParamStmt := QN_PARAM {
         @ {
-            _name: (QN_NAME) => ParamName,
-            _ty: (QN_TYPE) => ParamType,
-            _desc: (QN_DESC) => DescLiteral,
+            _name: (QN_NAME) => N<{ParamName}>,
+            _ty: (QN_TYPE) => N<{ParamType}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
             // This is a misnomer.
-            _set: (QN_SET?) => Option<Dim>,
-            _default: (QN_DEFAULT?) => Option<ParamDefault>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
+            _set: (QN_SET?) => Option<N<{Dim}>>,
+            _default: (QN_DEFAULT?) => Option<N<{ParamDefault}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -331,15 +332,15 @@ ele_parse! {
     ///     and re-use that familiar syntax.
     ConstStmt := QN_CONST {
         @ {
-            _name: (QN_NAME) => ConstIdent,
-            _desc: (QN_DESC) => DescLiteral,
-            _value: (QN_VALUE?) => Option<NumLiteral>,
-            _values: (QN_VALUES?) => Option<ShortDimNumLiteral>,
+            _name: (QN_NAME) => N<{ConstIdent}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
+            _value: (QN_VALUE?) => Option<N<{NumLiteral}>>,
+            _values: (QN_VALUES?) => Option<N<{ShortDimNumLiteral}>>,
             // TODO: deprecate?
-            _ty: (QN_TYPE?) => Option<TypeIdent>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
+            _ty: (QN_TYPE?) => Option<N<{TypeIdent}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
             // TODO: Misnomer
-            _set: (QN_SET?) => Option<Dim>,
+            _set: (QN_SET?) => Option<N<{Dim}>>,
         } => PlainNir::Todo,
 
         ConstStmtBody,
@@ -359,7 +360,7 @@ ele_parse! {
     ///   dimensionality and will be changed in future versions.
     ConstMatrixRow := QN_SET {
         @ {
-            _desc: (QN_DESC) => DescLiteral,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
         } => PlainNir::Todo,
 
         ConstVectorItem,
@@ -368,8 +369,8 @@ ele_parse! {
     /// Constant vector scalar item definition.
     ConstVectorItem := QN_ITEM {
         @ {
-            _value: (QN_VALUE) => NumLiteral,
-            _desc: (QN_DESC) => DescLiteral,
+            _value: (QN_VALUE) => N<{NumLiteral}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
         } => PlainNir::Todo,
     };
 
@@ -380,12 +381,12 @@ ele_parse! {
     ///   inputs.
     ClassifyStmt := QN_CLASSIFY {
         @ {
-            _name: (QN_AS) => ClassIdent,
-            _desc: (QN_DESC) => DescLiteral,
-            _any: (QN_ANY?) => Option<BooleanLiteral>,
-            _yields: (QN_YIELDS?) => Option<ValueIdent>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
-            _terminate: (QN_TERMINATE?) => Option<BooleanLiteral>,
+            _name: (QN_AS) => N<{ClassIdent}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
+            _any: (QN_ANY?) => Option<N<{BooleanLiteral}>>,
+            _yields: (QN_YIELDS?) => Option<N<{ValueIdent}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
+            _terminate: (QN_TERMINATE?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
 
         LogExpr,
@@ -400,19 +401,19 @@ ele_parse! {
     /// This will eventually be renamed to a more general term.
     RateStmt := QN_RATE {
         @ {
-            _class: (QN_CLASS?) => Option<ClassIdent>,
-            _no: (QN_NO?) => Option<ClassIdentList>,
-            _yields: (QN_YIELDS) => CalcIdent,
-            _desc: (QN_DESC?) => Option<DescLiteral>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
+            _class: (QN_CLASS?) => Option<N<{ClassIdent}>>,
+            _no: (QN_NO?) => Option<N<{ClassIdentList}>>,
+            _yields: (QN_YIELDS) => N<{CalcIdent}>,
+            _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
 
             // TODO: This is still recognized by the XSLT-based compiler,
             //   so we need to support it until it's removed.
-            _gentle_no: (QN_GENTLE_NO?) => Option<BooleanLiteral>,
+            _gentle_no: (QN_GENTLE_NO?) => Option<N<{BooleanLiteral}>>,
 
             // TODO: We'll have private-by-default later.
             //   This is a kludge.
-            _local: (QN_LOCAL?) => Option<BooleanLiteral>,
+            _local: (QN_LOCAL?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -426,13 +427,13 @@ ele_parse! {
     ///   [`SumExpr`] serving as the item-wise map.
     RateEachStmt := QN_RATE_EACH {
         @ {
-            _class: (QN_CLASS) => ClassIdentList,
-            _no: (QN_NO?) => Option<ClassIdentList>,
-            _generates: (QN_GENERATES?) => Option<ValueIdent>,
-            _index: (QN_INDEX) => ValueIdent,
-            _yields: (QN_YIELDS?) => Option<ValueIdent>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
-            _gensym: (QN_GENSYM?) => Option<TexMathLiteral>,
+            _class: (QN_CLASS) => N<{ClassIdentList}>,
+            _no: (QN_NO?) => Option<N<{ClassIdentList}>>,
+            _generates: (QN_GENERATES?) => Option<N<{ValueIdent}>>,
+            _index: (QN_INDEX) => N<{ValueIdent}>,
+            _yields: (QN_YIELDS?) => Option<N<{ValueIdent}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
+            _gensym: (QN_GENSYM?) => Option<N<{TexMathLiteral}>>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -441,9 +442,9 @@ ele_parse! {
     /// Define a new type that restricts the domain of data.
     TypedefStmt := QN_TYPEDEF {
         @ {
-            _name: (QN_NAME) => TypeIdent,
-            _desc: (QN_DESC) => DescLiteral,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
+            _name: (QN_NAME) => N<{TypeIdent}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
         } => PlainNir::Todo,
 
         InnerTypedefStmt,
@@ -466,7 +467,7 @@ ele_parse! {
     ///   each with associated constant identifiers.
     EnumStmt := QN_ENUM {
         @ {
-            _ty: (QN_TYPE) => TypeIdent,
+            _ty: (QN_TYPE) => N<{TypeIdent}>,
         } => PlainNir::Todo,
 
         ItemEnumStmt,
@@ -476,9 +477,9 @@ ele_parse! {
     ///   with a constant identifier.
     ItemEnumStmt := QN_ITEM {
         @ {
-            _name: (QN_NAME) => ConstIdent,
-            _value: (QN_VALUE) => NumLiteral,
-            _desc: (QN_DESC) => DescLiteral,
+            _name: (QN_NAME) => N<{ConstIdent}>,
+            _value: (QN_VALUE) => N<{NumLiteral}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
         } => PlainNir::Todo,
     };
 
@@ -521,7 +522,7 @@ ele_parse! {
     ///       which must appear outside of sections.
     SectionStmt := QN_SECTION {
         @ {
-            _title: (QN_TITLE) => Title,
+            _title: (QN_TITLE) => N<{Title}>,
         } => PlainNir::Todo,
 
         PkgBodyStmt,
@@ -530,9 +531,9 @@ ele_parse! {
     /// Define a function and associate it with an identifier.
     FunctionStmt := QN_FUNCTION {
         @ {
-            _name: (QN_NAME) => FuncIdent,
-            _desc: (QN_DESC) => DescLiteral,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
+            _name: (QN_NAME) => N<{FuncIdent}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
         } => PlainNir::Todo,
 
         FunctionParamStmt,
@@ -543,11 +544,11 @@ ele_parse! {
     ///   is scoped to the function body.
     FunctionParamStmt := QN_PARAM {
         @ {
-            _name: (QN_NAME) => ParamIdent,
-            _ty: (QN_TYPE) => TypeIdent,
+            _name: (QN_NAME) => N<{ParamIdent}>,
+            _ty: (QN_TYPE) => N<{TypeIdent}>,
             // _TODO: This is a misnomer.
-            _set: (QN_SET?) => Option<Dim>,
-            _desc: (QN_DESC) => DescLiteral,
+            _set: (QN_SET?) => Option<N<{Dim}>>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
         } => PlainNir::Todo,
     };
 
@@ -570,10 +571,10 @@ ele_parse! {
     ///   determined by the dimensionality of the matches' [`@on`](QN_ON).
     MatchExpr := QN_MATCH {
         @ {
-            _on: (QN_ON) => ValueIdent,
-            _value: (QN_VALUE?) => Option<ValueIdent>,
-            _index: (QN_INDEX?) => Option<ValueIdent>,
-            _anyof: (QN_ANY_OF?) => Option<TypeIdent>,
+            _on: (QN_ON) => N<{ValueIdent}>,
+            _value: (QN_VALUE?) => Option<N<{ValueIdent}>>,
+            _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
+            _anyof: (QN_ANY_OF?) => Option<N<{TypeIdent}>>,
         } => PlainNir::Todo,
 
         CalcPredExpr,
@@ -654,13 +655,13 @@ ele_parse! {
     /// Summation is generated automatically by [`RateEachStmt`].
     SumExpr := QN_C_SUM {
         @ {
-            _of: (QN_OF?) => Option<ValueIdent>,
-            _generates: (QN_GENERATES?) => Option<CalcIdent>,
-            _index: (QN_INDEX?) => Option<CalcIdent>,
-            _desc: (QN_DESC?) => Option<DescLiteral>,
-            _label: (QN_LABEL?) => Option<DescLiteral>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
-            _dim: (QN_DIM?) => Option<Dim>,
+            _of: (QN_OF?) => Option<N<{ValueIdent}>>,
+            _generates: (QN_GENERATES?) => Option<N<{CalcIdent}>>,
+            _index: (QN_INDEX?) => Option<N<{CalcIdent}>>,
+            _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
+            _dim: (QN_DIM?) => Option<N<{Dim}>>,
         } => PlainNir::Todo,
 
         WhenExpr,
@@ -675,14 +676,14 @@ ele_parse! {
     ///   identified by [`@generates`](QN_GENERATES).
     ProductExpr := QN_C_PRODUCT {
         @ {
-            _of: (QN_OF?) => Option<ValueIdent>,
-            _generates: (QN_GENERATES?) => Option<CalcIdent>,
-            _index: (QN_INDEX?) => Option<CalcIdent>,
-            _desc: (QN_DESC?) => Option<DescLiteral>,
-            _label: (QN_LABEL?) => Option<DescLiteral>,
-            _dot: (QN_DOT?) => Option<BooleanLiteral>,
-            _sym: (QN_SYM?) => Option<TexMathLiteral>,
-            _dim: (QN_DIM?) => Option<Dim>,
+            _of: (QN_OF?) => Option<N<{ValueIdent}>>,
+            _generates: (QN_GENERATES?) => Option<N<{CalcIdent}>>,
+            _index: (QN_INDEX?) => Option<N<{CalcIdent}>>,
+            _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
+            _dot: (QN_DOT?) => Option<N<{BooleanLiteral}>>,
+            _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
+            _dim: (QN_DIM?) => Option<N<{Dim}>>,
         } => PlainNir::Todo,
 
         WhenExpr,
@@ -698,7 +699,7 @@ ele_parse! {
     /// TAMER will be relaxing that restriction.
     QuotientExpr := QN_C_QUOTIENT {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -727,9 +728,9 @@ ele_parse! {
     ///   a scalar.
     ValueOfExpr := QN_C_VALUE_OF {
         @ {
-            _name: (QN_NAME) => ValueIdent,
-            _index: (QN_INDEX?) => Option<ValueIdent>,
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _name: (QN_NAME) => N<{ValueIdent}>,
+            _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         IndexExpr,
@@ -745,7 +746,7 @@ ele_parse! {
     ///     such that **M**_ⱼ,ₖ_ ≡ (**M**_ⱼ_)_ₖ_.
     IndexExpr := QN_C_INDEX {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
         CalcExpr,
     };
@@ -753,7 +754,7 @@ ele_parse! {
     /// Expression yielding a constant scalar value.
     ConstExpr := QN_C_CONST {
         @ {
-            _value: (QN_VALUE) => NumLiteral,
+            _value: (QN_VALUE) => N<{NumLiteral}>,
             // TODO: Description was historically required to avoid magic
             //   values,
             //     but we now have short-hand constants which do not require
@@ -762,9 +763,9 @@ ele_parse! {
             //   but requiring `c:value-of` short-hand wouldn't be
             //   the responsibility of NIR,
             //     so perhaps then neither should be.
-            _desc: (QN_DESC?) => Option<DescLiteral>,
+            _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             // _TODO: deprecate?
-            _ty: (QN_TYPE?) => Option<TypeIdent>,
+            _ty: (QN_TYPE?) => Option<N<{TypeIdent}>>,
         } => PlainNir::Todo,
 
         WhenExpr,
@@ -773,7 +774,7 @@ ele_parse! {
     /// Ceiling (⌈_x_⌉) expression.
     CeilExpr := QN_C_CEIL {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
         CalcExpr,
     };
@@ -781,7 +782,7 @@ ele_parse! {
     /// Floor (⌊_x_⌋) expression.
     FloorExpr := QN_C_FLOOR {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
         CalcExpr,
     };
@@ -801,7 +802,7 @@ ele_parse! {
     ///     otherwise the value `0` is yielded.
     CasesExpr := QN_C_CASES {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         CaseExpr,
@@ -821,7 +822,7 @@ ele_parse! {
     ///     if any.
     CaseExpr := QN_C_CASE {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         WhenExpr,
@@ -844,7 +845,7 @@ ele_parse! {
     ///   explicit.
     OtherwiseExpr := QN_C_OTHERWISE {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -892,11 +893,11 @@ ele_parse! {
     ///   its parent.
     LetValue := QN_C_VALUE {
         @ {
-            _name: (QN_NAME) => ParamIdent,
-            _ty: (QN_TYPE) => TypeIdent,
+            _name: (QN_NAME) => N<{ParamIdent}>,
+            _ty: (QN_TYPE) => N<{TypeIdent}>,
             // Misnomer
-            _set: (QN_SET?) => Option<Dim>,
-            _desc: (QN_DESC?) => Option<DescLiteral>,
+            _set: (QN_SET?) => Option<N<{Dim}>>,
+            _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -906,7 +907,7 @@ ele_parse! {
     ///   expressions' values as respective items.
     VectorExpr := QN_C_VECTOR {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -938,7 +939,7 @@ ele_parse! {
     ///   as attributes.
     ApplyArg := QN_C_ARG {
         @ {
-            _name: (QN_NAME) => ParamIdent,
+            _name: (QN_NAME) => N<{ParamIdent}>,
         } => PlainNir::Todo,
 
         CalcExpr,
@@ -976,7 +977,7 @@ ele_parse! {
     /// This terminology originates from Lisp.
     CarExpr := QN_C_CAR {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
         CalcExpr,
     };
@@ -988,7 +989,7 @@ ele_parse! {
     /// It is also called "tail".
     CdrExpr := QN_C_CDR {
         @ {
-            _label: (QN_LABEL?) => Option<DescLiteral>,
+            _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
         } => PlainNir::Todo,
         CalcExpr,
     };
@@ -1008,9 +1009,9 @@ ele_parse! {
     ///   conditions for which case to evaluate.
     WhenExpr := QN_C_WHEN {
         @ {
-            _name: (QN_NAME) => ValueIdent,
-            _index: (QN_INDEX?) => Option<ValueIdent>,
-            _value: (QN_VALUE?) => Option<ValueIdent>,
+            _name: (QN_NAME) => N<{ValueIdent}>,
+            _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
+            _value: (QN_VALUE?) => Option<N<{ValueIdent}>>,
         } => PlainNir::Todo,
 
         CalcPredExpr,
@@ -1087,7 +1088,7 @@ ele_parse! {
         @ {
             _xmlns: (QN_XMLNS) => Literal<URI_LV_PROGRAM_MAP>,
             _xmlnslv: (QN_XMLNS_LV) => Literal<URI_LV_RATER>,
-            _src: (QN_SRC) => PkgPath,
+            _src: (QN_SRC) => N<{PkgPath}>,
         } => PlainNir::Todo,
 
         MapPkgImportStmt,
@@ -1120,8 +1121,8 @@ ele_parse! {
     ///   in favor of [`ImportStmt`].
     MapPkgImportStmt := QN_LV_IMPORT {
         @ {
-            _package: (QN_PACKAGE) => PkgPath,
-            _export: (QN_EXPORT?) => Option<BooleanLiteral>,
+            _package: (QN_PACKAGE) => N<{PkgPath}>,
+            _export: (QN_EXPORT?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -1132,7 +1133,7 @@ ele_parse! {
     ///     it will be removed in the future.
     MapImportStmt := QN_IMPORT {
         @ {
-            _path: (QN_PATH) => PkgPath,
+            _path: (QN_PATH) => N<{PkgPath}>,
         } => PlainNir::Todo,
     };
 
@@ -1144,11 +1145,11 @@ ele_parse! {
     /// See also [`MapStmt`] if the value needs to be modified in some way.
     MapPassStmt := QN_PASS {
         @ {
-            _name: (QN_NAME) => AnyIdent,
-            _default: (QN_DEFAULT?) => Option<NumLiteral>,
-            _scalar: (QN_SCALAR?) => Option<BooleanLiteral>,
-            _override: (QN_OVERRIDE?) => Option<BooleanLiteral>,
-            _novalidate: (QN_NOVALIDATE?) => Option<BooleanLiteral>,
+            _name: (QN_NAME) => N<{AnyIdent}>,
+            _default: (QN_DEFAULT?) => Option<N<{NumLiteral}>>,
+            _scalar: (QN_SCALAR?) => Option<N<{BooleanLiteral}>>,
+            _override: (QN_OVERRIDE?) => Option<N<{BooleanLiteral}>>,
+            _novalidate: (QN_NOVALIDATE?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -1157,17 +1158,17 @@ ele_parse! {
     /// See also [`MapPassStmt`] if the value does not need modification.
     MapStmt := QN_MAP {
         @ {
-            _to: (QN_TO) => AnyIdent,
-            _from: (QN_FROM?) => Option<AnyIdent>,
+            _to: (QN_TO) => N<{AnyIdent}>,
+            _from: (QN_FROM?) => Option<N<{AnyIdent}>>,
             // We need to be permissive in what we accept since this may
             //   match in different contexts;
             //     downstream IR will validate the against the map
             //     destination.
-            _value: (QN_VALUE?) => Option<StringLiteral>,
-            _default: (QN_DEFAULT?) => Option<NumLiteral>,
-            _scalar: (QN_SCALAR?) => Option<BooleanLiteral>,
-            _override: (QN_OVERRIDE?) => Option<BooleanLiteral>,
-            _novalidate: (QN_NOVALIDATE?) => Option<BooleanLiteral>,
+            _value: (QN_VALUE?) => Option<N<{StringLiteral}>>,
+            _default: (QN_DEFAULT?) => Option<N<{NumLiteral}>>,
+            _scalar: (QN_SCALAR?) => Option<N<{BooleanLiteral}>>,
+            _override: (QN_OVERRIDE?) => Option<N<{BooleanLiteral}>>,
+            _novalidate: (QN_NOVALIDATE?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
 
         MapStmtBody,
@@ -1179,10 +1180,10 @@ ele_parse! {
     /// Source of data for a map operation.
     MapFromStmt := QN_FROM {
         @ {
-            _name: (QN_NAME) => AnyIdent,
-            _default: (QN_DEFAULT?) => Option<NumLiteral>,
-            _scalar: (QN_SCALAR?) => Option<BooleanLiteral>,
-            _novalidate: (QN_NOVALIDATE?) => Option<BooleanLiteral>,
+            _name: (QN_NAME) => N<{AnyIdent}>,
+            _default: (QN_DEFAULT?) => Option<N<{NumLiteral}>>,
+            _scalar: (QN_SCALAR?) => Option<N<{BooleanLiteral}>>,
+            _novalidate: (QN_NOVALIDATE?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
 
         MapTranslateStmt,
@@ -1191,8 +1192,8 @@ ele_parse! {
     /// List of 1:1 value translations for a map.
     MapTranslateStmt := QN_TRANSLATE {
         @ {
-            _key: (QN_KEY) => StringLiteral,
-            _value: (QN_VALUE) => NumLiteral,
+            _key: (QN_KEY) => N<{StringLiteral}>,
+            _value: (QN_VALUE) => N<{NumLiteral}>,
         } => PlainNir::Todo,
     };
 
@@ -1214,7 +1215,7 @@ ele_parse! {
     /// Map from a constant value.
     MapConstStmt := QN_CONST {
         @ {
-            _value: (QN_VALUE) => StringLiteral,
+            _value: (QN_VALUE) => N<{StringLiteral}>,
         } => PlainNir::Todo,
     };
 
@@ -1226,7 +1227,7 @@ ele_parse! {
     /// Transformations may be composed via nesting.
     MapTransformStmt := QN_TRANSFORM {
         @ {
-            _method: (QN_METHOD) => MapTransformLiteral,
+            _method: (QN_METHOD) => N<{MapTransformLiteral}>,
         } => PlainNir::Todo,
 
         MapStmtBody,
@@ -1257,8 +1258,8 @@ ele_parse! {
         @ {
             _xmlns: (QN_XMLNS) => Literal<URI_LV_WORKSHEET>,
 
-            _name: (QN_NAME) => PkgPath,
-            _pkg: (QN_PACKAGE) => PkgPath,
+            _name: (QN_NAME) => N<{PkgPath}>,
+            _pkg: (QN_PACKAGE) => N<{PkgPath}>,
         } => PlainNir::Todo,
 
         ExpandFunctionStmt,
@@ -1275,7 +1276,7 @@ ele_parse! {
     ///   to care about.
     ExpandFunctionStmt := QN_EXPAND_FUNCTION {
         @ {
-            _name: (QN_NAME) => FuncIdent,
+            _name: (QN_NAME) => N<{FuncIdent}>,
         } => PlainNir::Todo,
     };
 
@@ -1283,7 +1284,7 @@ ele_parse! {
     ///   along with its result.
     DisplayStmt := QN_DISPLAY {
         @ {
-            _name: (QN_NAME) => ValueIdent,
+            _name: (QN_NAME) => N<{ValueIdent}>,
         } => PlainNir::Todo,
     };
 
@@ -1375,8 +1376,8 @@ ele_parse! {
     /// Templates are applied using [`ApplyTemplate`] or [`TplApplyShort`].
     TemplateStmt := QN_TEMPLATE {
         @ {
-            _name: (QN_NAME) => TplName,
-            _desc: (QN_DESC) => DescLiteral,
+            _name: (QN_NAME) => N<{TplName}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
         } => PlainNir::Todo,
 
         TplHeading,
@@ -1400,8 +1401,8 @@ ele_parse! {
     ///   expanded.
     TplParamStmt := QN_PARAM {
         @ {
-            _name: (QN_NAME) => TplParamIdent,
-            _desc: (QN_DESC) => DescLiteral,
+            _name: (QN_NAME) => N<{TplParamIdent}>,
+            _desc: (QN_DESC) => N<{DescLiteral}>,
         } => PlainNir::Todo,
 
         TplParamDefault,
@@ -1434,7 +1435,7 @@ ele_parse! {
     ///   associated template application argument.
     TplText := QN_TEXT {
         @ {
-            _unique: (QN_UNIQUE?) => Option<BooleanLiteral>,
+            _unique: (QN_UNIQUE?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -1449,15 +1450,15 @@ ele_parse! {
     ///   cumbersome and slow
     TplParamValue := QN_PARAM_VALUE {
         @ {
-            _name: (QN_NAME) => ParamIdent,
-            _dash: (QN_DASH?) => Option<BooleanLiteral>,
-            _upper: (QN_UPPER?) => Option<BooleanLiteral>,
-            _lower: (QN_LOWER?) => Option<BooleanLiteral>,
-            _ucfirst: (QN_UCFIRST?) => Option<BooleanLiteral>,
-            _rmdash: (QN_RMDASH?) => Option<BooleanLiteral>,
-            _rmunderscore: (QN_RMUNDERSCORE?) => Option<BooleanLiteral>,
-            _identifier: (QN_IDENTIFIER?) => Option<BooleanLiteral>,
-            _snake: (QN_SNAKE?) => Option<BooleanLiteral>,
+            _name: (QN_NAME) => N<{ParamIdent}>,
+            _dash: (QN_DASH?) => Option<N<{BooleanLiteral}>>,
+            _upper: (QN_UPPER?) => Option<N<{BooleanLiteral}>>,
+            _lower: (QN_LOWER?) => Option<N<{BooleanLiteral}>>,
+            _ucfirst: (QN_UCFIRST?) => Option<N<{BooleanLiteral}>>,
+            _rmdash: (QN_RMDASH?) => Option<N<{BooleanLiteral}>>,
+            _rmunderscore: (QN_RMUNDERSCORE?) => Option<N<{BooleanLiteral}>>,
+            _identifier: (QN_IDENTIFIER?) => Option<N<{BooleanLiteral}>>,
+            _snake: (QN_SNAKE?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -1472,7 +1473,7 @@ ele_parse! {
     ///       of the template.
     TplParamInherit := QN_PARAM_INHERIT {
         @ {
-            _meta: (QN_META) => TplMetaIdent,
+            _meta: (QN_META) => N<{TplMetaIdent}>,
         } => PlainNir::Todo,
     };
 
@@ -1482,8 +1483,8 @@ ele_parse! {
     ///   this can be used to perform bounded recursive template expansion.
     TplParamAdd := QN_PARAM_ADD {
         @ {
-            _name: (QN_NAME) => TplParamIdent,
-            _value: (QN_VALUE) => NumLiteral,
+            _name: (QN_NAME) => N<{TplParamIdent}>,
+            _value: (QN_VALUE) => N<{NumLiteral}>,
         } => PlainNir::Todo,
     };
 
@@ -1504,7 +1505,7 @@ ele_parse! {
     ///     classification.
     TplParamClassToYields := QN_PARAM_CLASS_TO_YIELDS {
         @ {
-            _name: (QN_NAME) => ClassIdent,
+            _name: (QN_NAME) => N<{ClassIdent}>,
         } => PlainNir::Todo,
     };
 
@@ -1548,18 +1549,18 @@ ele_parse! {
     ///   potentially yield false matches.
     TplParamTypedefLookup := QN_PARAM_TYPEDEF_LOOKUP {
         @ {
-            _name: (QN_NAME) => TypeIdent,
-            _value: (QN_VALUE) => NumLiteral,
+            _name: (QN_NAME) => N<{TypeIdent}>,
+            _value: (QN_VALUE) => N<{NumLiteral}>,
         } => PlainNir::Todo,
     };
 
     /// Look up an attribute from the symbol table for a given identifier.
     TplParamSymValue := QN_PARAM_SYM_VALUE {
         @ {
-            _name: (QN_NAME) => AnyIdent,
-            _value: (QN_VALUE) => SymbolTableKey,
-            _prefix: (QN_PREFIX?) => Option<AnyIdent>,
-            _ignore_missing: (QN_IGNORE_MISSING?) => Option<BooleanLiteral>,
+            _name: (QN_NAME) => N<{AnyIdent}>,
+            _value: (QN_VALUE) => N<{SymbolTableKey}>,
+            _prefix: (QN_PREFIX?) => Option<N<{AnyIdent}>>,
+            _ignore_missing: (QN_IGNORE_MISSING?) => Option<N<{BooleanLiteral}>>,
         } => PlainNir::Todo,
     };
 
@@ -1602,7 +1603,7 @@ ele_parse! {
     //   determine what they may be.
     DynNode := QN_DYN_NODE {
         @ {
-            _name: (QN_NAME) => DynNodeLiteral,
+            _name: (QN_NAME) => N<{DynNodeLiteral}>,
         } => PlainNir::Todo,
 
         // But we can at least restrict it for now by ensuring that it's
@@ -1752,8 +1753,8 @@ ele_parse! {
     ///   documentation and examples.
     InlineTemplateSymSet := QN_SYM_SET {
         @ {
-            _name_prefix: (QN_NAME_PREFIX?) => Option<StringLiteral>,
-            _type: (QN_TYPE?) => Option<IdentType>,
+            _name_prefix: (QN_NAME_PREFIX?) => Option<N<{StringLiteral}>>,
+            _type: (QN_TYPE?) => Option<N<{IdentType}>>,
             // TODO: Look at XSL sources for others
         } => PlainNir::Todo,
     };
@@ -1817,7 +1818,7 @@ ele_parse! {
     /// This allows creating templates that accept children.
     TplParamCopy := QN_PARAM_COPY {
         @ {
-            _name: (QN_NAME) => TplParamIdent,
+            _name: (QN_NAME) => N<{TplParamIdent}>,
         } => PlainNir::Todo,
     };
 
@@ -1827,22 +1828,22 @@ ele_parse! {
     ///   see [`TplParamInherit`].
     TplParamMeta := QN_PARAM_META {
         @ {
-            _name: (QN_NAME) => TplParamIdent,
-            _value: (QN_VALUE) => StringLiteral,
+            _name: (QN_NAME) => N<{TplParamIdent}>,
+            _value: (QN_VALUE) => N<{StringLiteral}>,
         } => PlainNir::Todo,
     };
 
     /// Conditionally expand the body if the provided predicate matches.
     TplIf := QN_IF {
         @ {
-            _name: (QN_NAME) => TplParamIdent,
-            _eq: (QN_EQ?) => Option<StringLiteral>,
-            _gt: (QN_GT?) => Option<NumLiteral>,
-            _gte: (QN_GTE?) => Option<NumLiteral>,
-            _lt: (QN_LT?) => Option<NumLiteral>,
-            _lte: (QN_LTE?) => Option<NumLiteral>,
-            _prefix: (QN_PREFIX?) => Option<StringLiteral>,
-            _suffix: (QN_SUFFIX?) => Option<StringLiteral>,
+            _name: (QN_NAME) => N<{TplParamIdent}>,
+            _eq: (QN_EQ?) => Option<N<{StringLiteral}>>,
+            _gt: (QN_GT?) => Option<N<{NumLiteral}>>,
+            _gte: (QN_GTE?) => Option<N<{NumLiteral}>>,
+            _lt: (QN_LT?) => Option<N<{NumLiteral}>>,
+            _lte: (QN_LTE?) => Option<N<{NumLiteral}>>,
+            _prefix: (QN_PREFIX?) => Option<N<{StringLiteral}>>,
+            _suffix: (QN_SUFFIX?) => Option<N<{StringLiteral}>>,
         } => PlainNir::Todo,
 
         AnyStmtOrExpr,
@@ -1855,14 +1856,14 @@ ele_parse! {
     ///   of an `else` clause.
     TplUnless := QN_UNLESS {
         @ {
-            _name: (QN_NAME) => TplParamIdent,
-            _eq: (QN_EQ?) => Option<StringLiteral>,
-            _gt: (QN_GT?) => Option<NumLiteral>,
-            _gte: (QN_GTE?) => Option<NumLiteral>,
-            _lt: (QN_LT?) => Option<NumLiteral>,
-            _lte: (QN_LTE?) => Option<NumLiteral>,
-            _prefix: (QN_PREFIX?) => Option<StringLiteral>,
-            _suffix: (QN_SUFFIX?) => Option<StringLiteral>,
+            _name: (QN_NAME) => N<{TplParamIdent}>,
+            _eq: (QN_EQ?) => Option<N<{StringLiteral}>>,
+            _gt: (QN_GT?) => Option<N<{NumLiteral}>>,
+            _gte: (QN_GTE?) => Option<N<{NumLiteral}>>,
+            _lt: (QN_LT?) => Option<N<{NumLiteral}>>,
+            _lte: (QN_LTE?) => Option<N<{NumLiteral}>>,
+            _prefix: (QN_PREFIX?) => Option<N<{StringLiteral}>>,
+            _suffix: (QN_SUFFIX?) => Option<N<{StringLiteral}>>,
         } => PlainNir::Todo,
 
         AnyStmtOrExpr,

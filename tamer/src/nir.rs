@@ -52,19 +52,23 @@
 mod desugar;
 mod parse;
 
-use std::{
-    convert::Infallible,
-    error::Error,
-    fmt::{Debug, Display},
-};
-
 use crate::{
     diagnose::{Annotate, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
     parse::{Object, Token},
     span::{Span, UNKNOWN_SPAN},
-    sym::SymbolId,
-    xir::{attr::Attr, fmt::TtXmlAttr, QName},
+    sym::{st::quick_contains_byte, GlobalSymbolResolve, SymbolId},
+    xir::{
+        attr::{Attr, AttrSpan},
+        fmt::TtXmlAttr,
+        QName,
+    },
+};
+use memchr::memchr;
+use std::{
+    convert::Infallible,
+    error::Error,
+    fmt::{Debug, Display},
 };
 
 pub use desugar::{DesugarNir, DesugarNirError};
@@ -126,11 +130,10 @@ impl Display for PlainNir {
 ///   "desugaring" and is carried out by the [`DesugarNir`] lowering
 ///     operation,
 ///       producing [`PlainNir`].
-/// Tokens that do not require desugaring are already represented as
-///   [`PlainNir`] in the [`SugaredNir::Plain`] variant.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SugaredNir {
-    Plain(PlainNir),
+    /// A primitive token that may have sugared values.
+    Primitive(PlainNir),
 }
 
 impl Token for SugaredNir {
@@ -142,7 +145,7 @@ impl Token for SugaredNir {
         use SugaredNir::*;
 
         match self {
-            Plain(nir) => nir.span(),
+            Primitive(nir) => nir.span(),
         }
     }
 }
@@ -154,48 +157,92 @@ impl Display for SugaredNir {
         use SugaredNir::*;
 
         match self {
-            Plain(nir) => Display::fmt(nir, f),
+            Primitive(nir) => Display::fmt(nir, f),
         }
     }
 }
 
 impl From<PlainNir> for SugaredNir {
     fn from(nir: PlainNir) -> Self {
-        Self::Plain(nir)
+        Self::Primitive(nir)
     }
 }
 
-// TODO
-type PkgPath = SymbolId;
-type PkgTitle = SymbolId;
-type Title = SymbolId;
-type ParamName = SymbolId;
-type ParamType = SymbolId;
-type Dim = SymbolId;
-type NumLiteral = SymbolId;
-type DescLiteral = SymbolId;
-type ParamDefault = SymbolId;
-type ParamIdent = SymbolId;
-type ClassIdent = SymbolId;
-type ClassIdentList = SymbolId;
-type BooleanLiteral = SymbolId;
-type CalcIdent = SymbolId;
-type ValueIdent = SymbolId;
-type TplName = SymbolId;
-type TplParamIdent = SymbolId;
-type TplMetaIdent = SymbolId;
-type TypeIdent = SymbolId;
-type ConstIdent = SymbolId;
-type TexMathLiteral = SymbolId;
-type FuncIdent = SymbolId;
-type ShortDimNumLiteral = SymbolId;
-type StringLiteral = SymbolId;
-type IdentType = SymbolId;
-type AnyIdent = SymbolId;
-type SymbolTableKey = SymbolId;
-type IdentDtype = SymbolId;
-type DynNodeLiteral = SymbolId;
-type MapTransformLiteral = SymbolId;
+/// Tag representing the type of a NIR value.
+///
+/// NIR values originate from attributes,
+///   which are refined into types as enough information becomes available.
+/// Value parsing must be deferred if a value requires desugaring or
+///   metavalue expansion.
+#[derive(Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum NirSymbolTy {
+    AnyIdent,
+    BooleanLiteral,
+    CalcIdent,
+    ClassIdent,
+    ClassIdentList,
+    ConstIdent,
+    DescLiteral,
+    Dim,
+    DynNodeLiteral,
+    FuncIdent,
+    IdentDtype,
+    IdentType,
+    MapTransformLiteral,
+    NumLiteral,
+    ParamDefault,
+    ParamIdent,
+    ParamName,
+    ParamType,
+    PkgPath,
+    PkgTitle,
+    ShortDimNumLiteral,
+    StringLiteral,
+    SymbolTableKey,
+    TexMathLiteral,
+    Title,
+    TplMetaIdent,
+    TplName,
+    TplParamIdent,
+    TypeIdent,
+    ValueIdent,
+}
+
+/// A ([`SymbolId`], [`Span`]) pair in an attribute value context that may
+///   require desugaring and interpretation within the context of a template
+///   application.
+///
+/// Interpolated values require desugaring;
+///   see [`DesugarNir`] for more information.
+///
+/// _This object must be kept small_,
+///   since it is used in objects that aggregate portions of the token
+///   stream,
+///     which must persist in memory for a short period of time,
+///     and therefore cannot be optimized away as other portions of the IR.
+/// As such,
+///   this does not nest enums.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SugaredNirSymbol<const TY: NirSymbolTy> {
+    /// The symbol contains an expression representing the concatenation of
+    ///   any number of literals and metavariables
+    ///     (referred to as "string interpolation" in many languages).
+    Interpolate(SymbolId, Span),
+
+    /// It's not ripe yet.
+    ///
+    /// No parsing has been performed.
+    Todo(SymbolId, Span),
+}
+
+// Force developer to be conscious of any changes in size;
+//   see `SugaredNirSymbol` docs for more information.
+assert_eq_size!(SugaredNirSymbol<{ NirSymbolTy::AnyIdent }>, u128);
+
+/// Character whose presence in a string indicates that interpolation
+///   parsing must occur.
+pub const INTERPOLATE_CHAR: u8 = b'{';
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PkgType {
@@ -208,10 +255,47 @@ pub enum PkgType {
     Mod,
 }
 
-impl From<Attr> for SymbolId {
-    fn from(attr: Attr) -> Self {
+/// Whether a value represented by the provided [`SymbolId`] requires
+///   interpolation.
+///
+/// _NB: This dereferences the provided [`SymbolId`] if it is dynamically
+///   allocated._
+///
+/// The provided value requires interpolation if it contains,
+///   anywhere in the string,
+///   the character [`INTERPOLATE_CHAR`].
+/// This does not know if the string will parse correctly;
+///   that job is left for desugaring,
+///     and so this will flag syntactically invalid interpolated strings
+///       (which is expected).
+#[inline]
+fn needs_interpolation(val: SymbolId) -> bool {
+    // We can skip pre-interned symbols that we know cannot include the
+    //   interpolation character.
+    // TODO: Abstract into `sym::symbol` module.
+    let ch = INTERPOLATE_CHAR;
+    quick_contains_byte(val, ch)
+        .or_else(|| memchr(ch, val.lookup_str().as_bytes()).map(|_| true))
+        .unwrap_or(false)
+}
+
+impl<const TY: NirSymbolTy> TryFrom<(SymbolId, Span)> for SugaredNirSymbol<TY> {
+    type Error = NirAttrParseError;
+
+    fn try_from((val, span): (SymbolId, Span)) -> Result<Self, Self::Error> {
+        match needs_interpolation(val) {
+            true => Ok(SugaredNirSymbol::Interpolate(val, span)),
+            false => Ok(SugaredNirSymbol::Todo(val, span)),
+        }
+    }
+}
+
+impl<const TY: NirSymbolTy> TryFrom<Attr> for SugaredNirSymbol<TY> {
+    type Error = NirAttrParseError;
+
+    fn try_from(attr: Attr) -> Result<Self, Self::Error> {
         match attr {
-            Attr(_, value, _) => value,
+            Attr(_, val, AttrSpan(_, vspan)) => (val, vspan).try_into(),
         }
     }
 }
@@ -272,3 +356,6 @@ impl Diagnostic for NirAttrParseError {
         }
     }
 }
+
+#[cfg(test)]
+mod test;
