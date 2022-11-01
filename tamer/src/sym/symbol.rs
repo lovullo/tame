@@ -22,7 +22,7 @@
 //! See the [parent module](super) for more information.
 
 use super::{DefaultInterner, Interner};
-use crate::global;
+use crate::{diagnostic_panic, global};
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
@@ -263,7 +263,8 @@ impl<Ix: SymbolIndexSize> GlobalSymbolResolve for SymbolId<Ix> {
                 // If the system is being used properly, this should never
                 // happen (we'd only look up symbols allocated through this
                 // interner).
-                panic!(
+                diagnostic_panic!(
+                    vec![], // no span information available
                     "failed to resolve SymbolId({}) using global \
                          interner of length {}",
                     self.0.into(),
