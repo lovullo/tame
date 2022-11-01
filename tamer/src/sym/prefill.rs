@@ -446,6 +446,14 @@ pub mod st {
         }
     }
 
+    /// Whether the provided symbol is part of the static symbol list that
+    ///   is pre-interned.
+    #[inline]
+    pub fn is_pre_interned(sym: SymbolId) -> bool {
+        let symid = sym.as_usize();
+        symid <= END_STATIC.as_usize()
+    }
+
     /// Whether the given [`SymbolId`] is within a group of symbols
     ///   delimited by markers `a` and `b`.
     ///
@@ -479,6 +487,44 @@ pub mod st {
     #[inline]
     pub fn is_common_whitespace(sym: SymbolId) -> bool {
         is_between_markers(WS_SYM_START, WS_SYM_END, sym)
+    }
+
+    /// Attempt to make a quick determination without a memory lookup
+    ///   (symbol resolution) whether the given [`SymbolId`]'s string
+    ///   representation definitely contains the given byte value.
+    ///
+    /// A value of [`None`] means "maybe, maybe not",
+    ///   indicating that the caller ought to fall back to a slower check
+    ///   that utilizes the symbol's resolved string.
+    /// A value of [`Some`] indicates that `sym`,
+    ///   were it to be resolved,
+    ///   definitely does or does not contain the byte `ch`.
+    ///
+    /// This is intended to encapsulate special,
+    ///   loosely-defined cases where we can test that the interned symbols
+    ///   actually properly adhere to the implementation of this function.
+    #[inline]
+    pub fn quick_contains_byte(sym: SymbolId, ch: u8) -> Option<bool> {
+        match (is_pre_interned(sym), ch) {
+            // No control characters or null bytes.
+            (true, 0..=0x1F) => Some(false),
+
+            // No characters outside the 7-bit ASCII range.
+            (true, 0x80..) => Some(false),
+
+            // Or the character range immediately preceding it,
+            //   where 7F == DEL.
+            // They are explicitly listed here so that readers do not have
+            //   to consult an ASCII table to avoid unintentional bugs.
+            (true, b'{' | b'|' | b'}' | b'~' | 0x7F) => Some(false),
+
+            // We don't check for anything else (yet).
+            (true, _) => None,
+
+            // We cannot possibly know statically whether dynamically
+            //   interned symbols contain any particular byte.
+            (false, _) => None,
+        }
     }
 
     static_symbols! {
@@ -704,7 +750,7 @@ pub mod st {
         // There are improvements that can be made here,
         //   such as aligning the symbol ids such that whitespace can be
         //   asserted with a bitmask.
-        WS_SYM_START: mark "{{ws start}}",
+        WS_SYM_START: mark "###WS_START",
         WS_EMPTY: ws "",
         WS_SP1: ws " ",
         WS_SP2: ws "  ",
@@ -732,13 +778,13 @@ pub mod st {
         WS_LF2_SP6: ws "\n\n      ",
         WS_LF2_SP7: ws "\n\n       ",
         WS_LF2_SP8: ws "\n\n        ",
-        WS_SYM_END: mark "{{ws end}}",
+        WS_SYM_END: mark "###WS_END",
 
         // [Symbols will be added here as they are needed.]
 
         // Marker indicating the end of the static symbols
         //   (this must always be last).
-        END_STATIC: mark "{{end}}"
+        END_STATIC: mark "###END"
     }
 }
 
@@ -765,7 +811,7 @@ pub mod st16 {
 
         // Marker indicating the end of the static symbols
         //   (this must always be last).
-        END_STATIC: mark16 "{{end}}"
+        END_STATIC: mark16 "###END"
     }
 }
 
@@ -862,5 +908,51 @@ mod test {
             st::ST_COUNT,
             "st::ST_COUNT does not match the number of static symbols"
         );
+    }
+
+    // [`quick_contains_bytes`] is asking for trouble if it's not properly
+    //   maintained.
+    // It is expected that its implementation is manually verified,
+    //   and it is written in a way that is clear and unambiguous.
+    // With that said,
+    //   this does some minor spot-checking.
+    #[test]
+    fn quick_contains_byte_verify() {
+        use super::super::GlobalSymbolResolve;
+        use memchr::memchr;
+        use st::quick_contains_byte;
+
+        // No static symbols will contain control characters.
+        assert_eq!(quick_contains_byte(st::L_TRUE.into(), 0x01), Some(false));
+
+        // But we don't know about dynamically-allocated ones.
+        assert_eq!(
+            quick_contains_byte("NOT A PREINTERNED SYM".into(), 0x01),
+            None
+        );
+
+        // We chose to explicitly keep certain characters out of the
+        //   preinterned list.
+        // Let's verify that is the case by iterating through _all of the
+        //   static interns_.
+        for sym_id in 1..=st::ST_COUNT {
+            let sym = unsafe { SymbolId::from_int_unchecked(sym_id as u32) };
+
+            // If you get an error in this block,
+            //   that means that you have added a symbol that violates
+            //   assumptions made in `quick_contains_byte`.
+            // Either that implementation needs changing and this test
+            //   updated,
+            //     or you need to not add that symbol to the static symbol
+            //     list.
+            for ch in b'{'..=0x7F {
+                assert_eq!(
+                    memchr(ch, sym.lookup_str().as_bytes()),
+                    None,
+                    "Pre-interned static symbol {sym:?} \
+                       contains unexpected byte 0x{ch:X}"
+                );
+            }
+        }
     }
 }
