@@ -42,6 +42,16 @@ use std::{
     fmt::{Debug, Display},
 };
 
+/// Prelude for TAME's parsing framework.
+///
+/// This contains the boilerplate types necessary for virtually every
+///   parser.
+pub mod prelude {
+    pub use super::{
+        Context, Object, ParseState, Token, Transition, TransitionResult,
+    };
+}
+
 /// A single datum from a streaming IR with an associated [`Span`].
 ///
 /// A token may be a lexeme with associated data,
