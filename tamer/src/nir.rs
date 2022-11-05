@@ -57,14 +57,13 @@ use crate::{
     fmt::{DisplayWrapper, TtQuote},
     parse::{Object, Token},
     span::{Span, UNKNOWN_SPAN},
-    sym::{st::quick_contains_byte, GlobalSymbolResolve, SymbolId},
+    sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
         fmt::TtXmlAttr,
         QName,
     },
 };
-use memchr::memchr;
 use std::{
     convert::Infallible,
     error::Error,
@@ -75,6 +74,8 @@ pub use desugar::{DesugarNir, DesugarNirError};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
+
+use NirSymbolTy::*;
 
 /// IR that is "near" the source code,
 ///   without its syntactic sugar.
@@ -89,18 +90,34 @@ pub use parse::{
 #[derive(Debug, PartialEq, Eq)]
 pub enum PlainNir {
     Todo,
+
+    TplParamOpen(Plain<{ TplParamIdent }>, Plain<{ DescLiteral }>),
+    TplParamClose(Span),
+    TplParamText(Plain<{ StringLiteral }>),
+    TplParamValue(Plain<{ TplParamIdent }>),
 }
+
+type Plain<const TY: NirSymbolTy> = PlainNirSymbol<TY>;
 
 impl Token for PlainNir {
     fn ir_name() -> &'static str {
         "Plain NIR"
     }
 
+    /// Identifying span of a token.
+    ///
+    /// An _identifying span_ is a selection of one of the (potentially
+    ///   many) spans associated with a token that is most likely to be
+    ///   associated with the identity of that token.
     fn span(&self) -> Span {
         use PlainNir::*;
 
         match self {
             Todo => UNKNOWN_SPAN,
+            TplParamOpen(dfn, _) => dfn.span(),
+            TplParamClose(span) => *span,
+            TplParamText(text) => text.span(),
+            TplParamValue(ident) => ident.span(),
         }
     }
 }
@@ -113,6 +130,16 @@ impl Display for PlainNir {
 
         match self {
             Todo => write!(f, "TODO"),
+            TplParamOpen(dfn, desc) => {
+                write!(f, "open template param {dfn} ({desc})")
+            }
+            TplParamClose(_span) => write!(f, "close template param"),
+            TplParamText(text) => {
+                write!(f, "open template param default text {text}")
+            }
+            TplParamValue(ident) => {
+                write!(f, "value of template param {ident}")
+            }
         }
     }
 }
@@ -247,12 +274,9 @@ impl Display for NirSymbolTy {
     }
 }
 
-/// A ([`SymbolId`], [`Span`]) pair in an attribute value context that may
-///   require desugaring and interpretation within the context of a template
-///   application.
-///
-/// Interpolated values require desugaring;
-///   see [`DesugarNir`] for more information.
+/// A plain (desugared) ([`SymbolId`], [`Span`]) pair representing an
+///   attribute value that may need to be interpreted within the context of
+///   a template application.
 ///
 /// _This object must be kept small_,
 ///   since it is used in objects that aggregate portions of the token
@@ -261,26 +285,79 @@ impl Display for NirSymbolTy {
 ///     and therefore cannot be optimized away as other portions of the IR.
 /// As such,
 ///   this does not nest enums.
+///
+/// For the sugared form that the user may have entered themselves,
+///   see [`SugaredNirSymbol`].
 #[derive(Debug, PartialEq, Eq)]
-pub enum SugaredNirSymbol<const TY: NirSymbolTy> {
-    /// The symbol contains an expression representing the concatenation of
-    ///   any number of literals and metavariables
-    ///     (referred to as "string interpolation" in many languages).
-    Interpolate(SymbolId, Span),
-
-    /// It's not ripe yet.
-    ///
-    /// No parsing has been performed.
+pub enum PlainNirSymbol<const TY: NirSymbolTy> {
     Todo(SymbolId, Span),
+}
+
+impl<const TY: NirSymbolTy> PlainNirSymbol<TY> {
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Todo(_, span) => *span,
+        }
+    }
+}
+
+impl<const TY: NirSymbolTy> Display for PlainNirSymbol<TY> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Todo(sym, _) => write!(
+                f,
+                "TODO plain {TY} {fmt_sym}",
+                fmt_sym = TtQuote::wrap(sym),
+            ),
+        }
+    }
+}
+
+/// A ([`SymbolId`], [`Span`]) pair in an attribute value context that may
+///   require desugaring.
+///
+/// For more information on desugaring,
+///   see [`DesugarNir`].
+///
+/// _This object must be kept small_,
+///   since it is used in objects that aggregate portions of the token
+///   stream,
+///     which must persist in memory for a short period of time,
+///     and therefore cannot be optimized away as other portions of the IR.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SugaredNirSymbol<const TY: NirSymbolTy>(SymbolId, Span);
+
+impl<const TY: NirSymbolTy> Token for SugaredNirSymbol<TY> {
+    fn ir_name() -> &'static str {
+        // TODO: Include type?
+        "Sugared NIR Symbol"
+    }
+
+    fn span(&self) -> Span {
+        match self {
+            Self(_, span) => *span,
+        }
+    }
+}
+
+impl<const TY: NirSymbolTy> Display for SugaredNirSymbol<TY> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self(sym, _span) => write!(
+                f,
+                "possibly-sugared {TY} {fmt_sym}",
+                fmt_sym = TtQuote::wrap(sym),
+            ),
+        }
+    }
 }
 
 // Force developer to be conscious of any changes in size;
 //   see `SugaredNirSymbol` docs for more information.
-assert_eq_size!(SugaredNirSymbol<{ NirSymbolTy::AnyIdent }>, u128);
-
-/// Character whose presence in a string indicates that interpolation
-///   parsing must occur.
-pub const INTERPOLATE_CHAR: u8 = b'{';
+assert_eq_size!(
+    SugaredNirSymbol<{ NirSymbolTy::AnyIdent }>,
+    (SymbolId, Span)
+);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PkgType {
@@ -293,47 +370,16 @@ pub enum PkgType {
     Mod,
 }
 
-/// Whether a value represented by the provided [`SymbolId`] requires
-///   interpolation.
-///
-/// _NB: This dereferences the provided [`SymbolId`] if it is dynamically
-///   allocated._
-///
-/// The provided value requires interpolation if it contains,
-///   anywhere in the string,
-///   the character [`INTERPOLATE_CHAR`].
-/// This does not know if the string will parse correctly;
-///   that job is left for desugaring,
-///     and so this will flag syntactically invalid interpolated strings
-///       (which is expected).
-#[inline]
-fn needs_interpolation(val: SymbolId) -> bool {
-    // We can skip pre-interned symbols that we know cannot include the
-    //   interpolation character.
-    // TODO: Abstract into `sym::symbol` module.
-    let ch = INTERPOLATE_CHAR;
-    quick_contains_byte(val, ch)
-        .or_else(|| memchr(ch, val.lookup_str().as_bytes()).map(|_| true))
-        .unwrap_or(false)
-}
-
-impl<const TY: NirSymbolTy> TryFrom<(SymbolId, Span)> for SugaredNirSymbol<TY> {
-    type Error = NirAttrParseError;
-
-    fn try_from((val, span): (SymbolId, Span)) -> Result<Self, Self::Error> {
-        match needs_interpolation(val) {
-            true => Ok(SugaredNirSymbol::Interpolate(val, span)),
-            false => Ok(SugaredNirSymbol::Todo(val, span)),
-        }
+impl<const TY: NirSymbolTy> From<(SymbolId, Span)> for SugaredNirSymbol<TY> {
+    fn from((val, span): (SymbolId, Span)) -> Self {
+        Self(val, span)
     }
 }
 
-impl<const TY: NirSymbolTy> TryFrom<Attr> for SugaredNirSymbol<TY> {
-    type Error = NirAttrParseError;
-
-    fn try_from(attr: Attr) -> Result<Self, Self::Error> {
+impl<const TY: NirSymbolTy> From<Attr> for SugaredNirSymbol<TY> {
+    fn from(attr: Attr) -> Self {
         match attr {
-            Attr(_, val, AttrSpan(_, vspan)) => (val, vspan).try_into(),
+            Attr(_, val, AttrSpan(_, vspan)) => (val, vspan).into(),
         }
     }
 }
@@ -394,6 +440,3 @@ impl Diagnostic for NirAttrParseError {
         }
     }
 }
-
-#[cfg(test)]
-mod test;

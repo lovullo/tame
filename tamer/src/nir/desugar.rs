@@ -22,14 +22,14 @@
 //! For more information on the flavors of NIR,
 //!   see [the parent module](super).
 
-use std::{error::Error, fmt::Display};
-
-use crate::{
-    diagnose::{AnnotatedSpan, Diagnostic},
-    parse::{NoContext, ParseState, Transition, TransitionResult},
-};
+mod interp;
 
 use super::{PlainNir, SugaredNir};
+use crate::{
+    diagnose::{AnnotatedSpan, Diagnostic},
+    parse::{prelude::*, NoContext},
+};
+use std::{error::Error, fmt::Display};
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum DesugarNir {
