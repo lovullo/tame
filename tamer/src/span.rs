@@ -184,7 +184,7 @@
 //! [rustc-span]: https://doc.rust-lang.org/stable/nightly-rustc/rustc_span/struct.Span.html
 
 use crate::{
-    global,
+    debug_diagnostic_panic, global,
     sym::{st16, ContextStaticSymbolId, GlobalSymbolResolve, SymbolId},
 };
 use std::{convert::TryInto, fmt::Display, path::Path};
@@ -393,6 +393,47 @@ impl Span {
                 ..endpoints.0
             }),
         )
+    }
+
+    /// Create a new span that is a slice of this one.
+    ///
+    /// If either `rel_offset` or `len` are too large,
+    ///   then a copy of the span will be returned unsliced.
+    ///
+    /// Panics (Debug Mode)
+    /// -------------------
+    /// If the offset and length exceeds the bounds of the span,
+    ///   then the system has an arithmetic bug that ought to be corrected,
+    ///   and so this will panic with a diagnostic message.
+    /// This check does not occur on release builds since this is not a
+    ///   safety issue and should be caught by tests.
+    pub fn slice(self, rel_offset: usize, len: usize) -> Self {
+        let (irel_offset, ilen) = match (rel_offset.try_into(), len.try_into())
+        {
+            (Ok(x), Ok(y)) => (x, y),
+            _ => (0, self.len()),
+        };
+
+        // We shouldn't ignore slices that exceed the length of the span,
+        //   since this represents a bug that'll cause nonsense diagnostic
+        //   data and it represents an arithmetic bug in the system
+        //     (but there are no safety concerns).
+        if ((irel_offset as usize).saturating_add(ilen as usize))
+            > self.len() as usize
+        {
+            use crate::diagnose::Annotate;
+            debug_diagnostic_panic!(
+                self.error("attempting to slice this span").into(),
+                "length {len} at offset {rel_offset} \
+                    exceeds bounds of span {self}",
+            );
+        }
+
+        Self {
+            ctx: self.ctx,
+            offset: self.offset.saturating_add(irel_offset),
+            len: ilen,
+        }
     }
 
     /// Adjust span such that its offset is relative to the provided span.
@@ -780,5 +821,26 @@ mod test {
 
         assert_eq!(start, Span::new(offset, 0, ctx));
         assert_eq!(end, Span::new(SpanOffsetSize::MAX, 0, ctx));
+    }
+
+    #[test]
+    fn span_slice_yields_slice_within_original() {
+        let ctx = Context::from("slice");
+        let span = ctx.span(10, 10);
+
+        assert_eq!(ctx.span(15, 5), span.slice(5, 5));
+    }
+
+    #[test]
+    fn span_slice_large_values_yield_original() {
+        let span = Context::from("slice").span(0, 50);
+
+        // Too large of an offset should return original even though legnth
+        //   is okay.
+        assert_eq!(span, span.slice(usize::MAX, 5));
+
+        // Too large of length should return original even though offset is
+        //   okay.
+        assert_eq!(span, span.slice(0, usize::MAX));
     }
 }

@@ -160,6 +160,20 @@ macro_rules! diagnostic_panic {
     }}
 }
 
+/// Produce a panic with diagnostic information and a rather obnoxious
+///   message describing this issue as a bug in TAMER,
+///     but only if debug assertions are enabled.
+///
+/// This simply gates [`diagnostic_panic!`] behind a `debug_assertions` cfg
+///   check.
+#[macro_export]
+macro_rules! debug_diagnostic_panic {
+    ($desc_data:expr, $($panic_args:tt)*) => {
+        #[cfg(debug_assertions)]
+        $crate::diagnostic_panic!($desc_data, $($panic_args)*);
+    }
+}
+
 /// Alternatives to `unwrap` and `expect` that utilize
 ///   [`diagnostic_panic!`].
 pub trait DiagnosticPanic {

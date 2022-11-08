@@ -321,8 +321,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
                         let end = offset + rel_pos;
 
                         let literal = s[offset..end].intern();
-                        let span_text =
-                            span.context().span_or_zz(offset, rel_pos);
+                        let span_text = span.slice(offset, rel_pos);
 
                         let text = PlainNir::TplParamText(
                             PlainNirSymbol::Todo(literal, span_text),
@@ -336,8 +335,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
                     // The remainder of the specification is a literal.
                     None => {
                         let literal = s[offset..].intern();
-                        let span_text =
-                            span.context().span_or_zz(offset, s.len() - offset);
+                        let span_text = span.slice(offset, s.len() - offset);
 
                         let text = PlainNir::TplParamText(
                             PlainNirSymbol::Todo(literal, span_text),
@@ -377,8 +375,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
 
                         // Since rel_pos is 0-indexed,
                         //   it is also the length of the value string.
-                        let span_value =
-                            span.context().span_or_zz(offset, rel_pos);
+                        let span_value = span.slice(offset, rel_pos);
 
                         let param_value = PlainNir::TplParamValue(
                             PlainNirSymbol::Todo(value, span_value),

@@ -64,9 +64,11 @@ fn desugars_literal_with_ending_var() {
     //               0        9
     //                   A
 
-    let a = DC.span(0, 10);
-    let b = DC.span(0, 3);
-    let c = DC.span(4, 5);
+    // Non-zero span offset ensures that derived spans properly consider
+    //   parent offset.
+    let a = DC.span(10, 10);
+    let b = DC.span(10, 3);
+    let c = DC.span(14, 5);
 
     let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
     let toks = vec![given_sym];
@@ -143,9 +145,9 @@ fn desugars_var_with_ending_literal() {
     //               0        9
     //                   A
 
-    let a = DC.span(0, 10);
-    let b = DC.span(1, 5);
-    let c = DC.span(7, 3);
+    let a = DC.span(20, 10);
+    let b = DC.span(21, 5);
+    let c = DC.span(27, 3);
 
     let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
     let toks = vec![given_sym];
@@ -208,11 +210,11 @@ fn desugars_many_vars_and_literals() {
     //               0                  20
     //                          A
 
-    let a = DC.span(0, 21);
-    let b = DC.span(0, 3);
-    let c = DC.span(4, 5);
-    let d = DC.span(10, 3);
-    let e = DC.span(14, 6);
+    let a = DC.span(30, 21);
+    let b = DC.span(30, 3);
+    let c = DC.span(34, 5);
+    let d = DC.span(40, 3);
+    let e = DC.span(44, 6);
 
     let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
     let toks = vec![given_sym];
@@ -280,10 +282,10 @@ fn desugars_adjacent_interpolated_vars() {
     //               0                  20
     //                          A
 
-    let a = DC.span(0, 21);
-    let b = DC.span(1, 5);
-    let c = DC.span(8, 5);
-    let d = DC.span(15, 5);
+    let a = DC.span(40, 21);
+    let b = DC.span(41, 5);
+    let c = DC.span(48, 5);
+    let d = DC.span(55, 5);
 
     let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
     let toks = vec![given_sym];
