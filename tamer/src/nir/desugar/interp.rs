@@ -306,25 +306,49 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
                 // Note that this is the position _relative to the offset_,
                 //   not the beginning of the string.
                 match s[offset..].chars().position(|ch| ch == '{') {
-                    Some(0) => todo!("no literal prefix"),
+                    // The literal is the empty string,
+                    //   which is useless to output,
+                    //   so ignore it and proceed with parsing.
+                    Some(0) => {
+                        Transition(ParseInterpAt(s, gen_param, offset + 1))
+                            .incomplete()
+                            .with_lookahead(SugaredNirSymbol(sym, span))
+                    }
 
                     // Everything from the offset until the curly brace is a
                     //   literal.
-                    Some(pos) => {
-                        let literal = s[offset..pos].intern();
+                    Some(rel_pos) => {
+                        let end = offset + rel_pos;
+
+                        let literal = s[offset..end].intern();
                         let span_text =
-                            span.context().span_or_zz(offset, pos - offset);
+                            span.context().span_or_zz(offset, rel_pos);
 
                         let text = PlainNir::TplParamText(
                             PlainNirSymbol::Todo(literal, span_text),
                         );
 
-                        Transition(ParseInterpAt(s, gen_param, pos + 1))
+                        Transition(ParseInterpAt(s, gen_param, end + 1))
                             .ok(Expanded(text))
                             .with_lookahead(SugaredNirSymbol(sym, span))
                     }
 
-                    None => todo!("remaining literal"),
+                    // The remainder of the specification is a literal.
+                    None => {
+                        let literal = s[offset..].intern();
+                        let span_text =
+                            span.context().span_or_zz(offset, s.len() - offset);
+
+                        let text = PlainNir::TplParamText(
+                            PlainNirSymbol::Todo(literal, span_text),
+                        );
+
+                        // Keep in the current state but update the offset;
+                        //   we'll complete parsing next pass.
+                        Transition(ParseLiteralAt(s, gen_param, s.len()))
+                            .ok(Expanded(text))
+                            .with_lookahead(SugaredNirSymbol(sym, span))
+                    }
                 }
             }
 
@@ -431,6 +455,9 @@ impl<const TY: NirSymbolTy> InterpState<TY> {
             PlainNirSymbol::Todo(gen_desc, span),
         );
 
+        // Begin parsing in a _literal_ context,
+        //   since interpolation is most commonly utilized with literal
+        //   prefixes.
         Transition(ParseLiteralAt(sym.lookup_str(), gen_param, 0))
             .ok(Expanded(open))
             .with_lookahead(SugaredNirSymbol(sym, span))
