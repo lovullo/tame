@@ -120,7 +120,13 @@ impl<'a> Diagnostic for DiagnosticDesc<'a> {
 ///     problem and getting themselves unstuck.
 #[macro_export]
 macro_rules! diagnostic_panic {
-    ($desc_data:expr, $($panic_args:tt)*) => {{
+    ($desc_data:expr, $($panic_args:tt)*) => {
+        $crate::diagnostic_panic!(
+            @panic!, $desc_data, $($panic_args)*
+        )
+    };
+
+    (@$macro:ident!, $desc_data:expr, $($panic_args:tt)*) => {{
         use crate::diagnose::Reporter;
 
         let mut reporter = crate::diagnose::panic::PanicReporter::new(
@@ -133,7 +139,7 @@ macro_rules! diagnostic_panic {
             std::cell::Cell::new($desc_data),
         );
 
-        panic!(
+        $macro!(
             "internal error:\n{}\n{}",
             reporter.render(&desc),
             // Be extra obnoxious.
@@ -157,7 +163,7 @@ macro_rules! diagnostic_panic {
 !!! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ !!!
 \x1b[0m"
         )
-    }}
+    }};
 }
 
 /// Produce a panic with diagnostic information and a rather obnoxious
@@ -171,6 +177,20 @@ macro_rules! debug_diagnostic_panic {
     ($desc_data:expr, $($panic_args:tt)*) => {
         #[cfg(debug_assertions)]
         $crate::diagnostic_panic!($desc_data, $($panic_args)*);
+    }
+}
+
+/// Produce a panic using [`unreachable!`] with diagnostic information and a
+///   rather obnoxious message describing this issue as a bug in TAMER.
+///
+/// This should be used in place of [`diagnostic_panic`] wherever
+///   [`unreachable!`] would be used.
+#[macro_export]
+macro_rules! diagnostic_unreachable {
+    ($desc_data:expr, $($panic_args:tt)*) => {
+        $crate::diagnostic_panic!(
+            @unreachable!, $desc_data, $($panic_args)*
+        )
     }
 }
 
