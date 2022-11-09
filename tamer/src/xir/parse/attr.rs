@@ -40,10 +40,10 @@
 use super::AttrParseError;
 use crate::{
     diagnose::Diagnostic,
-    parse::ClosedParseState,
+    parse::{ClosedParseState, ParseState},
     xir::{OpenSpan, QName},
 };
-use std::convert::Infallible;
+use std::{convert::Infallible, fmt::Debug};
 
 /// Attribute parsing automaton.
 ///
@@ -57,6 +57,10 @@ pub trait AttrParseState: ClosedParseState {
     ///   meaning such conversion cannot fail and [`From`] may be used in
     ///   place of [`TryFrom`].
     type ValueError: Diagnostic + PartialEq = Infallible;
+
+    /// Object holding the current state of field aggregation,
+    ///   before the yield of the final object.
+    type Fields: Debug + PartialEq + Eq;
 
     /// Begin attribute parsing within the context of the provided element.
     ///
@@ -81,10 +85,13 @@ pub trait AttrParseState: ClosedParseState {
     ///   are missing.
     /// The list of missing fields is generated dynamically during
     ///   diagnostic reporting.
-    fn finalize_attr(self) -> Result<Self::Object, AttrParseError<Self>>;
+    fn finalize_attr(
+        self,
+        ctx: &mut <Self as ParseState>::Context,
+    ) -> Result<Self::Object, AttrParseError<Self>>;
 
     /// Names of attributes that are required but do not yet have a value.
-    fn required_missing(&self) -> Vec<QName>;
+    fn required_missing(&self, ctx: &Self::Fields) -> Vec<QName>;
 }
 
 /// Parse attributes for the given element.
@@ -108,7 +115,7 @@ macro_rules! attr_parse {
                 $field:ident: ($qname:ident $($fmod:tt)?) => $ty:ty,
             )*
         }
-    ) => {
+    ) => { paste::paste! {
         $(
             // This provides a nice error on $ty itself at the call site,
             //   rather than relying on `Into::into` to cause the error
@@ -131,12 +138,22 @@ macro_rules! attr_parse {
         ///   [`AttrParseError::MissingRequired`][MissingRequired].
         ///
         /// [MissingRequired]: crate::xir::parse::AttrParseError::MissingRequired
+        // TODO: This can be extracted out of the macro.
         #[derive(Debug, PartialEq, Eq)]
-        $($vis)? struct $state_name {
-            #[doc(hidden)]
-            ___ctx: (crate::xir::QName, crate::xir::OpenSpan),
-            #[doc(hidden)]
-            ___done: bool,
+        $($vis)? enum $state_name {
+            Parsing(crate::xir::QName, crate::xir::OpenSpan),
+            Done(crate::xir::QName, crate::xir::OpenSpan),
+        }
+
+        #[doc(hidden)]
+        #[allow(non_camel_case_types)]
+        $($vis)? type [<$state_name Context>] =
+            crate::parse::Context<[<$state_name Fields>]>;
+
+        /// Intermediate state of parser as fields are aggregated.
+        #[allow(non_camel_case_types)]
+        #[derive(Debug, PartialEq, Eq, Default)]
+        $($vis)? struct [<$state_name Fields>] {
             $(
                 // Value + key span
                 pub $field: Option<($ty, crate::span::Span)>,
@@ -145,44 +162,45 @@ macro_rules! attr_parse {
 
         impl crate::xir::parse::AttrParseState for $state_name {
             type ValueError = $crate::attr_parse!(@evty $($evty)?);
+            type Fields = [<$state_name Fields>];
 
             fn with_element(
                 ele: crate::xir::QName,
                 span: crate::xir::OpenSpan
             ) -> Self {
-                Self {
-                    ___ctx: (ele, span),
-                    ___done: false,
-                    $(
-                        $field: None,
-                    )*
-                }
+                Self::Parsing(ele, span)
             }
 
             fn element_name(&self) -> crate::xir::QName {
-                match self.___ctx {
-                    (name, _) => name,
+                match self {
+                    Self::Parsing(qname, _) | Self::Done(qname, _) => *qname,
                 }
             }
 
             fn element_span(&self) -> crate::xir::OpenSpan {
-                match self.___ctx {
-                    (_, span) => span,
+                match self {
+                    Self::Parsing(_, span) | Self::Done(_, span) => *span,
                 }
             }
 
             fn finalize_attr(
                 self,
+                ctx: &mut <Self as crate::parse::ParseState>::Context,
             ) -> Result<
                 Self::Object,
                 crate::xir::parse::AttrParseError<Self>,
             > {
+                // Will be unused if there are no fields.
+                #[allow(unused_variables)]
+                let fields: Self::Fields = std::mem::take(ctx);
+
                 // Validate required fields before we start moving data.
                 $(
-                    $crate::attr_parse!(@if_missing_req $($fmod)? self.$field {
+                    $crate::attr_parse!(@if_missing_req $($fmod)? fields.$field {
                         return Err(
                             crate::xir::parse::AttrParseError::MissingRequired(
                                 self,
+                                fields,
                             )
                         )
                     });
@@ -191,7 +209,7 @@ macro_rules! attr_parse {
                 let obj = $struct_name {
                     $(
                         $field: $crate::attr_parse!(
-                            @maybe_value $($fmod)? self.$field
+                            @maybe_value $($fmod)? fields.$field
                         ),
                     )*
                 };
@@ -199,12 +217,16 @@ macro_rules! attr_parse {
                 Ok(obj)
             }
 
-            fn required_missing(&self) -> Vec<crate::xir::QName> {
+            fn required_missing(
+                &self,
+                #[allow(unused_variables)] // unused if no fields
+                ctx: &Self::Fields
+            ) -> Vec<crate::xir::QName> {
                 #[allow(unused_mut)]
                 let mut missing = vec![];
 
                 $(
-                    $crate::attr_parse!(@if_missing_req $($fmod)? self.$field {
+                    $crate::attr_parse!(@if_missing_req $($fmod)? ctx.$field {
                         missing.push($qname);
                     });
                 )*
@@ -218,11 +240,7 @@ macro_rules! attr_parse {
                 ele: crate::xir::QName,
                 span: crate::xir::OpenSpan,
             ) -> Self {
-                use crate::xir::parse::AttrParseState;
-
-                let mut new = Self::with_element(ele, span);
-                new.___done = true;
-                new
+                Self::Done(ele, span)
             }
         }
 
@@ -244,16 +262,13 @@ macro_rules! attr_parse {
             /// [`ParseError`]: crate::parse::ParseError
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 use crate::fmt::{DisplayWrapper, TtQuote};
+                use crate::xir::parse::AttrParseState;
 
-                match self {
-                    Self { ___ctx: (ele, _), .. } => {
-                        write!(
-                            f,
-                            "expecting attributes for element {}",
-                            TtQuote::wrap(ele)
-                        )
-                    }
-                }
+                write!(
+                    f,
+                    "expecting attributes for element {}",
+                    TtQuote::wrap(self.element_name())
+                )
             }
         }
 
@@ -263,12 +278,13 @@ macro_rules! attr_parse {
             >;
             type Object = $struct_name;
             type Error = crate::xir::parse::AttrParseError<Self>;
+            type Context = [<$state_name Context>];
 
             fn parse_token(
                 #[allow(unused_mut)]
                 mut self,
                 tok: Self::Token,
-                _: crate::parse::NoContext,
+                ctx: &mut Self::Context,
             ) -> crate::parse::TransitionResult<Self> {
                 use crate::parse::{Transition, Transitionable, ParseStatus};
                 use crate::xir::{
@@ -280,19 +296,19 @@ macro_rules! attr_parse {
 
                 let ele_name = self.element_name();
 
-                match tok {
+                match (self, tok) {
                     $(
                         // Use guard so we don't bind as a variable if we
                         //   forget to import a const for `$qname`.
                         // We don't use `$qname:pat` because we reuse
                         //   `$qname` for error messages.
-                        flat::XirfToken::Attr(
+                        (st @ Self::Parsing(_, _), flat::XirfToken::Attr(
                             attr @ Attr(qn, _, AttrSpan(kspan, _))
-                        ) if qn == $qname => {
-                            match self.$field {
+                        )) if qn == $qname => {
+                            match ctx.$field {
                                 // Duplicate attribute name
                                 Some((_, first_kspan)) => {
-                                    Transition(self).err(
+                                    Transition(st).err(
                                         AttrParseError::DuplicateAttr(
                                             attr,
                                             first_kspan,
@@ -309,15 +325,15 @@ macro_rules! attr_parse {
 
                                     match result {
                                         Ok(value) => {
-                                            self.$field.replace((
+                                            ctx.$field.replace((
                                                 value,
                                                 kspan,
                                             ));
 
-                                            Transition(self).incomplete()
+                                            Transition(st).incomplete()
                                         },
 
-                                        Err(e) => Transition(self).err(
+                                        Err(e) => Transition(st).err(
                                             // Will complain about
                                             //   `Into::into` if Infallible.
                                             #[allow(unreachable_code)]
@@ -332,28 +348,26 @@ macro_rules! attr_parse {
                         }
                     )*
 
-                    flat::XirfToken::Attr(attr) => {
-                        Transition(self).err(AttrParseError::UnexpectedAttr(
+                    (st @ Self::Parsing(_, _), flat::XirfToken::Attr(attr)) => {
+                        Transition(st).err(AttrParseError::UnexpectedAttr(
                             attr,
                             ele_name,
                         ))
                     },
 
-                    // Any tokens received after aggregation is completed
-                    //   must not be processed,
-                    //     otherwise we'll recurse indefinitely.
-                    tok_dead if self.___done => {
-                        Transition(self).dead(tok_dead)
-                    },
-
                     // Aggregation complete (dead state).
-                    tok_dead => {
-                        let (ele, span) = self.___ctx;
-
-                        self.finalize_attr()
+                    (Self::Parsing(ele, span), tok_dead) => {
+                        Self::Parsing(ele, span).finalize_attr(ctx)
                             .map(ParseStatus::Object)
                             .transition(Self::done_with_element(ele, span))
                             .with_lookahead(tok_dead)
+                    }
+
+                    // Any tokens received after aggregation is completed
+                    //   must not be processed,
+                    //     otherwise we'll recurse indefinitely.
+                    (st @ Self::Done(_, _), tok_dead) => {
+                        Transition(st).dead(tok_dead)
                     }
                 }
             }
@@ -363,7 +377,7 @@ macro_rules! attr_parse {
                 false
             }
         }
-    };
+    } };
 
     // Optional attribute if input above is of the form `(QN_FOO?) => ...`.
     (@ty_assert ? $ty:ty) => {

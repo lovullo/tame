@@ -189,7 +189,7 @@ pub enum AttrParseError<S: AttrParseState> {
     /// The caller must determine whether to proceed with parsing of the
     ///   element despite these problems;
     ///     such recovery is beyond the scope of this parser.
-    MissingRequired(S),
+    MissingRequired(S, S::Fields),
 
     /// An attribute was encountered that was not expected by this parser.
     ///
@@ -217,11 +217,11 @@ pub enum AttrParseError<S: AttrParseState> {
 impl<S: AttrParseState> Display for AttrParseError<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::MissingRequired(st) => {
+            Self::MissingRequired(st, fields) => {
                 let ele_name = st.element_name();
                 write!(f, "element `{ele_name}` missing required ")?;
 
-                XmlAttrList::fmt(&st.required_missing(), f)
+                XmlAttrList::fmt(&st.required_missing(fields), f)
             }
 
             Self::UnexpectedAttr(attr, ele_name) => {
@@ -257,12 +257,12 @@ impl<S: AttrParseState> Error for AttrParseError<S> {
 impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
-            Self::MissingRequired(st) => st
+            Self::MissingRequired(st, fields) => st
                 .element_span()
                 .tag_span()
                 .error(format!(
                     "missing required {}",
-                    XmlAttrList::wrap(&st.required_missing()),
+                    XmlAttrList::wrap(&st.required_missing(fields)),
                 ))
                 .into(),
 

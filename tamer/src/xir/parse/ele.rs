@@ -18,7 +18,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Element parser generator for parsing of [XIRF](super::super::flat).
+//!
+//! _TODO:_ This needs significantly more documentation;
+//!   this is one of the most confusing and complex components of TAMER.
 
+use super::AttrParseState;
 use crate::{
     diagnostic_panic,
     fmt::{DisplayWrapper, TtQuote},
@@ -37,10 +41,43 @@ use std::{
 #[cfg(doc)]
 use crate::{ele_parse, parse::Parser};
 
-use super::AttrParseState;
-
 /// A parser accepting a single element.
 pub trait EleParseState: ParseState {}
+
+/// [`SuperState`] [`Context`] that gets propagated to each child parser.
+///
+/// This consists of two components:
+///
+///   1. The [`StateStack`],
+///        used to store child NT [`ParseState`]s when transferring to
+///        another NT; and
+///   2. An [`AttrFieldSum`] object representing the active attribute field
+///        context.
+#[derive(Debug, Default)]
+pub struct SuperCtx<S: SuperState + Default>(
+    Context<StateStack<S>>,
+    S::AttrFields,
+);
+
+impl<S: SuperState + Default> SuperCtx<S> {
+    /// Retrieve a mutable reference to each component.
+    ///
+    /// This is utilized because method calls are more convenient than
+    ///   destructuring with [`Context`]'s required use of `Deref`.
+    pub fn parts(
+        &mut self,
+    ) -> (&mut Context<StateStack<S>>, &mut S::AttrFields) {
+        match self {
+            Self(stack, fields) => (stack, fields),
+        }
+    }
+
+    pub fn stack_ref(&self) -> &Context<StateStack<S>> {
+        match self {
+            Self(stack, _) => stack,
+        }
+    }
+}
 
 /// Maximum level of parser nesting.
 ///
@@ -69,13 +106,13 @@ pub const MAX_DEPTH: usize = 64;
 ///   a [`ParseState`] may implement tail calls by simply not pushing itself
 ///   onto the stack before requesting transfer to another [`ParseState`].
 #[derive(Debug, Default)]
-pub struct StateStack<S: ClosedParseState>(ArrayVec<S, MAX_DEPTH>);
+pub struct StateStack<S: SuperState>(ArrayVec<S, MAX_DEPTH>);
 
-pub type StateStackContext<S> = Context<StateStack<S>>;
+pub type SuperStateContext<S> = Context<SuperCtx<S>>;
 
 // Note that public visibility is needed because `ele_parse` expands outside
 //   of this module.
-impl<S: ClosedParseState> StateStack<S> {
+impl<S: SuperState> StateStack<S> {
     /// Request a transfer to another [`ParseState`],
     ///   expecting that control be returned to `ret` after it has
     ///   completed.
@@ -478,6 +515,12 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq, Default)]
         $vis struct $nt(crate::xir::parse::NtState<$nt>);
 
+        #[doc(hidden)]
+        $vis type [<$nt AttrFields>] =
+            crate::parse::Context<
+                <[<$nt AttrState_>] as crate::xir::parse::AttrParseState>::Fields
+            >;
+
         impl $nt {
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
@@ -593,17 +636,17 @@ macro_rules! ele_parse {
             >;
             type Object = $objty;
             type Error = crate::xir::parse::NtError<$nt>;
-            type Context = crate::xir::parse::StateStackContext<Self::Super>;
+            type Context = crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = $super;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
                 #[allow(unused_variables)] // used only if child NTs
-                stack: &mut Self::Context,
+                ctx: &mut Self::Context,
             ) -> crate::parse::TransitionResult<Self::Super> {
                 use crate::{
-                    parse::{EmptyContext, Transition, Transitionable},
+                    parse::{Transition, Transitionable},
                     xir::{
                         EleSpan,
                         flat::XirfToken,
@@ -618,12 +661,17 @@ macro_rules! ele_parse {
                 };
 
                 let Self(selfst) = self;
+                #[allow(unused_variables)] // stack sometimes unused
+                let (stack, attr_fields) = ctx.parts();
 
                 match (selfst, tok) {
                     (
                         Expecting | NonPreemptableExpecting,
                         XirfToken::Open(qname, span, depth)
                     ) if $nt::matches(qname) => {
+                        use crate::xir::parse::AttrFieldSum;
+                        attr_fields.init_fields::<[<$nt AttrFields>]>();
+
                         let transition = Transition(Self(Attrs(
                             (qname, span, depth),
                             parse_attrs(qname, span)
@@ -650,6 +698,9 @@ macro_rules! ele_parse {
                         Closed(..),
                         XirfToken::Open(qname, span, depth)
                     ) if Self::matches(qname) => {
+                        use crate::xir::parse::AttrFieldSum;
+                        attr_fields.init_fields::<[<$nt AttrFields>]>();
+
                         Transition(Self(Attrs(
                             (qname, span, depth),
                             parse_attrs(qname, span)
@@ -726,9 +777,11 @@ macro_rules! ele_parse {
                     //       (xref <<SATTR>>).
                     #[allow(unreachable_patterns)]
                     (Attrs(meta @ (qname, span, depth), sa), tok) => {
+                        use crate::xir::parse::AttrFieldSum;
+
                         sa.delegate_until_obj::<Self, _>(
                             tok,
-                            EmptyContext,
+                            attr_fields.narrow::<[<$nt AttrFields>]>(span),
                             |sa| Transition(Self(Attrs(meta, sa))),
                             // If we enter a dead state then we have
                             //   failed produce an attribute object,
@@ -925,6 +978,11 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq, Default)]
         $vis struct $nt(crate::xir::parse::SumNtState<$nt>);
 
+        // Must be a _unique_ unit type to avoid conflicting trait impls.
+        #[doc(hidden)]
+        #[derive(Debug, PartialEq, Eq, Default)]
+        $vis struct [<$nt AttrFields>];
+
         impl $nt {
             fn non_preemptable() -> Self {
                 Self(crate::xir::parse::SumNtState::NonPreemptableExpecting)
@@ -1027,13 +1085,13 @@ macro_rules! ele_parse {
             >;
             type Object = $objty;
             type Error = crate::xir::parse::SumNtError<$nt>;
-            type Context = crate::xir::parse::StateStackContext<Self::Super>;
+            type Context = crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = $super;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
-                stack: &mut Self::Context,
+                ctx: &mut Self::Context,
             ) -> crate::parse::TransitionResult<Self::Super> {
                 use crate::{
                     parse::Transition,
@@ -1047,6 +1105,8 @@ macro_rules! ele_parse {
                         },
                     },
                 };
+
+                let (stack, _) = ctx.parts();
 
                 match (self.0, tok) {
                     $(
@@ -1209,6 +1269,77 @@ macro_rules! ele_parse {
             )*
         }
 
+        /// Superstate attribute context sum type.
+        ///
+        /// For more information on why this exists,
+        ///   see [`AttrFieldSum`](crate::xir::parse::AttrFieldSum).
+        #[derive(Debug, Default)]
+        $vis enum [<$super AttrFields>] {
+            #[default]
+            /// Indicates that no attribute parsing is active.
+            ///
+            /// Since attribute parsing is initialized at each attribute
+            ///   state transition,
+            ///     this will never be read.
+            /// Further,
+            ///   this may never be utilized beyond the initial construction
+            ///   of the superstate's context.
+            Uninitialized,
+
+            $(
+                $nt([<$nt AttrFields>]),
+            )*
+        }
+
+        impl crate::xir::parse::AttrFieldSum for [<$super AttrFields>] {}
+
+        // Each NT has its own attribute parsing
+        //   (except for sum types);
+        //     we need to expose a way to initialize parsing for each and
+        //     then narrow the type to the appropriate `Context` for the
+        //     respective NT's attribute parser.
+        $(
+            impl crate::xir::parse::AttrFieldOp<[<$nt AttrFields>]>
+                for [<$super AttrFields>]
+            {
+                fn init_new() -> Self {
+                    Self::$nt(Default::default())
+                }
+
+                fn narrow(
+                    &mut self,
+                    open_span: crate::xir::OpenSpan,
+                ) -> &mut [<$nt AttrFields>]
+                {
+                    use crate::xir::EleSpan;
+                    use crate::diagnose::Annotate;
+
+                    // Maybe Rust will support more robust dependent types
+                    //   in the future to make this unnecessary;
+                    //     see trait docs for this method for more information.
+                    match self {
+                        // This should _always_ be the case unless if the
+                        //   system properly initializes attribute parsing
+                        //   when transitioning to the `Attr` state.
+                        Self::$nt(fields) => fields,
+
+                        // Using `unreachable_unchecked` did not have any
+                        //   performance benefit at the time of writing.
+                        _ => crate::diagnostic_unreachable!(
+                            open_span
+                                .span()
+                                .internal_error(
+                                    "failed to initialize attribute parsing \
+                                        for this element"
+                                )
+                                .into(),
+                            "invalid AttrFields",
+                        ),
+                    }
+                }
+            }
+        )*
+
         // Default parser is the first NT,
         //   and is non-preemptable to force error handling if the root node
         //   is unexpected.
@@ -1293,12 +1424,12 @@ macro_rules! ele_parse {
             >;
             type Object = $objty;
             type Error = [<$super Error_>];
-            type Context = crate::xir::parse::StateStackContext<Self>;
+            type Context = crate::xir::parse::SuperStateContext<Self>;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
-                stack: &mut Self::Context,
+                ctx: &mut Self::Context,
             ) -> crate::parse::TransitionResult<Self> {
                 use crate::{
                     parse::Transition,
@@ -1338,6 +1469,8 @@ macro_rules! ele_parse {
                                     depth,
                                 ),
                             ) if st.can_preempt_node() && $pre_nt::matches(qname) => {
+                                let (stack, _) = ctx.parts();
+
                                 stack.transfer_with_ret(
                                     Transition(st),
                                     Transition(
@@ -1378,8 +1511,9 @@ macro_rules! ele_parse {
                         //     atop of the stack.
                         (Self::$nt(st), tok) => st.delegate_child(
                             tok,
-                            stack,
-                            |deadst, tok, stack| {
+                            ctx,
+                            |deadst, tok, ctx| {
+                                let (stack, _) = ctx.parts();
                                 stack.ret_or_dead(tok, deadst)
                             },
                         ),
@@ -1387,7 +1521,7 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn is_accepting(&self, stack: &Self::Context) -> bool {
+            fn is_accepting(&self, ctx: &Self::Context) -> bool {
                 // This is short-circuiting,
                 //   starting at the _bottom_ of the stack and moving
                 //   upward.
@@ -1404,8 +1538,8 @@ macro_rules! ele_parse {
                 //
                 // After having considered the stack,
                 //   we can then consider the active `ParseState`.
-                stack.all(|st| st.is_inner_accepting(stack))
-                    && self.is_inner_accepting(stack)
+                ctx.stack_ref().all(|st| st.is_inner_accepting(ctx))
+                    && self.is_inner_accepting(ctx)
             }
         }
 
@@ -1460,10 +1594,247 @@ macro_rules! ele_parse {
                 }
             }
         }
+
+        impl crate::xir::parse::SuperState for $super {
+            type AttrFields = [<$super AttrFields>];
+        }
     }};
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
         $super::$ntfirst($ntfirst::non_preemptable())
+    }
+}
+
+/// Superstate.
+///
+/// A superstate is responsible for aggregating all nonterminals and serving
+///   as a trampoline to delegate parsing operations.
+///
+/// Conceptually,
+///   a superstate acts as a runtime for the state machine defined by NT
+///   interdependencies.
+/// It represents the reification of such a state machine and all of its
+///   transitions.
+pub trait SuperState: ClosedParseState {
+    /// Sum type holding a variant for every [`Nt`]'s attribute parsing
+    ///   context.
+    ///
+    /// This holds the fields for each element as they are being
+    ///   aggregated,
+    ///     before a final attribute object is produced.
+    type AttrFields: Debug + Default;
+}
+
+/// Attribute context operations for individual NTs.
+///
+/// This is implemented for each NT's attribute parsing context by
+///   [`ele_parse!`] during superstate generation.
+///
+/// See [`AttrFieldSum`] for further explanation.
+pub trait AttrFieldOp<T>: AttrFieldSum + Sized {
+    /// Initialize a new attribute parsing context for the given NT's
+    ///   attribute parsing context (represented by `T`).
+    ///
+    /// This must be invoked before attribute parsing begins for an element,
+    ///   otherwise there will be a type mismatch during [`Self::narrow`]
+    ///   that will result in a panic.
+    fn init_new() -> Self;
+
+    /// Narrow the [`AttrFieldSum`] into the attribute context `T`,
+    ///   panicing if narrowing fails.
+    ///
+    /// The provided [`OpenSpan`] is utilized only for a diagnostic panic if
+    ///   lowering fails,
+    ///     and should never be utilized in a correctly implemented system.
+    ///
+    /// Panics
+    /// ======
+    /// This will issue a diagnostic panic if the requested type `T` was not
+    ///   the last type initialized using [`Self::init_new`].
+    /// The idea is that,
+    ///   if [`ele_parse`] is properly implemented,
+    ///   non-matching branches should be unreachable,
+    ///     and so this panic should never occur.
+    fn narrow(&mut self, open_span: OpenSpan) -> &mut T;
+}
+
+/// Sum type representing the attribute parsing contexts for each [`Nt`]'s
+///   attribute parser.
+///
+/// This may also contain unique unit types for [`SumNt`]s,
+///   which serve no purpose beyond simplifying construction of this sum
+///   type.
+///
+/// Why does this exist?
+/// ====================
+/// Prior to this implementation,
+///   each individual NT's attribute parsers ([`AttrParseState`]s)
+///   had embedded within them their parsing context.
+/// Since [`ParseState`] is immutable,
+///   it relies on Rust's ability to properly optimize away `memcpy`s so
+///   that the construction of a new [`ParseState`] amounts to in-place
+///   mutation of the existing one.
+///
+/// Unfortunately,
+///   some NTs have quite a few attributes,
+///   leading so some [`AttrParseState`]s that were nearing 2KiB in size.
+/// Since the [`AttrParseState`] is a component of NTs' [`ParseState`]s,
+///   their width had to grow to accommodate;
+///     and since [`SuperState`] aggregates all NTs,
+///       the width of the superstate had to accommodate the width of the
+///       largest NT parser.
+///
+/// This snowballing thwarted Rust's optimizations in many cases,
+///   which had a significant impact on performance and undermined the
+///   design of TAME's parsing system.
+/// Further,
+///   it resulted in a situation whereby the introduction of new attributes
+///   or NIR symbol variants would cut `tamec`'s performance in half;
+///     clearly things were only going to get worse.
+///
+/// Most data structures within TAME are used as IRs,
+///   pursuant to TAME's goal of reifying all parser state.
+/// Because of the streaming lowering pipline,
+///   IRs are typically ephemeral,
+///   and so Rust generally optimizes them away in their entirety.
+/// But the needs of [`NIR`](crate::nir`),
+///   for which the [`ele_parse!`] parser-generator was written,
+///   are slightly different—the
+///     NT states are stored on [`StateStack`],
+///       and so their representation cannot be completely optimized away.
+/// For this reason,
+///   the width of these data structures is of greater practical concern.
+///
+/// Separating and Hoisting Intermediate Attribute State
+/// ----------------------------------------------------
+/// The entire reason that [`Context`] exists in TAME's parsing framework
+///   is to be utilized when we're unable to coerce Rust into performing the
+///   necessary optimizations on immutable data structures.
+/// The solution was therefore to extract the field state of the attribute
+///   parser
+///     (representing the ongoing aggregation of attributes,
+///       akin to the Builder pattern in OOP circles)
+///     into a [`Context`],
+///       which removed it from the [`AttrParseState`],
+///       and therefore brought the [`SuperState`] down to a manageable size
+///         (512 bits at the time of writing).
+///
+/// Unfortunately,
+///   this creates a new obvious problem:
+///     how are we to feed the new context to each individual
+///     [`AttrParseState`] if we're keeping that context out of each NT's
+///     individual [`ParseState`]?
+/// By recognizing that only one attribute parser is active at any time,
+///   we would ideally have all such states aggregated into a single memory
+///   location that is only as wide as the largest attribute parsing context.
+/// This is what a sum type (via an `enum`) would give us,
+///   with a small one-byte cost for the discriminant of ~110 variants.
+///
+/// When the attribute context was part of [`AttrParseState`] and therefore
+///   part of each NT's [`ParseState`],
+///     the benefit was that the type of the context is statically known and
+///     could therefore be passed directly to the [`AttrParseState`] without
+///     any further consideration.
+/// But when we decouple that attribute context and hoist it out of all NTs
+///   into a single shared memory location,
+///     then the type becomes dynamic based on the active NT's parser.
+/// The type becomes this sum type ([`AttrFieldSum`]),
+///   which represents all possible types that could serve as such a
+///   context.
+///
+/// Context Narrowing
+/// -----------------
+/// [`AttrFieldSum`] enables polymorphism with respect to the attribute
+///   context,
+///     but the problem is that we have a _contravariant_ relationship—the
+///       context that we pass to the attribute parser must be an element of
+///       the [`AttrFieldSum`] but only one of them is valid.
+/// We must narrow from [`AttrFieldSum`] into the correct type;
+///   this is the job of [`AttrFieldOp`] via [`Self::narrow`].
+///
+/// The idea is this:
+///
+///   1. We know that only one attribute parser is active at any time,
+///        because we cannot transition to other NTs while performing
+///        attribute parsing.
+///      This invariant is upheld by [`NtState::can_preempt_node`].
+///   2. During the transition into the [`NtState::Attrs`] state,
+///        [`Self::init_fields`] must be used to prepare the context that
+///        will be required to parse attributes for the element represented
+///        by that respective NT.
+///      This means that this sum type will always assume the variant
+///        representing the appropriate context.
+///   3. When delegating to the appropriate [`AttrParseState`],
+///        [`Self::narrow`] is used to invoke [`AttrFieldOp::narrow`] for
+///        the appropriate attribute context.
+///      Because of #2 above,
+///        this sum type must already have assumed that respective variant,
+///        and matching on that variant will always yield the requested
+///        attribute context type.
+///
+/// Just to be safe,
+///   in case we have some bug in this implementation,
+///   #3's call to [`Self::narrow`] ought to issue a panic;
+///     this provides a proper balance between safety
+///       (if the type is wrong,
+///         there are no memory safety issues)
+///       and ergonomics
+///         (the API is unchanged)
+///       for what should be unreachable code.
+/// Profiling showed no performance improvement at the time of writing when
+///   attempting to utilize [`std::hint::unreachable_unchecked`].
+///
+/// Before and After
+/// ----------------
+/// This implementation imposes an additional cognitive burden on groking
+///   this system,
+///     which is why it was initially passed up;
+///       it was only reconsidered when it was necessitated by performance
+///       characteristics and verified through profiling and analysis of the
+///       target disassembly.
+/// The documentation you are reading now is an attempt to offset the
+///   cognitive burden.
+///
+/// Ultimately,
+///   the amount of code required to implement this change was far less than
+///   the amount of text it takes to describe it here.
+/// And while that's a terrible metric to judge an implementation by,
+///   it is intended to convey that if someone does need to understand this
+///     subsystem,
+///       its bounds are quite limited.
+///
+/// The introduction of this system eliminated 90% of the `memcpy` calls
+///   present in `tamec` at the time of writing,
+///     completely removing most of them from the hot code path
+///       (the lowering pipline);
+///         the major exception is the necessary [`StateStack`],
+///           which exists on a _less hot_ code path,
+///             utilized only during transitions between NTs.
+/// This also clears the brush on paths leading to future optimizations.
+pub trait AttrFieldSum {
+    /// Prepare attribute parsing using the attribute field context `F`.
+    ///
+    /// This must be invoked at the beginning of each transition to
+    ///   [`NtState::Attrs`],
+    ///     otherwise later narrowing with [`Self::narrow`] will panic.
+    ///
+    /// See [`Self`] and [`AttrFieldOp::init_new`] for more information.
+    fn init_fields<F>(&mut self)
+    where
+        Self: AttrFieldOp<F>,
+    {
+        *self = AttrFieldOp::<F>::init_new();
+    }
+
+    /// Narrow self into the attribute context `T`,
+    ///   panicing if narrowing fails.
+    ///
+    /// See [`Self`] and [`AttrFieldOp::narrow`] for more information.
+    fn narrow<F>(&mut self, open_span: OpenSpan) -> &mut F
+    where
+        Self: AttrFieldOp<F>,
+    {
+        AttrFieldOp::<F>::narrow(self, open_span)
     }
 }
 

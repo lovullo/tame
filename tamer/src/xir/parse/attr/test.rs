@@ -407,6 +407,8 @@ mod required {
         let err = parse_aggregate::<ReqMissingState>(toks)
             .expect_err("expected failure from missing attributes");
 
+        let sut = ReqMissingState::with_element(QN_ELE, SE);
+
         // The error should provide the state of the parser during the
         //   finalization step.
         // Since this happens in a dead state,
@@ -415,14 +417,16 @@ mod required {
         assert_matches!(
             err,
             ParseError::StateError(AttrParseError::MissingRequired(
-                ReqMissingState {
+                given_sut,
+                ReqMissingStateFields {
                     name: Some((ref given_name, _)),
                     src: None, // cause of the error
                     ty: None, // another cause of the error
                     yields: Some((ref given_yields, _)),
                     ..
                 },
-            )) if given_name == &ATTR_NAME
+            )) if given_sut == sut
+                && given_name == &ATTR_NAME
                 && given_yields == &ATTR_YIELDS
         );
     }
@@ -434,11 +438,12 @@ mod required {
         // Manually construct the partial state rather than parsing tokens.
         // `required_missing_values` above verifies that this state is what
         //   is in fact constructed from a failed parsing attempt.
-        let mut partial = ReqMissingState::with_element(QN_ELE, SE);
+        let sut = ReqMissingState::with_element(QN_ELE, SE);
+        let mut partial = ReqMissingStateFields::default();
         partial.name.replace((ATTR_NAME, S1));
         partial.yields.replace((ATTR_YIELDS, S2));
 
-        let err = AttrParseError::MissingRequired(partial);
+        let err = AttrParseError::MissingRequired(sut, partial);
 
         // When represented as a string,
         //   the error should produce _all_ required attributes that do not
@@ -467,11 +472,12 @@ mod required {
     /// See also [`error_contains_all_required_missing_attr_names`].
     #[test]
     fn diagnostic_message_contains_all_required_missing_attr_name() {
-        let mut partial = ReqMissingState::with_element(QN_ELE, SE);
+        let sut = ReqMissingState::with_element(QN_ELE, SE);
+        let mut partial = ReqMissingStateFields::default();
         partial.name.replace((ATTR_NAME, S1));
         partial.yields.replace((ATTR_YIELDS, S2));
 
-        let err = AttrParseError::MissingRequired(partial);
+        let err = AttrParseError::MissingRequired(sut, partial);
         let desc = err.describe();
 
         // The diagnostic message should reference the element.
