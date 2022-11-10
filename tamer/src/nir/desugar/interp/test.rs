@@ -17,18 +17,17 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::NirSymbolTy::*, *};
+use super::*;
 use crate::{
-    nir::{PlainNirSymbol, SugaredNirSymbol},
+    nir::PlainNirSymbol,
     parse::Parsed,
     span::dummy::{DUMMY_CONTEXT as DC, *},
     sym::GlobalSymbolResolve,
 };
 use std::assert_matches::assert_matches;
-
 use Parsed::*;
 
-type Sut<const TY: NirSymbolTy> = InterpState<TY>;
+type Sut = InterpState;
 
 // While it'd be semantically valid to desugar a literal into a template
 //   param,
@@ -41,10 +40,10 @@ fn does_not_desugar_literal_only() {
     //   but it's also a literal because it's not enclosed in braces.
     for literal in ["foo", "@bar@"] {
         let sym = literal.into();
-        let toks = vec![SugaredNirSymbol::<{ StringLiteral }>(sym, S1)];
+        let toks = vec![SPair(sym, S1)];
 
         assert_eq!(
-            Ok(vec![Object(ReplaceSym(PlainNirSymbol::Todo(sym, S1)))]),
+            Ok(vec![Object(DoneExpanding(SPair(sym, S1)))]),
             Sut::parse(toks.into_iter()).collect(),
             "literal `{literal}` must not desugar",
         );
@@ -70,7 +69,7 @@ fn desugars_literal_with_ending_var() {
     let b = DC.span(10, 3);
     let c = DC.span(14, 5);
 
-    let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
+    let given_sym = SPair(given_val.into(), a);
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -124,7 +123,7 @@ fn desugars_literal_with_ending_var() {
     //   with a metavariable reference to the generated parameter.
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(ReplaceSym(PlainNirSymbol::Todo(given_replace, given_span)))))
+        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 
@@ -149,7 +148,7 @@ fn desugars_var_with_ending_literal() {
     let b = DC.span(21, 5);
     let c = DC.span(27, 3);
 
-    let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
+    let given_sym = SPair(given_val.into(), a);
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -190,7 +189,7 @@ fn desugars_var_with_ending_literal() {
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(ReplaceSym(PlainNirSymbol::Todo(given_replace, given_span)))))
+        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 
@@ -216,7 +215,7 @@ fn desugars_many_vars_and_literals() {
     let d = DC.span(40, 3);
     let e = DC.span(44, 6);
 
-    let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
+    let given_sym = SPair(given_val.into(), a);
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -264,7 +263,7 @@ fn desugars_many_vars_and_literals() {
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(ReplaceSym(PlainNirSymbol::Todo(given_replace, given_span)))))
+        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 
@@ -287,7 +286,7 @@ fn desugars_adjacent_interpolated_vars() {
     let c = DC.span(48, 5);
     let d = DC.span(55, 5);
 
-    let given_sym = SugaredNirSymbol::<{ StringLiteral }>(given_val.into(), a);
+    let given_sym = SPair(given_val.into(), a);
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -329,7 +328,7 @@ fn desugars_adjacent_interpolated_vars() {
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(ReplaceSym(PlainNirSymbol::Todo(given_replace, given_span)))))
+        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 

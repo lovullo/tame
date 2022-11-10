@@ -39,7 +39,7 @@
 //! The string `foo{@bar@}baz` is the interpolation specification.
 //! This ends up desugaring into the [`PlainNir`] equivalent of this:
 //!
-//! ```xm
+//! ```xml
 //!   <param name="@___dsgr_01@"
 //!          desc="Generated from interpolated string `foo{@bar@}baz`">
 //!     <text>foo</text>
@@ -68,12 +68,6 @@
 //! If a string does not require interpolation,
 //!   then it is interpreted as a literal within the context of the template
 //!   system and is echoed back unchanged.
-//!
-//! NB: All attributes are reasoned about as string literals until they
-//!   contain no metavariables,
-//!     which may require expansion via the template system;
-//!       the [`NirSymbolTy`] represents the type that the literal will
-//!       _ultimately_ be parsed as once that time comes.
 //!
 //! Desugared Spans
 //! ---------------
@@ -105,11 +99,15 @@
 
 use memchr::memchr;
 
-use super::super::{NirSymbolTy, PlainNir, PlainNirSymbol, SugaredNirSymbol};
+use super::super::{PlainNir, PlainNirSymbol};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
-    parse::{prelude::*, NoContext},
+    parse::{
+        prelude::*,
+        util::{Expansion, SPair},
+        NoContext,
+    },
     span::Span,
     sym::{
         st::quick_contains_byte, GlobalSymbolIntern, GlobalSymbolResolve,
@@ -119,59 +117,8 @@ use crate::{
 use std::{error::Error, fmt::Display};
 
 // Expose variants for enums defined in this module to reduce verbosity.
-use InterpObject::*;
+use Expansion::*;
 use InterpState::*;
-
-/// Object resulting from interpolation.
-///
-/// The provided [`SugaredNirSymbol`] is interpreted as a specification for
-///   interpolation.
-/// This specification is expanded into a sequence of [`PlainNir`] tokens
-///   via the [`Expanded`](Self::Expanded) variant,
-///     representing the definition of a template parameter whose default
-///     value will yield the equivalent of the specification.
-///
-/// After expansion,
-///   the original [`SugaredNirSymbol`] is expected to be replaced with a
-///   [`PlainNirSymbol`] via the [`ReplaceSym`](Self::ReplaceSym) variant,
-///     containing the name of the newly-generated metavariable.
-#[derive(Debug, PartialEq, Eq)]
-pub enum InterpObject<const TY: NirSymbolTy> {
-    /// A token generated as part of interpolation which is to be merged
-    ///   into the NIR token stream.
-    Expanded(PlainNir),
-
-    /// Interpolation has resulted in the creation of a new metavariable
-    ///   which should take place of the original NIR symbol containing the
-    ///   interpolation specification.
-    ReplaceSym(PlainNirSymbol<TY>),
-}
-
-impl<const TY: NirSymbolTy> Token for InterpObject<TY> {
-    fn ir_name() -> &'static str {
-        "Interpolation"
-    }
-
-    fn span(&self) -> Span {
-        match self {
-            Self::Expanded(nir) => nir.span(),
-            Self::ReplaceSym(nir_sym) => nir_sym.span(),
-        }
-    }
-}
-
-impl<const TY: NirSymbolTy> Object for InterpObject<TY> {}
-
-impl<const TY: NirSymbolTy> Display for InterpObject<TY> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            InterpObject::Expanded(nir) => write!(f, "interpolated {nir}"),
-            InterpObject::ReplaceSym(nir_sym) => {
-                write!(f, "interpolation specification replacement {nir_sym}")
-            }
-        }
-    }
-}
 
 /// A generated identifier.
 #[derive(Debug, PartialEq, Eq)]
@@ -203,7 +150,7 @@ type SpecOffset = usize;
 /// For more information,
 ///   see the [parent module](super).
 #[derive(Debug, PartialEq, Eq, Default)]
-pub enum InterpState<const TY: NirSymbolTy> {
+pub enum InterpState {
     /// The next token will be inspected to determine whether it requires
     ///   interpolation.
     #[default]
@@ -224,7 +171,7 @@ pub enum InterpState<const TY: NirSymbolTy> {
     FinishSym(SpecSlice, GenIdentSymbolId),
 }
 
-impl<const TY: NirSymbolTy> Display for InterpState<TY> {
+impl Display for InterpState {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use InterpState::*;
 
@@ -260,9 +207,9 @@ impl<const TY: NirSymbolTy> Display for InterpState<TY> {
     }
 }
 
-impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
-    type Token = SugaredNirSymbol<TY>;
-    type Object = InterpObject<TY>;
+impl ParseState for InterpState {
+    type Token = SPair;
+    type Object = Expansion<SPair, PlainNir>;
     type Error = InterpError;
 
     fn parse_token(
@@ -270,7 +217,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
         tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self> {
-        match (self, tok) {
+        match (self, tok.into()) {
             // When receiving a new symbol,
             //   we must make a quick determination as to whether it
             //   requires desugaring.
@@ -280,7 +227,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
             //     filter out non-interpolated strings quickly,
             //       before we start to parse.
             // Symbols that require no interpoolation are simply echoed back.
-            (Ready, SugaredNirSymbol(sym, span)) => {
+            (Ready, (sym, span)) => {
                 if needs_interpolation(sym) {
                     Self::begin_expansion(sym, span)
                 } else {
@@ -292,10 +239,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
             // The outermost parsing context is that of the literal,
             //   where a sequence of characters up to `{` stand for
             //   themselves.
-            (
-                ParseLiteralAt(s, gen_param, offset),
-                SugaredNirSymbol(sym, span),
-            ) => {
+            (ParseLiteralAt(s, gen_param, offset), (sym, span)) => {
                 if offset == s.len() {
                     // We've reached the end of the specification string.
                     // Since we're in the outermost (literal) context,
@@ -312,7 +256,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
                     Some(0) => {
                         Transition(ParseInterpAt(s, gen_param, offset + 1))
                             .incomplete()
-                            .with_lookahead(SugaredNirSymbol(sym, span))
+                            .with_lookahead((sym, span).into())
                     }
 
                     // Everything from the offset until the curly brace is a
@@ -329,7 +273,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
 
                         Transition(ParseInterpAt(s, gen_param, end + 1))
                             .ok(Expanded(text))
-                            .with_lookahead(SugaredNirSymbol(sym, span))
+                            .with_lookahead((sym, span).into())
                     }
 
                     // The remainder of the specification is a literal.
@@ -345,7 +289,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
                         //   we'll complete parsing next pass.
                         Transition(ParseLiteralAt(s, gen_param, s.len()))
                             .ok(Expanded(text))
-                            .with_lookahead(SugaredNirSymbol(sym, span))
+                            .with_lookahead((sym, span).into())
                     }
                 }
             }
@@ -355,10 +299,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
             // This is an inner context that cannot complete without being
             //   explicitly closed,
             //     and cannot not be nested.
-            (
-                ParseInterpAt(s, gen_param, offset),
-                SugaredNirSymbol(sym, span),
-            ) => {
+            (ParseInterpAt(s, gen_param, offset), (sym, span)) => {
                 // TODO: Make sure offset exists, avoid panic
                 // TODO: Prevent nested `{`.
 
@@ -385,7 +326,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
                         //   back in a literal context.
                         Transition(ParseLiteralAt(s, gen_param, end + 1))
                             .ok(Expanded(param_value))
-                            .with_lookahead(SugaredNirSymbol(sym, span))
+                            .with_lookahead((sym, span).into())
                     }
 
                     None => todo!("missing closing '}}'"),
@@ -397,10 +338,9 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
             //     (the interpolation specification)
             //   with a metavariable referencing the parameter that we just
             //     generated.
-            (
-                FinishSym(_, GenIdentSymbolId(gen_param)),
-                SugaredNirSymbol(_, span),
-            ) => Self::yield_symbol(gen_param, span),
+            (FinishSym(_, GenIdentSymbolId(gen_param)), (_, span)) => {
+                Self::yield_symbol(gen_param, span)
+            }
         }
     }
 
@@ -409,7 +349,7 @@ impl<const TY: NirSymbolTy> ParseState for InterpState<TY> {
     }
 }
 
-impl<const TY: NirSymbolTy> InterpState<TY> {
+impl InterpState {
     /// Yield the final result of this operation in place of the original
     ///   specification string,
     ///     which may or may not have required interpolation.
@@ -423,7 +363,7 @@ impl<const TY: NirSymbolTy> InterpState<TY> {
     /// This transitions back to [`Ready`] and finally releases the
     ///   lookahead symbol.
     fn yield_symbol(sym: SymbolId, span: Span) -> TransitionResult<Self> {
-        Transition(Ready).ok(ReplaceSym(PlainNirSymbol::Todo(sym, span)))
+        Transition(Ready).ok(DoneExpanding((sym, span).into()))
     }
 
     /// Begin expansion of an interpolation specification by generating a
@@ -457,7 +397,7 @@ impl<const TY: NirSymbolTy> InterpState<TY> {
         //   prefixes.
         Transition(ParseLiteralAt(sym.lookup_str(), gen_param, 0))
             .ok(Expanded(open))
-            .with_lookahead(SugaredNirSymbol(sym, span))
+            .with_lookahead((sym, span).into())
     }
 
     /// Complete expansion of an interpolation specification string.
@@ -478,7 +418,7 @@ impl<const TY: NirSymbolTy> InterpState<TY> {
         //     (the specification string).
         Transition(FinishSym(s, gen_param))
             .ok(Expanded(close))
-            .with_lookahead(SugaredNirSymbol(sym, span))
+            .with_lookahead((sym, span).into())
     }
 }
 
