@@ -204,6 +204,48 @@ impl<S: ParseState> TransitionData<S> {
             _ => None,
         }
     }
+
+    /// Map [`TransitionData`] when the inner result is of type
+    ///   [`ParseStatus::Object`].
+    ///
+    /// This will map over `self` within the context of an inner
+    ///   [`ParseStatus::Object`] and an associated optional token of
+    ///   [`Lookahead`].
+    /// This allows using objects to influence parser operations more
+    ///   broadly.
+    ///
+    /// _This method is private to this module because it requires that the
+    ///   caller be diligent in not discarding the provided token of
+    ///   lookahead._
+    /// Since this token may be stored and later emitted,
+    ///   there is no reliable automated way at present to ensure that this
+    ///   invariant is upheld;
+    ///     such an effort is far beyond the scope of current work at the
+    ///     time of writing.
+    pub(in super::super) fn map_when_obj<SB: ParseState>(
+        self,
+        f: impl FnOnce(S::Object, Option<Lookahead<S::Token>>) -> TransitionData<SB>,
+    ) -> TransitionData<SB>
+    where
+        SB: ParseState<Token = S::Token, Error = S::Error>,
+    {
+        // Ideally this will be decomposed into finer-grained functions
+        //   (as in a more traditional functional style),
+        //     but such wasn't needed at the time of writing.
+        // But this is dizzying.
+        match self {
+            TransitionData::Result(Ok(ParseStatus::Object(obj)), la) => {
+                f(obj, la)
+            }
+            TransitionData::Result(Ok(ParseStatus::Incomplete), la) => {
+                TransitionData::Result(Ok(ParseStatus::Incomplete), la)
+            }
+            TransitionData::Result(Err(e), la) => {
+                TransitionData::Result(Err(e), la)
+            }
+            TransitionData::Dead(la) => TransitionData::Dead(la),
+        }
+    }
 }
 
 /// A verb denoting a state transition.
