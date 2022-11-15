@@ -105,7 +105,7 @@ use crate::{
     fmt::{DisplayWrapper, TtQuote},
     parse::{
         prelude::*,
-        util::{Expansion, SPair},
+        util::{expand::Expansion, SPair},
         NoContext,
     },
     span::Span,

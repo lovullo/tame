@@ -17,8 +17,12 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::super::SPair;
 use super::*;
-use crate::{span::dummy::*, sym::st::raw};
+use crate::{
+    span::{dummy::*, Span},
+    sym::{st::raw, SymbolId},
+};
 use std::{assert_matches::assert_matches, convert::Infallible};
 
 #[derive(Debug, PartialEq, Eq)]
