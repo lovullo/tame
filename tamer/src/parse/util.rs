@@ -27,7 +27,7 @@
 
 pub mod expand;
 
-use super::prelude::*;
+use super::{prelude::*, state::TransitionData};
 use crate::{span::Span, sym::SymbolId};
 use std::fmt::Display;
 
@@ -69,6 +69,42 @@ impl Into<(SymbolId, Span)> for SPair {
     fn into(self) -> (SymbolId, Span) {
         match self {
             Self(sym, span) => (sym, span),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct EchoParseState<S: ClosedParseState>(S);
+
+impl<S: ClosedParseState> ParseState for EchoParseState<S> {
+    type Token = S::Token;
+    type Object = S::Object;
+    type Error = S::Error;
+    type Context = S::Context;
+
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        ctx: &mut Self::Context,
+    ) -> TransitionResult<Self::Super> {
+        match self {
+            Self(st) => st
+                .parse_token(tok, ctx)
+                .bimap(Self, TransitionData::reflexivity),
+        }
+    }
+
+    fn is_accepting(&self, ctx: &Self::Context) -> bool {
+        match self {
+            Self(st) => st.is_accepting(ctx),
+        }
+    }
+}
+
+impl<S: ClosedParseState> Display for EchoParseState<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self(st) => Display::fmt(st, f),
         }
     }
 }

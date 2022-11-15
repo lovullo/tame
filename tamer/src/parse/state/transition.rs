@@ -116,6 +116,30 @@ impl<S: ParseState> TransitionResult<S> {
             None => self,
         }
     }
+
+    /// Map over both the [`Transition`] and its associated
+    ///   [`TransitionData`],
+    ///     translating to another [`ParseState`] `SB`.
+    ///
+    /// The inner [`Transition`]'s [`ParseState`] is mapped over for
+    ///   convenience and brevity,
+    ///     despite the verbose convention of mandating the use of
+    ///     [`Transition`] elsewhere.
+    /// However,
+    ///   [`TransitionData`] is too complex of a structure,
+    ///     so determining how to map over its data is left as an exercise
+    ///     for `fdata`.
+    pub(in super::super) fn bimap<SB: ParseState>(
+        self,
+        fst: impl FnOnce(S) -> SB,
+        fdata: impl FnOnce(TransitionData<S>) -> TransitionData<SB>,
+    ) -> TransitionResult<SB> {
+        match self {
+            Self(Transition(st), data) => {
+                TransitionResult(Transition(fst(st)), fdata(data))
+            }
+        }
+    }
 }
 
 /// Token to use as a lookahead token in place of the next token from the
@@ -246,6 +270,42 @@ impl<S: ParseState> TransitionData<S> {
             TransitionData::Dead(la) => TransitionData::Dead(la),
         }
     }
+
+    /// Asserts a reflexive relationship between the [`TransitionData`] of
+    ///   our own [`ParseState`] `S` and a target [`ParseState`] `SB`.
+    ///
+    /// This is intended not just for translating between types,
+    ///   but also documentation,
+    ///   as an affirmative way to state "these two [`ParseState`]s
+    ///     represent the same underlying data".
+    /// For example,
+    ///   this may be appropriate when `SB` wraps `S`.
+    ///
+    /// This is a stronger statement than saying two [`ParseState`]s are
+    ///   _compatible_ withe one-another in some way,
+    ///     which is the assertion made by
+    ///     [`StitchableParseState`](super::StitchableParseState) and may
+    ///     require data to be translated.
+    ///
+    /// While this method refers to the mathematical reflexive relation,
+    ///   its exact name originates from the Coq tactic.
+    pub fn reflexivity<SB: ParseState>(self) -> TransitionData<SB>
+    where
+        SB: ParseState<
+            Token = <S as ParseState>::Token,
+            Object = <S as ParseState>::Object,
+            Error = <S as ParseState>::Error,
+        >,
+    {
+        use TransitionData::*;
+
+        match self {
+            Result(result, la) => {
+                Result(result.map(ParseStatus::reflexivity), la)
+            }
+            Dead(la) => Dead(la),
+        }
+    }
 }
 
 /// A verb denoting a state transition.
@@ -361,6 +421,27 @@ impl<S: ParseState> Transition<S> {
             self.into_super(),
             TransitionData::Dead(Lookahead(tok)),
         )
+    }
+
+    /// Map over the inner [`ParseState`] `S` to another
+    ///   [`ParseState`] `SB`.
+    ///
+    /// Unlike other parts of this API which mandate explicit instantiation
+    ///   of [`Transition`] for self-documentation,
+    ///     this maps over the inner value since [`Transition`] is already
+    ///     apparent.
+    /// This is consequently much less verbose,
+    ///   as it allows using tuple constructions for `f`,
+    ///     and most [`ParseState`]s are implemented as tuples
+    ///       (or tuple enums)
+    ///       in practice.
+    pub fn map<SB: ParseState>(
+        self,
+        f: impl FnOnce(S) -> SB,
+    ) -> Transition<SB> {
+        match self {
+            Self(st) => Transition(f(st)),
+        }
     }
 }
 

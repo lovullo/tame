@@ -54,6 +54,20 @@ impl<S: ParseState> ParseStatus<S> {
             Self::Object(obj) => ParseStatus::Object(obj),
         }
     }
+
+    /// Asserts a reflexive relationship between the [`ParseStatus`]es of
+    ///   of `S` and `SB`.
+    pub fn reflexivity<SB: ParseState>(self) -> ParseStatus<SB>
+    where
+        SB: ParseState<Object = <S as ParseState>::Object>,
+    {
+        use ParseStatus::*;
+
+        match self {
+            Incomplete => Incomplete,
+            Object(obj) => Object(obj),
+        }
+    }
 }
 
 impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
