@@ -141,3 +141,50 @@ fn expansion_stripping_panics_if_lookahead() {
     // The above token will trigger the panic on the first call.
     let _ = ExpansionSut::parse(toks.into_iter()).next();
 }
+
+// This test would fail at compile-time.
+#[test]
+fn expandable_into_is_stitchable_with_target() {
+    // This is utilized only for its types in the below assertions.
+    #[derive(Debug, PartialEq, Eq)]
+    struct TargetParseState;
+
+    impl ParseState for TargetParseState {
+        type Token = SPair;
+        type Object = TestObject;
+        type Error = Infallible;
+
+        fn parse_token(
+            self,
+            _tok: Self::Token,
+            _ctx: &mut Self::Context,
+        ) -> TransitionResult<Self::Super> {
+            unimplemented!()
+        }
+
+        fn is_accepting(&self, _ctx: &Self::Context) -> bool {
+            unimplemented!()
+        }
+    }
+
+    impl Display for TargetParseState {
+        fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            unimplemented!()
+        }
+    }
+
+    // Asserts that the wrapping `StitchableParseState` has transformed the
+    //   `TestParseState` into something stitchable.
+    //
+    // This serves as a sanity check for the below.
+    assert_impl_all!(ExpansionSut: StitchableParseState<TargetParseState>);
+
+    // The `ExpandableInto` trait alias is responsible for asserting that a
+    //   given parser is an expansion parser that is able to be converted
+    //   into a parser stitchable with the target.
+    //
+    // If this fails but the above assertion succeeds,
+    //   then the compatibility is working but something is wrong with the
+    //   definition of `ExpandableInto`.
+    assert_impl_all!(TestParseState: ExpandableInto<TargetParseState>);
+}

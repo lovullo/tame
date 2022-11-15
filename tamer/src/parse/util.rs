@@ -29,7 +29,7 @@ use crate::{diagnose::Annotate, diagnostic_panic, span::Span, sym::SymbolId};
 
 use super::{
     prelude::*,
-    state::{Lookahead, TransitionData},
+    state::{Lookahead, StitchableParseState, TransitionData},
 };
 use std::{fmt::Display, marker::PhantomData};
 
@@ -51,6 +51,27 @@ pub enum Expansion<T, O: Object> {
 }
 
 impl<T: Token, O: Object> Object for Expansion<T, O> {}
+
+/// A [`ClosedParseState`] that is able to serve as an expansion parser.
+///
+/// An expansion parser is a parser yielding [`Expansion`],
+///   intended to be integrated into another token stream.
+pub trait ExpandableParseState<O: Object> = ClosedParseState
+where
+    O: Token + Eq,
+    Self: ParseState<Object = Expansion<<Self as ParseState>::Token, O>>;
+
+/// An [`ExpandableParseState`] capable of expanding into the token stream
+///   of a parent [`ParseState`] `SP`.
+///
+/// This trait asserts that an [`ExpandableParseState`] is a
+///   [`StitchableParseState<SP>`](StitchableParseState) after being wrapped
+///   by [`StitchableExpansionState`].
+pub trait ExpandableInto<SP: ParseState> =
+    ExpandableParseState<<SP as ParseState>::Object>
+    where
+        StitchableExpansionState<Self, <SP as ParseState>::Object>:
+            StitchableParseState<SP>;
 
 /// Convert a [`ClosedParseState`] yielding an [`Expansion<T,O>`](Expansion)
 ///   object into a parser yielding `O` with a dead state yielding `T`.
@@ -91,8 +112,7 @@ where
 impl<S: ClosedParseState, O: Object> ParseState
     for StitchableExpansionState<S, O>
 where
-    O: Token + Eq,
-    S: ParseState<Object = Expansion<<S as ParseState>::Token, O>>,
+    S: ExpandableParseState<O>,
 {
     type Token = S::Token;
     type Object = O;
