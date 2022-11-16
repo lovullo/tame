@@ -21,7 +21,7 @@
 
 use super::{
     ClosedParseState, ParseState, ParseStateResult, ParseStatus,
-    StitchableParseState, Token,
+    PartiallyStitchableParseState, StitchableParseState, Token,
 };
 use std::{
     convert::Infallible,
@@ -141,6 +141,77 @@ impl<S: ParseState> TransitionResult<S> {
             }
         }
     }
+
+    /// Conditionally map to a [`TransitionResult`] based on whether the
+    ///   inner [`TransitionData`] represents a dead state transition
+    ///     ([`TransitionData::Dead`]).
+    ///
+    /// Inner values are unwrapped before applying one of `fdead` or
+    ///   `falive`.
+    ///
+    /// Lookahead is automatically propagated to the resulting
+    ///   [`TransitionResult`],
+    ///     ensuring that the token cannot be lost.
+    /// Consequently,
+    ///   it is important that the [`TransitionResult`] returned by `fdead`
+    ///   or `falive` _does not contain a token of lookahead_,
+    ///     otherwise the system will panic,
+    ///       since two tokens of lookahead cannot be accommodated.
+    /// This is not as bad as it sounds in practice,
+    ///   since no token of input is provided to either of the branches,
+    ///   and so would have to be manufactured by
+    ///     (or have been previously stored by)
+    ///     a calling parser.
+    pub fn branch_dead<SB: ParseState>(
+        self,
+        fdead: impl FnOnce(S) -> TransitionResult<<SB as ParseState>::Super>,
+        falive: impl FnOnce(
+            S,
+            ParseStateResult<S>,
+        ) -> TransitionResult<<SB as ParseState>::Super>,
+    ) -> TransitionResult<<SB as ParseState>::Super>
+    where
+        S: PartiallyStitchableParseState<SB>,
+    {
+        self.branch_dead_la(
+            |st, Lookahead(la)| fdead(st).with_lookahead(la),
+            |st, result, la| falive(st, result).maybe_with_lookahead(la),
+        )
+    }
+
+    /// Conditionally map to a [`TransitionResult`] based on whether the
+    ///   inner [`TransitionData`] represents a dead state transition
+    ///     ([`TransitionData::Dead`]).
+    ///
+    /// This is like [`Self::branch_dead`],
+    ///   but exposes the token of lookahead (if any) and therefore _puts
+    ///   the onus on the caller to ensure that the token is not lost_.
+    /// As such,
+    ///   this method is private to the `parse` module.
+    pub(in super::super) fn branch_dead_la<SB: ParseState>(
+        self,
+        fdead: impl FnOnce(
+            S,
+            Lookahead<<S as ParseState>::Token>,
+        ) -> TransitionResult<<SB as ParseState>::Super>,
+        falive: impl FnOnce(
+            S,
+            ParseStateResult<S>,
+            Option<Lookahead<<S as ParseState>::Token>>,
+        ) -> TransitionResult<<SB as ParseState>::Super>,
+    ) -> TransitionResult<<SB as ParseState>::Super>
+    where
+        S: PartiallyStitchableParseState<SB>,
+    {
+        use TransitionData::{Dead, Result};
+
+        let Self(Transition(st), data) = self;
+
+        match data {
+            Dead(la) => fdead(st, la),
+            Result(result, la) => falive(st, result, la),
+        }
+    }
 }
 
 /// Token to use as a lookahead token in place of the next token from the
@@ -196,6 +267,19 @@ impl<S: ParseState> TransitionData<S> {
             ),
             Self::Dead(la) => TransitionData::Dead(la),
         }
+    }
+
+    /// Associate this [`TransitionData`] with a state transition for a
+    ///   [`ParseState`] `SB`,
+    ///     translating from `S` if necessary.
+    pub fn transition<SB: ParseState>(
+        self,
+        to: impl Into<Transition<SB>>,
+    ) -> TransitionResult<<SB as ParseState>::Super>
+    where
+        S: StitchableParseState<SB>,
+    {
+        TransitionResult(to.into().into_super(), self.inner_into())
     }
 
     /// Reference to the token of lookahead,
@@ -316,15 +400,13 @@ impl<S: ParseState> TransitionData<S> {
     where
         S: StitchableParseState<SB>,
     {
-        use ParseStatus::{Incomplete, Object};
         use TransitionData::*;
 
         match self {
             Dead(la) => Dead(la),
             Result(result, la) => Result(
                 match result {
-                    Ok(Incomplete) => Ok(Incomplete),
-                    Ok(Object(obj)) => Ok(Object(obj.into())),
+                    Ok(status) => Ok(status.inner_into()),
                     // First convert the error into `SB::Error`,
                     //   and then `SP::Super::Error`
                     //     (which will be the same type if SB is closed).
@@ -333,6 +415,12 @@ impl<S: ParseState> TransitionData<S> {
                 la,
             ),
         }
+    }
+}
+
+impl<S: ParseState> From<ParseStateResult<S>> for TransitionData<S> {
+    fn from(result: ParseStateResult<S>) -> Self {
+        Self::Result(result, None)
     }
 }
 
@@ -470,6 +558,12 @@ impl<S: ParseState> Transition<S> {
         match self {
             Self(st) => Transition(f(st)),
         }
+    }
+}
+
+impl<S: ParseState> From<S> for Transition<S> {
+    fn from(st: S) -> Self {
+        Self(st)
     }
 }
 

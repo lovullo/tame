@@ -68,6 +68,23 @@ impl<S: ParseState> ParseStatus<S> {
             Object(obj) => Object(obj),
         }
     }
+
+    /// Transform into a [`ParseStatus`] for a [`ParseState`] `SB`.
+    ///
+    /// This transforms [`ParseStatus::Object`] inner value using [`Into`].
+    pub fn inner_into<SB: ParseState>(
+        self,
+    ) -> ParseStatus<<SB as ParseState>::Super>
+    where
+        S: StitchableParseState<SB>,
+    {
+        use ParseStatus::*;
+
+        match self {
+            Incomplete => Incomplete,
+            Object(obj) => Object(obj.into()),
+        }
+    }
 }
 
 impl<S: ParseState<Object = T>, T: Object> From<T> for ParseStatus<S> {
@@ -285,12 +302,7 @@ where
         Self: StitchableParseState<SP>,
         C: AsMut<<Self as ParseState>::Context>,
     {
-        use ParseStatus::{Incomplete, Object as Obj};
-
-        let TransitionResult(Transition(newst), data) =
-            self.parse_token(tok, context.as_mut());
-
-        match data {
+        self.parse_token(tok, context.as_mut()).branch_dead(
             // The token of lookahead must bubble up to the ancestor
             //   [`Parser`] so that it knows to provide that token in place
             //   of the next from the token stream,
@@ -299,13 +311,9 @@ where
             //   the dead state simply means that we should transition back
             //   out of this parser back to `SP` so that it can use the
             //   token of lookahead.
-            TransitionData::Dead(Lookahead(lookahead)) => {
-                dead().incomplete().with_lookahead(lookahead)
-            }
-            TransitionData::Result(..) => {
-                TransitionResult(into(newst).into_super(), data.inner_into())
-            }
-        }
+            |_| dead().incomplete(),
+            |st, result| TransitionData::from(result).transition(into(st)),
+        )
     }
 
     /// Delegate parsing of a token from our superstate
@@ -328,19 +336,11 @@ where
     where
         C: AsMut<<Self as ParseState>::Context>,
     {
-        let TransitionResult(Transition(newst), data) =
-            self.parse_token(tok, context.as_mut());
-
-        match data {
-            TransitionData::Dead(Lookahead(lookahead)) => {
-                dead(newst, lookahead, context)
-            }
-
-            // Since this is child state,
-            //   [`TransitionResult`] has already converted into the
-            //   superstate for us.
-            _ => TransitionResult(Transition(newst), data),
-        }
+        self.parse_token(tok, context.as_mut())
+            .branch_dead_la::<Self::Super>(
+                |st, Lookahead(la)| dead(st, la, context),
+                |st, result, la| result.transition(st).maybe_with_lookahead(la),
+            )
     }
 
     /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`
@@ -369,35 +369,19 @@ where
         Self: PartiallyStitchableParseState<SP>,
         C: AsMut<<Self as ParseState>::Context>,
     {
-        use ParseStatus::{Incomplete, Object as Obj};
+        use ParseStatus::{Incomplete, Object};
 
-        let TransitionResult(Transition(newst), data) =
-            self.parse_token(tok, context.as_mut());
-
-        match data {
-            TransitionData::Dead(Lookahead(lookahead)) => {
-                dead().incomplete().with_lookahead(lookahead)
-            }
-
-            TransitionData::Result(Ok(Obj(obj)), lookahead) => {
-                // TODO: check accepting
-                objf(newst, obj).maybe_with_lookahead(lookahead)
-            }
-
-            TransitionData::Result(result, lookahead) => TransitionResult(
-                into(newst).into_super(),
-                TransitionData::Result(
-                    match result {
-                        Ok(_) => Ok(Incomplete),
-                        // First convert the error into `SP::Error`,
-                        //   and then `SP::Super::Error`
-                        //     (which will be the same type if SP is closed).
-                        Err(e) => Err(e.into().into()),
-                    },
-                    lookahead,
-                ),
-            ),
-        }
+        self.parse_token(tok, context.as_mut()).branch_dead(
+            |_| dead().incomplete(),
+            |st, result| match result {
+                Ok(Object(obj)) => {
+                    // TODO: check accepting
+                    objf(st, obj)
+                }
+                Ok(Incomplete) => into(st).incomplete(),
+                Err(e) => into(st).err(e),
+            },
+        )
     }
 
     /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`
