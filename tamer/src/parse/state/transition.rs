@@ -79,6 +79,17 @@ impl<S: ParseState> TransitionResult<S> {
     /// Indicate that this transition include a single token of lookahead,
     ///   which should be provided back to the parser in place of the
     ///   next token from the input stream.
+    ///
+    /// Panics
+    /// ======
+    /// A critical invariant of this system is that lookahead tokens must
+    ///   never be discarded without explicit handling.
+    /// If this [`TransitionResult`] contains an existing token of lookahead,
+    ///   the system will panic when attempting to overwrite it.
+    /// This represents a bug in the system,
+    ///   since parsers should never permit this to occur.
+    ///
+    /// Ideally this will be enforced using the type system in the future.
     pub fn with_lookahead(self, lookahead: S::Token) -> Self {
         match self {
             Self(transition, TransitionData::Result(result, None)) => Self(
@@ -92,22 +103,12 @@ impl<S: ParseState> TransitionResult<S> {
             //   ever such a thing is deemed to be worth doing.
             Self(
                 ..,
-                TransitionData::Result(_, Some(Lookahead(prev)))
-                | TransitionData::Dead(Lookahead(prev)),
-            ) => {
-                let desc = vec![
-                    prev.span().note("this token of lookahead would be lost"),
-                    lookahead.span().internal_error(
-                        "attempting to replace previous \
-                            lookahead token with this one",
-                    ),
-                ];
-
-                diagnostic_panic!(
-                    desc,
-                    "cannot overwrite unused lookahead token"
-                )
-            }
+                TransitionData::Result(_, Some(prev))
+                | TransitionData::Dead(prev),
+            ) => prev.overwrite_panic(
+                lookahead,
+                "cannot overwrite unused lookahead token",
+            ),
         }
     }
 
@@ -230,6 +231,29 @@ impl<S: ParseState> TransitionResult<S> {
 ///   input stream.
 #[derive(Debug, PartialEq)]
 pub struct Lookahead<T: Token>(pub(in super::super) T);
+
+impl<T: Token> Lookahead<T> {
+    /// Panic with diagnostic information about a lookup token and its
+    ///   attempted replacement.
+    ///
+    /// A critical system invariant is that lookahead tokens must never be
+    ///   lost without explicit handling.
+    /// Since this is not yet enforced using the type system,
+    ///   these checks must be performed at runtime.
+    pub(in super::super) fn overwrite_panic(self, other: T, msg: &str) -> ! {
+        let Self(prev) = self;
+
+        let desc = vec![
+            prev.span().note("this token of lookahead would be lost"),
+            other.span().internal_error(
+                "attempting to replace previous lookahead token \
+                   with this one",
+            ),
+        ];
+
+        diagnostic_panic!(desc, "{msg}",)
+    }
+}
 
 /// Information about the state transition.
 ///

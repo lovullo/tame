@@ -22,8 +22,6 @@
 //! _Expansion_ refers to the production of many [`Object`]s that are
 //!   derived from a single [`Token`].
 
-use crate::{diagnose::Annotate, diagnostic_panic};
-
 use super::super::{
     prelude::*,
     state::{Lookahead, StitchableParseState, TransitionData},
@@ -131,31 +129,15 @@ where
                         TransitionData::Result(Ok(ParseStatus::Object(obj)), la)
                     }
 
-                    // A parser must never throw away lookahead tokens.
                     // Since we are converting the `DoneExpanding` variant
                     //   into a lookahead token,
                     //     we would have nothing to do with a token of
                     //     lookahead if one were provided to us.
-                    // Ideally this would be prevented using types,
-                    //   but such a change is too much effort at the time of
-                    //   writing.
-                    (DoneExpanding(tok), Some(Lookahead(la_tok))) => {
-                        let desc = vec![
-                            tok.span().note(
-                                "while processing this \
-                            Expansion::DoneExpanding token",
-                            ),
-                            la_tok.span().internal_error(
-                                "encountered this unexpected lookahead token",
-                            ),
-                        ];
-
-                        diagnostic_panic!(
-                            desc,
-                            "cannot provide lookahead token with \
-                        Expansion::DoneExpanding",
-                        )
-                    }
+                    (DoneExpanding(tok), Some(la)) => la.overwrite_panic(
+                        tok,
+                        "cannot provide lookahead token with \
+                            Expansion::DoneExpanding",
+                    ),
 
                     (DoneExpanding(tok), None) => {
                         TransitionData::Dead(Lookahead(tok))
