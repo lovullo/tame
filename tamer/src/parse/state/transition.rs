@@ -23,6 +23,7 @@ use super::{
     ClosedParseState, ParseState, ParseStateResult, ParseStatus,
     PartiallyStitchableParseState, StitchableParseState, Token,
 };
+use crate::{diagnose::Annotate, diagnostic_panic};
 use std::{
     convert::Infallible,
     hint::unreachable_unchecked,
@@ -91,10 +92,21 @@ impl<S: ParseState> TransitionResult<S> {
             //   ever such a thing is deemed to be worth doing.
             Self(
                 ..,
-                TransitionData::Result(_, Some(prev))
-                | TransitionData::Dead(prev),
+                TransitionData::Result(_, Some(Lookahead(prev)))
+                | TransitionData::Dead(Lookahead(prev)),
             ) => {
-                panic!("internal error: lookahead token overwrite: {prev:?}")
+                let desc = vec![
+                    prev.span().note("this token of lookahead would be lost"),
+                    lookahead.span().internal_error(
+                        "attempting to replace previous \
+                            lookahead token with this one",
+                    ),
+                ];
+
+                diagnostic_panic!(
+                    desc,
+                    "cannot overwrite unused lookahead token"
+                )
             }
         }
     }
