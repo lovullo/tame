@@ -121,12 +121,12 @@ where
     ) -> TransitionResult<Self::Super> {
         use Expansion::*;
 
-        match self {
-            Self { st, _phantom } => {
-                let TransitionResult(Transition(st_new), data) =
-                    st.parse_token(tok, ctx);
+        let Self { st, _phantom } = self;
 
-                let data_new = data.map_when_obj(|obj, la| match (obj, la) {
+        st.parse_token(tok, ctx).bimap(
+            |st| Self { st, _phantom },
+            |data| {
+                data.map_when_obj(|obj, la| match (obj, la) {
                     (Expanded(obj), la) => {
                         TransitionData::Result(Ok(ParseStatus::Object(obj)), la)
                     }
@@ -143,7 +143,7 @@ where
                         let desc = vec![
                             tok.span().note(
                                 "while processing this \
-                                    Expansion::DoneExpanding token",
+                            Expansion::DoneExpanding token",
                             ),
                             la_tok.span().internal_error(
                                 "encountered this unexpected lookahead token",
@@ -153,24 +153,16 @@ where
                         diagnostic_panic!(
                             desc,
                             "cannot provide lookahead token with \
-                                Expansion::DoneExpanding",
+                        Expansion::DoneExpanding",
                         )
                     }
 
                     (DoneExpanding(tok), None) => {
                         TransitionData::Dead(Lookahead(tok))
                     }
-                });
-
-                TransitionResult(
-                    Transition(Self {
-                        st: st_new,
-                        _phantom,
-                    }),
-                    data_new,
-                )
-            }
-        }
+                })
+            },
+        )
     }
 
     fn is_accepting(&self, ctx: &Self::Context) -> bool {
