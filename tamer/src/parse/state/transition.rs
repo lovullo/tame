@@ -20,7 +20,8 @@
 //! State transitions for parser automata.
 
 use super::{
-    ClosedParseState, ParseState, ParseStateResult, ParseStatus, Token,
+    ClosedParseState, ParseState, ParseStateResult, ParseStatus,
+    StitchableParseState, Token,
 };
 use std::{
     convert::Infallible,
@@ -304,6 +305,33 @@ impl<S: ParseState> TransitionData<S> {
                 Result(result.map(ParseStatus::reflexivity), la)
             }
             Dead(la) => Dead(la),
+        }
+    }
+
+    /// Transform inner types using [`Into`] such that they are compatible
+    ///   with the superstate of `SB`.
+    pub fn inner_into<SB: ParseState>(
+        self,
+    ) -> TransitionData<<SB as ParseState>::Super>
+    where
+        S: StitchableParseState<SB>,
+    {
+        use ParseStatus::{Incomplete, Object};
+        use TransitionData::*;
+
+        match self {
+            Dead(la) => Dead(la),
+            Result(result, la) => Result(
+                match result {
+                    Ok(Incomplete) => Ok(Incomplete),
+                    Ok(Object(obj)) => Ok(Object(obj.into())),
+                    // First convert the error into `SB::Error`,
+                    //   and then `SP::Super::Error`
+                    //     (which will be the same type if SB is closed).
+                    Err(e) => Err(e.into().into()),
+                },
+                la,
+            ),
         }
     }
 }

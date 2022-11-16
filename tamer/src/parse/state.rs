@@ -302,20 +302,9 @@ where
             TransitionData::Dead(Lookahead(lookahead)) => {
                 dead().incomplete().with_lookahead(lookahead)
             }
-            TransitionData::Result(result, lookahead) => TransitionResult(
-                into(newst).into_super(),
-                TransitionData::Result(
-                    match result {
-                        Ok(Incomplete) => Ok(Incomplete),
-                        Ok(Obj(obj)) => Ok(Obj(obj.into())),
-                        // First convert the error into `SP::Error`,
-                        //   and then `SP::Super::Error`
-                        //     (which will be the same type if SP is closed).
-                        Err(e) => Err(e.into().into()),
-                    },
-                    lookahead,
-                ),
-            ),
+            TransitionData::Result(..) => {
+                TransitionResult(into(newst).into_super(), data.inner_into())
+            }
         }
     }
 
