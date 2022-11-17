@@ -21,12 +21,21 @@
 //!
 //! _Expansion_ refers to the production of many [`Object`]s that are
 //!   derived from a single [`Token`].
+//! An [`ExpandableParseState`] is a [`ClosedParseState`] that,
+//!   provided a [`Token`],
+//!   produces an [`Expansion`] of zero or more [`Expansion::Expanded`]
+//!     [`Object`]s before terminating with a [`Expansion::DoneExpanding`]
+//!     [`Token`] intended to replace the originally provided [`Token`].
+//!
+//! An [`ExpandableParseState`] can be stitched with a parent parser using
+//!   [`StitchExpansion`],
+//!     giving the perception of expanding into that parent's token stream.
 
-use super::super::{
-    prelude::*,
-    state::{Lookahead, StitchableParseState, TransitionData},
+use super::super::{prelude::*, state::Lookahead};
+use crate::{
+    diagnose::{panic::DiagnosticOptionPanic, Annotate},
+    parse::state::PartiallyStitchableParseState,
 };
-use std::{fmt::Display, marker::PhantomData};
 
 /// Represents an expansion operation on some source token of type `T`.
 ///
@@ -39,6 +48,14 @@ pub enum Expansion<T, O: Object> {
 
     /// Expansion is complete and the source token should be replaced with
     ///   the inner `T`.
+    ///
+    /// Since the expectation is that the parser has completed parsing and
+    /// no longer requires the token provided to it,
+    ///   the parser yielding this variant _must not_ yield a token of
+    ///   lookahead,
+    ///     otherwise the system assume that the parser has an
+    ///     implementation defect (bug) and will be forced to panic rather
+    ///     than discard it.
     DoneExpanding(T),
 }
 
@@ -55,115 +72,72 @@ where
 
 /// An [`ExpandableParseState`] capable of expanding into the token stream
 ///   of a parent [`ParseState`] `SP`.
-///
-/// This trait asserts that an [`ExpandableParseState`] is a
-///   [`StitchableParseState<SP>`](StitchableParseState) after being wrapped
-///   by [`StitchableExpansionState`].
 pub trait ExpandableInto<SP: ParseState> =
     ExpandableParseState<<SP as ParseState>::Object>
     where
-        StitchableExpansionState<Self, <SP as ParseState>::Object>:
-            StitchableParseState<SP>;
+        Self: ExpandableParseState<<SP as ParseState>::Object>
+            + PartiallyStitchableParseState<SP>;
 
-/// Convert a [`ClosedParseState`] yielding an [`Expansion<T,O>`](Expansion)
-///   object into a parser yielding `O` with a dead state yielding `T`.
+/// [`ExpandableParseState`] state stitching.
 ///
-/// It is more convenient and clear to write parsers using [`Expansion`],
-///   since those variants not only state directly what the intent of the
-///     operations are,
-///   but also avoid having to work with dead states.
-/// However,
-///   their wrapping in [`Expansion`] makes them difficult to delegate to
-///     (compose with)
-///   other parsers using [`ParseState`]'s `delegate_*` family of
-///   functions.
-///
-/// This parser handles this translation by stripping away the
-///   [`Expansion`] abstraction and producing a [`ParseState`] that looks
-///   and acts like what would have been implemented in the absence of such
-///   an abstraction.
-#[derive(Debug, PartialEq, Eq)]
-pub struct StitchableExpansionState<S: ClosedParseState, O: Object> {
-    st: S,
-    _phantom: PhantomData<O>,
-}
-
-// We implement Default if the parser `S` that we're wrapping does.
-impl<S: ClosedParseState, O: Object> Default for StitchableExpansionState<S, O>
-where
-    S: Default,
-{
-    fn default() -> Self {
-        Self {
-            st: Default::default(),
-            _phantom: Default::default(),
-        }
-    }
-}
-
-impl<S: ClosedParseState, O: Object> ParseState
-    for StitchableExpansionState<S, O>
-where
-    S: ExpandableParseState<O>,
-{
-    type Token = S::Token;
-    type Object = O;
-    type Error = S::Error;
-    type Context = S::Context;
-
-    #[inline]
-    fn parse_token(
+/// See [`Self::stitch_expansion`] for more information.
+pub trait StitchExpansion: ClosedParseState {
+    /// Stitch a [`ExpandableParseState`] that is
+    ///   [`ExpandableInto<SP>`](ExpandableInto).
+    ///
+    /// This combines the state machine of an [`ExpandableParseState`],
+    ///   allowing that parser to expand into the token stream of [`Self`].
+    ///
+    /// Panics
+    /// ======
+    /// This will panic with diagnostic information if a token of lookahead
+    ///   is provided with a [`Expansion::DoneExpanding`] variant.
+    /// See that variant for more information.
+    fn stitch_expansion<SP: ParseState, C>(
         self,
-        tok: Self::Token,
-        ctx: &mut Self::Context,
-    ) -> TransitionResult<Self::Super> {
-        use Expansion::*;
+        tok: <Self as ParseState>::Token,
+        mut ctx: C,
+        into: impl Fn(Transition<Self>) -> Transition<SP>,
+        done: impl FnOnce(
+            Transition<Self>,
+            <SP as ParseState>::Token,
+        ) -> TransitionResult<SP>,
+    ) -> TransitionResult<<SP as ParseState>::Super>
+    where
+        Self: ExpandableInto<SP>,
+        C: AsMut<<Self as ParseState>::Context>,
+    {
+        use Expansion::{DoneExpanding, Expanded};
 
-        let Self { st, _phantom } = self;
+        self.parse_token(tok, ctx.as_mut()).branch_obj_la(
+            |st, obj, la| match (obj, la) {
+                (Expanded(obj), la) => {
+                    into(st).ok(obj).maybe_with_lookahead(la)
+                }
 
-        st.parse_token(tok, ctx).bimap(
-            |st| Self { st, _phantom },
-            |data| {
-                data.map_when_obj(|obj, la| match (obj, la) {
-                    (Expanded(obj), la) => {
-                        TransitionData::Result(Ok(ParseStatus::Object(obj)), la)
-                    }
-
-                    // Since we are converting the `DoneExpanding` variant
-                    //   into a lookahead token,
-                    //     we would have nothing to do with a token of
-                    //     lookahead if one were provided to us.
-                    (DoneExpanding(tok), Some(la)) => la.overwrite_panic(
-                        tok,
+                (DoneExpanding(tok), la) => {
+                    // Uphold parser lookahead invariant.
+                    la.diagnostic_expect_none(
+                        |Lookahead(la_tok)| {
+                            vec![
+                                la_tok.span().note(
+                                    "this token of lookahead would be lost",
+                                ),
+                                tok.span().internal_error(
+                                    "unexpected token of lookahead while \
+                                        completing expansion of this token",
+                                ),
+                            ]
+                        },
                         "cannot provide lookahead token with \
                             Expansion::DoneExpanding",
-                    ),
+                    );
 
-                    (DoneExpanding(tok), None) => {
-                        TransitionData::Dead(Lookahead(tok))
-                    }
-                })
+                    done(st, tok).into_super()
+                }
             },
+            &into,
         )
-    }
-
-    fn is_accepting(&self, ctx: &Self::Context) -> bool {
-        self.st.is_accepting(ctx)
-    }
-}
-
-impl<S: ClosedParseState, O: Object> Display
-    for StitchableExpansionState<S, O>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self {
-                st: parser,
-                _phantom,
-            } => {
-                write!(f, "{parser}, with Expansion stripped")
-            }
-        }
     }
 }
 

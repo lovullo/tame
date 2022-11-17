@@ -23,7 +23,75 @@ use crate::{
     span::{dummy::*, Span},
     sym::{st::raw, SymbolId},
 };
-use std::{assert_matches::assert_matches, convert::Infallible};
+use std::{
+    assert_matches::assert_matches, convert::Infallible, fmt::Display,
+    marker::PhantomData,
+};
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StitchableExpansionState<S: ClosedParseState, O: Object> {
+    st: S,
+    _phantom: PhantomData<O>,
+}
+
+impl<S: ClosedParseState, O: Object> Default for StitchableExpansionState<S, O>
+where
+    S: Default,
+{
+    fn default() -> Self {
+        Self {
+            st: Default::default(),
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<S: ClosedParseState, O: Object> ParseState
+    for StitchableExpansionState<S, O>
+where
+    S: ExpandableParseState<O> + StitchExpansion,
+    <S as ParseState>::Context: AsMut<<S as ParseState>::Context>,
+{
+    type Token = S::Token;
+    type Object = O;
+    type Error = S::Error;
+    type Context = S::Context;
+
+    #[inline]
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        ctx: &mut Self::Context,
+    ) -> TransitionResult<Self::Super> {
+        let Self { st, _phantom } = self;
+
+        st.stitch_expansion(
+            tok,
+            ctx,
+            Transition::fmap(|st| Self { st, _phantom }),
+            |Transition(st), tok| Transition(Self { st, _phantom }).dead(tok),
+        )
+    }
+
+    fn is_accepting(&self, ctx: &Self::Context) -> bool {
+        self.st.is_accepting(ctx)
+    }
+}
+
+impl<S: ClosedParseState, O: Object> Display
+    for StitchableExpansionState<S, O>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self {
+                st: parser,
+                _phantom,
+            } => {
+                write!(f, "{parser}, with Expansion stripped")
+            }
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct TestObject(SPair);
@@ -93,6 +161,8 @@ impl Display for TestParseState {
         write!(f, "doing its thing") // well, it is
     }
 }
+
+impl StitchExpansion for TestParseState {}
 
 const STOP: SymbolId = raw::L_YIELD;
 const DEAD_SYM: SymbolId = raw::L_WARNING;
@@ -176,12 +246,6 @@ fn expandable_into_is_stitchable_with_target() {
             unimplemented!()
         }
     }
-
-    // Asserts that the wrapping `StitchableParseState` has transformed the
-    //   `TestParseState` into something stitchable.
-    //
-    // This serves as a sanity check for the below.
-    assert_impl_all!(ExpansionSut: StitchableParseState<TargetParseState>);
 
     // The `ExpandableInto` trait alias is responsible for asserting that a
     //   given parser is an expansion parser that is able to be converted

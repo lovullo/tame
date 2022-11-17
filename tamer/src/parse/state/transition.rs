@@ -225,6 +225,40 @@ impl<S: ParseState> TransitionResult<S> {
             Result(result, la) => falive(st, result, la),
         }
     }
+
+    /// Conditionally map to a [`TransitionResult`] based on whether the
+    ///   inner [`TransitionData`] represents an object.
+    pub(in super::super) fn branch_obj_la<SB: ParseState>(
+        self,
+        fobj: impl FnOnce(
+            Transition<S>,
+            <S as ParseState>::Object,
+            Option<Lookahead<<S as ParseState>::Token>>,
+        ) -> TransitionResult<<SB as ParseState>::Super>,
+        fother: impl FnOnce(Transition<S>) -> Transition<SB>,
+    ) -> TransitionResult<<SB as ParseState>::Super>
+    where
+        S: PartiallyStitchableParseState<SB>,
+    {
+        use ParseStatus::{Incomplete, Object};
+        use TransitionData::{Dead, Result};
+
+        let Self(st, data) = self;
+
+        match data {
+            Result(Ok(Object(obj)), la) => fobj(st, obj, la).into_super(),
+
+            // Can't use `TransitionData::inner_into` since we only have a
+            //   `PartiallyStitchableParseState`,
+            //     and `into_inner` requires being able to convert the inner
+            //     object that we handled above.
+            Result(Ok(Incomplete), la) => {
+                fother(st).incomplete().maybe_with_lookahead(la)
+            }
+            Result(Err(e), la) => fother(st).err(e).maybe_with_lookahead(la),
+            Dead(Lookahead(la)) => fother(st).dead(la),
+        }
+    }
 }
 
 /// Token to use as a lookahead token in place of the next token from the
@@ -347,48 +381,6 @@ impl<S: ParseState> TransitionData<S> {
         match self {
             TransitionData::Result(Err(e), _) => Some(e),
             _ => None,
-        }
-    }
-
-    /// Map [`TransitionData`] when the inner result is of type
-    ///   [`ParseStatus::Object`].
-    ///
-    /// This will map over `self` within the context of an inner
-    ///   [`ParseStatus::Object`] and an associated optional token of
-    ///   [`Lookahead`].
-    /// This allows using objects to influence parser operations more
-    ///   broadly.
-    ///
-    /// _This method is private to this module because it requires that the
-    ///   caller be diligent in not discarding the provided token of
-    ///   lookahead._
-    /// Since this token may be stored and later emitted,
-    ///   there is no reliable automated way at present to ensure that this
-    ///   invariant is upheld;
-    ///     such an effort is far beyond the scope of current work at the
-    ///     time of writing.
-    pub(in super::super) fn map_when_obj<SB: ParseState>(
-        self,
-        f: impl FnOnce(S::Object, Option<Lookahead<S::Token>>) -> TransitionData<SB>,
-    ) -> TransitionData<SB>
-    where
-        SB: ParseState<Token = S::Token, Error = S::Error>,
-    {
-        // Ideally this will be decomposed into finer-grained functions
-        //   (as in a more traditional functional style),
-        //     but such wasn't needed at the time of writing.
-        // But this is dizzying.
-        match self {
-            TransitionData::Result(Ok(ParseStatus::Object(obj)), la) => {
-                f(obj, la)
-            }
-            TransitionData::Result(Ok(ParseStatus::Incomplete), la) => {
-                TransitionData::Result(Ok(ParseStatus::Incomplete), la)
-            }
-            TransitionData::Result(Err(e), la) => {
-                TransitionData::Result(Err(e), la)
-            }
-            TransitionData::Dead(la) => TransitionData::Dead(la),
         }
     }
 
@@ -575,25 +567,17 @@ impl<S: ParseState> Transition<S> {
         )
     }
 
-    /// Map over the inner [`ParseState`] `S` to another
+    /// Produce a map over the inner [`ParseState`] `S` to another
     ///   [`ParseState`] `SB`.
     ///
-    /// Unlike other parts of this API which mandate explicit instantiation
-    ///   of [`Transition`] for self-documentation,
-    ///     this maps over the inner value since [`Transition`] is already
-    ///     apparent.
-    /// This is consequently much less verbose,
-    ///   as it allows using tuple constructions for `f`,
-    ///     and most [`ParseState`]s are implemented as tuples
-    ///       (or tuple enums)
-    ///       in practice.
-    pub fn map<SB: ParseState>(
-        self,
-        f: impl FnOnce(S) -> SB,
-    ) -> Transition<SB> {
-        match self {
-            Self(st) => Transition(f(st)),
-        }
+    /// Note that this is a curried associated function,
+    ///   not a method.
+    /// The intent is to maintain self-documentation by invoking it
+    ///   qualified as [`Transition::fmap`].
+    pub fn fmap<SB: ParseState>(
+        f: impl Fn(S) -> SB,
+    ) -> impl Fn(Transition<S>) -> Transition<SB> {
+        move |Self(st)| Transition(f(st))
     }
 }
 
