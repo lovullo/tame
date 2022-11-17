@@ -258,3 +258,44 @@ impl<T> DiagnosticPanic for Option<T> {
         }
     }
 }
+
+/// Convenience methods for [`Option`]-like data.
+///
+/// See also [`DiagnosticPanic`].
+pub trait DiagnosticOptionPanic<T> {
+    /// Expect that a value is [`None`]-like,
+    ///   otherwise panic with diagnostic information generated from inner
+    ///   [`Some`]-like value.
+    fn diagnostic_expect_none<'a>(
+        self,
+        fdesc: impl FnOnce(T) -> Vec<AnnotatedSpan<'a>>,
+        msg: &str,
+    );
+}
+
+impl<T> DiagnosticOptionPanic<T> for Option<T> {
+    fn diagnostic_expect_none<'a>(
+        self,
+        fdesc: impl FnOnce(T) -> Vec<AnnotatedSpan<'a>>,
+        msg: &str,
+    ) {
+        match self {
+            None => (),
+            Some(x) => diagnostic_panic!(fdesc(x), "{}", msg),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::DiagnosticOptionPanic;
+
+    #[should_panic = "__expected_panic__"]
+    #[test]
+    fn panic_on_none() {
+        struct UniqFoo;
+
+        Some(UniqFoo)
+            .diagnostic_expect_none(|_: UniqFoo| vec![], "__expected_panic__")
+    }
+}
