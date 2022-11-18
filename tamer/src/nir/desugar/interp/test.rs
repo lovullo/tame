@@ -19,6 +19,7 @@
 
 use super::*;
 use crate::{
+    convert::ExpectInto,
     nir::PlainNirSymbol,
     parse::Parsed,
     span::dummy::{DUMMY_CONTEXT as DC, *},
@@ -39,11 +40,13 @@ fn does_not_desugar_literal_only() {
     // `@bar@` is a metavariable,
     //   but it's also a literal because it's not enclosed in braces.
     for literal in ["foo", "@bar@"] {
+        let name = "foo".unwrap_into();
         let sym = literal.into();
-        let toks = vec![SPair(sym, S1)];
+        let toks = vec![Attr::new(name, sym, (S1, S2))];
 
+        // Attr should be unchanged.
         assert_eq!(
-            Ok(vec![Object(DoneExpanding(SPair(sym, S1)))]),
+            Ok(vec![Object(DoneExpanding(Attr::new(name, sym, (S1, S2))))]),
             Sut::parse(toks.into_iter()).collect(),
             "literal `{literal}` must not desugar",
         );
@@ -69,11 +72,12 @@ fn desugars_literal_with_ending_var() {
     let b = DC.span(10, 3);
     let c = DC.span(14, 5);
 
-    let given_sym = SPair(given_val.into(), a);
+    let name = "foo".unwrap_into();
+    let given_sym = Attr::new(name, given_val.into(), (S1, a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
+    let GenIdentSymbolId(expect_pname) = gen_tpl_param_ident_at_offset(a);
+    let expect_dfn = PlainNirSymbol::Todo(expect_pname.into(), a);
     let expect_text = PlainNirSymbol::Todo("foo".into(), b);
     let expect_param = PlainNirSymbol::Todo("@bar@".into(), c);
 
@@ -121,10 +125,13 @@ fn desugars_literal_with_ending_var() {
     //   we replace the original provided attribute
     //     (the interpolation specification)
     //   with a metavariable reference to the generated parameter.
-    assert_matches!(
+    assert_eq!(
         sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
+        Some(Ok(Object(DoneExpanding(Attr::new(
+            name,
+            expect_pname,
+            (S1, a)
+        )))))
     );
 
     assert_eq!(sut.next(), None);
@@ -148,11 +155,12 @@ fn desugars_var_with_ending_literal() {
     let b = DC.span(21, 5);
     let c = DC.span(27, 3);
 
-    let given_sym = SPair(given_val.into(), a);
+    let name = "foo".unwrap_into();
+    let given_sym = Attr::new(name, given_val.into(), (S1, a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
+    let GenIdentSymbolId(expect_pname) = gen_tpl_param_ident_at_offset(a);
+    let expect_dfn = PlainNirSymbol::Todo(expect_pname.into(), a);
     let expect_param = PlainNirSymbol::Todo("@foo@".into(), b);
     let expect_text = PlainNirSymbol::Todo("bar".into(), c);
 
@@ -173,27 +181,14 @@ fn desugars_var_with_ending_literal() {
     );
 
     assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamValue(expect_param))))),
+        Ok(vec![
+            Object(Expanded(PlainNir::TplParamValue(expect_param))),
+            Object(Expanded(PlainNir::TplParamText(expect_text))),
+            Object(Expanded(PlainNir::TplParamClose(a))),
+            Object(DoneExpanding(Attr::new(name, expect_pname, (S1, a)))),
+        ]),
+        sut.collect(),
     );
-
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamText(expect_text)))))
-    );
-
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
-    );
-
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
 
 // Combination of the above two tests.
@@ -215,11 +210,12 @@ fn desugars_many_vars_and_literals() {
     let d = DC.span(40, 3);
     let e = DC.span(44, 6);
 
-    let given_sym = SPair(given_val.into(), a);
+    let name = "foo".unwrap_into();
+    let given_sym = Attr::new(name, given_val.into(), (S1, a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
+    let GenIdentSymbolId(expect_pname) = gen_tpl_param_ident_at_offset(a);
+    let expect_dfn = PlainNirSymbol::Todo(expect_pname.into(), a);
     let expect_text1 = PlainNirSymbol::Todo("foo".into(), b);
     let expect_param1 = PlainNirSymbol::Todo("@bar@".into(), c);
     let expect_text2 = PlainNirSymbol::Todo("baz".into(), d);
@@ -252,22 +248,11 @@ fn desugars_many_vars_and_literals() {
             //   offsets.
             Object(Expanded(PlainNir::TplParamText(expect_text2))),
             Object(Expanded(PlainNir::TplParamValue(expect_param2))),
+            Object(Expanded(PlainNir::TplParamClose(a))),
+            Object(DoneExpanding(Attr::new(name, expect_pname, (S1, a)))),
         ]),
-        sut.by_ref().take(4).collect(),
+        sut.collect(),
     );
-
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
-    );
-
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
 
 // Adjacent vars with empty literal between them.
@@ -286,11 +271,12 @@ fn desugars_adjacent_interpolated_vars() {
     let c = DC.span(48, 5);
     let d = DC.span(55, 5);
 
-    let given_sym = SPair(given_val.into(), a);
+    let name = "foo".unwrap_into();
+    let given_sym = Attr::new(name, given_val.into(), (S1, a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
+    let GenIdentSymbolId(expect_pname) = gen_tpl_param_ident_at_offset(a);
+    let expect_dfn = PlainNirSymbol::Todo(expect_pname.into(), a);
     let expect_param1 = PlainNirSymbol::Todo("@foo@".into(), b);
     let expect_param2 = PlainNirSymbol::Todo("@bar@".into(), c);
     let expect_param3 = PlainNirSymbol::Todo("@baz@".into(), d);
@@ -311,26 +297,14 @@ fn desugars_adjacent_interpolated_vars() {
             && desc_span == a
     );
 
-    // These are the three adjacent vars.
     assert_eq!(
         Ok(vec![
             Object(Expanded(PlainNir::TplParamValue(expect_param1))),
             Object(Expanded(PlainNir::TplParamValue(expect_param2))),
             Object(Expanded(PlainNir::TplParamValue(expect_param3))),
+            Object(Expanded(PlainNir::TplParamClose(a))),
+            Object(DoneExpanding(Attr::new(name, expect_pname, (S1, a)))),
         ]),
-        sut.by_ref().take(3).collect(),
+        sut.collect(),
     );
-
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
-    );
-
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
