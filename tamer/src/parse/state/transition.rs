@@ -187,8 +187,11 @@ impl<S: ParseState> TransitionResult<S> {
         S: PartiallyStitchableParseState<SB>,
     {
         self.branch_dead_la(
-            |st, Lookahead(la)| fdead(st).with_lookahead(la),
-            |st, result, la| falive(st, result).maybe_with_lookahead(la),
+            |st, Lookahead(la)| fdead(st).with_lookahead(la.into()),
+            |st, result, la| {
+                falive(st, result)
+                    .maybe_with_lookahead(la.map(Lookahead::inner_into))
+            },
         )
     }
 
@@ -252,11 +255,13 @@ impl<S: ParseState> TransitionResult<S> {
             //   `PartiallyStitchableParseState`,
             //     and `into_inner` requires being able to convert the inner
             //     object that we handled above.
-            Result(Ok(Incomplete), la) => {
-                fother(st).incomplete().maybe_with_lookahead(la)
-            }
-            Result(Err(e), la) => fother(st).err(e).maybe_with_lookahead(la),
-            Dead(Lookahead(la)) => fother(st).dead(la),
+            Result(Ok(Incomplete), la) => fother(st)
+                .incomplete()
+                .maybe_with_lookahead(la.map(Lookahead::inner_into)),
+            Result(Err(e), la) => fother(st)
+                .err(e)
+                .maybe_with_lookahead(la.map(Lookahead::inner_into)),
+            Dead(Lookahead(la)) => fother(st).dead(la.into()),
         }
     }
 }
@@ -286,6 +291,15 @@ impl<T: Token> Lookahead<T> {
         ];
 
         diagnostic_panic!(desc, "{msg}",)
+    }
+
+    pub fn inner_into<U: Token>(self) -> Lookahead<U>
+    where
+        T: Into<U>,
+    {
+        match self {
+            Self(tok) => Lookahead(tok.into()),
+        }
     }
 }
 
@@ -431,7 +445,7 @@ impl<S: ParseState> TransitionData<S> {
         use TransitionData::*;
 
         match self {
-            Dead(la) => Dead(la),
+            Dead(la) => Dead(la.inner_into()),
             Result(result, la) => Result(
                 match result {
                     Ok(status) => Ok(status.inner_into()),
@@ -440,7 +454,7 @@ impl<S: ParseState> TransitionData<S> {
                     //     (which will be the same type if SB is closed).
                     Err(e) => Err(e.into().into()),
                 },
-                la,
+                la.map(Lookahead::inner_into),
             ),
         }
     }

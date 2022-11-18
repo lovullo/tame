@@ -416,7 +416,7 @@ where
 
         match data {
             TransitionData::Dead(Lookahead(lookahead)) => {
-                dead(env).incomplete().with_lookahead(lookahead)
+                dead(env).incomplete().with_lookahead(lookahead.into())
             }
 
             // Consume object and allow processing as part of state
@@ -424,7 +424,10 @@ where
             TransitionData::Result(Ok(Obj(obj)), lookahead) => {
                 TransitionResult(
                     into(newst, Some(obj), env),
-                    TransitionData::Result(Ok(Incomplete), lookahead),
+                    TransitionData::Result(
+                        Ok(Incomplete),
+                        lookahead.map(Lookahead::inner_into),
+                    ),
                 )
             }
 
@@ -435,7 +438,7 @@ where
                         Ok(_) => Ok(Incomplete),
                         Err(e) => Err(e.into()),
                     },
-                    lookahead,
+                    lookahead.map(Lookahead::inner_into),
                 ),
             ),
         }
@@ -474,7 +477,7 @@ pub trait StitchableParseState<SP: ParseState> =
 
 pub trait PartiallyStitchableParseState<SP: ParseState> = ClosedParseState
 where
-    SP: ParseState<Token = <Self as ParseState>::Token>,
+    <SP as ParseState>::Token: From<<Self as ParseState>::Token>,
     <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;
 
 pub mod context {

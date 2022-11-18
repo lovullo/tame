@@ -111,9 +111,9 @@ pub trait StitchExpansion: ClosedParseState {
 
         self.parse_token(tok, ctx.as_mut()).branch_obj_la(
             |st, obj, la| match (obj, la) {
-                (Expanded(obj), la) => {
-                    into(st).ok(obj).maybe_with_lookahead(la)
-                }
+                (Expanded(obj), la) => into(st)
+                    .ok(obj)
+                    .maybe_with_lookahead(la.map(Lookahead::inner_into)),
 
                 (DoneExpanding(tok), la) => {
                     // Uphold parser lookahead invariant.
@@ -133,7 +133,7 @@ pub trait StitchExpansion: ClosedParseState {
                             Expansion::DoneExpanding",
                     );
 
-                    done(st, tok).into_super()
+                    done(st, tok.into()).into_super()
                 }
             },
             &into,
