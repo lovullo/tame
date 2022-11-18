@@ -39,8 +39,11 @@
 //! There may be better options;
 //!   these are most useful in writing tests.
 
-use std::convert::{TryFrom, TryInto};
-use std::fmt::Debug;
+use crate::diagnose::panic::DiagnosticPanic;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Debug,
+};
 
 /// Safe type conversion that may panic under some circumstances.
 ///
@@ -49,6 +52,11 @@ use std::fmt::Debug;
 ///   cannot occur,
 ///     or where failure would otherwise be folowed by [`Result::expect`] or
 ///     [`Result::unwrap`].
+///
+/// Once Rust is further along with a sound trait impl specialization
+///   implementation,
+///     this system ought to utilize spans when available for diagnostic
+///     messages.
 ///
 /// See the [module-level documentation](self) for more information.
 pub trait ExpectFrom<T>: TryFrom<T>
@@ -62,7 +70,7 @@ where
     /// ======
     /// Causes a panic on failure.
     fn expect_from(value: T, msg: &str) -> T {
-        T::try_from(value).expect(msg)
+        T::try_from(value).diagnostic_expect(vec![], msg)
     }
 
     /// Attempt to convert and unwrap `value` using `T::try_from`.
@@ -71,7 +79,7 @@ where
     /// ======
     /// Causes a panic on failure.
     fn unwrap_from(value: T) -> T {
-        T::try_from(value).unwrap()
+        T::try_from(value).diagnostic_unwrap(vec![])
     }
 }
 
@@ -103,7 +111,7 @@ where
     /// ======
     /// Causes a panic on failure.
     fn expect_into(self, msg: &str) -> T {
-        self.try_into().expect(msg)
+        self.try_into().diagnostic_expect(vec![], msg)
     }
 
     /// Attempt to convert and unwrap a value using `self.try_into()`.
@@ -112,7 +120,7 @@ where
     /// ======
     /// Causes a panic on failure.
     fn unwrap_into(self) -> T {
-        self.try_into().unwrap()
+        self.try_into().diagnostic_unwrap(vec![])
     }
 }
 

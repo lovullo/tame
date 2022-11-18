@@ -259,6 +259,38 @@ impl<T> DiagnosticPanic for Option<T> {
     }
 }
 
+impl<T, E> DiagnosticPanic for Result<T, E>
+where
+    E: Debug,
+{
+    type Inner = T;
+
+    fn diagnostic_unwrap<'a>(
+        self,
+        desc: Vec<AnnotatedSpan<'a>>,
+    ) -> Self::Inner {
+        match self {
+            Ok(val) => val,
+            // Same message as `Result::unwrap`
+            Err(e) => diagnostic_panic!(
+                desc,
+                "called `Result::unwrap()` on an `Err` value: {e:?}"
+            ),
+        }
+    }
+
+    fn diagnostic_expect<'a>(
+        self,
+        desc: Vec<AnnotatedSpan<'a>>,
+        msg: &str,
+    ) -> Self::Inner {
+        match self {
+            Ok(val) => val,
+            Err(e) => diagnostic_panic!(desc, "{}: {e:?}", msg),
+        }
+    }
+}
+
 /// Convenience methods for [`Option`]-like data.
 ///
 /// See also [`DiagnosticPanic`].
