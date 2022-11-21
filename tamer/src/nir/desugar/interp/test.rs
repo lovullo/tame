@@ -271,7 +271,7 @@ fn desugars_adjacent_interpolated_vars() {
     let c = DC.span(48, 5);
     let d = DC.span(55, 5);
 
-    let name = "foo".unwrap_into();
+    let name = "hopefullyuniqattrname".unwrap_into();
     let given_sym = Attr::new(name, given_val.into(), (S1, a));
     let toks = vec![given_sym];
 
@@ -294,6 +294,7 @@ fn desugars_adjacent_interpolated_vars() {
             PlainNirSymbol::Todo(desc_str, desc_span)
         ))))) if dfn == expect_dfn
             && desc_str.lookup_str().contains(given_val)
+            && desc_str.lookup_str().contains(&name.to_string())
             && desc_span == a
     );
 

@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Interpolation parser for desugaring NIR.
+//! Interpolation parser for desugaring attributes for NIR.
 //!
 //! String interpolation occurs for attributes containing curly braces
 //!   (`{` and `}`)
@@ -109,7 +109,11 @@ use crate::{
         st::quick_contains_byte, GlobalSymbolIntern, GlobalSymbolResolve,
         SymbolId,
     },
-    xir::attr::{Attr, AttrSpan},
+    xir::{
+        attr::{Attr, AttrSpan},
+        fmt::XmlAttr,
+        QName,
+    },
 };
 use std::{error::Error, fmt::Display};
 
@@ -214,11 +218,9 @@ impl ParseState for InterpState {
         tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self> {
-        let spair = match tok {
-            Attr(_, val, AttrSpan(_, vspan)) => (val, vspan),
-        };
+        let Attr(attr_qname, sym, AttrSpan(_, span)) = tok;
 
-        match (self, spair) {
+        match self {
             // When receiving a new symbol,
             //   we must make a quick determination as to whether it
             //   requires desugaring.
@@ -228,9 +230,10 @@ impl ParseState for InterpState {
             //     filter out non-interpolated strings quickly,
             //       before we start to parse.
             // Symbols that require no interpoolation are simply echoed back.
-            (Ready, (sym, span)) => {
+            Ready => {
                 if needs_interpolation(sym) {
-                    Self::begin_expansion(sym, span).with_lookahead(tok)
+                    Self::begin_expansion(attr_qname, sym, span)
+                        .with_lookahead(tok)
                 } else {
                     // No desugaring is needed.
                     Self::yield_tok(tok)
@@ -240,7 +243,7 @@ impl ParseState for InterpState {
             // The outermost parsing context is that of the literal,
             //   where a sequence of characters up to `{` stand for
             //   themselves.
-            (ParseLiteralAt(s, gen_param, offset), (_, span)) => {
+            ParseLiteralAt(s, gen_param, offset) => {
                 if offset == s.len() {
                     // We've reached the end of the specification string.
                     // Since we're in the outermost (literal) context,
@@ -301,7 +304,7 @@ impl ParseState for InterpState {
             // This is an inner context that cannot complete without being
             //   explicitly closed,
             //     and cannot not be nested.
-            (ParseInterpAt(s, gen_param, offset), (_, span)) => {
+            ParseInterpAt(s, gen_param, offset) => {
                 // TODO: Make sure offset exists, avoid panic
                 // TODO: Prevent nested `{`.
 
@@ -340,7 +343,7 @@ impl ParseState for InterpState {
             //     (the interpolation specification)
             //   with a metavariable referencing the parameter that we just
             //     generated.
-            (FinishSym(_, GenIdentSymbolId(gen_param)), _) => {
+            FinishSym(_, GenIdentSymbolId(gen_param)) => {
                 Self::yield_tok(tok.replace_value_derived(gen_param))
             }
         }
@@ -373,7 +376,11 @@ impl InterpState {
     ///
     /// For more information on identifier generation,
     ///   see [`gen_tpl_param_ident_at_offset`].
-    fn begin_expansion(sym: SymbolId, span: Span) -> TransitionResult<Self> {
+    fn begin_expansion(
+        attr_qname: QName,
+        sym: SymbolId,
+        span: Span,
+    ) -> TransitionResult<Self> {
         let gen_param = gen_tpl_param_ident_at_offset(span);
 
         // Description is not interned since there's no use in
@@ -382,8 +389,9 @@ impl InterpState {
         //     (it's just informative for a human).
         // Note that this means that tests cannot compare SymbolId.
         let gen_desc = format!(
-            "Generated from interpolated string {}",
-            TtQuote::wrap(sym)
+            "Generated from interpolated string {s} for attribute {fmt_attr}",
+            s = TtQuote::wrap(sym),
+            fmt_attr = XmlAttr::wrap(attr_qname),
         )
         .clone_uninterned();
 
@@ -464,6 +472,18 @@ fn needs_interpolation(val: SymbolId) -> bool {
 ///   meaning "desugar",
 ///   and serves as a unique string that can be used to track down this code
 ///     that generates it.
+///
+/// TODO: Ideally this would also contain the name of the attribute from
+///   which it is derived,
+///     but at the time of writing,
+///     the system is not far enough along to ensure that the domain of
+///       possible values for attributes is a subset of template param
+///       names,
+///         and that XIR properly enforces attribute names via its
+///         underlying third-party reader.
+///   But until then,
+///     the generated description _is_ safe to contain the attribute name
+///     and can be used as a guide for debugging.
 ///
 /// Hygiene is not a concern since identifiers cannot be redeclared,
 ///   so conflicts with manually-created identifiers will result in a
