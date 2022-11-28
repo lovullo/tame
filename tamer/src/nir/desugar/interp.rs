@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Interpolation parser for desugaring attributes for NIR.
+//! Interpolation parser for desugaring NIR.
 //!
 //! String interpolation occurs for attributes containing curly braces
 //!   (`{` and `}`)
@@ -103,16 +103,15 @@ use super::super::{PlainNir, PlainNirSymbol};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
-    parse::{prelude::*, util::expand::Expansion, NoContext},
+    parse::{
+        prelude::*,
+        util::{expand::Expansion, SPair},
+        NoContext,
+    },
     span::Span,
     sym::{
         st::quick_contains_byte, GlobalSymbolIntern, GlobalSymbolResolve,
         SymbolId,
-    },
-    xir::{
-        attr::{Attr, AttrSpan},
-        fmt::XmlAttr,
-        QName,
     },
 };
 use std::{error::Error, fmt::Display};
@@ -209,8 +208,8 @@ impl Display for InterpState {
 }
 
 impl ParseState for InterpState {
-    type Token = Attr;
-    type Object = Expansion<Self::Token, PlainNir>;
+    type Token = SPair;
+    type Object = Expansion<SPair, PlainNir>;
     type Error = InterpError;
 
     fn parse_token(
@@ -218,9 +217,7 @@ impl ParseState for InterpState {
         tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self> {
-        let Attr(attr_qname, sym, AttrSpan(_, span)) = tok;
-
-        match self {
+        match (self, tok.into()) {
             // When receiving a new symbol,
             //   we must make a quick determination as to whether it
             //   requires desugaring.
@@ -230,26 +227,24 @@ impl ParseState for InterpState {
             //     filter out non-interpolated strings quickly,
             //       before we start to parse.
             // Symbols that require no interpoolation are simply echoed back.
-            Ready => {
+            (Ready, (sym, span)) => {
                 if needs_interpolation(sym) {
-                    Self::begin_expansion(attr_qname, sym, span)
-                        .with_lookahead(tok)
+                    Self::begin_expansion(sym, span)
                 } else {
                     // No desugaring is needed.
-                    Self::yield_tok(tok)
+                    Self::yield_symbol(sym, span)
                 }
             }
 
             // The outermost parsing context is that of the literal,
             //   where a sequence of characters up to `{` stand for
             //   themselves.
-            ParseLiteralAt(s, gen_param, offset) => {
+            (ParseLiteralAt(s, gen_param, offset), (sym, span)) => {
                 if offset == s.len() {
                     // We've reached the end of the specification string.
                     // Since we're in the outermost (literal) context,
                     //   we're safe to complete.
-                    return Self::end_expansion(s, gen_param, span)
-                        .with_lookahead(tok);
+                    return Self::end_expansion(s, gen_param, sym, span);
                 }
 
                 // Note that this is the position _relative to the offset_,
@@ -261,7 +256,7 @@ impl ParseState for InterpState {
                     Some(0) => {
                         Transition(ParseInterpAt(s, gen_param, offset + 1))
                             .incomplete()
-                            .with_lookahead(tok)
+                            .with_lookahead((sym, span).into())
                     }
 
                     // Everything from the offset until the curly brace is a
@@ -278,7 +273,7 @@ impl ParseState for InterpState {
 
                         Transition(ParseInterpAt(s, gen_param, end + 1))
                             .ok(Expanded(text))
-                            .with_lookahead(tok)
+                            .with_lookahead((sym, span).into())
                     }
 
                     // The remainder of the specification is a literal.
@@ -294,7 +289,7 @@ impl ParseState for InterpState {
                         //   we'll complete parsing next pass.
                         Transition(ParseLiteralAt(s, gen_param, s.len()))
                             .ok(Expanded(text))
-                            .with_lookahead(tok)
+                            .with_lookahead((sym, span).into())
                     }
                 }
             }
@@ -304,7 +299,7 @@ impl ParseState for InterpState {
             // This is an inner context that cannot complete without being
             //   explicitly closed,
             //     and cannot not be nested.
-            ParseInterpAt(s, gen_param, offset) => {
+            (ParseInterpAt(s, gen_param, offset), (sym, span)) => {
                 // TODO: Make sure offset exists, avoid panic
                 // TODO: Prevent nested `{`.
 
@@ -331,7 +326,7 @@ impl ParseState for InterpState {
                         //   back in a literal context.
                         Transition(ParseLiteralAt(s, gen_param, end + 1))
                             .ok(Expanded(param_value))
-                            .with_lookahead(tok)
+                            .with_lookahead((sym, span).into())
                     }
 
                     None => todo!("missing closing '}}'"),
@@ -343,8 +338,8 @@ impl ParseState for InterpState {
             //     (the interpolation specification)
             //   with a metavariable referencing the parameter that we just
             //     generated.
-            FinishSym(_, GenIdentSymbolId(gen_param)) => {
-                Self::yield_tok(tok.replace_value_derived(gen_param))
+            (FinishSym(_, GenIdentSymbolId(gen_param)), (_, span)) => {
+                Self::yield_symbol(gen_param, span)
             }
         }
     }
@@ -367,8 +362,8 @@ impl InterpState {
     ///
     /// This transitions back to [`Ready`] and finally releases the
     ///   lookahead symbol.
-    fn yield_tok(tok: Attr) -> TransitionResult<Self> {
-        Transition(Ready).ok(DoneExpanding(tok))
+    fn yield_symbol(sym: SymbolId, span: Span) -> TransitionResult<Self> {
+        Transition(Ready).ok(DoneExpanding((sym, span).into()))
     }
 
     /// Begin expansion of an interpolation specification by generating a
@@ -376,11 +371,7 @@ impl InterpState {
     ///
     /// For more information on identifier generation,
     ///   see [`gen_tpl_param_ident_at_offset`].
-    fn begin_expansion(
-        attr_qname: QName,
-        sym: SymbolId,
-        span: Span,
-    ) -> TransitionResult<Self> {
+    fn begin_expansion(sym: SymbolId, span: Span) -> TransitionResult<Self> {
         let gen_param = gen_tpl_param_ident_at_offset(span);
 
         // Description is not interned since there's no use in
@@ -389,9 +380,8 @@ impl InterpState {
         //     (it's just informative for a human).
         // Note that this means that tests cannot compare SymbolId.
         let gen_desc = format!(
-            "Generated from interpolated string {s} for attribute {fmt_attr}",
-            s = TtQuote::wrap(sym),
-            fmt_attr = XmlAttr::wrap(attr_qname),
+            "Generated from interpolated string {}",
+            TtQuote::wrap(sym)
         )
         .clone_uninterned();
 
@@ -407,6 +397,7 @@ impl InterpState {
         //   prefixes.
         Transition(ParseLiteralAt(sym.lookup_str(), gen_param, 0))
             .ok(Expanded(open))
+            .with_lookahead((sym, span).into())
     }
 
     /// Complete expansion of an interpolation specification string.
@@ -416,6 +407,7 @@ impl InterpState {
     fn end_expansion(
         s: SpecSlice,
         gen_param: GenIdentSymbolId,
+        sym: SymbolId,
         span: Span,
     ) -> TransitionResult<Self> {
         let close = PlainNir::TplParamClose(span);
@@ -424,7 +416,9 @@ impl InterpState {
         //   which is to perform the final replacement of the original
         //   symbol that we've been fed
         //     (the specification string).
-        Transition(FinishSym(s, gen_param)).ok(Expanded(close))
+        Transition(FinishSym(s, gen_param))
+            .ok(Expanded(close))
+            .with_lookahead((sym, span).into())
     }
 }
 
@@ -472,18 +466,6 @@ fn needs_interpolation(val: SymbolId) -> bool {
 ///   meaning "desugar",
 ///   and serves as a unique string that can be used to track down this code
 ///     that generates it.
-///
-/// TODO: Ideally this would also contain the name of the attribute from
-///   which it is derived,
-///     but at the time of writing,
-///     the system is not far enough along to ensure that the domain of
-///       possible values for attributes is a subset of template param
-///       names,
-///         and that XIR properly enforces attribute names via its
-///         underlying third-party reader.
-///   But until then,
-///     the generated description _is_ safe to contain the attribute name
-///     and can be used as a guide for debugging.
 ///
 /// Hygiene is not a concern since identifiers cannot be redeclared,
 ///   so conflicts with manually-created identifiers will result in a

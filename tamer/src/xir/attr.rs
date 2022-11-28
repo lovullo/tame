@@ -157,20 +157,6 @@ impl Attr {
             Attr(.., span) => span,
         }
     }
-
-    /// Replace the attribute's value with a new one that has been derived
-    ///   from the original.
-    ///
-    /// _This does not update the value span!_
-    /// The intent is for this operation to be used during term rewriting,
-    ///   where the replaced value is _derived from_ the original and so
-    ///   should retain the original span to provide the proper context to
-    ///   the user.
-    pub fn replace_value_derived(self, value_new: SymbolId) -> Self {
-        match self {
-            Self(name, _, span) => Self(name, value_new, span),
-        }
-    }
 }
 
 impl Token for Attr {
