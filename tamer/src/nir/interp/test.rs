@@ -19,7 +19,7 @@
 
 use super::*;
 use crate::{
-    nir::PlainNirSymbol,
+    nir::NirSymbol,
     parse::Parsed,
     span::dummy::{DUMMY_CONTEXT as DC, *},
     sym::GlobalSymbolResolve,
@@ -73,9 +73,9 @@ fn desugars_literal_with_ending_var() {
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
-    let expect_text = PlainNirSymbol::Todo("foo".into(), b);
-    let expect_param = PlainNirSymbol::Todo("@bar@".into(), c);
+    let expect_dfn = NirSymbol(expect_name.into(), a);
+    let expect_text = NirSymbol("foo".into(), b);
+    let expect_param = NirSymbol("@bar@".into(), c);
 
     let mut sut = Sut::parse(toks.into_iter());
 
@@ -87,9 +87,9 @@ fn desugars_literal_with_ending_var() {
     //    helpful information to a human reader.
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamOpen(
+        Some(Ok(Object(Expanded(Nir::TplParamOpen(
             dfn,
-            PlainNirSymbol::Todo(desc_str, desc_span)
+            NirSymbol(desc_str, desc_span)
         ))))) if dfn == expect_dfn
             && desc_str.lookup_str().contains(given_val)
             && desc_span == a
@@ -100,21 +100,21 @@ fn desugars_literal_with_ending_var() {
     //   specification string.
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamText(expect_text)))))
+        Some(Ok(Object(Expanded(Nir::TplParamText(expect_text)))))
     );
 
     // This is the actual metavariable reference,
     //   pulled out of the interpolated portion of the given value.
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamValue(expect_param))))),
+        Some(Ok(Object(Expanded(Nir::TplParamValue(expect_param))))),
     );
 
     // This is an object generated from user input,
     //   so the closing span has to identify what were generated from.
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
+        Some(Ok(Object(Expanded(Nir::TplParamClose(a)))))
     );
 
     // Finally,
@@ -152,9 +152,9 @@ fn desugars_var_with_ending_literal() {
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
-    let expect_param = PlainNirSymbol::Todo("@foo@".into(), b);
-    let expect_text = PlainNirSymbol::Todo("bar".into(), c);
+    let expect_dfn = NirSymbol(expect_name.into(), a);
+    let expect_param = NirSymbol("@foo@".into(), b);
+    let expect_text = NirSymbol("bar".into(), c);
 
     let mut sut = Sut::parse(toks.into_iter());
 
@@ -164,9 +164,9 @@ fn desugars_var_with_ending_literal() {
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamOpen(
+        Some(Ok(Object(Expanded(Nir::TplParamOpen(
             dfn,
-            PlainNirSymbol::Todo(desc_str, desc_span)
+            NirSymbol(desc_str, desc_span)
         ))))) if dfn == expect_dfn
             && desc_str.lookup_str().contains(given_val)
             && desc_span == a
@@ -174,17 +174,17 @@ fn desugars_var_with_ending_literal() {
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamValue(expect_param))))),
+        Some(Ok(Object(Expanded(Nir::TplParamValue(expect_param))))),
     );
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamText(expect_text)))))
+        Some(Ok(Object(Expanded(Nir::TplParamText(expect_text)))))
     );
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
+        Some(Ok(Object(Expanded(Nir::TplParamClose(a)))))
     );
 
     assert_matches!(
@@ -219,11 +219,11 @@ fn desugars_many_vars_and_literals() {
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
-    let expect_text1 = PlainNirSymbol::Todo("foo".into(), b);
-    let expect_param1 = PlainNirSymbol::Todo("@bar@".into(), c);
-    let expect_text2 = PlainNirSymbol::Todo("baz".into(), d);
-    let expect_param2 = PlainNirSymbol::Todo("@quux@".into(), e);
+    let expect_dfn = NirSymbol(expect_name.into(), a);
+    let expect_text1 = NirSymbol("foo".into(), b);
+    let expect_param1 = NirSymbol("@bar@".into(), c);
+    let expect_text2 = NirSymbol("baz".into(), d);
+    let expect_param2 = NirSymbol("@quux@".into(), e);
 
     let mut sut = Sut::parse(toks.into_iter());
 
@@ -233,9 +233,9 @@ fn desugars_many_vars_and_literals() {
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamOpen(
+        Some(Ok(Object(Expanded(Nir::TplParamOpen(
             dfn,
-            PlainNirSymbol::Todo(desc_str, desc_span)
+            NirSymbol(desc_str, desc_span)
         ))))) if dfn == expect_dfn
             && desc_str.lookup_str().contains(given_val)
             && desc_span == a
@@ -244,21 +244,21 @@ fn desugars_many_vars_and_literals() {
     assert_eq!(
         Ok(vec![
             // These two are the as previous tests.
-            Object(Expanded(PlainNir::TplParamText(expect_text1))),
-            Object(Expanded(PlainNir::TplParamValue(expect_param1))),
+            Object(Expanded(Nir::TplParamText(expect_text1))),
+            Object(Expanded(Nir::TplParamValue(expect_param1))),
             // This pair repeats literals and vars further into the pattern
             //   to ensure that the parser is able to handle returning to
             //   previous states and is able to handle inputs at different
             //   offsets.
-            Object(Expanded(PlainNir::TplParamText(expect_text2))),
-            Object(Expanded(PlainNir::TplParamValue(expect_param2))),
+            Object(Expanded(Nir::TplParamText(expect_text2))),
+            Object(Expanded(Nir::TplParamValue(expect_param2))),
         ]),
         sut.by_ref().take(4).collect(),
     );
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
+        Some(Ok(Object(Expanded(Nir::TplParamClose(a)))))
     );
 
     assert_matches!(
@@ -290,10 +290,10 @@ fn desugars_adjacent_interpolated_vars() {
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = PlainNirSymbol::Todo(expect_name.into(), a);
-    let expect_param1 = PlainNirSymbol::Todo("@foo@".into(), b);
-    let expect_param2 = PlainNirSymbol::Todo("@bar@".into(), c);
-    let expect_param3 = PlainNirSymbol::Todo("@baz@".into(), d);
+    let expect_dfn = NirSymbol(expect_name.into(), a);
+    let expect_param1 = NirSymbol("@foo@".into(), b);
+    let expect_param2 = NirSymbol("@bar@".into(), c);
+    let expect_param3 = NirSymbol("@baz@".into(), d);
 
     let mut sut = Sut::parse(toks.into_iter());
 
@@ -303,9 +303,9 @@ fn desugars_adjacent_interpolated_vars() {
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamOpen(
+        Some(Ok(Object(Expanded(Nir::TplParamOpen(
             dfn,
-            PlainNirSymbol::Todo(desc_str, desc_span)
+            NirSymbol(desc_str, desc_span)
         ))))) if dfn == expect_dfn
             && desc_str.lookup_str().contains(given_val)
             && desc_span == a
@@ -314,16 +314,16 @@ fn desugars_adjacent_interpolated_vars() {
     // These are the three adjacent vars.
     assert_eq!(
         Ok(vec![
-            Object(Expanded(PlainNir::TplParamValue(expect_param1))),
-            Object(Expanded(PlainNir::TplParamValue(expect_param2))),
-            Object(Expanded(PlainNir::TplParamValue(expect_param3))),
+            Object(Expanded(Nir::TplParamValue(expect_param1))),
+            Object(Expanded(Nir::TplParamValue(expect_param2))),
+            Object(Expanded(Nir::TplParamValue(expect_param3))),
         ]),
         sut.by_ref().take(3).collect(),
     );
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(PlainNir::TplParamClose(a)))))
+        Some(Ok(Object(Expanded(Nir::TplParamClose(a)))))
     );
 
     assert_matches!(

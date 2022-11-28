@@ -37,7 +37,7 @@
 //! ```
 //!
 //! The string `foo{@bar@}baz` is the interpolation specification.
-//! This ends up desugaring into the [`PlainNir`] equivalent of this:
+//! This ends up desugaring into the [`Nir`] equivalent of this:
 //!
 //! ```xml
 //!   <param name="@___dsgr_01@"
@@ -59,7 +59,7 @@
 //! This desugaring process does not check for this context;
 //!   errors would occur later on in the lowering pipeline.
 //!
-//! Since interpolation desugars into [`PlainNir`],
+//! Since interpolation desugars into [`Nir`],
 //!   and not source XML,
 //!   generated `param`s will be automatically be interpreted downstream in
 //!     the lowering pipeline as if they were hoisted to the template
@@ -99,7 +99,7 @@
 
 use memchr::memchr;
 
-use super::super::{PlainNir, PlainNirSymbol};
+use super::{Nir, NirSymbol};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
@@ -209,7 +209,7 @@ impl Display for InterpState {
 
 impl ParseState for InterpState {
     type Token = SPair;
-    type Object = Expansion<SPair, PlainNir>;
+    type Object = Expansion<SPair, Nir>;
     type Error = InterpError;
 
     fn parse_token(
@@ -267,9 +267,8 @@ impl ParseState for InterpState {
                         let literal = s[offset..end].intern();
                         let span_text = span.slice(offset, rel_pos);
 
-                        let text = PlainNir::TplParamText(
-                            PlainNirSymbol::Todo(literal, span_text),
-                        );
+                        let text =
+                            Nir::TplParamText(NirSymbol(literal, span_text));
 
                         Transition(ParseInterpAt(s, gen_param, end + 1))
                             .ok(Expanded(text))
@@ -281,9 +280,8 @@ impl ParseState for InterpState {
                         let literal = s[offset..].intern();
                         let span_text = span.slice(offset, s.len() - offset);
 
-                        let text = PlainNir::TplParamText(
-                            PlainNirSymbol::Todo(literal, span_text),
-                        );
+                        let text =
+                            Nir::TplParamText(NirSymbol(literal, span_text));
 
                         // Keep in the current state but update the offset;
                         //   we'll complete parsing next pass.
@@ -318,9 +316,8 @@ impl ParseState for InterpState {
                         //   it is also the length of the value string.
                         let span_value = span.slice(offset, rel_pos);
 
-                        let param_value = PlainNir::TplParamValue(
-                            PlainNirSymbol::Todo(value, span_value),
-                        );
+                        let param_value =
+                            Nir::TplParamValue(NirSymbol(value, span_value));
 
                         // Continue parsing one character past the '}',
                         //   back in a literal context.
@@ -387,9 +384,9 @@ impl InterpState {
 
         let GenIdentSymbolId(gen_param_sym) = gen_param;
 
-        let open = PlainNir::TplParamOpen(
-            PlainNirSymbol::Todo(gen_param_sym, span),
-            PlainNirSymbol::Todo(gen_desc, span),
+        let open = Nir::TplParamOpen(
+            NirSymbol(gen_param_sym, span),
+            NirSymbol(gen_desc, span),
         );
 
         // Begin parsing in a _literal_ context,
@@ -410,7 +407,7 @@ impl InterpState {
         sym: SymbolId,
         span: Span,
     ) -> TransitionResult<Self> {
-        let close = PlainNir::TplParamClose(span);
+        let close = Nir::TplParamClose(span);
 
         // We have one last thing to do before we're complete,
         //   which is to perform the final replacement of the original

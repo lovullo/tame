@@ -112,10 +112,10 @@ use crate::{
     },
 };
 
-type N<const TY: NirSymbolTy> = SugaredNirSymbol<TY>;
+type N<const TY: NirSymbolTy> = NirSymbol<TY>;
 
 ele_parse! {
-    /// Parser lowering [XIR](crate::xir) into [`SugaredNir`].
+    /// Parser lowering [XIR](crate::xir) into [`Nir`].
     ///
     /// TAME's grammar is embedded within XML.
     /// The outer XML document has its own grammar,
@@ -157,13 +157,13 @@ ele_parse! {
     pub enum NirParseState;
 
     type AttrValueError = NirAttrParseError;
-    type Object = SugaredNir;
+    type Object = Nir;
 
     // Text and template expressions may appear at any point within the
     //   program;
     //     see [`NirParseState`] for more information.
     [super] {
-        [text](_sym, _span) => SugaredNir::Todo,
+        [text](_sym, _span) => Nir::Todo,
         TplKw
     };
 
@@ -205,7 +205,7 @@ ele_parse! {
             // TODO: Is this still needed?
             // TODO: PkgName type
             _name: (QN_NAME) => N<{PkgPath}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         ImportStmt,
         PkgBodyStmt,
@@ -238,7 +238,7 @@ ele_parse! {
 
             // TODO: Can this go away now?
             _name: (QN_NAME?) => Option<N<{PkgPath}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         ImportStmt,
         PkgBodyStmt,
@@ -252,7 +252,7 @@ ele_parse! {
         @ {
             _pkg: (QN_PACKAGE) => N<{PkgPath}>,
             _export: (QN_EXPORT?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// A statement that is accepted within the body of a package.
@@ -300,7 +300,7 @@ ele_parse! {
             _dim: (QN_DIM) => N<{NumLiteral}>,
             _parent: (QN_PARENT?) => Option<N<{AnyIdent}>>,
             _yields: (QN_YIELDS?) => Option<N<{ValueIdent}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Define an input parameter accepting data from an external system.
@@ -316,7 +316,7 @@ ele_parse! {
             _set: (QN_SET?) => Option<N<{Dim}>>,
             _default: (QN_DEFAULT?) => Option<N<{ParamDefault}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Associate static data with an identifier.
@@ -341,7 +341,7 @@ ele_parse! {
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
             // TODO: Misnomer
             _set: (QN_SET?) => Option<N<{Dim}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         ConstStmtBody,
     };
@@ -361,7 +361,7 @@ ele_parse! {
     ConstMatrixRow := QN_SET {
         @ {
             _desc: (QN_DESC) => N<{DescLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         ConstVectorItem,
     };
@@ -371,7 +371,7 @@ ele_parse! {
         @ {
             _value: (QN_VALUE) => N<{NumLiteral}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Define a classification and associate it with an identifier.
@@ -387,7 +387,7 @@ ele_parse! {
             _yields: (QN_YIELDS?) => Option<N<{ValueIdent}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
             _terminate: (QN_TERMINATE?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         LogExpr,
     };
@@ -414,7 +414,7 @@ ele_parse! {
             // TODO: We'll have private-by-default later.
             //   This is a kludge.
             _local: (QN_LOCAL?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -434,7 +434,7 @@ ele_parse! {
             _yields: (QN_YIELDS?) => Option<N<{ValueIdent}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
             _gensym: (QN_GENSYM?) => Option<N<{TexMathLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -445,7 +445,7 @@ ele_parse! {
             _name: (QN_NAME) => N<{TypeIdent}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         InnerTypedefStmt,
     };
@@ -458,7 +458,7 @@ ele_parse! {
     /// This is used for primitives and allows for core types to be exposed
     ///   to the user.
     BaseTypeStmt := QN_BASE_TYPE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
     };
 
     /// Define an enumerated type.
@@ -468,7 +468,7 @@ ele_parse! {
     EnumStmt := QN_ENUM {
         @ {
             _ty: (QN_TYPE) => N<{TypeIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         ItemEnumStmt,
     };
@@ -480,13 +480,13 @@ ele_parse! {
             _name: (QN_NAME) => N<{ConstIdent}>,
             _value: (QN_VALUE) => N<{NumLiteral}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Define a type whose domain is the union of the domains of multiple
     ///   other types.
     UnionStmt := QN_UNION {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         TypedefStmt,
     };
@@ -501,7 +501,7 @@ ele_parse! {
     /// This is being replaced with the `__yield__` template in `core`
     ///   (this statement predates the template system in TAME).
     YieldStmt := QN_YIELD {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         CalcExpr,
     };
@@ -523,7 +523,7 @@ ele_parse! {
     SectionStmt := QN_SECTION {
         @ {
             _title: (QN_TITLE) => N<{Title}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         PkgBodyStmt,
     };
@@ -534,7 +534,7 @@ ele_parse! {
             _name: (QN_NAME) => N<{FuncIdent}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         FunctionParamStmt,
         CalcExpr,
@@ -549,7 +549,7 @@ ele_parse! {
             // _TODO: This is a misnomer.
             _set: (QN_SET?) => Option<N<{Dim}>>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
 
@@ -575,7 +575,7 @@ ele_parse! {
             _value: (QN_VALUE?) => Option<N<{ValueIdent}>>,
             _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
             _anyof: (QN_ANY_OF?) => Option<N<{TypeIdent}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcPredExpr,
     };
@@ -585,7 +585,7 @@ ele_parse! {
     /// This represents an expression that matches when _any_ of its inner
     ///   [`LogExpr`] expressions match.
     AnyExpr := QN_ANY {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         LogExpr,
     };
@@ -595,7 +595,7 @@ ele_parse! {
     /// This represents an expression that matches when _all_ of its inner
     ///   [`LogExpr`] expressions match.
     AllExpr := QN_ALL {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         LogExpr,
     };
@@ -662,7 +662,7 @@ ele_parse! {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
             _dim: (QN_DIM?) => Option<N<{Dim}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         WhenExpr,
         CalcExpr,
@@ -684,7 +684,7 @@ ele_parse! {
             _dot: (QN_DOT?) => Option<N<{BooleanLiteral}>>,
             _sym: (QN_SYM?) => Option<N<{TexMathLiteral}>>,
             _dim: (QN_DIM?) => Option<N<{Dim}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         WhenExpr,
         CalcExpr,
@@ -700,7 +700,7 @@ ele_parse! {
     QuotientExpr := QN_C_QUOTIENT {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -716,7 +716,7 @@ ele_parse! {
     ///     (respectively),
     ///   but TAMER will be relaxing that restriction.
     ExptExpr := QN_C_EXPT {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
@@ -731,7 +731,7 @@ ele_parse! {
             _name: (QN_NAME) => N<{ValueIdent}>,
             _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         IndexExpr,
         WhenExpr,
@@ -747,7 +747,7 @@ ele_parse! {
     IndexExpr := QN_C_INDEX {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
         CalcExpr,
     };
 
@@ -766,7 +766,7 @@ ele_parse! {
             _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
             // _TODO: deprecate?
             _ty: (QN_TYPE?) => Option<N<{TypeIdent}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         WhenExpr,
     };
@@ -775,7 +775,7 @@ ele_parse! {
     CeilExpr := QN_C_CEIL {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
         CalcExpr,
     };
 
@@ -783,7 +783,7 @@ ele_parse! {
     FloorExpr := QN_C_FLOOR {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
         CalcExpr,
     };
 
@@ -803,7 +803,7 @@ ele_parse! {
     CasesExpr := QN_C_CASES {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CaseExpr,
         OtherwiseExpr,
@@ -823,7 +823,7 @@ ele_parse! {
     CaseExpr := QN_C_CASE {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         WhenExpr,
         CalcExpr,
@@ -846,7 +846,7 @@ ele_parse! {
     OtherwiseExpr := QN_C_OTHERWISE {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -857,7 +857,7 @@ ele_parse! {
     ///   which are vectors of vectors.
     /// It is not defined for scalars.
     LengthOfExpr := QN_C_LENGTH_OF {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
@@ -871,7 +871,7 @@ ele_parse! {
     /// The result of the let expression is the result of the inner
     ///   [`CalcExpr`].
     LetExpr := QN_C_LET {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         LetValues,
         CalcExpr,
     };
@@ -881,7 +881,7 @@ ele_parse! {
     ///
     /// See [`LetExpr`] for more information.
     LetValues := QN_C_VALUES {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         LetValue,
     };
 
@@ -898,7 +898,7 @@ ele_parse! {
             // Misnomer
             _set: (QN_SET?) => Option<N<{Dim}>>,
             _desc: (QN_DESC?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -908,7 +908,7 @@ ele_parse! {
     VectorExpr := QN_C_VECTOR {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -925,9 +925,9 @@ ele_parse! {
     ///   `<`[`c:arg`](QN_C_ARG)` name="α"><`[`c:value-of`](QN_C_VALUE_OF)
     ///     `name="x" /></c:arg>`.
     ApplyExpr := QN_C_APPLY {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
-        [attr](_attr) => SugaredNir::Todo,
+        [attr](_attr) => Nir::Todo,
 
         ApplyArg,
     };
@@ -940,7 +940,7 @@ ele_parse! {
     ApplyArg := QN_C_ARG {
         @ {
             _name: (QN_NAME) => N<{ParamIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcExpr,
     };
@@ -955,9 +955,9 @@ ele_parse! {
     ///     allowing for concise recursion in terms of only what has changed
     ///     in that recursive step.
     RecurseExpr := QN_C_RECURSE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
-        [attr](_attr) => SugaredNir::Todo,
+        [attr](_attr) => Nir::Todo,
 
         ApplyArg,
     };
@@ -968,7 +968,7 @@ ele_parse! {
     /// This terminology originates from Lisp.
     /// It is equivalent to an `unshift` operation.
     ConsExpr := QN_C_CONS {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
@@ -978,7 +978,7 @@ ele_parse! {
     CarExpr := QN_C_CAR {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
         CalcExpr,
     };
 
@@ -990,7 +990,7 @@ ele_parse! {
     CdrExpr := QN_C_CDR {
         @ {
             _label: (QN_LABEL?) => Option<N<{DescLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
         CalcExpr,
     };
 
@@ -1012,7 +1012,7 @@ ele_parse! {
             _name: (QN_NAME) => N<{ValueIdent}>,
             _index: (QN_INDEX?) => Option<N<{ValueIdent}>>,
             _value: (QN_VALUE?) => Option<N<{ValueIdent}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         CalcPredExpr,
     };
@@ -1032,37 +1032,37 @@ ele_parse! {
 
     /// Equality predicate (=).
     EqCalcPredExpr := QN_C_EQ {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
     /// Non-equality predicate (≠).
     NeCalcPredExpr := QN_C_NE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
     /// Less-than predicate (<).
     LtCalcPredExpr := QN_C_LT {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
     /// Greater-than predicate (>).
     GtCalcPredExpr := QN_C_GT {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
     /// Less-than or equality predicate (≤).
     LteCalcPredExpr := QN_C_LTE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
     /// Greater-than or equality predicate (≥).
     GteCalcPredExpr := QN_C_GTE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         CalcExpr,
     };
 
@@ -1089,7 +1089,7 @@ ele_parse! {
             _xmlns: (QN_XMLNS) => Literal<URI_LV_PROGRAM_MAP>,
             _xmlnslv: (QN_XMLNS_LV) => Literal<URI_LV_RATER>,
             _src: (QN_SRC) => N<{PkgPath}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         MapPkgImportStmt,
         MapImportStmt,
@@ -1107,7 +1107,7 @@ ele_parse! {
         @ {
             _xmlns: (QN_XMLNS) => Literal<URI_LV_PROGRAM_MAP>,
             _xmlnslv: (QN_XMLNS_LV) => Literal<URI_LV_RATER>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         MapPkgImportStmt,
         MapImportStmt,
@@ -1123,7 +1123,7 @@ ele_parse! {
         @ {
             _package: (QN_PACKAGE) => N<{PkgPath}>,
             _export: (QN_EXPORT?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Import a map package.
@@ -1134,7 +1134,7 @@ ele_parse! {
     MapImportStmt := QN_IMPORT {
         @ {
             _path: (QN_PATH) => N<{PkgPath}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Define the value of a key in the destination.
@@ -1150,7 +1150,7 @@ ele_parse! {
             _scalar: (QN_SCALAR?) => Option<N<{BooleanLiteral}>>,
             _override: (QN_OVERRIDE?) => Option<N<{BooleanLiteral}>>,
             _novalidate: (QN_NOVALIDATE?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Map a value into a key of the destination.
@@ -1169,7 +1169,7 @@ ele_parse! {
             _scalar: (QN_SCALAR?) => Option<N<{BooleanLiteral}>>,
             _override: (QN_OVERRIDE?) => Option<N<{BooleanLiteral}>>,
             _novalidate: (QN_NOVALIDATE?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         MapStmtBody,
     };
@@ -1184,7 +1184,7 @@ ele_parse! {
             _default: (QN_DEFAULT?) => Option<N<{NumLiteral}>>,
             _scalar: (QN_SCALAR?) => Option<N<{BooleanLiteral}>>,
             _novalidate: (QN_NOVALIDATE?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         MapTranslateStmt,
     };
@@ -1194,7 +1194,7 @@ ele_parse! {
         @ {
             _key: (QN_KEY) => N<{StringLiteral}>,
             _value: (QN_VALUE) => N<{NumLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Yield a vector of values where each item corresponds to the
@@ -1204,7 +1204,7 @@ ele_parse! {
     ///   since the result is a vector,
     ///   not a set.
     MapSetStmt := QN_SET {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         MapSetBody,
     };
@@ -1216,7 +1216,7 @@ ele_parse! {
     MapConstStmt := QN_CONST {
         @ {
             _value: (QN_VALUE) => N<{StringLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Transform a value using some function.
@@ -1228,7 +1228,7 @@ ele_parse! {
     MapTransformStmt := QN_TRANSFORM {
         @ {
             _method: (QN_METHOD) => N<{MapTransformLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         MapStmtBody,
     };
@@ -1260,7 +1260,7 @@ ele_parse! {
 
             _name: (QN_NAME) => N<{PkgPath}>,
             _pkg: (QN_PACKAGE) => N<{PkgPath}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         ExpandFunctionStmt,
         DisplayStmt,
@@ -1277,7 +1277,7 @@ ele_parse! {
     ExpandFunctionStmt := QN_EXPAND_FUNCTION {
         @ {
             _name: (QN_NAME) => N<{FuncIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Render a simplified, human-readable display of the calculation,
@@ -1285,7 +1285,7 @@ ele_parse! {
     DisplayStmt := QN_DISPLAY {
         @ {
             _name: (QN_NAME) => N<{ValueIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
 
@@ -1378,7 +1378,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => N<{TplIdent}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         TplHeading,
         AnyStmtOrExpr,
@@ -1403,7 +1403,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => N<{TplParamIdent}>,
             _desc: (QN_DESC) => N<{DescLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         TplParamDefault,
     };
@@ -1436,7 +1436,7 @@ ele_parse! {
     TplText := QN_TEXT {
         @ {
             _unique: (QN_UNIQUE?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Default the param to the value of another template param,
@@ -1459,7 +1459,7 @@ ele_parse! {
             _rmunderscore: (QN_RMUNDERSCORE?) => Option<N<{BooleanLiteral}>>,
             _identifier: (QN_IDENTIFIER?) => Option<N<{BooleanLiteral}>>,
             _snake: (QN_SNAKE?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Inherit a default value from a metavalue.
@@ -1474,7 +1474,7 @@ ele_parse! {
     TplParamInherit := QN_PARAM_INHERIT {
         @ {
             _meta: (QN_META) => N<{TplMetaIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Sum a numeric value with a numeric template parameter.
@@ -1485,7 +1485,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => N<{TplParamIdent}>,
             _value: (QN_VALUE) => N<{NumLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Look up the [`@yields`](QN_YIELDS) of a [`ClassifyStmt`].
@@ -1506,7 +1506,7 @@ ele_parse! {
     TplParamClassToYields := QN_PARAM_CLASS_TO_YIELDS {
         @ {
             _name: (QN_NAME) => N<{ClassIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Given a numeric literal,
@@ -1551,7 +1551,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => N<{TypeIdent}>,
             _value: (QN_VALUE) => N<{NumLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Look up an attribute from the symbol table for a given identifier.
@@ -1561,7 +1561,7 @@ ele_parse! {
             _value: (QN_VALUE) => N<{SymbolTableKey}>,
             _prefix: (QN_PREFIX?) => Option<N<{AnyIdent}>>,
             _ignore_missing: (QN_IGNORE_MISSING?) => Option<N<{BooleanLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Keywords that trigger template expansion.
@@ -1604,7 +1604,7 @@ ele_parse! {
     DynNode := QN_DYN_NODE {
         @ {
             _name: (QN_NAME) => N<{DynNodeLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         // But we can at least restrict it for now by ensuring that it's
         //   used only to contain expressions.
@@ -1620,7 +1620,7 @@ ele_parse! {
     /// See also [`WarningKw`] to provide a message to the user as
     ///   compiler output without failing compilation.
     ErrorKw := QN_ERROR {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         // In addition to text that is globally permitted.
         TplParamValue,
@@ -1636,7 +1636,7 @@ ele_parse! {
     ///     you should consider using [`ErrorKw`] whenever possible to
     ///     ensure that problems are immediately resolved.
     WarningKw := QN_WARNING {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         // In addition to text that is globally permitted.
         TplParamValue,
@@ -1658,7 +1658,7 @@ ele_parse! {
     ///   but this is still needed to support dynamic template application
     ///     (templates whose names are derived from other template inputs).
     ApplyTemplate := QN_APPLY_TEMPLATE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         // TODO
     };
@@ -1671,12 +1671,12 @@ ele_parse! {
     ///     template argument.
     /// See [`ApplyTemplate`] for more information.
     TplApplyShort := NS_T {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above
         //     (which is used only for emitting the opening object).
-        [attr](_attr) => SugaredNir::Todo,
+        [attr](_attr) => Nir::Todo,
 
         // Template bodies depend on context,
         //   so we have to just accept everything and defer to a future
@@ -1696,7 +1696,7 @@ ele_parse! {
     ///     and have the unique ability to perform symbol table
     ///     introspection using [`InlineTemplateSymSet`].
     InlineTemplate := QN_INLINE_TEMPLATE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         InlineTemplateForEach,
         AnyStmtOrExpr,
@@ -1711,7 +1711,7 @@ ele_parse! {
     ///     each with the respective [`InlineTemplateArgs`] set as its
     ///     arguments.
     InlineTemplateForEach := QN_FOR_EACH {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         InlineTemplateArgs,
     };
@@ -1728,10 +1728,10 @@ ele_parse! {
     ///
     /// See also parent [`InlineTemplateForEach`].
     InlineTemplateArgSet := QN_SET {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
 
         // Streaming attribute parsing.
-        [attr](_attr) => SugaredNir::Todo,
+        [attr](_attr) => Nir::Todo,
 
         // TODO: REMOVE ME
         //   (bug in `ele_parse!` requiring at least one NT in this
@@ -1756,7 +1756,7 @@ ele_parse! {
             _name_prefix: (QN_NAME_PREFIX?) => Option<N<{StringLiteral}>>,
             _type: (QN_TYPE?) => Option<N<{IdentType}>>,
             // TODO: Look at XSL sources for others
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Perform template expansion on each successive child node in order,
@@ -1786,7 +1786,7 @@ ele_parse! {
     /// The concept originates from TeX's `\expandafter`, `\edef`, and
     ///   related macros.
     ExpandSequence := QN_EXPAND_SEQUENCE {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         AnyStmtOrExpr,
     };
 
@@ -1796,7 +1796,7 @@ ele_parse! {
     ///   implementation of [`ExpandSequence`];
     ///     see that NT for more information.
     ExpandGroup := QN_EXPAND_GROUP {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         AnyStmtOrExpr,
     };
 
@@ -1806,7 +1806,7 @@ ele_parse! {
     ///   template system from expanding its body beyond a certain point,
     ///     which is sometimes needed for template-producing templates.
     ExpandBarrier := QN_EXPAND_BARRIER {
-        @ {} => SugaredNir::Todo,
+        @ {} => Nir::Todo,
         AnyStmtOrExpr,
     };
 
@@ -1819,7 +1819,7 @@ ele_parse! {
     TplParamCopy := QN_PARAM_COPY {
         @ {
             _name: (QN_NAME) => N<{TplParamIdent}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Define a metavalue at this point in the expansion environment.
@@ -1830,7 +1830,7 @@ ele_parse! {
         @ {
             _name: (QN_NAME) => N<{TplParamIdent}>,
             _value: (QN_VALUE) => N<{StringLiteral}>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
     };
 
     /// Conditionally expand the body if the provided predicate matches.
@@ -1844,7 +1844,7 @@ ele_parse! {
             _lte: (QN_LTE?) => Option<N<{NumLiteral}>>,
             _prefix: (QN_PREFIX?) => Option<N<{StringLiteral}>>,
             _suffix: (QN_SUFFIX?) => Option<N<{StringLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         AnyStmtOrExpr,
     };
@@ -1864,7 +1864,7 @@ ele_parse! {
             _lte: (QN_LTE?) => Option<N<{NumLiteral}>>,
             _prefix: (QN_PREFIX?) => Option<N<{StringLiteral}>>,
             _suffix: (QN_SUFFIX?) => Option<N<{StringLiteral}>>,
-        } => SugaredNir::Todo,
+        } => Nir::Todo,
 
         AnyStmtOrExpr,
     };

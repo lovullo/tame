@@ -49,7 +49,7 @@
 //! The entry point for NIR in the lowering pipeline is exported as
 //!   [`XirfToNir`].
 
-mod desugar;
+mod interp;
 mod parse;
 
 use crate::{
@@ -70,25 +70,19 @@ use std::{
     fmt::{Debug, Display},
 };
 
-pub use desugar::{DesugarNir, DesugarNirError};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
 
 use NirSymbolTy::*;
 
-/// IR that is "near" the source code,
-///   without its syntactic sugar.
+/// IR that is "near" the source code.
 ///
-/// This form contains only primitives that cannot be reasonably represented
-///   by other primitives.
-/// This is somewhat arbitrary and may change over time,
-///   but represents a balance between the level of abstraction of the IR
-///   and performance of lowering operations.
-///
-/// See [`SugaredNir`] for more information about the sugared form.
+/// This represents the language of TAME after it has been extracted from
+///   whatever document encloses it
+///     (e.g. XML).
 #[derive(Debug, PartialEq, Eq)]
-pub enum PlainNir {
+pub enum Nir {
     Todo,
 
     TplParamOpen(Plain<{ TplParamIdent }>, Plain<{ DescLiteral }>),
@@ -97,9 +91,9 @@ pub enum PlainNir {
     TplParamValue(Plain<{ TplParamIdent }>),
 }
 
-type Plain<const TY: NirSymbolTy> = PlainNirSymbol<TY>;
+type Plain<const TY: NirSymbolTy> = NirSymbol<TY>;
 
-impl Token for PlainNir {
+impl Token for Nir {
     fn ir_name() -> &'static str {
         "Plain NIR"
     }
@@ -110,7 +104,7 @@ impl Token for PlainNir {
     ///   many) spans associated with a token that is most likely to be
     ///   associated with the identity of that token.
     fn span(&self) -> Span {
-        use PlainNir::*;
+        use Nir::*;
 
         match self {
             Todo => UNKNOWN_SPAN,
@@ -122,11 +116,11 @@ impl Token for PlainNir {
     }
 }
 
-impl Object for PlainNir {}
+impl Object for Nir {}
 
-impl Display for PlainNir {
+impl Display for Nir {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use PlainNir::*;
+        use Nir::*;
 
         match self {
             Todo => write!(f, "TODO"),
@@ -140,51 +134,6 @@ impl Display for PlainNir {
             TplParamValue(ident) => {
                 write!(f, "value of template param {ident}")
             }
-        }
-    }
-}
-
-/// Syntactic sugar atop of [`PlainNir`].
-///
-/// NIR contains various syntax features that serve as mere quality-of-life
-///   conveniences for users
-///     ("sugar" to sweeten the experience).
-/// These features do not add an expressiveness to the language,
-///   and are able to be lowered into other primitives without changing
-///   its meaning.
-///
-/// The process of lowering syntactic sugar into primitives is called
-///   "desugaring" and is carried out by the [`DesugarNir`] lowering
-///     operation,
-///       producing [`PlainNir`].
-#[derive(Debug, PartialEq, Eq)]
-pub enum SugaredNir {
-    /// A primitive token that may have sugared values.
-    Todo,
-}
-
-impl Token for SugaredNir {
-    fn ir_name() -> &'static str {
-        "Sugared NIR"
-    }
-
-    fn span(&self) -> Span {
-        use SugaredNir::*;
-
-        match self {
-            Todo => UNKNOWN_SPAN,
-        }
-    }
-}
-
-impl Object for SugaredNir {}
-
-impl Display for SugaredNir {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use SugaredNir::*;
-
-        match self {
-            Todo => write!(f, "TODO"),
         }
     }
 }
@@ -274,7 +223,7 @@ impl Display for NirSymbolTy {
     }
 }
 
-/// A plain (desugared) ([`SymbolId`], [`Span`]) pair representing an
+/// A ([`SymbolId`], [`Span`]) pair representing an
 ///   attribute value that may need to be interpreted within the context of
 ///   a template application.
 ///
@@ -283,54 +232,13 @@ impl Display for NirSymbolTy {
 ///   stream,
 ///     which must persist in memory for a short period of time,
 ///     and therefore cannot be optimized away as other portions of the IR.
-/// As such,
-///   this does not nest enums.
-///
-/// For the sugared form that the user may have entered themselves,
-///   see [`SugaredNirSymbol`].
 #[derive(Debug, PartialEq, Eq)]
-pub enum PlainNirSymbol<const TY: NirSymbolTy> {
-    Todo(SymbolId, Span),
-}
+pub struct NirSymbol<const TY: NirSymbolTy>(SymbolId, Span);
 
-impl<const TY: NirSymbolTy> PlainNirSymbol<TY> {
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Todo(_, span) => *span,
-        }
-    }
-}
-
-impl<const TY: NirSymbolTy> Display for PlainNirSymbol<TY> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Todo(sym, _) => write!(
-                f,
-                "TODO plain {TY} {fmt_sym}",
-                fmt_sym = TtQuote::wrap(sym),
-            ),
-        }
-    }
-}
-
-/// A ([`SymbolId`], [`Span`]) pair in an attribute value context that may
-///   require desugaring.
-///
-/// For more information on desugaring,
-///   see [`DesugarNir`].
-///
-/// _This object must be kept small_,
-///   since it is used in objects that aggregate portions of the token
-///   stream,
-///     which must persist in memory for a short period of time,
-///     and therefore cannot be optimized away as other portions of the IR.
-#[derive(Debug, PartialEq, Eq)]
-pub struct SugaredNirSymbol<const TY: NirSymbolTy>(SymbolId, Span);
-
-impl<const TY: NirSymbolTy> Token for SugaredNirSymbol<TY> {
+impl<const TY: NirSymbolTy> Token for NirSymbol<TY> {
     fn ir_name() -> &'static str {
         // TODO: Include type?
-        "Sugared NIR Symbol"
+        "NIR Symbol"
     }
 
     fn span(&self) -> Span {
@@ -340,24 +248,35 @@ impl<const TY: NirSymbolTy> Token for SugaredNirSymbol<TY> {
     }
 }
 
-impl<const TY: NirSymbolTy> Display for SugaredNirSymbol<TY> {
+impl<const TY: NirSymbolTy> Display for NirSymbol<TY> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self(sym, _span) => write!(
                 f,
-                "possibly-sugared {TY} {fmt_sym}",
+                "{TY} {fmt_sym}",
                 fmt_sym = TtQuote::wrap(sym),
             ),
         }
     }
 }
 
+impl<const TY: NirSymbolTy> From<(SymbolId, Span)> for NirSymbol<TY> {
+    fn from((val, span): (SymbolId, Span)) -> Self {
+        Self(val, span)
+    }
+}
+
+impl<const TY: NirSymbolTy> From<Attr> for NirSymbol<TY> {
+    fn from(attr: Attr) -> Self {
+        match attr {
+            Attr(_, val, AttrSpan(_, vspan)) => (val, vspan).into(),
+        }
+    }
+}
+
 // Force developer to be conscious of any changes in size;
-//   see `SugaredNirSymbol` docs for more information.
-assert_eq_size!(
-    SugaredNirSymbol<{ NirSymbolTy::AnyIdent }>,
-    (SymbolId, Span)
-);
+//   see `NirSymbol` docs for more information.
+assert_eq_size!(NirSymbol<{ NirSymbolTy::AnyIdent }>, (SymbolId, Span));
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PkgType {
@@ -368,20 +287,6 @@ pub enum PkgType {
     /// Package is intended to be imported as a component of a larger
     ///   program.
     Mod,
-}
-
-impl<const TY: NirSymbolTy> From<(SymbolId, Span)> for SugaredNirSymbol<TY> {
-    fn from((val, span): (SymbolId, Span)) -> Self {
-        Self(val, span)
-    }
-}
-
-impl<const TY: NirSymbolTy> From<Attr> for SugaredNirSymbol<TY> {
-    fn from(attr: Attr) -> Self {
-        match attr {
-            Attr(_, val, AttrSpan(_, vspan)) => (val, vspan).into(),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
