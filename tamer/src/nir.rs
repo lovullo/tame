@@ -251,11 +251,9 @@ impl<const TY: NirSymbolTy> Token for NirSymbol<TY> {
 impl<const TY: NirSymbolTy> Display for NirSymbol<TY> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self(sym, _span) => write!(
-                f,
-                "{TY} {fmt_sym}",
-                fmt_sym = TtQuote::wrap(sym),
-            ),
+            Self(sym, _span) => {
+                write!(f, "{TY} {fmt_sym}", fmt_sym = TtQuote::wrap(sym),)
+            }
         }
     }
 }
