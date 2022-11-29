@@ -20,9 +20,8 @@
 use super::super::{AttrParseError, AttrParseState};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
-    parse::{self, ParseError, Parsed, Parser, TokenStream},
-    span::{dummy::*, Span},
-    sym::SymbolId,
+    parse::{self, util::SPair, ParseError, Parsed, Parser, TokenStream},
+    span::dummy::*,
     xir::{
         attr::{Attr, AttrSpan},
         flat::XirfToken,
@@ -54,39 +53,58 @@ where
     Parser::with_state(S::with_element(QN_ELE, SE), toks)
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum Foo {
+    A(SPair),
+    B(SPair),
+    Unused(SPair),
+}
+
+impl parse::Object for Foo {}
+
+impl<E> From<Foo> for Result<Foo, E> {
+    fn from(value: Foo) -> Self {
+        Ok(value)
+    }
+}
+
 // Remember: we only describe what is _permissable_,
 //   not what is required or what order it must appear in.
 // That is the responsibility of parsers lower in the pipeline.
 #[test]
 fn attrs_any_order_and_optional() {
     attr_parse_stream! {
-        type Object = Attr;
+        type Object = Foo;
         type ValueError = Infallible;
 
         ValuesState {
-            QN_NAME => Attr,
-            QN_YIELDS => Attr,
+            QN_NAME => Foo::A,
+
+            // The above is the same as this longer form:
+            QN_YIELDS => |spair| Foo::B(spair),
 
             // No value will be provided for this one,
             //   which is okay since all are implicitly optional.
-            QN_INDEX => Attr,
+            QN_INDEX => Foo::Unused,
         }
     }
 
-    let attr_name = Attr(QN_NAME, "val_name".into(), AttrSpan(S1, S2));
-    let attr_yields = Attr(QN_YIELDS, "val_value".into(), AttrSpan(S2, S3));
+    let name = "val_name".into();
+    let yields = "val_value".into();
+    let attr_name = Attr(QN_NAME, name, AttrSpan(S1, S2));
+    let attr_yields = Attr(QN_YIELDS, yields, AttrSpan(S2, S3));
 
     // @yields then @name just to emphasize that order does not matter.
-    let toks = vec![
-        XirfToken::Attr(attr_yields.clone()),
-        XirfToken::Attr(attr_name.clone()),
-    ];
+    let toks = vec![XirfToken::Attr(attr_yields), XirfToken::Attr(attr_name)];
 
     assert_eq!(
         // Simply parses back out the attributes;
         //   see following tests further value parsing.
         // Note that we omit one of the attributes declared above.
-        Ok(vec![Object(attr_yields), Object(attr_name),]),
+        Ok(vec![
+            Object(Foo::B(SPair(yields, S3))),
+            Object(Foo::A(SPair(name, S2)))
+        ]),
         sut_parse::<ValuesState, _>(toks.into_iter()).collect(),
     );
 }
@@ -96,12 +114,12 @@ fn attrs_any_order_and_optional() {
 #[test]
 fn attrs_empty() {
     attr_parse_stream! {
-        type Object = Attr;
+        type Object = Foo;
         type ValueError = Infallible;
 
         ValuesState {
             // We will not provide a value for this.
-            QN_NAME => Attr,
+            QN_NAME => Foo::Unused,
         }
     }
 
@@ -114,65 +132,17 @@ fn attrs_empty() {
 }
 
 #[test]
-fn attr_value_into() {
-    // Yes, this is like SPair,
-    //   but the point of this test is to be useful in isolation,
-    //   so please do not couple this with SPair.
-    #[derive(Debug, PartialEq, Eq)]
-    struct Foo(SymbolId, Span);
-
-    impl From<Attr> for Foo {
-        fn from(attr: Attr) -> Self {
-            Foo(attr.value(), attr.attr_span().value_span())
-        }
-    }
-
-    impl parse::Object for Foo {}
-
-    attr_parse_stream! {
-        type Object = Foo;
-        type ValueError = Infallible;
-
-        ValueIntoState {
-            QN_NAME => Foo,
-            QN_YIELDS => Foo,
-        }
-    }
-
-    let val_name = "val_name".into();
-    let val_yields = "val_yields".into();
-    let attr_name = Attr(QN_NAME, val_name, AttrSpan(S1, S2));
-    let attr_yields = Attr(QN_YIELDS, val_yields, AttrSpan(S2, S3));
-
-    let toks = vec![
-        XirfToken::Attr(attr_name.clone()),
-        XirfToken::Attr(attr_yields.clone()),
-    ];
-
-    assert_eq!(
-        Ok(vec![Object(Foo(val_name, S2)), Object(Foo(val_yields, S3))]),
-        sut_parse::<ValueIntoState, _>(toks.into_iter()).collect(),
-    );
-}
-
-// This test would fail at compile time.
-#[test]
 fn attr_value_error() {
-    #[derive(Debug, PartialEq, Eq)]
-    struct Foo;
-
-    impl TryFrom<Attr> for Foo {
+    impl TryFrom<SPair> for Foo {
         type Error = FooError;
 
-        fn try_from(attr: Attr) -> Result<Self, Self::Error> {
-            Err(FooError(attr.value()))
+        fn try_from(spair: SPair) -> Result<Self, Self::Error> {
+            Err(FooError(spair))
         }
     }
 
-    impl parse::Object for Foo {}
-
     #[derive(Debug, PartialEq)]
-    struct FooError(SymbolId);
+    struct FooError(SPair);
 
     impl Error for FooError {
         fn source(&self) -> Option<&(dyn Error + 'static)> {
@@ -192,13 +162,22 @@ fn attr_value_error() {
         }
     }
 
+    impl Into<Result<Foo, FooError>> for FooError {
+        fn into(self) -> Result<Foo, FooError> {
+            Err(self)
+        }
+    }
+
     attr_parse_stream! {
         type Object = Foo;
         type ValueError = FooError;
 
         ValueTryIntoState {
-            QN_NAME => Foo,
-            QN_YIELDS => Foo,
+            // Explicit form:
+            QN_NAME => |s| Err(FooError(s)),
+
+            // Conversion using `Into`:
+            QN_YIELDS => FooError,
         }
     }
 
@@ -216,7 +195,7 @@ fn attr_value_error() {
 
     assert_eq!(
         Some(Err(ParseError::StateError(AttrParseError::InvalidValue(
-            FooError(val_name),
+            FooError(SPair(val_name, S2)),
             QN_ELE
         )))),
         sut.next(),
@@ -225,7 +204,7 @@ fn attr_value_error() {
     // TryInto on `Option` inner type.
     assert_eq!(
         Some(Err(ParseError::StateError(AttrParseError::InvalidValue(
-            FooError(val_yields),
+            FooError(SPair(val_yields, S3)),
             QN_ELE
         )))),
         sut.next(),
@@ -235,27 +214,29 @@ fn attr_value_error() {
 #[test]
 fn unexpected_attr_with_recovery() {
     attr_parse_stream! {
-        type Object = Attr;
+        type Object = Foo;
         type ValueError = Infallible;
 
         UnexpectedState {
-            QN_NAME => Attr,
-            QN_SRC => Attr,
+            QN_NAME => Foo::A,
+            QN_SRC => Foo::B,
         }
     }
 
-    let attr_name = Attr(QN_NAME, "val_name".into(), AttrSpan(S1, S2));
+    let name = "val_name".into();
+    let src = "val_src".into();
+    let attr_name = Attr(QN_NAME, name, AttrSpan(S1, S2));
     let attr_unexpected = Attr(QN_TYPE, "unexpected".into(), AttrSpan(S1, S2));
-    let attr_src = Attr(QN_SRC, "val_src".into(), AttrSpan(S2, S3));
+    let attr_src = Attr(QN_SRC, src, AttrSpan(S2, S3));
 
     let toks = vec![
         // This is expected:
-        XirfToken::Attr(attr_name.clone()),
+        XirfToken::Attr(attr_name),
         // NOT expected (produce an error):
         XirfToken::Attr(attr_unexpected.clone()),
         // <Recovery must take place here.>
         // This is expected after recovery:
-        XirfToken::Attr(attr_src.clone()),
+        XirfToken::Attr(attr_src),
     ];
 
     let mut sut = Parser::with_state(
@@ -263,7 +244,7 @@ fn unexpected_attr_with_recovery() {
         toks.into_iter(),
     );
 
-    assert_eq!(sut.next(), Some(Ok(Object(attr_name))));
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::A(SPair(name, S2))))));
 
     // This will fail at the unknown attribute,
     //   and must then remain in a state where parsing can be resumed.
@@ -279,5 +260,5 @@ fn unexpected_attr_with_recovery() {
         )))),
     );
 
-    assert_eq!(sut.next(), Some(Ok(Object(attr_src))));
+    assert_eq!(sut.next(), Some(Ok(Object(Foo::B(SPair(src, S3))))));
 }

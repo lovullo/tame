@@ -22,7 +22,8 @@
 //! The parser generator is invoked via the macro
 //!   [`attr_parse!`](crate::attr_parse),
 //!   which expects a `match`-like definition describing the mapping between
-//!   attribute [QNames](crate::xir::QName) and the final value.
+//!   attribute [QNames](crate::xir::QName) and a value derived from the
+//!   attribute value.
 //! It produces a streaming attribute parser.
 //!
 //! All fields recognized by this parser are implicitly optional,
@@ -46,28 +47,20 @@ macro_rules! attr_parse_stream {
         type Object = $objty:ty;
         type ValueError = $evty:ty;
 
-        $(vis($vis:vis);)?
-        $(#[$st_attr:meta])? $state_name:ident {
+        $(#[$st_attr:meta])?
+        $vis:vis $state_name:ident {
             $(
                 $(#[$fattr:meta])*
-                $qname:ident => $ty:ty,
+                $qname:ident => $attrf:expr,
             )*
         }
     ) => { paste::paste! {
-        $(
-            // This provides a nice error on $ty itself at the call site,
-            //   rather than relying on `Into::into` to cause the error
-            //   later on,
-            //     which places the error inside the macro definition.
-            assert_impl_all!($ty: TryFrom<crate::xir::attr::Attr>);
-        )*
-
         $(#[$st_attr])?
         ///
         #[doc=concat!("Parser producing [`", stringify!($struct_name), "`].")]
         // TODO: This can be extracted out of the macro.
         #[derive(Debug, PartialEq, Eq)]
-        $($vis)? enum $state_name {
+        $vis enum $state_name {
             Parsing(crate::xir::QName, crate::xir::OpenSpan),
             Done(crate::xir::QName, crate::xir::OpenSpan),
         }
@@ -77,7 +70,7 @@ macro_rules! attr_parse_stream {
         /// TODO: Remove once integrated with `ele_parse!`.
         #[allow(non_camel_case_types)]
         #[derive(Debug, PartialEq, Eq, Default)]
-        $($vis)? struct [<$state_name Fields>];
+        $vis struct [<$state_name Fields>];
 
         impl crate::xir::parse::AttrParseState for $state_name {
             type ValueError = $evty;
@@ -167,6 +160,7 @@ macro_rules! attr_parse_stream {
                 };
                 #[allow(unused_imports)]
                 use crate::xir::attr::{Attr, AttrSpan}; // unused if no attrs
+                use crate::parse::util::SPair;
 
                 let ele_name = self.element_name();
 
@@ -177,9 +171,9 @@ macro_rules! attr_parse_stream {
                         // We don't use `$qname:pat` because we reuse
                         //   `$qname` for error messages.
                         (st @ Self::Parsing(_, _), flat::XirfToken::Attr(
-                            attr @ Attr(qn, _, AttrSpan(_kspan, _))
+                            Attr(qn, v, AttrSpan(_, vspan))
                         )) if qn == $qname => {
-                            match attr.try_into() {
+                            match Into::<Result<$objty, $evty>>::into($attrf(SPair(v, vspan))) {
                                 Ok(value) => {
                                     Transition(st).ok::<$objty>(value)
                                 },
