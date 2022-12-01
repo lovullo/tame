@@ -23,7 +23,6 @@
 //!   processing of the input XML to ensure well-formedness.
 
 mod attr;
-mod attrstream;
 mod ele;
 mod error;
 
