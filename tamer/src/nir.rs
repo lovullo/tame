@@ -55,7 +55,7 @@ mod parse;
 use crate::{
     diagnose::{Annotate, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
-    parse::{Object, Token},
+    parse::{util::SPair, Object, Token},
     span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
     xir::{
@@ -84,6 +84,7 @@ use NirSymbolTy::*;
 #[derive(Debug, PartialEq, Eq)]
 pub enum Nir {
     Todo,
+    TodoAttr(SPair),
 
     TplParamOpen(Plain<{ TplParamIdent }>, Plain<{ DescLiteral }>),
     TplParamClose(Span),
@@ -108,6 +109,7 @@ impl Token for Nir {
 
         match self {
             Todo => UNKNOWN_SPAN,
+            TodoAttr(SPair(_, span)) => *span,
             TplParamOpen(dfn, _) => dfn.span(),
             TplParamClose(span) => *span,
             TplParamText(text) => text.span(),
@@ -124,6 +126,7 @@ impl Display for Nir {
 
         match self {
             Todo => write!(f, "TODO"),
+            TodoAttr(SPair(sym, _)) => write!(f, "TODO Attr {sym}"),
             TplParamOpen(dfn, desc) => {
                 write!(f, "open template param {dfn} ({desc})")
             }
@@ -135,6 +138,12 @@ impl Display for Nir {
                 write!(f, "value of template param {ident}")
             }
         }
+    }
+}
+
+impl<E> Into<Result<Nir, E>> for Nir {
+    fn into(self) -> Result<Nir, E> {
+        Ok(self)
     }
 }
 

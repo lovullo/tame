@@ -102,7 +102,7 @@ macro_rules! attr_parse_stream {
                 Self::Object,
                 crate::xir::parse::AttrParseError<Self>,
             > {
-                unimplemented!()
+                unimplemented!("attrstream finalize_attr")
             }
 
             fn required_missing(
@@ -110,16 +110,7 @@ macro_rules! attr_parse_stream {
                 #[allow(unused_variables)] // unused if no fields
                 _ctx: &Self::Fields
             ) -> Vec<crate::xir::QName> {
-                unimplemented!()
-            }
-        }
-
-        impl $state_name {
-            fn done_with_element(
-                ele: crate::xir::QName,
-                span: crate::xir::OpenSpan,
-            ) -> Self {
-                Self::Done(ele, span)
+                unimplemented!("attrstream required_missing")
             }
         }
 
@@ -151,16 +142,18 @@ macro_rules! attr_parse_stream {
                 #[allow(unused_mut)]
                 mut self,
                 tok: Self::Token,
-                ctx: &mut Self::Context,
+                _ctx: &mut Self::Context,
             ) -> crate::parse::TransitionResult<Self> {
-                use crate::parse::{Transition, Transitionable, ParseStatus};
+                use crate::parse::Transition;
                 use crate::xir::{
                     flat,
                     parse::{AttrParseError, AttrParseState}
                 };
-                #[allow(unused_imports)]
-                use crate::xir::attr::{Attr, AttrSpan}; // unused if no attrs
-                use crate::parse::util::SPair;
+                #[allow(unused_imports)] // unused if no attrs
+                use crate::{
+                    parse::{Transitionable, ParseStatus, util::SPair},
+                    xir::attr::{Attr, AttrSpan}
+                };
 
                 let ele_name = self.element_name();
 
@@ -200,10 +193,7 @@ macro_rules! attr_parse_stream {
 
                     // Aggregation complete (dead state).
                     (Self::Parsing(ele, span), tok_dead) => {
-                        Self::Parsing(ele, span).finalize_attr(ctx)
-                            .map(ParseStatus::Object)
-                            .transition(Self::done_with_element(ele, span))
-                            .with_lookahead(tok_dead)
+                        Transition(Self::Done(ele, span)).dead(tok_dead)
                     }
 
                     // Any tokens received after aggregation is completed

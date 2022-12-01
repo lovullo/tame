@@ -266,7 +266,7 @@ macro_rules! ele_parse {
         $vis:vis enum $super:ident;
 
         // Attr has to be first to avoid ambiguity with `$rest`.
-        $(type AttrValueError = $evty:ty;)?
+        type AttrValueError = $evty:ty;
         type Object = $objty:ty;
 
         $(
@@ -281,7 +281,7 @@ macro_rules! ele_parse {
         $nt_first:ident := $($nt_defs:tt)*
     ) => {
         ele_parse! {@!next $vis $super
-            $(type AttrValueError = $evty;)?
+            type AttrValueError = $evty;
             type Object = $objty;
             $(#[$nt_first_attr])*
             $nt_first := $($nt_defs)*
@@ -295,38 +295,38 @@ macro_rules! ele_parse {
 
     (@!next $vis:vis $super:ident
         // Attr has to be first to avoid ambiguity with `$rest`.
-        $(type AttrValueError = $evty:ty;)?
+        type AttrValueError = $evty:ty;
         type Object = $objty:ty;
 
         $($rest:tt)*
     ) => {
-        ele_parse!(@!nonterm_decl <$objty, $($evty)?> $vis $super $($rest)*);
+        ele_parse!(@!nonterm_decl <$objty, $evty> $vis $super $($rest)*);
     };
 
-    (@!nonterm_decl <$objty:ty, $($evty:ty)?>
+    (@!nonterm_decl <$objty:ty, $evty:ty>
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident := $($rest:tt)*
     ) => {
-        ele_parse!(@!nonterm_def <$objty, $($evty)?>
+        ele_parse!(@!nonterm_def <$objty, $evty>
             $vis $super $(#[$nt_attr])* $nt $($rest)*
         );
     };
 
-    (@!nonterm_def <$objty:ty, $($evty:ty)?>
+    (@!nonterm_def <$objty:ty, $evty:ty>
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident $(($($ntp:tt)*))?
         { $($matches:tt)* }; $($rest:tt)*
     ) => {
-        ele_parse!(@!ele_expand_body <$objty, $($evty)?>
+        ele_parse!(@!ele_expand_body <$objty, $evty>
             $vis $super $(#[$nt_attr])* $nt $qname ($($($ntp)*)?) $($matches)*
         );
 
         ele_parse! {@!next $vis $super
-            $(type AttrValueError = $evty;)?
+            type AttrValueError = $evty;
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_def <$objty:ty, $($evty:ty)?>
+    (@!nonterm_def <$objty:ty, $evty:ty>
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident
         ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
     ) => {
@@ -335,17 +335,17 @@ macro_rules! ele_parse {
         );
 
         ele_parse! {@!next $vis $super
-            $(type AttrValueError = $evty;)?
+            type AttrValueError = $evty;
             type Object = $objty;
             $($rest)*
         }
     };
 
-    (@!nonterm_decl <$objty:ty, $($evty:ty)?> $vis:vis $super:ident) => {};
+    (@!nonterm_decl <$objty:ty, $evty:ty> $vis:vis $super:ident) => {};
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!ele_expand_body <$objty:ty, $($evty:ty)?>
+    (@!ele_expand_body <$objty:ty, $evty:ty>
         $vis:vis $super:ident
         $(#[$nt_attr:meta])* $nt:ident $qname:ident ($($ntp:tt)*)
 
@@ -366,7 +366,7 @@ macro_rules! ele_parse {
         )*
     ) => { paste::paste! {
         ele_parse! {
-            @!ele_dfn_body <$objty, $($evty)?>
+            @!ele_dfn_body <$objty, $evty>
             $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
 
             @ { $($attrbody)* } => $attrmap,
@@ -436,7 +436,7 @@ macro_rules! ele_parse {
         )
     };
 
-    (@!ele_dfn_body <$objty:ty, $($evty:ty)?>
+    (@!ele_dfn_body <$objty:ty, $evty:ty>
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident
         ($($qname_matched:pat, $open_span:pat)?)
 
@@ -447,7 +447,7 @@ macro_rules! ele_parse {
             //   `$attrmap`.
             $(
                 $(#[$fattr:meta])*
-                $field:ident: ($($fmatch:tt)+) => $fty:ty,
+                $fmatch:tt => $fexpr:expr,
             )*
         } => $attrmap:expr,
 
@@ -472,16 +472,17 @@ macro_rules! ele_parse {
             )*
         }
     ) => { paste::paste! {
-        crate::attr_parse! {
+        crate::attr_parse_stream! {
             /// Attribute parser for
             #[doc=concat!("[`", stringify!($nt), "`].")]
-            vis($vis);
-            $(type ValueError = $evty;)?
+            type Object = $objty;
+            type ValueError = $evty;
 
-            struct #[doc(hidden)] [<$nt AttrState_>] -> [<$nt Attrs>] {
+            #[doc(hidden)]
+            $vis [<$nt AttrState_>] {
                 $(
                     $(#[$fattr])*
-                    $field: ($($fmatch)+) => $fty,
+                    $fmatch => $fexpr,
                 )*
             }
         }
@@ -510,8 +511,7 @@ macro_rules! ele_parse {
 
         $(#[$nt_attr])*
         ///
-        #[doc=concat!("Parser for element [`", stringify!($qname), "`] ")]
-        #[doc=concat!("with attributes [`", stringify!([<$nt Attrs>]), "`].")]
+        #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
         #[derive(Debug, PartialEq, Eq, Default)]
         $vis struct $nt(crate::xir::parse::NtState<$nt>);
 
@@ -666,45 +666,21 @@ macro_rules! ele_parse {
 
                 match (selfst, tok) {
                     (
-                        Expecting | NonPreemptableExpecting,
+                        Expecting | NonPreemptableExpecting | Closed(..),
                         XirfToken::Open(qname, span, depth)
                     ) if $nt::matches(qname) => {
                         use crate::xir::parse::AttrFieldSum;
                         attr_fields.init_fields::<[<$nt AttrFields>]>();
 
-                        let transition = Transition(Self(Attrs(
-                            (qname, span, depth),
-                            parse_attrs(qname, span)
-                        )));
-
-                        // Streaming attribute parsing will cause the
-                        //   attribute map to be yielded immediately as the
-                        //   opening object,
-                        //     since we will not be aggregating attrs.
                         $(
-                            // Used only to match on `[attr]`.
-                            let [<_ $attr_stream_binding>] = ();
-                            return transition.ok(<$objty>::from($attrmap));
+                            let $qname_matched = qname;
+                            let $open_span = span;
                         )?
-
-                        // If the `[attr]` special form was _not_
-                        //   provided,
-                        //     we'll be aggregating attributes.
-                        #[allow(unreachable_code)]
-                        transition.incomplete()
-                    },
-
-                    (
-                        Closed(..),
-                        XirfToken::Open(qname, span, depth)
-                    ) if Self::matches(qname) => {
-                        use crate::xir::parse::AttrFieldSum;
-                        attr_fields.init_fields::<[<$nt AttrFields>]>();
 
                         Transition(Self(Attrs(
                             (qname, span, depth),
                             parse_attrs(qname, span)
-                        ))).incomplete()
+                        ))).ok(<$objty>::from($attrmap))
                     },
 
                     // We only attempt recovery when encountering an
@@ -776,47 +752,14 @@ macro_rules! ele_parse {
                     //     which overrides this match directly above
                     //       (xref <<SATTR>>).
                     #[allow(unreachable_patterns)]
-                    (Attrs(meta @ (qname, span, depth), sa), tok) => {
+                    (Attrs(meta @ (_, span, _), sa), tok) => {
                         use crate::xir::parse::AttrFieldSum;
 
-                        sa.delegate_until_obj::<Self, _>(
+                        sa.delegate::<Self, _>(
                             tok,
                             attr_fields.narrow::<[<$nt AttrFields>]>(span),
                             |sa| Transition(Self(Attrs(meta, sa))),
-                            // If we enter a dead state then we have
-                            //   failed produce an attribute object,
-                            //     in which case we'll recover by ignoring
-                            //     the entire element.
-                            || Transition(Self(RecoverEleIgnore(qname, span, depth))),
-                            |#[allow(unused_variables)] sa, attrs| {
-                                let obj = match attrs {
-                                    // Attribute field bindings for `$attrmap`
-                                    [<$nt Attrs>] {
-                                        $(
-                                            $field,
-                                        )*
-                                    } => {
-                                        // Optional `OpenSpan` binding
-                                        let _ = qname; // avoid unused warning
-                                        $(
-                                            use crate::xir::parse::attr::AttrParseState;
-                                            let $qname_matched = qname;
-                                            let $open_span = sa.element_span();
-                                        )?
-
-                                        <$objty>::from($attrmap)
-                                    },
-                                };
-
-                                // Lookahead is added by `delegate_until_obj`.
-                                ele_parse!(@!ntref_delegate
-                                    stack,
-                                    Self(Jmp($ntfirst(meta))),
-                                    $ntfirst_st,
-                                    Transition(<$ntfirst_st>::default()).ok(obj),
-                                    Transition(Self(Jmp($ntfirst(meta)))).ok(obj)
-                                )
-                            }
+                            || Transition(Self(Jmp($ntfirst(meta)))),
                         )
                     },
 
