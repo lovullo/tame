@@ -99,7 +99,7 @@
 
 use memchr::memchr;
 
-use super::{Nir, NirSymbol};
+use super::{Nir, NirEntity};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
@@ -156,6 +156,13 @@ pub enum InterpState {
     #[default]
     Ready,
 
+    /// Genearate an identifier for the expansion template parameter.
+    GenIdent,
+
+    /// Generate a description for the expansion template parameter that is
+    ///   intended as a human-readable debugging string.
+    GenDesc(GenIdentSymbolId),
+
     /// Interpolation will continue in a literal context at the provided
     ///   offset relative to the start of the specification string.
     ParseLiteralAt(SpecSlice, GenIdentSymbolId, SpecOffset),
@@ -180,6 +187,17 @@ impl Display for InterpState {
                 f,
                 "expecting a new symbol to determine whether \
                    interpolation is necessary"
+            ),
+
+            GenIdent => {
+                write!(f, "ready to generate template param identifier")
+            }
+
+            GenDesc(GenIdentSymbolId(sym)) => write!(
+                f,
+                "ready to generate debug description for generated \
+                   template param {}",
+                TtQuote::wrap(sym),
             ),
 
             ParseLiteralAt(spec, _, x) => write!(
@@ -229,11 +247,44 @@ impl ParseState for InterpState {
             // Symbols that require no interpoolation are simply echoed back.
             (Ready, (sym, span)) => {
                 if needs_interpolation(sym) {
-                    Self::begin_expansion(sym, span)
+                    Transition(GenIdent)
+                        .ok(Expanded(Nir::Open(NirEntity::TplParam, span)))
+                        .with_lookahead((sym, span).into())
                 } else {
                     // No desugaring is needed.
-                    Self::yield_symbol(sym, span)
+                    Transition(Ready).ok(DoneExpanding((sym, span).into()))
                 }
+            }
+
+            (GenIdent, (sym, span)) => {
+                let gen_ident = gen_tpl_param_ident_at_offset(span);
+                let GenIdentSymbolId(ident_sym) = gen_ident;
+
+                Transition(GenDesc(gen_ident))
+                    .ok(Expanded(Nir::BindIdent(SPair(ident_sym, span))))
+                    .with_lookahead((sym, span).into())
+            }
+
+            (GenDesc(gen_ident), (sym, span)) => {
+                let s = sym.lookup_str();
+
+                // Description is not interned since there's no use in
+                //   wasting time hashing something that will not be
+                //   referenced
+                //     (it's just informative for a human).
+                // Note that this means that tests cannot compare SymbolId.
+                let gen_desc = format!(
+                    "Generated from interpolated string {}",
+                    TtQuote::wrap(s)
+                )
+                .clone_uninterned();
+
+                // Begin parsing in a _literal_ context,
+                //   since interpolation is most commonly utilized with literal
+                //   prefixes.
+                Transition(ParseLiteralAt(s, gen_ident, 0))
+                    .ok(Expanded(Nir::Desc(SPair(gen_desc, span))))
+                    .with_lookahead((sym, span).into())
             }
 
             // The outermost parsing context is that of the literal,
@@ -244,7 +295,15 @@ impl ParseState for InterpState {
                     // We've reached the end of the specification string.
                     // Since we're in the outermost (literal) context,
                     //   we're safe to complete.
-                    return Self::end_expansion(s, gen_param, sym, span);
+                    return {
+                        // We have one last thing to do before we're complete,
+                        //   which is to perform the final replacement of the original
+                        //   symbol that we've been fed
+                        //     (the specification string).
+                        Transition(FinishSym(s, gen_param))
+                            .ok(Expanded(Nir::Close(span)))
+                            .with_lookahead((sym, span).into())
+                    };
                 }
 
                 // Note that this is the position _relative to the offset_,
@@ -267,8 +326,7 @@ impl ParseState for InterpState {
                         let literal = s[offset..end].intern();
                         let span_text = span.slice(offset, rel_pos);
 
-                        let text =
-                            Nir::TplParamText(NirSymbol(literal, span_text));
+                        let text = Nir::Text(SPair(literal, span_text));
 
                         Transition(ParseInterpAt(s, gen_param, end + 1))
                             .ok(Expanded(text))
@@ -280,8 +338,7 @@ impl ParseState for InterpState {
                         let literal = s[offset..].intern();
                         let span_text = span.slice(offset, s.len() - offset);
 
-                        let text =
-                            Nir::TplParamText(NirSymbol(literal, span_text));
+                        let text = Nir::Text(SPair(literal, span_text));
 
                         // Keep in the current state but update the offset;
                         //   we'll complete parsing next pass.
@@ -316,8 +373,7 @@ impl ParseState for InterpState {
                         //   it is also the length of the value string.
                         let span_value = span.slice(offset, rel_pos);
 
-                        let param_value =
-                            Nir::TplParamValue(NirSymbol(value, span_value));
+                        let param_value = Nir::Ref(SPair(value, span_value));
 
                         // Continue parsing one character past the '}',
                         //   back in a literal context.
@@ -335,87 +391,15 @@ impl ParseState for InterpState {
             //     (the interpolation specification)
             //   with a metavariable referencing the parameter that we just
             //     generated.
+            // We finally release the lookahead symbol.
             (FinishSym(_, GenIdentSymbolId(gen_param)), (_, span)) => {
-                Self::yield_symbol(gen_param, span)
+                Transition(Ready).ok(DoneExpanding((gen_param, span).into()))
             }
         }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         self == &Self::Ready
-    }
-}
-
-impl InterpState {
-    /// Yield the final result of this operation in place of the original
-    ///   specification string,
-    ///     which may or may not have required interpolation.
-    ///
-    /// If no interpolation was required,
-    ///   `sym` will be the original string;
-    ///   otherwise,
-    ///     `sym` ought to be a metavariable referencing the generated
-    ///     template param.
-    ///
-    /// This transitions back to [`Ready`] and finally releases the
-    ///   lookahead symbol.
-    fn yield_symbol(sym: SymbolId, span: Span) -> TransitionResult<Self> {
-        Transition(Ready).ok(DoneExpanding((sym, span).into()))
-    }
-
-    /// Begin expansion of an interpolation specification by generating a
-    ///   new template parameter that will hold the interpolated body.
-    ///
-    /// For more information on identifier generation,
-    ///   see [`gen_tpl_param_ident_at_offset`].
-    fn begin_expansion(sym: SymbolId, span: Span) -> TransitionResult<Self> {
-        let gen_param = gen_tpl_param_ident_at_offset(span);
-
-        // Description is not interned since there's no use in
-        //   wasting time hashing something that will not be
-        //   referenced
-        //     (it's just informative for a human).
-        // Note that this means that tests cannot compare SymbolId.
-        let gen_desc = format!(
-            "Generated from interpolated string {}",
-            TtQuote::wrap(sym)
-        )
-        .clone_uninterned();
-
-        let GenIdentSymbolId(gen_param_sym) = gen_param;
-
-        let open = Nir::TplParamOpen(
-            NirSymbol(gen_param_sym, span),
-            NirSymbol(gen_desc, span),
-        );
-
-        // Begin parsing in a _literal_ context,
-        //   since interpolation is most commonly utilized with literal
-        //   prefixes.
-        Transition(ParseLiteralAt(sym.lookup_str(), gen_param, 0))
-            .ok(Expanded(open))
-            .with_lookahead((sym, span).into())
-    }
-
-    /// Complete expansion of an interpolation specification string.
-    ///
-    /// This closes the newly generated template param `gen_param`,
-    ///   and then transitions to [`FinishSym`].
-    fn end_expansion(
-        s: SpecSlice,
-        gen_param: GenIdentSymbolId,
-        sym: SymbolId,
-        span: Span,
-    ) -> TransitionResult<Self> {
-        let close = Nir::TplParamClose(span);
-
-        // We have one last thing to do before we're complete,
-        //   which is to perform the final replacement of the original
-        //   symbol that we've been fed
-        //     (the specification string).
-        Transition(FinishSym(s, gen_param))
-            .ok(Expanded(close))
-            .with_lookahead((sym, span).into())
     }
 }
 

@@ -74,8 +74,6 @@ pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
 
-use NirSymbolTy::*;
-
 /// IR that is "near" the source code.
 ///
 /// This represents the language of TAME after it has been extracted from
@@ -86,13 +84,51 @@ pub enum Nir {
     Todo,
     TodoAttr(SPair),
 
-    TplParamOpen(Plain<{ TplParamIdent }>, Plain<{ DescLiteral }>),
-    TplParamClose(Span),
-    TplParamText(Plain<{ StringLiteral }>),
-    TplParamValue(Plain<{ TplParamIdent }>),
+    /// Begin the definition of some [`NirEntity`] and place it atop of the
+    ///   stack.
+    Open(NirEntity, Span),
+
+    /// Finish definition of a [`NirEntity`] atop of the stack and pop it.
+    Close(Span),
+
+    /// Bind the given name as an identifier for the entity atop of the
+    ///   stack.
+    BindIdent(SPair),
+
+    /// Reference the value of the given identifier.
+    ///
+    /// Permissible identifiers and values depend on the context in which
+    ///   this appears.
+    Ref(SPair),
+
+    /// Describe the [`NirEntity`] atop of the stack.
+    Desc(SPair),
+
+    /// A string literal.
+    ///
+    /// The meaning of this string depends on context.
+    /// For example,
+    ///   it may represent literate documentation or a literal in a
+    ///   metavariable definition.
+    Text(SPair),
 }
 
-type Plain<const TY: NirSymbolTy> = NirSymbol<TY>;
+/// An object upon which other [`Nir`] tokens act.
+#[derive(Debug, PartialEq, Eq)]
+pub enum NirEntity {
+    /// Template parameter (metavariable).
+    TplParam,
+}
+
+impl Display for NirEntity {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use NirEntity::*;
+
+        match self {
+            TplParam => write!(f, "template param (metavariable)"),
+        }
+    }
+}
 
 impl Token for Nir {
     fn ir_name() -> &'static str {
@@ -109,11 +145,14 @@ impl Token for Nir {
 
         match self {
             Todo => UNKNOWN_SPAN,
-            TodoAttr(SPair(_, span)) => *span,
-            TplParamOpen(dfn, _) => dfn.span(),
-            TplParamClose(span) => *span,
-            TplParamText(text) => text.span(),
-            TplParamValue(ident) => ident.span(),
+            TodoAttr(spair) => spair.span(),
+
+            Open(_, span) => *span,
+            Close(span) => *span,
+
+            BindIdent(spair) | Ref(spair) | Desc(spair) | Text(spair) => {
+                spair.span()
+            }
         }
     }
 }
@@ -126,17 +165,22 @@ impl Display for Nir {
 
         match self {
             Todo => write!(f, "TODO"),
-            TodoAttr(SPair(sym, _)) => write!(f, "TODO Attr {sym}"),
-            TplParamOpen(dfn, desc) => {
-                write!(f, "open template param {dfn} ({desc})")
+            TodoAttr(spair) => write!(f, "TODO Attr {spair}"),
+
+            Open(entity, _) => write!(f, "open {entity} entity"),
+            Close(_) => write!(f, "close entity"),
+            BindIdent(spair) => {
+                write!(f, "bind identifier {}", TtQuote::wrap(spair))
             }
-            TplParamClose(_span) => write!(f, "close template param"),
-            TplParamText(text) => {
-                write!(f, "open template param default text {text}")
-            }
-            TplParamValue(ident) => {
-                write!(f, "value of template param {ident}")
-            }
+            Ref(spair) => write!(f, "ref {}", TtQuote::wrap(spair)),
+
+            // TODO: TtQuote doesn't yet escape quotes at the time of writing!
+            Desc(spair) => write!(f, "description {}", TtQuote::wrap(spair)),
+
+            // TODO: Not yet safe to output arbitrary text;
+            //   need to determine how to handle newlines and other types of
+            //   output.
+            Text(_) => write!(f, "text"),
         }
     }
 }
