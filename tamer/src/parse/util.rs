@@ -39,6 +39,30 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq)]
 pub struct SPair(pub SymbolId, pub Span);
 
+impl SPair {
+    /// Retrieve the [`SymbolId`] of this pair.
+    ///
+    /// This is an alternative to pattern matching.
+    pub fn symbol(&self) -> SymbolId {
+        match self {
+            Self(sym, _) => *sym,
+        }
+    }
+
+    /// Map over the [`SymbolId`] of the pair while retaining the original
+    ///   associated [`Span`].
+    ///
+    /// Span retention is the desired behavior when modifying the source
+    ///   code the user entered,
+    ///     since diagnostic messages will reference the original source
+    ///     location that the modification was derived from.
+    pub fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
+        match self {
+            Self(sym, span) => Self(f(sym), span),
+        }
+    }
+}
+
 impl Token for SPair {
     fn ir_name() -> &'static str {
         "Generic Symbol"

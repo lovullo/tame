@@ -103,11 +103,7 @@ use super::{Nir, NirEntity};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
-    parse::{
-        prelude::*,
-        util::{expand::Expansion, SPair},
-        NoContext,
-    },
+    parse::{prelude::*, util::SPair, NoContext},
     span::Span,
     sym::{
         st::quick_contains_byte, GlobalSymbolIntern, GlobalSymbolResolve,
@@ -117,7 +113,6 @@ use crate::{
 use std::{error::Error, fmt::Display};
 
 // Expose variants for enums defined in this module to reduce verbosity.
-use Expansion::*;
 use InterpState::*;
 
 /// A generated identifier.
@@ -156,12 +151,13 @@ pub enum InterpState {
     #[default]
     Ready,
 
-    /// Genearate an identifier for the expansion template parameter.
-    GenIdent,
+    /// Genearate an identifier for the expansion template parameter to be
+    ///   generated from the provided interpolation string.
+    GenIdent(SymbolId),
 
     /// Generate a description for the expansion template parameter that is
     ///   intended as a human-readable debugging string.
-    GenDesc(GenIdentSymbolId),
+    GenDesc(SymbolId, GenIdentSymbolId),
 
     /// Interpolation will continue in a literal context at the provided
     ///   offset relative to the start of the specification string.
@@ -189,15 +185,21 @@ impl Display for InterpState {
                    interpolation is necessary"
             ),
 
-            GenIdent => {
-                write!(f, "ready to generate template param identifier")
+            GenIdent(sym) => {
+                write!(
+                    f,
+                    "ready to generate template param identifier \
+                        for specification {}",
+                    TtQuote::wrap(sym),
+                )
             }
 
-            GenDesc(GenIdentSymbolId(sym)) => write!(
+            GenDesc(sym, GenIdentSymbolId(gen_sym)) => write!(
                 f,
                 "ready to generate debug description for generated \
-                   template param {}",
-                TtQuote::wrap(sym),
+                    template param {param} from specification {spec}",
+                param = TtQuote::wrap(gen_sym),
+                spec = TtQuote::wrap(sym),
             ),
 
             ParseLiteralAt(spec, _, x) => write!(
@@ -226,8 +228,8 @@ impl Display for InterpState {
 }
 
 impl ParseState for InterpState {
-    type Token = SPair;
-    type Object = Expansion<SPair, Nir>;
+    type Token = Nir;
+    type Object = Nir;
     type Error = InterpError;
 
     fn parse_token(
@@ -235,7 +237,13 @@ impl ParseState for InterpState {
         tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self> {
-        match (self, tok.into()) {
+        // Every expansion token that we emit must be derived from the span
+        //   of the source token,
+        //     ensuring that diagnostics reference the source code that can
+        //     actually be acted upon by the user.
+        let span = tok.span();
+
+        match self {
             // When receiving a new symbol,
             //   we must make a quick determination as to whether it
             //   requires desugaring.
@@ -245,27 +253,27 @@ impl ParseState for InterpState {
             //     filter out non-interpolated strings quickly,
             //       before we start to parse.
             // Symbols that require no interpoolation are simply echoed back.
-            (Ready, (sym, span)) => {
-                if needs_interpolation(sym) {
-                    Transition(GenIdent)
-                        .ok(Expanded(Nir::Open(NirEntity::TplParam, span)))
-                        .with_lookahead((sym, span).into())
-                } else {
-                    // No desugaring is needed.
-                    Transition(Ready).ok(DoneExpanding((sym, span).into()))
+            Ready => match tok.symbol() {
+                Some(sym) if needs_interpolation(sym) => {
+                    Transition(GenIdent(sym))
+                        .ok(Nir::Open(NirEntity::TplParam, span))
+                        .with_lookahead(tok)
                 }
-            }
 
-            (GenIdent, (sym, span)) => {
+                // No desugaring is needed.
+                _ => Transition(Ready).ok(tok),
+            },
+
+            GenIdent(sym) => {
                 let gen_ident = gen_tpl_param_ident_at_offset(span);
                 let GenIdentSymbolId(ident_sym) = gen_ident;
 
-                Transition(GenDesc(gen_ident))
-                    .ok(Expanded(Nir::BindIdent(SPair(ident_sym, span))))
-                    .with_lookahead((sym, span).into())
+                Transition(GenDesc(sym, gen_ident))
+                    .ok(Nir::BindIdent(SPair(ident_sym, span)))
+                    .with_lookahead(tok)
             }
 
-            (GenDesc(gen_ident), (sym, span)) => {
+            GenDesc(sym, gen_ident) => {
                 let s = sym.lookup_str();
 
                 // Description is not interned since there's no use in
@@ -283,14 +291,14 @@ impl ParseState for InterpState {
                 //   since interpolation is most commonly utilized with literal
                 //   prefixes.
                 Transition(ParseLiteralAt(s, gen_ident, 0))
-                    .ok(Expanded(Nir::Desc(SPair(gen_desc, span))))
-                    .with_lookahead((sym, span).into())
+                    .ok(Nir::Desc(SPair(gen_desc, span)))
+                    .with_lookahead(tok)
             }
 
             // The outermost parsing context is that of the literal,
             //   where a sequence of characters up to `{` stand for
             //   themselves.
-            (ParseLiteralAt(s, gen_param, offset), (sym, span)) => {
+            ParseLiteralAt(s, gen_param, offset) => {
                 if offset == s.len() {
                     // We've reached the end of the specification string.
                     // Since we're in the outermost (literal) context,
@@ -301,8 +309,8 @@ impl ParseState for InterpState {
                         //   symbol that we've been fed
                         //     (the specification string).
                         Transition(FinishSym(s, gen_param))
-                            .ok(Expanded(Nir::Close(span)))
-                            .with_lookahead((sym, span).into())
+                            .ok(Nir::Close(span))
+                            .with_lookahead(tok)
                     };
                 }
 
@@ -315,7 +323,7 @@ impl ParseState for InterpState {
                     Some(0) => {
                         Transition(ParseInterpAt(s, gen_param, offset + 1))
                             .incomplete()
-                            .with_lookahead((sym, span).into())
+                            .with_lookahead(tok)
                     }
 
                     // Everything from the offset until the curly brace is a
@@ -329,8 +337,8 @@ impl ParseState for InterpState {
                         let text = Nir::Text(SPair(literal, span_text));
 
                         Transition(ParseInterpAt(s, gen_param, end + 1))
-                            .ok(Expanded(text))
-                            .with_lookahead((sym, span).into())
+                            .ok(text)
+                            .with_lookahead(tok)
                     }
 
                     // The remainder of the specification is a literal.
@@ -343,8 +351,8 @@ impl ParseState for InterpState {
                         // Keep in the current state but update the offset;
                         //   we'll complete parsing next pass.
                         Transition(ParseLiteralAt(s, gen_param, s.len()))
-                            .ok(Expanded(text))
-                            .with_lookahead((sym, span).into())
+                            .ok(text)
+                            .with_lookahead(tok)
                     }
                 }
             }
@@ -354,7 +362,7 @@ impl ParseState for InterpState {
             // This is an inner context that cannot complete without being
             //   explicitly closed,
             //     and cannot not be nested.
-            (ParseInterpAt(s, gen_param, offset), (sym, span)) => {
+            ParseInterpAt(s, gen_param, offset) => {
                 // TODO: Make sure offset exists, avoid panic
                 // TODO: Prevent nested `{`.
 
@@ -378,8 +386,8 @@ impl ParseState for InterpState {
                         // Continue parsing one character past the '}',
                         //   back in a literal context.
                         Transition(ParseLiteralAt(s, gen_param, end + 1))
-                            .ok(Expanded(param_value))
-                            .with_lookahead((sym, span).into())
+                            .ok(param_value)
+                            .with_lookahead(tok)
                     }
 
                     None => todo!("missing closing '}}'"),
@@ -392,8 +400,8 @@ impl ParseState for InterpState {
             //   with a metavariable referencing the parameter that we just
             //     generated.
             // We finally release the lookahead symbol.
-            (FinishSym(_, GenIdentSymbolId(gen_param)), (_, span)) => {
-                Transition(Ready).ok(DoneExpanding((gen_param, span).into()))
+            FinishSym(_, GenIdentSymbolId(gen_param)) => {
+                Transition(Ready).ok(tok.map(|_| gen_param))
             }
         }
     }

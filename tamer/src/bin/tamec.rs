@@ -37,7 +37,7 @@ use tamer::{
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    nir::{XirfToNir, XirfToNirError},
+    nir::{InterpError, InterpolateNir, Nir, XirfToNir, XirfToNirError},
     parse::{
         Lower, ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken,
     },
@@ -136,12 +136,14 @@ fn compile<R: Reporter>(
         _,
     >::lower::<_, UnrecoverableError>(src, |toks| {
         Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
-            nir.fold(Ok(()), |x, result| match result {
-                Ok(_) => x,
-                Err(e) => {
-                    report_err(&e, reporter, &mut ebuf)?;
-                    x
-                }
+            Lower::<XirfToNir, InterpolateNir, _>::lower(nir, |nir| {
+                nir.fold(Ok(()), |x, result| match result {
+                    Ok(_) => x,
+                    Err(e) => {
+                        report_err(&e, reporter, &mut ebuf)?;
+                        x
+                    }
+                })
             })
         })
     })?;
@@ -295,6 +297,7 @@ pub enum RecoverableError {
     XirParseError(ParseError<UnknownToken, xir::Error>),
     XirfParseError(ParseError<XirToken, XirToXirfError>),
     NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
+    InterpError(ParseError<Nir, InterpError>),
 }
 
 impl From<io::Error> for UnrecoverableError {
@@ -335,6 +338,12 @@ impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>>
     }
 }
 
+impl From<ParseError<Nir, InterpError>> for RecoverableError {
+    fn from(e: ParseError<Nir, InterpError>) -> Self {
+        Self::InterpError(e)
+    }
+}
+
 impl Display for UnrecoverableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -356,6 +365,7 @@ impl Display for RecoverableError {
             Self::XirParseError(e) => Display::fmt(e, f),
             Self::XirfParseError(e) => Display::fmt(e, f),
             Self::NirParseError(e) => Display::fmt(e, f),
+            Self::InterpError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -377,6 +387,7 @@ impl Error for RecoverableError {
             Self::XirParseError(e) => Some(e),
             Self::XirfParseError(e) => Some(e),
             Self::NirParseError(e) => Some(e),
+            Self::InterpError(e) => Some(e),
         }
     }
 }
@@ -396,6 +407,7 @@ impl Diagnostic for RecoverableError {
             Self::XirParseError(e) => e.describe(),
             Self::XirfParseError(e) => e.describe(),
             Self::NirParseError(e) => e.describe(),
+            Self::InterpError(e) => e.describe(),
         }
     }
 }

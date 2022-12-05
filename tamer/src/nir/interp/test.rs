@@ -40,14 +40,27 @@ fn does_not_desugar_literal_only() {
     //   but it's also a literal because it's not enclosed in braces.
     for literal in ["foo", "@bar@"] {
         let sym = literal.into();
-        let toks = vec![SPair(sym, S1)];
+
+        // Arbitrary token type that supports symbols
+        let toks = vec![Nir::Ref(SPair(sym, S1))];
 
         assert_eq!(
-            Ok(vec![Object(DoneExpanding(SPair(sym, S1)))]),
+            Ok(vec![Object(Nir::Ref(SPair(sym, S1)))]),
             Sut::parse(toks.into_iter()).collect(),
             "literal `{literal}` must not desugar",
         );
     }
+}
+
+// ...not that it could.
+#[test]
+fn does_not_desugar_tokens_without_symbols() {
+    let toks = vec![Nir::Close(S1)];
+
+    assert_eq!(
+        Ok(vec![Object(Nir::Close(S1))]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
 }
 
 // When ending with an interpolated variable,
@@ -69,7 +82,7 @@ fn desugars_literal_with_ending_var() {
     let b = DC.span(10, 3);
     let c = DC.span(14, 5);
 
-    let given_sym = SPair(given_val.into(), a);
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -87,15 +100,12 @@ fn desugars_literal_with_ending_var() {
     //    helpful information to a human reader.
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Open(NirEntity::TplParam, a))))),
+        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
     );
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::BindIdent(expect_dfn))))),
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Desc(SPair(desc_str, desc_span))))))
+        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
             if desc_str.lookup_str().contains(given_val)
                 && desc_span == a
     );
@@ -103,21 +113,15 @@ fn desugars_literal_with_ending_var() {
     // Note how the span associated with this is `B`,
     //   which is derived from the relevant portion of the original
     //   specification string.
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::Text(expect_text)))))
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Text(expect_text)))));
 
     // This is the actual metavariable reference,
     //   pulled out of the interpolated portion of the given value.
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::Ref(expect_param))))),
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Ref(expect_param)))),);
 
     // This is an object generated from user input,
     //   so the closing span has to identify what were generated from.
-    assert_eq!(sut.next(), Some(Ok(Object(Expanded(Nir::Close(a))))));
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
 
     // Finally,
     //   we replace the original provided attribute
@@ -125,7 +129,7 @@ fn desugars_literal_with_ending_var() {
     //   with a metavariable reference to the generated parameter.
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
+        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 
@@ -150,7 +154,7 @@ fn desugars_var_with_ending_literal() {
     let b = DC.span(21, 5);
     let c = DC.span(27, 3);
 
-    let given_sym = SPair(given_val.into(), a);
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -166,34 +170,25 @@ fn desugars_var_with_ending_literal() {
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Open(NirEntity::TplParam, a))))),
+        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
     );
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::BindIdent(expect_dfn))))),
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Desc(SPair(desc_str, desc_span))))))
+        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
             if desc_str.lookup_str().contains(given_val)
                 && desc_span == a
     );
 
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::Ref(expect_param))))),
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Ref(expect_param)))),);
 
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::Text(expect_text)))))
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Text(expect_text)))));
 
-    assert_eq!(sut.next(), Some(Ok(Object(Expanded(Nir::Close(a))))));
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
+        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 
@@ -219,7 +214,7 @@ fn desugars_many_vars_and_literals() {
     let d = DC.span(40, 3);
     let e = DC.span(44, 6);
 
-    let given_sym = SPair(given_val.into(), a);
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -237,15 +232,12 @@ fn desugars_many_vars_and_literals() {
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Open(NirEntity::TplParam, a))))),
+        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
     );
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::BindIdent(expect_dfn))))),
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Desc(SPair(desc_str, desc_span))))))
+        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
             if desc_str.lookup_str().contains(given_val)
                 && desc_span == a
     );
@@ -253,23 +245,23 @@ fn desugars_many_vars_and_literals() {
     assert_eq!(
         Ok(vec![
             // These two are the as previous tests.
-            Object(Expanded(Nir::Text(expect_text1))),
-            Object(Expanded(Nir::Ref(expect_param1))),
+            Object(Nir::Text(expect_text1)),
+            Object(Nir::Ref(expect_param1)),
             // This pair repeats literals and vars further into the pattern
             //   to ensure that the parser is able to handle returning to
             //   previous states and is able to handle inputs at different
             //   offsets.
-            Object(Expanded(Nir::Text(expect_text2))),
-            Object(Expanded(Nir::Ref(expect_param2))),
+            Object(Nir::Text(expect_text2)),
+            Object(Nir::Ref(expect_param2)),
         ]),
         sut.by_ref().take(4).collect(),
     );
 
-    assert_eq!(sut.next(), Some(Ok(Object(Expanded(Nir::Close(a))))));
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
+        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 
@@ -292,7 +284,7 @@ fn desugars_adjacent_interpolated_vars() {
     let c = DC.span(48, 5);
     let d = DC.span(55, 5);
 
-    let given_sym = SPair(given_val.into(), a);
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
@@ -309,15 +301,12 @@ fn desugars_adjacent_interpolated_vars() {
 
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Open(NirEntity::TplParam, a))))),
+        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
     );
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Expanded(Nir::BindIdent(expect_dfn))))),
-    );
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Expanded(Nir::Desc(SPair(desc_str, desc_span))))))
+        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
             if desc_str.lookup_str().contains(given_val)
                 && desc_span == a
     );
@@ -325,18 +314,18 @@ fn desugars_adjacent_interpolated_vars() {
     // These are the three adjacent vars.
     assert_eq!(
         Ok(vec![
-            Object(Expanded(Nir::Ref(expect_param1))),
-            Object(Expanded(Nir::Ref(expect_param2))),
-            Object(Expanded(Nir::Ref(expect_param3))),
+            Object(Nir::Ref(expect_param1)),
+            Object(Nir::Ref(expect_param2)),
+            Object(Nir::Ref(expect_param3)),
         ]),
         sut.by_ref().take(3).collect(),
     );
 
-    assert_eq!(sut.next(), Some(Ok(Object(Expanded(Nir::Close(a))))));
+    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
 
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(DoneExpanding(SPair(given_replace, given_span)))))
+        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
             if given_replace == expect_name && given_span == a
     );
 

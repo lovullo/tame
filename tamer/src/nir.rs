@@ -70,6 +70,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
+pub use interp::{InterpError, InterpState as InterpolateNir};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
@@ -111,6 +112,61 @@ pub enum Nir {
     ///   it may represent literate documentation or a literal in a
     ///   metavariable definition.
     Text(SPair),
+}
+
+impl Nir {
+    /// Retrieve inner [`SymbolId`] that this token represents,
+    ///   if any.
+    ///
+    /// Not all NIR tokens contain associated symbols;
+    ///   a token's [`SymbolId`] is retained only if it provides additional
+    ///   information over the token itself.
+    ///
+    /// See also [`Nir::map`] if you wish to change the symbol.
+    pub fn symbol(&self) -> Option<SymbolId> {
+        use Nir::*;
+
+        match self {
+            Todo => None,
+            TodoAttr(spair) => Some(spair.symbol()),
+
+            Open(_, _) | Close(_) => None,
+
+            BindIdent(spair) | Ref(spair) | Desc(spair) | Text(spair) => {
+                Some(spair.symbol())
+            }
+        }
+    }
+
+    /// Map over a token's [`SymbolId`].
+    ///
+    /// This allows modifying a token's [`SymbolId`] while retaining the
+    ///   associated [`Span`].
+    /// This is the desired behavior when modifying the source code the user
+    ///   entered,
+    ///     since diagnostic messages will reference the original source
+    ///     location that the modification was derived from.
+    ///
+    /// If a token does not contain a symbol,
+    ///   this returns the token unchanged.
+    ///
+    /// See also [`Nir::symbol`] if you only wish to retrieve the symbol
+    ///   rather than map over it.
+    pub fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
+        use Nir::*;
+
+        match self {
+            Todo => self,
+            TodoAttr(spair) => TodoAttr(spair.map(f)),
+
+            Open(_, _) | Close(_) => self,
+
+            BindIdent(spair) => BindIdent(spair.map(f)),
+            Ref(spair) => Ref(spair.map(f)),
+            Desc(spair) => Desc(spair.map(f)),
+            Text(spair) => Text(spair.map(f)),
+        }
+    }
 }
 
 /// An object upon which other [`Nir`] tokens act.
