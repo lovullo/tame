@@ -20,7 +20,7 @@
 use super::*;
 use crate::{
     nir::NirEntity,
-    parse::Parsed,
+    parse::{Parsed, Parser},
     span::dummy::{DUMMY_CONTEXT as DC, *},
     sym::GlobalSymbolResolve,
 };
@@ -63,6 +63,38 @@ fn does_not_desugar_tokens_without_symbols() {
     );
 }
 
+fn expect_expanded_header(
+    sut: &mut Parser<InterpState, std::vec::IntoIter<Nir>>,
+    given_val: &str,
+    span: Span,
+) -> SymbolId {
+    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(span);
+    let expect_name_sym = expect_name.into();
+
+    // This is the template param generated from the interpolated string.
+    // The generated string is not interned,
+    //   so we cannot match on its symbol,
+    //   but that's okay since we don't entirely care what it says beyond
+    //    containing the original string that it was derived from to provide
+    //    helpful information to a human reader.
+    assert_eq!(
+        sut.next(),
+        Some(Ok(Object(Nir::Open(NirEntity::TplParam, span)))),
+    );
+    assert_eq!(
+        sut.next(),
+        Some(Ok(Object(Nir::BindIdent(SPair(expect_name_sym, span))))),
+    );
+    assert_matches!(
+        sut.next(),
+        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
+            if desc_str.lookup_str().contains(given_val)
+                && desc_span == span
+    );
+
+    expect_name_sym
+}
+
 // When ending with an interpolated variable,
 //   the parser should recognize that we've returned to the outer literal
 //   context and permit successful termination of the specification string.
@@ -85,55 +117,30 @@ fn desugars_literal_with_ending_var() {
     let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = SPair(expect_name.into(), a);
-    let expect_text = SPair("foo".into(), b);
-    let expect_param = SPair("@bar@".into(), c);
-
     let mut sut = Sut::parse(toks.into_iter());
 
-    // This is the template param generated from the interpolated string.
-    // The generated string is not interned,
-    //   so we cannot match on its symbol,
-    //   but that's okay since we don't entirely care what it says beyond
-    //    containing the original string that it was derived from to provide
-    //    helpful information to a human reader.
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
     assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
+        Ok(vec![
+            // Note how the span associated with this is `B`,
+            //   which is derived from the relevant portion of the original
+            //   specification string.
+            Object(Nir::Text(SPair("foo".into(), b))),
+            // This is the actual metavariable reference, pulled out of the
+            //   interpolated portion of the given value.
+            Object(Nir::Ref(SPair("@bar@".into(), c))),
+            // This is an object generated from user input, so the closing
+            //   span has to identify what were generated from.
+            Object(Nir::Close(a)),
+            // Finally,
+            //   we replace the original provided attribute
+            //     (the interpolation specification)
+            //   with a metavariable reference to the generated parameter.
+            Object(Nir::Ref(SPair(expect_name, a))),
+        ]),
+        sut.collect(),
     );
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
-            if desc_str.lookup_str().contains(given_val)
-                && desc_span == a
-    );
-
-    // Note how the span associated with this is `B`,
-    //   which is derived from the relevant portion of the original
-    //   specification string.
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Text(expect_text)))));
-
-    // This is the actual metavariable reference,
-    //   pulled out of the interpolated portion of the given value.
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Ref(expect_param)))),);
-
-    // This is an object generated from user input,
-    //   so the closing span has to identify what were generated from.
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
-
-    // Finally,
-    //   we replace the original provided attribute
-    //     (the interpolation specification)
-    //   with a metavariable reference to the generated parameter.
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
 
 // This is largely the same as the above test,
@@ -157,42 +164,19 @@ fn desugars_var_with_ending_literal() {
     let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = SPair(expect_name.into(), a);
-    let expect_param = SPair("@foo@".into(), b);
-    let expect_text = SPair("bar".into(), c);
-
     let mut sut = Sut::parse(toks.into_iter());
 
-    //
-    // See above test for explanations that are not repeated here.
-    //
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
 
     assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
+        Ok(vec![
+            Object(Nir::Ref(SPair("@foo@".into(), b))),
+            Object(Nir::Text(SPair("bar".into(), c))),
+            Object(Nir::Close(a)),
+            Object(Nir::Ref(SPair(expect_name, a))),
+        ]),
+        sut.collect(),
     );
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
-            if desc_str.lookup_str().contains(given_val)
-                && desc_span == a
-    );
-
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Ref(expect_param)))),);
-
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Text(expect_text)))));
-
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
-
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
 
 // Combination of the above two tests.
@@ -217,55 +201,26 @@ fn desugars_many_vars_and_literals() {
     let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = SPair(expect_name.into(), a);
-    let expect_text1 = SPair("foo".into(), b);
-    let expect_param1 = SPair("@bar@".into(), c);
-    let expect_text2 = SPair("baz".into(), d);
-    let expect_param2 = SPair("@quux@".into(), e);
-
     let mut sut = Sut::parse(toks.into_iter());
 
-    //
-    // See above tests for explanations that are not repeated here.
-    //
-
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
-    );
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
-            if desc_str.lookup_str().contains(given_val)
-                && desc_span == a
-    );
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
 
     assert_eq!(
         Ok(vec![
             // These two are the as previous tests.
-            Object(Nir::Text(expect_text1)),
-            Object(Nir::Ref(expect_param1)),
+            Object(Nir::Text(SPair("foo".into(), b))),
+            Object(Nir::Ref(SPair("@bar@".into(), c))),
             // This pair repeats literals and vars further into the pattern
             //   to ensure that the parser is able to handle returning to
             //   previous states and is able to handle inputs at different
             //   offsets.
-            Object(Nir::Text(expect_text2)),
-            Object(Nir::Ref(expect_param2)),
+            Object(Nir::Text(SPair("baz".into(), d))),
+            Object(Nir::Ref(SPair("@quux@".into(), e))),
+            Object(Nir::Close(a)),
+            Object(Nir::Ref(SPair(expect_name, a))),
         ]),
-        sut.by_ref().take(4).collect(),
+        sut.collect(),
     );
-
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
-
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
 
 // Adjacent vars with empty literal between them.
@@ -287,47 +242,18 @@ fn desugars_adjacent_interpolated_vars() {
     let given_sym = Nir::Ref(SPair(given_val.into(), a));
     let toks = vec![given_sym];
 
-    let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(a);
-    let expect_dfn = SPair(expect_name.into(), a);
-    let expect_param1 = SPair("@foo@".into(), b);
-    let expect_param2 = SPair("@bar@".into(), c);
-    let expect_param3 = SPair("@baz@".into(), d);
-
     let mut sut = Sut::parse(toks.into_iter());
 
-    //
-    // See above tests for explanations that are not repeated here.
-    //
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
 
-    assert_eq!(
-        sut.next(),
-        Some(Ok(Object(Nir::Open(NirEntity::TplParam, a)))),
-    );
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::BindIdent(expect_dfn)))),);
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
-            if desc_str.lookup_str().contains(given_val)
-                && desc_span == a
-    );
-
-    // These are the three adjacent vars.
     assert_eq!(
         Ok(vec![
-            Object(Nir::Ref(expect_param1)),
-            Object(Nir::Ref(expect_param2)),
-            Object(Nir::Ref(expect_param3)),
+            Object(Nir::Ref(SPair("@foo@".into(), b))),
+            Object(Nir::Ref(SPair("@bar@".into(), c))),
+            Object(Nir::Ref(SPair("@baz@".into(), d))),
+            Object(Nir::Close(a)),
+            Object(Nir::Ref(SPair(expect_name, a))),
         ]),
-        sut.by_ref().take(3).collect(),
+        sut.collect(),
     );
-
-    assert_eq!(sut.next(), Some(Ok(Object(Nir::Close(a)))));
-
-    assert_matches!(
-        sut.next(),
-        Some(Ok(Object(Nir::Ref(SPair(given_replace, given_span)))))
-            if given_replace == expect_name && given_span == a
-    );
-
-    assert_eq!(sut.next(), None);
 }
