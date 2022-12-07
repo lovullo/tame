@@ -20,7 +20,7 @@
 use super::*;
 use crate::{
     nir::NirEntity,
-    parse::{Parsed, Parser},
+    parse::{Parsed, ParsedResult, Parser},
     span::dummy::{DUMMY_CONTEXT as DC, *},
     sym::GlobalSymbolResolve,
 };
@@ -223,6 +223,56 @@ fn desugars_many_vars_and_literals() {
     );
 }
 
+// Since we're slicing up strings and spans and trying to keep them in sync,
+//   we best make sure we're doing it right,
+//   given that strings are `char` and spans are `u8`.
+#[test]
+fn proper_multibyte_handling() {
+    // Carefully observe the multibyte characters.
+    // In the below diagram,
+    //   the right span endpoints represent the _final_ byte of the
+    //   multibyte sequence,
+    //     since the brackets are intended to be inclusive of the entire
+    //     byte sequence.
+    let given_val = "føö{@bαr@}βaζ{@qμuχ@}";
+    //               [-] [---] [-] [----]|
+    //               0 4 6  11 13  19  26|
+    //               |B    C    D    E   |
+    //               [-------------------]
+    //               0                  27
+    //                          A
+
+    let a = DC.span(30, 27);
+    let b = DC.span(30, 5);
+    let c = DC.span(36, 6);
+    let d = DC.span(43, 5);
+    let e = DC.span(49, 8);
+
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        Ok(vec![
+            // These two are the as previous tests.
+            Object(Nir::Text(SPair("føö".into(), b))),
+            Object(Nir::Ref(SPair("@bαr@".into(), c))),
+            // This pair repeats literals and vars further into the pattern
+            //   to ensure that the parser is able to handle returning to
+            //   previous states and is able to handle inputs at different
+            //   offsets.
+            Object(Nir::Text(SPair("βaζ".into(), d))),
+            Object(Nir::Ref(SPair("@qμuχ@".into(), e))),
+            Object(Nir::Close(a)),
+            Object(Nir::Ref(SPair(expect_name, a))),
+        ]),
+        sut.collect(),
+    );
+}
+
 // Adjacent vars with empty literal between them.
 #[test]
 fn desugars_adjacent_interpolated_vars() {
@@ -255,5 +305,181 @@ fn desugars_adjacent_interpolated_vars() {
             Object(Nir::Ref(SPair(expect_name, a))),
         ]),
         sut.collect(),
+    );
+}
+
+#[test]
+fn error_missing_closing_interp_delim() {
+    //                  ∨   v  missing delim
+    let given_val = "foo{@bar";
+    //               [–]|   |
+    //               0 2'3  7
+    //               |B  C  D
+    //               |------|
+    //               0      7
+    //                  A
+
+    let a = DC.span(10, 8);
+    let b = DC.span(10, 3);
+    let c = DC.span(13, 1);
+    let d = DC.span(17, 1);
+
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        vec![
+            // The literal is well-formed,
+            //   and so will be output as expected.
+            Ok(Object(Nir::Text(SPair("foo".into(), b)))),
+            // `@bar` would normally be here,
+            //   but it has been omitted because it is malformed.
+            // Instead,
+            //   we produce an error.
+            Err(ParseError::StateError(InterpError::Unclosed(c, d))),
+            // Recovery:
+            //   We still need to expand into something valid so that we can
+            //     proceed with compilation the best we can.
+            //   Having omitted the above token,
+            //     we're able to proceed as if the user didn't provide it at
+            //     all.
+            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Ref(SPair(expect_name, a)))),
+        ],
+        sut.collect::<Vec<ParsedResult<Sut>>>(),
+    );
+}
+
+#[test]
+fn error_nested_delim() {
+    //      opened here v     v nested
+    let given_val = "moo{@bar@{baz}}quux";
+    //               [–]|     |        |
+    //               0 2'3    9        |
+    //               |B  C    D        |
+    //               |-----------------|
+    //               0                18
+    //                        A
+
+    let a = DC.span(10, 19);
+    let b = DC.span(10, 3);
+    let c = DC.span(13, 1);
+    let d = DC.span(19, 1);
+
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        vec![
+            // The literal is well-formed,
+            //   and so will be output as expected.
+            Ok(Object(Nir::Text(SPair("moo".into(), b)))),
+            // We haven't yet completed parsing of the parameter because we
+            //   encountered a nested `{`.
+            Err(ParseError::StateError(InterpError::NestedDelim(c, d))),
+            // Recovery:
+            //   We cannot output the parameter because it failed to parse.
+            //   Furthermore,
+            //     given the user could have intended for any number of
+            //     different interpretations,
+            //       so we're just going to bail out to the easiest
+            //       synchronization point
+            //         (end of the specification string)
+            //         and ignore everything that follows rather than
+            //         potentially interpret it in confusing ways.
+            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Ref(SPair(expect_name, a)))),
+        ],
+        sut.collect::<Vec<ParsedResult<Sut>>>(),
+    );
+}
+
+// We could choose to ignore this,
+//   but it surely was a mistake.
+#[test]
+fn error_empty_interp() {
+    let given_val = "moo{}cow";
+    //               [–][][-]
+    //               0 2'3'5'7
+    //               |B  C  D
+    //               |------|
+    //               0      7
+    //                  A
+
+    let a = DC.span(10, 8);
+    let b = DC.span(10, 3);
+    let c = DC.span(13, 2);
+    let d = DC.span(15, 3);
+
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        vec![
+            // The literal is well-formed,
+            //   and so will be output as expected.
+            Ok(Object(Nir::Text(SPair("moo".into(), b)))),
+            // The interpolation param is empty.
+            Err(ParseError::StateError(InterpError::EmptyParam(c))),
+            // Recovery:
+            //   Just ignore the empty param and continue.
+            //   It wouldn't have had any effect anyway,
+            //     being empty.
+            Ok(Object(Nir::Text(SPair("cow".into(), d)))),
+            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Ref(SPair(expect_name, a)))),
+        ],
+        sut.collect::<Vec<ParsedResult<Sut>>>(),
+    );
+}
+
+// This situation may very well mean that the user forgot an opening
+//   delimiter,
+//     so we ought to check for it.
+#[test]
+fn error_close_before_open() {
+    //                    v close before open
+    let given_val = "@foo@}bar";
+    //               |    5   |
+    //               |    B   |
+    //               [--------]
+    //               0        8
+    //                   A
+
+    let a = DC.span(10, 9);
+    let b = DC.span(15, 1);
+
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        vec![
+            // We encounter an error while parsing the literal.
+            Err(ParseError::StateError(InterpError::Unopened(b))),
+            // Recovery:
+            //   We do not know whether the specification up to this point
+            //     was supposed to be a literal or a param.
+            //   Just bail out;
+            //     maybe in the future we can do something better.
+            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Ref(SPair(expect_name, a)))),
+        ],
+        sut.collect::<Vec<ParsedResult<Sut>>>(),
     );
 }

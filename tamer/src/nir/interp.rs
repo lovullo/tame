@@ -97,11 +97,11 @@
 //!   issues will be mapped back to a source location that makes sense to
 //!   the user with a high level of granularity.
 
-use memchr::memchr;
+use memchr::memchr2;
 
 use super::{Nir, NirEntity};
 use crate::{
-    diagnose::{AnnotatedSpan, Diagnostic},
+    diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
     parse::{prelude::*, util::SPair, NoContext},
     span::Span,
@@ -232,6 +232,11 @@ impl ParseState for InterpState {
     type Object = Nir;
     type Error = InterpError;
 
+    // TODO: Span slicing should be coupled with `SPair` so that it's not
+    //   possible for them to get out of sync with specification slices
+    //     (slices are `char`s, spans are bytes).
+    //   When doing so,
+    //     also introduce diagnostic panics for string slicing.
     fn parse_token(
         self,
         tok: Self::Token,
@@ -314,13 +319,20 @@ impl ParseState for InterpState {
                     };
                 }
 
-                // Note that this is the position _relative to the offset_,
-                //   not the beginning of the string.
-                match s[offset..].chars().position(|ch| ch == '{') {
+                match next_delim(s, span, offset) {
+                    // Close before open
+                    Some((bad_pos, '}')) => {
+                        let espan = span.slice(offset + bad_pos, 1);
+
+                        Transition(ParseLiteralAt(s, gen_param, s.len()))
+                            .err(InterpError::Unopened(espan))
+                            .with_lookahead(tok)
+                    }
+
                     // The literal is the empty string,
                     //   which is useless to output,
                     //   so ignore it and proceed with parsing.
-                    Some(0) => {
+                    Some((0, _)) => {
                         Transition(ParseInterpAt(s, gen_param, offset + 1))
                             .incomplete()
                             .with_lookahead(tok)
@@ -328,7 +340,7 @@ impl ParseState for InterpState {
 
                     // Everything from the offset until the curly brace is a
                     //   literal.
-                    Some(rel_pos) => {
+                    Some((rel_pos, _)) => {
                         let end = offset + rel_pos;
 
                         let literal = s[offset..end].intern();
@@ -363,15 +375,37 @@ impl ParseState for InterpState {
             //   explicitly closed,
             //     and cannot not be nested.
             ParseInterpAt(s, gen_param, offset) => {
-                // TODO: Make sure offset exists, avoid panic
-                // TODO: Prevent nested `{`.
+                let ospan = span.slice(offset - 1, 1);
 
                 // Note that this is the position _relative to the offset_,
                 //   not the beginning of the string.
-                match s[offset..].chars().position(|ch| ch == '}') {
-                    Some(0) => todo!("empty interp"),
+                match next_delim(s, span, offset) {
+                    Some((nested_pos, '{')) => {
+                        let nspan = span.slice(offset + nested_pos, 1);
 
-                    Some(rel_pos) => {
+                        // Recovery:
+                        //   Since we do not know the user's intent,
+                        //     just bail out to the next reasonable
+                        //     synchronization point
+                        //       (end of the specification).
+                        Transition(ParseLiteralAt(s, gen_param, s.len()))
+                            .err(InterpError::NestedDelim(ospan, nspan))
+                            .with_lookahead(tok)
+                    }
+
+                    // Empty param `{}`
+                    Some((0, '}')) => {
+                        // Recovery:
+                        //   Skip the empty param and continue parsing,
+                        //     since it does nothing anyway.
+                        Transition(ParseLiteralAt(s, gen_param, offset + 1))
+                            .err(InterpError::EmptyParam(
+                                span.slice(offset - 1, 2),
+                            ))
+                            .with_lookahead(tok)
+                    }
+
+                    Some((rel_pos, _)) => {
                         let end = offset + rel_pos;
 
                         // The value `@foo` in `{@foo@}`.
@@ -390,7 +424,22 @@ impl ParseState for InterpState {
                             .with_lookahead(tok)
                     }
 
-                    None => todo!("missing closing '}}'"),
+                    // End of specification string before finding closing `}`.
+                    // Since we were unable to complete parsing of the parameter,
+                    //   we cannot output it;
+                    //     to recover we will omit the token entirely and
+                    //     proceed to close.
+                    None => {
+                        let espan = span.slice(s.len() - 1, 1);
+
+                        // Recovery:
+                        //   We cannot emit a param that has not yet been parsed,
+                        //     and we have reached the end of the string,
+                        //     so we can prepare to conclude parsing.
+                        Transition(ParseLiteralAt(s, gen_param, s.len()))
+                            .err(InterpError::Unclosed(ospan, espan))
+                            .with_lookahead(tok)
+                    }
                 }
             }
 
@@ -411,6 +460,20 @@ impl ParseState for InterpState {
     }
 }
 
+/// Locate the next opening or closing delimiter beginning at the given
+///   `offset` for the specification string `s`,
+///     if any.
+fn next_delim(s: &str, span: Span, offset: usize) -> Option<(usize, char)> {
+    s.get(offset..)
+        .diagnostic_expect(
+            span.internal_error("while parsing this specification")
+                .into(),
+            &format!("specification byte offset {offset} is out of bounds"),
+        )
+        .char_indices()
+        .find(|(_, ch)| matches!(*ch, '{' | '}'))
+}
+
 /// Whether a value represented by the provided [`SymbolId`] requires
 ///   interpolation.
 ///
@@ -419,8 +482,8 @@ impl ParseState for InterpState {
 ///
 /// The provided value requires interpolation if it contains,
 ///   anywhere in the string,
-///   the character [`}`].
-/// This uses [`memchr()`] on the raw byte representation of the symbol to
+///   the characters `{` or `}`.
+/// This uses [`memchr2()`] on the raw byte representation of the symbol to
 ///   quickly determine whether a string is only a literal and does not
 ///   require any interpolation,
 ///     which will be the case the vast majority of the time.
@@ -432,13 +495,14 @@ impl ParseState for InterpState {
 ///       that can be re-located quickly enough.
 #[inline]
 fn needs_interpolation(val: SymbolId) -> bool {
-    let ch = b'{';
-
     // We can skip pre-interned symbols that we know cannot include the
-    //   interpolation character.
+    //   interpolation characters.
     // TODO: Abstract into `sym::symbol` module.
-    quick_contains_byte(val, ch)
-        .or_else(|| memchr(ch, val.lookup_str().as_bytes()).map(|_| true))
+    quick_contains_byte(val, b'{')
+        .or_else(|| quick_contains_byte(val, b'}'))
+        .or_else(|| {
+            memchr2(b'{', b'}', val.lookup_str().as_bytes()).map(|_| true)
+        })
         .unwrap_or(false)
 }
 
@@ -472,12 +536,74 @@ fn gen_tpl_param_ident_at_offset(span: Span) -> GenIdentSymbolId {
 
 /// Error while desugaring an interpolation specification.
 #[derive(Debug, PartialEq)]
-pub enum InterpError {}
+pub enum InterpError {
+    /// End of interpolation string was reached before an expected closing
+    ///   delimiter `{`.
+    ///
+    /// The two spans represent,
+    ///   respectively,
+    ///   the position of the opening delimiter and the final character of
+    ///   the interpolation string.
+    /// The latter span will be rendered in such a way as to indicate that
+    ///   parsing ended at that point without having located the closing
+    ///   delimiter;
+    ///     it is _not_ appropriate to suggest that the user add the closing
+    ///     delimiter at that location,
+    ///       since that may not be correct.
+    /// We could be more intelligent about this in the future,
+    ///   but it's probably not worth the effort given that the solution
+    ///   will hopefully be obvious to the user.
+    Unclosed(Span, Span),
+
+    /// A closing delimiter was found in a literal context.
+    ///
+    /// A corresponding opening delimiter `{` was not present for the
+    ///   closing delimiter `}` found at this [`Span`].
+    Unopened(Span),
+
+    /// An opening delimiter was found while already parsing a parameter in
+    ///   the specification string.
+    ///
+    /// The first span indicates the opening delimiter,
+    ///   and the second span the extra opening delimiter.
+    NestedDelim(Span, Span),
+
+    /// An interpolation parameter is the empty string.
+    ///
+    /// This is useless at best,
+    ///   but was possibly accidental.
+    ///
+    /// Note that this does not throw for whitespace-only parameters;
+    ///   that'll be handled by later parsers.
+    /// An empty parameter would _also_ be able to be handled downstream,
+    ///   but this provides a more friendly diagnostic message.
+    EmptyParam(Span),
+}
 
 impl Display for InterpError {
-    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // No errors yet.
-        Ok(())
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use InterpError::*;
+
+        match self {
+            Unclosed(_, _) => write!(
+                f,
+                "unexpected end of interpolation specification \
+                    (expected closing delimiter `}}`)",
+            ),
+
+            Unopened(_) => write!(
+                f,
+                "unexpected closing delimiter `}}` in \
+                    interpolation specification \
+                    (missing corresponding opening delimiter `}}`)",
+            ),
+
+            NestedDelim(_, _) => {
+                write!(f, "cannot nest interpolation parameter delimiter `{{`")
+            }
+
+            EmptyParam(_) => write!(f, "empty interpolation parameter"),
+        }
     }
 }
 
@@ -485,8 +611,44 @@ impl Error for InterpError {}
 
 impl Diagnostic for InterpError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
-        // No errors yet.
-        vec![]
+        use InterpError::*;
+
+        match self {
+            Unclosed(sopen, send) => vec![
+                sopen.note("opening delimiter for interpolation parameter"),
+                send.error(
+                    "specification ended here while expecting closing `}`",
+                ),
+            ],
+
+            Unopened(span) => span
+                .error("this has no corresponding opening delimiter `{`")
+                .into(),
+
+            // It is important to convey that nesting is not supported while
+            //   not jumping to conclusions as to why this error may have
+            //   occurred;
+            //     if we want to provide suggestions,
+            //       then we need to evaluate the erroneous specification
+            //       further and establish some heuristics to guess what the
+            //       user might have meant.
+            NestedDelim(sopen, send) => vec![
+                sopen.note("opening delimiter for interpolation parameter"),
+                send.error("cannot nest opening delimiter"),
+            ],
+
+            EmptyParam(span) => vec![
+                span.error(
+                    "interpolation parameter must contain an identifier",
+                ),
+                span.help(
+                    "an empty interpolation parameter (`{}`) would have no \
+                        effect on the",
+                ),
+                // TODO: auto-wrap instead of having to output multiple help
+                span.help("interpolated string, and so it is disallowed."),
+            ],
+        }
     }
 }
 
