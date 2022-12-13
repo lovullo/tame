@@ -60,6 +60,10 @@ pub type DepSym = SymbolId;
 ///       subsequently analyzed and rewritten.
 #[derive(Debug, PartialEq)]
 pub enum AirToken {
+    /// Placeholder token for objects that do not yet have a proper place on
+    ///   the ASG.
+    Todo,
+
     /// Declare a resolved identifier.
     IdentDecl(IdentSym, IdentKind, Source),
     /// Declare an external identifier that must be resolved before linking.
@@ -91,6 +95,8 @@ impl Display for AirToken {
         use AirToken::*;
 
         match self {
+            Todo => write!(f, "TODO"),
+
             IdentDecl(sym, ..) => {
                 write!(f, "declaration of identifier `{sym}`")
             }
@@ -139,6 +145,8 @@ impl ParseState for AirAggregate {
         use AirToken::*;
 
         match (self, tok) {
+            (Empty, Todo) => Transition(Empty).incomplete(),
+
             (Empty, IdentDecl(sym, kind, src)) => {
                 asg.declare(sym, kind, src).map(|_| ()).transition(Empty)
             }

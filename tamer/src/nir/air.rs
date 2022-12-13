@@ -53,7 +53,7 @@ impl ParseState for NirToAir {
         _tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self::Super> {
-        Transition(self).incomplete()
+        Transition(self).ok(Air::Todo)
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
