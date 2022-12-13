@@ -116,7 +116,7 @@
 //!
 //! See [`TplKw`] for template tokens that are accepted anywhere.
 
-use super::{*, Nir::*};
+use super::{Nir::*, *};
 use crate::{
     ele_parse,
     xir::st::{prefix::*, qname::*},

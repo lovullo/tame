@@ -50,8 +50,8 @@ use std::{
 ///   parser.
 pub mod prelude {
     pub use super::{
-        ClosedParseState, Context, Object, ParseError, ParseState, ParseStatus,
-        Parsed, Token, Transition, TransitionResult,
+        ClosedParseState, Context, NoContext, Object, ParseError, ParseState,
+        ParseStatus, Parsed, Token, Transition, TransitionResult,
     };
 }
 

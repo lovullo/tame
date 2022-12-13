@@ -34,10 +34,17 @@ use std::{
     path::Path,
 };
 use tamer::{
+    asg::{
+        air::{AirAggregate, AirToken as Air},
+        AsgError,
+    },
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    nir::{InterpError, InterpolateNir, Nir, XirfToNir, XirfToNirError},
+    nir::{
+        InterpError, InterpolateNir, Nir, NirToAir, NirToAirError, XirfToNir,
+        XirfToNirError,
+    },
     parse::{
         Lower, ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken,
     },
@@ -137,12 +144,16 @@ fn compile<R: Reporter>(
     >::lower::<_, UnrecoverableError>(src, |toks| {
         Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
             Lower::<XirfToNir, InterpolateNir, _>::lower(nir, |nir| {
-                nir.fold(Ok(()), |x, result| match result {
-                    Ok(_) => x,
-                    Err(e) => {
-                        report_err(&e, reporter, &mut ebuf)?;
-                        x
-                    }
+                Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
+                    Lower::<NirToAir, AirAggregate, _>::lower(air, |end| {
+                        end.fold(Ok(()), |x, result| match result {
+                            Ok(_) => x,
+                            Err(e) => {
+                                report_err(&e, reporter, &mut ebuf)?;
+                                x
+                            }
+                        })
+                    })
                 })
             })
         })
@@ -298,6 +309,8 @@ pub enum RecoverableError {
     XirfParseError(ParseError<XirToken, XirToXirfError>),
     NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
     InterpError(ParseError<Nir, InterpError>),
+    NirToAirError(ParseError<Nir, NirToAirError>),
+    AirAggregateError(ParseError<Air, AsgError>),
 }
 
 impl From<io::Error> for UnrecoverableError {
@@ -344,6 +357,18 @@ impl From<ParseError<Nir, InterpError>> for RecoverableError {
     }
 }
 
+impl From<ParseError<Nir, NirToAirError>> for RecoverableError {
+    fn from(e: ParseError<Nir, NirToAirError>) -> Self {
+        Self::NirToAirError(e)
+    }
+}
+
+impl From<ParseError<Air, AsgError>> for RecoverableError {
+    fn from(e: ParseError<Air, AsgError>) -> Self {
+        Self::AirAggregateError(e)
+    }
+}
+
 impl Display for UnrecoverableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -361,11 +386,15 @@ impl Display for UnrecoverableError {
 
 impl Display for RecoverableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use RecoverableError::*;
+
         match self {
-            Self::XirParseError(e) => Display::fmt(e, f),
-            Self::XirfParseError(e) => Display::fmt(e, f),
-            Self::NirParseError(e) => Display::fmt(e, f),
-            Self::InterpError(e) => Display::fmt(e, f),
+            XirParseError(e) => Display::fmt(e, f),
+            XirfParseError(e) => Display::fmt(e, f),
+            NirParseError(e) => Display::fmt(e, f),
+            InterpError(e) => Display::fmt(e, f),
+            NirToAirError(e) => Display::fmt(e, f),
+            AirAggregateError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -383,11 +412,15 @@ impl Error for UnrecoverableError {
 
 impl Error for RecoverableError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use RecoverableError::*;
+
         match self {
-            Self::XirParseError(e) => Some(e),
-            Self::XirfParseError(e) => Some(e),
-            Self::NirParseError(e) => Some(e),
-            Self::InterpError(e) => Some(e),
+            XirParseError(e) => Some(e),
+            XirfParseError(e) => Some(e),
+            NirParseError(e) => Some(e),
+            InterpError(e) => Some(e),
+            NirToAirError(e) => Some(e),
+            AirAggregateError(e) => Some(e),
         }
     }
 }
@@ -403,11 +436,15 @@ impl Diagnostic for UnrecoverableError {
 
 impl Diagnostic for RecoverableError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
+        use RecoverableError::*;
+
         match self {
-            Self::XirParseError(e) => e.describe(),
-            Self::XirfParseError(e) => e.describe(),
-            Self::NirParseError(e) => e.describe(),
-            Self::InterpError(e) => e.describe(),
+            XirParseError(e) => e.describe(),
+            XirfParseError(e) => e.describe(),
+            NirParseError(e) => e.describe(),
+            InterpError(e) => e.describe(),
+            NirToAirError(e) => e.describe(),
+            AirAggregateError(e) => e.describe(),
         }
     }
 }

@@ -49,6 +49,7 @@
 //! The entry point for NIR in the lowering pipeline is exported as
 //!   [`XirfToNir`].
 
+mod air;
 mod interp;
 mod parse;
 
@@ -70,6 +71,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
+pub use air::{NirToAir, NirToAirError};
 pub use interp::{InterpError, InterpState as InterpolateNir};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
