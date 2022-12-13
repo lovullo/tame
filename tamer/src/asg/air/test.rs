@@ -40,8 +40,7 @@ fn ident_decl() {
         ..Default::default()
     };
 
-    let toks =
-        vec![AirToken::IdentDecl(sym, kind.clone(), src.clone())].into_iter();
+    let toks = vec![Air::IdentDecl(sym, kind.clone(), src.clone())].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -62,7 +61,7 @@ fn ident_decl() {
 
     // Re-instantiate the parser and test an error by attempting to
     //   redeclare the same identifier.
-    let bad_toks = vec![AirToken::IdentDecl(sym, kind, src)].into_iter();
+    let bad_toks = vec![Air::IdentDecl(sym, kind, src)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -80,8 +79,8 @@ fn ident_extern_decl() {
         ..Default::default()
     };
 
-    let toks = vec![AirToken::IdentExternDecl(sym, kind.clone(), src.clone())]
-        .into_iter();
+    let toks =
+        vec![Air::IdentExternDecl(sym, kind.clone(), src.clone())].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -104,7 +103,7 @@ fn ident_extern_decl() {
     //   redeclare with a different kind.
     let different_kind = IdentKind::Meta;
     let bad_toks =
-        vec![AirToken::IdentExternDecl(sym, different_kind, src)].into_iter();
+        vec![Air::IdentExternDecl(sym, different_kind, src)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -118,7 +117,7 @@ fn ident_dep() {
     let ident = "foo".into();
     let dep = "dep".into();
 
-    let toks = vec![AirToken::IdentDep(ident, dep)].into_iter();
+    let toks = vec![Air::IdentDep(ident, dep)].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -146,8 +145,8 @@ fn ident_fragment() {
     let toks = vec![
         // Identifier must be declared before it can be given a
         //   fragment.
-        AirToken::IdentDecl(sym, kind.clone(), src.clone()),
-        AirToken::IdentFragment(sym, frag),
+        Air::IdentDecl(sym, kind.clone(), src.clone()),
+        Air::IdentFragment(sym, frag),
     ]
     .into_iter();
 
@@ -173,7 +172,7 @@ fn ident_fragment() {
 
     // Re-instantiate the parser and test an error by attempting to
     //   re-set the fragment.
-    let bad_toks = vec![AirToken::IdentFragment(sym, frag)].into_iter();
+    let bad_toks = vec![Air::IdentFragment(sym, frag)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -188,7 +187,7 @@ fn ident_fragment() {
 fn ident_root_missing() {
     let sym = "toroot".into();
 
-    let toks = vec![AirToken::IdentRoot(sym)].into_iter();
+    let toks = vec![Air::IdentRoot(sym)].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -222,8 +221,8 @@ fn ident_root_existing() {
     assert!(!kind.is_auto_root());
 
     let toks = vec![
-        AirToken::IdentDecl(sym, kind.clone(), src.clone()),
-        AirToken::IdentRoot(sym),
+        Air::IdentDecl(sym, kind.clone(), src.clone()),
+        Air::IdentRoot(sym),
     ]
     .into_iter();
 

@@ -27,7 +27,7 @@ use super::xmle::{
 };
 use crate::{
     asg::{
-        air::{AirAggregate, AirToken},
+        air::{Air, AirAggregate},
         Asg, AsgError, DefaultAsg, Ident, Object,
     },
     diagnose::{AnnotatedSpan, Diagnostic},
@@ -286,7 +286,7 @@ pub enum TameldError {
     XirfParseError(ParseError<XirToken, XirToXirfError>),
     XmloParseError(ParseError<XirfToken<Text>, XmloError>),
     XmloLowerError(ParseError<XmloToken, XmloAirError>),
-    AirLowerError(ParseError<AirToken, AsgError>),
+    AirLowerError(ParseError<Air, AsgError>),
     XirWriterError(XirWriterError),
     FinalizeError(FinalizeError),
     CycleError(Vec<Vec<SymbolId>>),
@@ -329,8 +329,8 @@ impl From<ParseError<XmloToken, XmloAirError>> for TameldError {
     }
 }
 
-impl From<ParseError<AirToken, AsgError>> for TameldError {
-    fn from(e: ParseError<AirToken, AsgError>) -> Self {
+impl From<ParseError<Air, AsgError>> for TameldError {
+    fn from(e: ParseError<Air, AsgError>) -> Self {
         Self::AirLowerError(e)
     }
 }

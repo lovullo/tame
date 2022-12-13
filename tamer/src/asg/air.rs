@@ -59,7 +59,7 @@ pub type DepSym = SymbolId;
 ///       populating the ASG with the raw data that that will be
 ///       subsequently analyzed and rewritten.
 #[derive(Debug, PartialEq)]
-pub enum AirToken {
+pub enum Air {
     /// Placeholder token for objects that do not yet have a proper place on
     ///   the ASG.
     Todo,
@@ -76,7 +76,7 @@ pub enum AirToken {
     IdentRoot(IdentSym),
 }
 
-impl Token for AirToken {
+impl Token for Air {
     fn ir_name() -> &'static str {
         "AIR"
     }
@@ -88,11 +88,11 @@ impl Token for AirToken {
     }
 }
 
-impl parse::Object for AirToken {}
+impl parse::Object for Air {}
 
-impl Display for AirToken {
+impl Display for Air {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use AirToken::*;
+        use Air::*;
 
         match self {
             Todo => write!(f, "TODO"),
@@ -127,7 +127,7 @@ pub enum AirAggregate {
 }
 
 impl ParseState for AirAggregate {
-    type Token = AirToken;
+    type Token = Air;
     type Object = ();
     type Error = AsgError;
 
@@ -141,8 +141,8 @@ impl ParseState for AirAggregate {
         tok: Self::Token,
         asg: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
+        use Air::*;
         use AirAggregate::*;
-        use AirToken::*;
 
         match (self, tok) {
             (Empty, Todo) => Transition(Empty).incomplete(),

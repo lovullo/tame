@@ -35,7 +35,7 @@ use std::{
 };
 use tamer::{
     asg::{
-        air::{AirAggregate, AirToken as Air},
+        air::{Air, AirAggregate},
         AsgError, DefaultAsg,
     },
     diagnose::{

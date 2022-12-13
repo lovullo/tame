@@ -27,7 +27,7 @@ use std::{
 use fxhash::FxHashSet;
 
 use crate::{
-    asg::{air::AirToken, IdentKind, Source},
+    asg::{air::Air, IdentKind, Source},
     diagnose::{AnnotatedSpan, Diagnostic},
     obj::xmlo::{SymAttrs, SymType},
     parse::{ParseState, ParseStatus, Transition, Transitionable},
@@ -100,7 +100,7 @@ pub enum XmloToAir {
 
 impl ParseState for XmloToAir {
     type Token = XmloToken;
-    type Object = AirToken;
+    type Object = Air;
     type Error = XmloAirError;
 
     type Context = XmloAirContext;
@@ -138,8 +138,9 @@ impl ParseState for XmloToAir {
             (
                 Package(pkg_name, span),
                 XmloToken::PkgEligClassYields(pkg_elig, _),
-            ) => Transition(Package(pkg_name, span))
-                .ok(AirToken::IdentRoot(pkg_elig)),
+            ) => {
+                Transition(Package(pkg_name, span)).ok(Air::IdentRoot(pkg_elig))
+            }
 
             (
                 st @ (PackageExpected | Package(..)),
@@ -156,7 +157,7 @@ impl ParseState for XmloToAir {
 
             (SymDep(pkg_name, span, sym), XmloToken::Symbol(dep_sym, _)) => {
                 Transition(SymDep(pkg_name, span, sym))
-                    .ok(AirToken::IdentDep(sym, dep_sym))
+                    .ok(Air::IdentDep(sym, dep_sym))
             }
 
             (
@@ -199,11 +200,11 @@ impl ParseState for XmloToAir {
                         }
 
                         if extern_ {
-                            Ok(ParseStatus::Object(AirToken::IdentExternDecl(
+                            Ok(ParseStatus::Object(Air::IdentExternDecl(
                                 sym, kindval, src,
                             )))
                         } else {
-                            Ok(ParseStatus::Object(AirToken::IdentDecl(
+                            Ok(ParseStatus::Object(Air::IdentDecl(
                                 sym, kindval, src,
                             )))
                         }
@@ -215,7 +216,7 @@ impl ParseState for XmloToAir {
                 Package(pkg_name, span) | SymDep(pkg_name, span, _),
                 XmloToken::Fragment(sym, text, _),
             ) => Transition(Package(pkg_name, span))
-                .ok(AirToken::IdentFragment(sym, text)),
+                .ok(Air::IdentFragment(sym, text)),
 
             // We don't need to read any further than the end of the
             //   header (symtable, sym-deps, fragments).
@@ -443,7 +444,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete, // PkgName
-                Parsed::Object(AirToken::IdentRoot(elig_sym)),
+                Parsed::Object(Air::IdentRoot(elig_sym)),
                 Parsed::Incomplete, // Eoh
             ]),
             Sut::parse(toks.into_iter()).collect(),
@@ -468,8 +469,8 @@ mod test {
             Ok(vec![
                 Parsed::Incomplete, // PkgName
                 Parsed::Incomplete, // SymDepStart
-                Parsed::Object(AirToken::IdentDep(sym_from, sym_to1)),
-                Parsed::Object(AirToken::IdentDep(sym_from, sym_to2)),
+                Parsed::Object(Air::IdentDep(sym_from, sym_to1)),
+                Parsed::Object(Air::IdentDep(sym_from, sym_to2)),
                 Parsed::Incomplete, // Eoh
             ]),
             Sut::parse(toks.into_iter()).collect(),
@@ -576,7 +577,7 @@ mod test {
         //   since this is considered to be the first package encountered.
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgName
         assert_eq!(
-            Some(Ok(Parsed::Object(AirToken::IdentExternDecl(
+            Some(Ok(Parsed::Object(Air::IdentExternDecl(
                 sym_extern,
                 IdentKind::Meta,
                 Source {
@@ -587,7 +588,7 @@ mod test {
             sut.next(),
         );
         assert_eq!(
-            Some(Ok(Parsed::Object(AirToken::IdentDecl(
+            Some(Ok(Parsed::Object(Air::IdentDecl(
                 sym_non_extern,
                 IdentKind::Meta,
                 Source {
@@ -598,7 +599,7 @@ mod test {
             sut.next(),
         );
         assert_eq!(
-            Some(Ok(Parsed::Object(AirToken::IdentDecl(
+            Some(Ok(Parsed::Object(Air::IdentDecl(
                 sym_map,
                 IdentKind::Map,
                 Source {
@@ -609,7 +610,7 @@ mod test {
             sut.next(),
         );
         assert_eq!(
-            Some(Ok(Parsed::Object(AirToken::IdentDecl(
+            Some(Ok(Parsed::Object(Air::IdentDecl(
                 sym_retmap,
                 IdentKind::RetMap,
                 Source {
@@ -660,7 +661,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete, // PkgName
-                Parsed::Object(AirToken::IdentDecl(
+                Parsed::Object(Air::IdentDecl(
                     sym,
                     IdentKind::Meta,
                     Source {
@@ -703,7 +704,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete, // PkgName
-                Parsed::Object(AirToken::IdentDecl(
+                Parsed::Object(Air::IdentDecl(
                     sym,
                     IdentKind::Meta,
                     Source {
@@ -747,7 +748,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete, // PkgName
-                Parsed::Object(AirToken::IdentFragment(sym, frag)),
+                Parsed::Object(Air::IdentFragment(sym, frag)),
                 Parsed::Incomplete, // Eoh
             ]),
             Sut::parse(toks.into_iter()).collect(),

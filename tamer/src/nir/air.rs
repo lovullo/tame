@@ -21,9 +21,7 @@
 
 use std::{error::Error, fmt::Display};
 
-use crate::{
-    asg::air::AirToken as Air, diagnose::Diagnostic, parse::prelude::*,
-};
+use crate::{asg::air::Air, diagnose::Diagnostic, parse::prelude::*};
 
 use super::Nir;
 
