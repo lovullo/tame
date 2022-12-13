@@ -36,7 +36,7 @@ use std::{
 use tamer::{
     asg::{
         air::{AirAggregate, AirToken as Air},
-        AsgError,
+        AsgError, DefaultAsg,
     },
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
@@ -46,7 +46,8 @@ use tamer::{
         XirfToNirError,
     },
     parse::{
-        Lower, ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken,
+        FinalizeError, Lower, ParseError, Parsed, ParsedObject, ParsedResult,
+        UnknownToken,
     },
     xir::{
         self,
@@ -137,6 +138,10 @@ fn compile<R: Reporter>(
         .inspect(copy_xml_to(fout, &escaper))
         .map(|result| result.map_err(RecoverableError::from));
 
+    // TODO: Determine a good default capacity once we have this populated
+    //   and can come up with some heuristics.
+    let asg = DefaultAsg::with_capacity(1024, 2048);
+
     let _ = Lower::<
         ParsedObject<XirToken, XirError>,
         XirToXirf<64, RefinedText>,
@@ -145,15 +150,19 @@ fn compile<R: Reporter>(
         Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
             Lower::<XirfToNir, InterpolateNir, _>::lower(nir, |nir| {
                 Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
-                    Lower::<NirToAir, AirAggregate, _>::lower(air, |end| {
-                        end.fold(Ok(()), |x, result| match result {
-                            Ok(_) => x,
-                            Err(e) => {
-                                report_err(&e, reporter, &mut ebuf)?;
-                                x
-                            }
-                        })
-                    })
+                    Lower::<NirToAir, AirAggregate, _>::lower_with_context(
+                        air,
+                        asg,
+                        |end| {
+                            end.fold(Ok(()), |x, result| match result {
+                                Ok(_) => x,
+                                Err(e) => {
+                                    report_err(&e, reporter, &mut ebuf)?;
+                                    x
+                                }
+                            })
+                        },
+                    )
                 })
             })
         })
@@ -274,6 +283,7 @@ pub enum UnrecoverableError {
     Fmt(fmt::Error),
     XirWriterError(xir::writer::Error),
     ErrorsDuringLowering(ErrorCount),
+    FinalizeError(FinalizeError),
 }
 
 /// Number of errors that occurred during this compilation unit.
@@ -331,6 +341,12 @@ impl From<xir::writer::Error> for UnrecoverableError {
     }
 }
 
+impl From<FinalizeError> for UnrecoverableError {
+    fn from(e: FinalizeError) -> Self {
+        Self::FinalizeError(e)
+    }
+}
+
 impl From<ParseError<UnknownToken, xir::Error>> for RecoverableError {
     fn from(e: ParseError<UnknownToken, xir::Error>) -> Self {
         Self::XirParseError(e)
@@ -371,13 +387,16 @@ impl From<ParseError<Air, AsgError>> for RecoverableError {
 
 impl Display for UnrecoverableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use UnrecoverableError::*;
+
         match self {
-            Self::Io(e) => Display::fmt(e, f),
-            Self::Fmt(e) => Display::fmt(e, f),
-            Self::XirWriterError(e) => Display::fmt(e, f),
+            Io(e) => Display::fmt(e, f),
+            Fmt(e) => Display::fmt(e, f),
+            XirWriterError(e) => Display::fmt(e, f),
+            FinalizeError(e) => Display::fmt(e, f),
 
             // TODO: Use formatter for dynamic "error(s)"
-            Self::ErrorsDuringLowering(err_count) => {
+            ErrorsDuringLowering(err_count) => {
                 write!(f, "aborting due to previous {err_count} error(s)",)
             }
         }
@@ -401,11 +420,14 @@ impl Display for RecoverableError {
 
 impl Error for UnrecoverableError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use UnrecoverableError::*;
+
         match self {
-            Self::Io(e) => Some(e),
-            Self::Fmt(e) => Some(e),
-            Self::XirWriterError(e) => Some(e),
-            Self::ErrorsDuringLowering(_) => None,
+            Io(e) => Some(e),
+            Fmt(e) => Some(e),
+            XirWriterError(e) => Some(e),
+            ErrorsDuringLowering(_) => None,
+            FinalizeError(e) => Some(e),
         }
     }
 }
@@ -427,9 +449,15 @@ impl Error for RecoverableError {
 
 impl Diagnostic for UnrecoverableError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
+        use UnrecoverableError::*;
+
         match self {
+            FinalizeError(e) => e.describe(),
+
             // Fall back to `Display`
-            _ => vec![],
+            Io(_) | Fmt(_) | XirWriterError(_) | ErrorsDuringLowering(_) => {
+                vec![]
+            }
         }
     }
 }
