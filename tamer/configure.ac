@@ -68,6 +68,8 @@ AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
 
 AC_ARG_VAR([CARGO_BUILD_FLAGS],
            [Flags to be passed to `cargo build' when invoked via Make])
+AC_ARG_VAR([RUSTFLAGS],
+           [Flags to be passed to `rustc' when invoked via Make])
 
 # All currently-used doc features are stable (this used to be used for
 # intra-doc links)

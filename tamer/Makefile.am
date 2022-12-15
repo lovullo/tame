@@ -30,6 +30,7 @@
 .PHONY: all fix fmt check-fmt bench bench-build
 
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
+export RUSTFLAGS=@RUSTFLAGS@
 
 .DEFAULT: bin
 
