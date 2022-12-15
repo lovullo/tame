@@ -23,6 +23,8 @@ use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, Source, TransitionResult,
 };
 use crate::global;
+use crate::parse::util::SPair;
+use crate::parse::Token;
 use crate::sym::SymbolId;
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
 use std::fmt::Debug;
@@ -173,12 +175,18 @@ impl Asg {
     /// Lookup `ident` or add a missing identifier to the graph and return a
     ///   reference to it.
     ///
+    /// The provided span is necessary to seed the missing identifier with
+    ///   some sort of context to aid in debugging why a missing identifier
+    ///   was introduced to the graph.
+    ///
     /// See [`Ident::declare`] for more information.
-    pub(super) fn lookup_or_missing(&mut self, ident: SymbolId) -> ObjectRef {
-        self.lookup(ident).unwrap_or_else(|| {
+    pub(super) fn lookup_or_missing(&mut self, ident: SPair) -> ObjectRef {
+        let sym = ident.symbol();
+
+        self.lookup(sym).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(Ident::declare(ident).into()));
 
-            self.index_identifier(ident, index);
+            self.index_identifier(sym, index);
             ObjectRef::new(index)
         })
     }
@@ -186,7 +194,7 @@ impl Asg {
     /// Perform a state transition on an identifier by name.
     ///
     /// Look up `ident` or add a missing identifier if it does not yet exist
-    ///   (see `lookup_or_missing`).
+    ///   (see [`Self::lookup_or_missing`]).
     /// Then invoke `f` with the located identifier and replace the
     ///   identifier on the graph with the result.
     ///
@@ -194,7 +202,7 @@ impl Asg {
     ///   value on transition failure.
     fn with_ident_lookup<F>(
         &mut self,
-        name: SymbolId,
+        name: SPair,
         f: F,
     ) -> AsgResult<ObjectRef>
     where
@@ -296,13 +304,13 @@ impl Asg {
     ///   and return an [`ObjectRef`] reference.
     pub fn declare(
         &mut self,
-        name: SymbolId,
+        name: SPair,
         kind: IdentKind,
         src: Source,
     ) -> AsgResult<ObjectRef> {
         let is_auto_root = kind.is_auto_root();
 
-        self.with_ident_lookup(name, |obj| obj.resolve(kind, src))
+        self.with_ident_lookup(name, |obj| obj.resolve(name.span(), kind, src))
             .and_then(|node| {
                 is_auto_root.then(|| self.add_root(node));
                 Ok(node)
@@ -331,11 +339,11 @@ impl Asg {
     ///   compatibility related to extern resolution.
     pub fn declare_extern(
         &mut self,
-        name: SymbolId,
+        name: SPair,
         kind: IdentKind,
         src: Source,
     ) -> AsgResult<ObjectRef> {
-        self.with_ident_lookup(name, |obj| obj.extern_(kind, src))
+        self.with_ident_lookup(name, |obj| obj.extern_(name.span(), kind, src))
     }
 
     /// Set the fragment associated with a concrete identifier.
@@ -345,7 +353,7 @@ impl Asg {
     ///   see [`Ident::set_fragment`].
     pub fn set_fragment(
         &mut self,
-        name: SymbolId,
+        name: SPair,
         text: FragmentText,
     ) -> AsgResult<ObjectRef> {
         self.with_ident_lookup(name, |obj| obj.set_fragment(text))
@@ -426,8 +434,8 @@ impl Asg {
     /// References to both identifiers are returned in argument order.
     pub fn add_dep_lookup(
         &mut self,
-        ident: SymbolId,
-        dep: SymbolId,
+        ident: SPair,
+        dep: SPair,
     ) -> (ObjectRef, ObjectRef) {
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
@@ -469,8 +477,7 @@ impl From<ObjectRef> for NodeIndex {
 mod test {
     use super::super::error::AsgError;
     use super::*;
-    use crate::num::Dim;
-    use crate::sym::GlobalSymbolIntern;
+    use crate::{num::Dim, span::dummy::*, sym::GlobalSymbolIntern};
     use std::assert_matches::assert_matches;
 
     type Sut = Asg;
@@ -495,11 +502,11 @@ mod test {
         // index to create a gap, and then use an index within that gap
         // to ensure that it's not considered an already-defined
         // identifier.
-        let syma = "syma".intern();
-        let symb = "symab".intern();
+        let syma = "syma".into();
+        let symb = "symab".into();
 
         let nodea = sut.declare(
-            syma,
+            SPair(syma, S1),
             IdentKind::Meta,
             Source {
                 desc: Some("a".into()),
@@ -508,7 +515,7 @@ mod test {
         )?;
 
         let nodeb = sut.declare(
-            symb,
+            SPair(symb, S2),
             IdentKind::Worksheet,
             Source {
                 desc: Some("b".into()),
@@ -519,7 +526,7 @@ mod test {
         assert_ne!(nodea, nodeb);
 
         let givena = sut.get_ident(nodea).unwrap();
-        assert_eq!(syma, givena.name());
+        assert_eq!(SPair(syma, S1), givena.name());
         assert_eq!(Some(&IdentKind::Meta), givena.kind());
         assert_eq!(
             Some(&Source {
@@ -530,7 +537,7 @@ mod test {
         );
 
         let givenb = sut.get_ident(nodeb).unwrap();
-        assert_eq!(symb, givenb.name());
+        assert_eq!(SPair(symb, S2), givenb.name());
         assert_eq!(Some(&IdentKind::Worksheet), givenb.kind());
         assert_eq!(
             Some(&Source {
@@ -551,8 +558,11 @@ mod test {
         // Sanity check, in case this changes.
         assert!(auto_kind.is_auto_root());
 
-        let auto_root_node =
-            sut.declare("auto_root".intern(), auto_kind, Default::default())?;
+        let auto_root_node = sut.declare(
+            SPair("auto_root".into(), S1),
+            auto_kind,
+            Default::default(),
+        )?;
 
         // Should have been automatically added as a root.
         assert!(sut
@@ -563,7 +573,7 @@ mod test {
         assert!(!no_auto_kind.is_auto_root());
 
         let no_auto_root_node = sut.declare(
-            "no_auto_root".intern(),
+            SPair("no_auto_root".into(), S2),
             no_auto_kind,
             Default::default(),
         )?;
@@ -582,7 +592,7 @@ mod test {
 
         let sym = "lookup".into();
         let node = sut.declare(
-            sym,
+            SPair(sym, S1),
             IdentKind::Meta,
             Source {
                 generated: true,
@@ -599,15 +609,16 @@ mod test {
     fn declare_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "symdup".intern();
+        let sym = "symdup".into();
         let src = Source {
             desc: Some("orig".into()),
             ..Default::default()
         };
 
         // Set up an object to fail redeclaration.
-        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
-        let result = sut.declare(sym, IdentKind::Meta, Source::default());
+        let node = sut.declare(SPair(sym, S1), IdentKind::Meta, src.clone())?;
+        let result =
+            sut.declare(SPair(sym, S2), IdentKind::Meta, Source::default());
 
         assert_matches!(result, Err(AsgError::IdentTransition(..)));
 
@@ -621,16 +632,18 @@ mod test {
     fn declare_extern_returns_existing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "symext".intern();
+        let sym = "symext".into();
         let src = Source::default();
         let kind = IdentKind::Class(Dim::Matrix);
-        let node = sut.declare_extern(sym, kind.clone(), src.clone())?;
+        let node =
+            sut.declare_extern(SPair(sym, S1), kind.clone(), src.clone())?;
 
         let resrc = Source {
             desc: Some("redeclare".into()),
             ..Default::default()
         };
-        let redeclare = sut.declare_extern(sym, kind.clone(), resrc.clone())?;
+        let redeclare =
+            sut.declare_extern(SPair(sym, S2), kind.clone(), resrc.clone())?;
 
         assert_eq!(node, redeclare);
 
@@ -642,17 +655,20 @@ mod test {
     fn declare_extern_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "symdup".intern();
+        let sym = "symdup".into();
         let src = Source {
             desc: Some("orig".into()),
             ..Default::default()
         };
 
-        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+        let node = sut.declare(SPair(sym, S1), IdentKind::Meta, src.clone())?;
 
         // Changes kind, which is invalid.
-        let result =
-            sut.declare_extern(sym, IdentKind::Worksheet, Source::default());
+        let result = sut.declare_extern(
+            SPair(sym, S2),
+            IdentKind::Worksheet,
+            Source::default(),
+        );
 
         assert_matches!(result, Err(AsgError::IdentTransition(..)));
 
@@ -666,15 +682,15 @@ mod test {
     fn add_fragment_to_ident() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "tofrag".intern();
+        let sym = "tofrag".into();
         let src = Source {
             generated: true,
             ..Default::default()
         };
-        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+        let node = sut.declare(SPair(sym, S1), IdentKind::Meta, src.clone())?;
 
         let fragment = "a fragment".intern();
-        let node_with_frag = sut.set_fragment(sym, fragment)?;
+        let node_with_frag = sut.set_fragment(SPair(sym, S2), fragment)?;
 
         // Attaching a fragment should _replace_ the node, not create a
         // new one
@@ -685,7 +701,7 @@ mod test {
 
         let obj = sut.get_ident(node).unwrap();
 
-        assert_eq!(sym, obj.name());
+        assert_eq!(SPair(sym, S1), obj.name());
         assert_eq!(Some(&IdentKind::Meta), obj.kind());
         assert_eq!(Some(&src), obj.src());
         assert_eq!(Some(fragment), obj.fragment());
@@ -697,25 +713,25 @@ mod test {
     fn add_fragment_to_ident_fails_if_transition_fails() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "failfrag".intern();
+        let sym = "failfrag".into();
         let src = Source {
             generated: true,
             ..Default::default()
         };
 
         // The failure will come from terr below, not this.
-        let node = sut.declare(sym, IdentKind::Meta, src.clone())?;
+        let node = sut.declare(SPair(sym, S1), IdentKind::Meta, src.clone())?;
 
         // The first set will succeed.
-        sut.set_fragment(sym, "".into())?;
+        sut.set_fragment(SPair(sym, S2), "".into())?;
 
         // This will fail.
-        let result = sut.set_fragment(sym, "".into());
+        let result = sut.set_fragment(SPair(sym, S3), "".into());
 
         // The node should have been restored.
         let obj = sut.get_ident(node).unwrap();
 
-        assert_eq!(sym, obj.name());
+        assert_eq!(SPair(sym, S1), obj.name());
         assert_matches!(result, Err(AsgError::IdentTransition(..)));
 
         Ok(())
@@ -725,11 +741,13 @@ mod test {
     fn add_ident_dep_to_ident() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = "sym".into();
+        let dep = "dep".into();
 
-        let symnode = sut.declare(sym, IdentKind::Meta, Source::default())?;
-        let depnode = sut.declare(dep, IdentKind::Meta, Source::default())?;
+        let symnode =
+            sut.declare(SPair(sym, S1), IdentKind::Meta, Source::default())?;
+        let depnode =
+            sut.declare(SPair(dep, S2), IdentKind::Meta, Source::default())?;
 
         sut.add_dep(symnode, depnode);
         assert!(sut.has_dep(symnode, depnode));
@@ -746,8 +764,8 @@ mod test {
     fn add_dep_lookup_existing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         let _ = sut.declare(sym, IdentKind::Meta, Source::default())?;
         let _ = sut.declare(dep, IdentKind::Meta, Source::default())?;
@@ -762,8 +780,8 @@ mod test {
     fn add_dep_lookup_missing() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         // both of these are missing
         let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
@@ -779,8 +797,8 @@ mod test {
     fn declare_return_missing_symbol() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         // both of these are missing, see add_dep_lookup_missing
         let (symnode, _) = sut.add_dep_lookup(sym, dep);

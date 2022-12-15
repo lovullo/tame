@@ -19,7 +19,8 @@
 
 use super::{Asg, AsgError, FragmentText, IdentKind, Source};
 use crate::{
-    parse::{self, ParseState, Token, Transition, Transitionable},
+    fmt::{DisplayWrapper, TtQuote},
+    parse::{self, util::SPair, ParseState, Token, Transition, Transitionable},
     span::UNKNOWN_SPAN,
     sym::SymbolId,
 };
@@ -65,15 +66,35 @@ pub enum Air {
     Todo,
 
     /// Declare a resolved identifier.
-    IdentDecl(IdentSym, IdentKind, Source),
+    IdentDecl(SPair, IdentKind, Source),
+
     /// Declare an external identifier that must be resolved before linking.
-    IdentExternDecl(IdentSym, IdentKind, Source),
+    IdentExternDecl(SPair, IdentKind, Source),
+
     /// Declare that an identifier depends on another for its definition.
-    IdentDep(IdentSym, DepSym),
+    ///
+    /// The first identifier will depend on the second
+    ///   (`0 -> 1`).
+    /// The spans associated with each [`SPair`] will be used
+    ///   if the respective identifier has not yet been defined.
+    IdentDep(SPair, SPair),
+
     /// Associate a code fragment with an identifier.
-    IdentFragment(IdentSym, FragmentText),
-    /// Root an identifier.
-    IdentRoot(IdentSym),
+    ///
+    /// A fragment does not have an associated span because it is
+    ///   conceptually associated with all the spans from which it is
+    ///   derived;
+    ///     the format of the object file will change in the future to
+    ///     retain this information.
+    IdentFragment(SPair, FragmentText),
+
+    /// Root an identifier at the request of some entity at the associated
+    ///   span of the [`SPair`].
+    ///
+    /// Rooting is caused by _something_,
+    ///   and the span is intended to aid in tracking down why rooting
+    ///   occurred.
+    IdentRoot(SPair),
 }
 
 impl Token for Air {
@@ -97,20 +118,27 @@ impl Display for Air {
         match self {
             Todo => write!(f, "TODO"),
 
-            IdentDecl(sym, ..) => {
-                write!(f, "declaration of identifier `{sym}`")
+            IdentDecl(spair, _, _) => {
+                write!(f, "declaration of identifier {}", TtQuote::wrap(spair))
             }
-            IdentExternDecl(sym, ..) => {
-                write!(f, "declaration of external identifier `{sym}`")
+            IdentExternDecl(spair, _, _) => {
+                write!(
+                    f,
+                    "declaration of external identifier {}",
+                    TtQuote::wrap(spair)
+                )
             }
             IdentDep(isym, dsym) => write!(
                 f,
+                // TODO: Use list wrapper
                 "declaration of identifier dependency `{isym} -> {dsym}`"
             ),
-            IdentFragment(sym, ..) => {
-                write!(f, "identifier `{sym}` fragment text")
+            IdentFragment(depsym, _text) => {
+                write!(f, "identifier {}` fragment text", TtQuote::wrap(depsym))
             }
-            IdentRoot(sym) => write!(f, "rooting of identifier `{sym}`"),
+            IdentRoot(sym) => {
+                write!(f, "rooting of identifier {}", TtQuote::wrap(sym))
+            }
         }
     }
 }
@@ -147,12 +175,12 @@ impl ParseState for AirAggregate {
         match (self, tok) {
             (Empty, Todo) => Transition(Empty).incomplete(),
 
-            (Empty, IdentDecl(sym, kind, src)) => {
-                asg.declare(sym, kind, src).map(|_| ()).transition(Empty)
+            (Empty, IdentDecl(name, kind, src)) => {
+                asg.declare(name, kind, src).map(|_| ()).transition(Empty)
             }
 
-            (Empty, IdentExternDecl(sym, kind, src)) => asg
-                .declare_extern(sym, kind, src)
+            (Empty, IdentExternDecl(name, kind, src)) => asg
+                .declare_extern(name, kind, src)
                 .map(|_| ())
                 .transition(Empty),
 

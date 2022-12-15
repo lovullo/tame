@@ -30,7 +30,7 @@ use crate::{
     asg::{air::Air, IdentKind, Source},
     diagnose::{AnnotatedSpan, Diagnostic},
     obj::xmlo::{SymAttrs, SymType},
-    parse::{ParseState, ParseStatus, Transition, Transitionable},
+    parse::{util::SPair, ParseState, ParseStatus, Transition, Transitionable},
     span::Span,
     sym::SymbolId,
 };
@@ -87,13 +87,13 @@ impl XmloAirContext {
 type PackageName = SymbolId;
 
 /// State machine for lowering into the [`Asg`](crate::asg::Asg) via
-///   [`AirToken`].
+///   [`Air`].
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum XmloToAir {
     #[default]
     PackageExpected,
     Package(PackageName, Span),
-    SymDep(PackageName, Span, SymbolId),
+    SymDep(PackageName, Span, SPair),
     /// End of header (EOH) reached.
     Done(Span),
 }
@@ -137,9 +137,14 @@ impl ParseState for XmloToAir {
             //   here.
             (
                 Package(pkg_name, span),
-                XmloToken::PkgEligClassYields(pkg_elig, _),
+                XmloToken::PkgEligClassYields(pkg_elig, elig_span),
             ) => {
-                Transition(Package(pkg_name, span)).ok(Air::IdentRoot(pkg_elig))
+                // The span for this is a bit awkward,
+                //   given that rooting is automatic,
+                //   but it it should never have to be utilized in
+                //     diagnostics unless there is a compiler bug.
+                Transition(Package(pkg_name, span))
+                    .ok(Air::IdentRoot(SPair(pkg_elig, elig_span)))
             }
 
             (
@@ -152,13 +157,15 @@ impl ParseState for XmloToAir {
 
             (
                 Package(pkg_name, span) | SymDep(pkg_name, span, ..),
-                XmloToken::SymDepStart(sym, _),
-            ) => Transition(SymDep(pkg_name, span, sym)).incomplete(),
+                XmloToken::SymDepStart(sym, sym_span),
+            ) => Transition(SymDep(pkg_name, span, SPair(sym, sym_span)))
+                .incomplete(),
 
-            (SymDep(pkg_name, span, sym), XmloToken::Symbol(dep_sym, _)) => {
-                Transition(SymDep(pkg_name, span, sym))
-                    .ok(Air::IdentDep(sym, dep_sym))
-            }
+            (
+                SymDep(pkg_name, span, sym),
+                XmloToken::Symbol(dep_sym, dep_span),
+            ) => Transition(SymDep(pkg_name, span, sym))
+                .ok(Air::IdentDep(sym, SPair(dep_sym, dep_span))),
 
             (
                 Package(pkg_name, span),
@@ -176,7 +183,7 @@ impl ParseState for XmloToAir {
 
             (
                 Package(pkg_name, span),
-                XmloToken::SymDecl(sym, attrs, _span),
+                XmloToken::SymDecl(sym, attrs, sym_span),
             ) => {
                 let extern_ = attrs.extern_;
 
@@ -201,11 +208,15 @@ impl ParseState for XmloToAir {
 
                         if extern_ {
                             Ok(ParseStatus::Object(Air::IdentExternDecl(
-                                sym, kindval, src,
+                                SPair(sym, sym_span),
+                                kindval,
+                                src,
                             )))
                         } else {
                             Ok(ParseStatus::Object(Air::IdentDecl(
-                                sym, kindval, src,
+                                SPair(sym, sym_span),
+                                kindval,
+                                src,
                             )))
                         }
                     })
@@ -214,9 +225,9 @@ impl ParseState for XmloToAir {
 
             (
                 Package(pkg_name, span) | SymDep(pkg_name, span, _),
-                XmloToken::Fragment(sym, text, _),
+                XmloToken::Fragment(sym, text, frag_span),
             ) => Transition(Package(pkg_name, span))
-                .ok(Air::IdentFragment(sym, text)),
+                .ok(Air::IdentFragment(SPair(sym, frag_span), text)),
 
             // We don't need to read any further than the end of the
             //   header (symtable, sym-deps, fragments).
@@ -400,7 +411,7 @@ mod test {
         num::{Dim, Dtype},
         obj::xmlo::{SymAttrs, SymType},
         parse::Parsed,
-        span::{dummy::*, UNKNOWN_SPAN},
+        span::dummy::*,
         sym::GlobalSymbolIntern,
     };
 
@@ -444,7 +455,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete, // PkgName
-                Parsed::Object(Air::IdentRoot(elig_sym)),
+                Parsed::Object(Air::IdentRoot(SPair(elig_sym, S2))),
                 Parsed::Incomplete, // Eoh
             ]),
             Sut::parse(toks.into_iter()).collect(),
@@ -469,8 +480,14 @@ mod test {
             Ok(vec![
                 Parsed::Incomplete, // PkgName
                 Parsed::Incomplete, // SymDepStart
-                Parsed::Object(Air::IdentDep(sym_from, sym_to1)),
-                Parsed::Object(Air::IdentDep(sym_from, sym_to2)),
+                Parsed::Object(Air::IdentDep(
+                    SPair(sym_from, S2),
+                    SPair(sym_to1, S3)
+                )),
+                Parsed::Object(Air::IdentDep(
+                    SPair(sym_from, S2),
+                    SPair(sym_to2, S4)
+                )),
                 Parsed::Incomplete, // Eoh
             ]),
             Sut::parse(toks.into_iter()).collect(),
@@ -578,7 +595,7 @@ mod test {
         assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgName
         assert_eq!(
             Some(Ok(Parsed::Object(Air::IdentExternDecl(
-                sym_extern,
+                SPair(sym_extern, S1),
                 IdentKind::Meta,
                 Source {
                     pkg_name: None,
@@ -589,7 +606,7 @@ mod test {
         );
         assert_eq!(
             Some(Ok(Parsed::Object(Air::IdentDecl(
-                sym_non_extern,
+                SPair(sym_non_extern, S2),
                 IdentKind::Meta,
                 Source {
                     pkg_name: None,
@@ -600,7 +617,7 @@ mod test {
         );
         assert_eq!(
             Some(Ok(Parsed::Object(Air::IdentDecl(
-                sym_map,
+                SPair(sym_map, S3),
                 IdentKind::Map,
                 Source {
                     pkg_name: None,
@@ -611,7 +628,7 @@ mod test {
         );
         assert_eq!(
             Some(Ok(Parsed::Object(Air::IdentDecl(
-                sym_retmap,
+                SPair(sym_retmap, S4),
                 IdentKind::RetMap,
                 Source {
                     pkg_name: None,
@@ -653,7 +670,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                UNKNOWN_SPAN,
+                S2,
             ),
             XmloToken::Eoh(S1),
         ];
@@ -662,7 +679,7 @@ mod test {
             Ok(vec![
                 Parsed::Incomplete, // PkgName
                 Parsed::Object(Air::IdentDecl(
-                    sym,
+                    SPair(sym, S2),
                     IdentKind::Meta,
                     Source {
                         pkg_name: Some(pkg_name),
@@ -696,7 +713,7 @@ mod test {
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                UNKNOWN_SPAN,
+                S2,
             ),
             XmloToken::Eoh(S1),
         ];
@@ -705,7 +722,7 @@ mod test {
             Ok(vec![
                 Parsed::Incomplete, // PkgName
                 Parsed::Object(Air::IdentDecl(
-                    sym,
+                    SPair(sym, S2),
                     IdentKind::Meta,
                     Source {
                         pkg_name: Some(pkg_name), // Name inherited
@@ -748,7 +765,7 @@ mod test {
         assert_eq!(
             Ok(vec![
                 Parsed::Incomplete, // PkgName
-                Parsed::Object(Air::IdentFragment(sym, frag)),
+                Parsed::Object(Air::IdentFragment(SPair(sym, S2), frag)),
                 Parsed::Incomplete, // Eoh
             ]),
             Sut::parse(toks.into_iter()).collect(),

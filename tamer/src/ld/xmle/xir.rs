@@ -125,7 +125,7 @@ impl<'a> DepListIter<'a> {
                     obj,
                 ),
             }
-        }).and_then(|(sym, kind, src)| {
+        }).and_then(|(name, kind, src)| {
             self.toks.push(Token::Close(None, CloseSpan::empty(LSPAN)));
 
             self.toks_push_attr(QN_DESC, src.desc);
@@ -145,7 +145,8 @@ impl<'a> DepListIter<'a> {
                 false => None,
             });
 
-            self.toks_push_attr(QN_NAME, Some(sym));
+            // TODO: Note that we're not yet writing any span information.
+            self.toks_push_attr(QN_NAME, Some(name.symbol()));
             self.toks_push_obj_attrs(kind);
 
             Some(Token::Open(QN_P_SYM, OpenSpan::without_name_span(LSPAN)))

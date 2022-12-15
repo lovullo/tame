@@ -28,7 +28,7 @@ use super::xmle::{
 use crate::{
     asg::{
         air::{Air, AirAggregate},
-        Asg, AsgError, DefaultAsg, Ident, Object,
+        Asg, AsgError, DefaultAsg, Object,
     },
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
@@ -95,7 +95,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
                                     .get(obj)
                                     .unwrap()
                                     .as_ident_ref()
-                                    .map(Ident::name)
+                                    .map(|ident| ident.name().symbol())
                             })
                             .collect();
 
@@ -147,7 +147,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
                         };
 
                         (
-                            n.name().lookup_str().into(),
+                            n.name().symbol().lookup_str().into(),
                             n.kind().unwrap().as_sym(),
                             format!("{}", generated),
                         )
@@ -412,9 +412,9 @@ impl Diagnostic for TameldError {
             Self::XmloLowerError(e) => e.describe(),
             Self::AirLowerError(e) => e.describe(),
             Self::FinalizeError(e) => e.describe(),
+            Self::SortError(e) => e.describe(),
 
             Self::Io(_)
-            | Self::SortError(_)
             | Self::XirWriterError(_)
             | Self::CycleError(_)
             | Self::Fmt(_) => vec![],

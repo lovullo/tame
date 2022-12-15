@@ -30,13 +30,19 @@ use test::Bencher;
 
 mod base {
     use super::*;
-    use tamer::asg::{DefaultAsg, IdentKind, Source};
-    use tamer::sym::{GlobalSymbolIntern, SymbolId};
+    use tamer::{
+        asg::{DefaultAsg, IdentKind, Source},
+        parse::util::SPair,
+        span::UNKNOWN_SPAN,
+        sym::GlobalSymbolIntern,
+    };
 
     type Sut = DefaultAsg;
 
-    fn interned_n(n: u16) -> Vec<SymbolId> {
-        (0..n).map(|i| i.to_string().intern()).collect()
+    fn interned_n(n: u16) -> Vec<SPair> {
+        (0..n)
+            .map(|i| SPair(i.to_string().intern(), UNKNOWN_SPAN))
+            .collect()
     }
 
     #[bench]
@@ -141,7 +147,7 @@ mod base {
 
         bench.iter(|| {
             xs.iter()
-                .map(|sym| sut.lookup(*sym).unwrap())
+                .map(|sym| sut.lookup(sym.symbol()).unwrap())
                 .for_each(drop);
         });
     }
@@ -308,14 +314,17 @@ mod object {
 
     mod ident {
         use super::*;
-        use tamer::asg::{Ident, IdentKind, Source};
-        use tamer::sym::GlobalSymbolIntern;
+        use tamer::{
+            asg::{Ident, IdentKind, Source},
+            parse::util::SPair,
+            span::UNKNOWN_SPAN as S0,
+        };
 
         type Sut = Ident;
 
         #[bench]
         fn declare_1_000(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000).map(|_| Sut::declare(sym)).for_each(drop);
@@ -324,13 +333,16 @@ mod object {
 
         #[bench]
         fn resolve_1_000_missing(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(sym)
-                            .resolve(IdentKind::Meta, Source::default())
+                        Sut::declare(sym).resolve(
+                            S0,
+                            IdentKind::Meta,
+                            Source::default(),
+                        )
                     })
                     .for_each(drop);
             });
@@ -338,13 +350,16 @@ mod object {
 
         #[bench]
         fn extern_1_000_missing(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
-                        Sut::declare(sym)
-                            .extern_(IdentKind::Meta, Source::default())
+                        Sut::declare(sym).extern_(
+                            S0,
+                            IdentKind::Meta,
+                            Source::default(),
+                        )
                     })
                     .for_each(drop);
             });
@@ -352,15 +367,15 @@ mod object {
 
         #[bench]
         fn resolve_1_000_extern(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
                         Sut::declare(sym)
-                            .extern_(IdentKind::Meta, Source::default())
+                            .extern_(S0, IdentKind::Meta, Source::default())
                             .unwrap()
-                            .resolve(IdentKind::Meta, Source::default())
+                            .resolve(S0, IdentKind::Meta, Source::default())
                     })
                     .for_each(drop);
             });
@@ -368,13 +383,14 @@ mod object {
 
         #[bench]
         fn resolve_1_000_override(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
                         Sut::declare(sym)
                             .resolve(
+                                S0,
                                 IdentKind::Meta,
                                 Source {
                                     virtual_: true,
@@ -383,6 +399,7 @@ mod object {
                             )
                             .unwrap()
                             .resolve(
+                                S0,
                                 IdentKind::Meta,
                                 Source {
                                     override_: true,
@@ -397,13 +414,14 @@ mod object {
         // Override encountered before virtual
         #[bench]
         fn resolve_1_000_override_virt_after_override(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
                         Sut::declare(sym)
                             .resolve(
+                                S0,
                                 IdentKind::Meta,
                                 Source {
                                     override_: true,
@@ -412,6 +430,7 @@ mod object {
                             )
                             .unwrap()
                             .resolve(
+                                S0,
                                 IdentKind::Meta,
                                 Source {
                                     virtual_: true,
@@ -425,13 +444,13 @@ mod object {
 
         #[bench]
         fn set_fragment_1_000_resolved_with_new_str(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000)
                     .map(|_| {
                         Sut::declare(sym)
-                            .resolve(IdentKind::Meta, Source::default())
+                            .resolve(S0, IdentKind::Meta, Source::default())
                             .unwrap()
                             .set_fragment("".into())
                     })
@@ -442,7 +461,7 @@ mod object {
         // No need to do all of the others, since they're all the same thing.
         #[bench]
         fn declared_name_1_000(bench: &mut Bencher) {
-            let sym = "sym".intern();
+            let sym = SPair("sym".into(), S0);
 
             bench.iter(|| {
                 (0..1000).map(|_| Sut::declare(sym).name()).for_each(drop);

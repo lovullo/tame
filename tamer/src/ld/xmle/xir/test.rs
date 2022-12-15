@@ -18,16 +18,16 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::ld::xmle::section::PushResult;
-use crate::ld::xmle::Sections;
-use crate::num::{Dim, Dtype};
-use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve};
-use crate::xir::tree::merge_attr_fragments;
 use crate::{
     asg::{IdentKind, Source},
+    ld::xmle::{section::PushResult, Sections},
+    num::{Dim, Dtype},
+    parse::util::SPair,
+    span::dummy::*,
+    sym::{GlobalSymbolIntern, GlobalSymbolResolve},
     xir::{
         pred::{not, open},
-        tree::parser_from,
+        tree::{merge_attr_fragments, parser_from},
     },
 };
 use std::collections::HashSet;
@@ -79,7 +79,7 @@ fn test_writes_deps() -> TestResult {
 
     let objs = [
         Ident::Ident(
-            "cgentest".intern(),
+            SPair("cgentest".into(), S1),
             IdentKind::Cgen(Dim::Vector),
             Source {
                 yields: Some("yieldsValue".intern()),
@@ -90,74 +90,82 @@ fn test_writes_deps() -> TestResult {
             },
         ),
         Ident::Ident(
-            "classtest".intern(),
+            SPair("classtest".into(), S2),
             IdentKind::Class(Dim::Matrix),
             Default::default(),
         ),
         Ident::Ident(
-            "consttest".intern(),
+            SPair("consttest".into(), S3),
             IdentKind::Const(Dim::Scalar, Dtype::Boolean),
             Default::default(),
         ),
         Ident::Ident(
-            "functest".intern(),
+            SPair("functest".into(), S4),
             IdentKind::Func(Dim::Matrix, Dtype::Integer),
             Default::default(),
         ),
         Ident::Ident(
-            "gentest".intern(),
+            SPair("gentest".into(), S5),
             IdentKind::Gen(Dim::Matrix, Dtype::Boolean),
             Default::default(),
         ),
         Ident::Ident(
-            "lparamtest".intern(),
+            SPair("lparamtest".into(), S6),
             IdentKind::Gen(Dim::Matrix, Dtype::Float),
             Default::default(),
         ),
         Ident::Ident(
-            "paramtest".intern(),
+            SPair("paramtest".into(), S7),
             IdentKind::Gen(Dim::Scalar, Dtype::Integer),
             Default::default(),
         ),
         Ident::Ident(
-            "ratetest".intern(),
+            SPair("ratetest".into(), S8),
             IdentKind::Rate(Dtype::Integer),
             Default::default(),
         ),
-        Ident::Ident("tpltest".intern(), IdentKind::Tpl, Default::default()),
         Ident::Ident(
-            "typetest".intern(),
+            SPair("tpltest".into(), S9),
+            IdentKind::Tpl,
+            Default::default(),
+        ),
+        Ident::Ident(
+            SPair("typetest".into(), S1),
             IdentKind::Type(Dtype::Integer),
             Default::default(),
         ),
         Ident::Ident(
-            "mapheadtest".intern(),
+            SPair("mapheadtest".into(), S2),
             IdentKind::MapHead,
             Default::default(),
         ),
-        Ident::Ident("maptest".intern(), IdentKind::Map, Default::default()),
         Ident::Ident(
-            "maptailtest".intern(),
+            SPair("maptest".into(), S3),
+            IdentKind::Map,
+            Default::default(),
+        ),
+        Ident::Ident(
+            SPair("maptailtest".into(), S4),
             IdentKind::MapTail,
             Default::default(),
         ),
         Ident::Ident(
-            "retmapheadtest".intern(),
+            SPair("retmapheadtest".into(), S5),
             IdentKind::RetMapHead,
             Default::default(),
         ),
         Ident::Ident(
-            "retmaptest".intern(),
+            SPair("retmaptest".into(), S6),
             IdentKind::RetMap,
             Default::default(),
         ),
         Ident::Ident(
-            "retmaptailtest".intern(),
+            SPair("retmaptailtest".into(), S7),
             IdentKind::RetMapTail,
             Default::default(),
         ),
         Ident::Ident(
-            "metatest".intern(),
+            SPair("metatest".into(), S8),
             IdentKind::Meta,
             Source {
                 desc: Some("test desc".intern()),
@@ -165,7 +173,7 @@ fn test_writes_deps() -> TestResult {
             },
         ),
         Ident::Ident(
-            "worksheettest".intern(),
+            SPair("worksheettest".into(), S9),
             IdentKind::Worksheet,
             Default::default(),
         ),
@@ -246,7 +254,10 @@ fn test_writes_deps() -> TestResult {
         let ident = &objs[i];
         let attrs = ele.attrs();
 
-        assert_eq!(attrs.find(QN_NAME).map(|a| a.value()), Some(ident.name()),);
+        assert_eq!(
+            attrs.find(QN_NAME).map(|a| a.value()),
+            Some(ident.name().symbol()),
+        );
 
         assert_eq!(
             attrs.find(QN_TYPE).map(|a| a.value()),
@@ -351,7 +362,7 @@ fn test_writes_map_froms() -> TestResult {
     let relroot = "relroot-deps".intern();
 
     let a = Ident::IdentFragment(
-        "a".intern(),
+        SPair("a".into(), S1),
         IdentKind::Map,
         Source {
             from: Some("froma".intern()),
@@ -361,7 +372,7 @@ fn test_writes_map_froms() -> TestResult {
     );
 
     let b = Ident::IdentFragment(
-        "a".intern(),
+        SPair("a".into(), S2),
         IdentKind::Map,
         Source {
             from: Some("fromb".intern()),
@@ -425,14 +436,14 @@ macro_rules! test_exec_sec {
             let frag_b = "b fragment".intern();
 
             let a = Ident::IdentFragment(
-                "a".intern(),
+                SPair("a".into(), S1),
                 $type,
                 Default::default(),
                 frag_a,
             );
 
             let b = Ident::IdentFragment(
-                "b".intern(),
+                SPair("b".into(), S2),
                 $type,
                 Default::default(),
                 frag_b,

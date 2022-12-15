@@ -25,6 +25,7 @@ use std::assert_matches::assert_matches;
 use crate::{
     asg::{Ident, Object},
     parse::{ParseError, Parsed},
+    span::dummy::*,
 };
 
 use super::*;
@@ -40,7 +41,8 @@ fn ident_decl() {
         ..Default::default()
     };
 
-    let toks = vec![Air::IdentDecl(sym, kind.clone(), src.clone())].into_iter();
+    let toks = vec![Air::IdentDecl(SPair(sym, S1), kind.clone(), src.clone())]
+        .into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -53,15 +55,15 @@ fn ident_decl() {
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(sym)
-            .resolve(kind.clone(), src.clone())
+        Ident::declare(SPair(sym, S1))
+            .resolve(S1, kind.clone(), src.clone())
             .map(Object::Ident)
             .as_ref(),
     );
 
     // Re-instantiate the parser and test an error by attempting to
     //   redeclare the same identifier.
-    let bad_toks = vec![Air::IdentDecl(sym, kind, src)].into_iter();
+    let bad_toks = vec![Air::IdentDecl(SPair(sym, S2), kind, src)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -79,8 +81,12 @@ fn ident_extern_decl() {
         ..Default::default()
     };
 
-    let toks =
-        vec![Air::IdentExternDecl(sym, kind.clone(), src.clone())].into_iter();
+    let toks = vec![Air::IdentExternDecl(
+        SPair(sym, S1),
+        kind.clone(),
+        src.clone(),
+    )]
+    .into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -93,8 +99,8 @@ fn ident_extern_decl() {
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(sym)
-            .extern_(kind, src.clone())
+        Ident::declare(SPair(sym, S1))
+            .extern_(S1, kind, src.clone())
             .map(Object::Ident)
             .as_ref(),
     );
@@ -103,7 +109,8 @@ fn ident_extern_decl() {
     //   redeclare with a different kind.
     let different_kind = IdentKind::Meta;
     let bad_toks =
-        vec![Air::IdentExternDecl(sym, different_kind, src)].into_iter();
+        vec![Air::IdentExternDecl(SPair(sym, S2), different_kind, src)]
+            .into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -117,7 +124,8 @@ fn ident_dep() {
     let ident = "foo".into();
     let dep = "dep".into();
 
-    let toks = vec![Air::IdentDep(ident, dep)].into_iter();
+    let toks =
+        vec![Air::IdentDep(SPair(ident, S1), SPair(dep, S2))].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -145,8 +153,8 @@ fn ident_fragment() {
     let toks = vec![
         // Identifier must be declared before it can be given a
         //   fragment.
-        Air::IdentDecl(sym, kind.clone(), src.clone()),
-        Air::IdentFragment(sym, frag),
+        Air::IdentDecl(SPair(sym, S1), kind.clone(), src.clone()),
+        Air::IdentFragment(SPair(sym, S1), frag),
     ]
     .into_iter();
 
@@ -163,8 +171,8 @@ fn ident_fragment() {
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(sym)
-            .resolve(kind.clone(), src.clone())
+        Ident::declare(SPair(sym, S1))
+            .resolve(S1, kind.clone(), src.clone())
             .and_then(|resolved| resolved.set_fragment(frag))
             .map(Object::Ident)
             .as_ref(),
@@ -172,7 +180,7 @@ fn ident_fragment() {
 
     // Re-instantiate the parser and test an error by attempting to
     //   re-set the fragment.
-    let bad_toks = vec![Air::IdentFragment(sym, frag)].into_iter();
+    let bad_toks = vec![Air::IdentFragment(SPair(sym, S1), frag)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -187,7 +195,7 @@ fn ident_fragment() {
 fn ident_root_missing() {
     let sym = "toroot".into();
 
-    let toks = vec![Air::IdentRoot(sym)].into_iter();
+    let toks = vec![Air::IdentRoot(SPair(sym, S1))].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -201,7 +209,7 @@ fn ident_root_missing() {
 
     // The identifier did not previously exist,
     //   and so a missing node is created as a placeholder.
-    assert_eq!(&Object::Ident(Ident::Missing(sym)), ident);
+    assert_eq!(&Object::Ident(Ident::Missing(SPair(sym, S1))), ident);
 
     // And that missing identifier should be rooted.
     assert!(asg.is_rooted(ident_node));
@@ -221,8 +229,8 @@ fn ident_root_existing() {
     assert!(!kind.is_auto_root());
 
     let toks = vec![
-        Air::IdentDecl(sym, kind.clone(), src.clone()),
-        Air::IdentRoot(sym),
+        Air::IdentDecl(SPair(sym, S1), kind.clone(), src.clone()),
+        Air::IdentRoot(SPair(sym, S2)),
     ]
     .into_iter();
 
@@ -241,8 +249,8 @@ fn ident_root_existing() {
     // The previously-declared identifier...
     assert_eq!(
         Ok(ident),
-        Ident::declare(sym)
-            .resolve(kind.clone(), src.clone())
+        Ident::declare(SPair(sym, S1))
+            .resolve(S1, kind.clone(), src.clone())
             .map(Object::Ident)
             .as_ref()
     );

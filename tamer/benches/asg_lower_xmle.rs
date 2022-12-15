@@ -22,17 +22,23 @@
 extern crate tamer;
 extern crate test;
 
-use tamer::num::Dtype;
 use test::Bencher;
 
-use tamer::asg::{DefaultAsg, IdentKind, Source};
-use tamer::ld::xmle::{lower::sort, Sections};
-use tamer::sym::{GlobalSymbolIntern, SymbolId};
+pub(crate) use tamer::{
+    asg::{DefaultAsg, IdentKind, Source},
+    ld::xmle::{lower::sort, Sections},
+    num::Dtype,
+    parse::util::SPair,
+    span::UNKNOWN_SPAN,
+    sym::{GlobalSymbolIntern, SymbolId},
+};
 
 type TestAsg = DefaultAsg;
 
-fn interned_n(n: u16) -> Vec<SymbolId> {
-    (0..n).map(|i| i.to_string().intern()).collect()
+fn interned_n(n: u16) -> Vec<SPair> {
+    (0..n)
+        .map(|i| SPair(i.to_string().intern(), UNKNOWN_SPAN))
+        .collect()
 }
 
 #[bench]

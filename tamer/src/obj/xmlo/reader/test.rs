@@ -191,7 +191,7 @@ macro_rules! symtable_tests {
                                     #[doc=stringify!($key)]
                                     Parsed::Incomplete,
                                 )*
-                                Parsed::Object((name, expected, SSYM)),
+                                Parsed::Object((name, expected, S3)),
                             ]),
                         Err(expected) => Err(ParseError::StateError(expected)),
                     },
@@ -345,7 +345,7 @@ fn symtable_sym_generated_true() {
             Parsed::Incomplete, // Opening tag
             Parsed::Incomplete, // @name
             Parsed::Incomplete, // @preproc:generated
-            Parsed::Object((name, expected, SSYM)),
+            Parsed::Object((name, expected, S3)),
         ]),
         SymtableState::parse(toks).collect(),
     );
@@ -385,7 +385,7 @@ fn symtable_map_from() {
             Parsed::Incomplete, //   <preproc:from
             Parsed::Incomplete, //   @name
             Parsed::Incomplete, //   />
-            Parsed::Object((name, expected, SSYM)),
+            Parsed::Object((name, expected, S3)),
         ]),
         SymtableState::parse(toks).collect(),
     );

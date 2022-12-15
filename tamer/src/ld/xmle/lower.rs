@@ -24,6 +24,7 @@
 use super::section::{SectionsError, XmleSections};
 use crate::{
     asg::{Asg, Ident, IdentKind, Object, ObjectRef},
+    diagnose::Diagnostic,
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -171,6 +172,18 @@ impl std::error::Error for SortError {
     }
 }
 
+impl Diagnostic for SortError {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        use SortError::*;
+
+        match self {
+            SectionsError(e) => e.describe(),
+            // TODO
+            Cycles(_) => vec![],
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -178,6 +191,8 @@ mod test {
         asg::{FragmentText, Ident, Source},
         ld::xmle::{section::PushResult, Sections},
         num::{Dim, Dtype},
+        parse::util::SPair,
+        span::dummy::*,
         sym::GlobalSymbolIntern,
     };
 
@@ -188,28 +203,28 @@ mod test {
         let text = "dummy fragment".intern();
 
         {
-            let sym = st::L_MAP_UUUHEAD.into();
+            let sym = SPair(st::L_MAP_UUUHEAD.into(), S1);
             asg.declare(sym, IdentKind::MapHead, Default::default())
                 .unwrap();
             asg.set_fragment(sym, text).unwrap();
         }
 
         {
-            let sym = st::L_MAP_UUUTAIL.into();
+            let sym = SPair(st::L_MAP_UUUTAIL.into(), S2);
             asg.declare(sym, IdentKind::MapTail, Default::default())
                 .unwrap();
             asg.set_fragment(sym, text).unwrap();
         }
 
         {
-            let sym = st::L_RETMAP_UUUHEAD.into();
+            let sym = SPair(st::L_RETMAP_UUUHEAD.into(), S3);
             asg.declare(sym, IdentKind::RetMapHead, Default::default())
                 .unwrap();
             asg.set_fragment(sym, text).unwrap();
         }
 
         {
-            let sym = st::L_RETMAP_UUUTAIL.into();
+            let sym = SPair(st::L_RETMAP_UUUTAIL.into(), S4);
             asg.declare(sym, IdentKind::RetMapTail, Default::default())
                 .unwrap();
             asg.set_fragment(sym, text).unwrap();
@@ -261,13 +276,21 @@ mod test {
 
         // Add them in an unsorted order.
         let adep = asg
-            .declare("adep".into(), IdentKind::Meta, Default::default())
+            .declare(
+                SPair("adep".into(), S1),
+                IdentKind::Meta,
+                Default::default(),
+            )
             .unwrap();
         let a = asg
-            .declare("a".into(), IdentKind::Meta, Default::default())
+            .declare(SPair("a".into(), S2), IdentKind::Meta, Default::default())
             .unwrap();
         let adepdep = asg
-            .declare("adepdep".into(), IdentKind::Meta, Default::default())
+            .declare(
+                SPair("adepdep".into(), S3),
+                IdentKind::Meta,
+                Default::default(),
+            )
             .unwrap();
 
         asg.add_dep(a, adep);
@@ -307,8 +330,8 @@ mod test {
     fn graph_sort_missing_node() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         let sym_node = asg
             .declare(
@@ -347,8 +370,8 @@ mod test {
         // "empty" (it has the head/tail {ret,}map objects)
         let asg_empty = make_asg();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         asg_nonempty_no_roots.add_dep_lookup(sym, dep);
 
@@ -364,8 +387,8 @@ mod test {
     fn graph_sort_simple_cycle() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         let sym_node = asg
             .declare(
@@ -414,10 +437,10 @@ mod test {
     fn graph_sort_two_simple_cycles() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym = "sym".intern();
-        let sym2 = "sym2".intern();
-        let dep = "dep".intern();
-        let dep2 = "dep2".intern();
+        let sym = SPair("sym".into(), S1);
+        let sym2 = SPair("sym2".into(), S2);
+        let dep = SPair("dep".into(), S3);
+        let dep2 = SPair("dep2".into(), S4);
 
         let sym_node = asg
             .declare(
@@ -494,8 +517,8 @@ mod test {
     fn graph_sort_no_cycle_with_edge_to_same_node() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         let sym_node = asg
             .declare(
@@ -540,9 +563,9 @@ mod test {
     fn graph_sort_cycle_with_a_few_steps() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym1 = "sym1".intern();
-        let sym2 = "sym2".intern();
-        let sym3 = "sym3".intern();
+        let sym1 = SPair("sym1".into(), S1);
+        let sym2 = SPair("sym2".into(), S2);
+        let sym3 = SPair("sym3".into(), S3);
 
         let sym1_node = asg
             .declare(
@@ -605,9 +628,9 @@ mod test {
     ) -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym1 = "sym1".intern();
-        let sym2 = "sym2".intern();
-        let sym3 = "sym3".intern();
+        let sym1 = SPair("sym1".into(), S1);
+        let sym2 = SPair("sym2".into(), S2);
+        let sym3 = SPair("sym3".into(), S3);
 
         let sym1_node = asg
             .declare(
@@ -669,9 +692,9 @@ mod test {
     fn graph_sort_cyclic_bookended_by_functions() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym1 = "sym1".intern();
-        let sym2 = "sym2".intern();
-        let sym3 = "sym3".intern();
+        let sym1 = SPair("sym1".into(), S1);
+        let sym2 = SPair("sym2".into(), S2);
+        let sym3 = SPair("sym3".into(), S3);
 
         let sym1_node = asg
             .declare(
@@ -733,8 +756,8 @@ mod test {
     fn graph_sort_cyclic_function_ignored() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
 
         let sym_node = asg
             .declare(
@@ -779,9 +802,9 @@ mod test {
     fn graph_sort_cyclic_function_is_bookended() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym1 = "sym1".intern();
-        let sym2 = "sym2".intern();
-        let sym3 = "sym3".intern();
+        let sym1 = SPair("sym1".into(), S1);
+        let sym2 = SPair("sym2".into(), S2);
+        let sym3 = SPair("sym3".into(), S3);
 
         let sym1_node = asg
             .declare(
@@ -843,9 +866,9 @@ mod test {
     fn graph_sort_ignore_non_linked() -> SortResult<()> {
         let mut asg = make_asg();
 
-        let sym = "sym".intern();
-        let dep = "dep".intern();
-        let ignored = "ignored".intern();
+        let sym = SPair("sym".into(), S1);
+        let dep = SPair("dep".into(), S2);
+        let ignored = SPair("ignored".into(), S3);
 
         let sym_node = asg
             .declare(

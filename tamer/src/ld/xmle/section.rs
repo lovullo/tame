@@ -26,8 +26,13 @@
 //!   which places the relocatable object code fragments in the order
 //!   necessary for execution.
 
-use crate::asg::{Ident, IdentKind, UnresolvedError};
-use crate::sym::SymbolId;
+use crate::{
+    asg::{Ident, IdentKind, UnresolvedError},
+    diagnose::{Annotate, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
+    parse::util::SPair,
+    sym::SymbolId,
+};
 use fxhash::FxHashSet;
 use std::mem::take;
 use std::result::Result;
@@ -108,7 +113,6 @@ impl<'a> XmleSections<'a> for Sections<'a> {
     fn push(&mut self, ident: &'a Ident) -> PushResult {
         self.deps.push(ident);
 
-        // TODO: This cannot happen, so use an API without Option.
         let name = ident.name();
         let frag = ident.fragment();
 
@@ -191,7 +195,7 @@ impl<'a> XmleSections<'a> for Sections<'a> {
 }
 
 fn expect_frag(
-    ident_name: SymbolId,
+    ident_name: SPair,
     frag: Option<SymbolId>,
 ) -> PushResult<SymbolId> {
     frag.ok_or(SectionsError::MissingFragment(ident_name))
@@ -211,7 +215,7 @@ pub enum SectionsError {
     UnresolvedObject(UnresolvedError),
 
     /// Identifier is missing an expected text fragment.
-    MissingFragment(SymbolId),
+    MissingFragment(SPair),
 
     /// The kind of an object encountered during sorting could not be
     ///   determined.
@@ -220,7 +224,7 @@ pub enum SectionsError {
     ///   sections.
     /// It should never be the case that a resolved object has no kind,
     ///   so this likely represents a compiler bug.
-    MissingObjectKind(SymbolId),
+    MissingObjectKind(SPair),
 }
 
 impl From<UnresolvedError> for SectionsError {
@@ -240,18 +244,44 @@ impl std::error::Error for SectionsError {
 
 impl std::fmt::Display for SectionsError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use SectionsError::*;
+
         match self {
-            Self::UnresolvedObject(err) => err.fmt(fmt),
-            Self::MissingFragment(name) => write!(
+            UnresolvedObject(err) => err.fmt(fmt),
+            MissingFragment(name) => write!(
                 fmt,
-                "missing text fragment for object `{}` (this may be a compiler bug!)",
-                name,
+                "missing text fragment for object identified by {}",
+                TtQuote::wrap(name),
             ),
-            Self::MissingObjectKind(name) => write!(
+            MissingObjectKind(name) => write!(
                 fmt,
-                "missing object kind for object `{}` (this may be a compiler bug!)",
-                name,
+                "missing object kind for object identified by {}",
+                TtQuote::wrap(name),
             ),
+        }
+    }
+}
+
+impl Diagnostic for SectionsError {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        use SectionsError::*;
+
+        match self {
+            UnresolvedObject(e) => e.describe(),
+            MissingFragment(name) => vec![
+                name.internal_error(
+                    "text fragment for this object cannot be found",
+                ),
+                name.help("this means that the compiler failed to produce"),
+                name.help("  object code associated with this identifier."),
+            ],
+            MissingObjectKind(name) => vec![
+                name.internal_error(
+                    "the kind of object for this identifier is unknown",
+                ),
+                name.help("this means that the compiler failed to output"),
+                name.help("  complete type information for this identifier."),
+            ],
         }
     }
 }
@@ -259,9 +289,12 @@ impl std::fmt::Display for SectionsError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::asg::{Ident, IdentKind, Source};
-    use crate::num::{Dim, Dtype};
-    use crate::sym::GlobalSymbolIntern;
+    use crate::{
+        asg::{Ident, IdentKind, Source},
+        num::{Dim, Dtype},
+        span::dummy::*,
+        sym::GlobalSymbolIntern,
+    };
 
     type Sut<'a> = Sections<'a>;
 
@@ -282,7 +315,7 @@ mod test {
         let mut sut = Sut::new();
 
         let a = Ident::IdentFragment(
-            "a".intern(),
+            SPair("a".into(), S1),
             IdentKind::Const(Dim::Scalar, Dtype::Integer),
             Default::default(),
             "fraga".intern(),
@@ -290,7 +323,7 @@ mod test {
 
         // Different section than a, to be sure that we still add it.
         let b = Ident::IdentFragment(
-            "b".intern(),
+            SPair("b".into(), S2),
             IdentKind::MapHead,
             Default::default(),
             "fragb".intern(),
@@ -311,19 +344,19 @@ mod test {
         let mut sut = Sut::new();
 
         let cgen = Ident::Ident(
-            "cgen".intern(),
+            SPair("cgen".into(), S1),
             IdentKind::Cgen(Dim::Vector),
             Default::default(),
         );
 
         let gen = Ident::Ident(
-            "gen".intern(),
+            SPair("gen".into(), S2),
             IdentKind::Gen(Dim::Vector, Dtype::Integer),
             Default::default(),
         );
 
         let lparam = Ident::Ident(
-            "lparam".intern(),
+            SPair("lparam".into(), S3),
             IdentKind::Lparam(Dim::Vector, Dtype::Integer),
             Default::default(),
         );
@@ -351,7 +384,7 @@ mod test {
         let mut sut_b = Sections::new();
 
         let a = Ident::IdentFragment(
-            "a".intern(),
+            SPair("a".into(), S1),
             IdentKind::Map,
             Source {
                 from: Some("froma".intern()),
@@ -361,7 +394,7 @@ mod test {
         );
 
         let b = Ident::IdentFragment(
-            "a".intern(),
+            SPair("a".into(), S2),
             IdentKind::Map,
             Source {
                 from: Some("fromb".intern()),
@@ -395,7 +428,7 @@ mod test {
         ($sut:ident, { $($name:ident: $kind:expr,)* }) => {
             $(
                 let $name = Ident::IdentFragment(
-                    stringify!($name).intern(),
+                    SPair(stringify!($name).into(), S1),
                     $kind,
                     Default::default(),
                     stringify!($kind).intern(), // fragment

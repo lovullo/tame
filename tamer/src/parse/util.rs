@@ -36,7 +36,12 @@ use std::fmt::Display;
 /// This newtype is required because foreign traits
 ///   (such as [`Display`])
 ///   cannot be implemented on tuples at the time of writing.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// This implements [`Copy`] because each inner type is small
+///   (and itself [`Copy`]),
+///   and in practice,
+///     we'd just destructure it to copy each part anyway.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct SPair(pub SymbolId, pub Span);
 
 impl SPair {
@@ -59,6 +64,18 @@ impl SPair {
     pub fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
         match self {
             Self(sym, span) => Self(f(sym), span),
+        }
+    }
+
+    /// Map over the [`Span`] of the pair while retaining the associated
+    ///   [`SymbolId`].
+    ///
+    /// This operation is useful,
+    ///   for example,
+    ///   when resolving or overriding identifiers.
+    pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Self {
+        match self {
+            Self(sym, span) => Self(sym, f(span)),
         }
     }
 }

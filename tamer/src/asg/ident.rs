@@ -20,7 +20,11 @@
 //! Identifiers (a type of [object][super::object]).
 
 use crate::{
+    diagnose::{Annotate, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},
+    parse::{util::SPair, Token},
+    span::Span,
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 
@@ -42,16 +46,26 @@ pub enum Ident {
     ///
     /// This variant contains the symbol representing the name of the
     ///   expected identifier.
-    /// By defining an object as missing,
-    ///   this allows the graph to be built incrementally as objects are
-    ///   discovered.
-    Missing(SymbolId),
+    /// This is important,
+    ///   since identifiers in TAME may be referenced before they are
+    ///   defined.
+    ///
+    /// The [`Span`] associated with this missing identifier represents one
+    ///   of the references to the identifier,
+    ///     ensuring that there is always some useful information to help
+    ///     debug missing identifiers.
+    /// A reference to this missing identifier ought to have its own span so
+    ///   that diagnostic messages can direct the user to other instances
+    ///   where unknown identifiers were referenced.
+    Missing(SPair),
 
     /// A resolved identifier.
     ///
     /// This represents an identifier that has been declared with certain
     ///   type information.
-    Ident(SymbolId, IdentKind, Source),
+    /// An identifier has a single canonical location represented by the
+    ///   [`SPair`]'s [`Span`].
+    Ident(SPair, IdentKind, Source),
 
     /// An identifier that has not yet been resolved.
     ///
@@ -60,12 +74,12 @@ pub enum Ident {
     /// It is an error if the loaded identifier does not have a compatible
     ///   [`IdentKind`].
     ///
-    /// The source location of an extern represents the location of the
-    ///   extern declaration.
+    /// The [`Span`] and [`Source`] of an extern represents the location of
+    ///   the extern declaration.
     /// Once resolved, however,
-    ///   the source will instead represent the location of the concrete
+    ///   both will instead represent the location of the concrete
     ///   identifier.
-    Extern(SymbolId, IdentKind, Source),
+    Extern(SPair, IdentKind, Source),
 
     /// Identifier with associated text.
     ///
@@ -74,17 +88,26 @@ pub enum Ident {
     /// They are produced by the compiler and it is the job of the
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
-    IdentFragment(SymbolId, IdentKind, Source, FragmentText),
+    IdentFragment(SPair, IdentKind, Source, FragmentText),
 }
 
 impl Ident {
     /// Identifier name.
-    pub fn name(&self) -> SymbolId {
+    pub fn name(&self) -> SPair {
         match self {
-            Self::Missing(name, ..)
+            Self::Missing(name)
             | Self::Ident(name, ..)
             | Self::Extern(name, ..)
             | Self::IdentFragment(name, ..) => *name,
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Missing(SPair(_, span))
+            | Self::Ident(SPair(_, span), ..)
+            | Self::Extern(SPair(_, span), ..)
+            | Self::IdentFragment(SPair(_, span), ..) => *span,
         }
     }
 
@@ -97,9 +120,9 @@ impl Ident {
         match self {
             Self::Missing(..) => None,
 
-            Self::Ident(_, kind, ..)
-            | Self::Extern(_, kind, ..)
-            | Self::IdentFragment(_, kind, ..) => Some(kind),
+            Self::Ident(_, kind, _)
+            | Self::Extern(_, kind, _)
+            | Self::IdentFragment(_, kind, _, _) => Some(kind),
         }
     }
 
@@ -133,7 +156,11 @@ impl Ident {
     /// Produce an object representing a missing identifier.
     ///
     /// This is the base state for all identifiers.
-    pub fn declare(ident: SymbolId) -> Self {
+    /// The [`Span`] associated with the pair should be the span of whatever
+    ///   reference triggered this declaration;
+    ///     it will be later replaced with the span of the identifier once
+    ///     its definition is found.
+    pub fn declare(ident: SPair) -> Self {
         Ident::Missing(ident)
     }
 
@@ -167,6 +194,7 @@ impl Ident {
     ///   an identifier cannot be redeclared and this operation will fail.
     pub fn resolve(
         self,
+        span: Span,
         kind: IdentKind,
         mut src: Source,
     ) -> TransitionResult<Ident> {
@@ -176,64 +204,65 @@ impl Ident {
                 if src.override_ =>
             {
                 if !orig_src.virtual_ {
-                    let err =
-                        TransitionError::NonVirtualOverride { name: name };
+                    let err = TransitionError::NonVirtualOverride(name, span);
 
                     return Err((self, err));
                 }
 
                 if orig_kind != &kind {
-                    let err = TransitionError::VirtualOverrideKind {
-                        // TODO: defer lookup to error display
-                        name: name,
-                        existing: orig_kind.clone(),
-                        given: kind.clone(),
-                    };
+                    let err = TransitionError::VirtualOverrideKind(
+                        name,
+                        orig_kind.clone(),
+                        (kind.clone(), span),
+                    );
 
                     return Err((self, err));
                 }
 
                 // Ensure that virtual flags are cleared to prohibit
-                // override-overrides.  The compiler should do this; this is
-                // just an extra layer of defense.
+                //   override-overrides.
+                // The compiler should do this;
+                //   this is just an extra layer of defense.
                 src.virtual_ = false;
 
                 // Note that this has the effect of clearing fragments if we
-                // originally were in state `Ident::IdentFragment`.
-                Ok(Ident::Ident(name, kind, src))
+                //   originally were in state `Ident::IdentFragment`.
+                Ok(Ident::Ident(name.map_span(|_| span), kind, src))
             }
 
-            // If we encountered the override _first_, flip the context by
-            // declaring a new identifier and trying to override that.
+            // If we encountered the override _first_,
+            //   flip the context by declaring a new identifier and trying
+            //   to override that.
             Ident::Ident(name, orig_kind, orig_src) if orig_src.override_ => {
                 Self::declare(name)
-                    .resolve(kind, src)?
-                    .resolve(orig_kind, orig_src)
+                    .resolve(name.span(), kind, src)?
+                    .resolve(span, orig_kind, orig_src)
             }
 
-            // Same as above, but for fragments, we want to keep the
-            // _original override_ fragment.
+            // Same as above,
+            //   but for fragments,
+            //   we want to keep the _original override_ fragment.
             Ident::IdentFragment(name, orig_kind, orig_src, orig_text)
                 if orig_src.override_ =>
             {
                 Self::declare(name)
-                    .resolve(kind, src)?
-                    .resolve(orig_kind, orig_src)?
+                    .resolve(name.span(), kind, src)?
+                    .resolve(span, orig_kind, orig_src)?
                     .set_fragment(orig_text)
             }
 
             Ident::Extern(name, ref orig_kind, _) => {
                 if orig_kind != &kind {
-                    let err = TransitionError::ExternResolution {
-                        name: name,
-                        expected: orig_kind.clone(),
-                        given: kind.clone(),
-                    };
+                    let err = TransitionError::ExternResolution(
+                        name,
+                        orig_kind.clone(),
+                        (kind, span),
+                    );
 
                     return Err((self, err));
                 }
 
-                Ok(Ident::Ident(name, kind, src))
+                Ok(Ident::Ident(name.map_span(|_| span), kind, src))
             }
 
             // These represent the prologue and epilogue of maps.
@@ -246,10 +275,13 @@ impl Ident {
                 ..,
             ) => Ok(self),
 
-            Ident::Missing(name) => Ok(Ident::Ident(name, kind, src)),
+            Ident::Missing(name) => {
+                Ok(Ident::Ident(name.map_span(|_| span), kind, src))
+            }
 
+            // TODO: Remove guards and catch-all for exhaustiveness check.
             _ => {
-                let err = TransitionError::Redeclare { name: self.name() };
+                let err = TransitionError::Redeclare(self.name(), span);
 
                 Err((self, err))
             }
@@ -273,16 +305,10 @@ impl Ident {
     ///   considered to be unresolved.
     pub fn resolved(&self) -> Result<&Ident, UnresolvedError> {
         match self {
-            Ident::Missing(name) => {
-                Err(UnresolvedError::Missing { name: *name })
-            }
+            Ident::Missing(name) => Err(UnresolvedError::Missing(*name)),
 
-            Ident::Extern(name, ref kind, ref src) => {
-                Err(UnresolvedError::Extern {
-                    name: *name,
-                    kind: kind.clone(),
-                    pkg_name: src.pkg_name,
-                })
+            Ident::Extern(name, ref kind, _) => {
+                Err(UnresolvedError::Extern(*name, kind.clone()))
             }
 
             Ident::Ident(..) | Ident::IdentFragment(..) => Ok(self),
@@ -306,18 +332,21 @@ impl Ident {
     /// See for example [`Ident::Extern`].
     pub fn extern_(
         self,
+        span: Span,
         kind: IdentKind,
         src: Source,
     ) -> TransitionResult<Ident> {
         match self.kind() {
-            None => Ok(Ident::Extern(self.name(), kind, src)),
+            None => {
+                Ok(Ident::Extern(self.name().map_span(|_| span), kind, src))
+            }
             Some(cur_kind) => {
                 if cur_kind != &kind {
-                    let err = TransitionError::ExternResolution {
-                        name: self.name(),
-                        expected: kind.clone(),
-                        given: cur_kind.clone(),
-                    };
+                    let err = TransitionError::ExternResolution(
+                        self.name(),
+                        cur_kind.clone(),
+                        (kind, span),
+                    );
 
                     return Err((self, err));
                 }
@@ -366,10 +395,8 @@ impl Ident {
             ) => Ok(self),
 
             _ => {
-                let msg =
-                    format!("identifier is not a Ident::Ident): {:?}", self,);
-
-                Err((self, TransitionError::BadFragmentDest { name: msg }))
+                let name = self.name();
+                Err((self, TransitionError::BadFragmentDest(name)))
             }
         }
     }
@@ -381,73 +408,66 @@ impl Ident {
 pub enum TransitionError {
     /// Attempted to redeclare a concrete, non-virtual identifier without an
     ///   override.
-    Redeclare { name: SymbolId },
+    Redeclare(SPair, Span),
 
     /// Extern resolution failure.
     ///
     /// An extern could not be resolved because the provided identifier had
     ///   a type that is incompatible with the extern definition.
-    ExternResolution {
-        name: SymbolId,
-        expected: IdentKind,
-        given: IdentKind,
-    },
+    ///
+    // TODO: Need more granular spans for `IdentKind`.
+    ExternResolution(SPair, IdentKind, (IdentKind, Span)),
 
     /// Attempt to override a non-virtual identifier.
-    NonVirtualOverride { name: SymbolId },
+    NonVirtualOverride(SPair, Span),
 
     /// Overriding a virtual identifier failed due to an incompatible
     ///   [`IdentKind`].
-    VirtualOverrideKind {
-        name: SymbolId,
-        existing: IdentKind,
-        given: IdentKind,
-    },
+    // TODO: More granular spans for kind.
+    VirtualOverrideKind(SPair, IdentKind, (IdentKind, Span)),
 
     /// The provided identifier is not in a state that is permitted to
     ///   receive a fragment.
     ///
     /// See [`Ident::set_fragment`].
-    BadFragmentDest { name: String },
+    BadFragmentDest(SPair),
 }
 
 impl std::fmt::Display for TransitionError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use TransitionError::*;
+
         match self {
-            Self::Redeclare { name } => write!(
+            Redeclare(name, _) => write!(
                 fmt,
-                "cannot redeclare identifier `{}`",
-                name,
+                "cannot redeclare identifier {}",
+                TtQuote::wrap(name),
             ),
 
-            Self::ExternResolution {
-                name,
-                expected,
-                given,
-            } => write!(
+            ExternResolution(name, expected, (given, _)) => write!(
                 fmt,
-                "extern `{}` of type `{}` is incompatible with type `{}`",
-                name, expected, given,
+                "extern {} of type {} is incompatible with type {}",
+                TtQuote::wrap(name),
+                TtQuote::wrap(expected),
+                TtQuote::wrap(given),
             ),
 
-            Self::NonVirtualOverride { name } => write!(
+            NonVirtualOverride(name, _) => write!(
                 fmt,
-                "non-virtual identifier `{}` cannot be overridden",
-                name,
+                "non-virtual identifier {} cannot be overridden",
+                TtQuote::wrap(name),
             ),
 
-            Self::VirtualOverrideKind {
-                name,
-                existing,
-                given,
-            } => write!(
+            VirtualOverrideKind(name, existing, (given, _)) => write!(
                 fmt,
-                "virtual identifier `{}` of type `{}` cannot be overridden with type `{}`",
-                name, existing, given,
+                "virtual identifier {} of type {} cannot be overridden with type {}",
+                TtQuote::wrap(name),
+                TtQuote::wrap(existing),
+                TtQuote::wrap(given),
             ),
 
-            Self::BadFragmentDest{name: msg} => {
-                write!(fmt, "bad fragment destination: {}", msg)
+            BadFragmentDest(name) => {
+                write!(fmt, "bad fragment destination: {}", TtQuote::wrap(name))
             }
         }
     }
@@ -459,41 +479,100 @@ impl std::error::Error for TransitionError {
     }
 }
 
+impl Diagnostic for TransitionError {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        use TransitionError::*;
+
+        match self {
+            Redeclare(name, sdup) => vec![
+                name.note("first declaration was found here"),
+                sdup.error(format!("cannot redeclare {}", TtQuote::wrap(name))),
+                sdup.help("identifiers in TAME are immutable and can"),
+                sdup.help("  only be associated with one definition."),
+            ],
+
+            ExternResolution(name, expected, (given, sresolve)) => vec![
+                name.note(format!(
+                    "extern {} declared here with type {}",
+                    TtQuote::wrap(name),
+                    TtQuote::wrap(expected),
+                )),
+                sresolve.error(format!(
+                    "attempted to resolve extern {} with incompatible type {}",
+                    TtQuote::wrap(name),
+                    TtQuote::wrap(given),
+                )),
+            ],
+
+            // TODO: Does this make a lie out of `Redeclare`'s help?
+            NonVirtualOverride(name, soverride) => vec![
+                name.note("attempting to override this non-virtual identifier"),
+                soverride.error(format!(
+                    "cannot override {} because the first declaration \
+                        was not virtual",
+                    TtQuote::wrap(name),
+                )),
+                // TODO: let's see what type of help text will be useful
+                //   once we've decided what is to be done with virtual
+                //   identifiers generally
+            ],
+
+            VirtualOverrideKind(name, orig, (given, soverride)) => vec![
+                name.note(format!(
+                    "attempting to override this identifier of type {}",
+                    TtQuote::wrap(orig),
+                )),
+                soverride.error(format!(
+                    "type of this override is {}, but {} was expected",
+                    TtQuote::wrap(given),
+                    TtQuote::wrap(orig),
+                )),
+            ],
+
+            BadFragmentDest(name) => vec![
+                name.internal_error(
+                    "identifier {} cannot be assigned a text fragment",
+                ),
+                name.help(
+                    "the term 'text fragment' refers to compiled code from an",
+                ),
+                name.help("  object file; this error should never occur."),
+            ],
+        }
+    }
+}
+
 /// Resolved identifier was expected.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnresolvedError {
     /// Expected identifier is missing and nothing about it is known.
-    Missing { name: SymbolId },
+    ///
+    /// The span represents the first reference to this identifier that
+    ///   caused it to be added to the graph;
+    ///     it is not necessarily the _only_ reference.
+    /// When reporting errors based on references to unknown identifiers,
+    ///   keep this in mind to avoid duplicates.
+    Missing(SPair),
 
     /// Expected identifier has not yet been resolved with a concrete
     ///   definition.
-    Extern {
-        /// Identifier name.
-        name: SymbolId,
-        /// Expected identifier type.
-        kind: IdentKind,
-        /// Name of package where the extern was defined.
-        pkg_name: Option<SymbolId>,
-    },
+    Extern(SPair, IdentKind),
 }
 
 impl std::fmt::Display for UnresolvedError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use UnresolvedError::*;
+
         match self {
-            UnresolvedError::Missing { name } => {
-                write!(fmt, "missing expected identifier `{}`", name,)
+            Missing(name) => {
+                write!(fmt, "unknown identifier {}", TtQuote::wrap(name))
             }
 
-            UnresolvedError::Extern {
-                name,
-                kind,
-                pkg_name,
-            } => write!(
+            Extern(name, kind) => write!(
                 fmt,
-                "unresolved extern `{}` of type `{}`, declared in `{}`",
-                name,
-                kind,
-                pkg_name.map(|s| s.lookup_str()).unwrap_or(&"<unknown>"),
+                "unresolved extern {} of type {}",
+                TtQuote::wrap(name),
+                TtQuote::wrap(kind),
             ),
         }
     }
@@ -502,6 +581,38 @@ impl std::fmt::Display for UnresolvedError {
 impl std::error::Error for UnresolvedError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
+    }
+}
+
+impl Diagnostic for UnresolvedError {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        use UnresolvedError::*;
+
+        match self {
+            // TODO: Do we want a single span, or should errors also be
+            // thrown for every reference to missing?
+            Missing(name) => vec![name.error(format!(
+                "identifier {} has not been defined",
+                TtQuote::wrap(name),
+            ))],
+
+            Extern(name, _kind) => vec![
+                name.error(format!(
+                    "no imported package provided a \
+                        compatible definition for {}",
+                    TtQuote::wrap(name),
+                )),
+                name.help(
+                    "an extern declares an identifier so that it may be used,"
+                ),
+                name.help(
+                    "  but with the expectation that some imported package will"
+                ),
+                name.help(
+                    "  later provide a concrete definition for it."
+                )
+            ],
+        }
     }
 }
 

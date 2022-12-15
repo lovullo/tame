@@ -70,6 +70,10 @@ pub enum XmloToken {
 
     /// A symbol reference whose interpretation is dependent on the current
     ///   state.
+    ///
+    /// The span currently references the object file itself,
+    ///   but in the future this will resolve to a span stored within the
+    ///   object file representing the source location of this symbol.
     Symbol(SymbolId, Span),
 
     /// Text (compiled code) fragment for a given symbol.
@@ -364,8 +368,9 @@ impl ParseState for SymtableState {
             }
 
             // Symbol @name found.
-            (Sym(span, None, attrs), Xirf::Attr(Attr(QN_NAME, name, _))) => {
-                Transition(Sym(span, Some(name), attrs)).incomplete()
+            (Sym(_, None, attrs), Xirf::Attr(Attr(QN_NAME, name, aspan))) => {
+                Transition(Sym(aspan.value_span(), Some(name), attrs))
+                    .incomplete()
             }
 
             (
