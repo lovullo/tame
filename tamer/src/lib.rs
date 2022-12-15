@@ -62,11 +62,6 @@
 // Convenience features that are easily replaced if not stabalized.
 #![feature(nonzero_min_max)]
 #![feature(nonzero_ops)]
-// Note: this is the first time TAMER was hit by a change in an unstable
-//   feature,
-//     when `log10` et al. were renamed to `ilog10` et al:
-//       <https://github.com/rust-lang/rust/pull/100332>
-#![feature(int_log)]
 // Enabled for qualified paths in `matches!`.
 #![feature(more_qualified_paths)]
 // Used for const params like `&'static str` in `crate::fmt`.
