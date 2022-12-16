@@ -81,33 +81,7 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
         ..
     } = state;
 
-    let sorted = match sort(&depgraph, Sections::new()) {
-        Ok(sections) => sections,
-        Err(SortError::Cycles(cycles)) => {
-            return Err(TameldError::CycleError(
-                cycles
-                    .into_iter()
-                    .map(|cycle| {
-                        let mut path: Vec<SymbolId> = cycle
-                            .into_iter()
-                            .filter_map(|obj| {
-                                depgraph
-                                    .get(obj)
-                                    .unwrap()
-                                    .as_ident_ref()
-                                    .map(|ident| ident.name().symbol())
-                            })
-                            .collect();
-
-                        path.reverse();
-                        path.push(path[0].clone());
-                        path
-                    })
-                    .collect(),
-            ))
-        }
-        Err(e) => return Err(e.into()),
-    };
+    let sorted = sort(&depgraph, Sections::new())?;
 
     output_xmle(
         sorted,
@@ -289,7 +263,6 @@ pub enum TameldError {
     AirLowerError(ParseError<Air, AsgError>),
     XirWriterError(XirWriterError),
     FinalizeError(FinalizeError),
-    CycleError(Vec<Vec<SymbolId>>),
     Fmt(fmt::Error),
 }
 
@@ -365,21 +338,6 @@ impl Display for TameldError {
             Self::AirLowerError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
             Self::FinalizeError(e) => Display::fmt(e, f),
-            Self::CycleError(cycles) => {
-                for cycle in cycles {
-                    writeln!(
-                        f,
-                        "cycle: {}",
-                        cycle
-                            .iter()
-                            .map(|sym| sym.lookup_str())
-                            .collect::<Vec<&str>>()
-                            .join(" -> ")
-                    )?;
-                }
-
-                Ok(())
-            }
             Self::Fmt(e) => Display::fmt(e, f),
         }
     }
@@ -397,7 +355,6 @@ impl Error for TameldError {
             Self::AirLowerError(e) => Some(e),
             Self::XirWriterError(e) => Some(e),
             Self::FinalizeError(e) => Some(e),
-            Self::CycleError(_) => None,
             Self::Fmt(e) => Some(e),
         }
     }
@@ -414,10 +371,7 @@ impl Diagnostic for TameldError {
             Self::FinalizeError(e) => e.describe(),
             Self::SortError(e) => e.describe(),
 
-            Self::Io(_)
-            | Self::XirWriterError(_)
-            | Self::CycleError(_)
-            | Self::Fmt(_) => vec![],
+            Self::Io(_) | Self::XirWriterError(_) | Self::Fmt(_) => vec![],
         }
     }
 }

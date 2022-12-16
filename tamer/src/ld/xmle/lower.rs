@@ -21,10 +21,17 @@
 //!
 //! See the [parent module](super) for more information.
 
+use std::iter::once;
+
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{Asg, Ident, IdentKind, Object, ObjectRef},
-    diagnose::Diagnostic,
+    asg::{Asg, Ident, IdentKind, Object},
+    diagnose::{Annotate, Diagnostic},
+    fmt::{
+        AndConjList, DisplayWrapper, JoinListWrap, ListDisplayWrapper, Raw,
+        TtQuote,
+    },
+    parse::util::SPair,
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -100,7 +107,7 @@ fn check_cycles(asg: &Asg) -> SortResult<()> {
     // impact.
     let sccs = petgraph::algo::tarjan_scc(&asg.graph);
 
-    let cycles: Vec<_> = sccs
+    let cycles: Vec<Vec<SPair>> = sccs
         .into_iter()
         .filter_map(|scc| {
             // For single-node SCCs, we just need to make sure they are
@@ -122,8 +129,17 @@ fn check_cycles(asg: &Asg) -> SortResult<()> {
             if is_all_funcs {
                 None
             } else {
-                let cycles =
-                    scc.iter().map(|nx| ObjectRef::from(*nx)).collect();
+                // TODO: ...these aren't references, they're the actual
+                //   identifiers,
+                //     so the diagnostic message isn't that great of a guide
+                //     yet!
+                //   Use reference spans once they're available.
+                let cycles = scc
+                    .iter()
+                    .filter_map(|nx| {
+                        asg.get(*nx).unwrap().as_ident_ref().map(Ident::name)
+                    })
+                    .collect();
                 Some(cycles)
             }
         })
@@ -148,7 +164,7 @@ pub enum SortError {
     SectionsError(SectionsError),
 
     /// The graph has a cyclic dependency.
-    Cycles(Vec<Vec<ObjectRef>>),
+    Cycles(Vec<Vec<SPair>>),
 }
 
 impl From<SectionsError> for SortError {
@@ -158,10 +174,31 @@ impl From<SectionsError> for SortError {
 }
 
 impl std::fmt::Display for SortError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::SectionsError(err) => err.fmt(fmt),
-            Self::Cycles(_) => write!(fmt, "cyclic dependencies"),
+            Self::SectionsError(err) => err.fmt(f),
+            Self::Cycles(cycles) => {
+                let cycles_fmt = cycles
+                    .iter()
+                    .map(|cycle| {
+                        let cycle_fmt = cycle
+                            .iter()
+                            .rev()
+                            .chain(once(cycle.last().unwrap()))
+                            .collect::<Vec<_>>();
+
+                        // TODO: Wrappers ought to support nested lists.
+                        JoinListWrap::<" -> ", Raw>::wrap(&cycle_fmt)
+                            .to_string()
+                    })
+                    .collect::<Vec<_>>();
+
+                write!(
+                    f,
+                    "circular dependencies: {}",
+                    AndConjList::<TtQuote>::wrap(&cycles_fmt),
+                )
+            }
         }
     }
 }
@@ -178,8 +215,51 @@ impl Diagnostic for SortError {
 
         match self {
             SectionsError(e) => e.describe(),
-            // TODO
-            Cycles(_) => vec![],
+
+            // TODO: In future it'd be far less confusing to have a single
+            //   error per cycle.
+            Cycles(cycles) => cycles
+                .iter()
+                .map(|cycle| {
+                    let n = cycle.len();
+                    let ident = cycle.last().unwrap();
+
+                    cycle.iter().rev().enumerate().map(|(i, spair)| {
+                        spair.note(match i {
+                            0 => format!(
+                                "[0/{n}] the cycle begins here, depending on..."
+                            ),
+                            _ => format!(
+                                "[{i}/{n}] ...this identifier, which depends on..."
+                            )
+                        })
+                    })
+                        .chain(once(ident.error(format!(
+                            "[{n}/{n}] ...the first identifier once again, \
+                                creating the cycle"
+                        ))))
+                        .chain(vec![
+                            ident.help(format!(
+                                "the value of {} cannot be computed because its",
+                                TtQuote::wrap(ident),
+                            )),
+                            ident.help(
+                                "  definition requires first computing itself.",
+                            ),
+                            ident.help(
+                                "in the future the above output will emphasize the "
+                            ),
+                            ident.help(
+                                "  references to the identifiers rather than their "
+                            ),
+                            ident.help(
+                                "  definition sites."
+                            )
+                        ])
+                        .collect::<Vec<_>>()
+                })
+                .flatten()
+                .collect(),
         }
     }
 }
@@ -422,8 +502,11 @@ mod test {
 
         let result = sort(&asg, Sections::new());
 
-        let expected: Vec<Vec<ObjectRef>> =
-            vec![vec![dep_node.into(), sym_node.into()]];
+        let expected = vec![[dep_node, sym_node]
+            .into_iter()
+            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .collect::<Vec<_>>()];
+
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
             Err(SortError::Cycles(scc)) => assert_eq!(expected, scc),
@@ -500,10 +583,16 @@ mod test {
 
         let result = sort(&asg, Sections::new());
 
-        let expected: Vec<Vec<ObjectRef>> = vec![
-            vec![dep_node.into(), sym_node.into()],
-            vec![dep2_node.into(), sym2_node.into()],
-        ];
+        let expected = [[dep_node, sym_node], [dep2_node, sym2_node]]
+            .into_iter()
+            .map(|cycle| {
+                cycle
+                    .into_iter()
+                    .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
             Err(SortError::Cycles(scc)) => assert_eq!(expected, scc),
@@ -612,8 +701,11 @@ mod test {
 
         let result = sort(&asg, Sections::new());
 
-        let expected: Vec<Vec<ObjectRef>> =
-            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        let expected = vec![[sym3_node, sym2_node, sym1_node]
+            .into_iter()
+            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .collect::<Vec<_>>()];
+
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
             Err(SortError::Cycles(scc)) => assert_eq!(expected, scc),
@@ -677,8 +769,11 @@ mod test {
 
         let result = sort(&asg, Sections::new());
 
-        let expected: Vec<Vec<ObjectRef>> =
-            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        let expected = vec![[sym3_node, sym2_node, sym1_node]
+            .into_iter()
+            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .collect::<Vec<_>>()];
+
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
             Err(SortError::Cycles(scc)) => assert_eq!(expected, scc),
@@ -741,8 +836,11 @@ mod test {
 
         let result = sort(&asg, Sections::new());
 
-        let expected: Vec<Vec<ObjectRef>> =
-            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        let expected = vec![[sym3_node, sym2_node, sym1_node]
+            .into_iter()
+            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .collect::<Vec<_>>()];
+
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
             Err(SortError::Cycles(scc)) => assert_eq!(expected, scc),
@@ -851,8 +949,11 @@ mod test {
 
         let result = sort(&asg, Sections::new());
 
-        let expected: Vec<Vec<ObjectRef>> =
-            vec![vec![sym3_node.into(), sym2_node.into(), sym1_node.into()]];
+        let expected = vec![[sym3_node, sym2_node, sym1_node]
+            .into_iter()
+            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .collect::<Vec<_>>()];
+
         match result {
             Ok(_) => panic!("sort did not detect cycle"),
             Err(SortError::Cycles(scc)) => assert_eq!(expected, scc),
