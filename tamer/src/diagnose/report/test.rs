@@ -199,6 +199,8 @@ fn section_from_mspan_resolved() {
                     label: None,
                 }),
                 SectionLine::SourceLinePadding,
+                // Will be stripped during finalization
+                SectionLine::SourceLinePadding,
                 SectionLine::SourceLine(src_lines[1].clone().into()),
                 SectionLine::SourceLineMark(LineMark {
                     level: Level::Note,
@@ -206,6 +208,8 @@ fn section_from_mspan_resolved() {
                     // Label at last source line
                     label: Some("test label".into()),
                 }),
+                // Will be stripped during finalization
+                SectionLine::SourceLinePadding,
             ],
             line_max: 2.unwrap_into(),
         }

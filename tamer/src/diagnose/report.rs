@@ -124,6 +124,10 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
         //   which is more aesthetically pleasing.
         report.normalize_gutters();
 
+        // Let sections perform any final formatting,
+        //   e.g. to trim or merge padding.
+        report.finalize_sections();
+
         if report.level.is_error() {
             // Not worried about overflow panic
             //   (you have bigger problems if there are that many errors).
@@ -298,6 +302,11 @@ impl<'d, D: Diagnostic> Report<'d, D> {
             sec.line_max = self.line_max;
         }
     }
+
+    /// Finalize section formatting before display to the user.
+    fn finalize_sections(&mut self) {
+        self.secs.iter_mut().for_each(Section::finalize)
+    }
 }
 
 impl<'d, D: Diagnostic> Extend<Section<'d>> for Report<'d, D> {
@@ -469,6 +478,7 @@ impl<'s, 'd> Section<'d> {
                 SectionLine::SourceLinePadding,
                 SectionLine::SourceLine(src.into()),
                 SectionLine::SourceLineMark(LineMark { col, level, label }),
+                SectionLine::SourceLinePadding,
             ]);
         } else {
             dest.extend(vec![
@@ -537,6 +547,27 @@ impl<'s, 'd> Section<'d> {
     /// ```
     fn gutter_text_width(&self) -> usize {
         self.line_max.ilog10().add(1).max(2) as usize
+    }
+
+    /// Finalize formatting of this section before display to the user.
+    ///
+    /// This is the last chance to clean things up.
+    fn finalize(&mut self) {
+        use SectionLine::SourceLinePadding;
+
+        // Padding is added conservatively during generation,
+        //   which may lead to adjacent padding for multi-line spans.
+        // That padding can be merged into a single line.
+        self.body.dedup_by(|a, b| match (a, b) {
+            (SourceLinePadding, SourceLinePadding) => true,
+            _ => false,
+        });
+
+        // Padding at the very end of the section is not desirable since the
+        //   report already adds padding around sections.
+        if self.body.last() == Some(&SourceLinePadding) {
+            self.body.pop();
+        }
     }
 }
 

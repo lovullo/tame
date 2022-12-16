@@ -241,6 +241,7 @@ error: multiple adjacent same span with labels
    |
  1 | bar/baz line 1
    |         ^^^^^^ error: A label
+   |
    = error: C label
 "
     );
@@ -275,12 +276,14 @@ error: eq context neq offset/len
    |
  1 | bar/baz line 1
    | ^^^
+   |
    = error: A, first label, after mark
 
   --> bar/baz:1:1
    |
  1 | bar/baz line 1
    | ^^^^^^^ error: B, different length
+   |
    = error: B, collapse
 
   --> bar/baz:2:1
@@ -335,6 +338,7 @@ error: multiple adjacent different context
    |
  1 | foo/bar line 1
    | ^^^^^^^
+   |
    = error: A, first, after marked
    = error: A, collapsed
 
@@ -342,6 +346,7 @@ error: multiple adjacent different context
    |
  1 | bar/baz line 1
    | ^^^^^^^ error: B, first, no marked
+   |
    = error: B, collapsed
 
   --> foo/bar:1:1
@@ -381,6 +386,7 @@ internal error: multiple spans with labels of different severity level
    |
  4 | foo/bar line 4
    |         !!!!!! internal error: an internal error
+   |
    = error: an error
    = note: a note
    = help: a help message
