@@ -37,6 +37,20 @@ use std::fmt::Display;
 ///   (such as [`Display`])
 ///   cannot be implemented on tuples at the time of writing.
 ///
+/// This type provides some notable benefits:
+///
+///   - [`Display`]ing an [`SPair`] will render the [`SymbolId`]'s
+///       interned string,
+///         and the same [`SPair`] when used with
+///         [`crate::diagnose::Annotate`] will provide annotated spans;
+///           this allows [`SPair`] to be used without destructuring in
+///           diagnostic messages.
+///   - [`Span`]s are explicitly coupled with their corresponding
+///       [`SymbolId`],
+///         reducing complexity when many spans are in play.
+///   - [`SPair`] implements [`Token`],
+///       and so can serve as an ad-hoc IR if appropriate.
+///
 /// This implements [`Copy`] because each inner type is small
 ///   (and itself [`Copy`]),
 ///   and in practice,

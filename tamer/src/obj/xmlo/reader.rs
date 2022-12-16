@@ -21,11 +21,12 @@ use std::fmt::Display;
 
 use super::{SymAttrs, XmloError};
 use crate::{
+    fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},
     obj::xmlo::SymType,
     parse::{
-        self, ClosedParseState, EmptyContext, NoContext, ParseState, Token,
-        Transition, TransitionResult, Transitionable,
+        self, util::SPair, ClosedParseState, EmptyContext, NoContext,
+        ParseState, Token, Transition, TransitionResult, Transitionable,
     },
     span::Span,
     sym::{st::raw, SymbolId},
@@ -49,24 +50,24 @@ use crate::{
 #[derive(Debug, PartialEq, Eq)]
 pub enum XmloToken {
     /// Canonical package name.
-    PkgName(SymbolId, Span),
+    PkgName(SPair),
     /// Relative path from package to project root.
-    PkgRootPath(SymbolId, Span),
+    PkgRootPath(SPair),
     /// Indicates that the package is a program.
     PkgProgramFlag(Span),
     /// Name of package eligibility classification.
-    PkgEligClassYields(SymbolId, Span),
+    PkgEligClassYields(SPair),
 
     /// Symbol declaration.
     ///
     /// This represents an entry in the symbol table,
     ///   which includes a symbol along with its variable metadata as
     ///   [`SymAttrs`].
-    SymDecl(SymbolId, SymAttrs, Span),
+    SymDecl(SPair, SymAttrs),
 
     /// Begin adjacency list for a given symbol and interpret subsequent
     ///   symbols as edges (dependencies).
-    SymDepStart(SymbolId, Span),
+    SymDepStart(SPair),
 
     /// A symbol reference whose interpretation is dependent on the current
     ///   state.
@@ -74,7 +75,7 @@ pub enum XmloToken {
     /// The span currently references the object file itself,
     ///   but in the future this will resolve to a span stored within the
     ///   object file representing the source location of this symbol.
-    Symbol(SymbolId, Span),
+    Symbol(SPair),
 
     /// Text (compiled code) fragment for a given symbol.
     ///
@@ -83,7 +84,7 @@ pub enum XmloToken {
     /// Given that fragments can be quite large,
     ///   a caller not interested in these data should choose to skip
     ///   fragments entirely rather than simply ignoring fragment events.
-    Fragment(SymbolId, SymbolId, Span),
+    Fragment(SPair, SymbolId),
 
     /// End-of-header.
     ///
@@ -108,14 +109,14 @@ impl Token for XmloToken {
             //   important since these initial tokens seed
             //   `Parser::last_span`,
             //     which is used for early error messages.
-            PkgName(_, span)
-            | PkgRootPath(_, span)
+            PkgName(SPair(_, span))
+            | PkgRootPath(SPair(_, span))
             | PkgProgramFlag(span)
-            | PkgEligClassYields(_, span)
-            | SymDecl(.., span)
-            | SymDepStart(.., span)
-            | Symbol(.., span)
-            | Fragment(.., span)
+            | PkgEligClassYields(SPair(_, span))
+            | SymDecl(SPair(_, span), _)
+            | SymDepStart(SPair(_, span))
+            | Symbol(SPair(_, span))
+            | Fragment(SPair(_, span), _)
             | Eoh(span) => *span,
         }
     }
@@ -126,18 +127,32 @@ impl Display for XmloToken {
         use XmloToken::*;
 
         match self {
-            PkgName(sym, _) => write!(f, "package name `{sym}`"),
-            PkgRootPath(sym, _) => write!(f, "package root path `{sym}`"),
+            PkgName(sym) => write!(f, "package of name {}", TtQuote::wrap(sym)),
+            PkgRootPath(sym) => {
+                write!(f, "package root path {}", TtQuote::wrap(sym))
+            }
             PkgProgramFlag(_) => write!(f, "package program flag"),
-            PkgEligClassYields(sym, _) => {
-                write!(f, "package eligibility classification `{sym}`")
+            PkgEligClassYields(sym) => {
+                write!(
+                    f,
+                    "package eligibility classification {}",
+                    TtQuote::wrap(sym)
+                )
             }
-            SymDecl(sym, ..) => write!(f, "symbol `{sym}` declaration"),
-            SymDepStart(sym, ..) => {
-                write!(f, "beginning of symbol `{sym}` dependency list")
+            SymDecl(sym, ..) => {
+                write!(f, "symbol {} declaration", TtQuote::wrap(sym))
             }
-            Symbol(sym, ..) => write!(f, "symbol `{sym}`"),
-            Fragment(sym, ..) => write!(f, "symbol `{sym}` code fragment"),
+            SymDepStart(sym) => {
+                write!(
+                    f,
+                    "beginning of symbol {} dependency list",
+                    TtQuote::wrap(sym)
+                )
+            }
+            Symbol(sym) => write!(f, "symbol {}", TtQuote::wrap(sym)),
+            Fragment(sym, _) => {
+                write!(f, "symbol {} code fragment", TtQuote::wrap(sym))
+            }
             Eoh(..) => write!(f, "end of header"),
         }
     }
@@ -206,12 +221,16 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 //   which can result in confusing output depending on the context;
                 //     we ought to retain _both_ token- and value-spans.
                 Transition(Package(span)).ok(match name {
-                    QN_NAME => XmloToken::PkgName(value, aspan.1),
-                    QN_UUROOTPATH => XmloToken::PkgRootPath(value, aspan.1),
-                    QN_PROGRAM => XmloToken::PkgProgramFlag(aspan.0), // yes 0
-                    QN_P_ELIG_CLASS_YIELDS => {
-                        XmloToken::PkgEligClassYields(value, aspan.1)
+                    QN_NAME => {
+                        XmloToken::PkgName(SPair(value, aspan.value_span()))
                     }
+                    QN_UUROOTPATH => {
+                        XmloToken::PkgRootPath(SPair(value, aspan.value_span()))
+                    }
+                    QN_PROGRAM => XmloToken::PkgProgramFlag(aspan.key_span()),
+                    QN_P_ELIG_CLASS_YIELDS => XmloToken::PkgEligClassYields(
+                        SPair(value, aspan.value_span()),
+                    ),
                     // Ignore unknown attributes for now to maintain BC,
                     //   since no strict xmlo schema has been defined.
                     _ => return Transition(Package(span)).incomplete(),
@@ -335,11 +354,9 @@ pub enum SymtableState {
     SymRef(Span, SymbolId, SymAttrs, Span),
 }
 
-impl parse::Object for (SymbolId, SymAttrs, Span) {}
-
 impl ParseState for SymtableState {
     type Token = Xirf<Text>;
-    type Object = (SymbolId, SymAttrs, Span);
+    type Object = XmloToken;
     type Error = XmloError;
 
     fn parse_token(
@@ -364,7 +381,8 @@ impl ParseState for SymtableState {
 
             // Completed symbol.
             (Sym(span, Some(name), attrs), Xirf::Close(..)) => {
-                Transition(Ready).ok((name, attrs, span))
+                Transition(Ready)
+                    .ok(XmloToken::SymDecl(SPair(name, span), attrs))
             }
 
             // Symbol @name found.
@@ -597,14 +615,6 @@ impl Display for SymtableState {
     }
 }
 
-impl From<(SymbolId, SymAttrs, Span)> for XmloToken {
-    fn from(tup: (SymbolId, SymAttrs, Span)) -> Self {
-        match tup {
-            (sym, attrs, span) => Self::SymDecl(sym, attrs, span),
-        }
-    }
-}
-
 /// Symbol dependency list (graph adjacency list) parser for
 ///   `preproc:sym-deps` children.
 ///
@@ -645,7 +655,7 @@ impl ParseState for SymDepsState {
 
             (SymUnnamed(span), Xirf::Attr(Attr(QN_NAME, name, _))) => {
                 Transition(Sym(span, name))
-                    .ok(XmloToken::SymDepStart(name, span))
+                    .ok(XmloToken::SymDepStart(SPair(name, span)))
             }
 
             (SymUnnamed(span), _) => Transition(SymUnnamed(span))
@@ -660,7 +670,7 @@ impl ParseState for SymDepsState {
                 SymRefUnnamed(span, name, span_ref),
                 Xirf::Attr(Attr(QN_NAME, ref_name, AttrSpan(_, span_ref_name))),
             ) => Transition(SymRefDone(span, name, span_ref))
-                .ok(XmloToken::Symbol(ref_name, span_ref_name)),
+                .ok(XmloToken::Symbol(SPair(ref_name, span_ref_name))),
 
             // TODO: For xmlns attributes, which will go away in XIRF.
             (SymRefUnnamed(span, name, span_ref), Xirf::Attr(..)) => {
@@ -731,8 +741,8 @@ pub enum FragmentsState {
     #[default]
     Ready,
     FragmentUnnamed(Span),
-    Fragment(Span, SymbolId),
-    FragmentDone(Span, SymbolId),
+    Fragment(SPair),
+    FragmentDone(SPair),
 }
 
 impl ParseState for FragmentsState {
@@ -763,7 +773,7 @@ impl ParseState for FragmentsState {
                     raw::WS_EMPTY => {
                         Transition(FragmentUnnamed(span)).incomplete()
                     }
-                    id => Transition(Fragment(span, id)).incomplete(),
+                    id => Transition(Fragment(SPair(id, span))).incomplete(),
                 }
             }
 
@@ -781,14 +791,14 @@ impl ParseState for FragmentsState {
             (FragmentUnnamed(span), _) => Transition(FragmentUnnamed(span))
                 .err(XmloError::UnassociatedFragment(span)),
 
-            (Fragment(span, id), Xirf::Text(Text(text, _), _)) => {
-                Transition(FragmentDone(span, id))
-                    .ok(XmloToken::Fragment(id, text, span))
+            (Fragment(name), Xirf::Text(Text(text, _), _)) => {
+                Transition(FragmentDone(name))
+                    .ok(XmloToken::Fragment(name, text))
             }
 
             // TODO: Also a compiler bug, for some generated classes.
             // This needs fixing in the compiler.
-            (Fragment(_span, _id), Xirf::Close(..)) => {
+            (Fragment(_), Xirf::Close(..)) => {
                 //eprintln!("warning: empty fragment text for {id} at {span}");
                 Transition(Ready).incomplete()
             }
@@ -817,11 +827,19 @@ impl Display for FragmentsState {
             FragmentUnnamed(_) => {
                 write!(f, "expecting fragment association id")
             }
-            Fragment(_, sym) => {
-                write!(f, "expecting fragment text for symbol `{sym}`")
+            Fragment(name) => {
+                write!(
+                    f,
+                    "expecting fragment text for symbol {}",
+                    TtQuote::wrap(name)
+                )
             }
-            FragmentDone(_, sym) => {
-                write!(f, "expecting end of fragment for symbol `{sym}`")
+            FragmentDone(name) => {
+                write!(
+                    f,
+                    "expecting end of fragment for symbol {}",
+                    TtQuote::wrap(name)
+                )
             }
         }
     }

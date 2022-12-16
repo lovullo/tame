@@ -84,7 +84,7 @@ impl XmloAirContext {
     }
 }
 
-type PackageName = SymbolId;
+type PackageSPair = SPair;
 
 /// State machine for lowering into the [`Asg`](crate::asg::Asg) via
 ///   [`Air`].
@@ -92,8 +92,8 @@ type PackageName = SymbolId;
 pub enum XmloToAir {
     #[default]
     PackageExpected,
-    Package(PackageName, Span),
-    SymDep(PackageName, Span, SPair),
+    Package(PackageSPair),
+    SymDep(PackageSPair, SPair),
     /// End of header (EOH) reached.
     Done(Span),
 }
@@ -113,17 +113,17 @@ impl ParseState for XmloToAir {
         use XmloToAir::*;
 
         match (self, tok) {
-            (PackageExpected, XmloToken::PkgName(name, span)) => {
+            (PackageExpected, XmloToken::PkgName(name)) => {
                 if ctx.is_first() {
-                    ctx.prog_name = Some(name);
+                    ctx.prog_name = Some(name.symbol());
                 }
 
-                Transition(Package(name, span)).incomplete()
+                Transition(Package(name)).incomplete()
             }
 
-            (st @ Package(..), XmloToken::PkgRootPath(relroot, _)) => {
+            (st @ Package(..), XmloToken::PkgRootPath(relroot)) => {
                 if ctx.is_first() {
-                    ctx.relroot = Some(relroot);
+                    ctx.relroot = Some(relroot.symbol());
                 }
 
                 Transition(st).incomplete()
@@ -135,16 +135,12 @@ impl ParseState for XmloToAir {
             //     definition is encountered later within the same file.
             // TODO: Let's remove the need for this special root handling
             //   here.
-            (
-                Package(pkg_name, span),
-                XmloToken::PkgEligClassYields(pkg_elig, elig_span),
-            ) => {
+            (Package(name), XmloToken::PkgEligClassYields(pkg_elig)) => {
                 // The span for this is a bit awkward,
                 //   given that rooting is automatic,
                 //   but it it should never have to be utilized in
                 //     diagnostics unless there is a compiler bug.
-                Transition(Package(pkg_name, span))
-                    .ok(Air::IdentRoot(SPair(pkg_elig, elig_span)))
+                Transition(Package(name)).ok(Air::IdentRoot(pkg_elig))
             }
 
             (
@@ -156,35 +152,29 @@ impl ParseState for XmloToAir {
             }
 
             (
-                Package(pkg_name, span) | SymDep(pkg_name, span, ..),
-                XmloToken::SymDepStart(sym, sym_span),
-            ) => Transition(SymDep(pkg_name, span, SPair(sym, sym_span)))
-                .incomplete(),
+                Package(pkg_name) | SymDep(pkg_name, ..),
+                XmloToken::SymDepStart(sym),
+            ) => Transition(SymDep(pkg_name, sym)).incomplete(),
 
-            (
-                SymDep(pkg_name, span, sym),
-                XmloToken::Symbol(dep_sym, dep_span),
-            ) => Transition(SymDep(pkg_name, span, sym))
-                .ok(Air::IdentDep(sym, SPair(dep_sym, dep_span))),
-
-            (
-                Package(pkg_name, span),
-                XmloToken::SymDecl(
-                    _sym,
-                    SymAttrs {
-                        src: Some(sym_src), ..
-                    },
-                    _span,
-                ),
-            ) => {
-                ctx.found.get_or_insert(Default::default()).insert(sym_src);
-                Transition(Package(pkg_name, span)).incomplete()
+            (SymDep(pkg_name, sym), XmloToken::Symbol(dep_sym)) => {
+                Transition(SymDep(pkg_name, sym))
+                    .ok(Air::IdentDep(sym, dep_sym))
             }
 
             (
-                Package(pkg_name, span),
-                XmloToken::SymDecl(sym, attrs, sym_span),
+                Package(pkg_name),
+                XmloToken::SymDecl(
+                    _name,
+                    SymAttrs {
+                        src: Some(sym_src), ..
+                    },
+                ),
             ) => {
+                ctx.found.get_or_insert(Default::default()).insert(sym_src);
+                Transition(Package(pkg_name)).incomplete()
+            }
+
+            (Package(pkg_name), XmloToken::SymDecl(name, attrs)) => {
                 let extern_ = attrs.extern_;
 
                 // TODO: This attr/source separation is a mess,
@@ -197,7 +187,7 @@ impl ParseState for XmloToAir {
 
                         // This used to come from SymAttrs in the old XmloReader.
                         if src.pkg_name.is_none() {
-                            src.pkg_name.replace(pkg_name);
+                            src.pkg_name.replace(pkg_name.symbol());
                         }
 
                         // Existing convention is to omit @src of local package
@@ -208,26 +198,23 @@ impl ParseState for XmloToAir {
 
                         if extern_ {
                             Ok(ParseStatus::Object(Air::IdentExternDecl(
-                                SPair(sym, sym_span),
-                                kindval,
-                                src,
+                                name, kindval, src,
                             )))
                         } else {
                             Ok(ParseStatus::Object(Air::IdentDecl(
-                                SPair(sym, sym_span),
-                                kindval,
-                                src,
+                                name, kindval, src,
                             )))
                         }
                     })
-                    .transition(Package(pkg_name, span))
+                    .transition(Package(pkg_name))
             }
 
             (
-                Package(pkg_name, span) | SymDep(pkg_name, span, _),
-                XmloToken::Fragment(sym, text, frag_span),
-            ) => Transition(Package(pkg_name, span))
-                .ok(Air::IdentFragment(SPair(sym, frag_span), text)),
+                Package(pkg_name) | SymDep(pkg_name, _),
+                XmloToken::Fragment(name, text),
+            ) => {
+                Transition(Package(pkg_name)).ok(Air::IdentFragment(name, text))
+            }
 
             // We don't need to read any further than the end of the
             //   header (symtable, sym-deps, fragments).
@@ -257,10 +244,10 @@ impl Display for XmloToAir {
 
         match self {
             PackageExpected => write!(f, "expecting package definition"),
-            Package(name, _) => {
+            Package(name) => {
                 write!(f, "expecting package `/{name}` declarations")
             }
-            SymDep(pkg_name, _, sym) => {
+            SymDep(pkg_name, sym) => {
                 write!(f, "expecting dependency for symbol `/{pkg_name}/{sym}`")
             }
             Done(_) => write!(f, "done lowering xmlo into AIR"),
@@ -423,8 +410,8 @@ mod test {
         let relroot = "some/path".into();
 
         let toks = vec![
-            XmloToken::PkgName(name, S1),
-            XmloToken::PkgRootPath(relroot, S2),
+            XmloToken::PkgName(SPair(name, S1)),
+            XmloToken::PkgRootPath(SPair(relroot, S2)),
             XmloToken::Eoh(S3),
         ]
         .into_iter();
@@ -447,8 +434,8 @@ mod test {
         let elig_sym = "elig".into();
 
         let toks = vec![
-            XmloToken::PkgName(name, S1),
-            XmloToken::PkgEligClassYields(elig_sym, S2),
+            XmloToken::PkgName(SPair(name, S1)),
+            XmloToken::PkgEligClassYields(SPair(elig_sym, S2)),
             XmloToken::Eoh(S3),
         ];
 
@@ -469,10 +456,10 @@ mod test {
         let sym_to2 = "to2".into();
 
         let toks = vec![
-            XmloToken::PkgName("name".into(), S1),
-            XmloToken::SymDepStart(sym_from, S2),
-            XmloToken::Symbol(sym_to1, S3),
-            XmloToken::Symbol(sym_to2, S4),
+            XmloToken::PkgName(SPair("name".into(), S1)),
+            XmloToken::SymDepStart(SPair(sym_from, S2)),
+            XmloToken::Symbol(SPair(sym_to1, S3)),
+            XmloToken::Symbol(SPair(sym_to2, S4)),
             XmloToken::Eoh(S1),
         ];
 
@@ -501,22 +488,20 @@ mod test {
         let src_b = "src_b".into();
 
         let toks = vec![
-            XmloToken::PkgName("name".into(), S1),
+            XmloToken::PkgName(SPair("name".into(), S1)),
             XmloToken::SymDecl(
-                sym,
+                SPair(sym, S2),
                 SymAttrs {
                     src: Some(src_a),
                     ..Default::default()
                 },
-                S2,
             ),
             XmloToken::SymDecl(
-                sym,
+                SPair(sym, S3),
                 SymAttrs {
                     src: Some(src_b),
                     ..Default::default()
                 },
-                S3,
             ),
             XmloToken::Eoh(S1),
         ];
@@ -547,43 +532,39 @@ mod test {
         let pkg_name = "pkg name".into();
 
         let toks = vec![
-            XmloToken::PkgName("name".into(), S1),
+            XmloToken::PkgName(SPair("name".into(), S1)),
             XmloToken::SymDecl(
-                sym_extern,
+                SPair(sym_extern, S1),
                 SymAttrs {
                     pkg_name: Some(pkg_name),
                     extern_: true,
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                S1,
             ),
             XmloToken::SymDecl(
-                sym_non_extern,
+                SPair(sym_non_extern, S2),
                 SymAttrs {
                     pkg_name: Some(pkg_name),
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                S2,
             ),
             XmloToken::SymDecl(
-                sym_map,
+                SPair(sym_map, S3),
                 SymAttrs {
                     pkg_name: Some(pkg_name),
                     ty: Some(SymType::Map),
                     ..Default::default()
                 },
-                S3,
             ),
             XmloToken::SymDecl(
-                sym_retmap,
+                SPair(sym_retmap, S4),
                 SymAttrs {
                     pkg_name: Some(pkg_name),
                     ty: Some(SymType::RetMap),
                     ..Default::default()
                 },
-                S4,
             ),
             XmloToken::Eoh(S1),
         ];
@@ -662,15 +643,14 @@ mod test {
         };
 
         let toks = vec![
-            XmloToken::PkgName(pkg_name, S1),
+            XmloToken::PkgName(SPair(pkg_name, S1)),
             XmloToken::SymDecl(
-                sym,
+                SPair(sym, S2),
                 SymAttrs {
                     pkg_name: Some(pkg_name),
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                S2,
             ),
             XmloToken::Eoh(S1),
         ];
@@ -705,15 +685,14 @@ mod test {
         };
 
         let toks = vec![
-            XmloToken::PkgName(pkg_name, S1),
+            XmloToken::PkgName(SPair(pkg_name, S1)),
             XmloToken::SymDecl(
-                sym,
+                SPair(sym, S2),
                 SymAttrs {
                     // No name
                     ty: Some(SymType::Meta),
                     ..Default::default()
                 },
-                S2,
             ),
             XmloToken::Eoh(S1),
         ];
@@ -741,8 +720,8 @@ mod test {
         let bad_attrs = SymAttrs::default();
 
         let toks = vec![
-            XmloToken::PkgName("name".into(), S1),
-            XmloToken::SymDecl(sym, bad_attrs, S2),
+            XmloToken::PkgName(SPair("name".into(), S1)),
+            XmloToken::SymDecl(SPair(sym, S2), bad_attrs),
             XmloToken::Eoh(S1),
         ];
 
@@ -757,8 +736,8 @@ mod test {
         let frag = FragmentText::from("foo");
 
         let toks = vec![
-            XmloToken::PkgName("name".into(), S1),
-            XmloToken::Fragment(sym, frag.clone(), S2),
+            XmloToken::PkgName(SPair("name".into(), S1)),
+            XmloToken::Fragment(SPair(sym, S2), frag.clone()),
             XmloToken::Eoh(S1),
         ];
 
