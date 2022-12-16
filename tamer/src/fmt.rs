@@ -399,6 +399,29 @@ pub type OrQualConjList<
     W,
 > = QualConjList<QUAL_ONE, QUAL_MANY, "or", W>;
 
+/// A list of values separated by a delimiter.
+///
+/// This is analogous to the typical `join` operation on lists.
+/// Single-element lists will have no delimiter,
+///   but lists of multiple elements will have each element delimited by the
+///   same delimiter.
+/// This is in contrast with wrappers that follow more sophisticated
+///   typographical conventions,
+///     such as [`ConjList`] and [`QualConjList`].
+pub struct JoinListWrap<const DELIM: &'static str, W: DisplayWrapper>(
+    PhantomData<W>,
+);
+
+impl<const DELIM: &'static str, W: DisplayWrapper> ListDisplayWrapper
+    for JoinListWrap<DELIM, W>
+{
+    type Single = W;
+    type First = W;
+    type Middle = Prefix<DELIM, W>;
+    type LastOfPair = Prefix<DELIM, W>;
+    type LastOfMany = Prefix<DELIM, W>;
+}
+
 /// List wrapper with associated data.
 ///
 /// This has the effect of creating an arbitrary [`Display`] implementation
@@ -612,6 +635,20 @@ mod test {
         assert_eq!(
             DisplayFn(|f| Sut::fmt_nth(2, 2, &"foo", f)).to_string(),
             ", or foo",
+        );
+    }
+
+    #[test]
+    fn delim_list() {
+        assert_eq!(
+            JoinListWrap::<"::", Raw>::wrap(&["one", "two", "three"])
+                .to_string(),
+            "one::two::three",
+        );
+
+        assert_eq!(
+            JoinListWrap::<" -> ", TtQuote>::wrap(&["foo", "bar"]).to_string(),
+            "`foo` -> `bar`",
         );
     }
 }
