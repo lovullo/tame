@@ -459,6 +459,44 @@ impl Span {
             len: self.len,
         })
     }
+
+    /// Merge with another span `b` such that the combined span begins at
+    ///   the offset of the earlier of the two spans and extends to the end
+    ///   of the later of the two.
+    ///
+    /// Both spans must have the same [`Context`],
+    ///   otherwise the result will be [`None`].
+    /// Merged values beyond [`SpanOffsetSize`] and [`SpanLenSize`] will
+    ///   also result in [`None`].
+    ///
+    /// This properly handles overlapping spans,
+    ///   including the case where one of the spans is entirely contained
+    ///   within another.
+    /// See test cases for more information.
+    ///   (TODO: Maybe we should move the test cases into these docs?)
+    pub fn merge(self, b: Span) -> Option<Span> {
+        if self.context() != b.context() {
+            return None;
+        }
+
+        // Order arguments such that `self` is placed at or before `b`
+        //   rather than having to worry about confounding accommodations
+        //   below.
+        if self.offset() > b.offset() {
+            return b.merge(self);
+        }
+
+        let (_, end) = b.endpoints();
+
+        end.and_then(|Span { offset, .. }| {
+            SpanLenSize::try_from(offset - self.offset).ok()
+        })
+        .map(|new_len| Self {
+            ctx: self.ctx,
+            offset: self.offset,
+            len: self.len.max(new_len),
+        })
+    }
 }
 
 impl Into<u64> for Span {
@@ -842,5 +880,79 @@ mod test {
         // Too large of length should return original even though offset is
         //   okay.
         assert_eq!(span, span.slice(0, usize::MAX));
+    }
+
+    #[test]
+    fn span_merge_one_after_other() {
+        let ctx = Context::from("merge");
+
+        // "an example string"
+        //     [-----] [----]
+        //     3     9 11  16
+        //     |  A      B  |
+        //     [------------]
+        //     3           16
+        //           C
+
+        let a = ctx.span(3, 7);
+        let b = ctx.span(11, 6);
+        let c = ctx.span(3, 14);
+
+        assert_eq!(a.merge(b), Some(c));
+        assert_eq!(b.merge(a), Some(c));
+    }
+
+    #[test]
+    fn span_merge_overlap() {
+        let ctx = Context::from("merge");
+
+        // "an example string"
+        //     [---+-]      |
+        //     3   | 9      |
+        //     |  A|        |
+        //     |   [--------]
+        //     |   7       16
+        //     |       B    |
+        //     [------------]
+        //     3           16
+        //           C
+
+        let a = ctx.span(3, 7);
+        let b = ctx.span(7, 10);
+        let c = ctx.span(3, 14);
+
+        // We compare in both orders,
+        //   so this will test when a span overlaps on either side.
+        assert_eq!(a.merge(b), Some(c));
+        assert_eq!(b.merge(a), Some(c));
+    }
+
+    #[test]
+    fn span_merge_overlap_within() {
+        let ctx = Context::from("merge");
+
+        // "an example string"
+        //  |[----]  |
+        //  |1    6  |
+        //  |  B     |
+        //  [--------]
+        //  0        9
+        //      C
+
+        let b = ctx.span(1, 6);
+        let c = ctx.span(0, 10);
+
+        assert_eq!(b.merge(c), Some(c));
+        assert_eq!(c.merge(b), Some(c));
+    }
+
+    // It doesn't make sense to merge two spans that are located in
+    //   different contexts.
+    #[test]
+    fn span_merge_different_contexts() {
+        let ctx_a = Context::from("merge_a");
+        let ctx_b = Context::from("merge_b");
+
+        assert_eq!(ctx_a.span(0, 1).merge(ctx_b.span(1, 2)), None);
     }
 }
