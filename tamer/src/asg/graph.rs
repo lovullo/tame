@@ -20,13 +20,19 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::{
-    AsgError, FragmentText, Ident, IdentKind, Object, Source, TransitionResult,
+    AsgError, FragmentText, Ident, IdentKind, Object, ObjectRef, Source,
+    TransitionResult,
 };
+use crate::diagnose::panic::DiagnosticPanic;
+use crate::diagnose::Annotate;
+use crate::fmt::{DisplayWrapper, TtQuote};
 use crate::global;
 use crate::parse::util::SPair;
 use crate::parse::Token;
+use crate::span::UNKNOWN_SPAN;
 use crate::sym::SymbolId;
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
+use petgraph::Direction;
 use std::fmt::Debug;
 use std::result::Result;
 
@@ -187,7 +193,7 @@ impl Asg {
             let index = self.graph.add_node(Some(Ident::declare(ident).into()));
 
             self.index_identifier(sym, index);
-            ObjectRef::new(index)
+            ObjectRef::new(index, ident.span())
         })
     }
 
@@ -359,6 +365,18 @@ impl Asg {
         self.with_ident_lookup(name, |obj| obj.set_fragment(text))
     }
 
+    /// Create a new object on the graph.
+    ///
+    /// The provided [`ObjectRef`] will be augmented with the span
+    ///   of `obj`.
+    pub(super) fn create<O: Into<Object>>(&mut self, obj: O) -> ObjectRef {
+        let o = obj.into();
+        let span = o.span();
+        let node_id = self.graph.add_node(Some(o));
+
+        ObjectRef::new(node_id, span)
+    }
+
     /// Retrieve an object from the graph by [`ObjectRef`].
     ///
     /// Since an [`ObjectRef`] should only be produced by an [`Asg`],
@@ -372,6 +390,140 @@ impl Asg {
             node.as_ref()
                 .expect("internal error: Asg::get missing Node data")
         })
+    }
+
+    /// Map over an inner [`Object`] referenced by [`ObjectRef`].
+    ///
+    /// The type `O` is the expected type of the [`Object`],
+    ///   which should be known to the caller.
+    /// This method will attempt to narrow to that object type,
+    ///   panicing if there is a mismatch;
+    ///     see the [`object` module documentation](super::object) for more
+    ///     information and rationale on this behavior.
+    ///
+    /// The `mut_` prefix of this method is intended to emphasize that,
+    ///   unlike traditional `map` methods,
+    ///   this does not take and return ownership;
+    ///     the ASG is most often interacted with via mutable reference.
+    ///
+    /// Panics
+    /// ======
+    /// This method chooses to simplify the API by choosing panics for
+    ///   situations that ought never to occur and represent significant bugs
+    ///   in the compiler.
+    /// Those situations are:
+    ///
+    ///   1. If the provided [`ObjectRef`] references a node index that is
+    ///        not present on the graph;
+    ///   2. If the node referenced by [`ObjectRef`] exists but its container
+    ///        is empty because an object was taken but never returned; and
+    ///   3. If an object cannot be narrowed (downcast) to type `O`,
+    ///        representing a type mismatch between what the caller thinks
+    ///        this object represents and what the object actually is.
+    #[must_use = "returned ObjectRef has a possibly-updated and more relevant span"]
+    pub fn mut_map_obj<O>(
+        &mut self,
+        index: ObjectRef,
+        f: impl FnOnce(O) -> O,
+    ) -> ObjectRef
+    where
+        Object: Into<O>,
+        Object: From<O>,
+    {
+        let obj_container =
+            self.graph.node_weight_mut(index.into()).diagnostic_expect(
+                vec![
+                    index.internal_error("this object is missing from the ASG"),
+                    index.help(
+                        "this means that either an ObjectRef was malformed, or",
+                    ),
+                    index.help(
+                        "  the object no longer exists on the graph, both of",
+                    ),
+                    index.help(
+                        "  which are unexpected and possibly represent data",
+                    ),
+                    index.help("  corruption."),
+                    index.help("The system cannot proceed with confidence."),
+                ],
+                "invalid ObjectRef: data are missing from the ASG",
+            );
+
+        // Any function borrowing from the graph ought to also be responsible
+        //   for returning it in all possible code paths,
+        //     as we are.
+        // And error here means that this must not be the case,
+        //   or that we're breaking encapsulation somewhere.
+        let cur_obj = obj_container.take().diagnostic_expect(
+            vec![
+                index.internal_error(
+                    "this object was borrowed from the graph and \
+                        was not returned",
+                ),
+                index.help(
+                    "this means that some operation used take() on the object",
+                ),
+                index.help(
+                    "  container but never replaced it with an updated object",
+                ),
+                index.help(
+                    "  after the operation completed, which should not \
+                           be possible.",
+                ),
+            ],
+            "inaccessible ObjectRef: object has not been returned to the ASG",
+        );
+
+        let new_obj: Object = f(cur_obj.into()).into();
+        let new_span = new_obj.span();
+
+        // This is where we replace the object that we borrowed,
+        //   as referenced in the above panic.
+        obj_container.replace(new_obj);
+
+        index.map_span(|_| new_span)
+    }
+
+    pub fn mut_map_obj_by_ident<O>(
+        &mut self,
+        ident: SPair,
+        f: impl FnOnce(O) -> O,
+    ) where
+        Object: Into<O>,
+        Object: From<O>,
+    {
+        let oi = self
+            .lookup(ident.symbol())
+            .and_then(|identi| {
+                self.graph
+                    .neighbors_directed(identi.into(), Direction::Outgoing)
+                    .next()
+            })
+            .map(|ni| ObjectRef::new(ni, ident.span()))
+            .diagnostic_expect(
+                vec![
+                    ident.internal_error(
+                        "this identifier is not bound to any object on the ASG",
+                    ),
+                    ident.help(
+                        "the system expects to be able to reach the object that"
+                    ),
+                    ident.help(
+                        "  this identifies, but this identifier has no"
+                    ),
+                    ident.help(
+                        "  corresponding object present on the graph."
+                    ),
+                ],
+                &format!(
+                    "opaque identifier: {} has no object binding",
+                    TtQuote::wrap(ident),
+                ),
+            );
+
+        // We do not care about the updated ObjectRef from `mut_map_obj`
+        //   since it was ephemeral for this operation.
+        let _ = self.mut_map_obj(oi, f);
     }
 
     /// Retrieve an identifier from the graph by [`ObjectRef`].
@@ -396,7 +548,7 @@ impl Asg {
         self.index
             .get(i)
             .filter(|ni| ni.index() > 0)
-            .map(|ni| ObjectRef::new(*ni))
+            .map(|ni| ObjectRef::new(*ni, UNKNOWN_SPAN))
     }
 
     /// Declare that `dep` is a dependency of `ident`.
@@ -444,32 +596,6 @@ impl Asg {
             .update_edge(identi.into(), depi.into(), Default::default());
 
         (identi, depi)
-    }
-}
-
-/// Reference to an [object][super::object] stored within the [`Asg`].
-///
-/// Ident references are integer offsets,
-///   not pointers.
-/// See the [module-level documentation][self] for more information.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub struct ObjectRef(NodeIndex);
-
-impl ObjectRef {
-    pub fn new(index: NodeIndex) -> Self {
-        Self(index)
-    }
-}
-
-impl From<NodeIndex> for ObjectRef {
-    fn from(index: NodeIndex) -> Self {
-        Self(index)
-    }
-}
-
-impl From<ObjectRef> for NodeIndex {
-    fn from(objref: ObjectRef) -> Self {
-        objref.0
     }
 }
 

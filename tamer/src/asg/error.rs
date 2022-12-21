@@ -24,7 +24,10 @@ use std::{
     fmt::{self, Display},
 };
 
-use crate::diagnose::{AnnotatedSpan, Diagnostic};
+use crate::{
+    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    span::Span,
+};
 
 use super::TransitionError;
 
@@ -33,20 +36,39 @@ use super::TransitionError;
 pub enum AsgError {
     /// An object could not change state in the manner requested.
     IdentTransition(TransitionError),
+
+    /// An expresion is not reachable by any other expression or
+    ///   identifier.
+    ///
+    /// A dangling expression has no incoming edge from any other object and
+    ///   can therefore not be referenced.
+    ///
+    /// Since the expression is dangling,
+    ///   it must be anonymous,
+    ///   and can therefore only be identified meaningfully to the user by
+    ///   its span.
+    /// The span should encompass the entirety of the expression.
+    DanglingExpr(Span),
 }
 
 impl Display for AsgError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use AsgError::*;
+
         match self {
-            Self::IdentTransition(err) => Display::fmt(&err, fmt),
+            IdentTransition(err) => Display::fmt(&err, f),
+            DanglingExpr(_) => write!(f, "dangling expression"),
         }
     }
 }
 
 impl Error for AsgError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use AsgError::*;
+
         match self {
-            Self::IdentTransition(err) => err.source(),
+            IdentTransition(err) => err.source(),
+            DanglingExpr(_) => None,
         }
     }
 }
@@ -59,7 +81,20 @@ impl From<TransitionError> for AsgError {
 
 impl Diagnostic for AsgError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
-        // TODO: This won't be useful until we have spans.
-        vec![]
+        use AsgError::*;
+
+        match self {
+            // TODO: need spans
+            IdentTransition(_) => vec![],
+
+            DanglingExpr(span) => vec![
+                span.error("expression has no parent or identifier"),
+                span.help("an expression must either be the child of another "),
+                span.help(
+                    "  expression or be assigned an identifier, otherwise ",
+                ),
+                span.help("  its value cannot referenced."),
+            ],
+        }
     }
 }

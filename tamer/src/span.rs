@@ -474,7 +474,9 @@ impl Span {
     ///   within another.
     /// See test cases for more information.
     ///   (TODO: Maybe we should move the test cases into these docs?)
-    pub fn merge(self, b: Span) -> Option<Span> {
+    pub fn merge<S: Into<Span>>(self, other: S) -> Option<Span> {
+        let b = other.into();
+
         if self.context() != b.context() {
             return None;
         }

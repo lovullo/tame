@@ -17,11 +17,14 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Asg, AsgError, FragmentText, IdentKind, Source};
+use super::{
+    Asg, AsgError, ExprOp, FragmentText, IdentKind, ObjectRef, Source,
+};
 use crate::{
+    asg::Expr,
     fmt::{DisplayWrapper, TtQuote},
     parse::{self, util::SPair, ParseState, Token, Transition, Transitionable},
-    span::UNKNOWN_SPAN,
+    span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
@@ -64,6 +67,38 @@ pub enum Air {
     /// Placeholder token for objects that do not yet have a proper place on
     ///   the ASG.
     Todo,
+
+    /// Create a new [`Expr`] on the graph and place it atop of the
+    ///   expression stack.
+    ///
+    /// If there was previously an expression ρ atop of the stack before
+    ///   this operation,
+    ///     a reference to this new expression will be automatically added
+    ///     to ρ,
+    ///       treating it as a child expression.
+    /// Otherwise,
+    ///   the expression will be dangling unless bound to an identifier,
+    ///     which will produce an error.
+    ///
+    /// All expressions have an associated [`ExprOp`] that determines how
+    ///   the expression will be evaluated.
+    /// An expression is associated with a source location,
+    ///   but is anonymous unless assigned an identifier using
+    ///   [`Air::IdentExpr`].
+    ///
+    /// Expressions are composed of references to other expressions.
+    OpenExpr(ExprOp, Span),
+
+    /// Complete the expression atop of the expression stack and pop it from
+    ///   the stack.
+    CloseExpr(Span),
+
+    /// Assign an identifier to the expression atop of the expression stack.
+    ///
+    /// An expression may be bound to multiple identifiers,
+    ///   but an identifier can only be bound to a single expression.
+    /// Binding an identifier will declare it.
+    IdentExpr(SPair),
 
     /// Declare a resolved identifier.
     IdentDecl(SPair, IdentKind, Source),
@@ -118,6 +153,14 @@ impl Display for Air {
         match self {
             Todo => write!(f, "TODO"),
 
+            OpenExpr(op, _) => write!(f, "open {op} expression"),
+
+            CloseExpr(_) => write!(f, "close expression"),
+
+            IdentExpr(id) => {
+                write!(f, "identify expression as {}", TtQuote::wrap(id))
+            }
+
             IdentDecl(spair, _, _) => {
                 write!(f, "declaration of identifier {}", TtQuote::wrap(spair))
             }
@@ -152,6 +195,32 @@ impl Display for Air {
 pub enum AirAggregate {
     #[default]
     Empty,
+
+    /// Building an expression that is yet not reachable from any other
+    ///   object.
+    ///
+    /// Dangling expressions are expected to transition into
+    ///   [`Self::ReachableExpr`] after being bound to an identifier.
+    /// Closing a dangling expression will result in a
+    ///   [`AsgError::DanglingExpr`].
+    DanglingExpr(ObjectRef),
+
+    /// Building an expression that is reachable from another object.
+    ///
+    /// See also [`Self::DanglingExpr`].
+    ReachableExpr(ObjectRef),
+}
+
+impl Display for AirAggregate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use AirAggregate::*;
+
+        match self {
+            Empty => write!(f, "awaiting AIR input for ASG"),
+            DanglingExpr(_) => write!(f, "building dangling expression"),
+            ReachableExpr(_) => write!(f, "building reachable expression"),
+        }
+    }
 }
 
 impl ParseState for AirAggregate {
@@ -173,7 +242,43 @@ impl ParseState for AirAggregate {
         use AirAggregate::*;
 
         match (self, tok) {
-            (Empty, Todo) => Transition(Empty).incomplete(),
+            (_, Todo) => Transition(Empty).incomplete(),
+
+            (Empty, OpenExpr(op, span)) => {
+                let oi = asg.create(Expr::new(op, span));
+                Transition(DanglingExpr(oi)).incomplete()
+            }
+
+            (Empty, CloseExpr(_)) => todo!("no matching expr to end"),
+
+            (DanglingExpr(oi), CloseExpr(end)) => {
+                let start: Span = oi.into();
+                Transition(Empty).err(AsgError::DanglingExpr(
+                    start.merge(end).unwrap_or(start),
+                ))
+            }
+
+            (ReachableExpr(oi), CloseExpr(end)) => {
+                let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
+                    expr.map_span(|span| span.merge(end).unwrap_or(span))
+                });
+
+                Transition(Empty).incomplete()
+            }
+
+            (Empty, IdentExpr(_)) => todo!("cannot bind ident to nothing"),
+
+            (DanglingExpr(oi), IdentExpr(id)) => {
+                // TODO: error on existing ident
+                let identi = asg.lookup_or_missing(id);
+                asg.add_dep(identi, oi);
+
+                Transition(ReachableExpr(oi)).incomplete()
+            }
+
+            (st, tok @ (OpenExpr(..) | IdentExpr(..))) => {
+                todo!("{st:?} -> {tok:?}")
+            }
 
             (Empty, IdentDecl(name, kind, src)) => {
                 asg.declare(name, kind, src).map(|_| ()).transition(Empty)
@@ -199,23 +304,17 @@ impl ParseState for AirAggregate {
 
                 Transition(Empty).incomplete()
             }
+
+            (
+                st,
+                tok @ (IdentDecl(..) | IdentExternDecl(..) | IdentDep(..)
+                | IdentFragment(..) | IdentRoot(..)),
+            ) => todo!("{st:?}, {tok:?}"),
         }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Empty
-    }
-}
-
-impl Display for AirAggregate {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use AirAggregate::*;
-
-        // This is not terribly useful beyond indicating which parser caused
-        //   an error.
-        match self {
-            Empty => write!(f, "awaiting AIR input for ASG"),
-        }
     }
 }
 

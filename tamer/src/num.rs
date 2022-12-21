@@ -34,6 +34,8 @@ pub enum Dim {
     Matrix = 2,
 }
 
+assert_eq_size!(Option<Dim>, Dim);
+
 impl From<Dim> for u8 {
     fn from(dim: Dim) -> Self {
         dim as u8

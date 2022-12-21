@@ -64,6 +64,7 @@
 //!     if either identifier has not yet been declared.
 
 mod error;
+mod expr;
 mod graph;
 mod ident;
 mod object;
@@ -71,12 +72,13 @@ mod object;
 pub mod air;
 
 pub use error::AsgError;
-pub use graph::{Asg, AsgResult, IndexType, ObjectRef};
+pub use expr::{Expr, ExprDim, ExprOp};
+pub use graph::{Asg, AsgResult, IndexType};
 pub use ident::{
     FragmentText, Ident, IdentKind, Source, TransitionError, TransitionResult,
     UnresolvedError,
 };
-pub use object::Object;
+pub use object::{Object, ObjectRef};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg = graph::Asg;

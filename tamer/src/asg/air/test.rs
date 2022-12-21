@@ -258,3 +258,55 @@ fn ident_root_existing() {
     // ...should have been subsequently rooted.
     assert!(asg.is_rooted(ident_node));
 }
+
+#[test]
+fn expr_empty() {
+    let id = SPair("foo".into(), S2);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::IdentExpr(id),
+        Air::CloseExpr(S3),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+
+    let mut asg = sut.finalize().unwrap().into_context();
+
+    // The expression should have been bound to this identifier so that
+    //   we're able to retrieve it from the graph by name.
+    asg.mut_map_obj_by_ident::<Expr>(id, |expr| {
+        assert_eq!(expr.span(), S1.merge(S3).unwrap());
+        expr
+    });
+}
+
+// Danging expressions are unreachable and therefore not useful
+//   constructions.
+// Prohibit them,
+//   since they're either mistakes or misconceptions.
+#[test]
+fn expr_dangling() {
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        // No `IdentExpr`,
+        //   so this expression is dangling.
+        Air::CloseExpr(S2),
+    ];
+
+    // The error span should encompass the entire expression.
+    // TODO: ...let's actually have something inside this expression.
+    let full_span = S1.merge(S2).unwrap();
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete),
+            Err(ParseError::StateError(AsgError::DanglingExpr(full_span)))
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+
+    // TODO: recovery, which will probably mean that we need to have some
+    // successful tests first to support it
+}

@@ -27,6 +27,7 @@ use super::section::{SectionsError, XmleSections};
 use crate::{
     asg::{Asg, Ident, IdentKind, Object},
     diagnose::{Annotate, Diagnostic},
+    diagnostic_unreachable,
     fmt::{
         AndConjList, DisplayWrapper, JoinListWrap, ListDisplayWrapper, Raw,
         TtQuote,
@@ -65,6 +66,14 @@ where
         match asg.get(index).expect("missing object") {
             Object::Root => (),
             Object::Ident(ident) => dest.push(ident)?,
+
+            Object::Expr(expr) => diagnostic_unreachable!(
+                expr.internal_error(
+                    "this expression should not be present on the graph"
+                )
+                .into(),
+                "linker graph should not contain expressions",
+            ),
         }
     }
 

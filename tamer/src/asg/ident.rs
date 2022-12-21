@@ -19,6 +19,8 @@
 
 //! Identifiers (a type of [object][super::object]).
 
+use std::fmt::Display;
+
 use crate::{
     diagnose::{Annotate, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
@@ -89,6 +91,27 @@ pub enum Ident {
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
     IdentFragment(SPair, IdentKind, Source, FragmentText),
+}
+
+impl Display for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Missing(id) => {
+                write!(f, "missing identifier {}", TtQuote::wrap(id))
+            }
+            Self::Ident(id, kind, _) => {
+                write!(f, "{kind} identifier {}", TtQuote::wrap(id))
+            }
+            Self::Extern(id, kind, _) => {
+                write!(f, "{kind} extern identifier {}", TtQuote::wrap(id))
+            }
+            Self::IdentFragment(id, kind, _, _) => write!(
+                f,
+                "{kind} identifier {} with compiled fragment",
+                TtQuote::wrap(id)
+            ),
+        }
+    }
 }
 
 impl Ident {
