@@ -20,15 +20,13 @@
 //! These are tested as if they are another API directly atop of the ASG,
 //!   since that is how they are used.
 
-use std::assert_matches::assert_matches;
-
+use super::*;
 use crate::{
-    asg::{Ident, Object},
+    asg::Ident,
     parse::{ParseError, Parsed},
     span::dummy::*,
 };
-
-use super::*;
+use std::assert_matches::assert_matches;
 
 type Sut = AirAggregate;
 
@@ -57,7 +55,6 @@ fn ident_decl() {
         Ok(ident),
         Ident::declare(SPair(sym, S1))
             .resolve(S1, kind.clone(), src.clone())
-            .map(Object::Ident)
             .as_ref(),
     );
 
@@ -101,7 +98,6 @@ fn ident_extern_decl() {
         Ok(ident),
         Ident::declare(SPair(sym, S1))
             .extern_(S1, kind, src.clone())
-            .map(Object::Ident)
             .as_ref(),
     );
 
@@ -174,7 +170,6 @@ fn ident_fragment() {
         Ident::declare(SPair(sym, S1))
             .resolve(S1, kind.clone(), src.clone())
             .and_then(|resolved| resolved.set_fragment(frag))
-            .map(Object::Ident)
             .as_ref(),
     );
 
@@ -209,7 +204,7 @@ fn ident_root_missing() {
 
     // The identifier did not previously exist,
     //   and so a missing node is created as a placeholder.
-    assert_eq!(&Object::Ident(Ident::Missing(SPair(sym, S1))), ident);
+    assert_eq!(&Ident::Missing(SPair(sym, S1)), ident);
 
     // And that missing identifier should be rooted.
     assert!(asg.is_rooted(ident_node));
@@ -251,7 +246,6 @@ fn ident_root_existing() {
         Ok(ident),
         Ident::declare(SPair(sym, S1))
             .resolve(S1, kind.clone(), src.clone())
-            .map(Object::Ident)
             .as_ref()
     );
 

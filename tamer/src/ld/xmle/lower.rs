@@ -101,7 +101,6 @@ where
             "missing internal identifier: {}",
             sym.lookup_str()
         ))
-        .unwrap_ident_ref()
 }
 
 /// Check graph for cycles
@@ -520,7 +519,7 @@ mod test {
 
         let expected = vec![[dep_node, sym_node]
             .into_iter()
-            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .map(|o| asg.get(o).unwrap().name())
             .collect::<Vec<_>>()];
 
         match result {
@@ -604,7 +603,7 @@ mod test {
             .map(|cycle| {
                 cycle
                     .into_iter()
-                    .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+                    .map(|o| asg.get(o).unwrap().name())
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -719,7 +718,7 @@ mod test {
 
         let expected = vec![[sym3_node, sym2_node, sym1_node]
             .into_iter()
-            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .map(|o| asg.get(o).unwrap().name())
             .collect::<Vec<_>>()];
 
         match result {
@@ -787,7 +786,7 @@ mod test {
 
         let expected = vec![[sym3_node, sym2_node, sym1_node]
             .into_iter()
-            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .map(|o| asg.get(o).unwrap().name())
             .collect::<Vec<_>>()];
 
         match result {
@@ -854,7 +853,7 @@ mod test {
 
         let expected = vec![[sym3_node, sym2_node, sym1_node]
             .into_iter()
-            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .map(|o| asg.get(o).unwrap().name())
             .collect::<Vec<_>>()];
 
         match result {
@@ -967,7 +966,7 @@ mod test {
 
         let expected = vec![[sym3_node, sym2_node, sym1_node]
             .into_iter()
-            .map(|o| asg.get(o).unwrap().as_ident_ref().unwrap().name())
+            .map(|o| asg.get(o).unwrap().name())
             .collect::<Vec<_>>()];
 
         match result {

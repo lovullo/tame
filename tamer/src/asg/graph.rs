@@ -390,10 +390,11 @@ impl Asg {
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
     #[inline]
-    pub fn get<O: ObjectKind>(&self, index: ObjectIndex<O>) -> Option<&Object> {
+    pub fn get<O: ObjectKind>(&self, index: ObjectIndex<O>) -> Option<&O> {
         self.graph.node_weight(index.into()).map(|node| {
             node.as_ref()
                 .expect("internal error: Asg::get missing Node data")
+                .into()
         })
     }
 
@@ -563,7 +564,7 @@ impl Asg {
     ///   [`None`] will be returned.
     #[inline]
     pub fn get_ident(&self, index: ObjectIndex<Ident>) -> Option<&Ident> {
-        self.get(index).and_then(Object::as_ident_ref)
+        self.get(index)
     }
 
     /// Attempt to retrieve an identifier from the graph by name.
@@ -1016,9 +1017,6 @@ mod test {
 
         // Ensure that the graph was updated with the new object from the
         //   above method.
-        assert_eq!(
-            &Ident::Missing(id_b),
-            sut.get(oi).unwrap().as_ident_ref().unwrap(),
-        );
+        assert_eq!(&Ident::Missing(id_b), sut.get(oi).unwrap(),);
     }
 }

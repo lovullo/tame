@@ -151,7 +151,7 @@ impl Object {
     ///
     /// This is an internal method.
     /// `expected` should contain "a"/"an".
-    fn narrowing_panic(self, expected: &str) -> ! {
+    fn narrowing_panic(&self, expected: &str) -> ! {
         diagnostic_panic!(
             self.span()
                 .internal_error(format!(
@@ -176,7 +176,7 @@ impl From<Expr> for Object {
 }
 
 impl Into<Ident> for Object {
-    /// Narrow an object into an [`Expr`],
+    /// Narrow an object into an [`Ident`],
     ///   panicing if the object is not of that type.
     fn into(self) -> Ident {
         match self {
@@ -197,6 +197,28 @@ impl Into<Expr> for Object {
     }
 }
 
+impl<'a> Into<&'a Ident> for &'a Object {
+    /// Narrow an object into an [`Ident`],
+    ///   panicing if the object is not of that type.
+    fn into(self) -> &'a Ident {
+        match self {
+            Object::Ident(ident) => ident,
+            _ => self.narrowing_panic("an identifier"),
+        }
+    }
+}
+
+impl<'a> Into<&'a Expr> for &'a Object {
+    /// Narrow an object into an [`Expr`],
+    ///   panicing if the object is not of that type.
+    fn into(self) -> &'a Expr {
+        match self {
+            Object::Expr(expr) => expr,
+            _ => self.narrowing_panic("an expression"),
+        }
+    }
+}
+
 /// An [`Object`]-compatbile entity.
 ///
 /// See [`ObjectIndex`] for more information.
@@ -206,7 +228,10 @@ impl Into<Expr> for Object {
 ///
 /// Note that [`Object`] is also an [`ObjectKind`],
 ///   if you do not desire narrowing.
-pub trait ObjectKind = Into<Object> where Object: Into<Self>;
+pub trait ObjectKind = Into<Object>
+where
+    Object: Into<Self>,
+    for<'a> &'a Object: Into<&'a Self>;
 
 /// Index representing an [`Object`] stored on the [`Asg`](super::Asg).
 ///
