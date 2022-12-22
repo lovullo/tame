@@ -78,7 +78,7 @@ pub use ident::{
     FragmentText, Ident, IdentKind, Source, TransitionError, TransitionResult,
     UnresolvedError,
 };
-pub use object::{Object, ObjectRef};
+pub use object::{Object, ObjectIndex, ObjectKind};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg = graph::Asg;

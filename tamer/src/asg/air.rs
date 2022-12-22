@@ -18,7 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    Asg, AsgError, ExprOp, FragmentText, IdentKind, ObjectRef, Source,
+    Asg, AsgError, ExprOp, FragmentText, IdentKind, ObjectIndex, Source,
 };
 use crate::{
     asg::Expr,
@@ -203,12 +203,12 @@ pub enum AirAggregate {
     ///   [`Self::ReachableExpr`] after being bound to an identifier.
     /// Closing a dangling expression will result in a
     ///   [`AsgError::DanglingExpr`].
-    DanglingExpr(ObjectRef),
+    DanglingExpr(ObjectIndex<Expr>),
 
     /// Building an expression that is reachable from another object.
     ///
     /// See also [`Self::DanglingExpr`].
-    ReachableExpr(ObjectRef),
+    ReachableExpr(ObjectIndex<Expr>),
 }
 
 impl Display for AirAggregate {

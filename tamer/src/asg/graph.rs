@@ -20,19 +20,17 @@
 //! Abstract graph as the basis for concrete ASGs.
 
 use super::{
-    AsgError, FragmentText, Ident, IdentKind, Object, ObjectRef, Source,
-    TransitionResult,
+    AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
+    Source, TransitionResult,
 };
 use crate::diagnose::panic::DiagnosticPanic;
 use crate::diagnose::Annotate;
-use crate::fmt::{DisplayWrapper, TtQuote};
 use crate::global;
 use crate::parse::util::SPair;
 use crate::parse::Token;
 use crate::span::UNKNOWN_SPAN;
 use crate::sym::SymbolId;
 use petgraph::graph::{DiGraph, Graph, NodeIndex};
-use petgraph::Direction;
 use std::fmt::Debug;
 use std::result::Result;
 
@@ -71,7 +69,7 @@ type Ix = global::ProgSymSize;
 ///   transitions.
 ///
 /// Objects are never deleted from the graph,
-///   so [`ObjectRef`]s will remain valid for the lifetime of the ASG.
+///   so [`ObjectIndex`]s will remain valid for the lifetime of the ASG.
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
@@ -86,7 +84,7 @@ pub struct Asg {
     /// This allows for `O(1)` lookup of identifiers in the graph.
     /// Note that,
     ///   while we store [`NodeIndex`] internally,
-    ///   the public API encapsulates it within an [`ObjectRef`].
+    ///   the public API encapsulates it within an [`ObjectIndex`].
     index: Vec<NodeIndex<Ix>>,
 
     /// Empty node indicating that no object exists for a given index.
@@ -186,14 +184,17 @@ impl Asg {
     ///   was introduced to the graph.
     ///
     /// See [`Ident::declare`] for more information.
-    pub(super) fn lookup_or_missing(&mut self, ident: SPair) -> ObjectRef {
+    pub(super) fn lookup_or_missing(
+        &mut self,
+        ident: SPair,
+    ) -> ObjectIndex<Ident> {
         let sym = ident.symbol();
 
         self.lookup(sym).unwrap_or_else(|| {
             let index = self.graph.add_node(Some(Ident::declare(ident).into()));
 
             self.index_identifier(sym, index);
-            ObjectRef::new(index, ident.span())
+            ObjectIndex::new(index, ident.span())
         })
     }
 
@@ -210,7 +211,7 @@ impl Asg {
         &mut self,
         name: SPair,
         f: F,
-    ) -> AsgResult<ObjectRef>
+    ) -> AsgResult<ObjectIndex<Ident>>
     where
         F: FnOnce(Ident) -> TransitionResult<Ident>,
     {
@@ -218,14 +219,18 @@ impl Asg {
         self.with_ident(identi, f)
     }
 
-    /// Perform a state transition on an identifier by [`ObjectRef`].
+    /// Perform a state transition on an identifier by [`ObjectIndex`].
     ///
     /// Invoke `f` with the located identifier and replace the identifier on
     ///   the graph with the result.
     ///
     /// This will safely restore graph state to the original identifier
     ///   value on transition failure.
-    fn with_ident<F>(&mut self, identi: ObjectRef, f: F) -> AsgResult<ObjectRef>
+    fn with_ident<F>(
+        &mut self,
+        identi: ObjectIndex<Ident>,
+        f: F,
+    ) -> AsgResult<ObjectIndex<Ident>>
     where
         F: FnOnce(Ident) -> TransitionResult<Ident>,
     {
@@ -264,7 +269,7 @@ impl Asg {
     ///   of some included subsystem.
     ///
     /// See also [`IdentKind::is_auto_root`].
-    pub fn add_root(&mut self, identi: ObjectRef) {
+    pub fn add_root(&mut self, identi: ObjectIndex<Ident>) {
         self.graph
             .add_edge(self.root_node, identi.into(), Default::default());
     }
@@ -273,7 +278,7 @@ impl Asg {
     ///
     /// See [`Asg::add_root`] for more information about roots.
     #[cfg(test)]
-    pub(super) fn is_rooted(&self, identi: ObjectRef) -> bool {
+    pub(super) fn is_rooted(&self, identi: ObjectIndex<Ident>) -> bool {
         self.graph.contains_edge(self.root_node, identi.into())
     }
 
@@ -307,13 +312,13 @@ impl Asg {
     ///     see [`Ident::resolve`].
     ///
     /// A successful declaration will add an identifier to the graph
-    ///   and return an [`ObjectRef`] reference.
+    ///   and return an [`ObjectIndex`] reference.
     pub fn declare(
         &mut self,
         name: SPair,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef> {
+    ) -> AsgResult<ObjectIndex<Ident>> {
         let is_auto_root = kind.is_auto_root();
 
         self.with_ident_lookup(name, |obj| obj.resolve(name.span(), kind, src))
@@ -348,7 +353,7 @@ impl Asg {
         name: SPair,
         kind: IdentKind,
         src: Source,
-    ) -> AsgResult<ObjectRef> {
+    ) -> AsgResult<ObjectIndex<Ident>> {
         self.with_ident_lookup(name, |obj| obj.extern_(name.span(), kind, src))
     }
 
@@ -361,41 +366,42 @@ impl Asg {
         &mut self,
         name: SPair,
         text: FragmentText,
-    ) -> AsgResult<ObjectRef> {
+    ) -> AsgResult<ObjectIndex<Ident>> {
         self.with_ident_lookup(name, |obj| obj.set_fragment(text))
     }
 
     /// Create a new object on the graph.
     ///
-    /// The provided [`ObjectRef`] will be augmented with the span
+    /// The provided [`ObjectIndex`] will be augmented with the span
     ///   of `obj`.
-    pub(super) fn create<O: Into<Object>>(&mut self, obj: O) -> ObjectRef {
+    pub(super) fn create<O: ObjectKind>(&mut self, obj: O) -> ObjectIndex<O> {
         let o = obj.into();
         let span = o.span();
         let node_id = self.graph.add_node(Some(o));
 
-        ObjectRef::new(node_id, span)
+        ObjectIndex::new(node_id, span)
     }
 
-    /// Retrieve an object from the graph by [`ObjectRef`].
+    /// Retrieve an object from the graph by [`ObjectIndex`].
     ///
-    /// Since an [`ObjectRef`] should only be produced by an [`Asg`],
+    /// Since an [`ObjectIndex`] should only be produced by an [`Asg`],
     ///   and since objects are never deleted from the graph,
     ///   this should never fail so long as references are not shared
     ///   between multiple graphs.
     /// It is nevertheless wrapped in an [`Option`] just in case.
     #[inline]
-    pub fn get<I: Into<ObjectRef>>(&self, index: I) -> Option<&Object> {
-        self.graph.node_weight(index.into().into()).map(|node| {
+    pub fn get<O: ObjectKind>(&self, index: ObjectIndex<O>) -> Option<&Object> {
+        self.graph.node_weight(index.into()).map(|node| {
             node.as_ref()
                 .expect("internal error: Asg::get missing Node data")
         })
     }
 
-    /// Map over an inner [`Object`] referenced by [`ObjectRef`].
+    /// Map over an inner [`Object`] referenced by [`ObjectIndex`].
     ///
     /// The type `O` is the expected type of the [`Object`],
-    ///   which should be known to the caller.
+    ///   which should be known to the caller based on the provied
+    ///   [`ObjectIndex`].
     /// This method will attempt to narrow to that object type,
     ///   panicing if there is a mismatch;
     ///     see the [`object` module documentation](super::object) for more
@@ -413,40 +419,35 @@ impl Asg {
     ///   in the compiler.
     /// Those situations are:
     ///
-    ///   1. If the provided [`ObjectRef`] references a node index that is
+    ///   1. If the provided [`ObjectIndex`] references a node index that is
     ///        not present on the graph;
-    ///   2. If the node referenced by [`ObjectRef`] exists but its container
+    ///   2. If the node referenced by [`ObjectIndex`] exists but its container
     ///        is empty because an object was taken but never returned; and
     ///   3. If an object cannot be narrowed (downcast) to type `O`,
     ///        representing a type mismatch between what the caller thinks
     ///        this object represents and what the object actually is.
-    #[must_use = "returned ObjectRef has a possibly-updated and more relevant span"]
-    pub fn mut_map_obj<O>(
+    #[must_use = "returned ObjectIndex has a possibly-updated and more relevant span"]
+    pub fn mut_map_obj<O: ObjectKind>(
         &mut self,
-        index: ObjectRef,
+        index: ObjectIndex<O>,
         f: impl FnOnce(O) -> O,
-    ) -> ObjectRef
-    where
-        Object: Into<O>,
-        Object: From<O>,
-    {
+    ) -> ObjectIndex<O> {
         let obj_container =
             self.graph.node_weight_mut(index.into()).diagnostic_expect(
                 vec![
-                    index.internal_error("this object is missing from the ASG"),
-                    index.help(
-                        "this means that either an ObjectRef was malformed, or",
-                    ),
-                    index.help(
-                        "  the object no longer exists on the graph, both of",
-                    ),
-                    index.help(
-                        "  which are unexpected and possibly represent data",
-                    ),
-                    index.help("  corruption."),
-                    index.help("The system cannot proceed with confidence."),
-                ],
-                "invalid ObjectRef: data are missing from the ASG",
+                index.internal_error("this object is missing from the ASG"),
+                index.help(
+                    "this means that either an ObjectIndex was malformed, or",
+                ),
+                index.help(
+                    "  the object no longer exists on the graph, both of",
+                ),
+                index
+                    .help("  which are unexpected and possibly represent data"),
+                index.help("  corruption."),
+                index.help("The system cannot proceed with confidence."),
+            ],
+                "invalid ObjectIndex: data are missing from the ASG",
             );
 
         // Any function borrowing from the graph ought to also be responsible
@@ -471,7 +472,7 @@ impl Asg {
                            be possible.",
                 ),
             ],
-            "inaccessible ObjectRef: object has not been returned to the ASG",
+            "inaccessible ObjectIndex: object has not been returned to the ASG",
         );
 
         let new_obj: Object = f(cur_obj.into()).into();
@@ -484,14 +485,40 @@ impl Asg {
         index.map_span(|_| new_span)
     }
 
-    pub fn mut_map_obj_by_ident<O>(
+    /// Map over an inner object that is referenced by an identifier.
+    ///
+    /// This uses [`Self::mut_map_obj`];
+    ///   see that method for more information,
+    ///     especially as it relates to panics.
+    ///
+    /// _This method is intended to be used when the system expects the
+    ///   identifier must exist on the graph and be associated with an
+    ///   object._
+    /// This panic-happy method is dangerous if used sloppily,
+    ///   so it is currently available only for ASG tests.
+    /// If production code is to make use of this concept,
+    ///   it should either first ensure the identifier exists and retrieve
+    ///   it by [`ObjectIndex`],
+    ///     or this method should be modified to be able to return lookup
+    ///     errors.
+    ///
+    /// Panics
+    /// ======
+    /// In addition to the reasons listed in [`Self::mut_map_obj`],
+    ///   this will also panic if:
+    ///
+    ///   1. The identifier does not exist on the graph;
+    ///   2. The identifier is opaque (has no edge to any object on the
+    ///        graph).
+    #[cfg(test)]
+    pub(super) fn mut_map_obj_by_ident<O: ObjectKind>(
         &mut self,
         ident: SPair,
         f: impl FnOnce(O) -> O,
-    ) where
-        Object: Into<O>,
-        Object: From<O>,
-    {
+    ) {
+        use crate::fmt::{DisplayWrapper, TtQuote};
+        use petgraph::Direction;
+
         let oi = self
             .lookup(ident.symbol())
             .and_then(|identi| {
@@ -499,7 +526,11 @@ impl Asg {
                     .neighbors_directed(identi.into(), Direction::Outgoing)
                     .next()
             })
-            .map(|ni| ObjectRef::new(ni, ident.span()))
+            // Note that this use of `O` for `ObjectIndex` here means "I
+            //   _expect_ this to `O`";
+            //     the type will be verified during narrowing but will panic
+            //     if this expectation is not met.
+            .map(|ni| ObjectIndex::<O>::new(ni, ident.span()))
             .diagnostic_expect(
                 vec![
                     ident.internal_error(
@@ -521,17 +552,17 @@ impl Asg {
                 ),
             );
 
-        // We do not care about the updated ObjectRef from `mut_map_obj`
+        // We do not care about the updated ObjectIndex from `mut_map_obj`
         //   since it was ephemeral for this operation.
         let _ = self.mut_map_obj(oi, f);
     }
 
-    /// Retrieve an identifier from the graph by [`ObjectRef`].
+    /// Retrieve an identifier from the graph by [`ObjectIndex`].
     ///
     /// If the object exists but is not an identifier,
     ///   [`None`] will be returned.
     #[inline]
-    pub fn get_ident<I: Into<ObjectRef>>(&self, index: I) -> Option<&Ident> {
+    pub fn get_ident(&self, index: ObjectIndex<Ident>) -> Option<&Ident> {
         self.get(index).and_then(Object::as_ident_ref)
     }
 
@@ -542,13 +573,13 @@ impl Asg {
     ///   graph---for
     ///     that, see [`Asg::get`].
     #[inline]
-    pub fn lookup(&self, name: SymbolId) -> Option<ObjectRef> {
+    pub fn lookup(&self, name: SymbolId) -> Option<ObjectIndex<Ident>> {
         let i = name.as_usize();
 
         self.index
             .get(i)
             .filter(|ni| ni.index() > 0)
-            .map(|ni| ObjectRef::new(*ni, UNKNOWN_SPAN))
+            .map(|ni| ObjectIndex::new(*ni, UNKNOWN_SPAN))
     }
 
     /// Declare that `dep` is a dependency of `ident`.
@@ -560,14 +591,22 @@ impl Asg {
     /// See [`add_dep_lookup`][Asg::add_dep_lookup] if identifiers have to
     ///   be looked up by [`SymbolId`] or if they may not yet have been
     ///   declared.
-    pub fn add_dep(&mut self, identi: ObjectRef, depi: ObjectRef) {
+    pub fn add_dep<O: ObjectKind>(
+        &mut self,
+        identi: ObjectIndex<Ident>,
+        depi: ObjectIndex<O>,
+    ) {
         self.graph
             .update_edge(identi.into(), depi.into(), Default::default());
     }
 
     /// Check whether `dep` is a dependency of `ident`.
     #[inline]
-    pub fn has_dep(&self, ident: ObjectRef, dep: ObjectRef) -> bool {
+    pub fn has_dep(
+        &self,
+        ident: ObjectIndex<Ident>,
+        dep: ObjectIndex<Ident>,
+    ) -> bool {
         self.graph.contains_edge(ident.into(), dep.into())
     }
 
@@ -588,7 +627,7 @@ impl Asg {
         &mut self,
         ident: SPair,
         dep: SPair,
-    ) -> (ObjectRef, ObjectRef) {
+    ) -> (ObjectIndex<Ident>, ObjectIndex<Ident>) {
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
 
@@ -946,5 +985,40 @@ mod test {
         assert_eq!(Some(&src), obj.src());
 
         Ok(())
+    }
+
+    #[test]
+    fn mut_map_narrows_and_modifies() {
+        let mut sut = Sut::new();
+
+        let id_a = SPair("foo".into(), S1);
+        let id_b = SPair("bar".into(), S2);
+
+        let oi = sut.create(Ident::Missing(id_a));
+
+        // This is the method under test.
+        // It should narrow to an `Ident` because `oi` was `create`'d with
+        //   an `Ident`.
+        let oi_new = sut.mut_map_obj(oi, |ident| {
+            assert_eq!(ident, Ident::Missing(id_a));
+
+            // Replace the identifier
+            Ident::Missing(id_b)
+        });
+
+        // These would not typically be checked by the caller;
+        //   they are intended for debugging.
+        assert_eq!(S1, oi.into());
+        assert_eq!(S2, oi_new.into());
+
+        // A change in span does not change its equivalence.
+        assert_eq!(oi_new, oi);
+
+        // Ensure that the graph was updated with the new object from the
+        //   above method.
+        assert_eq!(
+            &Ident::Missing(id_b),
+            sut.get(oi).unwrap().as_ident_ref().unwrap(),
+        );
     }
 }

@@ -27,13 +27,13 @@
 //!   rest of the system does at compile-time.
 //!
 //! Any node on the graph can represent any type of [`Object`].
-//! An [`ObjectRef`] contains an index into the graph,
+//! An [`ObjectIndex`] contains an index into the graph,
 //!   _not_ a reference;
 //!     consequently,
 //!       it is possible (though avoidable) for objects to be modified out
 //!       from underneath references.
 //! Consequently,
-//!   we cannot trust that an [`ObjectRef`] is what we expect it to be when
+//!   we cannot trust that an [`ObjectIndex`] is what we expect it to be when
 //!   performing an operation on the graph using that index.
 //!
 //! To perform an operation on a particular type of object,
@@ -47,6 +47,10 @@
 //!     because the type of object should always match our expectations;
 //!       the explicit narrowing is to ensure memory safety in case that
 //!       assumption does not hold.
+//! To facilitate this in a convenient way,
+//!   operations returning an [`ObjectIndex`] will be associated with an
+//!   [`ObjectKind`] that will be used to automatically perform narrowing on
+//!   subsequent operations using that [`ObjectIndex`].
 //!
 //! Since a type mismatch represents a bug in the compiler,
 //!   the API favors [`Result`]-free narrowing rather than burdening every
@@ -54,7 +58,7 @@
 //!     will attempt to narrow and panic in the event of a failure,
 //!       including a diagnostic message that helps to track down the issue
 //!       using whatever [`Span`]s we have available.
-//! [`ObjectRef`] is associated with a span derived from the point of its
+//! [`ObjectIndex`] is associated with a span derived from the point of its
 //!   creation to handle this diagnostic situation automatically.
 
 use super::{Expr, Ident};
@@ -64,7 +68,7 @@ use crate::{
     span::{Span, UNKNOWN_SPAN},
 };
 use petgraph::graph::NodeIndex;
-use std::fmt::Display;
+use std::{fmt::Display, marker::PhantomData};
 
 /// An object on the ASG.
 ///
@@ -125,10 +129,7 @@ impl Object {
     ///   the graph would be typed in such a way to prevent this type of
     ///   thing from occurring in the future.
     pub fn unwrap_ident(self) -> Ident {
-        match self {
-            Self::Ident(ident) => ident,
-            x => panic!("internal error: expected Ident, found {x:?}"),
-        }
+        self.into()
     }
 
     /// Unwraps an object as an [`&Ident`](Ident),
@@ -145,6 +146,21 @@ impl Object {
             x => panic!("internal error: expected Ident, found {x:?}"),
         }
     }
+
+    /// Diagnostic panic after failing to narrow an object.
+    ///
+    /// This is an internal method.
+    /// `expected` should contain "a"/"an".
+    fn narrowing_panic(self, expected: &str) -> ! {
+        diagnostic_panic!(
+            self.span()
+                .internal_error(format!(
+                    "expected this object to be {expected}"
+                ))
+                .into(),
+            "expected {expected}, found {self}",
+        )
+    }
 }
 
 impl From<Ident> for Object {
@@ -159,27 +175,51 @@ impl From<Expr> for Object {
     }
 }
 
+impl Into<Ident> for Object {
+    /// Narrow an object into an [`Expr`],
+    ///   panicing if the object is not of that type.
+    fn into(self) -> Ident {
+        match self {
+            Self::Ident(ident) => ident,
+            _ => self.narrowing_panic("an identifier"),
+        }
+    }
+}
+
 impl Into<Expr> for Object {
     /// Narrow an object into an [`Expr`],
     ///   panicing if the object is not of that type.
     fn into(self) -> Expr {
         match self {
             Self::Expr(expr) => expr,
-            _ => diagnostic_panic!(
-                self.span()
-                    .internal_error("expected this object to be an expression")
-                    .into(),
-                "expected expression, found {self}",
-            ),
+            _ => self.narrowing_panic("an expression"),
         }
     }
 }
 
+/// An [`Object`]-compatbile entity.
+///
+/// See [`ObjectIndex`] for more information.
+/// This type simply must be convertable both to and from [`Object`] so that
+///   operations on the graph that retrieve its value can narrow into it,
+///     and operations writing it back can expand it back into [`Object`].
+///
+/// Note that [`Object`] is also an [`ObjectKind`],
+///   if you do not desire narrowing.
+pub trait ObjectKind = Into<Object> where Object: Into<Self>;
+
 /// Index representing an [`Object`] stored on the [`Asg`](super::Asg).
 ///
-/// Ident references are integer offsets,
+/// Object references are integer offsets,
 ///   not pointers.
 /// See the [module-level documentation][self] for more information.
+///
+/// The associated [`ObjectKind`] states an _expectation_ that,
+///   when this [`ObjectIndex`] is used to perform an operation on the ASG,
+///   that it will operate on an object of type `O`.
+/// This type will be verified at runtime during any graph operation,
+///   resulting in a panic if the expectation is not met;
+///     see the [module-level documentation][self] for more information.
 ///
 /// This object is associated with a [`Span`] that identifies the source
 ///   location from which this object was derived;
@@ -188,60 +228,62 @@ impl Into<Expr> for Object {
 ///       operations.
 ///
 /// _The span is not accounted for in [`PartialEq`]_,
-///   since it represents the context in which the [`ObjectRef`] was
+///   since it represents the context in which the [`ObjectIndex`] was
 ///   retrieved,
 ///     and the span associated with the underlying [`Object`] may evolve
 ///     over time.
-#[derive(Debug, Clone, Copy)]
-pub struct ObjectRef(NodeIndex, Span);
+#[derive(Debug)]
+pub struct ObjectIndex<O: ObjectKind>(NodeIndex, Span, PhantomData<O>);
 
-impl ObjectRef {
+// Deriving this trait seems to silently fail at the time of writing
+//   (2022-12-22, Rust 1.68.0-nightly).
+impl<O: ObjectKind> Clone for ObjectIndex<O> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), self.1.clone(), self.2.clone())
+    }
+}
+
+impl<O: ObjectKind> Copy for ObjectIndex<O> {}
+
+impl<O: ObjectKind> ObjectIndex<O> {
     pub fn new(index: NodeIndex, span: Span) -> Self {
-        Self(index, span)
+        Self(index, span, PhantomData::default())
     }
 
     pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
-            Self(index, span) => Self(index, f(span)),
+            Self(index, span, ph) => Self(index, f(span), ph),
         }
     }
 }
 
-impl PartialEq for ObjectRef {
-    /// Compare two [`ObjectRef`]s' indicies,
+impl<O: ObjectKind> PartialEq for ObjectIndex<O> {
+    /// Compare two [`ObjectIndex`]s' indices,
     ///   without concern for its associated [`Span`].
     ///
-    /// See [`ObjectRef`] for more information on why the span is not
+    /// See [`ObjectIndex`] for more information on why the span is not
     ///   accounted for in this comparison.
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self(index_a, _), Self(index_b, _)) => index_a == index_b,
+            (Self(index_a, _, _), Self(index_b, _, _)) => index_a == index_b,
         }
     }
 }
 
-impl Eq for ObjectRef {}
+impl<O: ObjectKind> Eq for ObjectIndex<O> {}
 
-// TODO: Remove this,
-//   since we need thought to be put into providing spans.
-impl From<NodeIndex> for ObjectRef {
-    fn from(index: NodeIndex) -> Self {
-        Self(index, UNKNOWN_SPAN)
-    }
-}
-
-impl From<ObjectRef> for NodeIndex {
-    fn from(objref: ObjectRef) -> Self {
+impl<O: ObjectKind> From<ObjectIndex<O>> for NodeIndex {
+    fn from(objref: ObjectIndex<O>) -> Self {
         match objref {
-            ObjectRef(index, _) => index,
+            ObjectIndex(index, _, _) => index,
         }
     }
 }
 
-impl From<ObjectRef> for Span {
-    fn from(value: ObjectRef) -> Self {
+impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
+    fn from(value: ObjectIndex<O>) -> Self {
         match value {
-            ObjectRef(_, span) => span,
+            ObjectIndex(_, span, _) => span,
         }
     }
 }

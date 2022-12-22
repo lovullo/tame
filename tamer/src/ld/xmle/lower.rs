@@ -25,7 +25,7 @@ use std::iter::once;
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{Asg, Ident, IdentKind, Object},
+    asg::{Asg, Ident, IdentKind, Object, ObjectIndex},
     diagnose::{Annotate, Diagnostic},
     diagnostic_unreachable,
     fmt::{
@@ -33,6 +33,7 @@ use crate::{
         TtQuote,
     },
     parse::util::SPair,
+    span::UNKNOWN_SPAN,
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 use petgraph::visit::DfsPostOrder;
@@ -63,7 +64,11 @@ where
     dest.push(get_ident(asg, st::L_RETMAP_UUUHEAD))?;
 
     while let Some(index) = dfs.next(&asg.graph) {
-        match asg.get(index).expect("missing object") {
+        // TODO: `new` really ought to be private to the `asg` module,
+        //   so let's work on fully encapsulating Petgraph.
+        let oi = ObjectIndex::<Object>::new(index, UNKNOWN_SPAN);
+
+        match asg.get(oi).expect("missing object") {
             Object::Root => (),
             Object::Ident(ident) => dest.push(ident)?,
 
@@ -127,8 +132,9 @@ fn check_cycles(asg: &Asg) -> SortResult<()> {
                 return None;
             }
 
-            let is_all_funcs = scc.iter().all(|nx| {
-                let ident = asg.get(*nx).expect("missing node");
+            let is_all_funcs = scc.iter().all(|ni| {
+                let oi = ObjectIndex::<Object>::new(*ni, UNKNOWN_SPAN);
+                let ident = asg.get(oi).expect("missing node");
                 matches!(
                     ident.as_ident_ref().and_then(Ident::kind),
                     Some(IdentKind::Func(..))
@@ -145,8 +151,9 @@ fn check_cycles(asg: &Asg) -> SortResult<()> {
                 //   Use reference spans once they're available.
                 let cycles = scc
                     .iter()
-                    .filter_map(|nx| {
-                        asg.get(*nx).unwrap().as_ident_ref().map(Ident::name)
+                    .map(|ni| ObjectIndex::<Object>::new(*ni, UNKNOWN_SPAN))
+                    .filter_map(|oi| {
+                        asg.get(oi).unwrap().as_ident_ref().map(Ident::name)
                     })
                     .collect();
                 Some(cycles)
