@@ -104,9 +104,7 @@ impl WriterState {
     #[inline]
     fn close_tag_if_open<W: Write>(&self, sink: &mut W) -> Result<()> {
         Ok(match *self {
-            Self::NodeOpen => {
-                sink.write(b">")?;
-            }
+            Self::NodeOpen => sink.write_all(b">")?,
             _ => (),
         })
     }
@@ -174,11 +172,11 @@ impl<S: Escaper> XmlWriter<S> for QName {
         _escaper: &S,
     ) -> Result {
         if let Some(prefix) = self.prefix() {
-            sink.write(prefix.lookup_str().as_bytes())?;
-            sink.write(b":")?;
+            sink.write_all(prefix.lookup_str().as_bytes())?;
+            sink.write_all(b":")?;
         }
 
-        sink.write(self.local_name().lookup_str().as_bytes())?;
+        sink.write_all(self.local_name().lookup_str().as_bytes())?;
         Ok(prev_state)
     }
 }
@@ -197,14 +195,14 @@ impl<S: Escaper> XmlWriter<S> for &Token {
             (Open(name, _), W::NodeExpected | W::NodeOpen) => {
                 // If a node is still open, then we are a child.
                 prev_state.close_tag_if_open(sink)?;
-                sink.write(b"<")?;
+                sink.write_all(b"<")?;
                 name.write(sink, prev_state, escaper)?;
 
                 Ok(W::NodeOpen)
             }
 
             (Close(None, _), W::NodeOpen) => {
-                sink.write(b"/>")?;
+                sink.write_all(b"/>")?;
 
                 Ok(W::NodeExpected)
             }
@@ -214,44 +212,44 @@ impl<S: Escaper> XmlWriter<S> for &Token {
                 // `<foo></foo>`.
                 prev_state.close_tag_if_open(sink)?;
 
-                sink.write(b"</")?;
+                sink.write_all(b"</")?;
                 name.write(sink, prev_state, escaper)?;
-                sink.write(b">")?;
+                sink.write_all(b">")?;
 
                 Ok(W::NodeExpected)
             }
 
             (AttrName(name, _), W::NodeOpen) => {
-                sink.write(b" ")?;
+                sink.write_all(b" ")?;
                 name.write(sink, prev_state, escaper)?;
 
                 Ok(W::AttrNameAdjacent)
             }
 
             (AttrValue(value, _), W::AttrNameAdjacent) => {
-                sink.write(b"=\"")?;
-                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
-                sink.write(b"\"")?;
+                sink.write_all(b"=\"")?;
+                sink.write_all(escaper.escape(*value).lookup_str().as_bytes())?;
+                sink.write_all(b"\"")?;
 
                 Ok(W::NodeOpen)
             }
 
             (AttrValue(value, _), W::AttrFragmentAdjacent) => {
-                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
-                sink.write(b"\"")?;
+                sink.write_all(escaper.escape(*value).lookup_str().as_bytes())?;
+                sink.write_all(b"\"")?;
 
                 Ok(W::NodeOpen)
             }
 
             (AttrValueFragment(value, _), W::AttrNameAdjacent) => {
-                sink.write(b"=\"")?;
-                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
+                sink.write_all(b"=\"")?;
+                sink.write_all(escaper.escape(*value).lookup_str().as_bytes())?;
 
                 Ok(W::AttrFragmentAdjacent)
             }
 
             (AttrValueFragment(value, _), W::AttrFragmentAdjacent) => {
-                sink.write(escaper.escape(*value).lookup_str().as_bytes())?;
+                sink.write_all(escaper.escape(*value).lookup_str().as_bytes())?;
 
                 Ok(W::AttrFragmentAdjacent)
             }
@@ -262,7 +260,7 @@ impl<S: Escaper> XmlWriter<S> for &Token {
             //     haven't yet encountered the unescaped representation.
             (Text(text, _), W::NodeExpected | W::NodeOpen) => {
                 prev_state.close_tag_if_open(sink)?;
-                sink.write(escaper.escape(*text).lookup_str().as_bytes())?;
+                sink.write_all(escaper.escape(*text).lookup_str().as_bytes())?;
 
                 Ok(W::NodeExpected)
             }
@@ -272,9 +270,9 @@ impl<S: Escaper> XmlWriter<S> for &Token {
             //     that will not always be the case and we must escape `--`!
             (Comment(comment, _), W::NodeExpected | W::NodeOpen) => {
                 prev_state.close_tag_if_open(sink)?;
-                sink.write(b"<!--")?;
-                sink.write(comment.lookup_str().as_bytes())?;
-                sink.write(b"-->")?;
+                sink.write_all(b"<!--")?;
+                sink.write_all(comment.lookup_str().as_bytes())?;
+                sink.write_all(b"-->")?;
 
                 Ok(W::NodeExpected)
             }
