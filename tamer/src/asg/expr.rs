@@ -66,6 +66,10 @@ impl Display for Expr {
 }
 
 /// Expression operation type.
+///
+/// TODO: Ideally this will be replaced with arbitrary binary (dyadic)
+///   functions defined within the language of TAME itself,
+///     as was the original plan with TAMER.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ExprOp {
     Sum,
