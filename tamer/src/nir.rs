@@ -55,6 +55,7 @@ mod parse;
 
 use crate::{
     diagnose::{Annotate, Diagnostic},
+    f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     parse::{util::SPair, Object, Token},
     span::{Span, UNKNOWN_SPAN},
@@ -139,7 +140,9 @@ impl Nir {
             }
         }
     }
+}
 
+impl Functor<SymbolId> for Nir {
     /// Map over a token's [`SymbolId`].
     ///
     /// This allows modifying a token's [`SymbolId`] while retaining the
@@ -154,7 +157,7 @@ impl Nir {
     ///
     /// See also [`Nir::symbol`] if you only wish to retrieve the symbol
     ///   rather than map over it.
-    pub fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
+    fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
         use Nir::*;
 
         match self {

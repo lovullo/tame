@@ -22,6 +22,7 @@ use super::{
 };
 use crate::{
     asg::Expr,
+    f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     parse::{self, util::SPair, ParseState, Token, Transition, Transitionable},
     span::{Span, UNKNOWN_SPAN},
@@ -260,7 +261,7 @@ impl ParseState for AirAggregate {
 
             (ReachableExpr(oi), CloseExpr(end)) => {
                 let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
-                    expr.map_span(|span| span.merge(end).unwrap_or(span))
+                    expr.map(|span| span.merge(end).unwrap_or(span))
                 });
 
                 Transition(Empty).incomplete()

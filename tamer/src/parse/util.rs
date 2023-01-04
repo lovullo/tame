@@ -28,7 +28,7 @@
 pub mod expand;
 
 use super::{prelude::*, state::TransitionData};
-use crate::{span::Span, sym::SymbolId};
+use crate::{f::Functor, span::Span, sym::SymbolId};
 use std::fmt::Display;
 
 /// A [`SymbolId`] with a corresponding [`Span`].
@@ -67,7 +67,9 @@ impl SPair {
             Self(sym, _) => *sym,
         }
     }
+}
 
+impl Functor<SymbolId> for SPair {
     /// Map over the [`SymbolId`] of the pair while retaining the original
     ///   associated [`Span`].
     ///
@@ -75,19 +77,21 @@ impl SPair {
     ///   code the user entered,
     ///     since diagnostic messages will reference the original source
     ///     location that the modification was derived from.
-    pub fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
+    fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
         match self {
             Self(sym, span) => Self(f(sym), span),
         }
     }
+}
 
+impl Functor<Span> for SPair {
     /// Map over the [`Span`] of the pair while retaining the associated
     ///   [`SymbolId`].
     ///
     /// This operation is useful,
     ///   for example,
     ///   when resolving or overriding identifiers.
-    pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Self {
+    fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
             Self(sym, span) => Self(sym, f(span)),
         }

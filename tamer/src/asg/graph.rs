@@ -25,6 +25,7 @@ use super::{
 };
 use crate::diagnose::panic::DiagnosticPanic;
 use crate::diagnose::Annotate;
+use crate::f::Functor;
 use crate::global;
 use crate::parse::util::SPair;
 use crate::parse::Token;
@@ -483,7 +484,7 @@ impl Asg {
         //   as referenced in the above panic.
         obj_container.replace(new_obj);
 
-        index.map_span(|_| new_span)
+        index.overwrite(new_span)
     }
 
     /// Map over an inner object that is referenced by an identifier.

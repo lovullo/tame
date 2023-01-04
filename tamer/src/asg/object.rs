@@ -65,6 +65,7 @@ use super::{Expr, Ident};
 use crate::{
     diagnose::Annotate,
     diagnostic_panic,
+    f::Functor,
     span::{Span, UNKNOWN_SPAN},
 };
 use petgraph::graph::NodeIndex;
@@ -274,8 +275,10 @@ impl<O: ObjectKind> ObjectIndex<O> {
     pub fn new(index: NodeIndex, span: Span) -> Self {
         Self(index, span, PhantomData::default())
     }
+}
 
-    pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Self {
+impl<O: ObjectKind> Functor<Span> for ObjectIndex<O> {
+    fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
             Self(index, span, ph) => Self(index, f(span), ph),
         }

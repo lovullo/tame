@@ -21,7 +21,7 @@
 
 use std::fmt::Display;
 
-use crate::{num::Dim, span::Span};
+use crate::{f::Functor, num::Dim, span::Span};
 
 /// Expression.
 ///
@@ -41,8 +41,10 @@ impl Expr {
             Expr(_, _, span) => *span,
         }
     }
+}
 
-    pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Self {
+impl Functor<Span> for Expr {
+    fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
             Self(op, dim, span) => Self(op, dim, f(span)),
         }

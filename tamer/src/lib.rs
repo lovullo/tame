@@ -70,6 +70,12 @@
 //     this is largely experimentation to see if it's useful.
 #![allow(incomplete_features)]
 #![feature(adt_const_params)]
+// Used for traits returning functions,
+//   such as those in `crate::f`.
+// Our use of this feature is fairly basic;
+//   should it become too complex then we should re-evaluate what we ought
+//   to be doing relative to the status of this feature.
+#![feature(return_position_impl_trait_in_trait)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 // For sym::prefill recursive macro `static_symbols!`.
@@ -86,6 +92,7 @@ pub mod xir;
 pub mod asg;
 pub mod convert;
 pub mod diagnose;
+pub mod f;
 pub mod fmt;
 pub mod fs;
 pub mod iter;

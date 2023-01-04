@@ -23,6 +23,7 @@ use std::fmt::Display;
 
 use crate::{
     diagnose::{Annotate, Diagnostic},
+    f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},
     parse::{util::SPair, Token},
@@ -250,7 +251,7 @@ impl Ident {
 
                 // Note that this has the effect of clearing fragments if we
                 //   originally were in state `Ident::IdentFragment`.
-                Ok(Ident::Ident(name.map_span(|_| span), kind, src))
+                Ok(Ident::Ident(name.overwrite(span), kind, src))
             }
 
             // If we encountered the override _first_,
@@ -285,7 +286,7 @@ impl Ident {
                     return Err((self, err));
                 }
 
-                Ok(Ident::Ident(name.map_span(|_| span), kind, src))
+                Ok(Ident::Ident(name.overwrite(span), kind, src))
             }
 
             // These represent the prologue and epilogue of maps.
@@ -299,7 +300,7 @@ impl Ident {
             ) => Ok(self),
 
             Ident::Missing(name) => {
-                Ok(Ident::Ident(name.map_span(|_| span), kind, src))
+                Ok(Ident::Ident(name.overwrite(span), kind, src))
             }
 
             // TODO: Remove guards and catch-all for exhaustiveness check.
@@ -360,9 +361,7 @@ impl Ident {
         src: Source,
     ) -> TransitionResult<Ident> {
         match self.kind() {
-            None => {
-                Ok(Ident::Extern(self.name().map_span(|_| span), kind, src))
-            }
+            None => Ok(Ident::Extern(self.name().overwrite(span), kind, src)),
             Some(cur_kind) => {
                 if cur_kind != &kind {
                     let err = TransitionError::ExternResolution(
