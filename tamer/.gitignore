@@ -12,3 +12,10 @@ configure
 # Rust/Cargo-generated
 /target/
 
+# Manual debugging conventions
+/*.log
+/*.out
+/foo*
+/scratch.rs
+/*.objdump
+
