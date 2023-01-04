@@ -139,9 +139,20 @@ impl Token for Air {
     }
 
     fn span(&self) -> crate::span::Span {
-        // TODO: This can be provided once the xmlo files store source
-        //   locations for symbols.
-        UNKNOWN_SPAN
+        use Air::*;
+
+        match self {
+            Todo => UNKNOWN_SPAN,
+
+            OpenExpr(_, span) | CloseExpr(span) => *span,
+
+            IdentExpr(spair)
+            | IdentDecl(spair, _, _)
+            | IdentExternDecl(spair, _, _)
+            | IdentDep(spair, _)
+            | IdentFragment(spair, _)
+            | IdentRoot(spair) => spair.span(),
+        }
     }
 }
 
