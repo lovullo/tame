@@ -119,13 +119,7 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 
         let mut report = Report::empty(Message(diagnostic));
         report.extend(mspans.map(Into::into));
-
-        // Make each section's gutters the same size,
-        //   which is more aesthetically pleasing.
         report.normalize_gutters();
-
-        // Let sections perform any final formatting,
-        //   e.g. to trim or merge padding.
         report.finalize_sections();
 
         if report.level.is_error() {
