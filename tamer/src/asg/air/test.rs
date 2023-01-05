@@ -266,14 +266,70 @@ fn expr_empty() {
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
 
-    let mut asg = sut.finalize().unwrap().into_context();
+    let asg = sut.finalize().unwrap().into_context();
 
     // The expression should have been bound to this identifier so that
     //   we're able to retrieve it from the graph by name.
-    asg.mut_map_obj_by_ident::<Expr>(id, |expr| {
-        assert_eq!(expr.span(), S1.merge(S3).unwrap());
-        expr
-    });
+    let expr = asg.expect_ident_obj::<Expr>(id);
+    assert_eq!(expr.span(), S1.merge(S3).unwrap());
+}
+
+#[test]
+fn expr_non_empty() {
+    let id_a = SPair("foo".into(), S2);
+    let id_b = SPair("bar".into(), S2);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        // Identifier while still empty...
+        Air::IdentExpr(id_a),
+        Air::OpenExpr(ExprOp::Sum, S3),
+        // (note that the inner expression _does not_ have an ident binding)
+        Air::CloseExpr(S4),
+        // ...and an identifier non-empty.
+        Air::IdentExpr(id_b),
+        Air::CloseExpr(S6),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    let expr_a = asg.expect_ident_obj::<Expr>(id_a);
+    assert_eq!(expr_a.span(), S1.merge(S6).unwrap());
+
+    // Identifiers should reference the same expression.
+    let expr_b = asg.expect_ident_obj::<Expr>(id_b);
+    assert_eq!(expr_a, expr_b);
+}
+
+// Binding an identifier after a child expression means that the parser is
+//   creating an expression that is a child of a dangling expression,
+//     which only becomes reachable at the end.
+#[test]
+fn expr_non_empty_bind_only_after() {
+    let id = SPair("foo".into(), S2);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        // Expression root is still dangling at this point.
+        Air::OpenExpr(ExprOp::Sum, S2),
+        Air::CloseExpr(S3),
+        // We only bind an identifier _after_ we've created the expression,
+        //   which should cause the still-dangling root to become
+        //   reachable.
+        Air::IdentExpr(id),
+        Air::CloseExpr(S5),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    let expr = asg.expect_ident_obj::<Expr>(id);
+    assert_eq!(expr.span(), S1.merge(S5).unwrap());
 }
 
 // Danging expressions are unreachable and therefore not useful
@@ -281,7 +337,7 @@ fn expr_empty() {
 // Prohibit them,
 //   since they're either mistakes or misconceptions.
 #[test]
-fn expr_dangling() {
+fn expr_dangling_no_subexpr() {
     let toks = vec![
         Air::OpenExpr(ExprOp::Sum, S1),
         // No `IdentExpr`,
@@ -290,7 +346,6 @@ fn expr_dangling() {
     ];
 
     // The error span should encompass the entire expression.
-    // TODO: ...let's actually have something inside this expression.
     let full_span = S1.merge(S2).unwrap();
 
     assert_eq!(
@@ -300,7 +355,144 @@ fn expr_dangling() {
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
+}
 
-    // TODO: recovery, which will probably mean that we need to have some
-    // successful tests first to support it
+#[test]
+fn expr_dangling_with_subexpr() {
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        // Expression root is still dangling at this point.
+        Air::OpenExpr(ExprOp::Sum, S2),
+        Air::CloseExpr(S3),
+        // Still no ident binding,
+        //   so root should still be dangling.
+        Air::CloseExpr(S4),
+    ];
+
+    let full_span = S1.merge(S4).unwrap();
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Err(ParseError::StateError(AsgError::DanglingExpr(full_span)))
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn expr_dangling_with_subexpr_ident() {
+    let id = SPair("foo".into(), S3);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        // Expression root is still dangling at this point.
+        Air::OpenExpr(ExprOp::Sum, S2),
+        // The _inner_ expression receives an identifier,
+        //   but that should have no impact on the dangling status of the
+        //   root,
+        //     especially given that subexpressions are always reachable
+        //     anyway.
+        Air::IdentExpr(id),
+        Air::CloseExpr(S4),
+        // But the root still has no ident binding,
+        //   and so should still be dangling.
+        Air::CloseExpr(S5),
+    ];
+
+    let full_span = S1.merge(S5).unwrap();
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Err(ParseError::StateError(AsgError::DanglingExpr(full_span)))
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+// Ensure that the parser correctly recognizes dangling expressions after
+//   having encountered a reachable expression.
+// Ideally the parser will have been written to make this impossible,
+//   but this also protects against potential future breakages.
+#[test]
+fn expr_reachable_subsequent_dangling() {
+    let id = SPair("foo".into(), S2);
+    let toks = vec![
+        // Reachable
+        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::IdentExpr(id),
+        Air::CloseExpr(S3),
+        // Dangling
+        Air::OpenExpr(ExprOp::Sum, S4),
+        Air::CloseExpr(S5),
+    ];
+
+    // The error span should encompass the entire expression.
+    // TODO: ...let's actually have something inside this expression.
+    let second_span = S4.merge(S5).unwrap();
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Err(ParseError::StateError(AsgError::DanglingExpr(second_span)))
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+// Recovery from dangling expression.
+#[test]
+fn recovery_expr_reachable_after_dangling() {
+    let id = SPair("foo".into(), S4);
+    let toks = vec![
+        // Dangling
+        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::CloseExpr(S2),
+        // Reachable, after error from dangling.
+        Air::OpenExpr(ExprOp::Sum, S3),
+        Air::IdentExpr(id),
+        Air::CloseExpr(S5),
+    ];
+
+    // The error span should encompass the entire expression.
+    let err_span = S1.merge(S2).unwrap();
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete),
+            Err(ParseError::StateError(AsgError::DanglingExpr(err_span))),
+            // Recovery allows us to continue at this point with the next
+            //   expression.
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete),
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // Let's make sure that we _actually_ added it to the graph,
+    //   despite the previous error.
+    let expr = asg.expect_ident_obj::<Expr>(id);
+    assert_eq!(expr.span(), S3.merge(S5).unwrap());
+
+    // The dangling expression may or may not be on the graph,
+    //   but it doesn't matter;
+    //     we cannot reference it
+    //       (unless we break abstraction and walk the underlying graph).
+    // Let's leave this undefined so that we have flexibility in what we
+    //   decide to do in the future.
+    // So we end here.
 }

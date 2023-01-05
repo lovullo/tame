@@ -198,29 +198,113 @@ impl Display for Air {
     }
 }
 
-/// AIR parser state.
+/// Stack of held expressions,
+///   with the root expression at the bottom of the stack.
 ///
-/// This currently has no parsing state;
-///   all state is stored on the ASG itself,
-///     which is the parsing context.
-#[derive(Debug, PartialEq, Eq, Default)]
-pub enum AirAggregate {
-    #[default]
-    Empty,
+/// Expression [`ObjectIndex`]es are pushed onto this stack when
+///   parsing a subexpression,
+///     and are popped when the subexpression terminates.
+/// The active expression is _not_ stored on this stack to avoid unnecessary
+///   indirection.
+///
+/// Despite the immutable interface,
+///   this does modify the inner [`Vec`] in-place;
+///     it does not reallocate unless its capacity has been reached.
+///
+/// Unlike other parts of the system,
+///   this is heap-allocated,
+///   but should be very cache-friendly.
+/// This reason for heap allocation is that this is explicitly
+///   _unbounded_—systems like code generators ought to be able to output
+///   expressions in a tacit style without worrying about arbitrary limits.
+/// It is worth noting that the other parts of the system using
+///   stack-allocated data structures is less about performance and more
+///   about the simplicity afforded by keeping allocators out of the picture.
+/// We'll address performance issues if they appear during profiling.
+///
+/// Another benefit of using [`Vec`] here is that Rust is able to properly
+///   optimize away `memcpy`s for it,
+///     rather than having to utilize the parser's mutable context.
+/// Further,
+///   the ASG is heap-allocated,
+///   so we're not avoiding the heap anyway.
+///
+/// The interface is modeled after [Haskell's `Stack`][haskell-stack],
+///   with a slight variation for [`Self::pop`] so that we can avoid
+///   reallocation after a stack is used up,
+///     which is frequent.
+///
+/// [haskell-stack]: https://hackage.haskell.org/package/Stack/docs/Data-Stack.html
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExprStack(Vec<ObjectIndex<Expr>>);
 
-    /// Building an expression that is yet not reachable from any other
-    ///   object.
+impl ExprStack {
+    fn push(self, item: ObjectIndex<Expr>) -> Self {
+        let Self(mut stack) = self;
+        stack.push(item);
+        Self(stack)
+    }
+
+    /// Attempt to remove an item from the stack,
+    ///   returning a new stack and the item,
+    ///   if any.
+    ///
+    /// This returns a new [`Self`] even if it is empty so that it can be
+    ///   reused without having to reallocate.
+    fn pop(self) -> (Self, Option<ObjectIndex<Expr>>) {
+        let Self(mut stack) = self;
+        let oi = stack.pop();
+
+        (Self(stack), oi)
+    }
+
+    /// Whether the current expression being parsed is the root expression.
+    ///
+    /// This simply means that the stack is empty.
+    fn is_at_root(&self) -> bool {
+        matches!(self, Self(stack) if stack.is_empty())
+    }
+}
+
+impl Default for ExprStack {
+    fn default() -> Self {
+        // TODO: 16 is a generous guess that is very unlikely to be exceeded
+        //   in practice at the time of writing,
+        //     even with template expansion,
+        //     but let's develop an informed heuristic.
+        //  Note that this is very unlikely to make a difference;
+        //    I just don't like using numbers without data to back them up.
+        Self(Vec::with_capacity(16))
+    }
+}
+
+/// AIR parser state.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AirAggregate {
+    /// Parser is not currently performing any work.
+    ///
+    /// This state is accepting iff the inner [`ExprStack`] is empty.
+    Empty(ExprStack),
+
+    /// Building an expression whose root is yet not reachable from any
+    ///   other object.
     ///
     /// Dangling expressions are expected to transition into
     ///   [`Self::ReachableExpr`] after being bound to an identifier.
     /// Closing a dangling expression will result in a
     ///   [`AsgError::DanglingExpr`].
-    DanglingExpr(ObjectIndex<Expr>),
+    DanglingExpr(ExprStack, ObjectIndex<Expr>),
 
     /// Building an expression that is reachable from another object.
     ///
     /// See also [`Self::DanglingExpr`].
-    ReachableExpr(ObjectIndex<Expr>),
+    ReachableExpr(ExprStack, ObjectIndex<Expr>),
+}
+
+impl Default for AirAggregate {
+    fn default() -> Self {
+        Self::Empty(ExprStack::default())
+    }
 }
 
 impl Display for AirAggregate {
@@ -228,10 +312,21 @@ impl Display for AirAggregate {
         use AirAggregate::*;
 
         match self {
-            Empty => write!(f, "awaiting AIR input for ASG"),
-            DanglingExpr(_) => write!(f, "building dangling expression"),
-            ReachableExpr(_) => write!(f, "building reachable expression"),
+            Empty(es) => write!(f, "awaiting AIR input for ASG with {es}"),
+            DanglingExpr(es, _) => {
+                write!(f, "building dangling expression with {es}")
+            }
+            ReachableExpr(es, _) => {
+                write!(f, "building reachable expression with {es}")
+            }
         }
+    }
+}
+
+impl Display for ExprStack {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let Self(stack) = self;
+        write!(f, "expression stack length of {}", stack.len())
     }
 }
 
@@ -254,67 +349,104 @@ impl ParseState for AirAggregate {
         use AirAggregate::*;
 
         match (self, tok) {
-            (_, Todo) => Transition(Empty).incomplete(),
+            (st, Todo) => Transition(st).incomplete(),
 
-            (Empty, OpenExpr(op, span)) => {
+            (Empty(es), OpenExpr(op, span)) => {
                 let oi = asg.create(Expr::new(op, span));
-                Transition(DanglingExpr(oi)).incomplete()
+                Transition(DanglingExpr(es, oi)).incomplete()
             }
 
-            (Empty, CloseExpr(_)) => todo!("no matching expr to end"),
+            (DanglingExpr(es, poi), OpenExpr(op, span)) => {
+                let oi = asg.create(Expr::new(op, span));
+                Transition(DanglingExpr(es.push(poi), oi)).incomplete()
+            }
 
-            (DanglingExpr(oi), CloseExpr(end)) => {
+            (ReachableExpr(es, poi), OpenExpr(op, span)) => {
+                let oi = asg.create(Expr::new(op, span));
+                Transition(ReachableExpr(es.push(poi), oi)).incomplete()
+            }
+
+            (Empty(_), CloseExpr(_)) => todo!("no matching expr to end"),
+
+            (DanglingExpr(es, oi), CloseExpr(end)) if es.is_at_root() => {
                 let start: Span = oi.into();
-                Transition(Empty).err(AsgError::DanglingExpr(
-                    start.merge(end).unwrap_or(start),
-                ))
+
+                match es.pop() {
+                    (es, Some(poi)) => Transition(DanglingExpr(es, poi)),
+                    (es, None) => Transition(Empty(es)),
+                }
+                .err(AsgError::DanglingExpr(start.merge(end).unwrap_or(start)))
             }
 
-            (ReachableExpr(oi), CloseExpr(end)) => {
+            (DanglingExpr(es, oi), CloseExpr(end)) => {
                 let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
 
-                Transition(Empty).incomplete()
+                match es.pop() {
+                    (es, Some(poi)) => Transition(DanglingExpr(es, poi)),
+                    (es, None) => Transition(Empty(es)),
+                }
+                .incomplete()
             }
 
-            (Empty, IdentExpr(_)) => todo!("cannot bind ident to nothing"),
+            (ReachableExpr(es, oi), CloseExpr(end)) => {
+                let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
+                    expr.map(|span| span.merge(end).unwrap_or(span))
+                });
 
-            (DanglingExpr(oi), IdentExpr(id)) => {
+                match es.pop() {
+                    (es, Some(poi)) => Transition(ReachableExpr(es, poi)),
+                    (es, None) => Transition(Empty(es)),
+                }
+                .incomplete()
+            }
+
+            (Empty(_), IdentExpr(_)) => todo!("cannot bind ident to nothing"),
+
+            (DanglingExpr(es, oi), IdentExpr(id)) => {
                 // TODO: error on existing ident
                 let identi = asg.lookup_or_missing(id);
                 asg.add_dep(identi, oi);
 
-                Transition(ReachableExpr(oi)).incomplete()
+                if es.is_at_root() {
+                    Transition(ReachableExpr(es, oi)).incomplete()
+                } else {
+                    Transition(DanglingExpr(es, oi)).incomplete()
+                }
             }
 
-            (st, tok @ (OpenExpr(..) | IdentExpr(..))) => {
-                todo!("{st:?} -> {tok:?}")
+            (ReachableExpr(es, oi), IdentExpr(id)) => {
+                // TODO: error on existing ident
+                let identi = asg.lookup_or_missing(id);
+                asg.add_dep(identi, oi);
+
+                Transition(ReachableExpr(es, oi)).incomplete()
             }
 
-            (Empty, IdentDecl(name, kind, src)) => {
-                asg.declare(name, kind, src).map(|_| ()).transition(Empty)
+            (st @ Empty(_), IdentDecl(name, kind, src)) => {
+                asg.declare(name, kind, src).map(|_| ()).transition(st)
             }
 
-            (Empty, IdentExternDecl(name, kind, src)) => asg
+            (st @ Empty(_), IdentExternDecl(name, kind, src)) => asg
                 .declare_extern(name, kind, src)
                 .map(|_| ())
-                .transition(Empty),
+                .transition(st),
 
-            (Empty, IdentDep(sym, dep)) => {
+            (st @ Empty(_), IdentDep(sym, dep)) => {
                 asg.add_dep_lookup(sym, dep);
-                Transition(Empty).incomplete()
+                Transition(st).incomplete()
             }
 
-            (Empty, IdentFragment(sym, text)) => {
-                asg.set_fragment(sym, text).map(|_| ()).transition(Empty)
+            (st @ Empty(_), IdentFragment(sym, text)) => {
+                asg.set_fragment(sym, text).map(|_| ()).transition(st)
             }
 
-            (Empty, IdentRoot(sym)) => {
+            (st @ Empty(_), IdentRoot(sym)) => {
                 let obj = asg.lookup_or_missing(sym);
                 asg.add_root(obj);
 
-                Transition(Empty).incomplete()
+                Transition(st).incomplete()
             }
 
             (
@@ -326,7 +458,7 @@ impl ParseState for AirAggregate {
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        *self == Self::Empty
+        matches!(self, Self::Empty(es) if es.is_at_root())
     }
 }
 
