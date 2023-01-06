@@ -235,14 +235,68 @@ impl Display for Air {
 ///     which is frequent.
 ///
 /// [haskell-stack]: https://hackage.haskell.org/package/Stack/docs/Data-Stack.html
+///
+/// The stack states [`Dormant`] and [`Active`] selectively provide
+///   different APIs to enforce certain invariants,
+///     as an alternative to re-allocating an inner [`Vec`] each time a new
+///     root expression is encountered.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ExprStack(Vec<ObjectIndex<Expr>>);
+pub struct ExprStack<S>(Vec<ObjectIndex<Expr>>, S);
 
-impl ExprStack {
+/// Expression stack is not in use and must be empty;
+///   no ongoing expression parsing.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Dormant;
+/// Expression stack is in use as part of an expression parse.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Active(StackEdge);
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum StackEdge {
+    /// Root expression is yet not reachable from any other object.
+    ///
+    /// Dangling expressions are expected to transition into
+    ///   [`Self::Reachable`] after being bound to an identifier.
+    /// Closing a dangling expression will result in a
+    ///   [`AsgError::DanglingExpr`].
+    ///
+    /// Binding a sub-expression does not bind the root of the stack,
+    ///   since sub-expressions cannot reference their parent;
+    ///     a stack is dangling until its root expression has been bound to
+    ///     an identifier.
+    Dangling,
+
+    /// Root expression is reachable from another object.
+    ///
+    /// The associated [`SPair`] serves as _evidence_ of this assertion.
+    Reachable(SPair),
+}
+
+impl Display for StackEdge {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Dangling => write!(f, "dangling"),
+            Self::Reachable(ident) => write!(f, "reachable (by {ident})"),
+        }
+    }
+}
+
+impl ExprStack<Dormant> {
+    /// Mark the stack as active,
+    ///   exposing its stack API for use.
+    ///
+    /// [`ExprStack::done`] will return the stack to a dormant state.
+    fn activate(self) -> ExprStack<Active> {
+        let Self(stack, _) = self;
+        ExprStack(stack, Active(StackEdge::Dangling))
+    }
+}
+
+impl ExprStack<Active> {
     fn push(self, item: ObjectIndex<Expr>) -> Self {
-        let Self(mut stack) = self;
+        let Self(mut stack, s) = self;
         stack.push(item);
-        Self(stack)
+        Self(stack, s)
     }
 
     /// Attempt to remove an item from the stack,
@@ -252,21 +306,55 @@ impl ExprStack {
     /// This returns a new [`Self`] even if it is empty so that it can be
     ///   reused without having to reallocate.
     fn pop(self) -> (Self, Option<ObjectIndex<Expr>>) {
-        let Self(mut stack) = self;
+        let Self(mut stack, s) = self;
         let oi = stack.pop();
 
-        (Self(stack), oi)
+        (Self(stack, s), oi)
     }
 
-    /// Whether the current expression being parsed is the root expression.
+    /// Whether the stack is dangling.
+    fn is_dangling(&self) -> bool {
+        matches!(self, Self(_, Active(StackEdge::Dangling)))
+    }
+
+    /// Mark stack as reachable if processing the root expression.
     ///
-    /// This simply means that the stack is empty.
-    fn is_at_root(&self) -> bool {
-        matches!(self, Self(stack) if stack.is_empty())
+    /// `ident` is admitted as evidence of reachability,
+    ///   both for debugging and for making it more difficult to
+    ///   misuse this API.
+    /// If the stack is already reachable,
+    ///   the previous identifier takes precedence.
+    ///
+    /// If not parsing the root expression
+    ///   (if the stack is non-empty),
+    ///   this returns `self` unchanged.
+    fn reachable_by(self, ident: SPair) -> Self {
+        match self {
+            Self(stack, Active(StackEdge::Dangling)) if stack.is_empty() => {
+                Self(stack, Active(StackEdge::Reachable(ident)))
+            }
+            _ => self,
+        }
+    }
+
+    /// Mark the stack as dormant,
+    ///   hiding its stack API and ensuring that its state is properly reset
+    ///   for the next root expression.
+    ///
+    /// [`ExprStack::activate`] will re-activate the stack for use.
+    fn done(self) -> ExprStack<Dormant> {
+        let Self(stack, _) = self;
+
+        // TODO: error if non-empty stack (unclosed expr)
+        if !stack.is_empty() {
+            todo!("ExprStack::done(): error on non-empty stack")
+        }
+
+        ExprStack(stack, Dormant)
     }
 }
 
-impl Default for ExprStack {
+impl Default for ExprStack<Dormant> {
     fn default() -> Self {
         // TODO: 16 is a generous guess that is very unlikely to be exceeded
         //   in practice at the time of writing,
@@ -274,7 +362,26 @@ impl Default for ExprStack {
         //     but let's develop an informed heuristic.
         //  Note that this is very unlikely to make a difference;
         //    I just don't like using numbers without data to back them up.
-        Self(Vec::with_capacity(16))
+        Self(Vec::with_capacity(16), Dormant)
+    }
+}
+
+impl Display for ExprStack<Dormant> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let Self(stack, _) = self;
+        write!(f, "dormant expression stack of size {}", stack.capacity())
+    }
+}
+
+impl Display for ExprStack<Active> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let Self(stack, Active(edge_st)) = self;
+        write!(
+            f,
+            "active {edge_st} expression stack of length {} and size {}",
+            stack.len(),
+            stack.capacity()
+        )
     }
 }
 
@@ -282,23 +389,12 @@ impl Default for ExprStack {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AirAggregate {
     /// Parser is not currently performing any work.
-    ///
-    /// This state is accepting iff the inner [`ExprStack`] is empty.
-    Empty(ExprStack),
+    Empty(ExprStack<Dormant>),
 
-    /// Building an expression whose root is yet not reachable from any
-    ///   other object.
+    /// Building an expression.
     ///
-    /// Dangling expressions are expected to transition into
-    ///   [`Self::ReachableExpr`] after being bound to an identifier.
-    /// Closing a dangling expression will result in a
-    ///   [`AsgError::DanglingExpr`].
-    DanglingExpr(ExprStack, ObjectIndex<Expr>),
-
-    /// Building an expression that is reachable from another object.
-    ///
-    /// See also [`Self::DanglingExpr`].
-    ReachableExpr(ExprStack, ObjectIndex<Expr>),
+    /// Expressions may be nested arbitrarily deeply.
+    BuildingExpr(ExprStack<Active>, ObjectIndex<Expr>),
 }
 
 impl Default for AirAggregate {
@@ -313,20 +409,10 @@ impl Display for AirAggregate {
 
         match self {
             Empty(es) => write!(f, "awaiting AIR input for ASG with {es}"),
-            DanglingExpr(es, _) => {
-                write!(f, "building dangling expression with {es}")
-            }
-            ReachableExpr(es, _) => {
-                write!(f, "building reachable expression with {es}")
+            BuildingExpr(es, _) => {
+                write!(f, "building expression with {es}")
             }
         }
-    }
-}
-
-impl Display for ExprStack {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let Self(stack) = self;
-        write!(f, "expression stack length of {}", stack.len())
     }
 }
 
@@ -353,75 +439,50 @@ impl ParseState for AirAggregate {
 
             (Empty(es), OpenExpr(op, span)) => {
                 let oi = asg.create(Expr::new(op, span));
-                Transition(DanglingExpr(es, oi)).incomplete()
+                Transition(BuildingExpr(es.activate(), oi)).incomplete()
             }
 
-            (DanglingExpr(es, poi), OpenExpr(op, span)) => {
+            (BuildingExpr(es, poi), OpenExpr(op, span)) => {
                 let oi = asg.create(Expr::new(op, span));
-                Transition(DanglingExpr(es.push(poi), oi)).incomplete()
-            }
-
-            (ReachableExpr(es, poi), OpenExpr(op, span)) => {
-                let oi = asg.create(Expr::new(op, span));
-                Transition(ReachableExpr(es.push(poi), oi)).incomplete()
+                Transition(BuildingExpr(es.push(poi), oi)).incomplete()
             }
 
             (Empty(_), CloseExpr(_)) => todo!("no matching expr to end"),
 
-            (DanglingExpr(es, oi), CloseExpr(end)) if es.is_at_root() => {
+            (BuildingExpr(es, oi), CloseExpr(end)) => {
                 let start: Span = oi.into();
 
-                match es.pop() {
-                    (es, Some(poi)) => Transition(DanglingExpr(es, poi)),
-                    (es, None) => Transition(Empty(es)),
-                }
-                .err(AsgError::DanglingExpr(start.merge(end).unwrap_or(start)))
-            }
-
-            (DanglingExpr(es, oi), CloseExpr(end)) => {
                 let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
 
                 match es.pop() {
-                    (es, Some(poi)) => Transition(DanglingExpr(es, poi)),
-                    (es, None) => Transition(Empty(es)),
-                }
-                .incomplete()
-            }
+                    (es, Some(poi)) => {
+                        Transition(BuildingExpr(es, poi)).incomplete()
+                    }
+                    (es, None) => {
+                        let dangling = es.is_dangling();
+                        let st = Empty(es.done());
 
-            (ReachableExpr(es, oi), CloseExpr(end)) => {
-                let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
-                    expr.map(|span| span.merge(end).unwrap_or(span))
-                });
-
-                match es.pop() {
-                    (es, Some(poi)) => Transition(ReachableExpr(es, poi)),
-                    (es, None) => Transition(Empty(es)),
+                        if dangling {
+                            Transition(st).err(AsgError::DanglingExpr(
+                                start.merge(end).unwrap_or(start),
+                            ))
+                        } else {
+                            Transition(st).incomplete()
+                        }
+                    }
                 }
-                .incomplete()
             }
 
             (Empty(_), IdentExpr(_)) => todo!("cannot bind ident to nothing"),
 
-            (DanglingExpr(es, oi), IdentExpr(id)) => {
+            (BuildingExpr(es, oi), IdentExpr(id)) => {
                 // TODO: error on existing ident
                 let identi = asg.lookup_or_missing(id);
                 asg.add_dep(identi, oi);
 
-                if es.is_at_root() {
-                    Transition(ReachableExpr(es, oi)).incomplete()
-                } else {
-                    Transition(DanglingExpr(es, oi)).incomplete()
-                }
-            }
-
-            (ReachableExpr(es, oi), IdentExpr(id)) => {
-                // TODO: error on existing ident
-                let identi = asg.lookup_or_missing(id);
-                asg.add_dep(identi, oi);
-
-                Transition(ReachableExpr(es, oi)).incomplete()
+                Transition(BuildingExpr(es.reachable_by(id), oi)).incomplete()
             }
 
             (st @ Empty(_), IdentDecl(name, kind, src)) => {
@@ -458,7 +519,7 @@ impl ParseState for AirAggregate {
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        matches!(self, Self::Empty(es) if es.is_at_root())
+        matches!(self, Self::Empty(_))
     }
 }
 
