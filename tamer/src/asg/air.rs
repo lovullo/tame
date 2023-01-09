@@ -447,7 +447,9 @@ impl ParseState for AirAggregate {
                 Transition(BuildingExpr(es.push(poi), oi)).incomplete()
             }
 
-            (Empty(_), CloseExpr(_)) => todo!("no matching expr to end"),
+            (st @ Empty(_), CloseExpr(span)) => {
+                Transition(st).err(AsgError::UnbalancedExpr(span))
+            }
 
             (BuildingExpr(es, oi), CloseExpr(end)) => {
                 let start: Span = oi.into();
@@ -475,7 +477,9 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (Empty(_), IdentExpr(_)) => todo!("cannot bind ident to nothing"),
+            (st @ Empty(_), IdentExpr(ident)) => {
+                Transition(st).err(AsgError::InvalidExprBindContext(ident))
+            }
 
             (BuildingExpr(es, oi), IdentExpr(id)) => {
                 // TODO: error on existing ident

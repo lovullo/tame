@@ -26,6 +26,7 @@ use super::{
 use crate::diagnose::panic::DiagnosticPanic;
 use crate::diagnose::{Annotate, AnnotatedSpan};
 use crate::f::Functor;
+use crate::fmt::{DisplayWrapper, TtQuote};
 use crate::global;
 use crate::parse::util::SPair;
 use crate::parse::Token;
@@ -472,7 +473,6 @@ impl Asg {
     ///
     /// This will return [`None`] if the identifier is either opaque or does
     ///   not exist.
-    #[cfg(test)]
     fn get_ident_obj_oi<O: ObjectKind>(
         &self,
         ident: SPair,
@@ -492,47 +492,63 @@ impl Asg {
             .map(|ni| ObjectIndex::<O>::new(ni, ident.span()))
     }
 
-    /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
-    ///   panicing if the identifier is opaque or does not exist.
+    /// Attempt to retrieve the [`Object`] to which the given `ident` is bound.
     ///
-    /// See [`Self::get_ident_obj_oi`] for more information;
-    ///   this simply panics if its result is [`None`].
+    /// If the identifier either does not exist on the graph or is opaque
+    ///   (is not bound to any expression),
+    ///   then [`None`] will be returned.
+    ///
+    /// If the system expects that the identifier must exist and would
+    ///   otherwise represent a bug in the compiler,
+    ///     see [`Self::expect_ident_obj`].
     ///
     /// Panics
     /// ======
-    ///   1. The identifier does not exist on the graph;
+    /// This method will panic if certain graph invariants are not met,
+    ///   representing an invalid system state that should not be able to
+    ///   occur through this API.
+    /// Violations of these invariants represent either a bug in the API
+    ///   (that allows for the invariant to be violated)
+    ///   or direct manipulation of the underlying graph.
+    pub fn get_ident_obj<O: ObjectKind>(&self, ident: SPair) -> Option<&O> {
+        self.get_ident_obj_oi::<O>(ident).map(|oi| {
+            let obj_container =
+                self.graph.node_weight(oi.into()).diagnostic_expect(
+                    diagnostic_node_missing_desc(oi),
+                    "invalid ObjectIndex: data are missing from the ASG",
+                );
+
+            obj_container.as_ref().diagnostic_expect(
+                diagnostic_borrowed_node_desc(oi),
+                "inaccessible ObjectIndex: object has not been returned to the ASG",
+            ).into()
+        })
+    }
+
+    /// Attempt to retrieve the [`Object`] to which the given `ident` is bound,
+    ///   panicing if the identifier is opaque or does not exist.
+    ///
+    /// This method represents a compiler invariant;
+    ///   it should _only_ be used when the identifier _must_ exist,
+    ///     otherwise there is a bug in the compiler.
+    /// If this is _not_ the case,
+    ///   use [`Self::get_ident_obj`] to get [`None`] in place of a panic.
+    ///
+    /// Panics
+    /// ======
+    /// This method will panic if
+    ///
+    ///   1. The identifier does not exist on the graph; or
     ///   2. The identifier is opaque (has no edge to any object on the
     ///        graph).
-    #[cfg(test)]
-    fn expect_ident_obj_oi<O: ObjectKind>(
-        &self,
-        ident: SPair,
-    ) -> ObjectIndex<O> {
-        use crate::fmt::{DisplayWrapper, TtQuote};
-
-        self.get_ident_obj_oi(ident).diagnostic_expect(
+    pub fn expect_ident_obj<O: ObjectKind>(&self, ident: SPair) -> &O {
+        self.get_ident_obj(ident).diagnostic_expect(
             diagnostic_opaque_ident_desc(ident),
             &format!(
                 "opaque identifier: {} has no object binding",
                 TtQuote::wrap(ident),
             ),
         )
-    }
-
-    #[cfg(test)]
-    pub(super) fn expect_ident_obj<O: ObjectKind>(&self, ident: SPair) -> &O {
-        let oi = self.expect_ident_obj_oi::<O>(ident);
-
-        let obj_container =
-            self.graph.node_weight(oi.into()).diagnostic_expect(
-                diagnostic_node_missing_desc(oi),
-                "invalid ObjectIndex: data are missing from the ASG",
-            );
-
-        obj_container.as_ref().diagnostic_expect(
-            diagnostic_borrowed_node_desc(oi),
-            "inaccessible ObjectIndex: object has not been returned to the ASG",
-        ).into()
     }
 
     /// Retrieve an identifier from the graph by [`ObjectIndex`].
@@ -646,7 +662,6 @@ fn diagnostic_borrowed_node_desc<O: ObjectKind>(
     ]
 }
 
-#[cfg(test)]
 fn diagnostic_opaque_ident_desc(ident: SPair) -> Vec<AnnotatedSpan<'static>> {
     vec![
         ident.internal_error(

@@ -254,7 +254,7 @@ fn ident_root_existing() {
 }
 
 #[test]
-fn expr_empty() {
+fn expr_empty_ident() {
     let id = SPair("foo".into(), S2);
 
     let toks = vec![
@@ -275,7 +275,7 @@ fn expr_empty() {
 }
 
 #[test]
-fn expr_non_empty() {
+fn expr_non_empty_ident_root() {
     let id_a = SPair("foo".into(), S2);
     let id_b = SPair("bar".into(), S2);
 
@@ -495,4 +495,90 @@ fn recovery_expr_reachable_after_dangling() {
     // Let's leave this undefined so that we have flexibility in what we
     //   decide to do in the future.
     // So we end here.
+}
+
+#[test]
+fn expr_close_unbalanced() {
+    let id = SPair("foo".into(), S3);
+
+    let toks = vec![
+        // Close before _any_ open.
+        Air::CloseExpr(S1),
+        // Should recover,
+        //   allowing for a normal expr.
+        Air::OpenExpr(ExprOp::Sum, S2),
+        Air::IdentExpr(id),
+        Air::CloseExpr(S4),
+        // And now an extra close _after_ a valid expr.
+        Air::CloseExpr(S5),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        vec![
+            Err(ParseError::StateError(AsgError::UnbalancedExpr(S1))),
+            // Recovery should allow us to continue.
+            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // IdentExpr
+            Ok(Parsed::Incomplete), // CloseExpr
+            // Another error after a successful expression.
+            Err(ParseError::StateError(AsgError::UnbalancedExpr(S5))),
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // Just verify that the expression was successfully added after recovery.
+    let expr = asg.expect_ident_obj::<Expr>(id);
+    assert_eq!(expr.span(), S2.merge(S4).unwrap());
+}
+
+#[test]
+fn expr_bind_to_empty() {
+    let id_noexpr_a = SPair("noexpr_a".into(), S1);
+    let id_good = SPair("noexpr".into(), S3);
+    let id_noexpr_b = SPair("noexpr_b".into(), S5);
+
+    let toks = vec![
+        // No open expression to bind to.
+        Air::IdentExpr(id_noexpr_a),
+        // Post-recovery create an expression.
+        Air::OpenExpr(ExprOp::Sum, S2),
+        Air::IdentExpr(id_good),
+        Air::CloseExpr(S4),
+        // Once again we have nothing to bind to.
+        Air::IdentExpr(id_noexpr_b),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        vec![
+            Err(ParseError::StateError(AsgError::InvalidExprBindContext(
+                id_noexpr_a
+            ))),
+            // Recovery should allow us to continue.
+            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // IdentExpr
+            Ok(Parsed::Incomplete), // CloseExpr
+            // Another error after a successful expression.
+            Err(ParseError::StateError(AsgError::InvalidExprBindContext(
+                id_noexpr_b
+            ))),
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // Neither of the identifiers outside of expressions should exist on the
+    //   graph.
+    assert_eq!(None, asg.get_ident_obj::<Expr>(id_noexpr_a));
+    assert_eq!(None, asg.get_ident_obj::<Expr>(id_noexpr_b));
+
+    // Verify that the expression was successfully added after recovery.
+    let expr = asg.expect_ident_obj::<Expr>(id_good);
+    assert_eq!(expr.span(), S2.merge(S4).unwrap());
 }

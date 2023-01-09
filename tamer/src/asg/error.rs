@@ -26,6 +26,7 @@ use std::{
 
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    parse::util::SPair,
     span::Span,
 };
 
@@ -49,6 +50,26 @@ pub enum AsgError {
     ///   its span.
     /// The span should encompass the entirety of the expression.
     DanglingExpr(Span),
+
+    /// Attempted to close an expression with no corresponding opening
+    ///   delimiter.
+    ///
+    /// Note that the user may encounter an equivalent error in the source
+    ///   document format
+    ///     (e.g. XML via [XIR->NIR lowering](crate::nir))
+    ///     and therefore may never see this error.
+    /// However,
+    ///   a source IR _may_ choose to allow improperly nested expressions
+    ///   through to this IR,
+    ///     or may utilize this IR directly.
+    UnbalancedExpr(Span),
+
+    /// Attempted to bind the an identifier to an expression while not in an
+    ///   expression context.
+    ///
+    /// Note that the user may encounter an error from a higher-level IR
+    ///   instead of this one.
+    InvalidExprBindContext(SPair),
 }
 
 impl Display for AsgError {
@@ -58,6 +79,10 @@ impl Display for AsgError {
         match self {
             IdentTransition(err) => Display::fmt(&err, f),
             DanglingExpr(_) => write!(f, "dangling expression"),
+            UnbalancedExpr(_) => write!(f, "unbalanced expression"),
+            InvalidExprBindContext(_) => {
+                write!(f, "invalid expression identifier binding context")
+            }
         }
     }
 }
@@ -68,7 +93,9 @@ impl Error for AsgError {
 
         match self {
             IdentTransition(err) => err.source(),
-            DanglingExpr(_) => None,
+            DanglingExpr(_) | UnbalancedExpr(_) | InvalidExprBindContext(_) => {
+                None
+            }
         }
     }
 }
@@ -83,6 +110,10 @@ impl Diagnostic for AsgError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         use AsgError::*;
 
+        // Before improving the diagnostic messages below,
+        //   be sure that you have a use case in mind and that higher-level
+        //   IRs do not preempt them in practice;
+        //     your efforts may be better focused in those higher IRs.
         match self {
             // TODO: need spans
             IdentTransition(_) => vec![],
@@ -94,6 +125,20 @@ impl Diagnostic for AsgError {
                     "  expression or be assigned an identifier, otherwise ",
                 ),
                 span.help("  its value cannot referenced."),
+            ],
+
+            UnbalancedExpr(span) => {
+                vec![span.error("there is no open expression to end here")]
+            }
+
+            InvalidExprBindContext(span) => vec![
+                span.error(
+                    "there is no active expression to bind this identifier to",
+                ),
+                span.help(
+                    "an identifier must be bound to an expression before \
+                        the expression is closed",
+                ),
             ],
         }
     }
