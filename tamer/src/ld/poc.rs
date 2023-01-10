@@ -113,8 +113,8 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
         GraphMl::new(&g)
             .pretty_print(true)
             .export_node_weights(Box::new(|node| {
-                let (name, kind, generated) = match node {
-                    Some(Object::Ident(n)) => {
+                let (name, kind, generated) = match node.get() {
+                    Object::Ident(n) => {
                         let generated = match n.src() {
                             Some(src) => src.generated,
                             None => false,
@@ -127,14 +127,9 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
                         )
                     }
                     // TODO: We want these filtered.
-                    Some(_) => (
+                    _ => (
                         String::from("non-ident"),
                         "non-ident".into(),
-                        "false".into(),
-                    ),
-                    None => (
-                        String::from("missing"),
-                        "missing".into(),
                         "false".into(),
                     ),
                 };

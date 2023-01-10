@@ -19,6 +19,7 @@
 
 //! Abstract graph as the basis for concrete ASGs.
 
+use super::object::ObjectContainer;
 use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
     Source, TransitionResult,
@@ -48,11 +49,8 @@ pub type AsgResult<T> = Result<T, AsgError>;
 /// There are currently no data stored on edges ("edge weights").
 pub type AsgEdge = ();
 
-/// Each node of the graph represents an object.
-///
-/// Enclosed in an [`Option`] to permit moving owned values out of the
-///   graph.
-pub type Node = Option<Object>;
+/// Each node of the graph.
+pub type Node = ObjectContainer;
 
 /// Index size for Graph nodes and edges.
 type Ix = global::ProgSymSize;
@@ -126,14 +124,15 @@ impl Asg {
         let mut graph = Graph::with_capacity(objects, edges);
         let mut index = Vec::with_capacity(objects);
 
-        // Exhaust the first index to be used as a placeholder.
-        let empty_node = graph.add_node(None);
+        // Exhaust the first index to be used as a placeholder
+        //   (its value does not matter).
+        let empty_node = graph.add_node(Object::Root.into());
         index.push(empty_node);
 
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
         // This is not indexed and is not accessable by name.
-        let root_node = graph.add_node(Some(Object::Root));
+        let root_node = graph.add_node(Object::Root.into());
 
         Self {
             graph,
@@ -193,7 +192,7 @@ impl Asg {
         let sym = ident.symbol();
 
         self.lookup(sym).unwrap_or_else(|| {
-            let index = self.graph.add_node(Some(Ident::declare(ident).into()));
+            let index = self.graph.add_node(Ident::declare(ident).into());
 
             self.index_identifier(sym, index);
             ObjectIndex::new(index, ident.span())
@@ -236,22 +235,12 @@ impl Asg {
     where
         F: FnOnce(Ident) -> TransitionResult<Ident>,
     {
-        let node = self.graph.node_weight_mut(identi.into()).unwrap();
+        let container = self.graph.node_weight_mut(identi.into()).unwrap();
 
-        let obj = node
-            .take()
-            .expect("internal error: missing object")
-            .unwrap_ident();
-
-        f(obj)
-            .and_then(|obj| {
-                node.replace(obj.into());
-                Ok(identi)
-            })
-            .or_else(|(orig, err)| {
-                node.replace(orig.into());
-                Err(err.into())
-            })
+        container
+            .try_replace_with(f)
+            .map(|()| identi)
+            .map_err(Into::into)
     }
 
     // TODO: This is transitional;
@@ -379,7 +368,7 @@ impl Asg {
     pub(super) fn create<O: ObjectKind>(&mut self, obj: O) -> ObjectIndex<O> {
         let o = obj.into();
         let span = o.span();
-        let node_id = self.graph.add_node(Some(o));
+        let node_id = self.graph.add_node(ObjectContainer::from(o.into()));
 
         ObjectIndex::new(node_id, span)
     }
@@ -393,11 +382,9 @@ impl Asg {
     /// It is nevertheless wrapped in an [`Option`] just in case.
     #[inline]
     pub fn get<O: ObjectKind>(&self, index: ObjectIndex<O>) -> Option<&O> {
-        self.graph.node_weight(index.into()).map(|node| {
-            node.as_ref()
-                .expect("internal error: Asg::get missing Node data")
-                .into()
-        })
+        self.graph
+            .node_weight(index.into())
+            .map(ObjectContainer::get)
     }
 
     /// Map over an inner [`Object`] referenced by [`ObjectIndex`].
@@ -441,24 +428,9 @@ impl Asg {
                 "invalid ObjectIndex: data are missing from the ASG",
             );
 
-        // Any function borrowing from the graph ought to also be responsible
-        //   for returning it in all possible code paths,
-        //     as we are.
-        // And error here means that this must not be the case,
-        //   or that we're breaking encapsulation somewhere.
-        let cur_obj = obj_container.take().diagnostic_expect(
-            diagnostic_borrowed_node_desc(index),
-            "inaccessible ObjectIndex: object has not been returned to the ASG",
-        );
+        obj_container.replace_with(f);
 
-        let new_obj: Object = f(cur_obj.into()).into();
-        let new_span = new_obj.span();
-
-        // This is where we replace the object that we borrowed,
-        //   as referenced in the above panic.
-        obj_container.replace(new_obj);
-
-        index.overwrite(new_span)
+        index.overwrite(obj_container.get::<Object>().span())
     }
 
     /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
@@ -511,18 +483,18 @@ impl Asg {
     ///   (that allows for the invariant to be violated)
     ///   or direct manipulation of the underlying graph.
     pub fn get_ident_obj<O: ObjectKind>(&self, ident: SPair) -> Option<&O> {
-        self.get_ident_obj_oi::<O>(ident).map(|oi| {
-            let obj_container =
-                self.graph.node_weight(oi.into()).diagnostic_expect(
-                    diagnostic_node_missing_desc(oi),
-                    "invalid ObjectIndex: data are missing from the ASG",
-                );
+        self.get_ident_obj_oi::<O>(ident)
+            .map(|oi| self.expect_obj(oi))
+    }
 
-            obj_container.as_ref().diagnostic_expect(
-                diagnostic_borrowed_node_desc(oi),
-                "inaccessible ObjectIndex: object has not been returned to the ASG",
-            ).into()
-        })
+    pub(super) fn expect_obj<O: ObjectKind>(&self, oi: ObjectIndex<O>) -> &O {
+        let obj_container =
+            self.graph.node_weight(oi.into()).diagnostic_expect(
+                diagnostic_node_missing_desc(oi),
+                "invalid ObjectIndex: data are missing from the ASG",
+            );
+
+        obj_container.get()
     }
 
     /// Attempt to retrieve the [`Object`] to which the given `ident` is bound,
@@ -642,23 +614,6 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
         index.help("  which are unexpected and possibly represent data"),
         index.help("  corruption."),
         index.help("The system cannot proceed with confidence."),
-    ]
-}
-
-fn diagnostic_borrowed_node_desc<O: ObjectKind>(
-    index: ObjectIndex<O>,
-) -> Vec<AnnotatedSpan<'static>> {
-    vec![
-        index.internal_error(
-            "this object was borrowed from the graph and \
-                was not returned",
-        ),
-        index.help("this means that some operation used take() on the object"),
-        index.help("  container but never replaced it with an updated object"),
-        index.help(
-            "  after the operation completed, which should not \
-                    be possible.",
-        ),
     ]
 }
 

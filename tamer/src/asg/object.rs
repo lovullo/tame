@@ -61,15 +61,15 @@
 //! [`ObjectIndex`] is associated with a span derived from the point of its
 //!   creation to handle this diagnostic situation automatically.
 
-use super::{Expr, Ident};
+use super::{Asg, Expr, Ident};
 use crate::{
-    diagnose::Annotate,
+    diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     diagnostic_panic,
     f::Functor,
     span::{Span, UNKNOWN_SPAN},
 };
 use petgraph::graph::NodeIndex;
-use std::{fmt::Display, marker::PhantomData};
+use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 
 /// An object on the ASG.
 ///
@@ -314,4 +314,111 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
             ObjectIndex(_, span, _) => span,
         }
     }
+}
+
+/// A container for an [`Object`] allowing for owned borrowing of data.
+///
+/// The purpose of allowing this owned borrowing is to permit a functional
+///   style of object manipulation,
+///     like the rest of the TAMER system,
+///     despite the mutable underpinnings of the ASG.
+/// This is accomplished by wrapping each object in an [`Option`] so that we
+/// can [`Option::take`] its inner value temporarily.
+///
+/// This container has a critical invariant:
+///   the inner [`Option`] must _never_ be [`None`] after a method exits,
+///     no matter what branches are taken.
+/// Methods operating on owned data enforce this invariant by mapping over
+///   data and immediately placing the new value to the container before the
+///   method completes.
+/// This container will panic if this variant is not upheld.
+///
+/// TODO: Make this `pub(super)` when [`Asg`]'s public API is cleaned up.
+#[derive(Debug, PartialEq)]
+pub struct ObjectContainer(Option<Object>);
+
+impl ObjectContainer {
+    /// Retrieve an immutable reference to the inner [`Object`],
+    ///   narrowed to expected type `O`.
+    ///
+    /// Panics
+    /// ======
+    /// This will panic if the object on the graph is not the expected
+    ///   [`ObjectKind`] `O`.
+    pub fn get<O: ObjectKind>(&self) -> &O {
+        let Self(container) = self;
+
+        container
+            .as_ref()
+            .diagnostic_unwrap(container_oops())
+            .into()
+    }
+
+    /// Attempt to modify the inner [`Object`],
+    ///   narrowed to expected type `O`,
+    ///   returning any error.
+    ///
+    /// See also [`Self::replace_with`] if the operation is [`Infallible`].
+    ///
+    /// Panics
+    /// ======
+    /// This will panic if the object on the graph is not the expected
+    ///   [`ObjectKind`] `O`.
+    pub fn try_replace_with<O: ObjectKind, E>(
+        &mut self,
+        f: impl FnOnce(O) -> Result<O, (O, E)>,
+    ) -> Result<(), E> {
+        let ObjectContainer(container) = self;
+
+        let obj = container.take().diagnostic_unwrap(container_oops()).into();
+
+        // NB: We must return the object to the container in all code paths!
+        let result = f(obj)
+            .map(|obj| {
+                container.replace(obj.into());
+            })
+            .map_err(|(orig, err)| {
+                container.replace(orig.into());
+                err
+            });
+
+        debug_assert!(container.is_some());
+        result
+    }
+
+    /// Modify the inner [`Object`],
+    ///   narrowed to expected type `O`.
+    ///
+    /// See also [`Self::try_replace_with`] if the operation can fail.
+    ///
+    /// Panics
+    /// ======
+    /// This will panic if the object on the graph is not the expected
+    ///   [`ObjectKind`] `O`.
+    pub fn replace_with<O: ObjectKind>(&mut self, f: impl FnOnce(O) -> O) {
+        let _ = self.try_replace_with::<O, (O, Infallible)>(|obj| Ok(f(obj)));
+    }
+}
+
+impl<I: Into<Object>> From<I> for ObjectContainer {
+    fn from(obj: I) -> Self {
+        Self(Some(obj.into()))
+    }
+}
+
+fn container_oops() -> Vec<AnnotatedSpan<'static>> {
+    // This used to be a real span,
+    //   but since this invariant is easily verified and should absolutely
+    //   never occur,
+    //     there's no point in complicating the API.
+    let span = UNKNOWN_SPAN;
+
+    vec![
+        span.help("this means that some operation used take() on the object"),
+        span.help("  container but never replaced it with an updated object"),
+        span.help(
+            "  after the operation completed, which should not \
+                    be possible.",
+        ),
+    ]
 }
