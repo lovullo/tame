@@ -443,7 +443,7 @@ impl ParseState for AirAggregate {
             }
 
             (BuildingExpr(es, poi), OpenExpr(op, span)) => {
-                let oi = asg.create(Expr::new(op, span));
+                let oi = poi.create_subexpr(asg, Expr::new(op, span));
                 Transition(BuildingExpr(es.push(poi), oi)).incomplete()
             }
 

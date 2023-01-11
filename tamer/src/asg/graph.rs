@@ -19,7 +19,7 @@
 
 //! Abstract graph as the basis for concrete ASGs.
 
-use super::object::ObjectContainer;
+use super::object::{ObjectContainer, ObjectRelTo};
 use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
     Source, TransitionResult,
@@ -33,7 +33,11 @@ use crate::parse::util::SPair;
 use crate::parse::Token;
 use crate::span::UNKNOWN_SPAN;
 use crate::sym::SymbolId;
-use petgraph::graph::{DiGraph, Graph, NodeIndex};
+use petgraph::{
+    graph::{DiGraph, Graph, NodeIndex},
+    visit::EdgeRef,
+    Direction,
+};
 use std::fmt::Debug;
 use std::result::Result;
 
@@ -373,6 +377,21 @@ impl Asg {
         ObjectIndex::new(node_id, span)
     }
 
+    /// Add an edge from the [`Object`] represented by the
+    ///   [`ObjectIndex`] `from_oi` to the object represented by `to_oi`.
+    ///
+    /// For more information on how the ASG's ontology is enforced statically,
+    ///   see [`ObjectRelTo`].
+    pub(super) fn add_edge<OA: ObjectKind, OB: ObjectKind>(
+        &mut self,
+        from_oi: ObjectIndex<OA>,
+        to_oi: ObjectIndex<OB>,
+    ) where
+        OA: ObjectRelTo<OB>,
+    {
+        self.graph.add_edge(from_oi.into(), to_oi.into(), ());
+    }
+
     /// Retrieve an object from the graph by [`ObjectIndex`].
     ///
     /// Since an [`ObjectIndex`] should only be produced by an [`Asg`],
@@ -433,6 +452,39 @@ impl Asg {
         index.overwrite(obj_container.get::<Object>().span())
     }
 
+    /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
+    ///   of `self`.
+    ///
+    /// This is a generic method that simply returns an [`ObjectKind`] of
+    ///   [`Object`] for each [`ObjectIndex`];
+    ///     it is the responsibility of the caller to narrow the type to
+    ///     what is intended.
+    /// This is sufficient in practice,
+    ///   since the graph cannot be constructed without adhering to the edge
+    ///   ontology defined by [`ObjectRelTo`],
+    ///     but this API is not helpful for catching problems at
+    ///     compile-time.
+    ///
+    /// The reason for providing a generic index to [`Object`] is that it
+    ///   allows the caller to determine how strict it wants to be with
+    ///   reading from the graph;
+    ///     for example,
+    ///       it may prefer to filter unwanted objects rather than panicing
+    ///       if they do not match a given [`ObjectKind`],
+    ///         depending on its ontology.
+    ///
+    /// You should prefer methods on [`ObjectIndex`] instead,
+    ///   with this method expected to be used only in those
+    ///   implementations.
+    pub(super) fn edges<'a, O: ObjectKind + 'a>(
+        &'a self,
+        oi: ObjectIndex<O>,
+    ) -> impl Iterator<Item = ObjectIndex<Object>> + 'a {
+        self.graph
+            .edges(oi.into())
+            .map(move |edge| ObjectIndex::new(edge.target(), oi))
+    }
+
     /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
     ///   if any.
     ///
@@ -445,12 +497,10 @@ impl Asg {
     ///
     /// This will return [`None`] if the identifier is either opaque or does
     ///   not exist.
-    fn get_ident_obj_oi<O: ObjectKind>(
+    fn get_ident_oi<O: ObjectKind>(
         &self,
         ident: SPair,
     ) -> Option<ObjectIndex<O>> {
-        use petgraph::Direction;
-
         self.lookup(ident.symbol())
             .and_then(|identi| {
                 self.graph
@@ -462,6 +512,27 @@ impl Asg {
             //     the type will be verified during narrowing but will panic
             //     if this expectation is not met.
             .map(|ni| ObjectIndex::<O>::new(ni, ident.span()))
+    }
+
+    /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
+    ///   panicing if the identifier is either opaque or does not exist.
+    ///
+    /// Panics
+    /// ======
+    /// This method will panic if the identifier is opaque
+    ///   (has no edge to the object to which it is bound)
+    ///   or does not exist on the graph.
+    pub fn expect_ident_oi<O: ObjectKind>(
+        &self,
+        ident: SPair,
+    ) -> ObjectIndex<O> {
+        self.get_ident_oi(ident).diagnostic_expect(
+            diagnostic_opaque_ident_desc(ident),
+            &format!(
+                "opaque identifier: {} has no object binding",
+                TtQuote::wrap(ident),
+            ),
+        )
     }
 
     /// Attempt to retrieve the [`Object`] to which the given `ident` is bound.
@@ -483,8 +554,7 @@ impl Asg {
     ///   (that allows for the invariant to be violated)
     ///   or direct manipulation of the underlying graph.
     pub fn get_ident_obj<O: ObjectKind>(&self, ident: SPair) -> Option<&O> {
-        self.get_ident_obj_oi::<O>(ident)
-            .map(|oi| self.expect_obj(oi))
+        self.get_ident_oi::<O>(ident).map(|oi| self.expect_obj(oi))
     }
 
     pub(super) fn expect_obj<O: ObjectKind>(&self, oi: ObjectIndex<O>) -> &O {

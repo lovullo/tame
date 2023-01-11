@@ -21,6 +21,7 @@
 
 use std::fmt::Display;
 
+use super::{Asg, ObjectIndex};
 use crate::{f::Functor, num::Dim, span::Span};
 
 /// Expression.
@@ -178,5 +179,23 @@ impl Display for DimState {
             _AtLeast(dim, _) => write!(f, "of at least {dim}"),
             Unknown => write!(f, "unknown"),
         }
+    }
+}
+
+impl ObjectIndex<Expr> {
+    /// Create a new subexpression as the next child of this expression and
+    ///   return the [`ObjectIndex`] of the new subexpression.
+    ///
+    /// Sub-expressions maintain relative order to accommodate
+    ///   non-associative and non-commutative expressions.
+    pub fn create_subexpr(
+        self,
+        asg: &mut Asg,
+        expr: Expr,
+    ) -> ObjectIndex<Expr> {
+        let oi_subexpr = asg.create(expr);
+        self.add_edge_to(asg, oi_subexpr);
+
+        oi_subexpr
     }
 }

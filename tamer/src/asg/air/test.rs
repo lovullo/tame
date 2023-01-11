@@ -22,7 +22,7 @@
 
 use super::*;
 use crate::{
-    asg::Ident,
+    asg::{object::ObjectRelTo, Ident, ObjectKind},
     parse::{ParseError, Parsed},
     span::dummy::*,
 };
@@ -581,4 +581,108 @@ fn expr_bind_to_empty() {
     // Verify that the expression was successfully added after recovery.
     let expr = asg.expect_ident_obj::<Expr>(id_good);
     assert_eq!(expr.span(), S2.merge(S4).unwrap());
+}
+
+// Subexpressions should not only have edges to their parent,
+//   but those edges ought to be ordered,
+//   allowing TAME to handle non-commutative expressions.
+// We must further understand the relative order in which edges are stored
+//   for non-associative expressions.
+#[test]
+fn sibling_subexprs_have_ordered_edges_to_parent() {
+    let id_root = SPair("root".into(), S1);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        // Identify the root so that it is not dangling.
+        Air::IdentExpr(id_root),
+        // Sibling A
+        Air::OpenExpr(ExprOp::Sum, S3),
+        Air::CloseExpr(S4),
+        // Sibling B
+        Air::OpenExpr(ExprOp::Sum, S5),
+        Air::CloseExpr(S6),
+        // Sibling C
+        Air::OpenExpr(ExprOp::Sum, S7),
+        Air::CloseExpr(S8),
+        Air::CloseExpr(S9),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    // The root is the parent expression that should contain edges to each
+    //   subexpression
+    //     (the siblings above).
+    // Note that we retrieve its _index_,
+    //   not the object itself.
+    let oi_root = asg.expect_ident_oi::<Expr>(id_root);
+
+    let siblings = oi_root
+        .edges::<Expr>(&asg)
+        .map(|oi| oi.resolve(&asg))
+        .collect::<Vec<_>>();
+
+    // The reversal here is an implementation detail with regards to how
+    //   Petgraph stores its edges as effectively linked lists,
+    //     using node indices instead of pointers.
+    // It is very important that we understand this behavior.
+    assert_eq!(siblings.len(), 3);
+    assert_eq!(siblings[2].span(), S3.merge(S4).unwrap());
+    assert_eq!(siblings[1].span(), S5.merge(S6).unwrap());
+    assert_eq!(siblings[0].span(), S7.merge(S8).unwrap());
+}
+
+#[test]
+fn nested_subexprs_related_to_relative_parent() {
+    let id_root = SPair("root".into(), S1);
+    let id_suba = SPair("suba".into(), S2);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1), // 0
+        Air::IdentExpr(id_root),
+        Air::OpenExpr(ExprOp::Sum, S2), // 1
+        Air::IdentExpr(id_suba),
+        Air::OpenExpr(ExprOp::Sum, S3), // 2
+        Air::CloseExpr(S4),
+        Air::CloseExpr(S5),
+        Air::CloseExpr(S6),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_0 = asg.expect_ident_oi::<Expr>(id_root);
+    let subexprs_0 = collect_subexprs(&asg, oi_0);
+
+    // Subexpr 1
+    assert_eq!(subexprs_0.len(), 1);
+    let (oi_1, subexpr_1) = subexprs_0[0];
+    assert_eq!(subexpr_1.span(), S2.merge(S5).unwrap());
+
+    let subexprs_1 = collect_subexprs(&asg, oi_1);
+
+    // Subexpr 2
+    assert_eq!(subexprs_1.len(), 1);
+    let (_, subexpr_2) = subexprs_1[0];
+    assert_eq!(subexpr_2.span(), S3.merge(S4).unwrap());
+}
+
+fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
+where
+    I::IntoIter: Debug,
+{
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+    sut.finalize().unwrap().into_context()
+}
+
+fn collect_subexprs<O: ObjectKind>(
+    asg: &Asg,
+    oi: ObjectIndex<O>,
+) -> Vec<(ObjectIndex<O>, &O)>
+where
+    O: ObjectRelTo<O>,
+{
+    oi.edges::<O>(&asg)
+        .map(|oi| (oi, oi.resolve(&asg)))
+        .collect::<Vec<_>>()
 }

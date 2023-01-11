@@ -272,8 +272,83 @@ impl<O: ObjectKind> Clone for ObjectIndex<O> {
 impl<O: ObjectKind> Copy for ObjectIndex<O> {}
 
 impl<O: ObjectKind> ObjectIndex<O> {
-    pub fn new(index: NodeIndex, span: Span) -> Self {
-        Self(index, span, PhantomData::default())
+    pub fn new<S: Into<Span>>(index: NodeIndex, span: S) -> Self {
+        Self(index, span.into(), PhantomData::default())
+    }
+
+    /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
+    ///
+    /// An edge can only be added if ontologically valid;
+    ///   see [`ObjectRelTo`] for more information.
+    ///
+    /// See also [`Self::add_edge_to`].
+    pub fn add_edge_to<OB: ObjectKind>(
+        self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+    ) -> Self
+    where
+        O: ObjectRelTo<OB>,
+    {
+        asg.add_edge(self, to_oi);
+        self
+    }
+
+    /// Add an edge from `from_oi` to `self` on the provided [`Asg`].
+    ///
+    /// An edge can only be added if ontologically valid;
+    ///   see [`ObjectRelTo`] for more information.
+    ///
+    /// See also [`Self::add_edge_to`].
+    pub fn add_edge_from<OB: ObjectKind>(
+        self,
+        asg: &mut Asg,
+        from_oi: ObjectIndex<OB>,
+    ) -> Self
+    where
+        OB: ObjectRelTo<O>,
+    {
+        from_oi.add_edge_to(asg, self);
+        self
+    }
+
+    /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
+    ///   of `self`.
+    ///
+    /// Note that the [`ObjectKind`] `OB` indicates what type of
+    ///   [`ObjectIndex`]es will be yielded by the returned iterator;
+    ///     this method does nothing to filter non-matches.
+    pub fn edges<'a, OB: ObjectKind + 'a>(
+        self,
+        asg: &'a Asg,
+    ) -> impl Iterator<Item = ObjectIndex<OB>> + 'a
+    where
+        O: ObjectRelTo<OB> + 'a,
+    {
+        asg.edges(self).map(ObjectIndex::must_narrow_into::<OB>)
+    }
+
+    /// Resolve `self` to the object that it references.
+    ///
+    /// Panics
+    /// ======
+    /// If our [`ObjectKind`] `O` does not match the actual type of the
+    ///   object on the graph,
+    ///     the system will panic.
+    pub fn resolve(self, asg: &Asg) -> &O {
+        asg.expect_obj(self)
+    }
+}
+
+impl ObjectIndex<Object> {
+    /// Indicate that the [`Object`] referenced by this index must be
+    ///   narrowed into [`ObjectKind`] `O` when resolved.
+    ///
+    /// This simply narrows the expected [`ObjectKind`].
+    pub fn must_narrow_into<O: ObjectKind>(self) -> ObjectIndex<O> {
+        match self {
+            Self(index, span, _) => ObjectIndex::new(index, span),
+        }
     }
 }
 
@@ -315,6 +390,44 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
         }
     }
 }
+
+/// Indicate that an [`ObjectKind`] `Self` can be related to
+///   [`ObjectKind`] `OB` by creating an edge from `Self` to `OB`.
+///
+/// This trait defines a portion of the graph ontology,
+///   allowing [`Self`] to be related to `OB` by creating a directed edge
+///   from [`Self`] _to_ `OB`, as in:
+///
+/// ```text
+///   (Self) -> (OB)
+/// ```
+///
+/// While the data on the graph itself is dynamic and provided at runtime,
+///   the systems that _construct_ the graph using the runtime data can be
+///   statically analyzed by the type system to ensure that they only
+///   construct graphs that adhere to this schema.
+pub trait ObjectRelTo<OB: ObjectKind>: ObjectKind {}
+
+/// Indicate that an [`ObjectKind`] `Self` can be related to
+///   [`ObjectKind`] `OB` by creating an edge from `OB` to `Self`.
+///
+/// _This trait exists for notational convenience and is intended only to
+///   derive a blanket [`ObjectRelTo`] implementation._
+/// This is because `impl`s are of the form `impl T for O`,
+///   but it is more natural to reason about directed edges left-to-write as
+///   `(From) -> (To)`;
+///     this trait allows `impl ObjectRelFrom<OA> for OB` rather than the
+///     equivalent `impl ObjectRelTo<OB> for OA`.
+trait ObjectRelFrom<OA: ObjectKind>: ObjectKind {}
+
+impl<OA: ObjectKind, OB: ObjectKind> ObjectRelTo<OB> for OA where
+    OB: ObjectRelFrom<OA>
+{
+}
+
+// This describes the object relationship portion of the ASG's ontology.
+impl ObjectRelFrom<Ident> for Expr {}
+impl ObjectRelFrom<Expr> for Expr {}
 
 /// A container for an [`Object`] allowing for owned borrowing of data.
 ///
