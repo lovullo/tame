@@ -182,7 +182,7 @@ impl ParseState for XmloToAir {
                 //   and spans are not retained.
                 (&attrs)
                     .try_into()
-                    .and_then(|kindval| {
+                    .map(|kindval| {
                         let mut src: Source = attrs.into();
 
                         // This used to come from SymAttrs in the old XmloReader.
@@ -197,13 +197,13 @@ impl ParseState for XmloToAir {
                         }
 
                         if extern_ {
-                            Ok(ParseStatus::Object(Air::IdentExternDecl(
+                            ParseStatus::Object(Air::IdentExternDecl(
                                 name, kindval, src,
-                            )))
+                            ))
                         } else {
-                            Ok(ParseStatus::Object(Air::IdentDecl(
+                            ParseStatus::Object(Air::IdentDecl(
                                 name, kindval, src,
-                            )))
+                            ))
                         }
                     })
                     .transition(Package(pkg_name))

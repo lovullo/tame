@@ -176,46 +176,46 @@ impl From<Expr> for Object {
     }
 }
 
-impl Into<Ident> for Object {
+impl From<Object> for Ident {
     /// Narrow an object into an [`Ident`],
     ///   panicing if the object is not of that type.
-    fn into(self) -> Ident {
-        match self {
-            Self::Ident(ident) => ident,
-            _ => self.narrowing_panic("an identifier"),
-        }
-    }
-}
-
-impl Into<Expr> for Object {
-    /// Narrow an object into an [`Expr`],
-    ///   panicing if the object is not of that type.
-    fn into(self) -> Expr {
-        match self {
-            Self::Expr(expr) => expr,
-            _ => self.narrowing_panic("an expression"),
-        }
-    }
-}
-
-impl<'a> Into<&'a Ident> for &'a Object {
-    /// Narrow an object into an [`Ident`],
-    ///   panicing if the object is not of that type.
-    fn into(self) -> &'a Ident {
-        match self {
+    fn from(val: Object) -> Self {
+        match val {
             Object::Ident(ident) => ident,
-            _ => self.narrowing_panic("an identifier"),
+            _ => val.narrowing_panic("an identifier"),
         }
     }
 }
 
-impl<'a> Into<&'a Expr> for &'a Object {
+impl From<Object> for Expr {
     /// Narrow an object into an [`Expr`],
     ///   panicing if the object is not of that type.
-    fn into(self) -> &'a Expr {
-        match self {
+    fn from(val: Object) -> Self {
+        match val {
             Object::Expr(expr) => expr,
-            _ => self.narrowing_panic("an expression"),
+            _ => val.narrowing_panic("an expression"),
+        }
+    }
+}
+
+impl<'a> From<&'a Object> for &'a Ident {
+    /// Narrow an object into an [`Ident`],
+    ///   panicing if the object is not of that type.
+    fn from(val: &'a Object) -> Self {
+        match val {
+            Object::Ident(ident) => ident,
+            _ => val.narrowing_panic("an identifier"),
+        }
+    }
+}
+
+impl<'a> From<&'a Object> for &'a Expr {
+    /// Narrow an object into an [`Expr`],
+    ///   panicing if the object is not of that type.
+    fn from(val: &'a Object) -> Self {
+        match val {
+            Object::Expr(expr) => expr,
+            _ => val.narrowing_panic("an expression"),
         }
     }
 }
@@ -265,7 +265,7 @@ pub struct ObjectIndex<O: ObjectKind>(NodeIndex, Span, PhantomData<O>);
 //   (2022-12-22, Rust 1.68.0-nightly).
 impl<O: ObjectKind> Clone for ObjectIndex<O> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), self.1.clone(), self.2.clone())
+        Self(self.0, self.1, self.2)
     }
 }
 

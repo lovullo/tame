@@ -125,7 +125,7 @@ impl<'a> DepListIter<'a> {
                     obj,
                 ),
             }
-        }).and_then(|(name, kind, src)| {
+        }).map(|(name, kind, src)| {
             self.toks.push(Token::Close(None, CloseSpan::empty(LSPAN)));
 
             self.toks_push_attr(QN_DESC, src.desc);
@@ -149,7 +149,7 @@ impl<'a> DepListIter<'a> {
             self.toks_push_attr(QN_NAME, Some(name.symbol()));
             self.toks_push_obj_attrs(kind);
 
-            Some(Token::Open(QN_P_SYM, OpenSpan::without_name_span(LSPAN)))
+            Token::Open(QN_P_SYM, OpenSpan::without_name_span(LSPAN))
         })
     }
 
@@ -228,25 +228,23 @@ struct MapFromsIter {
 
 impl MapFromsIter {
     #[inline]
-    fn new<'a>(iter: hash_set::IntoIter<SymbolId>) -> Self {
-        let iter = Self {
+    fn new(iter: hash_set::IntoIter<SymbolId>) -> Self {
+        Self {
             iter,
             // Most of the time we have a single `from` (4 tokens).
             toks: ArrayVec::new(),
-        };
-
-        iter
+        }
     }
 
     #[inline]
     fn refill_toks(&mut self) -> Option<Token> {
-        self.iter.next().and_then(|from| {
+        self.iter.next().map(|from| {
             self.toks.push(Token::Close(None, CloseSpan::empty(LSPAN)));
 
             self.toks.push(Token::AttrValue(from, LSPAN));
             self.toks.push(Token::AttrName(QN_NAME, LSPAN));
 
-            Some(Token::Open(QN_L_FROM, OpenSpan::without_name_span(LSPAN)))
+            Token::Open(QN_L_FROM, OpenSpan::without_name_span(LSPAN))
         })
     }
 }
@@ -292,6 +290,7 @@ impl Iterator for FragmentIter {
 ///   having to resort to dynamic dispatch,
 ///     since this iterator will receive over a million calls on larger
 ///     programs (and hundreds of thousands on smaller).
+#[allow(clippy::type_complexity)] // more clear as one type
 pub struct LowerIter<'a>(
     ElemWrapIter<
         Chain<

@@ -17,6 +17,10 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Use your judgment;
+//   a `match` may be more clear within a given context.
+#![allow(clippy::single_match)]
+
 //! This is the TAME compiler.
 //!
 //! `tamec` compiles source code into object files that are later linked
@@ -181,20 +185,19 @@ pub fn main() -> Result<(), UnrecoverableError> {
     let args: Vec<String> = env::args().collect();
     let program = &args[0];
     let opts = get_opts();
-    let usage = opts.usage(&format!("Usage: {} [OPTIONS] INPUT", program));
+    let usage = opts.usage(&format!("Usage: {program} [OPTIONS] INPUT"));
 
     match parse_options(opts, args) {
         Ok(Command::Compile(src_path, _, dest_path)) => {
             let mut reporter = VisualReporter::new(FsSpanResolver);
 
-            compile(&src_path, &dest_path, &mut reporter).or_else(
+            compile(&src_path, &dest_path, &mut reporter).map_err(
                 |e: UnrecoverableError| {
                     // Rendering to a string ensures buffering so that we
                     //   don't interleave output between processes.
                     let report = reporter.render(&e).to_string();
                     println!(
-                        "{report}\nfatal: failed to compile `{}`",
-                        dest_path
+                        "{report}\nfatal: failed to compile `{dest_path}`",
                     );
 
                     std::process::exit(1);
@@ -202,12 +205,12 @@ pub fn main() -> Result<(), UnrecoverableError> {
             )
         }
         Ok(Command::Usage) => {
-            println!("{}", usage);
+            println!("{usage}");
             std::process::exit(exitcode::OK);
         }
         Err(e) => {
-            eprintln!("{}", e);
-            println!("{}", usage);
+            eprintln!("{e}");
+            println!("{usage}");
             std::process::exit(exitcode::USAGE);
         }
     }
@@ -263,7 +266,7 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
     let output = match matches.opt_str("o") {
         Some(m) => m,
         // we check that the extension is "xml" later
-        None => format!("{}o", input),
+        None => format!("{input}o"),
     };
 
     Ok(Command::Compile(input, emit, output))

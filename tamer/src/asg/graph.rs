@@ -317,9 +317,9 @@ impl Asg {
         let is_auto_root = kind.is_auto_root();
 
         self.with_ident_lookup(name, |obj| obj.resolve(name.span(), kind, src))
-            .and_then(|node| {
+            .map(|node| {
                 is_auto_root.then(|| self.add_root(node));
-                Ok(node)
+                node
             })
     }
 

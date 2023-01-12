@@ -124,10 +124,10 @@ impl From<(SymbolId, Span)> for SPair {
     }
 }
 
-impl Into<(SymbolId, Span)> for SPair {
-    fn into(self) -> (SymbolId, Span) {
-        match self {
-            Self(sym, span) => (sym, span),
+impl From<SPair> for (SymbolId, Span) {
+    fn from(val: SPair) -> Self {
+        match val {
+            SPair(sym, span) => (sym, span),
         }
     }
 }

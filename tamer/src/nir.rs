@@ -246,9 +246,9 @@ impl Display for Nir {
     }
 }
 
-impl<E> Into<Result<Nir, E>> for Nir {
-    fn into(self) -> Result<Nir, E> {
-        Ok(self)
+impl<E> From<Nir> for Result<Nir, E> {
+    fn from(val: Nir) -> Self {
+        Ok(val)
     }
 }
 

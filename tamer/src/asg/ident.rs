@@ -237,7 +237,7 @@ impl Ident {
                     let err = TransitionError::VirtualOverrideKind(
                         name,
                         orig_kind.clone(),
-                        (kind.clone(), span),
+                        (kind, span),
                     );
 
                     return Err((self, err));
@@ -792,10 +792,10 @@ impl IdentKind {
     /// Whether this identifier should be automatically added as a root when
     ///   declared.
     pub fn is_auto_root(&self) -> bool {
-        match self {
-            Self::Meta | Self::Map | Self::RetMap | Self::Worksheet => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::Meta | Self::Map | Self::RetMap | Self::Worksheet
+        )
     }
 }
 

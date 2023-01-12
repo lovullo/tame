@@ -501,9 +501,9 @@ impl Span {
     }
 }
 
-impl Into<u64> for Span {
-    fn into(self) -> u64 {
-        self.as_u64()
+impl From<Span> for u64 {
+    fn from(val: Span) -> Self {
+        val.as_u64()
     }
 }
 
@@ -643,7 +643,7 @@ impl Display for Context {
 
 impl AsRef<Path> for Context {
     fn as_ref(&self) -> &Path {
-        &Path::new(self.0.lookup_str())
+        Path::new(self.0.lookup_str())
     }
 }
 

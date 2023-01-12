@@ -57,7 +57,7 @@ pub fn main() -> Result<(), TameldError> {
     let program = &args[0];
     let opts = get_opts();
     let usage =
-        opts.usage(&format!("Usage: {} [OPTIONS] -o OUTPUT FILE", program));
+        opts.usage(&format!("Usage: {program} [OPTIONS] -o OUTPUT FILE"));
 
     let mut reporter = VisualReporter::new(FsSpanResolver);
 
@@ -66,23 +66,23 @@ pub fn main() -> Result<(), TameldError> {
             Emit::Xmle => poc::xmle(&input, &output),
             Emit::Graphml => poc::graphml(&input, &output),
         }
-        .or_else(|e| {
+        .map_err(|e| {
             // POC: Rendering to a string ensures buffering so that we don't
             //   interleave output between processes,
             //     but we ought to reuse a buffer when we support multiple
             //     errors.
             let report = reporter.render(&e).to_string();
-            println!("{report}\nfatal: failed to link `{}`", output);
+            println!("{report}\nfatal: failed to link `{output}`");
 
             std::process::exit(1);
         }),
         Ok(Command::Usage) => {
-            println!("{}", usage);
+            println!("{usage}");
             std::process::exit(exitcode::OK);
         }
         Err(e) => {
-            eprintln!("{}", e);
-            println!("{}", usage);
+            eprintln!("{e}");
+            println!("{usage}");
             std::process::exit(exitcode::USAGE);
         }
     }
@@ -139,7 +139,7 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
         Some(m) => match &m[..] {
             "xmle" => Emit::Xmle,
             "graphml" => Emit::Graphml,
-            em => return Err(Fail::ArgumentMissing(format!("--emit {}", em))),
+            em => return Err(Fail::ArgumentMissing(format!("--emit {em}"))),
         },
         None => Emit::Xmle,
     };

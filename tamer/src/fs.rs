@@ -189,9 +189,9 @@ where
             return Ok(VisitOnceFile::Visited);
         }
 
-        VisitOnceFile::open(ostr).and_then(|file| {
+        VisitOnceFile::open(ostr).map(|file| {
             self.visited.insert(ostr.to_os_string());
-            Ok(file)
+            file
         })
     }
 }

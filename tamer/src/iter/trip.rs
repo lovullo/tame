@@ -96,7 +96,7 @@ impl<'a, I: ResultIterator<T, EI>, T, EI> TripIter<'a, I, T, EI> {
         //   after the caller is done with it,
         //   to check to see if we have tripped and force the caller to
         //   consider the error.
-        biter.state.map_err(EI::into).and_then(|_| fret)
+        biter.state.map_err(EI::into).and(fret)
     }
 
     /// Whether the iterator has been tripped by an [`Err`] on the

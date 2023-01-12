@@ -105,6 +105,13 @@ AS_IF([cargo "+$RUST_TC" $CARGO_DOC_FLAGS doc --help &>/dev/null],
        AC_MSG_WARN([missing cargo-doc on $RUST_TC])
        AC_MSG_WARN([`make html` will not work])])
 
+AC_MSG_CHECKING([whether cargo-clippy is available on $RUST_TC])
+AS_IF([cargo "+$RUST_TC" clippy --help &>/dev/null],
+      [AC_MSG_RESULT(yes)],
+      [AC_MSG_RESULT(no)
+       cargo "+$RUST_TC" clippy --help  # run again so user can see output
+       AC_MSG_ERROR([missing cargo-fmt on $RUST_TC])])
+
 AC_ARG_VAR([FEATURES],
            [Cargo features flags for TAMER, comma-delimited])
 

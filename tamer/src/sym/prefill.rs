@@ -34,8 +34,10 @@ use crate::global;
 ///
 /// This symbol id is allocated at compile-time.
 ///
-/// _All objects implementing this trait must have the same byte
-///   representation as its inner [`SymbolId`]_.
+/// Safety
+/// ======
+/// All objects implementing this trait must have the same byte
+///   representation as its inner [`SymbolId`].
 pub unsafe trait StaticSymbolId<Ix: SymbolIndexSize = global::ProgSymSize>:
     private::Sealed
 {

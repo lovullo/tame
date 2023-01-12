@@ -287,9 +287,11 @@ impl From<quick_xml::Error> for QuickXmlError {
     }
 }
 
-impl Into<quick_xml::Error> for QuickXmlError {
-    fn into(self) -> quick_xml::Error {
-        self.0
+impl From<QuickXmlError> for quick_xml::Error {
+    fn from(e: QuickXmlError) -> Self {
+        match e {
+            QuickXmlError(e) => e,
+        }
     }
 }
 

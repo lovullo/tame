@@ -81,9 +81,9 @@ impl Dtype {
     }
 }
 
-impl Into<SymbolId> for Dtype {
-    fn into(self) -> SymbolId {
-        self.as_sym()
+impl From<Dtype> for SymbolId {
+    fn from(val: Dtype) -> Self {
+        val.as_sym()
     }
 }
 

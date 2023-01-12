@@ -127,14 +127,14 @@ macro_rules! diagnostic_panic {
     };
 
     (@$macro:ident!, $desc_data:expr, $($panic_args:tt)*) => {{
-        use crate::diagnose::Reporter;
+        use $crate::diagnose::Reporter;
 
-        let mut reporter = crate::diagnose::panic::PanicReporter::new(
+        let mut reporter = $crate::diagnose::panic::PanicReporter::new(
             Default::default()
         );
 
         let summary = format!($($panic_args)*);
-        let desc = crate::diagnose::panic::DiagnosticDesc(
+        let desc = $crate::diagnose::panic::DiagnosticDesc(
             summary,
             std::cell::Cell::new($desc_data),
         );
@@ -211,8 +211,7 @@ pub trait DiagnosticPanic {
     /// Panics if the inner value is not available.
     /// For a custom message,
     ///   use [`DiagnosticPanic::diagnostic_expect`].
-    fn diagnostic_unwrap<'a>(self, desc: Vec<AnnotatedSpan<'a>>)
-        -> Self::Inner;
+    fn diagnostic_unwrap(self, desc: Vec<AnnotatedSpan>) -> Self::Inner;
 
     /// Attempt to return the inner value,
     ///   consuming `self`.
@@ -223,9 +222,9 @@ pub trait DiagnosticPanic {
     ///
     /// # Panics
     /// Panics if the inner value is not available with a custom `msg`.
-    fn diagnostic_expect<'a>(
+    fn diagnostic_expect(
         self,
-        desc: Vec<AnnotatedSpan<'a>>,
+        desc: Vec<AnnotatedSpan>,
         msg: &str,
     ) -> Self::Inner;
 }
@@ -233,10 +232,7 @@ pub trait DiagnosticPanic {
 impl<T> DiagnosticPanic for Option<T> {
     type Inner = T;
 
-    fn diagnostic_unwrap<'a>(
-        self,
-        desc: Vec<AnnotatedSpan<'a>>,
-    ) -> Self::Inner {
+    fn diagnostic_unwrap(self, desc: Vec<AnnotatedSpan>) -> Self::Inner {
         match self {
             Some(val) => val,
             // Same message as `Option::unwrap`
@@ -247,9 +243,9 @@ impl<T> DiagnosticPanic for Option<T> {
         }
     }
 
-    fn diagnostic_expect<'a>(
+    fn diagnostic_expect(
         self,
-        desc: Vec<AnnotatedSpan<'a>>,
+        desc: Vec<AnnotatedSpan>,
         msg: &str,
     ) -> Self::Inner {
         match self {
@@ -265,10 +261,7 @@ where
 {
     type Inner = T;
 
-    fn diagnostic_unwrap<'a>(
-        self,
-        desc: Vec<AnnotatedSpan<'a>>,
-    ) -> Self::Inner {
+    fn diagnostic_unwrap(self, desc: Vec<AnnotatedSpan>) -> Self::Inner {
         match self {
             Ok(val) => val,
             // Same message as `Result::unwrap`
@@ -279,9 +272,9 @@ where
         }
     }
 
-    fn diagnostic_expect<'a>(
+    fn diagnostic_expect(
         self,
-        desc: Vec<AnnotatedSpan<'a>>,
+        desc: Vec<AnnotatedSpan>,
         msg: &str,
     ) -> Self::Inner {
         match self {

@@ -135,14 +135,14 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 
                 QuickXmlEvent::Empty(ele) => Some(
                     Self::parse_element_open(
-                        &self.escaper,
+                        self.escaper,
                         &mut self.tokbuf,
                         ele,
                         prev_pos,
                         ctx,
                         true,
                     )
-                    .and_then(|open| {
+                    .map(|open| {
                         let new_pos = self.reader.buffer_position();
 
                         // `<tag ... />`
@@ -157,12 +157,12 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                             CloseSpan::empty(span),
                         ));
 
-                        Ok(open)
+                        open
                     }),
                 ),
 
                 QuickXmlEvent::Start(ele) => Some(Self::parse_element_open(
-                    &self.escaper,
+                    self.escaper,
                     &mut self.tokbuf,
                     ele,
                     prev_pos,
@@ -184,14 +184,14 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     ele.name()
                         .try_into()
                         .map_err(Error::from_with_span(span))
-                        .and_then(|qname| {
-                            Ok(Token::Close(
+                        .map(|qname| {
+                            Token::Close(
                                 Some(qname),
                                 CloseSpan(
                                     span,
                                     name_len.try_into().unwrap_or(0),
                                 ),
-                            ))
+                            )
                         })
                 }),
 
@@ -217,7 +217,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         .map_err(Into::into)
                         .and_then(|sym| self.escaper.unescape(sym))
                         .map_err(Error::from_with_span(span))
-                        .and_then(|unesc| Ok(Token::Text(unesc, span)))
+                        .map(|unesc| Token::Text(unesc, span))
                 }),
 
                 // Comments are _not_ returned escaped.
@@ -229,7 +229,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                     bytes
                         .intern_utf8()
                         .map_err(Error::from_with_span(span))
-                        .and_then(|comment| Ok(Token::Comment(comment, span)))
+                        .map(|comment| Token::Comment(comment, span))
                 }),
 
                 // TODO: This must appear in the prologue.
@@ -368,8 +368,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                 let has_attrs = ele
                     .attributes_raw()
                     .iter()
-                    .find(|b| !is_xml_whitespace_u8(**b))
-                    .is_some();
+                    .any(|b| !is_xml_whitespace_u8(*b));
 
                 // The tail is anything following the last byte of the QName
                 //   in a non-empty tag with no attributes.
@@ -527,8 +526,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         .intern_utf8()
                         .map_err(Error::from_with_span(span_value))?,
                 )
-                .map_err(Error::from_with_span(span_value))?
-                .into();
+                .map_err(Error::from_with_span(span_value))?;
 
             tokbuf.push_front(Token::AttrName(name, span_name));
             tokbuf.push_front(Token::AttrValue(value, span_value));
@@ -546,20 +544,14 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
 ///
 /// [xmlspec-s]: https://www.w3.org/TR/xml/#NT-S
 pub fn is_xml_whitespace_u8(b: u8) -> bool {
-    match b {
-        b' ' | b'\r' | b'\n' | b'\t' => true,
-        _ => false,
-    }
+    matches!(b, b' ' | b'\r' | b'\n' | b'\t')
 }
 
 /// Whether the character represents XML whitespace.
 ///
 /// See [`is_xml_whitespace_u8`].
 pub fn is_xml_whitespace_char(c: char) -> bool {
-    match c {
-        ' ' | '\r' | '\n' | '\t' => true,
-        _ => false,
-    }
+    matches!(c, ' ' | '\r' | '\n' | '\t')
 }
 
 impl<'s, B, S> Iterator for XmlXirReader<'s, B, S>

@@ -360,11 +360,11 @@ macro_rules! ele_parse {
     // No explicit Close mapping defaults to doing nothing at all
     //   (so yield Incomplete).
     (@!ele_close) => {
-        crate::parse::ParseStatus::Incomplete
+        $crate::parse::ParseStatus::Incomplete
     };
 
     (@!ele_close $close:expr) => {
-        crate::parse::ParseStatus::Object($close)
+        $crate::parse::ParseStatus::Object($close)
     };
 
     // Delegation when the destination type is `()`,
@@ -438,7 +438,7 @@ macro_rules! ele_parse {
             )*
         }
     ) => { paste::paste! {
-        crate::attr_parse_stream! {
+        $crate::attr_parse_stream! {
             /// Attribute parser for
             #[doc=concat!("[`", stringify!($nt), "`].")]
             type Object = $objty;
@@ -459,18 +459,18 @@ macro_rules! ele_parse {
             $(
                 $ntref(
                     (
-                        crate::xir::QName,
-                        crate::xir::OpenSpan,
-                        crate::xir::flat::Depth
+                        $crate::xir::QName,
+                        $crate::xir::OpenSpan,
+                        $crate::xir::flat::Depth
                     ),
                 ),
             )*
 
             ExpectClose_(
                 (
-                    crate::xir::QName,
-                    crate::xir::OpenSpan,
-                    crate::xir::flat::Depth
+                    $crate::xir::QName,
+                    $crate::xir::OpenSpan,
+                    $crate::xir::flat::Depth
                 ),
             ),
         }
@@ -479,20 +479,20 @@ macro_rules! ele_parse {
         ///
         #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
         #[derive(Debug, PartialEq, Eq, Default)]
-        $vis struct $nt(crate::xir::parse::NtState<$nt>);
+        $vis struct $nt($crate::xir::parse::NtState<$nt>);
 
         impl $nt {
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self {
-                Self(crate::xir::parse::NtState::NonPreemptableExpecting)
+                Self($crate::xir::parse::NtState::NonPreemptableExpecting)
             }
 
             /// Whether the given QName would be matched by any of the
             ///   parsers associated with this type.
             #[inline]
-            fn matches(qname: crate::xir::QName) -> bool {
-                <Self as crate::xir::parse::Nt>::matcher().matches(qname)
+            fn matches(qname: $crate::xir::QName) -> bool {
+                <Self as $crate::xir::parse::Nt>::matcher().matches(qname)
             }
 
             /// Number of
@@ -521,7 +521,7 @@ macro_rules! ele_parse {
                 i: &mut usize,
                 f: &mut std::fmt::Formatter
             ) -> std::fmt::Result {
-                use crate::{
+                use $crate::{
                     fmt::ListDisplayWrapper,
                     xir::{fmt::EleSumList, parse::Nt},
                 };
@@ -550,7 +550,7 @@ macro_rules! ele_parse {
             #[allow(dead_code)] // used only when there are child NTs
             /// Whether the current state represents the last child NT.
             fn is_last_nt(&self) -> bool {
-                use crate::xir::parse::NtState::*;
+                use $crate::xir::parse::NtState::*;
 
                 let Self(st) = self;
 
@@ -572,13 +572,13 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::xir::parse::Nt for $nt {
+        impl $crate::xir::parse::Nt for $nt {
             type AttrState = [<$nt AttrState_>];
             type ChildNt = [<$nt ChildNt_>];
 
             #[inline]
-            fn matcher() -> crate::xir::parse::NodeMatcher {
-                crate::xir::parse::NodeMatcher::from($qname)
+            fn matcher() -> $crate::xir::parse::NodeMatcher {
+                $crate::xir::parse::NodeMatcher::from($qname)
             }
         }
 
@@ -590,13 +590,13 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::parse::ParseState for $nt {
-            type Token = crate::xir::flat::XirfToken<
-                crate::xir::flat::RefinedText
+        impl $crate::parse::ParseState for $nt {
+            type Token = $crate::xir::flat::XirfToken<
+                $crate::xir::flat::RefinedText
             >;
             type Object = $objty;
-            type Error = crate::xir::parse::NtError<$nt>;
-            type Context = crate::xir::parse::SuperStateContext<Self::Super>;
+            type Error = $crate::xir::parse::NtError<$nt>;
+            type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = $super;
 
             fn parse_token(
@@ -604,8 +604,8 @@ macro_rules! ele_parse {
                 tok: Self::Token,
                 #[allow(unused_variables)] // used only if child NTs
                 stack: &mut Self::Context,
-            ) -> crate::parse::TransitionResult<Self::Super> {
-                use crate::{
+            ) -> $crate::parse::TransitionResult<Self::Super> {
+                use $crate::{
                     parse::{Transition, Transitionable},
                     xir::{
                         EleSpan,
@@ -710,7 +710,7 @@ macro_rules! ele_parse {
                     (Attrs(meta, sa), tok) => {
                         sa.delegate::<Self, _>(
                             tok,
-                            crate::parse::EmptyContext,
+                            $crate::parse::EmptyContext,
                             |sa| Transition(Self(Attrs(meta, sa))),
                             || Transition(Self(Jmp($ntfirst(meta)))),
                         )
@@ -823,7 +823,7 @@ macro_rules! ele_parse {
                         Jmp([<$nt ChildNt_>]::ExpectClose_(meta @ (qname, otspan, _))),
                         unexpected_tok
                     ) => {
-                        use crate::parse::Token;
+                        use $crate::parse::Token;
                         Transition(Self(
                             CloseRecoverIgnore(meta, unexpected_tok.span())
                         )).err(
@@ -855,7 +855,7 @@ macro_rules! ele_parse {
             }
 
             fn is_accepting(&self, _: &Self::Context) -> bool {
-                use crate::xir::parse::NtState::*;
+                use $crate::xir::parse::NtState::*;
                 matches!(*self, Self(Closed(..) | RecoverEleIgnoreClosed(..)))
             }
         }
@@ -872,11 +872,11 @@ macro_rules! ele_parse {
             "."
         )]
         #[derive(Debug, PartialEq, Eq, Default)]
-        $vis struct $nt(crate::xir::parse::SumNtState<$nt>);
+        $vis struct $nt($crate::xir::parse::SumNtState<$nt>);
 
         impl $nt {
             fn non_preemptable() -> Self {
-                Self(crate::xir::parse::SumNtState::NonPreemptableExpecting)
+                Self($crate::xir::parse::SumNtState::NonPreemptableExpecting)
             }
 
             // Whether the given QName would be matched by any of the
@@ -894,7 +894,7 @@ macro_rules! ele_parse {
             //     constant.
             // Let a profiler and disassembly guide you.
             #[allow(dead_code)] // used by superstate
-            fn matches(qname: crate::xir::QName) -> bool {
+            fn matches(qname: $crate::xir::QName) -> bool {
                 // If we used an array or a trait,
                 //   then we'd need everything to be a similar type;
                 //     this allows for _any_ type provided that it expands
@@ -953,7 +953,7 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::xir::parse::SumNt for $nt {
+        impl $crate::xir::parse::SumNt for $nt {
             /// Begin formatting using [`Self::fmt_matches`].
             ///
             /// This provides the initial values for the function.
@@ -970,21 +970,21 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::parse::ParseState for $nt {
-            type Token = crate::xir::flat::XirfToken<
-                crate::xir::flat::RefinedText
+        impl $crate::parse::ParseState for $nt {
+            type Token = $crate::xir::flat::XirfToken<
+                $crate::xir::flat::RefinedText
             >;
             type Object = $objty;
-            type Error = crate::xir::parse::SumNtError<$nt>;
-            type Context = crate::xir::parse::SuperStateContext<Self::Super>;
+            type Error = $crate::xir::parse::SumNtError<$nt>;
+            type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = $super;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
                 stack: &mut Self::Context,
-            ) -> crate::parse::TransitionResult<Self::Super> {
-                use crate::{
+            ) -> $crate::parse::TransitionResult<Self::Super> {
+                use $crate::{
                     parse::Transition,
                     xir::{
                         flat::XirfToken,
@@ -1089,7 +1089,7 @@ macro_rules! ele_parse {
             }
 
             fn is_accepting(&self, _: &Self::Context) -> bool {
-                use crate::xir::parse::SumNtState;
+                use $crate::xir::parse::SumNtState;
                 matches!(self, Self(SumNtState::Expecting))
             }
         }
@@ -1195,15 +1195,15 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq)]
         $vis enum [<$super Error_>] {
             $(
-                $nt(<$nt as crate::parse::ParseState>::Error),
+                $nt(<$nt as $crate::parse::ParseState>::Error),
             )*
         }
 
         $(
-            impl From<<$nt as crate::parse::ParseState>::Error>
+            impl From<<$nt as $crate::parse::ParseState>::Error>
                 for [<$super Error_>]
             {
-                fn from(e: <$nt as crate::parse::ParseState>::Error) -> Self {
+                fn from(e: <$nt as $crate::parse::ParseState>::Error) -> Self {
                     [<$super Error_>]::$nt(e)
                 }
             }
@@ -1226,8 +1226,8 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::diagnose::Diagnostic for [<$super Error_>] {
-            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        impl $crate::diagnose::Diagnostic for [<$super Error_>] {
+            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan> {
                 match self {
                     $(
                         Self::$nt(e) => e.describe(),
@@ -1236,27 +1236,27 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::parse::ParseState for $super {
-            type Token = crate::xir::flat::XirfToken<
-                crate::xir::flat::RefinedText
+        impl $crate::parse::ParseState for $super {
+            type Token = $crate::xir::flat::XirfToken<
+                $crate::xir::flat::RefinedText
             >;
             type Object = $objty;
             type Error = [<$super Error_>];
-            type Context = crate::xir::parse::SuperStateContext<Self>;
+            type Context = $crate::xir::parse::SuperStateContext<Self>;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
                 stack: &mut Self::Context,
-            ) -> crate::parse::TransitionResult<Self> {
-                use crate::{
+            ) -> $crate::parse::TransitionResult<Self> {
+                use $crate::{
                     parse::Transition,
                     xir::flat::{XirfToken, RefinedText},
                 };
 
                 // Used only by _some_ expansions.
                 #[allow(unused_imports)]
-                use crate::xir::flat::Text;
+                use $crate::xir::flat::Text;
 
                 match (self, tok) {
                     // [super] {
@@ -1365,9 +1365,9 @@ macro_rules! ele_parse {
             /// [`ParseState`]: crate::parse::ParseState
             fn is_inner_accepting(
                 &self,
-                ctx: &<Self as crate::parse::ParseState>::Context
+                ctx: &<Self as $crate::parse::ParseState>::Context
             ) -> bool {
-                use crate::parse::ParseState;
+                use $crate::parse::ParseState;
 
                 match self {
                     $(
@@ -1410,7 +1410,7 @@ macro_rules! ele_parse {
             }
         }
 
-        impl crate::xir::parse::SuperState for $super {}
+        impl $crate::xir::parse::SuperState for $super {}
     }};
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {

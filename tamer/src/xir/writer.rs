@@ -103,10 +103,10 @@ impl Default for WriterState {
 impl WriterState {
     #[inline]
     fn close_tag_if_open<W: Write>(&self, sink: &mut W) -> Result<()> {
-        Ok(match *self {
-            Self::NodeOpen => sink.write_all(b">")?,
-            _ => (),
-        })
+        match *self {
+            Self::NodeOpen => Ok(sink.write_all(b">")?),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -150,7 +150,7 @@ where
     /// This is intended primarily for testing;
     ///   it is recommended that you use [`write`](XmlWriter::write) instead,
     ///     unless you _really_ need a new owned `Vec<u8>`.
-    #[must_use]
+    #[cfg(test)]
     fn write_new(
         self,
         prev_state: WriterState,

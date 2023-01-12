@@ -125,6 +125,11 @@ pub trait SymbolIndexSize:
 
     /// Construct a new non-zero value from the provided primitive value
     ///   without checking whether the value is non-zero.
+    ///
+    /// Safety
+    /// ======
+    /// This method must only be used in a context where a non-zero check
+    ///   has already been performed.
     unsafe fn new_unchecked(n: Self) -> Self::NonZero;
 
     /// Convert primitive value into a [`usize`].
@@ -253,6 +258,7 @@ pub trait GlobalSymbolResolve {
     ///   when an index lookup fails;
     ///     [`Option`] would have been used,
     ///       but [`Result`] is idiomatic with `try_*` functions.
+    #[allow(clippy::result_unit_err)]
     fn try_lookup_str(&self) -> Result<&'static str, ()>;
 }
 
@@ -295,7 +301,7 @@ impl<Ix: SymbolIndexSize> Debug for SymbolId<Ix> {
             f,
             "SymbolId({} \"{}\")",
             self.0.into(),
-            self.try_lookup_str().unwrap_or(&"<#!UNKNOWN_SYMBOL>")
+            self.try_lookup_str().unwrap_or("<#!UNKNOWN_SYMBOL>")
         )
     }
 }

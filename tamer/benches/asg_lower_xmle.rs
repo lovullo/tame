@@ -30,7 +30,7 @@ pub(crate) use tamer::{
     num::Dtype,
     parse::util::SPair,
     span::UNKNOWN_SPAN,
-    sym::{GlobalSymbolIntern, SymbolId},
+    sym::GlobalSymbolIntern,
 };
 
 type TestAsg = DefaultAsg;

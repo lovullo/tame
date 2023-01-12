@@ -492,7 +492,7 @@ where
                     }
 
                     // Final closing tag (for root node) completes the document.
-                    (..) if stack.len() == 0 => Transition(Done).ok(
+                    (..) if stack.is_empty() => Transition(Done).ok(
                         XirfToken::Close(close_oqname, close_span, Depth(0)),
                     ),
 

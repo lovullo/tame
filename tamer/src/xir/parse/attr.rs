@@ -107,8 +107,8 @@ macro_rules! attr_parse_stream {
         // TODO: This can be extracted out of the macro.
         #[derive(Debug, PartialEq, Eq)]
         $vis enum $state_name {
-            Parsing(crate::xir::QName, crate::xir::OpenSpan),
-            Done(crate::xir::QName, crate::xir::OpenSpan),
+            Parsing($crate::xir::QName, $crate::xir::OpenSpan),
+            Done($crate::xir::QName, $crate::xir::OpenSpan),
         }
 
         /// Intermediate state of parser as fields are aggregated.
@@ -118,24 +118,24 @@ macro_rules! attr_parse_stream {
         #[derive(Debug, PartialEq, Eq, Default)]
         $vis struct [<$state_name Fields>];
 
-        impl crate::xir::parse::AttrParseState for $state_name {
+        impl $crate::xir::parse::AttrParseState for $state_name {
             type ValueError = $evty;
             type Fields = [<$state_name Fields>];
 
             fn with_element(
-                ele: crate::xir::QName,
-                span: crate::xir::OpenSpan
+                ele: $crate::xir::QName,
+                span: $crate::xir::OpenSpan
             ) -> Self {
                 Self::Parsing(ele, span)
             }
 
-            fn element_name(&self) -> crate::xir::QName {
+            fn element_name(&self) -> $crate::xir::QName {
                 match self {
                     Self::Parsing(qname, _) | Self::Done(qname, _) => *qname,
                 }
             }
 
-            fn element_span(&self) -> crate::xir::OpenSpan {
+            fn element_span(&self) -> $crate::xir::OpenSpan {
                 match self {
                     Self::Parsing(_, span) | Self::Done(_, span) => *span,
                 }
@@ -148,8 +148,8 @@ macro_rules! attr_parse_stream {
             ///
             /// [`ParseError`]: crate::parse::ParseError
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                use crate::fmt::{DisplayWrapper, TtQuote};
-                use crate::xir::parse::AttrParseState;
+                use $crate::fmt::{DisplayWrapper, TtQuote};
+                use $crate::xir::parse::AttrParseState;
 
                 write!(
                     f,
@@ -159,26 +159,26 @@ macro_rules! attr_parse_stream {
             }
         }
 
-        impl crate::parse::ParseState for $state_name {
-            type Token = crate::xir::flat::XirfToken<
-                crate::xir::flat::RefinedText
+        impl $crate::parse::ParseState for $state_name {
+            type Token = $crate::xir::flat::XirfToken<
+                $crate::xir::flat::RefinedText
             >;
             type Object = $objty;
-            type Error = crate::xir::parse::AttrParseError<Self>;
+            type Error = $crate::xir::parse::AttrParseError<Self>;
 
             fn parse_token(
                 #[allow(unused_mut)]
                 mut self,
                 tok: Self::Token,
                 _ctx: &mut Self::Context,
-            ) -> crate::parse::TransitionResult<Self> {
-                use crate::parse::Transition;
-                use crate::xir::{
+            ) -> $crate::parse::TransitionResult<Self> {
+                use $crate::parse::Transition;
+                use $crate::xir::{
                     flat,
                     parse::{AttrParseError, AttrParseState}
                 };
                 #[allow(unused_imports)] // unused if no attrs
-                use crate::{
+                use $crate::{
                     parse::{Transitionable, ParseStatus, util::SPair},
                     xir::attr::{Attr, AttrSpan}
                 };

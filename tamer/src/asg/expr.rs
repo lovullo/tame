@@ -52,9 +52,9 @@ impl Functor<Span> for Expr {
     }
 }
 
-impl Into<Span> for &Expr {
-    fn into(self) -> Span {
-        self.span()
+impl From<&Expr> for Span {
+    fn from(val: &Expr) -> Self {
+        val.span()
     }
 }
 

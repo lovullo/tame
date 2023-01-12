@@ -69,8 +69,8 @@ where
     /// Panics
     /// ======
     /// Causes a panic on failure.
-    fn expect_from(value: T, msg: &str) -> T {
-        T::try_from(value).diagnostic_expect(vec![], msg)
+    fn expect_from(value: T, msg: &str) -> Self {
+        Self::try_from(value).diagnostic_expect(vec![], msg)
     }
 
     /// Attempt to convert and unwrap `value` using `T::try_from`.
@@ -78,8 +78,8 @@ where
     /// Panics
     /// ======
     /// Causes a panic on failure.
-    fn unwrap_from(value: T) -> T {
-        T::try_from(value).diagnostic_unwrap(vec![])
+    fn unwrap_from(value: T) -> Self {
+        Self::try_from(value).diagnostic_unwrap(vec![])
     }
 }
 

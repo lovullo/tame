@@ -290,7 +290,7 @@ impl Display for SourceLine {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let text = &self.text;
 
-        let disp = if text.chars().last() == Some('\n') {
+        let disp = if text.ends_with('\n') {
             &text[0..text.len() - 1]
         } else {
             &text[..]
@@ -491,7 +491,7 @@ impl LineBytes {
 
     fn as_str(&self) -> Result<&str, Utf8Error> {
         match self {
-            Self::Eof => Ok(&""),
+            Self::Eof => Ok(""),
             Self::WithNewline(buf)
             | Self::WithoutNewline(buf)
             | Self::WithEof(buf) => std::str::from_utf8(buf),
@@ -565,10 +565,7 @@ impl Line {
 
     /// Line buffer as a UTF-8 slice.
     fn line_as_str(&self) -> Result<&str, Utf8Error> {
-        self.bytes
-            .as_ref()
-            .map(LineBytes::as_str)
-            .unwrap_or(Ok(&""))
+        self.bytes.as_ref().map(LineBytes::as_str).unwrap_or(Ok(""))
     }
 
     /// Produce formatted output for a line containing invalid UTF-8 data.
@@ -691,8 +688,8 @@ impl Line {
         //     we know specifically what use cases we'll be optimizing for.
         let (start, end) = widths.fold((1, 0), |(start, end), (i, width)| {
             (
-                (i < rel_start).then(|| start + width).unwrap_or(start),
-                (i <= rel_end).then(|| end + width).unwrap_or(end),
+                (i < rel_start).then_some(start + width).unwrap_or(start),
+                (i <= rel_end).then_some(end + width).unwrap_or(end),
             )
         });
 

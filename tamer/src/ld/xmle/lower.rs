@@ -88,7 +88,7 @@ where
     Ok(dest)
 }
 
-fn get_ident<'a, S>(depgraph: &'a Asg, name: S) -> &'a Ident
+fn get_ident<S>(depgraph: &Asg, name: S) -> &Ident
 where
     S: Into<SymbolId>,
 {
@@ -97,10 +97,9 @@ where
     depgraph
         .lookup(sym)
         .and_then(|id| depgraph.get(id))
-        .expect(&format!(
-            "missing internal identifier: {}",
-            sym.lookup_str()
-        ))
+        .unwrap_or_else(|| {
+            panic!("missing internal identifier: {}", sym.lookup_str())
+        })
 }
 
 /// Check graph for cycles
@@ -235,7 +234,7 @@ impl Diagnostic for SortError {
             //   error per cycle.
             Cycles(cycles) => cycles
                 .iter()
-                .map(|cycle| {
+                .flat_map(|cycle| {
                     let n = cycle.len();
                     let ident = cycle.last().unwrap();
 
@@ -273,7 +272,6 @@ impl Diagnostic for SortError {
                         ])
                         .collect::<Vec<_>>()
                 })
-                .flatten()
                 .collect(),
         }
     }

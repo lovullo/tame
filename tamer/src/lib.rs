@@ -80,6 +80,69 @@
 #![allow(rustdoc::private_intra_doc_links)]
 // For sym::prefill recursive macro `static_symbols!`.
 #![recursion_limit = "512"]
+//
+// Clippy Lints
+// ============
+// This section contains rationale for deviating from standard lints.
+// This reasoning applies to TAMER and may not be appropriate for other
+//   projects,
+//     or even other teams.
+//
+// These are presented in no particular order,
+//   but if you do rearrange them,
+//   be mindful of the comments that may reference preceding lints.
+//
+// Choosing not to inline format args sometimes adds to the clarity of the
+//   format string by emphasizing structure more concisely.
+// Use your judgment.
+#![allow(clippy::uninlined_format_args)]
+// The rationale for this lint is that it may catch accidental semicolons,
+//   but the type system is plenty sufficient to catch unit types that were
+//   unintended.
+#![allow(clippy::unit_arg)]
+// Use your judgment;
+//   a `match` may be more clear within a given context.
+// Or may simply be personal preference.
+#![allow(clippy::single_match)]
+// Same rationale as the previous,
+//   but additionally this clearly scopes pattern bindings to an inner
+//   block,
+//     which is not the case with a sibling `let` binding.
+// This pattern was originally taken from `rustc` itself.
+#![allow(clippy::match_single_binding)]
+// This lint also seems to apply when dereferencing a double reference,
+//   for which the use of `cloned` would be far more confusing.
+#![allow(clippy::map_clone)]
+// Perhaps `is_empty` does not make sense for that particular trait/impl?
+// We don't need a linter to guide these abstractions;
+//   an `is-empty` method will be added if it is needed and actually
+//   utilized.
+#![allow(clippy::len_without_is_empty)]
+// This is another case of a linter trying to guide abstractions.
+// `Default` will be implemented if it both makes sense and is needed,
+//   not needlessly,
+//   as TAMER is not a library and its uses are statically known.
+// Furthermore,
+//   `Default` is sometimes explicitly omitted to disallow automatic
+//   construction in various contexts.
+#![allow(clippy::new_without_default)]
+// When surrounding code uses `write!`,
+//   switching to `writeln!` for the last line adds an inconsistency that
+//   can make the code less clear,
+//     or possibly even introduce bugs by having the reader miss the change
+//     in pattern.
+// `writeln!` also gives the impression that it's writing a line,
+//   when in actuality it may simply be appending to a partially-written
+//   line,
+//     making it feel like an inappropriate abstraction.
+// Choose the abstraction that's most appropriate within a given context.
+#![allow(clippy::write_with_newline)]
+// Calling this "obfuscation" is hyperbole.
+// Furthermore,
+//   `if` statements are expanded by `rustfmt` into something with a
+//   significantly larger footprint than this form,
+//     so this lint does _not_ suggest a suitable replacement.
+#![allow(clippy::obfuscated_if_else)]
 
 pub mod global;
 

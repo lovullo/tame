@@ -227,21 +227,20 @@ pub enum Tree {
     _NonExhaustive,
 }
 
-impl Into<Option<Element>> for Tree {
-    #[inline]
-    fn into(self) -> Option<Element> {
-        match self {
-            Self::Element(ele) => Some(ele),
+impl From<Tree> for Option<Element> {
+    fn from(val: Tree) -> Self {
+        match val {
+            Tree::Element(ele) => Some(ele),
             _ => None,
         }
     }
 }
 
-impl Into<Option<SymbolId>> for Tree {
+impl From<Tree> for Option<SymbolId> {
     #[inline]
-    fn into(self) -> Option<SymbolId> {
-        match self {
-            Self::Text(text, _) => Some(text),
+    fn from(val: Tree) -> Self {
+        match val {
+            Tree::Text(text, _) => Some(text),
             _ => None,
         }
     }
@@ -251,7 +250,7 @@ impl Tree {
     /// Yield a reference to the inner value if it is an [`Element`],
     ///   otherwise [`None`].
     #[inline]
-    pub fn as_element<'a>(&'a self) -> Option<&'a Element> {
+    pub fn as_element(&self) -> Option<&Element> {
         match self {
             Self::Element(ele) => Some(ele),
             _ => None,
@@ -806,7 +805,7 @@ pub fn parser_from(
 ///   and the parser in general,
 ///   see the [module-level documentation](self).
 #[inline]
-pub fn attr_parser_from<'a>(
+pub fn attr_parser_from(
     toks: impl TokenStream,
 ) -> impl Iterator<Item = result::Result<Attr, ParseError<XirToken, StackError>>>
 {

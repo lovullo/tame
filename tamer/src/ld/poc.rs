@@ -58,7 +58,7 @@ use std::{
     fmt::{self, Display},
     fs,
     io::{self, BufReader, BufWriter, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 type LinkerAsg = DefaultAsg;
@@ -146,7 +146,7 @@ pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
     Ok(())
 }
 
-fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
+fn load_xmlo<P: AsRef<Path>, S: Escaper>(
     path_str: P,
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
     asg: Asg,
@@ -201,15 +201,14 @@ fn load_xmlo<'a, P: AsRef<Path>, S: Escaper>(
         })
     })?;
 
-    let mut dir: PathBuf = path.clone();
+    let mut dir = path;
     dir.pop();
 
     let found = state.found.take().unwrap_or_default();
 
     for relpath in found.iter() {
         let mut path_buf = dir.clone();
-        let str: &str = &relpath.lookup_str();
-        path_buf.push(str);
+        path_buf.push(relpath.lookup_str());
         path_buf.set_extension("xmlo");
 
         (asg, state) = load_xmlo(path_buf, fs, asg, escaper, state)?;

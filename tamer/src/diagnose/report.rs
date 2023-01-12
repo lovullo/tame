@@ -149,10 +149,10 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 ///     allocation for a span that was just processed and whose section will
 ///     be squashed anyway
 ///       (see [`Section::maybe_squash_into`]).
-fn describe_resolved<'d, D, F>(
+fn describe_resolved<D, F>(
     mut resolve: F,
-    diagnostic: &'d D,
-) -> impl Iterator<Item = MaybeResolvedSpan<'d, ResolvedSpan>>
+    diagnostic: &D,
+) -> impl Iterator<Item = MaybeResolvedSpan<ResolvedSpan>>
 where
     D: Diagnostic,
     F: FnMut(Span) -> Result<ResolvedSpan, SpanResolverError>,
@@ -387,7 +387,7 @@ struct Section<'d> {
     line_max: NonZeroU32,
 }
 
-impl<'s, 'd> Section<'d> {
+impl<'d> Section<'d> {
     /// Create a new section from a resolved span.
     fn new_resolved<S: ResolvedSpanData>(
         rspan: S,
@@ -552,9 +552,8 @@ impl<'s, 'd> Section<'d> {
         // Padding is added conservatively during generation,
         //   which may lead to adjacent padding for multi-line spans.
         // That padding can be merged into a single line.
-        self.body.dedup_by(|a, b| match (a, b) {
-            (SourceLinePadding, SourceLinePadding) => true,
-            _ => false,
+        self.body.dedup_by(|a, b| {
+            matches!((a, b), (SourceLinePadding, SourceLinePadding),)
         });
 
         // Padding at the very end of the section is not desirable since the
@@ -565,7 +564,7 @@ impl<'s, 'd> Section<'d> {
     }
 }
 
-impl<'d, 'a, S> From<MaybeResolvedSpan<'d, S>> for Section<'d>
+impl<'d, S> From<MaybeResolvedSpan<'d, S>> for Section<'d>
 where
     S: ResolvedSpanData,
 {
@@ -692,7 +691,7 @@ enum HeadingColNum {
 impl Display for HeadingColNum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Resolved(col) => write!(f, ":{}", col),
+            Self::Resolved(col) => write!(f, ":{col}"),
 
             // The column is unavailable,
             //   which means that the line must have contained invalid UTF-8.

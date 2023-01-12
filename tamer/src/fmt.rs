@@ -225,7 +225,7 @@ pub trait ListDisplayWrapper {
 
         // This can be further abstracted away using the above primitives,
         //   if ever we have a use.
-        for next in list.into_iter().enumerate() {
+        for next in list.iter().enumerate() {
             match next {
                 (i, x) => Self::fmt_nth(lasti, i, x, f)?,
             };
