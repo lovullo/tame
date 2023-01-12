@@ -89,6 +89,14 @@ use std::{borrow::Cow, convert::Infallible, error::Error, fmt::Display};
 
 use crate::span::Span;
 
+/// No annotated description is applicable for the diagnostic message.
+///
+/// The system should strive to give the user as much relevant information
+///   as is useful to resolve the problem.
+/// Whether or not the absence of this description represents a deficiency
+///   depends on the error context.
+pub const NO_DESC: Vec<AnnotatedSpan> = vec![];
+
 /// Diagnostic report.
 ///
 /// This describes an error condition or other special event using a series

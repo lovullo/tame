@@ -39,10 +39,13 @@
 //! There may be better options;
 //!   these are most useful in writing tests.
 
-use crate::diagnose::panic::DiagnosticPanic;
+use crate::{
+    diagnose::{panic::DiagnosticPanic, NO_DESC},
+    f::ThunkOrStaticRef,
+};
 use std::{
     convert::{TryFrom, TryInto},
-    fmt::Debug,
+    fmt::{Debug, Display},
 };
 
 /// Safe type conversion that may panic under some circumstances.
@@ -69,8 +72,11 @@ where
     /// Panics
     /// ======
     /// Causes a panic on failure.
-    fn expect_from(value: T, msg: &str) -> Self {
-        Self::try_from(value).diagnostic_expect(vec![], msg)
+    fn expect_from<M: ThunkOrStaticRef<str>>(value: T, msg: M) -> Self
+    where
+        M::Output: Display,
+    {
+        Self::try_from(value).diagnostic_expect(|| NO_DESC, msg)
     }
 
     /// Attempt to convert and unwrap `value` using `T::try_from`.
@@ -79,7 +85,7 @@ where
     /// ======
     /// Causes a panic on failure.
     fn unwrap_from(value: T) -> Self {
-        Self::try_from(value).diagnostic_unwrap(vec![])
+        Self::try_from(value).diagnostic_unwrap(|| NO_DESC)
     }
 }
 
@@ -110,8 +116,11 @@ where
     /// Panics
     /// ======
     /// Causes a panic on failure.
-    fn expect_into(self, msg: &str) -> T {
-        self.try_into().diagnostic_expect(vec![], msg)
+    fn expect_into<M: ThunkOrStaticRef<str>>(self, msg: M) -> T
+    where
+        M::Output: Display,
+    {
+        self.try_into().diagnostic_expect(|| NO_DESC, msg)
     }
 
     /// Attempt to convert and unwrap a value using `self.try_into()`.
@@ -120,7 +129,7 @@ where
     /// ======
     /// Causes a panic on failure.
     fn unwrap_into(self) -> T {
-        self.try_into().diagnostic_unwrap(vec![])
+        self.try_into().diagnostic_unwrap(|| NO_DESC)
     }
 }
 

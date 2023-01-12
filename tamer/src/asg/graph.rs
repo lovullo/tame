@@ -443,7 +443,7 @@ impl Asg {
     ) -> ObjectIndex<O> {
         let obj_container =
             self.graph.node_weight_mut(index.into()).diagnostic_expect(
-                diagnostic_node_missing_desc(index),
+                || diagnostic_node_missing_desc(index),
                 "invalid ObjectIndex: data are missing from the ASG",
             );
 
@@ -527,11 +527,13 @@ impl Asg {
         ident: SPair,
     ) -> ObjectIndex<O> {
         self.get_ident_oi(ident).diagnostic_expect(
-            diagnostic_opaque_ident_desc(ident),
-            &format!(
-                "opaque identifier: {} has no object binding",
-                TtQuote::wrap(ident),
-            ),
+            || diagnostic_opaque_ident_desc(ident),
+            || {
+                format!(
+                    "opaque identifier: {} has no object binding",
+                    TtQuote::wrap(ident),
+                )
+            },
         )
     }
 
@@ -560,7 +562,7 @@ impl Asg {
     pub(super) fn expect_obj<O: ObjectKind>(&self, oi: ObjectIndex<O>) -> &O {
         let obj_container =
             self.graph.node_weight(oi.into()).diagnostic_expect(
-                diagnostic_node_missing_desc(oi),
+                || diagnostic_node_missing_desc(oi),
                 "invalid ObjectIndex: data are missing from the ASG",
             );
 
@@ -585,11 +587,13 @@ impl Asg {
     ///        graph).
     pub fn expect_ident_obj<O: ObjectKind>(&self, ident: SPair) -> &O {
         self.get_ident_obj(ident).diagnostic_expect(
-            diagnostic_opaque_ident_desc(ident),
-            &format!(
-                "opaque identifier: {} has no object binding",
-                TtQuote::wrap(ident),
-            ),
+            || diagnostic_opaque_ident_desc(ident),
+            || {
+                format!(
+                    "opaque identifier: {} has no object binding",
+                    TtQuote::wrap(ident),
+                )
+            },
         )
     }
 

@@ -461,10 +461,7 @@ impl ObjectContainer {
     pub fn get<O: ObjectKind>(&self) -> &O {
         let Self(container) = self;
 
-        container
-            .as_ref()
-            .diagnostic_unwrap(container_oops())
-            .into()
+        container.as_ref().diagnostic_unwrap(container_oops).into()
     }
 
     /// Attempt to modify the inner [`Object`],
@@ -483,7 +480,7 @@ impl ObjectContainer {
     ) -> Result<(), E> {
         let ObjectContainer(container) = self;
 
-        let obj = container.take().diagnostic_unwrap(container_oops()).into();
+        let obj = container.take().diagnostic_unwrap(container_oops).into();
 
         // NB: We must return the object to the container in all code paths!
         let result = f(obj)

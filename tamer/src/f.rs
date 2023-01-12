@@ -125,3 +125,50 @@ impl<T, U> Functor<T, U> for Option<T> {
         Option::map(self, f)
     }
 }
+
+/// A nullary [`Fn`] delaying some computation.
+///
+/// For the history and usage of this term in computing,
+///   see <https://en.wikipedia.org/wiki/Thunk>.
+pub trait Thunk<T> = Fn() -> T;
+
+/// Data represented either as a reference with a `'static` lifetime
+///   (representing a computation already having been performed),
+///   or a [`Thunk`] that will produce similar data when invoked.
+///
+/// The purpose of this trait is to force an API to defer potentially
+///   expensive computations in situations where it may be too easy to
+///   accidentally do too much work due to Rust's eager argument evaluation
+///   strategy
+///     (e.g. see Clippy's `expect_fun_call` lint).
+///
+/// This is sort of like a static [`std::borrow::Cow`],
+///   in the sense that it can hold a reference or owned value;
+///     a thunk can return a value of any type or lifetime
+///       (including owned),
+///       whereas non-thunks require static references.
+/// _The burden is on the trait implementation to enforce these
+///   constraints._
+pub trait ThunkOrStaticRef<T: ?Sized> {
+    type Output: AsRef<T>;
+
+    /// Force the [`Thunk`] or return the static reference,
+    ///   depending on the type of [`Self`].
+    fn call(self) -> Self::Output;
+}
+
+impl<T: ?Sized, R: AsRef<T>, F: Fn() -> R> ThunkOrStaticRef<T> for F {
+    type Output = R;
+
+    fn call(self) -> R {
+        self()
+    }
+}
+
+impl ThunkOrStaticRef<str> for &'static str {
+    type Output = &'static str;
+
+    fn call(self) -> &'static str {
+        self
+    }
+}

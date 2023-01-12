@@ -57,6 +57,7 @@ use std::{
 // Macro exports are unintuitive.
 #[cfg(doc)]
 use crate::diagnostic_panic;
+use crate::f::ThunkOrStaticRef;
 
 /// The type of [`Reporter`](crate::diagnose::Reporter) used to produce
 ///   reports during panic operations.
@@ -211,7 +212,10 @@ pub trait DiagnosticPanic {
     /// Panics if the inner value is not available.
     /// For a custom message,
     ///   use [`DiagnosticPanic::diagnostic_expect`].
-    fn diagnostic_unwrap(self, desc: Vec<AnnotatedSpan>) -> Self::Inner;
+    fn diagnostic_unwrap<'a>(
+        self,
+        fdesc: impl FnOnce() -> Vec<AnnotatedSpan<'a>>,
+    ) -> Self::Inner;
 
     /// Attempt to return the inner value,
     ///   consuming `self`.
@@ -220,37 +224,50 @@ pub trait DiagnosticPanic {
     ///   producing diagnostic information in the event of a failure.
     /// See [`diagnostic_panic!`] for more information.
     ///
+    /// Unlike Rust's `expect`,
+    ///   this uses [`ThunkOrStaticRef`] to force deferring of any
+    ///   message-related computation to avoid situations like those in
+    ///     Clippy's `expect_fun_call` lint.
+    ///
     /// # Panics
     /// Panics if the inner value is not available with a custom `msg`.
-    fn diagnostic_expect(
+    fn diagnostic_expect<'a, M: ThunkOrStaticRef<str>>(
         self,
-        desc: Vec<AnnotatedSpan>,
-        msg: &str,
-    ) -> Self::Inner;
+        fdesc: impl FnOnce() -> Vec<AnnotatedSpan<'a>>,
+        msg: M,
+    ) -> Self::Inner
+    where
+        M::Output: Display;
 }
 
 impl<T> DiagnosticPanic for Option<T> {
     type Inner = T;
 
-    fn diagnostic_unwrap(self, desc: Vec<AnnotatedSpan>) -> Self::Inner {
+    fn diagnostic_unwrap<'a>(
+        self,
+        fdesc: impl FnOnce() -> Vec<AnnotatedSpan<'a>>,
+    ) -> Self::Inner {
         match self {
             Some(val) => val,
             // Same message as `Option::unwrap`
             None => diagnostic_panic!(
-                desc,
+                fdesc(),
                 "called `Option::unwrap()` on a `None` value"
             ),
         }
     }
 
-    fn diagnostic_expect(
+    fn diagnostic_expect<'a, M: ThunkOrStaticRef<str>>(
         self,
-        desc: Vec<AnnotatedSpan>,
-        msg: &str,
-    ) -> Self::Inner {
+        fdesc: impl FnOnce() -> Vec<AnnotatedSpan<'a>>,
+        msg: M,
+    ) -> Self::Inner
+    where
+        M::Output: Display,
+    {
         match self {
             Some(val) => val,
-            None => diagnostic_panic!(desc, "{}", msg),
+            None => diagnostic_panic!(fdesc(), "{}", msg.call()),
         }
     }
 }
@@ -261,25 +278,31 @@ where
 {
     type Inner = T;
 
-    fn diagnostic_unwrap(self, desc: Vec<AnnotatedSpan>) -> Self::Inner {
+    fn diagnostic_unwrap<'a>(
+        self,
+        fdesc: impl FnOnce() -> Vec<AnnotatedSpan<'a>>,
+    ) -> Self::Inner {
         match self {
             Ok(val) => val,
             // Same message as `Result::unwrap`
             Err(e) => diagnostic_panic!(
-                desc,
+                fdesc(),
                 "called `Result::unwrap()` on an `Err` value: {e:?}"
             ),
         }
     }
 
-    fn diagnostic_expect(
+    fn diagnostic_expect<'a, M: ThunkOrStaticRef<str>>(
         self,
-        desc: Vec<AnnotatedSpan>,
-        msg: &str,
-    ) -> Self::Inner {
+        fdesc: impl FnOnce() -> Vec<AnnotatedSpan<'a>>,
+        msg: M,
+    ) -> Self::Inner
+    where
+        M::Output: Display,
+    {
         match self {
             Ok(val) => val,
-            Err(e) => diagnostic_panic!(desc, "{}: {e:?}", msg),
+            Err(e) => diagnostic_panic!(fdesc(), "{}: {e:?}", msg.call()),
         }
     }
 }
@@ -294,7 +317,7 @@ pub trait DiagnosticOptionPanic<T> {
     fn diagnostic_expect_none<'a>(
         self,
         fdesc: impl FnOnce(T) -> Vec<AnnotatedSpan<'a>>,
-        msg: &str,
+        msg: &'static str,
     );
 }
 
@@ -302,7 +325,7 @@ impl<T> DiagnosticOptionPanic<T> for Option<T> {
     fn diagnostic_expect_none<'a>(
         self,
         fdesc: impl FnOnce(T) -> Vec<AnnotatedSpan<'a>>,
-        msg: &str,
+        msg: &'static str,
     ) {
         match self {
             None => (),

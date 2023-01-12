@@ -467,9 +467,11 @@ impl ParseState for InterpState {
 fn next_delim(s: &str, span: Span, offset: usize) -> Option<(usize, char)> {
     s.get(offset..)
         .diagnostic_expect(
-            span.internal_error("while parsing this specification")
-                .into(),
-            &format!("specification byte offset {offset} is out of bounds"),
+            || {
+                span.internal_error("while parsing this specification")
+                    .into()
+            },
+            || format!("specification byte offset {offset} is out of bounds"),
         )
         .char_indices()
         .find(|(_, ch)| matches!(*ch, '{' | '}'))
