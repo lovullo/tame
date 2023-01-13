@@ -118,7 +118,7 @@ impl<'a> DepListIter<'a> {
         //     TODO: re-order sensibly once we're done.
         self.iter.next().map(|obj| {
             match obj {
-                Ident::Ident(sym, kind, src)
+                Ident::Opaque(sym, kind, src)
                 | Ident::IdentFragment(sym, kind, src, _) => (*sym, kind, src),
                 _ => unreachable!(
                     "identifier should have been filtered out during sorting: {:?}",

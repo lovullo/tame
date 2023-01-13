@@ -34,7 +34,7 @@ fn ident_name() {
 
     assert_eq!(
         spair,
-        Ident::Ident(spair, IdentKind::Meta, Source::default()).name()
+        Ident::Opaque(spair, IdentKind::Meta, Source::default()).name()
     );
 
     assert_eq!(
@@ -63,7 +63,7 @@ fn ident_kind() {
 
     assert_eq!(
         Some(&kind),
-        Ident::Ident(name, kind.clone(), Source::default()).kind()
+        Ident::Opaque(name, kind.clone(), Source::default()).kind()
     );
 
     assert_eq!(
@@ -95,7 +95,7 @@ fn ident_src() {
 
     assert_eq!(
         Some(&src),
-        Ident::Ident(name, IdentKind::Meta, src.clone()).src()
+        Ident::Opaque(name, IdentKind::Meta, src.clone()).src()
     );
 
     assert_eq!(
@@ -119,7 +119,7 @@ fn ident_fragment() {
 
     assert_eq!(
         None,
-        Ident::Ident(name, IdentKind::Meta, Source::default()).fragment()
+        Ident::Opaque(name, IdentKind::Meta, Source::default()).fragment()
     );
 
     assert_eq!(
@@ -163,7 +163,7 @@ fn ident_resolved() {
         Ident::declare(SPair(sym, S1))
             .resolve(S2, kind.clone(), src.clone())
             .unwrap(),
-        Ident::Ident(SPair(sym, S2), kind.clone(), src.clone()),
+        Ident::Opaque(SPair(sym, S2), kind.clone(), src.clone()),
     );
 }
 
@@ -182,7 +182,7 @@ fn resolved_on_ident() {
             .unwrap()
             .resolved()
             .unwrap(),
-        &Ident::Ident(SPair(sym, S2), kind.clone(), src.clone()),
+        &Ident::Opaque(SPair(sym, S2), kind.clone(), src.clone()),
     );
 }
 
@@ -261,7 +261,7 @@ mod extern_ {
             .extern_(S2, kind.clone(), Source::default())
             .and_then(|o| o.resolve(S3, kind.clone(), src.clone()));
 
-        assert_eq!(Ok(Ident::Ident(SPair(sym, S3), kind, src)), result);
+        assert_eq!(Ok(Ident::Opaque(SPair(sym, S3), kind, src)), result);
     }
 
     // Identifier first, then extern
@@ -281,7 +281,7 @@ mod extern_ {
 
         // Note that we keep the span of the concrete identifier,
         //   despite the extern being encountered later.
-        assert_eq!(Ok(Ident::Ident(SPair(sym, S2), kind, src)), result,);
+        assert_eq!(Ok(Ident::Opaque(SPair(sym, S2), kind, src)), result,);
     }
 
     #[test]
@@ -465,7 +465,7 @@ mod override_ {
         };
 
         assert_eq!(
-            Ok(Ident::Ident(SPair(sym, S3), kind, expected_src)),
+            Ok(Ident::Opaque(SPair(sym, S3), kind, expected_src)),
             result
         );
     }
@@ -504,7 +504,7 @@ mod override_ {
         };
 
         assert_eq!(
-            Ok(Ident::Ident(SPair(sym, S3), kind, expected_src)),
+            Ok(Ident::Opaque(SPair(sym, S3), kind, expected_src)),
             result
         );
     }
@@ -699,7 +699,7 @@ mod override_ {
             // existing fragment, making way for a new fragment to take its
             // place as soon as it is discovered.  (So, back to an
             // Ident::Ident.)
-            Ok(Ident::Ident(SPair(sym, S3), kind, over_src)),
+            Ok(Ident::Opaque(SPair(sym, S3), kind, over_src)),
         );
     }
 

@@ -78,7 +78,7 @@ fn test_writes_deps() -> TestResult {
     let relroot = "relroot-deps".intern();
 
     let objs = [
-        Ident::Ident(
+        Ident::Opaque(
             SPair("cgentest".into(), S1),
             IdentKind::Cgen(Dim::Vector),
             Source {
@@ -89,82 +89,82 @@ fn test_writes_deps() -> TestResult {
                 ..Default::default()
             },
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("classtest".into(), S2),
             IdentKind::Class(Dim::Matrix),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("consttest".into(), S3),
             IdentKind::Const(Dim::Scalar, Dtype::Boolean),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("functest".into(), S4),
             IdentKind::Func(Dim::Matrix, Dtype::Integer),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("gentest".into(), S5),
             IdentKind::Gen(Dim::Matrix, Dtype::Boolean),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("lparamtest".into(), S6),
             IdentKind::Gen(Dim::Matrix, Dtype::Float),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("paramtest".into(), S7),
             IdentKind::Gen(Dim::Scalar, Dtype::Integer),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("ratetest".into(), S8),
             IdentKind::Rate(Dtype::Integer),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("tpltest".into(), S9),
             IdentKind::Tpl,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("typetest".into(), S1),
             IdentKind::Type(Dtype::Integer),
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("mapheadtest".into(), S2),
             IdentKind::MapHead,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("maptest".into(), S3),
             IdentKind::Map,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("maptailtest".into(), S4),
             IdentKind::MapTail,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("retmapheadtest".into(), S5),
             IdentKind::RetMapHead,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("retmaptest".into(), S6),
             IdentKind::RetMap,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("retmaptailtest".into(), S7),
             IdentKind::RetMapTail,
             Default::default(),
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("metatest".into(), S8),
             IdentKind::Meta,
             Source {
@@ -172,7 +172,7 @@ fn test_writes_deps() -> TestResult {
                 ..Default::default()
             },
         ),
-        Ident::Ident(
+        Ident::Opaque(
             SPair("worksheettest".into(), S9),
             IdentKind::Worksheet,
             Default::default(),

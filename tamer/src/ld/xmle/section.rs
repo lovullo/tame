@@ -343,19 +343,19 @@ mod test {
     fn idents_not_needing_fragments() -> PushResult {
         let mut sut = Sut::new();
 
-        let cgen = Ident::Ident(
+        let cgen = Ident::Opaque(
             SPair("cgen".into(), S1),
             IdentKind::Cgen(Dim::Vector),
             Default::default(),
         );
 
-        let gen = Ident::Ident(
+        let gen = Ident::Opaque(
             SPair("gen".into(), S2),
             IdentKind::Gen(Dim::Vector, Dtype::Integer),
             Default::default(),
         );
 
-        let lparam = Ident::Ident(
+        let lparam = Ident::Opaque(
             SPair("lparam".into(), S3),
             IdentKind::Lparam(Dim::Vector, Dtype::Integer),
             Default::default(),

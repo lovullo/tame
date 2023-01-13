@@ -31,6 +31,8 @@ use crate::{
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
 
+use Ident::*;
+
 pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 
 /// Identifier.
@@ -38,14 +40,17 @@ pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 /// These types represent object states:
 ///
 /// ```text
-/// (Missing) -> (Extern) -> ((Ident)) -> ((IdentFragment)).
-///     \                        ^               /
-///      \                      / \             /
-///       `--------------------`   `-----------'
+///      ,--> ((Transparent))
+///     /
+/// (Missing) -> (Extern) -> ((Opaque)) -> ((IdentFragment)).
+///     \                        ^                /
+///      \                      / \              /
+///       `--------------------`   `------------'
 /// ```
 #[derive(Debug, PartialEq, Clone)]
 pub enum Ident {
-    /// An identifier is expected to be defined but is not yet available.
+    /// An identifier is expected to be declared or defined but is not yet
+    ///   available.
     ///
     /// This variant contains the symbol representing the name of the
     ///   expected identifier.
@@ -62,17 +67,23 @@ pub enum Ident {
     ///   where unknown identifiers were referenced.
     Missing(SPair),
 
-    /// A resolved identifier.
+    /// A resolved opaque identifier without a corresponding definition.
     ///
     /// This represents an identifier that has been declared with certain
     ///   type information.
     /// An identifier has a single canonical location represented by the
     ///   [`SPair`]'s [`Span`].
-    Ident(SPair, IdentKind, Source),
-
-    /// An identifier that has not yet been resolved.
     ///
-    /// Externs are upgraded to [`Ident::Ident`] once an identifier of
+    /// Opaque identifiers are used when a definition is either not known,
+    ///   or when the definition is not important.
+    /// These identifiers take the _place_ of an object definition on the
+    ///   graph,
+    ///     much like a declaration in a header file.
+    Opaque(SPair, IdentKind, Source),
+
+    /// An identifier that has not yet been declared or defined.
+    ///
+    /// Externs are upgraded to [`Ident::Opaque`] once an identifier of
     ///   the same name is loaded.
     /// It is an error if the loaded identifier does not have a compatible
     ///   [`IdentKind`].
@@ -84,7 +95,7 @@ pub enum Ident {
     ///   identifier.
     Extern(SPair, IdentKind, Source),
 
-    /// Identifier with associated text.
+    /// Opaque identifier with associated text.
     ///
     /// Code fragments are portions of the target language associated with
     ///   an identifier.
@@ -92,25 +103,47 @@ pub enum Ident {
     ///   [linker][crate::ld] to put them into the correct order for the
     ///   final executable.
     IdentFragment(SPair, IdentKind, Source, FragmentText),
+
+    /// A resolved transparent identifier that has a corresponding
+    ///   definition on the graph.
+    ///
+    /// An identifier is transparent when the system is expected to use the
+    ///   identifier only as a key for locating its associated object,
+    ///     "seeing through" the identifier to reference directly the
+    ///     underlying [`Object`](super::Object).
+    /// This is in contrast to [`Ident::Opaque`],
+    ///   which is only _declared_,
+    ///   and serves _in place of_ its corresponding definition.
+    ///
+    /// Consequently,
+    ///   this representation of an identifier is very light,
+    ///   since dependents are expected to create edges to the
+    ///   [`Object`](super::Object) it references rather than the identifier
+    ///   itself;
+    ///     this is safe since identifiers in TAME are immutable.
+    Transparent(SPair),
 }
 
 impl Display for Ident {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Missing(id) => {
+            Missing(id) => {
                 write!(f, "missing identifier {}", TtQuote::wrap(id))
             }
-            Self::Ident(id, kind, _) => {
+            Opaque(id, kind, _) => {
                 write!(f, "{kind} identifier {}", TtQuote::wrap(id))
             }
-            Self::Extern(id, kind, _) => {
+            Extern(id, kind, _) => {
                 write!(f, "{kind} extern identifier {}", TtQuote::wrap(id))
             }
-            Self::IdentFragment(id, kind, _, _) => write!(
+            IdentFragment(id, kind, _, _) => write!(
                 f,
                 "{kind} identifier {} with compiled fragment",
                 TtQuote::wrap(id)
             ),
+            Transparent(id) => {
+                write!(f, "transparent identifier {}", TtQuote::wrap(id))
+            }
         }
     }
 }
@@ -119,19 +152,21 @@ impl Ident {
     /// Identifier name.
     pub fn name(&self) -> SPair {
         match self {
-            Self::Missing(name)
-            | Self::Ident(name, ..)
-            | Self::Extern(name, ..)
-            | Self::IdentFragment(name, ..) => *name,
+            Missing(name)
+            | Opaque(name, ..)
+            | Extern(name, ..)
+            | IdentFragment(name, ..)
+            | Transparent(name) => *name,
         }
     }
 
     pub fn span(&self) -> Span {
         match self {
-            Self::Missing(SPair(_, span))
-            | Self::Ident(SPair(_, span), ..)
-            | Self::Extern(SPair(_, span), ..)
-            | Self::IdentFragment(SPair(_, span), ..) => *span,
+            Missing(name)
+            | Opaque(name, ..)
+            | Extern(name, ..)
+            | IdentFragment(name, ..)
+            | Transparent(name) => name.span(),
         }
     }
 
@@ -142,11 +177,11 @@ impl Ident {
     ///     [`None`] is returned.
     pub fn kind(&self) -> Option<&IdentKind> {
         match self {
-            Self::Missing(..) => None,
+            Missing(_) | Transparent(_) => None,
 
-            Self::Ident(_, kind, _)
-            | Self::Extern(_, kind, _)
-            | Self::IdentFragment(_, kind, _, _) => Some(kind),
+            Opaque(_, kind, _)
+            | Extern(_, kind, _)
+            | IdentFragment(_, kind, _, _) => Some(kind),
         }
     }
 
@@ -157,11 +192,9 @@ impl Ident {
     ///     [`None`] is returned.
     pub fn src(&self) -> Option<&Source> {
         match self {
-            Self::Missing(..) | Self::Extern(..) => None,
+            Missing(_) | Extern(_, _, _) | Transparent(_) => None,
 
-            Self::Ident(_, _, src, ..) | Self::IdentFragment(_, _, src, ..) => {
-                Some(src)
-            }
+            Opaque(_, _, src) | IdentFragment(_, _, src, _) => Some(src),
         }
     }
 
@@ -171,9 +204,11 @@ impl Ident {
     ///   [`None`] is returned.
     pub fn fragment(&self) -> Option<FragmentText> {
         match self {
-            Self::Missing(..) | Self::Ident(..) | Self::Extern(..) => None,
+            Missing(_) | Opaque(_, _, _) | Extern(_, _, _) | Transparent(_) => {
+                None
+            }
 
-            Self::IdentFragment(_, _, _, text) => Some(*text),
+            IdentFragment(_, _, _, text) => Some(*text),
         }
     }
 
@@ -185,7 +220,7 @@ impl Ident {
     ///     it will be later replaced with the span of the identifier once
     ///     its definition is found.
     pub fn declare(ident: SPair) -> Self {
-        Ident::Missing(ident)
+        Missing(ident)
     }
 
     /// Attempt to redeclare an identifier with additional information.
@@ -200,7 +235,7 @@ impl Ident {
     /// If a virtual identifier of type [`Ident::IdentFragment`] is
     ///   overridden,
     ///     then its fragment is cleared
-    ///     (it returns to a [`Ident::Ident`])
+    ///     (it returns to a [`Ident::Opaque`])
     ///     to make way for the fragment of the override.
     ///
     /// Overrides will always have their virtual flag cleared,
@@ -223,8 +258,8 @@ impl Ident {
         mut src: Source,
     ) -> TransitionResult<Ident> {
         match self {
-            Ident::Ident(name, ref orig_kind, ref orig_src)
-            | Ident::IdentFragment(name, ref orig_kind, ref orig_src, _)
+            Opaque(name, ref orig_kind, ref orig_src)
+            | IdentFragment(name, ref orig_kind, ref orig_src, _)
                 if src.override_ =>
             {
                 if !orig_src.virtual_ {
@@ -251,13 +286,13 @@ impl Ident {
 
                 // Note that this has the effect of clearing fragments if we
                 //   originally were in state `Ident::IdentFragment`.
-                Ok(Ident::Ident(name.overwrite(span), kind, src))
+                Ok(Opaque(name.overwrite(span), kind, src))
             }
 
             // If we encountered the override _first_,
             //   flip the context by declaring a new identifier and trying
             //   to override that.
-            Ident::Ident(name, orig_kind, orig_src) if orig_src.override_ => {
+            Opaque(name, orig_kind, orig_src) if orig_src.override_ => {
                 Self::declare(name)
                     .resolve(name.span(), kind, src)?
                     .resolve(span, orig_kind, orig_src)
@@ -266,7 +301,7 @@ impl Ident {
             // Same as above,
             //   but for fragments,
             //   we want to keep the _original override_ fragment.
-            Ident::IdentFragment(name, orig_kind, orig_src, orig_text)
+            IdentFragment(name, orig_kind, orig_src, orig_text)
                 if orig_src.override_ =>
             {
                 Self::declare(name)
@@ -275,7 +310,7 @@ impl Ident {
                     .set_fragment(orig_text)
             }
 
-            Ident::Extern(name, ref orig_kind, _) => {
+            Extern(name, ref orig_kind, _) => {
                 if orig_kind != &kind {
                     let err = TransitionError::ExternResolution(
                         name,
@@ -286,11 +321,11 @@ impl Ident {
                     return Err((self, err));
                 }
 
-                Ok(Ident::Ident(name.overwrite(span), kind, src))
+                Ok(Opaque(name.overwrite(span), kind, src))
             }
 
             // These represent the prologue and epilogue of maps.
-            Ident::IdentFragment(
+            IdentFragment(
                 _,
                 IdentKind::MapHead
                 | IdentKind::MapTail
@@ -299,9 +334,7 @@ impl Ident {
                 ..,
             ) => Ok(self),
 
-            Ident::Missing(name) => {
-                Ok(Ident::Ident(name.overwrite(span), kind, src))
-            }
+            Missing(name) => Ok(Opaque(name.overwrite(span), kind, src)),
 
             // TODO: Remove guards and catch-all for exhaustiveness check.
             _ => {
@@ -329,13 +362,13 @@ impl Ident {
     ///   considered to be unresolved.
     pub fn resolved(&self) -> Result<&Ident, UnresolvedError> {
         match self {
-            Ident::Missing(name) => Err(UnresolvedError::Missing(*name)),
+            Missing(name) => Err(UnresolvedError::Missing(*name)),
 
-            Ident::Extern(name, ref kind, _) => {
+            Extern(name, ref kind, _) => {
                 Err(UnresolvedError::Extern(*name, kind.clone()))
             }
 
-            Ident::Ident(..) | Ident::IdentFragment(..) => Ok(self),
+            Opaque(..) | IdentFragment(..) | Transparent(..) => Ok(self),
         }
     }
 
@@ -361,7 +394,7 @@ impl Ident {
         src: Source,
     ) -> TransitionResult<Ident> {
         match self.kind() {
-            None => Ok(Ident::Extern(self.name().overwrite(span), kind, src)),
+            None => Ok(Extern(self.name().overwrite(span), kind, src)),
             Some(cur_kind) => {
                 if cur_kind != &kind {
                     let err = TransitionError::ExternResolution(
@@ -389,9 +422,7 @@ impl Ident {
     ///     making way for a new fragment to be set.
     pub fn set_fragment(self, text: FragmentText) -> TransitionResult<Ident> {
         match self {
-            Ident::Ident(sym, kind, src) => {
-                Ok(Ident::IdentFragment(sym, kind, src, text))
-            }
+            Opaque(sym, kind, src) => Ok(IdentFragment(sym, kind, src, text)),
 
             // If we get to this point in a properly functioning program (at
             // least as of the time of writing), then we have encountered a
@@ -402,12 +433,10 @@ impl Ident {
             // If this is not permissable, then we should have already
             // prevented the `resolve` transition before this fragment was
             // encountered.
-            Ident::IdentFragment(_, _, ref src, ..) if src.override_ => {
-                Ok(self)
-            }
+            IdentFragment(_, _, ref src, ..) if src.override_ => Ok(self),
 
             // These represent the prologue and epilogue of maps.
-            Ident::IdentFragment(
+            IdentFragment(
                 _,
                 IdentKind::MapHead
                 | IdentKind::MapTail
