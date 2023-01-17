@@ -95,7 +95,7 @@ where
     let sym = name.into();
 
     depgraph
-        .lookup(sym)
+        .lookup(SPair(sym, UNKNOWN_SPAN))
         .and_then(|id| depgraph.get(id))
         .unwrap_or_else(|| {
             panic!("missing internal identifier: {}", sym.lookup_str())
@@ -397,23 +397,18 @@ mod test {
             sections.pushed,
             vec![
                 // Static head
-                asg.lookup(st::L_MAP_UUUHEAD.into())
-                    .and_then(|id| asg.get_ident(id)),
-                asg.lookup(st::L_RETMAP_UUUHEAD.into())
-                    .and_then(|id| asg.get_ident(id)),
+                get_ident(&asg, st::L_MAP_UUUHEAD),
+                get_ident(&asg, st::L_RETMAP_UUUHEAD),
                 // Post-order
-                asg.get_ident(adepdep),
-                asg.get_ident(adep),
-                asg.get_ident(a),
+                asg.get_ident(adepdep).unwrap(),
+                asg.get_ident(adep).unwrap(),
+                asg.get_ident(a).unwrap(),
                 // Static tail
-                asg.lookup(st::L_MAP_UUUTAIL.into())
-                    .and_then(|id| asg.get_ident(id)),
-                asg.lookup(st::L_RETMAP_UUUTAIL.into())
-                    .and_then(|id| asg.get_ident(id)),
+                get_ident(&asg, st::L_MAP_UUUTAIL),
+                get_ident(&asg, st::L_RETMAP_UUUTAIL),
             ]
             .into_iter()
-            .collect::<Option<Vec<_>>>()
-            .unwrap()
+            .collect::<Vec<_>>()
         );
 
         Ok(())

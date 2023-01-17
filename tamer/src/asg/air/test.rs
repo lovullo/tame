@@ -32,35 +32,34 @@ type Sut = AirAggregate;
 
 #[test]
 fn ident_decl() {
-    let sym = "foo".into();
+    let id = SPair("foo".into(), S1);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/decl".into()),
         ..Default::default()
     };
 
-    let toks = vec![Air::IdentDecl(SPair(sym, S1), kind.clone(), src.clone())]
-        .into_iter();
+    let toks = vec![Air::IdentDecl(id, kind.clone(), src.clone())].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node =
-        asg.lookup(sym).expect("identifier was not added to graph");
+    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(SPair(sym, S1))
+        Ident::declare(id)
             .resolve(S1, kind.clone(), src.clone())
             .as_ref(),
     );
 
     // Re-instantiate the parser and test an error by attempting to
     //   redeclare the same identifier.
-    let bad_toks = vec![Air::IdentDecl(SPair(sym, S2), kind, src)].into_iter();
+    let bad_toks =
+        vec![Air::IdentDecl(SPair(id.symbol(), S2), kind, src)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -71,42 +70,38 @@ fn ident_decl() {
 
 #[test]
 fn ident_extern_decl() {
-    let sym = "foo".into();
+    let id = SPair("foo".into(), S1);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/decl-extern".into()),
         ..Default::default()
     };
 
-    let toks = vec![Air::IdentExternDecl(
-        SPair(sym, S1),
-        kind.clone(),
-        src.clone(),
-    )]
-    .into_iter();
+    let toks =
+        vec![Air::IdentExternDecl(id, kind.clone(), src.clone())].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node =
-        asg.lookup(sym).expect("identifier was not added to graph");
+    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(SPair(sym, S1))
-            .extern_(S1, kind, src.clone())
-            .as_ref(),
+        Ident::declare(id).extern_(S1, kind, src.clone()).as_ref(),
     );
 
     // Re-instantiate the parser and test an error by attempting to
     //   redeclare with a different kind.
     let different_kind = IdentKind::Meta;
-    let bad_toks =
-        vec![Air::IdentExternDecl(SPair(sym, S2), different_kind, src)]
-            .into_iter();
+    let bad_toks = vec![Air::IdentExternDecl(
+        SPair(id.symbol(), S2),
+        different_kind,
+        src,
+    )]
+    .into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -117,20 +112,17 @@ fn ident_extern_decl() {
 
 #[test]
 fn ident_dep() {
-    let ident = "foo".into();
-    let dep = "dep".into();
+    let id = SPair("foo".into(), S1);
+    let dep = SPair("dep".into(), S2);
 
-    let toks =
-        vec![Air::IdentDep(SPair(ident, S1), SPair(dep, S2))].into_iter();
+    let toks = vec![Air::IdentDep(id, dep)].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup(ident)
-        .expect("identifier was not added to graph");
+    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
     let dep_node = asg.lookup(dep).expect("dep was not added to graph");
 
     assert!(asg.has_dep(ident_node, dep_node));
@@ -138,7 +130,7 @@ fn ident_dep() {
 
 #[test]
 fn ident_fragment() {
-    let sym = "frag".into();
+    let id = SPair("frag".into(), S1);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/frag".into()),
@@ -149,8 +141,8 @@ fn ident_fragment() {
     let toks = vec![
         // Identifier must be declared before it can be given a
         //   fragment.
-        Air::IdentDecl(SPair(sym, S1), kind.clone(), src.clone()),
-        Air::IdentFragment(SPair(sym, S1), frag),
+        Air::IdentDecl(id, kind.clone(), src.clone()),
+        Air::IdentFragment(id, frag),
     ]
     .into_iter();
 
@@ -161,13 +153,12 @@ fn ident_fragment() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node =
-        asg.lookup(sym).expect("identifier was not added to graph");
+    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(SPair(sym, S1))
+        Ident::declare(id)
             .resolve(S1, kind.clone(), src.clone())
             .and_then(|resolved| resolved.set_fragment(frag))
             .as_ref(),
@@ -175,7 +166,7 @@ fn ident_fragment() {
 
     // Re-instantiate the parser and test an error by attempting to
     //   re-set the fragment.
-    let bad_toks = vec![Air::IdentFragment(SPair(sym, S1), frag)].into_iter();
+    let bad_toks = vec![Air::IdentFragment(id, frag)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -188,9 +179,9 @@ fn ident_fragment() {
 //   `Ident::Missing`.
 #[test]
 fn ident_root_missing() {
-    let sym = "toroot".into();
+    let id = SPair("toroot".into(), S1);
 
-    let toks = vec![Air::IdentRoot(SPair(sym, S1))].into_iter();
+    let toks = vec![Air::IdentRoot(id)].into_iter();
     let mut sut = Sut::parse(toks);
 
     assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
@@ -198,13 +189,13 @@ fn ident_root_missing() {
     let asg = sut.finalize().unwrap().into_context();
 
     let ident_node = asg
-        .lookup(sym)
+        .lookup(id)
         .expect("identifier was not added to the graph");
     let ident = asg.get(ident_node).unwrap();
 
     // The identifier did not previously exist,
     //   and so a missing node is created as a placeholder.
-    assert_eq!(&Ident::Missing(SPair(sym, S1)), ident);
+    assert_eq!(&Ident::Missing(id), ident);
 
     // And that missing identifier should be rooted.
     assert!(asg.is_rooted(ident_node));
@@ -212,7 +203,7 @@ fn ident_root_missing() {
 
 #[test]
 fn ident_root_existing() {
-    let sym = "toroot".into();
+    let id = SPair("toroot".into(), S1);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/root-existing".into()),
@@ -224,8 +215,8 @@ fn ident_root_existing() {
     assert!(!kind.is_auto_root());
 
     let toks = vec![
-        Air::IdentDecl(SPair(sym, S1), kind.clone(), src.clone()),
-        Air::IdentRoot(SPair(sym, S2)),
+        Air::IdentDecl(id, kind.clone(), src.clone()),
+        Air::IdentRoot(SPair(id.symbol(), S2)),
     ]
     .into_iter();
 
@@ -237,14 +228,14 @@ fn ident_root_existing() {
     let asg = sut.finalize().unwrap().into_context();
 
     let ident_node = asg
-        .lookup(sym)
+        .lookup(id)
         .expect("identifier was not added to the graph");
     let ident = asg.get(ident_node).unwrap();
 
     // The previously-declared identifier...
     assert_eq!(
         Ok(ident),
-        Ident::declare(SPair(sym, S1))
+        Ident::declare(id)
             .resolve(S1, kind.clone(), src.clone())
             .as_ref()
     );

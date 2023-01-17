@@ -31,7 +31,6 @@ use crate::fmt::{DisplayWrapper, TtQuote};
 use crate::global;
 use crate::parse::util::SPair;
 use crate::parse::Token;
-use crate::span::UNKNOWN_SPAN;
 use crate::sym::SymbolId;
 use petgraph::{
     graph::{DiGraph, Graph, NodeIndex},
@@ -193,12 +192,10 @@ impl Asg {
         &mut self,
         ident: SPair,
     ) -> ObjectIndex<Ident> {
-        let sym = ident.symbol();
-
-        self.lookup(sym).unwrap_or_else(|| {
+        self.lookup(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Ident::declare(ident).into());
 
-            self.index_identifier(sym, index);
+            self.index_identifier(ident.symbol(), index);
             ObjectIndex::new(index, ident.span())
         })
     }
@@ -501,7 +498,7 @@ impl Asg {
         &self,
         ident: SPair,
     ) -> Option<ObjectIndex<O>> {
-        self.lookup(ident.symbol())
+        self.lookup(ident)
             .and_then(|identi| {
                 self.graph
                     .neighbors_directed(identi.into(), Direction::Outgoing)
@@ -613,13 +610,13 @@ impl Asg {
     ///   graph---for
     ///     that, see [`Asg::get`].
     #[inline]
-    pub fn lookup(&self, name: SymbolId) -> Option<ObjectIndex<Ident>> {
-        let i = name.as_usize();
+    pub fn lookup(&self, id: SPair) -> Option<ObjectIndex<Ident>> {
+        let i = id.symbol().as_usize();
 
         self.index
             .get(i)
             .filter(|ni| ni.index() > 0)
-            .map(|ni| ObjectIndex::new(*ni, UNKNOWN_SPAN))
+            .map(|ni| ObjectIndex::new(*ni, id.span()))
     }
 
     /// Declare that `dep` is a dependency of `ident`.
@@ -819,9 +816,9 @@ mod test {
     fn lookup_by_symbol() -> AsgResult<()> {
         let mut sut = Sut::new();
 
-        let sym = "lookup".into();
+        let id = SPair("lookup".into(), S1);
         let node = sut.declare(
-            SPair(sym, S1),
+            id,
             IdentKind::Meta,
             Source {
                 generated: true,
@@ -829,7 +826,7 @@ mod test {
             },
         )?;
 
-        assert_eq!(Some(node), sut.lookup(sym));
+        assert_eq!(Some(node), sut.lookup(id));
 
         Ok(())
     }

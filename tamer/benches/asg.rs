@@ -147,7 +147,7 @@ mod base {
 
         bench.iter(|| {
             xs.iter()
-                .map(|sym| sut.lookup(sym.symbol()).unwrap())
+                .map(|sym| sut.lookup(*sym).unwrap())
                 .for_each(drop);
         });
     }
