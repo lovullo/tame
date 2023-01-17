@@ -26,6 +26,7 @@ use std::{
 
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
     parse::util::SPair,
     span::Span,
 };
@@ -37,6 +38,18 @@ use super::TransitionError;
 pub enum AsgError {
     /// An object could not change state in the manner requested.
     IdentTransition(TransitionError),
+
+    /// An identifier was already bound to some object,
+    ///   and an attempt was made to bind it to a different one.
+    ///
+    /// This includes an [`SPair`] representing the _original_ definition
+    ///   that was already accepted by the system and a [`Span`]
+    ///   representing the _duplicate_ definition that triggered this error.
+    ///
+    /// Note that this is different than a _redeclaration_;
+    ///   _defining_ an identifier associates it with an object,
+    ///     whereas _declaring_ an identifier provides metadata about it.
+    IdentRedefine(SPair, Span),
 
     /// An expresion is not reachable by any other expression or
     ///   identifier.
@@ -78,6 +91,9 @@ impl Display for AsgError {
 
         match self {
             IdentTransition(err) => Display::fmt(&err, f),
+            IdentRedefine(spair, _) => {
+                write!(f, "cannot redefine {}", TtQuote::wrap(spair))
+            }
             DanglingExpr(_) => write!(f, "dangling expression"),
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
             InvalidExprBindContext(_) => {
@@ -93,9 +109,10 @@ impl Error for AsgError {
 
         match self {
             IdentTransition(err) => err.source(),
-            DanglingExpr(_) | UnbalancedExpr(_) | InvalidExprBindContext(_) => {
-                None
-            }
+            IdentRedefine(_, _)
+            | DanglingExpr(_)
+            | UnbalancedExpr(_)
+            | InvalidExprBindContext(_) => None,
         }
     }
 }
@@ -117,6 +134,23 @@ impl Diagnostic for AsgError {
         match self {
             // TODO: need spans
             IdentTransition(_) => vec![],
+
+            IdentRedefine(first, span_redecl) => vec![
+                first.note(format!(
+                    "first definition of {} is here",
+                    TtQuote::wrap(first)
+                )),
+                span_redecl.error(format!(
+                    "attempted to redefine {} here",
+                    TtQuote::wrap(first),
+                )),
+                span_redecl.help(format!(
+                    "variables in TAME are immutable; {} was previously",
+                    TtQuote::wrap(first),
+                )),
+                span_redecl
+                    .help("  defined and its definition cannot be changed."),
+            ],
 
             DanglingExpr(span) => vec![
                 span.error("expression has no parent or identifier"),

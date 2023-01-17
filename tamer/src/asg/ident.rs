@@ -19,8 +19,7 @@
 
 //! Identifiers (a type of [object][super::object]).
 
-use std::fmt::Display;
-
+use super::{object::ObjectRelTo, Asg, AsgError, ObjectIndex, ObjectKind};
 use crate::{
     diagnose::{Annotate, Diagnostic},
     f::Functor,
@@ -30,14 +29,23 @@ use crate::{
     span::Span,
     sym::{st, GlobalSymbolResolve, SymbolId},
 };
+use std::fmt::Display;
 
 use Ident::*;
 
 pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 
-/// Identifier.
+/// An identifier for some object on the [`Asg`].
 ///
-/// These types represent object states:
+/// An identifier can be either _opaque_ declaration,
+///   meaning that it stands in _place_ of a definition,
+///   or _transparent_,
+///     meaning that references to the identifier should "see through" it
+///     and directly reference the object to which it is bound.
+///
+/// Invariants
+/// ==========
+/// The [`Ident`] variants represent object states:
 ///
 /// ```text
 ///      ,--> ((Transparent))
@@ -47,6 +55,23 @@ pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 ///      \                      / \              /
 ///       `--------------------`   `------------'
 /// ```
+///
+/// The following invariants must hold with respect to [`Asg`]:
+///   1. A [`Transparent`] identifier must have _one_ edge to the object
+///        that it describes
+///        (upheld by [`ObjectIndex::<Ident>::bind_definition`]).
+///   2. All other identifiers must have _zero_ outgoing edges,
+///        since they describe nothing available on the graph.
+///      Since edges can only be added by
+///        [`ObjectIndex::<Ident>::bind_definition`],
+///          and since an [`Ident`] cannot transition away from
+///            [`Transparent`],
+///          this invariant is upheld.
+///   3. There must be _zero_ incoming edges to [`Transparent`].
+///      When an identifier transitions to [`Transparent`],
+///        incoming edges must be rewritten to the object to which the
+///        identifier has become bound.
+///      This is handled by [`ObjectIndex::<Ident>::bind_definition`].
 #[derive(Debug, PartialEq, Clone)]
 pub enum Ident {
     /// An identifier is expected to be declared or defined but is not yet
@@ -940,6 +965,43 @@ pub struct Source {
     ///
     /// See also [`virtual_`][Source::virtual_].
     pub override_: bool,
+}
+
+impl ObjectIndex<Ident> {
+    /// Bind an identifier to a `definition`,
+    ///   making it [`Transparent`].
+    ///
+    /// If an identifier is successfully bound,
+    ///   then an edge will be added to `definition`.
+    /// An edge will _not_ be added if there is an error in this operation.
+    ///
+    /// If an identifier is already [`Transparent`],
+    ///   then it is already defined and this operation will result in an
+    ///   [`AsgError::IdentRedefine`] error.
+    pub fn bind_definition<O: ObjectKind>(
+        self,
+        asg: &mut Asg,
+        definition: ObjectIndex<O>,
+    ) -> Result<ObjectIndex<Ident>, AsgError>
+    where
+        Ident: ObjectRelTo<O>,
+    {
+        let my_span = self.into();
+
+        // TODO: Move all incoming edges to `definition`
+        self.try_map_obj(asg, |ident| match ident {
+            Transparent(id) => {
+                Err((ident, AsgError::IdentRedefine(id, my_span)))
+            }
+
+            Opaque(id, ..) | IdentFragment(id, ..) => todo!("opaque {id}"),
+            Extern(id, ..) => todo!("extern {id}"),
+
+            // We are okay to proceed to add an edge to the `definition`.
+            Missing(id) => Ok(Transparent(id)),
+        })
+        .map(|ident_oi| ident_oi.add_edge_to(asg, definition))
+    }
 }
 
 #[cfg(test)]

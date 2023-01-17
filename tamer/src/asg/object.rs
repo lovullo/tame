@@ -338,6 +338,44 @@ impl<O: ObjectKind> ObjectIndex<O> {
     pub fn resolve(self, asg: &Asg) -> &O {
         asg.expect_obj(self)
     }
+
+    /// Resolve the identifier and map over the resulting [`Object`]
+    ///   narrowed to [`ObjectKind`] `O`,
+    ///     replacing the object on the given [`Asg`].
+    ///
+    /// While the provided map may be pure,
+    ///  this does mutate the provided [`Asg`].
+    ///
+    /// If the operation fails,
+    ///   `f` is expected to provide an object
+    ///     (such as the original)
+    ///     to return to the graph.
+    ///
+    /// If this operation is [`Infallible`],
+    ///   see [`Self::map_obj`].
+    pub fn try_map_obj<E>(
+        self,
+        asg: &mut Asg,
+        f: impl FnOnce(O) -> Result<O, (O, E)>,
+    ) -> Result<Self, E> {
+        asg.try_map_obj(self, f)
+    }
+
+    /// Resolve the identifier and infallibly map over the resulting
+    ///   [`Object`] narrowed to [`ObjectKind`] `O`,
+    ///     replacing the object on the given [`Asg`].
+    ///
+    /// If this operation is _not_ [`Infallible`],
+    ///   see [`Self::try_map_obj`].
+    pub fn map_obj(self, asg: &mut Asg, f: impl FnOnce(O) -> O) -> Self {
+        // This verbose notation (in place of e.g. `unwrap`) is intentional
+        //   to emphasize why it's unreachable and to verify our assumptions
+        //   at every point.
+        match self.try_map_obj::<Infallible>(asg, |o| Ok(f(o))) {
+            Ok(oi) => oi,
+            Err::<_, Infallible>(_) => unreachable!(),
+        }
+    }
 }
 
 impl ObjectIndex<Object> {

@@ -186,6 +186,12 @@ impl Asg {
     /// The provided span is necessary to seed the missing identifier with
     ///   some sort of context to aid in debugging why a missing identifier
     ///   was introduced to the graph.
+    /// The provided span will be used even if an identifier exists on the
+    ///   graph,
+    ///     which can be used for retaining information on the location that
+    ///     requested the identifier.
+    /// To retrieve the span of a previously declared identifier,
+    ///   you must resolve the [`Ident`] object and inspect it.
     ///
     /// See [`Ident::declare`] for more information.
     pub(super) fn lookup_or_missing(
@@ -403,7 +409,8 @@ impl Asg {
             .map(ObjectContainer::get)
     }
 
-    /// Map over an inner [`Object`] referenced by [`ObjectIndex`].
+    /// Attempt to map over an inner [`Object`] referenced by
+    ///   [`ObjectIndex`].
     ///
     /// The type `O` is the expected type of the [`Object`],
     ///   which should be known to the caller based on the provied
@@ -412,11 +419,6 @@ impl Asg {
     ///   panicing if there is a mismatch;
     ///     see the [`object` module documentation](super::object) for more
     ///     information and rationale on this behavior.
-    ///
-    /// The `mut_` prefix of this method is intended to emphasize that,
-    ///   unlike traditional `map` methods,
-    ///   this does not take and return ownership;
-    ///     the ASG is most often interacted with via mutable reference.
     ///
     /// Panics
     /// ======
@@ -433,20 +435,20 @@ impl Asg {
     ///        representing a type mismatch between what the caller thinks
     ///        this object represents and what the object actually is.
     #[must_use = "returned ObjectIndex has a possibly-updated and more relevant span"]
-    pub fn mut_map_obj<O: ObjectKind>(
+    pub(super) fn try_map_obj<O: ObjectKind, E>(
         &mut self,
         index: ObjectIndex<O>,
-        f: impl FnOnce(O) -> O,
-    ) -> ObjectIndex<O> {
+        f: impl FnOnce(O) -> Result<O, (O, E)>,
+    ) -> Result<ObjectIndex<O>, E> {
         let obj_container =
             self.graph.node_weight_mut(index.into()).diagnostic_expect(
                 || diagnostic_node_missing_desc(index),
                 "invalid ObjectIndex: data are missing from the ASG",
             );
 
-        obj_container.replace_with(f);
-
-        index.overwrite(obj_container.get::<Object>().span())
+        obj_container
+            .try_replace_with(f)
+            .map(|()| index.overwrite(obj_container.get::<Object>().span()))
     }
 
     /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
@@ -704,7 +706,7 @@ mod test {
     use super::super::error::AsgError;
     use super::*;
     use crate::{num::Dim, span::dummy::*, sym::GlobalSymbolIntern};
-    use std::assert_matches::assert_matches;
+    use std::{assert_matches::assert_matches, convert::Infallible};
 
     type Sut = Asg;
 
@@ -1049,7 +1051,7 @@ mod test {
     }
 
     #[test]
-    fn mut_map_narrows_and_modifies() {
+    fn try_map_narrows_and_modifies() {
         let mut sut = Sut::new();
 
         let id_a = SPair("foo".into(), S1);
@@ -1060,12 +1062,14 @@ mod test {
         // This is the method under test.
         // It should narrow to an `Ident` because `oi` was `create`'d with
         //   an `Ident`.
-        let oi_new = sut.mut_map_obj(oi, |ident| {
-            assert_eq!(ident, Ident::Missing(id_a));
+        let oi_new = sut
+            .try_map_obj(oi, |ident| {
+                assert_eq!(ident, Ident::Missing(id_a));
 
-            // Replace the identifier
-            Ident::Missing(id_b)
-        });
+                // Replace the identifier
+                Ok::<_, (_, Infallible)>(Ident::Missing(id_b))
+            })
+            .unwrap();
 
         // These would not typically be checked by the caller;
         //   they are intended for debugging.
@@ -1077,6 +1081,29 @@ mod test {
 
         // Ensure that the graph was updated with the new object from the
         //   above method.
-        assert_eq!(&Ident::Missing(id_b), sut.get(oi).unwrap(),);
+        assert_eq!(&Ident::Missing(id_b), sut.get(oi).unwrap());
+    }
+
+    #[test]
+    fn try_map_failure_restores_original_object() {
+        let mut sut = Sut::new();
+
+        let id_a = SPair("foo".into(), S1);
+
+        let err = "uh oh";
+
+        let oi = sut.create(Ident::Missing(id_a));
+
+        // This will fail to modify the object.
+        let oi_new = sut.try_map_obj(oi, |ident| {
+            assert_eq!(ident, Ident::Missing(id_a));
+
+            Err((ident, err))
+        });
+
+        assert_eq!(Err(err), oi_new);
+
+        // Ensure that the original object was retained.
+        assert_eq!(&Ident::Missing(id_a), sut.get(oi).unwrap());
     }
 }

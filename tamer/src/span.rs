@@ -715,6 +715,7 @@ pub mod dummy {
     pub const S7: Span = S0.offset_add(7).unwrap();
     pub const S8: Span = S0.offset_add(8).unwrap();
     pub const S9: Span = S0.offset_add(9).unwrap();
+    pub const S10: Span = S0.offset_add(10).unwrap();
 }
 
 #[cfg(test)]

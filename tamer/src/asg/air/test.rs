@@ -657,6 +657,130 @@ fn nested_subexprs_related_to_relative_parent() {
     assert_eq!(subexpr_2.span(), S3.merge(S4).unwrap());
 }
 
+#[test]
+fn expr_redefine_ident() {
+    // Same identifier but with different spans
+    //   (which would be the case in the real world).
+    let id_first = SPair("foo".into(), S2);
+    let id_dup = SPair("foo".into(), S3);
+
+    let toks = vec![
+        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::IdentExpr(id_first),
+        Air::OpenExpr(ExprOp::Sum, S3),
+        Air::IdentExpr(id_dup),
+        Air::CloseExpr(S4),
+        Air::CloseExpr(S5),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // IdentExpr (first)
+            Ok(Parsed::Incomplete), // OpenExpr
+            Err(ParseError::StateError(AsgError::IdentRedefine(
+                id_first,
+                id_dup.span(),
+            ))),
+            // RECOVERY: Ignore the attempt to redefine and continue.
+            Ok(Parsed::Incomplete), // CloseExpr
+            Ok(Parsed::Incomplete), // CloseExpr
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // The identifier should continue to reference the first expression.
+    let expr = asg.expect_ident_obj::<Expr>(id_first);
+    assert_eq!(expr.span(), S1.merge(S5).unwrap());
+}
+
+// Similar to the above test,
+//   but with two entirely separate expressions,
+//   such that a failure to identify an expression ought to leave it in an
+//     unreachable state.
+#[test]
+fn expr_still_dangling_on_redefine() {
+    // Same identifier but with different spans
+    //   (which would be the case in the real world).
+    let id_first = SPair("foo".into(), S2);
+    let id_dup = SPair("foo".into(), S5);
+    let id_dup2 = SPair("foo".into(), S8);
+    let id_second = SPair("bar".into(), S9);
+
+    let toks = vec![
+        // First expr (OK)
+        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::IdentExpr(id_first),
+        Air::CloseExpr(S3),
+        // Second expr should still dangle due to use of duplicate
+        //   identifier
+        Air::OpenExpr(ExprOp::Sum, S4),
+        Air::IdentExpr(id_dup),
+        Air::CloseExpr(S6),
+        // Third expr will error on redefine but then be successful.
+        // This probably won't happen in practice with TAME's original
+        //   source language,
+        //     but could happen at e.g. a REPL.
+        Air::OpenExpr(ExprOp::Sum, S7),
+        Air::IdentExpr(id_dup2),   // fail
+        Air::IdentExpr(id_second), // succeed
+        Air::CloseExpr(S10),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // IdentExpr (first)
+            Ok(Parsed::Incomplete), // CloseExpr
+            // Beginning of second expression
+            Ok(Parsed::Incomplete), // OpenExpr
+            Err(ParseError::StateError(AsgError::IdentRedefine(
+                id_first,
+                id_dup.span(),
+            ))),
+            // RECOVERY: Ignore the attempt to redefine and continue.
+            // ...but then immediately fail _again_ because we've closed a
+            //   dangling expression.
+            Err(ParseError::StateError(AsgError::DanglingExpr(
+                S4.merge(S6).unwrap()
+            ))),
+            // RECOVERY: But we'll continue onto one final expression,
+            //   which we will fail to define but then subsequently define
+            //   successfully.
+            Ok(Parsed::Incomplete), // OpenExpr
+            Err(ParseError::StateError(AsgError::IdentRedefine(
+                id_first,
+                id_dup2.span(),
+            ))),
+            // RECOVERY: Despite the initial failure,
+            //   we can now re-attempt to bind with a unique id.
+            Ok(Parsed::Incomplete), // IdentExpr (second)
+            Ok(Parsed::Incomplete), // CloseExpr
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // The identifier should continue to reference the first expression.
+    let expr = asg.expect_ident_obj::<Expr>(id_first);
+    assert_eq!(expr.span(), S1.merge(S3).unwrap());
+
+    // There's nothing we can do using the ASG's public API at the time of
+    //   writing to try to reference the dangling expression.
+
+    // The second identifier should have been successfully bound despite the
+    //   failed initial attempt.
+    let expr = asg.expect_ident_obj::<Expr>(id_second);
+    assert_eq!(expr.span(), S7.merge(S10).unwrap());
+}
+
 fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,

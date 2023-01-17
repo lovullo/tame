@@ -276,7 +276,9 @@ impl Display for StackEdge {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Dangling => write!(f, "dangling"),
-            Self::Reachable(ident) => write!(f, "reachable (by {ident})"),
+            Self::Reachable(ident) => {
+                write!(f, "reachable (by {})", TtQuote::wrap(ident))
+            }
         }
     }
 }
@@ -454,7 +456,7 @@ impl ParseState for AirAggregate {
             (BuildingExpr(es, oi), CloseExpr(end)) => {
                 let start: Span = oi.into();
 
-                let _ = asg.mut_map_obj::<Expr>(oi, |expr| {
+                let _ = oi.map_obj(asg, |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
 
@@ -482,11 +484,15 @@ impl ParseState for AirAggregate {
             }
 
             (BuildingExpr(es, oi), IdentExpr(id)) => {
-                // TODO: error on existing ident
                 let identi = asg.lookup_or_missing(id);
-                asg.add_dep(identi, oi);
 
-                Transition(BuildingExpr(es.reachable_by(id), oi)).incomplete()
+                // It is important that we do not mark this expression as
+                //   reachable unless we successfully bind the identifier.
+                match identi.bind_definition(asg, oi) {
+                    Ok(_) => Transition(BuildingExpr(es.reachable_by(id), oi))
+                        .incomplete(),
+                    Err(e) => Transition(BuildingExpr(es, oi)).err(e),
+                }
             }
 
             (st @ Empty(_), IdentDecl(name, kind, src)) => {
