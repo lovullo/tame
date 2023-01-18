@@ -20,7 +20,6 @@
 //! Abstract semantic graph.
 
 use super::{
-    object::{ObjectContainer, ObjectRelTo},
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
     Source, TransitionResult,
 };
@@ -38,6 +37,10 @@ use petgraph::{
     Direction,
 };
 use std::{fmt::Debug, result::Result};
+
+pub mod object;
+
+use object::{ObjectContainer, ObjectRelTo};
 
 /// Datatype representing node and edge indexes.
 pub trait IndexType = petgraph::graph::IndexType;
@@ -57,7 +60,7 @@ pub type Node = ObjectContainer;
 /// Index size for Graph nodes and edges.
 type Ix = global::ProgSymSize;
 
-/// An abstract semantic graph (ASG) of [objects][super::object].
+/// An abstract semantic graph (ASG) of [objects](object).
 ///
 /// This implementation is currently based on [`petgraph`].
 ///
@@ -384,7 +387,7 @@ impl Asg {
     ///
     /// For more information on how the ASG's ontology is enforced statically,
     ///   see [`ObjectRelTo`].
-    pub(super) fn add_edge<OA: ObjectKind, OB: ObjectKind>(
+    fn add_edge<OA: ObjectKind, OB: ObjectKind>(
         &mut self,
         from_oi: ObjectIndex<OA>,
         to_oi: ObjectIndex<OB>,
@@ -416,7 +419,7 @@ impl Asg {
     ///   [`ObjectIndex`].
     /// This method will attempt to narrow to that object type,
     ///   panicing if there is a mismatch;
-    ///     see the [`object` module documentation](super::object) for more
+    ///     see the [`object` module documentation](object) for more
     ///     information and rationale on this behavior.
     ///
     /// Panics
@@ -470,11 +473,7 @@ impl Asg {
     ///       it may prefer to filter unwanted objects rather than panicing
     ///       if they do not match a given [`ObjectKind`],
     ///         depending on its ontology.
-    ///
-    /// You should prefer methods on [`ObjectIndex`] instead,
-    ///   with this method expected to be used only in those
-    ///   implementations.
-    pub(super) fn edges<'a, O: ObjectKind + 'a>(
+    fn edges<'a, O: ObjectKind + 'a>(
         &'a self,
         oi: ObjectIndex<O>,
     ) -> impl Iterator<Item = ObjectIndex<Object>> + 'a {

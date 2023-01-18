@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Identifiers (a type of [object][super::object]).
+//! Identifiers (a type of [object](super)).
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},

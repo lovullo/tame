@@ -65,19 +65,20 @@
 
 mod error;
 mod graph;
-mod object;
 
 pub mod air;
 
 pub use error::AsgError;
-pub use graph::{Asg, AsgResult, IndexType};
-pub use object::{
-    expr::{Expr, ExprDim, ExprOp},
-    ident::{
-        FragmentText, Ident, IdentKind, Source, TransitionError,
-        TransitionResult, UnresolvedError,
+pub use graph::{
+    object::{
+        expr::{Expr, ExprDim, ExprOp},
+        ident::{
+            FragmentText, Ident, IdentKind, Source, TransitionError,
+            TransitionResult, UnresolvedError,
+        },
+        Object, ObjectIndex, ObjectKind,
     },
-    Object, ObjectIndex, ObjectKind,
+    Asg, AsgResult, IndexType,
 };
 
 /// Default concrete ASG implementation.

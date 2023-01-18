@@ -20,9 +20,10 @@
 //! These are tested as if they are another API directly atop of the ASG,
 //!   since that is how they are used.
 
+use super::super::graph::object::{ObjectKind, ObjectRelTo};
+use super::super::Ident;
 use super::*;
 use crate::{
-    asg::{object::ObjectRelTo, Ident, ObjectKind},
     parse::{ParseError, Parsed},
     span::dummy::*,
 };

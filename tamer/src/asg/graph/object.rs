@@ -61,7 +61,7 @@
 //! [`ObjectIndex`] is associated with a span derived from the point of its
 //!   creation to handle this diagnostic situation automatically.
 
-use super::{Asg, Expr, Ident};
+use super::Asg;
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     diagnostic_panic,
@@ -73,6 +73,9 @@ use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 
 pub mod expr;
 pub mod ident;
+
+use expr::Expr;
+use ident::Ident;
 
 /// An object on the ASG.
 ///
