@@ -71,6 +71,9 @@ use crate::{
 use petgraph::graph::NodeIndex;
 use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 
+pub mod expr;
+pub mod ident;
+
 /// An object on the ASG.
 ///
 /// See the [module-level documentation](super) for more information.

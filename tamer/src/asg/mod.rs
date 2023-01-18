@@ -64,21 +64,21 @@
 //!     if either identifier has not yet been declared.
 
 mod error;
-mod expr;
 mod graph;
-mod ident;
 mod object;
 
 pub mod air;
 
 pub use error::AsgError;
-pub use expr::{Expr, ExprDim, ExprOp};
 pub use graph::{Asg, AsgResult, IndexType};
-pub use ident::{
-    FragmentText, Ident, IdentKind, Source, TransitionError, TransitionResult,
-    UnresolvedError,
+pub use object::{
+    expr::{Expr, ExprDim, ExprOp},
+    ident::{
+        FragmentText, Ident, IdentKind, Source, TransitionError,
+        TransitionResult, UnresolvedError,
+    },
+    Object, ObjectIndex, ObjectKind,
 };
-pub use object::{Object, ObjectIndex, ObjectKind};
 
 /// Default concrete ASG implementation.
 pub type DefaultAsg = graph::Asg;

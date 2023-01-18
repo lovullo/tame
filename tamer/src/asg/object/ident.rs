@@ -19,7 +19,10 @@
 
 //! Identifiers (a type of [object][super::object]).
 
-use super::{object::ObjectRelTo, Asg, AsgError, ObjectIndex, ObjectKind};
+use super::{
+    super::{Asg, AsgError, ObjectIndex, ObjectKind},
+    ObjectRelTo,
+};
 use crate::{
     diagnose::{Annotate, Diagnostic},
     f::Functor,
