@@ -1,6 +1,6 @@
 // Static XML symbols
 //
-//  Copyright (C) 2014-2022 Ryan Specialty Group, LLC.
+//  Copyright (C) 2014-2023 Ryan Specialty, LLC.
 //
 //  This file is part of TAME.
 //

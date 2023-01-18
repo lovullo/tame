@@ -2,7 +2,7 @@
     "name": "tame-progtest",
     "description": "TAME Program testing",
     "version": "0.0.0",
-    "author": "Ryan Specialty Group, LLC",
+    "author": "Ryan Specialty, LLC",
     "dependencies": {
         "easejs": "0.2.9",
         "js-yaml": "3.10.0"
