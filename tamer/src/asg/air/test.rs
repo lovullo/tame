@@ -250,9 +250,9 @@ fn expr_empty_ident() {
     let id = SPair("foo".into(), S2);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
-        Air::IdentExpr(id),
-        Air::CloseExpr(S3),
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id),
+        Air::ExprClose(S3),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -272,15 +272,15 @@ fn expr_non_empty_ident_root() {
     let id_b = SPair("bar".into(), S2);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::ExprOpen(ExprOp::Sum, S1),
         // Identifier while still empty...
-        Air::IdentExpr(id_a),
-        Air::OpenExpr(ExprOp::Sum, S3),
+        Air::ExprIdent(id_a),
+        Air::ExprOpen(ExprOp::Sum, S3),
         // (note that the inner expression _does not_ have an ident binding)
-        Air::CloseExpr(S4),
+        Air::ExprClose(S4),
         // ...and an identifier non-empty.
-        Air::IdentExpr(id_b),
-        Air::CloseExpr(S6),
+        Air::ExprIdent(id_b),
+        Air::ExprClose(S6),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -304,15 +304,15 @@ fn expr_non_empty_bind_only_after() {
     let id = SPair("foo".into(), S2);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::ExprOpen(ExprOp::Sum, S1),
         // Expression root is still dangling at this point.
-        Air::OpenExpr(ExprOp::Sum, S2),
-        Air::CloseExpr(S3),
+        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprClose(S3),
         // We only bind an identifier _after_ we've created the expression,
         //   which should cause the still-dangling root to become
         //   reachable.
-        Air::IdentExpr(id),
-        Air::CloseExpr(S5),
+        Air::ExprIdent(id),
+        Air::ExprClose(S5),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -331,10 +331,10 @@ fn expr_non_empty_bind_only_after() {
 #[test]
 fn expr_dangling_no_subexpr() {
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::ExprOpen(ExprOp::Sum, S1),
         // No `IdentExpr`,
         //   so this expression is dangling.
-        Air::CloseExpr(S2),
+        Air::ExprClose(S2),
     ];
 
     // The error span should encompass the entire expression.
@@ -352,13 +352,13 @@ fn expr_dangling_no_subexpr() {
 #[test]
 fn expr_dangling_with_subexpr() {
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::ExprOpen(ExprOp::Sum, S1),
         // Expression root is still dangling at this point.
-        Air::OpenExpr(ExprOp::Sum, S2),
-        Air::CloseExpr(S3),
+        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprClose(S3),
         // Still no ident binding,
         //   so root should still be dangling.
-        Air::CloseExpr(S4),
+        Air::ExprClose(S4),
     ];
 
     let full_span = S1.merge(S4).unwrap();
@@ -379,19 +379,19 @@ fn expr_dangling_with_subexpr_ident() {
     let id = SPair("foo".into(), S3);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::ExprOpen(ExprOp::Sum, S1),
         // Expression root is still dangling at this point.
-        Air::OpenExpr(ExprOp::Sum, S2),
+        Air::ExprOpen(ExprOp::Sum, S2),
         // The _inner_ expression receives an identifier,
         //   but that should have no impact on the dangling status of the
         //   root,
         //     especially given that subexpressions are always reachable
         //     anyway.
-        Air::IdentExpr(id),
-        Air::CloseExpr(S4),
+        Air::ExprIdent(id),
+        Air::ExprClose(S4),
         // But the root still has no ident binding,
         //   and so should still be dangling.
-        Air::CloseExpr(S5),
+        Air::ExprClose(S5),
     ];
 
     let full_span = S1.merge(S5).unwrap();
@@ -417,12 +417,12 @@ fn expr_reachable_subsequent_dangling() {
     let id = SPair("foo".into(), S2);
     let toks = vec![
         // Reachable
-        Air::OpenExpr(ExprOp::Sum, S1),
-        Air::IdentExpr(id),
-        Air::CloseExpr(S3),
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id),
+        Air::ExprClose(S3),
         // Dangling
-        Air::OpenExpr(ExprOp::Sum, S4),
-        Air::CloseExpr(S5),
+        Air::ExprOpen(ExprOp::Sum, S4),
+        Air::ExprClose(S5),
     ];
 
     // The error span should encompass the entire expression.
@@ -447,12 +447,12 @@ fn recovery_expr_reachable_after_dangling() {
     let id = SPair("foo".into(), S4);
     let toks = vec![
         // Dangling
-        Air::OpenExpr(ExprOp::Sum, S1),
-        Air::CloseExpr(S2),
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprClose(S2),
         // Reachable, after error from dangling.
-        Air::OpenExpr(ExprOp::Sum, S3),
-        Air::IdentExpr(id),
-        Air::CloseExpr(S5),
+        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprIdent(id),
+        Air::ExprClose(S5),
     ];
 
     // The error span should encompass the entire expression.
@@ -495,14 +495,14 @@ fn expr_close_unbalanced() {
 
     let toks = vec![
         // Close before _any_ open.
-        Air::CloseExpr(S1),
+        Air::ExprClose(S1),
         // Should recover,
         //   allowing for a normal expr.
-        Air::OpenExpr(ExprOp::Sum, S2),
-        Air::IdentExpr(id),
-        Air::CloseExpr(S4),
+        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprIdent(id),
+        Air::ExprClose(S4),
         // And now an extra close _after_ a valid expr.
-        Air::CloseExpr(S5),
+        Air::ExprClose(S5),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -535,13 +535,13 @@ fn expr_bind_to_empty() {
 
     let toks = vec![
         // No open expression to bind to.
-        Air::IdentExpr(id_noexpr_a),
+        Air::ExprIdent(id_noexpr_a),
         // Post-recovery create an expression.
-        Air::OpenExpr(ExprOp::Sum, S2),
-        Air::IdentExpr(id_good),
-        Air::CloseExpr(S4),
+        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprIdent(id_good),
+        Air::ExprClose(S4),
         // Once again we have nothing to bind to.
-        Air::IdentExpr(id_noexpr_b),
+        Air::ExprIdent(id_noexpr_b),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -585,19 +585,19 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
     let id_root = SPair("root".into(), S1);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
+        Air::ExprOpen(ExprOp::Sum, S1),
         // Identify the root so that it is not dangling.
-        Air::IdentExpr(id_root),
+        Air::ExprIdent(id_root),
         // Sibling A
-        Air::OpenExpr(ExprOp::Sum, S3),
-        Air::CloseExpr(S4),
+        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprClose(S4),
         // Sibling B
-        Air::OpenExpr(ExprOp::Sum, S5),
-        Air::CloseExpr(S6),
+        Air::ExprOpen(ExprOp::Sum, S5),
+        Air::ExprClose(S6),
         // Sibling C
-        Air::OpenExpr(ExprOp::Sum, S7),
-        Air::CloseExpr(S8),
-        Air::CloseExpr(S9),
+        Air::ExprOpen(ExprOp::Sum, S7),
+        Air::ExprClose(S8),
+        Air::ExprClose(S9),
     ];
 
     let asg = asg_from_toks(toks);
@@ -630,14 +630,14 @@ fn nested_subexprs_related_to_relative_parent() {
     let id_suba = SPair("suba".into(), S2);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1), // 0
-        Air::IdentExpr(id_root),
-        Air::OpenExpr(ExprOp::Sum, S2), // 1
-        Air::IdentExpr(id_suba),
-        Air::OpenExpr(ExprOp::Sum, S3), // 2
-        Air::CloseExpr(S4),
-        Air::CloseExpr(S5),
-        Air::CloseExpr(S6),
+        Air::ExprOpen(ExprOp::Sum, S1), // 0
+        Air::ExprIdent(id_root),
+        Air::ExprOpen(ExprOp::Sum, S2), // 1
+        Air::ExprIdent(id_suba),
+        Air::ExprOpen(ExprOp::Sum, S3), // 2
+        Air::ExprClose(S4),
+        Air::ExprClose(S5),
+        Air::ExprClose(S6),
     ];
 
     let asg = asg_from_toks(toks);
@@ -666,12 +666,12 @@ fn expr_redefine_ident() {
     let id_dup = SPair("foo".into(), S3);
 
     let toks = vec![
-        Air::OpenExpr(ExprOp::Sum, S1),
-        Air::IdentExpr(id_first),
-        Air::OpenExpr(ExprOp::Sum, S3),
-        Air::IdentExpr(id_dup),
-        Air::CloseExpr(S4),
-        Air::CloseExpr(S5),
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id_first),
+        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprIdent(id_dup),
+        Air::ExprClose(S4),
+        Air::ExprClose(S5),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -714,22 +714,22 @@ fn expr_still_dangling_on_redefine() {
 
     let toks = vec![
         // First expr (OK)
-        Air::OpenExpr(ExprOp::Sum, S1),
-        Air::IdentExpr(id_first),
-        Air::CloseExpr(S3),
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id_first),
+        Air::ExprClose(S3),
         // Second expr should still dangle due to use of duplicate
         //   identifier
-        Air::OpenExpr(ExprOp::Sum, S4),
-        Air::IdentExpr(id_dup),
-        Air::CloseExpr(S6),
+        Air::ExprOpen(ExprOp::Sum, S4),
+        Air::ExprIdent(id_dup),
+        Air::ExprClose(S6),
         // Third expr will error on redefine but then be successful.
         // This probably won't happen in practice with TAME's original
         //   source language,
         //     but could happen at e.g. a REPL.
-        Air::OpenExpr(ExprOp::Sum, S7),
-        Air::IdentExpr(id_dup2),   // fail
-        Air::IdentExpr(id_second), // succeed
-        Air::CloseExpr(S10),
+        Air::ExprOpen(ExprOp::Sum, S7),
+        Air::ExprIdent(id_dup2),   // fail
+        Air::ExprIdent(id_second), // succeed
+        Air::ExprClose(S10),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());

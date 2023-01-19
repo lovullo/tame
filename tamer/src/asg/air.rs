@@ -85,21 +85,21 @@ pub enum Air {
     ///   the expression will be evaluated.
     /// An expression is associated with a source location,
     ///   but is anonymous unless assigned an identifier using
-    ///   [`Air::IdentExpr`].
+    ///   [`Air::ExprIdent`].
     ///
     /// Expressions are composed of references to other expressions.
-    OpenExpr(ExprOp, Span),
+    ExprOpen(ExprOp, Span),
 
     /// Complete the expression atop of the expression stack and pop it from
     ///   the stack.
-    CloseExpr(Span),
+    ExprClose(Span),
 
     /// Assign an identifier to the expression atop of the expression stack.
     ///
     /// An expression may be bound to multiple identifiers,
     ///   but an identifier can only be bound to a single expression.
     /// Binding an identifier will declare it.
-    IdentExpr(SPair),
+    ExprIdent(SPair),
 
     /// Declare a resolved identifier.
     IdentDecl(SPair, IdentKind, Source),
@@ -144,9 +144,9 @@ impl Token for Air {
         match self {
             Todo => UNKNOWN_SPAN,
 
-            OpenExpr(_, span) | CloseExpr(span) => *span,
+            ExprOpen(_, span) | ExprClose(span) => *span,
 
-            IdentExpr(spair)
+            ExprIdent(spair)
             | IdentDecl(spair, _, _)
             | IdentExternDecl(spair, _, _)
             | IdentDep(spair, _)
@@ -165,11 +165,11 @@ impl Display for Air {
         match self {
             Todo => write!(f, "TODO"),
 
-            OpenExpr(op, _) => write!(f, "open {op} expression"),
+            ExprOpen(op, _) => write!(f, "open {op} expression"),
 
-            CloseExpr(_) => write!(f, "close expression"),
+            ExprClose(_) => write!(f, "close expression"),
 
-            IdentExpr(id) => {
+            ExprIdent(id) => {
                 write!(f, "identify expression as {}", TtQuote::wrap(id))
             }
 
@@ -439,21 +439,21 @@ impl ParseState for AirAggregate {
         match (self, tok) {
             (st, Todo) => Transition(st).incomplete(),
 
-            (Empty(es), OpenExpr(op, span)) => {
+            (Empty(es), ExprOpen(op, span)) => {
                 let oi = asg.create(Expr::new(op, span));
                 Transition(BuildingExpr(es.activate(), oi)).incomplete()
             }
 
-            (BuildingExpr(es, poi), OpenExpr(op, span)) => {
+            (BuildingExpr(es, poi), ExprOpen(op, span)) => {
                 let oi = poi.create_subexpr(asg, Expr::new(op, span));
                 Transition(BuildingExpr(es.push(poi), oi)).incomplete()
             }
 
-            (st @ Empty(_), CloseExpr(span)) => {
+            (st @ Empty(_), ExprClose(span)) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
 
-            (BuildingExpr(es, oi), CloseExpr(end)) => {
+            (BuildingExpr(es, oi), ExprClose(end)) => {
                 let start: Span = oi.into();
 
                 let _ = oi.map_obj(asg, |expr| {
@@ -479,11 +479,11 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (st @ Empty(_), IdentExpr(ident)) => {
+            (st @ Empty(_), ExprIdent(ident)) => {
                 Transition(st).err(AsgError::InvalidExprBindContext(ident))
             }
 
-            (BuildingExpr(es, oi), IdentExpr(id)) => {
+            (BuildingExpr(es, oi), ExprIdent(id)) => {
                 let identi = asg.lookup_or_missing(id);
 
                 // It is important that we do not mark this expression as
