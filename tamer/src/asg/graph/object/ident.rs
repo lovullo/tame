@@ -71,11 +71,6 @@ pub type TransitionResult<T> = Result<T, (T, TransitionError)>;
 ///          and since an [`Ident`] cannot transition away from
 ///            [`Transparent`],
 ///          this invariant is upheld.
-///   3. There must be _zero_ incoming edges to [`Transparent`].
-///      When an identifier transitions to [`Transparent`],
-///        incoming edges must be rewritten to the object to which the
-///        identifier has become bound.
-///      This is handled by [`ObjectIndex::<Ident>::bind_definition`].
 #[derive(Debug, PartialEq, Clone)]
 pub enum Ident {
     /// An identifier is expected to be declared or defined but is not yet
@@ -992,7 +987,10 @@ impl ObjectIndex<Ident> {
     {
         let my_span = self.into();
 
-        // TODO: Move all incoming edges to `definition`
+        // TODO: Should we move all incoming edges to `definition`?
+        //   This will complicate re-outputting source XML,
+        //     but may simplify other aspects of the system.
+        //   Perhaps wait until this is needed.
         self.try_map_obj(asg, |ident| match ident {
             Transparent(id) => {
                 Err((ident, AsgError::IdentRedefine(id, my_span)))
