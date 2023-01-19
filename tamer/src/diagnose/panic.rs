@@ -127,7 +127,16 @@ macro_rules! diagnostic_panic {
         )
     };
 
-    (@$macro:ident!, $desc_data:expr, $($panic_args:tt)*) => {{
+    (@$macro:ident!, $desc_data:expr, $($panic_args:tt)*) => {
+        $crate::diagnostic_panic!(
+            @panic!,
+            @title "THIS IS A BUG IN TAMER",
+            $desc_data,
+            $($panic_args)*
+        )
+    };
+
+    (@$macro:ident!, @title $title:expr, $desc_data:expr, $($panic_args:tt)*) => {{
         use $crate::diagnose::Reporter;
 
         let mut reporter = $crate::diagnose::panic::PanicReporter::new(
@@ -140,16 +149,15 @@ macro_rules! diagnostic_panic {
             std::cell::Cell::new($desc_data),
         );
 
+        // Be extra obnoxious.
+        // This shouldn't ever happen except under exceedingly
+        //   exceptional circumstances,
+        //     so it's acceptable to make a big deal about it.
         $macro!(
-            "internal error:\n{}\n{}",
-            reporter.render(&desc),
-            // Be extra obnoxious.
-            // This shouldn't ever happen except under exceedingly
-            //   exceptional circumstances,
-            //     so it's acceptable to make a big deal about it.
-            "\x1b[0;31m
+            "internal error:\n{report}\n\
+\x1b[0;31m
 !!! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ !!!
-!!!                THIS IS A BUG IN TAMER                 !!!
+!!! {title:^53} !!!
 !!! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ !!!
 !!! This message means that TAMER has encountered an      !!!
 !!! unrecoverable error that forced it to terminate       !!!
@@ -162,7 +170,9 @@ macro_rules! diagnostic_panic {
 !!! Please report this error, including the above         !!!
 !!! diagnostic output beginning with 'internal error:'.   !!!
 !!! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ !!!
-\x1b[0m"
+\x1b[0m",
+            title = $title,
+            report = reporter.render(&desc),
         )
     }};
 }
@@ -191,6 +201,54 @@ macro_rules! diagnostic_unreachable {
     ($desc_data:expr, $($panic_args:tt)*) => {
         $crate::diagnostic_panic!(
             @unreachable!, $desc_data, $($panic_args)*
+        )
+    }
+}
+
+/// Produce a panic using [`todo!`] with diagnostic information and a rather
+///   obnoxious mesage describing this issue as a bug in TAMER.
+///
+/// This should be used in place of [`diagnostic_panic!`] wherever [`todo!`]
+///   would be used.
+///
+/// Why This Macro Over `todo!`?
+/// ============================
+/// The [`todo!`] macro is used during development to indicate that a
+///   portion of the system is not yet complete.
+/// Ideally,
+///   only a developer will hit this code path.
+///
+/// However,
+///   when frequently releasing changes
+///     (continuous integration),
+///     end users may end up hitting those code paths,
+///       either because they've enabled the feature flag associated with it
+///       or because the code path was not expected to be reachable in
+///       practice
+///         (and so was not flagged).
+/// In this case,
+///   providing diagnostic information that highlights the specific input
+///   that caused that path to be reached will help the user to not only
+///   report the issue,
+///     but also to figure out ways to work around it until the feature has
+///     been completed.
+///
+/// Developers may most often hit this macro via unit tests,
+///   where the diagnostic information is not likely to be useful.
+/// However,
+///   use of this diagnostic macro does allow the developer to run the
+///   system on real-life inputs over the course of development to observe
+///   how the system interacts.
+/// The diagnostic message associated with this macro provides a quick and
+///   valuable feedback loop in that case.
+#[macro_export]
+macro_rules! diagnostic_todo {
+    ($desc_data:expr, $($panic_args:tt)*) => {
+        $crate::diagnostic_panic!(
+            @todo!,
+            @title "THIS IS AN UNFINISHED FEATURE IN TAMER",
+            $desc_data,
+            $($panic_args)*
         )
     }
 }

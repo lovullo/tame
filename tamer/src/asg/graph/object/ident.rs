@@ -25,6 +25,7 @@ use super::{
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
+    diagnostic_todo,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},
@@ -997,8 +998,24 @@ impl ObjectIndex<Ident> {
                 Err((ident, AsgError::IdentRedefine(id, my_span)))
             }
 
-            Opaque(id, ..) | IdentFragment(id, ..) => todo!("opaque {id}"),
-            Extern(id, ..) => todo!("extern {id}"),
+            Opaque(id, ..) | IdentFragment(id, ..) | Extern(id, ..) => {
+                diagnostic_todo!(
+                    vec![
+                        id.note("must resolve definition against declaration"),
+                        my_span.error(
+                            "attempting to provide a definition for prior \
+                                declaration"
+                        ),
+                        my_span.help(
+                            "this identifier was previously declared and so \
+                                its definition needs to be checked for \
+                                compatibility with that declaration"
+                        )
+                    ],
+                    "resolve opaque declaration {} to definition",
+                    TtQuote::wrap(id),
+                )
+            }
 
             // We are okay to proceed to add an edge to the `definition`.
             Missing(id) => Ok(Transparent(id)),
