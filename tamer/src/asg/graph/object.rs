@@ -452,26 +452,9 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
 ///   construct graphs that adhere to this schema.
 pub trait ObjectRelTo<OB: ObjectKind>: ObjectKind {}
 
-/// Indicate that an [`ObjectKind`] `Self` can be related to
-///   [`ObjectKind`] `OB` by creating an edge from `OB` to `Self`.
-///
-/// _This trait exists for notational convenience and is intended only to
-///   derive a blanket [`ObjectRelTo`] implementation._
-/// This is because `impl`s are of the form `impl T for O`,
-///   but it is more natural to reason about directed edges left-to-write as
-///   `(From) -> (To)`;
-///     this trait allows `impl ObjectRelFrom<OA> for OB` rather than the
-///     equivalent `impl ObjectRelTo<OB> for OA`.
-trait ObjectRelFrom<OA: ObjectKind>: ObjectKind {}
-
-impl<OA: ObjectKind, OB: ObjectKind> ObjectRelTo<OB> for OA where
-    OB: ObjectRelFrom<OA>
-{
-}
-
 // This describes the object relationship portion of the ASG's ontology.
-impl ObjectRelFrom<Ident> for Expr {}
-impl ObjectRelFrom<Expr> for Expr {}
+impl ObjectRelTo<Expr> for Ident {}
+impl ObjectRelTo<Expr> for Expr {}
 
 /// A container for an [`Object`] allowing for owned borrowing of data.
 ///
