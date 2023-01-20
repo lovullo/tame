@@ -204,24 +204,26 @@ impl From<Object> for Expr {
     }
 }
 
-impl<'a> From<&'a Object> for &'a Ident {
-    /// Narrow an object into an [`Ident`],
-    ///   panicing if the object is not of that type.
-    fn from(val: &'a Object) -> Self {
-        match val {
-            Object::Ident(ident) => ident,
-            _ => val.narrowing_panic("an identifier"),
+impl AsRef<Object> for Object {
+    fn as_ref(&self) -> &Object {
+        self
+    }
+}
+
+impl AsRef<Ident> for Object {
+    fn as_ref(&self) -> &Ident {
+        match self {
+            Object::Ident(ref ident) => ident,
+            _ => self.narrowing_panic("an identifier"),
         }
     }
 }
 
-impl<'a> From<&'a Object> for &'a Expr {
-    /// Narrow an object into an [`Expr`],
-    ///   panicing if the object is not of that type.
-    fn from(val: &'a Object) -> Self {
-        match val {
-            Object::Expr(expr) => expr,
-            _ => val.narrowing_panic("an expression"),
+impl AsRef<Expr> for Object {
+    fn as_ref(&self) -> &Expr {
+        match self {
+            Object::Expr(ref expr) => expr,
+            _ => self.narrowing_panic("an expression"),
         }
     }
 }
@@ -235,10 +237,7 @@ impl<'a> From<&'a Object> for &'a Expr {
 ///
 /// Note that [`Object`] is also an [`ObjectKind`],
 ///   if you do not desire narrowing.
-pub trait ObjectKind = Into<Object>
-where
-    Object: Into<Self>,
-    for<'a> &'a Object: Into<&'a Self>;
+pub trait ObjectKind = Into<Object> where Object: Into<Self> + AsRef<Self>;
 
 /// Index representing an [`Object`] stored on the [`Asg`](super::Asg).
 ///
@@ -488,7 +487,10 @@ impl ObjectContainer {
     pub fn get<O: ObjectKind>(&self) -> &O {
         let Self(container) = self;
 
-        container.as_ref().diagnostic_unwrap(container_oops).into()
+        container
+            .as_ref()
+            .diagnostic_unwrap(container_oops)
+            .as_ref()
     }
 
     /// Attempt to modify the inner [`Object`],
