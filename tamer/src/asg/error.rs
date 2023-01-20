@@ -94,7 +94,10 @@ impl Display for AsgError {
             IdentRedefine(spair, _) => {
                 write!(f, "cannot redefine {}", TtQuote::wrap(spair))
             }
-            DanglingExpr(_) => write!(f, "dangling expression"),
+            DanglingExpr(_) => write!(
+                f,
+                "dangling expression (anonymous expression has no parent)"
+            ),
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
             InvalidExprBindContext(_) => {
                 write!(f, "invalid expression identifier binding context")
@@ -153,7 +156,10 @@ impl Diagnostic for AsgError {
             ],
 
             DanglingExpr(span) => vec![
-                span.error("expression has no parent or identifier"),
+                span.error(
+                    "this expression is unreachable and its value \
+                       cannot be used",
+                ),
                 span.help("an expression must either be the child of another "),
                 span.help(
                     "  expression or be assigned an identifier, otherwise ",
