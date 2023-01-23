@@ -21,7 +21,12 @@
 
 use std::{error::Error, fmt::Display};
 
-use crate::{asg::air::Air, diagnose::Diagnostic, parse::prelude::*};
+use crate::{
+    asg::{air::Air, ExprOp},
+    diagnose::Diagnostic,
+    nir::NirEntity,
+    parse::prelude::*,
+};
 
 use super::Nir;
 
@@ -48,10 +53,33 @@ impl ParseState for NirToAir {
 
     fn parse_token(
         self,
-        _tok: Self::Token,
+        tok: Self::Token,
         _: NoContext,
     ) -> TransitionResult<Self::Super> {
-        Transition(self).ok(Air::Todo)
+        use NirToAir::*;
+
+        #[cfg(not(feature = "wip-nir-to-air"))]
+        {
+            let _ = tok; // prevent `unused_variables` warning
+            return Transition(Ready).ok(Air::Todo);
+        }
+
+        #[allow(unreachable_code)] // due to wip-nir-to-air
+        match (self, tok) {
+            (Ready, Nir::Open(NirEntity::Rate, span)) => {
+                Transition(Ready).ok(Air::ExprOpen(ExprOp::Sum, span))
+            }
+
+            (Ready, Nir::Close(span)) => {
+                Transition(Ready).ok(Air::ExprClose(span))
+            }
+
+            (Ready, Nir::BindIdent(spair)) => {
+                Transition(Ready).ok(Air::ExprIdent(spair))
+            }
+
+            _ => Transition(Ready).ok(Air::Todo),
+        }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
@@ -82,3 +110,6 @@ impl Diagnostic for NirToAirError {
         vec![]
     }
 }
+
+#[cfg(all(test, feature = "wip-nir-to-air"))]
+mod test;

@@ -524,6 +524,18 @@ impl EleSpan for CloseSpan {
     }
 }
 
+impl From<OpenSpan> for Span {
+    fn from(value: OpenSpan) -> Self {
+        value.span()
+    }
+}
+
+impl From<CloseSpan> for Span {
+    fn from(value: CloseSpan) -> Self {
+        value.span()
+    }
+}
+
 /// Lightly-structured XML tokens with associated [`Span`]s.
 ///
 /// This is a streamable IR for XML.

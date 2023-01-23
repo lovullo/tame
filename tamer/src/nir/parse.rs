@@ -408,11 +408,11 @@ ele_parse! {
     ///     the term originates from TAME's history as an insurance rating
     ///     system.
     /// This will eventually be renamed to a more general term.
-    RateStmt := QN_RATE {
+    RateStmt := QN_RATE(_, ospan) {
         @ {
             QN_CLASS => TodoAttr,
             QN_NO => TodoAttr,
-            QN_YIELDS => TodoAttr,
+            QN_YIELDS => BindIdent,
             QN_DESC => TodoAttr,
             QN_SYM => TodoAttr,
 
@@ -423,7 +423,8 @@ ele_parse! {
             // TODO: We'll have private-by-default later.
             //   This is a kludge.
             QN_LOCAL => TodoAttr,
-        } => Todo,
+        } => NirEntity::Rate.open(ospan),
+        /(cspan) => Close(cspan.span()),
 
         CalcExpr,
     };

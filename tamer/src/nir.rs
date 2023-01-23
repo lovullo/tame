@@ -177,8 +177,18 @@ impl Functor<SymbolId> for Nir {
 /// An object upon which other [`Nir`] tokens act.
 #[derive(Debug, PartialEq, Eq)]
 pub enum NirEntity {
+    /// Rate (verb) block,
+    ///   representing a calculation with a scalar result.
+    Rate,
+
     /// Template parameter (metavariable).
     TplParam,
+}
+
+impl NirEntity {
+    pub fn open<S: Into<Span>>(self, span: S) -> Nir {
+        Nir::Open(self, span.into())
+    }
 }
 
 impl Display for NirEntity {
@@ -186,6 +196,7 @@ impl Display for NirEntity {
         use NirEntity::*;
 
         match self {
+            Rate => write!(f, "rate block"),
             TplParam => write!(f, "template param (metavariable)"),
         }
     }
