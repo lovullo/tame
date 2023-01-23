@@ -19,6 +19,8 @@
 
 //! Abstract semantic graph.
 
+use self::object::{ObjectRelTy, ObjectRelatable};
+
 use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
     Source, TransitionResult,
@@ -52,7 +54,7 @@ pub trait IndexType = petgraph::graph::IndexType;
 pub type AsgResult<T> = Result<T, AsgError>;
 
 /// There are currently no data stored on edges ("edge weights").
-pub type AsgEdge = ();
+pub type AsgEdge = ObjectRelTy;
 
 /// Each node of the graph.
 pub type Node = ObjectContainer;
@@ -271,7 +273,7 @@ impl Asg {
     /// See also [`IdentKind::is_auto_root`].
     pub fn add_root(&mut self, identi: ObjectIndex<Ident>) {
         self.graph
-            .add_edge(self.root_node, identi.into(), Default::default());
+            .add_edge(self.root_node, identi.into(), ObjectRelTy::Ident);
     }
 
     /// Whether an object is rooted.
@@ -394,7 +396,8 @@ impl Asg {
     ) where
         OA: ObjectRelTo<OB>,
     {
-        self.graph.add_edge(from_oi.into(), to_oi.into(), ());
+        self.graph
+            .add_edge(from_oi.into(), to_oi.into(), OB::rel_ty());
     }
 
     /// Retrieve an object from the graph by [`ObjectIndex`].
@@ -473,13 +476,16 @@ impl Asg {
     ///       it may prefer to filter unwanted objects rather than panicing
     ///       if they do not match a given [`ObjectKind`],
     ///         depending on its ontology.
-    fn edges<'a, O: ObjectKind + 'a>(
+    fn edges<'a, O: ObjectKind + ObjectRelatable + 'a>(
         &'a self,
         oi: ObjectIndex<O>,
-    ) -> impl Iterator<Item = ObjectIndex<Object>> + 'a {
-        self.graph
-            .edges(oi.into())
-            .map(move |edge| ObjectIndex::new(edge.target(), oi))
+    ) -> impl Iterator<Item = O::Rel> + 'a {
+        self.graph.edges(oi.into()).map(move |edge| {
+            O::new_rel_dyn(
+                *edge.weight(),
+                ObjectIndex::<Object>::new(edge.target(), oi),
+            )
+        })
     }
 
     /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
@@ -632,9 +638,11 @@ impl Asg {
         &mut self,
         identi: ObjectIndex<Ident>,
         depi: ObjectIndex<O>,
-    ) {
+    ) where
+        Ident: ObjectRelTo<O>,
+    {
         self.graph
-            .update_edge(identi.into(), depi.into(), Default::default());
+            .update_edge(identi.into(), depi.into(), O::rel_ty());
     }
 
     /// Check whether `dep` is a dependency of `ident`.
@@ -669,7 +677,7 @@ impl Asg {
         let depi = self.lookup_or_missing(dep);
 
         self.graph
-            .update_edge(identi.into(), depi.into(), Default::default());
+            .update_edge(identi.into(), depi.into(), Ident::rel_ty());
 
         (identi, depi)
     }

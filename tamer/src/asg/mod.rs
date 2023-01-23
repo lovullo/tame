@@ -37,9 +37,12 @@
 //!
 //! Graph Structure
 //! ===============
-//! Each node (vector) in the graph represents an [`Object`],
+//! Each node (vertex) in the graph represents an [`Object`],
 //!   such as an identifier or an expression.
-//! Each directed edge `(A->B)` represents that `A` depends upon `B`.
+//! For information on how [`Object`]s are stored and represented on the
+//!   graph,
+//!     and for information on relationships between objects,
+//!     see the [`graph::object`] module.
 //!
 //! Graphs may contain cycles for recursive functions—that is,
 //!   TAME's ASG is _not_ a DAG.
@@ -49,9 +52,6 @@
 //! [asg]: https://en.wikipedia.org/wiki/Abstract_semantic_graph
 //! [graph]: https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)
 //! [scc]: https://en.wikipedia.org/wiki/Strongly_connected_component
-//!
-//! Each object may have a number of valid states;
-//!   see [`Ident`] for valid object states and transitions.
 //!
 //! Missing Identifiers
 //! -------------------

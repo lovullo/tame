@@ -26,15 +26,21 @@
 //! The ASG does not benefit from the same type-level guarantees that the
 //!   rest of the system does at compile-time.
 //!
+//! However,
+//!   we _are_ able to utilize the type system to ensure statically that
+//!   there exists no code path that is able to generated an invalid graph
+//!     (a graph that does not adhere to its ontology as described below).
+//!
 //! Any node on the graph can represent any type of [`Object`].
 //! An [`ObjectIndex`] contains an index into the graph,
 //!   _not_ a reference;
-//!     consequently,
-//!       it is possible (though avoidable) for objects to be modified out
-//!       from underneath references.
+//!     it is therefore possible (though avoidable) for objects to be
+//!       modified out from underneath references.
 //! Consequently,
 //!   we cannot trust that an [`ObjectIndex`] is what we expect it to be when
-//!   performing an operation on the graph using that index.
+//!   performing an operation on the graph using that index,
+//!     though the system is designed to uphold an invariant that the _type_
+//!     of [`Object`] cannot be changed.
 //!
 //! To perform an operation on a particular type of object,
 //!   we must first _narrow_ it.
@@ -60,6 +66,46 @@
 //!       using whatever [`Span`]s we have available.
 //! [`ObjectIndex`] is associated with a span derived from the point of its
 //!   creation to handle this diagnostic situation automatically.
+//!
+//! Edge Types and Narrowing
+//! ------------------------
+//! Unlike nodes,
+//!   edges may reference [`Object`]s of many different types,
+//!   as defined by the graph's ontology.
+//!
+//! The set [`ObjectKind`] types that may be related _to_
+//!   (via edges)
+//!   from other objects are the variants of [`ObjectRelTy`].
+//! Each such [`ObjectKind`] must implement [`ObjectRelatable`],
+//!   where [`ObjectRelatable::Rel`] is an enum whose variants represent a
+//!   _subset_ of [`Object`]'s variants that are valid targets for edges
+//!   from that object type.
+//! If some [`ObjectKind`] `OA` is able to be related to another
+//!   [`ObjectKind`] `OB`,
+//!     then [`ObjectRelTo::<OB>`](ObjectRelTo) is implemented for `OA`.
+//!
+//! When querying the graph for edges using [`ObjectIndex::edges`],
+//!   the corresponding [`ObjectRelatable::Rel`] type is provided,
+//!   which may then be acted upon or filtered by the caller.
+//! Unlike nodes,
+//!   it is difficult to statically expect exact edge types in most code
+//!   paths
+//!     (beyond the `Rel` object itself),
+//!     and so [`ObjectRel::narrow`] produces an [`Option`] of the inner
+//!     [`ObjectIndex`],
+//!       rather than panicing.
+//! This `Option` is convenient to use with `Iterator::filter_map` to query
+//!   for specific edge types.
+//!
+//! Using [`ObjectRelTo`],
+//!   we are able to ensure statically that all code paths only add edges to
+//!   the [`Asg`] that adhere to the ontology described above;
+//!     it should therefore not be possible for an edge to exist on the
+//!     graph that is not represented by [`ObjectRelatable::Rel`],
+//!       provided that it is properly defined.
+//! Since [`ObjectRel`] narrows into an [`ObjectIndex`],
+//!   the system will produce runtime panics if there is ever any attempt to
+//!   follow an edge to an unexpected [`ObjectKind`].
 
 use super::Asg;
 use crate::{
@@ -97,6 +143,22 @@ pub enum Object {
     ///
     /// An expression may optionally be named by one or more [`Ident`]s.
     Expr(Expr),
+}
+
+/// Object types corresponding to variants in [`Object`] that are able to
+///   serve as targets of object relations
+///     (edges on the graph).
+///
+/// These are used as small tags for [`ObjectRelatable`].
+/// Rust unfortunately makes working with its internal tags difficult,
+///   despite their efforts with [`std::mem::Discriminant`],
+///     which requires a _value_ to produce.
+///
+/// TODO: `pub(super)` when the graph can be better encapsulated.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ObjectRelTy {
+    Ident,
+    Expr,
 }
 
 impl Display for Object {
@@ -323,14 +385,14 @@ impl<O: ObjectKind> ObjectIndex<O> {
     /// Note that the [`ObjectKind`] `OB` indicates what type of
     ///   [`ObjectIndex`]es will be yielded by the returned iterator;
     ///     this method does nothing to filter non-matches.
-    pub fn edges<'a, OB: ObjectKind + 'a>(
+    pub fn edges<'a>(
         self,
         asg: &'a Asg,
-    ) -> impl Iterator<Item = ObjectIndex<OB>> + 'a
+    ) -> impl Iterator<Item = <O as ObjectRelatable>::Rel> + 'a
     where
-        O: ObjectRelTo<OB> + 'a,
+        O: ObjectRelatable + 'a,
     {
-        asg.edges(self).map(ObjectIndex::must_narrow_into::<OB>)
+        asg.edges(self)
     }
 
     /// Resolve `self` to the object that it references.
@@ -342,6 +404,11 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///     the system will panic.
     pub fn resolve(self, asg: &Asg) -> &O {
         asg.expect_obj(self)
+    }
+
+    /// Curried [`Self::resolve`].
+    pub fn cresolve<'a>(asg: &'a Asg) -> impl FnMut(Self) -> &'a O {
+        move |oi| oi.resolve(asg)
     }
 
     /// Resolve the identifier and map over the resulting [`Object`]
@@ -380,6 +447,32 @@ impl<O: ObjectKind> ObjectIndex<O> {
             Ok(oi) => oi,
             Err::<_, Infallible>(_) => unreachable!(),
         }
+    }
+
+    /// Lift [`Self`] into [`Option`] and [`filter`](Option::filter) based
+    ///   on whether the [`ObjectRelatable::rel_ty`] of [`Self`]'s `O`
+    ///   matches that of `OB`.
+    ///
+    /// More intuitively:
+    ///   if `OB` is the same [`ObjectKind`] associated with [`Self`],
+    ///     return [`Some(Self)`](Some).
+    /// Otherwise,
+    ///   return [`None`].
+    fn filter_rel<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>>
+    where
+        O: ObjectRelatable,
+    {
+        let Self(index, span, _pd) = self;
+
+        // Rust doesn't know that `OB` and `O` will be the same,
+        //   but this will be the case.
+        // If it weren't,
+        //   then [`ObjectIndex`] protects us at runtime,
+        //   so there are no safety issues here.
+        Some(ObjectIndex::<OB>(index, span, PhantomData::default()))
+            .filter(|_| O::rel_ty() == OB::rel_ty())
     }
 }
 
@@ -449,11 +542,179 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
 ///   the systems that _construct_ the graph using the runtime data can be
 ///   statically analyzed by the type system to ensure that they only
 ///   construct graphs that adhere to this schema.
-pub trait ObjectRelTo<OB: ObjectKind>: ObjectKind {}
+pub trait ObjectRelTo<OB: ObjectKind + ObjectRelatable> =
+    ObjectRelatable where <Self as ObjectRelatable>::Rel: From<ObjectIndex<OB>>;
 
-// This describes the object relationship portion of the ASG's ontology.
-impl ObjectRelTo<Expr> for Ident {}
-impl ObjectRelTo<Expr> for Expr {}
+/// Identify [`Self::Rel`] as a sum type consisting of the subset of
+///   [`Object`] variants representing the valid _target_ edges of
+///   [`Self`].
+///
+/// This is used to derive [`ObjectRelTo``],
+///   which can be used as a trait bound to assert a valid relationship
+///   between two [`Object`]s.
+pub trait ObjectRelatable: ObjectKind {
+    /// Sum type representing a subset of [`Object`] variants that are valid
+    ///   targets for edges from [`Self`].
+    ///
+    /// See [`ObjectRel`] for more information.
+    type Rel: ObjectRel;
+
+    /// The [`ObjectRelTy`] tag used to identify this [`ObjectKind`] as a
+    ///   target of a relation.
+    fn rel_ty() -> ObjectRelTy;
+
+    /// Represent a relation to another [`ObjectKind`] that cannot be
+    ///   statically known and must be handled at runtime.
+    ///
+    /// See [`ObjectRel`] for more information.
+    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> Self::Rel;
+}
+
+/// A relationship to another [`ObjectKind`].
+///
+/// This trait is intended to be implemented by enums that represent the
+///   subset of [`ObjectKind`]s that are able to serve as edge targets for
+///   the [`ObjectRelatable`] that utilizes it as its
+///   [`ObjectRelatable::Rel`].
+///
+/// As described in the [module-level documentation](super),
+///   the concrete [`ObjectKind`] of an edge is generally not able to be
+///   determined statically outside of code paths that created the
+///   [`Object`] anew.
+/// But we _can_ at least narrow the types of [`ObjectKind`]s to those
+///   [`ObjectRelTo`]s that we know are valid,
+///     since the system is restricted (statically) to those edges when
+///     performing operations on the graph.
+///
+/// This [`ObjectRel`] represents that subset of [`ObjectKind`]s.
+/// A caller may decide to dispatch based on the type of edge it receives,
+///   or it may filter edges with [`Self::narrow`] in conjunction with
+///   [`Iterator::filter_map`]
+///     (for example).
+/// Since the wrapped value is an [`ObjectIndex`],
+///   the system will eventually panic if it attempts to reference a node
+///   that is not of the type expected by the edge,
+///     which can only happen if the edge has an incorrect [`ObjectRelTy`],
+///     meaning the graph is somehow corrupt
+///       (because system invariants were not upheld).
+///
+/// This affords us both runtime memory safety and static guarantees that
+///   the system is not able to generate an invalid graph that does not
+///   adhere to the prescribed ontology,
+///     provided that invariants are properly upheld by the
+///     [`asg`](crate::asg) module.
+pub trait ObjectRel {
+    /// Attempt to narrow into the [`ObjectKind`] `OB`.
+    ///
+    /// Unlike [`Object`] nodes,
+    ///   _this operation does not panic_,
+    ///   instead returning an [`Option`].
+    /// If the relationship is of type `OB`,
+    ///   then [`Some`] will be returned with an inner
+    ///   [`ObjectIndex<OB>`](ObjectIndex).
+    /// If the narrowing fails,
+    ///   [`None`] will be returned instead.
+    ///
+    /// This return value is well-suited for [`Iterator::filter_map`] to
+    ///   query for edges of particular kinds.
+    fn narrow<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>>;
+}
+
+/// Subset of [`ObjectKind`]s that are valid targets for edges from
+///   [`Ident`].
+///
+/// See [`ObjectRel`] for more information.
+pub enum IdentRel {
+    Ident(ObjectIndex<Ident>),
+    Expr(ObjectIndex<Expr>),
+}
+
+impl ObjectRel for IdentRel {
+    fn narrow<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>> {
+        match self {
+            Self::Ident(oi) => oi.filter_rel(),
+            Self::Expr(oi) => oi.filter_rel(),
+        }
+    }
+}
+
+impl ObjectRelatable for Ident {
+    type Rel = IdentRel;
+
+    fn rel_ty() -> ObjectRelTy {
+        ObjectRelTy::Ident
+    }
+
+    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> IdentRel {
+        match ty {
+            ObjectRelTy::Ident => IdentRel::Ident(oi.must_narrow_into()),
+            ObjectRelTy::Expr => IdentRel::Expr(oi.must_narrow_into()),
+        }
+    }
+}
+
+impl From<ObjectIndex<Ident>> for IdentRel {
+    fn from(value: ObjectIndex<Ident>) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl From<ObjectIndex<Expr>> for IdentRel {
+    fn from(value: ObjectIndex<Expr>) -> Self {
+        Self::Expr(value)
+    }
+}
+
+/// Subset of [`ObjectKind`]s that are valid targets for edges from
+///   [`Expr`].
+///
+/// See [`ObjectRel`] for more information.
+pub enum ExprRel {
+    Ident(ObjectIndex<Ident>),
+    Expr(ObjectIndex<Expr>),
+}
+
+impl ObjectRel for ExprRel {
+    fn narrow<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>> {
+        match self {
+            Self::Ident(oi) => oi.filter_rel(),
+            Self::Expr(oi) => oi.filter_rel(),
+        }
+    }
+}
+
+impl ObjectRelatable for Expr {
+    type Rel = ExprRel;
+
+    fn rel_ty() -> ObjectRelTy {
+        ObjectRelTy::Expr
+    }
+
+    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> ExprRel {
+        match ty {
+            ObjectRelTy::Ident => ExprRel::Ident(oi.must_narrow_into()),
+            ObjectRelTy::Expr => ExprRel::Expr(oi.must_narrow_into()),
+        }
+    }
+}
+
+impl From<ObjectIndex<Ident>> for ExprRel {
+    fn from(value: ObjectIndex<Ident>) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl From<ObjectIndex<Expr>> for ExprRel {
+    fn from(value: ObjectIndex<Expr>) -> Self {
+        Self::Expr(value)
+    }
+}
 
 /// A container for an [`Object`] allowing for owned borrowing of data.
 ///

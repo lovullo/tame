@@ -20,9 +20,9 @@
 //! These are tested as if they are another API directly atop of the ASG,
 //!   since that is how they are used.
 
-use super::super::graph::object::{ObjectKind, ObjectRelTo};
 use super::super::Ident;
 use super::*;
+use crate::asg::graph::object::ObjectRel;
 use crate::{
     parse::{ParseError, Parsed},
     span::dummy::*,
@@ -610,8 +610,9 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
     let oi_root = asg.expect_ident_oi::<Expr>(id_root);
 
     let siblings = oi_root
-        .edges::<Expr>(&asg)
-        .map(|oi| oi.resolve(&asg))
+        .edges(&asg)
+        .filter_map(ObjectRel::narrow::<Expr>)
+        .map(ObjectIndex::cresolve(&asg))
         .collect::<Vec<_>>();
 
     // The reversal here is an implementation detail with regards to how
@@ -791,14 +792,12 @@ where
     sut.finalize().unwrap().into_context()
 }
 
-fn collect_subexprs<O: ObjectKind>(
+fn collect_subexprs(
     asg: &Asg,
-    oi: ObjectIndex<O>,
-) -> Vec<(ObjectIndex<O>, &O)>
-where
-    O: ObjectRelTo<O>,
-{
-    oi.edges::<O>(&asg)
+    oi: ObjectIndex<Expr>,
+) -> Vec<(ObjectIndex<Expr>, &Expr)> {
+    oi.edges(&asg)
+        .filter_map(|rel| rel.narrow::<Expr>())
         .map(|oi| (oi, oi.resolve(&asg)))
         .collect::<Vec<_>>()
 }
