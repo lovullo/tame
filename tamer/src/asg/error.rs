@@ -83,6 +83,12 @@ pub enum AsgError {
     /// Note that the user may encounter an error from a higher-level IR
     ///   instead of this one.
     InvalidExprBindContext(SPair),
+
+    /// Attempted to reference an identifier as part of an expression while
+    ///   not in an expression context.
+    ///
+    /// Ideally this situation is syntactically invalid in a source IR.
+    InvalidExprRefContext(SPair),
 }
 
 impl Display for AsgError {
@@ -102,6 +108,13 @@ impl Display for AsgError {
             InvalidExprBindContext(_) => {
                 write!(f, "invalid expression identifier binding context")
             }
+            InvalidExprRefContext(ident) => {
+                write!(
+                    f,
+                    "invalid context for expression identifier {}",
+                    TtQuote::wrap(ident)
+                )
+            }
         }
     }
 }
@@ -115,7 +128,8 @@ impl Error for AsgError {
             IdentRedefine(_, _)
             | DanglingExpr(_)
             | UnbalancedExpr(_)
-            | InvalidExprBindContext(_) => None,
+            | InvalidExprBindContext(_)
+            | InvalidExprRefContext(_) => None,
         }
     }
 }
@@ -180,6 +194,11 @@ impl Diagnostic for AsgError {
                         the expression is closed",
                 ),
             ],
+
+            InvalidExprRefContext(ident) => vec![ident.error(
+                "cannot reference the value of an expression from outside \
+                    of an expression context",
+            )],
         }
     }
 }

@@ -21,7 +21,7 @@
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    ObjectRelTo,
+    ObjectRel, ObjectRelTo, ObjectRelatable,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -1019,6 +1019,18 @@ impl ObjectIndex<Ident> {
             Missing(id) => Ok(Transparent(id)),
         })
         .map(|ident_oi| ident_oi.add_edge_to(asg, definition))
+    }
+
+    /// Whether this identifier is bound to the object represented by `oi`.
+    ///
+    /// To bind an identifier,
+    ///   see [`Self::bind_definition`].
+    pub fn is_bound_to<O: ObjectKind + ObjectRelatable>(
+        &self,
+        asg: &Asg,
+        oi: ObjectIndex<O>,
+    ) -> bool {
+        self.edges(asg).find_map(ObjectRel::narrow) == Some(oi)
     }
 }
 

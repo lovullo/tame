@@ -626,6 +626,7 @@ pub trait ObjectRel {
 ///   [`Ident`].
 ///
 /// See [`ObjectRel`] for more information.
+#[derive(Debug, PartialEq, Eq)]
 pub enum IdentRel {
     Ident(ObjectIndex<Ident>),
     Expr(ObjectIndex<Expr>),
@@ -673,6 +674,7 @@ impl From<ObjectIndex<Expr>> for IdentRel {
 ///   [`Expr`].
 ///
 /// See [`ObjectRel`] for more information.
+#[derive(Debug, PartialEq, Eq)]
 pub enum ExprRel {
     Ident(ObjectIndex<Ident>),
     Expr(ObjectIndex<Expr>),

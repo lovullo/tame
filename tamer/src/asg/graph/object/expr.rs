@@ -22,7 +22,7 @@
 use std::fmt::Display;
 
 use super::{Asg, ObjectIndex};
-use crate::{f::Functor, num::Dim, span::Span};
+use crate::{f::Functor, num::Dim, parse::util::SPair, span::Span};
 
 /// Expression.
 ///
@@ -194,8 +194,17 @@ impl ObjectIndex<Expr> {
         expr: Expr,
     ) -> ObjectIndex<Expr> {
         let oi_subexpr = asg.create(expr);
-        self.add_edge_to(asg, oi_subexpr);
+        oi_subexpr.add_edge_from(asg, self)
+    }
 
-        oi_subexpr
+    /// Reference the value of the expression identified by `ident` as if it
+    ///   were a subexpression.
+    ///
+    /// If `ident` does not yet exist on the graph,
+    ///   a missing identifier will take its place to be later resolved once
+    ///   it becomes available.
+    pub fn ref_expr(self, asg: &mut Asg, ident: SPair) -> Self {
+        let identi = asg.lookup_or_missing(ident);
+        self.add_edge_to(asg, identi)
     }
 }

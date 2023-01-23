@@ -783,6 +783,88 @@ fn expr_still_dangling_on_redefine() {
     assert_eq!(expr.span(), S7.merge(S10).unwrap());
 }
 
+#[test]
+fn expr_ref_to_ident() {
+    let id_foo = SPair("foo".into(), S2);
+    let id_bar = SPair("bar".into(), S6);
+
+    let toks = vec![
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id_foo),
+        // Reference to an as-of-yet-undefined id (okay)
+        Air::ExprRef(id_bar),
+        Air::ExprClose(S4),
+        //
+        // Another expression to reference the first
+        //   (we don't handle cyclic references until a topological sort,
+        //     so no point in referencing ourselves;
+        //       it'd work just fine here.)
+        Air::ExprOpen(ExprOp::Sum, S5),
+        Air::ExprIdent(id_bar),
+        Air::ExprClose(S7),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_foo = asg.expect_ident_oi::<Expr>(id_foo);
+
+    let foo_refs = oi_foo
+        .edges(&asg)
+        .filter_map(ObjectRel::narrow::<Ident>)
+        .collect::<Vec<_>>();
+
+    // We should have only a single reference (to `id_bar`).
+    assert_eq!(foo_refs.len(), 1);
+
+    let oi_ident_bar = foo_refs[0];
+    let ident_bar = oi_ident_bar.resolve(&asg);
+    assert_eq!(ident_bar.span(), id_bar.span());
+
+    // The identifier will have originally been `Missing`,
+    //   since it did not exist at the point of reference.
+    // But it should now properly identify the other expression.
+    assert_matches!(ident_bar, Ident::Transparent(..));
+
+    let oi_expr_bar = asg.expect_ident_oi::<Expr>(id_bar);
+    assert!(oi_ident_bar.is_bound_to(&asg, oi_expr_bar));
+}
+
+#[test]
+fn expr_ref_outside_of_expr_context() {
+    let id_foo = SPair("foo".into(), S2);
+
+    let toks = vec![
+        // This will fail since we're not in an expression context.
+        Air::ExprRef(id_foo),
+        // RECOVERY: Simply ignore the above.
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id_foo),
+        Air::ExprClose(S3),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        vec![
+            Err(ParseError::StateError(AsgError::InvalidExprRefContext(
+                id_foo
+            ))),
+            // RECOVERY: Proceed as normal
+            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // IdentExpr
+            Ok(Parsed::Incomplete), // CloseExpr
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // Verify that the identifier was bound just to have some confidence in
+    //   the recovery.
+    let expr = asg.expect_ident_obj::<Expr>(id_foo);
+    assert_eq!(expr.span(), S1.merge(S3).unwrap());
+}
+
 fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,

@@ -101,6 +101,18 @@ pub enum Air {
     /// Binding an identifier will declare it.
     ExprIdent(SPair),
 
+    /// Reference another expression identified by the given [`SPair`].
+    ///
+    /// Values can be referenced before they are declared or defined,
+    ///   so the provided identifier need not yet exist.
+    /// However,
+    ///   the identifier must eventually be bound to an [`Expr`].
+    ///
+    /// Since all values in TAME are referentially tansparent,
+    ///   the system has flexibility in determining what it should do with a
+    ///   reference.
+    ExprRef(SPair),
+
     /// Declare a resolved identifier.
     IdentDecl(SPair, IdentKind, Source),
 
@@ -147,6 +159,7 @@ impl Token for Air {
             ExprOpen(_, span) | ExprClose(span) => *span,
 
             ExprIdent(spair)
+            | ExprRef(spair)
             | IdentDecl(spair, _, _)
             | IdentExternDecl(spair, _, _)
             | IdentDep(spair, _)
@@ -171,6 +184,14 @@ impl Display for Air {
 
             ExprIdent(id) => {
                 write!(f, "identify expression as {}", TtQuote::wrap(id))
+            }
+
+            ExprRef(id) => {
+                write!(
+                    f,
+                    "reference to the expression identified by {}",
+                    TtQuote::wrap(id)
+                )
             }
 
             IdentDecl(spair, _, _) => {
@@ -479,10 +500,6 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (st @ Empty(_), ExprIdent(ident)) => {
-                Transition(st).err(AsgError::InvalidExprBindContext(ident))
-            }
-
             (BuildingExpr(es, oi), ExprIdent(id)) => {
                 let identi = asg.lookup_or_missing(id);
 
@@ -493,6 +510,19 @@ impl ParseState for AirAggregate {
                         .incomplete(),
                     Err(e) => Transition(BuildingExpr(es, oi)).err(e),
                 }
+            }
+
+            (BuildingExpr(es, oi), ExprRef(ident)) => {
+                Transition(BuildingExpr(es, oi.ref_expr(asg, ident)))
+                    .incomplete()
+            }
+
+            (st @ Empty(_), ExprIdent(ident)) => {
+                Transition(st).err(AsgError::InvalidExprBindContext(ident))
+            }
+
+            (st @ Empty(_), ExprRef(ident)) => {
+                Transition(st).err(AsgError::InvalidExprRefContext(ident))
             }
 
             (st @ Empty(_), IdentDecl(name, kind, src)) => {
