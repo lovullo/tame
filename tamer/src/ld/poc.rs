@@ -28,7 +28,7 @@ use super::xmle::{
 use crate::{
     asg::{
         air::{Air, AirAggregate},
-        Asg, AsgError, DefaultAsg, Object,
+        Asg, AsgError, DefaultAsg,
     },
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
@@ -52,7 +52,6 @@ use crate::{
     },
 };
 use fxhash::FxBuildHasher;
-use petgraph_graphml::GraphMl;
 use std::{
     error::Error,
     fmt::{self, Display},
@@ -90,58 +89,6 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
         output,
         &escaper,
     )?;
-
-    Ok(())
-}
-
-// TODO: This needs to be further generalized.
-pub fn graphml(package_path: &str, output: &str) -> Result<(), TameldError> {
-    let mut fs = VisitOnceFilesystem::new();
-    let escaper = DefaultEscaper::default();
-
-    let (depgraph, _) = load_xmlo(
-        package_path,
-        &mut fs,
-        LinkerAsg::with_capacity(65536, 65536),
-        &escaper,
-        XmloAirContext::default(),
-    )?;
-
-    // if we move away from petgraph, we will need to abstract this away
-    let g = depgraph.into_inner();
-    let graphml =
-        GraphMl::new(&g)
-            .pretty_print(true)
-            .export_node_weights(Box::new(|node| {
-                let (name, kind, generated) = match node.get() {
-                    Object::Ident(n) => {
-                        let generated = match n.src() {
-                            Some(src) => src.generated,
-                            None => false,
-                        };
-
-                        (
-                            n.name().symbol().lookup_str().into(),
-                            n.kind().unwrap().as_sym(),
-                            format!("{}", generated),
-                        )
-                    }
-                    // TODO: We want these filtered.
-                    _ => (
-                        String::from("non-ident"),
-                        "non-ident".into(),
-                        "false".into(),
-                    ),
-                };
-
-                vec![
-                    ("label".into(), name.into()),
-                    ("kind".into(), kind.lookup_str().into()),
-                    ("generated".into(), generated.into()),
-                ]
-            }));
-
-    fs::write(output, graphml.to_string())?;
 
     Ok(())
 }

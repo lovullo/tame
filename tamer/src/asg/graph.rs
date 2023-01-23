@@ -54,10 +54,10 @@ pub trait IndexType = petgraph::graph::IndexType;
 pub type AsgResult<T> = Result<T, AsgError>;
 
 /// There are currently no data stored on edges ("edge weights").
-pub type AsgEdge = ObjectRelTy;
+type AsgEdge = ObjectRelTy;
 
 /// Each node of the graph.
-pub type Node = ObjectContainer;
+type Node = ObjectContainer;
 
 /// Index size for Graph nodes and edges.
 type Ix = global::ProgSymSize;

@@ -31,7 +31,6 @@ getopts = "0.2"
 memchr = ">= 2.3.4"  # quick-xml expects =2.3.4 at the time
 paste = ">= 1.0.5"
 petgraph = "0.6.0"
-petgraph-graphml = "3.0.0"
 quick-xml = ">= 0.23.0-alpha3"
 static_assertions = ">= 1.1.0"
 unicode-width = "0.1.5"

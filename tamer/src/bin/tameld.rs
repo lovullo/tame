@@ -46,9 +46,6 @@ enum Emit {
     /// Outputs the linked object files in a format that can be used in an
     ///   application.
     Xmle,
-
-    /// Used for exploring the linked graph
-    Graphml,
 }
 
 /// Entrypoint for the linker
@@ -64,7 +61,6 @@ pub fn main() -> Result<(), TameldError> {
     match parse_options(opts, args) {
         Ok(Command::Link(input, output, emit)) => match emit {
             Emit::Xmle => poc::xmle(&input, &output),
-            Emit::Graphml => poc::graphml(&input, &output),
         }
         .map_err(|e| {
             // POC: Rendering to a string ensures buffering so that we don't
@@ -99,12 +95,7 @@ fn get_opts() -> Options {
     let mut opts = Options::new();
     opts.optopt("o", "output", "set output file name", "NAME");
     opts.optflag("h", "help", "print this help menu");
-    opts.optopt(
-        "",
-        "emit",
-        "set the output to be emitted",
-        "--emit xmle|graphml",
-    );
+    opts.optopt("", "emit", "set the output to be emitted", "--emit xmle");
 
     opts
 }
@@ -138,7 +129,6 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
     let emit = match matches.opt_str("emit") {
         Some(m) => match &m[..] {
             "xmle" => Emit::Xmle,
-            "graphml" => Emit::Graphml,
             em => return Err(Fail::ArgumentMissing(format!("--emit {em}"))),
         },
         None => Emit::Xmle,
@@ -306,30 +296,6 @@ mod test {
 
         match result {
             Ok(Command::Link(infile, outfile, Emit::Xmle)) => {
-                assert_eq!("foo", infile);
-                assert_eq!("bar", outfile);
-            }
-            _ => panic!("Unexpected result"),
-        }
-    }
-
-    #[test]
-    fn parse_options_valid_long_emit_graphml() {
-        let opts = get_opts();
-        let result = parse_options(
-            opts,
-            vec![
-                String::from("program"),
-                String::from("foo"),
-                String::from("--output"),
-                String::from("bar"),
-                String::from("--emit"),
-                String::from("graphml"),
-            ],
-        );
-
-        match result {
-            Ok(Command::Link(infile, outfile, Emit::Graphml)) => {
                 assert_eq!("foo", infile);
                 assert_eq!("bar", outfile);
             }
