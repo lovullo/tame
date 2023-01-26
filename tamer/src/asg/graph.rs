@@ -33,6 +33,7 @@ use crate::{
     parse::{util::SPair, Token},
     sym::SymbolId,
 };
+use fxhash::FxHashMap;
 use petgraph::{
     graph::{DiGraph, Graph, NodeIndex},
     visit::EdgeRef,
@@ -92,10 +93,7 @@ pub struct Asg {
     /// Note that,
     ///   while we store [`NodeIndex`] internally,
     ///   the public API encapsulates it within an [`ObjectIndex`].
-    index: Vec<NodeIndex<Ix>>,
-
-    /// Empty node indicating that no object exists for a given index.
-    empty_node: NodeIndex<Ix>,
+    index: FxHashMap<SymbolId, NodeIndex<Ix>>,
 
     /// The root node used for reachability analysis and topological
     ///   sorting.
@@ -129,12 +127,8 @@ impl Asg {
     ///     edge to another object.
     pub fn with_capacity(objects: usize, edges: usize) -> Self {
         let mut graph = Graph::with_capacity(objects, edges);
-        let mut index = Vec::with_capacity(objects);
-
-        // Exhaust the first index to be used as a placeholder
-        //   (its value does not matter).
-        let empty_node = graph.add_node(Object::Root.into());
-        index.push(empty_node);
+        let index =
+            FxHashMap::with_capacity_and_hasher(objects, Default::default());
 
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
@@ -144,7 +138,6 @@ impl Asg {
         Self {
             graph,
             index,
-            empty_node,
             root_node,
         }
     }
@@ -161,27 +154,11 @@ impl Asg {
     /// After an identifier is indexed it is not expected to be reassigned
     ///   to another node.
     /// Debug builds contain an assertion that will panic in this instance.
-    ///
-    /// Panics
-    /// ======
-    /// Will panic if unable to allocate more space for the index.
     fn index_identifier(&mut self, name: SymbolId, node: NodeIndex<Ix>) {
-        let i = name.as_usize();
-
-        if i >= self.index.len() {
-            // If this is ever a problem we can fall back to usize max and
-            // re-compare before panicing
-            let new_size = (i + 1)
-                .checked_next_power_of_two()
-                .expect("internal error: cannot allocate space for ASG index");
-
-            self.index.resize(new_size, self.empty_node);
-        }
+        let prev = self.index.insert(name, node);
 
         // We should never overwrite indexes
-        debug_assert!(self.index[i] == self.empty_node);
-
-        self.index[i] = node;
+        debug_assert!(prev == None);
     }
 
     /// Lookup `ident` or add a missing identifier to the graph and return a
@@ -617,12 +594,9 @@ impl Asg {
     ///     that, see [`Asg::get`].
     #[inline]
     pub fn lookup(&self, id: SPair) -> Option<ObjectIndex<Ident>> {
-        let i = id.symbol().as_usize();
-
         self.index
-            .get(i)
-            .filter(|ni| ni.index() > 0)
-            .map(|ni| ObjectIndex::new(*ni, id.span()))
+            .get(&id.symbol())
+            .map(|&ni| ObjectIndex::new(ni, id.span()))
     }
 
     /// Declare that `dep` is a dependency of `ident`.
