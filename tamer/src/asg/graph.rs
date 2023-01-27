@@ -80,7 +80,6 @@ type Ix = global::ProgSymSize;
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-#[derive(Debug)]
 pub struct Asg {
     // TODO: private; see `ld::xmle::lower`.
     /// Directed graph on which objects are stored.
@@ -100,6 +99,24 @@ pub struct Asg {
     /// The root node used for reachability analysis and topological
     ///   sorting.
     root_node: NodeIndex<Ix>,
+}
+
+impl Debug for Asg {
+    /// Trimmed-down Asg [`Debug`] output.
+    ///
+    /// This primarily hides the large `self.index` that takes up so much
+    ///   space in parser traces,
+    ///     but also hides irrelevant information.
+    ///
+    /// The better option in the future may be to create a newtype for
+    ///   `index` if it sticks around in its current form,
+    ///     which in turn can encapsulate `self.empty_node`.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("Asg")
+            .field("root_node", &self.root_node)
+            .field("graph", &self.graph)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for Asg {
