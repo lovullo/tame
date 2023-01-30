@@ -566,8 +566,21 @@ pub trait ObjectRelatable: ObjectKind {
     /// Represent a relation to another [`ObjectKind`] that cannot be
     ///   statically known and must be handled at runtime.
     ///
+    /// A value of [`None`] means that the provided [`ObjectRelTy`] is not
+    ///   valid for [`Self`].
+    /// If the caller is utilizing edge data that is already present on the graph,
+    ///   then this means that the system is not properly upholding edge
+    ///   invariants
+    ///     (the graph's ontology)
+    ///     and the system ought to panic;
+    ///       this is a significant bug representing a problem with the
+    ///       correctness of the system.
+    ///
     /// See [`ObjectRel`] for more information.
-    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> Self::Rel;
+    fn new_rel_dyn(
+        ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+    ) -> Option<Self::Rel>;
 }
 
 /// A relationship to another [`ObjectKind`].
@@ -650,10 +663,13 @@ impl ObjectRelatable for Ident {
         ObjectRelTy::Ident
     }
 
-    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> IdentRel {
+    fn new_rel_dyn(
+        ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+    ) -> Option<IdentRel> {
         match ty {
-            ObjectRelTy::Ident => IdentRel::Ident(oi.must_narrow_into()),
-            ObjectRelTy::Expr => IdentRel::Expr(oi.must_narrow_into()),
+            ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
         }
     }
 }
@@ -698,10 +714,13 @@ impl ObjectRelatable for Expr {
         ObjectRelTy::Expr
     }
 
-    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> ExprRel {
+    fn new_rel_dyn(
+        ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+    ) -> Option<ExprRel> {
         match ty {
-            ObjectRelTy::Ident => ExprRel::Ident(oi.must_narrow_into()),
-            ObjectRelTy::Expr => ExprRel::Expr(oi.must_narrow_into()),
+            ObjectRelTy::Ident => Some(ExprRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Expr => Some(ExprRel::Expr(oi.must_narrow_into())),
         }
     }
 }

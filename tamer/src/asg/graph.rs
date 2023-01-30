@@ -502,6 +502,18 @@ impl Asg {
                 *edge.weight(),
                 ObjectIndex::<Object>::new(edge.target(), oi),
             )
+            .diagnostic_unwrap(|| {
+                vec![
+                    oi.internal_error(format!(
+                        "encountered invalid outgoing edge type {:?}",
+                        edge.weight()
+                    )),
+                    oi.help(
+                        "this means that Asg did not enforce edge invariants \
+                            during construction, which is a significant bug",
+                    ),
+                ]
+            })
         })
     }
 
