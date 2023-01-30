@@ -72,13 +72,15 @@ where
             Object::Root => (),
             Object::Ident(ident) => dest.push(ident)?,
 
-            Object::Expr(expr) => diagnostic_unreachable!(
-                expr.internal_error(
-                    "this expression should not be present on the graph"
+            obj @ (Object::Pkg(_) | Object::Expr(_)) => {
+                diagnostic_unreachable!(
+                    obj.internal_error(
+                        "this object should not be present on the graph"
+                    )
+                    .into(),
+                    "linker graph should not contain {obj}",
                 )
-                .into(),
-                "linker graph should not contain expressions",
-            ),
+            }
         }
     }
 

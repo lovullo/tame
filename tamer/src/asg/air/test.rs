@@ -23,6 +23,7 @@
 use super::super::Ident;
 use super::*;
 use crate::asg::graph::object::ObjectRel;
+use crate::parse::Parser;
 use crate::{
     parse::{ParseError, Parsed},
     span::dummy::*,
@@ -246,6 +247,73 @@ fn ident_root_existing() {
 }
 
 #[test]
+fn empty_pkg() {
+    let toks = vec![Air::PkgOpen(S1), Air::PkgClose(S2)];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+
+    // TODO: Packages aren't named via AIR at the time of writing,
+    //   so we can't look anything up.
+}
+
+#[test]
+fn close_pkg_without_open() {
+    let toks = vec![
+        Air::PkgClose(S1),
+        // RECOVERY: Try again.
+        Air::PkgOpen(S2),
+        Air::PkgClose(S3),
+    ];
+
+    assert_eq!(
+        vec![
+            Err(ParseError::StateError(AsgError::InvalidPkgCloseContext(S1))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn nested_open_pkg() {
+    let toks = vec![
+        Air::PkgOpen(S1),
+        Air::PkgOpen(S2),
+        // RECOVERY
+        Air::PkgClose(S3),
+    ];
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // PkgOpen
+            Err(ParseError::StateError(AsgError::NestedPkgOpen(S2, S1))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+/// Parse using [`Sut`] when the test does not care about the outer package.
+fn parse_as_pkg_body<I: IntoIterator<Item = Air>>(
+    toks: I,
+) -> Parser<Sut, impl Iterator<Item = Air> + Debug>
+where
+    <I as IntoIterator>::IntoIter: Debug,
+{
+    use std::iter;
+
+    Sut::parse(
+        iter::once(Air::PkgOpen(S1))
+            .chain(toks.into_iter())
+            .chain(iter::once(Air::PkgClose(S1))),
+    )
+}
+
+#[test]
 fn expr_empty_ident() {
     let id = SPair("foo".into(), S2);
 
@@ -255,7 +323,7 @@ fn expr_empty_ident() {
         Air::ExprClose(S3),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
 
     let asg = sut.finalize().unwrap().into_context();
@@ -264,6 +332,94 @@ fn expr_empty_ident() {
     //   we're able to retrieve it from the graph by name.
     let expr = asg.expect_ident_obj::<Expr>(id);
     assert_eq!(expr.span(), S1.merge(S3).unwrap());
+}
+
+#[test]
+fn expr_without_pkg() {
+    let toks = vec![
+        // No package
+        //   (because we're not parsing with `parse_as_pkg_body` below)
+        Air::ExprOpen(ExprOp::Sum, S1),
+        // RECOVERY
+        Air::PkgOpen(S2),
+        Air::PkgClose(S3),
+    ];
+
+    assert_eq!(
+        vec![
+            Err(ParseError::StateError(AsgError::InvalidExprContext(S1))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+// Note that this can't happen in e.g. NIR / TAME's source XML.
+#[test]
+fn close_pkg_mid_expr() {
+    let id = SPair("foo".into(), S4);
+
+    let toks = vec![
+        Air::PkgOpen(S1),
+        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::PkgClose(S3),
+        // RECOVERY: Let's finish the expression first...
+        Air::ExprIdent(id),
+        Air::ExprClose(S5),
+        // ...and then try to close again.
+        Air::PkgClose(S6),
+    ];
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // ExprOpen
+            Err(ParseError::StateError(AsgError::InvalidPkgCloseContext(S3))),
+            // RECOVERY: We should be able to close the package if we just
+            //   finish the expression first,
+            //     demonstrating that recovery properly maintains all state.
+            Ok(Parsed::Incomplete), // ExprIdent
+            Ok(Parsed::Incomplete), // ExprClose
+            // Successful close here.
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn open_pkg_mid_expr() {
+    let id = SPair("foo".into(), S4);
+
+    let toks = vec![
+        Air::PkgOpen(S1),
+        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::PkgOpen(S3),
+        // RECOVERY: We should still be able to complete successfully.
+        Air::ExprIdent(id),
+        Air::ExprClose(S5),
+        // Closes the _original_ package.
+        Air::PkgClose(S6),
+    ];
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // ExprOpen
+            Err(ParseError::StateError(AsgError::NestedPkgOpen(S3, S1))),
+            // RECOVERY: Ignore the open and continue.
+            //   Of course,
+            //     this means that any identifiers would be defined in a
+            //     different package than was likely intended,
+            //       but at least we'll be able to keep processing.
+            Ok(Parsed::Incomplete), // ExprIdent
+            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
 }
 
 #[test]
@@ -283,7 +439,7 @@ fn expr_non_empty_ident_root() {
         Air::ExprClose(S6),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
 
     let asg = sut.finalize().unwrap().into_context();
@@ -315,7 +471,7 @@ fn expr_non_empty_bind_only_after() {
         Air::ExprClose(S5),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
 
     let asg = sut.finalize().unwrap().into_context();
@@ -332,7 +488,7 @@ fn expr_non_empty_bind_only_after() {
 fn expr_dangling_no_subexpr() {
     let toks = vec![
         Air::ExprOpen(ExprOp::Sum, S1),
-        // No `IdentExpr`,
+        // No `ExprIdent`,
         //   so this expression is dangling.
         Air::ExprClose(S2),
     ];
@@ -342,10 +498,13 @@ fn expr_dangling_no_subexpr() {
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Ok(Parsed::Incomplete),
-            Err(ParseError::StateError(AsgError::DanglingExpr(full_span)))
+            Err(ParseError::StateError(AsgError::DanglingExpr(full_span))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+        parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
 }
 
@@ -365,12 +524,15 @@ fn expr_dangling_with_subexpr() {
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
-            Err(ParseError::StateError(AsgError::DanglingExpr(full_span)))
+            Err(ParseError::StateError(AsgError::DanglingExpr(full_span))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+        parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
 }
 
@@ -398,13 +560,16 @@ fn expr_dangling_with_subexpr_ident() {
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
-            Err(ParseError::StateError(AsgError::DanglingExpr(full_span)))
+            Err(ParseError::StateError(AsgError::DanglingExpr(full_span))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+        parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
 }
 
@@ -431,13 +596,16 @@ fn expr_reachable_subsequent_dangling() {
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
-            Err(ParseError::StateError(AsgError::DanglingExpr(second_span)))
+            Err(ParseError::StateError(AsgError::DanglingExpr(second_span))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+        parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
 }
 
@@ -458,17 +626,18 @@ fn recovery_expr_reachable_after_dangling() {
     // The error span should encompass the entire expression.
     let err_span = S1.merge(S2).unwrap();
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Ok(Parsed::Incomplete),
             Err(ParseError::StateError(AsgError::DanglingExpr(err_span))),
-            // Recovery allows us to continue at this point with the next
-            //   expression.
+            // RECOVERY: continue at this point with the next expression.
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
+            Ok(Parsed::Incomplete), // PkgClose
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -505,17 +674,20 @@ fn expr_close_unbalanced() {
         Air::ExprClose(S5),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Err(ParseError::StateError(AsgError::UnbalancedExpr(S1))),
-            // Recovery should allow us to continue.
-            Ok(Parsed::Incomplete), // OpenExpr
-            Ok(Parsed::Incomplete), // IdentExpr
-            Ok(Parsed::Incomplete), // CloseExpr
+            // RECOVERY
+            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprIdent
+            Ok(Parsed::Incomplete), // ExprClose
             // Another error after a successful expression.
             Err(ParseError::StateError(AsgError::UnbalancedExpr(S5))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -544,21 +716,24 @@ fn expr_bind_to_empty() {
         Air::ExprIdent(id_noexpr_b),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Err(ParseError::StateError(AsgError::InvalidExprBindContext(
                 id_noexpr_a
             ))),
-            // Recovery should allow us to continue.
-            Ok(Parsed::Incomplete), // OpenExpr
-            Ok(Parsed::Incomplete), // IdentExpr
-            Ok(Parsed::Incomplete), // CloseExpr
+            // RECOVERY
+            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprIdent
+            Ok(Parsed::Incomplete), // ExprClose
             // Another error after a successful expression.
             Err(ParseError::StateError(AsgError::InvalidExprBindContext(
                 id_noexpr_b
             ))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // PkgClose
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -675,20 +850,22 @@ fn expr_redefine_ident() {
         Air::ExprClose(S5),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // OpenExpr
-            Ok(Parsed::Incomplete), // IdentExpr (first)
-            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprIdent (first)
+            Ok(Parsed::Incomplete), // ExprOpen
             Err(ParseError::StateError(AsgError::IdentRedefine(
                 id_first,
                 id_dup.span(),
             ))),
             // RECOVERY: Ignore the attempt to redefine and continue.
-            Ok(Parsed::Incomplete), // CloseExpr
-            Ok(Parsed::Incomplete), // CloseExpr
+            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // PkgClose
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -733,15 +910,16 @@ fn expr_still_dangling_on_redefine() {
         Air::ExprClose(S10),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // OpenExpr
-            Ok(Parsed::Incomplete), // IdentExpr (first)
-            Ok(Parsed::Incomplete), // CloseExpr
+            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprIdent (first)
+            Ok(Parsed::Incomplete), // ExprClose
             // Beginning of second expression
-            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // ExprOpen
             Err(ParseError::StateError(AsgError::IdentRedefine(
                 id_first,
                 id_dup.span(),
@@ -755,15 +933,16 @@ fn expr_still_dangling_on_redefine() {
             // RECOVERY: But we'll continue onto one final expression,
             //   which we will fail to define but then subsequently define
             //   successfully.
-            Ok(Parsed::Incomplete), // OpenExpr
+            Ok(Parsed::Incomplete), // ExprOpen
             Err(ParseError::StateError(AsgError::IdentRedefine(
                 id_first,
                 id_dup2.span(),
             ))),
             // RECOVERY: Despite the initial failure,
             //   we can now re-attempt to bind with a unique id.
-            Ok(Parsed::Incomplete), // IdentExpr (second)
-            Ok(Parsed::Incomplete), // CloseExpr
+            Ok(Parsed::Incomplete), // ExprIdent (second)
+            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // PkgClose
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -842,17 +1021,19 @@ fn expr_ref_outside_of_expr_context() {
         Air::ExprClose(S3),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
+            Ok(Parsed::Incomplete), // PkgOpen
             Err(ParseError::StateError(AsgError::InvalidExprRefContext(
                 id_foo
             ))),
             // RECOVERY: Proceed as normal
-            Ok(Parsed::Incomplete), // OpenExpr
-            Ok(Parsed::Incomplete), // IdentExpr
-            Ok(Parsed::Incomplete), // CloseExpr
+            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprIdent
+            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // PkgClose
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -869,7 +1050,7 @@ fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,
 {
-    let mut sut = Sut::parse(toks.into_iter());
+    let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
     sut.finalize().unwrap().into_context()
 }

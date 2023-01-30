@@ -18,10 +18,10 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
+    graph::object::{Expr, Pkg},
     Asg, AsgError, ExprOp, FragmentText, IdentKind, ObjectIndex, Source,
 };
 use crate::{
-    asg::Expr,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     parse::{self, util::SPair, ParseState, Token, Transition, Transitionable},
@@ -68,6 +68,23 @@ pub enum Air {
     /// Placeholder token for objects that do not yet have a proper place on
     ///   the ASG.
     Todo,
+
+    /// Begin a new package of identifiers.
+    ///
+    /// Packages are responsible for bundling together identifiers
+    ///   representing subsystems that can be composed with other packages.
+    ///
+    /// A source language may place limits on the types of [`Object`]s that
+    ///   may appear within a given package,
+    ///     but we have no such restriction.
+    ///
+    /// TODO: The package needs a name,
+    ///   and we'll need to determine how to best represent that relative to
+    ///   the project root and be considerate of symlinks.
+    PkgOpen(Span),
+
+    /// Complete processing of the current package.
+    PkgClose(Span),
 
     /// Create a new [`Expr`] on the graph and place it atop of the
     ///   expression stack.
@@ -156,7 +173,10 @@ impl Token for Air {
         match self {
             Todo => UNKNOWN_SPAN,
 
-            ExprOpen(_, span) | ExprClose(span) => *span,
+            PkgOpen(span)
+            | PkgClose(span)
+            | ExprOpen(_, span)
+            | ExprClose(span) => *span,
 
             ExprIdent(spair)
             | ExprRef(spair)
@@ -177,6 +197,9 @@ impl Display for Air {
 
         match self {
             Todo => write!(f, "TODO"),
+
+            PkgOpen(_) => write!(f, "open package"),
+            PkgClose(_) => write!(f, "close package"),
 
             ExprOpen(op, _) => write!(f, "open {op} expression"),
 
@@ -414,10 +437,13 @@ pub enum AirAggregate {
     /// Parser is not currently performing any work.
     Empty(ExprStack<Dormant>),
 
+    /// A package is being defined.
+    PkgDfn(ObjectIndex<Pkg>, ExprStack<Dormant>),
+
     /// Building an expression.
     ///
     /// Expressions may be nested arbitrarily deeply.
-    BuildingExpr(ExprStack<Active>, ObjectIndex<Expr>),
+    BuildingExpr(ObjectIndex<Pkg>, ExprStack<Active>, ObjectIndex<Expr>),
 }
 
 impl Default for AirAggregate {
@@ -432,7 +458,8 @@ impl Display for AirAggregate {
 
         match self {
             Empty(es) => write!(f, "awaiting AIR input for ASG with {es}"),
-            BuildingExpr(es, _) => {
+            PkgDfn(_, es) => write!(f, "defining package with {es}"),
+            BuildingExpr(_, es, _) => {
                 write!(f, "building expression with {es}")
             }
         }
@@ -460,21 +487,45 @@ impl ParseState for AirAggregate {
         match (self, tok) {
             (st, Todo) => Transition(st).incomplete(),
 
-            (Empty(es), ExprOpen(op, span)) => {
+            (Empty(es), PkgOpen(span)) => {
+                let oi_pkg = asg.create(Pkg::new(span));
+                Transition(PkgDfn(oi_pkg, es)).incomplete()
+            }
+
+            (PkgDfn(oi_pkg, es), PkgOpen(span)) => {
+                Transition(PkgDfn(oi_pkg, es))
+                    .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
+            }
+            (BuildingExpr(oi_pkg, es, oi), PkgOpen(span)) => {
+                Transition(BuildingExpr(oi_pkg, es, oi))
+                    .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
+            }
+
+            (PkgDfn(_, es), PkgClose(_)) => Transition(Empty(es)).incomplete(),
+
+            (st @ (Empty(..) | BuildingExpr(..)), PkgClose(span)) => {
+                Transition(st).err(AsgError::InvalidPkgCloseContext(span))
+            }
+
+            (PkgDfn(oi_pkg, es), ExprOpen(op, span)) => {
                 let oi = asg.create(Expr::new(op, span));
-                Transition(BuildingExpr(es.activate(), oi)).incomplete()
+                Transition(BuildingExpr(oi_pkg, es.activate(), oi)).incomplete()
             }
 
-            (BuildingExpr(es, poi), ExprOpen(op, span)) => {
+            (BuildingExpr(oi_pkg, es, poi), ExprOpen(op, span)) => {
                 let oi = poi.create_subexpr(asg, Expr::new(op, span));
-                Transition(BuildingExpr(es.push(poi), oi)).incomplete()
+                Transition(BuildingExpr(oi_pkg, es.push(poi), oi)).incomplete()
             }
 
-            (st @ Empty(_), ExprClose(span)) => {
+            (st @ Empty(..), ExprOpen(_, span)) => {
+                Transition(st).err(AsgError::InvalidExprContext(span))
+            }
+
+            (st @ (Empty(..) | PkgDfn(..)), ExprClose(span)) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
 
-            (BuildingExpr(es, oi), ExprClose(end)) => {
+            (BuildingExpr(oi_pkg, es, oi), ExprClose(end)) => {
                 let start: Span = oi.into();
 
                 let _ = oi.map_obj(asg, |expr| {
@@ -483,11 +534,11 @@ impl ParseState for AirAggregate {
 
                 match es.pop() {
                     (es, Some(poi)) => {
-                        Transition(BuildingExpr(es, poi)).incomplete()
+                        Transition(BuildingExpr(oi_pkg, es, poi)).incomplete()
                     }
                     (es, None) => {
                         let dangling = es.is_dangling();
-                        let st = Empty(es.done());
+                        let st = PkgDfn(oi_pkg, es.done());
 
                         if dangling {
                             Transition(st).err(AsgError::DanglingExpr(
@@ -500,28 +551,32 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (BuildingExpr(es, oi), ExprIdent(id)) => {
+            (BuildingExpr(oi_pkg, es, oi), ExprIdent(id)) => {
                 let identi = asg.lookup_or_missing(id);
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
                 match identi.bind_definition(asg, oi) {
-                    Ok(_) => Transition(BuildingExpr(es.reachable_by(id), oi))
-                        .incomplete(),
-                    Err(e) => Transition(BuildingExpr(es, oi)).err(e),
+                    Ok(_) => Transition(BuildingExpr(
+                        oi_pkg,
+                        es.reachable_by(id),
+                        oi,
+                    ))
+                    .incomplete(),
+                    Err(e) => Transition(BuildingExpr(oi_pkg, es, oi)).err(e),
                 }
             }
 
-            (BuildingExpr(es, oi), ExprRef(ident)) => {
-                Transition(BuildingExpr(es, oi.ref_expr(asg, ident)))
+            (BuildingExpr(oi_pkg, es, oi), ExprRef(ident)) => {
+                Transition(BuildingExpr(oi_pkg, es, oi.ref_expr(asg, ident)))
                     .incomplete()
             }
 
-            (st @ Empty(_), ExprIdent(ident)) => {
+            (st @ (Empty(_) | PkgDfn(_, _)), ExprIdent(ident)) => {
                 Transition(st).err(AsgError::InvalidExprBindContext(ident))
             }
 
-            (st @ Empty(_), ExprRef(ident)) => {
+            (st @ (Empty(_) | PkgDfn(_, _)), ExprRef(ident)) => {
                 Transition(st).err(AsgError::InvalidExprRefContext(ident))
             }
 

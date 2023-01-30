@@ -315,7 +315,7 @@ impl ParseState for InterpState {
                         //   symbol that we've been fed
                         //     (the specification string).
                         Transition(FinishSym(s, gen_param))
-                            .ok(Nir::Close(span))
+                            .ok(Nir::Close(NirEntity::TplParam, span))
                             .with_lookahead(tok)
                     };
                 }

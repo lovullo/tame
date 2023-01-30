@@ -93,7 +93,7 @@ pub enum Nir {
     Open(NirEntity, Span),
 
     /// Finish definition of a [`NirEntity`] atop of the stack and pop it.
-    Close(Span),
+    Close(NirEntity, Span),
 
     /// Bind the given name as an identifier for the entity atop of the
     ///   stack.
@@ -133,7 +133,7 @@ impl Nir {
             Todo => None,
             TodoAttr(spair) => Some(spair.symbol()),
 
-            Open(_, _) | Close(_) => None,
+            Open(_, _) | Close(_, _) => None,
 
             BindIdent(spair) | Ref(spair) | Desc(spair) | Text(spair) => {
                 Some(spair.symbol())
@@ -164,7 +164,7 @@ impl Functor<SymbolId> for Nir {
             Todo => self,
             TodoAttr(spair) => TodoAttr(spair.map(f)),
 
-            Open(_, _) | Close(_) => self,
+            Open(_, _) | Close(_, _) => self,
 
             BindIdent(spair) => BindIdent(spair.map(f)),
             Ref(spair) => Ref(spair.map(f)),
@@ -177,6 +177,9 @@ impl Functor<SymbolId> for Nir {
 /// An object upon which other [`Nir`] tokens act.
 #[derive(Debug, PartialEq, Eq)]
 pub enum NirEntity {
+    /// Package of identifiers.
+    Package,
+
     /// Rate (verb) block,
     ///   representing a calculation with a scalar result.
     Rate,
@@ -189,6 +192,10 @@ impl NirEntity {
     pub fn open<S: Into<Span>>(self, span: S) -> Nir {
         Nir::Open(self, span.into())
     }
+
+    pub fn close<S: Into<Span>>(self, span: S) -> Nir {
+        Nir::Close(self, span.into())
+    }
 }
 
 impl Display for NirEntity {
@@ -196,6 +203,7 @@ impl Display for NirEntity {
         use NirEntity::*;
 
         match self {
+            Package => write!(f, "package"),
             Rate => write!(f, "rate block"),
             TplParam => write!(f, "template param (metavariable)"),
         }
@@ -220,7 +228,7 @@ impl Token for Nir {
             TodoAttr(spair) => spair.span(),
 
             Open(_, span) => *span,
-            Close(span) => *span,
+            Close(_, span) => *span,
 
             BindIdent(spair) | Ref(spair) | Desc(spair) | Text(spair) => {
                 spair.span()
@@ -240,7 +248,7 @@ impl Display for Nir {
             TodoAttr(spair) => write!(f, "TODO Attr {spair}"),
 
             Open(entity, _) => write!(f, "open {entity} entity"),
-            Close(_) => write!(f, "close entity"),
+            Close(entity, _) => write!(f, "close {entity} entity"),
             BindIdent(spair) => {
                 write!(f, "bind identifier {}", TtQuote::wrap(spair))
             }

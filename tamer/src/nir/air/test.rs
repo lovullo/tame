@@ -25,13 +25,26 @@ type Sut = NirToAir;
 use Parsed::Object as O;
 
 #[test]
+fn package_to_pkg() {
+    let toks = vec![
+        Nir::Open(NirEntity::Package, S1),
+        Nir::Close(NirEntity::Package, S2),
+    ];
+
+    assert_eq!(
+        Ok(vec![O(Air::PkgOpen(S1)), O(Air::PkgClose(S2)),]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+#[test]
 fn rate_to_sum_expr() {
     let id = SPair("foo".into(), S2);
 
     let toks = vec![
         Nir::Open(NirEntity::Rate, S1),
         Nir::BindIdent(id),
-        Nir::Close(S3),
+        Nir::Close(NirEntity::Rate, S3),
     ];
 
     assert_eq!(

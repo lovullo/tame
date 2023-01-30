@@ -55,10 +55,10 @@ fn does_not_desugar_literal_only() {
 // ...not that it could.
 #[test]
 fn does_not_desugar_tokens_without_symbols() {
-    let toks = vec![Nir::Close(S1)];
+    let toks = vec![Nir::Close(NirEntity::Rate, S1)];
 
     assert_eq!(
-        Ok(vec![Object(Nir::Close(S1))]),
+        Ok(vec![Object(Nir::Close(NirEntity::Rate, S1))]),
         Sut::parse(toks.into_iter()).collect(),
     );
 }
@@ -132,7 +132,7 @@ fn desugars_literal_with_ending_var() {
             Object(Nir::Ref(SPair("@bar@".into(), c))),
             // This is an object generated from user input, so the closing
             //   span has to identify what were generated from.
-            Object(Nir::Close(a)),
+            Object(Nir::Close(NirEntity::TplParam, a)),
             // Finally,
             //   we replace the original provided attribute
             //     (the interpolation specification)
@@ -172,7 +172,7 @@ fn desugars_var_with_ending_literal() {
         Ok(vec![
             Object(Nir::Ref(SPair("@foo@".into(), b))),
             Object(Nir::Text(SPair("bar".into(), c))),
-            Object(Nir::Close(a)),
+            Object(Nir::Close(NirEntity::TplParam, a)),
             Object(Nir::Ref(SPair(expect_name, a))),
         ]),
         sut.collect(),
@@ -216,7 +216,7 @@ fn desugars_many_vars_and_literals() {
             //   offsets.
             Object(Nir::Text(SPair("baz".into(), d))),
             Object(Nir::Ref(SPair("@quux@".into(), e))),
-            Object(Nir::Close(a)),
+            Object(Nir::Close(NirEntity::TplParam, a)),
             Object(Nir::Ref(SPair(expect_name, a))),
         ]),
         sut.collect(),
@@ -266,7 +266,7 @@ fn proper_multibyte_handling() {
             //   offsets.
             Object(Nir::Text(SPair("βaζ".into(), d))),
             Object(Nir::Ref(SPair("@qμuχ@".into(), e))),
-            Object(Nir::Close(a)),
+            Object(Nir::Close(NirEntity::TplParam, a)),
             Object(Nir::Ref(SPair(expect_name, a))),
         ]),
         sut.collect(),
@@ -301,7 +301,7 @@ fn desugars_adjacent_interpolated_vars() {
             Object(Nir::Ref(SPair("@foo@".into(), b))),
             Object(Nir::Ref(SPair("@bar@".into(), c))),
             Object(Nir::Ref(SPair("@baz@".into(), d))),
-            Object(Nir::Close(a)),
+            Object(Nir::Close(NirEntity::TplParam, a)),
             Object(Nir::Ref(SPair(expect_name, a))),
         ]),
         sut.collect(),
@@ -347,7 +347,7 @@ fn error_missing_closing_interp_delim() {
             //   Having omitted the above token,
             //     we're able to proceed as if the user didn't provide it at
             //     all.
-            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Close(NirEntity::TplParam, a))),
             Ok(Object(Nir::Ref(SPair(expect_name, a)))),
         ],
         sut.collect::<Vec<ParsedResult<Sut>>>(),
@@ -395,7 +395,7 @@ fn error_nested_delim() {
             //         (end of the specification string)
             //         and ignore everything that follows rather than
             //         potentially interpret it in confusing ways.
-            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Close(NirEntity::TplParam, a))),
             Ok(Object(Nir::Ref(SPair(expect_name, a)))),
         ],
         sut.collect::<Vec<ParsedResult<Sut>>>(),
@@ -438,7 +438,7 @@ fn error_empty_interp() {
             //   It wouldn't have had any effect anyway,
             //     being empty.
             Ok(Object(Nir::Text(SPair("cow".into(), d)))),
-            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Close(NirEntity::TplParam, a))),
             Ok(Object(Nir::Ref(SPair(expect_name, a)))),
         ],
         sut.collect::<Vec<ParsedResult<Sut>>>(),
@@ -477,7 +477,7 @@ fn error_close_before_open() {
             //     was supposed to be a literal or a param.
             //   Just bail out;
             //     maybe in the future we can do something better.
-            Ok(Object(Nir::Close(a))),
+            Ok(Object(Nir::Close(NirEntity::TplParam, a))),
             Ok(Object(Nir::Ref(SPair(expect_name, a)))),
         ],
         sut.collect::<Vec<ParsedResult<Sut>>>(),

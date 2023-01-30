@@ -225,7 +225,7 @@ ele_parse! {
     ///   packages.
     /// See [`PkgTypeStmt`] for more information on the distinction between
     ///   different package types.
-    PackageStmt := QN_PACKAGE {
+    PackageStmt := QN_PACKAGE(_, ospan) {
         @ {
             QN_XMLNS => TodoAttr,
             QN_XMLNS_C => TodoAttr,
@@ -247,7 +247,8 @@ ele_parse! {
 
             // TODO: Can this go away now?
             QN_NAME => TodoAttr,
-        } => Todo,
+        } => NirEntity::Package.open(ospan),
+        /(cspan) => NirEntity::Package.close(cspan),
 
         ImportStmt,
         PkgBodyStmt,
@@ -424,7 +425,7 @@ ele_parse! {
             //   This is a kludge.
             QN_LOCAL => TodoAttr,
         } => NirEntity::Rate.open(ospan),
-        /(cspan) => Close(cspan.span()),
+        /(cspan) => NirEntity::Rate.close(cspan),
 
         CalcExpr,
     };

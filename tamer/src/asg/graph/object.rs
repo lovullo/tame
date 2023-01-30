@@ -119,9 +119,11 @@ use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 
 pub mod expr;
 pub mod ident;
+pub mod pkg;
 
-use expr::Expr;
-use ident::Ident;
+pub use expr::Expr;
+pub use ident::Ident;
+pub use pkg::Pkg;
 
 /// An object on the ASG.
 ///
@@ -135,6 +137,9 @@ pub enum Object {
     ///
     /// There should be only one object of this kind.
     Root,
+
+    /// A package of identifiers.
+    Pkg(Pkg),
 
     /// Identifier (a named object).
     Ident(Ident),
@@ -157,6 +162,7 @@ pub enum Object {
 /// TODO: `pub(super)` when the graph can be better encapsulated.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ObjectRelTy {
+    Pkg,
     Ident,
     Expr,
 }
@@ -165,6 +171,7 @@ impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Root => write!(f, "root ASG node"),
+            Self::Pkg(pkg) => Display::fmt(pkg, f),
             Self::Ident(ident) => Display::fmt(ident, f),
             Self::Expr(expr) => Display::fmt(expr, f),
         }
@@ -175,6 +182,7 @@ impl Object {
     pub fn span(&self) -> Span {
         match self {
             Self::Root => UNKNOWN_SPAN,
+            Self::Pkg(pkg) => pkg.span(),
             Self::Ident(ident) => ident.span(),
             Self::Expr(expr) => expr.span(),
         }
@@ -232,6 +240,18 @@ impl Object {
     }
 }
 
+impl From<&Object> for Span {
+    fn from(val: &Object) -> Self {
+        val.span()
+    }
+}
+
+impl From<Pkg> for Object {
+    fn from(pkg: Pkg) -> Self {
+        Self::Pkg(pkg)
+    }
+}
+
 impl From<Ident> for Object {
     fn from(ident: Ident) -> Self {
         Self::Ident(ident)
@@ -241,6 +261,17 @@ impl From<Ident> for Object {
 impl From<Expr> for Object {
     fn from(expr: Expr) -> Self {
         Self::Expr(expr)
+    }
+}
+
+impl From<Object> for Pkg {
+    /// Narrow an object into an [`Ident`],
+    ///   panicing if the object is not of that type.
+    fn from(val: Object) -> Self {
+        match val {
+            Object::Pkg(pkg) => pkg,
+            _ => val.narrowing_panic("a package"),
+        }
     }
 }
 
@@ -269,6 +300,15 @@ impl From<Object> for Expr {
 impl AsRef<Object> for Object {
     fn as_ref(&self) -> &Object {
         self
+    }
+}
+
+impl AsRef<Pkg> for Object {
+    fn as_ref(&self) -> &Pkg {
+        match self {
+            Object::Pkg(ref pkg) => pkg,
+            _ => self.narrowing_panic("a package"),
+        }
     }
 }
 
@@ -341,6 +381,21 @@ impl<O: ObjectKind> Copy for ObjectIndex<O> {}
 impl<O: ObjectKind> ObjectIndex<O> {
     pub fn new<S: Into<Span>>(index: NodeIndex, span: S) -> Self {
         Self(index, span.into(), PhantomData::default())
+    }
+
+    /// The source location from which the request for the associated object
+    ///   was derived.
+    ///
+    /// The span _does not necessarily represent_ the span of the target
+    ///   [`Object`].
+    /// If the object is being created,
+    ///   then it may,
+    ///   but it otherwise represents the location of whatever is
+    ///   _requesting_ the object.
+    pub fn span(&self) -> Span {
+        match self {
+            Self(_, span, _) => *span,
+        }
     }
 
     /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
@@ -670,6 +725,7 @@ impl ObjectRelatable for Ident {
         match ty {
             ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
+            ObjectRelTy::Pkg => None,
         }
     }
 }
@@ -721,6 +777,7 @@ impl ObjectRelatable for Expr {
         match ty {
             ObjectRelTy::Ident => Some(ExprRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(ExprRel::Expr(oi.must_narrow_into())),
+            ObjectRelTy::Pkg => None,
         }
     }
 }

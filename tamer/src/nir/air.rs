@@ -66,11 +66,19 @@ impl ParseState for NirToAir {
 
         #[allow(unreachable_code)] // due to wip-nir-to-air
         match (self, tok) {
+            (Ready, Nir::Open(NirEntity::Package, span)) => {
+                Transition(Ready).ok(Air::PkgOpen(span))
+            }
+
+            (Ready, Nir::Close(NirEntity::Package, span)) => {
+                Transition(Ready).ok(Air::PkgClose(span))
+            }
+
             (Ready, Nir::Open(NirEntity::Rate, span)) => {
                 Transition(Ready).ok(Air::ExprOpen(ExprOp::Sum, span))
             }
 
-            (Ready, Nir::Close(span)) => {
+            (Ready, Nir::Close(NirEntity::Rate, span)) => {
                 Transition(Ready).ok(Air::ExprClose(span))
             }
 

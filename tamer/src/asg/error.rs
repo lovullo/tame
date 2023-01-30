@@ -51,6 +51,25 @@ pub enum AsgError {
     ///     whereas _declaring_ an identifier provides metadata about it.
     IdentRedefine(SPair, Span),
 
+    /// Attempted to open a package while defining another package.
+    ///
+    /// Packages cannot be nested.
+    /// The first span represents the location of the second package open,
+    ///   and the second span represents the location of the package already
+    ///   being defined.
+    NestedPkgOpen(Span, Span),
+
+    /// Attempted to close a package when not in a package context.
+    ///
+    /// This could mean that a package close was attempted while parsing
+    ///   some other object
+    ///     (e.g. an expression),
+    ///     or that there is no open package to close.
+    InvalidPkgCloseContext(Span),
+
+    /// Attempted to open an expression in an invalid context.
+    InvalidExprContext(Span),
+
     /// An expresion is not reachable by any other expression or
     ///   identifier.
     ///
@@ -100,6 +119,11 @@ impl Display for AsgError {
             IdentRedefine(spair, _) => {
                 write!(f, "cannot redefine {}", TtQuote::wrap(spair))
             }
+            NestedPkgOpen(_, _) => write!(f, "cannot nest packages"),
+            InvalidPkgCloseContext(_) => {
+                write!(f, "invalid context for package close",)
+            }
+            InvalidExprContext(_) => write!(f, "invalid expression context"),
             DanglingExpr(_) => write!(
                 f,
                 "dangling expression (anonymous expression has no parent)"
@@ -119,20 +143,7 @@ impl Display for AsgError {
     }
 }
 
-impl Error for AsgError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use AsgError::*;
-
-        match self {
-            IdentTransition(err) => err.source(),
-            IdentRedefine(_, _)
-            | DanglingExpr(_)
-            | UnbalancedExpr(_)
-            | InvalidExprBindContext(_)
-            | InvalidExprRefContext(_) => None,
-        }
-    }
-}
+impl Error for AsgError {}
 
 impl From<TransitionError> for AsgError {
     fn from(err: TransitionError) -> Self {
@@ -168,6 +179,27 @@ impl Diagnostic for AsgError {
                 span_redecl
                     .help("  defined and its definition cannot be changed."),
             ],
+
+            NestedPkgOpen(second, first) => vec![
+                first.note("this package is still being defined"),
+                second.error("attempted to open another package here"),
+                second.help(
+                    "close the package to complete its definition before \
+                        attempting to open another",
+                ),
+            ],
+
+            InvalidPkgCloseContext(span) => vec![
+                span.error("package close was not expected here"),
+                span.help(
+                    "a package must be closed at the same level of nesting \
+                       that it was opened",
+                ),
+            ],
+
+            InvalidExprContext(span) => {
+                vec![span.error("an expression is not allowed here")]
+            }
 
             DanglingExpr(span) => vec![
                 span.error(
