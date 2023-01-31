@@ -19,7 +19,7 @@
 
 //! Abstract semantic graph.
 
-use self::object::{ObjectRelTy, ObjectRelatable};
+use self::object::{ObjectRelFrom, ObjectRelTy, ObjectRelatable};
 
 use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
@@ -53,8 +53,13 @@ pub trait IndexType = petgraph::graph::IndexType;
 ///   fail in error.
 pub type AsgResult<T> = Result<T, AsgError>;
 
-/// There are currently no data stored on edges ("edge weights").
-type AsgEdge = ObjectRelTy;
+/// The [`ObjectRelTy`] (representing the [`ObjectKind`]) of the source and
+///   destination [`Node`]s respectively.
+///
+/// This small memory expense allows for bidirectional edge filtering
+///   and [`ObjectIndex`] [`ObjectKind`] resolution without an extra layer
+///   of indirection to look up the source/target [`Node`].
+type AsgEdge = (ObjectRelTy, ObjectRelTy);
 
 /// Each node of the graph.
 type Node = ObjectContainer;
@@ -289,8 +294,11 @@ impl Asg {
     ///
     /// See also [`IdentKind::is_auto_root`].
     pub fn add_root(&mut self, identi: ObjectIndex<Ident>) {
-        self.graph
-            .add_edge(self.root_node, identi.into(), ObjectRelTy::Ident);
+        self.graph.add_edge(
+            self.root_node,
+            identi.into(),
+            (ObjectRelTy::Root, ObjectRelTy::Ident),
+        );
     }
 
     /// Whether an object is rooted.
@@ -413,8 +421,11 @@ impl Asg {
     ) where
         OA: ObjectRelTo<OB>,
     {
-        self.graph
-            .add_edge(from_oi.into(), to_oi.into(), OB::rel_ty());
+        self.graph.add_edge(
+            from_oi.into(),
+            to_oi.into(),
+            (OA::rel_ty(), OB::rel_ty()),
+        );
     }
 
     /// Retrieve an object from the graph by [`ObjectIndex`].
@@ -499,7 +510,7 @@ impl Asg {
     ) -> impl Iterator<Item = O::Rel> + 'a {
         self.graph.edges(oi.into()).map(move |edge| {
             O::new_rel_dyn(
-                *edge.weight(),
+                edge.weight().1,
                 ObjectIndex::<Object>::new(edge.target(), oi),
             )
             .diagnostic_unwrap(|| {
@@ -515,6 +526,23 @@ impl Asg {
                 ]
             })
         })
+    }
+
+    /// Incoming edges to `oi` filtered by [`ObjectKind`] `OI`.
+    ///
+    /// The rationale behind the filtering is that objects ought to focus
+    ///   primarily on what they _relate to_,
+    ///     which is what the ontology is designed around.
+    /// If an object cares about what has an edge _to_ it,
+    ///   it should have good reason and a specific use case in mind.
+    fn incoming_edges_filtered<'a, OI: ObjectKind + ObjectRelatable + 'a>(
+        &'a self,
+        oi: ObjectIndex<impl ObjectKind + ObjectRelFrom<OI> + 'a>,
+    ) -> impl Iterator<Item = ObjectIndex<OI>> + 'a {
+        self.graph
+            .edges_directed(oi.into(), Direction::Incoming)
+            .filter(|edge| edge.weight().0 == OI::rel_ty())
+            .map(move |edge| ObjectIndex::<OI>::new(edge.source(), oi))
     }
 
     /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
@@ -670,8 +698,11 @@ impl Asg {
     ) where
         Ident: ObjectRelTo<O>,
     {
-        self.graph
-            .update_edge(identi.into(), depi.into(), O::rel_ty());
+        self.graph.update_edge(
+            identi.into(),
+            depi.into(),
+            (Ident::rel_ty(), O::rel_ty()),
+        );
     }
 
     /// Check whether `dep` is a dependency of `ident`.
@@ -705,8 +736,11 @@ impl Asg {
         let identi = self.lookup_or_missing(ident);
         let depi = self.lookup_or_missing(dep);
 
-        self.graph
-            .update_edge(identi.into(), depi.into(), Ident::rel_ty());
+        self.graph.update_edge(
+            identi.into(),
+            depi.into(),
+            (Ident::rel_ty(), Ident::rel_ty()),
+        );
 
         (identi, depi)
     }

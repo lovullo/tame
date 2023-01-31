@@ -21,7 +21,12 @@
 
 use std::fmt::Display;
 
-use crate::span::Span;
+use crate::{asg::Asg, span::Span};
+
+use super::{
+    Ident, Object, ObjectIndex, ObjectKind, ObjectRel, ObjectRelTy,
+    ObjectRelatable,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Pkg(Span);
@@ -41,5 +46,54 @@ impl Pkg {
 impl Display for Pkg {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "package")
+    }
+}
+
+/// Subset of [`ObjectKind`]s that are valid targets for edges from
+///   [`Ident`].
+///
+/// See [`ObjectRel`] for more information.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PkgRel {
+    Ident(ObjectIndex<Ident>),
+}
+
+impl ObjectRel for PkgRel {
+    fn narrow<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>> {
+        match self {
+            Self::Ident(oi) => oi.filter_rel(),
+        }
+    }
+}
+
+impl ObjectRelatable for Pkg {
+    type Rel = PkgRel;
+
+    fn rel_ty() -> ObjectRelTy {
+        ObjectRelTy::Pkg
+    }
+
+    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> Option<PkgRel> {
+        match ty {
+            ObjectRelTy::Root => None,
+            ObjectRelTy::Ident => Some(PkgRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Expr => None,
+            ObjectRelTy::Pkg => None,
+        }
+    }
+}
+
+impl From<ObjectIndex<Ident>> for PkgRel {
+    fn from(value: ObjectIndex<Ident>) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl ObjectIndex<Pkg> {
+    /// Indicate that the given identifier `oi` is defined in this package.
+    pub fn defines(&self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self {
+        self.add_edge_to(asg, oi)
     }
 }

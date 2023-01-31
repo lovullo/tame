@@ -150,9 +150,7 @@ pub enum Object {
     Expr(Expr),
 }
 
-/// Object types corresponding to variants in [`Object`] that are able to
-///   serve as targets of object relations
-///     (edges on the graph).
+/// Object types corresponding to variants in [`Object`].
 ///
 /// These are used as small tags for [`ObjectRelatable`].
 /// Rust unfortunately makes working with its internal tags difficult,
@@ -162,6 +160,7 @@ pub enum Object {
 /// TODO: `pub(super)` when the graph can be better encapsulated.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ObjectRelTy {
+    Root,
     Pkg,
     Ident,
     Expr,
@@ -450,6 +449,20 @@ impl<O: ObjectKind> ObjectIndex<O> {
         asg.edges(self)
     }
 
+    /// Incoming edges to self filtered by [`ObjectKind`] `OI`.
+    ///
+    /// For filtering rationale,
+    ///   see [`Asg::incoming_edges_filtered`].
+    fn incoming_edges_filtered<'a, OI: ObjectKind + ObjectRelatable + 'a>(
+        self,
+        asg: &'a Asg,
+    ) -> impl Iterator<Item = ObjectIndex<OI>> + 'a
+    where
+        O: ObjectRelFrom<OI> + 'a,
+    {
+        asg.incoming_edges_filtered(self)
+    }
+
     /// Resolve `self` to the object that it references.
     ///
     /// Panics
@@ -600,6 +613,9 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
 pub trait ObjectRelTo<OB: ObjectKind + ObjectRelatable> =
     ObjectRelatable where <Self as ObjectRelatable>::Rel: From<ObjectIndex<OB>>;
 
+pub(super) trait ObjectRelFrom<OA: ObjectKind + ObjectRelatable> =
+    ObjectRelatable where <OA as ObjectRelatable>::Rel: From<ObjectIndex<Self>>;
+
 /// Identify [`Self::Rel`] as a sum type consisting of the subset of
 ///   [`Object`] variants representing the valid _target_ edges of
 ///   [`Self`].
@@ -723,6 +739,7 @@ impl ObjectRelatable for Ident {
         oi: ObjectIndex<Object>,
     ) -> Option<IdentRel> {
         match ty {
+            ObjectRelTy::Root => None,
             ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
             ObjectRelTy::Pkg => None,
@@ -775,6 +792,7 @@ impl ObjectRelatable for Expr {
         oi: ObjectIndex<Object>,
     ) -> Option<ExprRel> {
         match ty {
+            ObjectRelTy::Root => None,
             ObjectRelTy::Ident => Some(ExprRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(ExprRel::Expr(oi.must_narrow_into())),
             ObjectRelTy::Pkg => None,

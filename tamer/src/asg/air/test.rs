@@ -1046,6 +1046,36 @@ fn expr_ref_outside_of_expr_context() {
     assert_eq!(expr.span(), S1.merge(S3).unwrap());
 }
 
+#[test]
+fn idents_share_defining_pkg() {
+    let id_foo = SPair("foo".into(), S2);
+    let id_bar = SPair("bar".into(), S4);
+    let id_baz = SPair("baz".into(), S5);
+
+    // An expression nested within another.
+    let toks = vec![
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprIdent(id_foo),
+        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprIdent(id_bar),
+        Air::ExprRef(id_baz),
+        Air::ExprClose(S6),
+        Air::ExprClose(S7),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_foo = asg.lookup(id_foo).unwrap();
+    let oi_bar = asg.lookup(id_bar).unwrap();
+
+    assert_eq!(oi_foo.src_pkg(&asg).unwrap(), oi_bar.src_pkg(&asg).unwrap());
+
+    // Missing identifiers should not have a source package,
+    //   since we don't know what defined it yet.
+    let oi_baz = asg.lookup(id_baz).unwrap();
+    assert_eq!(None, oi_baz.src_pkg(&asg));
+}
+
 fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,

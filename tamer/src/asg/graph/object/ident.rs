@@ -21,7 +21,7 @@
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    ObjectRel, ObjectRelTo, ObjectRelatable,
+    ObjectRel, ObjectRelTo, ObjectRelatable, Pkg,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -1031,6 +1031,12 @@ impl ObjectIndex<Ident> {
         oi: ObjectIndex<O>,
     ) -> bool {
         self.edges(asg).find_map(ObjectRel::narrow) == Some(oi)
+    }
+
+    /// The source package defining this identifier,
+    ///   if known.
+    pub fn src_pkg(&self, asg: &Asg) -> Option<ObjectIndex<Pkg>> {
+        self.incoming_edges_filtered(asg).next()
     }
 }
 

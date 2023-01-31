@@ -74,8 +74,8 @@ pub enum Air {
     /// Packages are responsible for bundling together identifiers
     ///   representing subsystems that can be composed with other packages.
     ///
-    /// A source language may place limits on the types of [`Object`]s that
-    ///   may appear within a given package,
+    /// A source language may place limits on the objects that may appear
+    ///   within a given package,
     ///     but we have no such restriction.
     ///
     /// TODO: The package needs a name,
@@ -552,11 +552,12 @@ impl ParseState for AirAggregate {
             }
 
             (BuildingExpr(oi_pkg, es, oi), ExprIdent(id)) => {
-                let identi = asg.lookup_or_missing(id);
+                let oi_ident = asg.lookup_or_missing(id);
+                oi_pkg.defines(asg, oi_ident);
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
-                match identi.bind_definition(asg, oi) {
+                match oi_ident.bind_definition(asg, oi) {
                     Ok(_) => Transition(BuildingExpr(
                         oi_pkg,
                         es.reachable_by(id),
