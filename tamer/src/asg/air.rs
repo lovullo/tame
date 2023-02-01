@@ -488,7 +488,7 @@ impl ParseState for AirAggregate {
             (st, Todo) => Transition(st).incomplete(),
 
             (Empty(es), PkgOpen(span)) => {
-                let oi_pkg = asg.create(Pkg::new(span));
+                let oi_pkg = asg.create(Pkg::new(span)).root(asg);
                 Transition(PkgDfn(oi_pkg, es)).incomplete()
             }
 

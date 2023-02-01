@@ -120,10 +120,12 @@ use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 pub mod expr;
 pub mod ident;
 pub mod pkg;
+pub mod root;
 
 pub use expr::Expr;
 pub use ident::Ident;
 pub use pkg::Pkg;
+pub use root::Root;
 
 /// An object on the ASG.
 ///
@@ -136,7 +138,7 @@ pub enum Object {
     ///   the final executable.
     ///
     /// There should be only one object of this kind.
-    Root,
+    Root(Root),
 
     /// A package of identifiers.
     Pkg(Pkg),
@@ -169,7 +171,7 @@ pub enum ObjectRelTy {
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Root => write!(f, "root ASG node"),
+            Self::Root(_) => write!(f, "root ASG node"),
             Self::Pkg(pkg) => Display::fmt(pkg, f),
             Self::Ident(ident) => Display::fmt(ident, f),
             Self::Expr(expr) => Display::fmt(expr, f),
@@ -180,7 +182,7 @@ impl Display for Object {
 impl Object {
     pub fn span(&self) -> Span {
         match self {
-            Self::Root => UNKNOWN_SPAN,
+            Self::Root(_) => UNKNOWN_SPAN,
             Self::Pkg(pkg) => pkg.span(),
             Self::Ident(ident) => ident.span(),
             Self::Expr(expr) => expr.span(),
@@ -245,6 +247,12 @@ impl From<&Object> for Span {
     }
 }
 
+impl From<Root> for Object {
+    fn from(root: Root) -> Self {
+        Self::Root(root)
+    }
+}
+
 impl From<Pkg> for Object {
     fn from(pkg: Pkg) -> Self {
         Self::Pkg(pkg)
@@ -260,6 +268,17 @@ impl From<Ident> for Object {
 impl From<Expr> for Object {
     fn from(expr: Expr) -> Self {
         Self::Expr(expr)
+    }
+}
+
+impl From<Object> for Root {
+    /// Narrow an object into an [`Root`],
+    ///   panicing if the object is not of that type.
+    fn from(val: Object) -> Self {
+        match val {
+            Object::Root(root) => root,
+            _ => val.narrowing_panic("the root"),
+        }
     }
 }
 
@@ -299,6 +318,15 @@ impl From<Object> for Expr {
 impl AsRef<Object> for Object {
     fn as_ref(&self) -> &Object {
         self
+    }
+}
+
+impl AsRef<Root> for Object {
+    fn as_ref(&self) -> &Root {
+        match self {
+            Object::Root(ref root) => root,
+            _ => self.narrowing_panic("the root"),
+        }
     }
 }
 
@@ -449,6 +477,21 @@ impl<O: ObjectKind> ObjectIndex<O> {
         asg.edges(self)
     }
 
+    /// Iterate over the [`ObjectIndex`]es of the outgoing edges of `self`
+    ///   that match the [`ObjectKind`] `OB`.
+    ///
+    /// This is simply a shorthand for applying [`ObjectRel::narrow`] via
+    ///   [`Iterator::filter_map`].
+    pub fn edges_filtered<'a, OB: ObjectKind + ObjectRelatable + 'a>(
+        self,
+        asg: &'a Asg,
+    ) -> impl Iterator<Item = ObjectIndex<OB>> + 'a
+    where
+        O: ObjectRelTo<OB> + 'a,
+    {
+        self.edges(asg).filter_map(ObjectRel::narrow::<OB>)
+    }
+
     /// Incoming edges to self filtered by [`ObjectKind`] `OI`.
     ///
     /// For filtering rationale,
@@ -541,6 +584,22 @@ impl<O: ObjectKind> ObjectIndex<O> {
         //   so there are no safety issues here.
         Some(ObjectIndex::<OB>(index, span, PhantomData::default()))
             .filter(|_| O::rel_ty() == OB::rel_ty())
+    }
+
+    /// Root this object in the ASG.
+    ///
+    /// A rooted object is forced to be reachable.
+    /// This should only be utilized when necessary for toplevel objects;
+    ///   other objects should be reachable via their relations to other
+    ///   objects.
+    /// Forcing objects to be reachable can prevent them from being
+    ///   optimized away if they are not used.
+    pub fn root(self, asg: &mut Asg) -> Self
+    where
+        Root: ObjectRelTo<O>,
+    {
+        asg.root(self.span()).add_edge_to(asg, self);
+        self
     }
 }
 

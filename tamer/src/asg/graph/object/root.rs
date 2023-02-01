@@ -1,4 +1,4 @@
-// Packages represented on ASG
+// Root of the ASG.
 //
 //  Copyright (C) 2014-2023 Ryan Specialty, LLC.
 //
@@ -17,35 +17,25 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Package object on the ASG.
+//! Root node of the ASG.
 
 use std::fmt::Display;
 
-use crate::{asg::Asg, span::Span};
-
 use super::{
     Ident, Object, ObjectIndex, ObjectKind, ObjectRel, ObjectRelTy,
-    ObjectRelatable,
+    ObjectRelatable, Pkg,
 };
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Pkg(Span);
+/// A unit [`Object`] type representing the root node.
+///
+/// This exists for consistency with the rest of the object API,
+///   and for use with [`ObjectIndex`].
+#[derive(Debug, PartialEq)]
+pub struct Root;
 
-impl Pkg {
-    pub fn new<S: Into<Span>>(span: S) -> Self {
-        Self(span.into())
-    }
-
-    pub fn span(&self) -> Span {
-        match self {
-            Self(span) => *span,
-        }
-    }
-}
-
-impl Display for Pkg {
+impl Display for Root {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "package")
+        write!(f, "ASG root")
     }
 }
 
@@ -54,46 +44,50 @@ impl Display for Pkg {
 ///
 /// See [`ObjectRel`] for more information.
 #[derive(Debug, PartialEq, Eq)]
-pub enum PkgRel {
+pub enum RootRel {
+    Pkg(ObjectIndex<Pkg>),
     Ident(ObjectIndex<Ident>),
 }
 
-impl ObjectRel for PkgRel {
+impl ObjectRel for RootRel {
     fn narrow<OB: ObjectKind + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>> {
         match self {
             Self::Ident(oi) => oi.filter_rel(),
+            Self::Pkg(oi) => oi.filter_rel(),
         }
     }
 }
 
-impl ObjectRelatable for Pkg {
-    type Rel = PkgRel;
+impl ObjectRelatable for Root {
+    type Rel = RootRel;
 
     fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Pkg
+        ObjectRelTy::Root
     }
 
-    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> Option<PkgRel> {
+    fn new_rel_dyn(
+        ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+    ) -> Option<RootRel> {
         match ty {
             ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => None,
-            ObjectRelTy::Ident => Some(PkgRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Pkg => Some(RootRel::Pkg(oi.must_narrow_into())),
+            ObjectRelTy::Ident => Some(RootRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => None,
         }
     }
 }
 
-impl From<ObjectIndex<Ident>> for PkgRel {
-    fn from(value: ObjectIndex<Ident>) -> Self {
-        Self::Ident(value)
+impl From<ObjectIndex<Pkg>> for RootRel {
+    fn from(value: ObjectIndex<Pkg>) -> Self {
+        Self::Pkg(value)
     }
 }
 
-impl ObjectIndex<Pkg> {
-    /// Indicate that the given identifier `oi` is defined in this package.
-    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self {
-        self.add_edge_to(asg, oi)
+impl From<ObjectIndex<Ident>> for RootRel {
+    fn from(value: ObjectIndex<Ident>) -> Self {
+        Self::Ident(value)
     }
 }

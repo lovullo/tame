@@ -219,9 +219,9 @@ impl ObjectRelatable for Expr {
     ) -> Option<ExprRel> {
         match ty {
             ObjectRelTy::Root => None,
+            ObjectRelTy::Pkg => None,
             ObjectRelTy::Ident => Some(ExprRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(ExprRel::Expr(oi.must_narrow_into())),
-            ObjectRelTy::Pkg => None,
         }
     }
 }

@@ -1000,9 +1000,9 @@ impl ObjectRelatable for Ident {
     ) -> Option<IdentRel> {
         match ty {
             ObjectRelTy::Root => None,
+            ObjectRelTy::Pkg => None,
             ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
-            ObjectRelTy::Pkg => None,
         }
     }
 }

@@ -19,7 +19,7 @@
 
 //! Abstract semantic graph.
 
-use self::object::{ObjectRelFrom, ObjectRelTy, ObjectRelatable};
+use self::object::{ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root};
 
 use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
@@ -31,6 +31,7 @@ use crate::{
     fmt::{DisplayWrapper, TtQuote},
     global,
     parse::{util::SPair, Token},
+    span::Span,
     sym::SymbolId,
 };
 use petgraph::{
@@ -155,13 +156,13 @@ impl Asg {
 
         // Exhaust the first index to be used as a placeholder
         //   (its value does not matter).
-        let empty_node = graph.add_node(Object::Root.into());
+        let empty_node = graph.add_node(Object::Root(Root).into());
         index.push(empty_node);
 
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
         // This is not indexed and is not accessable by name.
-        let root_node = graph.add_node(Object::Root.into());
+        let root_node = graph.add_node(Object::Root(Root).into());
 
         Self {
             graph,
@@ -276,10 +277,16 @@ impl Asg {
             .map_err(Into::into)
     }
 
-    // TODO: This is transitional;
-    //   remove once [`crate::xmlo::asg_builder`] is removed.
-    pub fn root(&self) -> NodeIndex<Ix> {
-        self.root_node
+    /// Root object.
+    ///
+    /// All [`Object`]s reachable from the root will be included in the
+    ///   compilation unit or linked executable.
+    ///
+    /// The `witness` is used in the returned [`ObjectIndex`] and is
+    ///   intended for diagnostic purposes to highlight the source entity that
+    ///   triggered the request of the root.
+    pub fn root(&self, witness: Span) -> ObjectIndex<Root> {
+        ObjectIndex::new(self.root_node, witness)
     }
 
     /// Add an object as a root.

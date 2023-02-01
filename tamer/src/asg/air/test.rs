@@ -247,14 +247,22 @@ fn ident_root_existing() {
 }
 
 #[test]
-fn empty_pkg() {
+fn pkg_is_rooted() {
     let toks = vec![Air::PkgOpen(S1), Air::PkgClose(S2)];
 
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
 
-    // TODO: Packages aren't named via AIR at the time of writing,
-    //   so we can't look anything up.
+    let asg = sut.finalize().unwrap().into_context();
+
+    let oi_root = asg.root(S3);
+    let pkg = oi_root
+        .edges_filtered::<Pkg>(&asg)
+        .next()
+        .expect("missing rooted package")
+        .resolve(&asg);
+
+    assert_eq!(pkg.span(), S1);
 }
 
 #[test]
@@ -785,8 +793,7 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
     let oi_root = asg.expect_ident_oi::<Expr>(id_root);
 
     let siblings = oi_root
-        .edges(&asg)
-        .filter_map(ObjectRel::narrow::<Expr>)
+        .edges_filtered::<Expr>(&asg)
         .map(ObjectIndex::cresolve(&asg))
         .collect::<Vec<_>>();
 
@@ -987,10 +994,7 @@ fn expr_ref_to_ident() {
 
     let oi_foo = asg.expect_ident_oi::<Expr>(id_foo);
 
-    let foo_refs = oi_foo
-        .edges(&asg)
-        .filter_map(ObjectRel::narrow::<Ident>)
-        .collect::<Vec<_>>();
+    let foo_refs = oi_foo.edges_filtered::<Ident>(&asg).collect::<Vec<_>>();
 
     // We should have only a single reference (to `id_bar`).
     assert_eq!(foo_refs.len(), 1);
