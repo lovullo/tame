@@ -21,7 +21,10 @@
 
 use std::fmt::Display;
 
-use super::{Asg, ObjectIndex};
+use super::{
+    Asg, Ident, Object, ObjectIndex, ObjectKind, ObjectRel, ObjectRelTy,
+    ObjectRelatable,
+};
 use crate::{f::Functor, num::Dim, parse::util::SPair, span::Span};
 
 /// Expression.
@@ -179,6 +182,59 @@ impl Display for DimState {
             _AtLeast(dim, _) => write!(f, "of at least {dim}"),
             Unknown => write!(f, "unknown"),
         }
+    }
+}
+
+/// Subset of [`ObjectKind`]s that are valid targets for edges from
+///   [`Expr`].
+///
+/// See [`ObjectRel`] for more information.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExprRel {
+    Ident(ObjectIndex<Ident>),
+    Expr(ObjectIndex<Expr>),
+}
+
+impl ObjectRel for ExprRel {
+    fn narrow<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>> {
+        match self {
+            Self::Ident(oi) => oi.filter_rel(),
+            Self::Expr(oi) => oi.filter_rel(),
+        }
+    }
+}
+
+impl ObjectRelatable for Expr {
+    type Rel = ExprRel;
+
+    fn rel_ty() -> ObjectRelTy {
+        ObjectRelTy::Expr
+    }
+
+    fn new_rel_dyn(
+        ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+    ) -> Option<ExprRel> {
+        match ty {
+            ObjectRelTy::Root => None,
+            ObjectRelTy::Ident => Some(ExprRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Expr => Some(ExprRel::Expr(oi.must_narrow_into())),
+            ObjectRelTy::Pkg => None,
+        }
+    }
+}
+
+impl From<ObjectIndex<Ident>> for ExprRel {
+    fn from(value: ObjectIndex<Ident>) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl From<ObjectIndex<Expr>> for ExprRel {
+    fn from(value: ObjectIndex<Expr>) -> Self {
+        Self::Expr(value)
     }
 }
 

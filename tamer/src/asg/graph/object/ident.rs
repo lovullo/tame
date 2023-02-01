@@ -21,7 +21,7 @@
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    ObjectRel, ObjectRelTo, ObjectRelatable, Pkg,
+    Expr, Object, ObjectRel, ObjectRelTo, ObjectRelTy, ObjectRelatable, Pkg,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -964,6 +964,59 @@ pub struct Source {
     ///
     /// See also [`virtual_`][Source::virtual_].
     pub override_: bool,
+}
+
+/// Subset of [`ObjectKind`]s that are valid targets for edges from
+///   [`Ident`].
+///
+/// See [`ObjectRel`] for more information.
+#[derive(Debug, PartialEq, Eq)]
+pub enum IdentRel {
+    Ident(ObjectIndex<Ident>),
+    Expr(ObjectIndex<Expr>),
+}
+
+impl ObjectRel for IdentRel {
+    fn narrow<OB: ObjectKind + ObjectRelatable>(
+        self,
+    ) -> Option<ObjectIndex<OB>> {
+        match self {
+            Self::Ident(oi) => oi.filter_rel(),
+            Self::Expr(oi) => oi.filter_rel(),
+        }
+    }
+}
+
+impl ObjectRelatable for Ident {
+    type Rel = IdentRel;
+
+    fn rel_ty() -> ObjectRelTy {
+        ObjectRelTy::Ident
+    }
+
+    fn new_rel_dyn(
+        ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+    ) -> Option<IdentRel> {
+        match ty {
+            ObjectRelTy::Root => None,
+            ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
+            ObjectRelTy::Pkg => None,
+        }
+    }
+}
+
+impl From<ObjectIndex<Ident>> for IdentRel {
+    fn from(value: ObjectIndex<Ident>) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl From<ObjectIndex<Expr>> for IdentRel {
+    fn from(value: ObjectIndex<Expr>) -> Self {
+        Self::Expr(value)
+    }
 }
 
 impl ObjectIndex<Ident> {
