@@ -49,15 +49,11 @@ use tamer::{
         InterpError, InterpolateNir, Nir, NirToAir, NirToAirError, XirfToNir,
         XirfToNirError,
     },
-    parse::{
-        FinalizeError, Lower, ParseError, Parsed, ParsedObject, ParsedResult,
-        UnknownToken,
-    },
+    parse::{FinalizeError, Lower, ParseError, ParsedObject, UnknownToken},
     xir::{
         self,
         flat::{RefinedText, XirToXirf, XirToXirfError, XirfToken},
         reader::XmlXirReader,
-        writer::XmlWriter,
         DefaultEscaper, Error as XirError, Token as XirToken,
     },
 };
@@ -92,10 +88,14 @@ fn src_reader<'a>(
 ///   transition period between the XSLT-based TAME and TAMER.
 /// Writing XIR proves that the source file is being successfully parsed and
 ///   helps to evaluate system performance.
+#[cfg(not(feature = "wip-asg-derived-xmli"))]
 fn copy_xml_to<'e, W: io::Write + 'e>(
     mut fout: W,
     escaper: &'e DefaultEscaper,
-) -> impl FnMut(&ParsedResult<ParsedObject<XirToken, XirError>>) + 'e {
+) -> impl FnMut(&tamer::parse::ParsedResult<ParsedObject<XirToken, XirError>>) + 'e
+{
+    use tamer::{parse::Parsed, xir::writer::XmlWriter};
+
     let mut xmlwriter = Default::default();
 
     move |tok_result| match tok_result {
@@ -117,7 +117,8 @@ fn compile<R: Reporter>(
     reporter: &mut R,
 ) -> Result<(), UnrecoverableError> {
     let dest = Path::new(&dest_path);
-    let fout = BufWriter::new(fs::File::create(dest)?);
+    #[allow(unused_mut)] // wip-asg-derived-xmli
+    let mut fout = BufWriter::new(fs::File::create(dest)?);
 
     let escaper = DefaultEscaper::default();
 
@@ -139,14 +140,23 @@ fn compile<R: Reporter>(
     // TODO: We're just echoing back out XIR,
     //   which will be the same sans some formatting.
     let src = &mut src_reader(src_path, &escaper)?
-        .inspect(copy_xml_to(fout, &escaper))
+        .inspect({
+            #[cfg(not(feature = "wip-asg-derived-xmli"))]
+            {
+                copy_xml_to(fout, &escaper)
+            }
+            #[cfg(feature = "wip-asg-derived-xmli")]
+            {
+                |_| ()
+            }
+        })
         .map(|result| result.map_err(RecoverableError::from));
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
     let asg = DefaultAsg::with_capacity(1024, 2048);
 
-    let _ = Lower::<
+    let (_, asg) = Lower::<
         ParsedObject<XirToken, XirError>,
         XirToXirf<64, RefinedText>,
         _,
@@ -173,11 +183,42 @@ fn compile<R: Reporter>(
     })?;
 
     match reporter.has_errors() {
-        false => Ok(()),
+        false => {
+            #[cfg(feature = "wip-asg-derived-xmli")]
+            {
+                derive_xmli(asg, fout)
+            }
+            #[cfg(not(feature = "wip-asg-derived-xmli"))]
+            {
+                let _ = asg; // unused_variables
+                Ok(())
+            }
+        }
+
         true => Err(UnrecoverableError::ErrorsDuringLowering(
             reporter.error_count(),
         )),
     }
+}
+
+/// Derive an `xmli` file from the ASG.
+///
+/// The `xmli` file is an intermediate file that allows us to incrementally
+///   transition responsibilities away from the old XSLT-based compiler and
+///   into TAMER.
+/// It will represent a program that is derived from the program the user
+///   originally defined,
+///     and must be an equivalent program,
+///     but will look different;
+///       TAMER reasons about the system using a different paradigm.
+#[cfg(feature = "wip-asg-derived-xmli")]
+fn derive_xmli(
+    _asg: tamer::asg::Asg,
+    mut fout: impl std::io::Write,
+) -> Result<(), UnrecoverableError> {
+    fout.write_all(b"<it-has-begun />")?;
+
+    Ok(())
 }
 
 /// Entrypoint for the compiler

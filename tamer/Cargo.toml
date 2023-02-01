@@ -58,3 +58,9 @@ parser-trace-stderr = []
 # cause issues in production TAME code.
 wip-nir-to-air = []
 
+# Derive `xmli` file from the ASG rather than a XIR token stream.  This
+# proves that enough information has been added to the graph for the entire
+# program to be reconstructed.  The `xmli` file will be a new program
+# _derived from_ the original, and so will not match exactly.
+wip-asg-derived-xmli = ["wip-nir-to-air"]
+
