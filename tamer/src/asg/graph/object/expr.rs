@@ -22,10 +22,13 @@
 use std::fmt::Display;
 
 use super::{
-    Asg, Ident, Object, ObjectIndex, ObjectKind, ObjectRel, ObjectRelTy,
+    Asg, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
     ObjectRelatable,
 };
 use crate::{f::Functor, num::Dim, parse::util::SPair, span::Span};
+
+#[cfg(doc)]
+use super::ObjectKind;
 
 /// Expression.
 ///
@@ -195,13 +198,26 @@ pub enum ExprRel {
     Expr(ObjectIndex<Expr>),
 }
 
-impl ObjectRel for ExprRel {
-    fn narrow<OB: ObjectKind + ObjectRelatable>(
+impl ObjectRel<Expr> for ExprRel {
+    fn narrow<OB: ObjectRelFrom<Expr> + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>> {
         match self {
             Self::Ident(oi) => oi.filter_rel(),
             Self::Expr(oi) => oi.filter_rel(),
+        }
+    }
+
+    /// Whether this is a cross edge to another tree.
+    ///
+    /// An expression is inherently a tree,
+    ///   however it may contain references to other identifiers which
+    ///   represent their own trees.
+    /// Any [`Ident`] reference is a cross edge.
+    fn is_cross_edge(&self) -> bool {
+        match self {
+            Self::Ident(..) => true,
+            Self::Expr(..) => false,
         }
     }
 }

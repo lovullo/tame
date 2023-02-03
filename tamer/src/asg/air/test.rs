@@ -22,6 +22,7 @@
 
 use super::super::Ident;
 use super::*;
+use crate::asg::graph::object::expr::ExprRel;
 use crate::asg::graph::object::ObjectRel;
 use crate::parse::Parser;
 use crate::{
@@ -458,6 +459,12 @@ fn expr_non_empty_ident_root() {
     // Identifiers should reference the same expression.
     let expr_b = asg.expect_ident_obj::<Expr>(id_b);
     assert_eq!(expr_a, expr_b);
+
+    // Ontological sanity check:
+    //   Child expressions must not be considered cross edges since they are
+    //     part of the same tree.
+    let oi_expr_a = asg.expect_ident_oi::<Expr>(id_a);
+    assert!(!oi_expr_a.edges(&asg).any(|rel| rel.is_cross_edge()));
 }
 
 // Binding an identifier after a child expression means that the parser is
@@ -994,12 +1001,22 @@ fn expr_ref_to_ident() {
 
     let oi_foo = asg.expect_ident_oi::<Expr>(id_foo);
 
-    let foo_refs = oi_foo.edges_filtered::<Ident>(&asg).collect::<Vec<_>>();
+    let mut foo_rels = oi_foo
+        .edges(&asg)
+        .filter_map(ExprRel::narrows_into::<Ident>)
+        .collect::<Vec<_>>();
 
     // We should have only a single reference (to `id_bar`).
-    assert_eq!(foo_refs.len(), 1);
+    assert_eq!(foo_rels.len(), 1);
 
-    let oi_ident_bar = foo_refs[0];
+    // Ontological sanity check:
+    //   references to identifiers should count as cross edges.
+    // This is very important to ensure that certain graph traversals work
+    //   correctly between trees.
+    assert!(foo_rels.iter().all(|rel| rel.is_cross_edge()));
+
+    let oi_ident_bar =
+        foo_rels.pop().and_then(ExprRel::narrow::<Ident>).unwrap();
     let ident_bar = oi_ident_bar.resolve(&asg);
     assert_eq!(ident_bar.span(), id_bar.span());
 
@@ -1073,6 +1090,12 @@ fn idents_share_defining_pkg() {
     let oi_bar = asg.lookup(id_bar).unwrap();
 
     assert_eq!(oi_foo.src_pkg(&asg).unwrap(), oi_bar.src_pkg(&asg).unwrap());
+
+    // Ontological sanity check:
+    //   edges from the package to identifiers defined by it should not be
+    //   considered cross edges.
+    let oi_pkg = oi_foo.src_pkg(&asg).unwrap();
+    assert!(oi_pkg.edges(&asg).all(|rel| !rel.is_cross_edge()));
 
     // Missing identifiers should not have a source package,
     //   since we don't know what defined it yet.

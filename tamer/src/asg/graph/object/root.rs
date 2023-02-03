@@ -22,9 +22,12 @@
 use std::fmt::Display;
 
 use super::{
-    Ident, Object, ObjectIndex, ObjectKind, ObjectRel, ObjectRelTy,
+    Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
     ObjectRelatable, Pkg,
 };
+
+#[cfg(doc)]
+use super::ObjectKind;
 
 /// A unit [`Object`] type representing the root node.
 ///
@@ -49,14 +52,19 @@ pub enum RootRel {
     Ident(ObjectIndex<Ident>),
 }
 
-impl ObjectRel for RootRel {
-    fn narrow<OB: ObjectKind + ObjectRelatable>(
+impl ObjectRel<Root> for RootRel {
+    fn narrow<OB: ObjectRelFrom<Root> + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>> {
         match self {
             Self::Ident(oi) => oi.filter_rel(),
             Self::Pkg(oi) => oi.filter_rel(),
         }
+    }
+
+    /// The root of the graph by definition has no cross edges.
+    fn is_cross_edge(&self) -> bool {
+        false
     }
 }
 

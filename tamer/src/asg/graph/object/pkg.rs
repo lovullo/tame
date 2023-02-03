@@ -19,14 +19,15 @@
 
 //! Package object on the ASG.
 
-use std::fmt::Display;
-
-use crate::{asg::Asg, span::Span};
-
 use super::{
-    Ident, Object, ObjectIndex, ObjectKind, ObjectRel, ObjectRelTy,
+    Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
     ObjectRelatable,
 };
+use crate::{asg::Asg, span::Span};
+use std::fmt::Display;
+
+#[cfg(doc)]
+use super::ObjectKind;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Pkg(Span);
@@ -58,13 +59,23 @@ pub enum PkgRel {
     Ident(ObjectIndex<Ident>),
 }
 
-impl ObjectRel for PkgRel {
-    fn narrow<OB: ObjectKind + ObjectRelatable>(
+impl ObjectRel<Pkg> for PkgRel {
+    fn narrow<OB: ObjectRelFrom<Pkg> + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>> {
         match self {
             Self::Ident(oi) => oi.filter_rel(),
         }
+    }
+
+    /// Whether this is a cross edge to another package tree.
+    ///
+    /// Packages serve as a root for all identifiers defined therein,
+    ///   and so an edge to [`Ident`] will never be a cross edge.
+    ///
+    /// Imported [`Ident`]s do not have edges from this package.
+    fn is_cross_edge(&self) -> bool {
+        false
     }
 }
 

@@ -21,7 +21,8 @@
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    Expr, Object, ObjectRel, ObjectRelTo, ObjectRelTy, ObjectRelatable, Pkg,
+    Expr, Object, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
+    ObjectRelatable, Pkg,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -976,14 +977,32 @@ pub enum IdentRel {
     Expr(ObjectIndex<Expr>),
 }
 
-impl ObjectRel for IdentRel {
-    fn narrow<OB: ObjectKind + ObjectRelatable>(
+impl ObjectRel<Ident> for IdentRel {
+    fn narrow<OB: ObjectRelFrom<Ident> + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>> {
         match self {
             Self::Ident(oi) => oi.filter_rel(),
             Self::Expr(oi) => oi.filter_rel(),
         }
+    }
+
+    /// Whether this edge is a cross edge to another tree.
+    ///
+    /// Identifiers are either transparent
+    ///   (bound to a definition)
+    ///   or opaque.
+    /// If transparent,
+    ///   then the identifier represents a definition,
+    ///   and is therefore a root to that definition.
+    ///
+    /// Opaque identifiers at the time of writing are used by the linker
+    ///   which does not reason about cross edges
+    ///     (again at the time of writing).
+    /// Consequently,
+    ///   this will always return [`false`].
+    fn is_cross_edge(&self) -> bool {
+        false
     }
 }
 
@@ -1078,7 +1097,7 @@ impl ObjectIndex<Ident> {
     ///
     /// To bind an identifier,
     ///   see [`Self::bind_definition`].
-    pub fn is_bound_to<O: ObjectKind + ObjectRelatable>(
+    pub fn is_bound_to<O: ObjectRelFrom<Ident> + ObjectRelatable>(
         &self,
         asg: &Asg,
         oi: ObjectIndex<O>,

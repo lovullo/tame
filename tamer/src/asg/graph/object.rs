@@ -672,7 +672,11 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
 pub trait ObjectRelTo<OB: ObjectKind + ObjectRelatable> =
     ObjectRelatable where <Self as ObjectRelatable>::Rel: From<ObjectIndex<OB>>;
 
-pub(super) trait ObjectRelFrom<OA: ObjectKind + ObjectRelatable> =
+/// Reverse of [`ObjectRelTo`].
+///
+/// This is primarily useful for avoiding `where` clauses,
+///   or for use in `impl Trait` specifications.
+pub trait ObjectRelFrom<OA: ObjectKind + ObjectRelatable> =
     ObjectRelatable where <OA as ObjectRelatable>::Rel: From<ObjectIndex<Self>>;
 
 /// Identify [`Self::Rel`] as a sum type consisting of the subset of
@@ -687,7 +691,7 @@ pub trait ObjectRelatable: ObjectKind {
     ///   targets for edges from [`Self`].
     ///
     /// See [`ObjectRel`] for more information.
-    type Rel: ObjectRel;
+    type Rel: ObjectRel<Self>;
 
     /// The [`ObjectRelTy`] tag used to identify this [`ObjectKind`] as a
     ///   target of a relation.
@@ -746,7 +750,7 @@ pub trait ObjectRelatable: ObjectKind {
 ///   adhere to the prescribed ontology,
 ///     provided that invariants are properly upheld by the
 ///     [`asg`](crate::asg) module.
-pub trait ObjectRel {
+pub trait ObjectRel<OA: ObjectKind>: Sized {
     /// Attempt to narrow into the [`ObjectKind`] `OB`.
     ///
     /// Unlike [`Object`] nodes,
@@ -760,9 +764,93 @@ pub trait ObjectRel {
     ///
     /// This return value is well-suited for [`Iterator::filter_map`] to
     ///   query for edges of particular kinds.
-    fn narrow<OB: ObjectKind + ObjectRelatable>(
+    fn narrow<OB: ObjectRelFrom<OA> + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>>;
+
+    /// Attempt to narrow into the [`ObjectKind`] `OB`,
+    ///   but rather than returning the narrowed type,
+    ///   return `Option<Self>`.
+    ///
+    /// This can be used with [`Iterator::filter_map`].
+    /// By not being a [`bool`] predicate,
+    ///   we're able to provide a default trait implementation based on
+    ///   [`Self::narrow`] without requiring that [`Self`] implement
+    ///   [`Copy`].
+    fn narrows_into<OB: ObjectRelFrom<OA> + ObjectRelatable>(
+        self,
+    ) -> Option<Self>
+    where
+        Self: From<ObjectIndex<OB>>,
+    {
+        self.narrow::<OB>().map(Into::into)
+    }
+
+    /// Whether this relationship represents an ontological cross edge.
+    ///
+    /// A _cross edge_ is an edge between two trees as described by the
+    ///   graph's ontology.
+    /// Many objects on the graph represent trees,
+    ///   but contain references to other trees.
+    /// Recognizing cross edges allows the system to understand when it is
+    ///   following an edge between two trees,
+    ///     which may require different behavior.
+    ///
+    /// This contrasts to cross edges in the context of a graph traversal,
+    ///   where a tree is determined by a walk of the graph and may not take
+    ///   into consideration the meaning of edges.
+    ///
+    /// _Because this is a property of the ontology rather than a structural
+    ///   interpretation of the graph,
+    ///     it must be manually verified by a human._
+    /// An incorrect flagging of cross edges here will result in certain
+    ///   traversals being incorrect.
+    ///
+    /// Implementation Context
+    /// ======================
+    /// It is important to understand why this method exists and how it may
+    ///   be used so that implementations of this trait do the right thing
+    ///   with regards to determining whether an edge ought to represent a
+    ///   cross edge.
+    ///
+    /// For example,
+    ///   when generating a representation of an [`Expr`],
+    ///   a walk of the graph ought not consider an [`Ident`] reference to
+    ///   be part of the expression tree,
+    ///     otherwise the referenced expression would be inlined.
+    /// Furthermore,
+    ///   visiting the referenced [`Ident`] ought not inhibit a later walk,
+    ///   since the walk must later traverse the [`Ident`] to reach the
+    ///   [`Object`] that it represents.
+    /// Similarly,
+    ///   if the [`Ident`] has already been visited by a previous walk,
+    ///   we want to _re-visit_ it to output a reference as part of the
+    ///   referencing [`Expr`].
+    ///
+    /// However,
+    ///   this behavior is not always desirable.
+    /// In the case of a topological sort of the graph for linking,
+    ///   cross edges ought to count as visitations since that dependency
+    ///   must be calculated before the expression that needs it,
+    ///     and we don't want to re-calculate it again later on.
+    ///
+    /// The cross-edge is therefore an ontological fact,
+    ///   but its _interpretation_ is context-dependent.
+    ///
+    /// Note that the ontology is not intended to support back edges,
+    ///   since they produce cycles,
+    ///   except for exceptional situations
+    ///     (e.g. function recursion which will hopefully be removed from
+    ///       the language in the future).
+    /// With that said,
+    ///   if an edge could conceivably be a back edge and not be rejected
+    ///   from circular dependency checks,
+    ///     then do _not_ assume that it is a cross edge without further
+    ///     analysis,
+    ///       which may require adding the [`Asg`] or other data
+    ///         (like a path)
+    ///         as another parameter to this function.
+    fn is_cross_edge(&self) -> bool;
 }
 
 /// A container for an [`Object`] allowing for owned borrowing of data.
