@@ -263,7 +263,7 @@ fn pkg_is_rooted() {
         .expect("missing rooted package")
         .resolve(&asg);
 
-    assert_eq!(pkg.span(), S1);
+    assert_eq!(pkg.span(), S1.merge(S2).unwrap());
 }
 
 #[test]
@@ -1075,27 +1075,36 @@ fn expr_ref_outside_of_expr_context() {
 
 #[test]
 fn idents_share_defining_pkg() {
-    let id_foo = SPair("foo".into(), S2);
-    let id_bar = SPair("bar".into(), S4);
-    let id_baz = SPair("baz".into(), S5);
+    let id_foo = SPair("foo".into(), S3);
+    let id_bar = SPair("bar".into(), S5);
+    let id_baz = SPair("baz".into(), S6);
 
     // An expression nested within another.
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::PkgOpen(S1),
+        Air::ExprOpen(ExprOp::Sum, S2),
         Air::ExprIdent(id_foo),
-        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprOpen(ExprOp::Sum, S4),
         Air::ExprIdent(id_bar),
         Air::ExprRef(id_baz),
-        Air::ExprClose(S6),
         Air::ExprClose(S7),
+        Air::ExprClose(S8),
+        Air::PkgClose(S9),
     ];
 
-    let asg = asg_from_toks(toks);
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+    let asg = sut.finalize().unwrap().into_context();
 
     let oi_foo = asg.lookup(id_foo).unwrap();
     let oi_bar = asg.lookup(id_bar).unwrap();
 
     assert_eq!(oi_foo.src_pkg(&asg).unwrap(), oi_bar.src_pkg(&asg).unwrap());
+
+    // Missing identifiers should not have a source package,
+    //   since we don't know what defined it yet.
+    let oi_baz = asg.lookup(id_baz).unwrap();
+    assert_eq!(None, oi_baz.src_pkg(&asg));
 
     // Ontological sanity check:
     //   edges from the package to identifiers defined by it should not be
@@ -1103,10 +1112,11 @@ fn idents_share_defining_pkg() {
     let oi_pkg = oi_foo.src_pkg(&asg).unwrap();
     assert!(oi_pkg.edges(&asg).all(|rel| !rel.is_cross_edge()));
 
-    // Missing identifiers should not have a source package,
-    //   since we don't know what defined it yet.
-    let oi_baz = asg.lookup(id_baz).unwrap();
-    assert_eq!(None, oi_baz.src_pkg(&asg));
+    // The package span should encompass the entire definition.
+    assert_eq!(
+        S1.merge(S9),
+        oi_foo.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span())
+    )
 }
 
 fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg

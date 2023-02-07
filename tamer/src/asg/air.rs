@@ -501,7 +501,10 @@ impl ParseState for AirAggregate {
                     .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
             }
 
-            (PkgDfn(_, es), PkgClose(_)) => Transition(Empty(es)).incomplete(),
+            (PkgDfn(oi_pkg, es), PkgClose(span)) => {
+                oi_pkg.close(asg, span);
+                Transition(Empty(es)).incomplete()
+            }
 
             (st @ (Empty(..) | BuildingExpr(..)), PkgClose(span)) => {
                 Transition(st).err(AsgError::InvalidPkgCloseContext(span))

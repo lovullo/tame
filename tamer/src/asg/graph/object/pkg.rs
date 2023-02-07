@@ -23,7 +23,7 @@ use super::{
     Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
     ObjectRelatable,
 };
-use crate::{asg::Asg, span::Span};
+use crate::{asg::Asg, f::Functor, span::Span};
 use std::fmt::Display;
 
 #[cfg(doc)]
@@ -47,6 +47,14 @@ impl Pkg {
 impl Display for Pkg {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "package")
+    }
+}
+
+impl Functor<Span> for Pkg {
+    fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
+        match self {
+            Self(span) => Self(f(span)),
+        }
     }
 }
 
@@ -106,5 +114,10 @@ impl ObjectIndex<Pkg> {
     /// Indicate that the given identifier `oi` is defined in this package.
     pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self {
         self.add_edge_to(asg, oi)
+    }
+
+    /// Complete the definition of a package.
+    pub fn close(self, asg: &mut Asg, span: Span) -> Self {
+        self.map_obj(asg, Pkg::fmap(|open| open.merge(span).unwrap_or(open)))
     }
 }
