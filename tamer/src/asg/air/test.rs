@@ -984,8 +984,9 @@ fn expr_ref_to_ident() {
     let toks = vec![
         Air::ExprOpen(ExprOp::Sum, S1),
         Air::ExprIdent(id_foo),
-        // Reference to an as-of-yet-undefined id (okay)
-        Air::ExprRef(id_bar),
+        // Reference to an as-of-yet-undefined id (okay),
+        //   with a different span than `id_bar`.
+        Air::ExprRef(SPair("bar".into(), S3)),
         Air::ExprClose(S4),
         //
         // Another expression to reference the first
@@ -1018,12 +1019,17 @@ fn expr_ref_to_ident() {
     let oi_ident_bar =
         foo_rels.pop().and_then(ExprRel::narrow::<Ident>).unwrap();
     let ident_bar = oi_ident_bar.resolve(&asg);
-    assert_eq!(ident_bar.span(), id_bar.span());
 
     // The identifier will have originally been `Missing`,
     //   since it did not exist at the point of reference.
     // But it should now properly identify the other expression.
     assert_matches!(ident_bar, Ident::Transparent(..));
+
+    // The span of the identifier must be updated with the defining
+    //   `ExprIdent`,
+    //     otherwise it'll be the location of the `ExprRef` that originally
+    //     added it as `Missing`.
+    assert_eq!(ident_bar.span(), id_bar.span());
 
     let oi_expr_bar = asg.expect_ident_oi::<Expr>(id_bar);
     assert!(oi_ident_bar.is_bound_to(&asg, oi_expr_bar));

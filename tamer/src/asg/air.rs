@@ -557,7 +557,7 @@ impl ParseState for AirAggregate {
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
-                match oi_ident.bind_definition(asg, oi) {
+                match oi_ident.bind_definition(asg, id, oi) {
                     Ok(_) => Transition(BuildingExpr(
                         oi_pkg,
                         es.reachable_by(id),

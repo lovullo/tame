@@ -1052,6 +1052,7 @@ impl ObjectIndex<Ident> {
     pub fn bind_definition<O: ObjectKind>(
         self,
         asg: &mut Asg,
+        id: SPair,
         definition: ObjectIndex<O>,
     ) -> Result<ObjectIndex<Ident>, AsgError>
     where
@@ -1088,7 +1089,11 @@ impl ObjectIndex<Ident> {
             }
 
             // We are okay to proceed to add an edge to the `definition`.
-            Missing(id) => Ok(Transparent(id)),
+            // Discard the original span
+            //   (which is the location of the first reference _to_ this
+            //     identifier before it was defined),
+            //   and use the newly provided `id` and its span.
+            Missing(_) => Ok(Transparent(id)),
         })
         .map(|ident_oi| ident_oi.add_edge_to(asg, definition))
     }
