@@ -227,6 +227,8 @@ pub struct Span {
     ctx: Context,
 }
 
+assert_eq_size!(Span, Option<Span>);
+
 impl Span {
     /// Create a new span from its constituent parts.
     pub fn new<C: Into<Context>>(
@@ -716,6 +718,16 @@ pub mod dummy {
     pub const S8: Span = S0.offset_add(8).unwrap();
     pub const S9: Span = S0.offset_add(9).unwrap();
     pub const S10: Span = S0.offset_add(10).unwrap();
+    pub const S11: Span = S0.offset_add(11).unwrap();
+    pub const S12: Span = S0.offset_add(12).unwrap();
+    pub const S13: Span = S0.offset_add(13).unwrap();
+    pub const S14: Span = S0.offset_add(14).unwrap();
+    pub const S15: Span = S0.offset_add(15).unwrap();
+    pub const S16: Span = S0.offset_add(16).unwrap();
+    pub const S17: Span = S0.offset_add(17).unwrap();
+    pub const S18: Span = S0.offset_add(18).unwrap();
+    pub const S19: Span = S0.offset_add(19).unwrap();
+    pub const S20: Span = S0.offset_add(20).unwrap();
 }
 
 #[cfg(test)]

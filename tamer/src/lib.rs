@@ -64,6 +64,11 @@
 #![feature(nonzero_ops)]
 // Enabled for qualified paths in `matches!`.
 #![feature(more_qualified_paths)]
+// Collecting interators into existing objects.
+// Can be done manually in a more verbose way.
+#![feature(iter_collect_into)]
+// Convenience; can be done more verbosely.
+#![feature(is_some_and)]
 // Used for const params like `&'static str` in `crate::fmt`.
 // If this is not stabalized,
 //   then we can do without by changing the abstraction;
@@ -143,6 +148,19 @@
 //   significantly larger footprint than this form,
 //     so this lint does _not_ suggest a suitable replacement.
 #![allow(clippy::obfuscated_if_else)]
+// Sometimes being explicit about lifetimes,
+//   even if it's unnecessary,
+//   can help a human to understand what bounds are in play,
+//     which are hidden when they're elided.
+// Sometimes doing such a thing is a bad idea and introduces complexity.
+// We need to use our judgment.
+// Further,
+//   Clippy sometimes recommends eliding named bounds which does not
+//   compile,
+//     but then accepts introducing an anonymous lifetime bound (`'_`),
+//       which can be inscrutable if you are not very familiar with Rust's
+//       borrow checker.
+#![allow(clippy::needless_lifetimes)]
 
 pub mod global;
 

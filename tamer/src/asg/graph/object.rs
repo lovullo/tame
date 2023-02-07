@@ -168,10 +168,57 @@ pub enum ObjectRelTy {
     Expr,
 }
 
+/// Determine whether an edge from `from_ty` to `to_ty` is a cross edge.
+///
+/// This function is intended for _dynamic_ edge types,
+///   which cannot be determined statically;
+///     it should be used only in situations where the potential edge types
+///     are unbounded,
+///       e.g. on an iterator yielding generalized [`ObjectIndex`]es during
+///       a full graph traversal.
+/// You should otherwise use [`ObjectRel::is_cross_edge`].
+///
+/// The [`ObjectIndex`] `oi_to` represents the target object.
+/// It is not utilized at the time of writing,
+///   but is needed for internal data structures.
+///
+/// For more information on cross edges,
+///   see [`ObjectRel::is_cross_edge`].
+pub(super) fn is_dyn_cross_edge(
+    from_ty: ObjectRelTy,
+    to_ty: ObjectRelTy,
+    oi_to: ObjectIndex<Object>,
+) -> bool {
+    /// Generate cross-edge mappings between ObjectRelTy and the associated
+    ///   ObjectRel.
+    ///
+    /// This is intended to both reduce boilerplate and to eliminate typos.
+    ///
+    /// This mess will be optimized away,
+    ///   but exists so that cross edge definitions can exist alongside
+    ///   other relationship definitions for each individual object type,
+    ///     rather than having to maintain them in aggregate here.
+    macro_rules! ty_cross_edge {
+        ($($ty:ident),*) => {
+            match from_ty {
+                $(
+                    ObjectRelTy::$ty => {
+                        $ty::new_rel_dyn(to_ty, oi_to).is_some_and(
+                            |rel| rel.is_cross_edge()
+                        )
+                    },
+                )*
+            }
+        }
+    }
+
+    ty_cross_edge!(Root, Pkg, Ident, Expr)
+}
+
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Root(_) => write!(f, "root ASG node"),
+            Self::Root(root) => Display::fmt(root, f),
             Self::Pkg(pkg) => Display::fmt(pkg, f),
             Self::Ident(ident) => Display::fmt(ident, f),
             Self::Expr(expr) => Display::fmt(expr, f),
@@ -601,6 +648,18 @@ impl<O: ObjectKind> ObjectIndex<O> {
         asg.root(self.span()).add_edge_to(asg, self);
         self
     }
+
+    /// Widen an [`ObjectKind`] `O` into [`Object`],
+    ///   generalizing the index type.
+    ///
+    /// This generalization is useful in dynamic contexts,
+    ///   but it discards type information that must be later re-checked and
+    ///   verified.
+    pub fn widen(self) -> ObjectIndex<Object> {
+        match self {
+            Self(index, span, _pd) => ObjectIndex::new(index, span),
+        }
+    }
 }
 
 impl ObjectIndex<Object> {
@@ -717,6 +776,12 @@ pub trait ObjectRelatable: ObjectKind {
     ) -> Option<Self::Rel>;
 }
 
+impl<O: ObjectKind + ObjectRelatable> ObjectIndex<O> {
+    pub fn rel_ty(&self) -> ObjectRelTy {
+        O::rel_ty()
+    }
+}
+
 /// A relationship to another [`ObjectKind`].
 ///
 /// This trait is intended to be implemented by enums that represent the
@@ -750,7 +815,7 @@ pub trait ObjectRelatable: ObjectKind {
 ///   adhere to the prescribed ontology,
 ///     provided that invariants are properly upheld by the
 ///     [`asg`](crate::asg) module.
-pub trait ObjectRel<OA: ObjectKind>: Sized {
+pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>: Sized {
     /// Attempt to narrow into the [`ObjectKind`] `OB`.
     ///
     /// Unlike [`Object`] nodes,

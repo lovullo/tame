@@ -42,6 +42,7 @@ use petgraph::{
 use std::{fmt::Debug, result::Result};
 
 pub mod object;
+pub mod visit;
 
 use object::{ObjectContainer, ObjectRelTo};
 
@@ -492,7 +493,7 @@ impl Asg {
     }
 
     /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
-    ///   of `self`.
+    ///   of `oi`.
     ///
     /// This is a generic method that simply returns an [`ObjectKind`] of
     ///   [`Object`] for each [`ObjectIndex`];
@@ -515,16 +516,12 @@ impl Asg {
         &'a self,
         oi: ObjectIndex<O>,
     ) -> impl Iterator<Item = O::Rel> + 'a {
-        self.graph.edges(oi.into()).map(move |edge| {
-            O::new_rel_dyn(
-                edge.weight().1,
-                ObjectIndex::<Object>::new(edge.target(), oi),
-            )
-            .diagnostic_unwrap(|| {
+        self.edges_dyn(oi.widen()).map(move |(rel_ty, oi_b)| {
+            O::new_rel_dyn(rel_ty, oi_b).diagnostic_unwrap(|| {
                 vec![
                     oi.internal_error(format!(
                         "encountered invalid outgoing edge type {:?}",
-                        edge.weight()
+                        rel_ty,
                     )),
                     oi.help(
                         "this means that Asg did not enforce edge invariants \
@@ -532,6 +529,28 @@ impl Asg {
                     ),
                 ]
             })
+        })
+    }
+
+    /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
+    ///   of `oi` in a dynamic context.
+    ///
+    /// _This method should be used only when the types of objects cannot be
+    ///   statically known,_
+    ///     which is generally true only for code paths operating on
+    ///     significant portions of
+    ///       (or the entirety of)
+    ///       the graph without distinction.
+    /// See [`Self::edges`] for more information.
+    fn edges_dyn<'a>(
+        &'a self,
+        oi: ObjectIndex<Object>,
+    ) -> impl Iterator<Item = (ObjectRelTy, ObjectIndex<Object>)> + 'a {
+        self.graph.edges(oi.into()).map(move |edge| {
+            (
+                edge.weight().1,
+                ObjectIndex::<Object>::new(edge.target(), oi),
+            )
         })
     }
 

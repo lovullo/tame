@@ -78,7 +78,7 @@ pub use graph::{
         },
         Object, ObjectIndex, ObjectKind,
     },
-    Asg, AsgResult, IndexType,
+    visit, Asg, AsgResult, IndexType,
 };
 
 /// Default concrete ASG implementation.
