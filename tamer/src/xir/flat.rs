@@ -68,6 +68,11 @@ use std::{
 pub struct Depth(pub usize);
 
 impl Depth {
+    /// Depth representing a root.
+    pub fn root() -> Depth {
+        Depth(0)
+    }
+
     /// Yield a new [`Depth`] representing the expected depth of children of
     ///   an element at the current depth.
     ///

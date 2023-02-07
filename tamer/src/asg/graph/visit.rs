@@ -29,6 +29,10 @@ use super::{
 };
 use crate::span::UNKNOWN_SPAN;
 
+// Re-export so that users of this API can avoid an awkward import from a
+//   completely different module hierarchy.
+pub use crate::xir::flat::Depth;
+
 #[cfg(doc)]
 use super::object::ObjectRel;
 
@@ -108,6 +112,41 @@ use super::object::ObjectRel;
 ///   see [`ObjectRel::is_cross_edge`].
 ///
 /// [w-depth-first-search]: https://en.wikipedia.org/wiki/Depth-first_search
+///
+/// Depth Tracking
+/// ==============
+/// Each [`ObjectIndex`] emitted by this traversal is accompanied by a
+///   [`Depth`] representing the length of the current path relative to the
+///   [`Asg`] root.
+/// Since the ASG root is never emitted,
+///   the [`Depth`] value will always be ≥1.
+/// Because nodes are always visited when an edge is followed,
+///   a lower [`Depth`] will always be emitted prior to switching tree
+///   branches.
+///
+/// Let _S_ be an undirected spanning tree formed from the ontological tree.
+/// At each iteration,
+///   one of the following will be true:
+///
+///   1. [`Depth`] will increase by 1,
+///        representing a tree edge or a cross edge;
+///   2. [`Depth`] will remain unchanged from the previous iteration,
+///        representing a sibling node in the tree; or
+///   3. [`Depth`] will decrease by ≥1,
+///        representing a back edge to an ancestor node on _S_.
+///
+/// This depth information is the only means by which to reconstruct the
+///   structure of the tree from the emitted [`ObjectIndex`]es.
+/// For example,
+///   if you are producing output in a nested format like XML,
+///     an unchanged depth means that the current element should be closed
+///       and a new one opened,
+///     and you will close _one or more_ elements on a back edge.
+///
+/// Note that,
+///   because the [`Depth`] represents the current _path_,
+///   the same [`ObjectIndex`] may be emitted multiple times with different
+///   [`Depth`]s.
 pub fn tree_reconstruction(asg: &Asg) -> TreePreOrderDfs {
     TreePreOrderDfs::new(asg)
 }
@@ -139,7 +178,7 @@ pub struct TreePreOrderDfs<'a> {
     /// Each iterator pops a tuple off the stack and visits that node.
     ///
     /// The traversal ends once the stack becomes empty.
-    stack: Vec<(ObjectRelTy, ObjectRelTy, ObjectIndex<Object>)>,
+    stack: Vec<(ObjectRelTy, ObjectRelTy, ObjectIndex<Object>, Depth)>,
 }
 
 /// Initial size of the DFS stack for [`TreePreOrderDfs`].
@@ -157,35 +196,47 @@ impl<'a> TreePreOrderDfs<'a> {
         };
 
         let root = asg.root(span);
-        dfs.push_edges_of(root.rel_ty(), root.widen());
+        dfs.push_edges_of(root.rel_ty(), root.widen(), Depth::root());
         dfs
     }
 
-    fn push_edges_of(&mut self, from_ty: ObjectRelTy, oi: ObjectIndex<Object>) {
+    fn push_edges_of(
+        &mut self,
+        from_ty: ObjectRelTy,
+        oi: ObjectIndex<Object>,
+        depth: Depth,
+    ) {
         self.asg
             .edges_dyn(oi)
-            .map(|(rel_ty, oi)| (from_ty, rel_ty, oi))
+            .map(|(rel_ty, oi)| (from_ty, rel_ty, oi, depth.child_depth()))
             .collect_into(&mut self.stack);
     }
 }
 
 impl<'a> Iterator for TreePreOrderDfs<'a> {
-    type Item = ObjectIndex<Object>;
+    type Item = (ObjectIndex<Object>, Depth);
 
     /// Produce the next [`ObjectIndex`] from the traversal in pre-order.
     ///
     /// An [`ObjectIndex`] may be emitted more than once;
     ///   see [`tree_reconstruction`] for more information.
+    ///
+    /// Each item contains a corresponding [`Depth`],
+    ///   which represents the depth of the tree derived from the ASG,
+    ///     _not_ the level of nesting of the source language used to
+    ///     populate the graph.
+    /// This depth is the only way to derive the tree structure from this
+    ///   iterator.
     fn next(&mut self) -> Option<Self::Item> {
-        let (from_ty, next_ty, next) = self.stack.pop()?;
+        let (from_ty, next_ty, next, next_depth) = self.stack.pop()?;
 
         // We want to output information about references to other trees,
         //   but we must not traverse into them.
         if !is_dyn_cross_edge(from_ty, next_ty, next) {
-            self.push_edges_of(next_ty, next);
+            self.push_edges_of(next_ty, next, next_depth);
         }
 
-        Some(next)
+        Some((next, next_depth))
     }
 }
 

@@ -80,19 +80,23 @@ fn traverses_ontological_tree() {
     //   tree.
     let sut = tree_reconstruction(&asg);
 
+    // Note that the `Depth` beings at 1 because the actual root of the
+    //   graph is not emitted.
+    // Further note that the depth is the depth of the _path_,
+    //   and so identifiers contribute to the depth even though the source
+    //   language doesn't have such nesting.
     assert_eq!(
         vec![
-            S1.merge(S11).unwrap(), // Pkg
-            S3,                     //   Ident (id_a)
-            S2.merge(S7).unwrap(),  //   Expr
-            S4.merge(S5).unwrap(),  //     Expr
-            S9,                     //     Ident (ExpRef)¹
-            S9,                     //   Ident (id_b)
-            S8.merge(S10).unwrap(), //   Expr
+            (S1.merge(S11).unwrap(), Depth(1)), // Pkg
+            (S3, Depth(2)),                     //   Ident (id_a)
+            (S2.merge(S7).unwrap(), Depth(3)),  //     Expr
+            (S4.merge(S5).unwrap(), Depth(4)),  //       Expr
+            (S9, Depth(4)),                     //       Ident (ExpRef)¹
+            (S9, Depth(2)),                     //   Ident (id_b)
+            (S8.merge(S10).unwrap(), Depth(3)), //     Expr
         ],
-        sut.map(ObjectIndex::cresolve(&asg))
-            .map(Object::span)
-            .collect::<Vec<_>>()
+        sut.map(|(oi, depth)| (oi.resolve(&asg).span(), depth))
+            .collect::<Vec<_>>(),
     );
     // ¹ We have lost the reference context (S6),
     //     which is probably the more appropriate one to be output here,
