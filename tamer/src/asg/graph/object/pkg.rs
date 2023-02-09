@@ -113,7 +113,7 @@ impl From<ObjectIndex<Ident>> for PkgRel {
 impl ObjectIndex<Pkg> {
     /// Indicate that the given identifier `oi` is defined in this package.
     pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self {
-        self.add_edge_to(asg, oi)
+        self.add_edge_to(asg, oi, None)
     }
 
     /// Complete the definition of a package.

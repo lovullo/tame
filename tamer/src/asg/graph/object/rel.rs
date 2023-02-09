@@ -20,6 +20,8 @@
 //!
 //! See (parent module)[super] for more information.
 
+use crate::{f::Functor, span::Span};
+
 use super::{Expr, Ident, Object, ObjectIndex, ObjectKind, Pkg, Root};
 
 /// Object types corresponding to variants in [`Object`].
@@ -39,51 +41,127 @@ pub enum ObjectRelTy {
     Expr,
 }
 
-/// Determine whether an edge from `from_ty` to `to_ty` is a cross edge.
+/// A dynamic relationship (edge) from one object to another before it has
+///   been narrowed.
 ///
-/// This function is intended for _dynamic_ edge types,
-///   which cannot be determined statically;
-///     it should be used only in situations where the potential edge types
-///     are unbounded,
-///       e.g. on an iterator yielding generalized [`ObjectIndex`]es during
-///       a full graph traversal.
-/// You should otherwise use [`ObjectRel::is_cross_edge`].
-///
-/// The [`ObjectIndex`] `oi_to` represents the target object.
-/// It is not utilized at the time of writing,
-///   but is needed for internal data structures.
-///
-/// For more information on cross edges,
-///   see [`ObjectRel::is_cross_edge`].
-pub fn is_dyn_cross_edge(
-    from_ty: ObjectRelTy,
-    to_ty: ObjectRelTy,
-    oi_to: ObjectIndex<Object>,
-) -> bool {
-    /// Generate cross-edge mappings between ObjectRelTy and the associated
-    ///   ObjectRel.
-    ///
-    /// This is intended to both reduce boilerplate and to eliminate typos.
-    ///
-    /// This mess will be optimized away,
-    ///   but exists so that cross edge definitions can exist alongside
-    ///   other relationship definitions for each individual object type,
-    ///     rather than having to maintain them in aggregate here.
-    macro_rules! ty_cross_edge {
-        ($($ty:ident),*) => {
-            match from_ty {
-                $(
-                    ObjectRelTy::$ty => {
-                        $ty::new_rel_dyn(to_ty, oi_to).is_some_and(
-                            |rel| rel.is_cross_edge()
-                        )
-                    },
-                )*
-            }
+/// The target of this edge is usually an [`ObjectIndex`],
+///   but it is made generic (`T`) to support mapping while retaining useful
+///   metadata,
+///     e.g. to resolve an object while retaining the edge information.
+#[derive(Debug, PartialEq)]
+pub struct DynObjectRel<T = ObjectIndex<Object>>(
+    (ObjectRelTy, ObjectRelTy),
+    T,
+    Option<Span>,
+);
+
+impl<T> DynObjectRel<T> {
+    pub(in super::super) fn new(
+        from_ty: ObjectRelTy,
+        to_ty: ObjectRelTy,
+        x: T,
+        ctx_span: Option<Span>,
+    ) -> Self {
+        Self((from_ty, to_ty), x, ctx_span)
+    }
+
+    /// The type of the source edge.
+    pub fn source_ty(&self) -> ObjectRelTy {
+        match self {
+            Self((ty, _), ..) => *ty,
         }
     }
 
-    ty_cross_edge!(Root, Pkg, Ident, Expr)
+    /// The type of the target edge.
+    pub fn target_ty(&self) -> ObjectRelTy {
+        match self {
+            Self((_, ty), ..) => *ty,
+        }
+    }
+
+    /// The target of this relationship.
+    ///
+    /// This type generally originates as [`ObjectIndex`] but can be mapped
+    ///   over to retain the structured edge data.
+    pub fn target(&self) -> &T {
+        match self {
+            Self(_, oi, _) => oi,
+        }
+    }
+
+    /// A [`Span`] associated with the _relationship_ between the source and
+    ///   target objects,
+    ///     if any.
+    pub fn ctx_span(&self) -> Option<Span> {
+        match self {
+            Self(_, _, ctx_span) => *ctx_span,
+        }
+    }
+}
+
+impl DynObjectRel<ObjectIndex<Object>> {
+    /// See [`ObjectIndex::must_narrow_into`].
+    pub fn must_narrow_into<O: ObjectKind>(&self) -> ObjectIndex<O> {
+        match self {
+            Self(_, oi, _) => oi.must_narrow_into(),
+        }
+    }
+
+    /// Attempt to narrow into the [`ObjectRel`] of `O`.
+    ///
+    /// See [`ObjectRelatable::new_rel_dyn`] for more information.
+    pub fn narrow<O: ObjectKind + ObjectRelatable>(&self) -> Option<O::Rel> {
+        O::new_rel_dyn(self.target_ty(), *self.target())
+    }
+
+    /// Dynamically determine whether this edge represents a cross edge.
+    ///
+    /// This function is intended for _dynamic_ edge types,
+    ///   which cannot be determined statically;
+    ///     it should be used only in situations where the potential edge types
+    ///     are unbounded,
+    ///       e.g. on an iterator yielding generalized [`ObjectIndex`]es during
+    ///       a full graph traversal.
+    /// You should otherwise use [`ObjectRel::is_cross_edge`].
+    ///
+    /// For more information on cross edges,
+    ///   see [`ObjectRel::is_cross_edge`].
+    pub fn is_cross_edge(&self) -> bool {
+        /// Generate cross-edge mappings between ObjectRelTy and the associated
+        ///   ObjectRel.
+        ///
+        /// This is intended to both reduce boilerplate and to eliminate typos.
+        ///
+        /// This mess will be optimized away,
+        ///   but exists so that cross edge definitions can exist alongside
+        ///   other relationship definitions for each individual object type,
+        ///     rather than having to maintain them in aggregate here.
+        macro_rules! ty_cross_edge {
+            ($($ty:ident),*) => {
+                match self.source_ty() {
+                    $(
+                        ObjectRelTy::$ty => {
+                            self.narrow::<$ty>().is_some_and(
+                                |rel| rel.is_cross_edge()
+                            )
+                        },
+                    )*
+                }
+            }
+        }
+
+        ty_cross_edge!(Root, Pkg, Ident, Expr)
+    }
+}
+
+impl<T, U> Functor<T, U> for DynObjectRel<T> {
+    type Target = DynObjectRel<U>;
+
+    fn map(self, f: impl FnOnce(T) -> U) -> Self::Target {
+        match self {
+            Self(tys, x, ctx_span) => DynObjectRel(tys, f(x), ctx_span),
+        }
+    }
 }
 
 /// Indicate that an [`ObjectKind`] `Self` can be related to
@@ -132,7 +210,7 @@ pub trait ObjectRelatable: ObjectKind {
     /// Represent a relation to another [`ObjectKind`] that cannot be
     ///   statically known and must be handled at runtime.
     ///
-    /// A value of [`None`] means that the provided [`ObjectRelTy`] is not
+    /// A value of [`None`] means that the provided [`DynObjectRel`] is not
     ///   valid for [`Self`].
     /// If the caller is utilizing edge data that is already present on the graph,
     ///   then this means that the system is not properly upholding edge
@@ -285,8 +363,6 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>: Sized {
     ///   from circular dependency checks,
     ///     then do _not_ assume that it is a cross edge without further
     ///     analysis,
-    ///       which may require adding the [`Asg`] or other data
-    ///         (like a path)
-    ///         as another parameter to this function.
+    ///       which may require introducing more context to this method.
     fn is_cross_edge(&self) -> bool;
 }

@@ -25,7 +25,12 @@ use super::{
     Asg, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
     ObjectRelatable,
 };
-use crate::{f::Functor, num::Dim, parse::util::SPair, span::Span};
+use crate::{
+    f::Functor,
+    num::Dim,
+    parse::{util::SPair, Token},
+    span::Span,
+};
 
 #[cfg(doc)]
 use super::ObjectKind;
@@ -266,7 +271,7 @@ impl ObjectIndex<Expr> {
         expr: Expr,
     ) -> ObjectIndex<Expr> {
         let oi_subexpr = asg.create(expr);
-        oi_subexpr.add_edge_from(asg, self)
+        oi_subexpr.add_edge_from(asg, self, None)
     }
 
     /// Reference the value of the expression identified by `ident` as if it
@@ -277,6 +282,6 @@ impl ObjectIndex<Expr> {
     ///   it becomes available.
     pub fn ref_expr(self, asg: &mut Asg, ident: SPair) -> Self {
         let identi = asg.lookup_or_missing(ident);
-        self.add_edge_to(asg, identi)
+        self.add_edge_to(asg, identi, Some(ident.span()))
     }
 }

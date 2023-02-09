@@ -1095,7 +1095,7 @@ impl ObjectIndex<Ident> {
             //   and use the newly provided `id` and its span.
             Missing(_) => Ok(Transparent(id)),
         })
-        .map(|ident_oi| ident_oi.add_edge_to(asg, definition))
+        .map(|ident_oi| ident_oi.add_edge_to(asg, definition, None))
     }
 
     /// Whether this identifier is bound to the object represented by `oi`.

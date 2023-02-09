@@ -23,10 +23,7 @@
 //!   reconstruct a source representation of the program from the current
 //!   state of [`Asg`].
 
-use super::{
-    object::{is_dyn_cross_edge, ObjectRelTy},
-    Asg, Object, ObjectIndex,
-};
+use super::{object::DynObjectRel, Asg, Object, ObjectIndex};
 use crate::span::UNKNOWN_SPAN;
 
 // Re-export so that users of this API can avoid an awkward import from a
@@ -170,15 +167,12 @@ pub struct TreePreOrderDfs<'a> {
 
     /// DFS stack.
     ///
-    /// The tuple represents the source and target edge [`ObjectRelTy`]s
-    ///   respectively,
-    ///     along with the [`ObjectIndex`] to be visited.
-    /// As nodes are visited,
-    ///   its edges are pushed onto the stack.
-    /// Each iterator pops a tuple off the stack and visits that node.
+    /// As objects (nodes/vertices) are visited,
+    ///   its relationships (edges) are pushed onto the stack.
+    /// Each iterator pops a relationship off the stack and visits it.
     ///
     /// The traversal ends once the stack becomes empty.
-    stack: Vec<(ObjectRelTy, ObjectRelTy, ObjectIndex<Object>, Depth)>,
+    stack: Vec<(DynObjectRel, Depth)>,
 }
 
 /// Initial size of the DFS stack for [`TreePreOrderDfs`].
@@ -196,25 +190,20 @@ impl<'a> TreePreOrderDfs<'a> {
         };
 
         let root = asg.root(span);
-        dfs.push_edges_of(root.rel_ty(), root.widen(), Depth::root());
+        dfs.push_edges_of(root.widen(), Depth::root());
         dfs
     }
 
-    fn push_edges_of(
-        &mut self,
-        from_ty: ObjectRelTy,
-        oi: ObjectIndex<Object>,
-        depth: Depth,
-    ) {
+    fn push_edges_of(&mut self, oi: ObjectIndex<Object>, depth: Depth) {
         self.asg
             .edges_dyn(oi)
-            .map(|(rel_ty, oi)| (from_ty, rel_ty, oi, depth.child_depth()))
+            .map(|rel| (rel, depth.child_depth()))
             .collect_into(&mut self.stack);
     }
 }
 
 impl<'a> Iterator for TreePreOrderDfs<'a> {
-    type Item = (ObjectIndex<Object>, Depth);
+    type Item = (DynObjectRel, Depth);
 
     /// Produce the next [`ObjectIndex`] from the traversal in pre-order.
     ///
@@ -228,15 +217,15 @@ impl<'a> Iterator for TreePreOrderDfs<'a> {
     /// This depth is the only way to derive the tree structure from this
     ///   iterator.
     fn next(&mut self) -> Option<Self::Item> {
-        let (from_ty, next_ty, next, next_depth) = self.stack.pop()?;
+        let (rel, depth) = self.stack.pop()?;
 
         // We want to output information about references to other trees,
         //   but we must not traverse into them.
-        if !is_dyn_cross_edge(from_ty, next_ty, next) {
-            self.push_edges_of(next_ty, next, next_depth);
+        if !rel.is_cross_edge() {
+            self.push_edges_of(*rel.target(), depth);
         }
 
-        Some((next, next_depth))
+        Some((rel, depth))
     }
 }
 

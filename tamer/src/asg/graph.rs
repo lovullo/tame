@@ -19,7 +19,9 @@
 
 //! Abstract semantic graph.
 
-use self::object::{ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root};
+use self::object::{
+    DynObjectRel, ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
+};
 
 use super::{
     AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
@@ -61,7 +63,12 @@ pub type AsgResult<T> = Result<T, AsgError>;
 /// This small memory expense allows for bidirectional edge filtering
 ///   and [`ObjectIndex`] [`ObjectKind`] resolution without an extra layer
 ///   of indirection to look up the source/target [`Node`].
-type AsgEdge = (ObjectRelTy, ObjectRelTy);
+///
+/// The edge may also optionally contain a [`Span`] that provides additional
+///   context in situations where the distinction between the span of the
+///   target object and the span of the _reference_ to that object is
+///   important.
+type AsgEdge = (ObjectRelTy, ObjectRelTy, Option<Span>);
 
 /// Each node of the graph.
 type Node = ObjectContainer;
@@ -305,7 +312,7 @@ impl Asg {
         self.graph.add_edge(
             self.root_node,
             identi.into(),
-            (ObjectRelTy::Root, ObjectRelTy::Ident),
+            (ObjectRelTy::Root, ObjectRelTy::Ident, None),
         );
     }
 
@@ -420,19 +427,25 @@ impl Asg {
     /// Add an edge from the [`Object`] represented by the
     ///   [`ObjectIndex`] `from_oi` to the object represented by `to_oi`.
     ///
+    /// The edge may optionally contain a _contextual [`Span`]_,
+    ///   in cases where it is important to distinguish between the span
+    ///   associated with the target and the span associated with the
+    ///   _reference_ to the target.
+    ///
     /// For more information on how the ASG's ontology is enforced statically,
     ///   see [`ObjectRelTo`].
     fn add_edge<OA: ObjectKind, OB: ObjectKind>(
         &mut self,
         from_oi: ObjectIndex<OA>,
         to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
     ) where
         OA: ObjectRelTo<OB>,
     {
         self.graph.add_edge(
             from_oi.into(),
             to_oi.into(),
-            (OA::rel_ty(), OB::rel_ty()),
+            (OA::rel_ty(), OB::rel_ty(), ctx_span),
         );
     }
 
@@ -516,12 +529,14 @@ impl Asg {
         &'a self,
         oi: ObjectIndex<O>,
     ) -> impl Iterator<Item = O::Rel> + 'a {
-        self.edges_dyn(oi.widen()).map(move |(rel_ty, oi_b)| {
-            O::new_rel_dyn(rel_ty, oi_b).diagnostic_unwrap(|| {
+        self.edges_dyn(oi.widen()).map(move |dyn_rel| {
+            let target_ty = dyn_rel.target_ty();
+
+            dyn_rel.narrow::<O>().diagnostic_unwrap(|| {
                 vec![
                     oi.internal_error(format!(
                         "encountered invalid outgoing edge type {:?}",
-                        rel_ty,
+                        target_ty,
                     )),
                     oi.help(
                         "this means that Asg did not enforce edge invariants \
@@ -545,11 +560,15 @@ impl Asg {
     fn edges_dyn<'a>(
         &'a self,
         oi: ObjectIndex<Object>,
-    ) -> impl Iterator<Item = (ObjectRelTy, ObjectIndex<Object>)> + 'a {
+    ) -> impl Iterator<Item = DynObjectRel> + 'a {
         self.graph.edges(oi.into()).map(move |edge| {
-            (
-                edge.weight().1,
+            let (src_ty, target_ty, ctx_span) = edge.weight();
+
+            DynObjectRel::new(
+                *src_ty,
+                *target_ty,
                 ObjectIndex::<Object>::new(edge.target(), oi),
+                *ctx_span,
             )
         })
     }
@@ -727,7 +746,7 @@ impl Asg {
         self.graph.update_edge(
             identi.into(),
             depi.into(),
-            (Ident::rel_ty(), O::rel_ty()),
+            (Ident::rel_ty(), O::rel_ty(), None),
         );
     }
 
@@ -765,7 +784,7 @@ impl Asg {
         self.graph.update_edge(
             identi.into(),
             depi.into(),
-            (Ident::rel_ty(), Ident::rel_ty()),
+            (Ident::rel_ty(), Ident::rel_ty(), None),
         );
 
         (identi, depi)

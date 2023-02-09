@@ -127,7 +127,7 @@ pub use expr::Expr;
 pub use ident::Ident;
 pub use pkg::Pkg;
 pub use rel::{
-    is_dyn_cross_edge, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
+    DynObjectRel, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
     ObjectRelatable,
 };
 pub use root::Root;
@@ -419,16 +419,24 @@ impl<O: ObjectKind> ObjectIndex<O> {
     /// An edge can only be added if ontologically valid;
     ///   see [`ObjectRelTo`] for more information.
     ///
+    /// Edges may contain _contextual [`Span`]s_ if there is an important
+    ///   distinction to be made between a the span of a _reference_ to the
+    ///   target and the span of the target itself.
+    /// This is of particular benefit to cross edges
+    ///   (see [`ObjectRel::is_cross_edge`]),
+    ///     which reference nodes from other trees in different contexts.
+    ///
     /// See also [`Self::add_edge_to`].
     pub fn add_edge_to<OB: ObjectKind>(
         self,
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
     ) -> Self
     where
         O: ObjectRelTo<OB>,
     {
-        asg.add_edge(self, to_oi);
+        asg.add_edge(self, to_oi, ctx_span);
         self
     }
 
@@ -442,11 +450,12 @@ impl<O: ObjectKind> ObjectIndex<O> {
         self,
         asg: &mut Asg,
         from_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
     ) -> Self
     where
         OB: ObjectRelTo<O>,
     {
-        from_oi.add_edge_to(asg, self);
+        from_oi.add_edge_to(asg, self, ctx_span);
         self
     }
 
@@ -587,7 +596,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     where
         Root: ObjectRelTo<O>,
     {
-        asg.root(self.span()).add_edge_to(asg, self);
+        asg.root(self.span()).add_edge_to(asg, self, None);
         self
     }
 

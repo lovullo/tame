@@ -21,10 +21,12 @@ use super::*;
 use crate::{
     asg::{
         air::{Air, AirAggregate},
+        graph::object::ObjectRelTy,
         ExprOp,
     },
+    f::Functor,
     parse::{util::SPair, ParseState},
-    span::dummy::*,
+    span::{dummy::*, Span},
 };
 use std::fmt::Debug;
 
@@ -51,25 +53,21 @@ fn traverses_ontological_tree() {
     let id_a = SPair("expr_a".into(), S3);
     let id_b = SPair("expr_b".into(), S9);
 
+    #[rustfmt::skip]
     let toks = vec![
-        // <package>
         PkgOpen(S1),
-        //   <expr>
-        ExprOpen(ExprOp::Sum, S2),
-        ExprIdent(id_a),
-        //     <expr>
-        ExprOpen(ExprOp::Sum, S4),
-        ExprClose(S5),
-        //     </expr>
-        ExprRef(SPair(id_b.symbol(), S6)),
-        ExprClose(S7),
-        //   </expr>
-        //   <expr>
-        ExprOpen(ExprOp::Sum, S8),
-        ExprIdent(id_b),
-        ExprClose(S10),
-        //   </expr>
-        // </package>
+          ExprOpen(ExprOp::Sum, S2),
+            ExprIdent(id_a),
+
+            ExprOpen(ExprOp::Sum, S4),
+            ExprClose(S5),
+
+            ExprRef(SPair(id_b.symbol(), S6)),
+          ExprClose(S7),
+
+          ExprOpen(ExprOp::Sum, S8),
+            ExprIdent(id_b),
+          ExprClose(S10),
         PkgClose(S11),
     ];
 
@@ -80,28 +78,28 @@ fn traverses_ontological_tree() {
     //   tree.
     let sut = tree_reconstruction(&asg);
 
+    // We need more concise expressions for the below table of values.
+    use ObjectRelTy as Ty;
+    let d = DynObjectRel::new;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
     // Note that the `Depth` beings at 1 because the actual root of the
     //   graph is not emitted.
     // Further note that the depth is the depth of the _path_,
     //   and so identifiers contribute to the depth even though the source
     //   language doesn't have such nesting.
+    #[rustfmt::skip]
     assert_eq!(
         vec![
-            (S1.merge(S11).unwrap(), Depth(1)), // Pkg
-            (S3, Depth(2)),                     //   Ident (id_a)
-            (S2.merge(S7).unwrap(), Depth(3)),  //     Expr
-            (S4.merge(S5).unwrap(), Depth(4)),  //       Expr
-            (S9, Depth(4)),                     //       Ident (ExpRef)¹
-            (S9, Depth(2)),                     //   Ident (id_b)
-            (S8.merge(S10).unwrap(), Depth(3)), //     Expr
+            (d(Ty::Root,  Ty::Pkg,   m(S1, S11), None    ), Depth(1)),
+            (d(Ty::Pkg,   Ty::Ident, S3,         None    ),   Depth(2)),
+            (d(Ty::Ident, Ty::Expr,  m(S2, S7),  None    ),     Depth(3)),
+            (d(Ty::Expr,  Ty::Expr,  m(S4, S5),  None    ),       Depth(4)),
+            (d(Ty::Expr,  Ty::Ident, S9,         Some(S6)),       Depth(4)),
+            (d(Ty::Pkg,   Ty::Ident, S9,         None    ),   Depth(2)),
+            (d(Ty::Ident, Ty::Expr,  m(S8, S10), None    ),     Depth(3)),
         ],
-        sut.map(|(oi, depth)| (oi.resolve(&asg).span(), depth))
+        sut.map(|(rel, depth)| (rel.map(|oi| oi.resolve(&asg).span()), depth))
             .collect::<Vec<_>>(),
     );
-    // ¹ We have lost the reference context (S6),
-    //     which is probably the more appropriate one to be output here,
-    //     given that this is a source reconstruction and ought to be mapped
-    //     back to what the user entered at the equivalent point in the tree.
-    //   TODO: Figure out how to best expose this,
-    //     which probably also involves the introduction of edge spans.
 }
