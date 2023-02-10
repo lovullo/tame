@@ -155,6 +155,7 @@ main()
          title="$typedef Type">
   <typedef name="$typedef" desc="$typedef">
     <enum type="integer">
+      <item name="${typedef^^}_NONE" value="0" desc="NONE" />
 EOF
 
   while read line; do

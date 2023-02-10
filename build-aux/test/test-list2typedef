@@ -43,6 +43,7 @@ Second'\''s @     @Line
          title="FooType Type">
   <typedef name="FooType" desc="FooType">
     <enum type="integer">
+      <item name="FOOTYPE_NONE" value="0" desc="NONE" />
       <item name="FOOTYPE_FIRST" value="2706493105" desc="First" />
       <item name="FOOTYPE_SECONDS_LINE" value="3512333918" desc="Second'\''s @     @Line" />
       <item name="FOOTYPE_THIRD" value="519392729" desc="!!!THIRD!!!" />
