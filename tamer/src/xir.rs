@@ -55,6 +55,7 @@ use st::qname::QNameCompatibleStaticSymbolId;
 use self::fmt::{CloseXmlEle, OpenXmlEle, XmlAttr, XmlAttrValueQuote};
 
 pub mod attr;
+pub mod autoclose;
 pub mod flat;
 pub mod fmt;
 pub mod iter;

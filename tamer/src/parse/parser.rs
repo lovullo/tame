@@ -387,7 +387,10 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
     ///     (e.g. to store a copy of the [`Span`][crate::span::Span]).
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let otok = self.take_lookahead_tok().or_else(|| self.toks.next());
+        let otok = self
+            .take_lookahead_tok()
+            .or_else(|| self.toks.next())
+            .or_else(|| self.state.as_ref().unwrap().eof_tok(&self.ctx));
 
         match otok {
             None => match self.assert_accepting() {

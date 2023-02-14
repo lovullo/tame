@@ -265,6 +265,25 @@ where
     ///     or it is acceptable to parse all the way until the end.
     fn is_accepting(&self, ctx: &Self::Context) -> bool;
 
+    /// An optional token to feed to `Self::parse_token` after the
+    ///   [`TokenStream`] has ended.
+    ///
+    /// After a [`TokenStream`] has completed,
+    ///   but _before_ [`Self::is_accepting`] is consulted,
+    ///   the system may feed the token returned by this method to `self` as
+    ///   if it were part of the token stream.
+    /// This gives a parser the option to perform recovery rather than
+    ///   simply failing in error due to an unexpected end of stream.
+    ///
+    /// _Parsing will not complete until this returns [`None`]!_
+    /// It is important to consult the current state and context to
+    ///   determine whether a token ought to be emitted.
+    ///
+    /// The default implementation is to return [`None`] all the time.
+    fn eof_tok(&self, _ctx: &Self::Context) -> Option<Self::Token> {
+        None
+    }
+
     /// Delegate parsing from a compatible, stitched [`ParseState`] `SP`.
     ///
     /// This helps to combine two state machines that speak the same input

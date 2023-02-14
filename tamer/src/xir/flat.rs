@@ -47,6 +47,7 @@ use super::{
 };
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    f::Functor,
     parse::{
         ClosedParseState, Context, Object, ParseState, ParsedResult, Token,
         Transition, TransitionResult,
@@ -64,7 +65,11 @@ use std::{
 
 /// Tag nesting depth
 ///   (`0` represents the root).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Note: the lack of a [`Default`] implementation is intentional so that
+///   this does not see lax initialization;
+///     you probably want [`Depth::root`] in that case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct Depth(pub usize);
 
 impl Depth {
@@ -185,9 +190,39 @@ impl<T: TextType> Display for XirfToken<T> {
     }
 }
 
+impl<T: TextType> XirfToken<T> {
+    pub fn depth(&self) -> Option<Depth> {
+        use XirfToken::*;
+
+        match self {
+            Open(_, _, depth)
+            | Close(_, _, depth)
+            | Comment(_, _, depth)
+            | Text(_, depth)
+            | CData(_, _, depth) => Some(*depth),
+            Attr(_) => None,
+        }
+    }
+}
+
 impl<T: TextType> From<Attr> for XirfToken<T> {
     fn from(attr: Attr) -> Self {
         Self::Attr(attr)
+    }
+}
+
+impl<T: TextType> Functor<Depth> for XirfToken<T> {
+    fn map(self, f: impl FnOnce(Depth) -> Depth) -> Self::Target {
+        use XirfToken::*;
+
+        match self {
+            Open(qn, span, depth) => Open(qn, span, f(depth)),
+            Close(qn, span, depth) => Close(qn, span, f(depth)),
+            Attr(_) => self,
+            Comment(sym, span, depth) => Comment(sym, span, f(depth)),
+            Text(text, depth) => Text(text, f(depth)),
+            CData(cdata, span, depth) => CData(cdata, span, f(depth)),
+        }
     }
 }
 
