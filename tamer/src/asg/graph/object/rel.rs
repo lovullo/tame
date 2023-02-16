@@ -20,8 +20,8 @@
 //!
 //! See (parent module)[super] for more information.
 
+use std::fmt::Display;
 use crate::{f::Functor, span::Span};
-
 use super::{Expr, Ident, Object, ObjectIndex, ObjectKind, Pkg, Root};
 
 /// Object types corresponding to variants in [`Object`].
@@ -39,6 +39,14 @@ pub enum ObjectRelTy {
     Pkg,
     Ident,
     Expr,
+}
+
+impl Display for ObjectRelTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // At the time of writing,
+        //   this happens to be sufficient.
+        std::fmt::Debug::fmt(self, f)
+    }
 }
 
 /// A dynamic relationship (edge) from one object to another before it has
@@ -161,6 +169,14 @@ impl<T, U> Functor<T, U> for DynObjectRel<T> {
         match self {
             Self(tys, x, ctx_span) => DynObjectRel(tys, f(x), ctx_span),
         }
+    }
+}
+
+impl<T: Display> Display for DynObjectRel<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self((from_ty, to_ty), x, _) = self;
+
+        write!(f, "dynamic edge {from_ty}->{to_ty} with {x}",)
     }
 }
 

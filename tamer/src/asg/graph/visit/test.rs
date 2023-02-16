@@ -99,7 +99,8 @@ fn traverses_ontological_tree() {
             (d(Ty::Pkg,   Ty::Ident, S9,         None    ),   Depth(2)),
             (d(Ty::Ident, Ty::Expr,  m(S8, S10), None    ),     Depth(3)),
         ],
-        sut.map(|(rel, depth)| (rel.map(|oi| oi.resolve(&asg).span()), depth))
-            .collect::<Vec<_>>(),
+        sut.map(|TreeWalkRel(rel, depth)| {
+            (rel.map(|oi| oi.resolve(&asg).span()), depth)
+        }).collect::<Vec<_>>(),
     );
 }

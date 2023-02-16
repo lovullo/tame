@@ -384,6 +384,20 @@ pub trait ObjectKind = Into<Object> where Object: Into<Self> + AsRef<Self>;
 #[derive(Debug)]
 pub struct ObjectIndex<O: ObjectKind>(NodeIndex, Span, PhantomData<O>);
 
+impl<O: ObjectKind + ObjectRelatable> Display for ObjectIndex<O> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let Self(ni, _, _) = self;
+        write!(f, "ObjectIndex<{}>({ni:?})", O::rel_ty())
+    }
+}
+
+impl Display for ObjectIndex<Object> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let Self(ni, _, _) = self;
+        write!(f, "ObjectIndex<Object>({ni:?})")
+    }
+}
+
 // Deriving this trait seems to silently fail at the time of writing
 //   (2022-12-22, Rust 1.68.0-nightly).
 impl<O: ObjectKind> Clone for ObjectIndex<O> {

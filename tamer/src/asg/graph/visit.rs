@@ -23,8 +23,13 @@
 //!   reconstruct a source representation of the program from the current
 //!   state of [`Asg`].
 
+use std::fmt::Display;
+
 use super::{object::DynObjectRel, Asg, Object, ObjectIndex};
-use crate::span::UNKNOWN_SPAN;
+use crate::{
+    parse::Token,
+    span::{Span, UNKNOWN_SPAN},
+};
 
 // Re-export so that users of this API can avoid an awkward import from a
 //   completely different module hierarchy.
@@ -203,7 +208,7 @@ impl<'a> TreePreOrderDfs<'a> {
 }
 
 impl<'a> Iterator for TreePreOrderDfs<'a> {
-    type Item = (DynObjectRel, Depth);
+    type Item = TreeWalkRel;
 
     /// Produce the next [`ObjectIndex`] from the traversal in pre-order.
     ///
@@ -225,7 +230,43 @@ impl<'a> Iterator for TreePreOrderDfs<'a> {
             self.push_edges_of(*rel.target(), depth);
         }
 
-        Some((rel, depth))
+        Some(TreeWalkRel(rel, depth))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TreeWalkRel(pub DynObjectRel, pub Depth);
+
+impl Display for TreeWalkRel {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self(dyn_rel, depth) => {
+                write!(f, "{dyn_rel} at tree depth {depth}")
+            }
+        }
+    }
+}
+
+impl Token for TreeWalkRel {
+    fn ir_name() -> &'static str {
+        "ASG ontological tree pre-order DFS walk"
+    }
+
+    /// Token context span.
+    ///
+    /// Note that this is _not_ the same span as other token
+    ///   implementations,
+    ///     and may default to [`UNKNOWN_SPAN`].
+    /// This is because the token is derived from the relationships on the
+    ///   graph,
+    ///     while concrete spans are stored on the objects that those
+    ///     relationships reference.
+    /// This will return a potentially-useful span only if the inner
+    ///   [`DynObjectRel::ctx_span`] does.
+    fn span(&self) -> Span {
+        match self {
+            Self(dyn_rel, _) => dyn_rel.ctx_span().unwrap_or(UNKNOWN_SPAN),
+        }
     }
 }
 
