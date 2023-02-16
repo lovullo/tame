@@ -48,16 +48,14 @@ use super::{
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     f::Functor,
-    parse::{
-        ClosedParseState, Context, Object, ParseState, ParsedResult, Token,
-        Transition, TransitionResult,
-    },
+    parse::prelude::*,
     span::Span,
     sym::{st::is_common_whitespace, GlobalSymbolResolve, SymbolId},
     xir::EleSpan,
 };
 use arrayvec::ArrayVec;
 use std::{
+    convert::Infallible,
     error::Error,
     fmt::{Debug, Display},
     marker::PhantomData,
@@ -232,7 +230,7 @@ impl<T: TextType> Functor<Depth> for XirfToken<T> {
 ///   including the detection of [`Whitespace`].
 ///
 /// See also [`RefinedText`].
-pub trait TextType = From<Text> + Token + Eq;
+pub trait TextType = From<Text> + Into<Text> + Token + Eq;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Text(pub SymbolId, pub Span);
@@ -319,6 +317,15 @@ impl From<Text> for RefinedText {
                 Self::Whitespace(Whitespace(text))
             }
             _ => Self::Unrefined(text),
+        }
+    }
+}
+
+impl From<RefinedText> for Text {
+    fn from(value: RefinedText) -> Self {
+        match value {
+            RefinedText::Whitespace(Whitespace(text))
+            | RefinedText::Unrefined(text) => text,
         }
     }
 }
@@ -684,6 +691,77 @@ impl Diagnostic for XirToXirfError {
 impl From<AttrParseError> for XirToXirfError {
     fn from(e: AttrParseError) -> Self {
         Self::AttrError(e)
+    }
+}
+
+/// Lower a [`XirfToken`] stream into a [`XirToken`] stream.
+///
+/// This is the dual of [`XirToXirf`],
+///   and is intended to be used when the system _generates_ XML.
+/// If you do not need any features of XIRF,
+///   and aren't using any operation that produces it,
+///   then you may also skip a step and just emit XIR to avoid having to
+///   perform this lowering operation.
+#[derive(Debug, PartialEq, Eq)]
+pub enum XirfToXir<T: TextType> {
+    Ready(PhantomData<T>),
+    AttrVal(PhantomData<T>),
+}
+
+impl<T: TextType> Default for XirfToXir<T> {
+    fn default() -> Self {
+        Self::Ready(Default::default())
+    }
+}
+
+impl<T: TextType> Display for XirfToXir<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "translating XIRF to XIR")
+    }
+}
+
+impl<T: TextType> ParseState for XirfToXir<T> {
+    type Token = XirfToken<T>;
+    type Object = XirToken;
+    type Error = Infallible;
+
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        _: NoContext,
+    ) -> TransitionResult<Self::Super> {
+        use XirToken as Xir;
+        use XirfToXir::*;
+        use XirfToken as Xirf;
+
+        macro_rules! to {
+            ($tok:expr) => {
+                Transition(self).ok($tok)
+            };
+        }
+
+        match tok {
+            Xirf::Open(qname, ospan, _) => to!(Xir::Open(qname, ospan)),
+            Xirf::Close(qname, cspan, _) => to!(Xir::Close(qname, cspan)),
+            Xirf::Attr(attr) => match self {
+                Self::Ready(p) => Transition(AttrVal(p))
+                    .ok(Xir::AttrName(attr.name(), attr.attr_span().key_span()))
+                    .with_lookahead(Xirf::Attr(attr)),
+                Self::AttrVal(p) => Transition(Ready(p)).ok(Xir::AttrValue(
+                    attr.value(),
+                    attr.attr_span().value_span(),
+                )),
+            },
+            Xirf::Comment(sym, span, _) => to!(Xir::Comment(sym, span)),
+            Xirf::Text(x, _) => match x.into() {
+                Text(sym, span) => to!(Xir::Text(sym, span)),
+            },
+            Xirf::CData(sym, span, _) => to!(Xir::CData(sym, span)),
+        }
+    }
+
+    fn is_accepting(&self, _: &Self::Context) -> bool {
+        matches!(self, Self::Ready(_))
     }
 }
 

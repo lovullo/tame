@@ -568,3 +568,48 @@ fn whitespace_refinement() {
         }
     });
 }
+
+// Basic sanity check;
+//   the implementation is simple enough to verify almost at a glance,
+//     but the attribute deconstruction with lookahead could be missed so
+//     it's worth just testing an example.
+#[test]
+fn xirf_to_xir() {
+    use crate::parse::Lower;
+
+    let xir_toks = vec![
+        XirToken::Open("a".unwrap_into(), S1.into()),
+        XirToken::AttrName("attr".unwrap_into(), S2),
+        XirToken::AttrValue("value".into(), S3),
+        XirToken::Comment("comment".into(), S4),
+        XirToken::Text("text".into(), S5),
+        XirToken::CData("cdata".into(), S6),
+        XirToken::Close(Some("a".unwrap_into()), S7.into()),
+    ];
+
+    // This type incantation
+    //   (a) is a sorry mess because at the time of writing the lowering
+    //         pipeline is still in need of further abstraction; and
+    //   (b) simply parses XIR -> XirToXirf -> XirfToXir -> XIR and asserts
+    //         that the result is the same as what was originally provided.
+    //
+    // It really does make sense if you approach it slowly and offer it food.
+    assert_eq!(
+        Ok(xir_toks.clone().into_iter().map(Parsed::Object).collect()),
+        Lower::<XirToXirf<1, Text>, XirfToXir<Text>, _>::lower(
+            &mut parse::<1, Text>(xir_toks.into_iter()),
+            |out| out
+                .filter(|x| !matches!(x, Ok(Parsed::Incomplete)))
+                .collect::<Result<Vec<_>, _>>()
+        )
+    );
+
+    // The lowering pipeline above requires compatible errors.
+    impl From<ParseError<XirfToken<Text>, Infallible>>
+        for ParseError<XirToken, XirToXirfError>
+    {
+        fn from(_value: ParseError<XirfToken<Text>, Infallible>) -> Self {
+            unreachable!()
+        }
+    }
+}

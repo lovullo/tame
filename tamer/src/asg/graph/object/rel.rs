@@ -20,9 +20,9 @@
 //!
 //! See (parent module)[super] for more information.
 
-use std::fmt::Display;
-use crate::{f::Functor, span::Span};
 use super::{Expr, Ident, Object, ObjectIndex, ObjectKind, Pkg, Root};
+use crate::{f::Functor, span::Span};
+use std::fmt::Display;
 
 /// Object types corresponding to variants in [`Object`].
 ///
