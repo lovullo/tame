@@ -30,7 +30,7 @@ mod trace;
 pub mod util;
 
 pub use error::{FinalizeError, ParseError};
-pub use lower::{lowerable, Lower, LowerIter, ParsedObject};
+pub use lower::{lowerable, terminal, Lower, LowerIter, ParsedObject};
 pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{
     context::{Context, Empty as EmptyContext, NoContext},

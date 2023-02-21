@@ -257,11 +257,35 @@ pub type WidenedParsedResult<S, E> =
 ///     itself a [`ParseState`].
 ///
 /// See [`ParsedObject`] for more information.
+///
+/// This is the dual of [`terminal`].
 pub fn lowerable<T: Token, O: Object, E: Diagnostic + PartialEq>(
     iter: impl Iterator<Item = Result<O, E>>,
 ) -> impl Iterator<Item = ParsedResult<ParsedObject<T, O, E>>> {
     iter.map(|result| {
         result.map(Parsed::Object).map_err(ParseError::StateError)
+    })
+}
+
+/// Indicate a terminal parser in a lowering pipeline,
+///   and unwrap the parse API.
+///
+/// This is the dual of [`lowerable`],
+///   responsible for breaking out of the pipeline for processing of the
+///   final object stream.
+///
+/// [`Parsed::Incomplete`] is filtered.
+/// Errors are lifted into `E` just as would be expected by [`Lower`].
+pub fn terminal<
+    S: ParseState,
+    E: Diagnostic + From<ParseError<S::Token, S::Error>>,
+>(
+    iter: impl Iterator<Item = ParsedResult<S>>,
+) -> impl Iterator<Item = Result<S::Object, E>> {
+    iter.filter_map(|result| match result {
+        Ok(Parsed::Incomplete) => None,
+        Ok(Parsed::Object(obj)) => Some(Ok(obj)),
+        Err(e) => Some(Err(e.into())),
     })
 }
 

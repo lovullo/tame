@@ -30,6 +30,7 @@ extern crate tamer;
 
 use getopts::{Fail, Options};
 use std::{
+    convert::Infallible,
     env,
     error::Error,
     fmt::{self, Display, Write},
@@ -50,7 +51,8 @@ use tamer::{
         XirfToNirError,
     },
     parse::{
-        lowerable, FinalizeError, Lower, ParseError, ParsedObject, UnknownToken,
+        lowerable, FinalizeError, Lower, ParseError, ParsedObject, Token,
+        UnknownToken,
     },
     xir::{
         self,
@@ -186,7 +188,7 @@ fn compile<R: Reporter>(
         false => {
             #[cfg(feature = "wip-asg-derived-xmli")]
             {
-                derive_xmli(asg, fout)
+                derive_xmli(asg, fout, &escaper)
             }
             #[cfg(not(feature = "wip-asg-derived-xmli"))]
             {
@@ -215,8 +217,51 @@ fn compile<R: Reporter>(
 fn derive_xmli(
     _asg: tamer::asg::Asg,
     mut fout: impl std::io::Write,
+    escaper: &DefaultEscaper,
 ) -> Result<(), UnrecoverableError> {
-    fout.write_all(b"<it-has-begun />")?;
+    use tamer::{
+        convert::ExpectInto,
+        iter::TrippableIterator,
+        parse::terminal,
+        span::UNKNOWN_SPAN,
+        xir::{
+            autoclose::XirfAutoClose,
+            flat::{Depth, Text, XirfToXir},
+            writer::XmlWriter,
+            OpenSpan,
+        },
+    };
+
+    // Note how this does not contain a closing token;
+    //   it is closed by `XirfAutoClose`.
+    let xir_toks = vec![XirfToken::Open(
+        "it-has-begun".unwrap_into(),
+        OpenSpan::without_name_span(UNKNOWN_SPAN),
+        Depth(0),
+    )];
+
+    let mut head = lowerable(xir_toks.into_iter().map(Ok));
+
+    // THIS IS A PROOF-OF-CONCEPT LOWERING PIPELINE.
+    Lower::<
+        ParsedObject<XirfToken<Text>, XirfToken<Text>, Infallible>,
+        XirfAutoClose,
+        _,
+    >::lower::<_, UnrecoverableError>(&mut head, |xirf| {
+        Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(xirf, |xir| {
+            terminal::<XirfToXir<Text>, UnrecoverableError>(xir).while_ok(
+                |toks| {
+                    // Write failures should immediately bail out;
+                    //   we can't skip writing portions of the file and
+                    //   just keep going!
+                    toks.write(&mut fout, Default::default(), escaper)?;
+                    Ok::<_, UnrecoverableError>(())
+                },
+                // TODO: Remove bad file?
+                //   Let make do it?
+            )
+        })
+    })?;
 
     Ok(())
 }
@@ -388,6 +433,20 @@ impl From<xir::writer::Error> for UnrecoverableError {
 impl From<FinalizeError> for UnrecoverableError {
     fn from(e: FinalizeError) -> Self {
         Self::FinalizeError(e)
+    }
+}
+
+impl From<Infallible> for UnrecoverableError {
+    fn from(_: Infallible) -> Self {
+        unreachable!("<UnrecoverableError as From<Infallible>>::from")
+    }
+}
+
+impl<T: Token> From<ParseError<T, Infallible>> for UnrecoverableError {
+    fn from(_: ParseError<T, Infallible>) -> Self {
+        unreachable!(
+            "<UnrecoverableError as From<ParseError<T, Infallible>>>::from"
+        )
     }
 }
 

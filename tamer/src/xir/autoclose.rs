@@ -115,7 +115,7 @@ use XirfAutoClose::*;
 ///
 /// See the [module-level documentation](super) for more information.
 #[derive(Debug, PartialEq, Eq, Default)]
-enum XirfAutoClose {
+pub enum XirfAutoClose {
     /// Element contains no children and can be self-closing.
     #[default]
     EmptyEle,
@@ -250,7 +250,7 @@ impl From<PDepth> for Depth {
 
 /// Stack of open elements and associated metadata.
 #[derive(Debug, PartialEq)]
-struct AutoCloseStack(Vec<StackItem>);
+pub struct AutoCloseStack(Vec<StackItem>);
 
 type StackItem = (QName, Span, VDepth, PDepth);
 
