@@ -112,7 +112,7 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
     let (mut asg, mut state) = Lower::<
-        ParsedObject<XirToken, XirError>,
+        ParsedObject<UnknownToken, XirToken, XirError>,
         XirToXirf<4, Text>,
         _,
     >::lower(src, |toks| {

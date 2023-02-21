@@ -92,8 +92,9 @@ fn src_reader<'a>(
 fn copy_xml_to<'e, W: io::Write + 'e>(
     mut fout: W,
     escaper: &'e DefaultEscaper,
-) -> impl FnMut(&tamer::parse::ParsedResult<ParsedObject<XirToken, XirError>>) + 'e
-{
+) -> impl FnMut(
+    &tamer::parse::ParsedResult<ParsedObject<UnknownToken, XirToken, XirError>>,
+) + 'e {
     use tamer::{parse::Parsed, xir::writer::XmlWriter};
 
     let mut xmlwriter = Default::default();
@@ -157,7 +158,7 @@ fn compile<R: Reporter>(
     let asg = DefaultAsg::with_capacity(1024, 2048);
 
     let (_, asg) = Lower::<
-        ParsedObject<XirToken, XirError>,
+        ParsedObject<UnknownToken, XirToken, XirError>,
         XirToXirf<64, RefinedText>,
         _,
     >::lower::<_, UnrecoverableError>(src, |toks| {

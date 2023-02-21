@@ -22,7 +22,6 @@
 use super::{
     state::ClosedParseState, FinalizeError, FinalizedParser, NoContext, Object,
     ParseError, ParseState, Parsed, Parser, Token, TransitionResult,
-    UnknownToken,
 };
 use crate::diagnose::Diagnostic;
 use std::{fmt::Display, iter, marker::PhantomData};
@@ -255,22 +254,27 @@ pub type WidenedParsedResult<S, E> =
 ///   but as a type for lowering operations.
 /// This is useful when a parser does not make use of [`ParseState`] but
 ///   still wishes to participate in a lowering pipeline.
-/// The type of [`Token`] will always be [`UnknownToken`],
-///   so this is only useful at the head of such a pipeline.
 #[derive(Debug)]
-pub struct ParsedObject<O: Object, E: Diagnostic + PartialEq> {
-    _phantom: PhantomData<(O, E)>,
+pub struct ParsedObject<T: Token, O: Object, E: Diagnostic + PartialEq> {
+    _phantom: PhantomData<(T, O, E)>,
 }
 
-impl<O: Object, E: Diagnostic + PartialEq> PartialEq for ParsedObject<O, E> {
+impl<T: Token, O: Object, E: Diagnostic + PartialEq> PartialEq
+    for ParsedObject<T, O, E>
+{
     fn eq(&self, _other: &Self) -> bool {
         true
     }
 }
 
-impl<O: Object, E: Diagnostic + PartialEq> Eq for ParsedObject<O, E> {}
+impl<T: Token, O: Object, E: Diagnostic + PartialEq> Eq
+    for ParsedObject<T, O, E>
+{
+}
 
-impl<O: Object, E: Diagnostic + PartialEq> Default for ParsedObject<O, E> {
+impl<T: Token, O: Object, E: Diagnostic + PartialEq> Default
+    for ParsedObject<T, O, E>
+{
     fn default() -> Self {
         Self {
             _phantom: Default::default(),
@@ -278,14 +282,18 @@ impl<O: Object, E: Diagnostic + PartialEq> Default for ParsedObject<O, E> {
     }
 }
 
-impl<O: Object, E: Diagnostic + PartialEq> Display for ParsedObject<O, E> {
+impl<T: Token, O: Object, E: Diagnostic + PartialEq> Display
+    for ParsedObject<T, O, E>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "<generic data>")
     }
 }
 
-impl<O: Object, E: Diagnostic + PartialEq> ParseState for ParsedObject<O, E> {
-    type Token = UnknownToken;
+impl<T: Token, O: Object, E: Diagnostic + PartialEq> ParseState
+    for ParsedObject<T, O, E>
+{
+    type Token = T;
     type Object = O;
     type Error = E;
 

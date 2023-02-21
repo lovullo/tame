@@ -26,7 +26,7 @@ use super::{
     Token,
 };
 use crate::{
-    parse::{ParseError, Parsed, ParsedObject, ParsedResult},
+    parse::{ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken},
     span::Context,
     sym::{st::raw::WS_EMPTY, GlobalSymbolInternBytes},
 };
@@ -559,7 +559,7 @@ where
     B: BufRead,
     S: Escaper,
 {
-    type Item = ParsedResult<ParsedObject<Token, Error>>;
+    type Item = ParsedResult<ParsedObject<UnknownToken, Token, Error>>;
 
     /// Produce the next XIR [`Token`] from the input.
     ///
