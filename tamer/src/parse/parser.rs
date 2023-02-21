@@ -368,6 +368,14 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     pub(super) fn take_lookahead_tok(&mut self) -> Option<S::Token> {
         self.lookahead.take().map(|Lookahead(tok)| tok)
     }
+
+    /// An optional token to feed to `Self::feed_tok` after the
+    ///   [`TokenStream`] has ended.
+    ///
+    /// See [`ParseState::eof_tok`] for more information.
+    pub(super) fn eof_tok(&self) -> Option<S::Token> {
+        self.state.as_ref().unwrap().eof_tok(&self.ctx)
+    }
 }
 
 impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
@@ -390,7 +398,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
         let otok = self
             .take_lookahead_tok()
             .or_else(|| self.toks.next())
-            .or_else(|| self.state.as_ref().unwrap().eof_tok(&self.ctx));
+            .or_else(|| self.eof_tok());
 
         match otok {
             None => match self.assert_accepting() {
@@ -569,6 +577,7 @@ pub mod test {
     pub enum StubObject {
         FromYield(usize),
         FromLookahead(usize),
+        FromFoo,
     }
 
     impl Object for StubObject {}
@@ -600,7 +609,7 @@ pub mod test {
                 StubToken::Lookahead(val) => {
                     Transition(self).ok(StubObject::FromLookahead(val))
                 }
-                _ => Transition(self).incomplete(),
+                StubToken::Foo => Transition(self).ok(StubObject::FromFoo),
             }
         }
 

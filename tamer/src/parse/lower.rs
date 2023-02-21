@@ -194,12 +194,16 @@ where
     /// Errors from `LS` are widened into `E`.
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        // TODO: This is a maintenance burden with Parser's Iterator impl;
+        //   they can easily get out of sync,
+        //     as evidenced by the commit introducing this comment.
         let tok = self
             .lower
             .take_lookahead_tok()
             .map(Parsed::Object)
             .map(Ok)
-            .or_else(|| self.toks.next());
+            .or_else(|| self.toks.next())
+            .or_else(|| self.lower.eof_tok().map(Parsed::Object).map(Ok));
 
         match tok {
             // We are done when no tokens remain.
@@ -311,7 +315,11 @@ mod test {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Default)]
-    struct StubEchoParseState {}
+    enum StubEchoParseState {
+        #[default]
+        PreEof,
+        PostEof,
+    }
 
     impl Display for StubEchoParseState {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -329,17 +337,24 @@ mod test {
             tok: Self::Token,
             _: &mut Self::Context,
         ) -> TransitionResult<Self> {
-            Transition(self).ok(tok)
+            match tok {
+                StubToken::Foo => Transition(Self::PostEof).ok(tok),
+                _ => Transition(self).ok(tok),
+            }
         }
 
         fn is_accepting(&self, _: &Self::Context) -> bool {
             true
         }
+
+        fn eof_tok(&self, _ctx: &Self::Context) -> Option<Self::Token> {
+            matches!(self, Self::PreEof).then_some(StubToken::Foo)
+        }
     }
 
     // Similar to tests in parse::parser::test.
     #[test]
-    fn can_emit_object_with_lookahead_for_lower_iter() {
+    fn can_emit_object_with_lookahead_and_eof_for_lower_iter() {
         let given = 27; // some value
         let toks = vec![StubToken::YieldWithLookahead(given)];
 
@@ -360,6 +375,14 @@ mod test {
                     sut.next(),
                     Some(Ok(Parsed::Object(StubObject::FromLookahead(given)))),
                     "lookahead token did not take effect"
+                );
+
+                // Prior to end,
+                //   we give parsers the opportunity to emit an EOF token.
+                assert_eq!(
+                    sut.next(),
+                    Some(Ok(Parsed::Object(StubObject::FromFoo))),
+                    "EOF token was note emitted",
                 );
 
                 // And now this should be the end,
