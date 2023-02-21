@@ -26,7 +26,6 @@ use super::{
     Token,
 };
 use crate::{
-    parse::{ParseError, Parsed, ParsedObject, ParsedResult, UnknownToken},
     span::Context,
     sym::{st::raw::WS_EMPTY, GlobalSymbolInternBytes},
 };
@@ -37,9 +36,7 @@ use quick_xml::{
     },
     Error as QuickXmlError,
 };
-use std::{borrow::Cow, collections::VecDeque, io::BufRead, result};
-
-pub type Result<T> = result::Result<T, Error>;
+use std::{borrow::Cow, collections::VecDeque, io::BufRead};
 
 /// Parse XML into a XIR [`Token`] stream.
 ///
@@ -110,7 +107,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
     ///
     /// This is intended to be invoked once the buffer has been depleted by
     ///   [`XmlXirReader::next`].
-    pub fn refill_buf(&mut self) -> Option<Result<Token>> {
+    pub fn refill_buf(&mut self) -> Option<Result<Token, Error>> {
         // Clear any previous buffer to free unneeded data.
         self.tokbuf.clear();
         self.readbuf.clear();
@@ -263,7 +260,11 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
     ///   people unfamiliar with the system do not have expectations that
     ///   are going to be unmet,
     ///     which may result in subtle (or even serious) problems.
-    fn validate_decl(decl: &BytesDecl, pos: usize, ctx: Context) -> Result<()> {
+    fn validate_decl(
+        decl: &BytesDecl,
+        pos: usize,
+        ctx: Context,
+    ) -> Result<(), Error> {
         // Starts after `<?`, which we want to include.
         let decl_ptr = decl.as_ptr() as usize - 2 + pos;
 
@@ -320,7 +321,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         pos: usize,
         ctx: Context,
         empty_tag: bool,
-    ) -> Result<Token> {
+    ) -> Result<Token, Error> {
         // Starts after the opening tag `<`, so adjust.
         let addr = ele.as_ptr() as usize - 1;
         let len = ele.name().len();
@@ -453,7 +454,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
         ele_ptr: usize,
         ele_pos: usize,
         ctx: Context,
-    ) -> Result<bool> {
+    ) -> Result<bool, Error> {
         let mut found = false;
 
         // Disable checks to allow duplicate attributes;
@@ -559,21 +560,14 @@ where
     B: BufRead,
     S: Escaper,
 {
-    type Item = ParsedResult<ParsedObject<UnknownToken, Token, Error>>;
+    type Item = Result<Token, Error>;
 
     /// Produce the next XIR [`Token`] from the input.
     ///
     /// For more information on how this reader operates,
     ///   see [`XmlXirReader`].
     fn next(&mut self) -> Option<Self::Item> {
-        self.tokbuf
-            .pop_back()
-            .map(|tok| Ok(Parsed::Object(tok)))
-            .or_else(|| {
-                self.refill_buf().map(|result| {
-                    result.map(Parsed::Object).map_err(ParseError::StateError)
-                })
-            })
+        self.tokbuf.pop_back().map(Ok).or_else(|| self.refill_buf())
     }
 }
 

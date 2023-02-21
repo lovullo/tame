@@ -21,7 +21,8 @@
 
 use super::{
     state::ClosedParseState, FinalizeError, FinalizedParser, NoContext, Object,
-    ParseError, ParseState, Parsed, Parser, Token, TransitionResult,
+    ParseError, ParseState, Parsed, ParsedResult, Parser, Token,
+    TransitionResult,
 };
 use crate::diagnose::Diagnostic;
 use std::{fmt::Display, iter, marker::PhantomData};
@@ -247,6 +248,22 @@ pub trait WidenedError<S: ParseState, LS: ParseState> = Diagnostic
 /// A [`ParsedResult`](super::ParsedResult) with a [`WidenedError`].
 pub type WidenedParsedResult<S, E> =
     Result<Parsed<<S as ParseState>::Object>, E>;
+
+/// Make the provided [`Iterator`] `iter` usable in a `Lower` pipeline.
+///
+/// This will produce an iterator that shares the same output as a
+///   [`Parser`],
+///     so that it may participate in a lowering pipeline even if it is not
+///     itself a [`ParseState`].
+///
+/// See [`ParsedObject`] for more information.
+pub fn lowerable<T: Token, O: Object, E: Diagnostic + PartialEq>(
+    iter: impl Iterator<Item = Result<O, E>>,
+) -> impl Iterator<Item = ParsedResult<ParsedObject<T, O, E>>> {
+    iter.map(|result| {
+        result.map(Parsed::Object).map_err(ParseError::StateError)
+    })
+}
 
 /// Representation of a [`ParseState`] producing some type of [`Object`].
 ///

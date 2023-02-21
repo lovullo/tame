@@ -49,7 +49,9 @@ use tamer::{
         InterpError, InterpolateNir, Nir, NirToAir, NirToAirError, XirfToNir,
         XirfToNirError,
     },
-    parse::{FinalizeError, Lower, ParseError, ParsedObject, UnknownToken},
+    parse::{
+        lowerable, FinalizeError, Lower, ParseError, ParsedObject, UnknownToken,
+    },
     xir::{
         self,
         flat::{RefinedText, XirToXirf, XirToXirfError, XirfToken},
@@ -92,15 +94,13 @@ fn src_reader<'a>(
 fn copy_xml_to<'e, W: io::Write + 'e>(
     mut fout: W,
     escaper: &'e DefaultEscaper,
-) -> impl FnMut(
-    &tamer::parse::ParsedResult<ParsedObject<UnknownToken, XirToken, XirError>>,
-) + 'e {
-    use tamer::{parse::Parsed, xir::writer::XmlWriter};
+) -> impl FnMut(&Result<XirToken, XirError>) + 'e {
+    use tamer::xir::writer::XmlWriter;
 
     let mut xmlwriter = Default::default();
 
     move |tok_result| match tok_result {
-        Ok(Parsed::Object(tok)) => {
+        Ok(tok) => {
             xmlwriter = tok.write(&mut fout, xmlwriter, escaper).unwrap();
         }
         _ => (),
@@ -140,18 +140,17 @@ fn compile<R: Reporter>(
 
     // TODO: We're just echoing back out XIR,
     //   which will be the same sans some formatting.
-    let src = &mut src_reader(src_path, &escaper)?
-        .inspect({
-            #[cfg(not(feature = "wip-asg-derived-xmli"))]
-            {
-                copy_xml_to(fout, &escaper)
-            }
-            #[cfg(feature = "wip-asg-derived-xmli")]
-            {
-                |_| ()
-            }
-        })
-        .map(|result| result.map_err(RecoverableError::from));
+    let src = &mut lowerable(src_reader(src_path, &escaper)?.inspect({
+        #[cfg(not(feature = "wip-asg-derived-xmli"))]
+        {
+            copy_xml_to(fout, &escaper)
+        }
+        #[cfg(feature = "wip-asg-derived-xmli")]
+        {
+            |_| ()
+        }
+    }))
+    .map(|result| result.map_err(RecoverableError::from));
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.

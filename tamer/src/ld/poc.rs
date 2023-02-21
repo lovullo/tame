@@ -41,7 +41,8 @@ use crate::{
         XmloToken,
     },
     parse::{
-        FinalizeError, Lower, ParseError, Parsed, ParsedObject, UnknownToken,
+        lowerable, FinalizeError, Lower, ParseError, Parsed, ParsedObject,
+        UnknownToken,
     },
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
@@ -106,7 +107,7 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
             VisitOnceFile::Visited => return Ok((asg, state)),
         };
 
-    let src = &mut XmlXirReader::new(file, escaper, ctx)
+    let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx))
         .map(|result| result.map_err(TameldError::from));
 
     // TODO: This entire block is a WIP and will be incrementally
