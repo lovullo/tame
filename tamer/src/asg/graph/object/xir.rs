@@ -66,20 +66,12 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
     type Token = TreeWalkRel;
     type Object = XirfToken<Text>;
     type Error = Infallible;
-
-    /// Read-only reference to the [`Asg`].
-    ///
-    /// This creates an awkward `&mut &'a Asg` in the signature of
-    ///   [`Self::parse_token`],
-    ///     but Rust's auto-deref makes use of it transparent.
-    /// The use of the context in this way is a bit of a kluge that maybe
-    ///   will be improved upon in the future.
-    type Context = &'a Asg;
+    type Context = TreeContext<'a>;
 
     fn parse_token(
         self,
         tok: Self::Token,
-        asg: &mut &'a Asg,
+        TreeContext(_, asg): &mut TreeContext,
     ) -> TransitionResult<Self::Super> {
         use ObjectRelTy as Ty;
 
@@ -108,5 +100,16 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
 
     fn is_accepting(&self, _ctx: &Self::Context) -> bool {
         true
+    }
+}
+
+#[derive(Debug)]
+pub struct TreeContext<'a>(StackPlaceholder, &'a Asg);
+
+type StackPlaceholder = ();
+
+impl<'a> From<&'a Asg> for TreeContext<'a> {
+    fn from(asg: &'a Asg) -> Self {
+        Self(Default::default(), asg)
     }
 }
