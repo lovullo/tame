@@ -29,21 +29,22 @@
 //!     but may be useful in the future for concrete code suggestions/fixes,
 //!       or observing template expansions.
 
-use std::{convert::Infallible, fmt::Display, marker::PhantomData};
-
+use super::ObjectRelTy;
 use crate::{
     asg::{visit::TreeWalkRel, Asg},
     diagnose::Annotate,
     diagnostic_unreachable,
     parse::prelude::*,
+    sym::st::raw::URI_LV_RATER,
     xir::{
+        attr::Attr,
         flat::{Text, XirfToken},
-        st::qname::QN_PACKAGE,
+        st::qname::{QN_PACKAGE, QN_XMLNS},
         OpenSpan,
     },
 };
-
-use super::ObjectRelTy;
+use arrayvec::ArrayVec;
+use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AsgTreeToXirf<'a> {
@@ -71,23 +72,34 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
     fn parse_token(
         self,
         tok: Self::Token,
-        TreeContext(_, asg): &mut TreeContext,
+        TreeContext(tok_stack, asg): &mut TreeContext,
     ) -> TransitionResult<Self::Super> {
         use ObjectRelTy as Ty;
+
+        if let Some(emit) = tok_stack.pop() {
+            return Transition(self).ok(emit).with_lookahead(tok);
+        }
 
         let tok_span = tok.span();
         let TreeWalkRel(dyn_rel, depth) = tok;
 
-        // POC: Read-only access to the ASG for resolving edge refs.
         let obj = dyn_rel.target().resolve(asg);
         let obj_span = obj.span();
 
         match dyn_rel.target_ty() {
-            Ty::Pkg => Transition(self).ok(XirfToken::Open(
-                QN_PACKAGE,
-                OpenSpan::without_name_span(obj_span),
-                depth,
-            )),
+            Ty::Pkg => {
+                tok_stack.push(XirfToken::Attr(Attr::new(
+                    QN_XMLNS,
+                    URI_LV_RATER,
+                    (obj_span, obj_span),
+                )));
+
+                Transition(self).ok(XirfToken::Open(
+                    QN_PACKAGE,
+                    OpenSpan::without_name_span(obj_span),
+                    depth,
+                ))
+            }
 
             Ty::Ident | Ty::Expr => Transition(self).incomplete(),
 
@@ -103,10 +115,28 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
     }
 }
 
-#[derive(Debug)]
-pub struct TreeContext<'a>(StackPlaceholder, &'a Asg);
+/// Size of the token stack.
+///
+/// See [`TokenStack`] for more information.
+const TOK_STACK_SIZE: usize = 8;
 
-type StackPlaceholder = ();
+/// Token stack to hold generated tokens between [`AsgTreeToXirf`]
+///   iterations.
+///
+/// The token stack is used to avoid having to create separate states for
+///   emitting each individual token.
+/// It is populated by [`AsgTreeToXirf`] if more than a single [`XirfToken`]
+///   needs to be emitted,
+///     and tokens are removed on each subsequent iteration until empty.
+///
+/// This need only be big enough to accommodate [`AsgTreeToXirf`]'s
+///   implementation;
+///     the size is independent of user input.
+type TokenStack<'a> =
+    ArrayVec<<AsgTreeToXirf<'a> as ParseState>::Object, TOK_STACK_SIZE>;
+
+#[derive(Debug)]
+pub struct TreeContext<'a>(TokenStack<'a>, &'a Asg);
 
 impl<'a> From<&'a Asg> for TreeContext<'a> {
     fn from(asg: &'a Asg) -> Self {
