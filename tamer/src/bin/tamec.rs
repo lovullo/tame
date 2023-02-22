@@ -215,53 +215,64 @@ fn compile<R: Reporter>(
 ///       TAMER reasons about the system using a different paradigm.
 #[cfg(feature = "wip-asg-derived-xmli")]
 fn derive_xmli(
-    _asg: tamer::asg::Asg,
+    asg: tamer::asg::Asg,
     mut fout: impl std::io::Write,
     escaper: &DefaultEscaper,
 ) -> Result<(), UnrecoverableError> {
     use tamer::{
-        convert::ExpectInto,
+        asg::{
+            visit::{tree_reconstruction, TreeWalkRel},
+            AsgTreeToXirf,
+        },
         iter::TrippableIterator,
         parse::terminal,
-        span::UNKNOWN_SPAN,
         xir::{
             autoclose::XirfAutoClose,
-            flat::{Depth, Text, XirfToXir},
+            flat::{Text, XirfToXir},
             writer::XmlWriter,
-            OpenSpan,
         },
     };
 
-    // Note how this does not contain a closing token;
-    //   it is closed by `XirfAutoClose`.
-    let xir_toks = vec![XirfToken::Open(
-        "it-has-begun".unwrap_into(),
-        OpenSpan::without_name_span(UNKNOWN_SPAN),
-        Depth(0),
-    )];
-
-    let mut head = lowerable(xir_toks.into_iter().map(Ok));
+    let mut head =
+        lowerable::<UnknownToken, _, _>(tree_reconstruction(&asg).map(Ok))
+            .map(|result| result.map_err(UnrecoverableError::from));
 
     // THIS IS A PROOF-OF-CONCEPT LOWERING PIPELINE.
     Lower::<
-        ParsedObject<XirfToken<Text>, XirfToken<Text>, Infallible>,
-        XirfAutoClose,
+        ParsedObject<UnknownToken, TreeWalkRel, Infallible>,
+        AsgTreeToXirf,
         _,
-    >::lower::<_, UnrecoverableError>(&mut head, |xirf| {
-        Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(xirf, |xir| {
-            terminal::<XirfToXir<Text>, UnrecoverableError>(xir).while_ok(
-                |toks| {
-                    // Write failures should immediately bail out;
-                    //   we can't skip writing portions of the file and
-                    //   just keep going!
-                    toks.write(&mut fout, Default::default(), escaper)?;
-                    Ok::<_, UnrecoverableError>(())
+    >::lower_with_context::<_, UnrecoverableError>(
+        &mut head,
+        &asg,
+        |xirf_unclosed| {
+            Lower::<AsgTreeToXirf, XirfAutoClose, _>::lower(
+                xirf_unclosed,
+                |xirf| {
+                    Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(
+                        xirf,
+                        |xir| {
+                            terminal::<XirfToXir<Text>, _>(xir).while_ok(
+                                |toks| {
+                                    // Write failures should immediately bail out;
+                                    //   we can't skip writing portions of the file and
+                                    //   just keep going!
+                                    toks.write(
+                                        &mut fout,
+                                        Default::default(),
+                                        escaper,
+                                    )?;
+                                    Ok::<_, UnrecoverableError>(())
+                                },
+                                // TODO: Remove bad file?
+                                //   Let make do it?
+                            )
+                        },
+                    )
                 },
-                // TODO: Remove bad file?
-                //   Let make do it?
             )
-        })
-    })?;
+        },
+    )?;
 
     Ok(())
 }

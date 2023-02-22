@@ -76,6 +76,7 @@ pub use graph::{
             FragmentText, Ident, IdentKind, Source, TransitionError,
             TransitionResult, UnresolvedError,
         },
+        xir::AsgTreeToXirf,
         Object, ObjectIndex, ObjectKind,
     },
     visit, Asg, AsgResult, IndexType,

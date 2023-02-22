@@ -280,12 +280,12 @@ pub fn terminal<
     S: ParseState,
     E: Diagnostic + From<ParseError<S::Token, S::Error>>,
 >(
-    iter: impl Iterator<Item = ParsedResult<S>>,
+    iter: impl Iterator<Item = Result<Parsed<S::Object>, E>>,
 ) -> impl Iterator<Item = Result<S::Object, E>> {
     iter.filter_map(|result| match result {
         Ok(Parsed::Incomplete) => None,
         Ok(Parsed::Object(obj)) => Some(Ok(obj)),
-        Err(e) => Some(Err(e.into())),
+        Err(e) => Some(Err(e)),
     })
 }
 

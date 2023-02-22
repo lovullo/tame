@@ -27,7 +27,7 @@ use std::fmt::Display;
 
 use super::{object::DynObjectRel, Asg, Object, ObjectIndex};
 use crate::{
-    parse::Token,
+    parse::{self, Token},
     span::{Span, UNKNOWN_SPAN},
 };
 
@@ -269,6 +269,8 @@ impl Token for TreeWalkRel {
         }
     }
 }
+
+impl parse::Object for TreeWalkRel {}
 
 #[cfg(test)]
 mod test;

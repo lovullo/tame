@@ -122,6 +122,7 @@ pub mod ident;
 pub mod pkg;
 mod rel;
 pub mod root;
+pub mod xir;
 
 pub use expr::Expr;
 pub use ident::Ident;
