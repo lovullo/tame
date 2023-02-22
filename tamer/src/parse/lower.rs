@@ -121,17 +121,11 @@ where
     ) -> Result<U, E>
     where
         Self: Iterator<Item = WidenedParsedResult<S, EW>> + Sized,
+        E: Diagnostic + From<FinalizeError>,
         <LS as ParseState>::Context: Default,
     {
-        let lower = LS::parse(iter::empty());
-        let mut iter = LowerIter {
-            lower,
-            toks: self,
-            _phantom: PhantomData::default(),
-        };
-        f(&mut iter)
-
-        // TODO: Finalize!
+        self.lower_with_context(<LS as ParseState>::Context::default(), f)
+            .map(|(val, _ctx)| val)
     }
 
     /// Perform a lowering operation between two parsers where the context
@@ -144,14 +138,14 @@ where
     #[inline]
     fn lower_with_context<U, E>(
         &mut self,
-        ctx: LS::Context,
+        ctx: impl Into<LS::Context>,
         f: impl FnOnce(&mut LowerIter<S, Self, LS, EW>) -> Result<U, E>,
     ) -> Result<(U, LS::Context), E>
     where
         Self: Iterator<Item = WidenedParsedResult<S, EW>> + Sized,
         E: Diagnostic + From<FinalizeError>,
     {
-        let lower = LS::parse_with_context(iter::empty(), ctx);
+        let lower = LS::parse_with_context(iter::empty(), ctx.into());
         let mut iter = LowerIter {
             lower,
             toks: self,
@@ -406,6 +400,12 @@ mod test {
     fn can_emit_object_with_lookahead_and_eof_for_lower_iter() {
         let given = 27; // some value
         let toks = vec![StubToken::YieldWithLookahead(given)];
+
+        impl From<FinalizeError> for StubError {
+            fn from(_: FinalizeError) -> Self {
+                unreachable!("not expected to be used by this test")
+            }
+        }
 
         Lower::<StubEchoParseState, StubParseState, _>::lower::<_, StubError>(
             &mut StubEchoParseState::parse(toks.into_iter()),
