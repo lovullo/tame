@@ -101,9 +101,11 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             Object::Pkg(pkg) => {
                 let span = pkg.span();
 
-                toks.push(ns(QN_XMLNS_T, URI_LV_TPL, span));
-                toks.push(ns(QN_XMLNS_C, URI_LV_CALC, span));
-                toks.push(ns(QN_XMLNS, URI_LV_RATER, span));
+                toks.push_all([
+                    ns(QN_XMLNS_T, URI_LV_TPL, span),
+                    ns(QN_XMLNS_C, URI_LV_CALC, span),
+                    ns(QN_XMLNS, URI_LV_RATER, span),
+                ]);
 
                 Transition(self).ok(package(pkg, depth))
             }
@@ -243,20 +245,17 @@ struct TokenStack(ArrayVec<Xirf, TOK_STACK_SIZE>);
 
 impl TokenStack {
     fn push(&mut self, tok: Xirf) {
-        match self {
-            Self(stack) => {
-                if stack.is_full() {
-                    diagnostic_panic!(
-                        vec![tok.internal_error(
-                            "while emitting a token for this object"
-                        )],
-                        "token stack exhausted (increase TOK_STACK_SIZE)",
-                    )
-                }
+        let Self(stack) = self;
 
-                stack.push(tok)
-            }
+        if stack.is_full() {
+            diagnostic_panic!(
+                vec![tok
+                    .internal_error("while emitting a token for this object")],
+                "token stack exhausted (increase TOK_STACK_SIZE)",
+            )
         }
+
+        stack.push(tok)
     }
 
     fn pop(&mut self) -> Option<Xirf> {
@@ -269,6 +268,10 @@ impl TokenStack {
         match self {
             Self(stack) => stack.is_empty(),
         }
+    }
+
+    fn push_all(&mut self, toks: impl IntoIterator<Item = Xirf>) {
+        toks.into_iter().for_each(|x| self.push(x))
     }
 }
 
