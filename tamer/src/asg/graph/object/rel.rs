@@ -20,8 +20,10 @@
 //!
 //! See (parent module)[super] for more information.
 
-use super::{Expr, Ident, Object, ObjectIndex, ObjectKind, Pkg, Root};
-use crate::{f::Functor, span::Span};
+use super::{
+    Expr, Ident, Object, ObjectIndex, ObjectKind, OiPairObjectInner, Pkg, Root,
+};
+use crate::{asg::Asg, f::Functor, span::Span};
 use std::fmt::Display;
 
 /// Object types corresponding to variants in [`Object`].
@@ -120,6 +122,20 @@ impl DynObjectRel<ObjectIndex<Object>> {
     /// See [`ObjectRelatable::new_rel_dyn`] for more information.
     pub fn narrow<O: ObjectKind + ObjectRelatable>(&self) -> Option<O::Rel> {
         O::new_rel_dyn(self.target_ty(), *self.target())
+    }
+
+    /// Pair the inner [`ObjectIndex`] with its resolved [`Object`].
+    ///
+    /// This allows the [`ObjectIndex`] to be refined alongside the inner
+    ///   [`ObjectKind`] so that callers can make use of the refined
+    ///   [`ObjectIndex`] without having to explicitly narrow themselves.
+    /// While isn't any more or less safe than the manual alternative,
+    ///   it _does_ defend against logic bugs.
+    pub fn resolve_oi_pair(
+        self,
+        asg: &Asg,
+    ) -> DynObjectRel<Object<OiPairObjectInner>> {
+        self.map(|oi| oi.resolve(asg).pair_oi(oi))
     }
 
     /// Dynamically determine whether this edge represents a cross edge.

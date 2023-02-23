@@ -134,30 +134,96 @@ pub use root::Root;
 
 /// An object on the ASG.
 ///
+/// This is generic over its inner values to support using [`Object`] as a
+///   sum type in a variety of different contexts where [`ObjectKind`] may
+///   be used.
+/// The concrete [`ObjectInner`] that is stored on the ASG itself is
+///   [`OnlyObjectInner`].
+///
 /// See the [module-level documentation](super) for more information.
 #[derive(Debug, PartialEq)]
-pub enum Object {
+pub enum Object<T: ObjectInner = OnlyObjectInner> {
     /// Represents the root of all reachable identifiers.
     ///
     /// Any identifier not reachable from the root will not be linked into
     ///   the final executable.
     ///
     /// There should be only one object of this kind.
-    Root(Root),
+    Root(T::Root),
 
     /// A package of identifiers.
-    Pkg(Pkg),
+    Pkg(T::Pkg),
 
     /// Identifier (a named object).
-    Ident(Ident),
+    Ident(T::Ident),
 
     /// Expression.
     ///
     /// An expression may optionally be named by one or more [`Ident`]s.
-    Expr(Expr),
+    Expr(T::Expr),
 }
 
-impl Display for Object {
+/// The collection of potential objects of [`Object`].
+pub trait ObjectInner {
+    type Root;
+    type Pkg;
+    type Ident;
+    type Expr;
+}
+
+/// An [`ObjectInner`] where each constituent type implements [`Display`].
+trait DisplayableObjectInner = ObjectInner
+where
+    <Self as ObjectInner>::Root: Display,
+    <Self as ObjectInner>::Pkg: Display,
+    <Self as ObjectInner>::Ident: Display,
+    <Self as ObjectInner>::Expr: Display;
+
+/// Concrete [`ObjectKind`]s and nothing more.
+#[derive(Debug, PartialEq)]
+pub struct OnlyObjectInner;
+
+impl ObjectInner for OnlyObjectInner {
+    type Root = Root;
+    type Pkg = Pkg;
+    type Ident = Ident;
+    type Expr = Expr;
+}
+
+/// References to [`OnlyObjectInner`].
+///
+/// This allows for `Object<&T>`.
+/// See [`Object::inner_as_ref`] for more information.
+#[derive(Debug, PartialEq)]
+pub struct RefObjectInner<'a>(PhantomData<&'a ()>);
+
+impl<'a> ObjectInner for RefObjectInner<'a> {
+    type Root = &'a Root;
+    type Pkg = &'a Pkg;
+    type Ident = &'a Ident;
+    type Expr = &'a Expr;
+}
+
+/// A [`RefObjectInner`] paired with an [`ObjectIndex`] representing it.
+///
+/// This is desirable when an [`ObjectIndex`] is resolved but is still
+///   needed for graph operations.
+/// The pair ensures that,
+///   when the inner [`ObjectKind`] is narrowed,
+///   the paired [`ObjectIndex`] will too be narrowed to the same kind,
+///     limiting logic bugs that may result from otherwise having to
+///     manually narrow types.
+#[derive(Debug, PartialEq)]
+pub struct OiPairObjectInner<'a>(PhantomData<&'a ()>);
+
+impl<'a> ObjectInner for OiPairObjectInner<'a> {
+    type Root = (&'a Root, ObjectIndex<Root>);
+    type Pkg = (&'a Pkg, ObjectIndex<Pkg>);
+    type Ident = (&'a Ident, ObjectIndex<Ident>);
+    type Expr = (&'a Expr, ObjectIndex<Expr>);
+}
+
+impl<T: DisplayableObjectInner> Display for Object<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Root(root) => Display::fmt(root, f),
@@ -168,7 +234,22 @@ impl Display for Object {
     }
 }
 
-impl Object {
+/// Generate boilerplate `match`es for individual [`Object`] variants.
+///
+/// Rust will infer the [`Object`]'s [`ObjectInner`] from the surrounding
+///   context.
+macro_rules! map_object {
+    ($obj:expr, $inner:ident => $map:expr) => {
+        match $obj {
+            Object::Root($inner) => Object::Root($map),
+            Object::Pkg($inner) => Object::Pkg($map),
+            Object::Ident($inner) => Object::Ident($map),
+            Object::Expr($inner) => Object::Expr($map),
+        }
+    };
+}
+
+impl Object<OnlyObjectInner> {
     pub fn span(&self) -> Span {
         match self {
             Self::Root(_) => UNKNOWN_SPAN,
@@ -226,6 +307,40 @@ impl Object {
                 ))
                 .into(),
             "expected {expected}, found {self}",
+        )
+    }
+
+    /// Convert an `&Object<Inner>` into an `Object<&Inner>`.
+    ///
+    /// Since [`Object`] is the type stored directly on the [`Asg`],
+    ///   this is necessary in order to use [`Object`] as a wrapper over
+    ///   narrowed [`ObjectKind`]s.
+    fn inner_as_ref(&self) -> Object<RefObjectInner> {
+        map_object!(self, x => x)
+    }
+
+    /// Pair self with an [`ObjectIndex`] that represents it.
+    ///
+    /// This replaces the [`Span`] of the [`ObjectIndex`] with our span,
+    ///   such that any (unlikely) lookup errors will highlight this object.
+    ///
+    /// This allows the [`ObjectIndex`] to be refined alongside the inner
+    ///   [`ObjectKind`] so that callers can make use of the refined
+    ///   [`ObjectIndex`] without having to explicitly narrow themselves.
+    /// While isn't any more or less safe than the manual alternative,
+    ///   it _does_ defend against logic bugs.
+    ///
+    /// Note that this makes no guarantees that the provided
+    ///   [`ObjectIndex`] `oi` is _actually_ an index that represents this
+    ///   object;
+    ///     that onus is on the caller.
+    /// Getting this wrong won't lead to memory safety issues,
+    ///   but it will lead to bugs and confusion at best,
+    ///   and panics at worst if `oi` references a different [`ObjectKind`].
+    fn pair_oi(&self, oi: ObjectIndex<Object>) -> Object<OiPairObjectInner> {
+        map_object!(
+            self.inner_as_ref(),
+            x => (x, oi.must_narrow_into().overwrite(self.span()))
         )
     }
 }

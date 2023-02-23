@@ -95,10 +95,10 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             return Transition(self).incomplete();
         }
 
-        let obj = dyn_rel.target().resolve(asg);
+        let pair = dyn_rel.resolve_oi_pair(asg);
 
-        match obj {
-            Object::Pkg(pkg) => {
+        match pair.target() {
+            Object::Pkg((pkg, _)) => {
                 let span = pkg.span();
 
                 toks.push_all([
@@ -114,18 +114,15 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             //   pass over it for now.
             Object::Ident(..) => Transition(self).incomplete(),
 
-            Object::Expr(expr) => match dyn_rel.source_ty() {
+            Object::Expr((expr, oi)) => match pair.source_ty() {
                 ObjectRelTy::Ident => {
                     // We were just told an ident exists,
                     //   so this should not fail.
-                    let ident = dyn_rel
-                        .must_narrow_into::<Expr>()
-                        .ident(asg)
-                        .diagnostic_unwrap(|| {
-                            vec![expr.internal_error(
-                                "missing ident for this expression",
-                            )]
-                        });
+                    let ident = oi.ident(asg).diagnostic_unwrap(|| {
+                        vec![expr.internal_error(
+                            "missing ident for this expression",
+                        )]
+                    });
 
                     toks.push(yields(ident.name(), expr.span()));
 
@@ -134,7 +131,7 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
                 _ => Transition(self).ok(expr_ele(expr, depth)),
             },
 
-            Object::Root(_) => diagnostic_unreachable!(
+            Object::Root((_, _)) => diagnostic_unreachable!(
                 vec![tok_span.error("unexpected Root")],
                 "tree walk is not expected to emit Root",
             ),
