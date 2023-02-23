@@ -1,0 +1,63 @@
+# This configuration file is populated by `configure` and is intended to be
+# sourced by shell scripts.
+
+declare -r TAMER_PATH_ROOT="@abs_top_srcdir@"
+
+declare -r TAMER_CARGO_BUILD_FLAGS="@CARGO_BUILD_FLAGS@"
+declare -r TAMER_CARGO_FEATURES=",@FEATURES_RAW@,"
+
+# List supported flags from Cargo.toml.
+tamer-supported-flags() {
+  awk '
+    /^\[features\]$/ { parse=1; next }
+    parse && /^\[/ { parse=0; next }
+    parse && /^[a-z-]+ =/ { print $1 }
+  ' "$TAMER_PATH_ROOT/Cargo.toml"
+}
+
+# Determine whether the provided feature flag is enabled.
+#
+# The flag must exist in `Cargo.toml`, otherwise the program will exit with
+# exit code 16.  This ensures that (a) flags are cleaned up and (b) that
+# systems don't silently behave incorrectly because a removed flag is
+# perceived as disabled.
+#
+# NB: Unlike Rust, this _does not_ see dependent flags as enabled.  We can
+# add this feature if it's actually needed.
+tamer-flag() {
+  local -r flag="${1?Missing flag name}"
+
+  tamer-supported-flags | grep -qo "^$flag\$" || {
+    echo "error: feature flag \`$flag\` not found in Cargo.toml!" >&2
+    echo "error: supported flags:" >&2
+    tamer-supported-flags | sed 's/^/error:   - /' >&2
+
+    exit 16
+  }
+
+  [[ "$TAMER_CARGO_FEATURES" =~ ",$flag," ]]
+}
+
+# Exit successfully with a note on stderr if the provided flag is not
+# enabled.
+tamer-flag-or-exit-ok() {
+  local -r flag="${1?Missing flag name}"
+
+  tamer-flag "$@" || {
+    echo "note: feature flag \`$flag\` is disabled; skipping"
+    exit 0
+  }
+}
+
+declare -r TAMER_PATH_TARGET="$TAMER_PATH_ROOT/target"
+
+# The path to TAMER's executables depends on whether we are configured for a
+# release build.
+if [[ "$TAMER_CARGO_BUILD_FLAGS" =~ \<--release\> ]]; then
+  declare -r TAMER_PATH_BIN="$TAMER_PATH_TARGET/release"
+else
+  declare -r TAMER_PATH_BIN="$TAMER_PATH_TARGET/debug"
+fi
+
+declare -r TAMER_PATH_TAMEC="$TAMER_PATH_BIN/tamec"
+declare -r TAMER_PATH_TAMELD="$TAMER_PATH_BIN/tameld"

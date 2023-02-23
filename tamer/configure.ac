@@ -115,11 +115,14 @@ AS_IF([cargo "+$RUST_TC" clippy --help &>/dev/null],
 AC_ARG_VAR([FEATURES],
            [Cargo features flags for TAMER, comma-delimited])
 
+AC_SUBST([FEATURES_RAW], [])
+
 test -z "$FEATURES" || {
   AC_MSG_RESULT([requested features: $FEATURES])
+  FEATURES_RAW="$FEATURES"
   FEATURES="--features $FEATURES"
 }
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile conf.sh])
 
 AC_OUTPUT
