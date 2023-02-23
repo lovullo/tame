@@ -1,0 +1,66 @@
+#!/bin/bash
+# Run all executable `test-*` tests.
+
+set -euo pipefail
+
+mypath=$(dirname "$0")
+. "$mypath/../conf.sh"
+
+warn-verbose-tracing() {
+  if tamer-flag parser-trace-stderr; then
+    cat <<EOM
+[0;33m!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!  parser-trace-stderr !!!!
+!!!!  is enabled;  output !!!!
+!!!! will be very verbose !!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!![0m
+EOM
+  fi
+}
+
+find-tests() {
+  find . -name 'test-*' -executable
+}
+
+main() {
+  warn-verbose-tracing
+
+  local -i count=0
+  local -i failn=0
+  local fail_names=
+
+  while read -r test; do
+    echo "$test"
+    sed 's/./-/g' <<< "$test"
+
+    ((++count))
+
+    (time -p "$test") || {
+      echo "ERR (exit code $?)"
+      echo
+
+      ((++failn))
+      fail_names="${fail_names:+$fail_names$'\n'}  - $test failed"
+
+      continue
+    }
+
+    echo OK
+    echo
+  done < <(find-tests)
+
+  warn-verbose-tracing
+
+  if ((failn > 0)); then
+    printf 'There were %d test failure(s):\n%s\n' "$failn" "$fail_names"
+    echo -e '\e[31m'
+  fi
+
+  printf '%d tests, %d failed\n' "$count" "$failn"
+  echo -en '\e[0m'
+
+  [ "$failn" -eq 0 ]
+}
+
+main "$@"
+

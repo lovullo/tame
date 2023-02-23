@@ -47,12 +47,21 @@ html-am:
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
-check-am: check-lint check-fmt
+check-am: check-lint check-fmt check-cargo check-system
+
+.PHONY: check-cargo
+check-cargo:
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --quiet @FEATURES@
 
+.PHONY: check-system
+check-system: bin
+	tests/run-tests
+
+.PHONY: check-lint
 check-lint:
 	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ clippy
 
+.PHONY: check-fmt
 check-fmt:
 	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ fmt -- --check
 
