@@ -76,10 +76,11 @@ pub use graph::{
             FragmentText, Ident, IdentKind, Source, TransitionError,
             TransitionResult, UnresolvedError,
         },
-        xir::AsgTreeToXirf,
         Object, ObjectIndex, ObjectKind,
     },
-    visit, Asg, AsgResult, IndexType,
+    visit,
+    xmli::AsgTreeToXirf,
+    Asg, AsgResult, IndexType,
 };
 
 /// Default concrete ASG implementation.

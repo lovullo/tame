@@ -29,7 +29,9 @@
 //!     but may be useful in the future for concrete code suggestions/fixes,
 //!       or observing template expansions.
 
-use super::{DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, Pkg};
+use super::object::{
+    DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, Pkg,
+};
 use crate::{
     asg::{
         visit::{Depth, TreeWalkRel},

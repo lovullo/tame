@@ -45,6 +45,7 @@ use std::{fmt::Debug, result::Result};
 
 pub mod object;
 pub mod visit;
+pub mod xmli;
 
 use object::{ObjectContainer, ObjectRelTo};
 
