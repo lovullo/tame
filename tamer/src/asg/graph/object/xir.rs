@@ -29,18 +29,24 @@
 //!     but may be useful in the future for concrete code suggestions/fixes,
 //!       or observing template expansions.
 
-use super::ObjectRelTy;
+use super::{DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, Pkg};
 use crate::{
-    asg::{visit::TreeWalkRel, Asg},
-    diagnose::Annotate,
-    diagnostic_unreachable,
-    parse::prelude::*,
-    sym::st::raw::URI_LV_RATER,
+    asg::{
+        visit::{Depth, TreeWalkRel},
+        Asg, ExprOp,
+    },
+    diagnose::{panic::DiagnosticPanic, Annotate},
+    diagnostic_panic, diagnostic_unreachable,
+    parse::{prelude::*, util::SPair},
+    span::{Span, UNKNOWN_SPAN},
+    sym::{
+        st::{URI_LV_CALC, URI_LV_RATER, URI_LV_TPL},
+        UriStaticSymbolId,
+    },
     xir::{
-        attr::Attr,
         flat::{Text, XirfToken},
-        st::qname::{QN_PACKAGE, QN_XMLNS},
-        OpenSpan,
+        st::qname::*,
+        OpenSpan, QName,
     },
 };
 use arrayvec::ArrayVec;
@@ -63,55 +69,145 @@ impl<'a> Display for AsgTreeToXirf<'a> {
     }
 }
 
+type Xirf = XirfToken<Text>;
+
 impl<'a> ParseState for AsgTreeToXirf<'a> {
     type Token = TreeWalkRel;
-    type Object = XirfToken<Text>;
+    type Object = Xirf;
     type Error = Infallible;
     type Context = TreeContext<'a>;
 
     fn parse_token(
         self,
         tok: Self::Token,
-        TreeContext(tok_stack, asg): &mut TreeContext,
+        TreeContext(toks, asg): &mut TreeContext,
     ) -> TransitionResult<Self::Super> {
-        use ObjectRelTy as Ty;
-
-        if let Some(emit) = tok_stack.pop() {
+        if let Some(emit) = toks.pop() {
             return Transition(self).ok(emit).with_lookahead(tok);
         }
 
         let tok_span = tok.span();
         let TreeWalkRel(dyn_rel, depth) = tok;
 
+        if depth == Depth(0) {
+            return Transition(self).incomplete();
+        }
+
         let obj = dyn_rel.target().resolve(asg);
-        let obj_span = obj.span();
 
-        match dyn_rel.target_ty() {
-            Ty::Pkg => {
-                tok_stack.push(XirfToken::Attr(Attr::new(
-                    QN_XMLNS,
-                    URI_LV_RATER,
-                    (obj_span, obj_span),
-                )));
+        match obj {
+            Object::Pkg(pkg) => {
+                let span = pkg.span();
 
-                Transition(self).ok(XirfToken::Open(
-                    QN_PACKAGE,
-                    OpenSpan::without_name_span(obj_span),
-                    depth,
-                ))
+                toks.push(ns(QN_XMLNS_T, URI_LV_TPL, span));
+                toks.push(ns(QN_XMLNS_C, URI_LV_CALC, span));
+                toks.push(ns(QN_XMLNS, URI_LV_RATER, span));
+
+                Transition(self).ok(package(pkg, depth))
             }
 
-            Ty::Ident | Ty::Expr => Transition(self).incomplete(),
+            // Identifiers will be considered in context;
+            //   pass over it for now.
+            Object::Ident(..) => Transition(self).incomplete(),
 
-            Ty::Root => diagnostic_unreachable!(
+            Object::Expr(expr) => match dyn_rel.source_ty() {
+                ObjectRelTy::Ident => {
+                    // We were just told an ident exists,
+                    //   so this should not fail.
+                    let ident = dyn_rel
+                        .must_narrow_into::<Expr>()
+                        .ident(asg)
+                        .diagnostic_unwrap(|| {
+                            vec![expr.internal_error(
+                                "missing ident for this expression",
+                            )]
+                        });
+
+                    toks.push(yields(ident.name(), expr.span()));
+
+                    Transition(Self::Ready(Default::default()))
+                        .ok(stmt(expr, depth))
+                }
+                _ => todo!("non-ident expr"),
+            },
+
+            Object::Root(_) => diagnostic_unreachable!(
                 vec![tok_span.error("unexpected Root")],
                 "tree walk is not expected to emit Root",
             ),
         }
     }
 
-    fn is_accepting(&self, _ctx: &Self::Context) -> bool {
-        true
+    fn is_accepting(&self, TreeContext(toks, _): &Self::Context) -> bool {
+        toks.is_empty()
+    }
+
+    fn eof_tok(
+        &self,
+        TreeContext(toks, _): &Self::Context,
+    ) -> Option<Self::Token> {
+        // If the stack is not empty on EOF,
+        //   yield a dummy token just to invoke `parse_token` to finish
+        //   emptying it.
+        (!toks.is_empty()).then_some(TreeWalkRel(
+            DynObjectRel::new(
+                ObjectRelTy::Root,
+                ObjectRelTy::Root,
+                ObjectIndex::new(0.into(), UNKNOWN_SPAN),
+                None,
+            ),
+            // This is the only part that really matters;
+            //   the tree walk will never yield a depth of 0.
+            Depth(0),
+        ))
+    }
+}
+
+fn package(pkg: &Pkg, depth: Depth) -> Xirf {
+    Xirf::open(QN_PACKAGE, OpenSpan::without_name_span(pkg.span()), depth)
+}
+
+fn ns(qname: QName, uri: UriStaticSymbolId, span: Span) -> Xirf {
+    Xirf::attr(qname, uri, (span, span))
+}
+
+fn stmt(expr: &Expr, depth: Depth) -> Xirf {
+    match expr.op() {
+        ExprOp::Sum => {
+            Xirf::open(QN_RATE, OpenSpan::without_name_span(expr.span()), depth)
+        }
+
+        _ => todo!("stmt: {expr:?}"),
+    }
+}
+
+fn yields(name: SPair, span: Span) -> Xirf {
+    Xirf::attr(QN_YIELDS, name, (span, name))
+}
+
+pub struct TreeContext<'a>(TokenStack, &'a Asg);
+
+// Custom `Debug` impl to omit ASG rendering,
+//   since it's large and already included while rendering other parts of
+//   the lowering pipeline.
+// Of course,
+//   that's assuming this is part of the lowering pipeline.
+impl<'a> std::fmt::Debug for TreeContext<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_tuple("TreeContext")
+            .field(&self.0)
+            .field(&AsgElided)
+            .finish()
+    }
+}
+
+/// Used a placeholder for [`TreeContext`]'s [`Debug`].
+#[derive(Debug)]
+struct AsgElided;
+
+impl<'a> From<&'a Asg> for TreeContext<'a> {
+    fn from(asg: &'a Asg) -> Self {
+        Self(Default::default(), asg)
     }
 }
 
@@ -132,14 +228,39 @@ const TOK_STACK_SIZE: usize = 8;
 /// This need only be big enough to accommodate [`AsgTreeToXirf`]'s
 ///   implementation;
 ///     the size is independent of user input.
-type TokenStack<'a> =
-    ArrayVec<<AsgTreeToXirf<'a> as ParseState>::Object, TOK_STACK_SIZE>;
+#[derive(Debug, Default)]
+struct TokenStack(ArrayVec<Xirf, TOK_STACK_SIZE>);
 
-#[derive(Debug)]
-pub struct TreeContext<'a>(TokenStack<'a>, &'a Asg);
+impl TokenStack {
+    fn push(&mut self, tok: Xirf) {
+        match self {
+            Self(stack) => {
+                if stack.is_full() {
+                    diagnostic_panic!(
+                        vec![tok.internal_error(
+                            "while emitting a token for this object"
+                        )],
+                        "token stack exhausted (increase TOK_STACK_SIZE)",
+                    )
+                }
 
-impl<'a> From<&'a Asg> for TreeContext<'a> {
-    fn from(asg: &'a Asg) -> Self {
-        Self(Default::default(), asg)
+                stack.push(tok)
+            }
+        }
+    }
+
+    fn pop(&mut self) -> Option<Xirf> {
+        match self {
+            Self(stack) => stack.pop(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            Self(stack) => stack.is_empty(),
+        }
     }
 }
+
+// System tests covering this functionality can be found in
+//   `tamer/tests/xir/`.

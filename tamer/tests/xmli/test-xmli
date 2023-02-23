@@ -1,0 +1,35 @@
+#!/bin/bash
+# Assert that a program can be derived from the ASG as expected.
+#
+# See `./README.md` for more information.
+
+set -euo pipefail
+
+mypath=$(dirname "$0")
+. "$mypath/../../conf.sh"
+
+tamer-flag-or-exit-ok wip-asg-derived-xmli
+
+main() {
+  "${TAMER_PATH_TAMEC?}" -o "$mypath/out.xmli" --emit xmlo "$mypath/src.xml"
+
+  # Performing this check within `<()` below won't cause a failure.
+  : "${P_XMLLINT?}" # conf.sh
+
+  diff <("$P_XMLLINT" --format "$mypath/expected.xml" || echo 'ERR expected.xml') \
+       <("$P_XMLLINT" --format "$mypath/out.xmli" || echo 'ERR out.xmli') \
+    || {
+      cat << EOF
+!!! TEST FAILED
+tamec: $TAMER_PATH_TAMEC
+
+note: The compiler output and diff between \`expected.xml\` and \`out.xmli\`
+      are above.  Both files are formatted with \`xmllint\` automatically.
+EOF
+
+      exit 1
+    }
+}
+
+main "$@"
+

@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  This is the source package to be read by `tamec`.
+  The output `out.xmli` is asserted against `expected.xml`.
+
+  <rate yields="rateFoo" />
+  <rate yields="rateBar" />
+</package>
+

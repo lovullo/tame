@@ -61,3 +61,5 @@ fi
 
 declare -r TAMER_PATH_TAMEC="$TAMER_PATH_BIN/tamec"
 declare -r TAMER_PATH_TAMELD="$TAMER_PATH_BIN/tameld"
+
+declare -r P_XMLLINT="@XMLLINT@"

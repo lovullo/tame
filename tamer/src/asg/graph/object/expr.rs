@@ -53,6 +53,12 @@ impl Expr {
             Expr(_, _, span) => *span,
         }
     }
+
+    pub fn op(&self) -> ExprOp {
+        match self {
+            Expr(op, _, _) => *op,
+        }
+    }
 }
 
 impl Functor<Span> for Expr {
@@ -82,7 +88,7 @@ impl Display for Expr {
 /// TODO: Ideally this will be replaced with arbitrary binary (dyadic)
 ///   functions defined within the language of TAME itself,
 ///     as was the original plan with TAMER.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ExprOp {
     Sum,
     Product,
@@ -283,5 +289,13 @@ impl ObjectIndex<Expr> {
     pub fn ref_expr(self, asg: &mut Asg, ident: SPair) -> Self {
         let identi = asg.lookup_or_missing(ident);
         self.add_edge_to(asg, identi, Some(ident.span()))
+    }
+
+    /// The [`Ident`] bound to this expression,
+    ///   if any.
+    pub fn ident(self, asg: &Asg) -> Option<&Ident> {
+        self.incoming_edges_filtered(asg)
+            .map(ObjectIndex::cresolve(asg))
+            .next()
     }
 }

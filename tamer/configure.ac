@@ -123,6 +123,10 @@ test -z "$FEATURES" || {
   FEATURES="--features $FEATURES"
 }
 
+# Other programs used by scripts
+AC_CHECK_PROGS(XMLLINT, [xmllint])
+test -n "$XMLLINT" || AC_MSG_ERROR([xmllint not found])
+
 AC_CONFIG_FILES([Makefile conf.sh])
 
 AC_OUTPUT

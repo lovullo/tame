@@ -132,6 +132,12 @@ impl From<SPair> for (SymbolId, Span) {
     }
 }
 
+impl From<SPair> for SymbolId {
+    fn from(spair: SPair) -> Self {
+        spair.symbol()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct EchoParseState<S: ClosedParseState>(S);
 

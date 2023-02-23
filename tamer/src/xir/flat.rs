@@ -146,6 +146,48 @@ pub enum XirfToken<T: TextType> {
     CData(SymbolId, Span, Depth),
 }
 
+impl<T: TextType> XirfToken<T> {
+    pub fn open(
+        qname: impl Into<QName>,
+        span: impl Into<OpenSpan>,
+        depth: Depth,
+    ) -> Self {
+        Self::Open(qname.into(), span.into(), depth)
+    }
+
+    pub fn close(
+        qname: Option<impl Into<QName>>,
+        span: impl Into<CloseSpan>,
+        depth: Depth,
+    ) -> Self {
+        Self::Close(qname.map(Into::into), span.into(), depth)
+    }
+
+    pub fn attr(
+        qname: impl Into<QName>,
+        value: impl Into<SymbolId>,
+        span: (impl Into<Span>, impl Into<Span>),
+    ) -> Self {
+        Self::Attr(Attr::new(
+            qname.into(),
+            value.into(),
+            (span.0.into(), span.1.into()),
+        ))
+    }
+
+    pub fn comment(
+        comment: impl Into<SymbolId>,
+        span: impl Into<Span>,
+        depth: Depth,
+    ) -> Self {
+        Self::Comment(comment.into(), span.into(), depth)
+    }
+
+    pub fn text(text: impl Into<T>, depth: Depth) -> Self {
+        Self::Text(text.into(), depth)
+    }
+}
+
 impl<T: TextType> Token for XirfToken<T> {
     fn ir_name() -> &'static str {
         "XIRF"
