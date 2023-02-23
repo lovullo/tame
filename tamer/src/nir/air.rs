@@ -74,11 +74,11 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::PkgClose(span))
             }
 
-            (Ready, Nir::Open(NirEntity::Rate, span)) => {
+            (Ready, Nir::Open(NirEntity::Rate | NirEntity::Sum, span)) => {
                 Transition(Ready).ok(Air::ExprOpen(ExprOp::Sum, span))
             }
 
-            (Ready, Nir::Close(NirEntity::Rate, span)) => {
+            (Ready, Nir::Close(NirEntity::Rate | NirEntity::Sum, span)) => {
                 Transition(Ready).ok(Air::ExprClose(span))
             }
 

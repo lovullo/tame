@@ -664,7 +664,7 @@ ele_parse! {
     ///   identified by [`@generates`](QN_GENERATES).
     ///
     /// Summation is generated automatically by [`RateEachStmt`].
-    SumExpr := QN_C_SUM {
+    SumExpr := QN_C_SUM(_, ospan) {
         @ {
             QN_OF => TodoAttr,
             QN_GENERATES => TodoAttr,
@@ -673,7 +673,8 @@ ele_parse! {
             QN_LABEL => TodoAttr,
             QN_SYM => TodoAttr,
             QN_DIM => TodoAttr,
-        } => Todo,
+        } => NirEntity::Sum.open(ospan),
+        /(cspan) => NirEntity::Sum.close(cspan),
 
         WhenExpr,
         CalcExpr,

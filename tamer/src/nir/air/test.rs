@@ -56,3 +56,19 @@ fn rate_to_sum_expr() {
         Sut::parse(toks.into_iter()).collect(),
     );
 }
+
+#[test]
+fn calc_expr() {
+    let toks = vec![
+        Nir::Open(NirEntity::Sum, S1),
+        Nir::Close(NirEntity::Sum, S2),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            O(Air::ExprOpen(ExprOp::Sum, S1)),
+            O(Air::ExprClose(S2)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}

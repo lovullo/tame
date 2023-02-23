@@ -3,6 +3,19 @@
          xmlns:t="http://www.lovullo.com/rater/apply-template">
 
   <rate yields="rateFoo" />
-  <rate yields="rateBar" />
+
+  <rate yields="rateBar">
+    <c:sum />
+  </rate>
+
+  <rate yields="rateBaz">
+    <c:sum>
+      <c:sum />
+    </c:sum>
+    <c:sum>
+      <c:sum />
+      <c:sum />
+    </c:sum>
+  </rate>
 </package>
 

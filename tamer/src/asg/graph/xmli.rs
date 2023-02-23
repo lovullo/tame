@@ -127,10 +127,9 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
 
                     toks.push(yields(ident.name(), expr.span()));
 
-                    Transition(Self::Ready(Default::default()))
-                        .ok(stmt(expr, depth))
+                    Transition(self).ok(stmt(expr, depth))
                 }
-                _ => todo!("non-ident expr"),
+                _ => Transition(self).ok(expr_ele(expr, depth)),
             },
 
             Object::Root(_) => diagnostic_unreachable!(
@@ -185,6 +184,15 @@ fn stmt(expr: &Expr, depth: Depth) -> Xirf {
 
 fn yields(name: SPair, span: Span) -> Xirf {
     Xirf::attr(QN_YIELDS, name, (span, name))
+}
+
+fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
+    let qname = match expr.op() {
+        ExprOp::Sum => QN_C_SUM,
+        op => todo!("expr_ele qname: {op:?}"),
+    };
+
+    Xirf::open(qname, OpenSpan::without_name_span(expr.span()), depth)
 }
 
 pub struct TreeContext<'a>(TokenStack, &'a Asg);
