@@ -6,6 +6,7 @@
 
   <rate yields="rateBar">
     <c:sum />
+    <c:product />
   </rate>
 
   <rate yields="rateBaz">

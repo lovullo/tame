@@ -186,6 +186,8 @@ pub enum NirEntity {
 
     /// Summation (Σ) expression.
     Sum,
+    /// Product (Π) expression.
+    Product,
 
     /// Template parameter (metavariable).
     TplParam,
@@ -208,7 +210,8 @@ impl Display for NirEntity {
         match self {
             Package => write!(f, "package"),
             Rate => write!(f, "rate block"),
-            Sum => write!(f, "sum expression"),
+            Sum => write!(f, "sum (∑) expression"),
+            Product => write!(f, "product (Π) expression"),
             TplParam => write!(f, "template param (metavariable)"),
         }
     }

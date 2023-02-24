@@ -686,7 +686,7 @@ ele_parse! {
     ///   product can also be used to produce a generator where each
     ///   iteration over `@of` yields a corresponding element in the vector
     ///   identified by [`@generates`](QN_GENERATES).
-    ProductExpr := QN_C_PRODUCT {
+    ProductExpr := QN_C_PRODUCT(_, ospan) {
         @ {
             QN_OF => TodoAttr,
             QN_GENERATES => TodoAttr,
@@ -696,7 +696,8 @@ ele_parse! {
             QN_DOT => TodoAttr,
             QN_SYM => TodoAttr,
             QN_DIM => TodoAttr,
-        } => Todo,
+        } => NirEntity::Product.open(ospan),
+        /(cspan) => NirEntity::Product.close(cspan),
 
         WhenExpr,
         CalcExpr,

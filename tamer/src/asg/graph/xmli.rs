@@ -309,11 +309,11 @@ fn yields(name: SPair, span: Span) -> Xirf {
 fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
     let qname = match expr.op() {
         ExprOp::Sum => QN_C_SUM,
-        op => todo!("expr_ele qname: {op:?}"),
+        ExprOp::Product => QN_C_PRODUCT,
     };
 
     Xirf::open(qname, OpenSpan::without_name_span(expr.span()), depth)
 }
 
 // System tests covering this functionality can be found in
-//   `tamer/tests/xir/`.
+//   `:tamer/tests/xir/`.
