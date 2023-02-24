@@ -533,7 +533,7 @@ impl Asg {
         self.edges_dyn(oi.widen()).map(move |dyn_rel| {
             let target_ty = dyn_rel.target_ty();
 
-            dyn_rel.narrow::<O>().diagnostic_unwrap(|| {
+            dyn_rel.narrow_target::<O>().diagnostic_unwrap(|| {
                 vec![
                     oi.internal_error(format!(
                         "encountered invalid outgoing edge type {:?}",
@@ -568,6 +568,7 @@ impl Asg {
             DynObjectRel::new(
                 *src_ty,
                 *target_ty,
+                oi,
                 ObjectIndex::<Object>::new(edge.target(), oi),
                 *ctx_span,
             )

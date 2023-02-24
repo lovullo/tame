@@ -37,7 +37,7 @@ use crate::{
         visit::{Depth, TreeWalkRel},
         Asg, ExprOp,
     },
-    diagnose::{panic::DiagnosticPanic, Annotate},
+    diagnose::Annotate,
     diagnostic_panic, diagnostic_unreachable,
     parse::{prelude::*, util::SPair},
     span::{Span, UNKNOWN_SPAN},
@@ -95,9 +95,11 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             return Transition(self).incomplete();
         }
 
-        let pair = dyn_rel.resolve_oi_pair(asg);
+        // TODO: Verify that the binary does not perform unnecessary
+        //   resolution in branches that do not utilize the source.
+        let paired_rel = dyn_rel.resolve_oi_pairs(asg);
 
-        match pair.target() {
+        match paired_rel.target() {
             Object::Pkg((pkg, _)) => {
                 let span = pkg.span();
 
@@ -114,24 +116,15 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             //   pass over it for now.
             Object::Ident(..) => Transition(self).incomplete(),
 
-            Object::Expr((expr, oi)) => match pair.source_ty() {
-                ObjectRelTy::Ident => {
-                    // We were just told an ident exists,
-                    //   so this should not fail.
-                    let ident = oi.ident(asg).diagnostic_unwrap(|| {
-                        vec![expr.internal_error(
-                            "missing ident for this expression",
-                        )]
-                    });
-
+            Object::Expr((expr, _)) => match paired_rel.source() {
+                Object::Ident((ident, _)) => {
                     toks.push(yields(ident.name(), expr.span()));
-
                     Transition(self).ok(stmt(expr, depth))
                 }
                 _ => Transition(self).ok(expr_ele(expr, depth)),
             },
 
-            Object::Root((_, _)) => diagnostic_unreachable!(
+            Object::Root(..) => diagnostic_unreachable!(
                 vec![tok_span.error("unexpected Root")],
                 "tree walk is not expected to emit Root",
             ),
@@ -153,6 +146,7 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             DynObjectRel::new(
                 ObjectRelTy::Root,
                 ObjectRelTy::Root,
+                ObjectIndex::new(0.into(), UNKNOWN_SPAN),
                 ObjectIndex::new(0.into(), UNKNOWN_SPAN),
                 None,
             ),

@@ -79,9 +79,10 @@ fn traverses_ontological_tree() {
     let sut = tree_reconstruction(&asg);
 
     // We need more concise expressions for the below table of values.
-    use ObjectRelTy as Ty;
+    use ObjectRelTy::*;
     let d = DynObjectRel::new;
     let m = |a: Span, b: Span| a.merge(b).unwrap();
+    const SU: Span = UNKNOWN_SPAN;
 
     // Note that the `Depth` beings at 1 because the actual root of the
     //   graph is not emitted.
@@ -91,16 +92,20 @@ fn traverses_ontological_tree() {
     #[rustfmt::skip]
     assert_eq!(
         vec![
-            (d(Ty::Root,  Ty::Pkg,   m(S1, S11), None    ), Depth(1)),
-            (d(Ty::Pkg,   Ty::Ident, S3,         None    ),   Depth(2)),
-            (d(Ty::Ident, Ty::Expr,  m(S2, S7),  None    ),     Depth(3)),
-            (d(Ty::Expr,  Ty::Expr,  m(S4, S5),  None    ),       Depth(4)),
-            (d(Ty::Expr,  Ty::Ident, S9,         Some(S6)),       Depth(4)),
-            (d(Ty::Pkg,   Ty::Ident, S9,         None    ),   Depth(2)),
-            (d(Ty::Ident, Ty::Expr,  m(S8, S10), None    ),     Depth(3)),
+            (d(Root,  Pkg,   SU,         m(S1, S11), None    ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S11), S3,         None    ),   Depth(2)),
+            (d(Ident, Expr,  S3,         m(S2, S7),  None    ),     Depth(3)),
+            (d(Expr,  Expr,  m(S2, S7),  m(S4, S5),  None    ),       Depth(4)),
+            (d(Expr,  Ident, m(S2, S7),  S9,         Some(S6)),       Depth(4)),
+            (d(Pkg,   Ident, m(S1, S11), S9,         None    ),   Depth(2)),
+            (d(Ident, Expr,  S9,         m(S8, S10), None    ),     Depth(3)),
         ],
-        sut.map(|TreeWalkRel(rel, depth)| {
-            (rel.map(|oi| oi.resolve(&asg).span()), depth)
-        }).collect::<Vec<_>>(),
+        sut.map(|TreeWalkRel(rel, depth)| (
+            rel.map(|(soi, toi)| (
+                soi.resolve(&asg).span(),
+                toi.resolve(&asg).span()
+            )),
+            depth
+        )).collect::<Vec<_>>(),
     );
 }

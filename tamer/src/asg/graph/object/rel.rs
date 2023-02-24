@@ -54,25 +54,26 @@ impl Display for ObjectRelTy {
 /// A dynamic relationship (edge) from one object to another before it has
 ///   been narrowed.
 ///
-/// The target of this edge is usually an [`ObjectIndex`],
-///   but it is made generic (`T`) to support mapping while retaining useful
-///   metadata,
+/// The source and target of this edge are usually [`ObjectIndex`]es,
+///   but it is made generic (`S, T`) to support mapping while retaining
+///   useful metadata,
 ///     e.g. to resolve an object while retaining the edge information.
 #[derive(Debug, PartialEq)]
-pub struct DynObjectRel<T = ObjectIndex<Object>>(
+pub struct DynObjectRel<S = ObjectIndex<Object>, T = ObjectIndex<Object>>(
     (ObjectRelTy, ObjectRelTy),
-    T,
+    (S, T),
     Option<Span>,
 );
 
-impl<T> DynObjectRel<T> {
+impl<S, T> DynObjectRel<S, T> {
     pub(in super::super) fn new(
         from_ty: ObjectRelTy,
         to_ty: ObjectRelTy,
-        x: T,
+        src: S,
+        target: T,
         ctx_span: Option<Span>,
     ) -> Self {
-        Self((from_ty, to_ty), x, ctx_span)
+        Self((from_ty, to_ty), (src, target), ctx_span)
     }
 
     /// The type of the source edge.
@@ -89,13 +90,20 @@ impl<T> DynObjectRel<T> {
         }
     }
 
+    /// The source of this relationship.
+    pub fn source(&self) -> &S {
+        match self {
+            Self(_, (oi, _), _) => oi,
+        }
+    }
+
     /// The target of this relationship.
     ///
     /// This type generally originates as [`ObjectIndex`] but can be mapped
     ///   over to retain the structured edge data.
     pub fn target(&self) -> &T {
         match self {
-            Self(_, oi, _) => oi,
+            Self(_, (_, oi), _) => oi,
         }
     }
 
@@ -109,33 +117,28 @@ impl<T> DynObjectRel<T> {
     }
 }
 
-impl DynObjectRel<ObjectIndex<Object>> {
-    /// See [`ObjectIndex::must_narrow_into`].
-    pub fn must_narrow_into<O: ObjectKind>(&self) -> ObjectIndex<O> {
-        match self {
-            Self(_, oi, _) => oi.must_narrow_into(),
-        }
-    }
-
-    /// Attempt to narrow into the [`ObjectRel`] of `O`.
+impl<S> DynObjectRel<S, ObjectIndex<Object>> {
+    /// Attempt to narrow the target into the [`ObjectRel`] of `O`.
     ///
     /// See [`ObjectRelatable::new_rel_dyn`] for more information.
-    pub fn narrow<O: ObjectKind + ObjectRelatable>(&self) -> Option<O::Rel> {
+    pub fn narrow_target<O: ObjectKind + ObjectRelatable>(
+        &self,
+    ) -> Option<O::Rel> {
         O::new_rel_dyn(self.target_ty(), *self.target())
     }
 
-    /// Pair the inner [`ObjectIndex`] with its resolved [`Object`].
+    /// Pair the target [`ObjectIndex`] with its resolved [`Object`].
     ///
     /// This allows the [`ObjectIndex`] to be refined alongside the inner
     ///   [`ObjectKind`] so that callers can make use of the refined
     ///   [`ObjectIndex`] without having to explicitly narrow themselves.
     /// While isn't any more or less safe than the manual alternative,
     ///   it _does_ defend against logic bugs.
-    pub fn resolve_oi_pair(
+    pub fn resolve_target_oi_pair(
         self,
         asg: &Asg,
-    ) -> DynObjectRel<Object<OiPairObjectInner>> {
-        self.map(|oi| oi.resolve(asg).pair_oi(oi))
+    ) -> DynObjectRel<S, Object<OiPairObjectInner>> {
+        self.map(|(soi, toi)| (soi, toi.resolve(asg).pair_oi(toi)))
     }
 
     /// Dynamically determine whether this edge represents a cross edge.
@@ -165,7 +168,7 @@ impl DynObjectRel<ObjectIndex<Object>> {
                 match self.source_ty() {
                     $(
                         ObjectRelTy::$ty => {
-                            self.narrow::<$ty>().is_some_and(
+                            self.narrow_target::<$ty>().is_some_and(
                                 |rel| rel.is_cross_edge()
                             )
                         },
@@ -178,10 +181,41 @@ impl DynObjectRel<ObjectIndex<Object>> {
     }
 }
 
-impl<T, U> Functor<T, U> for DynObjectRel<T> {
-    type Target = DynObjectRel<U>;
+impl<T> DynObjectRel<ObjectIndex<Object>, T> {
+    /// Pair the source [`ObjectIndex`] with its resolved [`Object`].
+    ///
+    /// This allows the [`ObjectIndex`] to be refined alongside the inner
+    ///   [`ObjectKind`] so that callers can make use of the refined
+    ///   [`ObjectIndex`] without having to explicitly narrow themselves.
+    /// While isn't any more or less safe than the manual alternative,
+    ///   it _does_ defend against logic bugs.
+    pub fn resolve_source_oi_pair(
+        self,
+        asg: &Asg,
+    ) -> DynObjectRel<Object<OiPairObjectInner>, T> {
+        self.map(|(soi, toi)| (soi.resolve(asg).pair_oi(soi), toi))
+    }
+}
 
-    fn map(self, f: impl FnOnce(T) -> U) -> Self::Target {
+impl DynObjectRel<ObjectIndex<Object>, ObjectIndex<Object>> {
+    /// Pair the source and target [`ObjectIndex`]es with their respective
+    ///   resolved [`Object`]s.
+    ///
+    /// See [`Self::resolve_target_oi_pair`] and
+    ///   [`Self::resolve_source_oi_pair`] for more information.
+    pub fn resolve_oi_pairs(
+        self,
+        asg: &Asg,
+    ) -> DynObjectRel<Object<OiPairObjectInner>, Object<OiPairObjectInner>>
+    {
+        self.resolve_source_oi_pair(asg).resolve_target_oi_pair(asg)
+    }
+}
+
+impl<S, T, U, V> Functor<(S, T), (U, V)> for DynObjectRel<S, T> {
+    type Target = DynObjectRel<U, V>;
+
+    fn map(self, f: impl FnOnce((S, T)) -> (U, V)) -> Self::Target {
         match self {
             Self(tys, x, ctx_span) => DynObjectRel(tys, f(x), ctx_span),
         }
@@ -190,9 +224,9 @@ impl<T, U> Functor<T, U> for DynObjectRel<T> {
 
 impl<T: Display> Display for DynObjectRel<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self((from_ty, to_ty), x, _) = self;
+        let Self((from_ty, to_ty), (s, t), _) = self;
 
-        write!(f, "dynamic edge {from_ty}->{to_ty} with {x}",)
+        write!(f, "dynamic edge {from_ty}->{to_ty} with {s}->{t}",)
     }
 }
 
