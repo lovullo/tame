@@ -423,6 +423,7 @@ impl Span {
         if ((irel_offset as usize).saturating_add(ilen as usize))
             > self.len() as usize
         {
+            #[cfg(debug_assertions)]
             use crate::diagnose::Annotate;
             debug_diagnostic_panic!(
                 self.error("attempting to slice this span").into(),
