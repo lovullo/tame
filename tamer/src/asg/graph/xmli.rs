@@ -82,42 +82,28 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
 
     fn parse_token(
         self,
-        tok: Self::Token,
+        TreeWalkRel(dyn_rel, depth): Self::Token,
         TreeContext(toks, asg): &mut TreeContext,
     ) -> TransitionResult<Self::Super> {
-        if let Some(emit) = toks.pop() {
-            return Transition(self).ok(emit).with_lookahead(tok);
-        }
+        match (toks.pop(), depth) {
+            // Empty the token stack before processing any further.
+            // Note that we must yield the token as lookahead to ensure that
+            //   we do eventually process it.
+            (Some(emit), _) => Transition(self)
+                .ok(emit)
+                .with_lookahead(TreeWalkRel(dyn_rel, depth)),
 
-        let tok_span = tok.span();
-        let TreeWalkRel(dyn_rel, depth) = tok;
+            // Used by `eof_tok` only to empty the token stack,
+            //   which we're now done with.
+            // We consume the token by not yielding any lookahead.
+            (None, Depth(0)) => Transition(self).incomplete(),
 
-        if depth == Depth(0) {
-            return Transition(self).incomplete();
-        }
-
-        // TODO: Verify that the binary does not perform unnecessary
-        //   resolution in branches that do not utilize the source.
-        let paired_rel = dyn_rel.resolve_oi_pairs(asg);
-
-        let xirf_tok = match paired_rel.target() {
-            Object::Pkg((pkg, _)) => emit_package(toks, pkg, depth),
-
-            // Identifiers will be considered in context;
-            //   pass over it for now.
-            Object::Ident(..) => None,
-
-            Object::Expr((expr, _)) => {
-                emit_expr(toks, expr, paired_rel.source(), depth)
+            // The stack is empty,
+            //   so proceed with processing the provided relation.
+            (None, depth) => {
+                derive_src(toks, asg, dyn_rel, depth).transition(self)
             }
-
-            Object::Root(..) => diagnostic_unreachable!(
-                vec![tok_span.error("unexpected Root")],
-                "tree walk is not expected to emit Root",
-            ),
-        };
-
-        xirf_tok.transition(self)
+        }
     }
 
     fn is_accepting(&self, TreeContext(toks, _): &Self::Context) -> bool {
@@ -143,6 +129,51 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             //   the tree walk will never yield a depth of 0.
             Depth(0),
         ))
+    }
+}
+
+/// Size of the token stack.
+///
+/// See [`TokenStack`] for more information.
+const TOK_STACK_SIZE: usize = 8;
+
+/// Given a [`DynObjectRel`],
+///   derive a legacy TAME representation that will faithfully represent an
+///   equivalent program when compiled by the XSLT-based TAME compiler.
+///
+/// The [`TokenStack`] may be used to pre-generate [XIRF](Xirf) to be
+///   yielded on subsequent iterations rather than having to introduce
+///   [`AsgTreeToXirf`] states for each individual token.
+/// Adjust [`TOK_STACK_SIZE`] as necessary.
+///
+/// The provided [`Depth`] represent the depth of the tree at the position
+///   of the provided [`DynObjectRel`].
+/// See [`TreeWalkRel`] for more information.
+fn derive_src(
+    toks: &mut TokenStack,
+    asg: &Asg,
+    dyn_rel: DynObjectRel,
+    depth: Depth,
+) -> Option<Xirf> {
+    // TODO: Verify that the binary does not perform unnecessary
+    //   resolution in branches that do not utilize the source.
+    let paired_rel = dyn_rel.resolve_oi_pairs(asg);
+
+    match paired_rel.target() {
+        Object::Pkg((pkg, _)) => emit_package(toks, pkg, depth),
+
+        // Identifiers will be considered in context;
+        //   pass over it for now.
+        Object::Ident(..) => None,
+
+        Object::Expr((expr, _)) => {
+            emit_expr(toks, expr, paired_rel.source(), depth)
+        }
+
+        Object::Root(..) => diagnostic_unreachable!(
+            vec![],
+            "tree walk is not expected to emit Root",
+        ),
     }
 }
 
@@ -251,11 +282,6 @@ impl<'a> From<&'a Asg> for TreeContext<'a> {
         Self(Default::default(), asg)
     }
 }
-
-/// Size of the token stack.
-///
-/// See [`TokenStack`] for more information.
-const TOK_STACK_SIZE: usize = 8;
 
 /// Token stack to hold generated tokens between [`AsgTreeToXirf`]
 ///   iterations.
