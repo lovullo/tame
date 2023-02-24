@@ -681,6 +681,18 @@ where
     }
 }
 
+impl<S> Transitionable<S> for Option<S::Object>
+where
+    S: ParseState,
+{
+    fn transition(self, to: S) -> TransitionResult<S::Super> {
+        match self {
+            Some(obj) => Transition(to).ok(obj),
+            None => Transition(to).incomplete(),
+        }
+    }
+}
+
 impl<S: ParseState> Transitionable<S> for ParseStatus<S> {
     fn transition(self, to: S) -> TransitionResult<S::Super> {
         Transition(to).ok(self.into_super())

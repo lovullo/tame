@@ -30,7 +30,8 @@
 //!       or observing template expansions.
 
 use super::object::{
-    DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, Pkg,
+    DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, OiPairObjectInner,
+    Pkg,
 };
 use crate::{
     asg::{
@@ -39,7 +40,7 @@ use crate::{
     },
     diagnose::Annotate,
     diagnostic_panic, diagnostic_unreachable,
-    parse::{prelude::*, util::SPair},
+    parse::{prelude::*, util::SPair, Transitionable},
     span::{Span, UNKNOWN_SPAN},
     sym::{
         st::{URI_LV_CALC, URI_LV_RATER, URI_LV_TPL},
@@ -99,36 +100,24 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
         //   resolution in branches that do not utilize the source.
         let paired_rel = dyn_rel.resolve_oi_pairs(asg);
 
-        match paired_rel.target() {
-            Object::Pkg((pkg, _)) => {
-                let span = pkg.span();
-
-                toks.push_all([
-                    ns(QN_XMLNS_T, URI_LV_TPL, span),
-                    ns(QN_XMLNS_C, URI_LV_CALC, span),
-                    ns(QN_XMLNS, URI_LV_RATER, span),
-                ]);
-
-                Transition(self).ok(package(pkg, depth))
-            }
+        let xirf_tok = match paired_rel.target() {
+            Object::Pkg((pkg, _)) => emit_package(toks, pkg, depth),
 
             // Identifiers will be considered in context;
             //   pass over it for now.
-            Object::Ident(..) => Transition(self).incomplete(),
+            Object::Ident(..) => None,
 
-            Object::Expr((expr, _)) => match paired_rel.source() {
-                Object::Ident((ident, _)) => {
-                    toks.push(yields(ident.name(), expr.span()));
-                    Transition(self).ok(stmt(expr, depth))
-                }
-                _ => Transition(self).ok(expr_ele(expr, depth)),
-            },
+            Object::Expr((expr, _)) => {
+                emit_expr(toks, expr, paired_rel.source(), depth)
+            }
 
             Object::Root(..) => diagnostic_unreachable!(
                 vec![tok_span.error("unexpected Root")],
                 "tree walk is not expected to emit Root",
             ),
-        }
+        };
+
+        xirf_tok.transition(self)
     }
 
     fn is_accepting(&self, TreeContext(toks, _): &Self::Context) -> bool {
@@ -154,6 +143,55 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
             //   the tree walk will never yield a depth of 0.
             Depth(0),
         ))
+    }
+}
+
+/// Emit tokens representing the root package element.
+fn emit_package(
+    toks: &mut TokenStack,
+    pkg: &Pkg,
+    depth: Depth,
+) -> Option<Xirf> {
+    let span = pkg.span();
+
+    toks.push_all([
+        ns(QN_XMLNS_T, URI_LV_TPL, span),
+        ns(QN_XMLNS_C, URI_LV_CALC, span),
+        ns(QN_XMLNS, URI_LV_RATER, span),
+    ]);
+
+    Some(package(pkg, depth))
+}
+
+/// Emit an expression as a legacy TAME statement or expression.
+///
+/// Identified expressions must be represented using statements in
+///   legacy TAME,
+///     such as `<rate>`.
+/// Anonymous expressions are nested within statements.
+///
+/// This system will emit statements and expressions that are compatible
+///   with the information on the [ASG](crate::asg) and recognized by the
+///   downstream XSLT-based compiler.
+/// There is no guarantee,
+///   however,
+///   that what is emitted is exactly representative of what the user
+///     originally entered.
+///
+/// Please ensure that the system matches your expectations using the system
+///   tests in `:tamer/tests/xmli`.
+fn emit_expr(
+    toks: &mut TokenStack,
+    expr: &Expr,
+    src: &Object<OiPairObjectInner>,
+    depth: Depth,
+) -> Option<Xirf> {
+    match src {
+        Object::Ident((ident, _)) => {
+            toks.push(yields(ident.name(), expr.span()));
+            Some(stmt(expr, depth))
+        }
+        _ => Some(expr_ele(expr, depth)),
     }
 }
 
