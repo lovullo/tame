@@ -61,6 +61,9 @@ use std::{
     marker::PhantomData,
 };
 
+// Used for organization.
+pub use accept::*;
+
 /// Tag nesting depth
 ///   (`0` represents the root).
 ///
@@ -345,17 +348,42 @@ pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
 ///   allowing XIRF's parser to avoid memory allocation entirely.
 type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
 
-/// XIRF document parser state.
+/// Lower [XIR](XirToken) into [XIRF](XirfToken),
+///   accepting only fully parsed XML documents.
+///
+/// If parsing is expected to stop before reaching the end of the document,
+///   see [`PartialXirToXirf`].
+/// For more information on accepting states,
+///   see [`XirfAcceptor`].
+pub type FullXirToXirf<const MAX_DEPTH: usize, T> =
+    XirToXirf<MAX_DEPTH, T, AttrParseState, FullXirfAcceptor>;
+
+/// Lower [XIR](XirToken) into [XIRF](XirfToken),
+///   accepting partially parsed XML documents at node boundaries.
+///
+/// If the entire XML document ought to be parsed,
+///   see [`FullXirToXirf`] to provide a guarantee of an error in case the
+///   system stops parsing before completion.
+/// For more information on accepting states,
+///   see [`XirfAcceptor`].
+pub type PartialXirToXirf<const MAX_DEPTH: usize, T> =
+    XirToXirf<MAX_DEPTH, T, AttrParseState, PartialXirfAcceptor>;
+
+/// Lower [XIR](XirToken) into [XIRF](XirfToken).
 ///
 /// This parser is a pushdown automaton that parses a single XML document.
 #[derive(Debug, PartialEq, Eq)]
-pub enum XirToXirf<const MAX_DEPTH: usize, T, SA = AttrParseState>
-where
+pub enum XirToXirf<
+    const MAX_DEPTH: usize,
+    T,
+    SA = AttrParseState,
+    A: XirfAcceptor = FullXirfAcceptor,
+> where
     SA: FlatAttrParseState<MAX_DEPTH>,
     T: TextType,
 {
     /// Document parsing has not yet begun.
-    PreRoot(PhantomData<T>),
+    PreRoot(PhantomData<(T, A)>),
     /// Parsing nodes.
     NodeExpected,
     /// Delegating to attribute parser.
@@ -364,7 +392,8 @@ where
     Done,
 }
 
-impl<const MAX_DEPTH: usize, T, SA> Default for XirToXirf<MAX_DEPTH, T, SA>
+impl<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor> Default
+    for XirToXirf<MAX_DEPTH, T, SA, A>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
     T: TextType,
@@ -410,7 +439,8 @@ fn is_whitespace(sym: SymbolId) -> bool {
     }
 }
 
-impl<const MAX_DEPTH: usize, T, SA> ParseState for XirToXirf<MAX_DEPTH, T, SA>
+impl<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor> ParseState
+    for XirToXirf<MAX_DEPTH, T, SA, A>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
     T: TextType,
@@ -472,11 +502,140 @@ where
         // TODO: It'd be nice if we could also return additional context to
         //   aid the user in diagnosing the problem,
         //     e.g. what element(s) still need closing.
-        *self == XirToXirf::Done
+        A::is_accepting(self)
     }
 }
 
-impl<const MAX_DEPTH: usize, T, SA> Display for XirToXirf<MAX_DEPTH, T, SA>
+/// Configurable accepting states for [`XirToXirf`].
+///
+/// See this module's [`XirfAcceptor`] for more information.
+mod accept {
+    use super::*;
+
+    /// Acceptor for [`XirToXirf`].
+    ///
+    /// This is responsible for determining whether [`XirToXirf`] is in an
+    ///   accepting state.
+    /// There are two acceptors:
+    ///
+    ///   1. [`FullXirfAcceptor`] expects that the _entire_ XML document be
+    ///        completely parsed up to and including the closing root node;
+    ///        and
+    ///   2. [`PartialXirfAcceptor`] allows parsing to halt part-way through
+    ///        an XML document,
+    ///          provided that parsing ends at a node boundary.
+    ///
+    /// See each respective acceptor for more information.
+    pub trait XirfAcceptor: Debug + PartialEq + Eq + Display + Default {
+        fn is_accepting<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor>(
+            st: &XirToXirf<MAX_DEPTH, T, SA, A>,
+        ) -> bool
+        where
+            SA: FlatAttrParseState<MAX_DEPTH>,
+            T: TextType;
+    }
+
+    /// Acceptor for fully parsed XML documents for [`XirToXirf`].
+    ///
+    /// This acceptor should be used when the intent of the lowering
+    ///   pipeline is to fully parse the [XIR](XirToken) stream.
+    /// In other words:
+    ///   this should be used when the XML document being read ought to be
+    ///   read _fully_,
+    ///     where halting parsing before the root node would indicate a
+    ///     defect in the system.
+    ///
+    /// For example,
+    ///   when reading a file with TAME sources in `tamec`,
+    ///   the compiler ought to ensure that the entire file is read to
+    ///     completion.
+    /// If the lowering pipeline stops requesting tokens before the XIR
+    ///   stream has ended,
+    ///     then that means that compilation has halted before the system
+    ///     has had a chance to consider the rest of the file.
+    /// Because the lowering pipeline is intended to parse and present
+    ///   errors on the entire file each run,
+    ///     this would represent a bug in the system,
+    ///       and so we ought to fail.
+    ///
+    /// Downstream parsers ought to fail for their own reasons as well,
+    ///   but this provides an extra layer of protection for _anything_ that
+    ///   happens to read XML files.
+    ///
+    /// For an example of a situation where we may not wish to fail,
+    ///   see [`PartialXirfAcceptor`].
+    #[derive(Debug, PartialEq, Eq, Default)]
+    pub struct FullXirfAcceptor;
+
+    impl XirfAcceptor for FullXirfAcceptor {
+        fn is_accepting<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor>(
+            st: &XirToXirf<MAX_DEPTH, T, SA, A>,
+        ) -> bool
+        where
+            SA: FlatAttrParseState<MAX_DEPTH>,
+            T: TextType,
+        {
+            matches!(st, XirToXirf::Done)
+        }
+    }
+
+    impl Display for FullXirfAcceptor {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "accepting only full documents")
+        }
+    }
+
+    /// Acceptor for either full _or_ partially parsed XML documents for
+    ///   [`XirToXirf`].
+    ///
+    /// This acceptor is intended to be used when parsing the entirety of a
+    ///   [XIR](XirToken) stream is not desirable;
+    ///     it allows parsing to be completed at a node boundary
+    ///       (when a node is expected).
+    /// This acceptor builds on the behavior of [`FullXirfAcceptor`],
+    ///   and so will also accept all fully parsed documents.
+    ///
+    /// For example,
+    ///   when reading object files in `tameld`,
+    ///   the linker is concerned only with header information;
+    ///     the remainder of the XML document does not contain useful
+    ///     information and would be wasteful to parse.
+    /// In that case,
+    ///   we rely on downstream parsers to determine whether the document
+    ///   has been sufficiently parsed.
+    ///
+    /// This acceptor provides one weaker guarantee:
+    ///   that parsing has _at least_ completed parsing a node,
+    ///     such as an element.
+    /// Parsing must complete at a node boundary,
+    ///   and so cannot halt in the middle of attribute parsing for an
+    ///     element,
+    ///       for example.
+    #[derive(Debug, PartialEq, Eq, Default)]
+    pub struct PartialXirfAcceptor;
+
+    impl XirfAcceptor for PartialXirfAcceptor {
+        fn is_accepting<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor>(
+            st: &XirToXirf<MAX_DEPTH, T, SA, A>,
+        ) -> bool
+        where
+            SA: FlatAttrParseState<MAX_DEPTH>,
+            T: TextType,
+        {
+            FullXirfAcceptor::is_accepting(st)
+                || matches!(st, XirToXirf::NodeExpected)
+        }
+    }
+
+    impl Display for PartialXirfAcceptor {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "accepting partial documents at node boundaries")
+        }
+    }
+}
+
+impl<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor> Display
+    for XirToXirf<MAX_DEPTH, T, SA, A>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
     T: TextType,
@@ -489,11 +648,16 @@ where
             NodeExpected => write!(f, "expecting a node"),
             AttrExpected(sa) => Display::fmt(sa, f),
             Done => write!(f, "done parsing document root"),
-        }
+        }?;
+
+        // e.g. ", accepting ..."
+        write!(f, ", ")?;
+        Display::fmt(&A::default(), f)
     }
 }
 
-impl<const MAX_DEPTH: usize, T, SA> XirToXirf<MAX_DEPTH, T, SA>
+impl<const MAX_DEPTH: usize, T, SA, A: XirfAcceptor>
+    XirToXirf<MAX_DEPTH, T, SA, A>
 where
     SA: FlatAttrParseState<MAX_DEPTH>,
     T: TextType,

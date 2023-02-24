@@ -46,7 +46,7 @@ use crate::{
     },
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
-        flat::{Text, XirToXirf, XirToXirfError, XirfToken},
+        flat::{PartialXirToXirf, Text, XirToXirfError, XirfToken},
         reader::XmlXirReader,
         writer::{Error as XirWriterError, XmlWriter},
         DefaultEscaper, Error as XirError, Escaper, Token as XirToken,
@@ -114,10 +114,10 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
     //   abstracted away.
     let (mut asg, mut state) = Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
-        XirToXirf<4, Text>,
+        PartialXirToXirf<4, Text>,
         _,
     >::lower(src, |toks| {
-        Lower::<XirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
+        Lower::<PartialXirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
             let mut iter = xmlo.scan(false, |st, rtok| match st {
                 true => None,
                 false => {
