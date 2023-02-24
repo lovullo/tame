@@ -8,22 +8,56 @@ set -euo pipefail
 mypath=$(dirname "$0")
 . "$mypath/../../conf.sh"
 
+# Performing this check within `<()` below won't cause a failure.
+: "${P_XMLLINT?}" # conf.sh
+
 tamer-flag-or-exit-ok wip-asg-derived-xmli
 
-main() {
+# Derive a program from `src.xml` and verify that it meets our expectations.
+#
+# This test is inherently fragile, as it will break any time we perform
+# certain types of optimizations or change internal representations.  _But
+# that is intended._  We want to be well aware of such changes in derivation
+# so that we can judge whether it needs adjustment.
+test-derive-from-src() {
+  echo '# test-derive-from-src'
   "${TAMER_PATH_TAMEC?}" -o "$mypath/out.xmli" --emit xmlo "$mypath/src.xml"
 
-  # Performing this check within `<()` below won't cause a failure.
-  : "${P_XMLLINT?}" # conf.sh
+  diff <("$P_XMLLINT" --format "$mypath/expected.xml" || echo 'ERR expected.xml') \
+       <("$P_XMLLINT" --format "$mypath/out.xmli" || echo 'ERR out.xmli')
+}
+
+
+# Having taken `A` and derived `B`, we should be able to take `B` and derive
+# `C`, where `B` and `C` are equivalent programs.
+#
+# That is, this derivation should be transitively equivalent and reach a
+# fixpoint on the second derivation.  This serves as a sanity check to
+# ensure that the program we generated makes sense to our own system.
+#
+# Note that, in the future, we'll have to strip handoff metadata
+# (`preproc:*` data) from the output so that it will be accepted by TAMER.
+test-fixpoint() {
+  echo '# test-fixpoint'
+  "${TAMER_PATH_TAMEC?}" -o "$mypath/out-2.xmli" --emit xmlo "$mypath/out.xmli"
 
   diff <("$P_XMLLINT" --format "$mypath/expected.xml" || echo 'ERR expected.xml') \
-       <("$P_XMLLINT" --format "$mypath/out.xmli" || echo 'ERR out.xmli') \
-    || {
+       <("$P_XMLLINT" --format "$mypath/out-2.xmli" || echo 'ERR out.xmli')
+}
+
+
+main() {
+  local fail=
+
+  test-derive-from-src || fail=1
+  test-fixpoint || fail=1
+
+  test -z "$fail" || {
       cat << EOF
 !!! TEST FAILED
 tamec: $TAMER_PATH_TAMEC
 
-note: The compiler output and diff between \`expected.xml\` and \`out.xmli\`
+note: The compiler output and diff between the expected and given data
       are above.  Both files are formatted with \`xmllint\` automatically.
 EOF
 
