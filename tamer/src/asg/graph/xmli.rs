@@ -83,9 +83,9 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
     fn parse_token(
         self,
         TreeWalkRel(dyn_rel, depth): Self::Token,
-        TreeContext(toks, asg): &mut TreeContext,
+        ctx: &mut TreeContext,
     ) -> TransitionResult<Self::Super> {
-        match (toks.pop(), depth) {
+        match (ctx.pop(), depth) {
             // Empty the token stack before processing any further.
             // Note that we must yield the token as lookahead to ensure that
             //   we do eventually process it.
@@ -100,24 +100,19 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
 
             // The stack is empty,
             //   so proceed with processing the provided relation.
-            (None, depth) => {
-                derive_src(toks, asg, dyn_rel, depth).transition(self)
-            }
+            (None, depth) => ctx.derive_src(dyn_rel, depth).transition(self),
         }
     }
 
-    fn is_accepting(&self, TreeContext(toks, _): &Self::Context) -> bool {
-        toks.is_empty()
+    fn is_accepting(&self, ctx: &Self::Context) -> bool {
+        ctx.stack_is_empty()
     }
 
-    fn eof_tok(
-        &self,
-        TreeContext(toks, _): &Self::Context,
-    ) -> Option<Self::Token> {
+    fn eof_tok(&self, ctx: &Self::Context) -> Option<Self::Token> {
         // If the stack is not empty on EOF,
         //   yield a dummy token just to invoke `parse_token` to finish
         //   emptying it.
-        (!toks.is_empty()).then_some(TreeWalkRel(
+        (!ctx.stack_is_empty()).then_some(TreeWalkRel(
             DynObjectRel::new(
                 ObjectRelTy::Root,
                 ObjectRelTy::Root,
@@ -137,92 +132,155 @@ impl<'a> ParseState for AsgTreeToXirf<'a> {
 /// See [`TokenStack`] for more information.
 const TOK_STACK_SIZE: usize = 8;
 
-/// Given a [`DynObjectRel`],
-///   derive a legacy TAME representation that will faithfully represent an
-///   equivalent program when compiled by the XSLT-based TAME compiler.
+/// Token stack to hold generated tokens between [`AsgTreeToXirf`]
+///   iterations.
 ///
-/// The [`TokenStack`] may be used to pre-generate [XIRF](Xirf) to be
-///   yielded on subsequent iterations rather than having to introduce
-///   [`AsgTreeToXirf`] states for each individual token.
-/// Adjust [`TOK_STACK_SIZE`] as necessary.
+/// The token stack is used to avoid having to create separate states for
+///   emitting each individual token.
+/// It is populated by [`AsgTreeToXirf`] if more than a single [`XirfToken`]
+///   needs to be emitted,
+///     and tokens are removed on each subsequent iteration until empty.
 ///
-/// The provided [`Depth`] represent the depth of the tree at the position
-///   of the provided [`DynObjectRel`].
-/// See [`TreeWalkRel`] for more information.
-fn derive_src(
-    toks: &mut TokenStack,
-    asg: &Asg,
-    dyn_rel: DynObjectRel,
-    depth: Depth,
-) -> Option<Xirf> {
-    // TODO: Verify that the binary does not perform unnecessary
-    //   resolution in branches that do not utilize the source.
-    let paired_rel = dyn_rel.resolve_oi_pairs(asg);
+/// This need only be big enough to accommodate [`AsgTreeToXirf`]'s
+///   implementation;
+///     the size is independent of user input.
+type TokenStack = ArrayVec<Xirf, TOK_STACK_SIZE>;
 
-    match paired_rel.target() {
-        Object::Pkg((pkg, _)) => emit_package(toks, pkg, depth),
+pub struct TreeContext<'a> {
+    stack: TokenStack,
+    asg: &'a Asg,
+}
 
-        // Identifiers will be considered in context;
-        //   pass over it for now.
-        Object::Ident(..) => None,
+impl<'a> TreeContext<'a> {
+    /// Given a [`DynObjectRel`],
+    ///   derive a legacy TAME representation that will faithfully represent
+    ///   an equivalent program when compiled by the XSLT-based TAME
+    ///   compiler.
+    ///
+    /// The [`TokenStack`] may be used to pre-generate [XIRF](Xirf) to be
+    ///   yielded on subsequent iterations rather than having to introduce
+    ///   [`AsgTreeToXirf`] states for each individual token.
+    /// Adjust [`TOK_STACK_SIZE`] as necessary.
+    ///
+    /// The provided [`Depth`] represent the depth of the tree at the
+    ///   position of the provided [`DynObjectRel`].
+    /// See [`TreeWalkRel`] for more information.
+    fn derive_src(
+        &mut self,
+        dyn_rel: DynObjectRel,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        // TODO: Verify that the binary does not perform unnecessary
+        //   resolution in branches that do not utilize the source.
+        let paired_rel = dyn_rel.resolve_oi_pairs(self.asg);
 
-        Object::Expr((expr, _)) => {
-            emit_expr(toks, expr, paired_rel.source(), depth)
+        match paired_rel.target() {
+            Object::Pkg((pkg, _)) => self.emit_package(pkg, depth),
+
+            // Identifiers will be considered in context;
+            //   pass over it for now.
+            Object::Ident(..) => None,
+
+            Object::Expr((expr, _)) => {
+                self.emit_expr(expr, paired_rel.source(), depth)
+            }
+
+            Object::Root(..) => diagnostic_unreachable!(
+                vec![],
+                "tree walk is not expected to emit Root",
+            ),
+        }
+    }
+
+    /// Emit tokens representing the root package element.
+    fn emit_package(&mut self, pkg: &Pkg, depth: Depth) -> Option<Xirf> {
+        let span = pkg.span();
+
+        self.push_all([
+            ns(QN_XMLNS_T, URI_LV_TPL, span),
+            ns(QN_XMLNS_C, URI_LV_CALC, span),
+            ns(QN_XMLNS, URI_LV_RATER, span),
+        ]);
+
+        Some(package(pkg, depth))
+    }
+
+    /// Emit an expression as a legacy TAME statement or expression.
+    ///
+    /// Identified expressions must be represented using statements in
+    ///   legacy TAME,
+    ///     such as `<rate>`.
+    /// Anonymous expressions are nested within statements.
+    ///
+    /// This system will emit statements and expressions that are compatible
+    ///   with the information on the [ASG](crate::asg) and recognized by the
+    ///   downstream XSLT-based compiler.
+    /// There is no guarantee,
+    ///   however,
+    ///   that what is emitted is exactly representative of what the user
+    ///     originally entered.
+    ///
+    /// Please ensure that the system matches your expectations using the system
+    ///   tests in `:tamer/tests/xmli`.
+    fn emit_expr(
+        &mut self,
+        expr: &Expr,
+        src: &Object<OiPairObjectInner>,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        match src {
+            Object::Ident((ident, _)) => {
+                self.push(yields(ident.name(), expr.span()));
+                Some(stmt(expr, depth))
+            }
+            _ => Some(expr_ele(expr, depth)),
+        }
+    }
+
+    fn push(&mut self, tok: Xirf) {
+        if self.stack.is_full() {
+            diagnostic_panic!(
+                vec![tok
+                    .internal_error("while emitting a token for this object")],
+                "token stack exhausted (increase TOK_STACK_SIZE)",
+            )
         }
 
-        Object::Root(..) => diagnostic_unreachable!(
-            vec![],
-            "tree walk is not expected to emit Root",
-        ),
+        self.stack.push(tok)
+    }
+
+    fn pop(&mut self) -> Option<Xirf> {
+        self.stack.pop()
+    }
+
+    fn stack_is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
+
+    fn push_all(&mut self, toks: impl IntoIterator<Item = Xirf>) {
+        toks.into_iter().for_each(|x| self.push(x))
     }
 }
 
-/// Emit tokens representing the root package element.
-fn emit_package(
-    toks: &mut TokenStack,
-    pkg: &Pkg,
-    depth: Depth,
-) -> Option<Xirf> {
-    let span = pkg.span();
-
-    toks.push_all([
-        ns(QN_XMLNS_T, URI_LV_TPL, span),
-        ns(QN_XMLNS_C, URI_LV_CALC, span),
-        ns(QN_XMLNS, URI_LV_RATER, span),
-    ]);
-
-    Some(package(pkg, depth))
+// Custom `Debug` impl to omit ASG rendering,
+//   since it's large and already included while rendering other parts of
+//   the lowering pipeline.
+// Of course,
+//   that's assuming this is part of the lowering pipeline.
+impl<'a> std::fmt::Debug for TreeContext<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("TreeContext")
+            .field("stack", &self.stack)
+            .finish_non_exhaustive()
+    }
 }
 
-/// Emit an expression as a legacy TAME statement or expression.
-///
-/// Identified expressions must be represented using statements in
-///   legacy TAME,
-///     such as `<rate>`.
-/// Anonymous expressions are nested within statements.
-///
-/// This system will emit statements and expressions that are compatible
-///   with the information on the [ASG](crate::asg) and recognized by the
-///   downstream XSLT-based compiler.
-/// There is no guarantee,
-///   however,
-///   that what is emitted is exactly representative of what the user
-///     originally entered.
-///
-/// Please ensure that the system matches your expectations using the system
-///   tests in `:tamer/tests/xmli`.
-fn emit_expr(
-    toks: &mut TokenStack,
-    expr: &Expr,
-    src: &Object<OiPairObjectInner>,
-    depth: Depth,
-) -> Option<Xirf> {
-    match src {
-        Object::Ident((ident, _)) => {
-            toks.push(yields(ident.name(), expr.span()));
-            Some(stmt(expr, depth))
+impl<'a> From<&'a Asg> for TreeContext<'a> {
+    fn from(asg: &'a Asg) -> Self {
+        TreeContext {
+            stack: Default::default(),
+            asg,
         }
-        _ => Some(expr_ele(expr, depth)),
     }
 }
 
@@ -255,79 +313,6 @@ fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
     };
 
     Xirf::open(qname, OpenSpan::without_name_span(expr.span()), depth)
-}
-
-pub struct TreeContext<'a>(TokenStack, &'a Asg);
-
-// Custom `Debug` impl to omit ASG rendering,
-//   since it's large and already included while rendering other parts of
-//   the lowering pipeline.
-// Of course,
-//   that's assuming this is part of the lowering pipeline.
-impl<'a> std::fmt::Debug for TreeContext<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_tuple("TreeContext")
-            .field(&self.0)
-            .field(&AsgElided)
-            .finish()
-    }
-}
-
-/// Used a placeholder for [`TreeContext`]'s [`Debug`].
-#[derive(Debug)]
-struct AsgElided;
-
-impl<'a> From<&'a Asg> for TreeContext<'a> {
-    fn from(asg: &'a Asg) -> Self {
-        Self(Default::default(), asg)
-    }
-}
-
-/// Token stack to hold generated tokens between [`AsgTreeToXirf`]
-///   iterations.
-///
-/// The token stack is used to avoid having to create separate states for
-///   emitting each individual token.
-/// It is populated by [`AsgTreeToXirf`] if more than a single [`XirfToken`]
-///   needs to be emitted,
-///     and tokens are removed on each subsequent iteration until empty.
-///
-/// This need only be big enough to accommodate [`AsgTreeToXirf`]'s
-///   implementation;
-///     the size is independent of user input.
-#[derive(Debug, Default)]
-struct TokenStack(ArrayVec<Xirf, TOK_STACK_SIZE>);
-
-impl TokenStack {
-    fn push(&mut self, tok: Xirf) {
-        let Self(stack) = self;
-
-        if stack.is_full() {
-            diagnostic_panic!(
-                vec![tok
-                    .internal_error("while emitting a token for this object")],
-                "token stack exhausted (increase TOK_STACK_SIZE)",
-            )
-        }
-
-        stack.push(tok)
-    }
-
-    fn pop(&mut self) -> Option<Xirf> {
-        match self {
-            Self(stack) => stack.pop(),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        match self {
-            Self(stack) => stack.is_empty(),
-        }
-    }
-
-    fn push_all(&mut self, toks: impl IntoIterator<Item = Xirf>) {
-        toks.into_iter().for_each(|x| self.push(x))
-    }
 }
 
 // System tests covering this functionality can be found in
