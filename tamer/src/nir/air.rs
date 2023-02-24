@@ -93,7 +93,16 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::ExprIdent(spair))
             }
 
-            _ => Transition(Ready).ok(Air::Todo),
+            (
+                Ready,
+                Nir::Todo
+                | Nir::TodoAttr(..)
+                | Nir::Ref(..)
+                | Nir::Desc(..)
+                | Nir::Text(_)
+                | Nir::Open(NirEntity::TplParam, _)
+                | Nir::Close(NirEntity::TplParam, _),
+            ) => Transition(Ready).ok(Air::Todo),
         }
     }
 
