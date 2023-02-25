@@ -72,7 +72,7 @@ where
             Object::Root(_) => (),
             Object::Ident(ident) => dest.push(ident)?,
 
-            obj @ (Object::Pkg(_) | Object::Expr(_)) => {
+            obj @ (Object::Pkg(_) | Object::Expr(_) | Object::Tpl(_)) => {
                 diagnostic_unreachable!(
                     obj.internal_error(
                         "this object should not be present on the graph"

@@ -1,4 +1,4 @@
-// Root of the ASG.
+// Templates represented on the ASG
 //
 //  Copyright (C) 2014-2023 Ryan Specialty, LLC.
 //
@@ -17,86 +17,79 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Root node of the ASG.
+//! Templates on the ASG.
 
 use std::fmt::Display;
 
 use super::{
-    Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, Pkg,
+    Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy, ObjectRelatable,
 };
+use crate::span::Span;
 
-#[cfg(doc)]
-use super::ObjectKind;
+/// Template.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Tpl;
 
-/// A unit [`Object`] type representing the root node.
-///
-/// This exists for consistency with the rest of the object API,
-///   and for use with [`ObjectIndex`].
-#[derive(Debug, PartialEq)]
-pub struct Root;
+impl Tpl {
+    pub fn span(&self) -> Span {
+        todo!("Tpl::span")
+    }
+}
 
-impl Display for Root {
+impl Display for Tpl {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "ASG root")
+        write!(f, "template")
     }
 }
 
 /// Subset of [`ObjectKind`]s that are valid targets for edges from
-///   [`Ident`].
+///   [`Tpl`].
 ///
 /// See [`ObjectRel`] for more information.
 #[derive(Debug, PartialEq, Eq)]
-pub enum RootRel {
-    Pkg(ObjectIndex<Pkg>),
-    Ident(ObjectIndex<Ident>),
+pub enum TplRel {
+    // TODO
 }
 
-impl ObjectRel<Root> for RootRel {
-    fn narrow<OB: ObjectRelFrom<Root> + ObjectRelatable>(
+impl ObjectRel<Tpl> for TplRel {
+    fn narrow<OB: ObjectRelFrom<Tpl> + ObjectRelatable>(
         self,
     ) -> Option<ObjectIndex<OB>> {
-        match self {
-            Self::Ident(oi) => oi.filter_rel(),
-            Self::Pkg(oi) => oi.filter_rel(),
-        }
+        None
     }
 
-    /// The root of the graph by definition has no cross edges.
+    /// Whether this is a cross edge to another tree.
+    ///
+    /// An expression is inherently a tree,
+    ///   however it may contain references to other identifiers which
+    ///   represent their own trees.
+    /// Any [`Ident`] reference is a cross edge.
     fn is_cross_edge(&self) -> bool {
         false
     }
 }
 
-impl ObjectRelatable for Root {
-    type Rel = RootRel;
+impl ObjectRelatable for Tpl {
+    type Rel = TplRel;
 
     fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Root
+        ObjectRelTy::Tpl
     }
 
     fn new_rel_dyn(
         ty: ObjectRelTy,
-        oi: ObjectIndex<Object>,
-    ) -> Option<RootRel> {
+        _oi: ObjectIndex<Object>,
+    ) -> Option<TplRel> {
         match ty {
             ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => Some(RootRel::Pkg(oi.must_narrow_into())),
-            ObjectRelTy::Ident => Some(RootRel::Ident(oi.must_narrow_into())),
+            ObjectRelTy::Pkg => None,
+            ObjectRelTy::Ident => None,
             ObjectRelTy::Expr => None,
             ObjectRelTy::Tpl => None,
         }
     }
 }
 
-impl From<ObjectIndex<Pkg>> for RootRel {
-    fn from(value: ObjectIndex<Pkg>) -> Self {
-        Self::Pkg(value)
-    }
-}
-
-impl From<ObjectIndex<Ident>> for RootRel {
-    fn from(value: ObjectIndex<Ident>) -> Self {
-        Self::Ident(value)
-    }
+impl ObjectIndex<Tpl> {
+    // TODO
 }

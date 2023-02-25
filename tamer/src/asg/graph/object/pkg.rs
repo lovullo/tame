@@ -100,6 +100,7 @@ impl ObjectRelatable for Pkg {
             ObjectRelTy::Pkg => None,
             ObjectRelTy::Ident => Some(PkgRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => None,
+            ObjectRelTy::Tpl => None,
         }
     }
 }

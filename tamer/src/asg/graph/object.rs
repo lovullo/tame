@@ -122,6 +122,7 @@ pub mod ident;
 pub mod pkg;
 mod rel;
 pub mod root;
+pub mod tpl;
 
 pub use expr::Expr;
 pub use ident::Ident;
@@ -131,6 +132,7 @@ pub use rel::{
     ObjectRelatable,
 };
 pub use root::Root;
+pub use tpl::Tpl;
 
 /// An object on the ASG.
 ///
@@ -161,6 +163,9 @@ pub enum Object<T: ObjectInner = OnlyObjectInner> {
     ///
     /// An expression may optionally be named by one or more [`Ident`]s.
     Expr(T::Expr),
+
+    /// A template definition.
+    Tpl(T::Tpl),
 }
 
 /// The collection of potential objects of [`Object`].
@@ -169,6 +174,7 @@ pub trait ObjectInner {
     type Pkg;
     type Ident;
     type Expr;
+    type Tpl;
 }
 
 /// An [`ObjectInner`] where each constituent type implements [`Display`].
@@ -177,7 +183,8 @@ where
     <Self as ObjectInner>::Root: Display,
     <Self as ObjectInner>::Pkg: Display,
     <Self as ObjectInner>::Ident: Display,
-    <Self as ObjectInner>::Expr: Display;
+    <Self as ObjectInner>::Expr: Display,
+    <Self as ObjectInner>::Tpl: Display;
 
 /// Concrete [`ObjectKind`]s and nothing more.
 #[derive(Debug, PartialEq)]
@@ -188,6 +195,7 @@ impl ObjectInner for OnlyObjectInner {
     type Pkg = Pkg;
     type Ident = Ident;
     type Expr = Expr;
+    type Tpl = Tpl;
 }
 
 /// References to [`OnlyObjectInner`].
@@ -202,6 +210,7 @@ impl<'a> ObjectInner for RefObjectInner<'a> {
     type Pkg = &'a Pkg;
     type Ident = &'a Ident;
     type Expr = &'a Expr;
+    type Tpl = &'a Tpl;
 }
 
 /// A [`RefObjectInner`] paired with an [`ObjectIndex`] representing it.
@@ -221,6 +230,7 @@ impl<'a> ObjectInner for OiPairObjectInner<'a> {
     type Pkg = (&'a Pkg, ObjectIndex<Pkg>);
     type Ident = (&'a Ident, ObjectIndex<Ident>);
     type Expr = (&'a Expr, ObjectIndex<Expr>);
+    type Tpl = (&'a Tpl, ObjectIndex<Tpl>);
 }
 
 impl<T: DisplayableObjectInner> Display for Object<T> {
@@ -230,6 +240,7 @@ impl<T: DisplayableObjectInner> Display for Object<T> {
             Self::Pkg(pkg) => Display::fmt(pkg, f),
             Self::Ident(ident) => Display::fmt(ident, f),
             Self::Expr(expr) => Display::fmt(expr, f),
+            Self::Tpl(tpl) => Display::fmt(tpl, f),
         }
     }
 }
@@ -245,6 +256,7 @@ macro_rules! map_object {
             Object::Pkg($inner) => Object::Pkg($map),
             Object::Ident($inner) => Object::Ident($map),
             Object::Expr($inner) => Object::Expr($map),
+            Object::Tpl($inner) => Object::Tpl($map),
         }
     };
 }
@@ -256,6 +268,7 @@ impl Object<OnlyObjectInner> {
             Self::Pkg(pkg) => pkg.span(),
             Self::Ident(ident) => ident.span(),
             Self::Expr(expr) => expr.span(),
+            Self::Tpl(tpl) => tpl.span(),
         }
     }
 
@@ -375,6 +388,12 @@ impl From<Expr> for Object {
     }
 }
 
+impl From<Tpl> for Object {
+    fn from(tpl: Tpl) -> Self {
+        Self::Tpl(tpl)
+    }
+}
+
 impl From<Object> for Root {
     /// Narrow an object into an [`Root`],
     ///   panicing if the object is not of that type.
@@ -419,6 +438,17 @@ impl From<Object> for Expr {
     }
 }
 
+impl From<Object> for Tpl {
+    /// Narrow an object into an [`Expr`],
+    ///   panicing if the object is not of that type.
+    fn from(val: Object) -> Self {
+        match val {
+            Object::Tpl(tpl) => tpl,
+            _ => val.narrowing_panic("a template"),
+        }
+    }
+}
+
 impl AsRef<Object> for Object {
     fn as_ref(&self) -> &Object {
         self
@@ -457,6 +487,15 @@ impl AsRef<Expr> for Object {
         match self {
             Object::Expr(ref expr) => expr,
             _ => self.narrowing_panic("an expression"),
+        }
+    }
+}
+
+impl AsRef<Tpl> for Object {
+    fn as_ref(&self) -> &Tpl {
+        match self {
+            Object::Tpl(ref tpl) => tpl,
+            _ => self.narrowing_panic("a template"),
         }
     }
 }

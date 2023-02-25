@@ -1022,6 +1022,7 @@ impl ObjectRelatable for Ident {
             ObjectRelTy::Pkg => None,
             ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
             ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
+            ObjectRelTy::Tpl => None,
         }
     }
 }

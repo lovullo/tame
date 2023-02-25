@@ -23,7 +23,11 @@
 use super::{
     Expr, Ident, Object, ObjectIndex, ObjectKind, OiPairObjectInner, Pkg, Root,
 };
-use crate::{asg::Asg, f::Functor, span::Span};
+use crate::{
+    asg::{graph::object::Tpl, Asg},
+    f::Functor,
+    span::Span,
+};
 use std::fmt::Display;
 
 /// Object types corresponding to variants in [`Object`].
@@ -41,6 +45,7 @@ pub enum ObjectRelTy {
     Pkg,
     Ident,
     Expr,
+    Tpl,
 }
 
 impl Display for ObjectRelTy {
@@ -177,7 +182,7 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
             }
         }
 
-        ty_cross_edge!(Root, Pkg, Ident, Expr)
+        ty_cross_edge!(Root, Pkg, Ident, Expr, Tpl)
     }
 }
 

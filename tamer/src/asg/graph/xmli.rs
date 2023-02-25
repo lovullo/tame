@@ -185,6 +185,8 @@ impl<'a> TreeContext<'a> {
                 self.emit_expr(expr, paired_rel.source(), depth)
             }
 
+            Object::Tpl((tpl, oi)) => todo!("tpl: {tpl:?}, {oi:?}"),
+
             Object::Root(..) => diagnostic_unreachable!(
                 vec![],
                 "tree walk is not expected to emit Root",
