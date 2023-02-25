@@ -80,11 +80,22 @@ impl ParseState for NirToAir {
             (Ready, Nir::Open(NirEntity::Product, span)) => {
                 Transition(Ready).ok(Air::ExprOpen(ExprOp::Product, span))
             }
+            (Ready, Nir::Open(NirEntity::Classify | NirEntity::All, span)) => {
+                Transition(Ready).ok(Air::ExprOpen(ExprOp::Conj, span))
+            }
+            (Ready, Nir::Open(NirEntity::Any, span)) => {
+                Transition(Ready).ok(Air::ExprOpen(ExprOp::Disj, span))
+            }
 
             (
                 Ready,
                 Nir::Close(
-                    NirEntity::Rate | NirEntity::Sum | NirEntity::Product,
+                    NirEntity::Rate
+                    | NirEntity::Sum
+                    | NirEntity::Product
+                    | NirEntity::Classify
+                    | NirEntity::All
+                    | NirEntity::Any,
                     span,
                 ),
             ) => Transition(Ready).ok(Air::ExprClose(span)),

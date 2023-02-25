@@ -389,15 +389,16 @@ ele_parse! {
     /// A classification is a logic expression yielding a boolean result
     ///   with the dimensionality matching the largest dimensionality of its
     ///   inputs.
-    ClassifyStmt := QN_CLASSIFY {
+    ClassifyStmt := QN_CLASSIFY(_, ospan) {
         @ {
-            QN_AS => TodoAttr,
+            QN_AS => BindIdent,
             QN_DESC => TodoAttr,
             QN_ANY => TodoAttr,
             QN_YIELDS => TodoAttr,
             QN_SYM => TodoAttr,
             QN_TERMINATE => TodoAttr,
-        } => Todo,
+        } => NirEntity::Classify.open(ospan),
+        /(cspan) => NirEntity::Classify.close(cspan),
 
         LogExpr,
     };
@@ -595,8 +596,9 @@ ele_parse! {
     ///
     /// This represents an expression that matches when _any_ of its inner
     ///   [`LogExpr`] expressions match.
-    AnyExpr := QN_ANY {
-        @ {} => Todo,
+    AnyExpr := QN_ANY(_, ospan) {
+        @ {} => NirEntity::Any.open(ospan),
+        /(cspan) => NirEntity::Any.close(cspan),
 
         LogExpr,
     };
@@ -605,8 +607,9 @@ ele_parse! {
     ///
     /// This represents an expression that matches when _all_ of its inner
     ///   [`LogExpr`] expressions match.
-    AllExpr := QN_ALL {
-        @ {} => Todo,
+    AllExpr := QN_ALL(_, ospan) {
+        @ {} => NirEntity::All.open(ospan),
+        /(cspan) => NirEntity::All.close(cspan),
 
         LogExpr,
     };

@@ -11,12 +11,24 @@
 
   <rate yields="rateBaz">
     <c:sum>
+      <c:product />
       <c:sum />
     </c:sum>
-    <c:sum>
+    <c:product>
       <c:sum />
+      <c:product />
       <c:sum />
-    </c:sum>
+    </c:product>
   </rate>
-</package>
 
+  <classify as="always" />
+
+  <classify as="sometimes">
+    <any>
+      <all />
+      <any />
+      <all />
+    </any>
+    <any />
+  </classify>
+</package>

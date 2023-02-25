@@ -90,8 +90,14 @@ impl Display for Expr {
 ///     as was the original plan with TAMER.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ExprOp {
+    // Summation (+)
     Sum,
+    // Product (×)
     Product,
+    // Logical conjunction (∧)
+    Conj,
+    // Logical disjunction (∨)
+    Disj,
 }
 
 impl Display for ExprOp {
@@ -99,8 +105,10 @@ impl Display for ExprOp {
         use ExprOp::*;
 
         match self {
-            Sum => write!(f, "sum"),
-            Product => write!(f, "product"),
+            Sum => write!(f, "sum (+)"),
+            Product => write!(f, "product (×)"),
+            Conj => write!(f, "conjunctive (∧)"),
+            Disj => write!(f, "disjunctive (∨)"),
         }
     }
 }

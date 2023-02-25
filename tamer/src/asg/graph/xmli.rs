@@ -36,11 +36,11 @@ use super::object::{
 use crate::{
     asg::{
         visit::{Depth, TreeWalkRel},
-        Asg, ExprOp,
+        Asg, ExprOp, Ident,
     },
     diagnose::Annotate,
     diagnostic_panic, diagnostic_unreachable,
-    parse::{prelude::*, util::SPair, Transitionable},
+    parse::{prelude::*, Transitionable},
     span::{Span, UNKNOWN_SPAN},
     sym::{
         st::{URI_LV_CALC, URI_LV_RATER, URI_LV_TPL},
@@ -230,11 +230,37 @@ impl<'a> TreeContext<'a> {
     ) -> Option<Xirf> {
         match src {
             Object::Ident((ident, _)) => {
-                self.push(yields(ident.name(), expr.span()));
-                Some(stmt(expr, depth))
+                self.emit_expr_ident(expr, ident, depth)
             }
             _ => Some(expr_ele(expr, depth)),
         }
+    }
+
+    /// Emit an identified expression.
+    ///
+    /// Legacy TAME is only able to bind certain identifiers via statements
+    ///   such as `rate` and `classify`.
+    fn emit_expr_ident(
+        &mut self,
+        expr: &Expr,
+        ident: &Ident,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        let (qname, ident_qname) = match expr.op() {
+            ExprOp::Sum => (QN_RATE, QN_YIELDS),
+            ExprOp::Conj => (QN_CLASSIFY, QN_AS),
+
+            ExprOp::Product | ExprOp::Disj => todo!("stmt: {expr:?}"),
+        };
+
+        let ispan = ident.span();
+        self.push(Xirf::attr(ident_qname, ident.name(), (ispan, ispan)));
+
+        Some(Xirf::open(
+            qname,
+            OpenSpan::without_name_span(expr.span()),
+            depth,
+        ))
     }
 
     fn push(&mut self, tok: Xirf) {
@@ -292,24 +318,14 @@ fn ns(qname: QName, uri: UriStaticSymbolId, span: Span) -> Xirf {
     Xirf::attr(qname, uri, (span, span))
 }
 
-fn stmt(expr: &Expr, depth: Depth) -> Xirf {
-    match expr.op() {
-        ExprOp::Sum => {
-            Xirf::open(QN_RATE, OpenSpan::without_name_span(expr.span()), depth)
-        }
-
-        _ => todo!("stmt: {expr:?}"),
-    }
-}
-
-fn yields(name: SPair, span: Span) -> Xirf {
-    Xirf::attr(QN_YIELDS, name, (span, name))
-}
-
 fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
+    use ExprOp::*;
+
     let qname = match expr.op() {
-        ExprOp::Sum => QN_C_SUM,
-        ExprOp::Product => QN_C_PRODUCT,
+        Sum => QN_C_SUM,
+        Product => QN_C_PRODUCT,
+        Conj => QN_ALL,
+        Disj => QN_ANY,
     };
 
     Xirf::open(qname, OpenSpan::without_name_span(expr.span()), depth)

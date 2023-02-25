@@ -76,3 +76,43 @@ fn calc_exprs() {
         Sut::parse(toks.into_iter()).collect(),
     );
 }
+
+#[test]
+fn classify_to_conj_expr() {
+    let id = SPair("always".into(), S2);
+
+    let toks = vec![
+        Nir::Open(NirEntity::Classify, S1),
+        Nir::BindIdent(id),
+        Nir::Close(NirEntity::Classify, S3),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            O(Air::ExprOpen(ExprOp::Conj, S1)),
+            O(Air::ExprIdent(id)),
+            O(Air::ExprClose(S3)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+#[test]
+fn logic_exprs() {
+    let toks = vec![
+        Nir::Open(NirEntity::All, S1),
+        Nir::Open(NirEntity::Any, S2),
+        Nir::Close(NirEntity::Any, S3),
+        Nir::Close(NirEntity::All, S4),
+    ];
+
+    assert_eq!(
+        Ok(vec![
+            O(Air::ExprOpen(ExprOp::Conj, S1)),
+            O(Air::ExprOpen(ExprOp::Disj, S2)),
+            O(Air::ExprClose(S3)),
+            O(Air::ExprClose(S4)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}

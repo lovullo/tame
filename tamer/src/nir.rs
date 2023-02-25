@@ -183,11 +183,17 @@ pub enum NirEntity {
     /// Rate (verb) block,
     ///   representing a calculation with a scalar result.
     Rate,
-
     /// Summation (Σ) expression.
     Sum,
     /// Product (Π) expression.
     Product,
+
+    // Classification.
+    Classify,
+    /// Conjunctive (∧) expression.
+    All,
+    /// Disjunctive (∨) expression.
+    Any,
 
     /// Template parameter (metavariable).
     TplParam,
@@ -209,9 +215,15 @@ impl Display for NirEntity {
 
         match self {
             Package => write!(f, "package"),
+
             Rate => write!(f, "rate block"),
             Sum => write!(f, "sum (∑) expression"),
             Product => write!(f, "product (Π) expression"),
+
+            Classify => write!(f, "classification"),
+            All => write!(f, "conjunctive (∧) expression"),
+            Any => write!(f, "disjunctive (∨) expression"),
+
             TplParam => write!(f, "template param (metavariable)"),
         }
     }
