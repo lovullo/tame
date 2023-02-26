@@ -967,28 +967,7 @@ pub struct Source {
     pub override_: bool,
 }
 
-/// Subset of [`ObjectKind`]s that are valid targets for edges from
-///   [`Ident`].
-///
-/// See [`ObjectRel`] for more information.
-#[derive(Debug, PartialEq, Eq)]
-pub enum IdentRel {
-    Ident(ObjectIndex<Ident>),
-    Expr(ObjectIndex<Expr>),
-}
-
-impl ObjectRel<Ident> for IdentRel {
-    fn narrow<OB: ObjectRelFrom<Ident> + ObjectRelatable>(
-        self,
-    ) -> Option<ObjectIndex<OB>> {
-        match self {
-            Self::Ident(oi) => oi.filter_rel(),
-            Self::Expr(oi) => oi.filter_rel(),
-        }
-    }
-
-    /// Whether this edge is a cross edge to another tree.
-    ///
+object_rel! {
     /// Identifiers are either transparent
     ///   (bound to a definition)
     ///   or opaque.
@@ -1001,41 +980,9 @@ impl ObjectRel<Ident> for IdentRel {
     ///     (again at the time of writing).
     /// Consequently,
     ///   this will always return [`false`].
-    fn is_cross_edge(&self) -> bool {
-        false
-    }
-}
-
-impl ObjectRelatable for Ident {
-    type Rel = IdentRel;
-
-    fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Ident
-    }
-
-    fn new_rel_dyn(
-        ty: ObjectRelTy,
-        oi: ObjectIndex<Object>,
-    ) -> Option<IdentRel> {
-        match ty {
-            ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => None,
-            ObjectRelTy::Ident => Some(IdentRel::Ident(oi.must_narrow_into())),
-            ObjectRelTy::Expr => Some(IdentRel::Expr(oi.must_narrow_into())),
-            ObjectRelTy::Tpl => None,
-        }
-    }
-}
-
-impl From<ObjectIndex<Ident>> for IdentRel {
-    fn from(value: ObjectIndex<Ident>) -> Self {
-        Self::Ident(value)
-    }
-}
-
-impl From<ObjectIndex<Expr>> for IdentRel {
-    fn from(value: ObjectIndex<Expr>) -> Self {
-        Self::Expr(value)
+    Ident -> {
+        tree Ident,
+        tree Expr,
     }
 }
 

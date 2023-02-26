@@ -30,23 +30,7 @@ use crate::{
 };
 use std::fmt::Display;
 
-/// Object types corresponding to variants in [`Object`].
-///
-/// These are used as small tags for [`ObjectRelatable`].
-/// Rust unfortunately makes working with its internal tags difficult,
-///   despite their efforts with [`std::mem::Discriminant`],
-///     which requires a _value_ to produce.
-///
-/// TODO: Encapsulate within `crate::asg` when the graph can be better
-///   encapsulated.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ObjectRelTy {
-    Root,
-    Pkg,
-    Ident,
-    Expr,
-    Tpl,
-}
+pub use super::ObjectTy as ObjectRelTy;
 
 impl Display for ObjectRelTy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -54,6 +38,95 @@ impl Display for ObjectRelTy {
         //   this happens to be sufficient.
         std::fmt::Debug::fmt(self, f)
     }
+}
+
+/// Declare relations for an [`ObjectKind`].
+///
+/// This generates an [`ObjectRel`] type for the provided [`ObjectKind`] and
+///   binds it to the kind using [`ObjectRelatable`].
+///
+/// Each relationship must be explicitly specified as either a `tree` or
+///   `cross` edge.
+/// For more information on cross edges,
+///   see [`ObjectRel::is_cross_edge`].
+macro_rules! object_rel {
+    (
+        $(#[$attr:meta])+
+        $from:ident -> {
+            $($ety:ident $kind:ident,)*
+        }
+    ) => {paste::paste! {
+        /// Subset of [`ObjectKind`]s that are valid targets for edges from
+        #[doc=concat!("[`", stringify!($from), "`].")]
+        ///
+        $(#[$attr])+
+        ///
+        /// See [`ObjectRel`] for more information.
+        ///
+        /// [`ObjectKind`]: crate::asg::ObjectKind
+        #[derive(Debug, PartialEq, Eq)]
+        pub enum [<$from Rel>] {
+            $($kind(ObjectIndex<$kind>),)*
+        }
+
+        impl ObjectRel<$from> for [<$from Rel>] {
+            fn narrow<OB: ObjectRelFrom<$from> + ObjectRelatable>(
+                self,
+            ) -> Option<ObjectIndex<OB>> {
+                match self {
+                    $(Self::$kind(oi) => oi.filter_rel(),)*
+                }
+            }
+
+            /// The root of the graph by definition has no cross edges.
+            fn is_cross_edge(&self) -> bool {
+                match self {
+                    $(
+                        Self::$kind(..) => object_rel!(@is_cross_edge $ety),
+                    )*
+
+                    #[allow(unreachable_patterns)] // for empty Rel types
+                    _ => unreachable!(
+                        concat!(stringify!($from), "Rel is empty")
+                    ),
+                }
+            }
+        }
+
+        impl ObjectRelatable for $from {
+            type Rel = [<$from Rel>];
+
+            fn rel_ty() -> ObjectRelTy {
+                ObjectRelTy::$from
+            }
+
+            fn new_rel_dyn(
+                ty: ObjectRelTy,
+                #[allow(unused_variables)] // for empty Rel
+                oi: ObjectIndex<Object>,
+            ) -> Option<[<$from Rel>]> {
+                match ty {
+                    $(
+                        ObjectRelTy::$kind => {
+                            Some(Self::Rel::$kind(oi.must_narrow_into()))
+                        },
+                    )*
+                    _ => None,
+                }
+            }
+        }
+
+        $(
+            impl From<ObjectIndex<$kind>> for [<$from Rel>] {
+                fn from(value: ObjectIndex<$kind>) -> Self {
+                    Self::$kind(value)
+                }
+            }
+        )*
+    }};
+
+    (@is_cross_edge cross) => { true };
+    (@is_cross_edge tree)  => { false };
 }
 
 /// A dynamic relationship (edge) from one object to another before it has

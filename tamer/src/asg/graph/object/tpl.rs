@@ -42,54 +42,9 @@ impl Display for Tpl {
     }
 }
 
-/// Subset of [`ObjectKind`]s that are valid targets for edges from
-///   [`Tpl`].
-///
-/// See [`ObjectRel`] for more information.
-#[derive(Debug, PartialEq, Eq)]
-pub enum TplRel {
-    // TODO
-}
-
-impl ObjectRel<Tpl> for TplRel {
-    fn narrow<OB: ObjectRelFrom<Tpl> + ObjectRelatable>(
-        self,
-    ) -> Option<ObjectIndex<OB>> {
-        None
+object_rel! {
+    /// TODO
+    Tpl -> {
+        // ...
     }
-
-    /// Whether this is a cross edge to another tree.
-    ///
-    /// An expression is inherently a tree,
-    ///   however it may contain references to other identifiers which
-    ///   represent their own trees.
-    /// Any [`Ident`] reference is a cross edge.
-    fn is_cross_edge(&self) -> bool {
-        false
-    }
-}
-
-impl ObjectRelatable for Tpl {
-    type Rel = TplRel;
-
-    fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Tpl
-    }
-
-    fn new_rel_dyn(
-        ty: ObjectRelTy,
-        _oi: ObjectIndex<Object>,
-    ) -> Option<TplRel> {
-        match ty {
-            ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => None,
-            ObjectRelTy::Ident => None,
-            ObjectRelTy::Expr => None,
-            ObjectRelTy::Tpl => None,
-        }
-    }
-}
-
-impl ObjectIndex<Tpl> {
-    // TODO
 }

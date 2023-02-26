@@ -58,56 +58,13 @@ impl Functor<Span> for Pkg {
     }
 }
 
-/// Subset of [`ObjectKind`]s that are valid targets for edges from
-///   [`Ident`].
-///
-/// See [`ObjectRel`] for more information.
-#[derive(Debug, PartialEq, Eq)]
-pub enum PkgRel {
-    Ident(ObjectIndex<Ident>),
-}
-
-impl ObjectRel<Pkg> for PkgRel {
-    fn narrow<OB: ObjectRelFrom<Pkg> + ObjectRelatable>(
-        self,
-    ) -> Option<ObjectIndex<OB>> {
-        match self {
-            Self::Ident(oi) => oi.filter_rel(),
-        }
-    }
-
-    /// Whether this is a cross edge to another package tree.
-    ///
+object_rel! {
     /// Packages serve as a root for all identifiers defined therein,
     ///   and so an edge to [`Ident`] will never be a cross edge.
     ///
     /// Imported [`Ident`]s do not have edges from this package.
-    fn is_cross_edge(&self) -> bool {
-        false
-    }
-}
-
-impl ObjectRelatable for Pkg {
-    type Rel = PkgRel;
-
-    fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Pkg
-    }
-
-    fn new_rel_dyn(ty: ObjectRelTy, oi: ObjectIndex<Object>) -> Option<PkgRel> {
-        match ty {
-            ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => None,
-            ObjectRelTy::Ident => Some(PkgRel::Ident(oi.must_narrow_into())),
-            ObjectRelTy::Expr => None,
-            ObjectRelTy::Tpl => None,
-        }
-    }
-}
-
-impl From<ObjectIndex<Ident>> for PkgRel {
-    fn from(value: ObjectIndex<Ident>) -> Self {
-        Self::Ident(value)
+    Pkg -> {
+        tree Ident,
     }
 }
 

@@ -42,61 +42,10 @@ impl Display for Root {
     }
 }
 
-/// Subset of [`ObjectKind`]s that are valid targets for edges from
-///   [`Ident`].
-///
-/// See [`ObjectRel`] for more information.
-#[derive(Debug, PartialEq, Eq)]
-pub enum RootRel {
-    Pkg(ObjectIndex<Pkg>),
-    Ident(ObjectIndex<Ident>),
-}
-
-impl ObjectRel<Root> for RootRel {
-    fn narrow<OB: ObjectRelFrom<Root> + ObjectRelatable>(
-        self,
-    ) -> Option<ObjectIndex<OB>> {
-        match self {
-            Self::Ident(oi) => oi.filter_rel(),
-            Self::Pkg(oi) => oi.filter_rel(),
-        }
-    }
-
+object_rel! {
     /// The root of the graph by definition has no cross edges.
-    fn is_cross_edge(&self) -> bool {
-        false
-    }
-}
-
-impl ObjectRelatable for Root {
-    type Rel = RootRel;
-
-    fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Root
-    }
-
-    fn new_rel_dyn(
-        ty: ObjectRelTy,
-        oi: ObjectIndex<Object>,
-    ) -> Option<RootRel> {
-        match ty {
-            ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => Some(RootRel::Pkg(oi.must_narrow_into())),
-            ObjectRelTy::Ident => Some(RootRel::Ident(oi.must_narrow_into())),
-            ObjectRelTy::Expr => None,
-            ObjectRelTy::Tpl => None,
-        }
-    }
-}
-
-impl From<ObjectIndex<Pkg>> for RootRel {
-    fn from(value: ObjectIndex<Pkg>) -> Self {
-        Self::Pkg(value)
-    }
-}
-
-impl From<ObjectIndex<Ident>> for RootRel {
-    fn from(value: ObjectIndex<Ident>) -> Self {
-        Self::Ident(value)
+    Root -> {
+        tree Pkg,
+        tree Ident,
     }
 }

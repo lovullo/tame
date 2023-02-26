@@ -117,10 +117,12 @@ use crate::{
 use petgraph::graph::NodeIndex;
 use std::{convert::Infallible, fmt::Display, marker::PhantomData};
 
+#[macro_use]
+mod rel;
+
 pub mod expr;
 pub mod ident;
 pub mod pkg;
-mod rel;
 pub mod root;
 pub mod tpl;
 
@@ -134,131 +136,174 @@ pub use rel::{
 pub use root::Root;
 pub use tpl::Tpl;
 
-/// An object on the ASG.
+/// Given a list of [`ObjectKind`]s,
+///   generate [`Object`],
+///   associated types,
+///   and various [`From`]/[`AsRef`] implementations for [`ObjectKind`]
+///     widening and narrowing.
 ///
-/// This is generic over its inner values to support using [`Object`] as a
-///   sum type in a variety of different contexts where [`ObjectKind`] may
-///   be used.
-/// The concrete [`ObjectInner`] that is stored on the ASG itself is
-///   [`OnlyObjectInner`].
-///
-/// See the [module-level documentation](super) for more information.
-#[derive(Debug, PartialEq)]
-pub enum Object<T: ObjectInner = OnlyObjectInner> {
+/// This macro must be applied only once.
+macro_rules! object_gen {
+    (
+        $(
+            $(#[$attr:meta])*
+            $kind:ident,
+        )+
+    ) => {
+        /// An object on the ASG.
+        ///
+        /// This is generic over its inner values to support using
+        ///   [`Object`] as a sum type in a variety of different contexts
+        ///   where [`ObjectKind`] may be used.
+        /// The concrete [`ObjectInner`] that is stored on the ASG itself is
+        ///   [`OnlyObjectInner`].
+        ///
+        /// See the [module-level documentation](super) for more
+        ///   information.
+        #[derive(Debug, PartialEq)]
+        pub enum Object<T: ObjectInner = OnlyObjectInner> {
+            $(
+                $(#[$attr])*
+                $kind(T::$kind),
+            )+
+        }
+
+        /// Object types corresponding to variants in [`Object`].
+        ///
+        /// These are used as small tags for [`ObjectRelatable`].
+        /// Rust unfortunately makes working with its internal tags
+        ///   difficult,
+        ///     despite their efforts with [`std::mem::Discriminant`],
+        ///       which requires a _value_ to produce.
+        ///
+        /// TODO: Encapsulate within `crate::asg` when the graph can be better
+        ///   encapsulated.
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        pub enum ObjectTy {
+            $($kind,)+
+        }
+
+        /// The collection of potential objects of [`Object`].
+        pub trait ObjectInner {
+            $(type $kind;)+
+        }
+
+        /// An [`ObjectInner`] where each constituent type implements
+        ///   [`Display`].
+        trait DisplayableObjectInner = ObjectInner
+        where
+            $(<Self as ObjectInner>::$kind: Display,)+;
+
+        /// Concrete [`ObjectKind`]s and nothing more.
+        #[derive(Debug, PartialEq)]
+        pub struct OnlyObjectInner;
+
+        impl ObjectInner for OnlyObjectInner {
+            $(type $kind = $kind;)+
+        }
+
+        /// References to [`OnlyObjectInner`].
+        ///
+        /// This allows for `Object<&T>`.
+        /// See [`Object::inner_as_ref`] for more information.
+        #[derive(Debug, PartialEq)]
+        pub struct RefObjectInner<'a>(PhantomData<&'a ()>);
+
+        impl<'a> ObjectInner for RefObjectInner<'a> {
+            $(type $kind = &'a $kind;)+
+        }
+
+        /// A [`RefObjectInner`] paired with an [`ObjectIndex`] that
+        ///   represents it.
+        ///
+        /// This is desirable when an [`ObjectIndex`] is resolved but is
+        ///   still needed for graph operations.
+        /// The pair ensures that,
+        ///   when the inner [`ObjectKind`] is narrowed,
+        ///   the paired [`ObjectIndex`] will too be narrowed to the same
+        ///     kind,
+        ///       limiting logic bugs that may result from otherwise having
+        ///       to manually narrow types.
+        #[derive(Debug, PartialEq)]
+        pub struct OiPairObjectInner<'a>(PhantomData<&'a ()>);
+
+        impl<'a> ObjectInner for OiPairObjectInner<'a> {
+            $(type $kind = (&'a $kind, ObjectIndex<$kind>);)+
+        }
+
+        impl<T: DisplayableObjectInner> Display for Object<T> {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(Self::$kind(x) => Display::fmt(x, f),)+
+                }
+            }
+        }
+
+        $(
+            impl From<$kind> for Object {
+                fn from(x: $kind) -> Self {
+                    Self::$kind(x)
+                }
+            }
+
+            impl From<Object> for $kind {
+                /// Narrow an object into an [`Root`],
+                ///   panicing if the object is not of that type.
+                fn from(obj: Object) -> Self {
+                    match obj {
+                        Object::$kind(x) => x,
+                        _ => obj.narrowing_panic(stringify!($kind)),
+                    }
+                }
+            }
+
+            impl AsRef<$kind> for Object {
+                fn as_ref(&self) -> &$kind {
+                    match self {
+                        Object::$kind(ref x) => x,
+                        _ => self.narrowing_panic(stringify!($kind)),
+                    }
+                }
+            }
+        )+
+
+        /// Generate boilerplate `match`es for individual [`Object`]
+        ///   variants.
+        ///
+        /// Rust will infer the [`Object`]'s [`ObjectInner`] from the
+        ///   surrounding context.
+        macro_rules! map_object {
+            ($obj:expr, $inner:ident => $map:expr) => {
+                match $obj {
+                    $(Object::$kind($inner) => Object::$kind($map),)+
+                }
+            };
+        }
+    }
+}
+
+object_gen! {
     /// Represents the root of all reachable identifiers.
     ///
     /// Any identifier not reachable from the root will not be linked into
     ///   the final executable.
     ///
     /// There should be only one object of this kind.
-    Root(T::Root),
+    Root,
 
     /// A package of identifiers.
-    Pkg(T::Pkg),
+    Pkg,
 
     /// Identifier (a named object).
-    Ident(T::Ident),
+    Ident,
 
     /// Expression.
     ///
     /// An expression may optionally be named by one or more [`Ident`]s.
-    Expr(T::Expr),
+    Expr,
 
     /// A template definition.
-    Tpl(T::Tpl),
-}
-
-/// The collection of potential objects of [`Object`].
-pub trait ObjectInner {
-    type Root;
-    type Pkg;
-    type Ident;
-    type Expr;
-    type Tpl;
-}
-
-/// An [`ObjectInner`] where each constituent type implements [`Display`].
-trait DisplayableObjectInner = ObjectInner
-where
-    <Self as ObjectInner>::Root: Display,
-    <Self as ObjectInner>::Pkg: Display,
-    <Self as ObjectInner>::Ident: Display,
-    <Self as ObjectInner>::Expr: Display,
-    <Self as ObjectInner>::Tpl: Display;
-
-/// Concrete [`ObjectKind`]s and nothing more.
-#[derive(Debug, PartialEq)]
-pub struct OnlyObjectInner;
-
-impl ObjectInner for OnlyObjectInner {
-    type Root = Root;
-    type Pkg = Pkg;
-    type Ident = Ident;
-    type Expr = Expr;
-    type Tpl = Tpl;
-}
-
-/// References to [`OnlyObjectInner`].
-///
-/// This allows for `Object<&T>`.
-/// See [`Object::inner_as_ref`] for more information.
-#[derive(Debug, PartialEq)]
-pub struct RefObjectInner<'a>(PhantomData<&'a ()>);
-
-impl<'a> ObjectInner for RefObjectInner<'a> {
-    type Root = &'a Root;
-    type Pkg = &'a Pkg;
-    type Ident = &'a Ident;
-    type Expr = &'a Expr;
-    type Tpl = &'a Tpl;
-}
-
-/// A [`RefObjectInner`] paired with an [`ObjectIndex`] representing it.
-///
-/// This is desirable when an [`ObjectIndex`] is resolved but is still
-///   needed for graph operations.
-/// The pair ensures that,
-///   when the inner [`ObjectKind`] is narrowed,
-///   the paired [`ObjectIndex`] will too be narrowed to the same kind,
-///     limiting logic bugs that may result from otherwise having to
-///     manually narrow types.
-#[derive(Debug, PartialEq)]
-pub struct OiPairObjectInner<'a>(PhantomData<&'a ()>);
-
-impl<'a> ObjectInner for OiPairObjectInner<'a> {
-    type Root = (&'a Root, ObjectIndex<Root>);
-    type Pkg = (&'a Pkg, ObjectIndex<Pkg>);
-    type Ident = (&'a Ident, ObjectIndex<Ident>);
-    type Expr = (&'a Expr, ObjectIndex<Expr>);
-    type Tpl = (&'a Tpl, ObjectIndex<Tpl>);
-}
-
-impl<T: DisplayableObjectInner> Display for Object<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Root(root) => Display::fmt(root, f),
-            Self::Pkg(pkg) => Display::fmt(pkg, f),
-            Self::Ident(ident) => Display::fmt(ident, f),
-            Self::Expr(expr) => Display::fmt(expr, f),
-            Self::Tpl(tpl) => Display::fmt(tpl, f),
-        }
-    }
-}
-
-/// Generate boilerplate `match`es for individual [`Object`] variants.
-///
-/// Rust will infer the [`Object`]'s [`ObjectInner`] from the surrounding
-///   context.
-macro_rules! map_object {
-    ($obj:expr, $inner:ident => $map:expr) => {
-        match $obj {
-            Object::Root($inner) => Object::Root($map),
-            Object::Pkg($inner) => Object::Pkg($map),
-            Object::Ident($inner) => Object::Ident($map),
-            Object::Expr($inner) => Object::Expr($map),
-            Object::Tpl($inner) => Object::Tpl($map),
-        }
-    };
+    Tpl,
 }
 
 impl Object<OnlyObjectInner> {
@@ -364,139 +409,9 @@ impl From<&Object> for Span {
     }
 }
 
-impl From<Root> for Object {
-    fn from(root: Root) -> Self {
-        Self::Root(root)
-    }
-}
-
-impl From<Pkg> for Object {
-    fn from(pkg: Pkg) -> Self {
-        Self::Pkg(pkg)
-    }
-}
-
-impl From<Ident> for Object {
-    fn from(ident: Ident) -> Self {
-        Self::Ident(ident)
-    }
-}
-
-impl From<Expr> for Object {
-    fn from(expr: Expr) -> Self {
-        Self::Expr(expr)
-    }
-}
-
-impl From<Tpl> for Object {
-    fn from(tpl: Tpl) -> Self {
-        Self::Tpl(tpl)
-    }
-}
-
-impl From<Object> for Root {
-    /// Narrow an object into an [`Root`],
-    ///   panicing if the object is not of that type.
-    fn from(val: Object) -> Self {
-        match val {
-            Object::Root(root) => root,
-            _ => val.narrowing_panic("the root"),
-        }
-    }
-}
-
-impl From<Object> for Pkg {
-    /// Narrow an object into an [`Ident`],
-    ///   panicing if the object is not of that type.
-    fn from(val: Object) -> Self {
-        match val {
-            Object::Pkg(pkg) => pkg,
-            _ => val.narrowing_panic("a package"),
-        }
-    }
-}
-
-impl From<Object> for Ident {
-    /// Narrow an object into an [`Ident`],
-    ///   panicing if the object is not of that type.
-    fn from(val: Object) -> Self {
-        match val {
-            Object::Ident(ident) => ident,
-            _ => val.narrowing_panic("an identifier"),
-        }
-    }
-}
-
-impl From<Object> for Expr {
-    /// Narrow an object into an [`Expr`],
-    ///   panicing if the object is not of that type.
-    fn from(val: Object) -> Self {
-        match val {
-            Object::Expr(expr) => expr,
-            _ => val.narrowing_panic("an expression"),
-        }
-    }
-}
-
-impl From<Object> for Tpl {
-    /// Narrow an object into an [`Expr`],
-    ///   panicing if the object is not of that type.
-    fn from(val: Object) -> Self {
-        match val {
-            Object::Tpl(tpl) => tpl,
-            _ => val.narrowing_panic("a template"),
-        }
-    }
-}
-
 impl AsRef<Object> for Object {
     fn as_ref(&self) -> &Object {
         self
-    }
-}
-
-impl AsRef<Root> for Object {
-    fn as_ref(&self) -> &Root {
-        match self {
-            Object::Root(ref root) => root,
-            _ => self.narrowing_panic("the root"),
-        }
-    }
-}
-
-impl AsRef<Pkg> for Object {
-    fn as_ref(&self) -> &Pkg {
-        match self {
-            Object::Pkg(ref pkg) => pkg,
-            _ => self.narrowing_panic("a package"),
-        }
-    }
-}
-
-impl AsRef<Ident> for Object {
-    fn as_ref(&self) -> &Ident {
-        match self {
-            Object::Ident(ref ident) => ident,
-            _ => self.narrowing_panic("an identifier"),
-        }
-    }
-}
-
-impl AsRef<Expr> for Object {
-    fn as_ref(&self) -> &Expr {
-        match self {
-            Object::Expr(ref expr) => expr,
-            _ => self.narrowing_panic("an expression"),
-        }
-    }
-}
-
-impl AsRef<Tpl> for Object {
-    fn as_ref(&self) -> &Tpl {
-        match self {
-            Object::Tpl(ref tpl) => tpl,
-            _ => self.narrowing_panic("a template"),
-        }
     }
 }
 

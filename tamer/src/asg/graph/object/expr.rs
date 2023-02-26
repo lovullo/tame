@@ -207,70 +207,14 @@ impl Display for DimState {
     }
 }
 
-/// Subset of [`ObjectKind`]s that are valid targets for edges from
-///   [`Expr`].
-///
-/// See [`ObjectRel`] for more information.
-#[derive(Debug, PartialEq, Eq)]
-pub enum ExprRel {
-    Ident(ObjectIndex<Ident>),
-    Expr(ObjectIndex<Expr>),
-}
-
-impl ObjectRel<Expr> for ExprRel {
-    fn narrow<OB: ObjectRelFrom<Expr> + ObjectRelatable>(
-        self,
-    ) -> Option<ObjectIndex<OB>> {
-        match self {
-            Self::Ident(oi) => oi.filter_rel(),
-            Self::Expr(oi) => oi.filter_rel(),
-        }
-    }
-
-    /// Whether this is a cross edge to another tree.
-    ///
+object_rel! {
     /// An expression is inherently a tree,
     ///   however it may contain references to other identifiers which
     ///   represent their own trees.
     /// Any [`Ident`] reference is a cross edge.
-    fn is_cross_edge(&self) -> bool {
-        match self {
-            Self::Ident(..) => true,
-            Self::Expr(..) => false,
-        }
-    }
-}
-
-impl ObjectRelatable for Expr {
-    type Rel = ExprRel;
-
-    fn rel_ty() -> ObjectRelTy {
-        ObjectRelTy::Expr
-    }
-
-    fn new_rel_dyn(
-        ty: ObjectRelTy,
-        oi: ObjectIndex<Object>,
-    ) -> Option<ExprRel> {
-        match ty {
-            ObjectRelTy::Root => None,
-            ObjectRelTy::Pkg => None,
-            ObjectRelTy::Ident => Some(ExprRel::Ident(oi.must_narrow_into())),
-            ObjectRelTy::Expr => Some(ExprRel::Expr(oi.must_narrow_into())),
-            ObjectRelTy::Tpl => None,
-        }
-    }
-}
-
-impl From<ObjectIndex<Ident>> for ExprRel {
-    fn from(value: ObjectIndex<Ident>) -> Self {
-        Self::Ident(value)
-    }
-}
-
-impl From<ObjectIndex<Expr>> for ExprRel {
-    fn from(value: ObjectIndex<Expr>) -> Self {
-        Self::Expr(value)
+    Expr -> {
+        cross Ident,
+        tree  Expr,
     }
 }
 
