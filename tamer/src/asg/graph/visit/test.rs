@@ -57,7 +57,7 @@ fn traverses_ontological_tree() {
     let toks = vec![
         PkgOpen(S1),
           ExprOpen(ExprOp::Sum, S2),
-            ExprIdent(id_a),
+            BindIdent(id_a),
 
             ExprOpen(ExprOp::Sum, S4),
             ExprClose(S5),
@@ -66,7 +66,7 @@ fn traverses_ontological_tree() {
           ExprClose(S7),
 
           ExprOpen(ExprOp::Sum, S8),
-            ExprIdent(id_b),
+            BindIdent(id_b),
           ExprClose(S10),
         PkgClose(S11),
     ];

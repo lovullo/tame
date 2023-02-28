@@ -50,7 +50,7 @@ fn rate_to_sum_expr() {
     assert_eq!(
         Ok(vec![
             O(Air::ExprOpen(ExprOp::Sum, S1)),
-            O(Air::ExprIdent(id)),
+            O(Air::BindIdent(id)),
             O(Air::ExprClose(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -90,7 +90,7 @@ fn classify_to_conj_expr() {
     assert_eq!(
         Ok(vec![
             O(Air::ExprOpen(ExprOp::Conj, S1)),
-            O(Air::ExprIdent(id)),
+            O(Air::BindIdent(id)),
             O(Air::ExprClose(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),

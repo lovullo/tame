@@ -101,7 +101,7 @@ impl ParseState for NirToAir {
             ) => Transition(Ready).ok(Air::ExprClose(span)),
 
             (Ready, Nir::BindIdent(spair)) => {
-                Transition(Ready).ok(Air::ExprIdent(spair))
+                Transition(Ready).ok(Air::BindIdent(spair))
             }
 
             (

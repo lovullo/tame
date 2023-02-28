@@ -102,7 +102,7 @@ pub enum Air {
     ///   the expression will be evaluated.
     /// An expression is associated with a source location,
     ///   but is anonymous unless assigned an identifier using
-    ///   [`Air::ExprIdent`].
+    ///   [`Air::BindIdent`].
     ///
     /// Expressions are composed of references to other expressions.
     ExprOpen(ExprOp, Span),
@@ -110,13 +110,6 @@ pub enum Air {
     /// Complete the expression atop of the expression stack and pop it from
     ///   the stack.
     ExprClose(Span),
-
-    /// Assign an identifier to the expression atop of the expression stack.
-    ///
-    /// An expression may be bound to multiple identifiers,
-    ///   but an identifier can only be bound to a single expression.
-    /// Binding an identifier will declare it.
-    ExprIdent(SPair),
 
     /// Reference another expression identified by the given [`SPair`].
     ///
@@ -129,6 +122,11 @@ pub enum Air {
     ///   the system has flexibility in determining what it should do with a
     ///   reference.
     ExprRef(SPair),
+
+    /// Assign an identifier to the active object.
+    ///
+    /// The "active" object depends on the current parsing state.
+    BindIdent(SPair),
 
     /// Declare a resolved identifier.
     IdentDecl(SPair, IdentKind, Source),
@@ -178,7 +176,7 @@ impl Token for Air {
             | ExprOpen(_, span)
             | ExprClose(span) => *span,
 
-            ExprIdent(spair)
+            BindIdent(spair)
             | ExprRef(spair)
             | IdentDecl(spair, _, _)
             | IdentExternDecl(spair, _, _)
@@ -205,8 +203,8 @@ impl Display for Air {
 
             ExprClose(_) => write!(f, "close expression"),
 
-            ExprIdent(id) => {
-                write!(f, "identify expression as {}", TtQuote::wrap(id))
+            BindIdent(id) => {
+                write!(f, "identify active object as {}", TtQuote::wrap(id))
             }
 
             ExprRef(id) => {
@@ -554,7 +552,7 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (BuildingExpr(oi_pkg, es, oi), ExprIdent(id)) => {
+            (BuildingExpr(oi_pkg, es, oi), BindIdent(id)) => {
                 let oi_ident = asg.lookup_or_missing(id);
                 oi_pkg.defines(asg, oi_ident);
 
@@ -576,7 +574,7 @@ impl ParseState for AirAggregate {
                     .incomplete()
             }
 
-            (st @ (Empty(_) | PkgDfn(_, _)), ExprIdent(ident)) => {
+            (st @ (Empty(_) | PkgDfn(_, _)), BindIdent(ident)) => {
                 Transition(st).err(AsgError::InvalidExprBindContext(ident))
             }
 
