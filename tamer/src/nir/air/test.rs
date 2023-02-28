@@ -116,3 +116,24 @@ fn logic_exprs() {
         Sut::parse(toks.into_iter()).collect(),
     );
 }
+
+#[test]
+fn tpl_with_name() {
+    let name = SPair("_tpl_name_".into(), S2);
+
+    let toks = vec![
+        Nir::Open(NirEntity::Tpl, S1),
+        Nir::BindIdent(name),
+        Nir::Close(NirEntity::Tpl, S3),
+    ];
+
+    #[rustfmt::skip]
+    assert_eq!(
+        Ok(vec![
+            O(Air::TplOpen(S1)),
+            O(Air::BindIdent(name)),
+            O(Air::TplClose(S3)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}

@@ -34,6 +34,16 @@ use crate::{
 use super::TransitionError;
 
 /// An error from an ASG operation.
+///
+///
+/// Note that the user may encounter an equivalent error in the source
+///   document format
+///     (e.g. XML via [XIR->NIR lowering](crate::nir))
+///     and therefore may never see some of these errors.
+/// However,
+///   a source IR _may_ choose to allow certain errors through to ease the
+///   burden on its maintenance/development,
+///     or a system may utilize this IR directly.
 #[derive(Debug, PartialEq)]
 pub enum AsgError {
     /// An object could not change state in the manner requested.
@@ -68,7 +78,7 @@ pub enum AsgError {
     InvalidPkgCloseContext(Span),
 
     /// Attempted to open an expression in an invalid context.
-    InvalidExprContext(Span),
+    PkgExpected(Span),
 
     /// An expresion is not reachable by any other expression or
     ///   identifier.
@@ -85,16 +95,11 @@ pub enum AsgError {
 
     /// Attempted to close an expression with no corresponding opening
     ///   delimiter.
-    ///
-    /// Note that the user may encounter an equivalent error in the source
-    ///   document format
-    ///     (e.g. XML via [XIR->NIR lowering](crate::nir))
-    ///     and therefore may never see this error.
-    /// However,
-    ///   a source IR _may_ choose to allow improperly nested expressions
-    ///   through to this IR,
-    ///     or may utilize this IR directly.
     UnbalancedExpr(Span),
+
+    /// Attempted to close a template with no corresponding opening
+    ///   delimiter.
+    UnbalancedTpl(Span),
 
     /// Attempted to bind the an identifier to an expression while not in an
     ///   expression context.
@@ -123,12 +128,13 @@ impl Display for AsgError {
             InvalidPkgCloseContext(_) => {
                 write!(f, "invalid context for package close",)
             }
-            InvalidExprContext(_) => write!(f, "invalid expression context"),
+            PkgExpected(_) => write!(f, "expected package definition"),
             DanglingExpr(_) => write!(
                 f,
                 "dangling expression (anonymous expression has no parent)"
             ),
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
+            UnbalancedTpl(_) => write!(f, "unbalanced template definition"),
             InvalidExprBindContext(_) => {
                 write!(f, "invalid expression identifier binding context")
             }
@@ -197,8 +203,8 @@ impl Diagnostic for AsgError {
                 ),
             ],
 
-            InvalidExprContext(span) => {
-                vec![span.error("an expression is not allowed here")]
+            PkgExpected(span) => {
+                vec![span.error("a package definition was expected here")]
             }
 
             DanglingExpr(span) => vec![
@@ -214,7 +220,11 @@ impl Diagnostic for AsgError {
             ],
 
             UnbalancedExpr(span) => {
-                vec![span.error("there is no open expression to end here")]
+                vec![span.error("there is no open expression to close here")]
+            }
+
+            UnbalancedTpl(span) => {
+                vec![span.error("there is no open template to close here")]
             }
 
             InvalidExprBindContext(span) => vec![

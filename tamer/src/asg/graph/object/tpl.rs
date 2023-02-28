@@ -24,15 +24,29 @@ use std::fmt::Display;
 use super::{
     Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy, ObjectRelatable,
 };
-use crate::span::Span;
+use crate::{asg::Asg, f::Functor, span::Span};
 
-/// Template.
+/// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Tpl;
+pub struct Tpl(Span);
 
 impl Tpl {
     pub fn span(&self) -> Span {
-        todo!("Tpl::span")
+        match self {
+            Self(span) => *span,
+        }
+    }
+
+    pub fn new(span: Span) -> Self {
+        Self(span)
+    }
+}
+
+impl Functor<Span> for Tpl {
+    fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
+        match self {
+            Self(span) => Self(f(span)),
+        }
     }
 }
 
@@ -46,5 +60,19 @@ object_rel! {
     /// TODO
     Tpl -> {
         // ...
+    }
+}
+
+impl ObjectIndex<Tpl> {
+    /// Complete a template definition.
+    ///
+    /// This simply updates the span of the template to encompass the entire
+    ///   definition.
+    pub fn close(self, asg: &mut Asg, close_span: Span) -> Self {
+        self.map_obj(asg, |tpl| {
+            tpl.map(|open_span| {
+                open_span.merge(close_span).unwrap_or(open_span)
+            })
+        })
     }
 }

@@ -195,6 +195,8 @@ pub enum NirEntity {
     /// Disjunctive (∨) expression.
     Any,
 
+    /// Template.
+    Tpl,
     /// Template parameter (metavariable).
     TplParam,
 }
@@ -224,6 +226,7 @@ impl Display for NirEntity {
             All => write!(f, "conjunctive (∧) expression"),
             Any => write!(f, "disjunctive (∨) expression"),
 
+            Tpl => write!(f, "template"),
             TplParam => write!(f, "template param (metavariable)"),
         }
     }

@@ -31,7 +31,7 @@
 
 use super::object::{
     DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, OiPairObjectInner,
-    Pkg,
+    Pkg, Tpl,
 };
 use crate::{
     asg::{
@@ -40,7 +40,7 @@ use crate::{
     },
     diagnose::Annotate,
     diagnostic_panic, diagnostic_unreachable,
-    parse::{prelude::*, Transitionable},
+    parse::{prelude::*, util::SPair, Transitionable},
     span::{Span, UNKNOWN_SPAN},
     sym::{
         st::{URI_LV_CALC, URI_LV_RATER, URI_LV_TPL},
@@ -185,7 +185,9 @@ impl<'a> TreeContext<'a> {
                 self.emit_expr(expr, paired_rel.source(), depth)
             }
 
-            Object::Tpl((tpl, oi)) => todo!("tpl: {tpl:?}, {oi:?}"),
+            Object::Tpl((tpl, _)) => {
+                self.emit_template(tpl, paired_rel.source(), depth)
+            }
 
             Object::Root(..) => diagnostic_unreachable!(
                 vec![],
@@ -265,6 +267,28 @@ impl<'a> TreeContext<'a> {
         ))
     }
 
+    /// Emit a template definition.
+    fn emit_template(
+        &mut self,
+        tpl: &Tpl,
+        src: &Object<OiPairObjectInner>,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        match src {
+            Object::Ident((ident, _)) => {
+                self.push(attr_name(ident.name()));
+
+                Some(Xirf::open(
+                    QN_TEMPLATE,
+                    OpenSpan::without_name_span(tpl.span()),
+                    depth,
+                ))
+            }
+
+            _ => todo!("emit_template: {src:?}"),
+        }
+    }
+
     fn push(&mut self, tok: Xirf) {
         if self.stack.is_full() {
             diagnostic_panic!(
@@ -318,6 +342,10 @@ fn package(pkg: &Pkg, depth: Depth) -> Xirf {
 
 fn ns(qname: QName, uri: UriStaticSymbolId, span: Span) -> Xirf {
     Xirf::attr(qname, uri, (span, span))
+}
+
+fn attr_name(name: SPair) -> Xirf {
+    Xirf::attr(QN_NAME, name, (name.span(), name.span()))
 }
 
 fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {

@@ -31,4 +31,6 @@
     </any>
     <any />
   </classify>
+
+  <template name="_empty_" />
 </package>

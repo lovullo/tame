@@ -22,6 +22,7 @@ use super::{
     Asg, AsgError, ExprOp, FragmentText, IdentKind, ObjectIndex, Source,
 };
 use crate::{
+    asg::graph::object::Tpl,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     parse::{self, util::SPair, ParseState, Token, Transition, Transitionable},
@@ -158,6 +159,23 @@ pub enum Air {
     ///   and the span is intended to aid in tracking down why rooting
     ///   occurred.
     IdentRoot(SPair),
+
+    /// Create a new [`Tpl`] on the graph and switch to template parsing.
+    ///
+    /// Until [`Self::TplClose`] is found,
+    ///   all parsed objects will be parented to the [`Tpl`] rather than the
+    ///   parent [`Pkg`].
+    /// Template parsing also recognizes additional nodes that can appear
+    ///   only in this mode.
+    ///
+    /// The [`ExprStack`] will be [`Held`],
+    ///   to be restored after template parsing has concluded.
+    TplOpen(Span),
+
+    /// Close the active [`Tpl`] and exit template parsing.
+    ///
+    /// The [`ExprStack`] will be restored to its prior state.
+    TplClose(Span),
 }
 
 impl Token for Air {
@@ -174,7 +192,9 @@ impl Token for Air {
             PkgOpen(span)
             | PkgClose(span)
             | ExprOpen(_, span)
-            | ExprClose(span) => *span,
+            | ExprClose(span)
+            | TplOpen(span)
+            | TplClose(span) => *span,
 
             BindIdent(spair)
             | ExprRef(spair)
@@ -236,6 +256,14 @@ impl Display for Air {
             IdentRoot(sym) => {
                 write!(f, "rooting of identifier {}", TtQuote::wrap(sym))
             }
+
+            TplOpen(name) => {
+                write!(f, "open template {}", TtQuote::wrap(name))
+            }
+
+            TplClose(_) => {
+                write!(f, "close template")
+            }
         }
     }
 }
@@ -292,6 +320,13 @@ pub struct Dormant;
 /// Expression stack is in use as part of an expression parse.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Active(StackEdge);
+/// Expression stack has been set aside temporarily for some other operation
+///   and will be restored after that operation completes.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Held {
+    Dormant,
+    Active(Active),
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StackEdge {
@@ -333,6 +368,16 @@ impl ExprStack<Dormant> {
     fn activate(self) -> ExprStack<Active> {
         let Self(stack, _) = self;
         ExprStack(stack, Active(StackEdge::Dangling))
+    }
+
+    /// Set the expression stack aside to perform another operation.
+    ///
+    /// The stack can later be restored using [`ExprStack::release_st`],
+    ///   and will restore to the same dormant state.
+    fn hold(self) -> ExprStack<Held> {
+        match self {
+            Self(stack, _st) => ExprStack(stack, Held::Dormant),
+        }
     }
 }
 
@@ -398,6 +443,24 @@ impl ExprStack<Active> {
     }
 }
 
+impl ExprStack<Held> {
+    /// Produce an [`AirAggregate`] state from a prior expression stacks
+    ///   state.
+    ///
+    /// This marks the completion of whatever operation caused the stack to
+    ///   be held using one of the `hold` implementations.
+    fn release_st(self, oi_pkg: ObjectIndex<Pkg>) -> AirAggregate {
+        match self {
+            Self(stack, Held::Dormant) => {
+                AirAggregate::PkgDfn(oi_pkg, ExprStack(stack, Dormant))
+            }
+            Self(_stack, Held::Active(_active)) => {
+                todo!("ExprStack<Held> -> Active")
+            }
+        }
+    }
+}
+
 impl Default for ExprStack<Dormant> {
     fn default() -> Self {
         // TODO: 16 is a generous guess that is very unlikely to be exceeded
@@ -429,6 +492,19 @@ impl Display for ExprStack<Active> {
     }
 }
 
+impl Display for ExprStack<Held> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self(_, Held::Dormant) => {
+                write!(f, "held dormant expression stack")
+            }
+            Self(_, Held::Active(..)) => {
+                write!(f, "held active expression stack")
+            }
+        }
+    }
+}
+
 /// AIR parser state.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AirAggregate {
@@ -442,6 +518,17 @@ pub enum AirAggregate {
     ///
     /// Expressions may be nested arbitrarily deeply.
     BuildingExpr(ObjectIndex<Pkg>, ExprStack<Active>, ObjectIndex<Expr>),
+
+    /// Parser is in template parsing mode.
+    ///
+    /// All objects encountered until the closing [`Air::TplClose`] will be
+    ///   parented to this template rather than the parent [`Pkg`].
+    /// See [`Air::TplOpen`] for more information.
+    BuildingTpl(
+        (ObjectIndex<Pkg>, ExprStack<Held>),
+        ObjectIndex<Tpl>,
+        Option<SPair>,
+    ),
 }
 
 impl Default for AirAggregate {
@@ -459,6 +546,16 @@ impl Display for AirAggregate {
             PkgDfn(_, es) => write!(f, "defining package with {es}"),
             BuildingExpr(_, es, _) => {
                 write!(f, "building expression with {es}")
+            }
+            BuildingTpl((_, es), _, None) => {
+                write!(f, "building anonymous template with {es}")
+            }
+            BuildingTpl((_, es), _, Some(name)) => {
+                write!(
+                    f,
+                    "building named template {} with {es}",
+                    TtQuote::wrap(name)
+                )
             }
         }
     }
@@ -482,6 +579,7 @@ impl ParseState for AirAggregate {
         use Air::*;
         use AirAggregate::*;
 
+        // TODO: Seems to be about time for refactoring this...
         match (self, tok) {
             (st, Todo) => Transition(st).incomplete(),
 
@@ -518,8 +616,8 @@ impl ParseState for AirAggregate {
                 Transition(BuildingExpr(oi_pkg, es.push(poi), oi)).incomplete()
             }
 
-            (st @ Empty(..), ExprOpen(_, span)) => {
-                Transition(st).err(AsgError::InvalidExprContext(span))
+            (st @ Empty(..), ExprOpen(_, span) | TplOpen(span)) => {
+                Transition(st).err(AsgError::PkgExpected(span))
             }
 
             (st @ (Empty(..) | PkgDfn(..)), ExprClose(span)) => {
@@ -606,6 +704,34 @@ impl ParseState for AirAggregate {
 
                 Transition(st).incomplete()
             }
+
+            (PkgDfn(oi_pkg, es), TplOpen(span)) => {
+                let oi_tpl = asg.create(Tpl::new(span));
+
+                Transition(BuildingTpl((oi_pkg, es.hold()), oi_tpl, None))
+                    .incomplete()
+            }
+
+            (BuildingExpr(..), TplOpen(_span)) => todo!("BuildingExpr TplOpen"),
+
+            (BuildingTpl((oi_pkg, es), oi_tpl, None), BindIdent(name)) => asg
+                .lookup_or_missing(name)
+                .bind_definition(asg, name, oi_tpl)
+                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
+                .map(|_| ())
+                .transition(BuildingTpl((oi_pkg, es), oi_tpl, Some(name))),
+
+            (BuildingTpl((oi_pkg, es), oi_tpl, _), TplClose(span)) => {
+                oi_tpl.close(asg, span);
+                Transition(es.release_st(oi_pkg)).incomplete()
+            }
+
+            (BuildingTpl(..), tok) => todo!("BuildingTpl body: {tok:?}"),
+
+            (
+                st @ (Empty(..) | PkgDfn(..) | BuildingExpr(..)),
+                TplClose(span),
+            ) => Transition(st).err(AsgError::UnbalancedTpl(span)),
 
             (
                 st,

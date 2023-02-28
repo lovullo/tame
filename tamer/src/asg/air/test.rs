@@ -356,7 +356,7 @@ fn expr_without_pkg() {
 
     assert_eq!(
         vec![
-            Err(ParseError::StateError(AsgError::InvalidExprContext(S1))),
+            Err(ParseError::StateError(AsgError::PkgExpected(S1))),
             // RECOVERY
             Ok(Parsed::Incomplete), // PkgOpen
             Ok(Parsed::Incomplete), // PkgClose
@@ -1117,6 +1117,34 @@ fn idents_share_defining_pkg() {
         S1.merge(S9),
         oi_foo.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span())
     )
+}
+
+// A template is defined by the package containing it,
+//   like an expression.
+#[test]
+fn tpl_defining_pkg() {
+    let id_tpl = SPair("_tpl_".into(), S3);
+
+    let toks = vec![
+        Air::PkgOpen(S1),
+        Air::TplOpen(S2),
+        Air::BindIdent(id_tpl),
+        Air::TplClose(S4),
+        Air::PkgClose(S5),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+    let asg = sut.finalize().unwrap().into_context();
+
+    let tpl = asg.expect_ident_obj::<Tpl>(id_tpl);
+    assert_eq!(S2.merge(S4).unwrap(), tpl.span());
+
+    let oi_id_tpl = asg.lookup(id_tpl).unwrap();
+    assert_eq!(
+        S1.merge(S5),
+        oi_id_tpl.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span()),
+    );
 }
 
 fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg

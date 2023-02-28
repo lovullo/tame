@@ -22,7 +22,7 @@
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
     Expr, Object, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
-    ObjectRelatable, Pkg,
+    ObjectRelatable, Pkg, Tpl,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -983,6 +983,7 @@ object_rel! {
     Ident -> {
         tree Ident,
         tree Expr,
+        tree Tpl,
     }
 }
 

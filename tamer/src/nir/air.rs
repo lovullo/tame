@@ -87,6 +87,14 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::ExprOpen(ExprOp::Disj, span))
             }
 
+            (Ready, Nir::Open(NirEntity::Tpl, span)) => {
+                Transition(Ready).ok(Air::TplOpen(span))
+            }
+
+            (Ready, Nir::Close(NirEntity::Tpl, span)) => {
+                Transition(Ready).ok(Air::TplClose(span))
+            }
+
             (
                 Ready,
                 Nir::Close(

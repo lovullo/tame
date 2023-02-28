@@ -1390,11 +1390,12 @@ ele_parse! {
     /// See also [`InlineTemplate`] for template definitions.
     ///
     /// Templates are applied using [`ApplyTemplate`] or [`TplApplyShort`].
-    TemplateStmt := QN_TEMPLATE {
+    TemplateStmt := QN_TEMPLATE(_, ospan) {
         @ {
-            QN_NAME => TodoAttr,
+            QN_NAME => BindIdent,
             QN_DESC => TodoAttr,
-        } => Todo,
+        } => NirEntity::Tpl.open(ospan),
+        /(cspan) => NirEntity::Tpl.close(cspan),
 
         TplHeading,
         AnyStmtOrExpr,
