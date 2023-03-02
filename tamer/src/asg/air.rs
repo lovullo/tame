@@ -17,256 +17,44 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Intermediate representation for construction of the
+//!   [abstract semantic graph (ASG)](super) (AIR).
+//!
+//! AIR serves as an abstraction layer between higher-level parsers and the
+//!   aggregate ASG.
+//! It allows parsers to operate as a raw stream of data without having to
+//!   worry about ownership of or references to the ASG,
+//!     and allows for multiple such parsers to be joined.
+//!
+//! AIR is _not_ intended to replace the API of the ASG---it
+//!   is intended as a termination point for the parsing pipeline,
+//!     and as such implements a subset of the ASG's API that is suitable
+//!     for aggregating raw data from source and object files.
+//! Given that it does so little and is so close to the [`Asg`] API,
+//!   one might say that the abstraction is as light as air,
+//!   but that would surely result in face-palming and so we're not going
+//!     air such cringeworthy dad jokes here.
+
 use super::{
     graph::object::{Expr, Pkg},
-    Asg, AsgError, ExprOp, FragmentText, IdentKind, ObjectIndex, Source,
+    Asg, AsgError, ObjectIndex,
 };
 use crate::{
     asg::graph::object::Tpl,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{self, util::SPair, ParseState, Token, Transition, Transitionable},
-    span::{Span, UNKNOWN_SPAN},
+    parse::{util::SPair, ParseState, Transition, Transitionable},
+    span::Span,
     sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
 
-///! Intermediate representation for construction of the
-///!   [abstract semantic graph (ASG)](super) (AIR).
-///!
-///! AIR serves as an abstraction layer between higher-level parsers and the
-///!   aggregate ASG.
-///! It allows parsers to operate as a raw stream of data without having to
-///!   worry about ownership of or references to the ASG,
-///!     and allows for multiple such parsers to be joined.
-///!
-///! AIR is _not_ intended to replace the API of the ASG---it
-///!   is intended as a termination point for the parsing pipeline,
-///!     and as such implements a subset of the ASG's API that is suitable
-///!     for aggregating raw data from source and object files.
-///! Given that it does so little and is so close to the [`Asg`] API,
-///!   one might say that the abstraction is as light as air,
-///!   but that would surely result in face-palming and so we're not going
-///!     air such cringeworthy dad jokes here.
+#[macro_use]
+mod ir;
+pub use ir::Air;
 
 pub type IdentSym = SymbolId;
 pub type DepSym = SymbolId;
-
-/// AIR token.
-///
-/// These tokens mimic a public API for the ASG,
-///   and allow parsers to be completely decoupled from the ASG object that
-///   they will eventually aggregate data into.
-///
-/// This IR is not intended to perform sophisticated manipulation of the
-///   ASG---it
-///     is intended to perform initial aggregation as part of a parsing
-///     phase,
-///       populating the ASG with the raw data that that will be
-///       subsequently analyzed and rewritten.
-#[derive(Debug, PartialEq)]
-pub enum Air {
-    /// Placeholder token for objects that do not yet have a proper place on
-    ///   the ASG.
-    Todo,
-
-    /// Begin a new package of identifiers.
-    ///
-    /// Packages are responsible for bundling together identifiers
-    ///   representing subsystems that can be composed with other packages.
-    ///
-    /// A source language may place limits on the objects that may appear
-    ///   within a given package,
-    ///     but we have no such restriction.
-    ///
-    /// TODO: The package needs a name,
-    ///   and we'll need to determine how to best represent that relative to
-    ///   the project root and be considerate of symlinks.
-    PkgOpen(Span),
-
-    /// Complete processing of the current package.
-    PkgClose(Span),
-
-    /// Create a new [`Expr`] on the graph and place it atop of the
-    ///   expression stack.
-    ///
-    /// If there was previously an expression ρ atop of the stack before
-    ///   this operation,
-    ///     a reference to this new expression will be automatically added
-    ///     to ρ,
-    ///       treating it as a child expression.
-    /// Otherwise,
-    ///   the expression will be dangling unless bound to an identifier,
-    ///     which will produce an error.
-    ///
-    /// All expressions have an associated [`ExprOp`] that determines how
-    ///   the expression will be evaluated.
-    /// An expression is associated with a source location,
-    ///   but is anonymous unless assigned an identifier using
-    ///   [`Air::BindIdent`].
-    ///
-    /// Expressions are composed of references to other expressions.
-    ExprOpen(ExprOp, Span),
-
-    /// Complete the expression atop of the expression stack and pop it from
-    ///   the stack.
-    ExprClose(Span),
-
-    /// Reference another expression identified by the given [`SPair`].
-    ///
-    /// Values can be referenced before they are declared or defined,
-    ///   so the provided identifier need not yet exist.
-    /// However,
-    ///   the identifier must eventually be bound to an [`Expr`].
-    ///
-    /// Since all values in TAME are referentially tansparent,
-    ///   the system has flexibility in determining what it should do with a
-    ///   reference.
-    ExprRef(SPair),
-
-    /// Assign an identifier to the active object.
-    ///
-    /// The "active" object depends on the current parsing state.
-    BindIdent(SPair),
-
-    /// Declare a resolved identifier.
-    IdentDecl(SPair, IdentKind, Source),
-
-    /// Declare an external identifier that must be resolved before linking.
-    IdentExternDecl(SPair, IdentKind, Source),
-
-    /// Declare that an identifier depends on another for its definition.
-    ///
-    /// The first identifier will depend on the second
-    ///   (`0 -> 1`).
-    /// The spans associated with each [`SPair`] will be used
-    ///   if the respective identifier has not yet been defined.
-    IdentDep(SPair, SPair),
-
-    /// Associate a code fragment with an identifier.
-    ///
-    /// A fragment does not have an associated span because it is
-    ///   conceptually associated with all the spans from which it is
-    ///   derived;
-    ///     the format of the object file will change in the future to
-    ///     retain this information.
-    IdentFragment(SPair, FragmentText),
-
-    /// Root an identifier at the request of some entity at the associated
-    ///   span of the [`SPair`].
-    ///
-    /// Rooting is caused by _something_,
-    ///   and the span is intended to aid in tracking down why rooting
-    ///   occurred.
-    IdentRoot(SPair),
-
-    /// Create a new [`Tpl`] on the graph and switch to template parsing.
-    ///
-    /// Until [`Self::TplClose`] is found,
-    ///   all parsed objects will be parented to the [`Tpl`] rather than the
-    ///   parent [`Pkg`].
-    /// Template parsing also recognizes additional nodes that can appear
-    ///   only in this mode.
-    ///
-    /// The [`ExprStack`] will be [`Held`],
-    ///   to be restored after template parsing has concluded.
-    TplOpen(Span),
-
-    /// Close the active [`Tpl`] and exit template parsing.
-    ///
-    /// The [`ExprStack`] will be restored to its prior state.
-    TplClose(Span),
-}
-
-impl Token for Air {
-    fn ir_name() -> &'static str {
-        "AIR"
-    }
-
-    fn span(&self) -> crate::span::Span {
-        use Air::*;
-
-        match self {
-            Todo => UNKNOWN_SPAN,
-
-            PkgOpen(span)
-            | PkgClose(span)
-            | ExprOpen(_, span)
-            | ExprClose(span)
-            | TplOpen(span)
-            | TplClose(span) => *span,
-
-            BindIdent(spair)
-            | ExprRef(spair)
-            | IdentDecl(spair, _, _)
-            | IdentExternDecl(spair, _, _)
-            | IdentDep(spair, _)
-            | IdentFragment(spair, _)
-            | IdentRoot(spair) => spair.span(),
-        }
-    }
-}
-
-impl parse::Object for Air {}
-
-impl Display for Air {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use Air::*;
-
-        match self {
-            Todo => write!(f, "TODO"),
-
-            PkgOpen(_) => write!(f, "open package"),
-            PkgClose(_) => write!(f, "close package"),
-
-            ExprOpen(op, _) => write!(f, "open {op} expression"),
-
-            ExprClose(_) => write!(f, "close expression"),
-
-            BindIdent(id) => {
-                write!(f, "identify active object as {}", TtQuote::wrap(id))
-            }
-
-            ExprRef(id) => {
-                write!(
-                    f,
-                    "reference to the expression identified by {}",
-                    TtQuote::wrap(id)
-                )
-            }
-
-            IdentDecl(spair, _, _) => {
-                write!(f, "declaration of identifier {}", TtQuote::wrap(spair))
-            }
-            IdentExternDecl(spair, _, _) => {
-                write!(
-                    f,
-                    "declaration of external identifier {}",
-                    TtQuote::wrap(spair)
-                )
-            }
-            IdentDep(isym, dsym) => write!(
-                f,
-                // TODO: Use list wrapper
-                "declaration of identifier dependency `{isym} -> {dsym}`"
-            ),
-            IdentFragment(depsym, _text) => {
-                write!(f, "identifier {}` fragment text", TtQuote::wrap(depsym))
-            }
-            IdentRoot(sym) => {
-                write!(f, "rooting of identifier {}", TtQuote::wrap(sym))
-            }
-
-            TplOpen(name) => {
-                write!(f, "open template {}", TtQuote::wrap(name))
-            }
-
-            TplClose(_) => {
-                write!(f, "close template")
-            }
-        }
-    }
-}
 
 /// Stack of held expressions,
 ///   with the root expression at the bottom of the stack.
@@ -568,7 +356,7 @@ impl ParseState for AirAggregate {
 
     /// Destination [`Asg`] that this parser lowers into.
     ///
-    /// This ASG will be yielded by [`parse::Parser::finalize`].
+    /// This ASG will be yielded by [`crate::parse::Parser::finalize`].
     type Context = Asg;
 
     fn parse_token(
@@ -576,55 +364,59 @@ impl ParseState for AirAggregate {
         tok: Self::Token,
         asg: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
-        use Air::*;
+        use ir::{
+            AirBind::*, AirExpr::*, AirIdent::*, AirPkg::*, AirSubsets::*,
+            AirTodo::*, AirTpl::*,
+        };
         use AirAggregate::*;
 
         // TODO: Seems to be about time for refactoring this...
-        match (self, tok) {
-            (st, Todo) => Transition(st).incomplete(),
+        match (self, tok.into()) {
+            (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
-            (Empty(es), PkgOpen(span)) => {
+            (Empty(es), AirPkg(PkgOpen(span))) => {
                 let oi_pkg = asg.create(Pkg::new(span)).root(asg);
                 Transition(PkgDfn(oi_pkg, es)).incomplete()
             }
 
-            (PkgDfn(oi_pkg, es), PkgOpen(span)) => {
+            (PkgDfn(oi_pkg, es), AirPkg(PkgOpen(span))) => {
                 Transition(PkgDfn(oi_pkg, es))
                     .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
             }
-            (BuildingExpr(oi_pkg, es, oi), PkgOpen(span)) => {
+            (BuildingExpr(oi_pkg, es, oi), AirPkg(PkgOpen(span))) => {
                 Transition(BuildingExpr(oi_pkg, es, oi))
                     .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
             }
 
-            (PkgDfn(oi_pkg, es), PkgClose(span)) => {
+            (PkgDfn(oi_pkg, es), AirPkg(PkgClose(span))) => {
                 oi_pkg.close(asg, span);
                 Transition(Empty(es)).incomplete()
             }
 
-            (st @ (Empty(..) | BuildingExpr(..)), PkgClose(span)) => {
+            (st @ (Empty(..) | BuildingExpr(..)), AirPkg(PkgClose(span))) => {
                 Transition(st).err(AsgError::InvalidPkgCloseContext(span))
             }
 
-            (PkgDfn(oi_pkg, es), ExprOpen(op, span)) => {
+            (PkgDfn(oi_pkg, es), AirExpr(ExprOpen(op, span))) => {
                 let oi = asg.create(Expr::new(op, span));
                 Transition(BuildingExpr(oi_pkg, es.activate(), oi)).incomplete()
             }
 
-            (BuildingExpr(oi_pkg, es, poi), ExprOpen(op, span)) => {
+            (BuildingExpr(oi_pkg, es, poi), AirExpr(ExprOpen(op, span))) => {
                 let oi = poi.create_subexpr(asg, Expr::new(op, span));
                 Transition(BuildingExpr(oi_pkg, es.push(poi), oi)).incomplete()
             }
 
-            (st @ Empty(..), ExprOpen(_, span) | TplOpen(span)) => {
-                Transition(st).err(AsgError::PkgExpected(span))
-            }
+            (
+                st @ Empty(..),
+                AirExpr(ExprOpen(_, span)) | AirTpl(TplOpen(span)),
+            ) => Transition(st).err(AsgError::PkgExpected(span)),
 
-            (st @ (Empty(..) | PkgDfn(..)), ExprClose(span)) => {
+            (st @ (Empty(..) | PkgDfn(..)), AirExpr(ExprClose(span))) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
 
-            (BuildingExpr(oi_pkg, es, oi), ExprClose(end)) => {
+            (BuildingExpr(oi_pkg, es, oi), AirExpr(ExprClose(end))) => {
                 let start: Span = oi.into();
 
                 let _ = oi.map_obj(asg, |expr| {
@@ -650,7 +442,7 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (BuildingExpr(oi_pkg, es, oi), BindIdent(id)) => {
+            (BuildingExpr(oi_pkg, es, oi), AirBind(BindIdent(id))) => {
                 let oi_ident = asg.lookup_or_missing(id);
                 oi_pkg.defines(asg, oi_ident);
 
@@ -667,61 +459,66 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (BuildingExpr(oi_pkg, es, oi), ExprRef(ident)) => {
+            (BuildingExpr(oi_pkg, es, oi), AirExpr(ExprRef(ident))) => {
                 Transition(BuildingExpr(oi_pkg, es, oi.ref_expr(asg, ident)))
                     .incomplete()
             }
 
-            (st @ (Empty(_) | PkgDfn(_, _)), BindIdent(ident)) => {
+            (st @ (Empty(_) | PkgDfn(_, _)), AirBind(BindIdent(ident))) => {
                 Transition(st).err(AsgError::InvalidExprBindContext(ident))
             }
 
-            (st @ (Empty(_) | PkgDfn(_, _)), ExprRef(ident)) => {
+            (st @ (Empty(_) | PkgDfn(_, _)), AirExpr(ExprRef(ident))) => {
                 Transition(st).err(AsgError::InvalidExprRefContext(ident))
             }
 
-            (st @ Empty(_), IdentDecl(name, kind, src)) => {
+            (st @ Empty(_), AirIdent(IdentDecl(name, kind, src))) => {
                 asg.declare(name, kind, src).map(|_| ()).transition(st)
             }
 
-            (st @ Empty(_), IdentExternDecl(name, kind, src)) => asg
+            (st @ Empty(_), AirIdent(IdentExternDecl(name, kind, src))) => asg
                 .declare_extern(name, kind, src)
                 .map(|_| ())
                 .transition(st),
 
-            (st @ Empty(_), IdentDep(sym, dep)) => {
+            (st @ Empty(_), AirIdent(IdentDep(sym, dep))) => {
                 asg.add_dep_lookup(sym, dep);
                 Transition(st).incomplete()
             }
 
-            (st @ Empty(_), IdentFragment(sym, text)) => {
+            (st @ Empty(_), AirIdent(IdentFragment(sym, text))) => {
                 asg.set_fragment(sym, text).map(|_| ()).transition(st)
             }
 
-            (st @ Empty(_), IdentRoot(sym)) => {
+            (st @ Empty(_), AirIdent(IdentRoot(sym))) => {
                 let obj = asg.lookup_or_missing(sym);
                 asg.add_root(obj);
 
                 Transition(st).incomplete()
             }
 
-            (PkgDfn(oi_pkg, es), TplOpen(span)) => {
+            (PkgDfn(oi_pkg, es), AirTpl(TplOpen(span))) => {
                 let oi_tpl = asg.create(Tpl::new(span));
 
                 Transition(BuildingTpl((oi_pkg, es.hold()), oi_tpl, None))
                     .incomplete()
             }
 
-            (BuildingExpr(..), TplOpen(_span)) => todo!("BuildingExpr TplOpen"),
+            (BuildingExpr(..), AirTpl(TplOpen(_span))) => {
+                todo!("BuildingExpr TplOpen")
+            }
 
-            (BuildingTpl((oi_pkg, es), oi_tpl, None), BindIdent(name)) => asg
+            (
+                BuildingTpl((oi_pkg, es), oi_tpl, None),
+                AirBind(BindIdent(name)),
+            ) => asg
                 .lookup_or_missing(name)
                 .bind_definition(asg, name, oi_tpl)
                 .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
                 .map(|_| ())
                 .transition(BuildingTpl((oi_pkg, es), oi_tpl, Some(name))),
 
-            (BuildingTpl((oi_pkg, es), oi_tpl, _), TplClose(span)) => {
+            (BuildingTpl((oi_pkg, es), oi_tpl, _), AirTpl(TplClose(span))) => {
                 oi_tpl.close(asg, span);
                 Transition(es.release_st(oi_pkg)).incomplete()
             }
@@ -730,14 +527,10 @@ impl ParseState for AirAggregate {
 
             (
                 st @ (Empty(..) | PkgDfn(..) | BuildingExpr(..)),
-                TplClose(span),
+                AirTpl(TplClose(span)),
             ) => Transition(st).err(AsgError::UnbalancedTpl(span)),
 
-            (
-                st,
-                tok @ (IdentDecl(..) | IdentExternDecl(..) | IdentDep(..)
-                | IdentFragment(..) | IdentRoot(..)),
-            ) => todo!("{st:?}, {tok:?}"),
+            (st, tok @ AirIdent(_)) => todo!("{st:?}, {tok:?}"),
         }
     }
 

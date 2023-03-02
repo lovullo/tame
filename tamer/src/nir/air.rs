@@ -26,6 +26,7 @@ use crate::{
     diagnose::Diagnostic,
     nir::NirEntity,
     parse::prelude::*,
+    span::UNKNOWN_SPAN,
 };
 
 use super::Nir;
@@ -61,7 +62,7 @@ impl ParseState for NirToAir {
         #[cfg(not(feature = "wip-nir-to-air"))]
         {
             let _ = tok; // prevent `unused_variables` warning
-            return Transition(Ready).ok(Air::Todo);
+            return Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN));
         }
 
         #[allow(unreachable_code)] // due to wip-nir-to-air
@@ -121,7 +122,7 @@ impl ParseState for NirToAir {
                 | Nir::Text(_)
                 | Nir::Open(NirEntity::TplParam, _)
                 | Nir::Close(NirEntity::TplParam, _),
-            ) => Transition(Ready).ok(Air::Todo),
+            ) => Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN)),
         }
     }
 

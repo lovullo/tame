@@ -22,11 +22,12 @@
 
 use super::super::Ident;
 use super::*;
-use crate::asg::graph::object::expr::ExprRel;
-use crate::asg::graph::object::ObjectRel;
-use crate::parse::Parser;
 use crate::{
-    parse::{ParseError, Parsed},
+    asg::{
+        graph::object::{expr::ExprRel, ObjectRel},
+        ExprOp, IdentKind, Source,
+    },
+    parse::{ParseError, Parsed, Parser, Token},
     span::dummy::*,
 };
 use std::assert_matches::assert_matches;
