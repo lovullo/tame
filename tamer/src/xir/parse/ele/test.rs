@@ -2426,10 +2426,6 @@ fn superstate_not_accepting_until_root_close() {
     // Since we haven't yet finished parsing the root,
     //   this should not be an accepting state even though the active child
     //   is in an accepting state.
-    let (mut sut, _) = sut
-        .finalize()
-        .expect_err("child accepting must not be accepting for superstate");
-
     let err = sut.next().unwrap().unwrap_err();
     assert_matches!(
         err,

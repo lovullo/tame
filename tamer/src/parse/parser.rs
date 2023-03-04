@@ -27,7 +27,7 @@ use super::{
 };
 use crate::{
     parse::state::{Lookahead, TransitionData},
-    span::{Span, UNKNOWN_SPAN},
+    span::Span,
 };
 
 #[cfg(doc)]
@@ -119,7 +119,7 @@ pub struct Parser<S: ClosedParseState, I: TokenStream<S::Token>> {
 
     /// The span of the last read [`Token`] from the [`TokenStream`] `I`,
     ///   used to provide context for diagnostic output.
-    last_span: Span,
+    last_span: Option<Span>,
 
     /// Mutable context provided by mutable reference to each invocation of
     ///   [`ParseState::parse_token`].
@@ -153,7 +153,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
             toks,
             lookahead: None,
             state: Some(state),
-            last_span: UNKNOWN_SPAN,
+            last_span: None,
             ctx: Default::default(),
             tracer: Default::default(),
         }
@@ -176,8 +176,10 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     /// Note that whether the context is permitted to be reused,
     ///   or is useful independently to the caller,
     ///   is a decision made by the [`ParseState`].
-    pub fn finalize(self) -> Result<FinalizedParser<S>, (Self, FinalizeError)> {
-        match self.assert_accepting() {
+    pub fn finalize(
+        mut self,
+    ) -> Result<FinalizedParser<S>, (Self, FinalizeError)> {
+        match self.finalize_mut() {
             Ok(()) => Ok(FinalizedParser(self.ctx)),
             Err(err) => Err((self, err)),
         }
@@ -187,20 +189,39 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     ///   and is in an accepting state,
     ///     otherwise [`Err`] with [`FinalizeError::UnexpectedEof`].
     ///
-    /// See [`finalize`](Self::finalize) for the public-facing method.
-    fn assert_accepting(&self) -> Result<(), FinalizeError> {
+    /// This finalization attempt will consume [`Self::last_span`].
+    /// If it is already empty,
+    ///   finalization will succeed even if not the parser is not in an
+    ///   accepting state
+    ///     ([`ParseState::is_accepting`]).
+    /// This is intended to prevent unbounded recursion for iterators that
+    ///   do not reflect on the finalization status
+    ///     (e.g. [`Iterator::collect`]).
+    /// Since it is based on the last encountered span,
+    ///   which is updated for each encountered token,
+    ///   push parsers are able to get another checked attempt at
+    ///     finalization if they are first fed additional tokens.
+    /// Parsers reading from an underlying token stream would require that
+    ///   the token stream be resumable to have the same effect.
+    ///
+    /// See [`finalize`](Self::finalize) for the public-facing method that
+    ///   takes ownership rather than a mutable reference.
+    fn finalize_mut(&mut self) -> Result<(), FinalizeError> {
         let st = self.state.as_ref().unwrap();
 
         if let Some(Lookahead(lookahead)) = &self.lookahead {
             Err(FinalizeError::Lookahead(lookahead.span(), st.to_string()))
         } else if st.is_accepting(&self.ctx) {
             Ok(())
-        } else {
-            let endpoints = self.last_span.endpoints();
+        } else if let Some(last_span) = self.last_span.take() {
+            let endpoints = last_span.endpoints();
+
             Err(FinalizeError::UnexpectedEof(
                 endpoints.1.unwrap_or(endpoints.0),
                 st.to_string(),
             ))
+        } else {
+            Ok(())
         }
     }
 
@@ -248,7 +269,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
     pub(super) fn feed_tok(&mut self, tok: S::Token) -> ParsedResult<S> {
         // Store the most recently encountered Span for error
         //   reporting in case we encounter an EOF.
-        self.last_span = tok.span();
+        self.last_span = Some(tok.span());
 
         // Lookahead tokens must be consumed before invoking this method,
         //   otherwise they will be overwritten and lost.
@@ -401,7 +422,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
             .or_else(|| self.eof_tok());
 
         match otok {
-            None => match self.assert_accepting() {
+            None => match self.finalize_mut() {
                 Ok(()) => None,
                 Err(e) => Some(Err(e.into())),
             },
@@ -433,7 +454,7 @@ where
             toks,
             lookahead: None,
             state: Some(Default::default()),
-            last_span: UNKNOWN_SPAN,
+            last_span: None,
             ctx: Default::default(),
             tracer: Default::default(),
         }
@@ -456,7 +477,7 @@ where
             toks,
             lookahead: None,
             state: Some(Default::default()),
-            last_span: UNKNOWN_SPAN,
+            last_span: None,
             ctx,
             tracer: Default::default(),
         }
@@ -491,7 +512,10 @@ pub mod test {
         parse::{Object, Token},
         span::dummy::DUMMY_SPAN,
     };
-    use std::{assert_matches::assert_matches, error::Error, fmt::Display};
+    use std::{
+        assert_matches::assert_matches, convert::Infallible, error::Error,
+        fmt::Display,
+    };
 
     ///! [`Parser`] unit tests.
     ///!
@@ -699,6 +723,65 @@ pub mod test {
             .expect_err("must not finalize with token of lookahead");
 
         assert_matches!(err, FinalizeError::Lookahead(span, _) if span == DUMMY_SPAN);
+    }
+
+    // Finalizing should not result in an endless stream of errors,
+    //   e.g. for collecting,
+    //     which isn't common in actual logic but is common in tests.
+    #[test]
+    fn iter_attempts_finalize_only_once() {
+        #[derive(Debug, PartialEq, Eq, Default)]
+        pub struct NonFinalizingParseState {}
+
+        impl Display for NonFinalizingParseState {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "NonFinalizingParseState")
+            }
+        }
+
+        impl ParseState for NonFinalizingParseState {
+            type Token = StubToken;
+            type Object = ();
+            type Error = Infallible;
+
+            fn parse_token(
+                self,
+                _tok: Self::Token,
+                _: &mut Self::Context,
+            ) -> TransitionResult<Self> {
+                Transition(self).incomplete()
+            }
+
+            fn is_accepting(&self, _: &Self::Context) -> bool {
+                // will never finalize!
+                false
+            }
+        }
+
+        let sut =
+            NonFinalizingParseState::parse(vec![StubToken::Foo].into_iter());
+
+        assert_eq!(
+            vec![
+                Ok(Parsed::Incomplete), // StubToken::Foo
+                Err(ParseError::FinalizeError(FinalizeError::UnexpectedEof(
+                    DUMMY_SPAN, // from StubToken::Foo
+                    "NonFinalizingParseState".into()
+                )))
+            ],
+            // This is where the problem would normally occur.
+            // `take` here mitigates the issue to produce a test failure,
+            //   because this would otherwise never end.
+            // Unfortunately,
+            //   actually _observing_ this test failure is difficult,
+            //     should it ever happen,
+            //   because other tests will almost certainly result in the
+            //     system hanging until it eats up all of the system's
+            //     memory,
+            //       rather efficiently collecting a vector of
+            //       `FinalizeError`s.
+            sut.take(5).collect::<Vec<_>>(),
+        );
     }
 
     // Tests the above,
