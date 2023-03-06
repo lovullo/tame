@@ -1004,7 +1004,7 @@ fn expr_ref_to_ident() {
         Air::BindIdent(id_foo),
         // Reference to an as-of-yet-undefined id (okay),
         //   with a different span than `id_bar`.
-        Air::ExprRef(SPair("bar".into(), S3)),
+        Air::RefIdent(SPair("bar".into(), S3)),
         Air::ExprClose(S4),
         //
         // Another expression to reference the first
@@ -1045,7 +1045,7 @@ fn expr_ref_to_ident() {
 
     // The span of the identifier must be updated with the defining
     //   `BindIdent`,
-    //     otherwise it'll be the location of the `ExprRef` that originally
+    //     otherwise it'll be the location of the `RefIdent` that originally
     //     added it as `Missing`.
     assert_eq!(ident_bar.span(), id_bar.span());
 
@@ -1055,11 +1055,17 @@ fn expr_ref_to_ident() {
 
 #[test]
 fn expr_ref_outside_of_expr_context() {
-    let id_foo = SPair("foo".into(), S2);
+    let id_pre = SPair("pre".into(), S2);
+    let id_foo = SPair("foo".into(), S4);
 
     let toks = vec![
+        // We need to first bring ourselves out of the context of the
+        //   package header.
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::BindIdent(id_pre),
+        Air::ExprClose(S3),
         // This will fail since we're not in an expression context.
-        Air::ExprRef(id_foo),
+        Air::RefIdent(id_foo),
         // RECOVERY: Simply ignore the above.
         Air::ExprOpen(ExprOp::Sum, S1),
         Air::BindIdent(id_foo),
@@ -1071,6 +1077,10 @@ fn expr_ref_outside_of_expr_context() {
     assert_eq!(
         vec![
             Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // BindIdent
+            Ok(Parsed::Incomplete), // ExprClose
+            // Now we're past the header and in expression parsing mode.
             Err(ParseError::StateError(AsgError::InvalidExprRefContext(
                 id_foo
             ))),
@@ -1104,7 +1114,7 @@ fn idents_share_defining_pkg() {
         Air::BindIdent(id_foo),
         Air::ExprOpen(ExprOp::Sum, S4),
         Air::BindIdent(id_bar),
-        Air::ExprRef(id_baz),
+        Air::RefIdent(id_baz),
         Air::ExprClose(S7),
         Air::ExprClose(S8),
         Air::PkgClose(S9),

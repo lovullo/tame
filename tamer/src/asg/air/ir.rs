@@ -499,25 +499,6 @@ sum_ir! {
                 span: span,
                 display: |f| write!(f, "close expression"),
             },
-
-            /// Reference another expression identified by the given [`SPair`].
-            ///
-            /// Values can be referenced before they are declared or defined,
-            ///   so the provided identifier need not yet exist.
-            /// However,
-            ///   the identifier must eventually be bound to an [`Expr`].
-            ///
-            /// Since all values in TAME are referentially tansparent,
-            ///   the system has flexibility in determining what it should do with a
-            ///   reference.
-            ExprRef(id: SPair) => {
-                span: id,
-                display: |f| write!(
-                    f,
-                    "reference to identifier {}",
-                    TtQuote::wrap(id),
-                ),
-            },
         }
 
         /// Subset of [`Air`] tokens dealing with the binding of identifiers
@@ -531,6 +512,22 @@ sum_ir! {
                 display: |f| write!(
                     f,
                     "identify active object as {}",
+                    TtQuote::wrap(id),
+                ),
+            },
+
+            /// Reference another object identified by the given [`SPair`].
+            ///
+            /// Objects can be referenced before they are declared or defined,
+            ///   so the provided identifier need not yet exist.
+            /// However,
+            ///   the identifier must eventually be bound to an object of
+            ///   the appropriate type depending on context.
+            RefIdent(id: SPair) => {
+                span: id,
+                display: |f| write!(
+                    f,
+                    "reference to identifier {}",
                     TtQuote::wrap(id),
                 ),
             },

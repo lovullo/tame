@@ -66,7 +66,7 @@ fn traverses_ontological_tree() {
             ExprOpen(ExprOp::Sum, S4),
             ExprClose(S5),
 
-            ExprRef(SPair(id_b.symbol(), S6)),
+            RefIdent(SPair(id_b.symbol(), S6)),
           ExprClose(S7),
 
           ExprOpen(ExprOp::Sum, S8),

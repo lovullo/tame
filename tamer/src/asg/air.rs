@@ -320,8 +320,8 @@ impl ParseState for AirAggregate {
         asg: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
         use ir::{
-            AirBind::*, AirExpr::*, AirIdent::*, AirPkg::*, AirSubsets::*,
-            AirTodo::*, AirTpl::*,
+            AirBind::*, AirIdent::*, AirPkg::*, AirSubsets::*, AirTodo::*,
+            AirTpl::*,
         };
         use AirAggregate::*;
 
@@ -403,14 +403,9 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (
-                Empty,
-                AirExpr(ExprOpen(_, span))
-                | AirExpr(ExprClose(span))
-                | AirTpl(TplOpen(span))
-                | AirBind(BindIdent(SPair(_, span)))
-                | AirExpr(ExprRef(SPair(_, span))),
-            ) => Transition(Empty).err(AsgError::PkgExpected(span)),
+            (Empty, tok @ (AirExpr(..) | AirBind(..) | AirTpl(TplOpen(_)))) => {
+                Transition(Empty).err(AsgError::PkgExpected(tok.span()))
+            }
 
             (Empty, AirIdent(IdentDecl(name, kind, src))) => {
                 asg.declare(name, kind, src).map(|_| ()).transition(Empty)
@@ -605,7 +600,7 @@ impl ParseState for AirExprAggregate {
                 }
             }
 
-            (BuildingExpr(oi_pkg, es, oi), AirExpr(ExprRef(ident))) => {
+            (BuildingExpr(oi_pkg, es, oi), AirBind(RefIdent(ident))) => {
                 Transition(BuildingExpr(oi_pkg, es, oi.ref_expr(asg, ident)))
                     .incomplete()
             }
@@ -614,7 +609,7 @@ impl ParseState for AirExprAggregate {
                 Transition(st).err(AsgError::InvalidExprBindContext(id))
             }
 
-            (st @ Ready(..), AirExpr(ExprRef(id))) => {
+            (st @ Ready(..), AirBind(RefIdent(id))) => {
                 Transition(st).err(AsgError::InvalidExprRefContext(id))
             }
 
