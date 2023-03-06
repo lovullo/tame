@@ -29,7 +29,7 @@ use crate::{
 #[cfg(doc)]
 use super::{
     super::graph::object::{Expr, Ident, Pkg, Tpl},
-    ExprStack, Held,
+    ExprStack,
 };
 
 /// Create an IR able to be decomposed into types containing subsets of
@@ -67,6 +67,20 @@ use super::{
 ///
 /// This may be able to be generalized and useful to other IRs in the
 ///   future.
+///
+/// Arbitrary Sum Types
+/// ===================
+/// The above handles decomposing variants into subtypes,
+///   but that mapping must be bijective.
+/// But sometimes a token may need to be shared among multiple subsets for
+///   use as input to parsers.
+///
+/// This macro also support defining explicit sum types using the `sum enum`
+///   keywords,
+///     at the tail of the IR definition,
+///     to avoid the boilerplate of writing such a type yourself.
+/// This is important for encouraging the creation of types that are
+///   precisely define the input language of composable parsers.
 macro_rules! sum_ir {
     (
         $(#[$attr:meta])*
@@ -84,6 +98,11 @@ macro_rules! sum_ir {
                 }
             )+
         }
+
+        $(
+            $(#[$sumattr:meta])*
+            $sumvis:vis sum enum $sumsub:ident = $($sumsubty:ident)|+;
+        )*
     ) => {
         // Enum consisting of all variants of all subtypes.
         //
@@ -183,7 +202,25 @@ macro_rules! sum_ir {
             }
         }
 
+        // Widen from sum type into $ir.
+        //
+        // This is important for `PartiallyStitchableParseState` to
+        //   allow for lookahead tokens from stitched parsers to be widened.
+        impl From<$sumty> for $ir {
+            fn from(x: $sumty) -> Self {
+                match x {
+                    $(
+                        #[allow(unused_variables)]
+                        $sumty::$subty(x) => x.into(),
+                    )+
+                }
+            }
+        }
+
         // Widen from each inner type to outer.
+        //
+        // This is important for `PartiallyStitchableParseState` to
+        //   allow for lookahead tokens from stitched parsers to be widened.
         $(
             impl From<$subty> for $ir {
                 fn from(x: $subty) -> Self {
@@ -269,6 +306,66 @@ macro_rules! sum_ir {
         //     at least at present,
         //     since they are nothing more than implementation details.
         impl crate::parse::Object for $ir {}
+
+        // In addition to the complete sum type $sumty above,
+        //   the user may also specify their own sum sum types with explicit
+        //   subtypes.
+        $(
+            $(#[$sumattr])*
+            #[derive(Debug, PartialEq)]
+            $sumvis enum $sumsub {
+                $(
+                    $sumsubty($sumsubty),
+                )+
+            }
+
+            impl crate::parse::Token for $sumsub {
+                fn ir_name() -> &'static str {
+                    concat!($irname, " narrowed into ", stringify!($sumsub))
+                }
+
+                fn span(&self) -> crate::span::Span {
+                    match self {
+                        $(
+                            Self::$sumsubty(x) => x.span(),
+                        )+
+                    }
+                }
+            }
+
+            impl std::fmt::Display for $sumsub {
+                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Self::$sumsubty(x) => std::fmt::Display::fmt(x, f),
+                        )+
+                    }
+                }
+            }
+
+            $(
+                impl From<$sumsubty> for $sumsub {
+                    fn from(x: $sumsubty) -> Self {
+                        Self::$sumsubty(x)
+                    }
+                }
+            )+
+
+            // Widen from each inner type to outer $ir.
+            //
+            // This is important for `PartiallyStitchableParseState` to
+            //   allow for lookahead tokens from stitched parsers to be
+            //   widened.
+            impl From<$sumsub> for $ir {
+                fn from(sum: $sumsub) -> Self {
+                    match sum {
+                        $(
+                            $sumsub::$sumsubty(x) => x.into(),
+                        )+
+                    }
+                }
+            }
+        )*
     }
 }
 
@@ -305,7 +402,7 @@ sum_ir! {
     ///   convenience,
     ///     allowing the construction of subtypes to be encapsulated and
     ///     able to vary independently from the public type.
-    pub enum Air -> pub(super) AirSubsets "AIR" {
+    pub enum Air -> pub AirSubsets "AIR" {
         /// Tokens to be used by incomplete features that ought to type
         ///   check and be ignored rather than panic.
         ///
@@ -499,8 +596,8 @@ sum_ir! {
             /// Template parsing also recognizes additional nodes that can appear
             ///   only in this mode.
             ///
-            /// The [`ExprStack`] will be [`Held`],
-            ///   to be restored after template parsing has concluded.
+            /// The active [`ExprStack`] will be restored after template
+            ///   parsing has concluded.
             TplOpen(span: Span) => {
                 span: span,
                 display: |f| write!(f, "open template"),
@@ -515,4 +612,10 @@ sum_ir! {
             },
         }
     }
+
+    /// Expressions that are able to be bound to identifiers.
+    ///
+    /// This is the primary token set when parsing packages,
+    ///   since most everything in TAMER is an expression.
+    pub sum enum AirBindableExpr = AirExpr | AirBind;
 }
