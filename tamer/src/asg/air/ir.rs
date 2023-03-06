@@ -250,6 +250,17 @@ macro_rules! sum_ir {
             }
         }
 
+        impl std::fmt::Display for $sumty {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(
+                        #[allow(unused_variables)]
+                        $sumty::$subty(x) => std::fmt::Display::fmt(x, f),
+                    )+
+                }
+            }
+        }
+
         $(
             impl std::fmt::Display for $subty {
                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -278,6 +289,20 @@ macro_rules! sum_ir {
                             #[allow(unused_variables)]
                             Self::$svar($($svident),*) => (*$svspan).into(),
                         )+
+                    )+
+                }
+            }
+        }
+
+        impl crate::parse::Token for $sumty {
+            fn ir_name() -> &'static str {
+                $irname
+            }
+
+            fn span(&self) -> crate::span::Span {
+                match self {
+                    $(
+                        $sumty::$subty(x) => x.span(),
                     )+
                 }
             }
