@@ -717,17 +717,25 @@ fn expr_close_unbalanced() {
 
 #[test]
 fn expr_bind_to_empty() {
-    let id_noexpr_a = SPair("noexpr_a".into(), S1);
-    let id_good = SPair("noexpr".into(), S3);
-    let id_noexpr_b = SPair("noexpr_b".into(), S5);
+    let id_pre = SPair("pre".into(), S2);
+    let id_noexpr_a = SPair("noexpr_a".into(), S4);
+    let id_good = SPair("good".into(), S6);
+    let id_noexpr_b = SPair("noexpr_b".into(), S8);
 
     let toks = vec![
+        // We need to first bring ourselves out of the context of the
+        //   package header,
+        //     otherwise the bind will be interpreted as a bind to the
+        //     package itself.
+        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::BindIdent(id_pre),
+        Air::ExprClose(S3),
         // No open expression to bind to.
         Air::BindIdent(id_noexpr_a),
         // Post-recovery create an expression.
-        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprOpen(ExprOp::Sum, S5),
         Air::BindIdent(id_good),
-        Air::ExprClose(S4),
+        Air::ExprClose(S7),
         // Once again we have nothing to bind to.
         Air::BindIdent(id_noexpr_b),
     ];
@@ -737,6 +745,15 @@ fn expr_bind_to_empty() {
     assert_eq!(
         vec![
             Ok(Parsed::Incomplete), // PkgOpen
+            // Just to get out of a package header context
+            Ok(Parsed::Incomplete), // ExprOpen (pre)
+            Ok(Parsed::Incomplete), // BindIdent (pre)
+            Ok(Parsed::Incomplete), // ExprClose (pre)
+            // Now that we've encountered an expression,
+            //   we want an error specific to expression binding,
+            //   since it's likely that a bind token was issued too late,
+            //     rather than trying to interpret this as being back in a
+            //     package context and binding to the package.
             Err(ParseError::StateError(AsgError::InvalidExprBindContext(
                 id_noexpr_a
             ))),
@@ -763,7 +780,7 @@ fn expr_bind_to_empty() {
 
     // Verify that the expression was successfully added after recovery.
     let expr = asg.expect_ident_obj::<Expr>(id_good);
-    assert_eq!(expr.span(), S2.merge(S4).unwrap());
+    assert_eq!(expr.span(), S5.merge(S7).unwrap());
 }
 
 // Subexpressions should not only have edges to their parent,

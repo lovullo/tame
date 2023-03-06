@@ -35,15 +35,19 @@
 //!   but that would surely result in face-palming and so we're not going
 //!     air such cringeworthy dad jokes here.
 
+use self::ir::AirBindableExpr;
+
 use super::{
     graph::object::{Expr, Pkg},
     Asg, AsgError, ObjectIndex,
 };
 use crate::{
     asg::graph::object::Tpl,
+    diagnose::Annotate,
+    diagnostic_unreachable,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{util::SPair, ParseState, Transition, Transitionable},
+    parse::{prelude::*, util::SPair},
     span::Span,
     sym::SymbolId,
 };
@@ -108,13 +112,6 @@ pub struct Dormant;
 /// Expression stack is in use as part of an expression parse.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Active(StackEdge);
-/// Expression stack has been set aside temporarily for some other operation
-///   and will be restored after that operation completes.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Held {
-    Dormant,
-    Active(Active),
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StackEdge {
@@ -156,16 +153,6 @@ impl ExprStack<Dormant> {
     fn activate(self) -> ExprStack<Active> {
         let Self(stack, _) = self;
         ExprStack(stack, Active(StackEdge::Dangling))
-    }
-
-    /// Set the expression stack aside to perform another operation.
-    ///
-    /// The stack can later be restored using [`ExprStack::release_st`],
-    ///   and will restore to the same dormant state.
-    fn hold(self) -> ExprStack<Held> {
-        match self {
-            Self(stack, _st) => ExprStack(stack, Held::Dormant),
-        }
     }
 }
 
@@ -231,24 +218,6 @@ impl ExprStack<Active> {
     }
 }
 
-impl ExprStack<Held> {
-    /// Produce an [`AirAggregate`] state from a prior expression stacks
-    ///   state.
-    ///
-    /// This marks the completion of whatever operation caused the stack to
-    ///   be held using one of the `hold` implementations.
-    fn release_st(self, oi_pkg: ObjectIndex<Pkg>) -> AirAggregate {
-        match self {
-            Self(stack, Held::Dormant) => {
-                AirAggregate::PkgDfn(oi_pkg, ExprStack(stack, Dormant))
-            }
-            Self(_stack, Held::Active(_active)) => {
-                todo!("ExprStack<Held> -> Active")
-            }
-        }
-    }
-}
-
 impl Default for ExprStack<Dormant> {
     fn default() -> Self {
         // TODO: 16 is a generous guess that is very unlikely to be exceeded
@@ -280,32 +249,22 @@ impl Display for ExprStack<Active> {
     }
 }
 
-impl Display for ExprStack<Held> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self(_, Held::Dormant) => {
-                write!(f, "held dormant expression stack")
-            }
-            Self(_, Held::Active(..)) => {
-                write!(f, "held active expression stack")
-            }
-        }
-    }
-}
-
 /// AIR parser state.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub enum AirAggregate {
     /// Parser is not currently performing any work.
-    Empty(ExprStack<Dormant>),
+    #[default]
+    Empty,
 
-    /// A package is being defined.
-    PkgDfn(ObjectIndex<Pkg>, ExprStack<Dormant>),
+    /// Expecting a package-level token.
+    PkgHead(ObjectIndex<Pkg>, AirExprAggregate),
 
-    /// Building an expression.
+    /// Parsing an expression.
     ///
-    /// Expressions may be nested arbitrarily deeply.
-    BuildingExpr(ObjectIndex<Pkg>, ExprStack<Active>, ObjectIndex<Expr>),
+    /// This expects to inherit an [`AirExprAggregate`] from the prior state
+    ///   so that we are not continuously re-allocating its stack for each
+    ///   new expression root.
+    PkgExpr(ObjectIndex<Pkg>, AirExprAggregate),
 
     /// Parser is in template parsing mode.
     ///
@@ -313,16 +272,10 @@ pub enum AirAggregate {
     ///   parented to this template rather than the parent [`Pkg`].
     /// See [`Air::TplOpen`] for more information.
     BuildingTpl(
-        (ObjectIndex<Pkg>, ExprStack<Held>),
+        (ObjectIndex<Pkg>, AirExprAggregate),
         ObjectIndex<Tpl>,
         Option<SPair>,
     ),
-}
-
-impl Default for AirAggregate {
-    fn default() -> Self {
-        Self::Empty(ExprStack::default())
-    }
 }
 
 impl Display for AirAggregate {
@@ -330,18 +283,20 @@ impl Display for AirAggregate {
         use AirAggregate::*;
 
         match self {
-            Empty(es) => write!(f, "awaiting AIR input for ASG with {es}"),
-            PkgDfn(_, es) => write!(f, "defining package with {es}"),
-            BuildingExpr(_, es, _) => {
-                write!(f, "building expression with {es}")
+            Empty => write!(f, "awaiting AIR input for ASG"),
+            PkgHead(_, _) => {
+                write!(f, "expecting package header or an expression")
             }
-            BuildingTpl((_, es), _, None) => {
-                write!(f, "building anonymous template with {es}")
+            PkgExpr(_, expr) => {
+                write!(f, "defining a package expression: {expr}")
             }
-            BuildingTpl((_, es), _, Some(name)) => {
+            BuildingTpl((_, expr), _, None) => {
+                write!(f, "building anonymous template with {expr}")
+            }
+            BuildingTpl((_, expr), _, Some(name)) => {
                 write!(
                     f,
-                    "building named template {} with {es}",
+                    "building named template {} with {expr}",
                     TtQuote::wrap(name)
                 )
             }
@@ -374,30 +329,230 @@ impl ParseState for AirAggregate {
         match (self, tok.into()) {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
-            (Empty(es), AirPkg(PkgOpen(span))) => {
+            (Empty, AirPkg(PkgOpen(span))) => {
                 let oi_pkg = asg.create(Pkg::new(span)).root(asg);
-                Transition(PkgDfn(oi_pkg, es)).incomplete()
+                Transition(PkgHead(oi_pkg, AirExprAggregate::parse_pkg(oi_pkg)))
+                    .incomplete()
             }
 
-            (PkgDfn(oi_pkg, es), AirPkg(PkgOpen(span))) => {
-                Transition(PkgDfn(oi_pkg, es))
-                    .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
-            }
-            (BuildingExpr(oi_pkg, es, oi), AirPkg(PkgOpen(span))) => {
-                Transition(BuildingExpr(oi_pkg, es, oi))
+            (PkgHead(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
+                Transition(PkgHead(oi_pkg, expr))
                     .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
             }
 
-            (PkgDfn(oi_pkg, es), AirPkg(PkgClose(span))) => {
+            (PkgExpr(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
+                Transition(PkgExpr(oi_pkg, expr))
+                    .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
+            }
+
+            (
+                PkgExpr(oi_pkg, expr) | PkgHead(oi_pkg, expr),
+                AirTpl(TplOpen(span)),
+            ) => {
+                let oi_tpl = asg.create(Tpl::new(span));
+
+                Transition(BuildingTpl((oi_pkg, expr), oi_tpl, None))
+                    .incomplete()
+            }
+
+            // No expression was started.
+            (PkgHead(oi_pkg, _expr), AirPkg(PkgClose(span))) => {
                 oi_pkg.close(asg, span);
-                Transition(Empty(es)).incomplete()
+                Transition(Empty).incomplete()
             }
 
-            (st @ (Empty(..) | BuildingExpr(..)), AirPkg(PkgClose(span))) => {
-                Transition(st).err(AsgError::InvalidPkgCloseContext(span))
+            (PkgHead(..), AirBind(ident)) => {
+                todo!("PkgBody AirBind {ident:?}")
             }
 
-            (PkgDfn(oi_pkg, es), AirExpr(ExprOpen(op, span))) => {
+            (PkgHead(oi_pkg, expr), tok @ AirExpr(..)) => {
+                Transition(PkgExpr(oi_pkg, expr))
+                    .incomplete()
+                    .with_lookahead(tok)
+            }
+
+            // Note: We unfortunately can't match on `AirExpr | AirBind`
+            //   and delegate in the same block
+            //     (without having to duplicate type checks and then handle
+            //       unreachable paths)
+            //     because of the different inner types.
+            (PkgExpr(oi_pkg, expr), AirExpr(etok)) => {
+                Self::delegate_expr(asg, oi_pkg, expr, etok)
+            }
+            (PkgExpr(oi_pkg, expr), AirBind(etok)) => {
+                Self::delegate_expr(asg, oi_pkg, expr, etok)
+            }
+
+            (PkgExpr(..), AirTpl(TplClose(..))) => {
+                todo!("PkgExpr AirTpl::TplClose")
+            }
+
+            (Empty, AirPkg(PkgClose(span))) => {
+                Transition(Empty).err(AsgError::InvalidPkgCloseContext(span))
+            }
+
+            (PkgExpr(oi_pkg, expr), AirPkg(PkgClose(span))) => {
+                match expr.is_accepting(asg) {
+                    true => {
+                        // TODO: this is duplicated with the above
+                        oi_pkg.close(asg, span);
+                        Transition(Empty).incomplete()
+                    }
+                    false => Transition(PkgExpr(oi_pkg, expr))
+                        .err(AsgError::InvalidPkgCloseContext(span)),
+                }
+            }
+
+            (
+                Empty,
+                AirExpr(ExprOpen(_, span))
+                | AirExpr(ExprClose(span))
+                | AirTpl(TplOpen(span))
+                | AirBind(BindIdent(SPair(_, span)))
+                | AirExpr(ExprRef(SPair(_, span))),
+            ) => Transition(Empty).err(AsgError::PkgExpected(span)),
+
+            (Empty, AirIdent(IdentDecl(name, kind, src))) => {
+                asg.declare(name, kind, src).map(|_| ()).transition(Empty)
+            }
+
+            (Empty, AirIdent(IdentExternDecl(name, kind, src))) => asg
+                .declare_extern(name, kind, src)
+                .map(|_| ())
+                .transition(Empty),
+
+            (Empty, AirIdent(IdentDep(sym, dep))) => {
+                asg.add_dep_lookup(sym, dep);
+                Transition(Empty).incomplete()
+            }
+
+            (Empty, AirIdent(IdentFragment(sym, text))) => {
+                asg.set_fragment(sym, text).map(|_| ()).transition(Empty)
+            }
+
+            (Empty, AirIdent(IdentRoot(sym))) => {
+                let obj = asg.lookup_or_missing(sym);
+                asg.add_root(obj);
+
+                Transition(Empty).incomplete()
+            }
+
+            (
+                BuildingTpl((oi_pkg, expr), oi_tpl, None),
+                AirBind(BindIdent(name)),
+            ) => asg
+                .lookup_or_missing(name)
+                .bind_definition(asg, name, oi_tpl)
+                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
+                .map(|_| ())
+                .transition(BuildingTpl((oi_pkg, expr), oi_tpl, Some(name))),
+
+            (
+                BuildingTpl((oi_pkg, expr), oi_tpl, _),
+                AirTpl(TplClose(span)),
+            ) => {
+                oi_tpl.close(asg, span);
+                Transition(PkgHead(oi_pkg, expr)).incomplete()
+            }
+
+            (BuildingTpl(..), tok) => todo!("BuildingTpl body: {tok:?}"),
+
+            (st @ (Empty | PkgHead(..)), AirTpl(TplClose(span))) => {
+                Transition(st).err(AsgError::UnbalancedTpl(span))
+            }
+
+            (st, tok @ AirIdent(..)) => todo!("{st:?}, {tok:?}"),
+        }
+    }
+
+    fn is_accepting(&self, _: &Self::Context) -> bool {
+        matches!(self, Self::Empty)
+    }
+}
+
+impl AirAggregate {
+    /// Delegate to the expression parser [`AirExprAggregate`].
+    ///
+    /// TODO: This ought to be further reduced into primitives in the core
+    ///   [`crate::parse`] framework.
+    fn delegate_expr(
+        asg: &mut <Self as ParseState>::Context,
+        oi_pkg: ObjectIndex<Pkg>,
+        expr: AirExprAggregate,
+        etok: impl Into<<AirExprAggregate as ParseState>::Token>,
+    ) -> TransitionResult<Self> {
+        let tok = etok.into();
+        let tokspan = tok.span();
+
+        expr.parse_token(tok, asg).branch_dead::<Self>(
+            // TODO: Enforce using type system to avoid need for this
+            //   runtime check and prove that it is indeed impossible
+            //     (which otherwise could fail to be the case due to changes
+            //       since this was written).
+            |_| {
+                diagnostic_unreachable!(
+                    vec![tokspan.internal_error(
+                        "unexpected dead state transition at this token"
+                    )],
+                    "AirExprAggregate should not have dead states"
+                )
+            },
+            |expr, result| {
+                result
+                    .map(ParseStatus::reflexivity)
+                    .transition(Self::PkgExpr(oi_pkg, expr))
+            },
+        )
+    }
+}
+
+/// Parse an AIR expression with binding support.
+///
+/// Expressions are composable,
+///   so this parser need only care about whether it has any active
+///   expression being parsed.
+///
+/// This parser has no dead states---it
+///   handles each of its tokens and performs error recovery on invalid
+///   state transitions.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AirExprAggregate {
+    /// Ready for an expression;
+    ///   expression stack is empty.
+    Ready(ObjectIndex<Pkg>, ExprStack<Dormant>),
+
+    /// Building an expression.
+    BuildingExpr(ObjectIndex<Pkg>, ExprStack<Active>, ObjectIndex<Expr>),
+}
+
+impl Display for AirExprAggregate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Ready(_, es) => write!(f, "ready for expression with {es}"),
+            Self::BuildingExpr(_, es, _) => {
+                write!(f, "building expression with {es}")
+            }
+        }
+    }
+}
+
+impl ParseState for AirExprAggregate {
+    type Token = AirBindableExpr;
+    type Object = ();
+    type Error = AsgError;
+    type Context = Asg;
+
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        asg: &mut Self::Context,
+    ) -> crate::parse::TransitionResult<Self::Super> {
+        use ir::{AirBind::*, AirExpr::*};
+        use AirBindableExpr::*;
+        use AirExprAggregate::*;
+
+        match (self, tok) {
+            (Ready(oi_pkg, es), AirExpr(ExprOpen(op, span))) => {
                 let oi = asg.create(Expr::new(op, span));
                 Transition(BuildingExpr(oi_pkg, es.activate(), oi)).incomplete()
             }
@@ -405,15 +560,6 @@ impl ParseState for AirAggregate {
             (BuildingExpr(oi_pkg, es, poi), AirExpr(ExprOpen(op, span))) => {
                 let oi = poi.create_subexpr(asg, Expr::new(op, span));
                 Transition(BuildingExpr(oi_pkg, es.push(poi), oi)).incomplete()
-            }
-
-            (
-                st @ Empty(..),
-                AirExpr(ExprOpen(_, span)) | AirTpl(TplOpen(span)),
-            ) => Transition(st).err(AsgError::PkgExpected(span)),
-
-            (st @ (Empty(..) | PkgDfn(..)), AirExpr(ExprClose(span))) => {
-                Transition(st).err(AsgError::UnbalancedExpr(span))
             }
 
             (BuildingExpr(oi_pkg, es, oi), AirExpr(ExprClose(end))) => {
@@ -429,7 +575,7 @@ impl ParseState for AirAggregate {
                     }
                     (es, None) => {
                         let dangling = es.is_dangling();
-                        let st = PkgDfn(oi_pkg, es.done());
+                        let st = Ready(oi_pkg, es.done());
 
                         if dangling {
                             Transition(st).err(AsgError::DanglingExpr(
@@ -464,78 +610,28 @@ impl ParseState for AirAggregate {
                     .incomplete()
             }
 
-            (st @ (Empty(_) | PkgDfn(_, _)), AirBind(BindIdent(ident))) => {
-                Transition(st).err(AsgError::InvalidExprBindContext(ident))
+            (st @ Ready(..), AirBind(BindIdent(id))) => {
+                Transition(st).err(AsgError::InvalidExprBindContext(id))
             }
 
-            (st @ (Empty(_) | PkgDfn(_, _)), AirExpr(ExprRef(ident))) => {
-                Transition(st).err(AsgError::InvalidExprRefContext(ident))
+            (st @ Ready(..), AirExpr(ExprRef(id))) => {
+                Transition(st).err(AsgError::InvalidExprRefContext(id))
             }
 
-            (st @ Empty(_), AirIdent(IdentDecl(name, kind, src))) => {
-                asg.declare(name, kind, src).map(|_| ()).transition(st)
+            (st @ Ready(..), AirExpr(ExprClose(span))) => {
+                Transition(st).err(AsgError::UnbalancedExpr(span))
             }
-
-            (st @ Empty(_), AirIdent(IdentExternDecl(name, kind, src))) => asg
-                .declare_extern(name, kind, src)
-                .map(|_| ())
-                .transition(st),
-
-            (st @ Empty(_), AirIdent(IdentDep(sym, dep))) => {
-                asg.add_dep_lookup(sym, dep);
-                Transition(st).incomplete()
-            }
-
-            (st @ Empty(_), AirIdent(IdentFragment(sym, text))) => {
-                asg.set_fragment(sym, text).map(|_| ()).transition(st)
-            }
-
-            (st @ Empty(_), AirIdent(IdentRoot(sym))) => {
-                let obj = asg.lookup_or_missing(sym);
-                asg.add_root(obj);
-
-                Transition(st).incomplete()
-            }
-
-            (PkgDfn(oi_pkg, es), AirTpl(TplOpen(span))) => {
-                let oi_tpl = asg.create(Tpl::new(span));
-
-                Transition(BuildingTpl((oi_pkg, es.hold()), oi_tpl, None))
-                    .incomplete()
-            }
-
-            (BuildingExpr(..), AirTpl(TplOpen(_span))) => {
-                todo!("BuildingExpr TplOpen")
-            }
-
-            (
-                BuildingTpl((oi_pkg, es), oi_tpl, None),
-                AirBind(BindIdent(name)),
-            ) => asg
-                .lookup_or_missing(name)
-                .bind_definition(asg, name, oi_tpl)
-                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
-                .map(|_| ())
-                .transition(BuildingTpl((oi_pkg, es), oi_tpl, Some(name))),
-
-            (BuildingTpl((oi_pkg, es), oi_tpl, _), AirTpl(TplClose(span))) => {
-                oi_tpl.close(asg, span);
-                Transition(es.release_st(oi_pkg)).incomplete()
-            }
-
-            (BuildingTpl(..), tok) => todo!("BuildingTpl body: {tok:?}"),
-
-            (
-                st @ (Empty(..) | PkgDfn(..) | BuildingExpr(..)),
-                AirTpl(TplClose(span)),
-            ) => Transition(st).err(AsgError::UnbalancedTpl(span)),
-
-            (st, tok @ AirIdent(_)) => todo!("{st:?}, {tok:?}"),
         }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        matches!(self, Self::Empty(_))
+        matches!(self, Self::Ready(..))
+    }
+}
+
+impl AirExprAggregate {
+    fn parse_pkg(oi: ObjectIndex<Pkg>) -> Self {
+        Self::Ready(oi, ExprStack::default())
     }
 }
 

@@ -435,7 +435,7 @@ where
 
         match data {
             TransitionData::Dead(Lookahead(lookahead)) => {
-                dead(env).incomplete().with_lookahead(lookahead.into())
+                dead(env).incomplete().with_lookahead(lookahead)
             }
 
             // Consume object and allow processing as part of state

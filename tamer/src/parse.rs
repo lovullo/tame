@@ -52,6 +52,7 @@ pub mod prelude {
     pub use super::{
         ClosedParseState, Context, NoContext, Object, ParseError, ParseState,
         ParseStatus, Parsed, ParsedResult, Token, Transition, TransitionResult,
+        Transitionable,
     };
 }
 

@@ -90,11 +90,14 @@ impl<S: ParseState> TransitionResult<S> {
     ///   since parsers should never permit this to occur.
     ///
     /// Ideally this will be enforced using the type system in the future.
-    pub fn with_lookahead(self, lookahead: S::Token) -> Self {
+    pub fn with_lookahead<T: Into<S::Token>>(self, lookahead: T) -> Self {
         match self {
             Self(transition, TransitionData::Result(result, None)) => Self(
                 transition,
-                TransitionData::Result(result, Some(Lookahead(lookahead))),
+                TransitionData::Result(
+                    result,
+                    Some(Lookahead(lookahead.into())),
+                ),
             ),
 
             // This represents a problem with the parser;
@@ -106,7 +109,7 @@ impl<S: ParseState> TransitionResult<S> {
                 TransitionData::Result(_, Some(prev))
                 | TransitionData::Dead(prev),
             ) => prev.overwrite_panic(
-                lookahead,
+                lookahead.into(),
                 "cannot overwrite unused lookahead token",
             ),
         }
@@ -187,7 +190,9 @@ impl<S: ParseState> TransitionResult<S> {
         S: PartiallyStitchableParseState<SB>,
     {
         self.branch_dead_la(
-            |st, Lookahead(la)| fdead(st).with_lookahead(la.into()),
+            |st, Lookahead(la)| {
+                fdead(st).with_lookahead(<SB as ParseState>::Token::from(la))
+            },
             |st, result, la| {
                 falive(st, result)
                     .maybe_with_lookahead(la.map(Lookahead::inner_into))

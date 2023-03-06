@@ -42,6 +42,10 @@ where
 }
 
 // Note that this is an integration test beginning at AIR.
+// It is therefore fragile,
+//   and will break if any of these complex systems fail in subtle ways.
+// If you arrived at this test without having modified the visitor,
+//   then it's quite possible that you should be looking elsewhere.
 //
 // We will construct a test ASG using the same subsystem as the user;
 //   we want to be sure that the traversal works as we expect it to in
