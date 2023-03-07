@@ -37,11 +37,7 @@
 
 use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
 use crate::{
-    asg::graph::object::Tpl,
-    diagnose::Annotate,
-    diagnostic_unreachable,
-    fmt::{DisplayWrapper, TtQuote},
-    parse::{prelude::*, util::SPair},
+    diagnose::Annotate, diagnostic_unreachable, parse::prelude::*,
     sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
@@ -51,7 +47,9 @@ mod ir;
 pub use ir::Air;
 
 mod expr;
+mod tpl;
 use expr::AirExprAggregate;
+use tpl::AirTplAggregate;
 
 pub type IdentSym = SymbolId;
 pub type DepSym = SymbolId;
@@ -167,7 +165,7 @@ impl ParseState for AirAggregate {
             ) => Transition(PkgTpl(
                 oi_pkg,
                 expr,
-                AirTplAggregate::define_in_pkg(oi_pkg),
+                AirTplAggregate::new_in_pkg(oi_pkg),
             ))
             .incomplete()
             .with_lookahead(tok),
@@ -311,131 +309,6 @@ impl AirAggregate {
                 },
                 stored_expr,
             )
-    }
-}
-
-/// Template parser and token aggregator.
-///
-/// A template consists of
-///
-///   - Metadata about the template,
-///       including its parameters; and
-///   - A collection of [`Air`] tokens representing the body of the
-///       template that will be expanded into the application site when the
-///       template is applied.
-///
-/// This contains an embedded [`AirExprAggregate`] parser for handling
-///   expressions just the same as [`AirAggregate`] does with packages.
-#[derive(Debug, PartialEq, Eq)]
-pub enum AirTplAggregate {
-    /// Ready for a template,
-    ///   defined as part of the given package.
-    ///
-    /// This state also include the template header;
-    ///   unlike NIR,
-    ///     AIR has no restrictions on when template header tokens are
-    ///     provided,
-    ///       which simplifies AIR generation.
-    ///
-    /// The expression parser [`AirExprAggregate`] is initialized at this
-    ///   state to avoid re-allocating its stack for adjacent templates.
-    /// This will not save any allocations if,
-    ///   after reaching a dead state,
-    ///   the caller
-    ///     (or parent parser)
-    ///     chooses to deallocate us.
-    Ready(ObjectIndex<Pkg>, AirExprAggregate),
-
-    /// Aggregating tokens into a template.
-    BuildingTpl(
-        ObjectIndex<Pkg>,
-        ObjectIndex<Tpl>,
-        AirExprAggregate,
-        Option<SPair>,
-    ),
-}
-
-impl Display for AirTplAggregate {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Ready(_, _) => write!(f, "ready for template definition"),
-            Self::BuildingTpl(_, expr, _, None) => {
-                write!(f, "building anonymous template with {expr}")
-            }
-            Self::BuildingTpl(_, expr, _, Some(name)) => {
-                write!(
-                    f,
-                    "building named template {} with {expr}",
-                    TtQuote::wrap(name)
-                )
-            }
-        }
-    }
-}
-
-impl ParseState for AirTplAggregate {
-    type Token = Air;
-    type Object = ();
-    type Error = AsgError;
-    type Context = Asg;
-
-    fn parse_token(
-        self,
-        tok: Self::Token,
-        asg: &mut Self::Context,
-    ) -> TransitionResult<Self::Super> {
-        use ir::{AirBind::*, AirSubsets::*, AirTodo::*, AirTpl::*};
-        use AirTplAggregate::*;
-
-        match (self, tok.into()) {
-            (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
-
-            (Ready(oi_pkg, expr), AirTpl(TplOpen(span))) => {
-                let oi_tpl = asg.create(Tpl::new(span));
-
-                Transition(BuildingTpl(oi_pkg, oi_tpl, expr, None)).incomplete()
-            }
-
-            (
-                BuildingTpl(oi_pkg, oi_tpl, expr, _),
-                AirBind(BindIdent(name)),
-            ) => asg
-                .lookup_or_missing(name)
-                .bind_definition(asg, name, oi_tpl)
-                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
-                .map(|_| ())
-                .transition(BuildingTpl(oi_pkg, oi_tpl, expr, Some(name))),
-
-            (BuildingTpl(oi_pkg, oi_tpl, expr, _), AirTpl(TplClose(span))) => {
-                oi_tpl.close(asg, span);
-                Transition(Ready(oi_pkg, expr)).incomplete()
-            }
-
-            (BuildingTpl(..), AirPkg(_)) => {
-                todo!("template cannot define packages")
-            }
-
-            (BuildingTpl(..), tok) => todo!("BuildingTpl body: {tok:?}"),
-
-            (st @ Ready(..), AirTpl(TplClose(span))) => {
-                Transition(st).err(AsgError::UnbalancedTpl(span))
-            }
-
-            (
-                st @ Ready(..),
-                tok @ (AirPkg(..) | AirExpr(..) | AirBind(..) | AirIdent(..)),
-            ) => Transition(st).dead(tok.into()),
-        }
-    }
-
-    fn is_accepting(&self, _: &Self::Context) -> bool {
-        matches!(self, Self::Ready(..))
-    }
-}
-
-impl AirTplAggregate {
-    fn define_in_pkg(oi_pkg: ObjectIndex<Pkg>) -> Self {
-        Self::Ready(oi_pkg, AirExprAggregate::new_in_pkg(oi_pkg))
     }
 }
 
