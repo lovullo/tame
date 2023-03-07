@@ -50,10 +50,13 @@ use std::{
 ///   parser.
 pub mod prelude {
     pub use super::{
-        ClosedParseState, Context, NoContext, Object, ParseError, ParseState,
-        ParseStatus, Parsed, ParsedResult, Token, Transition, TransitionResult,
-        Transitionable,
+        util::SPair, ClosedParseState, Context, NoContext, Object, ParseError,
+        ParseState, ParseStatus, Parsed, ParsedResult, Token, Transition,
+        TransitionResult, Transitionable,
     };
+
+    // Every `Token` must implement `Display`.
+    pub use std::fmt::Display;
 }
 
 /// A single datum from a streaming IR with an associated [`Span`].

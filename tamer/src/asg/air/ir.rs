@@ -27,10 +27,7 @@ use crate::{
 };
 
 #[cfg(doc)]
-use super::{
-    super::graph::object::{Expr, Ident, Pkg, Tpl},
-    ExprStack,
-};
+use super::super::graph::object::{Expr, Ident, Pkg, Tpl};
 
 /// Create an IR able to be decomposed into types containing subsets of
 ///   tokens.
@@ -618,7 +615,7 @@ sum_ir! {
             /// Template parsing also recognizes additional nodes that can appear
             ///   only in this mode.
             ///
-            /// The active [`ExprStack`] will be restored after template
+            /// The active expression stack will be restored after template
             ///   parsing has concluded.
             TplOpen(span: Span) => {
                 span: span,
@@ -627,7 +624,7 @@ sum_ir! {
 
             /// Close the active [`Tpl`] and exit template parsing.
             ///
-            /// The [`ExprStack`] will be restored to its prior state.
+            /// The expression stack will be restored to its prior state.
             TplClose(span: Span) => {
                 span: span,
                 display: |f| write!(f, "close template"),
