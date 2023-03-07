@@ -178,25 +178,43 @@ impl<S: ParseState> TransitionResult<S> {
     ///   and so would have to be manufactured by
     ///     (or have been previously stored by)
     ///     a calling parser.
-    pub fn branch_dead<SB: ParseState>(
+    ///
+    /// Ownership and Branching
+    /// =======================
+    /// At the time of writing (2023),
+    ///   Rust's borrow checker cannot understand that the arguments to
+    ///   `fdead` and `falive` are utilized in exclusive branches;
+    ///     the borrowing happens at the call to `branch_dead` itself.
+    /// The causes ownership problems when both branches want to utilize the
+    ///   same data.
+    ///
+    /// To work around this limitation,
+    ///   this method accepts an arbitrary branching context `bctx` that
+    ///   will be passed to either `fdead` or `falive`;
+    ///     this can be utilized in place of closure.
+    pub fn branch_dead<SB: ParseState, C>(
         self,
-        fdead: impl FnOnce(S) -> TransitionResult<<SB as ParseState>::Super>,
+        fdead: impl FnOnce(S, C) -> TransitionResult<<SB as ParseState>::Super>,
         falive: impl FnOnce(
             S,
             ParseStateResult<S>,
+            C,
         ) -> TransitionResult<<SB as ParseState>::Super>,
+        bctx: C,
     ) -> TransitionResult<<SB as ParseState>::Super>
     where
         S: PartiallyStitchableParseState<SB>,
     {
         self.branch_dead_la(
-            |st, Lookahead(la)| {
-                fdead(st).with_lookahead(<SB as ParseState>::Token::from(la))
+            |st, Lookahead(la), bctx| {
+                fdead(st, bctx)
+                    .with_lookahead(<SB as ParseState>::Token::from(la))
             },
-            |st, result, la| {
-                falive(st, result)
+            |st, result, la, bctx| {
+                falive(st, result, bctx)
                     .maybe_with_lookahead(la.map(Lookahead::inner_into))
             },
+            bctx,
         )
     }
 
@@ -209,17 +227,23 @@ impl<S: ParseState> TransitionResult<S> {
     ///   the onus on the caller to ensure that the token is not lost_.
     /// As such,
     ///   this method is private to the `parse` module.
-    pub(in super::super) fn branch_dead_la<SB: ParseState>(
+    ///
+    /// For information about the branch context `bctx`,
+    ///   see the public-facing method [`Self::branch_dead`].
+    pub(in super::super) fn branch_dead_la<SB: ParseState, C>(
         self,
         fdead: impl FnOnce(
             S,
             Lookahead<<S as ParseState>::Token>,
+            C,
         ) -> TransitionResult<<SB as ParseState>::Super>,
         falive: impl FnOnce(
             S,
             ParseStateResult<S>,
             Option<Lookahead<<S as ParseState>::Token>>,
+            C,
         ) -> TransitionResult<<SB as ParseState>::Super>,
+        bctx: C,
     ) -> TransitionResult<<SB as ParseState>::Super>
     where
         S: PartiallyStitchableParseState<SB>,
@@ -229,8 +253,8 @@ impl<S: ParseState> TransitionResult<S> {
         let Self(Transition(st), data) = self;
 
         match data {
-            Dead(la) => fdead(st, la),
-            Result(result, la) => falive(st, result, la),
+            Dead(la) => fdead(st, la, bctx),
+            Result(result, la) => falive(st, result, la, bctx),
         }
     }
 

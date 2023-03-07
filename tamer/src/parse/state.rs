@@ -330,8 +330,9 @@ where
             //   the dead state simply means that we should transition back
             //   out of this parser back to `SP` so that it can use the
             //   token of lookahead.
-            |_| dead().incomplete(),
-            |st, result| TransitionData::from(result).transition(into(st)),
+            |_, ()| dead().incomplete(),
+            |st, result, ()| TransitionData::from(result).transition(into(st)),
+            (),
         )
     }
 
@@ -356,9 +357,12 @@ where
         C: AsMut<<Self as ParseState>::Context>,
     {
         self.parse_token(tok, context.as_mut())
-            .branch_dead_la::<Self::Super>(
-                |st, Lookahead(la)| dead(st, la, context),
-                |st, result, la| result.transition(st).maybe_with_lookahead(la),
+            .branch_dead_la::<Self::Super, _>(
+                |st, Lookahead(la), ()| dead(st, la, context),
+                |st, result, la, ()| {
+                    result.transition(st).maybe_with_lookahead(la)
+                },
+                (),
             )
     }
 
@@ -391,8 +395,8 @@ where
         use ParseStatus::{Incomplete, Object};
 
         self.parse_token(tok, context.as_mut()).branch_dead(
-            |_| dead().incomplete(),
-            |st, result| match result {
+            |_, ()| dead().incomplete(),
+            |st, result, ()| match result {
                 Ok(Object(obj)) => {
                     // TODO: check accepting
                     objf(st, obj)
@@ -400,6 +404,7 @@ where
                 Ok(Incomplete) => into(st).incomplete(),
                 Err(e) => into(st).err(e),
             },
+            (),
         )
     }
 

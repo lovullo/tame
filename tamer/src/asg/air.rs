@@ -479,12 +479,12 @@ impl AirAggregate {
         let tok = etok.into();
         let tokspan = tok.span();
 
-        expr.parse_token(tok, asg).branch_dead::<Self>(
+        expr.parse_token(tok, asg).branch_dead::<Self, _>(
             // TODO: Enforce using type system to avoid need for this
             //   runtime check and prove that it is indeed impossible
             //     (which otherwise could fail to be the case due to changes
             //       since this was written).
-            |_| {
+            |_, ()| {
                 diagnostic_unreachable!(
                     vec![tokspan.internal_error(
                         "unexpected dead state transition at this token"
@@ -492,11 +492,12 @@ impl AirAggregate {
                     "AirExprAggregate should not have dead states"
                 )
             },
-            |expr, result| {
+            |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
                     .transition(Self::PkgExpr(oi_pkg, expr))
             },
+            (),
         )
     }
 }
