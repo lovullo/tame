@@ -115,7 +115,11 @@ use crate::{
     span::{Span, UNKNOWN_SPAN},
 };
 use petgraph::graph::NodeIndex;
-use std::{convert::Infallible, fmt::Display, marker::PhantomData};
+use std::{
+    convert::Infallible,
+    fmt::{Debug, Display},
+    marker::PhantomData,
+};
 
 #[macro_use]
 mod rel;
@@ -424,7 +428,10 @@ impl AsRef<Object> for Object {
 ///
 /// Note that [`Object`] is also an [`ObjectKind`],
 ///   if you do not desire narrowing.
-pub trait ObjectKind = Into<Object> where Object: Into<Self> + AsRef<Self>;
+pub trait ObjectKind = Into<Object>
+where
+    Self: Debug + PartialEq,
+    Object: Into<Self> + AsRef<Self>;
 
 /// Index representing an [`Object`] stored on the [`Asg`](super::Asg).
 ///

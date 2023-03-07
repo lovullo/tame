@@ -23,13 +23,13 @@
 
 use super::{
     super::{
-        graph::object::{Expr, Object, Pkg},
+        graph::object::{Expr, Object},
         Asg, AsgError, ObjectIndex,
     },
     ir::AirBindableExpr,
 };
 use crate::{
-    asg::ObjectKind,
+    asg::{graph::object::ObjectRelTo, Ident, ObjectKind},
     f::Functor,
     parse::prelude::*,
     span::Span,
@@ -44,16 +44,17 @@ use crate::{
 /// This parser has no dead states---it
 ///   handles each of its tokens and performs error recovery on invalid
 ///   state transitions.
-#[derive(Debug, PartialEq, Eq)]
-pub enum AirExprAggregate {
+#[derive(Debug, PartialEq)]
+pub enum AirExprAggregate<OR: ObjectKind> {
     /// Ready for an expression;
     ///   expression stack is empty.
-    Ready(ObjectIndex<Pkg>, ExprStack<Dormant>),
+    Ready(ObjectIndex<OR>, ExprStack<Dormant>),
 
     /// Building an expression.
-    BuildingExpr(ObjectIndex<Pkg>, ExprStack<Active>, ObjectIndex<Expr>),
+    BuildingExpr(ObjectIndex<OR>, ExprStack<Active>, ObjectIndex<Expr>),
 }
-impl Display for AirExprAggregate {
+
+impl<OR: ObjectKind> Display for AirExprAggregate<OR> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Ready(_, es) => write!(f, "ready for expression with {es}"),
@@ -64,7 +65,10 @@ impl Display for AirExprAggregate {
     }
 }
 
-impl ParseState for AirExprAggregate {
+impl<OR: ObjectKind> ParseState for AirExprAggregate<OR>
+where
+    OR: ObjectRelTo<Ident>,
+{
     type Token = AirBindableExpr;
     type Object = ();
     type Error = AsgError;
@@ -80,17 +84,19 @@ impl ParseState for AirExprAggregate {
         use AirExprAggregate::*;
 
         match (self, tok) {
-            (Ready(oi_pkg, es), AirExpr(ExprOpen(op, span))) => {
+            (Ready(oi_target, es), AirExpr(ExprOpen(op, span))) => {
                 let oi = asg.create(Expr::new(op, span));
-                Transition(BuildingExpr(oi_pkg, es.activate(), oi)).incomplete()
+                Transition(BuildingExpr(oi_target, es.activate(), oi))
+                    .incomplete()
             }
 
-            (BuildingExpr(oi_pkg, es, poi), AirExpr(ExprOpen(op, span))) => {
+            (BuildingExpr(oi_target, es, poi), AirExpr(ExprOpen(op, span))) => {
                 let oi = poi.create_subexpr(asg, Expr::new(op, span));
-                Transition(BuildingExpr(oi_pkg, es.push(poi), oi)).incomplete()
+                Transition(BuildingExpr(oi_target, es.push(poi), oi))
+                    .incomplete()
             }
 
-            (BuildingExpr(oi_pkg, es, oi), AirExpr(ExprClose(end))) => {
+            (BuildingExpr(oi_target, es, oi), AirExpr(ExprClose(end))) => {
                 let start: Span = oi.into();
 
                 let _ = oi.map_obj(asg, |expr| {
@@ -99,11 +105,12 @@ impl ParseState for AirExprAggregate {
 
                 match es.pop() {
                     (es, Some(poi)) => {
-                        Transition(BuildingExpr(oi_pkg, es, poi)).incomplete()
+                        Transition(BuildingExpr(oi_target, es, poi))
+                            .incomplete()
                     }
                     (es, None) => {
                         let dangling = es.is_dangling();
-                        let st = Ready(oi_pkg, es.done());
+                        let st = Ready(oi_target, es.done());
 
                         if dangling {
                             Transition(st).err(AsgError::DanglingExpr(
@@ -116,25 +123,27 @@ impl ParseState for AirExprAggregate {
                 }
             }
 
-            (BuildingExpr(oi_pkg, es, oi), AirBind(BindIdent(id))) => {
+            (BuildingExpr(oi_target, es, oi), AirBind(BindIdent(id))) => {
                 let oi_ident = asg.lookup_or_missing(id);
-                oi_pkg.defines(asg, oi_ident);
+                oi_target.add_edge_to(asg, oi_ident, None);
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
                 match oi_ident.bind_definition(asg, id, oi) {
                     Ok(_) => Transition(BuildingExpr(
-                        oi_pkg,
+                        oi_target,
                         es.reachable_by(oi_ident),
                         oi,
                     ))
                     .incomplete(),
-                    Err(e) => Transition(BuildingExpr(oi_pkg, es, oi)).err(e),
+                    Err(e) => {
+                        Transition(BuildingExpr(oi_target, es, oi)).err(e)
+                    }
                 }
             }
 
-            (BuildingExpr(oi_pkg, es, oi), AirBind(RefIdent(ident))) => {
-                Transition(BuildingExpr(oi_pkg, es, oi.ref_expr(asg, ident)))
+            (BuildingExpr(oi_target, es, oi), AirBind(RefIdent(ident))) => {
+                Transition(BuildingExpr(oi_target, es, oi.ref_expr(asg, ident)))
                     .incomplete()
             }
 
@@ -157,8 +166,8 @@ impl ParseState for AirExprAggregate {
     }
 }
 
-impl AirExprAggregate {
-    pub(super) fn new_in_pkg(oi: ObjectIndex<Pkg>) -> Self {
+impl<O: ObjectKind> AirExprAggregate<O> {
+    pub(super) fn new_in(oi: ObjectIndex<O>) -> Self {
         Self::Ready(oi, ExprStack::default())
     }
 }

@@ -35,7 +35,10 @@
 //!   but that would surely result in face-palming and so we're not going
 //!     air such cringeworthy dad jokes here.
 
-use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
+use super::{
+    graph::object::Pkg,
+    Asg, AsgError, ObjectIndex,
+};
 use crate::{
     diagnose::Annotate, diagnostic_unreachable, parse::prelude::*,
     sym::SymbolId,
@@ -55,28 +58,28 @@ pub type IdentSym = SymbolId;
 pub type DepSym = SymbolId;
 
 /// AIR parser state.
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub enum AirAggregate {
     /// Parser is not currently performing any work.
     #[default]
     Empty,
 
     /// Expecting a package-level token.
-    PkgHead(ObjectIndex<Pkg>, AirExprAggregate),
+    PkgHead(ObjectIndex<Pkg>, AirExprAggregate<Pkg>),
 
     /// Parsing an expression.
     ///
     /// This expects to inherit an [`AirExprAggregate`] from the prior state
     ///   so that we are not continuously re-allocating its stack for each
     ///   new expression root.
-    PkgExpr(ObjectIndex<Pkg>, AirExprAggregate),
+    PkgExpr(ObjectIndex<Pkg>, AirExprAggregate<Pkg>),
 
     /// Parser is in template parsing mode.
     ///
     /// All objects encountered until the closing [`Air::TplClose`] will be
     ///   parented to this template rather than the parent [`Pkg`].
     /// See [`Air::TplOpen`] for more information.
-    PkgTpl(ObjectIndex<Pkg>, AirExprAggregate, AirTplAggregate),
+    PkgTpl(ObjectIndex<Pkg>, AirExprAggregate<Pkg>, AirTplAggregate),
 }
 
 impl Display for AirAggregate {
@@ -124,11 +127,8 @@ impl ParseState for AirAggregate {
 
             (Empty, AirPkg(PkgOpen(span))) => {
                 let oi_pkg = asg.create(Pkg::new(span)).root(asg);
-                Transition(PkgHead(
-                    oi_pkg,
-                    AirExprAggregate::new_in_pkg(oi_pkg),
-                ))
-                .incomplete()
+                Transition(PkgHead(oi_pkg, AirExprAggregate::new_in(oi_pkg)))
+                    .incomplete()
             }
 
             (PkgHead(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
@@ -254,8 +254,8 @@ impl AirAggregate {
     fn delegate_expr(
         asg: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
-        expr: AirExprAggregate,
-        etok: impl Into<<AirExprAggregate as ParseState>::Token>,
+        expr: AirExprAggregate<Pkg>,
+        etok: impl Into<<AirExprAggregate<Pkg> as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
         let tokspan = tok.span();
@@ -292,23 +292,21 @@ impl AirAggregate {
     fn delegate_tpl(
         asg: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
-        stored_expr: AirExprAggregate,
+        stored_expr: AirExprAggregate<Pkg>,
         tplst: AirTplAggregate,
         tok: Air,
     ) -> TransitionResult<Self> {
-        tplst
-            .parse_token(tok, asg)
-            .branch_dead::<Self, AirExprAggregate>(
-                |_, stored_expr| {
-                    Transition(Self::PkgExpr(oi_pkg, stored_expr)).incomplete()
-                },
-                |tplst, result, stored_expr| {
-                    result
-                        .map(ParseStatus::reflexivity)
-                        .transition(Self::PkgTpl(oi_pkg, stored_expr, tplst))
-                },
-                stored_expr,
-            )
+        tplst.parse_token(tok, asg).branch_dead::<Self, _>(
+            |_, stored_expr| {
+                Transition(Self::PkgExpr(oi_pkg, stored_expr)).incomplete()
+            },
+            |tplst, result, stored_expr| {
+                result
+                    .map(ParseStatus::reflexivity)
+                    .transition(Self::PkgTpl(oi_pkg, stored_expr, tplst))
+            },
+            stored_expr,
+        )
     }
 }
 

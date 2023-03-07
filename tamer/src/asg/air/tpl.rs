@@ -46,31 +46,23 @@ use crate::{
 /// This contains an embedded [`AirExprAggregate`] parser for handling
 ///   expressions just the same as [`super::AirAggregate`] does with
 ///   packages.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum AirTplAggregate {
     /// Ready for a template,
     ///   defined as part of the given package.
     ///
-    /// This state also include the template header;
+    /// This state also includes the template header;
     ///   unlike NIR,
     ///     AIR has no restrictions on when template header tokens are
     ///     provided,
     ///       which simplifies AIR generation.
-    ///
-    /// The expression parser [`AirExprAggregate`] is initialized at this
-    ///   state to avoid re-allocating its stack for adjacent templates.
-    /// This will not save any allocations if,
-    ///   after reaching a dead state,
-    ///   the caller
-    ///     (or parent parser)
-    ///     chooses to deallocate us.
-    Ready(ObjectIndex<Pkg>, AirExprAggregate),
+    Ready(ObjectIndex<Pkg>),
 
     /// Aggregating tokens into a template.
     BuildingTpl(
         ObjectIndex<Pkg>,
         ObjectIndex<Tpl>,
-        AirExprAggregate,
+        AirExprAggregate<Tpl>,
         Option<SPair>,
     ),
 }
@@ -78,7 +70,7 @@ pub enum AirTplAggregate {
 impl Display for AirTplAggregate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Ready(_, _) => write!(f, "ready for template definition"),
+            Self::Ready(_) => write!(f, "ready for template definition"),
             Self::BuildingTpl(_, expr, _, None) => {
                 write!(f, "building anonymous template with {expr}")
             }
@@ -110,10 +102,16 @@ impl ParseState for AirTplAggregate {
         match (self, tok.into()) {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
-            (Ready(oi_pkg, expr), AirTpl(TplOpen(span))) => {
+            (Ready(oi_pkg), AirTpl(TplOpen(span))) => {
                 let oi_tpl = asg.create(Tpl::new(span));
 
-                Transition(BuildingTpl(oi_pkg, oi_tpl, expr, None)).incomplete()
+                Transition(BuildingTpl(
+                    oi_pkg,
+                    oi_tpl,
+                    AirExprAggregate::new_in(oi_tpl),
+                    None,
+                ))
+                .incomplete()
             }
 
             (
@@ -126,9 +124,12 @@ impl ParseState for AirTplAggregate {
                 .map(|_| ())
                 .transition(BuildingTpl(oi_pkg, oi_tpl, expr, Some(name))),
 
-            (BuildingTpl(oi_pkg, oi_tpl, expr, _), AirTpl(TplClose(span))) => {
+            (
+                BuildingTpl(oi_pkg, oi_tpl, _expr_done, _),
+                AirTpl(TplClose(span)),
+            ) => {
                 oi_tpl.close(asg, span);
-                Transition(Ready(oi_pkg, expr)).incomplete()
+                Transition(Ready(oi_pkg)).incomplete()
             }
 
             (BuildingTpl(..), AirPkg(_)) => {
@@ -155,7 +156,7 @@ impl ParseState for AirTplAggregate {
 
 impl AirTplAggregate {
     pub(super) fn new_in_pkg(oi_pkg: ObjectIndex<Pkg>) -> Self {
-        Self::Ready(oi_pkg, AirExprAggregate::new_in_pkg(oi_pkg))
+        Self::Ready(oi_pkg)
     }
 }
 
