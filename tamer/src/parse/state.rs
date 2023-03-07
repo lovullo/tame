@@ -123,7 +123,7 @@ pub trait ClosedParseState = ParseState<Super = Self>;
 ///   but is not necessarily true for smaller, specialized parsers intended
 ///   for use as components of a larger parser
 ///     (in a spirit similar to parser combinators).
-pub trait ParseState: PartialEq + Eq + Display + Debug + Sized
+pub trait ParseState: PartialEq + Display + Debug + Sized
 where
     Self: Into<Self::Super>,
     Self::Error: Into<<Self::Super as ParseState>::Error>,
