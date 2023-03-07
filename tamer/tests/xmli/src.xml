@@ -37,4 +37,6 @@
   </classify>
 
   <template name="_empty_" />
+
+  <rate yields="postTpl" />
 </package>

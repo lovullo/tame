@@ -81,6 +81,9 @@
 //   should it become too complex then we should re-evaluate what we ought
 //   to be doing relative to the status of this feature.
 #![feature(return_position_impl_trait_in_trait)]
+// Added for use with `rustfmt::skip`,
+//   so that we can ignore formatting more precisely.
+#![feature(stmt_expr_attributes)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 // For sym::prefill recursive macro `static_symbols!`.
