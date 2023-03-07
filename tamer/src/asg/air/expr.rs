@@ -23,14 +23,14 @@
 
 use super::{
     super::{
-        graph::object::{Expr, Pkg},
+        graph::object::{Expr, Object, Pkg},
         Asg, AsgError, ObjectIndex,
     },
     ir::AirBindableExpr,
 };
 use crate::{
+    asg::ObjectKind,
     f::Functor,
-    fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
     span::Span,
 };
@@ -125,7 +125,7 @@ impl ParseState for AirExprAggregate {
                 match oi_ident.bind_definition(asg, id, oi) {
                     Ok(_) => Transition(BuildingExpr(
                         oi_pkg,
-                        es.reachable_by(id),
+                        es.reachable_by(oi_ident),
                         oi,
                     ))
                     .incomplete(),
@@ -233,16 +233,17 @@ pub enum StackEdge {
 
     /// Root expression is reachable from another object.
     ///
-    /// The associated [`SPair`] serves as _evidence_ of this assertion.
-    Reachable(SPair),
+    /// The associated [`ObjectIndex`] serves as _evidence_ of this
+    ///   assertion.
+    Reachable(ObjectIndex<Object>),
 }
 
 impl Display for StackEdge {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Dangling => write!(f, "dangling"),
-            Self::Reachable(ident) => {
-                write!(f, "reachable (by {})", TtQuote::wrap(ident))
+            Self::Reachable(oi) => {
+                write!(f, "reachable (by {oi})")
             }
         }
     }
@@ -295,10 +296,10 @@ impl ExprStack<Active> {
     /// If not parsing the root expression
     ///   (if the stack is non-empty),
     ///   this returns `self` unchanged.
-    fn reachable_by(self, ident: SPair) -> Self {
+    fn reachable_by<O: ObjectKind>(self, oi: ObjectIndex<O>) -> Self {
         match self {
             Self(stack, Active(StackEdge::Dangling)) if stack.is_empty() => {
-                Self(stack, Active(StackEdge::Reachable(ident)))
+                Self(stack, Active(StackEdge::Reachable(oi.widen())))
             }
             _ => self,
         }
