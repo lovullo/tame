@@ -32,7 +32,6 @@ use crate::{
     asg::{graph::object::ObjectRelTo, Ident, ObjectKind},
     f::Functor,
     parse::prelude::*,
-    span::Span,
 };
 use std::marker::PhantomData;
 
@@ -111,28 +110,29 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
             }
 
             (BuildingExpr(root, es, oi), AirExpr(ExprClose(end))) => {
-                let start: Span = oi.into();
-
                 let _ = oi.map_obj(asg, |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
 
-                match es.pop() {
-                    (es, Some(poi)) => {
+                let dangling = es.is_dangling();
+
+                match (es.pop(), dangling) {
+                    ((es, Some(poi)), _) => {
                         Transition(BuildingExpr(root, es, poi)).incomplete()
                     }
-                    (es, None) => {
-                        let dangling = es.is_dangling();
-                        let st = Ready(root, es.done(), PhantomData::default());
-
-                        if dangling {
-                            Transition(st).err(AsgError::DanglingExpr(
-                                start.merge(end).unwrap_or(start),
-                            ))
-                        } else {
-                            Transition(st).incomplete()
-                        }
+                    ((es, None), true) => {
+                        root.hold_dangling(asg, oi).transition(Ready(
+                            root,
+                            es.done(),
+                            PhantomData::default(),
+                        ))
                     }
+                    ((es, None), false) => Transition(Ready(
+                        root,
+                        es.done(),
+                        PhantomData::default(),
+                    ))
+                    .incomplete(),
                 }
             }
 
@@ -399,6 +399,17 @@ mod root {
         /// This is invoked for _all_ identifiers,
         ///   including sub-expressions.
         fn defines(&self, asg: &mut Asg, id: SPair) -> ObjectIndex<Ident>;
+
+        /// Hold or reject a [`Dangling`] root [`Expr`].
+        ///
+        /// A [`Dangling`] expression is not reachable by any other object,
+        ///   so this strategy must decide whether to root it in [`Self`] or
+        ///   reject it.
+        fn hold_dangling(
+            &self,
+            asg: &mut Asg,
+            oi_expr: ObjectIndex<Expr>,
+        ) -> Result<(), AsgError>;
     }
 
     /// Accept and root only [`Reachable`] root expressions.
@@ -432,6 +443,14 @@ mod root {
                 }
             }
         }
+
+        fn hold_dangling(
+            &self,
+            asg: &mut Asg,
+            oi_expr: ObjectIndex<Expr>,
+        ) -> Result<(), AsgError> {
+            Err(AsgError::DanglingExpr(oi_expr.resolve(asg).span()))
+        }
     }
 
     /// Accept both [`Reachable`] and [`Dangling`] expressions.
@@ -462,6 +481,15 @@ mod root {
             match self {
                 Self(oi_root) => ReachableOnly(*oi_root).defines(asg, id),
             }
+        }
+
+        fn hold_dangling(
+            &self,
+            _asg: &mut Asg,
+            _oi_expr: ObjectIndex<Expr>,
+        ) -> Result<(), AsgError> {
+            // This will be used for templates.
+            todo!("hold_dangling")
         }
     }
 }
