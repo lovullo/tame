@@ -157,17 +157,12 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
                     .incomplete()
             }
 
-            (st @ Ready(..), AirBind(BindIdent(id))) => {
-                Transition(st).err(AsgError::InvalidExprBindContext(id))
-            }
-
-            (st @ Ready(..), AirBind(RefIdent(id))) => {
-                Transition(st).err(AsgError::InvalidExprRefContext(id))
-            }
-
             (st @ Ready(..), AirExpr(ExprClose(span))) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
+
+            // The binding may refer to a parent context.
+            (st @ Ready(..), tok @ AirBind(..)) => Transition(st).dead(tok),
         }
     }
 

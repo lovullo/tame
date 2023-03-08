@@ -39,7 +39,7 @@ use self::expr::AirExprAggregateReachable;
 
 use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
 use crate::{
-    diagnose::Annotate, diagnostic_unreachable, parse::prelude::*,
+    parse::prelude::*,
     sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
@@ -64,7 +64,7 @@ pub enum AirAggregate {
     Empty,
 
     /// Expecting a package-level token.
-    PkgHead(ObjectIndex<Pkg>, AirExprAggregateReachable<Pkg>),
+    Toplevel(ObjectIndex<Pkg>, AirExprAggregateReachable<Pkg>),
 
     /// Parsing an expression.
     ///
@@ -91,7 +91,7 @@ impl Display for AirAggregate {
 
         match self {
             Empty => write!(f, "awaiting AIR input for ASG"),
-            PkgHead(_, _) => {
+            Toplevel(_, _) => {
                 write!(f, "expecting package header or an expression")
             }
             PkgExpr(_, expr) => {
@@ -120,7 +120,8 @@ impl ParseState for AirAggregate {
         asg: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
         use ir::{
-            AirIdent::*, AirPkg::*, AirSubsets::*, AirTodo::*, AirTpl::*,
+            AirBind::*, AirIdent::*, AirPkg::*, AirSubsets::*, AirTodo::*,
+            AirTpl::*,
         };
         use AirAggregate::*;
 
@@ -130,12 +131,12 @@ impl ParseState for AirAggregate {
 
             (Empty, AirPkg(PkgOpen(span))) => {
                 let oi_pkg = asg.create(Pkg::new(span)).root(asg);
-                Transition(PkgHead(oi_pkg, AirExprAggregate::new_in(oi_pkg)))
+                Transition(Toplevel(oi_pkg, AirExprAggregate::new_in(oi_pkg)))
                     .incomplete()
             }
 
-            (PkgHead(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
-                Transition(PkgHead(oi_pkg, expr))
+            (Toplevel(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
+                Transition(Toplevel(oi_pkg, expr))
                     .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
             }
 
@@ -145,16 +146,20 @@ impl ParseState for AirAggregate {
             }
 
             // No expression was started.
-            (PkgHead(oi_pkg, _expr), AirPkg(PkgClose(span))) => {
+            (Toplevel(oi_pkg, _expr), AirPkg(PkgClose(span))) => {
                 oi_pkg.close(asg, span);
                 Transition(Empty).incomplete()
             }
 
-            (PkgHead(..), AirBind(ident)) => {
-                todo!("PkgBody AirBind {ident:?}")
+            // TODO: We don't support package ids yet
+            (st @ Toplevel(..), AirBind(BindIdent(id))) => {
+                Transition(st).err(AsgError::InvalidExprBindContext(id))
+            }
+            (st @ Toplevel(..), AirBind(RefIdent(id))) => {
+                Transition(st).err(AsgError::InvalidExprRefContext(id))
             }
 
-            (PkgHead(oi_pkg, expr), tok @ AirExpr(..)) => {
+            (Toplevel(oi_pkg, expr), tok @ AirExpr(..)) => {
                 Transition(PkgExpr(oi_pkg, expr))
                     .incomplete()
                     .with_lookahead(tok)
@@ -163,7 +168,7 @@ impl ParseState for AirAggregate {
             // Note that templates may preempt expressions at any point,
             //   unlike in NIR at the time of writing.
             (
-                PkgHead(oi_pkg, expr) | PkgExpr(oi_pkg, expr),
+                Toplevel(oi_pkg, expr) | PkgExpr(oi_pkg, expr),
                 tok @ AirTpl(..),
             ) => Transition(PkgTpl(
                 oi_pkg,
@@ -261,21 +266,9 @@ impl AirAggregate {
         etok: impl Into<<AirExprAggregateReachable<Pkg> as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
-        let tokspan = tok.span();
 
         expr.parse_token(tok, asg).branch_dead::<Self, _>(
-            // TODO: Enforce using type system to avoid need for this
-            //   runtime check and prove that it is indeed impossible
-            //     (which otherwise could fail to be the case due to changes
-            //       since this was written).
-            |_, ()| {
-                diagnostic_unreachable!(
-                    vec![tokspan.internal_error(
-                        "unexpected dead state transition at this token"
-                    )],
-                    "AirExprAggregate should not have dead states"
-                )
-            },
+            |expr, ()| Transition(Self::Toplevel(oi_pkg, expr)).incomplete(),
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
