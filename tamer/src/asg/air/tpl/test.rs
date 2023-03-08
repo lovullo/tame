@@ -19,8 +19,12 @@
 
 use super::*;
 use crate::asg::{
-    air::{expr::test::collect_subexprs, Air, AirAggregate},
-    Expr, ExprOp,
+    air::{
+        expr::test::collect_subexprs,
+        test::{asg_from_toks, parse_as_pkg_body},
+        Air, AirAggregate,
+    },
+    Expr, ExprOp, Ident,
 };
 use crate::span::dummy::*;
 
@@ -149,5 +153,113 @@ fn tpl_within_expr() {
             .map(|(_, expr)| expr.span())
             .rev()
             .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn close_tpl_without_open() {
+    let toks = vec![
+        Air::TplClose(S1),
+        // RECOVERY: Try again.
+        Air::TplOpen(S2),
+        Air::TplClose(S3),
+    ];
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // PkgOpen
+            Err(ParseError::StateError(AsgError::UnbalancedTpl(S1))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // TplOpen
+            Ok(Parsed::Incomplete), // TplClose
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        parse_as_pkg_body(toks).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn tpl_with_reachable_expression() {
+    let id_tpl = SPair("_tpl_".into(), S2);
+    let id_expr_a = SPair("expra".into(), S4);
+    let id_expr_b = SPair("exprb".into(), S7);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplOpen(S1),
+          Air::BindIdent(id_tpl),
+
+          Air::ExprOpen(ExprOp::Sum, S3),
+            Air::BindIdent(id_expr_a),
+          Air::ExprClose(S5),
+
+          Air::ExprOpen(ExprOp::Sum, S6),
+            Air::BindIdent(id_expr_b),
+          Air::ExprClose(S8),
+        Air::TplClose(S9),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_tpl = asg.expect_ident_oi::<Tpl>(id_tpl);
+    let tpl = oi_tpl.resolve(&asg);
+    assert_eq!(S1.merge(S9).unwrap(), tpl.span());
+
+    // The inner expressions are reachable,
+    //   but the intent is to expand them into the template's eventual
+    //   application site.
+    // Given that,
+    //   they should be defined by the template...
+    assert_eq!(
+        vec![
+            asg.lookup(id_expr_b).unwrap(),
+            asg.lookup(id_expr_a).unwrap(),
+        ],
+        oi_tpl.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
+    );
+
+    // ...but not by the package containing the template.
+    let oi_pkg = asg.lookup(id_tpl).unwrap().src_pkg(&asg).unwrap();
+    assert_eq!(
+        vec![
+            // The only identifier on the package should be the template itself.
+            asg.lookup(id_tpl).unwrap(),
+        ],
+        oi_pkg.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn close_tpl_mid_open() {
+    let id_expr = SPair("expr".into(), S3);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplOpen(S1),
+          Air::ExprOpen(ExprOp::Sum, S2),
+          Air::BindIdent(id_expr),
+        // This is misplaced.
+        Air::TplClose(S4),
+          // RECOVERY: Close the expression and try again.
+          Air::ExprClose(S5),
+        Air::TplClose(S6),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Parsed::Incomplete), // PkgOpen
+              Ok(Parsed::Incomplete), // TplOpen
+                Ok(Parsed::Incomplete), // ExprOpen
+                  Ok(Parsed::Incomplete), // BindIdent
+              Err(ParseError::StateError(
+                  AsgError::InvalidTplCloseContext(S4))
+              ),
+                // RECOVERY
+                Ok(Parsed::Incomplete), // ExprClose
+              Ok(Parsed::Incomplete), // TplClose
+            Ok(Parsed::Incomplete), // PkgClose
+        ],
+        parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
 }

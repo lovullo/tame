@@ -59,8 +59,15 @@ pub enum AirTplAggregate {
     ///       which simplifies AIR generation.
     Ready(ObjectIndex<Pkg>),
 
+    Toplevel(
+        ObjectIndex<Pkg>,
+        ObjectIndex<Tpl>,
+        AirExprAggregateStoreDangling<Tpl>,
+        Option<SPair>,
+    ),
+
     /// Aggregating tokens into a template.
-    BuildingTpl(
+    TplExpr(
         ObjectIndex<Pkg>,
         ObjectIndex<Tpl>,
         AirExprAggregateStoreDangling<Tpl>,
@@ -72,10 +79,14 @@ impl Display for AirTplAggregate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Ready(_) => write!(f, "ready for template definition"),
-            Self::BuildingTpl(_, expr, _, None) => {
+
+            Self::Toplevel(_, expr, _, None)
+            | Self::TplExpr(_, expr, _, None) => {
                 write!(f, "building anonymous template with {expr}")
             }
-            Self::BuildingTpl(_, expr, _, Some(name)) => {
+
+            Self::Toplevel(_, expr, _, Some(name))
+            | Self::TplExpr(_, expr, _, Some(name)) => {
                 write!(
                     f,
                     "building named template {} with {expr}",
@@ -106,7 +117,7 @@ impl ParseState for AirTplAggregate {
             (Ready(oi_pkg), AirTpl(TplOpen(span))) => {
                 let oi_tpl = asg.create(Tpl::new(span));
 
-                Transition(BuildingTpl(
+                Transition(Toplevel(
                     oi_pkg,
                     oi_tpl,
                     AirExprAggregate::new_in(oi_tpl),
@@ -115,29 +126,62 @@ impl ParseState for AirTplAggregate {
                 .incomplete()
             }
 
-            (
-                BuildingTpl(oi_pkg, oi_tpl, expr, _),
-                AirBind(BindIdent(name)),
-            ) => asg
-                .lookup_or_missing(name)
-                .bind_definition(asg, name, oi_tpl)
-                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
-                .map(|_| ())
-                .transition(BuildingTpl(oi_pkg, oi_tpl, expr, Some(name))),
+            (Toplevel(..), AirTpl(TplOpen(_span))) => todo!("nested tpl open"),
+
+            (Toplevel(oi_pkg, oi_tpl, expr, _), AirBind(BindIdent(name))) => {
+                asg.lookup_or_missing(name)
+                    .bind_definition(asg, name, oi_tpl)
+                    .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
+                    .map(|_| ())
+                    .transition(Toplevel(oi_pkg, oi_tpl, expr, Some(name)))
+            }
+
+            (Toplevel(..), AirBind(RefIdent(_))) => {
+                todo!("tpl Toplevel RefIdent")
+            }
 
             (
-                BuildingTpl(oi_pkg, oi_tpl, _expr_done, _),
+                Toplevel(oi_pkg, oi_tpl, _expr_done, _),
                 AirTpl(TplClose(span)),
             ) => {
                 oi_tpl.close(asg, span);
                 Transition(Ready(oi_pkg)).incomplete()
             }
 
-            (BuildingTpl(..), AirPkg(_)) => {
+            (TplExpr(oi_pkg, oi_tpl, expr, name), AirTpl(TplClose(span))) => {
+                // TODO: duplicated with AirAggregate
+                match expr.is_accepting(asg) {
+                    true => {
+                        // TODO: this is duplicated with the above
+                        oi_tpl.close(asg, span);
+                        Transition(Ready(oi_pkg)).incomplete()
+                    }
+                    false => Transition(TplExpr(oi_pkg, oi_tpl, expr, name))
+                        .err(AsgError::InvalidTplCloseContext(span)),
+                }
+            }
+
+            (Toplevel(..) | TplExpr(..), AirPkg(_)) => {
                 todo!("template cannot define packages")
             }
 
-            (BuildingTpl(..), tok) => todo!("BuildingTpl body: {tok:?}"),
+            (Toplevel(..) | TplExpr(..), AirIdent(_)) => {
+                todo!("linker token cannot be used in templates")
+            }
+
+            (
+                Toplevel(oi_pkg, oi_tpl, expr, name)
+                | TplExpr(oi_pkg, oi_tpl, expr, name),
+                AirExpr(etok),
+            ) => Self::delegate_expr(asg, oi_pkg, oi_tpl, expr, name, etok),
+
+            (TplExpr(oi_pkg, oi_tpl, expr, name), AirBind(etok)) => {
+                Self::delegate_expr(asg, oi_pkg, oi_tpl, expr, name, etok)
+            }
+
+            (TplExpr(..), AirTpl(TplOpen(_))) => {
+                todo!("nested template (template-generated template)")
+            }
 
             (st @ Ready(..), AirTpl(TplClose(span))) => {
                 Transition(st).err(AsgError::UnbalancedTpl(span))
@@ -158,6 +202,32 @@ impl ParseState for AirTplAggregate {
 impl AirTplAggregate {
     pub(super) fn new_in_pkg(oi_pkg: ObjectIndex<Pkg>) -> Self {
         Self::Ready(oi_pkg)
+    }
+
+    /// Delegate to the expression parser [`AirExprAggregate`].
+    // TODO: Sir, this argument count is out of control.
+    fn delegate_expr(
+        asg: &mut <Self as ParseState>::Context,
+        oi_pkg: ObjectIndex<Pkg>,
+        oi_tpl: ObjectIndex<Tpl>,
+        expr: AirExprAggregateStoreDangling<Tpl>,
+        name: Option<SPair>,
+        etok: impl Into<<AirExprAggregateStoreDangling<Tpl> as ParseState>::Token>,
+    ) -> TransitionResult<Self> {
+        let tok = etok.into();
+
+        expr.parse_token(tok, asg).branch_dead::<Self, _>(
+            |expr, ()| {
+                Transition(Self::Toplevel(oi_pkg, oi_tpl, expr, name))
+                    .incomplete()
+            },
+            |expr, result, ()| {
+                result
+                    .map(ParseStatus::reflexivity)
+                    .transition(Self::TplExpr(oi_pkg, oi_tpl, expr, name))
+            },
+            (),
+        )
     }
 }
 

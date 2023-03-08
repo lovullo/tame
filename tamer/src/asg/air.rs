@@ -38,10 +38,7 @@
 use self::expr::AirExprAggregateReachable;
 
 use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
-use crate::{
-    parse::prelude::*,
-    sym::SymbolId,
-};
+use crate::{parse::prelude::*, sym::SymbolId};
 use std::fmt::{Debug, Display};
 
 #[macro_use]

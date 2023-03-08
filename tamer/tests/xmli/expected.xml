@@ -35,4 +35,13 @@
   <template name="_empty_" />
 
   <rate yields="postTpl" />
+
+  <template name="_with-static-reachable_">
+    <rate yields="tplStaticA">
+      <c:sum />
+    </rate>
+    <classify as="tpl-static-b">
+      <any />
+    </classify>
+  </template>
 </package>

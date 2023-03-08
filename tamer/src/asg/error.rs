@@ -69,12 +69,7 @@ pub enum AsgError {
     ///   being defined.
     NestedPkgOpen(Span, Span),
 
-    /// Attempted to close a package when not in a package context.
-    ///
-    /// This could mean that a package close was attempted while parsing
-    ///   some other object
-    ///     (e.g. an expression),
-    ///     or that there is no open package to close.
+    /// Attempted to close a package when not in a package toplevel context.
     InvalidPkgCloseContext(Span),
 
     /// Attempted to open an expression in an invalid context.
@@ -113,6 +108,10 @@ pub enum AsgError {
     ///
     /// Ideally this situation is syntactically invalid in a source IR.
     InvalidExprRefContext(SPair),
+
+    /// Attempted to close a template when not in a template toplevel
+    ///   context.
+    InvalidTplCloseContext(Span),
 }
 
 impl Display for AsgError {
@@ -144,6 +143,9 @@ impl Display for AsgError {
                     "invalid context for expression identifier {}",
                     TtQuote::wrap(ident)
                 )
+            }
+            InvalidTplCloseContext(_) => {
+                write!(f, "invalid context for template close",)
             }
         }
     }
@@ -241,6 +243,14 @@ impl Diagnostic for AsgError {
                 "cannot reference the value of an expression from outside \
                     of an expression context",
             )],
+
+            InvalidTplCloseContext(span) => vec![
+                span.error("template close was not expected here"),
+                span.help(
+                    "a template must be closed at the same level of nesting \
+                       that it was opened",
+                ),
+            ],
         }
     }
 }
