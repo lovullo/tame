@@ -26,6 +26,7 @@ use super::{
         graph::object::{Pkg, Tpl},
         Asg, AsgError, ObjectIndex,
     },
+    expr::AirExprAggregateStoreDangling,
     Air, AirExprAggregate,
 };
 use crate::{
@@ -62,7 +63,7 @@ pub enum AirTplAggregate {
     BuildingTpl(
         ObjectIndex<Pkg>,
         ObjectIndex<Tpl>,
-        AirExprAggregate<Tpl>,
+        AirExprAggregateStoreDangling<Tpl>,
         Option<SPair>,
     ),
 }

@@ -35,10 +35,9 @@
 //!   but that would surely result in face-palming and so we're not going
 //!     air such cringeworthy dad jokes here.
 
-use super::{
-    graph::object::Pkg,
-    Asg, AsgError, ObjectIndex,
-};
+use self::expr::AirExprAggregateReachable;
+
+use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
 use crate::{
     diagnose::Annotate, diagnostic_unreachable, parse::prelude::*,
     sym::SymbolId,
@@ -65,21 +64,25 @@ pub enum AirAggregate {
     Empty,
 
     /// Expecting a package-level token.
-    PkgHead(ObjectIndex<Pkg>, AirExprAggregate<Pkg>),
+    PkgHead(ObjectIndex<Pkg>, AirExprAggregateReachable<Pkg>),
 
     /// Parsing an expression.
     ///
     /// This expects to inherit an [`AirExprAggregate`] from the prior state
     ///   so that we are not continuously re-allocating its stack for each
     ///   new expression root.
-    PkgExpr(ObjectIndex<Pkg>, AirExprAggregate<Pkg>),
+    PkgExpr(ObjectIndex<Pkg>, AirExprAggregateReachable<Pkg>),
 
     /// Parser is in template parsing mode.
     ///
     /// All objects encountered until the closing [`Air::TplClose`] will be
     ///   parented to this template rather than the parent [`Pkg`].
     /// See [`Air::TplOpen`] for more information.
-    PkgTpl(ObjectIndex<Pkg>, AirExprAggregate<Pkg>, AirTplAggregate),
+    PkgTpl(
+        ObjectIndex<Pkg>,
+        AirExprAggregateReachable<Pkg>,
+        AirTplAggregate,
+    ),
 }
 
 impl Display for AirAggregate {
@@ -254,8 +257,8 @@ impl AirAggregate {
     fn delegate_expr(
         asg: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
-        expr: AirExprAggregate<Pkg>,
-        etok: impl Into<<AirExprAggregate<Pkg> as ParseState>::Token>,
+        expr: AirExprAggregateReachable<Pkg>,
+        etok: impl Into<<AirExprAggregateReachable<Pkg> as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
         let tokspan = tok.span();
@@ -292,7 +295,7 @@ impl AirAggregate {
     fn delegate_tpl(
         asg: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
-        stored_expr: AirExprAggregate<Pkg>,
+        stored_expr: AirExprAggregateReachable<Pkg>,
         tplst: AirTplAggregate,
         tok: Air,
     ) -> TransitionResult<Self> {

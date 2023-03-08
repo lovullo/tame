@@ -22,7 +22,8 @@
 use std::fmt::Display;
 
 use super::{
-    Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy, ObjectRelatable,
+    Expr, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
+    ObjectRelatable,
 };
 use crate::{asg::Asg, f::Functor, span::Span};
 
@@ -57,9 +58,11 @@ impl Display for Tpl {
 }
 
 object_rel! {
-    /// TODO
+    /// Templates may expand into nearly any context,
+    ///   and must therefore be able to contain just about anything.
     Tpl -> {
-        // ...
+        tree Ident,
+        tree Expr,
     }
 }
 
