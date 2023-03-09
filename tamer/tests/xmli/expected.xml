@@ -2,6 +2,10 @@
          xmlns:c="http://www.lovullo.com/calc"
          xmlns:t="http://www.lovullo.com/rater/apply-template">
 
+
+
+
+
   <rate yields="rateFoo" />
 
   <rate yields="rateBar">
@@ -37,6 +41,9 @@
   <rate yields="postTpl" />
 
   <template name="_with-static-reachable_">
+
+
+
     <rate yields="tplStaticA">
       <c:sum />
     </rate>
@@ -46,6 +53,9 @@
   </template>
 
   <template name="_with-static-unreachable_">
+
+
+
     <c:sum>
       <c:product />
     </c:sum>
@@ -56,6 +66,10 @@
   </template>
 
   <template name="_with-static-mix-reachability_">
+
+
+
+
     <c:sum>
       <c:product />
     </c:sum>
@@ -63,6 +77,15 @@
     <c:product>
       <c:sum />
     </c:product>
+
+
+
+
+
+
+
+
+
 
     <rate yields="tplStaticMix" />
 
