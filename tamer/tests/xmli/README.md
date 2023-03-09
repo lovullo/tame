@@ -27,3 +27,8 @@ Test are prefixed with `test-*` and are executable.  They must be invoked
 with the environment variable `PATH_TAMEC` set to the path of `tamec`
 relative to the working directory.
 
+Test cases are organized into sub-directories with `src.xml` and
+`expected.xml` files.  `src.xml` will be compiled with `tamec`, its output
+formatted with `xmllint --format`, and `diff`'d against the
+`xmllint`-formatted output of `expected.xml`.
+

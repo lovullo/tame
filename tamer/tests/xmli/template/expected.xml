@@ -1,44 +1,9 @@
+
 <package xmlns="http://www.lovullo.com/rater"
          xmlns:c="http://www.lovullo.com/calc"
          xmlns:t="http://www.lovullo.com/rater/apply-template">
 
-
-
-
-
-  <rate yields="rateFoo" />
-
-  <rate yields="rateBar">
-    <c:sum />
-    <c:product />
-  </rate>
-
-  <rate yields="rateBaz">
-    <c:sum>
-      <c:product />
-      <c:sum />
-    </c:sum>
-    <c:product>
-      <c:sum />
-      <c:product />
-      <c:sum />
-    </c:product>
-  </rate>
-
-  <classify as="always" />
-
-  <classify as="sometimes">
-    <any>
-      <all />
-      <any />
-      <all />
-    </any>
-    <any />
-  </classify>
-
   <template name="_empty_" />
-
-  <rate yields="postTpl" />
 
   <template name="_with-static-reachable_">
 
@@ -85,8 +50,6 @@
 
 
 
-
-
     <rate yields="tplStaticMix" />
 
     <c:sum>
@@ -94,3 +57,4 @@
     </c:sum>
   </template>
 </package>
+

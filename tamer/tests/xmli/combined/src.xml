@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  This mixes various entities together to ensure that the parser properly
+    handles internal state changes.
+
+  <rate yields="preTpl" />
+
+  <template name="_empty_" />
+
+  <rate yields="postTpl" />
+</package>

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  <rate yields="rateFoo" />
+
+  <rate yields="rateBar">
+    <c:sum />
+    <c:product />
+  </rate>
+
+  <rate yields="rateBaz">
+    <c:sum>
+      <c:product />
+      <c:sum />
+    </c:sum>
+    <c:product>
+      <c:sum />
+      <c:product />
+      <c:sum />
+    </c:product>
+  </rate>
+</package>
+

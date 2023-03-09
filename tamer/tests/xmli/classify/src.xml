@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  <classify as="always" />
+
+  <classify as="sometimes">
+    <any>
+      <all />
+      <any />
+      <all />
+    </any>
+    <any />
+  </classify>
+</package>
+
