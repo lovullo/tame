@@ -13,6 +13,55 @@ mypath=$(dirname "$0")
 
 tamer-flag-or-exit-ok wip-asg-derived-xmli
 
+run-test() {
+  local name="${1?Missing test name}"
+  local dir="${2?Missing dir}"
+  shift 2
+
+  rm -f "$dir/"*.log
+
+  header "$dir" "$name"
+
+  "test-$name" "$dir" "$@" || {
+    local ret=$?
+    echo ' [FAIL]'
+    return "$ret"
+  }
+
+  echo ' [ OK ]'
+}
+
+timed-tamec() {
+  local dir="${1?Missing directory name}"
+  local in="${2?Missing input filename}"
+  local out="${3?Missing output filename}"
+
+  dir="${dir%/}" # strip trailing slash, if any (just to style output)
+
+  local -i ret=0
+
+  command time -f "%Es %F/%Rfault %I/%Oio %Mrss %c/%wctx \n%C" -o "$dir/time.log" \
+    "${TAMER_PATH_TAMEC?}" -o "$dir/$out" --emit xmlo "$dir/$in" \
+    &> "$dir/tamec-$out.log" \
+    || ret=$?
+
+  # First line will be "Command exited with non-zero status N" on failure.
+  # The last line will be '%C' above.
+  # So, we want the second-to-last line.
+  echo -n "$(tail -n2 "$dir/time.log" | head -n1)"
+
+  return "$ret"
+}
+
+header() {
+  # allocate enough space based on the path we'll output
+  local -i mypath_len=${#mypath}
+  local -i dirlen=$((mypath_len + 12))
+
+  # newline intentionally omitted
+  printf "%-${dirlen}s %-20s " "$@"
+}
+
 # Derive a program from `src.xml` and verify that it meets our expectations.
 #
 # This test is inherently fragile, as it will break any time we perform
@@ -22,11 +71,11 @@ tamer-flag-or-exit-ok wip-asg-derived-xmli
 test-derive-from-src() {
   local dir="${1?Missing directory name}"
 
-  echo "# test-derive-from-src $dir"
-  "${TAMER_PATH_TAMEC?}" -o "$dir/out.xmli" --emit xmlo "$dir/src.xml" || return
+  timed-tamec "$dir" src.xml out.xmli || return
 
   diff <("$P_XMLLINT" --format "$dir/expected.xml" || echo 'ERR expected.xml') \
-       <("$P_XMLLINT" --format "$dir/out.xmli" || echo 'ERR out.xmli')
+       <("$P_XMLLINT" --format "$dir/out.xmli" || echo 'ERR out.xmli') \
+       &> "$dir/diff.log"
 }
 
 
@@ -42,29 +91,39 @@ test-derive-from-src() {
 test-fixpoint() {
   local dir="${1?Missing directory name}"
 
-  echo "# test-fixpoint $dir"
-  "${TAMER_PATH_TAMEC?}" -o "$dir/out-2.xmli" --emit xmlo "$dir/out.xmli" || return
+  timed-tamec "$dir" out.xmli out-2.xmli || return
 
   diff <("$P_XMLLINT" --format "$dir/expected.xml" || echo 'ERR expected.xml') \
-       <("$P_XMLLINT" --format "$dir/out-2.xmli" || echo 'ERR out.xmli')
+       <("$P_XMLLINT" --format "$dir/out-2.xmli" || echo 'ERR out.xmli') \
+       &> "$dir/diff.log"
 }
 
 
 main() {
-  local fail=
+  local -a fail=()
 
   for dir in "$mypath"/*/; do
-    test-derive-from-src "$dir" && test-fixpoint "$dir" || fail=1
+    run-test derive-from-src "$dir" && run-test fixpoint "$dir" \
+      || fail=("${fail[@]}" "$dir")
   done
 
-  test -z "$fail" || {
+  test -z "${fail[@]}" || {
       cat << EOF
 !!! TEST FAILED
 tamec: $TAMER_PATH_TAMEC
 
 note: The compiler output and diff between the expected and given data
-      are above.  Both files are formatted with \`xmllint\` automatically.
+      are below.  Both files are formatted with \`xmllint\` automatically.
 EOF
+
+      for dir in "${fail[@]}"; do
+        echo
+        echo ",=====[ $dir logs ]======"
+        echo "|"
+        cat "$dir/"*.log | sed 's/^/| /'
+        echo "|"
+        echo "\`====[ end $dir logs ]===="
+      done
 
       exit 1
     }
