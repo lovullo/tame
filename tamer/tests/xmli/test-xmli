@@ -40,15 +40,25 @@ timed-tamec() {
 
   local -i ret=0
 
-  command time -f "%Es %F/%Rfault %I/%Oio %Mrss %c/%wctx \n%C" -o "$dir/time.log" \
+  # /usr/bin/time does not have high enough precision
+  # This won't be wholly accurate because time is spent in shell,
+  #   but it'll be close enough.
+  local -i start_ns=$(date +%s%N)
+
+  command time -f "%F/%Rfault %I/%Oio %Mrss %c/%wctx \n%C" -o "$dir/time.log" \
     "${TAMER_PATH_TAMEC?}" -o "$dir/$out" --emit xmlo "$dir/$in" \
     &> "$dir/tamec-$out.log" \
     || ret=$?
 
+  local -i end_ns=$(date +%s%N)
+  local -i elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+
   # First line will be "Command exited with non-zero status N" on failure.
   # The last line will be '%C' above.
   # So, we want the second-to-last line.
-  echo -n "$(tail -n2 "$dir/time.log" | head -n1)"
+  #
+  # Newline omission is intentional.
+  printf "<%3dms %s" "$elapsed_ms" "$(tail -n2 "$dir/time.log" | head -n1)"
 
   return "$ret"
 }
