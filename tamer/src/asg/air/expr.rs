@@ -480,11 +480,13 @@ mod root {
 
         fn hold_dangling(
             &self,
-            _asg: &mut Asg,
-            _oi_expr: ObjectIndex<Expr>,
+            asg: &mut Asg,
+            oi_expr: ObjectIndex<Expr>,
         ) -> Result<(), AsgError> {
-            // This will be used for templates.
-            todo!("hold_dangling")
+            let Self(oi_root) = self;
+
+            oi_root.add_edge_to(asg, oi_expr, None);
+            Ok(())
         }
     }
 }

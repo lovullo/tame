@@ -44,4 +44,30 @@
       <any />
     </classify>
   </template>
+
+  <template name="_with-static-unreachable_">
+    <c:sum>
+      <c:product />
+    </c:sum>
+
+    <c:product>
+      <c:sum />
+    </c:product>
+  </template>
+
+  <template name="_with-static-mix-reachability_">
+    <c:sum>
+      <c:product />
+    </c:sum>
+
+    <c:product>
+      <c:sum />
+    </c:product>
+
+    <rate yields="tplStaticMix" />
+
+    <c:sum>
+      <c:product />
+    </c:sum>
+  </template>
 </package>

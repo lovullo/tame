@@ -51,4 +51,46 @@
       <any />
     </classify>
   </template>
+
+  <template name="_with-static-unreachable_">
+    This expression is on its own unreachable,
+      intended to be expanded into another expression.
+
+    <c:sum>
+      <c:product />
+    </c:sum>
+
+    <c:product>
+      <c:sum />
+    </c:product>
+  </template>
+
+  <template name="_with-static-mix-reachability_">
+    Both reachable and unreachable,
+      with the intent of expanding into an expression but also providing
+      itself with supporting expressions.
+
+    <c:sum>
+      <c:product />
+    </c:sum>
+
+    <c:product> <!-- depth N -->
+      <c:sum /> <!-- depth N+1 -->
+    </c:product>
+
+    The above expression will end at depth N+1,
+      to be auto-closed.
+    The below expression will yield an Ident->Expr,
+      and so will _begin_ at N+1.
+    We must therefore ensure,
+      and this test do so assert,
+      that this matching depth does not cause the reparenting of this next
+        expression into its preceding sibling.
+
+    <rate yields="tplStaticMix" /> <!-- begins at depth N+1 -->
+
+    <c:sum>
+      <c:product />
+    </c:sum>
+  </template>
 </package>

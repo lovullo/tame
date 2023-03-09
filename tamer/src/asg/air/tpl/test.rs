@@ -229,6 +229,43 @@ fn tpl_with_reachable_expression() {
     );
 }
 
+// Templates can expand into many contexts,
+//   including other expressions,
+//   and so must be able to contain expressions that,
+//     while dangling now,
+//     will become reachable in its expansion context.
+#[test]
+fn tpl_holds_dangling_expressions() {
+    let id_tpl = SPair("_tpl_".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplOpen(S1),
+          Air::BindIdent(id_tpl),
+
+          // Dangling
+          Air::ExprOpen(ExprOp::Sum, S3),
+          Air::ExprClose(S4),
+
+          // Dangling
+          Air::ExprOpen(ExprOp::Sum, S5),
+          Air::ExprClose(S6),
+        Air::TplClose(S7),
+    ];
+
+    let asg = asg_from_toks(toks);
+    let oi_tpl = asg.expect_ident_oi::<Tpl>(id_tpl);
+
+    assert_eq!(
+        vec![S5.merge(S6).unwrap(), S3.merge(S4).unwrap(),],
+        oi_tpl
+            .edges_filtered::<Expr>(&asg)
+            .map(ObjectIndex::cresolve(&asg))
+            .map(Expr::span)
+            .collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn close_tpl_mid_open() {
     let id_expr = SPair("expr".into(), S3);

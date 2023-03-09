@@ -32,6 +32,10 @@ use std::fmt::Debug;
 
 use Air::*;
 
+// More concise values for tables below.
+use ObjectRelTy::*;
+const SU: Span = UNKNOWN_SPAN;
+
 fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,
@@ -83,10 +87,8 @@ fn traverses_ontological_tree() {
     let sut = tree_reconstruction(&asg);
 
     // We need more concise expressions for the below table of values.
-    use ObjectRelTy::*;
     let d = DynObjectRel::new;
     let m = |a: Span, b: Span| a.merge(b).unwrap();
-    const SU: Span = UNKNOWN_SPAN;
 
     // Note that the `Depth` beings at 1 because the actual root of the
     //   graph is not emitted.
@@ -95,7 +97,8 @@ fn traverses_ontological_tree() {
     //   language doesn't have such nesting.
     #[rustfmt::skip]
     assert_eq!(
-        vec![
+        //      A  -|-> B   |  A span  -|-> B span  | espan  |  depth
+        vec![//-----|-------|-----------|-----------|--------|-----------------
             (d(Root,  Pkg,   SU,         m(S1, S11), None    ), Depth(1)),
             (d(Pkg,   Ident, m(S1, S11), S3,         None    ),   Depth(2)),
             (d(Ident, Expr,  S3,         m(S2, S7),  None    ),     Depth(3)),
@@ -103,6 +106,83 @@ fn traverses_ontological_tree() {
             (d(Expr,  Ident, m(S2, S7),  S9,         Some(S6)),       Depth(4)),
             (d(Pkg,   Ident, m(S1, S11), S9,         None    ),   Depth(2)),
             (d(Ident, Expr,  S9,         m(S8, S10), None    ),     Depth(3)),
+        ],
+        sut.map(|TreeWalkRel(rel, depth)| (
+            rel.map(|(soi, toi)| (
+                soi.resolve(&asg).span(),
+                toi.resolve(&asg).span()
+            )),
+            depth
+        )).collect::<Vec<_>>(),
+    );
+}
+
+// This is a variation of the above test,
+//   focusing on the fact that templates may contain odd constructions that
+//   wouldn't necessarily be valid in other contexts.
+// This merely establishes a concrete example to re-enforce intuition and
+//   serve as an example of the system's behavior in a laboratory setting,
+//     as opposed to having to scan through real-life traces and all the
+//     complexity and noise therein.
+//
+// This also serves as an integration test to ensure that templates produce
+//   the expected result on the graph.
+// Just as was mentioned above,
+//   that makes this test very fragile,
+//   and you should look at other failing tests before assuming that this
+//     one is broken;
+//       let this help to guide your reasoning of the system rather than
+//       your suspicion.
+#[test]
+fn traverses_ontological_tree_tpl_with_sibling_at_increasing_depth() {
+    let id_tpl = SPair("_tpl_".into(), S3);
+    let id_expr = SPair("expr".into(), S7);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgOpen(S1),
+          TplOpen(S2),
+            BindIdent(id_tpl),
+
+            // Dangling
+            ExprOpen(ExprOp::Sum, S4),
+            ExprClose(S5),
+
+            // Reachable
+            ExprOpen(ExprOp::Sum, S6),
+              BindIdent(id_expr),
+            ExprClose(S8),
+          TplClose(S9),
+        PkgClose(S10),
+    ];
+
+    let asg = asg_from_toks(toks);
+    let sut = tree_reconstruction(&asg);
+
+    // We need more concise expressions for the below table of values.
+    let d = DynObjectRel::new;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
+    // Writing this example helped to highlight how the system is
+    //   functioning and immediately obviated a bug downstream in the
+    //   lowering pipeline (xmli derivation) at the time of writing.
+    // The `Tpl->Ident` was ignored along with its `Depth` because it
+    //   produced no output,
+    //     and therefore the final expression was interpreted as being a
+    //     child of its sibling.
+    // This traversal was always correct;
+    //   the problem manifested in the integration of these systems and
+    //   was caught by system tests.
+    #[rustfmt::skip]
+    assert_eq!(
+        //      A  -|-> B   |  A span  -|-> B span  | espan|  depth
+        vec![//-----|-------|-----------|-----------|------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S10), None), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S10), S3,         None),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S9),  None),     Depth(3)),
+            (d(Tpl,   Expr,  m(S2, S9),  m(S4, S5),  None),       Depth(4)),  // --,
+            (d(Tpl,   Ident, m(S2, S9),  S7,         None),       Depth(4)),  //   |
+            (d(Ident, Expr,  S7,         m(S6, S8),  None),         Depth(5)), // <'
         ],
         sut.map(|TreeWalkRel(rel, depth)| (
             rel.map(|(soi, toi)| (

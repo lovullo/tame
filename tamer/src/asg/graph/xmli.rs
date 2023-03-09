@@ -49,7 +49,7 @@ use crate::{
     xir::{
         flat::{Text, XirfToken},
         st::qname::*,
-        OpenSpan, QName,
+        CloseSpan, OpenSpan, QName,
     },
 };
 use arrayvec::ArrayVec;
@@ -179,7 +179,16 @@ impl<'a> TreeContext<'a> {
 
             // Identifiers will be considered in context;
             //   pass over it for now.
-            Object::Ident(..) => None,
+            // But we must not skip over its depth,
+            //   otherwise we parent a following sibling at a matching
+            //   depth;
+            //     this close will force the auto-closing system to close
+            //     any siblings in preparation for the object to follow.
+            Object::Ident((ident, _)) => Some(Xirf::Close(
+                None,
+                CloseSpan::without_name_span(ident.span()),
+                depth,
+            )),
 
             Object::Expr((expr, _)) => {
                 self.emit_expr(expr, paired_rel.source(), depth)
