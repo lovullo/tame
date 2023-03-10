@@ -19,6 +19,8 @@
 
 //! Objects represented by the ASG.
 //!
+//! ![Visualization of ASG ontology](../../ontviz.svg)
+//!
 //! Dynamic Object Types and Narrowing
 //! ==================================
 //! Unlike the functional lowering pipeline that precedes it,

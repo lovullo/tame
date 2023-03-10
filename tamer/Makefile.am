@@ -25,12 +25,15 @@
 # which is processed by Autoconf into `configure`; they are populated based
 # on the environment in which the `configure` script is invoked.
 
+SHELL = /bin/bash -o pipefail
 .DELETE_ON_ERROR:
 
-.PHONY: all fix fmt check-fmt bench bench-build
+.PHONY: all fix fmt check-fmt bench bench-build FORCE
 
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 RUSTFLAGS=@RUSTFLAGS@
+
+ontviz_svg := target/doc/tamer/asg/ontviz.svg
 
 .DEFAULT: bin
 
@@ -41,17 +44,27 @@ bin:
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ build $(CARGO_BUILD_FLAGS) @FEATURES@
 
 doc: html
-html-am:
+html-am: rustdoc $(ontviz_svg)
+
+.PHONY: rustdoc
+rustdoc:
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --doc @FEATURES@
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ @CARGO_DOC_FLAGS@ doc --document-private-items @FEATURES@
 
+$(ontviz_svg): FORCE
+	tools/asg-ontviz | $(DOT) -Tsvg > $@
+
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
-check-am: check-lint check-fmt check-cargo check-system
+check-am: check-lint check-fmt check-cargo check-docgen check-system
 
 .PHONY: check-cargo
 check-cargo:
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --quiet @FEATURES@
+
+.PHONY: check-docgen
+check-docgen:
+	tools/asg-ontviz >/dev/null
 
 .PHONY: check-system
 check-system: bin

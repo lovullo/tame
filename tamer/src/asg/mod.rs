@@ -35,14 +35,18 @@
 //!   a linker may choose to use [`crate::global::ProgIdentSize`];
 //!
 //!
-//! Graph Structure
-//! ===============
+//! Graph Ontology
+//! ==============
 //! Each node (vertex) in the graph represents an [`Object`],
 //!   such as an identifier or an expression.
 //! For information on how [`Object`]s are stored and represented on the
 //!   graph,
 //!     and for information on relationships between objects,
 //!     see the [`graph::object`] module.
+//!
+//! A visualization of the graph ontology is provided here:
+//!
+//! ![Visualization of ASG ontology](./ontviz.svg)
 //!
 //! Graphs may contain cycles for recursive functions—that is,
 //!   TAME's ASG is _not_ a DAG.

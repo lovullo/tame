@@ -127,6 +127,9 @@ test -z "$FEATURES" || {
 AC_CHECK_PROGS(XMLLINT, [xmllint])
 test -n "$XMLLINT" || AC_MSG_ERROR([xmllint not found])
 
+AC_CHECK_PROGS(DOT, [dot])
+test -n "$DOT" || AC_MSG_ERROR([Graphviz dot not found])
+
 AC_CONFIG_FILES([Makefile conf.sh])
 
 AC_OUTPUT

@@ -18,6 +18,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Abstract semantic graph.
+//!
+//! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
     DynObjectRel, ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
