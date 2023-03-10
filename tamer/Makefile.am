@@ -52,7 +52,7 @@ rustdoc:
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ @CARGO_DOC_FLAGS@ doc --document-private-items @FEATURES@
 
 $(ontviz_svg): FORCE
-	tools/asg-ontviz | $(DOT) -Tsvg > $@
+	build-aux/asg-ontviz | $(DOT) -Tsvg > $@
 
 # note that 'cargo check' is something else; see 'cargo --help'
 test: check
@@ -64,7 +64,7 @@ check-cargo:
 
 .PHONY: check-docgen
 check-docgen:
-	tools/asg-ontviz >/dev/null
+	build-aux/asg-ontviz >/dev/null
 
 .PHONY: check-system
 check-system: bin
