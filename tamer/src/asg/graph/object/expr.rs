@@ -90,13 +90,13 @@ impl Display for Expr {
 ///     as was the original plan with TAMER.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ExprOp {
-    // Summation (+)
+    /// Summation (+)
     Sum,
-    // Product (×)
+    /// Product (×)
     Product,
-    // Logical conjunction (∧)
+    /// Logical conjunction (∧)
     Conj,
-    // Logical disjunction (∨)
+    /// Logical disjunction (∨)
     Disj,
 }
 
