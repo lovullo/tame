@@ -21,5 +21,13 @@
       <c:sum />
     </c:product>
   </rate>
+
+  <rate yields="ceilFloor">
+    <c:ceil>
+      <c:floor>
+        <c:sum />
+      </c:floor>
+    </c:ceil>
+  </rate>
 </package>
 

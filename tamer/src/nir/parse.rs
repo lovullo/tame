@@ -788,18 +788,22 @@ ele_parse! {
     };
 
     /// Ceiling (⌈_x_⌉) expression.
-    CeilExpr := QN_C_CEIL {
+    CeilExpr := QN_C_CEIL(_, ospan) {
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo,
+        } => NirEntity::Ceil.open(ospan),
+        /(cspan) => NirEntity::Ceil.close(cspan),
+
         CalcExpr,
     };
 
     /// Floor (⌊_x_⌋) expression.
-    FloorExpr := QN_C_FLOOR {
+    FloorExpr := QN_C_FLOOR(_, ospan) {
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo,
+        } => NirEntity::Floor.open(ospan),
+        /(cspan) => NirEntity::Floor.close(cspan),
+
         CalcExpr,
     };
 

@@ -94,6 +94,10 @@ pub enum ExprOp {
     Sum,
     /// Product (×)
     Product,
+    // Ceiling (⌈)
+    Ceil,
+    // Floor (⌊)
+    Floor,
     /// Logical conjunction (∧)
     Conj,
     /// Logical disjunction (∨)
@@ -107,6 +111,8 @@ impl Display for ExprOp {
         match self {
             Sum => write!(f, "sum (+)"),
             Product => write!(f, "product (×)"),
+            Ceil => write!(f, "ceiling (⌈)"),
+            Floor => write!(f, "floor (⌊)"),
             Conj => write!(f, "conjunctive (∧)"),
             Disj => write!(f, "disjunctive (∨)"),
         }

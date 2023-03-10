@@ -81,6 +81,12 @@ impl ParseState for NirToAir {
             (Ready, Nir::Open(NirEntity::Product, span)) => {
                 Transition(Ready).ok(Air::ExprOpen(ExprOp::Product, span))
             }
+            (Ready, Nir::Open(NirEntity::Ceil, span)) => {
+                Transition(Ready).ok(Air::ExprOpen(ExprOp::Ceil, span))
+            }
+            (Ready, Nir::Open(NirEntity::Floor, span)) => {
+                Transition(Ready).ok(Air::ExprOpen(ExprOp::Floor, span))
+            }
             (Ready, Nir::Open(NirEntity::Classify | NirEntity::All, span)) => {
                 Transition(Ready).ok(Air::ExprOpen(ExprOp::Conj, span))
             }
@@ -102,6 +108,8 @@ impl ParseState for NirToAir {
                     NirEntity::Rate
                     | NirEntity::Sum
                     | NirEntity::Product
+                    | NirEntity::Ceil
+                    | NirEntity::Floor
                     | NirEntity::Classify
                     | NirEntity::All
                     | NirEntity::Any,

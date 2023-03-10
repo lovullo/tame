@@ -187,6 +187,10 @@ pub enum NirEntity {
     Sum,
     /// Product (Π) expression.
     Product,
+    /// Ceiling (⌈) expression.
+    Ceil,
+    /// Floor (⌊) expression.
+    Floor,
 
     // Classification.
     Classify,
@@ -221,6 +225,8 @@ impl Display for NirEntity {
             Rate => write!(f, "rate block"),
             Sum => write!(f, "sum (∑) expression"),
             Product => write!(f, "product (Π) expression"),
+            Ceil => write!(f, "ceiling (⌈) expression"),
+            Floor => write!(f, "floor (⌊) expression"),
 
             Classify => write!(f, "classification"),
             All => write!(f, "conjunctive (∧) expression"),

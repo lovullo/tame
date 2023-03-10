@@ -263,7 +263,9 @@ impl<'a> TreeContext<'a> {
             ExprOp::Sum => (QN_RATE, QN_YIELDS),
             ExprOp::Conj => (QN_CLASSIFY, QN_AS),
 
-            ExprOp::Product | ExprOp::Disj => todo!("stmt: {expr:?}"),
+            ExprOp::Product | ExprOp::Ceil | ExprOp::Floor | ExprOp::Disj => {
+                todo!("stmt: {expr:?}")
+            }
         };
 
         let ispan = ident.span();
@@ -363,6 +365,8 @@ fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
     let qname = match expr.op() {
         Sum => QN_C_SUM,
         Product => QN_C_PRODUCT,
+        Ceil => QN_C_CEIL,
+        Floor => QN_C_FLOOR,
         Conj => QN_ALL,
         Disj => QN_ANY,
     };
