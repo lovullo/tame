@@ -1,0 +1,20 @@
+#!/bin/bash
+# Generate DOT representation of TAMER's ASG ontology
+#
+# See sibling `asg-ontviz.awk` for more information;
+#   this is just a thin wrapper around it that invokes it with a list of
+#   source files.
+
+cd "$(dirname "$0")"
+
+# We explicitly filter files in this directory to ensure that the expected
+#   ontological definitions (`object_rel!`) are actually present,
+#     because otherwise they were moved and we need to update the path.
+# This is enforced by the script.
+#
+# So, to be clear:
+#   do _not_ do something like `grep -rl 'object_rel!' ../src/asg`.
+find ../src/asg/graph/object/ -name '*.rs' \
+     -a \! -name 'rel.rs' \
+     -a \! -name 'test.rs' \
+  | xargs awk -f asg-ontviz.awk
