@@ -187,10 +187,19 @@ impl ParseState for AirAggregate {
                 Self::delegate_expr(asg, oi_pkg, expr, etok)
             }
 
-            // Templates can contain just about anything,
-            //   so completely hand over parsing when we're in template mode.
-            (PkgTpl(oi_pkg, stored_expr, tplst), tok) => {
-                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, tok.into())
+            // Template parsing.
+            (PkgTpl(oi_pkg, stored_expr, tplst), AirExpr(ttok)) => {
+                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
+            }
+            (PkgTpl(oi_pkg, stored_expr, tplst), AirBind(ttok)) => {
+                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
+            }
+            (PkgTpl(oi_pkg, stored_expr, tplst), AirTpl(ttok)) => {
+                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
+            }
+
+            (PkgTpl(..), AirPkg(PkgOpen(..))) => {
+                todo!("templates cannot contain packages")
             }
 
             (Empty, AirTpl(TplClose(..))) => {
@@ -209,6 +218,16 @@ impl ParseState for AirAggregate {
                         Transition(Empty).incomplete()
                     }
                     false => Transition(PkgExpr(oi_pkg, expr))
+                        .err(AsgError::InvalidPkgCloseContext(span)),
+                }
+            }
+
+            (PkgTpl(oi_pkg, stored_expr, tplst), AirPkg(PkgClose(span))) => {
+                match tplst.is_accepting(asg) {
+                    true => Transition(PkgExpr(oi_pkg, stored_expr))
+                        .incomplete()
+                        .with_lookahead(AirPkg(PkgClose(span))),
+                    false => Transition(PkgTpl(oi_pkg, stored_expr, tplst))
                         .err(AsgError::InvalidPkgCloseContext(span)),
                 }
             }
@@ -287,9 +306,9 @@ impl AirAggregate {
         oi_pkg: ObjectIndex<Pkg>,
         stored_expr: AirExprAggregateReachable<Pkg>,
         tplst: AirTplAggregate,
-        tok: Air,
+        ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
-        tplst.parse_token(tok, asg).branch_dead::<Self, _>(
+        tplst.parse_token(ttok.into(), asg).branch_dead::<Self, _>(
             |_, stored_expr| {
                 Transition(Self::PkgExpr(oi_pkg, stored_expr)).incomplete()
             },

@@ -27,7 +27,8 @@ use super::{
         Asg, AsgError, ObjectIndex,
     },
     expr::AirExprAggregateStoreDangling,
-    Air, AirExprAggregate,
+    ir::AirTemplatable,
+    AirExprAggregate,
 };
 use crate::{
     fmt::{DisplayWrapper, TtQuote},
@@ -40,9 +41,9 @@ use crate::{
 ///
 ///   - Metadata about the template,
 ///       including its parameters; and
-///   - A collection of [`Air`] tokens representing the body of the
-///       template that will be expanded into the application site when the
-///       template is applied.
+///   - A collection of [`AirTemplatable`] tokens representing the body of
+///       the template that will be expanded into the application site when
+///       the template is applied.
 ///
 /// This contains an embedded [`AirExprAggregate`] parser for handling
 ///   expressions just the same as [`super::AirAggregate`] does with
@@ -98,7 +99,7 @@ impl Display for AirTplAggregate {
 }
 
 impl ParseState for AirTplAggregate {
-    type Token = Air;
+    type Token = AirTemplatable;
     type Object = ();
     type Error = AsgError;
     type Context = Asg;
@@ -108,12 +109,11 @@ impl ParseState for AirTplAggregate {
         tok: Self::Token,
         asg: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirSubsets::*, AirTodo::*, AirTpl::*};
+        use super::ir::{AirBind::*, AirTpl::*};
+        use AirTemplatable::*;
         use AirTplAggregate::*;
 
-        match (self, tok.into()) {
-            (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
-
+        match (self, tok) {
             (Ready(oi_pkg), AirTpl(TplOpen(span))) => {
                 let oi_tpl = asg.create(Tpl::new(span));
 
@@ -161,14 +161,6 @@ impl ParseState for AirTplAggregate {
                 }
             }
 
-            (Toplevel(..) | TplExpr(..), AirPkg(_)) => {
-                todo!("template cannot define packages")
-            }
-
-            (Toplevel(..) | TplExpr(..), AirIdent(_)) => {
-                todo!("linker token cannot be used in templates")
-            }
-
             (
                 Toplevel(oi_pkg, oi_tpl, expr, name)
                 | TplExpr(oi_pkg, oi_tpl, expr, name),
@@ -187,10 +179,9 @@ impl ParseState for AirTplAggregate {
                 Transition(st).err(AsgError::UnbalancedTpl(span))
             }
 
-            (
-                st @ Ready(..),
-                tok @ (AirPkg(..) | AirExpr(..) | AirBind(..) | AirIdent(..)),
-            ) => Transition(st).dead(tok.into()),
+            (st @ Ready(..), tok @ (AirExpr(..) | AirBind(..))) => {
+                Transition(st).dead(tok)
+            }
         }
     }
 

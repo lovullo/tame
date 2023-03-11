@@ -334,6 +334,7 @@ macro_rules! sum_ir {
         //   subtypes.
         $(
             $(#[$sumattr])*
+            #[allow(clippy::enum_variant_names)]  // intentional consistency
             #[derive(Debug, PartialEq)]
             $sumvis enum $sumsub {
                 $(
@@ -637,4 +638,16 @@ sum_ir! {
     /// This is the primary token set when parsing packages,
     ///   since most everything in TAMER is an expression.
     pub sum enum AirBindableExpr = AirExpr | AirBind;
+
+    /// Tokens that may be used to define or apply templates.
+    pub sum enum AirTemplatable = AirExpr | AirBind | AirTpl;
+}
+
+impl From<AirBindableExpr> for AirTemplatable {
+    fn from(expr: AirBindableExpr) -> Self {
+        match expr {
+            AirBindableExpr::AirExpr(x) => Self::AirExpr(x),
+            AirBindableExpr::AirBind(x) => Self::AirBind(x),
+        }
+    }
 }
