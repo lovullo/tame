@@ -25,24 +25,28 @@
 //! ==================================
 //! Unlike the functional lowering pipeline that precedes it,
 //!   the ASG is a mutable, ever-evolving graph of dynamic data.
-//! The ASG does not benefit from the same type-level guarantees that the
-//!   rest of the system does at compile-time.
+//! The ASG does not benefit from the same static type-level guarantees that
+//!   the rest of the system does at compile-time.
 //!
 //! However,
-//!   we _are_ able to utilize the type system to ensure statically that
-//!   there exists no code path that is able to generated an invalid graph
+//!   we _are_ able to utilize the type system to statically ensure that
+//!   there exists no code path that is able to generate an invalid graph
 //!     (a graph that does not adhere to its ontology as described below).
 //!
-//! Any node on the graph can represent any type of [`Object`].
+//! Every node on the graph can represent any type of [`Object`].
 //! An [`ObjectIndex`] contains an index into the graph,
 //!   _not_ a reference;
 //!     it is therefore possible (though avoidable) for objects to be
-//!       modified out from underneath references.
+//!       modified out from underneath an [`ObjectIndex`].
 //! Consequently,
-//!   we cannot trust that an [`ObjectIndex`] is what we expect it to be when
-//!   performing an operation on the graph using that index,
-//!     though the system is designed to uphold an invariant that the _type_
-//!     of [`Object`] cannot be changed.
+//!   we cannot be _absolutely certain_ that the [`Object`] referred to by
+//!   an [`ObjectIndex`] is in fact what we expect it to be when performing
+//!   an operation on the graph using that index;
+//!     though the system is designed to uphold an invariant that the type
+//!     of [`Object`] cannot be changed,
+//!       it is conceivable that the system may contain,
+//!         now or in the future,
+//!         bugs that cause it to fail to uphold that invariant.
 //!
 //! To perform an operation on a particular type of object,
 //!   we must first _narrow_ it.
@@ -75,7 +79,7 @@
 //!   edges may reference [`Object`]s of many different types,
 //!   as defined by the graph's ontology.
 //!
-//! The set [`ObjectKind`] types that may be related _to_
+//! The set of [`ObjectKind`] types that may be related _to_
 //!   (via edges)
 //!   from other objects are the variants of [`ObjectRelTy`].
 //! Each such [`ObjectKind`] must implement [`ObjectRelatable`],
