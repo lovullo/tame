@@ -18,6 +18,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! AIR token definitions.
+//!
+//! See [`Air`] for more information.
 
 use super::super::{ExprOp, FragmentText, IdentKind, Source};
 use crate::{
@@ -693,7 +695,7 @@ sum_ir! {
             },
 
             /// Re-bind an inner template to the metavariables in the
-            ///   current context.
+            ///   current context and expand the template in place.
             ///
             /// Let α be the current template definition context
             ///   (via [`Self::TplStart`])
@@ -702,25 +704,11 @@ sum_ir! {
             ///   (via [`Self::TplMetaStart`])
             ///   corresponding to the same [`Ident`] will be _bound_ to
             ///   that value.
+            /// The body of the inner template β will be expanded into the
+            ///   body of α.
+            /// The result is a template α which is the application of its
+            ///   parameters to β.
             ///
-            /// The body of the inner template β will become the body of α.
-            ///
-            /// TODO
-            /// ====
-            /// Pick one of these!
-            ///
-            /// Option A
-            /// --------
-            /// The result of this template application is a new template α
-            ///   whose params are the still-free params of β after having
-            ///   applied the aforementioned operation.
-            /// If α contains no more free metavariables,
-            ///   then it is _closed_ and ready for expansion.
-            ///
-            /// TODO: Defaults applied or deferred?
-            ///
-            /// Option B
-            /// --------
             /// Partial application is not yet supported,
             ///   but can be added if it is worth the effort of doing so.
             /// This simplifies the semantics of this operation:
@@ -731,28 +719,57 @@ sum_ir! {
             ///       applying defaults will result in an error.
             ///
             /// Consequently,
-            ///   the template α will always be closed after this operation
-            ///   and ready for expansion.
+            ///   the template α will always be closed after this operation.
+            /// This can be thought of like a lexical thunk.
             ///
-            /// TODO: Maybe just make this `TplApplyExpand` to do both,
-            ///     then,
-            ///     like TAME works today?
-            ///   Separating them can come later if there's value in that
-            ///     effort.
+            /// α can then be expanded in place using [`Self::TplEndRef`] if
+            ///   it is anonymous.
+            /// If α is named,
+            ///   [`Air::RefIdent`] can be used to trigger expansion.
             TplApply(span: Span) => {
                 span: span,
                 display: |f| write!(f, "apply param bindings to inner template"),
             },
 
-            /// Close the active [`Tpl`] and exit template parsing.
+            /// Complete the active [`Tpl`] and exit template parsing.
             ///
             /// The expression stack will be restored to its prior state.
+            ///
+            /// If the template is anonymous,
+            ///   then this will result in an error,
+            ///   since nothing will be able to reference the template to
+            ///     utilize it.
+            /// See [`Self::TplEndRef`] if you wish to apply an anonymous
+            ///   template.
             TplEnd(span: Span) => {
                 span: span,
-                display: |f| write!(f, "close template"),
+                display: |f| write!(f, "end template definition"),
             },
 
-            // TODO: Separate expand or not?  See TplApply above.
+            /// Complete the active _closed_ [`Tpl`] just as [`Self::TplEnd`],
+            ///   but reference its value,
+            ///   with the effect of expanding it in place.
+            ///
+            /// If the active template is not closed,
+            ///   this will result in an error.
+            ///
+            /// This additional token is not ideal;
+            ///   ideally [`Air`] would have a means by which to manipulate
+            ///   anonymous objects.
+            /// However,
+            ///   until such a thing is derived,
+            ///   this is the only current use case,
+            ///     allowing us to avoid having to generate identifiers for
+            ///     templates just for the sake of expansion.
+            ///
+            /// If the active template is identified as τ,
+            ///   then this has the same behavior as first completing its
+            ///   definition with [`Self::TplEnd`] and then referencing τ as
+            ///   in [`Air::RefIdent(SPair(τ, …))`](Air::RefIdent).
+            TplEndRef(span: Span) => {
+                span: span,
+                display: |f| write!(f, "end template definition and expand it"),
+            },
         }
     }
 

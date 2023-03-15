@@ -169,6 +169,10 @@ impl ParseState for AirTplAggregate {
                 }
             }
 
+            (Toplevel(..) | TplExpr(..), AirTpl(TplEndRef(..))) => {
+                todo!("TplEndRef")
+            }
+
             (
                 Toplevel(oi_pkg, oi_tpl, expr, name)
                 | TplExpr(oi_pkg, oi_tpl, expr, name),
@@ -195,7 +199,7 @@ impl ParseState for AirTplAggregate {
                 )
             }
 
-            (st @ Ready(..), AirTpl(TplEnd(span))) => {
+            (st @ Ready(..), AirTpl(TplEnd(span) | TplEndRef(span))) => {
                 Transition(st).err(AsgError::UnbalancedTpl(span))
             }
 
