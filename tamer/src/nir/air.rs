@@ -68,38 +68,38 @@ impl ParseState for NirToAir {
         #[allow(unreachable_code)] // due to wip-nir-to-air
         match (self, tok) {
             (Ready, Nir::Open(NirEntity::Package, span)) => {
-                Transition(Ready).ok(Air::PkgOpen(span))
+                Transition(Ready).ok(Air::PkgStart(span))
             }
 
             (Ready, Nir::Close(NirEntity::Package, span)) => {
-                Transition(Ready).ok(Air::PkgClose(span))
+                Transition(Ready).ok(Air::PkgEnd(span))
             }
 
             (Ready, Nir::Open(NirEntity::Rate | NirEntity::Sum, span)) => {
-                Transition(Ready).ok(Air::ExprOpen(ExprOp::Sum, span))
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Sum, span))
             }
             (Ready, Nir::Open(NirEntity::Product, span)) => {
-                Transition(Ready).ok(Air::ExprOpen(ExprOp::Product, span))
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Product, span))
             }
             (Ready, Nir::Open(NirEntity::Ceil, span)) => {
-                Transition(Ready).ok(Air::ExprOpen(ExprOp::Ceil, span))
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Ceil, span))
             }
             (Ready, Nir::Open(NirEntity::Floor, span)) => {
-                Transition(Ready).ok(Air::ExprOpen(ExprOp::Floor, span))
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Floor, span))
             }
             (Ready, Nir::Open(NirEntity::Classify | NirEntity::All, span)) => {
-                Transition(Ready).ok(Air::ExprOpen(ExprOp::Conj, span))
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Conj, span))
             }
             (Ready, Nir::Open(NirEntity::Any, span)) => {
-                Transition(Ready).ok(Air::ExprOpen(ExprOp::Disj, span))
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Disj, span))
             }
 
             (Ready, Nir::Open(NirEntity::Tpl, span)) => {
-                Transition(Ready).ok(Air::TplOpen(span))
+                Transition(Ready).ok(Air::TplStart(span))
             }
 
             (Ready, Nir::Close(NirEntity::Tpl, span)) => {
-                Transition(Ready).ok(Air::TplClose(span))
+                Transition(Ready).ok(Air::TplEnd(span))
             }
 
             (
@@ -115,7 +115,7 @@ impl ParseState for NirToAir {
                     | NirEntity::Any,
                     span,
                 ),
-            ) => Transition(Ready).ok(Air::ExprClose(span)),
+            ) => Transition(Ready).ok(Air::ExprEnd(span)),
 
             (Ready, Nir::BindIdent(spair)) => {
                 Transition(Ready).ok(Air::BindIdent(spair))

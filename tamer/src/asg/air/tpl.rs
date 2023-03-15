@@ -114,7 +114,7 @@ impl ParseState for AirTplAggregate {
         use AirTplAggregate::*;
 
         match (self, tok) {
-            (Ready(oi_pkg), AirTpl(TplOpen(span))) => {
+            (Ready(oi_pkg), AirTpl(TplStart(span))) => {
                 let oi_tpl = asg.create(Tpl::new(span));
 
                 Transition(Toplevel(
@@ -126,7 +126,7 @@ impl ParseState for AirTplAggregate {
                 .incomplete()
             }
 
-            (Toplevel(..), AirTpl(TplOpen(_span))) => todo!("nested tpl open"),
+            (Toplevel(..), AirTpl(TplStart(_span))) => todo!("nested tpl open"),
 
             (Toplevel(oi_pkg, oi_tpl, expr, _), AirBind(BindIdent(name))) => {
                 asg.lookup_or_missing(name)
@@ -140,15 +140,12 @@ impl ParseState for AirTplAggregate {
                 todo!("tpl Toplevel RefIdent")
             }
 
-            (
-                Toplevel(oi_pkg, oi_tpl, _expr_done, _),
-                AirTpl(TplClose(span)),
-            ) => {
+            (Toplevel(oi_pkg, oi_tpl, _expr_done, _), AirTpl(TplEnd(span))) => {
                 oi_tpl.close(asg, span);
                 Transition(Ready(oi_pkg)).incomplete()
             }
 
-            (TplExpr(oi_pkg, oi_tpl, expr, name), AirTpl(TplClose(span))) => {
+            (TplExpr(oi_pkg, oi_tpl, expr, name), AirTpl(TplEnd(span))) => {
                 // TODO: duplicated with AirAggregate
                 match expr.is_accepting(asg) {
                     true => {
@@ -157,7 +154,7 @@ impl ParseState for AirTplAggregate {
                         Transition(Ready(oi_pkg)).incomplete()
                     }
                     false => Transition(TplExpr(oi_pkg, oi_tpl, expr, name))
-                        .err(AsgError::InvalidTplCloseContext(span)),
+                        .err(AsgError::InvalidTplEndContext(span)),
                 }
             }
 
@@ -171,11 +168,11 @@ impl ParseState for AirTplAggregate {
                 Self::delegate_expr(asg, oi_pkg, oi_tpl, expr, name, etok)
             }
 
-            (TplExpr(..), AirTpl(TplOpen(_))) => {
+            (TplExpr(..), AirTpl(TplStart(_))) => {
                 todo!("nested template (template-generated template)")
             }
 
-            (st @ Ready(..), AirTpl(TplClose(span))) => {
+            (st @ Ready(..), AirTpl(TplEnd(span))) => {
                 Transition(st).err(AsgError::UnbalancedTpl(span))
             }
 

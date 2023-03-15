@@ -99,17 +99,17 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
         use AirExprAggregate::*;
 
         match (self, tok) {
-            (Ready(root, es, _), AirExpr(ExprOpen(op, span))) => {
+            (Ready(root, es, _), AirExpr(ExprStart(op, span))) => {
                 let oi = asg.create(Expr::new(op, span));
                 Transition(BuildingExpr(root, es.activate(), oi)).incomplete()
             }
 
-            (BuildingExpr(root, es, poi), AirExpr(ExprOpen(op, span))) => {
+            (BuildingExpr(root, es, poi), AirExpr(ExprStart(op, span))) => {
                 let oi = poi.create_subexpr(asg, Expr::new(op, span));
                 Transition(BuildingExpr(root, es.push(poi), oi)).incomplete()
             }
 
-            (BuildingExpr(root, es, oi), AirExpr(ExprClose(end))) => {
+            (BuildingExpr(root, es, oi), AirExpr(ExprEnd(end))) => {
                 let _ = oi.map_obj(asg, |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
@@ -157,7 +157,7 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
                     .incomplete()
             }
 
-            (st @ Ready(..), AirExpr(ExprClose(span))) => {
+            (st @ Ready(..), AirExpr(ExprEnd(span))) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
 

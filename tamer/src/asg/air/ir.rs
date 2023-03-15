@@ -406,6 +406,20 @@ sum_ir! {
     ///       populating the ASG with the raw data that that will be
     ///       subsequently analyzed and rewritten.
     ///
+    /// Terminology
+    /// ===========
+    /// AIR uses the terms _start_ and _end_ to refer to tokens that act as
+    ///   delimiters,
+    ///     which is in contrast to other IRs of this system.
+    /// This is to avoid confusing terminology conflicts with the term
+    ///   _closed_—an
+    ///     object is _closed_ if it contains no free variables.
+    /// A variable is _free_ in some object if it has no value.
+    /// For example,
+    ///   a template is closed iff all of its parameters have been bound to
+    ///   values
+    ///     (have received arguments or have assumed their defaults).
+    ///
     /// Implementation Notes
     /// ====================
     /// [`Air`] is a public token type;
@@ -453,13 +467,13 @@ sum_ir! {
             /// TODO: The package needs a name,
             ///   and we'll need to determine how to best represent that relative to
             ///   the project root and be considerate of symlinks.
-            PkgOpen(span: Span) => {
+            PkgStart(span: Span) => {
                 span: span,
                 display: |f| write!(f, "open package"),
             },
 
             /// Complete processing of the current package.
-            PkgClose(span: Span) => {
+            PkgEnd(span: Span) => {
                 span: span,
                 display: |f| write!(f, "close package"),
             },
@@ -486,14 +500,14 @@ sum_ir! {
             ///   [`Air::BindIdent`].
             ///
             /// Expressions are composed of references to other expressions.
-            ExprOpen(op: ExprOp, span: Span) => {
+            ExprStart(op: ExprOp, span: Span) => {
                 span: span,
                 display: |f| write!(f, "open {op} expression"),
             },
 
             /// Complete the expression atop of the expression stack and pop it from
             ///   the stack.
-            ExprClose(span: Span) => {
+            ExprEnd(span: Span) => {
                 span: span,
                 display: |f| write!(f, "close expression"),
             },
@@ -610,7 +624,7 @@ sum_ir! {
         enum AirTpl {
             /// Create a new [`Tpl`] on the graph and switch to template parsing.
             ///
-            /// Until [`Self::TplClose`] is found,
+            /// Until [`Self::TplEnd`] is found,
             ///   all parsed objects will be parented to the [`Tpl`] rather than the
             ///   parent [`Pkg`].
             /// Template parsing also recognizes additional nodes that can appear
@@ -618,7 +632,7 @@ sum_ir! {
             ///
             /// The active expression stack will be restored after template
             ///   parsing has concluded.
-            TplOpen(span: Span) => {
+            TplStart(span: Span) => {
                 span: span,
                 display: |f| write!(f, "open template"),
             },
@@ -626,7 +640,7 @@ sum_ir! {
             /// Close the active [`Tpl`] and exit template parsing.
             ///
             /// The expression stack will be restored to its prior state.
-            TplClose(span: Span) => {
+            TplEnd(span: Span) => {
                 span: span,
                 display: |f| write!(f, "close template"),
             },

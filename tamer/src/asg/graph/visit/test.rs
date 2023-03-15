@@ -63,20 +63,20 @@ fn traverses_ontological_tree() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgOpen(S1),
-          ExprOpen(ExprOp::Sum, S2),
+        PkgStart(S1),
+          ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),
 
-            ExprOpen(ExprOp::Sum, S4),
-            ExprClose(S5),
+            ExprStart(ExprOp::Sum, S4),
+            ExprEnd(S5),
 
             RefIdent(SPair(id_b.symbol(), S6)),
-          ExprClose(S7),
+          ExprEnd(S7),
 
-          ExprOpen(ExprOp::Sum, S8),
+          ExprStart(ExprOp::Sum, S8),
             BindIdent(id_b),
-          ExprClose(S10),
-        PkgClose(S11),
+          ExprEnd(S10),
+        PkgEnd(S11),
     ];
 
     let asg = asg_from_toks(toks);
@@ -140,20 +140,20 @@ fn traverses_ontological_tree_tpl_with_sibling_at_increasing_depth() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgOpen(S1),
-          TplOpen(S2),
+        PkgStart(S1),
+          TplStart(S2),
             BindIdent(id_tpl),
 
             // Dangling
-            ExprOpen(ExprOp::Sum, S4),
-            ExprClose(S5),
+            ExprStart(ExprOp::Sum, S4),
+            ExprEnd(S5),
 
             // Reachable
-            ExprOpen(ExprOp::Sum, S6),
+            ExprStart(ExprOp::Sum, S6),
               BindIdent(id_expr),
-            ExprClose(S8),
-          TplClose(S9),
-        PkgClose(S10),
+            ExprEnd(S8),
+          TplEnd(S9),
+        PkgEnd(S10),
     ];
 
     let asg = asg_from_toks(toks);

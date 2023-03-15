@@ -37,12 +37,12 @@ fn tpl_defining_pkg() {
     let id_tpl = SPair("_tpl_".into(), S3);
 
     let toks = vec![
-        Air::PkgOpen(S1),
+        Air::PkgStart(S1),
         // This also tests tpl as a transition away from the package header.
-        Air::TplOpen(S2),
+        Air::TplStart(S2),
         Air::BindIdent(id_tpl),
-        Air::TplClose(S4),
-        Air::PkgClose(S5),
+        Air::TplEnd(S4),
+        Air::PkgEnd(S5),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -66,18 +66,18 @@ fn tpl_after_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgOpen(S1),
+        Air::PkgStart(S1),
           // This expression is incidental to this test;
           //   it need only parse.
-          Air::ExprOpen(ExprOp::Sum, S2),
+          Air::ExprStart(ExprOp::Sum, S2),
             Air::BindIdent(id_expr),
-          Air::ExprClose(S4),
+          Air::ExprEnd(S4),
 
           // Open after an expression.
-          Air::TplOpen(S5),
+          Air::TplStart(S5),
             Air::BindIdent(id_tpl),
-          Air::TplClose(S7),
-        Air::PkgClose(S8),
+          Air::TplEnd(S7),
+        Air::PkgEnd(S8),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -105,27 +105,27 @@ fn tpl_within_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgOpen(S1),
-          Air::ExprOpen(ExprOp::Sum, S2),
+        Air::PkgStart(S1),
+          Air::ExprStart(ExprOp::Sum, S2),
             Air::BindIdent(id_expr),
 
             // Child expression before the template to ensure that the
             //   context is properly restored after template parsing.
-            Air::ExprOpen(ExprOp::Sum, S4),
-            Air::ExprClose(S5),
+            Air::ExprStart(ExprOp::Sum, S4),
+            Air::ExprEnd(S5),
 
             // Template _within_ an expression.
             // This will not be present in the final expression,
             //   as if it were hoisted out.
-            Air::TplOpen(S6),
+            Air::TplStart(S6),
               Air::BindIdent(id_tpl),
-            Air::TplClose(S8),
+            Air::TplEnd(S8),
 
             // Child expression _after_ the template for the same reason.
-            Air::ExprOpen(ExprOp::Sum, S9),
-            Air::ExprClose(S10),
-          Air::ExprClose(S11),
-        Air::PkgClose(S12),
+            Air::ExprStart(ExprOp::Sum, S9),
+            Air::ExprEnd(S10),
+          Air::ExprEnd(S11),
+        Air::PkgEnd(S12),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -159,20 +159,20 @@ fn tpl_within_expr() {
 #[test]
 fn close_tpl_without_open() {
     let toks = vec![
-        Air::TplClose(S1),
+        Air::TplEnd(S1),
         // RECOVERY: Try again.
-        Air::TplOpen(S2),
-        Air::TplClose(S3),
+        Air::TplStart(S2),
+        Air::TplEnd(S3),
     ];
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Err(ParseError::StateError(AsgError::UnbalancedTpl(S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // TplOpen
-            Ok(Parsed::Incomplete), // TplClose
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // TplStart
+            Ok(Parsed::Incomplete), // TplEnd
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
@@ -186,17 +186,17 @@ fn tpl_with_reachable_expression() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplOpen(S1),
+        Air::TplStart(S1),
           Air::BindIdent(id_tpl),
 
-          Air::ExprOpen(ExprOp::Sum, S3),
+          Air::ExprStart(ExprOp::Sum, S3),
             Air::BindIdent(id_expr_a),
-          Air::ExprClose(S5),
+          Air::ExprEnd(S5),
 
-          Air::ExprOpen(ExprOp::Sum, S6),
+          Air::ExprStart(ExprOp::Sum, S6),
             Air::BindIdent(id_expr_b),
-          Air::ExprClose(S8),
-        Air::TplClose(S9),
+          Air::ExprEnd(S8),
+        Air::TplEnd(S9),
     ];
 
     let asg = asg_from_toks(toks);
@@ -240,17 +240,17 @@ fn tpl_holds_dangling_expressions() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplOpen(S1),
+        Air::TplStart(S1),
           Air::BindIdent(id_tpl),
 
           // Dangling
-          Air::ExprOpen(ExprOp::Sum, S3),
-          Air::ExprClose(S4),
+          Air::ExprStart(ExprOp::Sum, S3),
+          Air::ExprEnd(S4),
 
           // Dangling
-          Air::ExprOpen(ExprOp::Sum, S5),
-          Air::ExprClose(S6),
-        Air::TplClose(S7),
+          Air::ExprStart(ExprOp::Sum, S5),
+          Air::ExprEnd(S6),
+        Air::TplEnd(S7),
     ];
 
     let asg = asg_from_toks(toks);
@@ -272,30 +272,30 @@ fn close_tpl_mid_open() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplOpen(S1),
-          Air::ExprOpen(ExprOp::Sum, S2),
+        Air::TplStart(S1),
+          Air::ExprStart(ExprOp::Sum, S2),
           Air::BindIdent(id_expr),
         // This is misplaced.
-        Air::TplClose(S4),
+        Air::TplEnd(S4),
           // RECOVERY: Close the expression and try again.
-          Air::ExprClose(S5),
-        Air::TplClose(S6),
+          Air::ExprEnd(S5),
+        Air::TplEnd(S6),
     ];
 
     assert_eq!(
         #[rustfmt::skip]
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-              Ok(Parsed::Incomplete), // TplOpen
-                Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // PkgStart
+              Ok(Parsed::Incomplete), // TplStart
+                Ok(Parsed::Incomplete), // ExprStart
                   Ok(Parsed::Incomplete), // BindIdent
               Err(ParseError::StateError(
-                  AsgError::InvalidTplCloseContext(S4))
+                  AsgError::InvalidTplEndContext(S4))
               ),
                 // RECOVERY
-                Ok(Parsed::Incomplete), // ExprClose
-              Ok(Parsed::Incomplete), // TplClose
-            Ok(Parsed::Incomplete), // PkgClose
+                Ok(Parsed::Incomplete), // ExprEnd
+              Ok(Parsed::Incomplete), // TplEnd
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );

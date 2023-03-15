@@ -46,9 +46,9 @@ fn expr_empty_ident() {
     let id = SPair("foo".into(), S2);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id),
-        Air::ExprClose(S3),
+        Air::ExprEnd(S3),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -67,18 +67,18 @@ fn expr_without_pkg() {
     let toks = vec![
         // No package
         //   (because we're not parsing with `parse_as_pkg_body` below)
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // RECOVERY
-        Air::PkgOpen(S2),
-        Air::PkgClose(S3),
+        Air::PkgStart(S2),
+        Air::PkgEnd(S3),
     ];
 
     assert_eq!(
         vec![
             Err(ParseError::StateError(AsgError::PkgExpected(S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -90,28 +90,28 @@ fn close_pkg_mid_expr() {
     let id = SPair("foo".into(), S4);
 
     let toks = vec![
-        Air::PkgOpen(S1),
-        Air::ExprOpen(ExprOp::Sum, S2),
-        Air::PkgClose(S3),
+        Air::PkgStart(S1),
+        Air::ExprStart(ExprOp::Sum, S2),
+        Air::PkgEnd(S3),
         // RECOVERY: Let's finish the expression first...
         Air::BindIdent(id),
-        Air::ExprClose(S5),
+        Air::ExprEnd(S5),
         // ...and then try to close again.
-        Air::PkgClose(S6),
+        Air::PkgEnd(S6),
     ];
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // ExprOpen
-            Err(ParseError::StateError(AsgError::InvalidPkgCloseContext(S3))),
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // ExprStart
+            Err(ParseError::StateError(AsgError::InvalidPkgEndContext(S3))),
             // RECOVERY: We should be able to close the package if we just
             //   finish the expression first,
             //     demonstrating that recovery properly maintains all state.
             Ok(Parsed::Incomplete), // BindIdent
-            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // ExprEnd
             // Successful close here.
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -122,29 +122,29 @@ fn open_pkg_mid_expr() {
     let id = SPair("foo".into(), S4);
 
     let toks = vec![
-        Air::PkgOpen(S1),
-        Air::ExprOpen(ExprOp::Sum, S2),
-        Air::PkgOpen(S3),
+        Air::PkgStart(S1),
+        Air::ExprStart(ExprOp::Sum, S2),
+        Air::PkgStart(S3),
         // RECOVERY: We should still be able to complete successfully.
         Air::BindIdent(id),
-        Air::ExprClose(S5),
+        Air::ExprEnd(S5),
         // Closes the _original_ package.
-        Air::PkgClose(S6),
+        Air::PkgEnd(S6),
     ];
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // ExprOpen
-            Err(ParseError::StateError(AsgError::NestedPkgOpen(S3, S1))),
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // ExprStart
+            Err(ParseError::StateError(AsgError::NestedPkgStart(S3, S1))),
             // RECOVERY: Ignore the open and continue.
             //   Of course,
             //     this means that any identifiers would be defined in a
             //     different package than was likely intended,
             //       but at least we'll be able to keep processing.
             Ok(Parsed::Incomplete), // BindIdent
-            Ok(Parsed::Incomplete), // ExprClose
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // ExprEnd
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -156,15 +156,15 @@ fn expr_non_empty_ident_root() {
     let id_b = SPair("bar".into(), S2);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // Identifier while still empty...
         Air::BindIdent(id_a),
-        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprStart(ExprOp::Sum, S3),
         // (note that the inner expression _does not_ have an ident binding)
-        Air::ExprClose(S4),
+        Air::ExprEnd(S4),
         // ...and an identifier non-empty.
         Air::BindIdent(id_b),
-        Air::ExprClose(S6),
+        Air::ExprEnd(S6),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -194,15 +194,15 @@ fn expr_non_empty_bind_only_after() {
     let id = SPair("foo".into(), S2);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // Expression root is still dangling at this point.
-        Air::ExprOpen(ExprOp::Sum, S2),
-        Air::ExprClose(S3),
+        Air::ExprStart(ExprOp::Sum, S2),
+        Air::ExprEnd(S3),
         // We only bind an identifier _after_ we've created the expression,
         //   which should cause the still-dangling root to become
         //   reachable.
         Air::BindIdent(id),
-        Air::ExprClose(S5),
+        Air::ExprEnd(S5),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -221,10 +221,10 @@ fn expr_non_empty_bind_only_after() {
 #[test]
 fn expr_dangling_no_subexpr() {
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // No `BindIdent`,
         //   so this expression is dangling.
-        Air::ExprClose(S2),
+        Air::ExprEnd(S2),
     ];
 
     // The error span should encompass the entire expression.
@@ -232,11 +232,11 @@ fn expr_dangling_no_subexpr() {
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Ok(Parsed::Incomplete),
             Err(ParseError::StateError(AsgError::DanglingExpr(full_span))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
@@ -245,26 +245,26 @@ fn expr_dangling_no_subexpr() {
 #[test]
 fn expr_dangling_with_subexpr() {
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // Expression root is still dangling at this point.
-        Air::ExprOpen(ExprOp::Sum, S2),
-        Air::ExprClose(S3),
+        Air::ExprStart(ExprOp::Sum, S2),
+        Air::ExprEnd(S3),
         // Still no ident binding,
         //   so root should still be dangling.
-        Air::ExprClose(S4),
+        Air::ExprEnd(S4),
     ];
 
     let full_span = S1.merge(S4).unwrap();
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Err(ParseError::StateError(AsgError::DanglingExpr(full_span))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
@@ -275,33 +275,33 @@ fn expr_dangling_with_subexpr_ident() {
     let id = SPair("foo".into(), S3);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // Expression root is still dangling at this point.
-        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprStart(ExprOp::Sum, S2),
         // The _inner_ expression receives an identifier,
         //   but that should have no impact on the dangling status of the
         //   root,
         //     especially given that subexpressions are always reachable
         //     anyway.
         Air::BindIdent(id),
-        Air::ExprClose(S4),
+        Air::ExprEnd(S4),
         // But the root still has no ident binding,
         //   and so should still be dangling.
-        Air::ExprClose(S5),
+        Air::ExprEnd(S5),
     ];
 
     let full_span = S1.merge(S5).unwrap();
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Err(ParseError::StateError(AsgError::DanglingExpr(full_span))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
@@ -316,12 +316,12 @@ fn expr_reachable_subsequent_dangling() {
     let id = SPair("foo".into(), S2);
     let toks = vec![
         // Reachable
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id),
-        Air::ExprClose(S3),
+        Air::ExprEnd(S3),
         // Dangling
-        Air::ExprOpen(ExprOp::Sum, S4),
-        Air::ExprClose(S5),
+        Air::ExprStart(ExprOp::Sum, S4),
+        Air::ExprEnd(S5),
     ];
 
     // The error span should encompass the entire expression.
@@ -330,14 +330,14 @@ fn expr_reachable_subsequent_dangling() {
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Err(ParseError::StateError(AsgError::DanglingExpr(second_span))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
@@ -349,12 +349,12 @@ fn recovery_expr_reachable_after_dangling() {
     let id = SPair("foo".into(), S4);
     let toks = vec![
         // Dangling
-        Air::ExprOpen(ExprOp::Sum, S1),
-        Air::ExprClose(S2),
+        Air::ExprStart(ExprOp::Sum, S1),
+        Air::ExprEnd(S2),
         // Reachable, after error from dangling.
-        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprStart(ExprOp::Sum, S3),
         Air::BindIdent(id),
-        Air::ExprClose(S5),
+        Air::ExprEnd(S5),
     ];
 
     // The error span should encompass the entire expression.
@@ -364,14 +364,14 @@ fn recovery_expr_reachable_after_dangling() {
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Ok(Parsed::Incomplete),
             Err(ParseError::StateError(AsgError::DanglingExpr(err_span))),
             // RECOVERY: continue at this point with the next expression.
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
             Ok(Parsed::Incomplete),
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -398,30 +398,30 @@ fn expr_close_unbalanced() {
 
     let toks = vec![
         // Close before _any_ open.
-        Air::ExprClose(S1),
+        Air::ExprEnd(S1),
         // Should recover,
         //   allowing for a normal expr.
-        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::ExprStart(ExprOp::Sum, S2),
         Air::BindIdent(id),
-        Air::ExprClose(S4),
+        Air::ExprEnd(S4),
         // And now an extra close _after_ a valid expr.
-        Air::ExprClose(S5),
+        Air::ExprEnd(S5),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             Err(ParseError::StateError(AsgError::UnbalancedExpr(S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprStart
             Ok(Parsed::Incomplete), // BindIdent
-            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // ExprEnd
             // Another error after a successful expression.
             Err(ParseError::StateError(AsgError::UnbalancedExpr(S5))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -445,15 +445,15 @@ fn expr_bind_to_empty() {
         //   package header,
         //     otherwise the bind will be interpreted as a bind to the
         //     package itself.
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id_pre),
-        Air::ExprClose(S3),
+        Air::ExprEnd(S3),
         // No open expression to bind to.
         Air::BindIdent(id_noexpr_a),
         // Post-recovery create an expression.
-        Air::ExprOpen(ExprOp::Sum, S5),
+        Air::ExprStart(ExprOp::Sum, S5),
         Air::BindIdent(id_good),
-        Air::ExprClose(S7),
+        Air::ExprEnd(S7),
         // Once again we have nothing to bind to.
         Air::BindIdent(id_noexpr_b),
     ];
@@ -462,11 +462,11 @@ fn expr_bind_to_empty() {
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
+            Ok(Parsed::Incomplete), // PkgStart
             // Just to get out of a package header context
-            Ok(Parsed::Incomplete), // ExprOpen (pre)
+            Ok(Parsed::Incomplete), // ExprStart (pre)
             Ok(Parsed::Incomplete), // BindIdent (pre)
-            Ok(Parsed::Incomplete), // ExprClose (pre)
+            Ok(Parsed::Incomplete), // ExprEnd (pre)
             // Now that we've encountered an expression,
             //   we want an error specific to expression binding,
             //   since it's likely that a bind token was issued too late,
@@ -476,15 +476,15 @@ fn expr_bind_to_empty() {
                 id_noexpr_a
             ))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprStart
             Ok(Parsed::Incomplete), // BindIdent
-            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // ExprEnd
             // Another error after a successful expression.
             Err(ParseError::StateError(AsgError::InvalidExprBindContext(
                 id_noexpr_b
             ))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -511,19 +511,19 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
     let id_root = SPair("root".into(), S1);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         // Identify the root so that it is not dangling.
         Air::BindIdent(id_root),
         // Sibling A
-        Air::ExprOpen(ExprOp::Sum, S3),
-        Air::ExprClose(S4),
+        Air::ExprStart(ExprOp::Sum, S3),
+        Air::ExprEnd(S4),
         // Sibling B
-        Air::ExprOpen(ExprOp::Sum, S5),
-        Air::ExprClose(S6),
+        Air::ExprStart(ExprOp::Sum, S5),
+        Air::ExprEnd(S6),
         // Sibling C
-        Air::ExprOpen(ExprOp::Sum, S7),
-        Air::ExprClose(S8),
-        Air::ExprClose(S9),
+        Air::ExprStart(ExprOp::Sum, S7),
+        Air::ExprEnd(S8),
+        Air::ExprEnd(S9),
     ];
 
     let asg = asg_from_toks(toks);
@@ -556,14 +556,14 @@ fn nested_subexprs_related_to_relative_parent() {
     let id_suba = SPair("suba".into(), S2);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1), // 0
+        Air::ExprStart(ExprOp::Sum, S1), // 0
         Air::BindIdent(id_root),
-        Air::ExprOpen(ExprOp::Sum, S2), // 1
+        Air::ExprStart(ExprOp::Sum, S2), // 1
         Air::BindIdent(id_suba),
-        Air::ExprOpen(ExprOp::Sum, S3), // 2
-        Air::ExprClose(S4),
-        Air::ExprClose(S5),
-        Air::ExprClose(S6),
+        Air::ExprStart(ExprOp::Sum, S3), // 2
+        Air::ExprEnd(S4),
+        Air::ExprEnd(S5),
+        Air::ExprEnd(S6),
     ];
 
     let asg = asg_from_toks(toks);
@@ -592,30 +592,30 @@ fn expr_redefine_ident() {
     let id_dup = SPair("foo".into(), S3);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id_first),
-        Air::ExprOpen(ExprOp::Sum, S3),
+        Air::ExprStart(ExprOp::Sum, S3),
         Air::BindIdent(id_dup),
-        Air::ExprClose(S4),
-        Air::ExprClose(S5),
+        Air::ExprEnd(S4),
+        Air::ExprEnd(S5),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // ExprStart
             Ok(Parsed::Incomplete), // BindIdent (first)
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprStart
             Err(ParseError::StateError(AsgError::IdentRedefine(
                 id_first,
                 id_dup.span(),
             ))),
             // RECOVERY: Ignore the attempt to redefine and continue.
-            Ok(Parsed::Incomplete), // ExprClose
-            Ok(Parsed::Incomplete), // ExprClose
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // ExprEnd
+            Ok(Parsed::Incomplete), // ExprEnd
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -642,34 +642,34 @@ fn expr_still_dangling_on_redefine() {
 
     let toks = vec![
         // First expr (OK)
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id_first),
-        Air::ExprClose(S3),
+        Air::ExprEnd(S3),
         // Second expr should still dangle due to use of duplicate
         //   identifier
-        Air::ExprOpen(ExprOp::Sum, S4),
+        Air::ExprStart(ExprOp::Sum, S4),
         Air::BindIdent(id_dup),
-        Air::ExprClose(S6),
+        Air::ExprEnd(S6),
         // Third expr will error on redefine but then be successful.
         // This probably won't happen in practice with TAME's original
         //   source language,
         //     but could happen at e.g. a REPL.
-        Air::ExprOpen(ExprOp::Sum, S7),
+        Air::ExprStart(ExprOp::Sum, S7),
         Air::BindIdent(id_dup2),   // fail
         Air::BindIdent(id_second), // succeed
-        Air::ExprClose(S10),
+        Air::ExprEnd(S10),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // ExprStart
             Ok(Parsed::Incomplete), // BindIdent (first)
-            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // ExprEnd
             // Beginning of second expression
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprStart
             Err(ParseError::StateError(AsgError::IdentRedefine(
                 id_first,
                 id_dup.span(),
@@ -683,7 +683,7 @@ fn expr_still_dangling_on_redefine() {
             // RECOVERY: But we'll continue onto one final expression,
             //   which we will fail to define but then subsequently define
             //   successfully.
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprStart
             Err(ParseError::StateError(AsgError::IdentRedefine(
                 id_first,
                 id_dup2.span(),
@@ -691,8 +691,8 @@ fn expr_still_dangling_on_redefine() {
             // RECOVERY: Despite the initial failure,
             //   we can now re-attempt to bind with a unique id.
             Ok(Parsed::Incomplete), // BindIdent (second)
-            Ok(Parsed::Incomplete), // ExprClose
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // ExprEnd
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -718,20 +718,20 @@ fn expr_ref_to_ident() {
     let id_bar = SPair("bar".into(), S6);
 
     let toks = vec![
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id_foo),
         // Reference to an as-of-yet-undefined id (okay),
         //   with a different span than `id_bar`.
         Air::RefIdent(SPair("bar".into(), S3)),
-        Air::ExprClose(S4),
+        Air::ExprEnd(S4),
         //
         // Another expression to reference the first
         //   (we don't handle cyclic references until a topological sort,
         //     so no point in referencing ourselves;
         //       it'd work just fine here.)
-        Air::ExprOpen(ExprOp::Sum, S5),
+        Air::ExprStart(ExprOp::Sum, S5),
         Air::BindIdent(id_bar),
-        Air::ExprClose(S7),
+        Air::ExprEnd(S7),
     ];
 
     let asg = asg_from_toks(toks);
@@ -779,34 +779,34 @@ fn expr_ref_outside_of_expr_context() {
     let toks = vec![
         // We need to first bring ourselves out of the context of the
         //   package header.
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id_pre),
-        Air::ExprClose(S3),
+        Air::ExprEnd(S3),
         // This will fail since we're not in an expression context.
         Air::RefIdent(id_foo),
         // RECOVERY: Simply ignore the above.
-        Air::ExprOpen(ExprOp::Sum, S1),
+        Air::ExprStart(ExprOp::Sum, S1),
         Air::BindIdent(id_foo),
-        Air::ExprClose(S3),
+        Air::ExprEnd(S3),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // ExprStart
             Ok(Parsed::Incomplete), // BindIdent
-            Ok(Parsed::Incomplete), // ExprClose
+            Ok(Parsed::Incomplete), // ExprEnd
             // Now we're past the header and in expression parsing mode.
             Err(ParseError::StateError(AsgError::InvalidExprRefContext(
                 id_foo
             ))),
             // RECOVERY: Proceed as normal
-            Ok(Parsed::Incomplete), // ExprOpen
+            Ok(Parsed::Incomplete), // ExprStart
             Ok(Parsed::Incomplete), // BindIdent
-            Ok(Parsed::Incomplete), // ExprClose
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // ExprEnd
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
     );
@@ -827,15 +827,15 @@ fn idents_share_defining_pkg() {
 
     // An expression nested within another.
     let toks = vec![
-        Air::PkgOpen(S1),
-        Air::ExprOpen(ExprOp::Sum, S2),
+        Air::PkgStart(S1),
+        Air::ExprStart(ExprOp::Sum, S2),
         Air::BindIdent(id_foo),
-        Air::ExprOpen(ExprOp::Sum, S4),
+        Air::ExprStart(ExprOp::Sum, S4),
         Air::BindIdent(id_bar),
         Air::RefIdent(id_baz),
-        Air::ExprClose(S7),
-        Air::ExprClose(S8),
-        Air::PkgClose(S9),
+        Air::ExprEnd(S7),
+        Air::ExprEnd(S8),
+        Air::PkgEnd(S9),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());

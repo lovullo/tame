@@ -246,7 +246,7 @@ fn ident_root_existing() {
 
 #[test]
 fn pkg_is_rooted() {
-    let toks = vec![Air::PkgOpen(S1), Air::PkgClose(S2)];
+    let toks = vec![Air::PkgStart(S1), Air::PkgEnd(S2)];
 
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
@@ -266,18 +266,18 @@ fn pkg_is_rooted() {
 #[test]
 fn close_pkg_without_open() {
     let toks = vec![
-        Air::PkgClose(S1),
+        Air::PkgEnd(S1),
         // RECOVERY: Try again.
-        Air::PkgOpen(S2),
-        Air::PkgClose(S3),
+        Air::PkgStart(S2),
+        Air::PkgEnd(S3),
     ];
 
     assert_eq!(
         vec![
-            Err(ParseError::StateError(AsgError::InvalidPkgCloseContext(S1))),
+            Err(ParseError::StateError(AsgError::InvalidPkgEndContext(S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgOpen
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -286,18 +286,18 @@ fn close_pkg_without_open() {
 #[test]
 fn nested_open_pkg() {
     let toks = vec![
-        Air::PkgOpen(S1),
-        Air::PkgOpen(S2),
+        Air::PkgStart(S1),
+        Air::PkgStart(S2),
         // RECOVERY
-        Air::PkgClose(S3),
+        Air::PkgEnd(S3),
     ];
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgOpen
-            Err(ParseError::StateError(AsgError::NestedPkgOpen(S2, S1))),
+            Ok(Parsed::Incomplete), // PkgStart
+            Err(ParseError::StateError(AsgError::NestedPkgStart(S2, S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgClose
+            Ok(Parsed::Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -313,9 +313,9 @@ where
     use std::iter;
 
     Sut::parse(
-        iter::once(Air::PkgOpen(S1))
+        iter::once(Air::PkgStart(S1))
             .chain(toks.into_iter())
-            .chain(iter::once(Air::PkgClose(S1))),
+            .chain(iter::once(Air::PkgEnd(S1))),
     )
 }
 

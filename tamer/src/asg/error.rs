@@ -67,10 +67,10 @@ pub enum AsgError {
     /// The first span represents the location of the second package open,
     ///   and the second span represents the location of the package already
     ///   being defined.
-    NestedPkgOpen(Span, Span),
+    NestedPkgStart(Span, Span),
 
     /// Attempted to close a package when not in a package toplevel context.
-    InvalidPkgCloseContext(Span),
+    InvalidPkgEndContext(Span),
 
     /// Attempted to open an expression in an invalid context.
     PkgExpected(Span),
@@ -111,7 +111,7 @@ pub enum AsgError {
 
     /// Attempted to close a template when not in a template toplevel
     ///   context.
-    InvalidTplCloseContext(Span),
+    InvalidTplEndContext(Span),
 }
 
 impl Display for AsgError {
@@ -123,8 +123,8 @@ impl Display for AsgError {
             IdentRedefine(spair, _) => {
                 write!(f, "cannot redefine {}", TtQuote::wrap(spair))
             }
-            NestedPkgOpen(_, _) => write!(f, "cannot nest packages"),
-            InvalidPkgCloseContext(_) => {
+            NestedPkgStart(_, _) => write!(f, "cannot nest packages"),
+            InvalidPkgEndContext(_) => {
                 write!(f, "invalid context for package close",)
             }
             PkgExpected(_) => write!(f, "expected package definition"),
@@ -144,7 +144,7 @@ impl Display for AsgError {
                     TtQuote::wrap(ident)
                 )
             }
-            InvalidTplCloseContext(_) => {
+            InvalidTplEndContext(_) => {
                 write!(f, "invalid context for template close",)
             }
         }
@@ -188,7 +188,7 @@ impl Diagnostic for AsgError {
                     .help("  defined and its definition cannot be changed."),
             ],
 
-            NestedPkgOpen(second, first) => vec![
+            NestedPkgStart(second, first) => vec![
                 first.note("this package is still being defined"),
                 second.error("attempted to open another package here"),
                 second.help(
@@ -197,7 +197,7 @@ impl Diagnostic for AsgError {
                 ),
             ],
 
-            InvalidPkgCloseContext(span) => vec![
+            InvalidPkgEndContext(span) => vec![
                 span.error("package close was not expected here"),
                 span.help(
                     "a package must be closed at the same level of nesting \
@@ -244,7 +244,7 @@ impl Diagnostic for AsgError {
                     of an expression context",
             )],
 
-            InvalidTplCloseContext(span) => vec![
+            InvalidTplEndContext(span) => vec![
                 span.error("template close was not expected here"),
                 span.help(
                     "a template must be closed at the same level of nesting \

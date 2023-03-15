@@ -32,7 +32,7 @@ fn package_to_pkg() {
     ];
 
     assert_eq!(
-        Ok(vec![O(Air::PkgOpen(S1)), O(Air::PkgClose(S2)),]),
+        Ok(vec![O(Air::PkgStart(S1)), O(Air::PkgEnd(S2)),]),
         Sut::parse(toks.into_iter()).collect(),
     );
 }
@@ -49,9 +49,9 @@ fn rate_to_sum_expr() {
 
     assert_eq!(
         Ok(vec![
-            O(Air::ExprOpen(ExprOp::Sum, S1)),
+            O(Air::ExprStart(ExprOp::Sum, S1)),
             O(Air::BindIdent(id)),
-            O(Air::ExprClose(S3)),
+            O(Air::ExprEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -68,10 +68,10 @@ fn calc_exprs() {
 
     assert_eq!(
         Ok(vec![
-            O(Air::ExprOpen(ExprOp::Sum, S1)),
-            O(Air::ExprOpen(ExprOp::Product, S2)),
-            O(Air::ExprClose(S3)),
-            O(Air::ExprClose(S4)),
+            O(Air::ExprStart(ExprOp::Sum, S1)),
+            O(Air::ExprStart(ExprOp::Product, S2)),
+            O(Air::ExprEnd(S3)),
+            O(Air::ExprEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -89,9 +89,9 @@ fn classify_to_conj_expr() {
 
     assert_eq!(
         Ok(vec![
-            O(Air::ExprOpen(ExprOp::Conj, S1)),
+            O(Air::ExprStart(ExprOp::Conj, S1)),
             O(Air::BindIdent(id)),
-            O(Air::ExprClose(S3)),
+            O(Air::ExprEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -108,10 +108,10 @@ fn logic_exprs() {
 
     assert_eq!(
         Ok(vec![
-            O(Air::ExprOpen(ExprOp::Conj, S1)),
-            O(Air::ExprOpen(ExprOp::Disj, S2)),
-            O(Air::ExprClose(S3)),
-            O(Air::ExprClose(S4)),
+            O(Air::ExprStart(ExprOp::Conj, S1)),
+            O(Air::ExprStart(ExprOp::Disj, S2)),
+            O(Air::ExprEnd(S3)),
+            O(Air::ExprEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -130,9 +130,9 @@ fn tpl_with_name() {
     #[rustfmt::skip]
     assert_eq!(
         Ok(vec![
-            O(Air::TplOpen(S1)),
+            O(Air::TplStart(S1)),
             O(Air::BindIdent(name)),
-            O(Air::TplClose(S3)),
+            O(Air::TplEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

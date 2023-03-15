@@ -72,9 +72,9 @@ pub enum AirAggregate {
 
     /// Parser is in template parsing mode.
     ///
-    /// All objects encountered until the closing [`Air::TplClose`] will be
+    /// All objects encountered until the closing [`Air::TplEnd`] will be
     ///   parented to this template rather than the parent [`Pkg`].
-    /// See [`Air::TplOpen`] for more information.
+    /// See [`Air::TplStart`] for more information.
     PkgTpl(
         ObjectIndex<Pkg>,
         AirExprAggregateReachable<Pkg>,
@@ -126,24 +126,24 @@ impl ParseState for AirAggregate {
         match (self, tok.into()) {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
-            (Empty, AirPkg(PkgOpen(span))) => {
+            (Empty, AirPkg(PkgStart(span))) => {
                 let oi_pkg = asg.create(Pkg::new(span)).root(asg);
                 Transition(Toplevel(oi_pkg, AirExprAggregate::new_in(oi_pkg)))
                     .incomplete()
             }
 
-            (Toplevel(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
+            (Toplevel(oi_pkg, expr), AirPkg(PkgStart(span))) => {
                 Transition(Toplevel(oi_pkg, expr))
-                    .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
+                    .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
             }
 
-            (PkgExpr(oi_pkg, expr), AirPkg(PkgOpen(span))) => {
+            (PkgExpr(oi_pkg, expr), AirPkg(PkgStart(span))) => {
                 Transition(PkgExpr(oi_pkg, expr))
-                    .err(AsgError::NestedPkgOpen(span, oi_pkg.span()))
+                    .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
             }
 
             // No expression was started.
-            (Toplevel(oi_pkg, _expr), AirPkg(PkgClose(span))) => {
+            (Toplevel(oi_pkg, _expr), AirPkg(PkgEnd(span))) => {
                 oi_pkg.close(asg, span);
                 Transition(Empty).incomplete()
             }
@@ -198,19 +198,19 @@ impl ParseState for AirAggregate {
                 Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
             }
 
-            (PkgTpl(..), AirPkg(PkgOpen(..))) => {
+            (PkgTpl(..), AirPkg(PkgStart(..))) => {
                 todo!("templates cannot contain packages")
             }
 
-            (Empty, AirTpl(TplClose(..))) => {
-                todo!("Empty AirTpl::TplClose")
+            (Empty, AirTpl(TplEnd(..))) => {
+                todo!("Empty AirTpl::TplEnd")
             }
 
-            (Empty, AirPkg(PkgClose(span))) => {
-                Transition(Empty).err(AsgError::InvalidPkgCloseContext(span))
+            (Empty, AirPkg(PkgEnd(span))) => {
+                Transition(Empty).err(AsgError::InvalidPkgEndContext(span))
             }
 
-            (PkgExpr(oi_pkg, expr), AirPkg(PkgClose(span))) => {
+            (PkgExpr(oi_pkg, expr), AirPkg(PkgEnd(span))) => {
                 match expr.is_accepting(asg) {
                     true => {
                         // TODO: this is duplicated with the above
@@ -218,23 +218,24 @@ impl ParseState for AirAggregate {
                         Transition(Empty).incomplete()
                     }
                     false => Transition(PkgExpr(oi_pkg, expr))
-                        .err(AsgError::InvalidPkgCloseContext(span)),
+                        .err(AsgError::InvalidPkgEndContext(span)),
                 }
             }
 
-            (PkgTpl(oi_pkg, stored_expr, tplst), AirPkg(PkgClose(span))) => {
+            (PkgTpl(oi_pkg, stored_expr, tplst), AirPkg(PkgEnd(span))) => {
                 match tplst.is_accepting(asg) {
                     true => Transition(PkgExpr(oi_pkg, stored_expr))
                         .incomplete()
-                        .with_lookahead(AirPkg(PkgClose(span))),
+                        .with_lookahead(AirPkg(PkgEnd(span))),
                     false => Transition(PkgTpl(oi_pkg, stored_expr, tplst))
-                        .err(AsgError::InvalidPkgCloseContext(span)),
+                        .err(AsgError::InvalidPkgEndContext(span)),
                 }
             }
 
-            (Empty, tok @ (AirExpr(..) | AirBind(..) | AirTpl(TplOpen(_)))) => {
-                Transition(Empty).err(AsgError::PkgExpected(tok.span()))
-            }
+            (
+                Empty,
+                tok @ (AirExpr(..) | AirBind(..) | AirTpl(TplStart(_))),
+            ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
 
             (Empty, AirIdent(IdentDecl(name, kind, src))) => {
                 asg.declare(name, kind, src).map(|_| ()).transition(Empty)
