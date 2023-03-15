@@ -140,6 +140,17 @@ impl ParseState for AirTplAggregate {
                 todo!("tpl Toplevel RefIdent")
             }
 
+            (
+                Toplevel(..),
+                tok @ AirTpl(TplMetaStart(..) | TplMetaEnd(..) | TplApply(..)),
+            ) => {
+                todo!("Toplevel meta {tok:?}")
+            }
+
+            (Toplevel(..), tok @ AirTpl(TplLexeme(..))) => {
+                todo!("err: Toplevel lexeme {tok:?} (must be within metavar)")
+            }
+
             (Toplevel(oi_pkg, oi_tpl, _expr_done, _), AirTpl(TplEnd(span))) => {
                 oi_tpl.close(asg, span);
                 Transition(Ready(oi_pkg)).incomplete()
@@ -170,6 +181,18 @@ impl ParseState for AirTplAggregate {
 
             (TplExpr(..), AirTpl(TplStart(_))) => {
                 todo!("nested template (template-generated template)")
+            }
+
+            (
+                Ready(..) | TplExpr(..),
+                tok @ AirTpl(
+                    TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)
+                    | TplApply(..),
+                ),
+            ) => {
+                todo!(
+                    "metasyntactic token in non-tpl-toplevel context: {tok:?}"
+                )
             }
 
             (st @ Ready(..), AirTpl(TplEnd(span))) => {

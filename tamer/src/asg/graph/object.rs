@@ -132,12 +132,14 @@ mod rel;
 
 pub mod expr;
 pub mod ident;
+pub mod meta;
 pub mod pkg;
 pub mod root;
 pub mod tpl;
 
 pub use expr::Expr;
 pub use ident::Ident;
+pub use meta::Meta;
 pub use pkg::Pkg;
 pub use rel::{
     DynObjectRel, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
@@ -314,6 +316,9 @@ object_gen! {
 
     /// A template definition.
     Tpl,
+
+    /// Metasyntactic variable (metavariable).
+    Meta,
 }
 
 impl Object<OnlyObjectInner> {
@@ -324,6 +329,7 @@ impl Object<OnlyObjectInner> {
             Self::Ident(ident) => ident.span(),
             Self::Expr(expr) => expr.span(),
             Self::Tpl(tpl) => tpl.span(),
+            Self::Meta(meta) => meta.span(),
         }
     }
 

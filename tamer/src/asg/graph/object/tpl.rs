@@ -22,8 +22,8 @@
 use std::fmt::Display;
 
 use super::{
-    Expr, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable,
+    Expr, Ident, Meta, Object, ObjectIndex, ObjectRel, ObjectRelFrom,
+    ObjectRelTy, ObjectRelatable,
 };
 use crate::{asg::Asg, f::Functor, span::Span};
 
@@ -63,6 +63,7 @@ object_rel! {
     Tpl -> {
         tree Ident,
         tree Expr,
+        tree Meta,
     }
 }
 

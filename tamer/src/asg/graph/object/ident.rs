@@ -21,7 +21,7 @@
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    Expr, Object, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
+    Expr, Meta, Object, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
     ObjectRelatable, Pkg, Tpl,
 };
 use crate::{
@@ -978,12 +978,13 @@ object_rel! {
     /// Opaque identifiers at the time of writing are used by the linker
     ///   which does not reason about cross edges
     ///     (again at the time of writing).
-    /// Consequently,
-    ///   this will always return [`false`].
     Ident -> {
         tree Ident,
         tree Expr,
         tree Tpl,
+
+        // A metavariable is directly referenced by a template.
+        cross Meta,
     }
 }
 

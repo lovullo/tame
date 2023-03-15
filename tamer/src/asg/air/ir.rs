@@ -621,6 +621,18 @@ sum_ir! {
         }
 
         /// Subset of [`Air`] tokens for defining [`Tpl`]s.
+        ///
+        /// Templates serve as containers for objects that reference
+        ///   metasyntactic variables,
+        ///     defined by [`AirTpl::TplMetaStart`].
+        ///
+        /// If a template contains any metavariables (parameters) without
+        ///   bound values,
+        ///     those metavariables are said to be _free_.
+        /// Values may be applied to templates using [`AirTpl::TplApply`],
+        ///   binding those values to their associated metavariables.
+        /// A template with no free metavariables is _closed_ and may be
+        ///   expanded in-place.
         enum AirTpl {
             /// Create a new [`Tpl`] on the graph and switch to template parsing.
             ///
@@ -637,6 +649,101 @@ sum_ir! {
                 display: |f| write!(f, "open template"),
             },
 
+            /// Begin a metavariable definition.
+            ///
+            /// A metavariable is anonymous unless identified via
+            ///   [`AirBind::BindIdent`] before [`Self::TplMetaEnd`].
+            ///
+            /// Metavariables may contain default values,
+            ///   making their specification during [`Self::TplApply`] optional.
+            /// A metavariable may contain an ordered mixture of references
+            ///   to another metavariables via [`AirBind::RefIdent`] and
+            ///   literals via [`Self::TplLexeme`].
+            /// Once all metavariable references have been satisfied during
+            ///   [`Self::TplApply`],
+            ///     all children will be combined into a single lexeme to
+            ///   serve as a final identifier.
+            ///
+            /// The interpretation of a metavariable depends solely on the
+            ///   context in which it is referenced.
+            TplMetaStart(span: Span) => {
+                span: span,
+                display: |f| write!(
+                    f,
+                    "open definition of metasyntactic variable",
+                ),
+            },
+
+            /// A lexeme to be interpreted in the context of a template
+            ///   expansion.
+            TplLexeme(lex: SPair) => {
+                span: lex,
+                display: |f| write!(f, "lexeme {}", TtQuote::wrap(lex)),
+            },
+
+            /// Complete a metavariable definition.
+            ///
+            /// See [`Self::TplMetaStart`] for more information.
+            TplMetaEnd(span: Span) => {
+                span: span,
+                display: |f| write!(
+                    f,
+                    "close definition of metasyntactic variable",
+                ),
+            },
+
+            /// Re-bind an inner template to the metavariables in the
+            ///   current context.
+            ///
+            /// Let α be the current template definition context
+            ///   (via [`Self::TplStart`])
+            ///   and let β be the inner template.
+            /// All free metavariables in β that contain default values in α
+            ///   (via [`Self::TplMetaStart`])
+            ///   corresponding to the same [`Ident`] will be _bound_ to
+            ///   that value.
+            ///
+            /// The body of the inner template β will become the body of α.
+            ///
+            /// TODO
+            /// ====
+            /// Pick one of these!
+            ///
+            /// Option A
+            /// --------
+            /// The result of this template application is a new template α
+            ///   whose params are the still-free params of β after having
+            ///   applied the aforementioned operation.
+            /// If α contains no more free metavariables,
+            ///   then it is _closed_ and ready for expansion.
+            ///
+            /// TODO: Defaults applied or deferred?
+            ///
+            /// Option B
+            /// --------
+            /// Partial application is not yet supported,
+            ///   but can be added if it is worth the effort of doing so.
+            /// This simplifies the semantics of this operation:
+            ///
+            ///   - All metavariables that are still free in β after binding
+            ///       will assume their default values, if any; and
+            ///   - All metavariables that are still free in β after
+            ///       applying defaults will result in an error.
+            ///
+            /// Consequently,
+            ///   the template α will always be closed after this operation
+            ///   and ready for expansion.
+            ///
+            /// TODO: Maybe just make this `TplApplyExpand` to do both,
+            ///     then,
+            ///     like TAME works today?
+            ///   Separating them can come later if there's value in that
+            ///     effort.
+            TplApply(span: Span) => {
+                span: span,
+                display: |f| write!(f, "apply param bindings to inner template"),
+            },
+
             /// Close the active [`Tpl`] and exit template parsing.
             ///
             /// The expression stack will be restored to its prior state.
@@ -644,6 +751,8 @@ sum_ir! {
                 span: span,
                 display: |f| write!(f, "close template"),
             },
+
+            // TODO: Separate expand or not?  See TplApply above.
         }
     }
 

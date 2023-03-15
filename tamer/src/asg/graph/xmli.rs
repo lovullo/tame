@@ -198,6 +198,8 @@ impl<'a> TreeContext<'a> {
                 self.emit_template(tpl, paired_rel.source(), depth)
             }
 
+            target @ Object::Meta(..) => todo!("Object::Meta: {target:?}"),
+
             Object::Root(..) => diagnostic_unreachable!(
                 vec![],
                 "tree walk is not expected to emit Root",

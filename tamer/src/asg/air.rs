@@ -118,7 +118,6 @@ impl ParseState for AirAggregate {
     ) -> crate::parse::TransitionResult<Self> {
         use ir::{
             AirBind::*, AirIdent::*, AirPkg::*, AirSubsets::*, AirTodo::*,
-            AirTpl::*,
         };
         use AirAggregate::*;
 
@@ -202,10 +201,6 @@ impl ParseState for AirAggregate {
                 todo!("templates cannot contain packages")
             }
 
-            (Empty, AirTpl(TplEnd(..))) => {
-                todo!("Empty AirTpl::TplEnd")
-            }
-
             (Empty, AirPkg(PkgEnd(span))) => {
                 Transition(Empty).err(AsgError::InvalidPkgEndContext(span))
             }
@@ -232,10 +227,9 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (
-                Empty,
-                tok @ (AirExpr(..) | AirBind(..) | AirTpl(TplStart(_))),
-            ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
+            (Empty, tok @ (AirExpr(..) | AirBind(..) | AirTpl(..))) => {
+                Transition(Empty).err(AsgError::PkgExpected(tok.span()))
+            }
 
             (Empty, AirIdent(IdentDecl(name, kind, src))) => {
                 asg.declare(name, kind, src).map(|_| ()).transition(Empty)

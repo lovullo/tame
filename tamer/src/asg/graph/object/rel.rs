@@ -21,7 +21,8 @@
 //! See (parent module)[super] for more information.
 
 use super::{
-    Expr, Ident, Object, ObjectIndex, ObjectKind, OiPairObjectInner, Pkg, Root,
+    Expr, Ident, Meta, Object, ObjectIndex, ObjectKind, OiPairObjectInner, Pkg,
+    Root,
 };
 use crate::{
     asg::{graph::object::Tpl, Asg},
@@ -255,7 +256,7 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
             }
         }
 
-        ty_cross_edge!(Root, Pkg, Ident, Expr, Tpl)
+        ty_cross_edge!(Root, Pkg, Ident, Expr, Tpl, Meta)
     }
 }
 
