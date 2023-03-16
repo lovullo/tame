@@ -62,17 +62,15 @@ pub enum AirTplAggregate {
 
     Toplevel(
         ObjectIndex<Pkg>,
-        ObjectIndex<Tpl>,
+        TplState,
         AirExprAggregateStoreDangling<Tpl>,
-        Option<SPair>,
     ),
 
     /// Aggregating tokens into a template.
     TplExpr(
         ObjectIndex<Pkg>,
-        ObjectIndex<Tpl>,
+        TplState,
         AirExprAggregateStoreDangling<Tpl>,
-        Option<SPair>,
     ),
 }
 
@@ -81,18 +79,54 @@ impl Display for AirTplAggregate {
         match self {
             Self::Ready(_) => write!(f, "ready for template definition"),
 
-            Self::Toplevel(_, expr, _, None)
-            | Self::TplExpr(_, expr, _, None) => {
-                write!(f, "building anonymous template with {expr}")
+            Self::Toplevel(_, tpl, expr) | Self::TplExpr(_, tpl, expr) => {
+                write!(f, "building {tpl} with {expr}")
             }
+        }
+    }
+}
 
-            Self::Toplevel(_, expr, _, Some(name))
-            | Self::TplExpr(_, expr, _, Some(name)) => {
-                write!(
-                    f,
-                    "building named template {} with {expr}",
-                    TtQuote::wrap(name)
-                )
+/// The current reachability status of the template.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum TplState {
+    /// Template is dangling and cannot be referenced by anything else.
+    Dangling(ObjectIndex<Tpl>),
+
+    /// Template is anonymous and is not reachable by an identifier,
+    ///   but is reachable in the current context.
+    AnonymousReachable(ObjectIndex<Tpl>),
+
+    /// Template is reachable via an identifier.
+    ///
+    /// This uses an [`SPair`] as evidence for that assertion rather than an
+    ///   [`ObjectIndex`] so that it provides useful output via [`Display`]
+    ///   in parser traces.
+    Identified(ObjectIndex<Tpl>, SPair),
+}
+
+impl TplState {
+    fn oi(&self) -> ObjectIndex<Tpl> {
+        match self {
+            TplState::Dangling(oi)
+            | TplState::AnonymousReachable(oi)
+            | TplState::Identified(oi, _) => *oi,
+        }
+    }
+
+    fn identify(self, id: SPair) -> Self {
+        Self::Identified(self.oi(), id)
+    }
+}
+
+impl Display for TplState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TplState::Dangling(_) => write!(f, "anonymous dangling template"),
+            TplState::AnonymousReachable(_) => {
+                write!(f, "anonymous reachable template")
+            }
+            TplState::Identified(_, id) => {
+                write!(f, "identified template {}", TtQuote::wrap(id))
             }
         }
     }
@@ -119,22 +153,20 @@ impl ParseState for AirTplAggregate {
 
                 Transition(Toplevel(
                     oi_pkg,
-                    oi_tpl,
+                    TplState::Dangling(oi_tpl),
                     AirExprAggregate::new_in(oi_tpl),
-                    None,
                 ))
                 .incomplete()
             }
 
             (Toplevel(..), AirTpl(TplStart(_span))) => todo!("nested tpl open"),
 
-            (Toplevel(oi_pkg, oi_tpl, expr, _), AirBind(BindIdent(name))) => {
-                asg.lookup_or_missing(name)
-                    .bind_definition(asg, name, oi_tpl)
-                    .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg, oi_tpl, expr, Some(name)))
-            }
+            (Toplevel(oi_pkg, tpl, expr), AirBind(BindIdent(id))) => asg
+                .lookup_or_missing(id)
+                .bind_definition(asg, id, tpl.oi())
+                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
+                .map(|_| ())
+                .transition(Toplevel(oi_pkg, tpl.identify(id), expr)),
 
             (Toplevel(..), AirBind(RefIdent(_))) => {
                 todo!("tpl Toplevel RefIdent")
@@ -151,20 +183,20 @@ impl ParseState for AirTplAggregate {
                 todo!("err: Toplevel lexeme {tok:?} (must be within metavar)")
             }
 
-            (Toplevel(oi_pkg, oi_tpl, _expr_done, _), AirTpl(TplEnd(span))) => {
-                oi_tpl.close(asg, span);
+            (Toplevel(oi_pkg, tpl, _expr_done), AirTpl(TplEnd(span))) => {
+                tpl.oi().close(asg, span);
                 Transition(Ready(oi_pkg)).incomplete()
             }
 
-            (TplExpr(oi_pkg, oi_tpl, expr, name), AirTpl(TplEnd(span))) => {
+            (TplExpr(oi_pkg, tpl, expr), AirTpl(TplEnd(span))) => {
                 // TODO: duplicated with AirAggregate
                 match expr.is_accepting(asg) {
                     true => {
                         // TODO: this is duplicated with the above
-                        oi_tpl.close(asg, span);
+                        tpl.oi().close(asg, span);
                         Transition(Ready(oi_pkg)).incomplete()
                     }
-                    false => Transition(TplExpr(oi_pkg, oi_tpl, expr, name))
+                    false => Transition(TplExpr(oi_pkg, tpl, expr))
                         .err(AsgError::InvalidTplEndContext(span)),
                 }
             }
@@ -174,13 +206,12 @@ impl ParseState for AirTplAggregate {
             }
 
             (
-                Toplevel(oi_pkg, oi_tpl, expr, name)
-                | TplExpr(oi_pkg, oi_tpl, expr, name),
+                Toplevel(oi_pkg, tpl, expr) | TplExpr(oi_pkg, tpl, expr),
                 AirExpr(etok),
-            ) => Self::delegate_expr(asg, oi_pkg, oi_tpl, expr, name, etok),
+            ) => Self::delegate_expr(asg, oi_pkg, tpl, expr, etok),
 
-            (TplExpr(oi_pkg, oi_tpl, expr, name), AirBind(etok)) => {
-                Self::delegate_expr(asg, oi_pkg, oi_tpl, expr, name, etok)
+            (TplExpr(oi_pkg, tpl, expr), AirBind(etok)) => {
+                Self::delegate_expr(asg, oi_pkg, tpl, expr, etok)
             }
 
             (TplExpr(..), AirTpl(TplStart(_))) => {
@@ -220,26 +251,23 @@ impl AirTplAggregate {
     }
 
     /// Delegate to the expression parser [`AirExprAggregate`].
-    // TODO: Sir, this argument count is out of control.
     fn delegate_expr(
         asg: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
-        oi_tpl: ObjectIndex<Tpl>,
+        tpl: TplState,
         expr: AirExprAggregateStoreDangling<Tpl>,
-        name: Option<SPair>,
         etok: impl Into<<AirExprAggregateStoreDangling<Tpl> as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
 
         expr.parse_token(tok, asg).branch_dead::<Self, _>(
             |expr, ()| {
-                Transition(Self::Toplevel(oi_pkg, oi_tpl, expr, name))
-                    .incomplete()
+                Transition(Self::Toplevel(oi_pkg, tpl, expr)).incomplete()
             },
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
-                    .transition(Self::TplExpr(oi_pkg, oi_tpl, expr, name))
+                    .transition(Self::TplExpr(oi_pkg, tpl, expr))
             },
             (),
         )
