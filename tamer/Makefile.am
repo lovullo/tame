@@ -72,7 +72,7 @@ check-system: bin
 
 .PHONY: check-lint
 check-lint:
-	@CARGO@ +@RUST_TC@ @CARGO_FLAGS@ clippy
+	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ clippy @FEATURES@
 
 .PHONY: check-fmt
 check-fmt:
