@@ -31,6 +31,8 @@ use super::{
     AirExprAggregate,
 };
 use crate::{
+    diagnose::Annotate,
+    diagnostic_todo,
     fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
     span::Span,
@@ -183,7 +185,10 @@ impl ParseState for AirTplAggregate {
                 .incomplete()
             }
 
-            (Toplevel(..), AirTpl(TplStart(_span))) => todo!("nested tpl open"),
+            (Toplevel(..), AirTpl(TplStart(span))) => diagnostic_todo!(
+                vec![span.note("for this template")],
+                "nested tpl open"
+            ),
 
             (Toplevel(oi_pkg, tpl, expr), AirBind(BindIdent(id))) => asg
                 .lookup_or_missing(id)
@@ -201,11 +206,17 @@ impl ParseState for AirTplAggregate {
                 Toplevel(..),
                 tok @ AirTpl(TplMetaStart(..) | TplMetaEnd(..) | TplApply(..)),
             ) => {
-                todo!("Toplevel meta {tok:?}")
+                diagnostic_todo!(
+                    vec![tok.note("for this token")],
+                    "Toplevel meta"
+                )
             }
 
             (Toplevel(..), tok @ AirTpl(TplLexeme(..))) => {
-                todo!("err: Toplevel lexeme {tok:?} (must be within metavar)")
+                diagnostic_todo!(
+                    vec![tok.note("for this token")],
+                    "err: Toplevel lexeme {tok:?} (must be within metavar)"
+                )
             }
 
             (Toplevel(oi_pkg, tpl, _expr_done), AirTpl(TplEnd(span))) => {
@@ -255,8 +266,11 @@ impl ParseState for AirTplAggregate {
                 Self::delegate_expr(asg, oi_pkg, tpl, expr, etok)
             }
 
-            (TplExpr(..), AirTpl(TplStart(_))) => {
-                todo!("nested template (template-generated template)")
+            (TplExpr(..), AirTpl(TplStart(span))) => {
+                diagnostic_todo!(
+                    vec![span.note("for this token")],
+                    "nested template (template-generated template)"
+                )
             }
 
             (
@@ -266,7 +280,8 @@ impl ParseState for AirTplAggregate {
                     | TplApply(..),
                 ),
             ) => {
-                todo!(
+                diagnostic_todo!(
+                    vec![tok.note("for this token")],
                     "metasyntactic token in non-tpl-toplevel context: {tok:?}"
                 )
             }

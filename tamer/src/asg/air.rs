@@ -38,7 +38,9 @@
 use self::expr::AirExprAggregateReachable;
 
 use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
-use crate::{parse::prelude::*, sym::SymbolId};
+use crate::{
+    diagnose::Annotate, diagnostic_todo, parse::prelude::*, sym::SymbolId,
+};
 use std::fmt::{Debug, Display};
 
 #[macro_use]
@@ -197,8 +199,11 @@ impl ParseState for AirAggregate {
                 Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
             }
 
-            (PkgTpl(..), AirPkg(PkgStart(..))) => {
-                todo!("templates cannot contain packages")
+            (PkgTpl(..), tok @ AirPkg(PkgStart(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("for this token")],
+                    "templates cannot contain packages"
+                )
             }
 
             (Empty, AirPkg(PkgEnd(span))) => {
