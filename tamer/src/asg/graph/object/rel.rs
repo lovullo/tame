@@ -80,10 +80,14 @@ macro_rules! object_rel {
             }
 
             /// The root of the graph by definition has no cross edges.
-            fn is_cross_edge(&self) -> bool {
+            fn is_cross_edge<S, T>(
+                &self,
+                #[allow(unused_variables)] // used only for `dyn` edges
+                rel: &$crate::asg::graph::object::rel::DynObjectRel<S, T>
+            ) -> bool {
                 match self {
                     $(
-                        Self::$kind(..) => object_rel!(@is_cross_edge $ety),
+                        Self::$kind(..) => object_rel!(@is_cross_edge $ety rel),
                     )*
 
                     #[allow(unreachable_patterns)] // for empty Rel types
@@ -126,8 +130,21 @@ macro_rules! object_rel {
         )*
     }};
 
-    (@is_cross_edge cross) => { true };
-    (@is_cross_edge tree)  => { false };
+    // Static edge types.
+    (@is_cross_edge cross $_:ident) => { true };
+    (@is_cross_edge tree $_:ident)  => { false };
+
+    // Dynamic edge type.
+    //
+    // We consider an edge to be a cross edge iff it contains a context
+    //   span.
+    // If it were _not_ a cross edge,
+    //   then the edge would represent ownership,
+    //   and the span information on the target would be sufficient context
+    //     on its own;
+    //       an edge only needs supplemental span information if there is
+    //       another context in which that object is referenced.
+    (@is_cross_edge dyn $rel:ident)  => { $rel.ctx_span().is_some() };
 }
 
 /// A dynamic relationship (edge) from one object to another before it has
@@ -248,7 +265,7 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
                     $(
                         ObjectRelTy::$ty => {
                             self.narrow_target::<$ty>().is_some_and(
-                                |rel| rel.is_cross_edge()
+                                |rel| rel.is_cross_edge(self)
                             )
                         },
                     )*
@@ -509,5 +526,38 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>: Sized {
     ///     then do _not_ assume that it is a cross edge without further
     ///     analysis,
     ///       which may require introducing more context to this method.
-    fn is_cross_edge(&self) -> bool;
+    ///
+    /// Dynamic Cross Edges
+    /// ==================
+    /// Sometimes a cross edge cannot be determined statically due to
+    ///   ontological compromises.
+    /// For example,
+    ///   a [`Tpl`]->[`Ident`] edge could be a reference to another tree,
+    ///     as in the case of template application,
+    ///     or the template could be serving as a container for that
+    ///       definition.
+    /// The former case is a cross edge,
+    ///   but the ladder is not.
+    ///
+    /// We could introduce a layer of indirection on the graph to
+    ///   disambiguate,
+    ///     but that adds complexity to the graph that many different
+    ///     subsystems need to concern themselves with.
+    /// But cross edge determination is fairly isolated,
+    ///   needed only by traversals.
+    ///
+    /// Therefore,
+    ///   this method also receives a [`DynObjectRel`] reference,
+    ///     which contains edge information.
+    /// The edge can be augmented with data that helps to determine,
+    ///   at runtime,
+    ///   whether that particular edge is a cross edge.
+    ///
+    /// The use of [`DynObjectRel`] is heavy and effectively makes this
+    ///   method useless for callers that do not deal directly with raw
+    ///   [`Asg`] data;
+    ///     it may be useful to refine this further in the future to correct
+    ///     that,
+    ///       once all use cases are clear.
+    fn is_cross_edge<S, T>(&self, rel: &DynObjectRel<S, T>) -> bool;
 }

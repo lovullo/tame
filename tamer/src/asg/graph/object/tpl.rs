@@ -25,7 +25,12 @@ use super::{
     Expr, Ident, Meta, Object, ObjectIndex, ObjectRel, ObjectRelFrom,
     ObjectRelTo, ObjectRelTy, ObjectRelatable,
 };
-use crate::{asg::Asg, f::Functor, parse::util::SPair, span::Span};
+use crate::{
+    asg::Asg,
+    f::Functor,
+    parse::{util::SPair, Token},
+    span::Span,
+};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -61,9 +66,10 @@ object_rel! {
     /// Templates may expand into nearly any context,
     ///   and must therefore be able to contain just about anything.
     Tpl -> {
-        tree Ident,
         tree Expr,
         tree Meta,
+
+        dyn  Ident,
     }
 }
 
@@ -87,8 +93,7 @@ impl ObjectIndex<Tpl> {
     ///   re-binding metavariables to the context of `self`.
     pub fn apply_named_tpl(self, asg: &mut Asg, id: SPair) -> Self {
         let oi_apply = asg.lookup_or_missing(id);
-        // TODO: span
-        self.add_edge_to(asg, oi_apply, None)
+        self.add_edge_to(asg, oi_apply, Some(id.span()))
     }
 
     /// Directly reference this template from another object

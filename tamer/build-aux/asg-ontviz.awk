@@ -114,9 +114,23 @@ block_src && $NF ~ /\w+,$/ {
     # Edge type (cross, tree)
     ty = $(NF-1)
 
+    # Dashed is visually in-between solid and dotted,
+    #   and `dyn` is either `tree` or `cross`,
+    #     determined at runtime.
+    # But we may need some other representation if `dotted` is too visually
+    #   sparse and difficult/annoying to see;
+    #     let's see where the ASG visualization ends up first.
     attrs = ""
-    if (ty == "cross") {
-        attrs="[style=dashed]"
+    switch (ty) {
+        case "tree":
+            attrs="[style=solid]";
+            break;
+        case "cross":
+            attrs="[style=dotted]";
+            break;
+        case "dyn":
+            attrs="[style=dashed]";
+            break;
     }
 
     gsub(/,$/, "")

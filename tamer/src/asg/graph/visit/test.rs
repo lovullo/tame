@@ -36,13 +36,27 @@ use Air::*;
 use ObjectRelTy::*;
 const SU: Span = UNKNOWN_SPAN;
 
-fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
+fn tree_reconstruction_report<I: IntoIterator<Item = Air>>(
+    toks: I,
+) -> Vec<(DynObjectRel<Span, Span>, Depth)>
 where
     I::IntoIter: Debug,
 {
     let mut parser = AirAggregate::parse(toks.into_iter());
     assert!(parser.all(|x| x.is_ok()));
-    parser.finalize().unwrap().into_context()
+
+    let asg = &parser.finalize().unwrap().into_context();
+
+    tree_reconstruction(asg)
+        .map(|TreeWalkRel(rel, depth)| {
+            (
+                rel.map(|(soi, toi)| {
+                    (soi.resolve(asg).span(), toi.resolve(asg).span())
+                }),
+                depth,
+            )
+        })
+        .collect()
 }
 
 // Note that this is an integration test beginning at AIR.
@@ -79,13 +93,6 @@ fn traverses_ontological_tree() {
         PkgEnd(S11),
     ];
 
-    let asg = asg_from_toks(toks);
-
-    // From the above graph,
-    //   we're going to traverse in such a way as to reconstruct the source
-    //   tree.
-    let sut = tree_reconstruction(&asg);
-
     // We need more concise expressions for the below table of values.
     let d = DynObjectRel::new;
     let m = |a: Span, b: Span| a.merge(b).unwrap();
@@ -107,13 +114,7 @@ fn traverses_ontological_tree() {
             (d(Pkg,   Ident, m(S1, S11), S9,         None    ),   Depth(2)),
             (d(Ident, Expr,  S9,         m(S8, S10), None    ),     Depth(3)),
         ],
-        sut.map(|TreeWalkRel(rel, depth)| (
-            rel.map(|(soi, toi)| (
-                soi.resolve(&asg).span(),
-                toi.resolve(&asg).span()
-            )),
-            depth
-        )).collect::<Vec<_>>(),
+        tree_reconstruction_report(toks),
     );
 }
 
@@ -156,9 +157,6 @@ fn traverses_ontological_tree_tpl_with_sibling_at_increasing_depth() {
         PkgEnd(S10),
     ];
 
-    let asg = asg_from_toks(toks);
-    let sut = tree_reconstruction(&asg);
-
     // We need more concise expressions for the below table of values.
     let d = DynObjectRel::new;
     let m = |a: Span, b: Span| a.merge(b).unwrap();
@@ -184,12 +182,55 @@ fn traverses_ontological_tree_tpl_with_sibling_at_increasing_depth() {
             (d(Tpl,   Ident, m(S2, S9),  S7,         None),       Depth(4)),  //   |
             (d(Ident, Expr,  S7,         m(S6, S8),  None),         Depth(5)), // <'
         ],
-        sut.map(|TreeWalkRel(rel, depth)| (
-            rel.map(|(soi, toi)| (
-                soi.resolve(&asg).span(),
-                toi.resolve(&asg).span()
-            )),
-            depth
-        )).collect::<Vec<_>>(),
+        tree_reconstruction_report(toks),
+    );
+}
+
+// The way template applications are handled on the ASG differs from NIR.
+// This test ensure that the representation on the ASG is precise;
+//   it's far easier to catch those problems here than it is to catch them
+//   in an implementation utilizing these data that's failing in some
+//   unexpected way.
+#[test]
+fn traverses_ontological_tree_tpl_apply() {
+    let name_tpl = "_tpl-to-apply_".into();
+    let id_tpl = SPair(name_tpl, S3);
+    let ref_tpl = SPair(name_tpl, S6);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          // The template that will be applied.
+          TplStart(S2),
+            BindIdent(id_tpl),
+
+            // This test is light for now,
+            //   until we develop the ASG further.
+          TplEnd(S4),
+
+          // Apply the above template.
+          // This seems like an odd construction until we introduce
+          //   metavariables.
+          TplStart(S5),
+            RefIdent(ref_tpl),
+          TplEndRef(S7),  // notice the `Ref` at the end
+        PkgEnd(S8),
+    ];
+
+    // We need more concise expressions for the below table of values.
+    let d = DynObjectRel::new;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
+    #[rustfmt::skip]
+    assert_eq!(
+        //      A  -|-> B   |  A span  -|-> B span  | espan  |  depth
+        vec![//-----|-------|-----------|-----------|--------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S8),  None    ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S8),  S3,         None    ),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S4),  None    ),     Depth(3)),
+            (d(Pkg,   Tpl,   m(S1, S8),  m(S5, S7),  None    ),   Depth(2)),
+            (d(Tpl,   Ident, m(S5, S7),  S3,         Some(S6)),     Depth(3)),
+        ],
+        tree_reconstruction_report(toks),
     );
 }
