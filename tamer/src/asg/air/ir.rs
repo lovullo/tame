@@ -628,13 +628,47 @@ sum_ir! {
         ///   metasyntactic variables,
         ///     defined by [`AirTpl::TplMetaStart`].
         ///
-        /// If a template contains any metavariables (parameters) without
-        ///   bound values,
-        ///     those metavariables are said to be _free_.
-        /// Values may be applied to templates using [`AirTpl::TplApply`],
-        ///   binding those values to their associated metavariables.
-        /// A template with no free metavariables is _closed_ and may be
-        ///   expanded in-place.
+        /// Template Application
+        /// ====================
+        /// _Application_ is triggered by a [`Air::RefIdent`] to a [`Tpl`]
+        ///   or a [`Air::TplEndRef`] and will re-bind an inner template to
+        ///   the metavariables in the current context and expand the
+        ///   template in place.
+        /// A metavariable is _free_ if it has no bound value.
+        /// A template is _closed_ if it has no free metavariables.
+        /// Application _expands_ into its context,
+        ///   and application of a closed template is equivalent to the
+        ///   notion of template application in NIR / TAME's source language.
+        ///
+        /// Let α be the current template definition context
+        ///   (via [`Air::TplStart`])
+        ///   and let β be the inner template.
+        /// All free metavariables in β that contain default values in α
+        ///   (via [`Air::TplMetaStart`])
+        ///   corresponding to the same [`Ident`] will be _bound_ to
+        ///   that value.
+        /// The body of the inner template β will be expanded into the
+        ///   body of α.
+        /// The result is a template α which is the application of its
+        ///   parameters to β.
+        ///
+        /// Partial application is not yet supported,
+        ///   but can be added if it is worth the effort of doing so.
+        /// This simplifies the semantics of this operation:
+        ///
+        ///   - All metavariables that are still free in β after binding
+        ///       will assume their default values, if any; and
+        ///   - All metavariables that are still free in β after
+        ///       applying defaults will result in an error.
+        ///
+        /// Consequently,
+        ///   the template α will always be closed after this operation.
+        /// This can be thought of like a lexical thunk.
+        ///
+        /// α can then be expanded in place using [`Air::TplEndRef`] if
+        ///   it is anonymous.
+        /// If α is named,
+        ///   [`Air::RefIdent`] can be used to trigger expansion.
         enum AirTpl {
             /// Create a new [`Tpl`] on the graph and switch to template parsing.
             ///
@@ -657,14 +691,14 @@ sum_ir! {
             ///   [`AirBind::BindIdent`] before [`Self::TplMetaEnd`].
             ///
             /// Metavariables may contain default values,
-            ///   making their specification during [`Self::TplApply`] optional.
+            ///   making their specification during application optional.
             /// A metavariable may contain an ordered mixture of references
             ///   to another metavariables via [`AirBind::RefIdent`] and
             ///   literals via [`Self::TplLexeme`].
             /// Once all metavariable references have been satisfied during
-            ///   [`Self::TplApply`],
+            ///   application,
             ///     all children will be combined into a single lexeme to
-            ///   serve as a final identifier.
+            ///     serve as a final identifier.
             ///
             /// The interpretation of a metavariable depends solely on the
             ///   context in which it is referenced.
@@ -692,43 +726,6 @@ sum_ir! {
                     f,
                     "close definition of metasyntactic variable",
                 ),
-            },
-
-            /// Re-bind an inner template to the metavariables in the
-            ///   current context and expand the template in place.
-            ///
-            /// Let α be the current template definition context
-            ///   (via [`Self::TplStart`])
-            ///   and let β be the inner template.
-            /// All free metavariables in β that contain default values in α
-            ///   (via [`Self::TplMetaStart`])
-            ///   corresponding to the same [`Ident`] will be _bound_ to
-            ///   that value.
-            /// The body of the inner template β will be expanded into the
-            ///   body of α.
-            /// The result is a template α which is the application of its
-            ///   parameters to β.
-            ///
-            /// Partial application is not yet supported,
-            ///   but can be added if it is worth the effort of doing so.
-            /// This simplifies the semantics of this operation:
-            ///
-            ///   - All metavariables that are still free in β after binding
-            ///       will assume their default values, if any; and
-            ///   - All metavariables that are still free in β after
-            ///       applying defaults will result in an error.
-            ///
-            /// Consequently,
-            ///   the template α will always be closed after this operation.
-            /// This can be thought of like a lexical thunk.
-            ///
-            /// α can then be expanded in place using [`Self::TplEndRef`] if
-            ///   it is anonymous.
-            /// If α is named,
-            ///   [`Air::RefIdent`] can be used to trigger expansion.
-            TplApply(span: Span) => {
-                span: span,
-                display: |f| write!(f, "apply param bindings to inner template"),
             },
 
             /// Complete the active [`Tpl`] and exit template parsing.

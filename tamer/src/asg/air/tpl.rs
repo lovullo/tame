@@ -202,10 +202,7 @@ impl ParseState for AirTplAggregate {
                 Transition(Toplevel(oi_pkg, tpl, expr)).incomplete()
             }
 
-            (
-                Toplevel(..),
-                tok @ AirTpl(TplMetaStart(..) | TplMetaEnd(..) | TplApply(..)),
-            ) => {
+            (Toplevel(..), tok @ AirTpl(TplMetaStart(..) | TplMetaEnd(..))) => {
                 diagnostic_todo!(
                     vec![tok.note("for this token")],
                     "Toplevel meta"
@@ -275,10 +272,7 @@ impl ParseState for AirTplAggregate {
 
             (
                 Ready(..) | TplExpr(..),
-                tok @ AirTpl(
-                    TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)
-                    | TplApply(..),
-                ),
+                tok @ AirTpl(TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)),
             ) => {
                 diagnostic_todo!(
                     vec![tok.note("for this token")],
