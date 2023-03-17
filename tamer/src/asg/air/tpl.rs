@@ -33,6 +33,7 @@ use super::{
 use crate::{
     fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
+    span::Span,
 };
 
 /// Template parser and token aggregator.
@@ -116,6 +117,29 @@ impl TplState {
     fn identify(self, id: SPair) -> Self {
         Self::Identified(self.oi(), id)
     }
+
+    fn anonymous_reachable(self) -> Self {
+        Self::AnonymousReachable(self.oi())
+    }
+
+    /// Attempt to complete a template definition.
+    ///
+    /// If `self` is [`Self::Dangling`],
+    ///   then an [`AsgError::DanglingTpl`] will be returned.
+    ///
+    /// This updates the span of the template to encompass the entire
+    ///   definition,
+    ///     even if an error occurs.
+    fn close(self, asg: &mut Asg, close_span: Span) -> Result<(), AsgError> {
+        let oi = self.oi().close(asg, close_span);
+
+        match self {
+            Self::Dangling(_) => {
+                Err(AsgError::DanglingTpl(oi.resolve(asg).span()))
+            }
+            Self::AnonymousReachable(..) | Self::Identified(..) => Ok(()),
+        }
+    }
 }
 
 impl Display for TplState {
@@ -168,8 +192,9 @@ impl ParseState for AirTplAggregate {
                 .map(|_| ())
                 .transition(Toplevel(oi_pkg, tpl.identify(id), expr)),
 
-            (Toplevel(..), AirBind(RefIdent(_))) => {
-                todo!("tpl Toplevel RefIdent")
+            (Toplevel(oi_pkg, tpl, expr), AirBind(RefIdent(id))) => {
+                tpl.oi().apply_named_tpl(asg, id);
+                Transition(Toplevel(oi_pkg, tpl, expr)).incomplete()
             }
 
             (
@@ -184,25 +209,41 @@ impl ParseState for AirTplAggregate {
             }
 
             (Toplevel(oi_pkg, tpl, _expr_done), AirTpl(TplEnd(span))) => {
-                tpl.oi().close(asg, span);
-                Transition(Ready(oi_pkg)).incomplete()
+                tpl.close(asg, span).transition(Ready(oi_pkg))
             }
 
             (TplExpr(oi_pkg, tpl, expr), AirTpl(TplEnd(span))) => {
                 // TODO: duplicated with AirAggregate
-                match expr.is_accepting(asg) {
-                    true => {
-                        // TODO: this is duplicated with the above
-                        tpl.oi().close(asg, span);
-                        Transition(Ready(oi_pkg)).incomplete()
-                    }
-                    false => Transition(TplExpr(oi_pkg, tpl, expr))
-                        .err(AsgError::InvalidTplEndContext(span)),
+                if expr.is_accepting(asg) {
+                    tpl.close(asg, span).transition(Ready(oi_pkg))
+                } else {
+                    Transition(TplExpr(oi_pkg, tpl, expr))
+                        .err(AsgError::InvalidTplEndContext(span))
                 }
             }
 
-            (Toplevel(..) | TplExpr(..), AirTpl(TplEndRef(..))) => {
-                todo!("TplEndRef")
+            (Toplevel(oi_pkg, tpl, expr_done), AirTpl(TplEndRef(span))) => {
+                tpl.oi().expand_into(asg, oi_pkg);
+
+                Transition(Toplevel(
+                    oi_pkg,
+                    tpl.anonymous_reachable(),
+                    expr_done,
+                ))
+                .incomplete()
+                .with_lookahead(AirTpl(TplEnd(span)))
+            }
+
+            (TplExpr(oi_pkg, tpl, expr_done), AirTpl(TplEndRef(span))) => {
+                tpl.oi().expand_into(asg, oi_pkg);
+
+                Transition(TplExpr(
+                    oi_pkg,
+                    tpl.anonymous_reachable(),
+                    expr_done,
+                ))
+                .incomplete()
+                .with_lookahead(AirTpl(TplEnd(span)))
             }
 
             (

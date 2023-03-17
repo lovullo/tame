@@ -1678,10 +1678,14 @@ ele_parse! {
     ///   in favor of a transition to [`TplApplyShort`],
     ///   but this is still needed to support dynamic template application
     ///     (templates whose names are derived from other template inputs).
-    ApplyTemplate := QN_APPLY_TEMPLATE {
-        @ {} => Todo,
+    ApplyTemplate := QN_APPLY_TEMPLATE(_, ospan) {
+        @ {
+            QN_NAME => Ref,
+        } => Nir::Open(NirEntity::TplApply(None), ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplApply(None), cspan.into()),
 
-        // TODO
+        // TODO: This is wrong, we just need something here for now.
+        AnyStmtOrExpr,
     };
 
     /// Short-hand template application.
@@ -1691,8 +1695,9 @@ ele_parse! {
     ///     and where the body of this application is the `@values@`
     ///     template argument.
     /// See [`ApplyTemplate`] for more information.
-    TplApplyShort := NS_T {
-        @ {} => Todo,
+    TplApplyShort := NS_T(qname, ospan) {
+        @ {} => Nir::Open(NirEntity::TplApply(Some(qname)), ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplApply(None), cspan.into()),
 
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above

@@ -22,11 +22,15 @@
 use std::{error::Error, fmt::Display};
 
 use crate::{
-    asg::{air::Air, ExprOp},
-    diagnose::Diagnostic,
+    asg::air::Air, diagnose::Diagnostic, parse::prelude::*, span::UNKNOWN_SPAN,
+};
+
+// These are also used by the `test` module which imports `super`.
+#[cfg(feature = "wip-nir-to-air")]
+use crate::{
+    asg::ExprOp,
     nir::NirEntity,
-    parse::prelude::*,
-    span::UNKNOWN_SPAN,
+    sym::{GlobalSymbolIntern, GlobalSymbolResolve},
 };
 
 use super::Nir;
@@ -47,25 +51,39 @@ impl Display for NirToAir {
     }
 }
 
+type QueuedObj = Option<Air>;
+
 impl ParseState for NirToAir {
     type Token = Nir;
     type Object = Air;
     type Error = NirToAirError;
+    type Context = QueuedObj;
 
+    #[cfg(not(feature = "wip-nir-to-air"))]
     fn parse_token(
         self,
         tok: Self::Token,
-        _: NoContext,
+        _queue: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         use NirToAir::*;
 
-        #[cfg(not(feature = "wip-nir-to-air"))]
-        {
-            let _ = tok; // prevent `unused_variables` warning
-            return Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN));
+        let _ = tok; // prevent `unused_variables` warning
+        Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
+    }
+
+    #[cfg(feature = "wip-nir-to-air")]
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        queue: &mut Self::Context,
+    ) -> TransitionResult<Self::Super> {
+        use NirToAir::*;
+
+        // Single-item "queue".
+        if let Some(obj) = queue.take() {
+            return Transition(Ready).ok(obj).with_lookahead(tok);
         }
 
-        #[allow(unreachable_code)] // due to wip-nir-to-air
         match (self, tok) {
             (Ready, Nir::Open(NirEntity::Package, span)) => {
                 Transition(Ready).ok(Air::PkgStart(span))
@@ -97,9 +115,35 @@ impl ParseState for NirToAir {
             (Ready, Nir::Open(NirEntity::Tpl, span)) => {
                 Transition(Ready).ok(Air::TplStart(span))
             }
-
             (Ready, Nir::Close(NirEntity::Tpl, span)) => {
                 Transition(Ready).ok(Air::TplEnd(span))
+            }
+
+            (Ready, Nir::Open(NirEntity::TplApply(None), span)) => {
+                Transition(Ready).ok(Air::TplStart(span))
+            }
+
+            // Short-hand template application contains the name of the
+            //   template _without_ the underscore padding as the local part
+            //   of the QName.
+            //
+            // Template application will create an anonymous template,
+            //   apply it,
+            //   and then expand it.
+            (Ready, Nir::Open(NirEntity::TplApply(Some(qname)), span)) => {
+                // TODO: Determine whether caching these has any notable
+                //   benefit over repeated heap allocations,
+                //     comparing packages with very few applications and
+                //     packages with thousands
+                //       (we'd still have to hit the heap for the cache).
+                let tpl_name =
+                    format!("_{}_", qname.local_name().lookup_str()).intern();
+
+                queue.replace(Air::RefIdent(SPair(tpl_name, span)));
+                Transition(Ready).ok(Air::TplStart(span))
+            }
+            (Ready, Nir::Close(NirEntity::TplApply(_), span)) => {
+                Transition(Ready).ok(Air::TplEndRef(span))
             }
 
             (
@@ -120,12 +164,14 @@ impl ParseState for NirToAir {
             (Ready, Nir::BindIdent(spair)) => {
                 Transition(Ready).ok(Air::BindIdent(spair))
             }
+            (Ready, Nir::Ref(spair)) => {
+                Transition(Ready).ok(Air::RefIdent(spair))
+            }
 
             (
                 Ready,
                 Nir::Todo
                 | Nir::TodoAttr(..)
-                | Nir::Ref(..)
                 | Nir::Desc(..)
                 | Nir::Text(_)
                 | Nir::Open(NirEntity::TplParam, _)

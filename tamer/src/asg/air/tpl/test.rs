@@ -158,11 +158,14 @@ fn tpl_within_expr() {
 
 #[test]
 fn close_tpl_without_open() {
+    let id_tpl = SPair("_tpl_".into(), S3);
+
     let toks = vec![
         Air::TplEnd(S1),
         // RECOVERY: Try again.
         Air::TplStart(S2),
-        Air::TplEnd(S3),
+        Air::BindIdent(id_tpl),
+        Air::TplEnd(S4),
     ];
 
     assert_eq!(
@@ -171,6 +174,7 @@ fn close_tpl_without_open() {
             Err(ParseError::StateError(AsgError::UnbalancedTpl(S1))),
             // RECOVERY
             Ok(Parsed::Incomplete), // TplStart
+            Ok(Parsed::Incomplete), // BindIdent
             Ok(Parsed::Incomplete), // TplEnd
             Ok(Parsed::Incomplete), // PkgEnd
         ],
@@ -268,18 +272,21 @@ fn tpl_holds_dangling_expressions() {
 
 #[test]
 fn close_tpl_mid_open() {
-    let id_expr = SPair("expr".into(), S3);
+    let id_tpl = SPair("_tpl_".into(), S2);
+    let id_expr = SPair("expr".into(), S4);
 
     #[rustfmt::skip]
     let toks = vec![
         Air::TplStart(S1),
-          Air::ExprStart(ExprOp::Sum, S2),
-          Air::BindIdent(id_expr),
+          Air::BindIdent(id_tpl),
+
+          Air::ExprStart(ExprOp::Sum, S3),
+            Air::BindIdent(id_expr),
         // This is misplaced.
-        Air::TplEnd(S4),
+        Air::TplEnd(S5),
           // RECOVERY: Close the expression and try again.
-          Air::ExprEnd(S5),
-        Air::TplEnd(S6),
+          Air::ExprEnd(S6),
+        Air::TplEnd(S7),
     ];
 
     assert_eq!(
@@ -287,10 +294,11 @@ fn close_tpl_mid_open() {
         vec![
             Ok(Parsed::Incomplete), // PkgStart
               Ok(Parsed::Incomplete), // TplStart
+                Ok(Parsed::Incomplete), // BindIdent
                 Ok(Parsed::Incomplete), // ExprStart
                   Ok(Parsed::Incomplete), // BindIdent
               Err(ParseError::StateError(
-                  AsgError::InvalidTplEndContext(S4))
+                  AsgError::InvalidTplEndContext(S5))
               ),
                 // RECOVERY
                 Ok(Parsed::Incomplete), // ExprEnd
@@ -299,4 +307,76 @@ fn close_tpl_mid_open() {
         ],
         parse_as_pkg_body(toks).collect::<Vec<_>>(),
     );
+}
+
+// If a template is ended with `TplEnd` and was not assigned a name,
+//   then it isn't reachable on the graph.
+//
+// ...that's technically not entirely true in a traversal sense
+//   (see following test),
+//   but the context would be all wrong.
+// It _is_ true from a practical sense,
+//   with how NIR and AIR have been constructed at the time of writing,
+//   but may not be true in the future.
+#[test]
+fn unreachable_anonymous_tpl() {
+    let id_ok = SPair("_tpl_".into(), S4);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          // No BindIdent
+        Air::TplEnd(S2),
+
+        // Recovery should ignore the above template
+        //   (it's lost to the void)
+        //   and allow continuing.
+        Air::TplStart(S3),
+          Air::BindIdent(id_ok),
+        Air::TplEnd(S5),
+    ];
+
+    let mut sut = parse_as_pkg_body(toks);
+
+    assert_eq!(
+        vec![
+            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Parsed::Incomplete), // TplStart
+            Err(ParseError::StateError(AsgError::DanglingTpl(
+                S1.merge(S2).unwrap()
+            ))),
+            // RECOVERY
+            Ok(Parsed::Incomplete), // TplStart
+            Ok(Parsed::Incomplete), // TplBindIdent
+            Ok(Parsed::Incomplete), // TplEnd
+            Ok(Parsed::Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // Let's make sure that the template created after recovery succeeded.
+    asg.expect_ident_obj::<Tpl>(id_ok);
+}
+
+// Normally we cannot reference objects without an identifier using AIR
+//   (at the time of writing at least),
+//   but `TplEndRef` is an exception.
+#[test]
+fn anonymous_tpl_immediate_ref() {
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          // No BindIdent
+        // But ended with `TplEndRef`,
+        //   so the missing identifier is okay.
+        // This would fail if it were `TplEnd`.
+        Air::TplEndRef(S2),
+    ];
+
+    let mut sut = parse_as_pkg_body(toks);
+    assert!(sut.all(|x| x.is_ok()));
+
+    // TODO: More to come.
 }

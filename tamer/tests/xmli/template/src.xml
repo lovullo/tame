@@ -58,5 +58,46 @@
       <c:product />
     </c:sum>
   </template>
+
+  Short-hand template application.
+  These get expanding into the long form so that we don't have to translate
+    back and forth between the underscore-padded strings.
+  The fixpoint test will further verify that TAMER also recognizes the long
+    `apply-template` form,
+      asserting their equivalency.
+
+  <t:short-hand-nullary />
+
+  <!-- TODO
+  <t:short-hand-nullary-body>
+    <c:sum />
+  </t:short-hand-nullary-body>
+
+  <t:short-hand-nullary-inner>
+    <t:inner-short />
+  </t:short-hand-nullary-inner>
+
+  <t:short-hand foo="bar" />
+
+  <t:short-hand foo="bar">
+    <c:sum />
+  </t:short-hand>
+
+  <t:short-hand foo="bar">
+    <t:inner-short />
+  </t:short-hand>
+
+  <rate yields="shortHandTplInExpr">
+    <t:short-hand in="rate" />
+  </rate>
+
+  <template name="_tpl-with-short-hand-inner_">
+    <t:short-hand />
+
+    <c:sum>
+      <t:short-hand in="sum" />
+    </c:sum>
+  </template>
+  -->
 </package>
 

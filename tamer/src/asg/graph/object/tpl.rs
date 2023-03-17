@@ -23,9 +23,9 @@ use std::fmt::Display;
 
 use super::{
     Expr, Ident, Meta, Object, ObjectIndex, ObjectRel, ObjectRelFrom,
-    ObjectRelTy, ObjectRelatable,
+    ObjectRelTo, ObjectRelTy, ObjectRelatable,
 };
-use crate::{asg::Asg, f::Functor, span::Span};
+use crate::{asg::Asg, f::Functor, parse::util::SPair, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -68,9 +68,9 @@ object_rel! {
 }
 
 impl ObjectIndex<Tpl> {
-    /// Complete a template definition.
+    /// Attempt to complete a template definition.
     ///
-    /// This simply updates the span of the template to encompass the entire
+    /// This updates the span of the template to encompass the entire
     ///   definition.
     pub fn close(self, asg: &mut Asg, close_span: Span) -> Self {
         self.map_obj(asg, |tpl| {
@@ -78,5 +78,34 @@ impl ObjectIndex<Tpl> {
                 open_span.merge(close_span).unwrap_or(open_span)
             })
         })
+    }
+
+    /// Apply a named template `id` to the context of `self`.
+    ///
+    /// During evaluation,
+    ///   this application will expand the template in place,
+    ///   re-binding metavariables to the context of `self`.
+    pub fn apply_named_tpl(self, asg: &mut Asg, id: SPair) -> Self {
+        let oi_apply = asg.lookup_or_missing(id);
+        // TODO: span
+        self.add_edge_to(asg, oi_apply, None)
+    }
+
+    /// Directly reference this template from another object
+    ///   `oi_target_parent`,
+    ///     indicating the intent to expand the template in place.
+    ///
+    /// This direct reference allows applying anonymous templates.
+    ///
+    /// The term "expansion" is equivalent to the application of a closed
+    ///   template.
+    /// If this template is _not_ closed,
+    ///   it will result in an error during evaluation.
+    pub fn expand_into<O: ObjectRelTo<Tpl>>(
+        self,
+        asg: &mut Asg,
+        oi_target_parent: ObjectIndex<O>,
+    ) -> Self {
+        self.add_edge_from(asg, oi_target_parent, None)
     }
 }

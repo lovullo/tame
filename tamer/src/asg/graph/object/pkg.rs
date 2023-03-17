@@ -21,7 +21,7 @@
 
 use super::{
     Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable,
+    ObjectRelatable, Tpl,
 };
 use crate::{asg::Asg, f::Functor, span::Span};
 use std::fmt::Display;
@@ -65,6 +65,9 @@ object_rel! {
     /// Imported [`Ident`]s do not have edges from this package.
     Pkg -> {
         tree Ident,
+
+        // Anonymous templates are used for expansion.
+        tree Tpl,
     }
 }
 

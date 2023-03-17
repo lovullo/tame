@@ -203,6 +203,10 @@ pub enum NirEntity {
     Tpl,
     /// Template parameter (metavariable).
     TplParam,
+
+    /// Full application and expansion of the template identified by the
+    ///   provided name.
+    TplApply(Option<QName>),
 }
 
 impl NirEntity {
@@ -234,6 +238,14 @@ impl Display for NirEntity {
 
             Tpl => write!(f, "template"),
             TplParam => write!(f, "template param (metavariable)"),
+            TplApply(None) => {
+                write!(f, "full template application and expansion")
+            }
+            TplApply(Some(qname)) => write!(
+                f,
+                "full template application and expansion of {}",
+                TtQuote::wrap(qname.local_name())
+            ),
         }
     }
 }

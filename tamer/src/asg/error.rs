@@ -88,6 +88,12 @@ pub enum AsgError {
     /// The span should encompass the entirety of the expression.
     DanglingExpr(Span),
 
+    /// A template is not reachable by any other object.
+    ///
+    /// See [`Self::DanglingExpr`] for more information on the concept of
+    ///   dangling objects.
+    DanglingTpl(Span),
+
     /// Attempted to close an expression with no corresponding opening
     ///   delimiter.
     UnbalancedExpr(Span),
@@ -131,6 +137,10 @@ impl Display for AsgError {
             DanglingExpr(_) => write!(
                 f,
                 "dangling expression (anonymous expression has no parent)"
+            ),
+            DanglingTpl(_) => write!(
+                f,
+                "dangling template (anonymous template cannot be referenced)"
             ),
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
             UnbalancedTpl(_) => write!(f, "unbalanced template definition"),
@@ -219,6 +229,17 @@ impl Diagnostic for AsgError {
                     "  expression or be assigned an identifier, otherwise ",
                 ),
                 span.help("  its value cannot referenced."),
+            ],
+
+            DanglingTpl(span) => vec![
+                span.error(
+                    "this template is unreachable and can never be used",
+                ),
+                span.help(
+                    "a template may only be anonymous if it is ephemeral ",
+                ),
+                span.help("  (immediately expanded)."),
+                span.help("alternatively, assign this template an identifier."),
             ],
 
             UnbalancedExpr(span) => {

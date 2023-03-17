@@ -38,7 +38,7 @@ use crate::{
         visit::{Depth, TreeWalkRel},
         Asg, ExprOp, Ident,
     },
-    diagnose::Annotate,
+    diagnose::{panic::DiagnosticPanic, Annotate},
     diagnostic_panic, diagnostic_unreachable,
     parse::{prelude::*, util::SPair, Transitionable},
     span::{Span, UNKNOWN_SPAN},
@@ -194,8 +194,8 @@ impl<'a> TreeContext<'a> {
                 self.emit_expr(expr, paired_rel.source(), depth)
             }
 
-            Object::Tpl((tpl, _)) => {
-                self.emit_template(tpl, paired_rel.source(), depth)
+            Object::Tpl((tpl, oi_tpl)) => {
+                self.emit_template(tpl, *oi_tpl, paired_rel.source(), depth)
             }
 
             target @ Object::Meta(..) => todo!("Object::Meta: {target:?}"),
@@ -280,10 +280,11 @@ impl<'a> TreeContext<'a> {
         ))
     }
 
-    /// Emit a template definition.
+    /// Emit a template definition or application.
     fn emit_template(
         &mut self,
         tpl: &Tpl,
+        oi_tpl: ObjectIndex<Tpl>,
         src: &Object<OiPairObjectInner>,
         depth: Depth,
     ) -> Option<Xirf> {
@@ -293,6 +294,52 @@ impl<'a> TreeContext<'a> {
 
                 Some(Xirf::open(
                     QN_TEMPLATE,
+                    OpenSpan::without_name_span(tpl.span()),
+                    depth,
+                ))
+            }
+
+            // If we're not behind an Ident,
+            //   then this is a direct template reference,
+            //   which indicates application of a closed template
+            //     (template expansion).
+            // Convert this into a long-hand template expansion so that we
+            //   do not have to deal with converting underscore-padded
+            //   template names back into short-hand form.
+            Object::Pkg(..) => {
+                // [`Ident`]s are skipped during traversal,
+                //   so we'll handle it ourselves here.
+                // This also gives us the opportunity to make sure that
+                //   we're deriving something that's actually supported by the
+                //   XSLT-based compiler.
+                let mut idents = oi_tpl.edges_filtered::<Ident>(self.asg);
+
+                let apply_tpl = idents.next().diagnostic_expect(
+                    || {
+                        vec![tpl
+                            .span()
+                            .internal_error("missing target Tpl Ident")]
+                    },
+                    "cannot derive name of template for application",
+                );
+
+                if let Some(bad_ident) = idents.next() {
+                    diagnostic_panic!(
+                        vec![
+                            tpl.span().note(
+                                "while processing this template application"
+                            ),
+                            bad_ident
+                                .internal_error("unexpected second identifier"),
+                        ],
+                        "expected only one Ident for template application",
+                    );
+                }
+
+                self.push(attr_name(apply_tpl.resolve(self.asg).name()));
+
+                Some(Xirf::open(
+                    QN_APPLY_TEMPLATE,
                     OpenSpan::without_name_span(tpl.span()),
                     depth,
                 ))

@@ -50,11 +50,22 @@
 
 
 
+
+
     <rate yields="tplStaticMix" />
 
     <c:sum>
       <c:product />
     </c:sum>
   </template>
+
+
+
+
+
+
+
+
+  <apply-template name="_short-hand-nullary_" />
 </package>
 
