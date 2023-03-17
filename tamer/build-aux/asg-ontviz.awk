@@ -123,13 +123,13 @@ block_src && $NF ~ /\w+,$/ {
     attrs = ""
     switch (ty) {
         case "tree":
-            attrs="[style=solid]";
+            attrs="[style=solid,arrowhead=normal]";
             break;
         case "cross":
-            attrs="[style=dotted]";
+            attrs="[style=dotted,arrowhead=open]";
             break;
         case "dyn":
-            attrs="[style=dashed]";
+            attrs="[style=dashed,arrowhead=normal]";
             break;
     }
 
@@ -143,7 +143,7 @@ block_src && $NF ~ /\w+,$/ {
     #   the source object is right-aligned and target is left-aligned,
     #     so that `Src -> Target` can be easily read regardless of the width
     #     of the objects involved.
-    printf "  %5s -> %-5s %14s;  # %s edge\n", block_src, $NF, attrs, ty
+    printf "  %5s -> %-5s %32s;  # %s edge\n", block_src, $NF, attrs, ty
 
     found_rels++
 }
