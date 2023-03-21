@@ -47,8 +47,8 @@ use tamer::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
     nir::{
-        InterpError, InterpolateNir, Nir, NirToAir, NirToAirError, XirfToNir,
-        XirfToNirError,
+        InterpError, InterpolateNir, Nir, NirToAir, NirToAirError,
+        TplShortDesugar, XirfToNir, XirfToNirError,
     },
     parse::{
         lowerable, FinalizeError, Lower, ParseError, ParsedObject, Token,
@@ -164,21 +164,23 @@ fn compile<R: Reporter>(
         _,
     >::lower::<_, UnrecoverableError>(src, |toks| {
         Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
-            Lower::<XirfToNir, InterpolateNir, _>::lower(nir, |nir| {
-                Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
-                    Lower::<NirToAir, AirAggregate, _>::lower_with_context(
-                        air,
-                        asg,
-                        |end| {
-                            end.fold(Ok(()), |x, result| match result {
-                                Ok(_) => x,
-                                Err(e) => {
-                                    report_err(&e, reporter, &mut ebuf)?;
-                                    x
-                                }
-                            })
-                        },
-                    )
+            Lower::<XirfToNir, TplShortDesugar, _>::lower(nir, |nir| {
+                Lower::<TplShortDesugar, InterpolateNir, _>::lower(nir, |nir| {
+                    Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
+                        Lower::<NirToAir, AirAggregate, _>::lower_with_context(
+                            air,
+                            asg,
+                            |end| {
+                                end.fold(Ok(()), |x, result| match result {
+                                    Ok(_) => x,
+                                    Err(e) => {
+                                        report_err(&e, reporter, &mut ebuf)?;
+                                        x
+                                    }
+                                })
+                            },
+                        )
+                    })
                 })
             })
         })
@@ -457,6 +459,14 @@ impl<T: Token> From<ParseError<T, Infallible>> for UnrecoverableError {
     fn from(_: ParseError<T, Infallible>) -> Self {
         unreachable!(
             "<UnrecoverableError as From<ParseError<T, Infallible>>>::from"
+        )
+    }
+}
+
+impl<T: Token> From<ParseError<T, Infallible>> for RecoverableError {
+    fn from(_: ParseError<T, Infallible>) -> Self {
+        unreachable!(
+            "<RecoverableError as From<ParseError<T, Infallible>>>::from"
         )
     }
 }

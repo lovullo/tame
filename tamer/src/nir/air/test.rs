@@ -18,7 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{convert::ExpectInto, parse::util::SPair, span::dummy::*};
+use crate::{parse::util::SPair, span::dummy::*};
 
 type Sut = NirToAir;
 
@@ -133,41 +133,6 @@ fn tpl_with_name() {
             O(Air::TplStart(S1)),
             O(Air::BindIdent(name)),
             O(Air::TplEnd(S3)),
-        ]),
-        Sut::parse(toks.into_iter()).collect(),
-    );
-}
-
-// This is the form everyone uses.
-// It applies a template much more concisely and without the underscore
-//   padding,
-//     making it look much like a language primitive
-//       (with the exception of the namespace prefix).
-#[test]
-fn short_hand_tpl_apply() {
-    // Shorthand converts `t:tpl-name` into `_tpl-name_`.
-    let qname = ("t", "tpl-name").unwrap_into();
-    let name = SPair("_tpl-name_".into(), S1);
-
-    let toks = vec![
-        Nir::Open(NirEntity::TplApply(Some(qname)), S1),
-        Nir::Close(NirEntity::TplApply(None), S2),
-    ];
-
-    #[rustfmt::skip]
-    assert_eq!(
-        Ok(vec![
-            O(Air::TplStart(S1)),
-              // The span associated with the name of the template to be
-              //   applied is the span of the entire QName from NIR.
-              // The reason for this is that `t:foo` is transformed into
-              //   `_foo_`,
-              //     and so the `t:` is a necessary part of the
-              //     representation of the name of the template;
-              //       `foo` is not in itself a valid template name at the
-              //       time of writing.
-              O(Air::RefIdent(name)),
-            O(Air::TplEndRef(S2)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

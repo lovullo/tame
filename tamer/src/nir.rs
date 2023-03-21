@@ -52,6 +52,7 @@
 mod air;
 mod interp;
 mod parse;
+mod tplshort;
 
 use crate::{
     diagnose::{Annotate, Diagnostic},
@@ -77,6 +78,7 @@ pub use interp::{InterpError, InterpState as InterpolateNir};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
+pub use tplshort::TplShortDesugar;
 
 /// IR that is "near" the source code.
 ///
@@ -252,7 +254,7 @@ impl Display for NirEntity {
 
 impl Token for Nir {
     fn ir_name() -> &'static str {
-        "Plain NIR"
+        "NIR"
     }
 
     /// Identifying span of a token.

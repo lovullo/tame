@@ -27,11 +27,7 @@ use crate::{
 
 // These are also used by the `test` module which imports `super`.
 #[cfg(feature = "wip-nir-to-air")]
-use crate::{
-    asg::ExprOp,
-    nir::NirEntity,
-    sym::{GlobalSymbolIntern, GlobalSymbolResolve},
-};
+use crate::{asg::ExprOp, nir::NirEntity};
 
 use super::Nir;
 
@@ -79,6 +75,8 @@ impl ParseState for NirToAir {
     ) -> TransitionResult<Self::Super> {
         use NirToAir::*;
 
+        use crate::{diagnose::Annotate, diagnostic_panic};
+
         // Single-item "queue".
         if let Some(obj) = queue.take() {
             return Transition(Ready).ok(obj).with_lookahead(tok);
@@ -123,24 +121,27 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::TplStart(span))
             }
 
-            // Short-hand template application contains the name of the
-            //   template _without_ the underscore padding as the local part
-            //   of the QName.
-            //
-            // Template application will create an anonymous template,
-            //   apply it,
-            //   and then expand it.
-            (Ready, Nir::Open(NirEntity::TplApply(Some(qname)), span)) => {
-                // TODO: Determine whether caching these has any notable
-                //   benefit over repeated heap allocations,
-                //     comparing packages with very few applications and
-                //     packages with thousands
-                //       (we'd still have to hit the heap for the cache).
-                let tpl_name =
-                    format!("_{}_", qname.local_name().lookup_str()).intern();
-
-                queue.replace(Air::RefIdent(SPair(tpl_name, span)));
-                Transition(Ready).ok(Air::TplStart(span))
+            // Short-hand template application must be handled through
+            //   desugaring as part of the lowering pipeline,
+            //     so that it is converted to long form before getting here.
+            (Ready, Nir::Open(NirEntity::TplApply(Some(_)), span)) => {
+                // TODO: In the future maybe TAMER will have evolved its
+                //   abstractions enough that there's an ROI for prohibiting
+                //   this at the type level.
+                diagnostic_panic!(
+                    vec![
+                        span.internal_error(
+                            "attempted shorthand template application"
+                        ),
+                        span.help(
+                            "TAMER must be compiled with support for \
+                               shorthand template application by utilizing the \
+                               nir::tplshort module in the lowering pipeline."
+                        )
+                    ],
+                    "shortand template application is unsupported in this \
+                         build of TAMER"
+                )
             }
             (Ready, Nir::Close(NirEntity::TplApply(_), span)) => {
                 Transition(Ready).ok(Air::TplEndRef(span))
