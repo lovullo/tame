@@ -203,11 +203,19 @@ pub enum NirEntity {
 
     /// Template.
     Tpl,
-    /// Template parameter (metavariable).
-    TplParam,
 
-    /// Full application and expansion of the template identified by the
-    ///   provided name.
+    /// Template parameter (metavariable).
+    ///
+    /// If a pair of [`SPair`]s is provided,
+    ///   then the param is shorthand,
+    ///   with the non-`@`-padded name as the first of the pair and the
+    ///     value as the second.
+    TplParam(Option<(SPair, SPair)>),
+
+    /// Full application and expansion a template.
+    ///
+    /// If a name is provided,
+    ///   then this template application is shorthand.
     TplApply(Option<QName>),
 }
 
@@ -239,7 +247,13 @@ impl Display for NirEntity {
             Any => write!(f, "disjunctive (∨) expression"),
 
             Tpl => write!(f, "template"),
-            TplParam => write!(f, "template param (metavariable)"),
+            TplParam(None) => write!(f, "template param (metavariable)"),
+            TplParam(Some((name, val))) => write!(
+                f,
+                "shorthand template param key {} with value {}",
+                TtQuote::wrap(name),
+                TtQuote::wrap(val),
+            ),
             TplApply(None) => {
                 write!(f, "full template application and expansion")
             }

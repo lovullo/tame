@@ -175,8 +175,8 @@ impl ParseState for NirToAir {
                 | Nir::TodoAttr(..)
                 | Nir::Desc(..)
                 | Nir::Text(_)
-                | Nir::Open(NirEntity::TplParam, _)
-                | Nir::Close(NirEntity::TplParam, _),
+                | Nir::Open(NirEntity::TplParam(_), _)
+                | Nir::Close(NirEntity::TplParam(_), _),
             ) => Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN)),
         }
     }

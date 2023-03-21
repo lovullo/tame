@@ -262,7 +262,7 @@ impl ParseState for InterpState {
             Ready => match tok.symbol() {
                 Some(sym) if needs_interpolation(sym) => {
                     Transition(GenIdent(sym))
-                        .ok(Nir::Open(NirEntity::TplParam, span))
+                        .ok(Nir::Open(NirEntity::TplParam(None), span))
                         .with_lookahead(tok)
                 }
 
@@ -315,7 +315,7 @@ impl ParseState for InterpState {
                         //   symbol that we've been fed
                         //     (the specification string).
                         Transition(FinishSym(s, gen_param))
-                            .ok(Nir::Close(NirEntity::TplParam, span))
+                            .ok(Nir::Close(NirEntity::TplParam(None), span))
                             .with_lookahead(tok)
                     };
                 }
