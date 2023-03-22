@@ -210,6 +210,9 @@ pub enum NirEntity {
     ///   then the param is shorthand,
     ///   with the non-`@`-padded name as the first of the pair and the
     ///     value as the second.
+    ///
+    /// A shorthand entity is implicitly closed and should not have a
+    ///   matching [`Nir::Close`] token.
     TplParam(Option<(SPair, SPair)>),
 
     /// Full application and expansion a template.

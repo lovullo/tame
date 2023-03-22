@@ -320,7 +320,7 @@ macro_rules! ele_parse {
 
         // Special forms (`[sp](args) => expr`).
         $(
-            [$special:ident]$(($($special_arg:ident),*))?
+            [$special:ident]$(($($special_arg:tt)*))?
                 => $special_map:expr,
         )?
 
@@ -338,7 +338,7 @@ macro_rules! ele_parse {
             @ { $($attrbody)* } => $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
-            $([$special]$(($($special_arg),*))? => $special_map,)?
+            $([$special]$(($($special_arg)*))? => $special_map,)?
 
             <> {
                 $(
@@ -422,7 +422,7 @@ macro_rules! ele_parse {
         /$($close_span:ident)? => $closemap:expr,
 
         // Streaming (as opposed to aggregate) attribute parsing.
-        $([attr]($attr_stream_binding:ident) => $attr_stream_map:expr,)?
+        $([attr]($attr_stream_binding:pat) => $attr_stream_map:expr,)?
 
         // Nonterminal references.
         <> {

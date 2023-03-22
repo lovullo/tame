@@ -124,8 +124,24 @@ impl ParseState for TplShortDesugar {
                     .ok(Nir::Open(NirEntity::TplApply(None), span))
             }
 
+            // Shorthand template params' names do not contain the
+            //   surrounding `@`s.
+            (
+                Scanning,
+                Nir::Open(NirEntity::TplParam(Some((name, val))), span),
+            ) => {
+                let pname = format!("@{name}@").intern();
+
+                stack.push(Nir::Close(NirEntity::TplParam(None), span));
+                stack.push(Nir::Text(val));
+                stack.push(Nir::BindIdent(SPair(pname, name.span())));
+
+                Transition(Scanning)
+                    .ok(Nir::Open(NirEntity::TplParam(None), span))
+            }
+
             // Any tokens that we don't recognize will be passed on unchanged.
-            (Scanning, tok) => Transition(Scanning).ok(tok),
+            (st, tok) => Transition(st).ok(tok),
         }
     }
 
@@ -134,7 +150,7 @@ impl ParseState for TplShortDesugar {
     }
 }
 
-type Stack = ArrayVec<Nir, 2>;
+type Stack = ArrayVec<Nir, 3>;
 
 #[cfg(test)]
 mod test;

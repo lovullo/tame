@@ -1695,6 +1695,13 @@ ele_parse! {
     ///     and where the body of this application is the `@values@`
     ///     template argument.
     /// See [`ApplyTemplate`] for more information.
+    ///
+    /// The name of the template omits the surrounding `_`s;
+    ///   `t:foo` will desugar into the template name `_foo_`.
+    /// Params similarly omit `@` and are derived from the _local name
+    ///   only_;
+    ///     so `bar="baz"` will be desugared into a param `@bar@` with a
+    ///     text value `baz`.
     TplApplyShort := NS_T(qname, ospan) {
         @ {} => Nir::Open(NirEntity::TplApply(Some(qname)), ospan.into()),
         /(cspan) => Nir::Close(NirEntity::TplApply(None), cspan.into()),
@@ -1702,7 +1709,18 @@ ele_parse! {
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above
         //     (which is used only for emitting the opening object).
-        [attr](_attr) => Todo,
+        [attr](Attr(name, value, AttrSpan(name_span, value_span))) => {
+            Nir::Open(
+                // TODO: This simply _ignores_ the namespace prefix.
+                //   If it's not a useful construct,
+                //     it ought to be rejected.
+                NirEntity::TplParam(Some((
+                    SPair(*name.local_name(), name_span),
+                    SPair(value, value_span),
+                ))),
+                name_span,
+            )
+        },
 
         // Template bodies depend on context,
         //   so we have to just accept everything and defer to a future

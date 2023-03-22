@@ -124,7 +124,13 @@ impl ParseState for NirToAir {
             // Short-hand template application must be handled through
             //   desugaring as part of the lowering pipeline,
             //     so that it is converted to long form before getting here.
-            (Ready, Nir::Open(NirEntity::TplApply(Some(_)), span)) => {
+            (
+                Ready,
+                Nir::Open(
+                    NirEntity::TplApply(Some(_)) | NirEntity::TplParam(Some(_)),
+                    span,
+                ),
+            ) => {
                 // TODO: In the future maybe TAMER will have evolved its
                 //   abstractions enough that there's an ROI for prohibiting
                 //   this at the type level.
@@ -145,6 +151,16 @@ impl ParseState for NirToAir {
             }
             (Ready, Nir::Close(NirEntity::TplApply(_), span)) => {
                 Transition(Ready).ok(Air::TplEndRef(span))
+            }
+
+            (Ready, Nir::Open(NirEntity::TplParam(None), span)) => {
+                Transition(Ready).ok(Air::TplMetaStart(span))
+            }
+            (Ready, Nir::Close(NirEntity::TplParam(_), span)) => {
+                Transition(Ready).ok(Air::TplMetaEnd(span))
+            }
+            (Ready, Nir::Text(lexeme)) => {
+                Transition(Ready).ok(Air::TplLexeme(lexeme))
             }
 
             (
@@ -169,15 +185,9 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::RefIdent(spair))
             }
 
-            (
-                Ready,
-                Nir::Todo
-                | Nir::TodoAttr(..)
-                | Nir::Desc(..)
-                | Nir::Text(_)
-                | Nir::Open(NirEntity::TplParam(_), _)
-                | Nir::Close(NirEntity::TplParam(_), _),
-            ) => Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN)),
+            (Ready, Nir::Todo | Nir::TodoAttr(..) | Nir::Desc(..)) => {
+                Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
+            }
         }
     }
 
