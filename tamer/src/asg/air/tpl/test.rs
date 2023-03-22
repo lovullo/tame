@@ -53,7 +53,7 @@ fn tpl_defining_pkg() {
     let tpl = asg.expect_ident_obj::<Tpl>(id_tpl);
     assert_eq!(S2.merge(S4).unwrap(), tpl.span());
 
-    let oi_id_tpl = asg.lookup(id_tpl).unwrap();
+    let oi_id_tpl = asg.lookup_global(id_tpl).unwrap();
     assert_eq!(
         S1.merge(S5),
         oi_id_tpl.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span()),
@@ -219,18 +219,18 @@ fn tpl_with_reachable_expression() {
     //   they should be defined by the template...
     assert_eq!(
         vec![
-            asg.lookup(id_expr_b).unwrap(),
-            asg.lookup(id_expr_a).unwrap(),
+            asg.lookup_global(id_expr_b).unwrap(),
+            asg.lookup_global(id_expr_a).unwrap(),
         ],
         oi_tpl.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
     );
 
     // ...but not by the package containing the template.
-    let oi_pkg = asg.lookup(id_tpl).unwrap().src_pkg(&asg).unwrap();
+    let oi_pkg = asg.lookup_global(id_tpl).unwrap().src_pkg(&asg).unwrap();
     assert_eq!(
         vec![
             // The only identifier on the package should be the template itself.
-            asg.lookup(id_tpl).unwrap(),
+            asg.lookup_global(id_tpl).unwrap(),
         ],
         oi_pkg.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
     );

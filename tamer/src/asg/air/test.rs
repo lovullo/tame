@@ -46,7 +46,9 @@ fn ident_decl() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
+    let ident_node = asg
+        .lookup_global(id)
+        .expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
@@ -85,7 +87,9 @@ fn ident_extern_decl() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
+    let ident_node = asg
+        .lookup_global(id)
+        .expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
@@ -122,8 +126,10 @@ fn ident_dep() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
-    let dep_node = asg.lookup(dep).expect("dep was not added to graph");
+    let ident_node = asg
+        .lookup_global(id)
+        .expect("identifier was not added to graph");
+    let dep_node = asg.lookup_global(dep).expect("dep was not added to graph");
 
     assert!(asg.has_dep(ident_node, dep_node));
 }
@@ -153,7 +159,9 @@ fn ident_fragment() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg.lookup(id).expect("identifier was not added to graph");
+    let ident_node = asg
+        .lookup_global(id)
+        .expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
@@ -189,7 +197,7 @@ fn ident_root_missing() {
     let asg = sut.finalize().unwrap().into_context();
 
     let ident_node = asg
-        .lookup(id)
+        .lookup_global(id)
         .expect("identifier was not added to the graph");
     let ident = asg.get(ident_node).unwrap();
 
@@ -228,7 +236,7 @@ fn ident_root_existing() {
     let asg = sut.finalize().unwrap().into_context();
 
     let ident_node = asg
-        .lookup(id)
+        .lookup_global(id)
         .expect("identifier was not added to the graph");
     let ident = asg.get(ident_node).unwrap();
 

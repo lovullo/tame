@@ -246,7 +246,7 @@ impl ParseState for AirAggregate {
                 .transition(Empty),
 
             (Empty, AirIdent(IdentDep(sym, dep))) => {
-                asg.add_dep_lookup(sym, dep);
+                asg.add_dep_lookup_global(sym, dep);
                 Transition(Empty).incomplete()
             }
 
@@ -255,7 +255,7 @@ impl ParseState for AirAggregate {
             }
 
             (Empty, AirIdent(IdentRoot(sym))) => {
-                let obj = asg.lookup_or_missing(sym);
+                let obj = asg.lookup_global_or_missing(sym);
                 asg.add_root(obj);
 
                 Transition(Empty).incomplete()

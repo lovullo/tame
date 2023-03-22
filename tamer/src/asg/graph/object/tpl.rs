@@ -92,7 +92,7 @@ impl ObjectIndex<Tpl> {
     ///   this application will expand the template in place,
     ///   re-binding metavariables to the context of `self`.
     pub fn apply_named_tpl(self, asg: &mut Asg, id: SPair) -> Self {
-        let oi_apply = asg.lookup_or_missing(id);
+        let oi_apply = asg.lookup_global_or_missing(id);
         self.add_edge_to(asg, oi_apply, Some(id.span()))
     }
 

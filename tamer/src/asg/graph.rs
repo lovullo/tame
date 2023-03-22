@@ -232,11 +232,11 @@ impl Asg {
     ///   you must resolve the [`Ident`] object and inspect it.
     ///
     /// See [`Ident::declare`] for more information.
-    pub(super) fn lookup_or_missing(
+    pub(super) fn lookup_global_or_missing(
         &mut self,
         ident: SPair,
     ) -> ObjectIndex<Ident> {
-        self.lookup(ident).unwrap_or_else(|| {
+        self.lookup_global(ident).unwrap_or_else(|| {
             let index = self.graph.add_node(Ident::declare(ident).into());
 
             self.index_identifier(ident.symbol(), index);
@@ -247,13 +247,13 @@ impl Asg {
     /// Perform a state transition on an identifier by name.
     ///
     /// Look up `ident` or add a missing identifier if it does not yet exist
-    ///   (see [`Self::lookup_or_missing`]).
+    ///   (see [`Self::lookup_global_or_missing`]).
     /// Then invoke `f` with the located identifier and replace the
     ///   identifier on the graph with the result.
     ///
     /// This will safely restore graph state to the original identifier
     ///   value on transition failure.
-    fn with_ident_lookup<F>(
+    fn with_ident_lookup_global<F>(
         &mut self,
         name: SPair,
         f: F,
@@ -261,7 +261,7 @@ impl Asg {
     where
         F: FnOnce(Ident) -> TransitionResult<Ident>,
     {
-        let identi = self.lookup_or_missing(name);
+        let identi = self.lookup_global_or_missing(name);
         self.with_ident(identi, f)
     }
 
@@ -366,11 +366,13 @@ impl Asg {
     ) -> AsgResult<ObjectIndex<Ident>> {
         let is_auto_root = kind.is_auto_root();
 
-        self.with_ident_lookup(name, |obj| obj.resolve(name.span(), kind, src))
-            .map(|node| {
-                is_auto_root.then(|| self.add_root(node));
-                node
-            })
+        self.with_ident_lookup_global(name, |obj| {
+            obj.resolve(name.span(), kind, src)
+        })
+        .map(|node| {
+            is_auto_root.then(|| self.add_root(node));
+            node
+        })
     }
 
     /// Declare an abstract identifier.
@@ -399,7 +401,9 @@ impl Asg {
         kind: IdentKind,
         src: Source,
     ) -> AsgResult<ObjectIndex<Ident>> {
-        self.with_ident_lookup(name, |obj| obj.extern_(name.span(), kind, src))
+        self.with_ident_lookup_global(name, |obj| {
+            obj.extern_(name.span(), kind, src)
+        })
     }
 
     /// Set the fragment associated with a concrete identifier.
@@ -412,7 +416,7 @@ impl Asg {
         name: SPair,
         text: FragmentText,
     ) -> AsgResult<ObjectIndex<Ident>> {
-        self.with_ident_lookup(name, |obj| obj.set_fragment(text))
+        self.with_ident_lookup_global(name, |obj| obj.set_fragment(text))
     }
 
     /// Create a new object on the graph.
@@ -610,7 +614,7 @@ impl Asg {
         &self,
         ident: SPair,
     ) -> Option<ObjectIndex<O>> {
-        self.lookup(ident)
+        self.lookup_global(ident)
             .and_then(|identi| {
                 self.graph
                     .neighbors_directed(identi.into(), Direction::Outgoing)
@@ -722,7 +726,7 @@ impl Asg {
     ///   graph---for
     ///     that, see [`Asg::get`].
     #[inline]
-    pub fn lookup(&self, id: SPair) -> Option<ObjectIndex<Ident>> {
+    pub fn lookup_global(&self, id: SPair) -> Option<ObjectIndex<Ident>> {
         let i = id.symbol().as_usize();
 
         self.index
@@ -737,7 +741,7 @@ impl Asg {
     ///   computed before computing the value of `ident`.
     /// The [linker][crate::ld] will ensure this ordering.
     ///
-    /// See [`add_dep_lookup`][Asg::add_dep_lookup] if identifiers have to
+    /// See [`Self::add_dep_lookup_global`] if identifiers have to
     ///   be looked up by [`SymbolId`] or if they may not yet have been
     ///   declared.
     pub fn add_dep<O: ObjectKind>(
@@ -777,13 +781,13 @@ impl Asg {
     /// See [`Ident::declare`] for more information.
     ///
     /// References to both identifiers are returned in argument order.
-    pub fn add_dep_lookup(
+    pub fn add_dep_lookup_global(
         &mut self,
         ident: SPair,
         dep: SPair,
     ) -> (ObjectIndex<Ident>, ObjectIndex<Ident>) {
-        let identi = self.lookup_or_missing(ident);
-        let depi = self.lookup_or_missing(dep);
+        let identi = self.lookup_global_or_missing(ident);
+        let depi = self.lookup_global_or_missing(dep);
 
         self.graph.update_edge(
             identi.into(),

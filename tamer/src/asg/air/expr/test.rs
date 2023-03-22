@@ -899,14 +899,14 @@ fn idents_share_defining_pkg() {
     assert!(sut.all(|x| x.is_ok()));
     let asg = sut.finalize().unwrap().into_context();
 
-    let oi_foo = asg.lookup(id_foo).unwrap();
-    let oi_bar = asg.lookup(id_bar).unwrap();
+    let oi_foo = asg.lookup_global(id_foo).unwrap();
+    let oi_bar = asg.lookup_global(id_bar).unwrap();
 
     assert_eq!(oi_foo.src_pkg(&asg).unwrap(), oi_bar.src_pkg(&asg).unwrap());
 
     // Missing identifiers should not have a source package,
     //   since we don't know what defined it yet.
-    let oi_baz = asg.lookup(id_baz).unwrap();
+    let oi_baz = asg.lookup_global(id_baz).unwrap();
     assert_eq!(None, oi_baz.src_pkg(&asg));
 
     // The package span should encompass the entire definition.

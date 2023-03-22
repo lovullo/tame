@@ -147,7 +147,7 @@ mod base {
 
         bench.iter(|| {
             xs.iter()
-                .map(|sym| sut.lookup(*sym).unwrap())
+                .map(|sym| sut.lookup_global(*sym).unwrap())
                 .for_each(drop);
         });
     }
@@ -286,7 +286,7 @@ mod base {
         bench.iter(|| {
             xs.iter()
                 .zip(xs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep_lookup(*from, *to))
+                .map(|(from, to)| sut.add_dep_lookup_global(*from, *to))
                 .for_each(drop);
         });
     }
@@ -303,7 +303,7 @@ mod base {
         bench.iter(|| {
             xs.iter()
                 .zip(xs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep_lookup(*from, *to))
+                .map(|(from, to)| sut.add_dep_lookup_global(*from, *to))
                 .for_each(drop);
         });
     }

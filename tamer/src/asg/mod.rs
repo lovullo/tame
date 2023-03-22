@@ -56,16 +56,6 @@
 //! [asg]: https://en.wikipedia.org/wiki/Abstract_semantic_graph
 //! [graph]: https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)
 //! [scc]: https://en.wikipedia.org/wiki/Strongly_connected_component
-//!
-//! Missing Identifiers
-//! -------------------
-//! Since identifiers in TAME can be defined in any order relative to their
-//!   dependencies within a source file,
-//!     it is often the case that a dependency will have to be added to the
-//!     graph before it is resolved.
-//! For example,
-//!   [`Asg::add_dep_lookup`] will add an [`Ident::Missing`] to the graph
-//!     if either identifier has not yet been declared.
 
 mod error;
 mod graph;

@@ -191,7 +191,7 @@ impl ParseState for AirTplAggregate {
             ),
 
             (Toplevel(oi_pkg, tpl, expr), AirBind(BindIdent(id))) => asg
-                .lookup_or_missing(id)
+                .lookup_global_or_missing(id)
                 .bind_definition(asg, id, tpl.oi())
                 .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
                 .map(|_| ())

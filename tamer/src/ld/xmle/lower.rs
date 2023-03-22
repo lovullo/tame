@@ -97,7 +97,7 @@ where
     let sym = name.into();
 
     depgraph
-        .lookup(SPair(sym, UNKNOWN_SPAN))
+        .lookup_global(SPair(sym, UNKNOWN_SPAN))
         .and_then(|id| depgraph.get(id))
         .unwrap_or_else(|| {
             panic!("missing internal identifier: {}", sym.lookup_str())
@@ -436,7 +436,7 @@ mod test {
 
         asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
 
         asg.add_root(sym_node);
 
@@ -463,7 +463,7 @@ mod test {
         let sym = SPair("sym".into(), S1);
         let dep = SPair("dep".into(), S2);
 
-        asg_nonempty_no_roots.add_dep_lookup(sym, dep);
+        asg_nonempty_no_roots.add_dep_lookup_global(sym, dep);
 
         assert_eq!(
             sort(&asg_nonempty_no_roots, Sections::new()),
@@ -505,8 +505,8 @@ mod test {
         asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
         asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym, dep);
-        let (_, _) = asg.add_dep_lookup(dep, sym);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(dep, sym);
 
         asg.add_root(sym_node);
 
@@ -584,10 +584,10 @@ mod test {
         asg.set_fragment(dep, FragmentText::from("baz")).unwrap();
         asg.set_fragment(dep2, FragmentText::from("huh")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym, dep);
-        let (_, _) = asg.add_dep_lookup(dep, sym);
-        let (_, _) = asg.add_dep_lookup(sym2, dep2);
-        let (_, _) = asg.add_dep_lookup(dep2, sym2);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(dep, sym);
+        let (_, _) = asg.add_dep_lookup_global(sym2, dep2);
+        let (_, _) = asg.add_dep_lookup_global(dep2, sym2);
 
         asg.add_root(sym_node);
 
@@ -643,8 +643,8 @@ mod test {
         asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
         asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym, dep);
-        let (_, _) = asg.add_dep_lookup(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
 
         asg.add_root(sym_node);
 
@@ -703,9 +703,9 @@ mod test {
         asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
         asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym1, sym2);
-        let (_, _) = asg.add_dep_lookup(sym2, sym3);
-        let (_, _) = asg.add_dep_lookup(sym3, sym1);
+        let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
+        let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
+        let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
 
         asg.add_root(sym1_node);
 
@@ -771,9 +771,9 @@ mod test {
         asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
         asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym1, sym2);
-        let (_, _) = asg.add_dep_lookup(sym2, sym3);
-        let (_, _) = asg.add_dep_lookup(sym3, sym1);
+        let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
+        let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
+        let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
 
         asg.add_root(sym1_node);
 
@@ -838,9 +838,9 @@ mod test {
         asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
         asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym1, sym2);
-        let (_, _) = asg.add_dep_lookup(sym2, sym3);
-        let (_, _) = asg.add_dep_lookup(sym3, sym1);
+        let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
+        let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
+        let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
 
         asg.add_root(sym1_node);
 
@@ -891,8 +891,8 @@ mod test {
         asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
         asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym, dep);
-        let (_, _) = asg.add_dep_lookup(dep, sym);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(dep, sym);
 
         asg.add_root(sym_node);
 
@@ -951,9 +951,9 @@ mod test {
         asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
         asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym1, sym2);
-        let (_, _) = asg.add_dep_lookup(sym2, sym3);
-        let (_, _) = asg.add_dep_lookup(sym3, sym1);
+        let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
+        let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
+        let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
 
         asg.add_root(sym1_node);
 
@@ -1017,8 +1017,8 @@ mod test {
         asg.set_fragment(ignored, FragmentText::from("baz"))
             .unwrap();
 
-        let (_, _) = asg.add_dep_lookup(sym, dep);
-        let (_, _) = asg.add_dep_lookup(ignored, sym);
+        let (_, _) = asg.add_dep_lookup_global(sym, dep);
+        let (_, _) = asg.add_dep_lookup_global(ignored, sym);
 
         asg.add_root(sym_node);
 

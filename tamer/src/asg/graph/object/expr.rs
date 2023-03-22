@@ -246,7 +246,7 @@ impl ObjectIndex<Expr> {
     ///   a missing identifier will take its place to be later resolved once
     ///   it becomes available.
     pub fn ref_expr(self, asg: &mut Asg, ident: SPair) -> Self {
-        let identi = asg.lookup_or_missing(ident);
+        let identi = asg.lookup_global_or_missing(ident);
         self.add_edge_to(asg, identi, Some(ident.span()))
     }
 

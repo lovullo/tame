@@ -433,9 +433,9 @@ mod root {
 
         fn defines(&self, asg: &mut Asg, id: SPair) -> ObjectIndex<Ident> {
             match self {
-                Self(oi_root) => {
-                    asg.lookup_or_missing(id).add_edge_from(asg, *oi_root, None)
-                }
+                Self(oi_root) => asg
+                    .lookup_global_or_missing(id)
+                    .add_edge_from(asg, *oi_root, None),
             }
         }
 

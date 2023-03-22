@@ -142,7 +142,7 @@ fn lookup_by_symbol() -> AsgResult<()> {
         },
     )?;
 
-    assert_eq!(Some(node), sut.lookup(id));
+    assert_eq!(Some(node), sut.lookup_global(id));
 
     Ok(())
 }
@@ -311,7 +311,7 @@ fn add_dep_lookup_existing() -> AsgResult<()> {
     let _ = sut.declare(sym, IdentKind::Meta, Source::default())?;
     let _ = sut.declare(dep, IdentKind::Meta, Source::default())?;
 
-    let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
+    let (symnode, depnode) = sut.add_dep_lookup_global(sym, dep);
     assert!(sut.has_dep(symnode, depnode));
 
     Ok(())
@@ -325,7 +325,7 @@ fn add_dep_lookup_missing() -> AsgResult<()> {
     let dep = SPair("dep".into(), S2);
 
     // both of these are missing
-    let (symnode, depnode) = sut.add_dep_lookup(sym, dep);
+    let (symnode, depnode) = sut.add_dep_lookup_global(sym, dep);
     assert!(sut.has_dep(symnode, depnode));
 
     assert_eq!(sym, sut.get_ident(symnode).unwrap().name());
@@ -342,7 +342,7 @@ fn declare_return_missing_symbol() -> AsgResult<()> {
     let dep = SPair("dep".into(), S2);
 
     // both of these are missing, see add_dep_lookup_missing
-    let (symnode, _) = sut.add_dep_lookup(sym, dep);
+    let (symnode, _) = sut.add_dep_lookup_global(sym, dep);
 
     let src = Source {
         desc: Some("redeclare missing".into()),
