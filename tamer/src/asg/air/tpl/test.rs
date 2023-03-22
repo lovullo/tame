@@ -197,10 +197,12 @@ fn tpl_with_reachable_expression() {
           Air::BindIdent(id_tpl),
 
           Air::ExprStart(ExprOp::Sum, S3),
+            // Must not be cached in the global env.
             Air::BindIdent(id_expr_a),
           Air::ExprEnd(S5),
 
           Air::ExprStart(ExprOp::Sum, S6),
+            // Must not be cached in the global env.
             Air::BindIdent(id_expr_b),
           Air::ExprEnd(S8),
         Air::TplEnd(S9),
@@ -215,14 +217,25 @@ fn tpl_with_reachable_expression() {
     // The inner expressions are reachable,
     //   but the intent is to expand them into the template's eventual
     //   application site.
+    // They have identifiers,
+    //   but those identifiers _must not_ be cached in the global
+    //   environment;
+    //     such a determination will be made at expansion-time.
     // Given that,
     //   they should be defined by the template...
     assert_eq!(
         vec![
-            asg.lookup_global(id_expr_b).unwrap(),
-            asg.lookup_global(id_expr_a).unwrap(),
+            // At the time of writing,
+            //   this is implemented using the same `edges_filtered`,
+            //   but the point is that we want to ensure that the
+            //     identifiers bound to this template are only these.
+            oi_tpl.lookup_local_linear(&asg, id_expr_b),
+            oi_tpl.lookup_local_linear(&asg, id_expr_a),
         ],
-        oi_tpl.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
+        oi_tpl
+            .edges_filtered::<Ident>(&asg)
+            .map(Some)
+            .collect::<Vec<_>>()
     );
 
     // ...but not by the package containing the template.
@@ -234,6 +247,11 @@ fn tpl_with_reachable_expression() {
         ],
         oi_pkg.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
     );
+
+    // Verify the above claim that these are not cached in the global
+    //   environment.
+    assert_eq!(None, asg.lookup_global(id_expr_a));
+    assert_eq!(None, asg.lookup_global(id_expr_b));
 }
 
 // Templates can expand into many contexts,

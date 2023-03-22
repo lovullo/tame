@@ -417,6 +417,11 @@ mod root {
     ///   the sub-expression will be rooted in [`Self`],
     ///     but the [`Dangling`] root expression will still be rejected.
     ///
+    /// This expects identifiers to be rooted in the global environment,
+    ///   which is the package representing the active compilation unit.
+    /// This may be relaxed once identifier caching is generalized;
+    ///   at the time of writing it is too coupled to the graph root.
+    ///
     /// See [`RootStrategy`] for more information.
     #[derive(Debug, PartialEq)]
     pub struct ReachableOnly<O: ObjectKind>(ObjectIndex<O>)
@@ -456,6 +461,10 @@ mod root {
     /// Sub-expressions can be thought of as utilizing this strategy with an
     ///   implicit parent [`ObjectIndex<Expr>`](ObjectIndex).
     ///
+    /// Unlike [`ReachableOnly`],
+    ///   this does _not_ cache identifiers in the global environment.
+    /// See there for more information.
+    ///
     /// See [`RootStrategy`] for more information.
     #[derive(Debug, PartialEq)]
     pub struct StoreDangling<O: ObjectKind>(ObjectIndex<O>)
@@ -470,11 +479,13 @@ mod root {
             Self(oi)
         }
 
-        fn defines(&self, asg: &mut Asg, id: SPair) -> ObjectIndex<Ident> {
-            // We are a superset of `ReachableOnly`'s behavior,
-            //   so delegate to avoid duplication.
+        fn defines(&self, asg: &mut Asg, name: SPair) -> ObjectIndex<Ident> {
+            // This cannot simply call [`ReachableOnly`]'s `defines` because
+            //   we cannot cache in the global environment.
+            // This can be realized once caching is generalized;
+            //   see the commit that introduced this comment.
             match self {
-                Self(oi_root) => ReachableOnly(*oi_root).defines(asg, id),
+                Self(oi_root) => oi_root.declare_local(asg, name),
             }
         }
 

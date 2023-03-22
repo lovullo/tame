@@ -118,6 +118,7 @@ use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     diagnostic_panic,
     f::Functor,
+    parse::util::SPair,
     span::{Span, UNKNOWN_SPAN},
 };
 use petgraph::graph::NodeIndex;
@@ -712,6 +713,60 @@ impl<O: ObjectKind> ObjectIndex<O> {
         match self {
             Self(index, span, _pd) => ObjectIndex::new(index, span),
         }
+    }
+
+    /// Attempt to look up a locally bound [`Ident`] via a linear search of
+    ///   `self`'s edges.
+    ///
+    /// Performance
+    /// ===========
+    /// _This is a linear (O(1)) search of the edges of the node
+    ///   corresponding to `self`!_
+    /// At the time of writing,
+    ///   edges are stored using index references in a manner similar to a
+    ///   linked list (petgraph).
+    /// And for each such edge,
+    ///   the target object must be resolved so that its
+    ///   [`SymbolId`](crate::sym::SymbolId) may be retrieved and compared
+    ///   against the provided `name`.
+    ///
+    /// If the number of edges is small and the objects are fairly localized
+    ///   in memory relative to `self`,
+    ///     then this may not be a concern.
+    /// However,
+    ///   if you've arrived at this method while investigating unfavorable
+    ///   circumstances during profiling,
+    ///     then you should consider caching like the global environment
+    ///       (see [`Asg::lookup_global`]).
+    pub fn lookup_local_linear(
+        &self,
+        asg: &Asg,
+        name: SPair,
+    ) -> Option<ObjectIndex<Ident>>
+    where
+        O: ObjectRelTo<Ident>,
+    {
+        self.edges_filtered::<Ident>(asg)
+            .find(|oi| oi.resolve(asg).name().symbol() == name.symbol())
+    }
+
+    /// Declare a local identifier.
+    ///
+    /// A local identifier is lexically scoped to `self`.
+    /// This operation is valid only for [`ObjectKind`]s that can contain
+    ///   edges to [`Ident`]s.
+    ///
+    /// TODO: This allows for duplicate local identifiers!
+    pub fn declare_local(
+        &self,
+        asg: &mut Asg,
+        name: SPair,
+    ) -> ObjectIndex<Ident>
+    where
+        O: ObjectRelTo<Ident>,
+    {
+        asg.create(Ident::declare(name))
+            .add_edge_from(asg, *self, None)
     }
 }
 

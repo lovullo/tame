@@ -719,12 +719,17 @@ impl Asg {
         self.get(index)
     }
 
-    /// Attempt to retrieve an identifier from the graph by name.
+    /// Attempt to retrieve an identifier from the graph by name utilizing
+    ///   the global environment.
     ///
     /// Since only identifiers carry a name,
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
+    ///
+    /// The global environment is defined as the environment of the current
+    ///   compilation unit,
+    ///     which is a package.
     #[inline]
     pub fn lookup_global(&self, id: SPair) -> Option<ObjectIndex<Ident>> {
         let i = id.symbol().as_usize();
