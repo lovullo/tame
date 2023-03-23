@@ -22,8 +22,8 @@
 use std::fmt::Display;
 
 use super::{
-    Expr, Ident, Meta, Object, ObjectIndex, ObjectRel, ObjectRelFrom,
-    ObjectRelTo, ObjectRelTy, ObjectRelatable,
+    Expr, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTo,
+    ObjectRelTy, ObjectRelatable,
 };
 use crate::{
     asg::Asg,
@@ -66,10 +66,13 @@ object_rel! {
     /// Templates may expand into nearly any context,
     ///   and must therefore be able to contain just about anything.
     Tpl -> {
+        // Expressions must be able to be anonymous to allow templates in
+        //   any `Expr` context.
         tree Expr,
-        tree Meta,
 
-        dyn  Ident,
+        // Identifiers are used for both references and identifiers that
+        //   will expand into an application site.
+        dyn Ident,
     }
 }
 

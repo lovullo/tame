@@ -66,6 +66,19 @@
 
 
 
+  <template name="_short-hand-nullary_" />
   <apply-template name="_short-hand-nullary_" />
+
+  <template name="_short-hand-unary_" />
+  <apply-template name="_short-hand-unary_">
+    <with-param name="@foo@" value="bar" />
+  </apply-template>
+
+  <template name="_short-hand-nary_" />
+  <apply-template name="_short-hand-nary_">
+    <with-param name="@foo@" value="bar" />
+    <with-param name="@bar@" value="baz" />
+    <with-param name="@baz@" value="quux" />
+  </apply-template>
 </package>
 

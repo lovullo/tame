@@ -110,6 +110,13 @@ use super::object::ObjectRel;
 ///     may modify the graph beyond recognition,
 ///       though they should retain ordering where it is important.
 ///
+/// _Objects that do not have a path from the root will not be visited by
+///   this traversal._
+/// These objects are expected to act as additional metadata,
+///   and must be queried for explicitly.
+/// Such querying can be done during the traversal since this visitor holds
+///   only a shared immutable reference to the [`Asg`].
+///
 /// For more information,
 ///   see [`ObjectRel::is_cross_edge`].
 ///

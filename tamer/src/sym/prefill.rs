@@ -710,6 +710,7 @@ pub mod st {
         L_VIRTUAL: cid "virtual",
         L_WARNING: cid "warning",
         L_WHEN: cid "when",
+        L_WITH_PARAM: tid "with-param",
         L_WORKSHEET: cid "worksheet",
         L_XMLNS: cid "xmlns",
         L_YIELD: cid "yield",

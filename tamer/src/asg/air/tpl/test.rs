@@ -24,6 +24,7 @@ use crate::asg::{
         test::{asg_from_toks, parse_as_pkg_body},
         Air, AirAggregate,
     },
+    graph::object::Meta,
     Expr, ExprOp, Ident,
 };
 use crate::span::dummy::*;
@@ -401,4 +402,49 @@ fn anonymous_tpl_immediate_ref() {
     assert!(sut.all(|x| x.is_ok()));
 
     // TODO: More to come.
+}
+
+#[test]
+fn tpl_with_param() {
+    let id_tpl = SPair("_tpl_".into(), S2);
+
+    let id_param1 = SPair("@param1@".into(), S4);
+    let pval1 = SPair("value1".into(), S5);
+    let id_param2 = SPair("@param2@".into(), S8);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          Air::BindIdent(id_tpl),
+
+          // Metavariable with a value.
+          Air::TplMetaStart(S3),
+            Air::BindIdent(id_param1),
+            Air::TplLexeme(pval1),
+          Air::TplMetaEnd(S6),
+
+          // Required metavariable (no value).
+          Air::TplMetaStart(S7),
+            Air::BindIdent(id_param2),
+          Air::TplMetaEnd(S9),
+        Air::TplEnd(S10),
+    ];
+
+    let asg = asg_from_toks(toks);
+    let oi_tpl = asg.expect_ident_oi::<Tpl>(id_tpl);
+
+    // The template should have an edge to each identifier for each
+    //   metavariable.
+    let params = [id_param1, id_param2]
+        .iter()
+        .map(|id| {
+            oi_tpl
+                .lookup_local_linear(&asg, *id)
+                .and_then(|oi| oi.edges_filtered::<Meta>(&asg).next())
+                .map(ObjectIndex::cresolve(&asg))
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(params[0], Some(&Meta::Lexeme(S3.merge(S6).unwrap(), pval1)));
+    assert_eq!(params[1], Some(&Meta::Required(S7.merge(S9).unwrap())));
 }

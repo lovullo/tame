@@ -640,13 +640,8 @@ impl Asg {
         ident: SPair,
     ) -> ObjectIndex<O> {
         self.get_ident_oi(ident).diagnostic_expect(
-            || diagnostic_opaque_ident_desc(ident),
-            || {
-                format!(
-                    "opaque identifier: {} has no object binding",
-                    TtQuote::wrap(ident),
-                )
-            },
+            || diagnostic_unknown_ident_desc(ident),
+            || format!("unknown identifier {}", TtQuote::wrap(ident),),
         )
     }
 
@@ -825,6 +820,16 @@ fn diagnostic_opaque_ident_desc(ident: SPair) -> Vec<AnnotatedSpan<'static>> {
         ident.help("the system expects to be able to reach the object that"),
         ident.help("  this identifies, but this identifier has no"),
         ident.help("  corresponding object present on the graph."),
+    ]
+}
+
+fn diagnostic_unknown_ident_desc(ident: SPair) -> Vec<AnnotatedSpan<'static>> {
+    vec![
+        ident.internal_error("reference to an unknown identifier"),
+        ident.help(
+            "the system expects this identifier to be known, \
+                but it could not be found.",
+        ),
     ]
 }
 

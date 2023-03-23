@@ -30,8 +30,8 @@
 //!       or observing template expansions.
 
 use super::object::{
-    DynObjectRel, Expr, Object, ObjectIndex, ObjectRelTy, OiPairObjectInner,
-    Pkg, Tpl,
+    DynObjectRel, Expr, Meta, Object, ObjectIndex, ObjectRelTy,
+    OiPairObjectInner, Pkg, Tpl,
 };
 use crate::{
     asg::{
@@ -39,7 +39,8 @@ use crate::{
         Asg, ExprOp, Ident,
     },
     diagnose::{panic::DiagnosticPanic, Annotate},
-    diagnostic_panic, diagnostic_unreachable,
+    diagnostic_panic, diagnostic_todo, diagnostic_unreachable,
+    fmt::{DisplayWrapper, TtQuote},
     parse::{prelude::*, util::SPair, Transitionable},
     span::{Span, UNKNOWN_SPAN},
     sym::{
@@ -198,7 +199,9 @@ impl<'a> TreeContext<'a> {
                 self.emit_template(tpl, *oi_tpl, paired_rel.source(), depth)
             }
 
-            target @ Object::Meta(..) => todo!("Object::Meta: {target:?}"),
+            Object::Meta((meta, oi_meta)) => {
+                self.emit_tpl_arg(meta, *oi_meta, depth)
+            }
 
             Object::Root(..) => diagnostic_unreachable!(
                 vec![],
@@ -312,7 +315,11 @@ impl<'a> TreeContext<'a> {
                 // This also gives us the opportunity to make sure that
                 //   we're deriving something that's actually supported by the
                 //   XSLT-based compiler.
-                let mut idents = oi_tpl.edges_filtered::<Ident>(self.asg);
+                // TODO: This doesn't handle `Missing` or invalid (non-`Tpl`)
+                //   identifiers.
+                let mut idents = oi_tpl
+                    .edges_filtered::<Ident>(self.asg)
+                    .filter(|oi| oi.is_bound_to_kind::<Tpl>(self.asg));
 
                 let apply_tpl = idents.next().diagnostic_expect(
                     || {
@@ -332,7 +339,7 @@ impl<'a> TreeContext<'a> {
                             bad_ident
                                 .internal_error("unexpected second identifier"),
                         ],
-                        "expected only one Ident for template application",
+                        "expected only one Ident->Tpl for template application",
                     );
                 }
 
@@ -347,6 +354,47 @@ impl<'a> TreeContext<'a> {
 
             _ => todo!("emit_template: {src:?}"),
         }
+    }
+
+    /// Emit a long-form template argument.
+    ///
+    /// For the parent template application,
+    ///   see [`Self::emit_template`].
+    fn emit_tpl_arg(
+        &mut self,
+        meta: &Meta,
+        oi_meta: ObjectIndex<Meta>,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        let pname = oi_meta.ident(self.asg).map(Ident::name)
+            .diagnostic_unwrap(|| vec![meta.internal_error(
+                "anonymous metavariables are not supported as template arguments"
+            )]);
+
+        let pval = match meta {
+            Meta::Required(span) => diagnostic_todo!(
+                vec![span.error("value expected for this param")],
+                "value missing for param {}",
+                TtQuote::wrap(pname)
+            ),
+
+            Meta::ConcatList(span) => diagnostic_todo!(
+                vec![span.error("concatenation occurs here")],
+                "concatenation not yet supported in xmli for param {}",
+                TtQuote::wrap(pname)
+            ),
+
+            Meta::Lexeme(_, value) => *value,
+        };
+
+        self.push(attr_value(pval));
+        self.push(attr_name(pname));
+
+        Some(Xirf::open(
+            QN_WITH_PARAM,
+            OpenSpan::without_name_span(meta.span()),
+            depth,
+        ))
     }
 
     fn push(&mut self, tok: Xirf) {
@@ -406,6 +454,10 @@ fn ns(qname: QName, uri: UriStaticSymbolId, span: Span) -> Xirf {
 
 fn attr_name(name: SPair) -> Xirf {
     Xirf::attr(QN_NAME, name, (name.span(), name.span()))
+}
+
+fn attr_value(val: SPair) -> Xirf {
+    Xirf::attr(QN_VALUE, val, (val.span(), val.span()))
 }
 
 fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {

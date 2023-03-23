@@ -982,9 +982,7 @@ object_rel! {
         tree Ident,
         tree Expr,
         tree Tpl,
-
-        // A metavariable is directly referenced by a template.
-        cross Meta,
+        tree Meta,
     }
 }
 
@@ -1058,6 +1056,14 @@ impl ObjectIndex<Ident> {
         oi: ObjectIndex<O>,
     ) -> bool {
         self.edges(asg).find_map(ObjectRel::narrow) == Some(oi)
+    }
+
+    /// Whether this identifier is bound to an object of kind `O`.
+    ///
+    /// To bind an identifier,
+    ///   see [`Self::bind_definition`].
+    pub fn is_bound_to_kind<O: ObjectRelFrom<Ident>>(&self, asg: &Asg) -> bool {
+        self.edges_filtered::<O>(asg).next().is_some()
     }
 
     /// The source package defining this identifier,

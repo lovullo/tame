@@ -768,6 +768,25 @@ impl<O: ObjectKind> ObjectIndex<O> {
         asg.create(Ident::declare(name))
             .add_edge_from(asg, *self, None)
     }
+
+    /// Retrieve the identifier for this object,
+    ///   if any.
+    ///
+    /// If there is more than one identifier,
+    ///   only one will be returned,
+    ///   and the result of the operation is undefined.
+    /// This can be problematic if certain optimizations have been performed
+    ///   on the graph,
+    ///     like common subexpression elimination,
+    ///   in which case it's best not to rely on following edges in reverse.
+    pub fn ident<'a>(&self, asg: &'a Asg) -> Option<&'a Ident>
+    where
+        O: ObjectRelFrom<Ident>,
+    {
+        self.incoming_edges_filtered(asg)
+            .map(ObjectIndex::cresolve(asg))
+            .next()
+    }
 }
 
 impl ObjectIndex<Object> {

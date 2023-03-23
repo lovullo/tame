@@ -1674,21 +1674,34 @@ ele_parse! {
     ///     or even a mix of the two
     ///       (with statements hoisted out of expressions).
     ///
-    /// TODO: This is apparently unused by the current system,
-    ///   in favor of a transition to [`TplApplyShort`],
-    ///   but this is still needed to support dynamic template application
-    ///     (templates whose names are derived from other template inputs).
+    /// See also [`TplApplyShort`],
+    ///   which gets desugared into this via [`super::tplshort`].
     ApplyTemplate := QN_APPLY_TEMPLATE(_, ospan) {
         @ {
             QN_NAME => Ref,
         } => Nir::Open(NirEntity::TplApply(None), ospan.into()),
         /(cspan) => Nir::Close(NirEntity::TplApply(None), cspan.into()),
 
-        // TODO: This is wrong, we just need something here for now.
-        AnyStmtOrExpr,
+        ApplyTemplateParam,
     };
 
-    /// Short-hand template application.
+    /// Long-form template argument.
+    ///
+    /// Template arguments are lexical.
+    ///
+    /// See also [`TplApplyShort`],
+    ///   which gets desugared into this via [`super::tplshort`].
+    ApplyTemplateParam := QN_WITH_PARAM(_, ospan) {
+        @ {
+            QN_NAME => BindIdent,
+            QN_VALUE => Text,
+        } => Nir::Open(NirEntity::TplParam(None), ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplParam(None), cspan.into()),
+
+        // TODO: Need to support children, e.g. @values@
+    };
+
+    /// Shorthand template application.
     ///
     /// This expands into an equivalent [`ApplyTemplate`] form where each
     ///   attribute is a template argument,

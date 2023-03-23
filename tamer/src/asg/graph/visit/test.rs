@@ -196,6 +196,8 @@ fn traverses_ontological_tree_tpl_apply() {
     let name_tpl = "_tpl-to-apply_".into();
     let id_tpl = SPair(name_tpl, S3);
     let ref_tpl = SPair(name_tpl, S6);
+    let id_param = SPair("@param@".into(), S8);
+    let value_param = SPair("value".into(), S9);
 
     #[rustfmt::skip]
     let toks = vec![
@@ -209,12 +211,15 @@ fn traverses_ontological_tree_tpl_apply() {
           TplEnd(S4),
 
           // Apply the above template.
-          // This seems like an odd construction until we introduce
-          //   metavariables.
           TplStart(S5),
             RefIdent(ref_tpl),
-          TplEndRef(S7),  // notice the `Ref` at the end
-        PkgEnd(S8),
+
+            TplMetaStart(S7),
+              BindIdent(id_param),
+              TplLexeme(value_param),
+            TplMetaEnd(S10),
+          TplEndRef(S11),  // notice the `Ref` at the end
+        PkgEnd(S12),
     ];
 
     // We need more concise expressions for the below table of values.
@@ -225,11 +230,13 @@ fn traverses_ontological_tree_tpl_apply() {
     assert_eq!(
         //      A  -|-> B   |  A span  -|-> B span  | espan  |  depth
         vec![//-----|-------|-----------|-----------|--------|-----------------
-            (d(Root,  Pkg,   SU,         m(S1, S8),  None    ), Depth(1)),
-            (d(Pkg,   Ident, m(S1, S8),  S3,         None    ),   Depth(2)),
+            (d(Root,  Pkg,   SU,         m(S1, S12), None    ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S12), S3,         None    ),   Depth(2)),
             (d(Ident, Tpl,   S3,         m(S2, S4),  None    ),     Depth(3)),
-            (d(Pkg,   Tpl,   m(S1, S8),  m(S5, S7),  None    ),   Depth(2)),
-            (d(Tpl,   Ident, m(S5, S7),  S3,         Some(S6)),     Depth(3)),
+            (d(Pkg,   Tpl,   m(S1, S12), m(S5, S11), None    ),   Depth(2)),
+  /*cross*/ (d(Tpl,   Ident, m(S5, S11), S3,         Some(S6)),     Depth(3)),
+            (d(Tpl,   Ident, m(S5, S11), S8,         None    ),     Depth(3)),
+            (d(Ident, Meta,  S8,         m(S7, S10), None    ),       Depth(4)),
         ],
         tree_reconstruction_report(toks),
     );

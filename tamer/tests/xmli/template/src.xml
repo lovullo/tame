@@ -66,7 +66,19 @@
     `apply-template` form,
       asserting their equivalency.
 
+  <template name="_short-hand-nullary_" />
   <t:short-hand-nullary />
+
+  <template name="_short-hand-unary_" />
+  <t:short-hand-unary foo="bar" />
+
+
+
+  <template name="_short-hand-nary_" />
+  <t:short-hand-nary foo="bar" bar="baz" baz="quux" />
+
+
+
 
   <!-- TODO
   <t:short-hand-nullary-body>
@@ -76,8 +88,6 @@
   <t:short-hand-nullary-inner>
     <t:inner-short />
   </t:short-hand-nullary-inner>
-
-  <t:short-hand foo="bar" />
 
   <t:short-hand foo="bar">
     <c:sum />

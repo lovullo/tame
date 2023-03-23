@@ -249,12 +249,4 @@ impl ObjectIndex<Expr> {
         let identi = asg.lookup_global_or_missing(ident);
         self.add_edge_to(asg, identi, Some(ident.span()))
     }
-
-    /// The [`Ident`] bound to this expression,
-    ///   if any.
-    pub fn ident(self, asg: &Asg) -> Option<&Ident> {
-        self.incoming_edges_filtered(asg)
-            .map(ObjectIndex::cresolve(asg))
-            .next()
-    }
 }

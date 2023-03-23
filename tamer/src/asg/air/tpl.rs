@@ -31,6 +31,7 @@ use super::{
     AirExprAggregate,
 };
 use crate::{
+    asg::graph::object::Meta,
     diagnose::Annotate,
     diagnostic_todo,
     fmt::{DisplayWrapper, TtQuote},
@@ -63,10 +64,24 @@ pub enum AirTplAggregate {
     ///       which simplifies AIR generation.
     Ready(ObjectIndex<Pkg>),
 
+    /// Toplevel template context.
+    ///
+    /// Conceptually,
+    ///   tokens that are received in this state are interpreted as directly
+    ///   applying to the template itself,
+    ///     or creating an object directly owned by the template.
     Toplevel(
         ObjectIndex<Pkg>,
         TplState,
         AirExprAggregateStoreDangling<Tpl>,
+    ),
+
+    /// Defining a template metavariable.
+    TplMeta(
+        ObjectIndex<Pkg>,
+        TplState,
+        AirExprAggregateStoreDangling<Tpl>,
+        ObjectIndex<Meta>,
     ),
 
     /// Aggregating tokens into a template.
@@ -84,6 +99,10 @@ impl Display for AirTplAggregate {
 
             Self::Toplevel(_, tpl, expr) | Self::TplExpr(_, tpl, expr) => {
                 write!(f, "building {tpl} with {expr}")
+            }
+
+            Self::TplMeta(_, tpl, _, _) => {
+                write!(f, "building {tpl} metavariable")
             }
         }
     }
@@ -202,17 +221,69 @@ impl ParseState for AirTplAggregate {
                 Transition(Toplevel(oi_pkg, tpl, expr)).incomplete()
             }
 
-            (Toplevel(..), tok @ AirTpl(TplMetaStart(..) | TplMetaEnd(..))) => {
+            (Toplevel(oi_pkg, tpl, expr), AirTpl(TplMetaStart(span))) => {
+                let oi_meta = asg.create(Meta::new_required(span));
+                Transition(TplMeta(oi_pkg, tpl, expr, oi_meta)).incomplete()
+            }
+            (
+                TplMeta(oi_pkg, tpl, expr, oi_meta),
+                AirTpl(TplMetaEnd(cspan)),
+            ) => {
+                oi_meta.close(asg, cspan);
+                Transition(Toplevel(oi_pkg, tpl, expr)).incomplete()
+            }
+
+            (
+                TplMeta(oi_pkg, tpl, expr, oi_meta),
+                AirTpl(TplLexeme(lexeme)),
+            ) => Transition(TplMeta(
+                oi_pkg,
+                tpl,
+                expr,
+                oi_meta.assign_lexeme(asg, lexeme),
+            ))
+            .incomplete(),
+
+            (TplMeta(oi_pkg, tpl, expr, oi_meta), AirBind(BindIdent(name))) => {
+                oi_meta.identify_as_tpl_param(asg, tpl.oi(), name);
+                Transition(TplMeta(oi_pkg, tpl, expr, oi_meta)).incomplete()
+            }
+
+            (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
                 diagnostic_todo!(
-                    vec![tok.note("for this token")],
-                    "Toplevel meta"
+                    vec![tok.note("this token")],
+                    "AirBind in metavar context (param-value)"
+                )
+            }
+
+            (TplMeta(..), tok @ AirExpr(..)) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "AirExpr in metavar context (e.g. @values@)"
+                )
+            }
+
+            (
+                TplMeta(..),
+                tok @ AirTpl(
+                    TplStart(..) | TplMetaStart(..) | TplEnd(..)
+                    | TplEndRef(..),
+                ),
+            ) => {
+                diagnostic_todo!(vec![tok.note("this token")], "AirTpl variant")
+            }
+
+            (Toplevel(..), tok @ AirTpl(TplMetaEnd(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "unbalanced meta"
                 )
             }
 
             (Toplevel(..), tok @ AirTpl(TplLexeme(..))) => {
                 diagnostic_todo!(
-                    vec![tok.note("for this token")],
-                    "err: Toplevel lexeme {tok:?} (must be within metavar)"
+                    vec![tok.note("this token")],
+                    "err: TplLexeme outside of metavar"
                 )
             }
 

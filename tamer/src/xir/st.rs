@@ -225,6 +225,7 @@ pub mod qname {
         QN_VALUES: :L_VALUES,
         QN_VIRTUAL: :L_VIRTUAL,
         QN_WARNING: :L_WARNING,
+        QN_WITH_PARAM: :L_WITH_PARAM,
         QN_WORKSHEET: :L_WORKSHEET,
         QN_YIELD: :L_YIELD,
         QN_YIELDS: :L_YIELDS,
