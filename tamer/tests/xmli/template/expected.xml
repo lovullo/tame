@@ -80,5 +80,50 @@
     <with-param name="@bar@" value="baz" />
     <with-param name="@baz@" value="quux" />
   </apply-template>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <template name="_short-hand-nullary-body_" />
+  <apply-template name="_short-hand-nullary-body_">
+    <with-param name="@values@" value="___dsgr-c23___" />
+  </apply-template>
+  <template name="___dsgr-c23___">
+    <c:product>
+      <c:sum />
+    </c:product>
+  </template>
+
+  <template name="_short-hand-nary-body_" />
+  <apply-template name="_short-hand-nary-body_">
+    <with-param name="@bar@" value="baz" />
+    <with-param name="@baz@" value="quux" />
+    <with-param name="@values@" value="___dsgr-cc2___" />
+  </apply-template>
+  <template name="___dsgr-cc2___">
+    <c:sum>
+      <c:product />
+    </c:sum>
+  </template>
 </package>
 

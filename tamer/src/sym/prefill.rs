@@ -716,6 +716,8 @@ pub mod st {
         L_YIELD: cid "yield",
         L_YIELDS: cid "yields",
 
+        L_TPLP_VALUES: str "@values@",
+
         CC_ANY_OF: cid "anyOf",
 
         L_MAP_UUUHEAD: str ":map:___head",

@@ -27,13 +27,16 @@
 //!     <c:sum />
 //!   </t:foo>
 //!
-//!   <!-- desugars into -->
+//!   <!-- the above desugars into the below -->
+//!
 //!   <apply-template name="_foo_">
 //!     <with-param name="@bar@" value="baz" />
-//!     <with-param name="@values@">
-//!       <c:sum />
-//!     </with-param>
+//!     <with-param name="@values@" value="___dsgr-01___" />
 //!   </apply-template>
+//!
+//!   <template name="___dsgr-01___">
+//!     <c:sum />
+//!   </template>
 //! ```
 //!
 //! The shorthand syntax makes templates look like another language
@@ -49,6 +52,16 @@
 //!     like language primitives.
 //! Shorthand form was added well after the long `apply-template` form.
 //!
+//! The body of a shorthand template becomes the body of a new template,
+//!   and its id referenced as the lexical value of the param `@values@`.
+//! (This poor name is a historical artifact.)
+//! Since the template is closed
+//!   (has no free metavariables),
+//!   it will be expanded on reference,
+//!     inlining its body into the reference site.
+//! This is a different and generalized approach to the `param-copy`
+//!   behavior of the XLST-based TAME.
+//!
 //! This shorthand version does not permit metavariables for template or
 //!   param names,
 //!     so the long form is still a useful language feature for more
@@ -58,13 +71,19 @@
 //!   `:src/current/include/preproc/template.xsl`.
 //! You may need to consult the Git history if this file is no longer
 //!   available or if the XSLT template was since removed.
+//! The XSLT-based compiler did not produce a separate template for
+//!   `@values@`.
 
 use arrayvec::ArrayVec;
 
 use super::{Nir, NirEntity};
 use crate::{
     parse::prelude::*,
-    sym::{GlobalSymbolIntern, GlobalSymbolResolve},
+    span::Span,
+    sym::{
+        st::raw::L_TPLP_VALUES, GlobalSymbolIntern, GlobalSymbolResolve,
+        SymbolId,
+    },
 };
 use std::convert::Infallible;
 
@@ -77,6 +96,15 @@ pub enum TplShortDesugar {
     ///   passing tokens along in the meantime.
     #[default]
     Scanning,
+
+    /// A shorthand template application associated with the provided
+    ///   [`Span`] was encountered and shorthand params are being desugared.
+    DesugaringParams(Span),
+
+    /// A child element was encountered while desugaring params,
+    ///   indicating a body of the shorthand application that needs
+    ///   desugaring into `@values@`.
+    DesugaringBody,
 }
 
 impl Display for TplShortDesugar {
@@ -84,6 +112,12 @@ impl Display for TplShortDesugar {
         match self {
             Self::Scanning => {
                 write!(f, "awaiting shorthand template application")
+            }
+            Self::DesugaringParams(_) => {
+                write!(f, "desugaring shorthand template application params")
+            }
+            Self::DesugaringBody => {
+                write!(f, "desugaring shorthand template application body")
             }
         }
     }
@@ -123,19 +157,66 @@ impl ParseState for TplShortDesugar {
 
                 stack.push(Ref(SPair(tpl_name, span)));
 
-                Transition(Scanning).ok(Open(TplApply(None), span))
+                Transition(DesugaringParams(span))
+                    .ok(Open(TplApply(None), span))
             }
 
             // Shorthand template params' names do not contain the
             //   surrounding `@`s.
-            (Scanning, Open(TplParam(Some((name, val))), span)) => {
+            (
+                DesugaringParams(ospan),
+                Open(TplParam(Some((name, val))), span),
+            ) => {
                 let pname = format!("@{name}@").intern();
 
+                // note: reversed (stack)
                 stack.push(Close(TplParam(None), span));
                 stack.push(Text(val));
                 stack.push(BindIdent(SPair(pname, name.span())));
+                Transition(DesugaringParams(ospan))
+                    .ok(Open(TplParam(None), span))
+            }
 
-                Transition(Scanning).ok(Open(TplParam(None), span))
+            // A child element while we're desugaring template params
+            //   means that we have reached the body,
+            //     which is to desugar into `@values@`.
+            // We generate a name for a new template,
+            //   set `@values@` to the name of the template,
+            //   close our active template application,
+            //   and then place the body into that template.
+            //
+            // TODO: This does not handle nested template applications.
+            (DesugaringParams(ospan), tok @ Open(..)) => {
+                let gen_name = gen_tpl_name_at_offset(ospan);
+
+                // The spans are awkward here because we are streaming,
+                //   and so don't have much choice but to use the opening
+                //   span for everything.
+                // If this ends up being unhelpful for diagnostics,
+                //   we can have AIR do some adjustment through some
+                //   yet-to-be-defined means.
+                //
+                // note: reversed (stack)
+                stack.push(tok);
+                stack.push(BindIdent(SPair(gen_name, ospan)));
+                stack.push(Open(Tpl, ospan));
+
+                // Application ends here,
+                //   and the new template (above) will absorb both this
+                //   token `tok` and all tokens that come after.
+                stack.push(Close(TplApply(None), ospan));
+                stack.push(Close(TplParam(None), ospan));
+                stack.push(Text(SPair(gen_name, ospan)));
+                stack.push(BindIdent(SPair(L_TPLP_VALUES, ospan)));
+                Transition(DesugaringBody).ok(Open(TplParam(None), ospan))
+            }
+
+            (DesugaringBody, Close(TplApply(_), span)) => {
+                Transition(Scanning).ok(Close(Tpl, span))
+            }
+
+            (DesugaringParams(_), tok @ Close(TplApply(_), _)) => {
+                Transition(Scanning).ok(tok)
             }
 
             // Any tokens that we don't recognize will be passed on unchanged.
@@ -148,7 +229,25 @@ impl ParseState for TplShortDesugar {
     }
 }
 
-type Stack = ArrayVec<Nir, 3>;
+type Stack = ArrayVec<Nir, 7>;
+
+/// Generate a deterministic template identifier name that is unique
+///   relative to the offset in the source context (file) of the given
+///   [`Span`].
+///
+/// Hygiene is not a concern since identifiers cannot be redeclared,
+///   so conflicts with manually-created identifiers will result in a
+///   compilation error
+///     (albeit a cryptic one);
+///       the hope is that the informally-compiler-reserved `___` convention
+///       mitigates that unlikely occurrence.
+/// Consequently,
+///   we _must_ intern to ensure that error can occur
+///     (we cannot use [`GlobalSymbolIntern::clone_uninterned`]).
+#[inline]
+fn gen_tpl_name_at_offset(span: Span) -> SymbolId {
+    format!("___dsgr-{:x}___", span.offset()).intern()
+}
 
 #[cfg(test)]
 mod test;

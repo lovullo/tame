@@ -94,6 +94,71 @@ fn desugars_unary() {
     );
 }
 
+// Body of shorthand is desugared into `@values@` param.
+#[test]
+fn desugars_body_into_tpl_with_ref_in_values_param() {
+    // Shorthand converts `t:tpl-name` into `_tpl-name_`.
+    let qname = ("t", "short").unwrap_into();
+    let name = SPair("_short_".into(), S1);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        // <t:qname>
+        Open(TplApply(Some(qname)), S1),
+          // Body to desugar into own template (@values@).
+          Open(Sum, S2),
+            Open(Product, S3),
+            Close(Product, S4),
+          Close(Sum, S5),
+
+          // Body can contain siblings.
+          Open(Product, S6),
+          Close(Product, S7),
+        // </t:qname>
+        Close(TplApply(None), S8),
+    ];
+
+    // The name of the generated template.
+    // This test is a bit too friendly with implementation details,
+    //   but it does allow us to be perfectly precise in the output
+    //   assertion.
+    let gen_name = gen_tpl_name_at_offset(S1);
+
+    #[rustfmt::skip]
+    assert_eq!(
+        Ok(vec![
+            O(Open(TplApply(None), S1)),
+              O(Ref(name)),
+
+              // @values@ remains lexical by referencing the name of a
+              //   template we're about to generate.
+              O(Open(TplParam(None), S1)),
+                O(BindIdent(SPair(L_TPLP_VALUES, S1))),
+                O(Text(SPair(gen_name, S1))),      //:-.
+              O(Close(TplParam(None), S1)),        //   |
+            O(Close(TplApply(None), S1)),          //   |
+                                                   //   |
+            // Generate a template to hold the     //   |
+            //   body of `@values@`.               //   |
+            // It is closed and so expandable.     //   |
+            O(Open(Tpl, S1)),                      //  /
+              O(BindIdent(SPair(gen_name, S1))),   //<`
+
+              // And here we have the body of the above
+              //   shorthand application.
+              O(Open(Sum, S2)),
+                O(Open(Product, S3)),
+                O(Close(Product, S4)),
+              O(Close(Sum, S5)),
+
+              O(Open(Product, S6)),
+              O(Close(Product, S7)),
+            O(Close(Tpl, S8)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 // Don't parse what we desugar into!
 #[test]
 fn does_not_desugar_long_form() {

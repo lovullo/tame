@@ -80,18 +80,56 @@
 
 
 
-  <!-- TODO
+
+  Shorthand template bodies desugar into the param `@values@`.
+  Unlike in the XSLT-based TAMER,
+    metavaraibles (template parameters) are purely lexical,
+    and do not contain trees,
+    simplifying its implementation.
+  Desugaring instead takes advantage of existing features by generating a
+    _new_ closed template with the body from the shorthand application.
+  Since closed templates can be applied by referencing them as a value,
+    which expands them in place,
+    this ends up having the same effect as a `param-copy`.
+
+  For now,
+    the expected output asserts on this behavior,
+    but if this has a significantly negative impact on performance of the
+      XSLT-based compiler,
+        then it'll have to inline during desugaring.
+
+  This asserts verbatim on the output,
+    which uses a generated id based on the span.
+  This is fragile,
+    and it may break often;
+      just take the hex span from the test failure in that case.
+
+  <template name="_short-hand-nullary-body_" />
   <t:short-hand-nullary-body>
-    <c:sum />
+    <c:product>
+      <c:sum />
+    </c:product>
   </t:short-hand-nullary-body>
+
+
+
+
+  <template name="_short-hand-nary-body_" />
+  <t:short-hand-nary-body bar="baz" baz="quux">
+    <c:sum>
+      <c:product />
+    </c:sum>
+  </t:short-hand-nary-body>
+
+
+
+
+
+  <!-- TODO
 
   <t:short-hand-nullary-inner>
     <t:inner-short />
   </t:short-hand-nullary-inner>
-
-  <t:short-hand foo="bar">
-    <c:sum />
-  </t:short-hand>
 
   <t:short-hand foo="bar">
     <t:inner-short />
