@@ -30,15 +30,12 @@ fn desugars_nullary() {
     let qname = ("t", "tpl-name").unwrap_into();
     let tpl = "_tpl-name_".into();
 
-    let toks = [
-        Nir::Open(NirEntity::TplApply(Some(qname)), S1),
-        Nir::Close(NirEntity::TplApply(None), S2),
-    ];
+    let toks = [Open(TplApply(Some(qname)), S1), Close(TplApply(None), S2)];
 
     #[rustfmt::skip]
     assert_eq!(
         Ok(vec![
-            O(Nir::Open(NirEntity::TplApply(None), S1)),
+            O(Open(TplApply(None), S1)),
               // The span associated with the name of the template to be
               //   applied is the span of the entire QName from NIR.
               // The reason for this is that `t:foo` is transformed into
@@ -47,8 +44,8 @@ fn desugars_nullary() {
               //     representation of the name of the template;
               //       `foo` is not in itself a valid template name at the
               //       time of writing.
-              O(Nir::Ref(SPair(tpl, S1))),
-            O(Nir::Close(NirEntity::TplApply(None), S2)),
+              O(Ref(SPair(tpl, S1))),
+            O(Close(TplApply(None), S2)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -70,28 +67,28 @@ fn desugars_unary() {
     #[rustfmt::skip]
     let toks = vec![
         // <t:qname
-        Nir::Open(NirEntity::TplApply(Some(qname)), S1),
+        Open(TplApply(Some(qname)), S1),
           // foo="foo value"
-          Nir::Open(NirEntity::TplParam(Some((aname, pval))), S2),
+          Open(TplParam(Some((aname, pval))), S2),
           // Implicit close.
         // />
-        Nir::Close(NirEntity::TplApply(None), S6),
+        Close(TplApply(None), S6),
     ];
 
     #[rustfmt::skip]
     assert_eq!(
         Ok(vec![
-            O(Nir::Open(NirEntity::TplApply(None), S1)),
-              O(Nir::Ref(name)),
+            O(Open(TplApply(None), S1)),
+              O(Ref(name)),
 
-              O(Nir::Open(NirEntity::TplParam(None), S2)),
+              O(Open(TplParam(None), S2)),
                 // Derived from `aname` (by padding)
-                O(Nir::BindIdent(pname)),
+                O(BindIdent(pname)),
                 // The value is left untouched.
-                O(Nir::Text(pval)),
+                O(Text(pval)),
               // Close is derived from open.
-              O(Nir::Close(NirEntity::TplParam(None), S2)),
-            O(Nir::Close(NirEntity::TplApply(None), S6)),
+              O(Close(TplParam(None), S2)),
+            O(Close(TplApply(None), S6)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -101,19 +98,19 @@ fn desugars_unary() {
 #[test]
 fn does_not_desugar_long_form() {
     let name = SPair("_tpl-name_".into(), S2);
-    let pname = SPair("@param".into(), S4);
+    let pname = SPair("@param@".into(), S4);
     let pval = SPair("value".into(), S5);
 
     #[rustfmt::skip]
     let toks = [
-        Nir::Open(NirEntity::TplApply(None), S1),
-          Nir::BindIdent(name),
+        Open(TplApply(None), S1),
+          BindIdent(name),
 
-          Nir::Open(NirEntity::TplParam(None), S3),
-            Nir::BindIdent(pname),
-            Nir::Text(pval),
-          Nir::Close(NirEntity::TplParam(None), S6),
-        Nir::Close(NirEntity::TplApply(None), S7),
+          Open(TplParam(None), S3),
+            BindIdent(pname),
+            Text(pval),
+          Close(TplParam(None), S6),
+        Close(TplApply(None), S7),
     ];
 
     #[rustfmt::skip]
@@ -123,14 +120,14 @@ fn does_not_desugar_long_form() {
         // So this is a duplicate of the above,
         //   mapped over `O`.
         Ok(vec![
-            O(Nir::Open(NirEntity::TplApply(None), S1)),
-              O(Nir::BindIdent(name)),
+            O(Open(TplApply(None), S1)),
+              O(BindIdent(name)),
 
-              O(Nir::Open(NirEntity::TplParam(None), S3)),
-                O(Nir::BindIdent(pname)),
-                O(Nir::Text(pval)),
-              O(Nir::Close(NirEntity::TplParam(None), S6)),
-            O(Nir::Close(NirEntity::TplApply(None), S7)),
+              O(Open(TplParam(None), S3)),
+                O(BindIdent(pname)),
+                O(Text(pval)),
+              O(Close(TplParam(None), S6)),
+            O(Close(TplApply(None), S7)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

@@ -68,6 +68,9 @@ use crate::{
 };
 use std::convert::Infallible;
 
+use Nir::*;
+use NirEntity::*;
+
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum TplShortDesugar {
     /// Waiting for shorthand template application,
@@ -109,7 +112,7 @@ impl ParseState for TplShortDesugar {
             //
             // The name of the template _without_ the underscore padding is
             //   the local part of the QName.
-            (Scanning, Nir::Open(NirEntity::TplApply(Some(qname)), span)) => {
+            (Scanning, Open(TplApply(Some(qname)), span)) => {
                 // TODO: Determine whether caching these has any notable
                 //   benefit over repeated heap allocations,
                 //     comparing packages with very few applications and
@@ -118,26 +121,21 @@ impl ParseState for TplShortDesugar {
                 let tpl_name =
                     format!("_{}_", qname.local_name().lookup_str()).intern();
 
-                stack.push(Nir::Ref(SPair(tpl_name, span)));
+                stack.push(Ref(SPair(tpl_name, span)));
 
-                Transition(Scanning)
-                    .ok(Nir::Open(NirEntity::TplApply(None), span))
+                Transition(Scanning).ok(Open(TplApply(None), span))
             }
 
             // Shorthand template params' names do not contain the
             //   surrounding `@`s.
-            (
-                Scanning,
-                Nir::Open(NirEntity::TplParam(Some((name, val))), span),
-            ) => {
+            (Scanning, Open(TplParam(Some((name, val))), span)) => {
                 let pname = format!("@{name}@").intern();
 
-                stack.push(Nir::Close(NirEntity::TplParam(None), span));
-                stack.push(Nir::Text(val));
-                stack.push(Nir::BindIdent(SPair(pname, name.span())));
+                stack.push(Close(TplParam(None), span));
+                stack.push(Text(val));
+                stack.push(BindIdent(SPair(pname, name.span())));
 
-                Transition(Scanning)
-                    .ok(Nir::Open(NirEntity::TplParam(None), span))
+                Transition(Scanning).ok(Open(TplParam(None), span))
             }
 
             // Any tokens that we don't recognize will be passed on unchanged.
