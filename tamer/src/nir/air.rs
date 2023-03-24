@@ -19,17 +19,18 @@
 
 //! Lower [NIR](super) into [AIR](crate::asg::air).
 
-use std::{error::Error, fmt::Display};
-
+use super::Nir;
 use crate::{
     asg::air::Air, diagnose::Diagnostic, parse::prelude::*, span::UNKNOWN_SPAN,
 };
+use std::{error::Error, fmt::Display};
 
 // These are also used by the `test` module which imports `super`.
 #[cfg(feature = "wip-nir-to-air")]
-use crate::{asg::ExprOp, nir::NirEntity};
-
-use super::Nir;
+use crate::{
+    asg::ExprOp,
+    nir::{Nir::*, NirEntity::*},
+};
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum NirToAir {
@@ -83,41 +84,41 @@ impl ParseState for NirToAir {
         }
 
         match (self, tok) {
-            (Ready, Nir::Open(NirEntity::Package, span)) => {
+            (Ready, Open(Package, span)) => {
                 Transition(Ready).ok(Air::PkgStart(span))
             }
 
-            (Ready, Nir::Close(NirEntity::Package, span)) => {
+            (Ready, Close(Package, span)) => {
                 Transition(Ready).ok(Air::PkgEnd(span))
             }
 
-            (Ready, Nir::Open(NirEntity::Rate | NirEntity::Sum, span)) => {
+            (Ready, Open(Rate | Sum, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Sum, span))
             }
-            (Ready, Nir::Open(NirEntity::Product, span)) => {
+            (Ready, Open(Product, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Product, span))
             }
-            (Ready, Nir::Open(NirEntity::Ceil, span)) => {
+            (Ready, Open(Ceil, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Ceil, span))
             }
-            (Ready, Nir::Open(NirEntity::Floor, span)) => {
+            (Ready, Open(Floor, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Floor, span))
             }
-            (Ready, Nir::Open(NirEntity::Classify | NirEntity::All, span)) => {
+            (Ready, Open(Classify | All, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Conj, span))
             }
-            (Ready, Nir::Open(NirEntity::Any, span)) => {
+            (Ready, Open(Any, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Disj, span))
             }
 
-            (Ready, Nir::Open(NirEntity::Tpl, span)) => {
+            (Ready, Open(Tpl, span)) => {
                 Transition(Ready).ok(Air::TplStart(span))
             }
-            (Ready, Nir::Close(NirEntity::Tpl, span)) => {
+            (Ready, Close(Tpl, span)) => {
                 Transition(Ready).ok(Air::TplEnd(span))
             }
 
-            (Ready, Nir::Open(NirEntity::TplApply, span)) => {
+            (Ready, Open(TplApply, span)) => {
                 Transition(Ready).ok(Air::TplStart(span))
             }
 
@@ -126,14 +127,8 @@ impl ParseState for NirToAir {
             //     so that it is converted to long form before getting here.
             (
                 Ready,
-                Nir::Open(
-                    NirEntity::TplApplyShort(..) | NirEntity::TplParamShort(..),
-                    span,
-                )
-                | Nir::Close(
-                    NirEntity::TplApplyShort(..) | NirEntity::TplParamShort(..),
-                    span,
-                ),
+                Open(TplApplyShort(..) | TplParamShort(..), span)
+                | Close(TplApplyShort(..) | TplParamShort(..), span),
             ) => {
                 // TODO: In the future maybe TAMER will have evolved its
                 //   abstractions enough that there's an ROI for prohibiting
@@ -153,43 +148,34 @@ impl ParseState for NirToAir {
                          build of TAMER"
                 )
             }
-            (Ready, Nir::Close(NirEntity::TplApply, span)) => {
+            (Ready, Close(TplApply, span)) => {
                 Transition(Ready).ok(Air::TplEndRef(span))
             }
 
-            (Ready, Nir::Open(NirEntity::TplParam, span)) => {
+            (Ready, Open(TplParam, span)) => {
                 Transition(Ready).ok(Air::TplMetaStart(span))
             }
-            (Ready, Nir::Close(NirEntity::TplParam, span)) => {
+            (Ready, Close(TplParam, span)) => {
                 Transition(Ready).ok(Air::TplMetaEnd(span))
             }
-            (Ready, Nir::Text(lexeme)) => {
+            (Ready, Text(lexeme)) => {
                 Transition(Ready).ok(Air::TplLexeme(lexeme))
             }
 
             (
                 Ready,
-                Nir::Close(
-                    NirEntity::Rate
-                    | NirEntity::Sum
-                    | NirEntity::Product
-                    | NirEntity::Ceil
-                    | NirEntity::Floor
-                    | NirEntity::Classify
-                    | NirEntity::All
-                    | NirEntity::Any,
+                Close(
+                    Rate | Sum | Product | Ceil | Floor | Classify | All | Any,
                     span,
                 ),
             ) => Transition(Ready).ok(Air::ExprEnd(span)),
 
-            (Ready, Nir::BindIdent(spair)) => {
+            (Ready, BindIdent(spair)) => {
                 Transition(Ready).ok(Air::BindIdent(spair))
             }
-            (Ready, Nir::Ref(spair)) => {
-                Transition(Ready).ok(Air::RefIdent(spair))
-            }
+            (Ready, Ref(spair)) => Transition(Ready).ok(Air::RefIdent(spair)),
 
-            (Ready, Nir::Todo | Nir::TodoAttr(..) | Nir::Desc(..)) => {
+            (Ready, Todo | TodoAttr(..) | Desc(..)) => {
                 Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
             }
         }
