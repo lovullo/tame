@@ -1679,8 +1679,8 @@ ele_parse! {
     ApplyTemplate := QN_APPLY_TEMPLATE(_, ospan) {
         @ {
             QN_NAME => Ref,
-        } => Nir::Open(NirEntity::TplApply(None), ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplApply(None), cspan.into()),
+        } => Nir::Open(NirEntity::TplApply, ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplApply, cspan.into()),
 
         ApplyTemplateParam,
     };
@@ -1695,10 +1695,8 @@ ele_parse! {
         @ {
             QN_NAME => BindIdent,
             QN_VALUE => Text,
-        } => Nir::Open(NirEntity::TplParam(None), ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplParam(None), cspan.into()),
-
-        // TODO: Need to support children, e.g. @values@
+        } => Nir::Open(NirEntity::TplParam, ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplParam, cspan.into()),
     };
 
     /// Shorthand template application.
@@ -1716,8 +1714,8 @@ ele_parse! {
     ///     so `bar="baz"` will be desugared into a param `@bar@` with a
     ///     text value `baz`.
     TplApplyShort := NS_T(qname, ospan) {
-        @ {} => Nir::Open(NirEntity::TplApply(Some(qname)), ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplApply(None), cspan.into()),
+        @ {} => Nir::Open(NirEntity::TplApplyShort(qname), ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplApplyShort(qname), cspan.into()),
 
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above
@@ -1727,10 +1725,10 @@ ele_parse! {
                 // TODO: This simply _ignores_ the namespace prefix.
                 //   If it's not a useful construct,
                 //     it ought to be rejected.
-                NirEntity::TplParam(Some((
+                NirEntity::TplParamShort(
                     SPair(*name.local_name(), name_span),
                     SPair(value, value_span),
-                ))),
+                ),
                 name_span,
             )
         },

@@ -117,7 +117,7 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::TplEnd(span))
             }
 
-            (Ready, Nir::Open(NirEntity::TplApply(None), span)) => {
+            (Ready, Nir::Open(NirEntity::TplApply, span)) => {
                 Transition(Ready).ok(Air::TplStart(span))
             }
 
@@ -127,7 +127,11 @@ impl ParseState for NirToAir {
             (
                 Ready,
                 Nir::Open(
-                    NirEntity::TplApply(Some(_)) | NirEntity::TplParam(Some(_)),
+                    NirEntity::TplApplyShort(..) | NirEntity::TplParamShort(..),
+                    span,
+                )
+                | Nir::Close(
+                    NirEntity::TplApplyShort(..) | NirEntity::TplParamShort(..),
                     span,
                 ),
             ) => {
@@ -149,14 +153,14 @@ impl ParseState for NirToAir {
                          build of TAMER"
                 )
             }
-            (Ready, Nir::Close(NirEntity::TplApply(_), span)) => {
+            (Ready, Nir::Close(NirEntity::TplApply, span)) => {
                 Transition(Ready).ok(Air::TplEndRef(span))
             }
 
-            (Ready, Nir::Open(NirEntity::TplParam(None), span)) => {
+            (Ready, Nir::Open(NirEntity::TplParam, span)) => {
                 Transition(Ready).ok(Air::TplMetaStart(span))
             }
-            (Ready, Nir::Close(NirEntity::TplParam(_), span)) => {
+            (Ready, Nir::Close(NirEntity::TplParam, span)) => {
                 Transition(Ready).ok(Air::TplMetaEnd(span))
             }
             (Ready, Nir::Text(lexeme)) => {

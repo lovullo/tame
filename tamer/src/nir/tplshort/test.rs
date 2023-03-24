@@ -30,12 +30,15 @@ fn desugars_nullary() {
     let qname = ("t", "tpl-name").unwrap_into();
     let tpl = "_tpl-name_".into();
 
-    let toks = [Open(TplApply(Some(qname)), S1), Close(TplApply(None), S2)];
+    let toks = [
+        Open(TplApplyShort(qname), S1),
+        Close(TplApplyShort(qname), S2),
+    ];
 
     #[rustfmt::skip]
     assert_eq!(
         Ok(vec![
-            O(Open(TplApply(None), S1)),
+            O(Open(TplApply, S1)),
               // The span associated with the name of the template to be
               //   applied is the span of the entire QName from NIR.
               // The reason for this is that `t:foo` is transformed into
@@ -45,7 +48,7 @@ fn desugars_nullary() {
               //       `foo` is not in itself a valid template name at the
               //       time of writing.
               O(Ref(SPair(tpl, S1))),
-            O(Close(TplApply(None), S2)),
+            O(Close(TplApply, S2)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -67,28 +70,28 @@ fn desugars_unary() {
     #[rustfmt::skip]
     let toks = vec![
         // <t:qname
-        Open(TplApply(Some(qname)), S1),
+        Open(TplApplyShort(qname), S1),
           // foo="foo value"
-          Open(TplParam(Some((aname, pval))), S2),
+          Open(TplParamShort(aname, pval), S2),
           // Implicit close.
         // />
-        Close(TplApply(None), S6),
+        Close(TplApplyShort(qname), S6),
     ];
 
     #[rustfmt::skip]
     assert_eq!(
         Ok(vec![
-            O(Open(TplApply(None), S1)),
+            O(Open(TplApply, S1)),
               O(Ref(name)),
 
-              O(Open(TplParam(None), S2)),
+              O(Open(TplParam, S2)),
                 // Derived from `aname` (by padding)
                 O(BindIdent(pname)),
                 // The value is left untouched.
                 O(Text(pval)),
               // Close is derived from open.
-              O(Close(TplParam(None), S2)),
-            O(Close(TplApply(None), S6)),
+              O(Close(TplParam, S2)),
+            O(Close(TplApply, S6)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -104,7 +107,7 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
     #[rustfmt::skip]
     let toks = vec![
         // <t:qname>
-        Open(TplApply(Some(qname)), S1),
+        Open(TplApplyShort(qname), S1),
           // Body to desugar into own template (@values@).
           Open(Sum, S2),
             Open(Product, S3),
@@ -115,7 +118,7 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
           Open(Product, S6),
           Close(Product, S7),
         // </t:qname>
-        Close(TplApply(None), S8),
+        Close(TplApplyShort(qname), S8),
     ];
 
     // The name of the generated template.
@@ -127,16 +130,16 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
     #[rustfmt::skip]
     assert_eq!(
         Ok(vec![
-            O(Open(TplApply(None), S1)),
+            O(Open(TplApply, S1)),
               O(Ref(name)),
 
               // @values@ remains lexical by referencing the name of a
               //   template we're about to generate.
-              O(Open(TplParam(None), S1)),
+              O(Open(TplParam, S1)),
                 O(BindIdent(SPair(L_TPLP_VALUES, S1))),
                 O(Text(SPair(gen_name, S1))),      //:-.
-              O(Close(TplParam(None), S1)),        //   |
-            O(Close(TplApply(None), S1)),          //   |
+              O(Close(TplParam, S1)),              //   |
+            O(Close(TplApply, S1)),                //   |
                                                    //   |
             // Generate a template to hold the     //   |
             //   body of `@values@`.               //   |
@@ -168,14 +171,14 @@ fn does_not_desugar_long_form() {
 
     #[rustfmt::skip]
     let toks = [
-        Open(TplApply(None), S1),
+        Open(TplApply, S1),
           BindIdent(name),
 
-          Open(TplParam(None), S3),
+          Open(TplParam, S3),
             BindIdent(pname),
             Text(pval),
-          Close(TplParam(None), S6),
-        Close(TplApply(None), S7),
+          Close(TplParam, S6),
+        Close(TplApply, S7),
     ];
 
     #[rustfmt::skip]
@@ -185,14 +188,14 @@ fn does_not_desugar_long_form() {
         // So this is a duplicate of the above,
         //   mapped over `O`.
         Ok(vec![
-            O(Open(TplApply(None), S1)),
+            O(Open(TplApply, S1)),
               O(BindIdent(name)),
 
-              O(Open(TplParam(None), S3)),
+              O(Open(TplParam, S3)),
                 O(BindIdent(pname)),
                 O(Text(pval)),
-              O(Close(TplParam(None), S6)),
-            O(Close(TplApply(None), S7)),
+              O(Close(TplParam, S6)),
+            O(Close(TplApply, S7)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

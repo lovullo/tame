@@ -813,9 +813,8 @@ macro_rules! ele_parse {
                         | CloseRecoverIgnore((qname, _, depth), _),
                         XirfToken::Close(_, span, tok_depth)
                     ) if tok_depth == depth => {
-                        $(
-                            let $close_span = span;
-                        )?
+                        $(#[allow(unused_variables)] let $qname_matched = qname;)?
+                        $(let $close_span = span;)?
                         $closemap.transition(Self(Closed(Some(qname), span.tag_span())))
                     },
 

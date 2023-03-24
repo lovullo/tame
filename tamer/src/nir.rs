@@ -204,22 +204,21 @@ pub enum NirEntity {
     /// Template.
     Tpl,
 
-    /// Template parameter (metavariable).
-    ///
-    /// If a pair of [`SPair`]s is provided,
-    ///   then the param is shorthand,
-    ///   with the non-`@`-padded name as the first of the pair and the
-    ///     value as the second.
-    ///
-    /// A shorthand entity is implicitly closed and should not have a
-    ///   matching [`Nir::Close`] token.
-    TplParam(Option<(SPair, SPair)>),
+    /// Template application (long form).
+    TplApply,
+    /// Template parameter (long form).
+    TplParam,
 
-    /// Full application and expansion a template.
+    /// Template application (shorthand).
+    TplApplyShort(QName),
+    /// Template parameter (shorthand).
     ///
-    /// If a name is provided,
-    ///   then this template application is shorthand.
-    TplApply(Option<QName>),
+    /// The non-`@`-padded name is the first of the pair and the value as
+    ///   the second.
+    ///
+    /// A shorthand param is implicitly closed and should not have a
+    ///   matching [`Nir::Close`] token.
+    TplParamShort(SPair, SPair),
 }
 
 impl NirEntity {
@@ -250,19 +249,19 @@ impl Display for NirEntity {
             Any => write!(f, "disjunctive (∨) expression"),
 
             Tpl => write!(f, "template"),
-            TplParam(None) => write!(f, "template param (metavariable)"),
-            TplParam(Some((name, val))) => write!(
+            TplParam => write!(f, "template param (metavariable)"),
+            TplParamShort(name, val) => write!(
                 f,
                 "shorthand template param key {} with value {}",
                 TtQuote::wrap(name),
                 TtQuote::wrap(val),
             ),
-            TplApply(None) => {
+            TplApply => {
                 write!(f, "full template application and expansion")
             }
-            TplApply(Some(qname)) => write!(
+            TplApplyShort(qname) => write!(
                 f,
-                "full template application and expansion of {}",
+                "full shorthand template application and expansion of {}",
                 TtQuote::wrap(qname.local_name())
             ),
         }

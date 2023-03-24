@@ -146,9 +146,9 @@ fn apply_template_long_form_nullary() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::TplApply(None), S1),
+        Nir::Open(NirEntity::TplApply, S1),
           Nir::Ref(name),
-        Nir::Close(NirEntity::TplApply(None), S3),
+        Nir::Close(NirEntity::TplApply, S3),
     ];
 
     #[rustfmt::skip]
@@ -172,19 +172,19 @@ fn apply_template_long_form_args() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::TplApply(None), S1),
+        Nir::Open(NirEntity::TplApply, S1),
           Nir::Ref(name),
 
-          Nir::Open(NirEntity::TplParam(None), S3),
+          Nir::Open(NirEntity::TplParam, S3),
             Nir::BindIdent(p1),
             Nir::Text(v1),
-          Nir::Close(NirEntity::TplParam(None), S6),
+          Nir::Close(NirEntity::TplParam, S6),
 
-          Nir::Open(NirEntity::TplParam(None), S7),
+          Nir::Open(NirEntity::TplParam, S7),
             Nir::BindIdent(p2),
             Nir::Text(v2),
-          Nir::Close(NirEntity::TplParam(None), S10),
-        Nir::Close(NirEntity::TplApply(None), S11),
+          Nir::Close(NirEntity::TplParam, S10),
+        Nir::Close(NirEntity::TplApply, S11),
     ];
 
     #[rustfmt::skip]

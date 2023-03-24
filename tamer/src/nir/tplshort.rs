@@ -146,7 +146,7 @@ impl ParseState for TplShortDesugar {
             //
             // The name of the template _without_ the underscore padding is
             //   the local part of the QName.
-            (Scanning, Open(TplApply(Some(qname)), span)) => {
+            (Scanning, Open(TplApplyShort(qname), span)) => {
                 // TODO: Determine whether caching these has any notable
                 //   benefit over repeated heap allocations,
                 //     comparing packages with very few applications and
@@ -157,24 +157,19 @@ impl ParseState for TplShortDesugar {
 
                 stack.push(Ref(SPair(tpl_name, span)));
 
-                Transition(DesugaringParams(span))
-                    .ok(Open(TplApply(None), span))
+                Transition(DesugaringParams(span)).ok(Open(TplApply, span))
             }
 
             // Shorthand template params' names do not contain the
             //   surrounding `@`s.
-            (
-                DesugaringParams(ospan),
-                Open(TplParam(Some((name, val))), span),
-            ) => {
+            (DesugaringParams(ospan), Open(TplParamShort(name, val), span)) => {
                 let pname = format!("@{name}@").intern();
 
                 // note: reversed (stack)
-                stack.push(Close(TplParam(None), span));
+                stack.push(Close(TplParam, span));
                 stack.push(Text(val));
                 stack.push(BindIdent(SPair(pname, name.span())));
-                Transition(DesugaringParams(ospan))
-                    .ok(Open(TplParam(None), span))
+                Transition(DesugaringParams(ospan)).ok(Open(TplParam, span))
             }
 
             // A child element while we're desugaring template params
@@ -204,19 +199,19 @@ impl ParseState for TplShortDesugar {
                 // Application ends here,
                 //   and the new template (above) will absorb both this
                 //   token `tok` and all tokens that come after.
-                stack.push(Close(TplApply(None), ospan));
-                stack.push(Close(TplParam(None), ospan));
+                stack.push(Close(TplApply, ospan));
+                stack.push(Close(TplParam, ospan));
                 stack.push(Text(SPair(gen_name, ospan)));
                 stack.push(BindIdent(SPair(L_TPLP_VALUES, ospan)));
-                Transition(DesugaringBody).ok(Open(TplParam(None), ospan))
+                Transition(DesugaringBody).ok(Open(TplParam, ospan))
             }
 
-            (DesugaringBody, Close(TplApply(_), span)) => {
+            (DesugaringBody, Close(TplApplyShort(_), span)) => {
                 Transition(Scanning).ok(Close(Tpl, span))
             }
 
-            (DesugaringParams(_), tok @ Close(TplApply(_), _)) => {
-                Transition(Scanning).ok(tok)
+            (DesugaringParams(_), Close(TplApplyShort(_), span)) => {
+                Transition(Scanning).ok(Close(TplApply, span))
             }
 
             // Any tokens that we don't recognize will be passed on unchanged.
