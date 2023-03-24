@@ -72,11 +72,6 @@ object_rel! {
 }
 
 impl ObjectIndex<Pkg> {
-    /// Indicate that the given identifier `oi` is defined in this package.
-    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self {
-        self.add_edge_to(asg, oi, None)
-    }
-
     /// Complete the definition of a package.
     pub fn close(self, asg: &mut Asg, span: Span) -> Self {
         self.map_obj(asg, Pkg::fmap(|open| open.merge(span).unwrap_or(open)))

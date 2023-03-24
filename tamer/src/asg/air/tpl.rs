@@ -22,16 +22,16 @@
 //! See the [parent module](super) for more information.
 
 use super::{
-    super::{
-        graph::object::{Pkg, Tpl},
-        Asg, AsgError, ObjectIndex,
-    },
+    super::{graph::object::Tpl, Asg, AsgError, ObjectIndex},
     expr::AirExprAggregateStoreDangling,
     ir::AirTemplatable,
     AirExprAggregate,
 };
 use crate::{
-    asg::graph::object::Meta,
+    asg::{
+        graph::object::{Meta, ObjectRelTo},
+        Ident,
+    },
     diagnose::Annotate,
     diagnostic_todo,
     fmt::{DisplayWrapper, TtQuote},
@@ -53,7 +53,10 @@ use crate::{
 ///   expressions just the same as [`super::AirAggregate`] does with
 ///   packages.
 #[derive(Debug, PartialEq)]
-pub enum AirTplAggregate {
+pub enum AirTplAggregate<OR, OT = OR>
+where
+    Self: TplEnvCtxPair<OR, OT>,
+{
     /// Ready for a template,
     ///   defined as part of the given package.
     ///
@@ -62,7 +65,7 @@ pub enum AirTplAggregate {
     ///     AIR has no restrictions on when template header tokens are
     ///     provided,
     ///       which simplifies AIR generation.
-    Ready(ObjectIndex<Pkg>),
+    Ready(TplEnvCtx<OR, OT>),
 
     /// Toplevel template context.
     ///
@@ -71,14 +74,14 @@ pub enum AirTplAggregate {
     ///   applying to the template itself,
     ///     or creating an object directly owned by the template.
     Toplevel(
-        ObjectIndex<Pkg>,
+        TplEnvCtx<OR, OT>,
         TplState,
         AirExprAggregateStoreDangling<Tpl>,
     ),
 
     /// Defining a template metavariable.
     TplMeta(
-        ObjectIndex<Pkg>,
+        TplEnvCtx<OR, OT>,
         TplState,
         AirExprAggregateStoreDangling<Tpl>,
         ObjectIndex<Meta>,
@@ -86,13 +89,16 @@ pub enum AirTplAggregate {
 
     /// Aggregating tokens into a template.
     TplExpr(
-        ObjectIndex<Pkg>,
+        TplEnvCtx<OR, OT>,
         TplState,
         AirExprAggregateStoreDangling<Tpl>,
     ),
 }
 
-impl Display for AirTplAggregate {
+impl<OR, OT> Display for AirTplAggregate<OR, OT>
+where
+    Self: TplEnvCtxPair<OR, OT>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Ready(_) => write!(f, "ready for template definition"),
@@ -107,6 +113,60 @@ impl Display for AirTplAggregate {
         }
     }
 }
+
+/// Environment context for template application.
+///
+/// The _root_ `OR` represents a container for [`Ident`]s to named templates
+///   produced by [`AirTplAggregate`].
+///
+/// The _expansion target_ `OT` is where template applications will expand
+///   into when referenced.
+/// Note that templates defined _within_ a template will receive a different
+///   expansion target,
+///     determined by [`AirTplAggregate``].
+#[derive(Debug, PartialEq)]
+pub struct TplEnvCtx<OR, OT>(ObjectIndex<OR>, ObjectIndex<OT>)
+where
+    Self: TplEnvCtxPair<OR, OT>;
+
+// At the time of writing (2023-03),
+//   deriving these macros places `Clone`/`Copy` trait bounds on each of
+//   `OR` and `OT`,
+//     which is nonsense.
+impl<OR, OT> Clone for TplEnvCtx<OR, OT>
+where
+    Self: TplEnvCtxPair<OR, OT>,
+{
+    fn clone(&self) -> Self {
+        Self(self.0, self.1)
+    }
+}
+impl<OR, OT> Copy for TplEnvCtx<OR, OT> where Self: TplEnvCtxPair<OR, OT> {}
+
+impl<OR, OT> TplEnvCtx<OR, OT>
+where
+    Self: TplEnvCtxPair<OR, OT>,
+{
+    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self {
+        match self {
+            Self(oi_root, oi_target) => {
+                Self(oi_root.defines(asg, oi), oi_target)
+            }
+        }
+    }
+
+    pub fn oi_target(&self) -> ObjectIndex<OT> {
+        match self {
+            Self(_, oi_target) => *oi_target,
+        }
+    }
+}
+
+/// More concisely represent trait bounds for [`TplEnvCtx`].
+pub trait TplEnvCtxPair<OR, OT> = Sized
+where
+    OR: ObjectRelTo<Ident>,
+    OT: ObjectRelTo<Tpl>;
 
 /// The current reachability status of the template.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -177,7 +237,10 @@ impl Display for TplState {
     }
 }
 
-impl ParseState for AirTplAggregate {
+impl<OR, OT> ParseState for AirTplAggregate<OR, OT>
+where
+    Self: TplEnvCtxPair<OR, OT>,
+{
     type Token = AirTemplatable;
     type Object = ();
     type Error = AsgError;
@@ -193,11 +256,11 @@ impl ParseState for AirTplAggregate {
         use AirTplAggregate::*;
 
         match (self, tok) {
-            (Ready(oi_pkg), AirTpl(TplStart(span))) => {
+            (Ready(ois), AirTpl(TplStart(span))) => {
                 let oi_tpl = asg.create(Tpl::new(span));
 
                 Transition(Toplevel(
-                    oi_pkg,
+                    ois,
                     TplState::Dangling(oi_tpl),
                     AirExprAggregate::new_in(oi_tpl),
                 ))
@@ -209,44 +272,40 @@ impl ParseState for AirTplAggregate {
                 "nested tpl open"
             ),
 
-            (Toplevel(oi_pkg, tpl, expr), AirBind(BindIdent(id))) => asg
+            (Toplevel(ois, tpl, expr), AirBind(BindIdent(id))) => asg
                 .lookup_global_or_missing(id)
                 .bind_definition(asg, id, tpl.oi())
-                .map(|oi_ident| oi_pkg.defines(asg, oi_ident))
+                .map(|oi_ident| ois.defines(asg, oi_ident))
                 .map(|_| ())
-                .transition(Toplevel(oi_pkg, tpl.identify(id), expr)),
+                .transition(Toplevel(ois, tpl.identify(id), expr)),
 
-            (Toplevel(oi_pkg, tpl, expr), AirBind(RefIdent(id))) => {
+            (Toplevel(ois, tpl, expr), AirBind(RefIdent(id))) => {
                 tpl.oi().apply_named_tpl(asg, id);
-                Transition(Toplevel(oi_pkg, tpl, expr)).incomplete()
+                Transition(Toplevel(ois, tpl, expr)).incomplete()
             }
 
-            (Toplevel(oi_pkg, tpl, expr), AirTpl(TplMetaStart(span))) => {
+            (Toplevel(ois, tpl, expr), AirTpl(TplMetaStart(span))) => {
                 let oi_meta = asg.create(Meta::new_required(span));
-                Transition(TplMeta(oi_pkg, tpl, expr, oi_meta)).incomplete()
+                Transition(TplMeta(ois, tpl, expr, oi_meta)).incomplete()
             }
-            (
-                TplMeta(oi_pkg, tpl, expr, oi_meta),
-                AirTpl(TplMetaEnd(cspan)),
-            ) => {
+            (TplMeta(ois, tpl, expr, oi_meta), AirTpl(TplMetaEnd(cspan))) => {
                 oi_meta.close(asg, cspan);
-                Transition(Toplevel(oi_pkg, tpl, expr)).incomplete()
+                Transition(Toplevel(ois, tpl, expr)).incomplete()
             }
 
-            (
-                TplMeta(oi_pkg, tpl, expr, oi_meta),
-                AirTpl(TplLexeme(lexeme)),
-            ) => Transition(TplMeta(
-                oi_pkg,
-                tpl,
-                expr,
-                oi_meta.assign_lexeme(asg, lexeme),
-            ))
-            .incomplete(),
+            (TplMeta(ois, tpl, expr, oi_meta), AirTpl(TplLexeme(lexeme))) => {
+                Transition(TplMeta(
+                    ois,
+                    tpl,
+                    expr,
+                    oi_meta.assign_lexeme(asg, lexeme),
+                ))
+                .incomplete()
+            }
 
-            (TplMeta(oi_pkg, tpl, expr, oi_meta), AirBind(BindIdent(name))) => {
+            (TplMeta(ois, tpl, expr, oi_meta), AirBind(BindIdent(name))) => {
                 oi_meta.identify_as_tpl_param(asg, tpl.oi(), name);
-                Transition(TplMeta(oi_pkg, tpl, expr, oi_meta)).incomplete()
+                Transition(TplMeta(ois, tpl, expr, oi_meta)).incomplete()
             }
 
             (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
@@ -287,51 +346,43 @@ impl ParseState for AirTplAggregate {
                 )
             }
 
-            (Toplevel(oi_pkg, tpl, _expr_done), AirTpl(TplEnd(span))) => {
-                tpl.close(asg, span).transition(Ready(oi_pkg))
+            (Toplevel(ois, tpl, _expr_done), AirTpl(TplEnd(span))) => {
+                tpl.close(asg, span).transition(Ready(ois))
             }
 
-            (TplExpr(oi_pkg, tpl, expr), AirTpl(TplEnd(span))) => {
+            (TplExpr(ois, tpl, expr), AirTpl(TplEnd(span))) => {
                 // TODO: duplicated with AirAggregate
                 if expr.is_accepting(asg) {
-                    tpl.close(asg, span).transition(Ready(oi_pkg))
+                    tpl.close(asg, span).transition(Ready(ois))
                 } else {
-                    Transition(TplExpr(oi_pkg, tpl, expr))
+                    Transition(TplExpr(ois, tpl, expr))
                         .err(AsgError::InvalidTplEndContext(span))
                 }
             }
 
-            (Toplevel(oi_pkg, tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                tpl.oi().expand_into(asg, oi_pkg);
+            (Toplevel(ois, tpl, expr_done), AirTpl(TplEndRef(span))) => {
+                tpl.oi().expand_into(asg, ois.oi_target());
 
-                Transition(Toplevel(
-                    oi_pkg,
-                    tpl.anonymous_reachable(),
-                    expr_done,
-                ))
-                .incomplete()
-                .with_lookahead(AirTpl(TplEnd(span)))
+                Transition(Toplevel(ois, tpl.anonymous_reachable(), expr_done))
+                    .incomplete()
+                    .with_lookahead(AirTpl(TplEnd(span)))
             }
 
-            (TplExpr(oi_pkg, tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                tpl.oi().expand_into(asg, oi_pkg);
+            (TplExpr(ois, tpl, expr_done), AirTpl(TplEndRef(span))) => {
+                tpl.oi().expand_into(asg, ois.oi_target());
 
-                Transition(TplExpr(
-                    oi_pkg,
-                    tpl.anonymous_reachable(),
-                    expr_done,
-                ))
-                .incomplete()
-                .with_lookahead(AirTpl(TplEnd(span)))
+                Transition(TplExpr(ois, tpl.anonymous_reachable(), expr_done))
+                    .incomplete()
+                    .with_lookahead(AirTpl(TplEnd(span)))
             }
 
             (
-                Toplevel(oi_pkg, tpl, expr) | TplExpr(oi_pkg, tpl, expr),
+                Toplevel(ois, tpl, expr) | TplExpr(ois, tpl, expr),
                 AirExpr(etok),
-            ) => Self::delegate_expr(asg, oi_pkg, tpl, expr, etok),
+            ) => Self::delegate_expr(asg, ois, tpl, expr, etok),
 
-            (TplExpr(oi_pkg, tpl, expr), AirBind(etok)) => {
-                Self::delegate_expr(asg, oi_pkg, tpl, expr, etok)
+            (TplExpr(ois, tpl, expr), AirBind(etok)) => {
+                Self::delegate_expr(asg, ois, tpl, expr, etok)
             }
 
             (TplExpr(..), AirTpl(TplStart(span))) => {
@@ -366,15 +417,21 @@ impl ParseState for AirTplAggregate {
     }
 }
 
-impl AirTplAggregate {
-    pub(super) fn new_in_pkg(oi_pkg: ObjectIndex<Pkg>) -> Self {
-        Self::Ready(oi_pkg)
+impl<OR, OT> AirTplAggregate<OR, OT>
+where
+    Self: TplEnvCtxPair<OR, OT>,
+{
+    pub(super) fn new(
+        oi_root: ObjectIndex<OR>,
+        oi_target: ObjectIndex<OT>,
+    ) -> Self {
+        Self::Ready(TplEnvCtx(oi_root, oi_target))
     }
 
     /// Delegate to the expression parser [`AirExprAggregate`].
     fn delegate_expr(
         asg: &mut <Self as ParseState>::Context,
-        oi_pkg: ObjectIndex<Pkg>,
+        ois: TplEnvCtx<OR, OT>,
         tpl: TplState,
         expr: AirExprAggregateStoreDangling<Tpl>,
         etok: impl Into<<AirExprAggregateStoreDangling<Tpl> as ParseState>::Token>,
@@ -382,13 +439,11 @@ impl AirTplAggregate {
         let tok = etok.into();
 
         expr.parse_token(tok, asg).branch_dead::<Self, _>(
-            |expr, ()| {
-                Transition(Self::Toplevel(oi_pkg, tpl, expr)).incomplete()
-            },
+            |expr, ()| Transition(Self::Toplevel(ois, tpl, expr)).incomplete(),
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
-                    .transition(Self::TplExpr(oi_pkg, tpl, expr))
+                    .transition(Self::TplExpr(ois, tpl, expr))
             },
             (),
         )

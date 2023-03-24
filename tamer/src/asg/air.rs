@@ -80,7 +80,7 @@ pub enum AirAggregate {
     PkgTpl(
         ObjectIndex<Pkg>,
         AirExprAggregateReachable<Pkg>,
-        AirTplAggregate,
+        AirTplAggregate<Pkg>,
     ),
 }
 
@@ -171,7 +171,7 @@ impl ParseState for AirAggregate {
             ) => Transition(PkgTpl(
                 oi_pkg,
                 expr,
-                AirTplAggregate::new_in_pkg(oi_pkg),
+                AirTplAggregate::new(oi_pkg, oi_pkg),
             ))
             .incomplete()
             .with_lookahead(tok),
@@ -305,8 +305,8 @@ impl AirAggregate {
         asg: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
         stored_expr: AirExprAggregateReachable<Pkg>,
-        tplst: AirTplAggregate,
-        ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
+        tplst: AirTplAggregate<Pkg>,
+        ttok: impl Into<<AirTplAggregate<Pkg> as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         tplst.parse_token(ttok.into(), asg).branch_dead::<Self, _>(
             |_, stored_expr| {

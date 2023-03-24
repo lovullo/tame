@@ -715,6 +715,14 @@ impl<O: ObjectKind> ObjectIndex<O> {
         }
     }
 
+    /// Indicate that the given identifier `oi` is defined by this object.
+    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
+    where
+        O: ObjectRelTo<Ident>,
+    {
+        self.add_edge_to(asg, oi, None)
+    }
+
     /// Attempt to look up a locally bound [`Ident`] via a linear search of
     ///   `self`'s edges.
     ///
