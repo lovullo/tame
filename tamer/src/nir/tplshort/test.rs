@@ -162,6 +162,54 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
     );
 }
 
+// Shorthand within a shorthand.
+#[test]
+fn desugar_nested_apply() {
+    let qname_outer = ("t", "outer").unwrap_into();
+    let name_outer = SPair("_outer_".into(), S1);
+
+    let qname_inner = ("t", "inner").unwrap_into();
+    let name_inner = SPair("_inner_".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(TplApplyShort(qname_outer), S1),
+          // Body is a second shorthand template application.
+          Open(TplApplyShort(qname_inner), S2),
+          Close(TplApplyShort(qname_inner), S3),
+        Close(TplApplyShort(qname_outer), S4),
+    ];
+
+    let gen_name_outer = gen_tpl_name_at_offset(S1);
+
+    #[rustfmt::skip]
+    assert_eq!(
+        Ok(vec![
+            O(Open(TplApply, S1)),
+              O(Ref(name_outer)),
+
+              // @values@
+              O(Open(TplParam, S1)),
+                O(BindIdent(SPair(L_TPLP_VALUES, S1))),
+                O(Text(SPair(gen_name_outer, S1))),    //:-.
+              O(Close(TplParam, S1)),                  //   |
+            O(Close(TplApply, S1)),                    //   |
+                                                       //   |
+            O(Open(Tpl, S1)),                          //  /
+              O(BindIdent(SPair(gen_name_outer, S1))), //<`
+
+              // And within this template,
+              //   we generate another application.
+              // This one has no body and so no `@values@`.
+              O(Open(TplApply, S2)),
+                O(Ref(name_inner)),
+              O(Close(TplApply, S3)),
+            O(Close(Tpl, S4)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 // Don't parse what we desugar into!
 #[test]
 fn does_not_desugar_long_form() {

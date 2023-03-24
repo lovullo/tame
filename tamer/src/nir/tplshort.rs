@@ -19,6 +19,8 @@
 
 //! Shorthand template application desugaring for NIR.
 //!
+//! Desugaring is performed by [`TplShortDesugar`].
+//!
 //! A shorthand template application looks something like this,
 //!   in XML form:
 //!
@@ -90,21 +92,27 @@ use std::convert::Infallible;
 use Nir::*;
 use NirEntity::*;
 
+/// Desugar shorthand template applications into long-form template
+///   applications.
+///
+/// This parser is able to handle nested applications without having to
+///   track nesting by taking advantage of the parsing that NIR has already
+///   performed.
+///
+/// See the [module-level documentation](super) for more information.
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum TplShortDesugar {
     /// Waiting for shorthand template application,
     ///   passing tokens along in the meantime.
+    ///
+    /// This state is also used when parsing the body of a shorthand
+    ///   template application.
     #[default]
     Scanning,
 
     /// A shorthand template application associated with the provided
     ///   [`Span`] was encountered and shorthand params are being desugared.
     DesugaringParams(Span),
-
-    /// A child element was encountered while desugaring params,
-    ///   indicating a body of the shorthand application that needs
-    ///   desugaring into `@values@`.
-    DesugaringBody,
 }
 
 impl Display for TplShortDesugar {
@@ -115,9 +123,6 @@ impl Display for TplShortDesugar {
             }
             Self::DesugaringParams(_) => {
                 write!(f, "desugaring shorthand template application params")
-            }
-            Self::DesugaringBody => {
-                write!(f, "desugaring shorthand template application body")
             }
         }
     }
@@ -192,7 +197,6 @@ impl ParseState for TplShortDesugar {
                 //   yet-to-be-defined means.
                 //
                 // note: reversed (stack)
-                stack.push(tok);
                 stack.push(BindIdent(SPair(gen_name, ospan)));
                 stack.push(Open(Tpl, ospan));
 
@@ -203,13 +207,23 @@ impl ParseState for TplShortDesugar {
                 stack.push(Close(TplParam, ospan));
                 stack.push(Text(SPair(gen_name, ospan)));
                 stack.push(BindIdent(SPair(L_TPLP_VALUES, ospan)));
-                Transition(DesugaringBody).ok(Open(TplParam, ospan))
+
+                // Note that we must have `tok` as lookahead instead of
+                //   pushing directly on the stack in case it's a
+                //   `TplApplyShort`.
+                Transition(Scanning)
+                    .ok(Open(TplParam, ospan))
+                    .with_lookahead(tok)
             }
 
-            (DesugaringBody, Close(TplApplyShort(_), span)) => {
+            // If we're scanning and find a closing shorthand application,
+            //   then we must have just finished with a shorthand body.
+            (Scanning, Close(TplApplyShort(_), span)) => {
                 Transition(Scanning).ok(Close(Tpl, span))
             }
 
+            // If we complete the shorthand template during param parsing,
+            //   then we have no body and must close the application.
             (DesugaringParams(_), Close(TplApplyShort(_), span)) => {
                 Transition(Scanning).ok(Close(TplApply, span))
             }
