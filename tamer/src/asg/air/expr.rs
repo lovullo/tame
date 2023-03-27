@@ -27,6 +27,7 @@ use super::{
         Asg, AsgError, ObjectIndex,
     },
     ir::AirBindableExpr,
+    AirAggregateCtx,
 };
 use crate::{
     asg::{graph::object::ObjectRelTo, Ident, ObjectKind},
@@ -87,16 +88,18 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
     type Token = AirBindableExpr;
     type Object = ();
     type Error = AsgError;
-    type Context = Asg;
+    type Context = AirAggregateCtx;
 
     fn parse_token(
         self,
         tok: Self::Token,
-        asg: &mut Self::Context,
+        ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self::Super> {
         use super::ir::{AirBind::*, AirExpr::*};
         use AirBindableExpr::*;
         use AirExprAggregate::*;
+
+        let asg = ctx.asg_mut();
 
         match (self, tok) {
             (Ready(root, es, _), AirExpr(ExprStart(op, span))) => {

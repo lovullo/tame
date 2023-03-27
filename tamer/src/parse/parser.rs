@@ -497,9 +497,9 @@ pub struct FinalizedParser<S: ParseState>(S::Context);
 
 impl<S: ParseState> FinalizedParser<S> {
     /// Take ownership over the inner [`ParseState::Context`].
-    pub fn into_context(self) -> S::Context {
+    pub fn into_context(self) -> S::PubContext {
         match self {
-            Self(ctx) => ctx,
+            Self(ctx) => ctx.into(),
         }
     }
 }

@@ -107,16 +107,17 @@ impl ParseState for AirAggregate {
     type Token = Air;
     type Object = ();
     type Error = AsgError;
+    type Context = AirAggregateCtx;
 
     /// Destination [`Asg`] that this parser lowers into.
     ///
     /// This ASG will be yielded by [`crate::parse::Parser::finalize`].
-    type Context = Asg;
+    type PubContext = Asg;
 
     fn parse_token(
         self,
         tok: Self::Token,
-        asg: &mut Self::Context,
+        ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
         use ir::{
             AirBind::*, AirIdent::*, AirPkg::*, AirSubsets::*, AirTodo::*,
@@ -128,7 +129,8 @@ impl ParseState for AirAggregate {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
             (Empty, AirPkg(PkgStart(span))) => {
-                let oi_pkg = asg.create(Pkg::new(span)).root(asg);
+                let oi_pkg =
+                    ctx.asg_mut().create(Pkg::new(span)).root(ctx.asg_mut());
                 Transition(Toplevel(oi_pkg, AirExprAggregate::new_in(oi_pkg)))
                     .incomplete()
             }
@@ -145,7 +147,7 @@ impl ParseState for AirAggregate {
 
             // No expression was started.
             (Toplevel(oi_pkg, _expr), AirPkg(PkgEnd(span))) => {
-                oi_pkg.close(asg, span);
+                oi_pkg.close(ctx.asg_mut(), span);
                 Transition(Empty).incomplete()
             }
 
@@ -182,21 +184,21 @@ impl ParseState for AirAggregate {
             //       unreachable paths)
             //     because of the different inner types.
             (PkgExpr(oi_pkg, expr), AirExpr(etok)) => {
-                Self::delegate_expr(asg, oi_pkg, expr, etok)
+                Self::delegate_expr(ctx, oi_pkg, expr, etok)
             }
             (PkgExpr(oi_pkg, expr), AirBind(etok)) => {
-                Self::delegate_expr(asg, oi_pkg, expr, etok)
+                Self::delegate_expr(ctx, oi_pkg, expr, etok)
             }
 
             // Template parsing.
             (PkgTpl(oi_pkg, stored_expr, tplst), AirExpr(ttok)) => {
-                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
+                Self::delegate_tpl(ctx, oi_pkg, stored_expr, tplst, ttok)
             }
             (PkgTpl(oi_pkg, stored_expr, tplst), AirBind(ttok)) => {
-                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
+                Self::delegate_tpl(ctx, oi_pkg, stored_expr, tplst, ttok)
             }
             (PkgTpl(oi_pkg, stored_expr, tplst), AirTpl(ttok)) => {
-                Self::delegate_tpl(asg, oi_pkg, stored_expr, tplst, ttok)
+                Self::delegate_tpl(ctx, oi_pkg, stored_expr, tplst, ttok)
             }
 
             (PkgTpl(..), tok @ AirPkg(PkgStart(..))) => {
@@ -211,10 +213,10 @@ impl ParseState for AirAggregate {
             }
 
             (PkgExpr(oi_pkg, expr), AirPkg(PkgEnd(span))) => {
-                match expr.is_accepting(asg) {
+                match expr.is_accepting(ctx) {
                     true => {
                         // TODO: this is duplicated with the above
-                        oi_pkg.close(asg, span);
+                        oi_pkg.close(ctx.asg_mut(), span);
                         Transition(Empty).incomplete()
                     }
                     false => Transition(PkgExpr(oi_pkg, expr))
@@ -223,7 +225,7 @@ impl ParseState for AirAggregate {
             }
 
             (PkgTpl(oi_pkg, stored_expr, tplst), AirPkg(PkgEnd(span))) => {
-                match tplst.is_accepting(asg) {
+                match tplst.is_accepting(ctx) {
                     true => Transition(PkgExpr(oi_pkg, stored_expr))
                         .incomplete()
                         .with_lookahead(AirPkg(PkgEnd(span))),
@@ -236,25 +238,31 @@ impl ParseState for AirAggregate {
                 Transition(Empty).err(AsgError::PkgExpected(tok.span()))
             }
 
-            (Empty, AirIdent(IdentDecl(name, kind, src))) => {
-                asg.declare(name, kind, src).map(|_| ()).transition(Empty)
-            }
+            (Empty, AirIdent(IdentDecl(name, kind, src))) => ctx
+                .asg_mut()
+                .declare(name, kind, src)
+                .map(|_| ())
+                .transition(Empty),
 
-            (Empty, AirIdent(IdentExternDecl(name, kind, src))) => asg
+            (Empty, AirIdent(IdentExternDecl(name, kind, src))) => ctx
+                .asg_mut()
                 .declare_extern(name, kind, src)
                 .map(|_| ())
                 .transition(Empty),
 
             (Empty, AirIdent(IdentDep(sym, dep))) => {
-                asg.add_dep_lookup_global(sym, dep);
+                ctx.asg_mut().add_dep_lookup_global(sym, dep);
                 Transition(Empty).incomplete()
             }
 
-            (Empty, AirIdent(IdentFragment(sym, text))) => {
-                asg.set_fragment(sym, text).map(|_| ()).transition(Empty)
-            }
+            (Empty, AirIdent(IdentFragment(sym, text))) => ctx
+                .asg_mut()
+                .set_fragment(sym, text)
+                .map(|_| ())
+                .transition(Empty),
 
             (Empty, AirIdent(IdentRoot(sym))) => {
+                let asg = ctx.asg_mut();
                 let obj = asg.lookup_global_or_missing(sym);
                 asg.add_root(obj);
 
@@ -319,6 +327,49 @@ impl AirAggregate {
             },
             stored_expr,
         )
+    }
+}
+
+/// Additional parser context.
+///
+/// TODO: This was introduced to hold additional context;
+///   see future commit.
+#[derive(Debug, Default)]
+pub struct AirAggregateCtx(Asg);
+
+impl AirAggregateCtx {
+    fn asg_mut(&mut self) -> &mut Asg {
+        self.as_mut()
+    }
+}
+
+impl AsRef<Asg> for AirAggregateCtx {
+    fn as_ref(&self) -> &Asg {
+        match self {
+            Self(asg) => asg,
+        }
+    }
+}
+
+impl AsMut<Asg> for AirAggregateCtx {
+    fn as_mut(&mut self) -> &mut Asg {
+        match self {
+            Self(asg) => asg,
+        }
+    }
+}
+
+impl From<AirAggregateCtx> for Asg {
+    fn from(ctx: AirAggregateCtx) -> Self {
+        match ctx {
+            AirAggregateCtx(asg) => asg,
+        }
+    }
+}
+
+impl From<Asg> for AirAggregateCtx {
+    fn from(asg: Asg) -> Self {
+        Self(asg)
     }
 }
 

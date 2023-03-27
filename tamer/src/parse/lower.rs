@@ -138,9 +138,9 @@ where
     #[inline]
     fn lower_with_context<U, E>(
         &mut self,
-        ctx: impl Into<LS::Context>,
+        ctx: impl Into<LS::PubContext>,
         f: impl FnOnce(&mut LowerIter<S, Self, LS, EW>) -> Result<U, E>,
-    ) -> Result<(U, LS::Context), E>
+    ) -> Result<(U, LS::PubContext), E>
     where
         Self: Iterator<Item = WidenedParsedResult<S, EW>> + Sized,
         E: Diagnostic + From<FinalizeError>,

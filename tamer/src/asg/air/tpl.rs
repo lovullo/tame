@@ -25,7 +25,7 @@ use super::{
     super::{graph::object::Tpl, Asg, AsgError, ObjectIndex},
     expr::AirExprAggregateStoreDangling,
     ir::AirTemplatable,
-    AirExprAggregate,
+    AirAggregateCtx, AirExprAggregate,
 };
 use crate::{
     asg::{
@@ -244,12 +244,12 @@ where
     type Token = AirTemplatable;
     type Object = ();
     type Error = AsgError;
-    type Context = Asg;
+    type Context = AirAggregateCtx;
 
     fn parse_token(
         self,
         tok: Self::Token,
-        asg: &mut Self::Context,
+        ctx: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         use super::ir::{AirBind::*, AirTpl::*};
         use AirTemplatable::*;
@@ -257,7 +257,7 @@ where
 
         match (self, tok) {
             (Ready(ois), AirTpl(TplStart(span))) => {
-                let oi_tpl = asg.create(Tpl::new(span));
+                let oi_tpl = ctx.asg_mut().create(Tpl::new(span));
 
                 Transition(Toplevel(
                     ois,
@@ -272,24 +272,27 @@ where
                 "nested tpl open"
             ),
 
-            (Toplevel(ois, tpl, expr), AirBind(BindIdent(id))) => asg
-                .lookup_global_or_missing(id)
-                .bind_definition(asg, id, tpl.oi())
-                .map(|oi_ident| ois.defines(asg, oi_ident))
-                .map(|_| ())
-                .transition(Toplevel(ois, tpl.identify(id), expr)),
+            (Toplevel(ois, tpl, expr), AirBind(BindIdent(id))) => {
+                let asg = ctx.asg_mut();
+
+                asg.lookup_global_or_missing(id)
+                    .bind_definition(asg, id, tpl.oi())
+                    .map(|oi_ident| ois.defines(asg, oi_ident))
+                    .map(|_| ())
+                    .transition(Toplevel(ois, tpl.identify(id), expr))
+            }
 
             (Toplevel(ois, tpl, expr), AirBind(RefIdent(id))) => {
-                tpl.oi().apply_named_tpl(asg, id);
+                tpl.oi().apply_named_tpl(ctx.asg_mut(), id);
                 Transition(Toplevel(ois, tpl, expr)).incomplete()
             }
 
             (Toplevel(ois, tpl, expr), AirTpl(TplMetaStart(span))) => {
-                let oi_meta = asg.create(Meta::new_required(span));
+                let oi_meta = ctx.asg_mut().create(Meta::new_required(span));
                 Transition(TplMeta(ois, tpl, expr, oi_meta)).incomplete()
             }
             (TplMeta(ois, tpl, expr, oi_meta), AirTpl(TplMetaEnd(cspan))) => {
-                oi_meta.close(asg, cspan);
+                oi_meta.close(ctx.asg_mut(), cspan);
                 Transition(Toplevel(ois, tpl, expr)).incomplete()
             }
 
@@ -298,13 +301,13 @@ where
                     ois,
                     tpl,
                     expr,
-                    oi_meta.assign_lexeme(asg, lexeme),
+                    oi_meta.assign_lexeme(ctx.asg_mut(), lexeme),
                 ))
                 .incomplete()
             }
 
             (TplMeta(ois, tpl, expr, oi_meta), AirBind(BindIdent(name))) => {
-                oi_meta.identify_as_tpl_param(asg, tpl.oi(), name);
+                oi_meta.identify_as_tpl_param(ctx.asg_mut(), tpl.oi(), name);
                 Transition(TplMeta(ois, tpl, expr, oi_meta)).incomplete()
             }
 
@@ -347,13 +350,13 @@ where
             }
 
             (Toplevel(ois, tpl, _expr_done), AirTpl(TplEnd(span))) => {
-                tpl.close(asg, span).transition(Ready(ois))
+                tpl.close(ctx.asg_mut(), span).transition(Ready(ois))
             }
 
             (TplExpr(ois, tpl, expr), AirTpl(TplEnd(span))) => {
                 // TODO: duplicated with AirAggregate
-                if expr.is_accepting(asg) {
-                    tpl.close(asg, span).transition(Ready(ois))
+                if expr.is_accepting(ctx) {
+                    tpl.close(ctx.asg_mut(), span).transition(Ready(ois))
                 } else {
                     Transition(TplExpr(ois, tpl, expr))
                         .err(AsgError::InvalidTplEndContext(span))
@@ -361,7 +364,7 @@ where
             }
 
             (Toplevel(ois, tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                tpl.oi().expand_into(asg, ois.oi_target());
+                tpl.oi().expand_into(ctx.asg_mut(), ois.oi_target());
 
                 Transition(Toplevel(ois, tpl.anonymous_reachable(), expr_done))
                     .incomplete()
@@ -369,7 +372,7 @@ where
             }
 
             (TplExpr(ois, tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                tpl.oi().expand_into(asg, ois.oi_target());
+                tpl.oi().expand_into(ctx.asg_mut(), ois.oi_target());
 
                 Transition(TplExpr(ois, tpl.anonymous_reachable(), expr_done))
                     .incomplete()
@@ -379,10 +382,10 @@ where
             (
                 Toplevel(ois, tpl, expr) | TplExpr(ois, tpl, expr),
                 AirExpr(etok),
-            ) => Self::delegate_expr(asg, ois, tpl, expr, etok),
+            ) => Self::delegate_expr(ctx, ois, tpl, expr, etok),
 
             (TplExpr(ois, tpl, expr), AirBind(etok)) => {
-                Self::delegate_expr(asg, ois, tpl, expr, etok)
+                Self::delegate_expr(ctx, ois, tpl, expr, etok)
             }
 
             (TplExpr(..), AirTpl(TplStart(span))) => {

@@ -169,6 +169,16 @@ where
     ///   otherwise-immutable [`ParseState`].
     type Context: Debug = context::Empty;
 
+    /// Public representation of [`Self::Context`].
+    ///
+    /// If [`Self::Context`] holds internal state that isn't intended to be
+    ///   exposed via a public API,
+    ///     this represents the type that should be used in its place.
+    /// Since public APIs include both input and output,
+    ///   this type must be convertable to _and_ from [`Self::Context`].
+    type PubContext: Debug + From<Self::Context> + Into<Self::Context> =
+        Self::Context;
+
     /// Construct a parser with a [`Default`] state.
     ///
     /// Whether this method is helpful or provides any clarity depends on
@@ -198,12 +208,12 @@ where
     ///   see [`Parser::finalize`].
     fn parse_with_context<I: TokenStream<Self::Token>>(
         toks: I,
-        ctx: Self::Context,
+        ctx: Self::PubContext,
     ) -> Parser<Self, I>
     where
         Self: ClosedParseState + Default,
     {
-        Parser::from((toks, ctx))
+        Parser::from((toks, ctx.into()))
     }
 
     /// Parse a single [`Token`] and optionally perform a state transition.
