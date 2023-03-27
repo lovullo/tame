@@ -63,7 +63,7 @@ pub enum AirAggregate {
     Empty,
 
     /// Expecting a package-level token.
-    Toplevel(ObjectIndex<Pkg>, AirExprAggregateReachable<Pkg>),
+    Toplevel(ObjectIndex<Pkg>),
 
     /// Parsing an expression.
     ///
@@ -90,7 +90,7 @@ impl Display for AirAggregate {
 
         match self {
             Empty => write!(f, "awaiting AIR input for ASG"),
-            Toplevel(_, _) => {
+            Toplevel(_) => {
                 write!(f, "expecting package header or an expression")
             }
             PkgExpr(_, expr) => {
@@ -131,12 +131,11 @@ impl ParseState for AirAggregate {
             (Empty, AirPkg(PkgStart(span))) => {
                 let oi_pkg =
                     ctx.asg_mut().create(Pkg::new(span)).root(ctx.asg_mut());
-                Transition(Toplevel(oi_pkg, AirExprAggregate::new_in(oi_pkg)))
-                    .incomplete()
+                Transition(Toplevel(oi_pkg)).incomplete()
             }
 
-            (Toplevel(oi_pkg, expr), AirPkg(PkgStart(span))) => {
-                Transition(Toplevel(oi_pkg, expr))
+            (Toplevel(oi_pkg), AirPkg(PkgStart(span))) => {
+                Transition(Toplevel(oi_pkg))
                     .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
             }
 
@@ -146,7 +145,7 @@ impl ParseState for AirAggregate {
             }
 
             // No expression was started.
-            (Toplevel(oi_pkg, _expr), AirPkg(PkgEnd(span))) => {
+            (Toplevel(oi_pkg), AirPkg(PkgEnd(span))) => {
                 oi_pkg.close(ctx.asg_mut(), span);
                 Transition(Empty).incomplete()
             }
@@ -159,18 +158,26 @@ impl ParseState for AirAggregate {
                 Transition(st).err(AsgError::InvalidExprRefContext(id))
             }
 
-            (Toplevel(oi_pkg, expr), tok @ AirExpr(..)) => {
+            (Toplevel(oi_pkg), tok @ AirExpr(..)) => {
+                let expr = AirExprAggregate::new_in(oi_pkg);
                 Transition(PkgExpr(oi_pkg, expr))
                     .incomplete()
                     .with_lookahead(tok)
             }
 
+            // TODO: This is temporary during refactoring
+            //   (creating an AirExprAggregate just to pass to this).
+            (Toplevel(oi_pkg), tok @ AirTpl(..)) => Transition(PkgTpl(
+                oi_pkg,
+                AirExprAggregate::new_in(oi_pkg),
+                AirTplAggregate::new(oi_pkg, oi_pkg),
+            ))
+            .incomplete()
+            .with_lookahead(tok),
+
             // Note that templates may preempt expressions at any point,
             //   unlike in NIR at the time of writing.
-            (
-                Toplevel(oi_pkg, expr) | PkgExpr(oi_pkg, expr),
-                tok @ AirTpl(..),
-            ) => Transition(PkgTpl(
+            (PkgExpr(oi_pkg, expr), tok @ AirTpl(..)) => Transition(PkgTpl(
                 oi_pkg,
                 expr,
                 AirTplAggregate::new(oi_pkg, oi_pkg),
@@ -292,7 +299,7 @@ impl AirAggregate {
         let tok = etok.into();
 
         expr.parse_token(tok, asg).branch_dead::<Self, _>(
-            |expr, ()| Transition(Self::Toplevel(oi_pkg, expr)).incomplete(),
+            |_, ()| Transition(Self::Toplevel(oi_pkg)).incomplete(),
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
