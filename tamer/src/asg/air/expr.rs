@@ -30,7 +30,10 @@ use super::{
     AirAggregateCtx,
 };
 use crate::{
-    asg::{graph::object::ObjectRelTo, Ident, ObjectKind},
+    asg::{
+        graph::object::{ObjectIndexRelTo, ObjectRelTo},
+        Ident, ObjectKind,
+    },
     f::Functor,
     parse::prelude::*,
 };

@@ -143,8 +143,8 @@ pub use ident::Ident;
 pub use meta::Meta;
 pub use pkg::Pkg;
 pub use rel::{
-    DynObjectRel, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
-    ObjectRelatable,
+    DynObjectRel, ObjectIndexRelTo, ObjectIndexTo, ObjectRel, ObjectRelFrom,
+    ObjectRelTo, ObjectRelTy, ObjectRelatable,
 };
 pub use root::Root;
 pub use tpl::Tpl;
@@ -517,48 +517,22 @@ impl<O: ObjectKind> ObjectIndex<O> {
         }
     }
 
-    /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
-    ///
-    /// An edge can only be added if ontologically valid;
-    ///   see [`ObjectRelTo`] for more information.
-    ///
-    /// Edges may contain _contextual [`Span`]s_ if there is an important
-    ///   distinction to be made between a the span of a _reference_ to the
-    ///   target and the span of the target itself.
-    /// This is of particular benefit to cross edges
-    ///   (see [`ObjectRel::is_cross_edge`]),
-    ///     which reference nodes from other trees in different contexts.
-    ///
-    /// See also [`Self::add_edge_to`].
-    pub fn add_edge_to<OB: ObjectKind>(
-        self,
-        asg: &mut Asg,
-        to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
-    ) -> Self
-    where
-        O: ObjectRelTo<OB>,
-    {
-        asg.add_edge(self, to_oi, ctx_span);
-        self
-    }
-
     /// Add an edge from `from_oi` to `self` on the provided [`Asg`].
     ///
     /// An edge can only be added if ontologically valid;
     ///   see [`ObjectRelTo`] for more information.
     ///
     /// See also [`Self::add_edge_to`].
-    pub fn add_edge_from<OB: ObjectKind>(
+    pub fn add_edge_from<OF: ObjectIndexRelTo<O>>(
         self,
         asg: &mut Asg,
-        from_oi: ObjectIndex<OB>,
+        from_oi: OF,
         ctx_span: Option<Span>,
     ) -> Self
     where
-        OB: ObjectRelTo<O>,
+        O: ObjectRelatable,
     {
-        from_oi.add_edge_to(asg, self, ctx_span);
+        asg.add_edge(from_oi, self, ctx_span);
         self
     }
 
@@ -709,18 +683,20 @@ impl<O: ObjectKind> ObjectIndex<O> {
     /// This generalization is useful in dynamic contexts,
     ///   but it discards type information that must be later re-checked and
     ///   verified.
+    /// See [`Self::widen_dyn_ty`] to retain that type information.
     pub fn widen(self) -> ObjectIndex<Object> {
         match self {
             Self(index, span, _pd) => ObjectIndex::new(index, span),
         }
     }
 
-    /// Indicate that the given identifier `oi` is defined by this object.
-    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
+    /// Widen an [`ObjectKind`] `O` into [`Object`] like [`Self::widen`],
+    ///   but retain type information for later narrowing at runtime.
+    pub fn widen_dyn_ty(self) -> (ObjectIndex<Object>, ObjectRelTy)
     where
-        O: ObjectRelTo<Ident>,
+        O: ObjectRelatable,
     {
-        self.add_edge_to(asg, oi, None)
+        (self.widen(), O::rel_ty())
     }
 
     /// Attempt to look up a locally bound [`Ident`] via a linear search of
@@ -760,11 +736,12 @@ impl<O: ObjectKind> ObjectIndex<O> {
 
     /// Declare a local identifier.
     ///
-    /// A local identifier is lexically scoped to `self`.
-    /// This operation is valid only for [`ObjectKind`]s that can contain
-    ///   edges to [`Ident`]s.
-    ///
-    /// TODO: This allows for duplicate local identifiers!
+    /// See [`ObjectIndexRelTo::declare_local`].
+    //
+    // TODO: This method exists here only as a fallback when Rust is unable
+    //     to infer the proper type for [`ObjectIndexRelTo`].
+    //   It can be removed once that is resolved;
+    //     delete this method and compile to see.
     pub fn declare_local(
         &self,
         asg: &mut Asg,
@@ -773,8 +750,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     where
         O: ObjectRelTo<Ident>,
     {
-        asg.create(Ident::declare(name))
-            .add_edge_from(asg, *self, None)
+        ObjectIndexRelTo::declare_local(self, asg, name)
     }
 
     /// Retrieve the identifier for this object,

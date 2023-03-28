@@ -25,8 +25,8 @@
 //! The canonical metavariable is the template parameter.
 
 use super::{
-    Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, Tpl,
+    Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
+    ObjectRelTy, ObjectRelatable, Tpl,
 };
 use crate::{
     asg::Asg,

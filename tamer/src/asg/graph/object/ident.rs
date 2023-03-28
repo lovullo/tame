@@ -21,8 +21,8 @@
 
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    Expr, Meta, Object, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
-    ObjectRelatable, Pkg, Tpl,
+    Expr, Meta, Object, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
+    ObjectRelTo, ObjectRelTy, ObjectRelatable, Pkg, Tpl,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},

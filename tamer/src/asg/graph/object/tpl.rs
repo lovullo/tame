@@ -22,8 +22,8 @@
 use std::fmt::Display;
 
 use super::{
-    Expr, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTo,
-    ObjectRelTy, ObjectRelatable,
+    Expr, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
+    ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
 };
 use crate::{
     asg::Asg,

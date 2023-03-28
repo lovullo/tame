@@ -22,7 +22,8 @@
 //! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
-    DynObjectRel, ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
+    DynObjectRel, ObjectIndexRelTo, ObjectRelFrom, ObjectRelTy,
+    ObjectRelatable, Root,
 };
 
 use super::{
@@ -441,18 +442,16 @@ impl Asg {
     ///
     /// For more information on how the ASG's ontology is enforced statically,
     ///   see [`ObjectRelTo`].
-    fn add_edge<OA: ObjectKind, OB: ObjectKind>(
+    fn add_edge<OB: ObjectKind + ObjectRelatable>(
         &mut self,
-        from_oi: ObjectIndex<OA>,
+        from_oi: impl ObjectIndexRelTo<OB>,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-    ) where
-        OA: ObjectRelTo<OB>,
-    {
+    ) {
         self.graph.add_edge(
-            from_oi.into(),
+            from_oi.widen().into(),
             to_oi.into(),
-            (OA::rel_ty(), OB::rel_ty(), ctx_span),
+            (from_oi.src_rel_ty(), OB::rel_ty(), ctx_span),
         );
     }
 

@@ -22,8 +22,8 @@
 use std::fmt::Display;
 
 use super::{
-    Asg, Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable,
+    Asg, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
+    ObjectRelFrom, ObjectRelTy, ObjectRelatable,
 };
 use crate::{
     f::Functor,

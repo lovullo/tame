@@ -29,7 +29,7 @@ use super::{
 };
 use crate::{
     asg::{
-        graph::object::{Meta, ObjectRelTo},
+        graph::object::{Meta, ObjectIndexRelTo, ObjectRelTo},
         Ident,
     },
     diagnose::Annotate,

@@ -1,4 +1,5 @@
-// Relationship between objects represented on ASG //
+// Relationship between objects represented on ASG
+//
 //  Copyright (C) 2014-2023 Ryan Specialty, LLC.
 //
 //  This file is part of TAME.
@@ -27,9 +28,10 @@ use super::{
 use crate::{
     asg::{graph::object::Tpl, Asg},
     f::Functor,
+    parse::util::SPair,
     span::Span,
 };
-use std::fmt::Display;
+use std::{fmt::Display, marker::PhantomData};
 
 pub use super::ObjectTy as ObjectRelTy;
 
@@ -560,4 +562,166 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>: Sized {
     ///     that,
     ///       once all use cases are clear.
     fn is_cross_edge<S, T>(&self, rel: &DynObjectRel<S, T>) -> bool;
+}
+
+/// An [`ObjectIndex`]-like object that is able to relate to
+///   [`ObjectKind`] `OB`.
+///
+/// This serves primarily as an opaque [`ObjectIndex`] that we know can be
+///   related to some other type of [`ObjectKind`] `OB`.
+/// This allows for generic graph operations that operate on relationships
+///   without having to know the type of the source object (`Self`).
+pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
+    /// The [`ObjectRelTy`] of the inner [`ObjectIndex`] before widening.
+    fn src_rel_ty(&self) -> ObjectRelTy;
+
+    /// Widen this type into a generic [`ObjectIndex`] with no
+    ///   [`ObjectKind`] information.
+    ///
+    /// See [`ObjectIndex::widen`] for more information.
+    fn widen(&self) -> ObjectIndex<Object>;
+
+    /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
+    ///
+    /// Since the only invariant asserted by [`ObjectIndexRelTo`] is that
+    ///   it may be related to `OB`,
+    ///     this method will only permit edges to `OB`;
+    ///       nothing else about the inner object is statically known.
+    /// To create edges to other types of objects,
+    ///   and for more information about this operation
+    ///     (including `ctx_span`),
+    ///   see [`ObjectIndex::add_edge_to`].
+    fn add_edge_to(
+        self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
+    ) -> Self {
+        asg.add_edge(self, to_oi, ctx_span);
+        self
+    }
+
+    /// Indicate that the given identifier `oi` is defined by this object.
+    fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
+    where
+        Self: ObjectIndexRelTo<Ident>,
+    {
+        self.add_edge_to(asg, oi, None)
+    }
+
+    /// Declare a local identifier.
+    ///
+    /// A local identifier is lexically scoped to `self`.
+    /// This operation is valid only for [`ObjectKind`]s that can contain
+    ///   edges to [`Ident`]s.
+    ///
+    /// TODO: This allows for duplicate local identifiers!
+    fn declare_local(&self, asg: &mut Asg, name: SPair) -> ObjectIndex<Ident>
+    where
+        Self: ObjectIndexRelTo<Ident>,
+    {
+        asg.create(Ident::declare(name))
+            .add_edge_from(asg, *self, None)
+    }
+}
+
+impl<O: ObjectRelatable, OB: ObjectRelatable> ObjectIndexRelTo<OB>
+    for ObjectIndex<O>
+where
+    O: ObjectRelTo<OB>,
+{
+    fn src_rel_ty(&self) -> ObjectRelTy {
+        O::rel_ty()
+    }
+
+    fn widen(&self) -> ObjectIndex<Object> {
+        ObjectIndex::<O>::widen(*self)
+    }
+}
+
+impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
+    fn src_rel_ty(&self) -> ObjectRelTy {
+        match self {
+            Self((_, ty), _) => *ty,
+        }
+    }
+
+    fn widen(&self) -> ObjectIndex<Object> {
+        *self.as_ref()
+    }
+}
+
+impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for ObjectIndex<Object> {
+    fn from(oi_rel: ObjectIndexTo<OB>) -> Self {
+        oi_rel.widen()
+    }
+}
+
+impl<OB: ObjectRelatable> AsRef<ObjectIndex<Object>> for ObjectIndexTo<OB> {
+    fn as_ref(&self) -> &ObjectIndex<Object> {
+        match self {
+            Self((oi, _), _) => oi,
+        }
+    }
+}
+
+pub use private::ObjectIndexTo;
+
+/// Private inner module to ensure that nothing is able to bypass invariants
+///   by constructing [`ObjectIndexTo`] manually.
+mod private {
+    use super::*;
+
+    /// Some [`ObjectIndex`] that is able to [`ObjectRelTo`] `OB`.
+    ///
+    /// This type upholds the invariant that any [`ObjectIndex`] contained
+    ///   within is [`ObjectRelTo`] `OB`.
+    /// This allows this object to serve in place of a concrete
+    ///   [`ObjectIndex`] for graph operations that need only know whether
+    ///   an object is relatable to another,
+    ///     such as when adding edges.
+    ///
+    /// This object is only needed when relations need to be manipulated on
+    ///   a known target [`ObjectKind`] `OB`,
+    ///     but the source [`ObjectKind`] is dynamic.
+    /// This is necessary because a generic [`Object`] must first be
+    ///   narrowed before being able to be used in any graph operation so
+    ///   that the ontology can be statically enforced.
+    ///
+    /// See [`ObjectIndexRelTo`] for more information.
+    ///
+    /// Constructing [`ObjectIndexTo`]
+    /// ==============================
+    /// This object is intended to be constructed using [`From`].
+    /// _Never construct this object in any other way;_
+    ///   manually creating the struct will not uphold its invariants,
+    ///     which can lead to an invalid graph construction,
+    ///     which will in turn lead to internal system failures when trying
+    ///       to operate on the graph data down the line.
+    /// There are no memory safety concerns.
+    #[derive(Debug, PartialEq)]
+    pub struct ObjectIndexTo<OB: ObjectRelatable>(
+        (ObjectIndex<Object>, ObjectRelTy),
+        PhantomData<OB>,
+    );
+
+    impl<OB: ObjectRelatable, O: ObjectRelatable> From<ObjectIndex<O>>
+        for ObjectIndexTo<OB>
+    where
+        O: ObjectRelTo<OB>,
+    {
+        fn from(oi: ObjectIndex<O>) -> Self {
+            Self(oi.widen_dyn_ty(), PhantomData::default())
+        }
+    }
+
+    // Deriving `Clone`/`Copy` as of 2023-03 was introducing a
+    //   `Clone`/`Copy` bound on `OB`.
+    impl<OB: ObjectRelatable> Clone for ObjectIndexTo<OB> {
+        fn clone(&self) -> Self {
+            Self(self.0, self.1)
+        }
+    }
+
+    impl<OB: ObjectRelatable> Copy for ObjectIndexTo<OB> {}
 }
