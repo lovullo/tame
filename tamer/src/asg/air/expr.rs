@@ -31,7 +31,7 @@ use super::{
 };
 use crate::{
     asg::{
-        graph::object::{ObjectIndexRelTo, ObjectRelTo},
+        graph::object::{ObjectIndexRelTo, ObjectIndexTo, ObjectRelTo},
         Ident, ObjectKind,
     },
     f::Functor,
@@ -102,7 +102,7 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
         use AirBindableExpr::*;
         use AirExprAggregate::*;
 
-        let asg = ctx.asg_mut();
+        let AirAggregateCtx(asg, stack) = ctx;
 
         match (self, tok) {
             (Ready(root, es, _), AirExpr(ExprStart(op, span))) => {
@@ -143,7 +143,8 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
             }
 
             (BuildingExpr(root, es, oi), AirBind(BindIdent(id))) => {
-                let oi_ident = root.defines(asg, id);
+                let oi_root = stack.rooting_oi().expect("TODO");
+                let oi_ident = root.defines(asg, oi_root, id);
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
@@ -399,7 +400,12 @@ mod root {
         ///
         /// This is invoked for _all_ identifiers,
         ///   including sub-expressions.
-        fn defines(&self, asg: &mut Asg, id: SPair) -> ObjectIndex<Ident>;
+        fn defines(
+            &self,
+            asg: &mut Asg,
+            oi_root: ObjectIndexTo<Ident>,
+            id: SPair,
+        ) -> ObjectIndex<Ident>;
 
         /// Hold or reject a [`Dangling`] root [`Expr`].
         ///
@@ -442,11 +448,16 @@ mod root {
             Self(oi)
         }
 
-        fn defines(&self, asg: &mut Asg, id: SPair) -> ObjectIndex<Ident> {
+        fn defines(
+            &self,
+            asg: &mut Asg,
+            oi_root: ObjectIndexTo<Ident>,
+            id: SPair,
+        ) -> ObjectIndex<Ident> {
             match self {
-                Self(oi_root) => asg
+                Self(_oi_root) => asg
                     .lookup_global_or_missing(id)
-                    .add_edge_from(asg, *oi_root, None),
+                    .add_edge_from(asg, oi_root, None),
             }
         }
 
@@ -485,7 +496,12 @@ mod root {
             Self(oi)
         }
 
-        fn defines(&self, asg: &mut Asg, name: SPair) -> ObjectIndex<Ident> {
+        fn defines(
+            &self,
+            asg: &mut Asg,
+            _oi_root: ObjectIndexTo<Ident>,
+            name: SPair,
+        ) -> ObjectIndex<Ident> {
             // This cannot simply call [`ReachableOnly`]'s `defines` because
             //   we cannot cache in the global environment.
             // This can be realized once caching is generalized;

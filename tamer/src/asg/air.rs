@@ -37,7 +37,10 @@
 
 use self::expr::AirExprAggregateReachable;
 
-use super::{graph::object::Pkg, Asg, AsgError, ObjectIndex};
+use super::{
+    graph::object::{ObjectIndexTo, Pkg, Tpl},
+    Asg, AsgError, Ident, ObjectIndex,
+};
 use crate::{
     diagnose::Annotate, diagnostic_todo, parse::prelude::*, sym::SymbolId,
 };
@@ -77,11 +80,7 @@ pub enum AirAggregate {
     /// All objects encountered until the closing [`Air::TplEnd`] will be
     ///   parented to this template rather than the parent [`Pkg`].
     /// See [`Air::TplStart`] for more information.
-    PkgTpl(
-        ObjectIndex<Pkg>,
-        AirExprAggregateReachable<Pkg>,
-        AirTplAggregate<Pkg>,
-    ),
+    PkgTpl(ObjectIndex<Pkg>, AirTplAggregate),
 }
 
 impl Display for AirAggregate {
@@ -96,7 +95,7 @@ impl Display for AirAggregate {
             PkgExpr(_, expr) => {
                 write!(f, "defining a package expression: {expr}")
             }
-            PkgTpl(_, _, tpl) => {
+            PkgTpl(_, tpl) => {
                 write!(f, "building a template: {tpl}",)
             }
         }
@@ -159,6 +158,7 @@ impl ParseState for AirAggregate {
             }
 
             (Toplevel(oi_pkg), tok @ AirExpr(..)) => {
+                ctx.stack_mut().push(Toplevel(oi_pkg));
                 let expr = AirExprAggregate::new_in(oi_pkg);
                 Transition(PkgExpr(oi_pkg, expr))
                     .incomplete()
@@ -167,23 +167,23 @@ impl ParseState for AirAggregate {
 
             // TODO: This is temporary during refactoring
             //   (creating an AirExprAggregate just to pass to this).
-            (Toplevel(oi_pkg), tok @ AirTpl(..)) => Transition(PkgTpl(
-                oi_pkg,
-                AirExprAggregate::new_in(oi_pkg),
-                AirTplAggregate::new(oi_pkg, oi_pkg),
-            ))
-            .incomplete()
-            .with_lookahead(tok),
+            (Toplevel(oi_pkg), tok @ AirTpl(..)) => {
+                ctx.stack_mut().push(Toplevel(oi_pkg));
+
+                Transition(PkgTpl(oi_pkg, AirTplAggregate::new()))
+                    .incomplete()
+                    .with_lookahead(tok)
+            }
 
             // Note that templates may preempt expressions at any point,
             //   unlike in NIR at the time of writing.
-            (PkgExpr(oi_pkg, expr), tok @ AirTpl(..)) => Transition(PkgTpl(
-                oi_pkg,
-                expr,
-                AirTplAggregate::new(oi_pkg, oi_pkg),
-            ))
-            .incomplete()
-            .with_lookahead(tok),
+            (PkgExpr(oi_pkg, expr), tok @ AirTpl(..)) => {
+                ctx.stack_mut().push(PkgExpr(oi_pkg, expr));
+
+                Transition(PkgTpl(oi_pkg, AirTplAggregate::new()))
+                    .incomplete()
+                    .with_lookahead(tok)
+            }
 
             // Note: We unfortunately can't match on `AirExpr | AirBind`
             //   and delegate in the same block
@@ -198,14 +198,14 @@ impl ParseState for AirAggregate {
             }
 
             // Template parsing.
-            (PkgTpl(oi_pkg, stored_expr, tplst), AirExpr(ttok)) => {
-                Self::delegate_tpl(ctx, oi_pkg, stored_expr, tplst, ttok)
+            (PkgTpl(oi_pkg, tplst), AirExpr(ttok)) => {
+                Self::delegate_tpl(ctx, oi_pkg, tplst, ttok)
             }
-            (PkgTpl(oi_pkg, stored_expr, tplst), AirBind(ttok)) => {
-                Self::delegate_tpl(ctx, oi_pkg, stored_expr, tplst, ttok)
+            (PkgTpl(oi_pkg, tplst), AirBind(ttok)) => {
+                Self::delegate_tpl(ctx, oi_pkg, tplst, ttok)
             }
-            (PkgTpl(oi_pkg, stored_expr, tplst), AirTpl(ttok)) => {
-                Self::delegate_tpl(ctx, oi_pkg, stored_expr, tplst, ttok)
+            (PkgTpl(oi_pkg, tplst), AirTpl(ttok)) => {
+                Self::delegate_tpl(ctx, oi_pkg, tplst, ttok)
             }
 
             (PkgTpl(..), tok @ AirPkg(PkgStart(..))) => {
@@ -231,12 +231,13 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (PkgTpl(oi_pkg, stored_expr, tplst), AirPkg(PkgEnd(span))) => {
+            (PkgTpl(oi_pkg, tplst), AirPkg(PkgEnd(span))) => {
                 match tplst.is_accepting(ctx) {
-                    true => Transition(PkgExpr(oi_pkg, stored_expr))
+                    // TODO
+                    true => Transition(ctx.stack_mut().pop().expect("TODO"))
                         .incomplete()
                         .with_lookahead(AirPkg(PkgEnd(span))),
-                    false => Transition(PkgTpl(oi_pkg, stored_expr, tplst))
+                    false => Transition(PkgTpl(oi_pkg, tplst))
                         .err(AsgError::InvalidPkgEndContext(span)),
                 }
             }
@@ -291,15 +292,17 @@ impl AirAggregate {
     /// TODO: This ought to be further reduced into primitives in the core
     ///   [`crate::parse`] framework.
     fn delegate_expr(
-        asg: &mut <Self as ParseState>::Context,
+        ctx: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
         expr: AirExprAggregateReachable<Pkg>,
         etok: impl Into<<AirExprAggregateReachable<Pkg> as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
 
-        expr.parse_token(tok, asg).branch_dead::<Self, _>(
-            |_, ()| Transition(Self::Toplevel(oi_pkg)).incomplete(),
+        expr.parse_token(tok, ctx).branch_dead::<Self, _>(
+            |_, ()| {
+                Transition(ctx.stack_mut().pop().expect("TODO")).incomplete()
+            },
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
@@ -317,22 +320,21 @@ impl AirAggregate {
     ///     allowing parsing to continue where it left off before being
     ///     preempted by template parsing.
     fn delegate_tpl(
-        asg: &mut <Self as ParseState>::Context,
+        ctx: &mut <Self as ParseState>::Context,
         oi_pkg: ObjectIndex<Pkg>,
-        stored_expr: AirExprAggregateReachable<Pkg>,
-        tplst: AirTplAggregate<Pkg>,
-        ttok: impl Into<<AirTplAggregate<Pkg> as ParseState>::Token>,
+        tplst: AirTplAggregate,
+        ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
-        tplst.parse_token(ttok.into(), asg).branch_dead::<Self, _>(
-            |_, stored_expr| {
-                Transition(Self::PkgExpr(oi_pkg, stored_expr)).incomplete()
+        tplst.parse_token(ttok.into(), ctx).branch_dead::<Self, _>(
+            |_, ()| {
+                Transition(ctx.stack_mut().pop().expect("TODO")).incomplete()
             },
-            |tplst, result, stored_expr| {
+            |tplst, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
-                    .transition(Self::PkgTpl(oi_pkg, stored_expr, tplst))
+                    .transition(Self::PkgTpl(oi_pkg, tplst))
             },
-            stored_expr,
+            (),
         )
     }
 }
@@ -342,10 +344,14 @@ impl AirAggregate {
 /// TODO: This was introduced to hold additional context;
 ///   see future commit.
 #[derive(Debug, Default)]
-pub struct AirAggregateCtx(Asg);
+pub struct AirAggregateCtx(Asg, AirStack);
 
 impl AirAggregateCtx {
     fn asg_mut(&mut self) -> &mut Asg {
+        self.as_mut()
+    }
+
+    fn stack_mut(&mut self) -> &mut AirStack {
         self.as_mut()
     }
 }
@@ -353,7 +359,7 @@ impl AirAggregateCtx {
 impl AsRef<Asg> for AirAggregateCtx {
     fn as_ref(&self) -> &Asg {
         match self {
-            Self(asg) => asg,
+            Self(asg, _) => asg,
         }
     }
 }
@@ -361,7 +367,15 @@ impl AsRef<Asg> for AirAggregateCtx {
 impl AsMut<Asg> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut Asg {
         match self {
-            Self(asg) => asg,
+            Self(asg, _) => asg,
+        }
+    }
+}
+
+impl AsMut<AirStack> for AirAggregateCtx {
+    fn as_mut(&mut self) -> &mut AirStack {
+        match self {
+            Self(_, stack) => stack,
         }
     }
 }
@@ -369,14 +383,66 @@ impl AsMut<Asg> for AirAggregateCtx {
 impl From<AirAggregateCtx> for Asg {
     fn from(ctx: AirAggregateCtx) -> Self {
         match ctx {
-            AirAggregateCtx(asg) => asg,
+            AirAggregateCtx(asg, _) => asg,
         }
     }
 }
 
 impl From<Asg> for AirAggregateCtx {
     fn from(asg: Asg) -> Self {
-        Self(asg)
+        Self(asg, Default::default())
+    }
+}
+
+/// Held parser stack frames.
+///
+/// TODO: This is still under development.
+#[derive(Debug, Default)]
+pub struct AirStack(Vec<AirAggregate>);
+
+impl AirStack {
+    fn push(&mut self, st: AirAggregate) {
+        let Self(stack) = self;
+        stack.push(st);
+    }
+
+    fn pop(&mut self) -> Option<AirAggregate> {
+        let Self(stack) = self;
+        stack.pop()
+    }
+
+    /// The active container (binding context) for [`Ident`]s.
+    ///
+    /// A value of [`None`] indicates that no bindings are permitted in the
+    ///   current context.
+    fn rooting_oi(&self) -> Option<ObjectIndexTo<Ident>> {
+        let Self(stack) = self;
+
+        match *stack.last()? {
+            AirAggregate::Empty => None,
+            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
+            AirAggregate::PkgExpr(pkg_oi, _) => Some(pkg_oi.into()),
+            AirAggregate::PkgTpl(_, _) => {
+                diagnostic_todo!(vec![], "PkgTpl rooting_oi")
+            }
+        }
+    }
+
+    /// The active expansion target (splicing context) for [`Tpl`]s.
+    ///
+    /// A value of [`None`] indicates that template expansion is not
+    ///   permitted in this current context.
+    fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
+        let Self(stack) = self;
+
+        match *stack.last()? {
+            AirAggregate::Empty => None,
+            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
+            AirAggregate::PkgExpr(pkg_oi, _) => Some(pkg_oi.into()),
+            AirAggregate::PkgTpl(_, _) => {
+                diagnostic_todo!(vec![], "PkgTpl expansion_oi")
+            }
+        }
     }
 }
 

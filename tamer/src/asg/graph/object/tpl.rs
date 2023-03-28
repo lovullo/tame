@@ -23,7 +23,7 @@ use std::fmt::Display;
 
 use super::{
     Expr, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
-    ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
+    ObjectRelFrom, ObjectRelTy, ObjectRelatable,
 };
 use crate::{
     asg::Asg,
@@ -109,10 +109,10 @@ impl ObjectIndex<Tpl> {
     ///   template.
     /// If this template is _not_ closed,
     ///   it will result in an error during evaluation.
-    pub fn expand_into<O: ObjectRelTo<Tpl>>(
+    pub fn expand_into<OP: ObjectIndexRelTo<Tpl>>(
         self,
         asg: &mut Asg,
-        oi_target_parent: ObjectIndex<O>,
+        oi_target_parent: OP,
     ) -> Self {
         self.add_edge_from(asg, oi_target_parent, None)
     }
