@@ -123,9 +123,10 @@ impl<S: RootStrategy> ParseState for AirExprAggregate<S> {
                     ((es, Some(poi)), _) => {
                         Transition(BuildingExpr(root, es, poi)).incomplete()
                     }
-                    ((es, None), true) => root
-                        .hold_dangling(ctx.asg_mut(), oi_root, oi)
-                        .transition(Ready(root, es.done())),
+                    ((es, None), true) => {
+                        Self::hold_dangling(ctx.asg_mut(), oi_root, oi)
+                            .transition(Ready(root, es.done()))
+                    }
                     ((es, None), false) => {
                         Transition(Ready(root, es.done())).incomplete()
                     }
@@ -175,6 +176,22 @@ impl<S: RootStrategy> ParseState for AirExprAggregate<S> {
 impl<S: RootStrategy> AirExprAggregate<S> {
     pub(super) fn new() -> Self {
         Self::Ready(S::new(), ExprStack::default())
+    }
+
+    /// Hold or reject a [`Dangling`] root [`Expr`].
+    ///
+    /// A [`Dangling`] expression is not reachable by any other object.
+    /// If there is no context able to handle such an expression,
+    ///   then an [`AsgError::DanglingExpr`] will be returned.
+    fn hold_dangling(
+        asg: &mut Asg,
+        oi_root: Option<ObjectIndexTo<Expr>>,
+        oi_expr: ObjectIndex<Expr>,
+    ) -> Result<(), AsgError> {
+        oi_root
+            .ok_or(AsgError::DanglingExpr(oi_expr.resolve(asg).span()))?
+            .add_edge_to(asg, oi_expr, None);
+        Ok(())
     }
 }
 
@@ -396,18 +413,6 @@ mod root {
             oi_root: ObjectIndexTo<Ident>,
             id: SPair,
         ) -> ObjectIndex<Ident>;
-
-        /// Hold or reject a [`Dangling`] root [`Expr`].
-        ///
-        /// A [`Dangling`] expression is not reachable by any other object,
-        ///   so this strategy must decide whether to root it in [`Self`] or
-        ///   reject it.
-        fn hold_dangling(
-            &self,
-            asg: &mut Asg,
-            oi_root: Option<ObjectIndexTo<Expr>>,
-            oi_expr: ObjectIndex<Expr>,
-        ) -> Result<(), AsgError>;
     }
 
     /// Accept and root only [`Reachable`] root expressions.
@@ -443,15 +448,6 @@ mod root {
             asg.lookup_global_or_missing(id)
                 .add_edge_from(asg, oi_root, None)
         }
-
-        fn hold_dangling(
-            &self,
-            asg: &mut Asg,
-            _oi_root: Option<ObjectIndexTo<Expr>>,
-            oi_expr: ObjectIndex<Expr>,
-        ) -> Result<(), AsgError> {
-            Err(AsgError::DanglingExpr(oi_expr.resolve(asg).span()))
-        }
     }
 
     /// Accept both [`Reachable`] and [`Dangling`] expressions.
@@ -486,16 +482,6 @@ mod root {
             // This can be realized once caching is generalized;
             //   see the commit that introduced this comment.
             oi_root.declare_local(asg, name)
-        }
-
-        fn hold_dangling(
-            &self,
-            asg: &mut Asg,
-            oi_root: Option<ObjectIndexTo<Expr>>,
-            oi_expr: ObjectIndex<Expr>,
-        ) -> Result<(), AsgError> {
-            oi_root.expect("TODO").add_edge_to(asg, oi_expr, None);
-            Ok(())
         }
     }
 }
