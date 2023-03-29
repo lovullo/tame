@@ -139,7 +139,7 @@ impl ParseState for AirAggregate {
             }
 
             (PkgExpr(expr), AirPkg(PkgStart(span))) => {
-                let oi_pkg = ctx.stack_mut().rooting_oi().expect("TODO");
+                let oi_pkg = ctx.rooting_oi().expect("TODO");
                 Transition(PkgExpr(expr))
                     .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
             }
@@ -159,7 +159,7 @@ impl ParseState for AirAggregate {
             }
 
             (Toplevel(oi_pkg), tok @ AirExpr(..)) => {
-                ctx.stack_mut().push(Toplevel(oi_pkg));
+                ctx.push(Toplevel(oi_pkg));
                 let expr = AirExprAggregate::new_in(oi_pkg);
                 Transition(PkgExpr(expr)).incomplete().with_lookahead(tok)
             }
@@ -167,7 +167,7 @@ impl ParseState for AirAggregate {
             // TODO: This is temporary during refactoring
             //   (creating an AirExprAggregate just to pass to this).
             (Toplevel(oi_pkg), tok @ AirTpl(..)) => {
-                ctx.stack_mut().push(Toplevel(oi_pkg));
+                ctx.push(Toplevel(oi_pkg));
 
                 Transition(PkgTpl(AirTplAggregate::new()))
                     .incomplete()
@@ -177,7 +177,7 @@ impl ParseState for AirAggregate {
             // Note that templates may preempt expressions at any point,
             //   unlike in NIR at the time of writing.
             (PkgExpr(expr), tok @ AirTpl(..)) => {
-                ctx.stack_mut().push(PkgExpr(expr));
+                ctx.push(PkgExpr(expr));
 
                 Transition(PkgTpl(AirTplAggregate::new()))
                     .incomplete()
@@ -222,7 +222,7 @@ impl ParseState for AirAggregate {
                 match expr.is_accepting(ctx) {
                     true => {
                         // TODO: this is duplicated
-                        Transition(ctx.stack_mut().pop().expect("TODO"))
+                        Transition(ctx.pop().expect("TODO"))
                             .incomplete()
                             .with_lookahead(AirPkg(PkgEnd(span)))
                     }
@@ -234,7 +234,7 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirPkg(PkgEnd(span))) => {
                 match tplst.is_accepting(ctx) {
                     // TODO
-                    true => Transition(ctx.stack_mut().pop().expect("TODO"))
+                    true => Transition(ctx.pop().expect("TODO"))
                         .incomplete()
                         .with_lookahead(AirPkg(PkgEnd(span))),
                     false => Transition(PkgTpl(tplst))
@@ -299,9 +299,7 @@ impl AirAggregate {
         let tok = etok.into();
 
         expr.parse_token(tok, ctx).branch_dead::<Self, _>(
-            |_, ()| {
-                Transition(ctx.stack_mut().pop().expect("TODO")).incomplete()
-            },
+            |_, ()| Transition(ctx.pop().expect("TODO")).incomplete(),
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
@@ -324,9 +322,7 @@ impl AirAggregate {
         ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         tplst.parse_token(ttok.into(), ctx).branch_dead::<Self, _>(
-            |_, ()| {
-                Transition(ctx.stack_mut().pop().expect("TODO")).incomplete()
-            },
+            |_, ()| Transition(ctx.pop().expect("TODO")).incomplete(),
             |tplst, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)
@@ -337,20 +333,79 @@ impl AirAggregate {
     }
 }
 
-/// Additional parser context.
+/// Additional parser context,
+///   including the ASG and parser stack frames.
 ///
-/// TODO: This was introduced to hold additional context;
-///   see future commit.
+/// [`ObjectIndex`] lookups perform reverse linear searches beginning from
+///   the last stack frame until a non-[`None`] value is found;
+///     this creates an environment whereby inner contexts shadow outer.
+/// Missing values create holes,
+///   much like a prototype chain.
+/// In practice,
+///   this should only have to search the last two frames.
 #[derive(Debug, Default)]
 pub struct AirAggregateCtx(Asg, AirStack);
+
+/// Held parser stack frames.
+///
+/// See [`AirAggregateCtx`] for more information.
+pub type AirStack = Vec<AirAggregate>;
 
 impl AirAggregateCtx {
     fn asg_mut(&mut self) -> &mut Asg {
         self.as_mut()
     }
 
-    fn stack_mut(&mut self) -> &mut AirStack {
-        self.as_mut()
+    fn push(&mut self, st: AirAggregate) {
+        let Self(_, stack) = self;
+        stack.push(st);
+    }
+
+    fn pop(&mut self) -> Option<AirAggregate> {
+        let Self(_, stack) = self;
+        stack.pop()
+    }
+
+    /// The active container (binding context) for [`Ident`]s.
+    ///
+    /// A value of [`None`] indicates that no bindings are permitted in the
+    ///   current context.
+    fn rooting_oi(&self) -> Option<ObjectIndexTo<Ident>> {
+        let Self(_, stack) = self;
+
+        stack.iter().rev().find_map(|st| match *st {
+            AirAggregate::Empty => None,
+            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
+
+            // Expressions never serve as roots for identifiers;
+            //   this will always fall through to the parent context.
+            // Since the parent context is a package or a template,
+            //   the next frame should succeed.
+            AirAggregate::PkgExpr(_) => None,
+
+            AirAggregate::PkgTpl(_) => {
+                diagnostic_todo!(vec![], "PkgTpl rooting_oi")
+            }
+        })
+    }
+
+    /// The active expansion target (splicing context) for [`Tpl`]s.
+    ///
+    /// A value of [`None`] indicates that template expansion is not
+    ///   permitted in this current context.
+    fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
+        let Self(_, stack) = self;
+
+        stack.iter().rev().find_map(|st| match *st {
+            AirAggregate::Empty => None,
+            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
+            AirAggregate::PkgExpr(_) => {
+                diagnostic_todo!(vec![], "PkgExpr expansion_oi")
+            }
+            AirAggregate::PkgTpl(_) => {
+                diagnostic_todo!(vec![], "PkgTpl expansion_oi")
+            }
+        })
     }
 }
 
@@ -389,74 +444,6 @@ impl From<AirAggregateCtx> for Asg {
 impl From<Asg> for AirAggregateCtx {
     fn from(asg: Asg) -> Self {
         Self(asg, Default::default())
-    }
-}
-
-/// Held parser stack frames.
-///
-/// [`ObjectIndex`] lookups perform reverse linear searches beginning from
-///   the last stack frame until a non-[`None`] value is found;
-///     this creates an environment whereby inner contexts shadow outer.
-/// Missing values create holes,
-///   much like a prototype chain.
-/// In practice,
-///   this should only have to search the last two frames.
-///
-/// TODO: This is still under development.
-#[derive(Debug, Default)]
-pub struct AirStack(Vec<AirAggregate>);
-
-impl AirStack {
-    fn push(&mut self, st: AirAggregate) {
-        let Self(stack) = self;
-        stack.push(st);
-    }
-
-    fn pop(&mut self) -> Option<AirAggregate> {
-        let Self(stack) = self;
-        stack.pop()
-    }
-
-    /// The active container (binding context) for [`Ident`]s.
-    ///
-    /// A value of [`None`] indicates that no bindings are permitted in the
-    ///   current context.
-    fn rooting_oi(&self) -> Option<ObjectIndexTo<Ident>> {
-        let Self(stack) = self;
-
-        stack.iter().rev().find_map(|st| match *st {
-            AirAggregate::Empty => None,
-            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
-
-            // Expressions never serve as roots for identifiers;
-            //   this will always fall through to the parent context.
-            // Since the parent context is a package or a template,
-            //   the next frame should succeed.
-            AirAggregate::PkgExpr(_) => None,
-
-            AirAggregate::PkgTpl(_) => {
-                diagnostic_todo!(vec![], "PkgTpl rooting_oi")
-            }
-        })
-    }
-
-    /// The active expansion target (splicing context) for [`Tpl`]s.
-    ///
-    /// A value of [`None`] indicates that template expansion is not
-    ///   permitted in this current context.
-    fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
-        let Self(stack) = self;
-
-        stack.iter().rev().find_map(|st| match *st {
-            AirAggregate::Empty => None,
-            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
-            AirAggregate::PkgExpr(_) => {
-                diagnostic_todo!(vec![], "PkgExpr expansion_oi")
-            }
-            AirAggregate::PkgTpl(_) => {
-                diagnostic_todo!(vec![], "PkgTpl expansion_oi")
-            }
-        })
     }
 }
 

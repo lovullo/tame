@@ -197,7 +197,7 @@ impl ParseState for AirTplAggregate {
             ),
 
             (Toplevel(tpl, expr), AirBind(BindIdent(id))) => {
-                let oi_root = ctx.stack_mut().rooting_oi().expect("TODO");
+                let oi_root = ctx.rooting_oi().expect("TODO");
                 let asg = ctx.asg_mut();
 
                 asg.lookup_global_or_missing(id)
@@ -288,7 +288,7 @@ impl ParseState for AirTplAggregate {
             }
 
             (Toplevel(tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                let oi_target = ctx.stack_mut().expansion_oi().expect("TODO");
+                let oi_target = ctx.expansion_oi().expect("TODO");
                 tpl.oi().expand_into(ctx.asg_mut(), oi_target);
 
                 Transition(Toplevel(tpl.anonymous_reachable(), expr_done))
@@ -297,7 +297,7 @@ impl ParseState for AirTplAggregate {
             }
 
             (TplExpr(tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                let oi_target = ctx.stack_mut().expansion_oi().expect("TODO");
+                let oi_target = ctx.expansion_oi().expect("TODO");
                 tpl.oi().expand_into(ctx.asg_mut(), oi_target);
 
                 // TODO: We have to make sure the expression ended first!

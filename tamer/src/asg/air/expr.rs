@@ -102,21 +102,19 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
         use AirBindableExpr::*;
         use AirExprAggregate::*;
 
-        let AirAggregateCtx(asg, stack) = ctx;
-
         match (self, tok) {
             (Ready(root, es, _), AirExpr(ExprStart(op, span))) => {
-                let oi = asg.create(Expr::new(op, span));
+                let oi = ctx.asg_mut().create(Expr::new(op, span));
                 Transition(BuildingExpr(root, es.activate(), oi)).incomplete()
             }
 
             (BuildingExpr(root, es, poi), AirExpr(ExprStart(op, span))) => {
-                let oi = poi.create_subexpr(asg, Expr::new(op, span));
+                let oi = poi.create_subexpr(ctx.asg_mut(), Expr::new(op, span));
                 Transition(BuildingExpr(root, es.push(poi), oi)).incomplete()
             }
 
             (BuildingExpr(root, es, oi), AirExpr(ExprEnd(end))) => {
-                let _ = oi.map_obj(asg, |expr| {
+                let _ = oi.map_obj(ctx.asg_mut(), |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
 
@@ -127,7 +125,7 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
                         Transition(BuildingExpr(root, es, poi)).incomplete()
                     }
                     ((es, None), true) => {
-                        root.hold_dangling(asg, oi).transition(Ready(
+                        root.hold_dangling(ctx.asg_mut(), oi).transition(Ready(
                             root,
                             es.done(),
                             PhantomData::default(),
@@ -143,12 +141,12 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
             }
 
             (BuildingExpr(root, es, oi), AirBind(BindIdent(id))) => {
-                let oi_root = stack.rooting_oi().expect("TODO");
-                let oi_ident = root.defines(asg, oi_root, id);
+                let oi_root = ctx.rooting_oi().expect("TODO");
+                let oi_ident = root.defines(ctx.asg_mut(), oi_root, id);
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
-                match oi_ident.bind_definition(asg, id, oi) {
+                match oi_ident.bind_definition(ctx.asg_mut(), id, oi) {
                     Ok(_) => Transition(BuildingExpr(
                         root,
                         es.reachable_by(oi_ident),
@@ -160,8 +158,12 @@ impl<O: ObjectKind, S: RootStrategy<O>> ParseState for AirExprAggregate<O, S> {
             }
 
             (BuildingExpr(root, es, oi), AirBind(RefIdent(ident))) => {
-                Transition(BuildingExpr(root, es, oi.ref_expr(asg, ident)))
-                    .incomplete()
+                Transition(BuildingExpr(
+                    root,
+                    es,
+                    oi.ref_expr(ctx.asg_mut(), ident),
+                ))
+                .incomplete()
             }
 
             (st @ Ready(..), AirExpr(ExprEnd(span))) => {
