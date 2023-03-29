@@ -25,8 +25,6 @@
 //!     they provide wrappers around core functionality that make it easier
 //!     to use outside of the domain of the parsing system itself.
 
-pub mod expand;
-
 use super::{prelude::*, state::TransitionData};
 use crate::{f::Functor, span::Span, sym::SymbolId};
 use std::fmt::Display;

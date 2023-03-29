@@ -257,42 +257,6 @@ impl<S: ParseState> TransitionResult<S> {
             Result(result, la) => falive(st, result, la, bctx),
         }
     }
-
-    /// Conditionally map to a [`TransitionResult`] based on whether the
-    ///   inner [`TransitionData`] represents an object.
-    pub(in super::super) fn branch_obj_la<SB: ParseState>(
-        self,
-        fobj: impl FnOnce(
-            Transition<S>,
-            <S as ParseState>::Object,
-            Option<Lookahead<<S as ParseState>::Token>>,
-        ) -> TransitionResult<<SB as ParseState>::Super>,
-        fother: impl FnOnce(Transition<S>) -> Transition<SB>,
-    ) -> TransitionResult<<SB as ParseState>::Super>
-    where
-        S: PartiallyStitchableParseState<SB>,
-    {
-        use ParseStatus::{Incomplete, Object};
-        use TransitionData::{Dead, Result};
-
-        let Self(st, data) = self;
-
-        match data {
-            Result(Ok(Object(obj)), la) => fobj(st, obj, la).into_super(),
-
-            // Can't use `TransitionData::inner_into` since we only have a
-            //   `PartiallyStitchableParseState`,
-            //     and `into_inner` requires being able to convert the inner
-            //     object that we handled above.
-            Result(Ok(Incomplete), la) => fother(st)
-                .incomplete()
-                .maybe_with_lookahead(la.map(Lookahead::inner_into)),
-            Result(Err(e), la) => fother(st)
-                .err(e)
-                .maybe_with_lookahead(la.map(Lookahead::inner_into)),
-            Dead(Lookahead(la)) => fother(st).dead(la.into()),
-        }
-    }
 }
 
 /// Token to use as a lookahead token in place of the next token from the
