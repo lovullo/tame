@@ -23,7 +23,6 @@
 
 use super::{
     super::{graph::object::Tpl, Asg, AsgError, ObjectIndex},
-    expr::AirExprAggregateStoreDangling,
     ir::AirTemplatable,
     AirAggregateCtx, AirExprAggregate,
 };
@@ -73,7 +72,7 @@ pub enum AirTplAggregate {
     TplMeta(TplState, ObjectIndex<Meta>),
 
     /// Aggregating tokens into a template.
-    TplExpr(TplState, AirExprAggregateStoreDangling),
+    TplExpr(TplState, AirExprAggregate),
 }
 
 impl Display for AirTplAggregate {
@@ -365,8 +364,8 @@ impl AirTplAggregate {
     fn delegate_expr(
         asg: &mut <Self as ParseState>::Context,
         tpl: TplState,
-        expr: AirExprAggregateStoreDangling,
-        etok: impl Into<<AirExprAggregateStoreDangling as ParseState>::Token>,
+        expr: AirExprAggregate,
+        etok: impl Into<<AirExprAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
 

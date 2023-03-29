@@ -35,10 +35,8 @@
 //!   but that would surely result in face-palming and so we're not going
 //!     air such cringeworthy dad jokes here.
 
-use self::expr::AirExprAggregateReachable;
-
 use super::{
-    graph::object::{ObjectIndexTo, Pkg, Tpl},
+    graph::object::{ObjectIndexRelTo, ObjectIndexTo, Pkg, Tpl},
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
@@ -73,7 +71,7 @@ pub enum AirAggregate {
     /// This expects to inherit an [`AirExprAggregate`] from the prior state
     ///   so that we are not continuously re-allocating its stack for each
     ///   new expression root.
-    PkgExpr(AirExprAggregateReachable),
+    PkgExpr(AirExprAggregate),
 
     /// Parser is in template parsing mode.
     ///
@@ -102,8 +100,8 @@ impl Display for AirAggregate {
     }
 }
 
-impl From<AirExprAggregateReachable> for AirAggregate {
-    fn from(st: AirExprAggregateReachable) -> Self {
+impl From<AirExprAggregate> for AirAggregate {
+    fn from(st: AirExprAggregate) -> Self {
         Self::PkgExpr(st)
     }
 }
@@ -305,8 +303,8 @@ impl AirAggregate {
     ///   [`crate::parse`] framework.
     fn delegate_expr(
         ctx: &mut <Self as ParseState>::Context,
-        expr: AirExprAggregateReachable,
-        etok: impl Into<<AirExprAggregateReachable as ParseState>::Token>,
+        expr: AirExprAggregate,
+        etok: impl Into<<AirExprAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
 
@@ -456,6 +454,32 @@ impl AirAggregateCtx {
                 diagnostic_todo!(vec![], "PkgTpl expansion_oi")
             }
         })
+    }
+
+    /// Root an identifier using the [`Self::rooting_oi`] atop of the stack.
+    ///
+    /// Until [`Asg`] can be further generalized,
+    ///   there are unfortunately two rooting strategies employed:
+    ///
+    ///   1. If the stack has only a single held frame,
+    ///        then it is assumed to be the package representing the active
+    ///        compilation unit and the identifier is indexed in the global
+    ///        scope.
+    ///   2. Otherwise,
+    ///        the identifier is defined locally and does not undergo
+    ///        indexing.
+    ///
+    /// TODO: Generalize this.
+    fn defines(&mut self, name: SPair) -> ObjectIndex<Ident> {
+        let oi_root = self.rooting_oi().expect("TODO");
+        let Self(asg, stack) = self;
+
+        match stack.len() {
+            1 => asg
+                .lookup_global_or_missing(name)
+                .add_edge_from(asg, oi_root, None),
+            _ => oi_root.declare_local(asg, name),
+        }
     }
 }
 

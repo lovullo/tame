@@ -32,7 +32,7 @@ use super::{
 use crate::{
     asg::{
         graph::object::{ObjectIndexRelTo, ObjectIndexTo},
-        Ident, ObjectKind,
+        ObjectKind,
     },
     f::Functor,
     parse::prelude::*,
@@ -40,18 +40,6 @@ use crate::{
 
 #[cfg(doc)]
 use StackEdge::{Dangling, Reachable};
-
-/// Parse and aggregate [`Reachable`] [`Expr`]s into the graph,
-///   with expression roots bound to their associated [`Ident`]s.
-///
-/// See [`ReachableOnly`] for more information.
-pub type AirExprAggregateReachable = AirExprAggregate<ReachableOnly>;
-
-/// Parse and aggregate both [`Reachable`] and [`Dangling`] [`Expr`]s into
-///   the graph.
-///
-/// See [`StoreDangling`] for more information.
-pub type AirExprAggregateStoreDangling = AirExprAggregate<StoreDangling>;
 
 /// Parse an AIR expression with binding support.
 ///
@@ -63,29 +51,29 @@ pub type AirExprAggregateStoreDangling = AirExprAggregate<StoreDangling>;
 ///   handles each of its tokens and performs error recovery on invalid
 ///   state transitions.
 #[derive(Debug, PartialEq)]
-pub enum AirExprAggregate<S: RootStrategy> {
+pub enum AirExprAggregate {
     /// Ready for an expression;
     ///   expression stack is empty.
-    Ready(S, ExprStack<Dormant>),
+    Ready(ExprStack<Dormant>),
 
     /// Building an expression.
-    BuildingExpr(S, ExprStack<Active>, ObjectIndex<Expr>),
+    BuildingExpr(ExprStack<Active>, ObjectIndex<Expr>),
 }
 
-impl<S: RootStrategy> Display for AirExprAggregate<S> {
+impl Display for AirExprAggregate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Ready(_, es) => {
+            Self::Ready(es) => {
                 write!(f, "ready for expression with {es}")
             }
-            Self::BuildingExpr(_, es, _) => {
+            Self::BuildingExpr(es, _) => {
                 write!(f, "building expression with {es}")
             }
         }
     }
 }
 
-impl<S: RootStrategy> ParseState for AirExprAggregate<S> {
+impl ParseState for AirExprAggregate {
     type Token = AirBindableExpr;
     type Object = ();
     type Error = AsgError;
@@ -101,17 +89,17 @@ impl<S: RootStrategy> ParseState for AirExprAggregate<S> {
         use AirExprAggregate::*;
 
         match (self, tok) {
-            (Ready(root, es), AirExpr(ExprStart(op, span))) => {
+            (Ready(es), AirExpr(ExprStart(op, span))) => {
                 let oi = ctx.asg_mut().create(Expr::new(op, span));
-                Transition(BuildingExpr(root, es.activate(), oi)).incomplete()
+                Transition(BuildingExpr(es.activate(), oi)).incomplete()
             }
 
-            (BuildingExpr(root, es, poi), AirExpr(ExprStart(op, span))) => {
+            (BuildingExpr(es, poi), AirExpr(ExprStart(op, span))) => {
                 let oi = poi.create_subexpr(ctx.asg_mut(), Expr::new(op, span));
-                Transition(BuildingExpr(root, es.push(poi), oi)).incomplete()
+                Transition(BuildingExpr(es.push(poi), oi)).incomplete()
             }
 
-            (BuildingExpr(root, es, oi), AirExpr(ExprEnd(end))) => {
+            (BuildingExpr(es, oi), AirExpr(ExprEnd(end))) => {
                 let _ = oi.map_obj(ctx.asg_mut(), |expr| {
                     expr.map(|span| span.merge(end).unwrap_or(span))
                 });
@@ -121,42 +109,35 @@ impl<S: RootStrategy> ParseState for AirExprAggregate<S> {
 
                 match (es.pop(), dangling) {
                     ((es, Some(poi)), _) => {
-                        Transition(BuildingExpr(root, es, poi)).incomplete()
+                        Transition(BuildingExpr(es, poi)).incomplete()
                     }
                     ((es, None), true) => {
                         Self::hold_dangling(ctx.asg_mut(), oi_root, oi)
-                            .transition(Ready(root, es.done()))
+                            .transition(Ready(es.done()))
                     }
                     ((es, None), false) => {
-                        Transition(Ready(root, es.done())).incomplete()
+                        Transition(Ready(es.done())).incomplete()
                     }
                 }
             }
 
-            (BuildingExpr(root, es, oi), AirBind(BindIdent(id))) => {
-                let oi_root = ctx.rooting_oi().expect("TODO");
-                let oi_ident = root.defines(ctx.asg_mut(), oi_root, id);
+            (BuildingExpr(es, oi), AirBind(BindIdent(id))) => {
+                let oi_ident = ctx.defines(id);
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
                 match oi_ident.bind_definition(ctx.asg_mut(), id, oi) {
-                    Ok(_) => Transition(BuildingExpr(
-                        root,
-                        es.reachable_by(oi_ident),
-                        oi,
-                    ))
-                    .incomplete(),
-                    Err(e) => Transition(BuildingExpr(root, es, oi)).err(e),
+                    Ok(_) => {
+                        Transition(BuildingExpr(es.reachable_by(oi_ident), oi))
+                            .incomplete()
+                    }
+                    Err(e) => Transition(BuildingExpr(es, oi)).err(e),
                 }
             }
 
-            (BuildingExpr(root, es, oi), AirBind(RefIdent(ident))) => {
-                Transition(BuildingExpr(
-                    root,
-                    es,
-                    oi.ref_expr(ctx.asg_mut(), ident),
-                ))
-                .incomplete()
+            (BuildingExpr(es, oi), AirBind(RefIdent(ident))) => {
+                Transition(BuildingExpr(es, oi.ref_expr(ctx.asg_mut(), ident)))
+                    .incomplete()
             }
 
             (st @ Ready(..), AirExpr(ExprEnd(span))) => {
@@ -173,9 +154,9 @@ impl<S: RootStrategy> ParseState for AirExprAggregate<S> {
     }
 }
 
-impl<S: RootStrategy> AirExprAggregate<S> {
+impl AirExprAggregate {
     pub(super) fn new() -> Self {
-        Self::Ready(S::new(), ExprStack::default())
+        Self::Ready(ExprStack::default())
     }
 
     /// Hold or reject a [`Dangling`] root [`Expr`].
@@ -382,107 +363,6 @@ impl Display for ExprStack<Active> {
             stack.len(),
             stack.capacity()
         )
-    }
-}
-
-pub use root::*;
-mod root {
-    use super::*;
-    use std::fmt::Debug;
-
-    /// The rooting strategy to employ after an [`Expr`] construction.
-    ///
-    /// The method [`Self::defines`] roots an identifier,
-    ///   stating that the object associated with [`Self`] is responsible
-    ///   for the definition associated with this identifier.
-    /// An identified expression will be rooted in [`Self`] even if it is a
-    ///   sub-expression.
-    pub trait RootStrategy: Debug + PartialEq {
-        /// Declare `oi` as the root of all accepted [`Expr`]s produced by
-        ///   the parser.
-        fn new() -> Self;
-
-        /// Look up the provided identifier `id` on the [`Asg`] and indicate
-        ///   that its definition is associated with [`Self`]'s root.
-        ///
-        /// This is invoked for _all_ identifiers,
-        ///   including sub-expressions.
-        fn defines(
-            &self,
-            asg: &mut Asg,
-            oi_root: ObjectIndexTo<Ident>,
-            id: SPair,
-        ) -> ObjectIndex<Ident>;
-    }
-
-    /// Accept and root only [`Reachable`] root expressions.
-    ///
-    /// Note that a root expresion is still [`Dangling`]
-    ///   (and therefore not [`Reachable`])
-    ///   even if one of its sub-expressions has been bound to an
-    ///   identifier.
-    /// In that case,
-    ///   the sub-expression will be rooted in [`Self`],
-    ///     but the [`Dangling`] root expression will still be rejected.
-    ///
-    /// This expects identifiers to be rooted in the global environment,
-    ///   which is the package representing the active compilation unit.
-    /// This may be relaxed once identifier caching is generalized;
-    ///   at the time of writing it is too coupled to the graph root.
-    ///
-    /// See [`RootStrategy`] for more information.
-    #[derive(Debug, PartialEq)]
-    pub struct ReachableOnly;
-
-    impl RootStrategy for ReachableOnly {
-        fn new() -> Self {
-            Self
-        }
-
-        fn defines(
-            &self,
-            asg: &mut Asg,
-            oi_root: ObjectIndexTo<Ident>,
-            id: SPair,
-        ) -> ObjectIndex<Ident> {
-            asg.lookup_global_or_missing(id)
-                .add_edge_from(asg, oi_root, None)
-        }
-    }
-
-    /// Accept both [`Reachable`] and [`Dangling`] expressions.
-    ///
-    /// A [`Dangling`] expression will have the [`Expr`] rooted instead of
-    ///   an [`Ident`].
-    ///
-    /// Sub-expressions can be thought of as utilizing this strategy with an
-    ///   implicit parent [`ObjectIndex<Expr>`](ObjectIndex).
-    ///
-    /// Unlike [`ReachableOnly`],
-    ///   this does _not_ cache identifiers in the global environment.
-    /// See there for more information.
-    ///
-    /// See [`RootStrategy`] for more information.
-    #[derive(Debug, PartialEq)]
-    pub struct StoreDangling;
-
-    impl RootStrategy for StoreDangling {
-        fn new() -> Self {
-            Self
-        }
-
-        fn defines(
-            &self,
-            asg: &mut Asg,
-            oi_root: ObjectIndexTo<Ident>,
-            name: SPair,
-        ) -> ObjectIndex<Ident> {
-            // This cannot simply call [`ReachableOnly`]'s `defines` because
-            //   we cannot cache in the global environment.
-            // This can be realized once caching is generalized;
-            //   see the commit that introduced this comment.
-            oi_root.declare_local(asg, name)
-        }
     }
 }
 
