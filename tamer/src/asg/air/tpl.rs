@@ -67,17 +67,13 @@ pub enum AirTplAggregate {
     ///   tokens that are received in this state are interpreted as directly
     ///   applying to the template itself,
     ///     or creating an object directly owned by the template.
-    Toplevel(TplState, AirExprAggregateStoreDangling<Tpl>),
+    Toplevel(TplState),
 
     /// Defining a template metavariable.
-    TplMeta(
-        TplState,
-        AirExprAggregateStoreDangling<Tpl>,
-        ObjectIndex<Meta>,
-    ),
+    TplMeta(TplState, ObjectIndex<Meta>),
 
     /// Aggregating tokens into a template.
-    TplExpr(TplState, AirExprAggregateStoreDangling<Tpl>),
+    TplExpr(TplState, AirExprAggregateStoreDangling),
 }
 
 impl Display for AirTplAggregate {
@@ -85,11 +81,13 @@ impl Display for AirTplAggregate {
         match self {
             Self::Ready => write!(f, "ready for template definition"),
 
-            Self::Toplevel(tpl, expr) | Self::TplExpr(tpl, expr) => {
+            Self::Toplevel(tpl) => write!(f, "building {tpl} at toplevel"),
+
+            Self::TplExpr(tpl, expr) => {
                 write!(f, "building {tpl} with {expr}")
             }
 
-            Self::TplMeta(tpl, _, _) => {
+            Self::TplMeta(tpl, _) => {
                 write!(f, "building {tpl} metavariable")
             }
         }
@@ -184,11 +182,7 @@ impl ParseState for AirTplAggregate {
             (Ready, AirTpl(TplStart(span))) => {
                 let oi_tpl = ctx.asg_mut().create(Tpl::new(span));
 
-                Transition(Toplevel(
-                    TplState::Dangling(oi_tpl),
-                    AirExprAggregate::new_in(oi_tpl),
-                ))
-                .incomplete()
+                Transition(Toplevel(TplState::Dangling(oi_tpl))).incomplete()
             }
 
             (Toplevel(..), AirTpl(TplStart(span))) => diagnostic_todo!(
@@ -196,7 +190,7 @@ impl ParseState for AirTplAggregate {
                 "nested tpl open"
             ),
 
-            (Toplevel(tpl, expr), AirBind(BindIdent(id))) => {
+            (Toplevel(tpl), AirBind(BindIdent(id))) => {
                 let oi_root = ctx.rooting_oi().expect("TODO");
                 let asg = ctx.asg_mut();
 
@@ -204,35 +198,31 @@ impl ParseState for AirTplAggregate {
                     .bind_definition(asg, id, tpl.oi())
                     .map(|oi_ident| oi_root.defines(asg, oi_ident))
                     .map(|_| ())
-                    .transition(Toplevel(tpl.identify(id), expr))
+                    .transition(Toplevel(tpl.identify(id)))
             }
 
-            (Toplevel(tpl, expr), AirBind(RefIdent(id))) => {
+            (Toplevel(tpl), AirBind(RefIdent(id))) => {
                 tpl.oi().apply_named_tpl(ctx.asg_mut(), id);
-                Transition(Toplevel(tpl, expr)).incomplete()
+                Transition(Toplevel(tpl)).incomplete()
             }
 
-            (Toplevel(tpl, expr), AirTpl(TplMetaStart(span))) => {
+            (Toplevel(tpl), AirTpl(TplMetaStart(span))) => {
                 let oi_meta = ctx.asg_mut().create(Meta::new_required(span));
-                Transition(TplMeta(tpl, expr, oi_meta)).incomplete()
+                Transition(TplMeta(tpl, oi_meta)).incomplete()
             }
-            (TplMeta(tpl, expr, oi_meta), AirTpl(TplMetaEnd(cspan))) => {
+            (TplMeta(tpl, oi_meta), AirTpl(TplMetaEnd(cspan))) => {
                 oi_meta.close(ctx.asg_mut(), cspan);
-                Transition(Toplevel(tpl, expr)).incomplete()
+                Transition(Toplevel(tpl)).incomplete()
             }
 
-            (TplMeta(tpl, expr, oi_meta), AirTpl(TplLexeme(lexeme))) => {
-                Transition(TplMeta(
-                    tpl,
-                    expr,
-                    oi_meta.assign_lexeme(ctx.asg_mut(), lexeme),
-                ))
-                .incomplete()
-            }
+            (TplMeta(tpl, oi_meta), AirTpl(TplLexeme(lexeme))) => Transition(
+                TplMeta(tpl, oi_meta.assign_lexeme(ctx.asg_mut(), lexeme)),
+            )
+            .incomplete(),
 
-            (TplMeta(tpl, expr, oi_meta), AirBind(BindIdent(name))) => {
+            (TplMeta(tpl, oi_meta), AirBind(BindIdent(name))) => {
                 oi_meta.identify_as_tpl_param(ctx.asg_mut(), tpl.oi(), name);
-                Transition(TplMeta(tpl, expr, oi_meta)).incomplete()
+                Transition(TplMeta(tpl, oi_meta)).incomplete()
             }
 
             (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
@@ -273,13 +263,14 @@ impl ParseState for AirTplAggregate {
                 )
             }
 
-            (Toplevel(tpl, _expr_done), AirTpl(TplEnd(span))) => {
+            (Toplevel(tpl), AirTpl(TplEnd(span))) => {
                 tpl.close(ctx.asg_mut(), span).transition(Ready)
             }
 
             (TplExpr(tpl, expr), AirTpl(TplEnd(span))) => {
                 // TODO: duplicated with AirAggregate
                 if expr.is_accepting(ctx) {
+                    ctx.pop();
                     tpl.close(ctx.asg_mut(), span).transition(Ready)
                 } else {
                     Transition(TplExpr(tpl, expr))
@@ -287,11 +278,11 @@ impl ParseState for AirTplAggregate {
                 }
             }
 
-            (Toplevel(tpl, expr_done), AirTpl(TplEndRef(span))) => {
+            (Toplevel(tpl), AirTpl(TplEndRef(span))) => {
                 let oi_target = ctx.expansion_oi().expect("TODO");
                 tpl.oi().expand_into(ctx.asg_mut(), oi_target);
 
-                Transition(Toplevel(tpl.anonymous_reachable(), expr_done))
+                Transition(Toplevel(tpl.anonymous_reachable()))
                     .incomplete()
                     .with_lookahead(AirTpl(TplEnd(span)))
             }
@@ -306,8 +297,12 @@ impl ParseState for AirTplAggregate {
                     .with_lookahead(AirTpl(TplEnd(span)))
             }
 
-            (Toplevel(tpl, expr), AirExpr(etok)) => {
-                Self::delegate_expr(ctx, tpl, expr, etok)
+            (Toplevel(tpl), tok @ AirExpr(_)) => {
+                ctx.push(Toplevel(tpl));
+
+                Transition(TplExpr(tpl, AirExprAggregate::new()))
+                    .incomplete()
+                    .with_lookahead(tok)
             }
 
             (TplExpr(tpl, expr), AirExpr(etok)) => {
@@ -355,17 +350,28 @@ impl AirTplAggregate {
         Self::Ready
     }
 
+    pub(super) fn active_tpl_oi(&self) -> Option<ObjectIndex<Tpl>> {
+        use AirTplAggregate::*;
+
+        match self {
+            Ready => None,
+            Toplevel(tplst) | TplMeta(tplst, _) | TplExpr(tplst, _) => {
+                Some(tplst.oi())
+            }
+        }
+    }
+
     /// Delegate to the expression parser [`AirExprAggregate`].
     fn delegate_expr(
         asg: &mut <Self as ParseState>::Context,
         tpl: TplState,
-        expr: AirExprAggregateStoreDangling<Tpl>,
-        etok: impl Into<<AirExprAggregateStoreDangling<Tpl> as ParseState>::Token>,
+        expr: AirExprAggregateStoreDangling,
+        etok: impl Into<<AirExprAggregateStoreDangling as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
 
         expr.parse_token(tok, asg).branch_dead::<Self, _>(
-            |expr, ()| Transition(Self::Toplevel(tpl, expr)).incomplete(),
+            |_, ()| Transition(Self::Toplevel(tpl)).incomplete(),
             |expr, result, ()| {
                 result
                     .map(ParseStatus::reflexivity)

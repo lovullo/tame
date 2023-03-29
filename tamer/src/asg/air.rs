@@ -39,7 +39,7 @@ use self::expr::AirExprAggregateReachable;
 
 use super::{
     graph::object::{ObjectIndexTo, Pkg, Tpl},
-    Asg, AsgError, Ident, ObjectIndex,
+    Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
     diagnose::Annotate, diagnostic_todo, parse::prelude::*, sym::SymbolId,
@@ -73,7 +73,7 @@ pub enum AirAggregate {
     /// This expects to inherit an [`AirExprAggregate`] from the prior state
     ///   so that we are not continuously re-allocating its stack for each
     ///   new expression root.
-    PkgExpr(AirExprAggregateReachable<Pkg>),
+    PkgExpr(AirExprAggregateReachable),
 
     /// Parser is in template parsing mode.
     ///
@@ -99,6 +99,18 @@ impl Display for AirAggregate {
                 write!(f, "building a template: {tpl}",)
             }
         }
+    }
+}
+
+impl From<AirExprAggregateReachable> for AirAggregate {
+    fn from(st: AirExprAggregateReachable) -> Self {
+        Self::PkgExpr(st)
+    }
+}
+
+impl From<AirTplAggregate> for AirAggregate {
+    fn from(st: AirTplAggregate) -> Self {
+        Self::PkgTpl(st)
     }
 }
 
@@ -160,7 +172,7 @@ impl ParseState for AirAggregate {
 
             (Toplevel(oi_pkg), tok @ AirExpr(..)) => {
                 ctx.push(Toplevel(oi_pkg));
-                let expr = AirExprAggregate::new_in(oi_pkg);
+                let expr = AirExprAggregate::new();
                 Transition(PkgExpr(expr)).incomplete().with_lookahead(tok)
             }
 
@@ -293,8 +305,8 @@ impl AirAggregate {
     ///   [`crate::parse`] framework.
     fn delegate_expr(
         ctx: &mut <Self as ParseState>::Context,
-        expr: AirExprAggregateReachable<Pkg>,
-        etok: impl Into<<AirExprAggregateReachable<Pkg> as ParseState>::Token>,
+        expr: AirExprAggregateReachable,
+        etok: impl Into<<AirExprAggregateReachable as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         let tok = etok.into();
 
@@ -356,9 +368,9 @@ impl AirAggregateCtx {
         self.as_mut()
     }
 
-    fn push(&mut self, st: AirAggregate) {
+    fn push<S: Into<AirAggregate>>(&mut self, st: S) {
         let Self(_, stack) = self;
-        stack.push(st);
+        stack.push(st.into());
     }
 
     fn pop(&mut self) -> Option<AirAggregate> {
@@ -373,9 +385,9 @@ impl AirAggregateCtx {
     fn rooting_oi(&self) -> Option<ObjectIndexTo<Ident>> {
         let Self(_, stack) = self;
 
-        stack.iter().rev().find_map(|st| match *st {
+        stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
-            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
+            AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
 
             // Expressions never serve as roots for identifiers;
             //   this will always fall through to the parent context.
@@ -383,8 +395,46 @@ impl AirAggregateCtx {
             //   the next frame should succeed.
             AirAggregate::PkgExpr(_) => None,
 
-            AirAggregate::PkgTpl(_) => {
-                diagnostic_todo!(vec![], "PkgTpl rooting_oi")
+            // Identifiers bound while within a template definition context
+            //   must bind to the eventual _expansion_ site,
+            //     as if the body were pasted there.
+            // Templates must therefore serve as containers for identifiers
+            //   bound therein.
+            AirAggregate::PkgTpl(tplst) => {
+                tplst.active_tpl_oi().map(Into::into)
+            }
+        })
+    }
+
+    /// The active dangling expression context for [`Expr`]s.
+    ///
+    /// A value of [`None`] indicates that expressions are not permitted to
+    ///   dangle in the current context
+    ///     (and so must be identified).
+    fn dangling_expr_oi(&self) -> Option<ObjectIndexTo<Expr>> {
+        let Self(_, stack) = self;
+
+        stack.iter().rev().find_map(|st| match st {
+            AirAggregate::Empty => None,
+
+            // A dangling expression in a package context would be
+            //   unreachable.
+            // There should be no parent frame and so this will fail to find
+            //   a value.
+            AirAggregate::Toplevel(_) => None,
+
+            // Expressions may always contain other expressions,
+            //   and so this method should not be consulted in such a
+            //   context.
+            // Nonetheless,
+            //   fall through to the parent frame and give a correct answer.
+            AirAggregate::PkgExpr(_) => None,
+
+            // Templates serve as containers for dangling expressions,
+            //   since they may expand into an context where they are not
+            //   considered to be dangling.
+            AirAggregate::PkgTpl(tplst) => {
+                tplst.active_tpl_oi().map(Into::into)
             }
         })
     }
