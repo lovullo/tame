@@ -715,6 +715,12 @@ mod private {
         }
     }
 
+    impl<OB: ObjectRelatable> ObjectIndexTo<OB> {
+        pub fn span(&self) -> Span {
+            (*self).into()
+        }
+    }
+
     // Deriving `Clone`/`Copy` as of 2023-03 was introducing a
     //   `Clone`/`Copy` bound on `OB`.
     impl<OB: ObjectRelatable> Clone for ObjectIndexTo<OB> {
@@ -724,4 +730,12 @@ mod private {
     }
 
     impl<OB: ObjectRelatable> Copy for ObjectIndexTo<OB> {}
+
+    impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for Span {
+        fn from(oi: ObjectIndexTo<OB>) -> Self {
+            match oi {
+                ObjectIndexTo((oi, _), _) => oi.span(),
+            }
+        }
+    }
 }
