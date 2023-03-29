@@ -206,13 +206,13 @@ impl<S: ParseState> TransitionResult<S> {
         S: PartiallyStitchableParseState<SB>,
     {
         self.branch_dead_la(
-            |st, Lookahead(la), bctx| {
+            |st, la, bctx| {
                 fdead(st, bctx)
-                    .with_lookahead(<SB as ParseState>::Token::from(la))
+                    .maybe_with_lookahead(Some(la.into_super::<SB>()))
             },
             |st, result, la, bctx| {
                 falive(st, result, bctx)
-                    .maybe_with_lookahead(la.map(Lookahead::inner_into))
+                    .maybe_with_lookahead(la.map(Lookahead::into_super::<SB>))
             },
             bctx,
         )
@@ -294,6 +294,22 @@ impl<T: Token> Lookahead<T> {
             Self(tok) => Lookahead(tok.into()),
         }
     }
+
+    /// Convert the inner [`Token`] of lookahead into the token expected by
+    ///   the superstate [`S::Super`](ParseState::Super).
+    ///
+    /// This simply sets strict trait bounds to serve as a checkpoint where
+    ///   we know for certain what types are involved;
+    ///     there's a whole lot of types involved in the parsing framework
+    ///     and it gets very difficult to understand when errors occur.
+    pub fn into_super<S: ParseState>(
+        self,
+    ) -> Lookahead<<S::Super as ParseState>::Token>
+    where
+        T: Into<<S::Super as ParseState>::Token>,
+    {
+        self.inner_into::<<S::Super as ParseState>::Token>()
+    }
 }
 
 /// Information about the state transition.
@@ -340,9 +356,9 @@ impl<S: ParseState> TransitionData<S> {
         match self {
             Self::Result(st_result, ola) => TransitionData::Result(
                 st_result.map(ParseStatus::into_super).map_err(|e| e.into()),
-                ola,
+                ola.map(Lookahead::inner_into),
             ),
-            Self::Dead(la) => TransitionData::Dead(la),
+            Self::Dead(la) => TransitionData::Dead(la.inner_into()),
         }
     }
 
@@ -438,7 +454,7 @@ impl<S: ParseState> TransitionData<S> {
         use TransitionData::*;
 
         match self {
-            Dead(la) => Dead(la.inner_into()),
+            Dead(la) => Dead(la.into_super::<SB>()),
             Result(result, la) => Result(
                 match result {
                     Ok(status) => Ok(status.inner_into()),
@@ -447,7 +463,7 @@ impl<S: ParseState> TransitionData<S> {
                     //     (which will be the same type if SB is closed).
                     Err(e) => Err(e.into().into()),
                 },
-                la.map(Lookahead::inner_into),
+                la.map(Lookahead::into_super::<SB>),
             ),
         }
     }
@@ -567,10 +583,13 @@ impl<S: ParseState> Transition<S> {
     ///   object first,
     ///     use [`Transition::result`] or other methods along with a token
     ///     of [`Lookahead`].
-    pub fn dead(self, tok: S::Token) -> TransitionResult<S::Super> {
+    pub fn dead<T: Token + Into<<S::Super as ParseState>::Token>>(
+        self,
+        tok: T,
+    ) -> TransitionResult<S::Super> {
         TransitionResult(
             self.into_super(),
-            TransitionData::Dead(Lookahead(tok)),
+            TransitionData::Dead(Lookahead(tok).into_super::<S>()),
         )
     }
 

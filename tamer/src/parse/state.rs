@@ -129,7 +129,7 @@ where
     Self::Error: Into<<Self::Super as ParseState>::Error>,
 {
     /// Input tokens to the parser.
-    type Token: Token;
+    type Token: Token + Into<<Self::Super as ParseState>::Token>;
 
     /// Objects produced by a parser utilizing these states.
     type Object: Object;
@@ -156,11 +156,8 @@ where
     /// This is the same concept as [`StitchableParseState`],
     ///   but operating in reverse
     ///     (delegation via trampoline instead of direct function call).
-    type Super: ClosedParseState<
-        Token = Self::Token,
-        Object = Self::Object,
-        Context = Self::Context,
-    > = Self;
+    type Super: ClosedParseState<Object = Self::Object, Context = Self::Context> =
+        Self;
 
     /// Object provided to parser alongside each token.
     ///
@@ -359,7 +356,7 @@ where
         mut context: C,
         dead: impl FnOnce(
             Self::Super,
-            Self::Token,
+            <Self::Super as ParseState>::Token,
             C,
         ) -> TransitionResult<Self::Super>,
     ) -> TransitionResult<Self::Super>
@@ -460,7 +457,7 @@ where
                     into(newst, Some(obj), env),
                     TransitionData::Result(
                         Ok(Incomplete),
-                        lookahead.map(Lookahead::inner_into),
+                        lookahead.map(Lookahead::into_super::<SP>),
                     ),
                 )
             }
@@ -472,7 +469,7 @@ where
                         Ok(_) => Ok(Incomplete),
                         Err(e) => Err(e.into()),
                     },
-                    lookahead.map(Lookahead::inner_into),
+                    lookahead.map(Lookahead::into_super::<SP>),
                 ),
             ),
         }
@@ -511,7 +508,8 @@ pub trait StitchableParseState<SP: ParseState> =
 
 pub trait PartiallyStitchableParseState<SP: ParseState> = ClosedParseState
 where
-    <SP as ParseState>::Token: From<<Self as ParseState>::Token>,
+    <<SP as ParseState>::Super as ParseState>::Token:
+        From<<<Self as ParseState>::Super as ParseState>::Token>,
     <Self as ParseState>::Error: Into<<SP as ParseState>::Error>;
 
 pub mod context {
