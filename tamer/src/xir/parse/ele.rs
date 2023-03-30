@@ -32,7 +32,6 @@ use crate::{
     span::Span,
     xir::{flat::Depth, CloseSpan, OpenSpan, Prefix, QName},
 };
-use arrayvec::ArrayVec;
 use std::{
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
@@ -44,19 +43,19 @@ use crate::{ele_parse, parse::Parser};
 /// A parser accepting a single element.
 pub trait EleParseState: ParseState {}
 
-/// Maximum level of parser nesting.
+/// Maximum level of parser stack nesting.
+///
+/// The intent of this value is to ensure that TAMER will fail if something
+///   goes terribly wrong,
+///     e.g. if the system has a bug where lookahead causes the system to
+///     recurse infinitely.
 ///
 /// Unfortunately,
 ///   this limit _does not_ correspond to the level of XML nesting;
 ///     parsers composed of Sum NTs,
 ///       in particular,
 ///       push multiple parsers onto the stack for a single element.
-///
-/// Note that this is assuming that this parser is used only for TAME
-///   sources.
-/// If that's not the case,
-///   this can be made to be configurable like XIRF.
-pub const MAX_DEPTH: usize = 64;
+pub const XIR_MAX_DEPTH: usize = 1024;
 
 /// Parser stack for trampoline.
 ///
@@ -71,14 +70,16 @@ pub const MAX_DEPTH: usize = 64;
 ///   a [`ParseState`] may implement tail calls by simply not pushing itself
 ///   onto the stack before requesting transfer to another [`ParseState`].
 #[derive(Debug, Default)]
-pub struct StateStack<S: SuperState>(ArrayVec<S, MAX_DEPTH>);
+pub struct StateStack<S: SuperState, const MAX_DEPTH: usize = XIR_MAX_DEPTH>(
+    Vec<S>,
+);
 
 /// [`SuperState`] [`Context`] that gets propagated to each child parser.
 pub type SuperStateContext<S> = Context<StateStack<S>>;
 
 // Note that public visibility is needed because `ele_parse` expands outside
 //   of this module.
-impl<S: SuperState> StateStack<S> {
+impl<S: SuperState, const MAX_DEPTH: usize> StateStack<S, MAX_DEPTH> {
     /// Request a transfer to another [`ParseState`],
     ///   expecting that control be returned to `ret` after it has
     ///   completed.
@@ -122,9 +123,7 @@ impl<S: SuperState> StateStack<S> {
     {
         let Self(stack) = self;
 
-        // TODO: Global configuration to (hopefully) ensure that XIRF will
-        //   actually catch this.
-        if stack.is_full() {
+        if stack.len() == MAX_DEPTH {
             // TODO: We need some spans here and ideally convert the
             //   parenthetical error message into a diagnostic footnote.
             // TODO: Or should we have a special error type that tells the
