@@ -23,8 +23,8 @@
 
 use super::{
     super::{graph::object::Tpl, Asg, AsgError, ObjectIndex},
-    ir::AirTemplatable,
-    AirAggregate, AirAggregateCtx, AirExprAggregate,
+    ir::AirBindableTpl,
+    AirAggregate, AirAggregateCtx,
 };
 use crate::{
     asg::graph::object::{Meta, ObjectIndexRelTo},
@@ -41,13 +41,12 @@ use crate::{
 ///
 ///   - Metadata about the template,
 ///       including its parameters; and
-///   - A collection of [`AirTemplatable`] tokens representing the body of
-///       the template that will be expanded into the application site when
-///       the template is applied.
+///   - A collection of objects representing the body of the template that
+///       will be expanded into the application site when the template is
+///       applied.
 ///
-/// This contains an embedded [`AirExprAggregate`] parser for handling
-///   expressions just the same as [`super::AirAggregate`] does with
-///   packages.
+/// The superstate is expected to preempt this parser for expression
+///   parsing.
 #[derive(Debug, PartialEq)]
 pub enum AirTplAggregate {
     /// Ready for a template,
@@ -156,7 +155,7 @@ impl Display for TplState {
 }
 
 impl ParseState for AirTplAggregate {
-    type Token = AirTemplatable;
+    type Token = AirBindableTpl;
     type Object = ();
     type Error = AsgError;
     type Context = AirAggregateCtx;
@@ -168,7 +167,7 @@ impl ParseState for AirTplAggregate {
         ctx: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         use super::ir::{AirBind::*, AirTpl::*};
-        use AirTemplatable::*;
+        use AirBindableTpl::*;
         use AirTplAggregate::*;
 
         match (self, tok) {
@@ -225,13 +224,6 @@ impl ParseState for AirTplAggregate {
                 )
             }
 
-            (TplMeta(..), tok @ AirExpr(..)) => {
-                diagnostic_todo!(
-                    vec![tok.note("this token")],
-                    "AirExpr in metavar context (e.g. @values@)"
-                )
-            }
-
             (
                 TplMeta(..),
                 tok @ AirTpl(
@@ -269,13 +261,6 @@ impl ParseState for AirTplAggregate {
                     .with_lookahead(AirTpl(TplEnd(span)))
             }
 
-            (Toplevel(tpl), tok @ AirExpr(_)) => ctx.stack().transfer_with_ret(
-                Transition(Toplevel(tpl)),
-                Transition(AirExprAggregate::new())
-                    .incomplete()
-                    .with_lookahead(tok),
-            ),
-
             (
                 Ready,
                 tok @ AirTpl(TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)),
@@ -290,9 +275,7 @@ impl ParseState for AirTplAggregate {
                 Transition(st).err(AsgError::UnbalancedTpl(span))
             }
 
-            (st @ Ready, tok @ (AirExpr(..) | AirBind(..))) => {
-                Transition(st).dead(tok)
-            }
+            (st @ Ready, tok @ AirBind(..)) => Transition(st).dead(tok),
         }
     }
 

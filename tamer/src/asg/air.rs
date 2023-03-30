@@ -171,13 +171,20 @@ impl ParseState for AirAggregate {
                 Transition(st).err(AsgError::InvalidExprRefContext(id))
             }
 
-            (Toplevel(oi_pkg), tok @ AirExpr(..)) => {
-                ctx.stack().transfer_with_ret(
-                    Transition(Toplevel(oi_pkg)),
-                    Transition(AirExprAggregate::new())
-                        .incomplete()
-                        .with_lookahead(tok),
-                )
+            // TODO: This looks a whole lot like the match arm below.
+            (st @ (Toplevel(_) | PkgTpl(_)), tok @ AirExpr(..)) => {
+                // TODO: generalize this construction
+                if st.active_is_accepting(ctx) {
+                    // TODO: dead state or error
+                    ctx.stack().ret_or_dead(Empty, tok)
+                } else {
+                    ctx.stack().transfer_with_ret(
+                        Transition(st),
+                        Transition(AirExprAggregate::new())
+                            .incomplete()
+                            .with_lookahead(tok),
+                    )
+                }
             }
 
             (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
@@ -208,9 +215,6 @@ impl ParseState for AirAggregate {
             }
 
             // Template parsing.
-            (PkgTpl(tplst), AirExpr(ttok)) => {
-                Self::delegate_tpl(ctx, tplst, ttok)
-            }
             (PkgTpl(tplst), AirBind(ttok)) => {
                 Self::delegate_tpl(ctx, tplst, ttok)
             }

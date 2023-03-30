@@ -777,14 +777,5 @@ sum_ir! {
     pub sum enum AirBindableExpr = AirExpr | AirBind;
 
     /// Tokens that may be used to define or apply templates.
-    pub sum enum AirTemplatable = AirExpr | AirBind | AirTpl;
-}
-
-impl From<AirBindableExpr> for AirTemplatable {
-    fn from(expr: AirBindableExpr) -> Self {
-        match expr {
-            AirBindableExpr::AirExpr(x) => Self::AirExpr(x),
-            AirBindableExpr::AirBind(x) => Self::AirBind(x),
-        }
-    }
+    pub sum enum AirBindableTpl = AirTpl | AirBind;
 }
