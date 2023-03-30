@@ -269,13 +269,12 @@ impl ParseState for AirTplAggregate {
                     .with_lookahead(AirTpl(TplEnd(span)))
             }
 
-            (Toplevel(tpl), tok @ AirExpr(_)) => {
-                ctx.push(Toplevel(tpl));
-
+            (Toplevel(tpl), tok @ AirExpr(_)) => ctx.stack().transfer_with_ret(
+                Transition(Toplevel(tpl)),
                 Transition(AirExprAggregate::new())
                     .incomplete()
-                    .with_lookahead(tok)
-            }
+                    .with_lookahead(tok),
+            ),
 
             (
                 Ready,

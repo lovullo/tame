@@ -1203,7 +1203,7 @@ macro_rules! ele_parse {
                             tok,
                             stack,
                             |deadst, tok, stack| {
-                                stack.ret_or_dead(tok, deadst)
+                                stack.ret_or_dead(deadst, tok)
                             },
                         ),
                     )*
@@ -1227,7 +1227,7 @@ macro_rules! ele_parse {
                 //
                 // After having considered the stack,
                 //   we can then consider the active `ParseState`.
-                stack.all(|st| st.is_inner_accepting(stack))
+                stack.iter().all(|st| st.is_inner_accepting(stack))
                     && self.is_inner_accepting(stack)
             }
         }

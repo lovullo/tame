@@ -720,8 +720,8 @@ impl<S: ClosedParseState, const MAX_DEPTH: usize> StateStack<S, MAX_DEPTH> {
     ///   after having completed a full parse.
     pub fn ret_or_dead(
         &mut self,
-        lookahead: S::Token,
         deadst: S,
+        lookahead: impl Token + Into<S::Token>,
     ) -> TransitionResult<S> {
         let Self(stack) = self;
 
@@ -735,9 +735,15 @@ impl<S: ClosedParseState, const MAX_DEPTH: usize> StateStack<S, MAX_DEPTH> {
         }
     }
 
-    /// Test every [`ParseState`] on the stack against the predicate `f`.
-    pub fn all(&self, f: impl Fn(&S) -> bool) -> bool {
+    /// Iterate through each [`ClosedParseState`] held on the stack.
+    pub fn iter(&self) -> std::slice::Iter<'_, S> {
         let Self(stack) = self;
-        stack[..].iter().all(f)
+        stack[..].iter()
+    }
+
+    /// Number of [`ClosedParseState`]s held on the stack.
+    pub fn len(&self) -> usize {
+        let Self(stack) = self;
+        stack.len()
     }
 }

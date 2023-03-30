@@ -40,7 +40,10 @@ use super::{
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
-    diagnose::Annotate, diagnostic_todo, parse::prelude::*, sym::SymbolId,
+    diagnose::Annotate,
+    diagnostic_todo,
+    parse::{prelude::*, StateStack},
+    sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
 
@@ -169,23 +172,26 @@ impl ParseState for AirAggregate {
             }
 
             (Toplevel(oi_pkg), tok @ AirExpr(..)) => {
-                ctx.push(Toplevel(oi_pkg));
-                let expr = AirExprAggregate::new();
-                Transition(PkgExpr(expr)).incomplete().with_lookahead(tok)
+                ctx.stack().transfer_with_ret(
+                    Transition(Toplevel(oi_pkg)),
+                    Transition(AirExprAggregate::new())
+                        .incomplete()
+                        .with_lookahead(tok),
+                )
             }
 
             (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
-                // TODO: this call/ret needs to be part of `ctx`
+                // TODO: generalize this construction
                 if st.active_is_accepting(ctx) {
-                    Transition(ctx.pop().expect("TODO"))
-                        .incomplete()
-                        .with_lookahead(tok)
+                    // TODO: dead state or error
+                    ctx.stack().ret_or_dead(Empty, tok)
                 } else {
-                    ctx.push(st);
-
-                    Transition(PkgTpl(AirTplAggregate::new()))
-                        .incomplete()
-                        .with_lookahead(tok)
+                    ctx.stack().transfer_with_ret(
+                        Transition(st),
+                        Transition(PkgTpl(AirTplAggregate::new()))
+                            .incomplete()
+                            .with_lookahead(tok),
+                    )
                 }
             }
 
@@ -223,27 +229,14 @@ impl ParseState for AirAggregate {
                 Transition(Empty).err(AsgError::InvalidPkgEndContext(span))
             }
 
-            (PkgExpr(expr), AirPkg(PkgEnd(span))) => {
-                match expr.is_accepting(ctx) {
+            (st @ (PkgExpr(_) | PkgTpl(_)), AirPkg(PkgEnd(span))) => {
+                match st.active_is_accepting(ctx) {
                     true => {
-                        // TODO: this is duplicated
-                        Transition(ctx.pop().expect("TODO"))
-                            .incomplete()
-                            .with_lookahead(AirPkg(PkgEnd(span)))
+                        ctx.stack().ret_or_dead(Empty, AirPkg(PkgEnd(span)))
                     }
-                    false => Transition(PkgExpr(expr))
-                        .err(AsgError::InvalidPkgEndContext(span)),
-                }
-            }
-
-            (PkgTpl(tplst), AirPkg(PkgEnd(span))) => {
-                match tplst.is_accepting(ctx) {
-                    // TODO
-                    true => Transition(ctx.pop().expect("TODO"))
-                        .incomplete()
-                        .with_lookahead(AirPkg(PkgEnd(span))),
-                    false => Transition(PkgTpl(tplst))
-                        .err(AsgError::InvalidPkgEndContext(span)),
+                    false => {
+                        Transition(st).err(AsgError::InvalidPkgEndContext(span))
+                    }
                 }
             }
 
@@ -302,9 +295,7 @@ impl AirAggregate {
         etok: impl Into<<AirExprAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         expr.delegate_child(etok.into(), ctx, |_deadst, tok, ctx| {
-            Transition(ctx.pop().expect("TODO"))
-                .incomplete()
-                .with_lookahead(tok)
+            ctx.stack().ret_or_dead(AirAggregate::Empty, tok)
         })
     }
 
@@ -321,9 +312,7 @@ impl AirAggregate {
         ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
         tplst.delegate_child(ttok.into(), ctx, |_deadst, tok, ctx| {
-            Transition(ctx.pop().expect("TODO"))
-                .incomplete()
-                .with_lookahead(tok)
+            ctx.stack().ret_or_dead(AirAggregate::Empty, tok)
         })
     }
 
@@ -356,24 +345,33 @@ impl AirAggregate {
 #[derive(Debug, Default)]
 pub struct AirAggregateCtx(Asg, AirStack);
 
+/// Limit of the maximum number of held parser frames.
+///
+/// Note that this is the number of [`ParseState`]s held,
+///   _not_ the depth of the graph at a given point.
+/// The intent of this is to limit runaway recursion in the event of some
+///   bug in the system;
+///     while the input stream is certainly finite,
+///       lookahead tokens cause recursion that does not provably
+///       terminate.
+///
+/// This limit is arbitrarily large,
+///   but hopefully such that no legitimate case will ever hit it.
+const MAX_AIR_STACK_DEPTH: usize = 1024;
+
 /// Held parser stack frames.
 ///
 /// See [`AirAggregateCtx`] for more information.
-pub type AirStack = Vec<AirAggregate>;
+pub type AirStack = StateStack<AirAggregate, MAX_AIR_STACK_DEPTH>;
 
 impl AirAggregateCtx {
     fn asg_mut(&mut self) -> &mut Asg {
         self.as_mut()
     }
 
-    fn push<S: Into<AirAggregate>>(&mut self, st: S) {
+    fn stack(&mut self) -> &mut AirStack {
         let Self(_, stack) = self;
-        stack.push(st.into());
-    }
-
-    fn pop(&mut self) -> Option<AirAggregate> {
-        let Self(_, stack) = self;
-        stack.pop()
+        stack
     }
 
     /// The active container (binding context) for [`Ident`]s.
