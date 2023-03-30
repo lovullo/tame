@@ -22,7 +22,7 @@
 mod transition;
 
 use super::{Object, ParseError, Parser, Token, TokenStream};
-use crate::diagnose::Diagnostic;
+use crate::{diagnose::Diagnostic, diagnostic_panic};
 use std::fmt::{Debug, Display};
 pub use transition::*;
 
@@ -622,5 +622,122 @@ pub mod context {
         fn from(x: T) -> Self {
             Context(x, Empty)
         }
+    }
+}
+
+/// Parser stack for trampoline.
+///
+/// This can be used as a call stack for parsers while avoiding creating
+///   otherwise-recursive data structures with composition-based delegation.
+/// However,
+///   it is more similar to CPS,
+///   in that the parser popped off the stack need not be the parser that
+///     initiated the request and merely represents the next step in
+///     a delayed computation.
+/// If such a return context is unneeded,
+///   a [`ParseState`] may implement tail calls by simply not pushing itself
+///   onto the stack before requesting transfer to another [`ParseState`].
+#[derive(Debug, Default)]
+pub struct StateStack<S: ClosedParseState, const MAX_DEPTH: usize>(Vec<S>);
+
+// Note that public visibility is needed because `ele_parse` expands outside
+//   of this module.
+impl<S: ClosedParseState, const MAX_DEPTH: usize> StateStack<S, MAX_DEPTH> {
+    /// Request a transfer to another [`ParseState`],
+    ///   expecting that control be returned to `ret` after it has
+    ///   completed.
+    ///
+    /// This can be reasoned about like calling a thunk:
+    ///   the return [`ParseState`] is put onto the stack,
+    ///   the target [`ParseState`] is used for the state transition to
+    ///     cause [`Parser`] to perform the call to it,
+    ///   and when it is done
+    ///     (e.g. a dead state),
+    ///     `ret` will be pop'd from the stack and we'll transition back to
+    ///     it.
+    /// Note that this method is not responsible for returning;
+    ///   see [`Self::ret_or_dead`] to perform a return.
+    ///
+    /// However,
+    ///   the calling [`ParseState`] is not responsible for its return,
+    ///   unlike a typical function call.
+    /// Instead,
+    ///   this _actually_ more closely resembles CPS
+    ///     (continuation passing style),
+    ///     and so the caller must be careful to ensure that stack
+    ///     operations are properly paired.
+    /// On the upside,
+    ///   if something is erroneously `ret`'d,
+    ///   the parser is guaranteed to be in a consistent state since the
+    ///   entire state has been reified
+    ///     (but the input would then be parsed incorrectly).
+    ///
+    /// Note that tail calls can be implemented by transferring control
+    ///   without pushing an entry on the stack to return to,
+    ///     but that hasn't been formalized \[yet\] and requires extra care.
+    pub fn transfer_with_ret<SA, ST>(
+        &mut self,
+        Transition(ret): Transition<SA>,
+        target: TransitionResult<ST>,
+    ) -> TransitionResult<ST>
+    where
+        SA: ParseState<Super = S::Super>,
+        ST: ParseState,
+    {
+        let Self(stack) = self;
+
+        if stack.len() == MAX_DEPTH {
+            // TODO: We need some spans here and ideally convert the
+            //   parenthetical error message into a diagnostic footnote.
+            // TODO: Or should we have a special error type that tells the
+            //   parent `Parser` to panic with context?
+            diagnostic_panic!(
+                vec![],
+                "maximum parsing depth of {} exceeded while attempting \
+                   to push return state: {ret}",
+                MAX_DEPTH,
+            );
+        }
+
+        stack.push(ret.into());
+        target
+    }
+
+    /// Attempt to return to a previous [`ParseState`] that transferred
+    ///   control away from itself,
+    ///     otherwise yield a dead state transition to `deadst`.
+    ///
+    /// Conceptually,
+    ///   this is like returning from a function call,
+    ///   where the function was invoked using [`Self::transfer_with_ret`].
+    /// However,
+    ///   this system is more akin to CPS
+    ///     (continuation passing style);
+    ///       see [`Self::transfer_with_ret`] for important information.
+    ///
+    /// If there is no state to return to on the stack,
+    ///   then it is assumed that we have received more input than expected
+    ///   after having completed a full parse.
+    pub fn ret_or_dead(
+        &mut self,
+        lookahead: S::Token,
+        deadst: S,
+    ) -> TransitionResult<S> {
+        let Self(stack) = self;
+
+        // This should certainly never happen unless there is a bug in the
+        //   `ele_parse!` parser-generator,
+        //     since it means that we're trying to return to a caller that
+        //     does not exist.
+        match stack.pop() {
+            Some(st) => Transition(st).incomplete().with_lookahead(lookahead),
+            None => Transition(deadst).dead(lookahead),
+        }
+    }
+
+    /// Test every [`ParseState`] on the stack against the predicate `f`.
+    pub fn all(&self, f: impl Fn(&S) -> bool) -> bool {
+        let Self(stack) = self;
+        stack[..].iter().all(f)
     }
 }

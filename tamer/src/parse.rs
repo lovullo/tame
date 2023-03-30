@@ -34,8 +34,8 @@ pub use lower::{lowerable, terminal, Lower, LowerIter, ParsedObject};
 pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{
     context::{Context, Empty as EmptyContext, NoContext},
-    ClosedParseState, ParseResult, ParseState, ParseStatus, Transition,
-    TransitionResult, Transitionable,
+    ClosedParseState, ParseResult, ParseState, ParseStatus, StateStack,
+    Transition, TransitionResult, Transitionable,
 };
 
 use crate::span::{Span, UNKNOWN_SPAN};
