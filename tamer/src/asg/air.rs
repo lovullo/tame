@@ -171,56 +171,23 @@ impl ParseState for AirAggregate {
                 Transition(st).err(AsgError::InvalidExprRefContext(id))
             }
 
-            // TODO: This looks a whole lot like the match arm below.
-            (st @ (Toplevel(_) | PkgTpl(_)), tok @ AirExpr(..)) => {
-                // TODO: generalize this construction
-                if st.active_is_accepting(ctx) {
-                    // TODO: dead state or error
-                    ctx.stack().ret_or_dead(Empty, tok)
-                } else {
-                    ctx.stack().transfer_with_ret(
-                        Transition(st),
-                        Transition(AirExprAggregate::new())
-                            .incomplete()
-                            .with_lookahead(tok),
-                    )
-                }
-            }
-
-            (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
-                // TODO: generalize this construction
-                if st.active_is_accepting(ctx) {
-                    // TODO: dead state or error
-                    ctx.stack().ret_or_dead(Empty, tok)
-                } else {
-                    ctx.stack().transfer_with_ret(
-                        Transition(st),
-                        Transition(PkgTpl(AirTplAggregate::new()))
-                            .incomplete()
-                            .with_lookahead(tok),
-                    )
-                }
-            }
-
             // Note: We unfortunately can't match on `AirExpr | AirBind`
             //   and delegate in the same block
             //     (without having to duplicate type checks and then handle
             //       unreachable paths)
             //     because of the different inner types.
-            (PkgExpr(expr), AirExpr(etok)) => {
-                Self::delegate_expr(ctx, expr, etok)
+            (st @ (Toplevel(_) | PkgTpl(_)), tok @ AirExpr(..)) => {
+                ctx.ret_or_transfer(st, tok, AirExprAggregate::new())
             }
-            (PkgExpr(expr), AirBind(etok)) => {
-                Self::delegate_expr(ctx, expr, etok)
-            }
+            (PkgExpr(expr), AirExpr(etok)) => ctx.proxy(expr, etok),
+            (PkgExpr(expr), AirBind(etok)) => ctx.proxy(expr, etok),
 
             // Template parsing.
-            (PkgTpl(tplst), AirBind(ttok)) => {
-                Self::delegate_tpl(ctx, tplst, ttok)
+            (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
+                ctx.ret_or_transfer(st, tok, AirTplAggregate::new())
             }
-            (PkgTpl(tplst), AirTpl(ttok)) => {
-                Self::delegate_tpl(ctx, tplst, ttok)
-            }
+            (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
+            (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
 
             (PkgTpl(..), tok @ AirPkg(PkgStart(..))) => {
                 diagnostic_todo!(
@@ -289,37 +256,6 @@ impl ParseState for AirAggregate {
 }
 
 impl AirAggregate {
-    /// Delegate to the expression parser [`AirExprAggregate`].
-    ///
-    /// TODO: This ought to be further reduced into primitives in the core
-    ///   [`crate::parse`] framework.
-    fn delegate_expr(
-        ctx: &mut <Self as ParseState>::Context,
-        expr: AirExprAggregate,
-        etok: impl Into<<AirExprAggregate as ParseState>::Token>,
-    ) -> TransitionResult<Self> {
-        expr.delegate_child(etok.into(), ctx, |_deadst, tok, ctx| {
-            ctx.stack().ret_or_dead(AirAggregate::Empty, tok)
-        })
-    }
-
-    /// Delegate to the expression parser [`AirTplAggregate`].
-    ///
-    /// After template parsing is complete
-    ///   (when reaching a dead state),
-    ///   the stored expression [`AirExprAggregate`] is reinstated,
-    ///     allowing parsing to continue where it left off before being
-    ///     preempted by template parsing.
-    fn delegate_tpl(
-        ctx: &mut <Self as ParseState>::Context,
-        tplst: AirTplAggregate,
-        ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
-    ) -> TransitionResult<Self> {
-        tplst.delegate_child(ttok.into(), ctx, |_deadst, tok, ctx| {
-            ctx.stack().ret_or_dead(AirAggregate::Empty, tok)
-        })
-    }
-
     /// Whether the active parser is in an accepting state.
     ///
     /// If a child parser is active,
@@ -376,6 +312,69 @@ impl AirAggregateCtx {
     fn stack(&mut self) -> &mut AirStack {
         let Self(_, stack) = self;
         stack
+    }
+
+    /// Return control to the parser atop of the stack if `st` is an
+    ///   accepting state,
+    ///     otherwise transfer control to a new parser `to`.
+    ///
+    /// This serves as a balance with the behavior of [`Self::proxy`].
+    /// Rather than checking for an accepting state after each proxy,
+    ///   or having the child parsers return to the top stack frame once
+    ///     they have completed,
+    ///   we leave the child parser in place to potentially handle more
+    ///     tokens of the same type.
+    /// For example,
+    ///   adjacent expressions can re-use the same parser rather than having
+    ///   to pop and push for each sibling.
+    ///
+    /// Consequently,
+    ///   this means that a parser may be complete when we need to push and
+    ///   transfer control to another parser.
+    /// Before pushing,
+    ///   we first check to see if the parser atop of the stack is in an
+    ///   accepting state.
+    /// If so,
+    ///   then we are a sibling,
+    ///   and so instead of proceeding with instantiating a new parser,
+    ///   we return to the one atop of the stack and delegate to it.
+    ///
+    /// If `st` is _not_ in an accepting state,
+    ///   that means that we are a _child_;
+    ///     we then set aside the state `st` on the stack and transfer
+    ///     control to the child `to`.
+    ///
+    /// See also [`Self::proxy`].
+    fn ret_or_transfer(
+        &mut self,
+        st: AirAggregate,
+        tok: impl Token + Into<Air>,
+        to: impl Into<AirAggregate>,
+    ) -> TransitionResult<AirAggregate> {
+        if st.active_is_accepting(self) {
+            // TODO: dead state or error
+            self.stack().ret_or_dead(AirAggregate::Empty, tok)
+        } else {
+            self.stack().transfer_with_ret(
+                Transition(st),
+                Transition(to.into()).incomplete().with_lookahead(tok),
+            )
+        }
+    }
+
+    /// Proxy `tok` to `st`,
+    ///   returning to the state atop of the stack if parsing reaches a dead
+    ///   state.
+    ///
+    /// See also [`Self::ret_or_transfer`].
+    fn proxy<S: ParseState<Super = AirAggregate, Context = Self>>(
+        &mut self,
+        st: S,
+        tok: impl Token + Into<S::Token>,
+    ) -> TransitionResult<AirAggregate> {
+        st.delegate_child(tok.into(), self, |_deadst, tok, ctx| {
+            ctx.stack().ret_or_dead(AirAggregate::Empty, tok)
+        })
     }
 
     /// The active container (binding context) for [`Ident`]s.
