@@ -114,10 +114,6 @@ pub enum AsgError {
     ///
     /// Ideally this situation is syntactically invalid in a source IR.
     InvalidExprRefContext(SPair),
-
-    /// Attempted to close a template when not in a template toplevel
-    ///   context.
-    InvalidTplEndContext(Span),
 }
 
 impl Display for AsgError {
@@ -153,9 +149,6 @@ impl Display for AsgError {
                     "invalid context for expression identifier {}",
                     TtQuote::wrap(ident)
                 )
-            }
-            InvalidTplEndContext(_) => {
-                write!(f, "invalid context for template close",)
             }
         }
     }
@@ -264,14 +257,6 @@ impl Diagnostic for AsgError {
                 "cannot reference the value of an expression from outside \
                     of an expression context",
             )],
-
-            InvalidTplEndContext(span) => vec![
-                span.error("template close was not expected here"),
-                span.help(
-                    "a template must be closed at the same level of nesting \
-                       that it was opened",
-                ),
-            ],
         }
     }
 }

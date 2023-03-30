@@ -320,7 +320,7 @@ fn close_tpl_mid_open() {
                 Ok(Parsed::Incomplete), // ExprStart
                   Ok(Parsed::Incomplete), // BindIdent
               Err(ParseError::StateError(
-                  AsgError::InvalidTplEndContext(S5))
+                  AsgError::UnbalancedTpl(S5))
               ),
                 // RECOVERY
                 Ok(Parsed::Incomplete), // ExprEnd

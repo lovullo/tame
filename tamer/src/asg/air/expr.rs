@@ -27,7 +27,7 @@ use super::{
         Asg, AsgError, ObjectIndex,
     },
     ir::AirBindableExpr,
-    AirAggregateCtx,
+    AirAggregate, AirAggregateCtx,
 };
 use crate::{
     asg::{
@@ -78,6 +78,7 @@ impl ParseState for AirExprAggregate {
     type Object = ();
     type Error = AsgError;
     type Context = AirAggregateCtx;
+    type Super = AirAggregate;
 
     fn parse_token(
         self,

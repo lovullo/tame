@@ -174,24 +174,19 @@ impl ParseState for AirAggregate {
                 Transition(PkgExpr(expr)).incomplete().with_lookahead(tok)
             }
 
-            // TODO: This is temporary during refactoring
-            //   (creating an AirExprAggregate just to pass to this).
-            (Toplevel(oi_pkg), tok @ AirTpl(..)) => {
-                ctx.push(Toplevel(oi_pkg));
+            (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
+                // TODO: this call/ret needs to be part of `ctx`
+                if st.active_is_accepting(ctx) {
+                    Transition(ctx.pop().expect("TODO"))
+                        .incomplete()
+                        .with_lookahead(tok)
+                } else {
+                    ctx.push(st);
 
-                Transition(PkgTpl(AirTplAggregate::new()))
-                    .incomplete()
-                    .with_lookahead(tok)
-            }
-
-            // Note that templates may preempt expressions at any point,
-            //   unlike in NIR at the time of writing.
-            (PkgExpr(expr), tok @ AirTpl(..)) => {
-                ctx.push(PkgExpr(expr));
-
-                Transition(PkgTpl(AirTplAggregate::new()))
-                    .incomplete()
-                    .with_lookahead(tok)
+                    Transition(PkgTpl(AirTplAggregate::new()))
+                        .incomplete()
+                        .with_lookahead(tok)
+                }
             }
 
             // Note: We unfortunately can't match on `AirExpr | AirBind`
@@ -306,17 +301,11 @@ impl AirAggregate {
         expr: AirExprAggregate,
         etok: impl Into<<AirExprAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
-        let tok = etok.into();
-
-        expr.parse_token(tok, ctx).branch_dead::<Self, _>(
-            |_, ()| Transition(ctx.pop().expect("TODO")).incomplete(),
-            |expr, result, ()| {
-                result
-                    .map(ParseStatus::reflexivity)
-                    .transition(Self::PkgExpr(expr))
-            },
-            (),
-        )
+        expr.delegate_child(etok.into(), ctx, |_deadst, tok, ctx| {
+            Transition(ctx.pop().expect("TODO"))
+                .incomplete()
+                .with_lookahead(tok)
+        })
     }
 
     /// Delegate to the expression parser [`AirTplAggregate`].
@@ -331,15 +320,26 @@ impl AirAggregate {
         tplst: AirTplAggregate,
         ttok: impl Into<<AirTplAggregate as ParseState>::Token>,
     ) -> TransitionResult<Self> {
-        tplst.parse_token(ttok.into(), ctx).branch_dead::<Self, _>(
-            |_, ()| Transition(ctx.pop().expect("TODO")).incomplete(),
-            |tplst, result, ()| {
-                result
-                    .map(ParseStatus::reflexivity)
-                    .transition(Self::PkgTpl(tplst))
-            },
-            (),
-        )
+        tplst.delegate_child(ttok.into(), ctx, |_deadst, tok, ctx| {
+            Transition(ctx.pop().expect("TODO"))
+                .incomplete()
+                .with_lookahead(tok)
+        })
+    }
+
+    /// Whether the active parser is in an accepting state.
+    ///
+    /// If a child parser is active,
+    ///   then its [`ParseState::is_accepting`] will be consulted.
+    fn active_is_accepting(&self, ctx: &<Self as ParseState>::Context) -> bool {
+        use AirAggregate::*;
+
+        match self {
+            Empty => true,
+            Toplevel(_) => self.is_accepting(ctx),
+            PkgExpr(st) => st.is_accepting(ctx),
+            PkgTpl(st) => st.is_accepting(ctx),
+        }
     }
 }
 
@@ -480,6 +480,12 @@ impl AirAggregateCtx {
                 .add_edge_from(asg, oi_root, None),
             _ => oi_root.declare_local(asg, name),
         }
+    }
+}
+
+impl AsMut<AirAggregateCtx> for AirAggregateCtx {
+    fn as_mut(&mut self) -> &mut AirAggregateCtx {
+        self
     }
 }
 

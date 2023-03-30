@@ -24,7 +24,7 @@
 use super::{
     super::{graph::object::Tpl, Asg, AsgError, ObjectIndex},
     ir::AirTemplatable,
-    AirAggregateCtx, AirExprAggregate,
+    AirAggregate, AirAggregateCtx, AirExprAggregate,
 };
 use crate::{
     asg::graph::object::{Meta, ObjectIndexRelTo},
@@ -70,9 +70,6 @@ pub enum AirTplAggregate {
 
     /// Defining a template metavariable.
     TplMeta(TplState, ObjectIndex<Meta>),
-
-    /// Aggregating tokens into a template.
-    TplExpr(TplState, AirExprAggregate),
 }
 
 impl Display for AirTplAggregate {
@@ -81,10 +78,6 @@ impl Display for AirTplAggregate {
             Self::Ready => write!(f, "ready for template definition"),
 
             Self::Toplevel(tpl) => write!(f, "building {tpl} at toplevel"),
-
-            Self::TplExpr(tpl, expr) => {
-                write!(f, "building {tpl} with {expr}")
-            }
 
             Self::TplMeta(tpl, _) => {
                 write!(f, "building {tpl} metavariable")
@@ -167,6 +160,7 @@ impl ParseState for AirTplAggregate {
     type Object = ();
     type Error = AsgError;
     type Context = AirAggregateCtx;
+    type Super = AirAggregate;
 
     fn parse_token(
         self,
@@ -266,17 +260,6 @@ impl ParseState for AirTplAggregate {
                 tpl.close(ctx.asg_mut(), span).transition(Ready)
             }
 
-            (TplExpr(tpl, expr), AirTpl(TplEnd(span))) => {
-                // TODO: duplicated with AirAggregate
-                if expr.is_accepting(ctx) {
-                    ctx.pop();
-                    tpl.close(ctx.asg_mut(), span).transition(Ready)
-                } else {
-                    Transition(TplExpr(tpl, expr))
-                        .err(AsgError::InvalidTplEndContext(span))
-                }
-            }
-
             (Toplevel(tpl), AirTpl(TplEndRef(span))) => {
                 let oi_target = ctx.expansion_oi().expect("TODO");
                 tpl.oi().expand_into(ctx.asg_mut(), oi_target);
@@ -286,41 +269,16 @@ impl ParseState for AirTplAggregate {
                     .with_lookahead(AirTpl(TplEnd(span)))
             }
 
-            (TplExpr(tpl, expr_done), AirTpl(TplEndRef(span))) => {
-                let oi_target = ctx.expansion_oi().expect("TODO");
-                tpl.oi().expand_into(ctx.asg_mut(), oi_target);
-
-                // TODO: We have to make sure the expression ended first!
-                Transition(TplExpr(tpl.anonymous_reachable(), expr_done))
-                    .incomplete()
-                    .with_lookahead(AirTpl(TplEnd(span)))
-            }
-
             (Toplevel(tpl), tok @ AirExpr(_)) => {
                 ctx.push(Toplevel(tpl));
 
-                Transition(TplExpr(tpl, AirExprAggregate::new()))
+                Transition(AirExprAggregate::new())
                     .incomplete()
                     .with_lookahead(tok)
             }
 
-            (TplExpr(tpl, expr), AirExpr(etok)) => {
-                Self::delegate_expr(ctx, tpl, expr, etok)
-            }
-
-            (TplExpr(tpl, expr), AirBind(etok)) => {
-                Self::delegate_expr(ctx, tpl, expr, etok)
-            }
-
-            (TplExpr(..), AirTpl(TplStart(span))) => {
-                diagnostic_todo!(
-                    vec![span.note("for this token")],
-                    "nested template (template-generated template)"
-                )
-            }
-
             (
-                Ready | TplExpr(..),
+                Ready,
                 tok @ AirTpl(TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)),
             ) => {
                 diagnostic_todo!(
@@ -354,30 +312,8 @@ impl AirTplAggregate {
 
         match self {
             Ready => None,
-            Toplevel(tplst) | TplMeta(tplst, _) | TplExpr(tplst, _) => {
-                Some(tplst.oi())
-            }
+            Toplevel(tplst) | TplMeta(tplst, _) => Some(tplst.oi()),
         }
-    }
-
-    /// Delegate to the expression parser [`AirExprAggregate`].
-    fn delegate_expr(
-        asg: &mut <Self as ParseState>::Context,
-        tpl: TplState,
-        expr: AirExprAggregate,
-        etok: impl Into<<AirExprAggregate as ParseState>::Token>,
-    ) -> TransitionResult<Self> {
-        let tok = etok.into();
-
-        expr.parse_token(tok, asg).branch_dead::<Self, _>(
-            |_, ()| Transition(Self::Toplevel(tpl)).incomplete(),
-            |expr, result, ()| {
-                result
-                    .map(ParseStatus::reflexivity)
-                    .transition(Self::TplExpr(tpl, expr))
-            },
-            (),
-        )
     }
 }
 
