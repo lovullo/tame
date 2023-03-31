@@ -40,9 +40,9 @@ use super::{
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
-    diagnose::Annotate,
     diagnostic_todo,
     parse::{prelude::*, StateStack},
+    span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
@@ -141,20 +141,19 @@ impl ParseState for AirAggregate {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
             (Empty, AirPkg(PkgStart(span))) => {
-                let oi_pkg =
-                    ctx.asg_mut().create(Pkg::new(span)).root(ctx.asg_mut());
+                let oi_pkg = ctx.begin_pkg(span);
                 Transition(Toplevel(oi_pkg)).incomplete()
             }
 
-            (Toplevel(oi_pkg), AirPkg(PkgStart(span))) => {
-                Transition(Toplevel(oi_pkg))
-                    .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
-            }
+            (
+                st @ (Toplevel(_) | PkgExpr(_) | PkgTpl(_)),
+                AirPkg(PkgStart(span)),
+            ) => {
+                // This should always be available in this context.
+                let first_span =
+                    ctx.pkg_oi().map(|oi| oi.span()).unwrap_or(UNKNOWN_SPAN);
 
-            (PkgExpr(expr), AirPkg(PkgStart(span))) => {
-                let oi_pkg = ctx.rooting_oi().expect("TODO");
-                Transition(PkgExpr(expr))
-                    .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
+                Transition(st).err(AsgError::NestedPkgStart(span, first_span))
             }
 
             // No expression was started.
@@ -188,13 +187,6 @@ impl ParseState for AirAggregate {
             }
             (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
-
-            (PkgTpl(..), tok @ AirPkg(PkgStart(..))) => {
-                diagnostic_todo!(
-                    vec![tok.note("for this token")],
-                    "templates cannot contain packages"
-                )
-            }
 
             (Empty, AirPkg(PkgEnd(span))) => {
                 Transition(Empty).err(AsgError::InvalidPkgEndContext(span))
@@ -283,7 +275,7 @@ impl AirAggregate {
 /// In practice,
 ///   this should only have to search the last two frames.
 #[derive(Debug, Default)]
-pub struct AirAggregateCtx(Asg, AirStack);
+pub struct AirAggregateCtx(Asg, AirStack, Option<ObjectIndex<Pkg>>);
 
 /// Limit of the maximum number of held parser frames.
 ///
@@ -310,7 +302,7 @@ impl AirAggregateCtx {
     }
 
     fn stack(&mut self) -> &mut AirStack {
-        let Self(_, stack) = self;
+        let Self(_, stack, _) = self;
         stack
     }
 
@@ -377,12 +369,28 @@ impl AirAggregateCtx {
         })
     }
 
+    /// Create a new rooted package and record it as the active package.
+    fn begin_pkg(&mut self, span: Span) -> ObjectIndex<Pkg> {
+        let Self(asg, _, pkg) = self;
+        let oi_pkg = asg.create(Pkg::new(span)).root(asg);
+
+        pkg.replace(oi_pkg);
+        oi_pkg
+    }
+
+    /// The active package if any.
+    fn pkg_oi(&self) -> Option<ObjectIndex<Pkg>> {
+        match self {
+            Self(_, _, oi) => *oi,
+        }
+    }
+
     /// The active container (binding context) for [`Ident`]s.
     ///
     /// A value of [`None`] indicates that no bindings are permitted in the
     ///   current context.
     fn rooting_oi(&self) -> Option<ObjectIndexTo<Ident>> {
-        let Self(_, stack) = self;
+        let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
@@ -411,7 +419,7 @@ impl AirAggregateCtx {
     ///   dangle in the current context
     ///     (and so must be identified).
     fn dangling_expr_oi(&self) -> Option<ObjectIndexTo<Expr>> {
-        let Self(_, stack) = self;
+        let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
@@ -443,7 +451,7 @@ impl AirAggregateCtx {
     /// A value of [`None`] indicates that template expansion is not
     ///   permitted in this current context.
     fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
-        let Self(_, stack) = self;
+        let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match *st {
             AirAggregate::Empty => None,
@@ -473,7 +481,7 @@ impl AirAggregateCtx {
     /// TODO: Generalize this.
     fn defines(&mut self, name: SPair) -> ObjectIndex<Ident> {
         let oi_root = self.rooting_oi().expect("TODO");
-        let Self(asg, stack) = self;
+        let Self(asg, stack, _) = self;
 
         match stack.len() {
             1 => asg
@@ -493,7 +501,7 @@ impl AsMut<AirAggregateCtx> for AirAggregateCtx {
 impl AsRef<Asg> for AirAggregateCtx {
     fn as_ref(&self) -> &Asg {
         match self {
-            Self(asg, _) => asg,
+            Self(asg, _, _) => asg,
         }
     }
 }
@@ -501,7 +509,7 @@ impl AsRef<Asg> for AirAggregateCtx {
 impl AsMut<Asg> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut Asg {
         match self {
-            Self(asg, _) => asg,
+            Self(asg, _, _) => asg,
         }
     }
 }
@@ -509,7 +517,7 @@ impl AsMut<Asg> for AirAggregateCtx {
 impl AsMut<AirStack> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut AirStack {
         match self {
-            Self(_, stack) => stack,
+            Self(_, stack, _) => stack,
         }
     }
 }
@@ -517,14 +525,14 @@ impl AsMut<AirStack> for AirAggregateCtx {
 impl From<AirAggregateCtx> for Asg {
     fn from(ctx: AirAggregateCtx) -> Self {
         match ctx {
-            AirAggregateCtx(asg, _) => asg,
+            AirAggregateCtx(asg, _, _) => asg,
         }
     }
 }
 
 impl From<Asg> for AirAggregateCtx {
     fn from(asg: Asg) -> Self {
-        Self(asg, Default::default())
+        Self(asg, Default::default(), None)
     }
 }
 
