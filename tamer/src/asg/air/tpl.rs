@@ -250,12 +250,21 @@ impl ParseState for AirTplAggregate {
             }
 
             (Toplevel(tpl), AirTpl(TplEndRef(span))) => {
-                let oi_target = ctx.expansion_oi().expect("TODO");
-                tpl.oi().expand_into(ctx.asg_mut(), oi_target);
+                // Note that we utilize lookahead in either case,
+                //   but in the case of an error,
+                //   we are effectively discarding the ref and translating
+                //     into a `TplEnd`.
+                match ctx.expansion_oi() {
+                    Some(oi_target) => {
+                        tpl.oi().expand_into(ctx.asg_mut(), oi_target);
 
-                Transition(Toplevel(tpl.anonymous_reachable()))
-                    .incomplete()
-                    .with_lookahead(AirTpl(TplEnd(span)))
+                        Transition(Toplevel(tpl.anonymous_reachable()))
+                            .incomplete()
+                    }
+                    None => Transition(Toplevel(tpl))
+                        .err(AsgError::InvalidExpansionContext(span)),
+                }
+                .with_lookahead(AirTpl(TplEnd(span)))
             }
 
             (

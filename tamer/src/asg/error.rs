@@ -114,6 +114,10 @@ pub enum AsgError {
     ///
     /// Ideally this situation is syntactically invalid in a source IR.
     InvalidRefContext(SPair),
+
+    /// Attempted to expand a template into a context that does not support
+    ///   expansion.
+    InvalidExpansionContext(Span),
 }
 
 impl Display for AsgError {
@@ -149,6 +153,9 @@ impl Display for AsgError {
                     "invalid context for expression identifier {}",
                     TtQuote::wrap(ident)
                 )
+            }
+            InvalidExpansionContext(_) => {
+                write!(f, "invalid template expansion context",)
             }
         }
     }
@@ -257,6 +264,9 @@ impl Diagnostic for AsgError {
                 "cannot reference the value of an expression from outside \
                     of an expression context",
             )],
+            InvalidExpansionContext(span) => {
+                vec![span.error("cannot expand a template here")]
+            }
         }
     }
 }
