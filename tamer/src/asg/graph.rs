@@ -697,7 +697,8 @@ impl Asg {
             || diagnostic_opaque_ident_desc(ident),
             || {
                 format!(
-                    "opaque identifier: {} has no object binding",
+                    "identifier was not expected to be opaque: \
+                        {} has no object binding",
                     TtQuote::wrap(ident),
                 )
             },

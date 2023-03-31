@@ -102,18 +102,18 @@ pub enum AsgError {
     ///   delimiter.
     UnbalancedTpl(Span),
 
-    /// Attempted to bind the an identifier to an expression while not in an
-    ///   expression context.
+    /// Attempted to bind an identifier to an object while not in a context
+    ///   that can receive an identifier binding.
     ///
     /// Note that the user may encounter an error from a higher-level IR
     ///   instead of this one.
-    InvalidExprBindContext(SPair),
+    InvalidBindContext(SPair),
 
-    /// Attempted to reference an identifier as part of an expression while
-    ///   not in an expression context.
+    /// Attempted to reference an identifier while not in a context that can
+    ///   receive an identifier reference.
     ///
     /// Ideally this situation is syntactically invalid in a source IR.
-    InvalidExprRefContext(SPair),
+    InvalidRefContext(SPair),
 }
 
 impl Display for AsgError {
@@ -140,10 +140,10 @@ impl Display for AsgError {
             ),
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
             UnbalancedTpl(_) => write!(f, "unbalanced template definition"),
-            InvalidExprBindContext(_) => {
+            InvalidBindContext(_) => {
                 write!(f, "invalid expression identifier binding context")
             }
-            InvalidExprRefContext(ident) => {
+            InvalidRefContext(ident) => {
                 write!(
                     f,
                     "invalid context for expression identifier {}",
@@ -243,7 +243,7 @@ impl Diagnostic for AsgError {
                 vec![span.error("there is no open template to close here")]
             }
 
-            InvalidExprBindContext(span) => vec![
+            InvalidBindContext(span) => vec![
                 span.error(
                     "there is no active expression to bind this identifier to",
                 ),
@@ -253,7 +253,7 @@ impl Diagnostic for AsgError {
                 ),
             ],
 
-            InvalidExprRefContext(ident) => vec![ident.error(
+            InvalidRefContext(ident) => vec![ident.error(
                 "cannot reference the value of an expression from outside \
                     of an expression context",
             )],

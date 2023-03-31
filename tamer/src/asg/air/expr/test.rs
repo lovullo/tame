@@ -506,7 +506,7 @@ fn expr_bind_to_empty() {
               //   since it's likely that a bind token was issued too late,
               //     rather than trying to interpret this as being back in a
               //     package context and binding to the package.
-              Err(ParseError::StateError(AsgError::InvalidExprBindContext(
+              Err(ParseError::StateError(AsgError::InvalidBindContext(
                   id_noexpr_a
               ))),
 
@@ -516,7 +516,7 @@ fn expr_bind_to_empty() {
               Ok(Parsed::Incomplete), // ExprEnd
 
               // Another error after a successful expression.
-              Err(ParseError::StateError(AsgError::InvalidExprBindContext(
+              Err(ParseError::StateError(AsgError::InvalidBindContext(
                   id_noexpr_b
               ))),
             // RECOVERY
@@ -853,7 +853,7 @@ fn expr_ref_outside_of_expr_context() {
               Ok(Parsed::Incomplete), // ExprEnd
 
               // Now we're past the header and in expression parsing mode.
-              Err(ParseError::StateError(AsgError::InvalidExprRefContext(
+              Err(ParseError::StateError(AsgError::InvalidRefContext(
                   id_foo
               ))),
 

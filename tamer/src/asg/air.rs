@@ -164,10 +164,10 @@ impl ParseState for AirAggregate {
 
             // TODO: We don't support package ids yet
             (st @ Toplevel(..), AirBind(BindIdent(id))) => {
-                Transition(st).err(AsgError::InvalidExprBindContext(id))
+                Transition(st).err(AsgError::InvalidBindContext(id))
             }
             (st @ Toplevel(..), AirBind(RefIdent(id))) => {
-                Transition(st).err(AsgError::InvalidExprRefContext(id))
+                Transition(st).err(AsgError::InvalidRefContext(id))
             }
 
             // Note: We unfortunately can't match on `AirExpr | AirBind`
@@ -385,16 +385,20 @@ impl AirAggregateCtx {
         }
     }
 
-    /// The active container (binding context) for [`Ident`]s.
+    /// The active container (rooting context) for [`Ident`]s.
+    ///
+    /// The integer value returned represents the stack offset at which the
+    ///   rooting index was found,
+    ///     with `0` representing the package.
     ///
     /// A value of [`None`] indicates that no bindings are permitted in the
     ///   current context.
-    fn rooting_oi(&self) -> Option<ObjectIndexTo<Ident>> {
+    fn rooting_oi(&self) -> Option<(usize, ObjectIndexTo<Ident>)> {
         let Self(_, stack, _) = self;
 
-        stack.iter().rev().find_map(|st| match st {
+        stack.iter().enumerate().rev().find_map(|(i, st)| match st {
             AirAggregate::Empty => None,
-            AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
+            AirAggregate::Toplevel(pkg_oi) => Some((i, (*pkg_oi).into())),
 
             // Expressions never serve as roots for identifiers;
             //   this will always fall through to the parent context.
@@ -408,7 +412,7 @@ impl AirAggregateCtx {
             // Templates must therefore serve as containers for identifiers
             //   bound therein.
             AirAggregate::PkgTpl(tplst) => {
-                tplst.active_tpl_oi().map(Into::into)
+                tplst.active_tpl_oi().map(|oi| (i, oi.into()))
             }
         })
     }
@@ -479,16 +483,19 @@ impl AirAggregateCtx {
     ///        indexing.
     ///
     /// TODO: Generalize this.
-    fn defines(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let oi_root = self.rooting_oi().expect("TODO");
-        let Self(asg, stack, _) = self;
+    fn defines(&mut self, name: SPair) -> Result<ObjectIndex<Ident>, AsgError> {
+        let (stacki, oi_root) = self
+            .rooting_oi()
+            .ok_or(AsgError::InvalidBindContext(name))?;
 
-        match stack.len() {
-            1 => asg
+        let asg = self.asg_mut();
+
+        Ok(match stacki {
+            0 => asg
                 .lookup_global_or_missing(name)
                 .add_edge_from(asg, oi_root, None),
             _ => oi_root.declare_local(asg, name),
-        }
+        })
     }
 }
 

@@ -27,7 +27,7 @@ use super::{
     AirAggregate, AirAggregateCtx,
 };
 use crate::{
-    asg::graph::object::{Meta, ObjectIndexRelTo},
+    asg::graph::object::Meta,
     diagnose::Annotate,
     diagnostic_todo,
     fmt::{DisplayWrapper, TtQuote},
@@ -182,16 +182,13 @@ impl ParseState for AirTplAggregate {
                 "nested tpl open"
             ),
 
-            (Toplevel(tpl), AirBind(BindIdent(id))) => {
-                let oi_root = ctx.rooting_oi().expect("TODO");
-                let asg = ctx.asg_mut();
-
-                asg.lookup_global_or_missing(id)
-                    .bind_definition(asg, id, tpl.oi())
-                    .map(|oi_ident| oi_root.defines(asg, oi_ident))
-                    .map(|_| ())
-                    .transition(Toplevel(tpl.identify(id)))
-            }
+            (Toplevel(tpl), AirBind(BindIdent(id))) => ctx
+                .defines(id)
+                .and_then(|oi_ident| {
+                    oi_ident.bind_definition(ctx.asg_mut(), id, tpl.oi())
+                })
+                .map(|_| ())
+                .transition(Toplevel(tpl.identify(id))),
 
             (Toplevel(tpl), AirBind(RefIdent(id))) => {
                 tpl.oi().apply_named_tpl(ctx.asg_mut(), id);

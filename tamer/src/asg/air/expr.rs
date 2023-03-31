@@ -123,12 +123,14 @@ impl ParseState for AirExprAggregate {
             }
 
             (BuildingExpr(es, oi), AirBind(BindIdent(id))) => {
-                let oi_ident = ctx.defines(id);
+                let result = ctx.defines(id).and_then(|oi_ident| {
+                    oi_ident.bind_definition(ctx.asg_mut(), id, oi)
+                });
 
                 // It is important that we do not mark this expression as
                 //   reachable unless we successfully bind the identifier.
-                match oi_ident.bind_definition(ctx.asg_mut(), id, oi) {
-                    Ok(_) => {
+                match result {
+                    Ok(oi_ident) => {
                         Transition(BuildingExpr(es.reachable_by(oi_ident), oi))
                             .incomplete()
                     }
