@@ -225,6 +225,23 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
         O::new_rel_dyn(self.target_ty(), *self.target())
     }
 
+    /// Attempt to convert [`Self`] into an [`ObjectIndex`] with an
+    ///   [`ObjectKind`] of type `O`.
+    ///
+    /// This method allows marrying a dynamically determined type with a
+    ///   context requiring a static type.
+    /// If the type `O` does not match the type stored at runtime,
+    ///   [`None`] is returned.
+    pub fn filter_into_target<O: ObjectKind + ObjectRelatable>(
+        &self,
+    ) -> Option<ObjectIndex<O>> {
+        if self.target_ty() == O::rel_ty() {
+            Some(self.target().must_narrow_into())
+        } else {
+            None
+        }
+    }
+
     /// Pair the target [`ObjectIndex`] with its resolved [`Object`].
     ///
     /// This allows the [`ObjectIndex`] to be refined alongside the inner
@@ -607,6 +624,57 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         Self: ObjectIndexRelTo<Ident>,
     {
         self.add_edge_to(asg, oi, None)
+    }
+
+    /// Iterate over the [`ObjectIndex`]es of the outgoing edges of `self`
+    ///   that match the [`ObjectKind`] `OB`.
+    ///
+    /// Since this trait only guarantees edges to `OB`,
+    ///   only edges targeting that type will be returned;
+    ///     other types of edges may or may not exist.
+    /// See also [`ObjectIndex::edges_filtered`].
+    fn edges_rel_to<'a>(
+        &self,
+        asg: &'a Asg,
+    ) -> impl Iterator<Item = ObjectIndex<OB>> + 'a {
+        asg.edges_dyn(self.widen())
+            .filter_map(|rel| rel.filter_into_target())
+    }
+
+    /// Attempt to look up a locally bound [`Ident`] via a linear search of
+    ///   `self`'s edges.
+    ///
+    /// Performance
+    /// ===========
+    /// _This is a linear (O(1)) search of the edges of the node
+    ///   corresponding to `self`!_
+    /// At the time of writing,
+    ///   edges are stored using index references in a manner similar to a
+    ///   linked list (petgraph).
+    /// And for each such edge,
+    ///   the target object must be resolved so that its
+    ///   [`SymbolId`](crate::sym::SymbolId) may be retrieved and compared
+    ///   against the provided `name`.
+    ///
+    /// If the number of edges is small and the objects are fairly localized
+    ///   in memory relative to `self`,
+    ///     then this may not be a concern.
+    /// However,
+    ///   if you've arrived at this method while investigating unfavorable
+    ///   circumstances during profiling,
+    ///     then you should consider caching like the global environment
+    ///       (see [`Asg::lookup_global`]).
+    fn lookup_local_linear(
+        &self,
+        asg: &Asg,
+        name: SPair,
+    ) -> Option<ObjectIndex<Ident>>
+    where
+        Self: ObjectIndexRelTo<Ident>,
+    {
+        // Rust fails to infer OB with `self.edges_rel_to` as of 2023-03
+        ObjectIndexRelTo::<Ident>::edges_rel_to(self, asg)
+            .find(|oi| oi.resolve(asg).name().symbol() == name.symbol())
     }
 
     /// Declare a local identifier.
