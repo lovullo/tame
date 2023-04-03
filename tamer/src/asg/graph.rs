@@ -104,13 +104,27 @@ pub struct Asg {
     /// Directed graph on which objects are stored.
     pub graph: DiGraph<Node, AsgEdge, Ix>,
 
-    /// Map of [`SymbolId`][crate::sym::SymbolId] to node indexes.
+    /// Scoped map of [`SymbolId`][crate::sym::SymbolId] to node indexes.
     ///
-    /// This allows for `O(1)` lookup of identifiers in the graph.
+    /// This maps a `(SymbolId, NodeIndex)` pair to a node on the graph,
+    ///   if any,
+    ///   such that the provided [`SymbolId`] is part of the environment at
+    ///   the paired [`NodeIndex`].
+    /// That is:
+    ///   an identifier must be indexed for _each container_ in its
+    ///     environment,
+    ///       which in turn determines the scope of that identifier.
+    ///
+    /// _An index does not imply the existence of an edge._
+    /// This index serves as a shortcut for finding nodes on a graph,
+    ///   _but makes no claims about the structure of the graph_.
+    ///
+    /// This allows for `O(1)` lookup of identifiers in the graph relative
+    ///   to the environment of a given node.
     /// Note that,
     ///   while we store [`NodeIndex`] internally,
     ///   the public API encapsulates it within an [`ObjectIndex`].
-    index: FxHashMap<SymbolId, NodeIndex<Ix>>,
+    index: FxHashMap<(SymbolId, NodeIndex<Ix>), NodeIndex<Ix>>,
 
     /// The root node used for reachability analysis and topological
     ///   sorting.
@@ -182,22 +196,31 @@ impl Asg {
         self.graph
     }
 
-    /// Index the provided symbol `name` as representing the identifier `node`.
+    /// Index the provided symbol `name` as representing the identifier
+    ///   `node` in the immediate environment `imm_env`.
     ///
     /// This index permits `O(1)` identifier lookups.
+    /// The term "immediate environment" is meant to convey that this index
+    ///   applies only to the provided `imm_env` node and does not
+    ///   propagate to any other nodes that share this environment.
     ///
     /// After an identifier is indexed it is not expected to be reassigned
     ///   to another node.
     /// Debug builds contain an assertion that will panic in this instance.
-    fn index_identifier(&mut self, name: SymbolId, node: NodeIndex<Ix>) {
-        let prev = self.index.insert(name, node);
+    fn index_identifier(
+        &mut self,
+        imm_env: NodeIndex<Ix>,
+        name: SymbolId,
+        node: NodeIndex<Ix>,
+    ) {
+        let prev = self.index.insert((name, imm_env), node);
 
         // We should never overwrite indexes
         debug_assert!(prev.is_none());
     }
 
-    /// Lookup `ident` or add a missing identifier to the graph and return a
-    ///   reference to it.
+    /// Lookup `ident` or add a missing identifier to the graph relative to
+    ///   the immediate environment `imm_env` and return a reference to it.
     ///
     /// The provided span is necessary to seed the missing identifier with
     ///   some sort of context to aid in debugging why a missing identifier
@@ -210,16 +233,31 @@ impl Asg {
     ///   you must resolve the [`Ident`] object and inspect it.
     ///
     /// See [`Ident::declare`] for more information.
+    pub(super) fn lookup_or_missing<OS: ObjectIndexRelTo<Ident>>(
+        &mut self,
+        imm_env: OS,
+        name: SPair,
+    ) -> ObjectIndex<Ident> {
+        self.lookup(imm_env, name).unwrap_or_else(|| {
+            let index = self.graph.add_node(Ident::declare(name).into());
+
+            self.index_identifier(self.root_node, name.symbol(), index);
+            ObjectIndex::new(index, name.span())
+        })
+    }
+
+    /// Lookup `ident` or add a missing identifier to the graph relative to
+    ///   the global scope and return a reference to it.
+    ///
+    /// See [`Self::lookup_or_missing`] for more information.
     pub(super) fn lookup_global_or_missing(
         &mut self,
-        ident: SPair,
+        name: SPair,
     ) -> ObjectIndex<Ident> {
-        self.lookup_global(ident).unwrap_or_else(|| {
-            let index = self.graph.add_node(Ident::declare(ident).into());
-
-            self.index_identifier(ident.symbol(), index);
-            ObjectIndex::new(index, ident.span())
-        })
+        self.lookup_or_missing(
+            ObjectIndex::<Root>::new(self.root_node, name),
+            name,
+        )
     }
 
     /// Perform a state transition on an identifier by name.
@@ -691,6 +729,28 @@ impl Asg {
         self.get(index)
     }
 
+    /// Attempt to retrieve an identifier from the graph by name relative to
+    ///   the immediate environment `imm_env`.
+    ///
+    /// Since only identifiers carry a name,
+    ///   this method cannot be used to retrieve all possible objects on the
+    ///   graph---for
+    ///     that, see [`Asg::get`].
+    ///
+    /// The global environment is defined as the environment of the current
+    ///   compilation unit,
+    ///     which is a package.
+    #[inline]
+    pub(super) fn lookup<OS: ObjectIndexRelTo<Ident>>(
+        &self,
+        imm_env: OS,
+        id: SPair,
+    ) -> Option<ObjectIndex<Ident>> {
+        self.index
+            .get(&(id.symbol(), imm_env.widen().into()))
+            .map(|&ni| ObjectIndex::new(ni, id.span()))
+    }
+
     /// Attempt to retrieve an identifier from the graph by name utilizing
     ///   the global environment.
     ///
@@ -703,10 +763,8 @@ impl Asg {
     ///   compilation unit,
     ///     which is a package.
     #[inline]
-    pub fn lookup_global(&self, id: SPair) -> Option<ObjectIndex<Ident>> {
-        self.index
-            .get(&id.symbol())
-            .map(|&ni| ObjectIndex::new(ni, id.span()))
+    pub fn lookup_global(&self, name: SPair) -> Option<ObjectIndex<Ident>> {
+        self.lookup(ObjectIndex::<Root>::new(self.root_node, name), name)
     }
 
     /// Declare that `dep` is a dependency of `ident`.
