@@ -129,6 +129,8 @@ macro_rules! object_rel {
                     Self::$kind(value)
                 }
             }
+
+            object_rel!{ @impl_rel_to $from $ety $kind }
         )*
     }};
 
@@ -147,6 +149,19 @@ macro_rules! object_rel {
     //       an edge only needs supplemental span information if there is
     //       another context in which that object is referenced.
     (@is_cross_edge dyn $rel:ident)  => { $rel.ctx_span().is_some() };
+
+    // Similar to above but providing _static_ information to the type
+    //   system.
+    // The above could be rolled into this at some point.
+    (@impl_rel_to $from:ident cross $kind:ident) => {};
+    (@impl_rel_to $from:ident tree $kind:ident)  => {
+        impl ObjectTreeRelTo<$kind> for $from {}
+    };
+    (@impl_rel_to $from:ident dyn $kind:ident)  => {
+        // It _could_ be a tree edge;
+        //   we can't know statically.
+        impl ObjectTreeRelTo<$kind> for $from {}
+    };
 }
 
 /// A dynamic relationship (edge) from one object to another before it has
@@ -369,6 +384,18 @@ pub trait ObjectRelTo<OB: ObjectKind + ObjectRelatable> =
 ///   or for use in `impl Trait` specifications.
 pub trait ObjectRelFrom<OA: ObjectKind + ObjectRelatable> =
     ObjectRelatable where <OA as ObjectRelatable>::Rel: From<ObjectIndex<Self>>;
+
+/// Indicate that an [`ObjectKind`] `Self` _could possibly take ownership
+///   over_ an [`ObjectKind`] `OB`.
+///
+/// This is a stronger assertion than [`ObjectRelTo`];
+///   see that trait for more information.
+/// This trait is intended to be used in contexts where the distinction
+///   between reference and ownership is important.
+pub trait ObjectTreeRelTo<OB: ObjectKind + ObjectRelatable>:
+    ObjectRelTo<OB>
+{
+}
 
 /// Identify [`Self::Rel`] as a sum type consisting of the subset of
 ///   [`Object`] variants representing the valid _target_ edges of
@@ -719,6 +746,20 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
     }
 }
 
+impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
+    fn src_rel_ty(&self) -> ObjectRelTy {
+        match self {
+            Self(oito) => oito.src_rel_ty(),
+        }
+    }
+
+    fn widen(&self) -> ObjectIndex<Object> {
+        match self {
+            Self(oito) => oito.widen(),
+        }
+    }
+}
+
 impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for ObjectIndex<Object> {
     fn from(oi_rel: ObjectIndexTo<OB>) -> Self {
         oi_rel.widen()
@@ -733,7 +774,29 @@ impl<OB: ObjectRelatable> AsRef<ObjectIndex<Object>> for ObjectIndexTo<OB> {
     }
 }
 
-pub use private::ObjectIndexTo;
+/// An [`ObjectIndex`]-like object that is able to create a _tree_ edge to
+///   [`ObjectKind`] `OB`.
+///
+/// This allows for generic graph operations that operate on ownership
+///   relationships without having to know the type of the source
+///   object (`Self`).
+///
+/// This is a specialization of [`ObjectIndexRelTo`].
+pub trait ObjectIndexTreeRelTo<OB: ObjectRelatable>:
+    ObjectIndexRelTo<OB> + Into<ObjectIndexToTree<OB>>
+{
+}
+
+impl<OB: ObjectRelatable> ObjectIndexTreeRelTo<OB> for ObjectIndexToTree<OB> {}
+
+impl<O: ObjectRelatable, OB: ObjectRelatable> ObjectIndexTreeRelTo<OB>
+    for ObjectIndex<O>
+where
+    O: ObjectTreeRelTo<OB>,
+{
+}
+
+pub use private::{ObjectIndexTo, ObjectIndexToTree};
 
 /// Private inner module to ensure that nothing is able to bypass invariants
 ///   by constructing [`ObjectIndexTo`] manually.
@@ -803,6 +866,45 @@ mod private {
         fn from(oi: ObjectIndexTo<OB>) -> Self {
             match oi {
                 ObjectIndexTo((oi, _), _) => oi.span(),
+            }
+        }
+    }
+
+    /// Some [`ObjectIndex`] that can create a _tree_ edge to `OB`.
+    ///
+    /// This is a specialization of
+    ///   (and contains)
+    ///   [`ObjectIndexTo`];
+    ///     see that for more information.
+    ///
+    /// See also [`ObjectIndexTreeRelTo`].
+    #[derive(Debug)]
+    pub struct ObjectIndexToTree<OB: ObjectRelatable>(ObjectIndexTo<OB>);
+
+    impl<OB: ObjectRelatable, O: ObjectRelatable> From<ObjectIndex<O>>
+        for ObjectIndexToTree<OB>
+    where
+        O: ObjectTreeRelTo<OB>,
+    {
+        fn from(oi: ObjectIndex<O>) -> Self {
+            Self(oi.into())
+        }
+    }
+
+    // Deriving any of the below were introducing trait bounds on `OB`.
+
+    impl<OB: ObjectRelatable> Clone for ObjectIndexToTree<OB> {
+        fn clone(&self) -> Self {
+            Self(self.0)
+        }
+    }
+
+    impl<OB: ObjectRelatable> Copy for ObjectIndexToTree<OB> {}
+
+    impl<OB: ObjectRelatable> From<ObjectIndexToTree<OB>> for Span {
+        fn from(oi: ObjectIndexToTree<OB>) -> Self {
+            match oi {
+                ObjectIndexToTree(inner) => inner.span(),
             }
         }
     }

@@ -23,7 +23,7 @@ use std::fmt::Display;
 
 use super::{
     Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, Pkg,
+    ObjectRelatable, ObjectTreeRelTo, Pkg,
 };
 
 #[cfg(doc)]

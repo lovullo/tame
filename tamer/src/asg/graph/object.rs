@@ -143,8 +143,9 @@ pub use ident::Ident;
 pub use meta::Meta;
 pub use pkg::Pkg;
 pub use rel::{
-    DynObjectRel, ObjectIndexRelTo, ObjectIndexTo, ObjectRel, ObjectRelFrom,
-    ObjectRelTo, ObjectRelTy, ObjectRelatable,
+    DynObjectRel, ObjectIndexRelTo, ObjectIndexTo, ObjectIndexToTree,
+    ObjectIndexTreeRelTo, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
+    ObjectRelatable, ObjectTreeRelTo,
 };
 pub use root::Root;
 pub use tpl::Tpl;

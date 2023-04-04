@@ -21,7 +21,7 @@
 
 use super::{
     Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, Tpl,
+    ObjectRelatable, ObjectTreeRelTo, Tpl,
 };
 use crate::{asg::Asg, f::Functor, span::Span};
 use std::fmt::Display;

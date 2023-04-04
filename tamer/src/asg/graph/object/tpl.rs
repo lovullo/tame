@@ -23,7 +23,7 @@ use std::fmt::Display;
 
 use super::{
     Expr, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
-    ObjectRelFrom, ObjectRelTy, ObjectRelatable,
+    ObjectRelFrom, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
 };
 use crate::{
     asg::Asg,

@@ -26,7 +26,7 @@
 
 use super::{
     Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
-    ObjectRelTy, ObjectRelatable, Tpl,
+    ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Tpl,
 };
 use crate::{
     asg::Asg,

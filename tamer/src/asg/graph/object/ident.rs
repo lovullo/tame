@@ -22,7 +22,7 @@
 use super::{
     super::{Asg, AsgError, ObjectIndex, ObjectKind},
     Expr, Meta, Object, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
-    ObjectRelTo, ObjectRelTy, ObjectRelatable, Pkg, Tpl,
+    ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Pkg, Tpl,
 };
 use crate::{
     diagnose::{Annotate, Diagnostic},
