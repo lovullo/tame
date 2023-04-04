@@ -801,6 +801,8 @@ pub use private::{ObjectIndexTo, ObjectIndexToTree};
 /// Private inner module to ensure that nothing is able to bypass invariants
 ///   by constructing [`ObjectIndexTo`] manually.
 mod private {
+    use std::hash::{Hash, Hasher};
+
     use super::*;
 
     /// Some [`ObjectIndex`] that is able to [`ObjectRelTo`] `OB`.
@@ -830,7 +832,7 @@ mod private {
     ///     which will in turn lead to internal system failures when trying
     ///       to operate on the graph data down the line.
     /// There are no memory safety concerns.
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug)]
     pub struct ObjectIndexTo<OB: ObjectRelatable>(
         (ObjectIndex<Object>, ObjectRelTy),
         PhantomData<OB>,
@@ -849,6 +851,28 @@ mod private {
     impl<OB: ObjectRelatable> ObjectIndexTo<OB> {
         pub fn span(&self) -> Span {
             (*self).into()
+        }
+    }
+
+    // Ignore metadata that should always be consistent with the underlying
+    //   `ObjectIndex`.
+    impl<OB: ObjectRelatable> PartialEq for ObjectIndexTo<OB> {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self((oi, _), _), Self((oi_other, _), _)) => oi == oi_other,
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> Eq for ObjectIndexTo<OB> {}
+
+    // Ignore metadata that should always be consistent with the underlying
+    //   `ObjectIndex`.
+    impl<OB: ObjectRelatable> Hash for ObjectIndexTo<OB> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            match self {
+                Self((oi, _), _) => oi.hash(state),
+            }
         }
     }
 
@@ -892,6 +916,24 @@ mod private {
     }
 
     // Deriving any of the below were introducing trait bounds on `OB`.
+
+    impl<OB: ObjectRelatable> PartialEq for ObjectIndexToTree<OB> {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self(oi), Self(oi_other)) => oi == oi_other,
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> Eq for ObjectIndexToTree<OB> {}
+
+    impl<OB: ObjectRelatable> Hash for ObjectIndexToTree<OB> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            match self {
+                Self(oi) => oi.hash(state),
+            }
+        }
+    }
 
     impl<OB: ObjectRelatable> Clone for ObjectIndexToTree<OB> {
         fn clone(&self) -> Self {

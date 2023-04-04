@@ -125,6 +125,7 @@ use petgraph::graph::NodeIndex;
 use std::{
     convert::Infallible,
     fmt::{Debug, Display},
+    hash::{Hash, Hasher},
     marker::PhantomData,
 };
 
@@ -466,7 +467,7 @@ where
 ///     event that the object somehow becomes unavailable for later
 ///       operations.
 ///
-/// _The span is not accounted for in [`PartialEq`]_,
+/// _The span is not accounted for in [`PartialEq`] or [`Hash`]_,
 ///   since it represents the context in which the [`ObjectIndex`] was
 ///   retrieved,
 ///     and the span associated with the underlying [`Object`] may evolve
@@ -793,6 +794,14 @@ impl<O: ObjectKind> PartialEq for ObjectIndex<O> {
 }
 
 impl<O: ObjectKind> Eq for ObjectIndex<O> {}
+
+impl<O: ObjectKind> Hash for ObjectIndex<O> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self(index, _, _) => index.hash(state),
+        }
+    }
+}
 
 impl<O: ObjectKind> From<ObjectIndex<O>> for NodeIndex {
     fn from(objref: ObjectIndex<O>) -> Self {

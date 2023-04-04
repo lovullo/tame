@@ -22,8 +22,8 @@
 //! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
-    DynObjectRel, ObjectIndexRelTo, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, Root,
+    DynObjectRel, ObjectIndexRelTo, ObjectIndexToTree, ObjectIndexTreeRelTo,
+    ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
 };
 
 use super::{
@@ -124,7 +124,7 @@ pub struct Asg {
     /// Note that,
     ///   while we store [`NodeIndex`] internally,
     ///   the public API encapsulates it within an [`ObjectIndex`].
-    index: FxHashMap<(SymbolId, NodeIndex<Ix>), NodeIndex<Ix>>,
+    index: FxHashMap<(SymbolId, ObjectIndexToTree<Ident>), ObjectIndex<Ident>>,
 
     /// The root node used for reachability analysis and topological
     ///   sorting.
@@ -207,16 +207,45 @@ impl Asg {
     /// After an identifier is indexed it is not expected to be reassigned
     ///   to another node.
     /// Debug builds contain an assertion that will panic in this instance.
-    fn index_identifier(
+    pub(super) fn index_identifier<
+        OS: ObjectIndexTreeRelTo<Ident>,
+        S: Into<SymbolId>,
+    >(
         &mut self,
-        imm_env: NodeIndex<Ix>,
-        name: SymbolId,
-        node: NodeIndex<Ix>,
+        imm_env: OS,
+        name: S,
+        oi: ObjectIndex<Ident>,
     ) {
-        let prev = self.index.insert((name, imm_env), node);
+        let sym = name.into();
+        let prev = self.index.insert((sym, imm_env.into()), oi);
 
         // We should never overwrite indexes
-        debug_assert!(prev.is_none());
+        #[allow(unused_variables)] // used only for debug
+        if let Some(prev_oi) = prev {
+            crate::debug_diagnostic_panic!(
+                vec![
+                    imm_env.into().note("at this scope boundary"),
+                    prev_oi.note("previously indexed identifier was here"),
+                    oi.internal_error(
+                        "this identifier has already been indexed at the above scope boundary"
+                    ),
+                    oi.help(
+                        "this is a bug in the system responsible for analyzing \
+                            identifier scope;"
+                    ),
+                    oi.help(
+                        "  you can try to work around it by duplicating the definition of "
+                    ),
+                    oi.help(
+                        format!(
+                            "  {} as a _new_ identifier with a different name.",
+                            TtQuote::wrap(sym),
+                        )
+                    ),
+                ],
+                "re-indexing of identifier at scope boundary",
+            );
+        }
     }
 
     /// Lookup `ident` or add a missing identifier to the graph relative to
@@ -233,16 +262,22 @@ impl Asg {
     ///   you must resolve the [`Ident`] object and inspect it.
     ///
     /// See [`Ident::declare`] for more information.
-    pub(super) fn lookup_or_missing<OS: ObjectIndexRelTo<Ident>>(
+    pub(super) fn lookup_or_missing<OS: ObjectIndexTreeRelTo<Ident>>(
         &mut self,
         imm_env: OS,
         name: SPair,
     ) -> ObjectIndex<Ident> {
         self.lookup(imm_env, name).unwrap_or_else(|| {
             let index = self.graph.add_node(Ident::declare(name).into());
+            let oi = ObjectIndex::new(index, name.span());
 
-            self.index_identifier(self.root_node, name.symbol(), index);
-            ObjectIndex::new(index, name.span())
+            self.index_identifier(
+                ObjectIndex::<Root>::new(self.root_node, name.span()),
+                name.symbol(),
+                oi,
+            );
+
+            oi
         })
     }
 
@@ -741,14 +776,14 @@ impl Asg {
     ///   compilation unit,
     ///     which is a package.
     #[inline]
-    pub(super) fn lookup<OS: ObjectIndexRelTo<Ident>>(
+    pub(super) fn lookup<OS: ObjectIndexTreeRelTo<Ident>>(
         &self,
         imm_env: OS,
         id: SPair,
     ) -> Option<ObjectIndex<Ident>> {
         self.index
-            .get(&(id.symbol(), imm_env.widen().into()))
-            .map(|&ni| ObjectIndex::new(ni, id.span()))
+            .get(&(id.symbol(), imm_env.into()))
+            .map(|&ni| ni.overwrite(id.span()))
     }
 
     /// Attempt to retrieve an identifier from the graph by name utilizing
