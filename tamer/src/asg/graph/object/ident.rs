@@ -1046,6 +1046,17 @@ impl ObjectIndex<Ident> {
         .map(|ident_oi| ident_oi.add_edge_to(asg, definition, None))
     }
 
+    /// Look up the definition that this identifier binds to,
+    ///   if any.
+    ///
+    /// See [`Self::bind_definition`].
+    pub fn definition<O: ObjectRelFrom<Ident> + ObjectRelatable>(
+        &self,
+        asg: &Asg,
+    ) -> Option<ObjectIndex<O>> {
+        self.edges(asg).find_map(ObjectRel::narrow)
+    }
+
     /// Whether this identifier is bound to the object represented by `oi`.
     ///
     /// To bind an identifier,

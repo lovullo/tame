@@ -448,3 +448,156 @@ fn tpl_with_param() {
     assert_eq!(params[0], Some(&Meta::Lexeme(S3.merge(S6).unwrap(), pval1)));
     assert_eq!(params[1], Some(&Meta::Required(S7.merge(S9).unwrap())));
 }
+
+// A template definition nested within another creates a
+//   template-defining-template.
+// The inner template and its identifier should be entirely contained within
+//   the outer (parent) template so that it will expand into a template
+//   definition in the context of the expansion site.
+#[test]
+fn tpl_nested() {
+    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
+    let id_tpl_inner = SPair("_tpl-inner_".into(), S4);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          Air::BindIdent(id_tpl_outer),
+
+          // Inner template
+          Air::TplStart(S3),
+            Air::BindIdent(id_tpl_inner),
+          Air::TplEnd(S5),
+        Air::TplEnd(S6),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    // The outer template should be defined globally,
+    //   but not the inner,
+    //   since it hasn't been expanded yet.
+    let oi_tpl_outer = asg.expect_ident_oi::<Tpl>(id_tpl_outer);
+    assert_eq!(None, asg.lookup_global(id_tpl_inner));
+    assert_eq!(S1.merge(S6).unwrap(), oi_tpl_outer.resolve(&asg).span());
+
+    // The identifier for the inner template should be local to the outer
+    //   template.
+    let oi_tpl_inner = oi_tpl_outer.lookup_local_linear(&asg, id_tpl_inner);
+    assert_eq!(
+        S3.merge(S5),
+        oi_tpl_inner
+            .and_then(|oi| oi.definition::<Tpl>(&asg))
+            .map(|oi| oi.resolve(&asg).span())
+    );
+}
+
+// A template application within another template can be interpreted as
+//   either applying the template as much as possible into the body of the
+//   template definition,
+//     or as expanding the template application into the expansion site and
+//     _then_ expanding the inner template at the expansion site.
+// Both will yield equivalent results,
+//   but in either case,
+//   it all starts the same.
+#[test]
+fn tpl_apply_nested() {
+    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          Air::BindIdent(id_tpl_outer),
+
+          // Inner template application
+          Air::TplStart(S3),
+          Air::TplEndRef(S4),
+        Air::TplEnd(S5),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_tpl_outer = asg.expect_ident_oi::<Tpl>(id_tpl_outer);
+    assert_eq!(S1.merge(S5).unwrap(), oi_tpl_outer.resolve(&asg).span());
+
+    // The inner template,
+    //   being a template application,
+    //   should be a direct child of the outer template.
+    let inners = oi_tpl_outer
+        .edges_filtered::<Tpl>(&asg)
+        .map(|oi| oi.resolve(&asg).span());
+
+    assert_eq!(vec![S3.merge(S4).unwrap()], inners.collect::<Vec<_>>(),);
+}
+
+// Template application should resolve all the same regardless of order of
+//   ref/def.
+#[test]
+fn tpl_apply_nested_missing() {
+    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
+    let tpl_inner = "_tpl-inner_".into();
+    let id_tpl_inner = SPair(tpl_inner, S7);
+
+    let ref_tpl_inner_pre = SPair(tpl_inner, S4);
+    let ref_tpl_inner_post = SPair(tpl_inner, S10);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          Air::BindIdent(id_tpl_outer),
+
+          // Inner template application (Missing)
+          Air::TplStart(S3),
+            Air::RefIdent(ref_tpl_inner_pre),
+          Air::TplEndRef(S5),
+
+          // Define the template above
+          Air::TplStart(S6),
+            Air::BindIdent(id_tpl_inner),
+          Air::TplEnd(S8),
+
+          // Apply again,
+          //   this time _after_ having been defined.
+          Air::TplStart(S9),
+            Air::RefIdent(ref_tpl_inner_post),
+          Air::TplEndRef(S11),
+        Air::TplEnd(S12),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_tpl_outer = asg.expect_ident_oi::<Tpl>(id_tpl_outer);
+    assert_eq!(S1.merge(S12).unwrap(), oi_tpl_outer.resolve(&asg).span());
+
+    // The inner template should be contained within the outer and so not
+    //   globally resolvable.
+    assert!(asg.lookup_global(id_tpl_inner).is_none());
+
+    // But it is accessible as a local on the outer template.
+    let oi_tpl_inner = oi_tpl_outer
+        .lookup_local_linear(&asg, id_tpl_inner)
+        .expect("could not locate inner template as a local")
+        .definition::<Tpl>(&asg)
+        .expect("could not resolve inner template ref to Tpl");
+
+    // We should have two inner template applications.
+    let inners = oi_tpl_outer.edges_filtered::<Tpl>(&asg).collect::<Vec<_>>();
+    assert_eq!(
+        vec![S9.merge(S11).unwrap(), S3.merge(S5).unwrap()],
+        inners
+            .iter()
+            .map(|oi| oi.resolve(&asg).span())
+            .collect::<Vec<_>>(),
+    );
+
+    // Each of those inner template applications should have resolved to the
+    //   same template,
+    //     despite their varying ref/def ordering.
+    assert_eq!(
+        vec![oi_tpl_inner, oi_tpl_inner],
+        inners
+            .iter()
+            .flat_map(|oi| oi.edges_filtered::<Ident>(&asg))
+            .filter_map(|oi| oi.definition(&asg))
+            .collect::<Vec<_>>(),
+    );
+}

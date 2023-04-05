@@ -25,12 +25,7 @@ use super::{
     Expr, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
     ObjectRelFrom, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
 };
-use crate::{
-    asg::Asg,
-    f::Functor,
-    parse::{util::SPair, Token},
-    span::Span,
-};
+use crate::{asg::Asg, f::Functor, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -73,6 +68,9 @@ object_rel! {
         // Identifiers are used for both references and identifiers that
         //   will expand into an application site.
         dyn Ident,
+
+        // Template application.
+        tree Tpl,
     }
 }
 
@@ -94,9 +92,13 @@ impl ObjectIndex<Tpl> {
     /// During evaluation,
     ///   this application will expand the template in place,
     ///   re-binding metavariables to the context of `self`.
-    pub fn apply_named_tpl(self, asg: &mut Asg, id: SPair) -> Self {
-        let oi_apply = asg.lookup_global_or_missing(id);
-        self.add_edge_to(asg, oi_apply, Some(id.span()))
+    pub fn apply_named_tpl(
+        self,
+        asg: &mut Asg,
+        oi_apply: ObjectIndex<Ident>,
+        ref_span: Span,
+    ) -> Self {
+        self.add_edge_to(asg, oi_apply, Some(ref_span))
     }
 
     /// Directly reference this template from another object

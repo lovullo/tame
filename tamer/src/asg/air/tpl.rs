@@ -69,6 +69,13 @@ pub enum AirTplAggregate {
 
     /// Defining a template metavariable.
     TplMeta(TplState, ObjectIndex<Meta>),
+
+    /// A template has been completed.
+    ///
+    /// This is used to determine whether the next token of input ought to
+    ///   result in a dead state transition or a transition back to
+    ///   [`Self::Ready`].
+    Done,
 }
 
 impl Display for AirTplAggregate {
@@ -81,6 +88,7 @@ impl Display for AirTplAggregate {
             Self::TplMeta(tpl, _) => {
                 write!(f, "building {tpl} metavariable")
             }
+            Self::Done => write!(f, "completed building template"),
         }
     }
 }
@@ -171,16 +179,15 @@ impl ParseState for AirTplAggregate {
         use AirTplAggregate::*;
 
         match (self, tok) {
-            (Ready, AirTpl(TplStart(span))) => {
+            (Ready | Done, AirTpl(TplStart(span))) => {
                 let oi_tpl = ctx.asg_mut().create(Tpl::new(span));
 
                 Transition(Toplevel(TplState::Dangling(oi_tpl))).incomplete()
             }
 
-            (Toplevel(..), AirTpl(TplStart(span))) => diagnostic_todo!(
-                vec![span.note("for this template")],
-                "nested tpl open"
-            ),
+            (st @ Toplevel(..), tok @ AirTpl(TplStart(_))) => {
+                ctx.ret_or_transfer(st, tok, AirTplAggregate::new())
+            }
 
             (Toplevel(tpl), AirBind(BindIdent(id))) => ctx
                 .defines(id)
@@ -190,8 +197,12 @@ impl ParseState for AirTplAggregate {
                 .map(|_| ())
                 .transition(Toplevel(tpl.identify(id))),
 
-            (Toplevel(tpl), AirBind(RefIdent(id))) => {
-                tpl.oi().apply_named_tpl(ctx.asg_mut(), id);
+            (Toplevel(tpl), AirBind(RefIdent(name))) => {
+                let tpl_oi = tpl.oi();
+                let ref_oi = ctx.lookup_lexical_or_missing(name);
+
+                tpl_oi.apply_named_tpl(ctx.asg_mut(), ref_oi, name.span());
+
                 Transition(Toplevel(tpl)).incomplete()
             }
 
@@ -246,7 +257,7 @@ impl ParseState for AirTplAggregate {
             }
 
             (Toplevel(tpl), AirTpl(TplEnd(span))) => {
-                tpl.close(ctx.asg_mut(), span).transition(Ready)
+                tpl.close(ctx.asg_mut(), span).transition(Done)
             }
 
             (Toplevel(tpl), AirTpl(TplEndRef(span))) => {
@@ -268,7 +279,7 @@ impl ParseState for AirTplAggregate {
             }
 
             (
-                Ready,
+                Ready | Done,
                 tok @ AirTpl(TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)),
             ) => {
                 diagnostic_todo!(
@@ -277,16 +288,25 @@ impl ParseState for AirTplAggregate {
                 )
             }
 
-            (st @ Ready, AirTpl(TplEnd(span) | TplEndRef(span))) => {
-                Transition(st).err(AsgError::UnbalancedTpl(span))
+            // If we just finished a template then this end may represent
+            //   the closing of a parent template.
+            (Done, tok @ AirTpl(TplEnd(_) | TplEndRef(_))) => {
+                Transition(Done).dead(tok)
+            }
+            // Otherwise we have an unbalanced close
+            //   (we just started parsing to receive an end token).
+            (Ready, AirTpl(TplEnd(span) | TplEndRef(span))) => {
+                Transition(Ready).err(AsgError::UnbalancedTpl(span))
             }
 
-            (st @ Ready, tok @ AirBind(..)) => Transition(st).dead(tok),
+            (st @ (Ready | Done), tok @ AirBind(..)) => {
+                Transition(st).dead(tok)
+            }
         }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        matches!(self, Self::Ready)
+        matches!(self, Self::Ready | Self::Done)
     }
 }
 
@@ -299,7 +319,7 @@ impl AirTplAggregate {
         use AirTplAggregate::*;
 
         match self {
-            Ready => None,
+            Ready | Done => None,
             Toplevel(tplst) | TplMeta(tplst, _) => Some(tplst.oi()),
         }
     }

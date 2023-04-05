@@ -309,19 +309,21 @@ impl<'a> TreeContext<'a> {
             // Convert this into a long-hand template expansion so that we
             //   do not have to deal with converting underscore-padded
             //   template names back into short-hand form.
-            Object::Pkg(..) => {
+            Object::Pkg(..) | Object::Tpl(..) => {
                 // [`Ident`]s are skipped during traversal,
                 //   so we'll handle it ourselves here.
                 // This also gives us the opportunity to make sure that
                 //   we're deriving something that's actually supported by the
                 //   XSLT-based compiler.
-                // TODO: This doesn't handle `Missing` or invalid (non-`Tpl`)
-                //   identifiers.
-                let mut idents = oi_tpl
-                    .edges_filtered::<Ident>(self.asg)
-                    .filter(|oi| oi.is_bound_to_kind::<Tpl>(self.asg));
+                // TODO: Not checking that it's a Tpl ident because we need
+                //   to be able to accommodate Missing identifiers until we
+                //   both properly handle scoping rules and support package
+                //   imports;
+                //     this is making some dangerous assumptions,
+                //       though they are tested.
+                let ident = oi_tpl.edges_filtered::<Ident>(self.asg).last();
 
-                let apply_tpl = idents.next().diagnostic_expect(
+                let apply_tpl = ident.diagnostic_expect(
                     || {
                         vec![tpl
                             .span()
@@ -329,19 +331,6 @@ impl<'a> TreeContext<'a> {
                     },
                     "cannot derive name of template for application",
                 );
-
-                if let Some(bad_ident) = idents.next() {
-                    diagnostic_panic!(
-                        vec![
-                            tpl.span().note(
-                                "while processing this template application"
-                            ),
-                            bad_ident
-                                .internal_error("unexpected second identifier"),
-                        ],
-                        "expected only one Ident->Tpl for template application",
-                    );
-                }
 
                 self.push(attr_name(apply_tpl.resolve(self.asg).name()));
 

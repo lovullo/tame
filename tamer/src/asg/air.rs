@@ -36,7 +36,7 @@
 //!     air such cringeworthy dad jokes here.
 
 use super::{
-    graph::object::{ObjectIndexRelTo, ObjectIndexTo, Pkg, Tpl},
+    graph::object::{ObjectIndexTo, ObjectIndexToTree, Pkg, Tpl},
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
@@ -262,6 +262,34 @@ impl AirAggregate {
             PkgTpl(st) => st.is_accepting(ctx),
         }
     }
+
+    /// The rooting context for [`Ident`]s for the active parser.
+    ///
+    /// A value of [`None`] indicates that the current parser does not
+    ///   support direct bindings,
+    ///     but a parent context may
+    ///       (see [`AirAggregateCtx::rooting_oi`]).
+    fn active_rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
+        match self {
+            AirAggregate::Empty => None,
+            AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
+
+            // Expressions never serve as roots for identifiers;
+            //   this will always fall through to the parent context.
+            // Since the parent context is a package or a template,
+            //   the next frame should succeed.
+            AirAggregate::PkgExpr(_) => None,
+
+            // Identifiers bound while within a template definition context
+            //   must bind to the eventual _expansion_ site,
+            //     as if the body were pasted there.
+            // Templates must therefore serve as containers for identifiers
+            //   bound therein.
+            AirAggregate::PkgTpl(tplst) => {
+                tplst.active_tpl_oi().map(Into::into)
+            }
+        }
+    }
 }
 
 /// Additional parser context,
@@ -337,18 +365,20 @@ impl AirAggregateCtx {
     ///     control to the child `to`.
     ///
     /// See also [`Self::proxy`].
-    fn ret_or_transfer(
+    fn ret_or_transfer<S: Into<AirAggregate>, SB: Into<AirAggregate>>(
         &mut self,
-        st: AirAggregate,
+        st: S,
         tok: impl Token + Into<Air>,
-        to: impl Into<AirAggregate>,
+        to: SB,
     ) -> TransitionResult<AirAggregate> {
-        if st.active_is_accepting(self) {
+        let st_super = st.into();
+
+        if st_super.active_is_accepting(self) {
             // TODO: dead state or error
             self.stack().ret_or_dead(AirAggregate::Empty, tok)
         } else {
             self.stack().transfer_with_ret(
-                Transition(st),
+                Transition(st_super),
                 Transition(to.into()).incomplete().with_lookahead(tok),
             )
         }
@@ -393,28 +423,10 @@ impl AirAggregateCtx {
     ///
     /// A value of [`None`] indicates that no bindings are permitted in the
     ///   current context.
-    fn rooting_oi(&self) -> Option<(usize, ObjectIndexTo<Ident>)> {
+    fn rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
         let Self(_, stack, _) = self;
 
-        stack.iter().enumerate().rev().find_map(|(i, st)| match st {
-            AirAggregate::Empty => None,
-            AirAggregate::Toplevel(pkg_oi) => Some((i, (*pkg_oi).into())),
-
-            // Expressions never serve as roots for identifiers;
-            //   this will always fall through to the parent context.
-            // Since the parent context is a package or a template,
-            //   the next frame should succeed.
-            AirAggregate::PkgExpr(_) => None,
-
-            // Identifiers bound while within a template definition context
-            //   must bind to the eventual _expansion_ site,
-            //     as if the body were pasted there.
-            // Templates must therefore serve as containers for identifiers
-            //   bound therein.
-            AirAggregate::PkgTpl(tplst) => {
-                tplst.active_tpl_oi().map(|oi| (i, oi.into()))
-            }
-        })
+        stack.iter().rev().find_map(|st| st.active_rooting_oi())
     }
 
     /// The active dangling expression context for [`Expr`]s.
@@ -457,24 +469,38 @@ impl AirAggregateCtx {
     fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
         let Self(_, stack, _) = self;
 
-        stack.iter().rev().find_map(|st| match *st {
+        stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
-            AirAggregate::Toplevel(pkg_oi) => Some(pkg_oi.into()),
+            AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
             AirAggregate::PkgExpr(_) => {
                 diagnostic_todo!(vec![], "PkgExpr expansion_oi")
             }
-            AirAggregate::PkgTpl(_) => {
-                diagnostic_todo!(vec![], "PkgTpl expansion_oi")
+            AirAggregate::PkgTpl(tplst) => {
+                tplst.active_tpl_oi().map(Into::into)
             }
         })
     }
 
     /// Root an identifier using the [`Self::rooting_oi`] atop of the stack.
+    fn defines(&mut self, name: SPair) -> Result<ObjectIndex<Ident>, AsgError> {
+        let oi_root = self
+            .rooting_oi()
+            .ok_or(AsgError::InvalidBindContext(name))?;
+
+        Ok(self.lookup_lexical_or_missing(name).add_edge_from(
+            self.asg_mut(),
+            oi_root,
+            None,
+        ))
+    }
+
+    /// Attempt to locate a lexically scoped identifier,
+    ///   or create a new one if missing.
     ///
     /// Until [`Asg`] can be further generalized,
     ///   there are unfortunately two rooting strategies employed:
     ///
-    ///   1. If the stack has only a single held frame,
+    ///   1. If the stack has only a single held frame at a scope boundary,
     ///        then it is assumed to be the package representing the active
     ///        compilation unit and the identifier is indexed in the global
     ///        scope.
@@ -482,20 +508,45 @@ impl AirAggregateCtx {
     ///        the identifier is defined locally and does not undergo
     ///        indexing.
     ///
-    /// TODO: Generalize this.
-    fn defines(&mut self, name: SPair) -> Result<ObjectIndex<Ident>, AsgError> {
-        let (stacki, oi_root) = self
-            .rooting_oi()
-            .ok_or(AsgError::InvalidBindContext(name))?;
+    /// TODO: This is very informal and just starts to get things working.
+    fn lookup_lexical_or_missing(&mut self, name: SPair) -> ObjectIndex<Ident> {
+        let Self(asg, stack, _) = self;
 
-        let asg = self.asg_mut();
+        let found = stack
+            .iter()
+            .skip(1)
+            .rev()
+            .filter_map(|st| st.active_rooting_oi())
+            .find_map(|oi| asg.lookup(oi, name));
 
-        Ok(match stacki {
-            0 => asg
-                .lookup_global_or_missing(name)
-                .add_edge_from(asg, oi_root, None),
-            _ => oi_root.declare_local(asg, name),
-        })
+        // Rust's borrow checker won't allow us to use unwrap_or_else above
+        //   as of 2023-04.
+        if let Some(oi) = found {
+            oi
+        } else {
+            // TODO: This special case can be removed once we generalize
+            //   indexing/scope.
+            // TODO: This filtering is a quick kludge to get things working!
+            match stack.iter().filter_map(|st| st.active_rooting_oi()).nth(1) {
+                None => asg.lookup_global_or_missing(name),
+                _ => self.create_env_indexed_ident(name),
+            }
+        }
+    }
+
+    /// Index an identifier within its environment.
+    ///
+    /// TODO: More information as this is formalized.
+    fn create_env_indexed_ident(&mut self, name: SPair) -> ObjectIndex<Ident> {
+        let Self(asg, stack, _) = self;
+        let oi_ident = asg.create(Ident::declare(name));
+
+        stack
+            .iter()
+            .filter_map(|st| st.active_rooting_oi())
+            .for_each(|oi| asg.index_identifier(oi, name, oi_ident));
+
+        oi_ident
     }
 }
 

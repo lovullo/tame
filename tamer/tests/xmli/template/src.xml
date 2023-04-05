@@ -125,15 +125,30 @@
 
 
 
+
+  <template name="_short-hand-nullary-outer_" />
+  <t:short-hand-nullary-outer>
+    <template name="_short-hand-nullary-inner-dfn-inner_" />
+    <t:short-hand-nullary-inner-dfn-inner />
+  </t:short-hand-nullary-outer>
+
+
+
+  <template name="_short-hand-nullary-inner-dfn-outer_" />
+  <t:short-hand-nullary-outer>
+    <t:short-hand-nullary-inner-dfn-outer />
+  </t:short-hand-nullary-outer>
+
+
+
+
+
+  <template name="_short-hand-unary-with-values_" />
+  <t:short-hand-unary-with-values foo="bar">
+    <template name="_short-hand-unary-with-values-inner_" />
+    <t:short-hand-unary-with-values-inner />
+  </t:short-hand-unary-with-values>
   <!-- TODO
-
-  <t:short-hand-nullary-inner>
-    <t:inner-short />
-  </t:short-hand-nullary-inner>
-
-  <t:short-hand foo="bar">
-    <t:inner-short />
-  </t:short-hand>
 
   <rate yields="shortHandTplInExpr">
     <t:short-hand in="rate" />

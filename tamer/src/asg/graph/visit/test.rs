@@ -241,3 +241,90 @@ fn traverses_ontological_tree_tpl_apply() {
         tree_reconstruction_report(toks),
     );
 }
+
+// A template acts as a container for anything defined therein,
+//   to be expanded into an application site.
+// This means that identifiers that might otherwise be bound to the package
+//   need to be contained by the template,
+//     and further that identifier _resolution_ must be able to occur within
+//     the template,
+//       e.g. to apply templates defined therein.
+#[test]
+fn traverses_ontological_tree_tpl_within_template() {
+    let name_outer = "_tpl-outer_".into();
+    let id_tpl_outer = SPair(name_outer, S3);
+    let name_inner = "_tpl-inner_".into();
+    let id_tpl_inner = SPair(name_inner, S10);
+    let ref_inner_before = SPair(name_inner, S7);
+    let ref_inner_after = SPair(name_inner, S13);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          TplStart(S2),
+            BindIdent(id_tpl_outer),
+
+            // Anonymous inner template application.
+            TplStart(S4),
+            TplEndRef(S5),  // notice the `Ref` at the end
+
+            // Apply above inner template,
+            //   _before_ definition,
+            //   which will begin as Missing and must be later resolved when
+            //     the template is defined.
+            TplStart(S6),
+              RefIdent(ref_inner_before),   // --.
+            TplEndRef(S8),                  //    |
+                                            //    |
+            // Named inner template.        //    |
+            TplStart(S9),                   //   /
+              BindIdent(id_tpl_inner),      //<-:
+            TplEnd(S11),                    //   \
+                                            //    |
+            // Apply above inner template,  //    |
+            //   _after_ definition.        //    |
+            TplStart(S12),                  //    |
+              RefIdent(ref_inner_after),    // __/
+            TplEndRef(S14),
+          TplEnd(S15),
+        PkgEnd(S16),
+    ];
+
+    // We need more concise expressions for the below table of values.
+    let d = DynObjectRel::new;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
+    #[rustfmt::skip]
+    assert_eq!(
+        //      A  -|-> B   |  A span  -|-> B span  |  espan  |  depth
+        vec![//-----|-------|-----------|-----------|---------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S16), None     ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S16), S3,         None     ),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S15), None     ),     Depth(3)),
+            (d(Tpl,   Tpl,   m(S2, S15), m(S4, S5),  None     ),       Depth(4)),
+            (d(Tpl,   Tpl,   m(S2, S15), m(S6, S8),  None     ),       Depth(4)),
+  /*cross*/ (d(Tpl,   Ident, m(S6, S8),  S10,        Some(S7) ),         Depth(5)),
+    //  ,--------------------------------^^^
+    /* | */ (d(Tpl,   Ident, m(S2, S15), S10,        None     ),       Depth(4)),
+    /* | */ (d(Ident, Tpl,   S10,        m(S9, S11), None     ),         Depth(5)),
+    /* | */ (d(Tpl,   Tpl,   m(S2, S15), m(S12,S14), None     ),       Depth(4)),
+  /*cross*/ (d(Tpl,   Ident, m(S12,S14), S10,        Some(S13)),         Depth(5)),
+    // |    //                           ^^^
+    // |    // Note that successfully    /
+    // |    //   resolving this span  --`
+    // |    //   as S10 (Ident::Transparent) instead of S13 (which would mean
+    // |    //   a new Ident::Missing was created) requires that we resolve
+    // |    //   a local identifier that is rooted in the _template_ rather
+    // |    //   than the global scope.
+    //  `----> Similarly,
+            //   resolving the former as S10 instead of S7 means that a
+            //   local identifier that was originally Missing is properly
+            //   resolved to Transparent once it was defined;
+            //     which asserts consistency in identifier scope regardless
+            //     of reference/definition order.
+            // This lexical analysis is something that the XSLT-based TAME
+            //   was not capable of doing.
+        ],
+        tree_reconstruction_report(toks),
+    );
+}

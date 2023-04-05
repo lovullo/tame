@@ -125,5 +125,32 @@
       <c:product />
     </c:sum>
   </template>
+
+  <template name="_short-hand-nullary-outer_" />
+  <apply-template name="_short-hand-nullary-outer_">
+    <with-param name="@values@" value="___dsgr-d72___" />
+  </apply-template>
+  <template name="___dsgr-d72___">
+    <template name="_short-hand-nullary-inner-dfn-inner_" />
+    <apply-template name="_short-hand-nullary-inner-dfn-inner_" />
+  </template>
+
+  <template name="_short-hand-nullary-inner-dfn-outer_" />
+  <apply-template name="_short-hand-nullary-outer_">
+    <with-param name="@values@" value="___dsgr-e59___" />
+  </apply-template>
+  <template name="___dsgr-e59___">
+    <apply-template name="_short-hand-nullary-inner-dfn-outer_" />
+  </template>
+
+  <template name="_short-hand-unary-with-values_" />
+  <apply-template name="_short-hand-unary-with-values_">
+    <with-param name="@foo@" value="bar" />
+    <with-param name="@values@" value="___dsgr-eff___" />
+  </apply-template>
+  <template name="___dsgr-eff___">
+    <template name="_short-hand-unary-with-values-inner_" />
+    <apply-template name="_short-hand-unary-with-values-inner_" />
+  </template>
 </package>
 
