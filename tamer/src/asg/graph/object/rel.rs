@@ -132,6 +132,16 @@ macro_rules! object_rel {
 
             object_rel!{ @impl_rel_to $from $ety $kind }
         )*
+
+        impl From<[<$from Rel>]> for ObjectIndex<Object> {
+            fn from(value: [<$from Rel>]) -> Self {
+                match value {
+                    $(
+                        [<$from Rel>]::$kind(oi) => oi.widen(),
+                    )*
+                }
+            }
+        }
     }};
 
     // Static edge types.
@@ -474,7 +484,9 @@ impl<O: ObjectKind + ObjectRelatable> ObjectIndex<O> {
 ///   adhere to the prescribed ontology,
 ///     provided that invariants are properly upheld by the
 ///     [`asg`](crate::asg) module.
-pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>: Sized {
+pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>:
+    Sized + Into<ObjectIndex<Object>>
+{
     /// Attempt to narrow into the [`ObjectKind`] `OB`.
     ///
     /// Unlike [`Object`] nodes,
@@ -508,6 +520,12 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>: Sized {
         Self: From<ObjectIndex<OB>>,
     {
         self.narrow::<OB>().map(Into::into)
+    }
+
+    /// Widen into an [`ObjectIndex`],
+    ///   discarding static type information.
+    fn widen(self) -> ObjectIndex<Object> {
+        self.into()
     }
 
     /// Whether this relationship represents an ontological cross edge.

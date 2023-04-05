@@ -152,5 +152,23 @@
     <template name="_short-hand-unary-with-values-inner_" />
     <apply-template name="_short-hand-unary-with-values-inner_" />
   </template>
+
+  <template name="_short-hand-in-expr_" />
+  <rate yields="shortHandTplInExpr">
+    <apply-template name="_short-hand-in-expr_">
+      <with-param name="@in@" value="rate" />
+    </apply-template>
+  </rate>
+
+  <template name="_tpl-with-short-hand-inner_">
+    <template name="_tpl-with-short-hand-inner-inner_" />
+    <apply-template name="_tpl-with-short-hand-inner-inner_" />
+
+    <c:sum>
+      <apply-template name="_tpl-with-short-hand-inner-inner_">
+        <with-param name="@in@" value="sum" />
+      </apply-template>
+    </c:sum>
+  </template>
 </package>
 

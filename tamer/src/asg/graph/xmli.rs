@@ -309,7 +309,7 @@ impl<'a> TreeContext<'a> {
             // Convert this into a long-hand template expansion so that we
             //   do not have to deal with converting underscore-padded
             //   template names back into short-hand form.
-            Object::Pkg(..) | Object::Tpl(..) => {
+            Object::Pkg(..) | Object::Tpl(..) | Object::Expr(..) => {
                 // [`Ident`]s are skipped during traversal,
                 //   so we'll handle it ourselves here.
                 // This also gives us the opportunity to make sure that
@@ -341,7 +341,12 @@ impl<'a> TreeContext<'a> {
                 ))
             }
 
-            _ => todo!("emit_template: {src:?}"),
+            _ => diagnostic_todo!(
+                vec![
+                    oi_tpl.note("interpreting this as a template application"),
+                ],
+                "emit_template: {src:?}"
+            ),
         }
     }
 

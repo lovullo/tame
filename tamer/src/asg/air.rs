@@ -40,7 +40,6 @@ use super::{
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
-    diagnostic_todo,
     parse::{prelude::*, StateStack},
     span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
@@ -472,8 +471,8 @@ impl AirAggregateCtx {
         stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
             AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
-            AirAggregate::PkgExpr(_) => {
-                diagnostic_todo!(vec![], "PkgExpr expansion_oi")
+            AirAggregate::PkgExpr(exprst) => {
+                exprst.active_expr_oi().map(Into::into)
             }
             AirAggregate::PkgTpl(tplst) => {
                 tplst.active_tpl_oi().map(Into::into)

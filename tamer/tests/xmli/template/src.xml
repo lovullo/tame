@@ -148,19 +148,27 @@
     <template name="_short-hand-unary-with-values-inner_" />
     <t:short-hand-unary-with-values-inner />
   </t:short-hand-unary-with-values>
-  <!-- TODO
 
+
+
+
+
+  <template name="_short-hand-in-expr_" />
   <rate yields="shortHandTplInExpr">
-    <t:short-hand in="rate" />
+    <t:short-hand-in-expr in="rate" />
   </rate>
 
+
+
+
   <template name="_tpl-with-short-hand-inner_">
-    <t:short-hand />
+    <template name="_tpl-with-short-hand-inner-inner_" />
+    <t:tpl-with-short-hand-inner-inner />
 
     <c:sum>
-      <t:short-hand in="sum" />
+      <t:tpl-with-short-hand-inner-inner in="sum" />
     </c:sum>
   </template>
-  -->
+
 </package>
 

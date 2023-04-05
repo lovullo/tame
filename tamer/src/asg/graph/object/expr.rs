@@ -23,7 +23,7 @@ use std::fmt::Display;
 
 use super::{
     Asg, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
-    ObjectRelFrom, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
+    ObjectRelFrom, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Tpl,
 };
 use crate::{
     f::Functor,
@@ -221,6 +221,9 @@ object_rel! {
     Expr -> {
         cross Ident,
         tree  Expr,
+
+        // Template application
+        tree Tpl,
     }
 }
 

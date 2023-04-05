@@ -24,7 +24,7 @@ use crate::asg::{
         test::{asg_from_toks, parse_as_pkg_body},
         Air, AirAggregate,
     },
-    graph::object::Meta,
+    graph::object::{Meta, ObjectRel},
     Expr, ExprOp, Ident,
 };
 use crate::span::dummy::*;
@@ -155,6 +155,56 @@ fn tpl_within_expr() {
             .map(|(_, expr)| expr.span())
             .rev()
             .collect::<Vec<_>>(),
+    );
+}
+
+// Like the above test,
+//   but now we're _applying_ a template.
+#[test]
+fn tpl_apply_within_expr() {
+    let id_expr = SPair("expr".into(), S3);
+    let id_tpl = SPair("_tpl_".into(), S5);
+    let ref_tpl = SPair("_tpl_".into(), S8);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::ExprStart(ExprOp::Sum, S2),
+          Air::BindIdent(id_expr),
+
+          // This will not be present in the final expression,
+          //   as if it were hoisted out.
+          Air::TplStart(S4),
+            Air::BindIdent(id_tpl),
+          Air::TplEnd(S6),
+
+          // But the application will remain.
+          Air::TplStart(S7),
+            Air::RefIdent(ref_tpl),
+          Air::TplEndRef(S9),
+        Air::ExprEnd(S10),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    // The inner template.
+    let tpl = asg.expect_ident_obj::<Tpl>(id_tpl);
+    assert_eq!(S4.merge(S6).unwrap(), tpl.span());
+
+    // The expression that was produced on the graph ought to be equivalent
+    //   to the expression without the template being present at all,
+    //     but retaining the _application_.
+    let oi_expr = asg.expect_ident_oi::<Expr>(id_expr);
+    let expr = oi_expr.resolve(&asg);
+    assert_eq!(S2.merge(S10).unwrap(), expr.span());
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            S7.merge(S9).unwrap(),
+        ],
+        oi_expr
+            .edges(&asg)
+            .map(|rel| rel.widen().resolve(&asg).span())
+            .collect::<Vec<_>>()
     );
 }
 

@@ -177,6 +177,19 @@ impl AirExprAggregate {
             .add_edge_to(asg, oi_expr, None);
         Ok(())
     }
+
+    /// The [`ObjectIndex`] of the active expression being built,
+    ///   if any.
+    ///
+    /// This will return the deepest active subexpression.
+    pub(super) fn active_expr_oi(&self) -> Option<ObjectIndex<Expr>> {
+        use AirExprAggregate::*;
+
+        match self {
+            Ready(_) => None,
+            BuildingExpr(_, oi) => Some(*oi),
+        }
+    }
 }
 
 /// Stack of held expressions,
