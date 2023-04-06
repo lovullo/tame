@@ -26,7 +26,7 @@ use crate::{
 use std::{error::Error, fmt::Display};
 
 // These are also used by the `test` module which imports `super`.
-#[cfg(feature = "wip-nir-to-air")]
+#[cfg(feature = "wip-asg-derived-xmli")]
 use crate::{
     asg::ExprOp,
     nir::{Nir::*, NirEntity::*},
@@ -56,7 +56,7 @@ impl ParseState for NirToAir {
     type Error = NirToAirError;
     type Context = QueuedObj;
 
-    #[cfg(not(feature = "wip-nir-to-air"))]
+    #[cfg(not(feature = "wip-asg-derived-xmli"))]
     fn parse_token(
         self,
         tok: Self::Token,
@@ -68,7 +68,7 @@ impl ParseState for NirToAir {
         Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
     }
 
-    #[cfg(feature = "wip-nir-to-air")]
+    #[cfg(feature = "wip-asg-derived-xmli")]
     fn parse_token(
         self,
         tok: Self::Token,
@@ -210,5 +210,5 @@ impl Diagnostic for NirToAirError {
     }
 }
 
-#[cfg(all(test, feature = "wip-nir-to-air"))]
+#[cfg(all(test, feature = "wip-asg-derived-xmli"))]
 mod test;
