@@ -99,12 +99,40 @@ pub enum Nir {
 
     /// Bind the given name as an identifier for the entity atop of the
     ///   stack.
+    ///
+    /// [`Self::Ref`] references identifiers created using this token.
     BindIdent(SPair),
+
+    /// Reference the value of the given identifier as the subject of the
+    ///   current expression.
+    ///
+    /// The source language of TAME is historically XML,
+    ///   which permits attributes in any order.
+    /// If an expression contains multiple references that the user expects
+    ///   to mean a particular thing depending on attribute name,
+    ///     then this can be used to disambiguate.
+    /// Other references may use [`Self::Ref`].
+    ///
+    /// In XML notation,
+    ///   examples include `match/@on` and `c:value-of/@name`.
+    ///
+    /// NIR may at its discretion use this token to impose ordering,
+    ///   which would have the effect of imposing XML attribute order.
+    RefSubject(SPair),
 
     /// Reference the value of the given identifier.
     ///
     /// Permissible identifiers and values depend on the context in which
     ///   this appears.
+    /// Identifiers are defined using [`Self::BindIdent`].
+    ///
+    /// This reference has no particular significance other than not being
+    ///   the [`Self::RefSubject`] of the expression;
+    ///     all [`Self::Ref`]s within a given expression are semantically
+    ///     equivalent,
+    ///       and so should not be distinguished to the user by different
+    ///       attribute names unless those names are too semantically
+    ///       equivalent.
     Ref(SPair),
 
     /// Describe the [`NirEntity`] atop of the stack.
@@ -137,9 +165,8 @@ impl Nir {
 
             Open(_, _) | Close(_, _) => None,
 
-            BindIdent(spair) | Ref(spair) | Desc(spair) | Text(spair) => {
-                Some(spair.symbol())
-            }
+            BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
+            | Text(spair) => Some(spair.symbol()),
         }
     }
 }
@@ -169,6 +196,7 @@ impl Functor<SymbolId> for Nir {
             Open(_, _) | Close(_, _) => self,
 
             BindIdent(spair) => BindIdent(spair.map(f)),
+            RefSubject(spair) => RefSubject(spair.map(f)),
             Ref(spair) => Ref(spair.map(f)),
             Desc(spair) => Desc(spair.map(f)),
             Text(spair) => Text(spair.map(f)),
@@ -288,9 +316,8 @@ impl Token for Nir {
             Open(_, span) => *span,
             Close(_, span) => *span,
 
-            BindIdent(spair) | Ref(spair) | Desc(spair) | Text(spair) => {
-                spair.span()
-            }
+            BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
+            | Text(spair) => spair.span(),
         }
     }
 }
@@ -309,6 +336,9 @@ impl Display for Nir {
             Close(entity, _) => write!(f, "close {entity} entity"),
             BindIdent(spair) => {
                 write!(f, "bind identifier {}", TtQuote::wrap(spair))
+            }
+            RefSubject(spair) => {
+                write!(f, "subject ref {}", TtQuote::wrap(spair))
             }
             Ref(spair) => write!(f, "ref {}", TtQuote::wrap(spair)),
 

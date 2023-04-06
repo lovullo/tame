@@ -1678,7 +1678,7 @@ ele_parse! {
     ///   which gets desugared into this via [`super::tplshort`].
     ApplyTemplate := QN_APPLY_TEMPLATE(_, ospan) {
         @ {
-            QN_NAME => Ref,
+            QN_NAME => RefSubject,
         } => Nir::Open(NirEntity::TplApply, ospan.into()),
         /(cspan) => Nir::Close(NirEntity::TplApply, cspan.into()),
 

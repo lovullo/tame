@@ -153,7 +153,7 @@ fn apply_template_long_form_nullary() {
     #[rustfmt::skip]
     let toks = vec![
         Open(TplApply, S1),
-          Ref(name),
+          RefSubject(name),
         Close(TplApply, S3),
     ];
 
@@ -179,7 +179,7 @@ fn apply_template_long_form_args() {
     #[rustfmt::skip]
     let toks = vec![
         Open(TplApply, S1),
-          Ref(name),
+          RefSubject(name),
 
           Open(TplParam, S3),
             BindIdent(p1),

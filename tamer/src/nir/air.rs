@@ -173,7 +173,9 @@ impl ParseState for NirToAir {
             (Ready, BindIdent(spair)) => {
                 Transition(Ready).ok(Air::BindIdent(spair))
             }
-            (Ready, Ref(spair)) => Transition(Ready).ok(Air::RefIdent(spair)),
+            (Ready, Ref(spair) | RefSubject(spair)) => {
+                Transition(Ready).ok(Air::RefIdent(spair))
+            }
 
             (Ready, Todo | TodoAttr(..) | Desc(..)) => {
                 Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
