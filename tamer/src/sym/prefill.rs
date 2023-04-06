@@ -725,6 +725,8 @@ pub mod st {
         L_RETMAP_UUUHEAD: str ":retmap:___head",
         L_RETMAP_UUUTAIL: str ":retmap:___tail",
 
+        U_TRUE: cid "TRUE",
+
         URI_LV_CALC: uri "http://www.lovullo.com/calc",
         URI_LV_LINKER: uri "http://www.lovullo.com/rater/linker",
         URI_LV_PREPROC: uri "http://www.lovullo.com/rater/preproc",

@@ -21,8 +21,14 @@
 
 use super::Nir;
 use crate::{
-    asg::air::Air, diagnose::Diagnostic, parse::prelude::*, span::UNKNOWN_SPAN,
+    asg::air::Air,
+    diagnose::{Annotate, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
+    parse::prelude::*,
+    span::{Span, UNKNOWN_SPAN},
+    sym::{st::raw::U_TRUE, SymbolId},
 };
+use arrayvec::ArrayVec;
 use std::{error::Error, fmt::Display};
 
 // These are also used by the `test` module which imports `super`.
@@ -36,6 +42,13 @@ use crate::{
 pub enum NirToAir {
     #[default]
     Ready,
+
+    /// Predicate opened but its subject is not yet known.
+    PredOpen(Span),
+
+    /// A predicate has been partially applied to its subject,
+    ///   but we do not yet know its function or comparison value.
+    PredPartial(Span, SPair),
 }
 
 impl Display for NirToAir {
@@ -44,17 +57,30 @@ impl Display for NirToAir {
 
         match self {
             Ready => write!(f, "ready to lower NIR to AIR"),
+            PredOpen(_) => {
+                write!(f, "awaiting information about open predicate")
+            }
+            PredPartial(_, name) => write!(
+                f,
+                "waiting to determine type of predicate for identifier {}",
+                TtQuote::wrap(name),
+            ),
         }
     }
 }
 
-type QueuedObj = Option<Air>;
+/// Stack of [`Air`] objects to yield on subsequent iterations.
+type ObjStack = ArrayVec<Air, 2>;
+
+/// The symbol to use when lexically expanding shorthand notations to
+///   compare against values of `1`.
+pub const SYM_TRUE: SymbolId = U_TRUE;
 
 impl ParseState for NirToAir {
     type Token = Nir;
     type Object = Air;
     type Error = NirToAirError;
-    type Context = QueuedObj;
+    type Context = ObjStack;
 
     #[cfg(not(feature = "wip-asg-derived-xmli"))]
     fn parse_token(
@@ -72,14 +98,14 @@ impl ParseState for NirToAir {
     fn parse_token(
         self,
         tok: Self::Token,
-        queue: &mut Self::Context,
+        stack: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         use NirToAir::*;
+        use NirToAirError::*;
 
-        use crate::{diagnose::Annotate, diagnostic_panic};
+        use crate::diagnostic_panic;
 
-        // Single-item "queue".
-        if let Some(obj) = queue.take() {
+        if let Some(obj) = stack.pop() {
             return Transition(Ready).ok(obj).with_lookahead(tok);
         }
 
@@ -109,6 +135,41 @@ impl ParseState for NirToAir {
             }
             (Ready, Open(Any, span)) => {
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Disj, span))
+            }
+
+            // Match
+            (Ready, Open(Match, span)) => {
+                Transition(PredOpen(span)).incomplete()
+            }
+            (PredOpen(ospan), RefSubject(on)) => {
+                Transition(PredPartial(ospan, on)).incomplete()
+            }
+            (PredPartial(ospan, on), Ref(value)) => {
+                stack.push(Air::RefIdent(value));
+                stack.push(Air::RefIdent(on));
+                Transition(Ready).ok(Air::ExprStart(ExprOp::Eq, ospan))
+            }
+            (PredPartial(ospan, on), Close(Match, cspan)) => {
+                stack.push(Air::RefIdent(SPair(SYM_TRUE, ospan)));
+                stack.push(Air::RefIdent(on));
+                Transition(Ready)
+                    .ok(Air::ExprStart(ExprOp::Eq, ospan))
+                    .with_lookahead(Close(Match, cspan))
+            }
+            // Special case of the general error below,
+            //   since recovery here involves discarding the nonsense match.
+            (PredOpen(ospan), Close(Match, span)) => Transition(Ready)
+                .err(MatchSubjectExpected(ospan, Close(Match, span))),
+            (PredOpen(ospan), tok) => Transition(PredOpen(ospan))
+                .err(MatchSubjectExpected(ospan, tok)),
+            (Ready, Close(Match, cspan)) => {
+                Transition(Ready).ok(Air::ExprEnd(cspan))
+            }
+            (PredPartial(ospan, on), tok) => {
+                // TODO: Until match body is supported,
+                //   error and discard tokens.
+                Transition(PredPartial(ospan, on))
+                    .err(TodoMatchBody(ospan, tok.span()))
             }
 
             (Ready, Open(Tpl, span)) => {
@@ -183,14 +244,23 @@ impl ParseState for NirToAir {
         }
     }
 
-    fn is_accepting(&self, _: &Self::Context) -> bool {
-        true
+    fn is_accepting(&self, stack: &Self::Context) -> bool {
+        matches!(self, Self::Ready) && stack.is_empty()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NirToAirError {
-    Todo,
+    /// Expected a match subject,
+    ///   but encountered some other token.
+    ///
+    /// TODO: "match subject" is not familiar terminology to the user;
+    ///   we'll want to introduce a layer permitting XML-specific augmenting
+    ///   with `@on` when derived from an XML source.
+    MatchSubjectExpected(Span, Nir),
+
+    /// Match body is not yet supported.
+    TodoMatchBody(Span, Span),
 }
 
 impl Display for NirToAirError {
@@ -198,17 +268,40 @@ impl Display for NirToAirError {
         use NirToAirError::*;
 
         match self {
-            Todo => write!(f, "TODO"),
+            MatchSubjectExpected(_, nir) => {
+                write!(f, "expected match subject, found {nir}")
+            }
+
+            TodoMatchBody(_, _) => {
+                write!(f, "match body is not yet supported by TAMER")
+            }
         }
     }
 }
 
 impl Error for NirToAirError {}
 
+// TODO: We need to be able to augment with useful context,
+//   e.g. XML suggestions.
 impl Diagnostic for NirToAirError {
     fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
-        // TODO
-        vec![]
+        use NirToAirError::*;
+
+        match self {
+            MatchSubjectExpected(ospan, given) => vec![
+                ospan.note("for this match"),
+                given
+                    .span()
+                    .error("comparison value provided before subject"),
+            ],
+
+            TodoMatchBody(ospan, given) => vec![
+                ospan.note("for this match"),
+                given.error(
+                    "tokens in match body are not yet supported by TAMER",
+                ),
+            ],
+        }
     }
 }
 

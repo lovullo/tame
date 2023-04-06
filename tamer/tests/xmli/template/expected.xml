@@ -170,5 +170,19 @@
       </apply-template>
     </c:sum>
   </template>
+
+
+
+
+
+
+
+
+
+
+
+  <template name="_match-child_">
+    <match on="foo" value="TRUE" />
+  </template>
 </package>
 

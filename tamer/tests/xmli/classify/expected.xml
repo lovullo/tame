@@ -13,5 +13,13 @@
     </any>
     <any />
   </classify>
+
+  <classify as="short-match-implicit-eq-implicit-true">
+    <match on="foo" value="TRUE" />
+  </classify>
+
+  <classify as="short-match-implicit-eq-explicit-value">
+    <match on="foo" value="bar" />
+  </classify>
 </package>
 

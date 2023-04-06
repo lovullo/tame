@@ -170,5 +170,19 @@
     </c:sum>
   </template>
 
+  This next one is a bit awkward,
+    because it creates an ambiguity when regenerating XML.
+  Each of `match`, `when`, and `c:*` are represented the same on the graph,
+    so it will not be clear until expansion how the body of the below
+
+  The ambiguity will go away once template application is performed by
+    TAMER in the near future;
+      until that time,
+        we cannot support the generation of each of those things within
+        templates.
+
+  <template name="_match-child_">
+    <match on="foo" />
+  </template>
 </package>
 

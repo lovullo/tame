@@ -41,7 +41,7 @@ use super::ObjectKind;
 ///   all child expressions,
 ///     but also any applicable closing span.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Expr(ExprOp, ExprDim, Span);
+pub struct Expr(pub ExprOp, ExprDim, Span);
 
 impl Expr {
     pub fn new(op: ExprOp, span: Span) -> Self {
@@ -102,12 +102,15 @@ pub enum ExprOp {
     Conj,
     /// Logical disjunction (∨)
     Disj,
+    /// Equality predicate (=)
+    Eq,
 }
 
 impl Display for ExprOp {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use ExprOp::*;
 
+        // "{self} expression"
         match self {
             Sum => write!(f, "sum (+)"),
             Product => write!(f, "product (×)"),
@@ -115,6 +118,7 @@ impl Display for ExprOp {
             Floor => write!(f, "floor (⌊)"),
             Conj => write!(f, "conjunctive (∧)"),
             Disj => write!(f, "disjunctive (∨)"),
+            Eq => write!(f, "equality (=)"),
         }
     }
 }

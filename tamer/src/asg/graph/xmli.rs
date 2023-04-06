@@ -191,8 +191,8 @@ impl<'a> TreeContext<'a> {
                 depth,
             )),
 
-            Object::Expr((expr, _)) => {
-                self.emit_expr(expr, paired_rel.source(), depth)
+            Object::Expr((expr, oi_expr)) => {
+                self.emit_expr(expr, *oi_expr, paired_rel.source(), depth)
             }
 
             Object::Tpl((tpl, oi_tpl)) => {
@@ -243,6 +243,7 @@ impl<'a> TreeContext<'a> {
     fn emit_expr(
         &mut self,
         expr: &Expr,
+        oi_expr: ObjectIndex<Expr>,
         src: &Object<OiPairObjectInner>,
         depth: Depth,
     ) -> Option<Xirf> {
@@ -250,7 +251,25 @@ impl<'a> TreeContext<'a> {
             Object::Ident((ident, _)) => {
                 self.emit_expr_ident(expr, ident, depth)
             }
-            _ => Some(expr_ele(expr, depth)),
+            Object::Expr((pexpr, _)) => match (pexpr.op(), expr.op()) {
+                (ExprOp::Conj | ExprOp::Disj, ExprOp::Eq) => {
+                    Some(self.emit_match(expr, oi_expr, depth))
+                }
+                _ => Some(expr_ele(expr, oi_expr, depth)),
+            },
+            // TODO: See `:tamer/tests/xmli/template` regarding `match` and
+            //   `when`/`c:*`;
+            //     this is not an ambiguity that can be resolved without
+            //     adding more information to the graph,
+            //       but is hopefully one that we can avoid.
+            Object::Tpl(..) => match expr.op() {
+                ExprOp::Eq => Some(self.emit_match(expr, oi_expr, depth)),
+                _ => Some(expr_ele(expr, oi_expr, depth)),
+            },
+            // TODO: Perhaps errors for Root and Meta?
+            Object::Root(_) | Object::Pkg(_) | Object::Meta(_) => {
+                Some(expr_ele(expr, oi_expr, depth))
+            }
         }
     }
 
@@ -268,7 +287,11 @@ impl<'a> TreeContext<'a> {
             ExprOp::Sum => (QN_RATE, QN_YIELDS),
             ExprOp::Conj => (QN_CLASSIFY, QN_AS),
 
-            ExprOp::Product | ExprOp::Ceil | ExprOp::Floor | ExprOp::Disj => {
+            ExprOp::Product
+            | ExprOp::Ceil
+            | ExprOp::Floor
+            | ExprOp::Disj
+            | ExprOp::Eq => {
                 todo!("stmt: {expr:?}")
             }
         };
@@ -281,6 +304,47 @@ impl<'a> TreeContext<'a> {
             OpenSpan::without_name_span(expr.span()),
             depth,
         ))
+    }
+
+    /// Emit a match expression.
+    ///
+    /// This is intended as a classify/any/all child.
+    fn emit_match(
+        &mut self,
+        expr: &Expr,
+        oi_expr: ObjectIndex<Expr>,
+        depth: Depth,
+    ) -> Xirf {
+        let mut edges = oi_expr.edges_filtered::<Ident>(self.asg);
+
+        // note: the edges are reversed (TODO?)
+        let value = edges
+            .next()
+            .diagnostic_expect(
+                || vec![oi_expr.note("for this match")],
+                "missing @value ref",
+            )
+            .resolve(self.asg);
+
+        let on = edges
+            .next()
+            .diagnostic_expect(
+                || vec![oi_expr.note("for this match")],
+                "missing @on ref",
+            )
+            .resolve(self.asg);
+
+        if let Some(unexpected) = edges.next() {
+            diagnostic_panic!(
+                vec![unexpected.error("a third ref was unexpected")],
+                "unexpected third ref during match generation",
+            );
+        }
+
+        self.push(attr_value(value.name()));
+        self.push(attr_on(on.name()));
+
+        Xirf::open(QN_MATCH, OpenSpan::without_name_span(expr.span()), depth)
     }
 
     /// Emit a template definition or application.
@@ -450,11 +514,15 @@ fn attr_name(name: SPair) -> Xirf {
     Xirf::attr(QN_NAME, name, (name.span(), name.span()))
 }
 
+fn attr_on(on: SPair) -> Xirf {
+    Xirf::attr(QN_ON, on, (on.span(), on.span()))
+}
+
 fn attr_value(val: SPair) -> Xirf {
     Xirf::attr(QN_VALUE, val, (val.span(), val.span()))
 }
 
-fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
+fn expr_ele(expr: &Expr, oi_expr: ObjectIndex<Expr>, depth: Depth) -> Xirf {
     use ExprOp::*;
 
     let qname = match expr.op() {
@@ -464,6 +532,11 @@ fn expr_ele(expr: &Expr, depth: Depth) -> Xirf {
         Floor => QN_C_FLOOR,
         Conj => QN_ALL,
         Disj => QN_ANY,
+
+        Eq => diagnostic_panic!(
+            vec![oi_expr.error("unsupported expression type in this context")],
+            "cannot derive expression of this type in this context",
+        ),
     };
 
     Xirf::open(qname, OpenSpan::without_name_span(expr.span()), depth)

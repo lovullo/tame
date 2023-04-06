@@ -228,6 +228,8 @@ pub enum NirEntity {
     All,
     /// Disjunctive (∨) expression.
     Any,
+    /// Logical predicate.
+    Match,
 
     /// Template.
     Tpl,
@@ -275,6 +277,7 @@ impl Display for NirEntity {
             Classify => write!(f, "classification"),
             All => write!(f, "conjunctive (∧) expression"),
             Any => write!(f, "disjunctive (∨) expression"),
+            Match => write!(f, "logical predicate (match)"),
 
             Tpl => write!(f, "template"),
             TplParam => write!(f, "template param (metavariable)"),

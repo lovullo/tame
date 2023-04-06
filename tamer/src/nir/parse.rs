@@ -581,13 +581,14 @@ ele_parse! {
     ///
     /// The dimensionality of the expression will be automatically
     ///   determined by the dimensionality of the matches' [`@on`](QN_ON).
-    MatchExpr := QN_MATCH {
+    MatchExpr := QN_MATCH(_, ospan) {
         @ {
-            QN_ON => TodoAttr,
-            QN_VALUE => TodoAttr,
+            QN_ON => RefSubject,
+            QN_VALUE => Ref,
             QN_INDEX => TodoAttr,
             QN_ANY_OF => TodoAttr,
-        } => Todo,
+        } => NirEntity::Match.open(ospan),
+        /(cspan) => NirEntity::Match.close(cspan),
 
         CalcPredExpr,
     };

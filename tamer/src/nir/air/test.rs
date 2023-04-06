@@ -22,7 +22,7 @@ use crate::{parse::util::SPair, span::dummy::*};
 
 type Sut = NirToAir;
 
-use Parsed::Object as O;
+use Parsed::{Incomplete, Object as O};
 
 #[test]
 fn package_to_pkg() {
@@ -211,5 +211,135 @@ fn apply_template_long_form_args() {
             O(Air::TplEndRef(S11)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Short-hand matches with no value desugar to an equality check
+//   against `TRUE`.
+#[test]
+fn match_short_no_value() {
+    let name = SPair("matchOn".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Match, S1),
+          RefSubject(name),  // @on
+        Close(Match, S3),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            // When first encountering a `Match`,
+            //   we do not know what predicate needs to be emitted for AIR.
+            Incomplete,
+            // Nor do we know when encountering an identifier,
+            //   which serves as the first argument to the yet-to-be-known
+            //   predicate.
+            Incomplete,
+            // Once closing,
+            //   we default to an equality check against `TRUE`.
+            O(Air::ExprStart(ExprOp::Eq, S1)),
+            O(Air::RefIdent(name)),
+            O(Air::RefIdent(SPair(SYM_TRUE, S1))),
+            O(Air::ExprEnd(S3)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Same as above but _not_ defaulted to `TRUE`.
+#[test]
+fn match_short_with_value() {
+    let name = SPair("matchOn".into(), S2);
+    let value = SPair("value".into(), S3);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Match, S1),
+          RefSubject(name),  // @on
+          Ref(value),        // @value
+        Close(Match, S4),
+    ];
+
+    // See notes from `match_short_no_value`,
+    //   which are not duplicated here.
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            Incomplete,
+            Incomplete,
+            O(Air::ExprStart(ExprOp::Eq, S1)),
+            O(Air::RefIdent(name)),
+            // Rather than defaulting to `SYM_TRUE` as above,
+            //   we use the _user-provided_ value.
+            O(Air::RefIdent(value)),
+            O(Air::ExprEnd(S4)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+// Equivalently stated in XML: `match/@value` before `match/@on`;
+//   NIR imposes ordering,
+//     such that the `@on` must come first.
+#[test]
+fn match_short_value_before_subject_err() {
+    let name = SPair("matchOn".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Match, S1),
+          Ref(name),  // @value, not @on
+
+          // RECOVERY: Provide the subject
+          RefSubject(name),
+        Close(Match, S3),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Incomplete),  // Open
+            // We were expecting RefSubject (@on) but got Ref (@value)
+            Err(ParseError::StateError(
+                NirToAirError::MatchSubjectExpected(S1, Ref(name))
+            )),
+            // RECOVERY: Subject is provided.
+            Ok(Incomplete),
+            // And we then close as an eq match on TRUE,
+            //   because no value has been provided
+            //     (rather the value was consumed in the error).
+            Ok(O(Air::ExprStart(ExprOp::Eq, S1))),
+            Ok(O(Air::RefIdent(name))),
+            Ok(O(Air::RefIdent(SPair(SYM_TRUE, S1)))),
+            Ok(O(Air::ExprEnd(S3))),
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
+    );
+}
+
+// Closing a match before providing any arguments.
+#[test]
+fn match_no_args_err() {
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Match, S1),
+          // No refs.
+        Close(Match, S2),
+        // RECOVERY: We have no choice but to discard the above match.
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Incomplete),  // Open
+            // We were expecting RefSubject (@on) but closed instead.
+            Err(ParseError::StateError(
+                NirToAirError::MatchSubjectExpected(S1, Close(Match, S2))
+            )),
+            // RECOVERY: Useless match above discarded.
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
     );
 }
