@@ -17,7 +17,6 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::super::NirEntity;
 use super::*;
 use crate::{parse::util::SPair, span::dummy::*};
 
@@ -27,10 +26,7 @@ use Parsed::Object as O;
 
 #[test]
 fn package_to_pkg() {
-    let toks = vec![
-        Nir::Open(NirEntity::Package, S1),
-        Nir::Close(NirEntity::Package, S2),
-    ];
+    let toks = vec![Open(Package, S1), Close(Package, S2)];
 
     assert_eq!(
         Ok(vec![O(Air::PkgStart(S1)), O(Air::PkgEnd(S2)),]),
@@ -42,16 +38,18 @@ fn package_to_pkg() {
 fn rate_to_sum_expr() {
     let id = SPair("foo".into(), S2);
 
+    #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::Rate, S1),
-        Nir::BindIdent(id),
-        Nir::Close(NirEntity::Rate, S3),
+        Open(Rate, S1),
+          BindIdent(id),
+        Close(Rate, S3),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::ExprStart(ExprOp::Sum, S1)),
-            O(Air::BindIdent(id)),
+              O(Air::BindIdent(id)),
             O(Air::ExprEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -60,18 +58,20 @@ fn rate_to_sum_expr() {
 
 #[test]
 fn calc_exprs() {
+    #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::Sum, S1),
-        Nir::Open(NirEntity::Product, S2),
-        Nir::Close(NirEntity::Product, S3),
-        Nir::Close(NirEntity::Sum, S4),
+        Open(Sum, S1),
+          Open(Product, S2),
+          Close(Product, S3),
+        Close(Sum, S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::ExprStart(ExprOp::Sum, S1)),
-            O(Air::ExprStart(ExprOp::Product, S2)),
-            O(Air::ExprEnd(S3)),
+              O(Air::ExprStart(ExprOp::Product, S2)),
+              O(Air::ExprEnd(S3)),
             O(Air::ExprEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -82,16 +82,18 @@ fn calc_exprs() {
 fn classify_to_conj_expr() {
     let id = SPair("always".into(), S2);
 
+    #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::Classify, S1),
-        Nir::BindIdent(id),
-        Nir::Close(NirEntity::Classify, S3),
+        Open(Classify, S1),
+          BindIdent(id),
+        Close(Classify, S3),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::ExprStart(ExprOp::Conj, S1)),
-            O(Air::BindIdent(id)),
+              O(Air::BindIdent(id)),
             O(Air::ExprEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -100,18 +102,20 @@ fn classify_to_conj_expr() {
 
 #[test]
 fn logic_exprs() {
+    #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::All, S1),
-        Nir::Open(NirEntity::Any, S2),
-        Nir::Close(NirEntity::Any, S3),
-        Nir::Close(NirEntity::All, S4),
+        Open(All, S1),
+          Open(Any, S2),
+          Close(Any, S3),
+        Close(All, S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::ExprStart(ExprOp::Conj, S1)),
-            O(Air::ExprStart(ExprOp::Disj, S2)),
-            O(Air::ExprEnd(S3)),
+              O(Air::ExprStart(ExprOp::Disj, S2)),
+              O(Air::ExprEnd(S3)),
             O(Air::ExprEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -122,17 +126,18 @@ fn logic_exprs() {
 fn tpl_with_name() {
     let name = SPair("_tpl_name_".into(), S2);
 
+    #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::Tpl, S1),
-        Nir::BindIdent(name),
-        Nir::Close(NirEntity::Tpl, S3),
+        Open(Tpl, S1),
+          BindIdent(name),
+        Close(Tpl, S3),
     ];
 
-    #[rustfmt::skip]
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::TplStart(S1)),
-            O(Air::BindIdent(name)),
+              O(Air::BindIdent(name)),
             O(Air::TplEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -147,13 +152,13 @@ fn apply_template_long_form_nullary() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::TplApply, S1),
-          Nir::Ref(name),
-        Nir::Close(NirEntity::TplApply, S3),
+        Open(TplApply, S1),
+          Ref(name),
+        Close(TplApply, S3),
     ];
 
-    #[rustfmt::skip]
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::TplStart(S1)),
               O(Air::RefIdent(name)),
@@ -173,23 +178,23 @@ fn apply_template_long_form_args() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Nir::Open(NirEntity::TplApply, S1),
-          Nir::Ref(name),
+        Open(TplApply, S1),
+          Ref(name),
 
-          Nir::Open(NirEntity::TplParam, S3),
-            Nir::BindIdent(p1),
-            Nir::Text(v1),
-          Nir::Close(NirEntity::TplParam, S6),
+          Open(TplParam, S3),
+            BindIdent(p1),
+            Text(v1),
+          Close(TplParam, S6),
 
-          Nir::Open(NirEntity::TplParam, S7),
-            Nir::BindIdent(p2),
-            Nir::Text(v2),
-          Nir::Close(NirEntity::TplParam, S10),
-        Nir::Close(NirEntity::TplApply, S11),
+          Open(TplParam, S7),
+            BindIdent(p2),
+            Text(v2),
+          Close(TplParam, S10),
+        Close(TplApply, S11),
     ];
 
-    #[rustfmt::skip]
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::TplStart(S1)),
               O(Air::RefIdent(name)),
