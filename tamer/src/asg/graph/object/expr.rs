@@ -21,10 +21,7 @@
 
 use std::fmt::Display;
 
-use super::{
-    Asg, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
-    ObjectRelFrom, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Tpl,
-};
+use super::{prelude::*, Ident, Tpl};
 use crate::{
     f::Functor,
     num::Dim,

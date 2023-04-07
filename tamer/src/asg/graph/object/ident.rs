@@ -19,11 +19,7 @@
 
 //! Identifiers (a type of [object](super)).
 
-use super::{
-    super::{Asg, AsgError, ObjectIndex, ObjectKind},
-    Expr, Meta, Object, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
-    ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Pkg, Tpl,
-};
+use super::{prelude::*, Expr, Meta, Pkg, Tpl};
 use crate::{
     diagnose::{Annotate, Diagnostic},
     diagnostic_todo,

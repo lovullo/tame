@@ -21,11 +21,8 @@
 
 use std::fmt::Display;
 
-use super::{
-    Expr, Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel,
-    ObjectRelFrom, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
-};
-use crate::{asg::Asg, f::Functor, span::Span};
+use super::{prelude::*, Expr, Ident};
+use crate::{f::Functor, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]

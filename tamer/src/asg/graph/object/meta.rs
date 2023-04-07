@@ -24,12 +24,8 @@
 //!   have historically been a feature of the template system.
 //! The canonical metavariable is the template parameter.
 
-use super::{
-    Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
-    ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Tpl,
-};
+use super::{prelude::*, Ident, Tpl};
 use crate::{
-    asg::Asg,
     diagnose::Annotate,
     diagnostic_todo,
     f::Functor,

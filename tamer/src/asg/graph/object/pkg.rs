@@ -19,12 +19,8 @@
 
 //! Package object on the ASG.
 
-use super::{
-    Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
-    ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Tpl,
-};
+use super::{prelude::*, Ident, Tpl};
 use crate::{
-    asg::Asg,
     f::Functor,
     parse::{util::SPair, Token},
     span::Span,

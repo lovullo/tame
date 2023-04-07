@@ -21,10 +21,7 @@
 
 use std::fmt::Display;
 
-use super::{
-    Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, ObjectTreeRelTo, Pkg,
-};
+use super::{prelude::*, Ident, Pkg};
 
 #[cfg(doc)]
 use super::ObjectKind;

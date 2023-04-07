@@ -151,6 +151,16 @@ pub use rel::{
 pub use root::Root;
 pub use tpl::Tpl;
 
+/// Often-needed exports for [`ObjectKind`]s.
+pub mod prelude {
+    pub use super::{
+        super::{super::error::AsgError, Asg},
+        Object, ObjectIndex, ObjectIndexRelTo, ObjectKind, ObjectRel,
+        ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
+        ObjectTreeRelTo,
+    };
+}
+
 /// Given a list of [`ObjectKind`]s,
 ///   generate [`Object`],
 ///   associated types,
@@ -313,8 +323,6 @@ object_gen! {
     Ident,
 
     /// Expression.
-    ///
-    /// An expression may optionally be named by one or more [`Ident`]s.
     Expr,
 
     /// A template definition.
