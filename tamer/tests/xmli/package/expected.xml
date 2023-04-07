@@ -1,0 +1,12 @@
+
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+
+
+  <import package="first" />
+  <import package="second" />
+  <import package="third" />
+</package>
+

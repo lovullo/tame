@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  Packages aren't actually imported yet,
+    but they do need to be represented on the graph for `xmli` derivation.
+  <import package="first" />
+  <import package="second" />
+  <import package="third" />
+</package>
+

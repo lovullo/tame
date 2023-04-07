@@ -176,7 +176,14 @@ impl<'a> TreeContext<'a> {
         let paired_rel = dyn_rel.resolve_oi_pairs(self.asg);
 
         match paired_rel.target() {
-            Object::Pkg((pkg, _)) => self.emit_package(pkg, depth),
+            Object::Pkg((pkg, oi_pkg)) => match paired_rel.source() {
+                Object::Root(_) => self.emit_package(pkg, depth),
+                Object::Pkg(_) => self.emit_import(pkg, depth),
+                _ => diagnostic_panic!(
+                    vec![oi_pkg.error("package was not expected here")],
+                    "invalid context for package object during xmli derivation",
+                ),
+            },
 
             // Identifiers will be considered in context;
             //   pass over it for now.
@@ -221,6 +228,18 @@ impl<'a> TreeContext<'a> {
         ]);
 
         Some(package(pkg, depth))
+    }
+
+    /// Emit a package import statement.
+    fn emit_import(&mut self, pkg: &Pkg, depth: Depth) -> Option<Xirf> {
+        let ps = pkg.pathspec();
+        self.push(Xirf::attr(QN_PACKAGE, ps.symbol(), (ps.span(), ps.span())));
+
+        Some(Xirf::open(
+            QN_IMPORT,
+            OpenSpan::without_name_span(pkg.span()),
+            depth,
+        ))
     }
 
     /// Emit an expression as a legacy TAME statement or expression.

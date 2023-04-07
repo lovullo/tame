@@ -311,6 +311,35 @@ fn nested_open_pkg() {
     );
 }
 
+#[test]
+fn pkg_import() {
+    let pathspec = SPair("foo/bar".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::PkgStart(S1),
+          Air::RefIdent(pathspec),
+        Air::PkgEnd(S3),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    let import = asg
+        .root(S1)
+        .edges_filtered::<Pkg>(&asg)
+        .next()
+        .expect("cannot find package from root")
+        .edges_filtered::<Pkg>(&asg)
+        .next()
+        .expect("cannot find imported package")
+        .resolve(&asg);
+
+    assert_eq!(pathspec, import.pathspec());
+}
+
 /// Parse using [`Sut`] when the test does not care about the outer package.
 pub fn parse_as_pkg_body<I: IntoIterator<Item = Air>>(
     toks: I,

@@ -20,26 +20,52 @@
 //! Package object on the ASG.
 
 use super::{
-    Ident, Object, ObjectIndex, ObjectRel, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, ObjectTreeRelTo, Tpl,
+    Ident, Object, ObjectIndex, ObjectIndexRelTo, ObjectRel, ObjectRelFrom,
+    ObjectRelTy, ObjectRelatable, ObjectTreeRelTo, Tpl,
 };
-use crate::{asg::Asg, f::Functor, span::Span};
+use crate::{
+    asg::Asg,
+    f::Functor,
+    parse::{util::SPair, Token},
+    span::Span,
+    sym::st::raw::WS_EMPTY,
+};
 use std::fmt::Display;
 
 #[cfg(doc)]
 use super::ObjectKind;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Pkg(Span);
+pub struct Pkg(Span, PathSpec);
+
+/// Package path specification used to import this package.
+///
+/// TODO: This is simply punting on handling of imports for now.
+type PathSpec = SPair;
 
 impl Pkg {
+    /// Create a new package intended to serve as the compilation unit,
+    ///   with an empty pathspec.
     pub fn new<S: Into<Span>>(span: S) -> Self {
-        Self(span.into())
+        let s = span.into();
+        Self(s, SPair(WS_EMPTY, s))
+    }
+
+    /// Represent a package imported according to the provided
+    ///   [`PathSpec`].
+    pub fn new_imported(pathspec: PathSpec) -> Self {
+        Self(pathspec.span(), pathspec)
     }
 
     pub fn span(&self) -> Span {
         match self {
-            Self(span) => *span,
+            Self(span, _) => *span,
+        }
+    }
+
+    pub fn pathspec(&self) -> PathSpec {
+        match self {
+            Self(_, pathspec) => *pathspec,
         }
     }
 }
@@ -53,7 +79,7 @@ impl Display for Pkg {
 impl Functor<Span> for Pkg {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
         match self {
-            Self(span) => Self(f(span)),
+            Self(span, path) => Self(f(span), path),
         }
     }
 }
@@ -64,6 +90,10 @@ object_rel! {
     ///
     /// Imported [`Ident`]s do not have edges from this package.
     Pkg -> {
+        // Package import
+        cross Pkg,
+
+        // Identified objects owned by this package.
         tree Ident,
 
         // Anonymous templates are used for expansion.
@@ -75,5 +105,15 @@ impl ObjectIndex<Pkg> {
     /// Complete the definition of a package.
     pub fn close(self, asg: &mut Asg, span: Span) -> Self {
         self.map_obj(asg, Pkg::fmap(|open| open.merge(span).unwrap_or(open)))
+    }
+
+    /// Indicate that a package should be imported at the provided
+    ///   pathspec.
+    ///
+    /// This simply adds the import to the graph;
+    ///   package loading must be performed by another subsystem.
+    pub fn import(self, asg: &mut Asg, pathspec: SPair) -> Self {
+        let oi_import = asg.create(Pkg::new_imported(pathspec));
+        self.add_edge_to(asg, oi_import, Some(pathspec.span()))
     }
 }

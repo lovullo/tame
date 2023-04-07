@@ -165,8 +165,11 @@ impl ParseState for AirAggregate {
             (st @ Toplevel(..), AirBind(BindIdent(id))) => {
                 Transition(st).err(AsgError::InvalidBindContext(id))
             }
-            (st @ Toplevel(..), AirBind(RefIdent(id))) => {
-                Transition(st).err(AsgError::InvalidRefContext(id))
+
+            // Package import
+            (Toplevel(oi_pkg), AirBind(RefIdent(pathspec))) => {
+                oi_pkg.import(ctx.asg_mut(), pathspec);
+                Transition(Toplevel(oi_pkg)).incomplete()
             }
 
             // Note: We unfortunately can't match on `AirExpr | AirBind`

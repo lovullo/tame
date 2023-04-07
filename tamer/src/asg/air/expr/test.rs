@@ -821,60 +821,6 @@ fn expr_ref_to_ident() {
 }
 
 #[test]
-fn expr_ref_outside_of_expr_context() {
-    let id_pre = SPair("pre".into(), S2);
-    let id_foo = SPair("foo".into(), S4);
-
-    #[rustfmt::skip]
-    let toks = vec![
-        // We need to first bring ourselves out of the context of the
-        //   package header.
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_pre),
-        Air::ExprEnd(S3),
-
-        // This will fail since we're not in an expression context.
-        Air::RefIdent(id_foo),
-
-        // RECOVERY: Simply ignore the above.
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_foo),
-        Air::ExprEnd(S3),
-    ];
-
-    let mut sut = parse_as_pkg_body(toks);
-
-    assert_eq!(
-        #[rustfmt::skip]
-        vec![
-            Ok(Parsed::Incomplete), // PkgStart
-              Ok(Parsed::Incomplete), // ExprStart
-                Ok(Parsed::Incomplete), // BindIdent
-              Ok(Parsed::Incomplete), // ExprEnd
-
-              // Now we're past the header and in expression parsing mode.
-              Err(ParseError::StateError(AsgError::InvalidRefContext(
-                  id_foo
-              ))),
-
-              // RECOVERY: Proceed as normal
-              Ok(Parsed::Incomplete), // ExprStart
-                Ok(Parsed::Incomplete), // BindIdent
-              Ok(Parsed::Incomplete), // ExprEnd
-            Ok(Parsed::Incomplete), // PkgEnd
-        ],
-        sut.by_ref().collect::<Vec<_>>(),
-    );
-
-    let asg = sut.finalize().unwrap().into_context();
-
-    // Verify that the identifier was bound just to have some confidence in
-    //   the recovery.
-    let expr = asg.expect_ident_obj::<Expr>(id_foo);
-    assert_eq!(expr.span(), S1.merge(S3).unwrap());
-}
-
-#[test]
 fn idents_share_defining_pkg() {
     let id_foo = SPair("foo".into(), S3);
     let id_bar = SPair("bar".into(), S5);

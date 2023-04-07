@@ -260,7 +260,7 @@ ele_parse! {
     ///   for composing larger systems out of smaller components.
     ImportStmt := QN_IMPORT {
         @ {
-            QN_PACKAGE => TodoAttr,
+            QN_PACKAGE => Ref,
             QN_EXPORT => TodoAttr,
         } => Todo,
     };
