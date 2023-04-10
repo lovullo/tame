@@ -242,7 +242,7 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::DocIndepClause(clause))
             }
 
-            (Ready, Todo | TodoAttr(..)) => {
+            (Ready, Todo(..) | TodoAttr(..)) => {
                 Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
             }
         }

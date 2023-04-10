@@ -59,7 +59,7 @@ use crate::{
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
     parse::{util::SPair, Object, Token},
-    span::{Span, UNKNOWN_SPAN},
+    span::Span,
     sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
@@ -87,7 +87,7 @@ pub use tplshort::TplShortDesugar;
 ///     (e.g. XML).
 #[derive(Debug, PartialEq, Eq)]
 pub enum Nir {
-    Todo,
+    Todo(Span),
     TodoAttr(SPair),
 
     /// Begin the definition of some [`NirEntity`] and place it atop of the
@@ -160,7 +160,7 @@ impl Nir {
         use Nir::*;
 
         match self {
-            Todo => None,
+            Todo(_) => None,
             TodoAttr(spair) => Some(spair.symbol()),
 
             Open(_, _) | Close(_, _) => None,
@@ -190,7 +190,7 @@ impl Functor<SymbolId> for Nir {
         use Nir::*;
 
         match self {
-            Todo => self,
+            Todo(_) => self,
             TodoAttr(spair) => TodoAttr(spair.map(f)),
 
             Open(_, _) | Close(_, _) => self,
@@ -313,7 +313,7 @@ impl Token for Nir {
         use Nir::*;
 
         match self {
-            Todo => UNKNOWN_SPAN,
+            Todo(span) => *span,
             TodoAttr(spair) => spair.span(),
 
             Open(_, span) => *span,
@@ -332,7 +332,7 @@ impl Display for Nir {
         use Nir::*;
 
         match self {
-            Todo => write!(f, "TODO"),
+            Todo(_) => write!(f, "TODO"),
             TodoAttr(spair) => write!(f, "TODO Attr {spair}"),
 
             Open(entity, _) => write!(f, "open {entity} entity"),
