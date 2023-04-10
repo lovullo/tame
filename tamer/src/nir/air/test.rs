@@ -122,6 +122,33 @@ fn logic_exprs() {
     );
 }
 
+// @desc becomes an independent clause,
+//   intended for short summary documentation.
+#[test]
+fn desc_as_indep_clause() {
+    let id = SPair("class".into(), S2);
+    let desc = SPair("class desc".into(), S3);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Classify, S1),
+          BindIdent(id),
+          Desc(desc),
+        Close(Classify, S4),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            O(Air::ExprStart(ExprOp::Conj, S1)),
+              O(Air::BindIdent(id)),
+              O(Air::DocIndepClause(desc)),
+            O(Air::ExprEnd(S4)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 #[test]
 fn tpl_with_name() {
     let name = SPair("_tpl_name_".into(), S2);

@@ -768,14 +768,45 @@ sum_ir! {
                 display: |f| write!(f, "end template definition and expand it"),
             },
         }
+
+        enum AirDoc {
+            /// Describe the active object using an independent clause.
+            ///
+            /// This is like a "subject line",
+            ///   but is intended to be used when generating documentation
+            ///   in various different contexts.
+            /// Users should think of this as taking place of an identifier
+            ///   name when used in a sentence,
+            ///     and phrase these clauses relative to the semantic
+            ///     properties of the object being described.
+            /// The description should be able to stand on its own as a
+            ///   simple sentence, and should be able to be used to make
+            ///   compound sentences.
+            ///
+            /// For example,
+            ///   predicates should make sense when being used to describe
+            ///   other objects,
+            ///     and should make sense when concatenated together using
+            ///     conjunctives and disjunctives.
+            /// Calculations should make sense with and without those
+            ///   predicates.
+            DocIndepClause(text: SPair) => {
+                span: text,
+                display: |f| write!(
+                    f,
+                    "documentation describing the active object as a subject \
+                        in a sentence",
+                ),
+            },
+        }
     }
 
     /// Expressions that are able to be bound to identifiers.
     ///
     /// This is the primary token set when parsing packages,
     ///   since most everything in TAMER is an expression.
-    pub sum enum AirBindableExpr = AirExpr | AirBind;
+    pub sum enum AirBindableExpr = AirExpr | AirBind | AirDoc;
 
     /// Tokens that may be used to define or apply templates.
-    pub sum enum AirBindableTpl = AirTpl | AirBind;
+    pub sum enum AirBindableTpl = AirTpl | AirBind | AirDoc;
 }

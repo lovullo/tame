@@ -3,9 +3,9 @@
          xmlns:c="http://www.lovullo.com/calc"
          xmlns:t="http://www.lovullo.com/rater/apply-template">
 
-  <classify as="always" />
+  <classify as="always" desc="Always" />
 
-  <classify as="sometimes">
+  <classify as="sometimes" desc="Sometimes">
     <any>
       <all />
       <any />
@@ -14,11 +14,15 @@
     <any />
   </classify>
 
-  <classify as="short-match-implicit-eq-implicit-true">
+  <classify as="short-match-implicit-eq-implicit-true"
+            desc="Short match with implicit eq and
+                  an implicit value">
     <match on="foo" />
   </classify>
 
-  <classify as="short-match-implicit-eq-explicit-value">
+  <classify as="short-match-implicit-eq-explicit-value"
+            desc="Short match with an implicit eq and
+                  an explicit value">
     <match on="foo" value="bar" />
   </classify>
 </package>

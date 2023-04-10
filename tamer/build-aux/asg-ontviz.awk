@@ -73,9 +73,6 @@ BEGINFILE {
     found_rels = 0
 }
 
-# Skip comments.
-/^ *\/+/ { next }
-
 # Predicates will be reset for each line,
 #   allowing the remainder of the script to be read more declaratively.
 { in_block = in_block_subexpr = 0 }
@@ -99,6 +96,15 @@ block_src && /}/ {
     block_src = ""
     print ""
 }
+
+# "// empty" means that the lack of edges is intentional.
+block_src && /^ *\/\/ empty$/ {
+    # Suppress error from the edge check below.
+    found_rels++
+}
+
+# Skip comments.
+/^ *\/+/ { next }
 
 # For each target object,
 #   output a relation.

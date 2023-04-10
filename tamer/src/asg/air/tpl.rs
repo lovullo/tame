@@ -206,6 +206,19 @@ impl ParseState for AirTplAggregate {
                 Transition(Toplevel(tpl)).incomplete()
             }
 
+            (Toplevel(tpl), tok @ AirDoc(..)) => {
+                diagnostic_todo!(
+                    vec![
+                        tpl.oi().note("in this template"),
+                        tok.internal_error(
+                            "this template-level documentation is not \
+                                yet supported"
+                        )
+                    ],
+                    "template-level documentation is not yet supported by TAMER",
+                )
+            }
+
             (Toplevel(tpl), AirTpl(TplMetaStart(span))) => {
                 let oi_meta = ctx.asg_mut().create(Meta::new_required(span));
                 Transition(TplMeta(tpl, oi_meta)).incomplete()
@@ -240,6 +253,21 @@ impl ParseState for AirTplAggregate {
                 ),
             ) => {
                 diagnostic_todo!(vec![tok.note("this token")], "AirTpl variant")
+            }
+
+            (TplMeta(tpl, oi_meta), tok @ AirDoc(..)) => {
+                diagnostic_todo!(
+                    vec![
+                        tpl.oi().note("in this template"),
+                        oi_meta.note("this metavariable"),
+                        tok.internal_error(
+                            "this metavariable-level documentation is not \
+                                yet supported"
+                        )
+                    ],
+                    "metavariable-level documentation is not yet supported \
+                        by TAMER",
+                )
             }
 
             (Toplevel(..), tok @ AirTpl(TplMetaEnd(..))) => {
@@ -299,7 +327,7 @@ impl ParseState for AirTplAggregate {
                 Transition(Ready).err(AsgError::UnbalancedTpl(span))
             }
 
-            (st @ (Ready | Done), tok @ AirBind(..)) => {
+            (st @ (Ready | Done), tok @ (AirBind(..) | AirDoc(..))) => {
                 Transition(st).dead(tok)
             }
         }

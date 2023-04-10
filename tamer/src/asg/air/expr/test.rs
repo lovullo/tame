@@ -23,7 +23,7 @@ use crate::asg::{
         test::{asg_from_toks, parse_as_pkg_body},
         Air, AirAggregate,
     },
-    graph::object::{expr::ExprRel, ObjectRel},
+    graph::object::{expr::ExprRel, Doc, ObjectRel},
     ExprOp, Ident,
 };
 use crate::span::dummy::*;
@@ -860,4 +860,30 @@ fn idents_share_defining_pkg() {
         S1.merge(S9),
         oi_foo.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span())
     )
+}
+
+#[test]
+fn expr_doc_short_desc() {
+    let id_expr = SPair("foo".into(), S2);
+    let clause = SPair("short desc".into(), S3);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::ExprStart(ExprOp::Sum, S1),
+          Air::BindIdent(id_expr),
+          Air::DocIndepClause(clause),
+        Air::ExprEnd(S4),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_expr = asg.expect_ident_oi::<Expr>(id_expr);
+    let oi_docs = oi_expr
+        .edges_filtered::<Doc>(&asg)
+        .map(ObjectIndex::cresolve(&asg));
+
+    assert_eq!(
+        vec![&Doc::new_indep_clause(clause)],
+        oi_docs.collect::<Vec<_>>(),
+    );
 }

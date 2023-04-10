@@ -40,6 +40,8 @@ use super::{
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
+    diagnose::Annotate,
+    diagnostic_todo,
     parse::{prelude::*, StateStack},
     span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
@@ -161,9 +163,21 @@ impl ParseState for AirAggregate {
                 Transition(Empty).incomplete()
             }
 
-            // TODO: We don't support package ids yet
+            // Packages are identified by their paths.
             (st @ Toplevel(..), AirBind(BindIdent(id))) => {
                 Transition(st).err(AsgError::InvalidBindContext(id))
+            }
+
+            (Toplevel(oi_pkg), tok @ AirDoc(..)) => {
+                diagnostic_todo!(
+                    vec![
+                        oi_pkg.note("for this package"),
+                        tok.internal_error(
+                            "this package-level documentation is not yet supported"
+                        )
+                    ],
+                    "package-level documentation is not yet supported by TAMER",
+                )
             }
 
             // Package import
@@ -172,7 +186,7 @@ impl ParseState for AirAggregate {
                 Transition(Toplevel(oi_pkg)).incomplete()
             }
 
-            // Note: We unfortunately can't match on `AirExpr | AirBind`
+            // Note: We unfortunately can't match on `AirExpr | AirBind | ...`
             //   and delegate in the same block
             //     (without having to duplicate type checks and then handle
             //       unreachable paths)
@@ -182,6 +196,7 @@ impl ParseState for AirAggregate {
             }
             (PkgExpr(expr), AirExpr(etok)) => ctx.proxy(expr, etok),
             (PkgExpr(expr), AirBind(etok)) => ctx.proxy(expr, etok),
+            (PkgExpr(expr), AirDoc(etok)) => ctx.proxy(expr, etok),
 
             // Template parsing.
             (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
@@ -189,6 +204,7 @@ impl ParseState for AirAggregate {
             }
             (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
+            (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
             (Empty, AirPkg(PkgEnd(span))) => {
                 Transition(Empty).err(AsgError::InvalidPkgEndContext(span))
@@ -205,9 +221,10 @@ impl ParseState for AirAggregate {
                 }
             }
 
-            (Empty, tok @ (AirExpr(..) | AirBind(..) | AirTpl(..))) => {
-                Transition(Empty).err(AsgError::PkgExpected(tok.span()))
-            }
+            (
+                Empty,
+                tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
+            ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
 
             (Empty, AirIdent(IdentDecl(name, kind, src))) => ctx
                 .asg_mut()

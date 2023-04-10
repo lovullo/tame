@@ -30,7 +30,7 @@
 //!       or observing template expansions.
 
 use super::object::{
-    DynObjectRel, Expr, Meta, Object, ObjectIndex, ObjectRelTy,
+    Doc, DynObjectRel, Expr, Meta, Object, ObjectIndex, ObjectRelTy,
     OiPairObjectInner, Pkg, Tpl,
 };
 use crate::{
@@ -210,6 +210,10 @@ impl<'a> TreeContext<'a> {
                 self.emit_tpl_arg(meta, *oi_meta, depth)
             }
 
+            Object::Doc((doc, oi_doc)) => {
+                self.emit_doc(doc, *oi_doc, paired_rel.source())
+            }
+
             Object::Root(..) => diagnostic_unreachable!(
                 vec![],
                 "tree walk is not expected to emit Root",
@@ -285,10 +289,11 @@ impl<'a> TreeContext<'a> {
                 ExprOp::Eq => Some(self.emit_match(expr, oi_expr, depth)),
                 _ => Some(expr_ele(expr, oi_expr, depth)),
             },
-            // TODO: Perhaps errors for Root and Meta?
-            Object::Root(_) | Object::Pkg(_) | Object::Meta(_) => {
-                Some(expr_ele(expr, oi_expr, depth))
-            }
+            // TODO: Perhaps errors for Root, Meta, and Doc?
+            Object::Root(_)
+            | Object::Pkg(_)
+            | Object::Meta(_)
+            | Object::Doc(_) => Some(expr_ele(expr, oi_expr, depth)),
         }
     }
 
@@ -474,6 +479,30 @@ impl<'a> TreeContext<'a> {
         ))
     }
 
+    /// Emit short documentation strings.
+    ///
+    /// This derives e.g. `@desc`.
+    fn emit_doc(
+        &mut self,
+        doc: &Doc,
+        oi_doc: ObjectIndex<Doc>,
+        src: &Object<OiPairObjectInner>,
+    ) -> Option<Xirf> {
+        match src {
+            // TODO: Non-stmt exprs should use `@label` instead.
+            Object::Expr(..) => doc.indep_clause().map(attr_desc),
+
+            _ => {
+                diagnostic_todo!(
+                    vec![oi_doc.internal_error(
+                        "this documentation is not supported in XIRF output"
+                    )],
+                    "unsupported documentation",
+                )
+            }
+        }
+    }
+
     fn push(&mut self, tok: Xirf) {
         if self.stack.is_full() {
             diagnostic_panic!(
@@ -539,6 +568,10 @@ fn attr_on(on: SPair) -> Xirf {
 
 fn attr_value(val: SPair) -> Xirf {
     Xirf::attr(QN_VALUE, val, (val.span(), val.span()))
+}
+
+fn attr_desc(desc: SPair) -> Xirf {
+    Xirf::attr(QN_DESC, desc, (desc.span(), desc.span()))
 }
 
 fn expr_ele(expr: &Expr, oi_expr: ObjectIndex<Expr>, depth: Depth) -> Xirf {

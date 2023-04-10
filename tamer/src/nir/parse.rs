@@ -392,7 +392,7 @@ ele_parse! {
     ClassifyStmt := QN_CLASSIFY(_, ospan) {
         @ {
             QN_AS => BindIdent,
-            QN_DESC => TodoAttr,
+            QN_DESC => Desc,
             QN_ANY => TodoAttr,
             QN_YIELDS => TodoAttr,
             QN_SYM => TodoAttr,

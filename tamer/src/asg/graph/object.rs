@@ -132,6 +132,7 @@ use std::{
 #[macro_use]
 mod rel;
 
+pub mod doc;
 pub mod expr;
 pub mod ident;
 pub mod meta;
@@ -139,6 +140,7 @@ pub mod pkg;
 pub mod root;
 pub mod tpl;
 
+pub use doc::Doc;
 pub use expr::Expr;
 pub use ident::Ident;
 pub use meta::Meta;
@@ -330,6 +332,9 @@ object_gen! {
 
     /// Metasyntactic variable (metavariable).
     Meta,
+
+    /// Documentation.
+    Doc,
 }
 
 impl Object<OnlyObjectInner> {
@@ -341,6 +346,7 @@ impl Object<OnlyObjectInner> {
             Self::Expr(expr) => expr.span(),
             Self::Tpl(tpl) => tpl.span(),
             Self::Meta(meta) => meta.span(),
+            Self::Doc(doc) => doc.span(),
         }
     }
 

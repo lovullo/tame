@@ -85,7 +85,7 @@ impl ParseState for AirExprAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirExpr::*};
+        use super::ir::{AirBind::*, AirDoc::*, AirExpr::*};
         use AirBindableExpr::*;
         use AirExprAggregate::*;
 
@@ -143,12 +143,19 @@ impl ParseState for AirExprAggregate {
                     .incomplete()
             }
 
+            (BuildingExpr(es, oi), AirDoc(DocIndepClause(clause))) => {
+                oi.desc_short(ctx.asg_mut(), clause);
+                Transition(BuildingExpr(es, oi)).incomplete()
+            }
+
             (st @ Ready(..), AirExpr(ExprEnd(span))) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
 
-            // The binding may refer to a parent context.
-            (st @ Ready(..), tok @ AirBind(..)) => Transition(st).dead(tok),
+            // Token may refer to a parent context.
+            (st @ Ready(..), tok @ (AirBind(..) | AirDoc(..))) => {
+                Transition(st).dead(tok)
+            }
         }
     }
 
