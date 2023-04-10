@@ -245,6 +245,8 @@ impl ParseState for NirToAir {
             (Ready, Todo(..) | TodoAttr(..)) => {
                 Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
             }
+
+            (st, Noop(_)) => Transition(st).incomplete(),
         }
     }
 

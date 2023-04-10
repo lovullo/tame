@@ -63,7 +63,6 @@ use crate::{
     sym::SymbolId,
     xir::{
         attr::{Attr, AttrSpan},
-        fmt::TtXmlAttr,
         QName,
     },
 };
@@ -145,6 +144,19 @@ pub enum Nir {
     ///   it may represent literate documentation or a literal in a
     ///   metavariable definition.
     Text(SPair),
+
+    /// "No-op" (no operation) that does nothing.
+    ///
+    /// Since this is taking user input and effectively discarding it,
+    ///   this contains a [`Span`],
+    ///   so that we can clearly see the source code associated with what we
+    ///     chose to discard.
+    ///
+    /// Ideally this can be eliminated in the future by causing an
+    ///   incomplete parse,
+    ///     which is all this does in the end.
+    /// See its uses for more information.
+    Noop(Span),
 }
 
 impl Nir {
@@ -167,6 +179,8 @@ impl Nir {
 
             BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
             | Text(spair) => Some(spair.symbol()),
+
+            Noop(_) => None,
         }
     }
 }
@@ -200,6 +214,8 @@ impl Functor<SymbolId> for Nir {
             Ref(spair) => Ref(spair.map(f)),
             Desc(spair) => Desc(spair.map(f)),
             Text(spair) => Text(spair.map(f)),
+
+            Noop(_) => self,
         }
     }
 }
@@ -321,6 +337,11 @@ impl Token for Nir {
 
             BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
             | Text(spair) => spair.span(),
+
+            // A no-op is discarding user input,
+            //   so we still want to know where that is so that we can
+            //   explicitly inquire about and report on it.
+            Noop(span) => *span,
         }
     }
 }
@@ -352,6 +373,8 @@ impl Display for Nir {
             //   need to determine how to handle newlines and other types of
             //   output.
             Text(_) => write!(f, "text"),
+
+            Noop(_) => write!(f, "no-op"),
         }
     }
 }
@@ -511,21 +534,14 @@ pub enum PkgType {
     Mod,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Literal<const S: SymbolId>;
-
-impl<const S: SymbolId> TryFrom<Attr> for Literal<S> {
-    type Error = NirAttrParseError;
-
-    fn try_from(attr: Attr) -> Result<Self, Self::Error> {
-        match attr {
-            Attr(_, val, _) if val == S => Ok(Literal),
-            Attr(name, _, aspan) => Err(NirAttrParseError::LiteralMismatch(
-                name,
-                aspan.value_span(),
-                S,
-            )),
-        }
+/// Assert that a literal value `S` was provided,
+///   yielding a [`Nir::Noop`] if successful.
+pub fn literal<const S: SymbolId>(
+    value: SPair,
+) -> Result<Nir, NirAttrParseError> {
+    match value {
+        SPair(val, span) if val == S => Ok(Nir::Noop(span)),
+        _ => Err(NirAttrParseError::LiteralMismatch(value.span(), S)),
     }
 }
 
@@ -539,7 +555,7 @@ type ExpectedSymbolId = SymbolId;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NirAttrParseError {
-    LiteralMismatch(QName, Span, ExpectedSymbolId),
+    LiteralMismatch(Span, ExpectedSymbolId),
 }
 
 impl Error for NirAttrParseError {
@@ -551,8 +567,8 @@ impl Error for NirAttrParseError {
 impl Display for NirAttrParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::LiteralMismatch(name, _, _) => {
-                write!(f, "unexpected value for {}", TtXmlAttr::wrap(name),)
+            Self::LiteralMismatch(_, expected) => {
+                write!(f, "expected literal {}", TtQuote::wrap(expected),)
             }
         }
     }
@@ -561,7 +577,7 @@ impl Display for NirAttrParseError {
 impl Diagnostic for NirAttrParseError {
     fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
         match self {
-            Self::LiteralMismatch(_, span, expected) => span
+            Self::LiteralMismatch(span, expected) => span
                 .error(format!("expecting {}", TtQuote::wrap(expected)))
                 .into(),
         }

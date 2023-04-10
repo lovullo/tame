@@ -507,10 +507,12 @@ macro_rules! ele_parse {
                             let $open_span = span;
                         )?
 
-                        Transition(Self(Attrs(
-                            (qname, span, depth),
-                            parse_attrs(qname, span)
-                        ))).ok(<$objty>::from($attrmap))
+                        <$objty>::try_from($attrmap)
+                            .map($crate::parse::ParseStatus::Object)
+                            .transition(Self(Attrs(
+                                (qname, span, depth),
+                                parse_attrs(qname, span)
+                            )))
                     },
 
                     // We only attempt recovery when encountering an

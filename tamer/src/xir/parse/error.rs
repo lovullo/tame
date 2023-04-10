@@ -21,6 +21,7 @@
 
 use core::fmt::Debug;
 use std::{
+    convert::Infallible,
     error::Error,
     fmt::{Display, Formatter},
     marker::PhantomData,
@@ -68,6 +69,12 @@ impl<NT: Nt> Error for NtError<NT> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         // TODO
         None
+    }
+}
+
+impl<NT: Nt> From<Infallible> for NtError<NT> {
+    fn from(_value: Infallible) -> Self {
+        unreachable!("From<Infallible>")
     }
 }
 
