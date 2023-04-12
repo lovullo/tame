@@ -60,15 +60,12 @@
 //     in which case this feature's only substitute is a type parameter.
 #![feature(associated_type_defaults)]
 // Convenience features that are easily replaced if not stabalized.
-#![feature(nonzero_min_max)]
 #![feature(nonzero_ops)]
 // Enabled for qualified paths in `matches!`.
 #![feature(more_qualified_paths)]
 // Collecting interators into existing objects.
 // Can be done manually in a more verbose way.
 #![feature(iter_collect_into)]
-// Convenience; can be done more verbosely.
-#![feature(is_some_and)]
 // Used for const params like `&'static str` in `crate::fmt`.
 // If this is not stabalized,
 //   then we can do without by changing the abstraction;
