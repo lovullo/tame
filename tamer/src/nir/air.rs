@@ -25,7 +25,7 @@ use crate::{
     diagnose::{Annotate, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
-    span::{Span, UNKNOWN_SPAN},
+    span::Span,
     sym::{st::raw::U_TRUE, SymbolId},
 };
 use arrayvec::ArrayVec;
@@ -95,7 +95,7 @@ impl ParseState for NirToAir {
         use NirToAir::*;
 
         let _ = tok; // prevent `unused_variables` warning
-        Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
+        Transition(Ready).ok(Air::Todo(crate::span::UNKNOWN_SPAN))
     }
 
     #[cfg(feature = "wip-asg-derived-xmli")]
@@ -255,8 +255,13 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::DocIndepClause(clause))
             }
 
-            (_, Todo(..) | TodoAttr(..)) => {
-                Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
+            (_, tok @ (Todo(..) | TodoAttr(..))) => {
+                crate::diagnostic_todo!(
+                    vec![tok.internal_error(
+                        "this token is not yet supported in TAMER"
+                    )],
+                    "unsupported token: {tok}",
+                )
             }
 
             (st, Noop(_)) => Transition(st).incomplete(),
