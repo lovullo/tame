@@ -118,6 +118,17 @@ pub enum AsgError {
     /// Attempted to expand a template into a context that does not support
     ///   expansion.
     InvalidExpansionContext(Span),
+
+    /// Documentation text is not valid in an expression context.
+    ///
+    /// This historical limitation existed because the author was unsure how
+    ///   to go about rendering an equation with literate documentation
+    ///   interspersed.
+    /// The plan is to lift this limitation in the future.
+    ///
+    /// The spans represent the expression and the documentation text
+    ///   respectively.
+    InvalidDocContextExpr(Span, Span),
 }
 
 impl Display for AsgError {
@@ -156,6 +167,9 @@ impl Display for AsgError {
             }
             InvalidExpansionContext(_) => {
                 write!(f, "invalid template expansion context",)
+            }
+            InvalidDocContextExpr(_, _) => {
+                write!(f, "document text is not permitted within expressions")
             }
         }
     }
@@ -267,6 +281,15 @@ impl Diagnostic for AsgError {
             InvalidExpansionContext(span) => {
                 vec![span.error("cannot expand a template here")]
             }
+
+            InvalidDocContextExpr(expr_span, span) => vec![
+                expr_span.note("in this expression"),
+                span.error("documentation text is not permitted here"),
+                span.help(
+                    "this is a historical limitation that will \
+                        likely be lifted in the future",
+                ),
+            ],
         }
     }
 }

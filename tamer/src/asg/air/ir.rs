@@ -798,6 +798,21 @@ sum_ir! {
                         in a sentence",
                 ),
             },
+
+            /// Arbitrary documentation text.
+            ///
+            /// TAMER hopes to eventually provide structured documentation,
+            ///   but until then,
+            ///   this is just some arbitrary block of text.
+            /// Historically,
+            ///   the convention was LaTeX,
+            ///   but the approach has fallen out of favor;
+            ///     TAMER should provide its own documentation format that
+            ///     it can reason about.
+            DocText(text: SPair) => {
+                span: text,
+                display: |f| write!(f, "documentation text"),
+            },
         }
     }
 

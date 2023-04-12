@@ -211,7 +211,7 @@ impl<'a> TreeContext<'a> {
             }
 
             Object::Doc((doc, oi_doc)) => {
-                self.emit_doc(doc, *oi_doc, paired_rel.source())
+                self.emit_doc(doc, *oi_doc, paired_rel.source(), depth)
             }
 
             Object::Root(..) => diagnostic_unreachable!(
@@ -487,10 +487,22 @@ impl<'a> TreeContext<'a> {
         doc: &Doc,
         oi_doc: ObjectIndex<Doc>,
         src: &Object<OiPairObjectInner>,
+        _depth: Depth,
     ) -> Option<Xirf> {
-        match src {
+        match (src, doc) {
             // TODO: Non-stmt exprs should use `@label` instead.
-            Object::Expr(..) => doc.indep_clause().map(attr_desc),
+            (Object::Expr(..), Doc::IndepClause(desc)) => {
+                Some(attr_desc(*desc))
+            }
+
+            (_, Doc::Text(_text)) => {
+                // TODO: This isn't utilized by the XSLT parser and
+                //   `xmllint` for system tests does not format with mixed
+                //   data present,
+                //     so let's just omit for now.
+                // Some(Xirf::text(Text(text.symbol(), text.span()), depth))
+                None
+            }
 
             _ => {
                 diagnostic_todo!(

@@ -133,7 +133,8 @@ impl ParseState for AirAggregate {
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
         use ir::{
-            AirBind::*, AirIdent::*, AirPkg::*, AirSubsets::*, AirTodo::*,
+            AirBind::*, AirDoc::*, AirIdent::*, AirPkg::*, AirSubsets::*,
+            AirTodo::*,
         };
         use AirAggregate::*;
 
@@ -168,16 +169,21 @@ impl ParseState for AirAggregate {
                 Transition(st).err(AsgError::InvalidBindContext(id))
             }
 
-            (Toplevel(oi_pkg), tok @ AirDoc(..)) => {
+            (Toplevel(oi_pkg), tok @ AirDoc(DocIndepClause(..))) => {
                 diagnostic_todo!(
                     vec![
                         oi_pkg.note("for this package"),
                         tok.internal_error(
-                            "this package-level documentation is not yet supported"
+                            "this package description is not yet supported"
                         )
                     ],
-                    "package-level documentation is not yet supported by TAMER",
+                    "package-level short description is not yet supported by TAMER",
                 )
+            }
+
+            (Toplevel(oi_pkg), AirDoc(DocText(text))) => {
+                oi_pkg.append_doc_text(ctx.asg_mut(), text);
+                Transition(Toplevel(oi_pkg)).incomplete()
             }
 
             // Package import

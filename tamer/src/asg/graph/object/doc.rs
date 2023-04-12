@@ -38,6 +38,17 @@ use std::fmt::Display;
 pub enum Doc {
     /// An (ideally) concise independent clause describing an object.
     IndepClause(SPair),
+
+    /// Arbitrary text serving as documentation for sibling objects in a
+    ///   literate style.
+    ///
+    /// TAMER does not presently ascribe any semantic meaning to this text,
+    ///   and it may even be entirely whitespace.
+    /// There are plans to improve upon this in the future.
+    ///
+    /// The intent is for this text to be mixed with sibling objects,
+    ///   in a style similar to that of literate programming.
+    Text(SPair),
 }
 
 impl Display for Doc {
@@ -53,15 +64,22 @@ impl Doc {
         Self::IndepClause(clause)
     }
 
+    /// Arbitrary text serving as documentation for sibling objects in a
+    ///   literate style.
+    pub fn new_text(text: SPair) -> Self {
+        Self::Text(text)
+    }
+
     pub fn indep_clause(&self) -> Option<SPair> {
         match self {
             Self::IndepClause(spair) => Some(*spair),
+            Self::Text(_) => None,
         }
     }
 
     pub fn span(&self) -> Span {
         match self {
-            Self::IndepClause(spair) => spair.span(),
+            Self::IndepClause(spair) | Self::Text(spair) => spair.span(),
         }
     }
 }

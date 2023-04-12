@@ -21,8 +21,8 @@
 
 use std::fmt::Display;
 
-use super::{prelude::*, Expr, Ident};
-use crate::{f::Functor, span::Span};
+use super::{prelude::*, Doc, Expr, Ident};
+use crate::{f::Functor, parse::util::SPair, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -68,6 +68,10 @@ object_rel! {
 
         // Template application.
         tree Tpl,
+
+        // Arbitrary documentation to be expanded into the application
+        //   site.
+        tree Doc,
     }
 }
 
@@ -114,5 +118,12 @@ impl ObjectIndex<Tpl> {
         oi_target_parent: OP,
     ) -> Self {
         self.add_edge_from(asg, oi_target_parent, None)
+    }
+
+    /// Arbitrary text serving as documentation in a literate style,
+    ///   to be expanded into the application site.
+    pub fn append_doc_text(&self, asg: &mut Asg, text: SPair) -> Self {
+        let oi_doc = asg.create(Doc::new_text(text));
+        self.add_edge_to(asg, oi_doc, None)
     }
 }

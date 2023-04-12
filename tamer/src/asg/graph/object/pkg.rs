@@ -19,7 +19,7 @@
 
 //! Package object on the ASG.
 
-use super::{prelude::*, Ident, Tpl};
+use super::{prelude::*, Doc, Ident, Tpl};
 use crate::{
     f::Functor,
     parse::{util::SPair, Token},
@@ -94,6 +94,9 @@ object_rel! {
 
         // Anonymous templates are used for expansion.
         tree Tpl,
+
+        // Arbitrary blocks of text serving as documentation.
+        tree Doc,
     }
 }
 
@@ -111,5 +114,11 @@ impl ObjectIndex<Pkg> {
     pub fn import(self, asg: &mut Asg, pathspec: SPair) -> Self {
         let oi_import = asg.create(Pkg::new_imported(pathspec));
         self.add_edge_to(asg, oi_import, Some(pathspec.span()))
+    }
+
+    /// Arbitrary text serving as documentation in a literate style.
+    pub fn append_doc_text(&self, asg: &mut Asg, text: SPair) -> Self {
+        let oi_doc = asg.create(Doc::new_text(text));
+        self.add_edge_to(asg, oi_doc, None)
     }
 }

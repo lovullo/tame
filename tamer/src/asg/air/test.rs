@@ -22,7 +22,7 @@
 
 use super::{super::Ident, *};
 use crate::{
-    asg::{IdentKind, Source},
+    asg::{graph::object::ObjectRel, IdentKind, Source},
     parse::{ParseError, Parsed, Parser},
     span::dummy::*,
 };
@@ -338,6 +338,41 @@ fn pkg_import() {
         .resolve(&asg);
 
     assert_eq!(pathspec, import.pathspec());
+}
+
+// Documentation can be mixed in with objects in a literate style.
+#[test]
+fn pkg_doc() {
+    let doc_a = SPair("first".into(), S2);
+    let id_import = SPair("import".into(), S3);
+    let doc_b = SPair("first".into(), S4);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::DocText(doc_a),
+
+        // Some object to place in-between the two
+        //   documentation blocks.
+        Air::RefIdent(id_import),
+
+        Air::DocText(doc_b),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_pkg = asg
+        .root(S1)
+        .edges_filtered::<Pkg>(&asg)
+        .next()
+        .expect("cannot find package from root");
+
+    assert_eq!(
+        vec![S4, S3, S2], // (edges reversed by Petgraph)
+        oi_pkg
+            .edges(&asg)
+            .map(|rel| rel.widen().resolve(&asg).span())
+            .collect::<Vec<_>>(),
+    );
 }
 
 /// Parse using [`Sut`] when the test does not care about the outer package.

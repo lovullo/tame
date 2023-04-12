@@ -49,6 +49,9 @@ pub enum NirToAir {
     /// A predicate has been partially applied to its subject,
     ///   but we do not yet know its function or comparison value.
     PredPartial(Span, SPair),
+
+    /// Processing a metavariable.
+    Meta(Span),
 }
 
 impl Display for NirToAir {
@@ -65,6 +68,7 @@ impl Display for NirToAir {
                 "waiting to determine type of predicate for identifier {}",
                 TtQuote::wrap(name),
             ),
+            Meta(_) => write!(f, "parsing metavariable definition"),
         }
     }
 }
@@ -214,14 +218,23 @@ impl ParseState for NirToAir {
             }
 
             (Ready, Open(TplParam, span)) => {
-                Transition(Ready).ok(Air::TplMetaStart(span))
+                Transition(Meta(span)).ok(Air::TplMetaStart(span))
             }
-            (Ready, Close(TplParam, span)) => {
+            (Meta(mspan), Text(lexeme)) => {
+                Transition(Meta(mspan)).ok(Air::TplLexeme(lexeme))
+            }
+            (Ready | Meta(_), Close(TplParam, span)) => {
                 Transition(Ready).ok(Air::TplMetaEnd(span))
             }
-            (Ready, Text(lexeme)) => {
-                Transition(Ready).ok(Air::TplLexeme(lexeme))
-            }
+            // Some of these will be permitted in the future.
+            (
+                Meta(mspan),
+                tok @ (Open(..) | Close(..) | Ref(..) | RefSubject(..)
+                | Desc(..)),
+            ) => Transition(Meta(mspan))
+                .err(NirToAirError::UnexpectedMetaToken(mspan, tok)),
+
+            (Ready, Text(text)) => Transition(Ready).ok(Air::DocText(text)),
 
             (
                 Ready,
@@ -231,8 +244,8 @@ impl ParseState for NirToAir {
                 ),
             ) => Transition(Ready).ok(Air::ExprEnd(span)),
 
-            (Ready, BindIdent(spair)) => {
-                Transition(Ready).ok(Air::BindIdent(spair))
+            (st @ (Ready | Meta(_)), BindIdent(spair)) => {
+                Transition(st).ok(Air::BindIdent(spair))
             }
             (Ready, Ref(spair) | RefSubject(spair)) => {
                 Transition(Ready).ok(Air::RefIdent(spair))
@@ -242,7 +255,7 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::DocIndepClause(clause))
             }
 
-            (Ready, Todo(..) | TodoAttr(..)) => {
+            (_, Todo(..) | TodoAttr(..)) => {
                 Transition(Ready).ok(Air::Todo(UNKNOWN_SPAN))
             }
 
@@ -267,6 +280,10 @@ pub enum NirToAirError {
 
     /// Match body is not yet supported.
     TodoMatchBody(Span, Span),
+
+    /// The provided [`Nir`] token of input was unexpected for the body of a
+    ///   metavariable that was opened at the provided [`Span`].
+    UnexpectedMetaToken(Span, Nir),
 }
 
 impl Display for NirToAirError {
@@ -280,6 +297,13 @@ impl Display for NirToAirError {
 
             TodoMatchBody(_, _) => {
                 write!(f, "match body is not yet supported by TAMER")
+            }
+
+            UnexpectedMetaToken(_, tok) => {
+                write!(
+                    f,
+                    "expected lexical token for metavariable, found {tok}"
+                )
             }
         }
     }
@@ -306,6 +330,14 @@ impl Diagnostic for NirToAirError {
                 given.error(
                     "tokens in match body are not yet supported by TAMER",
                 ),
+            ],
+
+            // The user should have been preempted by the parent parser
+            //   (e.g. XML->Nir),
+            //     and so shouldn't see this.
+            UnexpectedMetaToken(mspan, given) => vec![
+                mspan.note("while parsing the body of this metavariable"),
+                given.span().error("expected a lexical token here"),
             ],
         }
     }

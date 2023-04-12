@@ -172,7 +172,7 @@ ele_parse! {
     //   program;
     //     see [`NirParseState`] for more information.
     [super] {
-        [text](_sym, span) => Todo(span),
+        [text](sym, span) => Nir::Text(SPair(sym, span)),
         TplKw
     };
 
@@ -263,7 +263,8 @@ ele_parse! {
         @ {
             QN_PACKAGE => Ref,
             QN_EXPORT => TodoAttr,
-        } => Todo(ospan.into()),
+        } => Noop(ospan.into()),
+        //   ^ we only care about the `Ref`
     };
 
     /// A statement that is accepted within the body of a package.

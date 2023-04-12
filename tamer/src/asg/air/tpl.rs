@@ -174,7 +174,7 @@ impl ParseState for AirTplAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirTpl::*};
+        use super::ir::{AirBind::*, AirDoc::*, AirTpl::*};
         use AirBindableTpl::*;
         use AirTplAggregate::*;
 
@@ -206,17 +206,21 @@ impl ParseState for AirTplAggregate {
                 Transition(Toplevel(tpl)).incomplete()
             }
 
-            (Toplevel(tpl), tok @ AirDoc(..)) => {
+            (Toplevel(tpl), tok @ AirDoc(DocIndepClause(_))) => {
                 diagnostic_todo!(
                     vec![
                         tpl.oi().note("in this template"),
                         tok.internal_error(
-                            "this template-level documentation is not \
-                                yet supported"
+                            "this template description is not yet supported"
                         )
                     ],
-                    "template-level documentation is not yet supported by TAMER",
+                    "template description is not yet supported by TAMER",
                 )
+            }
+
+            (Toplevel(tpl), AirDoc(DocText(text))) => {
+                tpl.oi().append_doc_text(ctx.asg_mut(), text);
+                Transition(Toplevel(tpl)).incomplete()
             }
 
             (Toplevel(tpl), AirTpl(TplMetaStart(span))) => {

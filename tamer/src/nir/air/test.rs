@@ -370,3 +370,28 @@ fn match_no_args_err() {
         Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
     );
 }
+
+// Sibling text (e.g. mixed content in XML) becomes arbitrary
+//   documentation,
+//     intended to be written in a literate style.
+#[test]
+fn text_as_arbitrary_doc() {
+    let text = SPair("foo bar baz".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Package, S1),
+          Text(text),
+        Close(Package, S3),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+          O(Air::PkgStart(S1)),
+            O(Air::DocText(text)),
+          O(Air::PkgEnd(S3)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}

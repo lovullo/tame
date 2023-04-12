@@ -148,6 +148,11 @@ impl ParseState for AirExprAggregate {
                 Transition(BuildingExpr(es, oi)).incomplete()
             }
 
+            (BuildingExpr(es, oi), AirDoc(DocText(text))) => Transition(
+                BuildingExpr(es, oi),
+            )
+            .err(AsgError::InvalidDocContextExpr(oi.span(), text.span())),
+
             (st @ Ready(..), AirExpr(ExprEnd(span))) => {
                 Transition(st).err(AsgError::UnbalancedExpr(span))
             }
