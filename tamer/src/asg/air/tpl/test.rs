@@ -24,7 +24,7 @@ use crate::asg::{
         test::{asg_from_toks, parse_as_pkg_body},
         Air, AirAggregate,
     },
-    graph::object::{Meta, ObjectRel},
+    graph::object::{Doc, Meta, ObjectRel},
     Expr, ExprOp, Ident,
 };
 use crate::span::dummy::*;
@@ -649,5 +649,31 @@ fn tpl_apply_nested_missing() {
             .flat_map(|oi| oi.edges_filtered::<Ident>(&asg))
             .filter_map(|oi| oi.definition(&asg))
             .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn tpl_doc_short_desc() {
+    let id_tpl = SPair("foo".into(), S2);
+    let clause = SPair("short desc".into(), S3);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          Air::BindIdent(id_tpl),
+          Air::DocIndepClause(clause),
+        Air::TplEnd(S4),
+    ];
+
+    let asg = asg_from_toks(toks);
+
+    let oi_expr = asg.expect_ident_oi::<Tpl>(id_tpl);
+    let oi_docs = oi_expr
+        .edges_filtered::<Doc>(&asg)
+        .map(ObjectIndex::cresolve(&asg));
+
+    assert_eq!(
+        vec![&Doc::new_indep_clause(clause)],
+        oi_docs.collect::<Vec<_>>(),
     );
 }

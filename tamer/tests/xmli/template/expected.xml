@@ -3,12 +3,10 @@
          xmlns:c="http://www.lovullo.com/calc"
          xmlns:t="http://www.lovullo.com/rater/apply-template">
 
-  <template name="_empty_" />
+  <template name="_empty_" desc="Empty" />
 
-  <template name="_with-static-reachable_">
-
-
-
+  <template name="_with-static-identified_"
+            desc="Template with identified expressions">
     <rate yields="tplStaticA">
       <c:sum />
     </rate>
@@ -17,10 +15,8 @@
     </classify>
   </template>
 
-  <template name="_with-static-unreachable_">
-
-
-
+  <template name="_with-static-unidentified_"
+            desc="Unidentified expressions in body">
     <c:sum>
       <c:product />
     </c:sum>
@@ -30,11 +26,9 @@
     </c:product>
   </template>
 
-  <template name="_with-static-mix-reachability_">
-
-
-
-
+  <template name="_with-static-mix_"
+            desc="Both identified and unidentified that may or may
+                  not be reachable in expansion context">
     <c:sum>
       <c:product />
     </c:sum>
@@ -66,15 +60,15 @@
 
 
 
-  <template name="_short-hand-nullary_" />
+  <template name="_short-hand-nullary_" desc="No params" />
   <apply-template name="_short-hand-nullary_" />
 
-  <template name="_short-hand-unary_" />
+  <template name="_short-hand-unary_" desc="One param" />
   <apply-template name="_short-hand-unary_">
     <with-param name="@foo@" value="bar" />
   </apply-template>
 
-  <template name="_short-hand-nary_" />
+  <template name="_short-hand-nary_" desc="N params" />
   <apply-template name="_short-hand-nary_">
     <with-param name="@foo@" value="bar" />
     <with-param name="@bar@" value="baz" />
@@ -104,63 +98,70 @@
 
 
 
-  <template name="_short-hand-nullary-body_" />
+  <template name="_short-hand-nullary-body_" desc="Nullary with body" />
   <apply-template name="_short-hand-nullary-body_">
-    <with-param name="@values@" value="___dsgr-c23___" />
+    <with-param name="@values@" value="___dsgr-bfe___" />
   </apply-template>
-  <template name="___dsgr-c23___">
+  <template name="___dsgr-bfe___">
     <c:product>
       <c:sum />
     </c:product>
   </template>
 
-  <template name="_short-hand-nary-body_" />
+  <template name="_short-hand-nary-body_" desc="N-ary with body" />
   <apply-template name="_short-hand-nary-body_">
     <with-param name="@bar@" value="baz" />
     <with-param name="@baz@" value="quux" />
-    <with-param name="@values@" value="___dsgr-cc2___" />
+    <with-param name="@values@" value="___dsgr-cb4___" />
   </apply-template>
-  <template name="___dsgr-cc2___">
+  <template name="___dsgr-cb4___">
     <c:sum>
       <c:product />
     </c:sum>
   </template>
 
-  <template name="_short-hand-nullary-outer_" />
+  <template name="_short-hand-nullary-outer_"
+            desc="Outer template holding an inner" />
   <apply-template name="_short-hand-nullary-outer_">
-    <with-param name="@values@" value="___dsgr-d72___" />
+    <with-param name="@values@" value="___dsgr-d97___" />
   </apply-template>
-  <template name="___dsgr-d72___">
-    <template name="_short-hand-nullary-inner-dfn-inner_" />
+  <template name="___dsgr-d97___">
+    <template name="_short-hand-nullary-inner-dfn-inner_"
+              desc="Inner template applied inner" />
     <apply-template name="_short-hand-nullary-inner-dfn-inner_" />
   </template>
 
-  <template name="_short-hand-nullary-inner-dfn-outer_" />
+  <template name="_short-hand-nullary-inner-dfn-outer_"
+            desc="Define template outer but apply inner" />
   <apply-template name="_short-hand-nullary-outer_">
-    <with-param name="@values@" value="___dsgr-e59___" />
+    <with-param name="@values@" value="___dsgr-eea___" />
   </apply-template>
-  <template name="___dsgr-e59___">
+  <template name="___dsgr-eea___">
     <apply-template name="_short-hand-nullary-inner-dfn-outer_" />
   </template>
 
-  <template name="_short-hand-unary-with-values_" />
-  <apply-template name="_short-hand-unary-with-values_">
+  <template name="_short-hand-unary-with-body_"
+            desc="Unary with body" />
+  <apply-template name="_short-hand-unary-with-body_">
     <with-param name="@foo@" value="bar" />
-    <with-param name="@values@" value="___dsgr-eff___" />
+    <with-param name="@values@" value="___dsgr-fb0___" />
   </apply-template>
-  <template name="___dsgr-eff___">
-    <template name="_short-hand-unary-with-values-inner_" />
-    <apply-template name="_short-hand-unary-with-values-inner_" />
+  <template name="___dsgr-fb0___">
+    <template name="_short-hand-unary-with-body-inner_"
+              desc="Inner template" />
+    <apply-template name="_short-hand-unary-with-body-inner_" />
   </template>
 
-  <template name="_short-hand-in-expr_" />
+  <template name="_short-hand-in-expr_"
+            desc="Template to be applied within an expression" />
   <rate yields="shortHandTplInExpr">
     <apply-template name="_short-hand-in-expr_">
       <with-param name="@in@" value="rate" />
     </apply-template>
   </rate>
 
-  <template name="_tpl-with-short-hand-inner_">
+  <template name="_tpl-with-short-hand-inner_"
+            desc="Template with a shorthand application in its body">
     <template name="_tpl-with-short-hand-inner-inner_" />
     <apply-template name="_tpl-with-short-hand-inner-inner_" />
 
@@ -181,7 +182,7 @@
 
 
 
-  <template name="_match-child_">
+  <template name="_match-child_" desc="Template with a match child">
     <match on="foo" value="TRUE" />
   </template>
 </package>

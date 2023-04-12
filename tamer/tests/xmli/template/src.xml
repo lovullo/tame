@@ -3,12 +3,10 @@
          xmlns:c="http://www.lovullo.com/calc"
          xmlns:t="http://www.lovullo.com/rater/apply-template">
 
-  <template name="_empty_" />
+  <template name="_empty_" desc="Empty" />
 
-  <template name="_with-static-reachable_">
-    All expressions here are reachable
-      (having been derived from named statements).
-
+  <template name="_with-static-identified_"
+            desc="Template with identified expressions">
     <rate yields="tplStaticA">
       <c:sum />
     </rate>
@@ -17,10 +15,8 @@
     </classify>
   </template>
 
-  <template name="_with-static-unreachable_">
-    This expression is on its own unreachable,
-      intended to be expanded into another expression.
-
+  <template name="_with-static-unidentified_"
+            desc="Unidentified expressions in body">
     <c:sum>
       <c:product />
     </c:sum>
@@ -30,11 +26,9 @@
     </c:product>
   </template>
 
-  <template name="_with-static-mix-reachability_">
-    Both reachable and unreachable,
-      with the intent of expanding into an expression but also providing
-      itself with supporting expressions.
-
+  <template name="_with-static-mix_"
+            desc="Both identified and unidentified that may or may
+                  not be reachable in expansion context">
     <c:sum>
       <c:product />
     </c:sum>
@@ -66,15 +60,15 @@
     `apply-template` form,
       asserting their equivalency.
 
-  <template name="_short-hand-nullary_" />
+  <template name="_short-hand-nullary_" desc="No params" />
   <t:short-hand-nullary />
 
-  <template name="_short-hand-unary_" />
+  <template name="_short-hand-unary_" desc="One param" />
   <t:short-hand-unary foo="bar" />
 
 
 
-  <template name="_short-hand-nary_" />
+  <template name="_short-hand-nary_" desc="N params" />
   <t:short-hand-nary foo="bar" bar="baz" baz="quux" />
 
 
@@ -104,7 +98,7 @@
     and it may break often;
       just take the hex span from the test failure in that case.
 
-  <template name="_short-hand-nullary-body_" />
+  <template name="_short-hand-nullary-body_" desc="Nullary with body" />
   <t:short-hand-nullary-body>
     <c:product>
       <c:sum />
@@ -114,7 +108,7 @@
 
 
 
-  <template name="_short-hand-nary-body_" />
+  <template name="_short-hand-nary-body_" desc="N-ary with body" />
   <t:short-hand-nary-body bar="baz" baz="quux">
     <c:sum>
       <c:product />
@@ -126,15 +120,19 @@
 
 
 
-  <template name="_short-hand-nullary-outer_" />
+  <template name="_short-hand-nullary-outer_"
+            desc="Outer template holding an inner" />
   <t:short-hand-nullary-outer>
-    <template name="_short-hand-nullary-inner-dfn-inner_" />
+    <template name="_short-hand-nullary-inner-dfn-inner_"
+              desc="Inner template applied inner" />
     <t:short-hand-nullary-inner-dfn-inner />
   </t:short-hand-nullary-outer>
 
 
 
-  <template name="_short-hand-nullary-inner-dfn-outer_" />
+
+  <template name="_short-hand-nullary-inner-dfn-outer_"
+            desc="Define template outer but apply inner" />
   <t:short-hand-nullary-outer>
     <t:short-hand-nullary-inner-dfn-outer />
   </t:short-hand-nullary-outer>
@@ -142,26 +140,28 @@
 
 
 
-
-  <template name="_short-hand-unary-with-values_" />
-  <t:short-hand-unary-with-values foo="bar">
-    <template name="_short-hand-unary-with-values-inner_" />
-    <t:short-hand-unary-with-values-inner />
-  </t:short-hand-unary-with-values>
-
-
-
+  <template name="_short-hand-unary-with-body_"
+            desc="Unary with body" />
+  <t:short-hand-unary-with-body foo="bar">
+    <template name="_short-hand-unary-with-body-inner_"
+              desc="Inner template" />
+    <t:short-hand-unary-with-body-inner />
+  </t:short-hand-unary-with-body>
 
 
-  <template name="_short-hand-in-expr_" />
+
+
+
+  <template name="_short-hand-in-expr_"
+            desc="Template to be applied within an expression" />
   <rate yields="shortHandTplInExpr">
     <t:short-hand-in-expr in="rate" />
   </rate>
 
 
 
-
-  <template name="_tpl-with-short-hand-inner_">
+  <template name="_tpl-with-short-hand-inner_"
+            desc="Template with a shorthand application in its body">
     <template name="_tpl-with-short-hand-inner-inner_" />
     <t:tpl-with-short-hand-inner-inner />
 
@@ -181,7 +181,7 @@
         we cannot support the generation of each of those things within
         templates.
 
-  <template name="_match-child_">
+  <template name="_match-child_" desc="Template with a match child">
     <match on="foo" />
   </template>
 </package>

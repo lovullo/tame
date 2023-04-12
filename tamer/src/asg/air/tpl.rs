@@ -206,16 +206,9 @@ impl ParseState for AirTplAggregate {
                 Transition(Toplevel(tpl)).incomplete()
             }
 
-            (Toplevel(tpl), tok @ AirDoc(DocIndepClause(_))) => {
-                diagnostic_todo!(
-                    vec![
-                        tpl.oi().note("in this template"),
-                        tok.internal_error(
-                            "this template description is not yet supported"
-                        )
-                    ],
-                    "template description is not yet supported by TAMER",
-                )
+            (Toplevel(tpl), AirDoc(DocIndepClause(clause))) => {
+                tpl.oi().desc_short(ctx.asg_mut(), clause);
+                Transition(Toplevel(tpl)).incomplete()
             }
 
             (Toplevel(tpl), AirDoc(DocText(text))) => {

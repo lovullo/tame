@@ -491,7 +491,7 @@ impl<'a> TreeContext<'a> {
     ) -> Option<Xirf> {
         match (src, doc) {
             // TODO: Non-stmt exprs should use `@label` instead.
-            (Object::Expr(..), Doc::IndepClause(desc)) => {
+            (Object::Expr(..) | Object::Tpl(..), Doc::IndepClause(desc)) => {
                 Some(attr_desc(*desc))
             }
 

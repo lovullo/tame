@@ -772,6 +772,20 @@ impl<O: ObjectKind> ObjectIndex<O> {
             .map(ObjectIndex::cresolve(asg))
             .next()
     }
+
+    /// Describe this expression using a short independent clause.
+    ///
+    /// This is intended to be a concise description for use either as a
+    ///   simple sentence or as part of a compound sentence.
+    /// There should only be one such clause for any given object,
+    ///   but that is not enforced here.
+    pub fn desc_short(&self, asg: &mut Asg, clause: SPair) -> Self
+    where
+        O: ObjectRelTo<Doc>,
+    {
+        let oi_doc = asg.create(Doc::new_indep_clause(clause));
+        self.add_edge_to(asg, oi_doc, None)
+    }
 }
 
 impl ObjectIndex<Object> {

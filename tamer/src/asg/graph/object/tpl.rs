@@ -69,8 +69,8 @@ object_rel! {
         // Template application.
         tree Tpl,
 
-        // Arbitrary documentation to be expanded into the application
-        //   site.
+        // Short template description and arbitrary documentation to be
+        //   expanded into the application site.
         tree Doc,
     }
 }

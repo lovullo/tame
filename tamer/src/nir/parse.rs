@@ -1400,7 +1400,7 @@ ele_parse! {
     TemplateStmt := QN_TEMPLATE(_, ospan) {
         @ {
             QN_NAME => BindIdent,
-            QN_DESC => TodoAttr,
+            QN_DESC => Desc,
         } => NirEntity::Tpl.open(ospan),
         /(cspan) => NirEntity::Tpl.close(cspan),
 
