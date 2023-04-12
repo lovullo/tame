@@ -657,10 +657,29 @@
                        select="lv:param-meta" />
 
   <variable name="varname" select="@name" />
+  <variable name="param" select="$params[ @name=$varname ]" />
 
-  <!-- determine the nodes to copy -->
-  <variable name="copy"
-    select="$params[ @name=$varname ]/*" />
+  <variable name="copy" as="node()*">
+    <choose>
+      <!-- TAMER desugared @values@ application convention (see tplshort.rs) -->
+      <when test="$param/@value">
+        <!-- the value is the name of a template to copy the body from -->
+        <variable name="dsgr" select="$param/@value" />
+
+        <!-- the template is always positioned as the immeditely-following
+             sibling of the `lv:apply-template` node -->
+        <sequence select="$params/parent::lv:apply-template
+                            /following-sibling::lv:template[ @name=$dsgr ]
+                              /*" />
+      </when>
+
+      <!-- old applicatication convention has child nodes within
+           `with-param` -->
+      <otherwise>
+        <sequence select="$param/*" />
+      </otherwise>
+    </choose>
+  </variable>
 
   <choose>
     <!-- if the @expand flag is set, then immediately begin expanding any
