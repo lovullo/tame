@@ -126,6 +126,7 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
     //   but it does allow us to be perfectly precise in the output
     //   assertion.
     let gen_name = gen_tpl_name_at_offset(S1);
+    let gen_desc = values_tpl_desc(name);
 
     #[rustfmt::skip]
     assert_eq!(
@@ -146,6 +147,7 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
             // It is closed and so expandable.     //   |
             O(Open(Tpl, S1)),                      //  /
               O(BindIdent(SPair(gen_name, S1))),   //<`
+              O(Desc(gen_desc)),
 
               // And here we have the body of the above
               //   shorthand application.
@@ -181,6 +183,7 @@ fn desugar_nested_apply() {
     ];
 
     let gen_name_outer = gen_tpl_name_at_offset(S1);
+    let gen_desc = values_tpl_desc(name_outer);
 
     #[rustfmt::skip]
     assert_eq!(
@@ -197,6 +200,7 @@ fn desugar_nested_apply() {
                                                        //   |
             O(Open(Tpl, S1)),                          //  /
               O(BindIdent(SPair(gen_name_outer, S1))), //<`
+              O(Desc(gen_desc)),
 
               // And within this template,
               //   we generate another application.

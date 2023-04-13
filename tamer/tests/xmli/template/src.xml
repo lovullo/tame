@@ -108,12 +108,14 @@
 
 
 
+
   <template name="_short-hand-nary-body_" desc="N-ary with body" />
   <t:short-hand-nary-body bar="baz" baz="quux">
     <c:sum>
       <c:product />
     </c:sum>
   </t:short-hand-nary-body>
+
 
 
 
@@ -131,11 +133,13 @@
 
 
 
+
   <template name="_short-hand-nullary-inner-dfn-outer_"
             desc="Define template outer but apply inner" />
   <t:short-hand-nullary-outer>
     <t:short-hand-nullary-inner-dfn-outer />
   </t:short-hand-nullary-outer>
+
 
 
 
@@ -147,6 +151,7 @@
               desc="Inner template" />
     <t:short-hand-unary-with-body-inner />
   </t:short-hand-unary-with-body>
+
 
 
 

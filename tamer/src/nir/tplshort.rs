@@ -80,6 +80,7 @@ use arrayvec::ArrayVec;
 
 use super::{Nir, NirEntity};
 use crate::{
+    fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
     span::Span,
     sym::{
@@ -111,8 +112,9 @@ pub enum TplShortDesugar {
     Scanning,
 
     /// A shorthand template application associated with the provided
-    ///   [`Span`] was encountered and shorthand params are being desugared.
-    DesugaringParams(Span),
+    ///   [`SPair`] was encountered and shorthand params are being
+    ///   desugared.
+    DesugaringParams(SPair),
 }
 
 impl Display for TplShortDesugar {
@@ -160,9 +162,10 @@ impl ParseState for TplShortDesugar {
                 let tpl_name =
                     format!("_{}_", qname.local_name().lookup_str()).intern();
 
-                stack.push(Ref(SPair(tpl_name, span)));
+                let name = SPair(tpl_name, span);
+                stack.push(Ref(name));
 
-                Transition(DesugaringParams(span)).ok(Open(TplApply, span))
+                Transition(DesugaringParams(name)).ok(Open(TplApply, span))
             }
 
             // Shorthand template params' names do not contain the
@@ -186,8 +189,10 @@ impl ParseState for TplShortDesugar {
             //   and then place the body into that template.
             //
             // TODO: This does not handle nested template applications.
-            (DesugaringParams(ospan), tok @ Open(..)) => {
+            (DesugaringParams(name), tok @ Open(..)) => {
+                let ospan = name.span();
                 let gen_name = gen_tpl_name_at_offset(ospan);
+                let gen_desc = values_tpl_desc(name);
 
                 // The spans are awkward here because we are streaming,
                 //   and so don't have much choice but to use the opening
@@ -197,6 +202,7 @@ impl ParseState for TplShortDesugar {
                 //   yet-to-be-defined means.
                 //
                 // note: reversed (stack)
+                stack.push(Desc(gen_desc));
                 stack.push(BindIdent(SPair(gen_name, ospan)));
                 stack.push(Open(Tpl, ospan));
 
@@ -256,6 +262,25 @@ type Stack = ArrayVec<Nir, 7>;
 #[inline]
 fn gen_tpl_name_at_offset(span: Span) -> SymbolId {
     format!("___dsgr-{:x}___", span.offset()).intern()
+}
+
+/// Generate a description for the template generated from the body of a
+///   shorthand template application.
+///
+/// Descriptions are required on templates,
+///   but we should also provide something that is useful in debugging.
+/// The description will contain the name of the template being applied and
+///   will share the same span as the provided [`SPair`] `applying`'s,
+///     having been derived from it.
+fn values_tpl_desc(applying: SPair) -> SPair {
+    SPair(
+        format!(
+            "Desugared body of shorthand template application of {}",
+            TtQuote::wrap(applying.symbol())
+        )
+        .intern(),
+        applying.span(),
+    )
 }
 
 #[cfg(test)]
