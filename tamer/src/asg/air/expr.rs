@@ -138,9 +138,13 @@ impl ParseState for AirExprAggregate {
                 }
             }
 
-            (BuildingExpr(es, oi), AirBind(RefIdent(ident))) => {
-                Transition(BuildingExpr(es, oi.ref_expr(ctx.asg_mut(), ident)))
-                    .incomplete()
+            (BuildingExpr(es, oi), AirBind(RefIdent(name))) => {
+                let oi_ident = ctx.lookup_lexical_or_missing(name);
+                Transition(BuildingExpr(
+                    es,
+                    oi.ref_expr(ctx.asg_mut(), oi_ident),
+                ))
+                .incomplete()
             }
 
             (BuildingExpr(es, oi), AirDoc(DocIndepClause(clause))) => {

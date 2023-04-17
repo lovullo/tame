@@ -33,7 +33,6 @@ use super::{
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     f::Functor,
-    fmt::{DisplayWrapper, TtQuote},
     global,
     parse::{util::SPair, Token},
     span::Span,
@@ -221,7 +220,9 @@ impl Asg {
 
         // We should never overwrite indexes
         #[allow(unused_variables)] // used only for debug
+        #[allow(unused_imports)]
         if let Some(prev_oi) = prev {
+            use crate::fmt::{DisplayWrapper, TtQuote};
             crate::debug_diagnostic_panic!(
                 vec![
                     imm_env.into().note("at this scope boundary"),
@@ -647,75 +648,6 @@ impl Asg {
             .map(move |edge| ObjectIndex::<OI>::new(edge.source(), oi))
     }
 
-    /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
-    ///   if any.
-    ///
-    /// The type parameter `O` indicates the _expected_ [`ObjectKind`] to be
-    ///   bound to the returned [`ObjectIndex`],
-    ///     which will be used for narrowing (downcasting) the object after
-    ///     lookup.
-    /// An incorrect kind will not cause any failures until such a lookup
-    ///   occurs.
-    ///
-    /// This will return [`None`] if the identifier is either opaque or does
-    ///   not exist.
-    fn get_ident_oi<O: ObjectKind>(
-        &self,
-        ident: SPair,
-    ) -> Option<ObjectIndex<O>> {
-        self.lookup_global(ident)
-            .and_then(|identi| {
-                self.graph
-                    .neighbors_directed(identi.into(), Direction::Outgoing)
-                    .next()
-            })
-            // Note that this use of `O` for `ObjectIndex` here means "I
-            //   _expect_ this to `O`";
-            //     the type will be verified during narrowing but will panic
-            //     if this expectation is not met.
-            .map(|ni| ObjectIndex::<O>::new(ni, ident.span()))
-    }
-
-    /// Retrieve the [`ObjectIndex`] to which the given `ident` is bound,
-    ///   panicing if the identifier is either opaque or does not exist.
-    ///
-    /// Panics
-    /// ======
-    /// This method will panic if the identifier is opaque
-    ///   (has no edge to the object to which it is bound)
-    ///   or does not exist on the graph.
-    pub fn expect_ident_oi<O: ObjectKind>(
-        &self,
-        ident: SPair,
-    ) -> ObjectIndex<O> {
-        self.get_ident_oi(ident).diagnostic_expect(
-            || diagnostic_unknown_ident_desc(ident),
-            || format!("unknown identifier {}", TtQuote::wrap(ident),),
-        )
-    }
-
-    /// Attempt to retrieve the [`Object`] to which the given `ident` is bound.
-    ///
-    /// If the identifier either does not exist on the graph or is opaque
-    ///   (is not bound to any expression),
-    ///   then [`None`] will be returned.
-    ///
-    /// If the system expects that the identifier must exist and would
-    ///   otherwise represent a bug in the compiler,
-    ///     see [`Self::expect_ident_obj`].
-    ///
-    /// Panics
-    /// ======
-    /// This method will panic if certain graph invariants are not met,
-    ///   representing an invalid system state that should not be able to
-    ///   occur through this API.
-    /// Violations of these invariants represent either a bug in the API
-    ///   (that allows for the invariant to be violated)
-    ///   or direct manipulation of the underlying graph.
-    pub fn get_ident_obj<O: ObjectKind>(&self, ident: SPair) -> Option<&O> {
-        self.get_ident_oi::<O>(ident).map(|oi| self.expect_obj(oi))
-    }
-
     pub(super) fn expect_obj<O: ObjectKind>(&self, oi: ObjectIndex<O>) -> &O {
         let obj_container =
             self.graph.node_weight(oi.into()).diagnostic_expect(
@@ -724,35 +656,6 @@ impl Asg {
             );
 
         obj_container.get()
-    }
-
-    /// Attempt to retrieve the [`Object`] to which the given `ident` is bound,
-    ///   panicing if the identifier is opaque or does not exist.
-    ///
-    /// This method represents a compiler invariant;
-    ///   it should _only_ be used when the identifier _must_ exist,
-    ///     otherwise there is a bug in the compiler.
-    /// If this is _not_ the case,
-    ///   use [`Self::get_ident_obj`] to get [`None`] in place of a panic.
-    ///
-    /// Panics
-    /// ======
-    /// This method will panic if
-    ///
-    ///   1. The identifier does not exist on the graph; or
-    ///   2. The identifier is opaque (has no edge to any object on the
-    ///        graph).
-    pub fn expect_ident_obj<O: ObjectKind>(&self, ident: SPair) -> &O {
-        self.get_ident_obj(ident).diagnostic_expect(
-            || diagnostic_opaque_ident_desc(ident),
-            || {
-                format!(
-                    "identifier was not expected to be opaque: \
-                        {} has no object binding",
-                    TtQuote::wrap(ident),
-                )
-            },
-        )
     }
 
     /// Retrieve an identifier from the graph by [`ObjectIndex`].
@@ -876,27 +779,6 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
         index.help("  which are unexpected and possibly represent data"),
         index.help("  corruption."),
         index.help("The system cannot proceed with confidence."),
-    ]
-}
-
-fn diagnostic_opaque_ident_desc(ident: SPair) -> Vec<AnnotatedSpan<'static>> {
-    vec![
-        ident.internal_error(
-            "this identifier is not bound to any object on the ASG",
-        ),
-        ident.help("the system expects to be able to reach the object that"),
-        ident.help("  this identifies, but this identifier has no"),
-        ident.help("  corresponding object present on the graph."),
-    ]
-}
-
-fn diagnostic_unknown_ident_desc(ident: SPair) -> Vec<AnnotatedSpan<'static>> {
-    vec![
-        ident.internal_error("reference to an unknown identifier"),
-        ident.help(
-            "the system expects this identifier to be known, \
-                but it could not be found.",
-        ),
     ]
 }
 

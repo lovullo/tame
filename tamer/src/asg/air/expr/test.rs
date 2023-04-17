@@ -20,7 +20,10 @@
 use super::*;
 use crate::asg::{
     air::{
-        test::{asg_from_toks, parse_as_pkg_body},
+        test::{
+            asg_from_toks, parse_as_pkg_body, pkg_expect_ident_obj,
+            pkg_expect_ident_oi, pkg_get_ident_obj, pkg_lookup,
+        },
         Air, AirAggregate,
     },
     graph::object::{expr::ExprRel, Doc, ObjectRel},
@@ -59,7 +62,7 @@ fn expr_empty_ident() {
 
     // The expression should have been bound to this identifier so that
     //   we're able to retrieve it from the graph by name.
-    let expr = asg.expect_ident_obj::<Expr>(id);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
     assert_eq!(expr.span(), S1.merge(S3).unwrap());
 }
 
@@ -182,11 +185,11 @@ fn expr_non_empty_ident_root() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let expr_a = asg.expect_ident_obj::<Expr>(id_a);
+    let expr_a = pkg_expect_ident_obj::<Expr>(&asg, id_a);
     assert_eq!(expr_a.span(), S1.merge(S6).unwrap());
 
     // Identifiers should reference the same expression.
-    let expr_b = asg.expect_ident_obj::<Expr>(id_b);
+    let expr_b = pkg_expect_ident_obj::<Expr>(&asg, id_b);
     assert_eq!(expr_a, expr_b);
 }
 
@@ -216,7 +219,7 @@ fn expr_non_empty_bind_only_after() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let expr = asg.expect_ident_obj::<Expr>(id);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
     assert_eq!(expr.span(), S1.merge(S5).unwrap());
 }
 
@@ -402,7 +405,7 @@ fn recovery_expr_reachable_after_dangling() {
 
     // Let's make sure that we _actually_ added it to the graph,
     //   despite the previous error.
-    let expr = asg.expect_ident_obj::<Expr>(id);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
     assert_eq!(expr.span(), S3.merge(S5).unwrap());
 
     // The dangling expression may or may not be on the graph,
@@ -457,7 +460,7 @@ fn expr_close_unbalanced() {
     let asg = sut.finalize().unwrap().into_context();
 
     // Just verify that the expression was successfully added after recovery.
-    let expr = asg.expect_ident_obj::<Expr>(id);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
     assert_eq!(expr.span(), S2.merge(S4).unwrap());
 }
 
@@ -529,11 +532,11 @@ fn expr_bind_to_empty() {
 
     // Neither of the identifiers outside of expressions should exist on the
     //   graph.
-    assert_eq!(None, asg.get_ident_obj::<Expr>(id_noexpr_a));
-    assert_eq!(None, asg.get_ident_obj::<Expr>(id_noexpr_b));
+    assert_eq!(None, pkg_get_ident_obj::<Expr>(&asg, id_noexpr_a));
+    assert_eq!(None, pkg_get_ident_obj::<Expr>(&asg, id_noexpr_b));
 
     // Verify that the expression was successfully added after recovery.
-    let expr = asg.expect_ident_obj::<Expr>(id_good);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_good);
     assert_eq!(expr.span(), S5.merge(S7).unwrap());
 }
 
@@ -573,7 +576,7 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
     //     (the siblings above).
     // Note that we retrieve its _index_,
     //   not the object itself.
-    let oi_root = asg.expect_ident_oi::<Expr>(id_root);
+    let oi_root = pkg_expect_ident_oi::<Expr>(&asg, id_root);
 
     let siblings = oi_root
         .edges_filtered::<Expr>(&asg)
@@ -611,7 +614,7 @@ fn nested_subexprs_related_to_relative_parent() {
 
     let asg = asg_from_toks(toks);
 
-    let oi_0 = asg.expect_ident_oi::<Expr>(id_root);
+    let oi_0 = pkg_expect_ident_oi::<Expr>(&asg, id_root);
     let subexprs_0 = collect_subexprs(&asg, oi_0);
 
     // Subexpr 1
@@ -669,7 +672,7 @@ fn expr_redefine_ident() {
     let asg = sut.finalize().unwrap().into_context();
 
     // The identifier should continue to reference the first expression.
-    let expr = asg.expect_ident_obj::<Expr>(id_first);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_first);
     assert_eq!(expr.span(), S1.merge(S5).unwrap());
 }
 
@@ -752,7 +755,7 @@ fn expr_still_dangling_on_redefine() {
     let asg = sut.finalize().unwrap().into_context();
 
     // The identifier should continue to reference the first expression.
-    let expr = asg.expect_ident_obj::<Expr>(id_first);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_first);
     assert_eq!(expr.span(), S1.merge(S3).unwrap());
 
     // There's nothing we can do using the ASG's public API at the time of
@@ -760,7 +763,7 @@ fn expr_still_dangling_on_redefine() {
 
     // The second identifier should have been successfully bound despite the
     //   failed initial attempt.
-    let expr = asg.expect_ident_obj::<Expr>(id_second);
+    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_second);
     assert_eq!(expr.span(), S7.merge(S10).unwrap());
 }
 
@@ -791,7 +794,7 @@ fn expr_ref_to_ident() {
 
     let asg = asg_from_toks(toks);
 
-    let oi_foo = asg.expect_ident_oi::<Expr>(id_foo);
+    let oi_foo = pkg_expect_ident_oi::<Expr>(&asg, id_foo);
 
     let mut foo_rels = oi_foo
         .edges(&asg)
@@ -816,7 +819,7 @@ fn expr_ref_to_ident() {
     //     added it as `Missing`.
     assert_eq!(ident_bar.span(), id_bar.span());
 
-    let oi_expr_bar = asg.expect_ident_oi::<Expr>(id_bar);
+    let oi_expr_bar = pkg_expect_ident_oi::<Expr>(&asg, id_bar);
     assert!(oi_ident_bar.is_bound_to(&asg, oi_expr_bar));
 }
 
@@ -845,14 +848,14 @@ fn idents_share_defining_pkg() {
     assert!(sut.all(|x| x.is_ok()));
     let asg = sut.finalize().unwrap().into_context();
 
-    let oi_foo = asg.lookup_global(id_foo).unwrap();
-    let oi_bar = asg.lookup_global(id_bar).unwrap();
+    let oi_foo = pkg_lookup(&asg, id_foo).unwrap();
+    let oi_bar = pkg_lookup(&asg, id_bar).unwrap();
 
     assert_eq!(oi_foo.src_pkg(&asg).unwrap(), oi_bar.src_pkg(&asg).unwrap());
 
     // Missing identifiers should not have a source package,
     //   since we don't know what defined it yet.
-    let oi_baz = asg.lookup_global(id_baz).unwrap();
+    let oi_baz = pkg_lookup(&asg, id_baz).unwrap();
     assert_eq!(None, oi_baz.src_pkg(&asg));
 
     // The package span should encompass the entire definition.
@@ -877,7 +880,7 @@ fn expr_doc_short_desc() {
 
     let asg = asg_from_toks(toks);
 
-    let oi_expr = asg.expect_ident_oi::<Expr>(id_expr);
+    let oi_expr = pkg_expect_ident_oi::<Expr>(&asg, id_expr);
     let oi_docs = oi_expr
         .edges_filtered::<Doc>(&asg)
         .map(ObjectIndex::cresolve(&asg));

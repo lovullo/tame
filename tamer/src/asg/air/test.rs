@@ -22,7 +22,10 @@
 
 use super::{super::Ident, *};
 use crate::{
-    asg::{graph::object::ObjectRel, IdentKind, Source},
+    asg::{
+        graph::object::{ObjectRel, ObjectRelFrom, ObjectRelatable},
+        IdentKind, Source,
+    },
     parse::{ParseError, Parsed, Parser},
     span::dummy::*,
 };
@@ -398,4 +401,53 @@ where
     let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
     sut.finalize().unwrap().into_context()
+}
+
+pub fn pkg_lookup(asg: &Asg, name: SPair) -> Option<ObjectIndex<Ident>> {
+    let oi_pkg = asg
+        .root(S1)
+        .edges_filtered::<Pkg>(&asg)
+        .next()
+        .expect("missing rooted package");
+
+    asg.lookup(oi_pkg, name)
+}
+
+pub fn pkg_get_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
+    asg: &Asg,
+    name: SPair,
+) -> Option<ObjectIndex<O>> {
+    pkg_lookup(asg, name)
+        .and_then(|oi| oi.edges(asg).next())
+        .and_then(|oi| oi.narrow())
+}
+
+pub fn pkg_expect_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
+    asg: &Asg,
+    name: SPair,
+) -> ObjectIndex<O> {
+    // Duplicates logic of `pkg_get_ident_oi`,
+    //   but in doing so,
+    //   provides better assertion messages.
+    pkg_lookup(asg, name)
+        .expect(&format!("missing ident: `{name}`"))
+        .edges(asg)
+        .next()
+        .expect(&format!("missing definition for ident `{name}`"))
+        .narrow()
+        .expect(&format!("ident `{name}` was not of expected ObjectKind"))
+}
+
+pub fn pkg_get_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
+    asg: &Asg,
+    name: SPair,
+) -> Option<&O> {
+    pkg_get_ident_oi(asg, name).map(|oi| oi.resolve(asg))
+}
+
+pub fn pkg_expect_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
+    asg: &Asg,
+    name: SPair,
+) -> &O {
+    pkg_expect_ident_oi(asg, name).resolve(asg)
 }

@@ -537,39 +537,25 @@ impl AirAggregateCtx {
     fn lookup_lexical_or_missing(&mut self, name: SPair) -> ObjectIndex<Ident> {
         let Self(asg, stack, _) = self;
 
-        let found = stack
+        stack
             .iter()
-            .skip(1)
             .rev()
             .filter_map(|st| st.active_rooting_oi())
-            .find_map(|oi| asg.lookup(oi, name));
-
-        // Rust's borrow checker won't allow us to use unwrap_or_else above
-        //   as of 2023-04.
-        if let Some(oi) = found {
-            oi
-        } else {
-            // TODO: This special case can be removed once we generalize
-            //   indexing/scope.
-            // TODO: This filtering is a quick kludge to get things working!
-            match stack.iter().filter_map(|st| st.active_rooting_oi()).nth(1) {
-                None => asg.lookup_global_or_missing(name),
-                _ => self.create_env_indexed_ident(name),
-            }
-        }
+            .find_map(|oi| asg.lookup(oi, name))
+            .unwrap_or_else(|| self.create_env_indexed_ident(name))
     }
 
     /// Index an identifier within its environment.
     ///
     /// TODO: More information as this is formalized.
     fn create_env_indexed_ident(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let Self(asg, stack, _) = self;
-        let oi_ident = asg.create(Ident::declare(name));
+        let oi_ident = self.asg_mut().create(Ident::declare(name));
 
-        stack
-            .iter()
-            .filter_map(|st| st.active_rooting_oi())
-            .for_each(|oi| asg.index_identifier(oi, name, oi_ident));
+        // TODO: This currently only indexes for the top of the stack,
+        //   but we'll want no-shadow records for the rest of the env.
+        if let Some(oi) = self.rooting_oi() {
+            self.asg_mut().index_identifier(oi, name, oi_ident);
+        }
 
         oi_ident
     }
