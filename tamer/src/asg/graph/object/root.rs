@@ -19,9 +19,12 @@
 
 //! Root node of the ASG.
 
-use std::fmt::Display;
-
 use super::{prelude::*, Ident, Pkg};
+use crate::{
+    asg::{IdentKind, Source},
+    parse::util::SPair,
+};
+use std::fmt::Display;
 
 #[cfg(doc)]
 use super::ObjectKind;
@@ -44,5 +47,42 @@ object_rel! {
     Root -> {
         tree Pkg,
         tree Ident,
+    }
+}
+
+impl ObjectIndex<Root> {
+    /// Root an identifier in the graph without a parent [`Pkg`].
+    ///
+    /// An identifier ought to be rooted by a package that defines it;
+    ///   this is intended as a legacy operation for `tameld` that will be
+    ///   removed in the future.
+    pub fn root_ident(&self, asg: &mut Asg, name: SPair) -> ObjectIndex<Ident> {
+        asg.lookup_or_missing(*self, name)
+            .add_edge_from(asg, *self, None)
+    }
+
+    /// Attempt to retrieve an indexed [`Ident`] owned by `self`.
+    ///
+    /// See [`Self::root_ident`].
+    pub fn lookup_or_missing(
+        &self,
+        asg: &mut Asg,
+        name: SPair,
+    ) -> ObjectIndex<Ident> {
+        asg.lookup_or_missing(*self, name)
+    }
+
+    /// Declare a concrete identifier.
+    ///
+    /// See [`ObjectIndex::<Ident>::declare`] for more information.
+    pub fn declare(
+        &self,
+        asg: &mut Asg,
+        name: SPair,
+        kind: IdentKind,
+        src: Source,
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
+        self.lookup_or_missing(asg, name)
+            .declare(asg, name, kind, src)
     }
 }

@@ -232,33 +232,50 @@ impl ParseState for AirAggregate {
                 tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
             ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
 
-            (Empty, AirIdent(IdentDecl(name, kind, src))) => ctx
-                .asg_mut()
-                .declare(name, kind, src)
-                .map(|_| ())
-                .transition(Empty),
+            (Empty, AirIdent(IdentDecl(name, kind, src))) => {
+                let asg = ctx.asg_mut();
+                let oi_root = asg.root(name);
 
-            (Empty, AirIdent(IdentExternDecl(name, kind, src))) => ctx
-                .asg_mut()
-                .declare_extern(name, kind, src)
-                .map(|_| ())
-                .transition(Empty),
+                asg.lookup_or_missing(oi_root, name)
+                    .declare(asg, name, kind, src)
+                    .map(|_| ())
+                    .transition(Empty)
+            }
 
-            (Empty, AirIdent(IdentDep(sym, dep))) => {
-                ctx.asg_mut().add_dep_lookup_global(sym, dep);
+            (Empty, AirIdent(IdentExternDecl(name, kind, src))) => {
+                let asg = ctx.asg_mut();
+                let oi_root = asg.root(name);
+
+                asg.lookup_or_missing(oi_root, name)
+                    .declare_extern(asg, name, kind, src)
+                    .map(|_| ())
+                    .transition(Empty)
+            }
+
+            (Empty, AirIdent(IdentDep(name, dep))) => {
+                let asg = ctx.asg_mut();
+                let oi_root = asg.root(dep);
+
+                let oi_from = asg.lookup_or_missing(oi_root, name);
+                let oi_to = asg.lookup_or_missing(oi_root, dep);
+                oi_from.add_opaque_dep(ctx.asg_mut(), oi_to);
+
                 Transition(Empty).incomplete()
             }
 
-            (Empty, AirIdent(IdentFragment(sym, text))) => ctx
-                .asg_mut()
-                .set_fragment(sym, text)
-                .map(|_| ())
-                .transition(Empty),
-
-            (Empty, AirIdent(IdentRoot(sym))) => {
+            (Empty, AirIdent(IdentFragment(name, text))) => {
                 let asg = ctx.asg_mut();
-                let obj = asg.lookup_global_or_missing(sym);
-                asg.add_root(obj);
+                let oi_root = asg.root(name);
+
+                asg.lookup_or_missing(oi_root, name)
+                    .set_fragment(asg, text)
+                    .map(|_| ())
+                    .transition(Empty)
+            }
+
+            (Empty, AirIdent(IdentRoot(name))) => {
+                let asg = ctx.asg_mut();
+                asg.root(name).root_ident(asg, name);
 
                 Transition(Empty).incomplete()
             }

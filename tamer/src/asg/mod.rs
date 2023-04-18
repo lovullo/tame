@@ -70,7 +70,7 @@ pub use graph::{
             FragmentText, Ident, IdentKind, Source, TransitionError,
             TransitionResult, UnresolvedError,
         },
-        Object, ObjectIndex, ObjectKind,
+        Object, ObjectIndex, ObjectIndexRelTo, ObjectKind,
     },
     visit,
     xmli::AsgTreeToXirf,

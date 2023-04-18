@@ -25,7 +25,7 @@ extern crate test;
 use test::Bencher;
 
 pub(crate) use tamer::{
-    asg::{DefaultAsg, IdentKind, Source},
+    asg::{AsgError, DefaultAsg, Ident, IdentKind, ObjectIndex, Source},
     ld::xmle::{lower::sort, Sections},
     num::Dtype,
     parse::util::SPair,
@@ -41,6 +41,16 @@ fn interned_n(n: u16) -> Vec<SPair> {
         .collect()
 }
 
+fn declare(
+    asg: &mut TestAsg,
+    name: SPair,
+    kind: IdentKind,
+    src: Source,
+) -> Result<ObjectIndex<Ident>, AsgError> {
+    let oi_root = asg.root(name);
+    oi_root.declare(asg, name, kind, src)
+}
+
 #[bench]
 fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
     let mut sut = TestAsg::new();
@@ -49,7 +59,8 @@ fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
     let orefs = xs
         .iter()
         .map(|sym| {
-            sut.declare(
+            declare(
+                &mut sut,
                 *sym,
                 IdentKind::Rate(Dtype::Integer),
                 Source::default(),
@@ -62,10 +73,10 @@ fn sort_1_with_1_000_existing_supernode(bench: &mut Bencher) {
 
     // All edges from a single node.
     orefs.iter().skip(1).for_each(|to| {
-        sut.add_dep(root, *to);
+        root.add_opaque_dep(&mut sut, *to);
     });
 
-    sut.add_root(root);
+    root.root(&mut sut);
 
     bench.iter(|| {
         drop(sort(&sut, Sections::new()));
@@ -80,7 +91,8 @@ fn sort_1_with_1_000_existing_one_edge_per_node_one_path(bench: &mut Bencher) {
     let orefs = xs
         .iter()
         .map(|sym| {
-            sut.declare(
+            declare(
+                &mut sut,
                 *sym,
                 IdentKind::Rate(Dtype::Integer),
                 Source::default(),
@@ -96,12 +108,12 @@ fn sort_1_with_1_000_existing_one_edge_per_node_one_path(bench: &mut Bencher) {
         .iter()
         .zip(orefs.iter().skip(1))
         .for_each(|(from, to)| {
-            sut.add_dep(*from, *to);
+            from.add_opaque_dep(&mut sut, *to);
         });
 
     let root = orefs[0];
 
-    sut.add_root(root);
+    root.root(&mut sut);
 
     bench.iter(|| {
         drop(sort(&sut, Sections::new()));

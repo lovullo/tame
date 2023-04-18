@@ -24,7 +24,7 @@ use super::{super::Ident, *};
 use crate::{
     asg::{
         graph::object::{ObjectRel, ObjectRelFrom, ObjectRelatable},
-        IdentKind, Source,
+        IdentKind, ObjectIndexRelTo, Source,
     },
     parse::{ParseError, Parsed, Parser},
     span::dummy::*,
@@ -49,9 +49,8 @@ fn ident_decl() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup_global(id)
-        .expect("identifier was not added to graph");
+    let ident_node =
+        root_lookup(&asg, id).expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
@@ -90,9 +89,8 @@ fn ident_extern_decl() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup_global(id)
-        .expect("identifier was not added to graph");
+    let ident_node =
+        root_lookup(&asg, id).expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
@@ -129,12 +127,11 @@ fn ident_dep() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup_global(id)
-        .expect("identifier was not added to graph");
-    let dep_node = asg.lookup_global(dep).expect("dep was not added to graph");
+    let ident_node =
+        root_lookup(&asg, id).expect("identifier was not added to graph");
+    let dep_node = root_lookup(&asg, dep).expect("dep was not added to graph");
 
-    assert!(asg.has_dep(ident_node, dep_node));
+    assert!(ident_node.has_edge_to(&asg, dep_node));
 }
 
 #[test]
@@ -162,9 +159,8 @@ fn ident_fragment() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup_global(id)
-        .expect("identifier was not added to graph");
+    let ident_node =
+        root_lookup(&asg, id).expect("identifier was not added to graph");
     let ident = asg.get(ident_node).unwrap();
 
     assert_eq!(
@@ -199,9 +195,8 @@ fn ident_root_missing() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup_global(id)
-        .expect("identifier was not added to the graph");
+    let ident_node =
+        root_lookup(&asg, id).expect("identifier was not added to the graph");
     let ident = asg.get(ident_node).unwrap();
 
     // The identifier did not previously exist,
@@ -209,7 +204,7 @@ fn ident_root_missing() {
     assert_eq!(&Ident::Missing(id), ident);
 
     // And that missing identifier should be rooted.
-    assert!(asg.is_rooted(ident_node));
+    assert!(ident_node.is_rooted(&asg));
 }
 
 #[test]
@@ -238,9 +233,8 @@ fn ident_root_existing() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let ident_node = asg
-        .lookup_global(id)
-        .expect("identifier was not added to the graph");
+    let ident_node =
+        root_lookup(&asg, id).expect("identifier was not added to the graph");
     let ident = asg.get(ident_node).unwrap();
 
     // The previously-declared identifier...
@@ -252,7 +246,41 @@ fn ident_root_existing() {
     );
 
     // ...should have been subsequently rooted.
-    assert!(asg.is_rooted(ident_node));
+    assert!(ident_node.is_rooted(&asg));
+}
+
+#[test]
+fn declare_kind_auto_root() {
+    let auto_kind = IdentKind::Worksheet;
+    let no_auto_kind = IdentKind::Tpl;
+
+    // Sanity check, in case this changes.
+    assert!(auto_kind.is_auto_root());
+    assert!(!no_auto_kind.is_auto_root());
+
+    let id_auto = SPair("auto_root".into(), S1);
+    let id_no_auto = SPair("no_auto_root".into(), S2);
+
+    let toks = [
+        // auto-rooting
+        Air::IdentDecl(id_auto, auto_kind, Default::default()),
+        // non-auto-rooting
+        Air::IdentDecl(id_no_auto, no_auto_kind, Default::default()),
+    ]
+    .into_iter();
+
+    let mut sut = Sut::parse(toks);
+
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    let oi_auto = root_lookup(&asg, id_auto).unwrap();
+    let oi_no_auto = root_lookup(&asg, id_no_auto).unwrap();
+
+    assert!(oi_auto.is_rooted(&asg));
+    assert!(!oi_no_auto.is_rooted(&asg));
 }
 
 #[test]
@@ -401,6 +429,10 @@ where
     let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
     sut.finalize().unwrap().into_context()
+}
+
+fn root_lookup(asg: &Asg, name: SPair) -> Option<ObjectIndex<Ident>> {
+    asg.lookup(asg.root(S1), name)
 }
 
 pub fn pkg_lookup(asg: &Asg, name: SPair) -> Option<ObjectIndex<Ident>> {

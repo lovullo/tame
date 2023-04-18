@@ -663,6 +663,11 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         self
     }
 
+    /// Check whether an edge exists from `self` to `to_oi`.
+    fn has_edge_to(&self, asg: &Asg, to_oi: ObjectIndex<OB>) -> bool {
+        asg.has_edge(*self, to_oi)
+    }
+
     /// Indicate that the given identifier `oi` is defined by this object.
     fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
     where
@@ -708,7 +713,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     ///   if you've arrived at this method while investigating unfavorable
     ///   circumstances during profiling,
     ///     then you should consider caching like the global environment
-    ///       (see [`Asg::lookup_global`]).
+    ///       (see [`Asg::lookup`]).
     fn lookup_local_linear(
         &self,
         asg: &Asg,

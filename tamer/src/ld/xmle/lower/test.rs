@@ -19,13 +19,28 @@
 
 use super::*;
 use crate::{
-    asg::{FragmentText, Ident, Source},
+    asg::{AsgError, FragmentText, Ident, Source},
     ld::xmle::{section::PushResult, Sections},
     num::{Dim, Dtype},
     parse::util::SPair,
     span::dummy::*,
     sym::GlobalSymbolIntern,
 };
+
+fn declare(
+    asg: &mut Asg,
+    name: SPair,
+    kind: IdentKind,
+    src: Source,
+) -> Result<ObjectIndex<Ident>, AsgError> {
+    let oi_root = asg.root(name);
+    oi_root.declare(asg, name, kind, src)
+}
+
+fn lookup_or_missing(asg: &mut Asg, name: SPair) -> ObjectIndex<Ident> {
+    let oi_root = asg.root(name);
+    oi_root.lookup_or_missing(asg, name)
+}
 
 /// Create a graph with the expected {ret,}map head/tail identifiers.
 fn make_asg() -> Asg {
@@ -35,30 +50,34 @@ fn make_asg() -> Asg {
 
     {
         let sym = SPair(st::L_MAP_UUUHEAD.into(), S1);
-        asg.declare(sym, IdentKind::MapHead, Default::default())
+        declare(&mut asg, sym, IdentKind::MapHead, Default::default())
+            .unwrap()
+            .set_fragment(&mut asg, text)
             .unwrap();
-        asg.set_fragment(sym, text).unwrap();
     }
 
     {
         let sym = SPair(st::L_MAP_UUUTAIL.into(), S2);
-        asg.declare(sym, IdentKind::MapTail, Default::default())
+        declare(&mut asg, sym, IdentKind::MapTail, Default::default())
+            .unwrap()
+            .set_fragment(&mut asg, text)
             .unwrap();
-        asg.set_fragment(sym, text).unwrap();
     }
 
     {
         let sym = SPair(st::L_RETMAP_UUUHEAD.into(), S3);
-        asg.declare(sym, IdentKind::RetMapHead, Default::default())
+        declare(&mut asg, sym, IdentKind::RetMapHead, Default::default())
+            .unwrap()
+            .set_fragment(&mut asg, text)
             .unwrap();
-        asg.set_fragment(sym, text).unwrap();
     }
 
     {
         let sym = SPair(st::L_RETMAP_UUUTAIL.into(), S4);
-        asg.declare(sym, IdentKind::RetMapTail, Default::default())
+        declare(&mut asg, sym, IdentKind::RetMapTail, Default::default())
+            .unwrap()
+            .set_fragment(&mut asg, text)
             .unwrap();
-        asg.set_fragment(sym, text).unwrap();
     }
 
     asg
@@ -106,28 +125,32 @@ fn graph_sort() -> SortResult<()> {
     let mut asg = make_asg();
 
     // Add them in an unsorted order.
-    let adep = asg
-        .declare(
-            SPair("adep".into(), S1),
-            IdentKind::Meta,
-            Default::default(),
-        )
-        .unwrap();
-    let a = asg
-        .declare(SPair("a".into(), S2), IdentKind::Meta, Default::default())
-        .unwrap();
-    let adepdep = asg
-        .declare(
-            SPair("adepdep".into(), S3),
-            IdentKind::Meta,
-            Default::default(),
-        )
-        .unwrap();
+    let adep = declare(
+        &mut asg,
+        SPair("adep".into(), S1),
+        IdentKind::Meta,
+        Default::default(),
+    )
+    .unwrap();
+    let a = declare(
+        &mut asg,
+        SPair("a".into(), S2),
+        IdentKind::Meta,
+        Default::default(),
+    )
+    .unwrap();
+    let adepdep = declare(
+        &mut asg,
+        SPair("adepdep".into(), S3),
+        IdentKind::Meta,
+        Default::default(),
+    )
+    .unwrap();
 
-    asg.add_dep(a, adep);
-    asg.add_dep(adep, adepdep);
+    a.add_opaque_dep(&mut asg, adep);
+    adep.add_opaque_dep(&mut asg, adepdep);
 
-    asg.add_root(a);
+    a.root(&mut asg);
 
     let sections = sort(&asg, StubSections { pushed: Vec::new() })?;
 
@@ -138,9 +161,9 @@ fn graph_sort() -> SortResult<()> {
             get_ident(&asg, st::L_MAP_UUUHEAD),
             get_ident(&asg, st::L_RETMAP_UUUHEAD),
             // Post-order
-            asg.get_ident(adepdep).unwrap(),
-            asg.get_ident(adep).unwrap(),
-            asg.get_ident(a).unwrap(),
+            asg.get(adepdep).unwrap(),
+            asg.get(adep).unwrap(),
+            asg.get(a).unwrap(),
             // Static tail
             get_ident(&asg, st::L_MAP_UUUTAIL),
             get_ident(&asg, st::L_RETMAP_UUUTAIL),
@@ -159,22 +182,22 @@ fn graph_sort_missing_node() -> SortResult<()> {
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let sym_node = asg
-        .declare(
-            sym,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_dep = lookup_or_missing(&mut asg, dep);
 
-    asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
-
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-
-    asg.add_root(sym_node);
+    declare(
+        &mut asg,
+        sym,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap()
+    .add_opaque_dep(&mut asg, oi_dep)
+    .root(&mut asg);
 
     match sort(&asg, Sections::new()) {
         Ok(_) => panic!("Unexpected success - dependency is not in graph"),
@@ -192,7 +215,7 @@ fn graph_sort_missing_node() -> SortResult<()> {
 
 #[test]
 fn graph_sort_no_roots_same_as_empty_graph() -> SortResult<()> {
-    let mut asg_nonempty_no_roots = make_asg();
+    let mut asg = make_asg();
 
     // "empty" (it has the head/tail {ret,}map objects)
     let asg_empty = make_asg();
@@ -200,10 +223,12 @@ fn graph_sort_no_roots_same_as_empty_graph() -> SortResult<()> {
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    asg_nonempty_no_roots.add_dep_lookup_global(sym, dep);
+    let oi_sym = lookup_or_missing(&mut asg, sym);
+    let oi_dep = lookup_or_missing(&mut asg, dep);
+    oi_sym.add_opaque_dep(&mut asg, oi_dep);
 
     assert_eq!(
-        sort(&asg_nonempty_no_roots, Sections::new()),
+        sort(&asg, Sections::new()),
         sort(&asg_empty, Sections::new())
     );
 
@@ -217,39 +242,40 @@ fn graph_sort_simple_cycle() -> SortResult<()> {
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let sym_node = asg
-        .declare(
-            sym,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_sym = declare(
+        &mut asg,
+        sym,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    let dep_node = asg
-        .declare(
-            dep,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_dep = declare(
+        &mut asg,
+        dep,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
+    .unwrap();
 
-    asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
+    oi_sym.add_opaque_dep(&mut asg, oi_dep);
+    oi_dep.add_opaque_dep(&mut asg, oi_sym);
 
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-    let (_, _) = asg.add_dep_lookup_global(dep, sym);
-
-    asg.add_root(sym_node);
+    oi_sym.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
-    let expected = vec![[dep_node, sym_node]
+    let expected = vec![[oi_dep, oi_sym]
         .into_iter()
         .map(|o| asg.get(o).unwrap().name())
         .collect::<Vec<_>>()];
@@ -272,65 +298,68 @@ fn graph_sort_two_simple_cycles() -> SortResult<()> {
     let dep = SPair("dep".into(), S3);
     let dep2 = SPair("dep2".into(), S4);
 
-    let sym_node = asg
-        .declare(
-            sym,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_sym = declare(
+        &mut asg,
+        sym,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    let sym2_node = asg
-        .declare(
-            sym2,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_sym2 = declare(
+        &mut asg,
+        sym2,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
+    .unwrap();
 
-    let dep_node = asg
-        .declare(
-            dep,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_dep = declare(
+        &mut asg,
+        dep,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("baz"))
+    .unwrap();
 
-    let dep2_node = asg
-        .declare(
-            dep2,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let oi_dep2 = declare(
+        &mut asg,
+        dep2,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("huh"))
+    .unwrap();
 
-    asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
-    asg.set_fragment(dep, FragmentText::from("baz")).unwrap();
-    asg.set_fragment(dep2, FragmentText::from("huh")).unwrap();
+    oi_sym.add_opaque_dep(&mut asg, oi_dep);
+    oi_dep.add_opaque_dep(&mut asg, oi_sym);
+    oi_sym2.add_opaque_dep(&mut asg, oi_dep2);
+    oi_dep2.add_opaque_dep(&mut asg, oi_sym2);
 
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-    let (_, _) = asg.add_dep_lookup_global(dep, sym);
-    let (_, _) = asg.add_dep_lookup_global(sym2, dep2);
-    let (_, _) = asg.add_dep_lookup_global(dep2, sym2);
-
-    asg.add_root(sym_node);
+    oi_sym.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
-    let expected = [[dep_node, sym_node], [dep2_node, sym2_node]]
+    let expected = [[oi_dep, oi_sym], [oi_dep2, oi_sym2]]
         .into_iter()
         .map(|cycle| {
             cycle
@@ -356,18 +385,21 @@ fn graph_sort_no_cycle_with_edge_to_same_node() -> SortResult<()> {
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let sym_node = asg
-        .declare(
-            sym,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym_node = declare(
+        &mut asg,
+        sym,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    asg.declare(
+    let dep_node = declare(
+        &mut asg,
         dep,
         IdentKind::Tpl,
         Source {
@@ -375,15 +407,14 @@ fn graph_sort_no_cycle_with_edge_to_same_node() -> SortResult<()> {
             ..Default::default()
         },
     )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
     .unwrap();
 
-    asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
+    sym_node.add_opaque_dep(&mut asg, dep_node);
+    sym_node.add_opaque_dep(&mut asg, dep_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-
-    asg.add_root(sym_node);
+    sym_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
@@ -403,48 +434,50 @@ fn graph_sort_cycle_with_a_few_steps() -> SortResult<()> {
     let sym2 = SPair("sym2".into(), S2);
     let sym3 = SPair("sym3".into(), S3);
 
-    let sym1_node = asg
-        .declare(
-            sym1,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym1_node = declare(
+        &mut asg,
+        sym1,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    let sym2_node = asg
-        .declare(
-            sym2,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym2_node = declare(
+        &mut asg,
+        sym2,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
+    .unwrap();
 
-    let sym3_node = asg
-        .declare(
-            sym3,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym3_node = declare(
+        &mut asg,
+        sym3,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("baz"))
+    .unwrap();
 
-    asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
-    asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
+    sym1_node.add_opaque_dep(&mut asg, sym2_node);
+    sym2_node.add_opaque_dep(&mut asg, sym3_node);
+    sym3_node.add_opaque_dep(&mut asg, sym1_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
-    let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
-    let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
-
-    asg.add_root(sym1_node);
+    sym1_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
@@ -471,48 +504,50 @@ fn graph_sort_cyclic_function_with_non_function_with_a_few_steps(
     let sym2 = SPair("sym2".into(), S2);
     let sym3 = SPair("sym3".into(), S3);
 
-    let sym1_node = asg
-        .declare(
-            sym1,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym1_node = declare(
+        &mut asg,
+        sym1,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    let sym2_node = asg
-        .declare(
-            sym2,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym2_node = declare(
+        &mut asg,
+        sym2,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
+    .unwrap();
 
-    let sym3_node = asg
-        .declare(
-            sym3,
-            IdentKind::Func(Dim::Scalar, Dtype::Empty),
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym3_node = declare(
+        &mut asg,
+        sym3,
+        IdentKind::Func(Dim::Scalar, Dtype::Empty),
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("baz"))
+    .unwrap();
 
-    asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
-    asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
+    sym1_node.add_opaque_dep(&mut asg, sym2_node);
+    sym2_node.add_opaque_dep(&mut asg, sym3_node);
+    sym3_node.add_opaque_dep(&mut asg, sym1_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
-    let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
-    let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
-
-    asg.add_root(sym1_node);
+    sym1_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
@@ -538,48 +573,50 @@ fn graph_sort_cyclic_bookended_by_functions() -> SortResult<()> {
     let sym2 = SPair("sym2".into(), S2);
     let sym3 = SPair("sym3".into(), S3);
 
-    let sym1_node = asg
-        .declare(
-            sym1,
-            IdentKind::Func(Dim::Scalar, Dtype::Empty),
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym1_node = declare(
+        &mut asg,
+        sym1,
+        IdentKind::Func(Dim::Scalar, Dtype::Empty),
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    let sym2_node = asg
-        .declare(
-            sym2,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym2_node = declare(
+        &mut asg,
+        sym2,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
+    .unwrap();
 
-    let sym3_node = asg
-        .declare(
-            sym3,
-            IdentKind::Func(Dim::Scalar, Dtype::Empty),
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym3_node = declare(
+        &mut asg,
+        sym3,
+        IdentKind::Func(Dim::Scalar, Dtype::Empty),
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("baz"))
+    .unwrap();
 
-    asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
-    asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
+    sym1_node.add_opaque_dep(&mut asg, sym2_node);
+    sym2_node.add_opaque_dep(&mut asg, sym3_node);
+    sym3_node.add_opaque_dep(&mut asg, sym1_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
-    let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
-    let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
-
-    asg.add_root(sym1_node);
+    sym1_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
@@ -604,18 +641,21 @@ fn graph_sort_cyclic_function_ignored() -> SortResult<()> {
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let sym_node = asg
-        .declare(
-            sym,
-            IdentKind::Func(Dim::Scalar, Dtype::Empty),
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym_node = declare(
+        &mut asg,
+        sym,
+        IdentKind::Func(Dim::Scalar, Dtype::Empty),
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    asg.declare(
+    let dep_node = declare(
+        &mut asg,
         dep,
         IdentKind::Func(Dim::Scalar, Dtype::Empty),
         Source {
@@ -623,15 +663,14 @@ fn graph_sort_cyclic_function_ignored() -> SortResult<()> {
             ..Default::default()
         },
     )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
     .unwrap();
 
-    asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
+    sym_node.add_opaque_dep(&mut asg, dep_node);
+    dep_node.add_opaque_dep(&mut asg, sym_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-    let (_, _) = asg.add_dep_lookup_global(dep, sym);
-
-    asg.add_root(sym_node);
+    sym_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
@@ -651,48 +690,50 @@ fn graph_sort_cyclic_function_is_bookended() -> SortResult<()> {
     let sym2 = SPair("sym2".into(), S2);
     let sym3 = SPair("sym3".into(), S3);
 
-    let sym1_node = asg
-        .declare(
-            sym1,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym1_node = declare(
+        &mut asg,
+        sym1,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    let sym2_node = asg
-        .declare(
-            sym2,
-            IdentKind::Func(Dim::Scalar, Dtype::Empty),
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym2_node = declare(
+        &mut asg,
+        sym2,
+        IdentKind::Func(Dim::Scalar, Dtype::Empty),
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
+    .unwrap();
 
-    let sym3_node = asg
-        .declare(
-            sym3,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym3_node = declare(
+        &mut asg,
+        sym3,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("baz"))
+    .unwrap();
 
-    asg.set_fragment(sym1, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(sym2, FragmentText::from("bar")).unwrap();
-    asg.set_fragment(sym3, FragmentText::from("baz")).unwrap();
+    sym1_node.add_opaque_dep(&mut asg, sym2_node);
+    sym2_node.add_opaque_dep(&mut asg, sym3_node);
+    sym3_node.add_opaque_dep(&mut asg, sym1_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym1, sym2);
-    let (_, _) = asg.add_dep_lookup_global(sym2, sym3);
-    let (_, _) = asg.add_dep_lookup_global(sym3, sym1);
-
-    asg.add_root(sym1_node);
+    sym1_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 
@@ -718,18 +759,21 @@ fn graph_sort_ignore_non_linked() -> SortResult<()> {
     let dep = SPair("dep".into(), S2);
     let ignored = SPair("ignored".into(), S3);
 
-    let sym_node = asg
-        .declare(
-            sym,
-            IdentKind::Tpl,
-            Source {
-                virtual_: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let sym_node = declare(
+        &mut asg,
+        sym,
+        IdentKind::Tpl,
+        Source {
+            virtual_: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("foo"))
+    .unwrap();
 
-    asg.declare(
+    let dep_node = declare(
+        &mut asg,
         dep,
         IdentKind::Tpl,
         Source {
@@ -737,9 +781,12 @@ fn graph_sort_ignore_non_linked() -> SortResult<()> {
             ..Default::default()
         },
     )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("bar"))
     .unwrap();
 
-    asg.declare(
+    let ignored_node = declare(
+        &mut asg,
         ignored,
         IdentKind::Tpl,
         Source {
@@ -747,17 +794,14 @@ fn graph_sort_ignore_non_linked() -> SortResult<()> {
             ..Default::default()
         },
     )
+    .unwrap()
+    .set_fragment(&mut asg, FragmentText::from("baz"))
     .unwrap();
 
-    asg.set_fragment(sym, FragmentText::from("foo")).unwrap();
-    asg.set_fragment(dep, FragmentText::from("bar")).unwrap();
-    asg.set_fragment(ignored, FragmentText::from("baz"))
-        .unwrap();
+    sym_node.add_opaque_dep(&mut asg, dep_node);
+    ignored_node.add_opaque_dep(&mut asg, sym_node);
 
-    let (_, _) = asg.add_dep_lookup_global(sym, dep);
-    let (_, _) = asg.add_dep_lookup_global(ignored, sym);
-
-    asg.add_root(sym_node);
+    sym_node.root(&mut asg);
 
     let result = sort(&asg, Sections::new());
 

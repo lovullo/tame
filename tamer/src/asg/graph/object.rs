@@ -677,7 +677,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
             .filter(|_| O::rel_ty() == OB::rel_ty())
     }
 
-    /// Root this object in the ASG.
+    /// Root this object in the ASG's [`Root`] object.
     ///
     /// A rooted object is forced to be reachable.
     /// This should only be utilized when necessary for toplevel objects;
@@ -691,6 +691,16 @@ impl<O: ObjectKind> ObjectIndex<O> {
     {
         asg.root(self.span()).add_edge_to(asg, self, None);
         self
+    }
+
+    /// Whether this object has been rooted in the ASG's [`Root`] object.
+    ///
+    /// See [`Self::root`] for more information.
+    pub fn is_rooted(&self, asg: &Asg) -> bool
+    where
+        Root: ObjectRelTo<O>,
+    {
+        asg.root(self.span()).has_edge_to(asg, *self)
     }
 
     /// Widen an [`ObjectKind`] `O` into [`Object`],

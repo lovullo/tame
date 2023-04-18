@@ -983,6 +983,67 @@ object_rel! {
 }
 
 impl ObjectIndex<Ident> {
+    /// Declare a concrete identifier.
+    ///
+    /// An identifier declaration is similar to a declaration in a header
+    ///   file in a language like C,
+    ///     describing the structure of the identifier.
+    /// Once declared,
+    ///   this information cannot be changed.
+    ///
+    /// Identifiers are uniquely identified by a [`SPair`] `name`.
+    /// If an identifier of the same `name` already exists,
+    ///   then the provided declaration is compared against the existing
+    ///   declaration---should
+    ///     they be incompatible,
+    ///       then the operation will fail;
+    ///     otherwise,
+    ///       the existing identifier will be returned.
+    ///
+    /// If a concrete identifier has already been declared,
+    ///   then extern declarations will be compared and,
+    ///     if compatible,
+    ///     the identifier will be immediately _resolved_ and the object
+    ///       on the graph will not be altered.
+    /// Resolution will otherwise fail in error.
+    ///
+    /// For more information on state transitions that can occur when
+    ///   redeclaring an identifier that already exists,
+    ///     see [`Ident::resolve`].
+    ///
+    /// A successful declaration will add an identifier to the graph
+    ///   and return an [`ObjectIndex`] reference.
+    pub fn declare(
+        self,
+        asg: &mut Asg,
+        name: SPair,
+        kind: IdentKind,
+        src: Source,
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
+        let is_auto_root = kind.is_auto_root();
+
+        self.try_map_obj(asg, |obj| obj.resolve(name.span(), kind, src))
+            .map_err(Into::into)
+            .map(|ident| {
+                is_auto_root.then(|| self.root(asg));
+                ident
+            })
+    }
+
+    /// Declare an abstract identifier.
+    ///
+    /// See [`Ident::extern_`] and [`Ident::resolve`] for more information.
+    pub fn declare_extern(
+        self,
+        asg: &mut Asg,
+        name: SPair,
+        kind: IdentKind,
+        src: Source,
+    ) -> Result<Self, AsgError> {
+        self.try_map_obj(asg, |obj| obj.extern_(name.span(), kind, src))
+            .map_err(Into::into)
+    }
+
     /// Bind an identifier to a `definition`,
     ///   making it [`Transparent`].
     ///
@@ -1042,6 +1103,20 @@ impl ObjectIndex<Ident> {
         .map(|ident_oi| ident_oi.add_edge_to(asg, definition, None))
     }
 
+    /// Set the fragment associated with a concrete identifier.
+    ///
+    /// Fragments are intended for use by the [linker][crate::ld].
+    /// For more information,
+    ///   see [`Ident::set_fragment`].
+    pub fn set_fragment(
+        self,
+        asg: &mut Asg,
+        text: SymbolId,
+    ) -> Result<Self, AsgError> {
+        self.try_map_obj(asg, |obj| obj.set_fragment(text))
+            .map_err(Into::into)
+    }
+
     /// Look up the definition that this identifier binds to,
     ///   if any.
     ///
@@ -1077,6 +1152,15 @@ impl ObjectIndex<Ident> {
     ///   if known.
     pub fn src_pkg(&self, asg: &Asg) -> Option<ObjectIndex<Pkg>> {
         self.incoming_edges_filtered(asg).next()
+    }
+
+    /// Declare that `oi_dep` is an opaque dependency of `self`.
+    pub fn add_opaque_dep(
+        &self,
+        asg: &mut Asg,
+        oi_dep: ObjectIndex<Ident>,
+    ) -> Self {
+        self.add_edge_to(asg, oi_dep, None)
     }
 }
 

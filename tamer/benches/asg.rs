@@ -31,13 +31,45 @@ use test::Bencher;
 mod base {
     use super::*;
     use tamer::{
-        asg::{DefaultAsg, IdentKind, Source},
+        asg::{
+            AsgError, DefaultAsg, Ident, IdentKind, ObjectIndex,
+            ObjectIndexRelTo, Source,
+        },
         parse::util::SPair,
         span::UNKNOWN_SPAN,
         sym::GlobalSymbolIntern,
     };
 
     type Sut = DefaultAsg;
+
+    fn declare(
+        asg: &mut Sut,
+        name: SPair,
+        kind: IdentKind,
+        src: Source,
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
+        let oi_root = asg.root(name);
+        oi_root.declare(asg, name, kind, src)
+    }
+
+    fn declare_extern(
+        asg: &mut Sut,
+        name: SPair,
+        kind: IdentKind,
+        src: Source,
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
+        lookup_or_missing(asg, name).declare_extern(asg, name, kind, src)
+    }
+
+    fn lookup(asg: &mut Sut, name: SPair) -> Option<ObjectIndex<Ident>> {
+        let oi_root = asg.root(name);
+        asg.lookup(oi_root, name)
+    }
+
+    fn lookup_or_missing(asg: &mut Sut, name: SPair) -> ObjectIndex<Ident> {
+        let oi_root = asg.root(name);
+        oi_root.lookup_or_missing(asg, name)
+    }
 
     fn interned_n(n: u16) -> Vec<SPair> {
         (0..n)
@@ -52,7 +84,9 @@ mod base {
 
         bench.iter(|| {
             xs.iter()
-                .map(|i| sut.declare(*i, IdentKind::Meta, Source::default()))
+                .map(|i| {
+                    declare(&mut sut, *i, IdentKind::Meta, Source::default())
+                })
                 .for_each(drop);
         });
     }
@@ -64,7 +98,9 @@ mod base {
 
         bench.iter(|| {
             xs.iter()
-                .map(|i| sut.declare(*i, IdentKind::Meta, Source::default()))
+                .map(|i| {
+                    declare(&mut sut, *i, IdentKind::Meta, Source::default())
+                })
                 .for_each(drop);
         });
     }
@@ -76,7 +112,9 @@ mod base {
 
         bench.iter(|| {
             xs.iter()
-                .map(|i| sut.declare(*i, IdentKind::Meta, Source::default()))
+                .map(|i| {
+                    declare(&mut sut, *i, IdentKind::Meta, Source::default())
+                })
                 .for_each(drop);
         });
     }
@@ -89,7 +127,12 @@ mod base {
         bench.iter(|| {
             xs.iter()
                 .map(|i| {
-                    sut.declare_extern(*i, IdentKind::Meta, Source::default())
+                    declare_extern(
+                        &mut sut,
+                        *i,
+                        IdentKind::Meta,
+                        Source::default(),
+                    )
                 })
                 .for_each(drop);
         });
@@ -101,15 +144,19 @@ mod base {
         let xs = interned_n(1_000);
 
         xs.iter().for_each(|sym| {
-            let _ =
-                sut.declare_extern(*sym, IdentKind::Meta, Source::default());
+            let _ = declare_extern(
+                &mut sut,
+                *sym,
+                IdentKind::Meta,
+                Source::default(),
+            );
         });
 
         // Bench only the resolution, not initial declare.
         bench.iter(|| {
             xs.iter()
                 .map(|sym| {
-                    sut.declare(*sym, IdentKind::Meta, Source::default())
+                    declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                 })
                 .for_each(drop);
         });
@@ -124,14 +171,17 @@ mod base {
         let xs = interned_n(1_000);
 
         xs.iter().for_each(|sym| {
-            sut.declare(*sym, IdentKind::Meta, Source::default())
+            declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                 .unwrap();
         });
 
         // Bench only the resolution, not initial declare.
         bench.iter(|| {
             xs.iter()
-                .map(|sym| sut.set_fragment(*sym, "".into())) // see N.B.
+                .map(|sym| {
+                    lookup_or_missing(&mut sut, *sym)
+                        .set_fragment(&mut sut, "".into())
+                }) // see N.B.
                 .for_each(drop);
         });
     }
@@ -142,12 +192,12 @@ mod base {
         let xs = interned_n(1_000);
 
         xs.iter().for_each(|sym| {
-            let _ = sut.declare(*sym, IdentKind::Meta, Source::default());
+            let _ = declare(&mut sut, *sym, IdentKind::Meta, Source::default());
         });
 
         bench.iter(|| {
             xs.iter()
-                .map(|sym| sut.lookup_global(*sym).unwrap())
+                .map(|sym| lookup(&mut sut, *sym).unwrap())
                 .for_each(drop);
         });
     }
@@ -160,7 +210,7 @@ mod base {
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(*sym, IdentKind::Meta, Source::default())
+                declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -183,7 +233,7 @@ mod base {
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(*sym, IdentKind::Meta, Source::default())
+                declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -194,7 +244,7 @@ mod base {
         bench.iter(|| {
             orefs
                 .iter()
-                .map(|oref| sut.add_dep(root, *oref))
+                .map(|oref| root.add_opaque_dep(&mut sut, *oref))
                 .for_each(drop);
         });
     }
@@ -208,7 +258,7 @@ mod base {
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(*sym, IdentKind::Meta, Source::default())
+                declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -217,7 +267,7 @@ mod base {
             orefs
                 .iter()
                 .zip(orefs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep(*from, *to))
+                .map(|(from, to)| from.add_opaque_dep(&mut sut, *to))
                 .for_each(drop);
         });
     }
@@ -230,7 +280,7 @@ mod base {
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(*sym, IdentKind::Meta, Source::default())
+                declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
@@ -238,13 +288,13 @@ mod base {
         let root = orefs[0];
 
         orefs.iter().for_each(|oref| {
-            sut.add_dep(root, *oref);
+            root.add_opaque_dep(&mut sut, *oref);
         });
 
         bench.iter(|| {
             orefs
                 .iter()
-                .map(|oref| sut.has_dep(root, *oref))
+                .map(|oref| root.has_edge_to(&sut, *oref))
                 .for_each(drop);
         });
     }
@@ -258,14 +308,14 @@ mod base {
         let orefs = xs
             .iter()
             .map(|sym| {
-                sut.declare(*sym, IdentKind::Meta, Source::default())
+                declare(&mut sut, *sym, IdentKind::Meta, Source::default())
                     .unwrap()
             })
             .collect::<Vec<_>>();
 
         orefs.iter().zip(orefs.iter().cycle().skip(1)).for_each(
             |(from, to)| {
-                sut.add_dep(*from, *to);
+                from.add_opaque_dep(&mut sut, *to);
             },
         );
 
@@ -273,37 +323,7 @@ mod base {
             orefs
                 .iter()
                 .zip(orefs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.has_dep(*from, *to))
-                .for_each(drop);
-        });
-    }
-
-    #[bench]
-    fn add_dep_lookup_1_000_missing_one_edge_per_node(bench: &mut Bencher) {
-        let mut sut = Sut::new();
-        let xs = interned_n(1_000);
-
-        bench.iter(|| {
-            xs.iter()
-                .zip(xs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep_lookup_global(*from, *to))
-                .for_each(drop);
-        });
-    }
-
-    #[bench]
-    fn add_dep_lookup_1_000_existing_one_edge_per_node(bench: &mut Bencher) {
-        let mut sut = Sut::new();
-        let xs = interned_n(1_000);
-
-        xs.iter().for_each(|sym| {
-            let _ = sut.declare(*sym, IdentKind::Meta, Source::default());
-        });
-
-        bench.iter(|| {
-            xs.iter()
-                .zip(xs.iter().cycle().skip(1))
-                .map(|(from, to)| sut.add_dep_lookup_global(*from, *to))
+                .map(|(from, to)| from.has_edge_to(&sut, *to))
                 .for_each(drop);
         });
     }

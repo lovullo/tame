@@ -26,10 +26,7 @@ use self::object::{
     ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
 };
 
-use super::{
-    AsgError, FragmentText, Ident, IdentKind, Object, ObjectIndex, ObjectKind,
-    Source, TransitionResult,
-};
+use super::{AsgError, Ident, Object, ObjectIndex, ObjectKind};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     f::Functor,
@@ -50,7 +47,7 @@ pub mod object;
 pub mod visit;
 pub mod xmli;
 
-use object::{ObjectContainer, ObjectRelTo};
+use object::ObjectContainer;
 
 /// Datatype representing node and edge indexes.
 pub trait IndexType = petgraph::graph::IndexType;
@@ -282,64 +279,6 @@ impl Asg {
         })
     }
 
-    /// Lookup `ident` or add a missing identifier to the graph relative to
-    ///   the global scope and return a reference to it.
-    ///
-    /// See [`Self::lookup_or_missing`] for more information.
-    pub(super) fn lookup_global_or_missing(
-        &mut self,
-        name: SPair,
-    ) -> ObjectIndex<Ident> {
-        self.lookup_or_missing(
-            ObjectIndex::<Root>::new(self.root_node, name),
-            name,
-        )
-    }
-
-    /// Perform a state transition on an identifier by name.
-    ///
-    /// Look up `ident` or add a missing identifier if it does not yet exist
-    ///   (see [`Self::lookup_global_or_missing`]).
-    /// Then invoke `f` with the located identifier and replace the
-    ///   identifier on the graph with the result.
-    ///
-    /// This will safely restore graph state to the original identifier
-    ///   value on transition failure.
-    fn with_ident_lookup_global<F>(
-        &mut self,
-        name: SPair,
-        f: F,
-    ) -> AsgResult<ObjectIndex<Ident>>
-    where
-        F: FnOnce(Ident) -> TransitionResult<Ident>,
-    {
-        let identi = self.lookup_global_or_missing(name);
-        self.with_ident(identi, f)
-    }
-
-    /// Perform a state transition on an identifier by [`ObjectIndex`].
-    ///
-    /// Invoke `f` with the located identifier and replace the identifier on
-    ///   the graph with the result.
-    ///
-    /// This will safely restore graph state to the original identifier
-    ///   value on transition failure.
-    fn with_ident<F>(
-        &mut self,
-        identi: ObjectIndex<Ident>,
-        f: F,
-    ) -> AsgResult<ObjectIndex<Ident>>
-    where
-        F: FnOnce(Ident) -> TransitionResult<Ident>,
-    {
-        let container = self.graph.node_weight_mut(identi.into()).unwrap();
-
-        container
-            .try_replace_with(f)
-            .map(|()| identi)
-            .map_err(Into::into)
-    }
-
     /// Root object.
     ///
     /// All [`Object`]s reachable from the root will be included in the
@@ -348,127 +287,8 @@ impl Asg {
     /// The `witness` is used in the returned [`ObjectIndex`] and is
     ///   intended for diagnostic purposes to highlight the source entity that
     ///   triggered the request of the root.
-    pub fn root(&self, witness: Span) -> ObjectIndex<Root> {
-        ObjectIndex::new(self.root_node, witness)
-    }
-
-    /// Add an object as a root.
-    ///
-    /// Roots are always included during a topological sort and any
-    ///   reachability analysis.
-    ///
-    /// Ideally,
-    ///   roots would be minimal and dependencies properly organized such
-    ///   that objects will be included if they are a transitive dependency
-    ///   of some included subsystem.
-    ///
-    /// See also [`IdentKind::is_auto_root`].
-    pub fn add_root(&mut self, identi: ObjectIndex<Ident>) {
-        self.graph.add_edge(
-            self.root_node,
-            identi.into(),
-            (ObjectRelTy::Root, ObjectRelTy::Ident, None),
-        );
-    }
-
-    /// Whether an object is rooted.
-    ///
-    /// See [`Asg::add_root`] for more information about roots.
-    #[cfg(test)]
-    pub(super) fn is_rooted(&self, identi: ObjectIndex<Ident>) -> bool {
-        self.graph.contains_edge(self.root_node, identi.into())
-    }
-
-    /// Declare a concrete identifier.
-    ///
-    /// An identifier declaration is similar to a declaration in a header
-    ///   file in a language like C,
-    ///     describing the structure of the identifier.
-    /// Once declared,
-    ///   this information cannot be changed.
-    ///
-    /// Identifiers are uniquely identified by a [`SymbolId`] `name`.
-    /// If an identifier of the same `name` already exists,
-    ///   then the provided declaration is compared against the existing
-    ///   declaration---should
-    ///     they be incompatible,
-    ///       then the operation will fail;
-    ///     otherwise,
-    ///       the existing identifier will be returned.
-    ///
-    /// If a concrete identifier has already been declared (see
-    ///   [`Asg::declare`]),
-    ///     then extern declarations will be compared and,
-    ///       if compatible,
-    ///       the identifier will be immediately _resolved_ and the object
-    ///         on the graph will not be altered.
-    /// Resolution will otherwise fail in error.
-    ///
-    /// For more information on state transitions that can occur when
-    ///   redeclaring an identifier that already exists,
-    ///     see [`Ident::resolve`].
-    ///
-    /// A successful declaration will add an identifier to the graph
-    ///   and return an [`ObjectIndex`] reference.
-    pub fn declare(
-        &mut self,
-        name: SPair,
-        kind: IdentKind,
-        src: Source,
-    ) -> AsgResult<ObjectIndex<Ident>> {
-        let is_auto_root = kind.is_auto_root();
-
-        self.with_ident_lookup_global(name, |obj| {
-            obj.resolve(name.span(), kind, src)
-        })
-        .map(|node| {
-            is_auto_root.then(|| self.add_root(node));
-            node
-        })
-    }
-
-    /// Declare an abstract identifier.
-    ///
-    /// An _extern_ declaration declares an identifier the same as
-    ///   [`Asg::declare`],
-    ///     but omits source information.
-    /// Externs are identifiers that are expected to be defined somewhere
-    ///   else ("externally"),
-    ///     and are resolved at [link-time][crate::ld].
-    ///
-    /// If a concrete identifier has already been declared (see
-    ///   [`Asg::declare`]),
-    ///     then the declarations will be compared and,
-    ///       if compatible,
-    ///       the identifier will be immediately _resolved_ and the object
-    ///         on the graph will not be altered.
-    /// Resolution will otherwise fail in error.
-    ///
-    /// See [`Ident::extern_`] and
-    ///   [`Ident::resolve`] for more information on
-    ///   compatibility related to extern resolution.
-    pub fn declare_extern(
-        &mut self,
-        name: SPair,
-        kind: IdentKind,
-        src: Source,
-    ) -> AsgResult<ObjectIndex<Ident>> {
-        self.with_ident_lookup_global(name, |obj| {
-            obj.extern_(name.span(), kind, src)
-        })
-    }
-
-    /// Set the fragment associated with a concrete identifier.
-    ///
-    /// Fragments are intended for use by the [linker][crate::ld].
-    /// For more information,
-    ///   see [`Ident::set_fragment`].
-    pub fn set_fragment(
-        &mut self,
-        name: SPair,
-        text: FragmentText,
-    ) -> AsgResult<ObjectIndex<Ident>> {
-        self.with_ident_lookup_global(name, |obj| obj.set_fragment(text))
+    pub fn root<S: Into<Span>>(&self, witness: S) -> ObjectIndex<Root> {
+        ObjectIndex::new(self.root_node, witness.into())
     }
 
     /// Create a new object on the graph.
@@ -492,7 +312,7 @@ impl Asg {
     ///   _reference_ to the target.
     ///
     /// For more information on how the ASG's ontology is enforced statically,
-    ///   see [`ObjectRelTo`].
+    ///   see [`ObjectRelTo`](object::ObjectRelTo).
     fn add_edge<OB: ObjectKind + ObjectRelatable>(
         &mut self,
         from_oi: impl ObjectIndexRelTo<OB>,
@@ -571,7 +391,7 @@ impl Asg {
     ///     what is intended.
     /// This is sufficient in practice,
     ///   since the graph cannot be constructed without adhering to the edge
-    ///   ontology defined by [`ObjectRelTo`],
+    ///   ontology defined by [`ObjectRelTo`](object::ObjectRelTo),
     ///     but this API is not helpful for catching problems at
     ///     compile-time.
     ///
@@ -648,6 +468,16 @@ impl Asg {
             .map(move |edge| ObjectIndex::<OI>::new(edge.source(), oi))
     }
 
+    /// Check whether an edge exists from `from` to `to.
+    #[inline]
+    pub fn has_edge<OB: ObjectRelatable>(
+        &self,
+        from: impl ObjectIndexRelTo<OB>,
+        to: ObjectIndex<OB>,
+    ) -> bool {
+        self.graph.contains_edge(from.widen().into(), to.into())
+    }
+
     pub(super) fn expect_obj<O: ObjectKind>(&self, oi: ObjectIndex<O>) -> &O {
         let obj_container =
             self.graph.node_weight(oi.into()).diagnostic_expect(
@@ -656,15 +486,6 @@ impl Asg {
             );
 
         obj_container.get()
-    }
-
-    /// Retrieve an identifier from the graph by [`ObjectIndex`].
-    ///
-    /// If the object exists but is not an identifier,
-    ///   [`None`] will be returned.
-    #[inline]
-    pub fn get_ident(&self, index: ObjectIndex<Ident>) -> Option<&Ident> {
-        self.get(index)
     }
 
     /// Attempt to retrieve an identifier from the graph by name relative to
@@ -679,7 +500,7 @@ impl Asg {
     ///   compilation unit,
     ///     which is a package.
     #[inline]
-    pub(super) fn lookup<OS: ObjectIndexTreeRelTo<Ident>>(
+    pub fn lookup<OS: ObjectIndexTreeRelTo<Ident>>(
         &self,
         imm_env: OS,
         id: SPair,
@@ -687,85 +508,6 @@ impl Asg {
         self.index
             .get(&(id.symbol(), imm_env.into()))
             .map(|&ni| ni.overwrite(id.span()))
-    }
-
-    /// Attempt to retrieve an identifier from the graph by name utilizing
-    ///   the global environment.
-    ///
-    /// Since only identifiers carry a name,
-    ///   this method cannot be used to retrieve all possible objects on the
-    ///   graph---for
-    ///     that, see [`Asg::get`].
-    ///
-    /// The global environment is defined as the environment of the current
-    ///   compilation unit,
-    ///     which is a package.
-    #[inline]
-    pub fn lookup_global(&self, name: SPair) -> Option<ObjectIndex<Ident>> {
-        self.lookup(ObjectIndex::<Root>::new(self.root_node, name), name)
-    }
-
-    /// Declare that `dep` is a dependency of `ident`.
-    ///
-    /// An object must be declared as a dependency if its value must be
-    ///   computed before computing the value of `ident`.
-    /// The [linker][crate::ld] will ensure this ordering.
-    ///
-    /// See [`Self::add_dep_lookup_global`] if identifiers have to
-    ///   be looked up by [`SymbolId`] or if they may not yet have been
-    ///   declared.
-    pub fn add_dep<O: ObjectKind>(
-        &mut self,
-        identi: ObjectIndex<Ident>,
-        depi: ObjectIndex<O>,
-    ) where
-        Ident: ObjectRelTo<O>,
-    {
-        self.graph.update_edge(
-            identi.into(),
-            depi.into(),
-            (Ident::rel_ty(), O::rel_ty(), None),
-        );
-    }
-
-    /// Check whether `dep` is a dependency of `ident`.
-    #[inline]
-    pub fn has_dep(
-        &self,
-        ident: ObjectIndex<Ident>,
-        dep: ObjectIndex<Ident>,
-    ) -> bool {
-        self.graph.contains_edge(ident.into(), dep.into())
-    }
-
-    /// Declare that `dep` is a dependency of `ident`,
-    ///   regardless of whether they are known.
-    ///
-    /// In contrast to [`add_dep`][Asg::add_dep],
-    ///   this method will add the dependency even if one or both of `ident`
-    ///   or `dep` have not yet been declared.
-    /// In such a case,
-    ///   a missing identifier will be added as a placeholder,
-    ///     allowing the ASG to be built with partial information as
-    ///     identifiers continue to be discovered.
-    /// See [`Ident::declare`] for more information.
-    ///
-    /// References to both identifiers are returned in argument order.
-    pub fn add_dep_lookup_global(
-        &mut self,
-        ident: SPair,
-        dep: SPair,
-    ) -> (ObjectIndex<Ident>, ObjectIndex<Ident>) {
-        let identi = self.lookup_global_or_missing(ident);
-        let depi = self.lookup_global_or_missing(dep);
-
-        self.graph.update_edge(
-            identi.into(),
-            depi.into(),
-            (Ident::rel_ty(), Ident::rel_ty(), None),
-        );
-
-        (identi, depi)
     }
 }
 

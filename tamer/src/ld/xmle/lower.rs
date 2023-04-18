@@ -94,10 +94,11 @@ fn get_ident<S>(depgraph: &Asg, name: S) -> &Ident
 where
     S: Into<SymbolId>,
 {
+    let oi_root = depgraph.root(UNKNOWN_SPAN);
     let sym = name.into();
 
     depgraph
-        .lookup_global(SPair(sym, UNKNOWN_SPAN))
+        .lookup(oi_root, SPair(sym, UNKNOWN_SPAN))
         .and_then(|id| depgraph.get(id))
         .unwrap_or_else(|| {
             panic!("missing internal identifier: {}", sym.lookup_str())
