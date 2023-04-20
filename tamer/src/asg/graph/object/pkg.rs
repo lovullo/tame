@@ -19,7 +19,7 @@
 
 //! Package object on the ASG.
 
-use super::{prelude::*, Doc, Ident, Tpl};
+use super::{prelude::*, Doc, Ident, NameableMissingObject, Tpl};
 use crate::{
     f::Functor,
     parse::{util::SPair, Token},
@@ -69,6 +69,12 @@ impl Pkg {
 impl Display for Pkg {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "package")
+    }
+}
+
+impl NameableMissingObject for Pkg {
+    fn missing(pathspec: SPair) -> Self {
+        Self::new_imported(pathspec)
     }
 }
 

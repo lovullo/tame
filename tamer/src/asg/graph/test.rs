@@ -19,6 +19,7 @@
 
 use super::*;
 use crate::span::dummy::*;
+use object::Ident;
 use std::convert::Infallible;
 
 type Sut = Asg;

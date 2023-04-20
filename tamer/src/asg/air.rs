@@ -571,7 +571,7 @@ impl AirAggregateCtx {
         // TODO: This currently only indexes for the top of the stack,
         //   but we'll want no-shadow records for the rest of the env.
         if let Some(oi) = self.rooting_oi() {
-            self.asg_mut().index_identifier(oi, name, oi_ident);
+            self.asg_mut().index(oi, name, oi_ident);
         }
 
         oi_ident

@@ -22,11 +22,11 @@
 //! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
-    DynObjectRel, ObjectIndexRelTo, ObjectIndexToTree, ObjectIndexTreeRelTo,
-    ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
+    DynObjectRel, NameableMissingObject, ObjectIndexRelTo,
+    ObjectIndexTreeRelTo, ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
 };
 
-use super::{AsgError, Ident, Object, ObjectIndex, ObjectKind};
+use super::{AsgError, Object, ObjectIndex, ObjectKind};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     f::Functor,
@@ -81,15 +81,6 @@ type Ix = global::ProgSymSize;
 ///
 /// This implementation is currently based on [`petgraph`].
 ///
-/// Identifiers are cached by name for `O(1)` lookup.
-/// Since [`SymbolId`][crate::sym::SymbolId] is used for this purpose,
-///   the index may contain more entries than nodes and may contain gaps.
-///
-/// This IR focuses on the definition and manipulation of objects and their
-///   dependencies.
-/// See [`Ident`]for a summary of valid identifier object state
-///   transitions.
-///
 /// Objects are never deleted from the graph,
 ///   so [`ObjectIndex`]s will remain valid for the lifetime of the ASG.
 ///
@@ -100,27 +91,26 @@ pub struct Asg {
     /// Directed graph on which objects are stored.
     pub graph: DiGraph<Node, AsgEdge, Ix>,
 
-    /// Scoped map of [`SymbolId`][crate::sym::SymbolId] to node indexes.
+    /// Edge cache of [`SymbolId`][crate::sym::SymbolId] to
+    ///   [`ObjectIndex`]es.
     ///
-    /// This maps a `(SymbolId, NodeIndex)` pair to a node on the graph,
-    ///   if any,
-    ///   such that the provided [`SymbolId`] is part of the environment at
-    ///   the paired [`NodeIndex`].
-    /// That is:
-    ///   an identifier must be indexed for _each container_ in its
-    ///     environment,
-    ///       which in turn determines the scope of that identifier.
+    /// This maps a `(SymbolId, NodeIndex)` pair to a node on the graph for
+    ///   a given [`ObjectRelTy`].
+    /// _This indexing is not automatic_;
+    ///   it must be explicitly performed using [`Self::index`].
     ///
-    /// _An index does not imply the existence of an edge._
     /// This index serves as a shortcut for finding nodes on a graph,
     ///   _but makes no claims about the structure of the graph_.
     ///
     /// This allows for `O(1)` lookup of identifiers in the graph relative
-    ///   to the environment of a given node.
+    ///   to a given node.
     /// Note that,
     ///   while we store [`NodeIndex`] internally,
     ///   the public API encapsulates it within an [`ObjectIndex`].
-    index: FxHashMap<(SymbolId, ObjectIndexToTree<Ident>), ObjectIndex<Ident>>,
+    index: FxHashMap<
+        (ObjectRelTy, SymbolId, ObjectIndex<Object>),
+        ObjectIndex<Object>,
+    >,
 
     /// The root node used for reachability analysis and topological
     ///   sorting.
@@ -192,28 +182,35 @@ impl Asg {
         self.graph
     }
 
-    /// Index the provided symbol `name` as representing the identifier
-    ///   `node` in the immediate environment `imm_env`.
+    /// Index the provided symbol `name` as representing the
+    ///   [`ObjectIndex`] in the immediate environment `imm_env`.
     ///
-    /// This index permits `O(1)` identifier lookups.
+    /// An index does not require the existence of an edge,
+    ///   but an index may only be created if an edge `imm_env->oi` _could_
+    ///   be constructed.
+    ///
+    /// This index permits `O(1)` object lookups.
     /// The term "immediate environment" is meant to convey that this index
     ///   applies only to the provided `imm_env` node and does not
-    ///   propagate to any other nodes that share this environment.
+    ///   propagate to any other objects that share this environment.
     ///
-    /// After an identifier is indexed it is not expected to be reassigned
+    /// After an object is indexed it is not expected to be re-indexed
     ///   to another node.
     /// Debug builds contain an assertion that will panic in this instance.
-    pub(super) fn index_identifier<
-        OS: ObjectIndexTreeRelTo<Ident>,
+    pub(super) fn index<
+        O: ObjectRelatable,
+        OS: ObjectIndexTreeRelTo<O>,
         S: Into<SymbolId>,
     >(
         &mut self,
         imm_env: OS,
         name: S,
-        oi: ObjectIndex<Ident>,
+        oi: ObjectIndex<O>,
     ) {
         let sym = name.into();
-        let prev = self.index.insert((sym, imm_env.into()), oi);
+        let prev = self
+            .index
+            .insert((O::rel_ty(), sym, imm_env.widen()), oi.widen());
 
         // We should never overwrite indexes
         #[allow(unused_variables)] // used only for debug
@@ -246,35 +243,34 @@ impl Asg {
         }
     }
 
-    /// Lookup `ident` or add a missing identifier to the graph relative to
+    /// Lookup `name or add a missing object to the graph relative to
     ///   the immediate environment `imm_env` and return a reference to it.
     ///
-    /// The provided span is necessary to seed the missing identifier with
-    ///   some sort of context to aid in debugging why a missing identifier
+    /// The provided span is necessary to seed the missing object with
+    ///   some sort of context to aid in debugging why a missing object
     ///   was introduced to the graph.
-    /// The provided span will be used even if an identifier exists on the
-    ///   graph,
+    /// The provided span will be used by the returned [`ObjectIndex`] even
+    ///   if an object exists on the graph,
     ///     which can be used for retaining information on the location that
-    ///     requested the identifier.
-    /// To retrieve the span of a previously declared identifier,
-    ///   you must resolve the [`Ident`] object and inspect it.
+    ///     requested the object.
+    /// To retrieve the span of a previously declared object,
+    ///   you must resolve the [`ObjectIndex`] and inspect it.
     ///
-    /// See [`Ident::declare`] for more information.
-    pub(super) fn lookup_or_missing<OS: ObjectIndexTreeRelTo<Ident>>(
+    /// See [`Self::index`] for more information.
+    pub(super) fn lookup_or_missing<
+        O: ObjectRelatable,
+        OS: ObjectIndexTreeRelTo<O>,
+    >(
         &mut self,
         imm_env: OS,
         name: SPair,
-    ) -> ObjectIndex<Ident> {
+    ) -> ObjectIndex<O>
+    where
+        O: NameableMissingObject,
+    {
         self.lookup(imm_env, name).unwrap_or_else(|| {
-            let index = self.graph.add_node(Ident::declare(name).into());
-            let oi = ObjectIndex::new(index, name.span());
-
-            self.index_identifier(
-                ObjectIndex::<Root>::new(self.root_node, name.span()),
-                name.symbol(),
-                oi,
-            );
-
+            let oi = self.create(O::missing(name));
+            self.index(imm_env, name.symbol(), oi);
             oi
         })
     }
@@ -500,14 +496,20 @@ impl Asg {
     ///   compilation unit,
     ///     which is a package.
     #[inline]
-    pub fn lookup<OS: ObjectIndexTreeRelTo<Ident>>(
+    pub fn lookup<O: ObjectRelatable, OS: ObjectIndexTreeRelTo<O>>(
         &self,
         imm_env: OS,
         id: SPair,
-    ) -> Option<ObjectIndex<Ident>> {
+    ) -> Option<ObjectIndex<O>> {
+        // The type `O` is encoded into the index on [`Self::index`] and so
+        //   should always be able to be narrowed into the expected type.
+        // If this invariant somehow does not hold,
+        //   then the system will panic when the object is resolved.
+        // Maybe future Rust will have dependent types that allow for better
+        //   static assurances.
         self.index
-            .get(&(id.symbol(), imm_env.into()))
-            .map(|&ni| ni.overwrite(id.span()))
+            .get(&(O::rel_ty(), id.symbol(), imm_env.widen()))
+            .map(|&ni| ni.overwrite(id.span()).must_narrow_into::<O>())
     }
 }
 
