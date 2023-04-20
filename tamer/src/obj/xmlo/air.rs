@@ -35,7 +35,7 @@ use crate::{
     sym::SymbolId,
 };
 
-use super::XmloToken;
+use super::XmloToken::{self, *};
 
 /// Persistent `xmlo` lowering context to be shared among all `xmlo` files.
 ///
@@ -113,7 +113,7 @@ impl ParseState for XmloToAir {
         use XmloToAir::*;
 
         match (self, tok) {
-            (PackageExpected, XmloToken::PkgName(name)) => {
+            (PackageExpected, PkgName(name)) => {
                 if ctx.is_first() {
                     ctx.prog_name = Some(name.symbol());
                 }
@@ -121,7 +121,7 @@ impl ParseState for XmloToAir {
                 Transition(Package(name)).incomplete()
             }
 
-            (st @ Package(..), XmloToken::PkgRootPath(relroot)) => {
+            (st @ Package(..), PkgRootPath(relroot)) => {
                 if ctx.is_first() {
                     ctx.relroot = Some(relroot.symbol());
                 }
@@ -135,7 +135,7 @@ impl ParseState for XmloToAir {
             //     definition is encountered later within the same file.
             // TODO: Let's remove the need for this special root handling
             //   here.
-            (Package(name), XmloToken::PkgEligClassYields(pkg_elig)) => {
+            (Package(name), PkgEligClassYields(pkg_elig)) => {
                 // The span for this is a bit awkward,
                 //   given that rooting is automatic,
                 //   but it it should never have to be utilized in
@@ -143,27 +143,23 @@ impl ParseState for XmloToAir {
                 Transition(Package(name)).ok(Air::IdentRoot(pkg_elig))
             }
 
-            (
-                st @ (PackageExpected | Package(..)),
-                XmloToken::PkgProgramFlag(_),
-            ) => {
+            (st @ (PackageExpected | Package(..)), PkgProgramFlag(_)) => {
                 // TODO: Unused
                 Transition(st).incomplete()
             }
 
-            (
-                Package(pkg_name) | SymDep(pkg_name, ..),
-                XmloToken::SymDepStart(sym),
-            ) => Transition(SymDep(pkg_name, sym)).incomplete(),
+            (Package(pkg_name) | SymDep(pkg_name, ..), SymDepStart(sym)) => {
+                Transition(SymDep(pkg_name, sym)).incomplete()
+            }
 
-            (SymDep(pkg_name, sym), XmloToken::Symbol(dep_sym)) => {
+            (SymDep(pkg_name, sym), Symbol(dep_sym)) => {
                 Transition(SymDep(pkg_name, sym))
                     .ok(Air::IdentDep(sym, dep_sym))
             }
 
             (
                 Package(pkg_name),
-                XmloToken::SymDecl(
+                SymDecl(
                     _name,
                     SymAttrs {
                         src: Some(sym_src), ..
@@ -174,7 +170,7 @@ impl ParseState for XmloToAir {
                 Transition(Package(pkg_name)).incomplete()
             }
 
-            (Package(pkg_name), XmloToken::SymDecl(name, attrs)) => {
+            (Package(pkg_name), SymDecl(name, attrs)) => {
                 let extern_ = attrs.extern_;
 
                 // TODO: This attr/source separation is a mess,
@@ -209,16 +205,13 @@ impl ParseState for XmloToAir {
                     .transition(Package(pkg_name))
             }
 
-            (
-                Package(pkg_name) | SymDep(pkg_name, _),
-                XmloToken::Fragment(name, text),
-            ) => {
+            (Package(pkg_name) | SymDep(pkg_name, _), Fragment(name, text)) => {
                 Transition(Package(pkg_name)).ok(Air::IdentFragment(name, text))
             }
 
             // We don't need to read any further than the end of the
             //   header (symtable, sym-deps, fragments).
-            (Package(..) | SymDep(..), XmloToken::Eoh(span)) => {
+            (Package(..) | SymDep(..), Eoh(span)) => {
                 // It's important to set this _after_ we're done processing,
                 //   otherwise our `first` checks above will be inaccurate.
                 ctx.first = false;

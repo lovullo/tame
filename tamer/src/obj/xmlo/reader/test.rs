@@ -39,6 +39,9 @@ use crate::{
 
 type Sut = XmloReader;
 
+use Parsed::{Incomplete, Object as O};
+use XmloToken::*;
+
 #[test]
 fn fails_on_invalid_root() {
     let tok = open("not-a-valid-package-node", S1, Depth(0));
@@ -78,16 +81,16 @@ fn common_parses_package_attrs(package: QName) {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,
-            Parsed::Object(XmloToken::PkgName(SPair(name, S3))),
-            Parsed::Object(XmloToken::PkgRootPath(SPair(relroot, S3))),
+            Incomplete,
+            O(PkgName(SPair(name, S3))),
+            O(PkgRootPath(SPair(relroot, S3))),
             // Span for the program flag is the attr name,
             //   rather than the value,
             //   since the value is just a boolean and does not provide as
             //     useful of context.
-            Parsed::Object(XmloToken::PkgProgramFlag(S3)),
-            Parsed::Object(XmloToken::PkgEligClassYields(SPair(elig, S4))),
-            Parsed::Incomplete,
+            O(PkgProgramFlag(S3)),
+            O(PkgEligClassYields(SPair(elig, S4))),
+            Incomplete,
         ]),
         sut.collect(),
     );
@@ -124,10 +127,10 @@ fn ignores_unknown_package_attr() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete,
-            Parsed::Object(XmloToken::PkgName(SPair(name, S3))),
-            Parsed::Incomplete, // The unknown attribute
-            Parsed::Incomplete,
+            Incomplete,
+            O(PkgName(SPair(name, S3))),
+            Incomplete, // The unknown attribute
+            Incomplete,
         ]),
         sut.collect(),
     );
@@ -144,7 +147,7 @@ fn symtable_err_missing_sym_name() {
 
     let mut sut = SymtableState::parse(toks);
 
-    assert_eq!(sut.next(), Some(Ok(Parsed::Incomplete)),);
+    assert_eq!(sut.next(), Some(Ok(Incomplete)),);
 
     assert_eq!(
         sut.next(),
@@ -182,16 +185,16 @@ macro_rules! symtable_tests {
                     match $expect {
                         Ok(expected) =>
                             Ok(vec![
-                                Parsed::Incomplete,  // Opening tag
-                                Parsed::Incomplete,  // @name
+                                Incomplete,  // Opening tag
+                                Incomplete,  // @name
                                 $(
                                     // For each attribute ($key here is necessary
                                     //   for macro iteration).
                                     #[allow(unused)]
                                     #[doc=stringify!($key)]
-                                    Parsed::Incomplete,
+                                    Incomplete,
                                 )*
-                                Parsed::Object(XmloToken::SymDecl(
+                                O(SymDecl(
                                     SPair(name, S3),
                                     expected
                                 )),
@@ -345,10 +348,10 @@ fn symtable_sym_generated_true() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // Opening tag
-            Parsed::Incomplete, // @name
-            Parsed::Incomplete, // @preproc:generated
-            Parsed::Object(XmloToken::SymDecl(SPair(name, S3), expected)),
+            Incomplete, // Opening tag
+            Incomplete, // @name
+            Incomplete, // @preproc:generated
+            O(SymDecl(SPair(name, S3), expected)),
         ]),
         SymtableState::parse(toks).collect(),
     );
@@ -382,13 +385,13 @@ fn symtable_map_from() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // Opening tag
-            Parsed::Incomplete, // @name
-            Parsed::Incomplete, // @type
-            Parsed::Incomplete, //   <preproc:from
-            Parsed::Incomplete, //   @name
-            Parsed::Incomplete, //   />
-            Parsed::Object(XmloToken::SymDecl(SPair(name, S3), expected)),
+            Incomplete, // Opening tag
+            Incomplete, // @name
+            Incomplete, // @type
+            Incomplete, //   <preproc:from
+            Incomplete, //   @name
+            Incomplete, //   />
+            O(SymDecl(SPair(name, S3), expected)),
         ]),
         SymtableState::parse(toks).collect(),
     );
@@ -473,15 +476,15 @@ fn sym_dep_event() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // <preproc:sym-ref
-            Parsed::Object(XmloToken::SymDepStart(SPair(name, S1))), // @name
-            Parsed::Incomplete, // <preproc:sym-ref
-            Parsed::Object(XmloToken::Symbol(SPair(dep1, S4))), // @name
-            Parsed::Incomplete, // />
-            Parsed::Incomplete, // <preproc:sym-ref
-            Parsed::Object(XmloToken::Symbol(SPair(dep2, S5))), // @name
-            Parsed::Incomplete, // />
-            Parsed::Incomplete, // </preproc:sym-dep>
+            Incomplete,                      // <preproc:sym-ref
+            O(SymDepStart(SPair(name, S1))), // @name
+            Incomplete,                      // <preproc:sym-ref
+            O(Symbol(SPair(dep1, S4))),      // @name
+            Incomplete,                      // />
+            Incomplete,                      // <preproc:sym-ref
+            O(Symbol(SPair(dep2, S5))),      // @name
+            Incomplete,                      // />
+            Incomplete,                      // </preproc:sym-dep>
         ]),
         SymDepsState::parse(toks).collect()
     );
@@ -546,14 +549,14 @@ fn sym_fragment_event() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // <preproc:fragment
-            Parsed::Incomplete, // @id
-            Parsed::Object(XmloToken::Fragment(SPair(id1, S1), frag1)), // text
-            Parsed::Incomplete, // </preproc:fragment>
-            Parsed::Incomplete, // <preproc:fragment
-            Parsed::Incomplete, // @id
-            Parsed::Object(XmloToken::Fragment(SPair(id2, S2), frag2)), // text
-            Parsed::Incomplete, // </preproc:fragment>
+            Incomplete,                         // <preproc:fragment
+            Incomplete,                         // @id
+            O(Fragment(SPair(id1, S1), frag1)), // text
+            Incomplete,                         // </preproc:fragment>
+            Incomplete,                         // <preproc:fragment
+            Incomplete,                         // @id
+            O(Fragment(SPair(id2, S2), frag2)), // text
+            Incomplete,                         // </preproc:fragment>
         ]),
         FragmentsState::parse(toks).collect()
     );
@@ -666,16 +669,13 @@ fn xmlo_composite_parsers_header() {
 
     assert_eq!(
         Ok(vec![
-            Parsed::Object(XmloToken::SymDecl(
-                SPair(sym_name, S3),
-                Default::default(),
-            )),
-            Parsed::Object(XmloToken::SymDepStart(SPair(symdep_name, S3))),
-            Parsed::Object(XmloToken::Fragment(SPair(symfrag_id, S4), frag)),
-            Parsed::Object(XmloToken::Eoh(S3)),
+            O(SymDecl(SPair(sym_name, S3), Default::default(),)),
+            O(SymDepStart(SPair(symdep_name, S3))),
+            O(Fragment(SPair(symfrag_id, S4), frag)),
+            O(Eoh(S3)),
         ]),
         sut.filter(|parsed| match parsed {
-            Ok(Parsed::Incomplete) => false,
+            Ok(Incomplete) => false,
             _ => true,
         })
         .collect(),

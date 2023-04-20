@@ -29,23 +29,30 @@ use crate::{
 
 type Sut = XmloToAir;
 
+use Parsed::{Incomplete, Object as O};
+
 #[test]
 fn data_from_package_event() {
     let name = "name".into();
     let relroot = "some/path".into();
 
     let toks = vec![
-        XmloToken::PkgName(SPair(name, S1)),
-        XmloToken::PkgRootPath(SPair(relroot, S2)),
-        XmloToken::Eoh(S3),
+        PkgName(SPair(name, S1)),
+        PkgRootPath(SPair(relroot, S2)),
+        Eoh(S3),
     ]
     .into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgName
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgRootPath
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Eoh
+    assert_eq!(
+        Ok(vec![
+            Incomplete, // PkgName
+            Incomplete, // PkgRootPath
+            Incomplete, // Eoh
+        ]),
+        sut.by_ref().collect(),
+    );
 
     let ctx = sut.finalize().unwrap().into_context();
 
@@ -59,16 +66,16 @@ fn adds_elig_as_root() {
     let elig_sym = "elig".into();
 
     let toks = vec![
-        XmloToken::PkgName(SPair(name, S1)),
-        XmloToken::PkgEligClassYields(SPair(elig_sym, S2)),
-        XmloToken::Eoh(S3),
+        PkgName(SPair(name, S1)),
+        PkgEligClassYields(SPair(elig_sym, S2)),
+        Eoh(S3),
     ];
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // PkgName
-            Parsed::Object(Air::IdentRoot(SPair(elig_sym, S2))),
-            Parsed::Incomplete, // Eoh
+            Incomplete, // PkgName
+            O(Air::IdentRoot(SPair(elig_sym, S2))),
+            Incomplete, // Eoh
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -81,26 +88,20 @@ fn adds_sym_deps() {
     let sym_to2 = "to2".into();
 
     let toks = vec![
-        XmloToken::PkgName(SPair("name".into(), S1)),
-        XmloToken::SymDepStart(SPair(sym_from, S2)),
-        XmloToken::Symbol(SPair(sym_to1, S3)),
-        XmloToken::Symbol(SPair(sym_to2, S4)),
-        XmloToken::Eoh(S1),
+        PkgName(SPair("name".into(), S1)),
+        SymDepStart(SPair(sym_from, S2)),
+        Symbol(SPair(sym_to1, S3)),
+        Symbol(SPair(sym_to2, S4)),
+        Eoh(S1),
     ];
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // PkgName
-            Parsed::Incomplete, // SymDepStart
-            Parsed::Object(Air::IdentDep(
-                SPair(sym_from, S2),
-                SPair(sym_to1, S3)
-            )),
-            Parsed::Object(Air::IdentDep(
-                SPair(sym_from, S2),
-                SPair(sym_to2, S4)
-            )),
-            Parsed::Incomplete, // Eoh
+            Incomplete, // PkgName
+            Incomplete, // SymDepStart
+            O(Air::IdentDep(SPair(sym_from, S2), SPair(sym_to1, S3))),
+            O(Air::IdentDep(SPair(sym_from, S2), SPair(sym_to2, S4))),
+            Incomplete, // Eoh
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -113,30 +114,35 @@ fn sym_decl_with_src_not_added_and_populates_found() {
     let src_b = "src_b".into();
 
     let toks = vec![
-        XmloToken::PkgName(SPair("name".into(), S1)),
-        XmloToken::SymDecl(
+        PkgName(SPair("name".into(), S1)),
+        SymDecl(
             SPair(sym, S2),
             SymAttrs {
                 src: Some(src_a),
                 ..Default::default()
             },
         ),
-        XmloToken::SymDecl(
+        SymDecl(
             SPair(sym, S3),
             SymAttrs {
                 src: Some(src_b),
                 ..Default::default()
             },
         ),
-        XmloToken::Eoh(S1),
+        Eoh(S1),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgName
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // SymDecl (@src)
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // SymDecl (@src)
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Eoh
+    assert_eq!(
+        Ok(vec![
+            Incomplete, // PkgName
+            Incomplete, // SymDecl (@src)
+            Incomplete, // SymDecl (@src)
+            Incomplete, // Eoh
+        ]),
+        sut.by_ref().collect(),
+    );
 
     let ctx = sut.finalize().unwrap().into_context();
     let mut founds = ctx.found.unwrap().into_iter().collect::<Vec<_>>();
@@ -157,8 +163,8 @@ fn sym_decl_added_to_graph() {
     let pkg_name = "pkg name".into();
 
     let toks = vec![
-        XmloToken::PkgName(SPair("name".into(), S1)),
-        XmloToken::SymDecl(
+        PkgName(SPair("name".into(), S1)),
+        SymDecl(
             SPair(sym_extern, S1),
             SymAttrs {
                 pkg_name: Some(pkg_name),
@@ -167,7 +173,7 @@ fn sym_decl_added_to_graph() {
                 ..Default::default()
             },
         ),
-        XmloToken::SymDecl(
+        SymDecl(
             SPair(sym_non_extern, S2),
             SymAttrs {
                 pkg_name: Some(pkg_name),
@@ -175,7 +181,7 @@ fn sym_decl_added_to_graph() {
                 ..Default::default()
             },
         ),
-        XmloToken::SymDecl(
+        SymDecl(
             SPair(sym_map, S3),
             SymAttrs {
                 pkg_name: Some(pkg_name),
@@ -183,7 +189,7 @@ fn sym_decl_added_to_graph() {
                 ..Default::default()
             },
         ),
-        XmloToken::SymDecl(
+        SymDecl(
             SPair(sym_retmap, S4),
             SymAttrs {
                 pkg_name: Some(pkg_name),
@@ -191,16 +197,16 @@ fn sym_decl_added_to_graph() {
                 ..Default::default()
             },
         ),
-        XmloToken::Eoh(S1),
+        Eoh(S1),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
 
     // Note that each of these will have their package names cleared
     //   since this is considered to be the first package encountered.
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // PkgName
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // PkgName
     assert_eq!(
-        Some(Ok(Parsed::Object(Air::IdentExternDecl(
+        Some(Ok(O(Air::IdentExternDecl(
             SPair(sym_extern, S1),
             IdentKind::Meta,
             Source {
@@ -211,7 +217,7 @@ fn sym_decl_added_to_graph() {
         sut.next(),
     );
     assert_eq!(
-        Some(Ok(Parsed::Object(Air::IdentDecl(
+        Some(Ok(O(Air::IdentDecl(
             SPair(sym_non_extern, S2),
             IdentKind::Meta,
             Source {
@@ -222,7 +228,7 @@ fn sym_decl_added_to_graph() {
         sut.next(),
     );
     assert_eq!(
-        Some(Ok(Parsed::Object(Air::IdentDecl(
+        Some(Ok(O(Air::IdentDecl(
             SPair(sym_map, S3),
             IdentKind::Map,
             Source {
@@ -233,7 +239,7 @@ fn sym_decl_added_to_graph() {
         sut.next(),
     );
     assert_eq!(
-        Some(Ok(Parsed::Object(Air::IdentDecl(
+        Some(Ok(O(Air::IdentDecl(
             SPair(sym_retmap, S4),
             IdentKind::RetMap,
             Source {
@@ -243,7 +249,7 @@ fn sym_decl_added_to_graph() {
         )))),
         sut.next(),
     );
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // Eoh
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // Eoh
 
     let ctx = sut.finalize().unwrap().into_context();
 
@@ -268,8 +274,8 @@ fn sym_decl_pkg_name_retained_if_not_first() {
     };
 
     let toks = vec![
-        XmloToken::PkgName(SPair(pkg_name, S1)),
-        XmloToken::SymDecl(
+        PkgName(SPair(pkg_name, S1)),
+        SymDecl(
             SPair(sym, S2),
             SymAttrs {
                 pkg_name: Some(pkg_name),
@@ -277,13 +283,13 @@ fn sym_decl_pkg_name_retained_if_not_first() {
                 ..Default::default()
             },
         ),
-        XmloToken::Eoh(S1),
+        Eoh(S1),
     ];
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // PkgName
-            Parsed::Object(Air::IdentDecl(
+            Incomplete, // PkgName
+            O(Air::IdentDecl(
                 SPair(sym, S2),
                 IdentKind::Meta,
                 Source {
@@ -291,7 +297,7 @@ fn sym_decl_pkg_name_retained_if_not_first() {
                     ..Default::default()
                 }
             )),
-            Parsed::Incomplete, // Eoh
+            Incomplete, // Eoh
         ]),
         Sut::parse_with_context(toks.into_iter(), ctx).collect(),
     );
@@ -310,8 +316,8 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
     };
 
     let toks = vec![
-        XmloToken::PkgName(SPair(pkg_name, S1)),
-        XmloToken::SymDecl(
+        PkgName(SPair(pkg_name, S1)),
+        SymDecl(
             SPair(sym, S2),
             SymAttrs {
                 // No name
@@ -319,13 +325,13 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
                 ..Default::default()
             },
         ),
-        XmloToken::Eoh(S1),
+        Eoh(S1),
     ];
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // PkgName
-            Parsed::Object(Air::IdentDecl(
+            Incomplete, // PkgName
+            O(Air::IdentDecl(
                 SPair(sym, S2),
                 IdentKind::Meta,
                 Source {
@@ -333,7 +339,7 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
                     ..Default::default()
                 },
             )),
-            Parsed::Incomplete, // Eoh
+            Incomplete, // Eoh
         ]),
         Sut::parse_with_context(toks.into_iter(), ctx).collect(),
     );
@@ -345,9 +351,9 @@ fn ident_kind_conversion_error_propagates() {
     let bad_attrs = SymAttrs::default();
 
     let toks = vec![
-        XmloToken::PkgName(SPair("name".into(), S1)),
-        XmloToken::SymDecl(SPair(sym, S2), bad_attrs),
-        XmloToken::Eoh(S1),
+        PkgName(SPair("name".into(), S1)),
+        SymDecl(SPair(sym, S2), bad_attrs),
+        Eoh(S1),
     ];
 
     Sut::parse(toks.into_iter())
@@ -361,16 +367,16 @@ fn sets_fragment() {
     let frag = FragmentText::from("foo");
 
     let toks = vec![
-        XmloToken::PkgName(SPair("name".into(), S1)),
-        XmloToken::Fragment(SPair(sym, S2), frag.clone()),
-        XmloToken::Eoh(S1),
+        PkgName(SPair("name".into(), S1)),
+        Fragment(SPair(sym, S2), frag.clone()),
+        Eoh(S1),
     ];
 
     assert_eq!(
         Ok(vec![
-            Parsed::Incomplete, // PkgName
-            Parsed::Object(Air::IdentFragment(SPair(sym, S2), frag)),
-            Parsed::Incomplete, // Eoh
+            Incomplete, // PkgName
+            O(Air::IdentFragment(SPair(sym, S2), frag)),
+            Incomplete, // Eoh
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
