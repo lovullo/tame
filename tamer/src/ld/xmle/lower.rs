@@ -72,6 +72,10 @@ where
             Object::Root(_) => (),
             Object::Ident(ident) => dest.push(ident)?,
 
+            // Identifiers are parented to their packages,
+            //   but they're nothing more than containers.
+            Object::Pkg(_) => (),
+
             obj => {
                 diagnostic_unreachable!(
                     obj.internal_error(

@@ -92,6 +92,7 @@ type PackageSPair = SPair;
 pub enum XmloToAir {
     #[default]
     PackageExpected,
+    PackageFound(Span),
     Package(PackageSPair),
     SymDep(PackageSPair, SPair),
     /// End of header (EOH) reached.
@@ -113,7 +114,13 @@ impl ParseState for XmloToAir {
         use XmloToAir::*;
 
         match (self, tok) {
-            (PackageExpected, PkgName(name)) => {
+            (PackageExpected, PkgStart(span)) => {
+                Transition(PackageFound(span)).ok(Air::PkgStart(span))
+            }
+
+            (PackageExpected, tok) => Transition(PackageExpected).dead(tok),
+
+            (PackageFound(_), PkgName(name)) => {
                 if ctx.is_first() {
                     ctx.prog_name = Some(name.symbol());
                 }
@@ -143,7 +150,7 @@ impl ParseState for XmloToAir {
                 Transition(Package(name)).ok(Air::IdentRoot(pkg_elig))
             }
 
-            (st @ (PackageExpected | Package(..)), PkgProgramFlag(_)) => {
+            (st @ (PackageFound(..) | Package(..)), PkgProgramFlag(_)) => {
                 // TODO: Unused
                 Transition(st).incomplete()
             }
@@ -219,13 +226,15 @@ impl ParseState for XmloToAir {
                 // Note that this uses `incomplete` because we have nothing
                 //   to yield,
                 //     but we are in fact done.
-                Transition(Done(span)).incomplete()
+                Transition(Done(span)).ok(Air::PkgEnd(span))
             }
 
-            (st @ Package(..), tok @ (PkgName(..) | Symbol(..))) => {
-                Transition(st).dead(tok)
-            }
-            (st @ (PackageExpected | SymDep(..) | Done(..)), tok) => {
+            (
+                st @ Package(..),
+                tok @ (PkgStart(..) | PkgName(..) | Symbol(..)),
+            ) => Transition(st).dead(tok),
+
+            (st @ (PackageFound(..) | SymDep(..) | Done(..)), tok) => {
                 Transition(st).dead(tok)
             }
         }
@@ -242,6 +251,7 @@ impl Display for XmloToAir {
 
         match self {
             PackageExpected => write!(f, "expecting package definition"),
+            PackageFound(_) => write!(f, "package found, awaiting definition"),
             Package(name) => {
                 write!(f, "expecting package `/{name}` declarations")
             }

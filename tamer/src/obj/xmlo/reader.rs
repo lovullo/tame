@@ -49,6 +49,9 @@ use crate::{
 ///   be useful and can't be easily skipped without parsing.
 #[derive(Debug, PartialEq, Eq)]
 pub enum XmloToken {
+    /// A new package has been found.
+    PkgStart(Span),
+
     /// Canonical package name.
     PkgName(SPair),
     /// Relative path from package to project root.
@@ -109,7 +112,8 @@ impl Token for XmloToken {
             //   important since these initial tokens seed
             //   `Parser::last_span`,
             //     which is used for early error messages.
-            PkgName(SPair(_, span))
+            PkgStart(span)
+            | PkgName(SPair(_, span))
             | PkgRootPath(SPair(_, span))
             | PkgProgramFlag(span)
             | PkgEligClassYields(SPair(_, span))
@@ -127,6 +131,7 @@ impl Display for XmloToken {
         use XmloToken::*;
 
         match self {
+            PkgStart(_) => write!(f, "package start"),
             PkgName(sym) => write!(f, "package of name {}", TtQuote::wrap(sym)),
             PkgRootPath(sym) => {
                 write!(f, "package root path {}", TtQuote::wrap(sym))
@@ -208,8 +213,9 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
         use XmloReader::*;
 
         match (self, tok) {
-            (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, span, ..)) => {
-                Transition(Package(span.tag_span())).incomplete()
+            (Ready, Xirf::Open(QN_LV_PACKAGE | QN_PACKAGE, ospan, ..)) => {
+                let span = ospan.tag_span();
+                Transition(Package(span)).ok(XmloToken::PkgStart(span))
             }
 
             (Ready, tok) => {

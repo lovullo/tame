@@ -24,12 +24,11 @@ use super::{super::Ident, *};
 use crate::{
     asg::{
         graph::object::{ObjectRel, ObjectRelFrom, ObjectRelatable},
-        IdentKind, ObjectIndexRelTo, Source,
+        IdentKind, ObjectIndexRelTo, Source, TransitionError,
     },
     parse::{ParseError, Parsed, Parser},
     span::dummy::*,
 };
-use std::assert_matches::assert_matches;
 
 type Sut = AirAggregate;
 
@@ -38,17 +37,38 @@ use Parsed::Incomplete;
 
 #[test]
 fn ident_decl() {
-    let id = SPair("foo".into(), S1);
+    let id = SPair("foo".into(), S2);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/decl".into()),
         ..Default::default()
     };
 
-    let toks = vec![IdentDecl(id, kind.clone(), src.clone())].into_iter();
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          IdentDecl(id, kind.clone(), src.clone()),
+          // Attempt re-declaration.
+          IdentDecl(id, kind.clone(), src.clone()),
+        PkgEnd(S3),
+    ].into_iter();
+
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next());
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Incomplete), // PkgStart
+              Ok(Incomplete), // IdentDecl
+              // Redeclare identifier
+              Err(ParseError::StateError(AsgError::IdentTransition(
+                  TransitionError::Redeclare(id, S2)
+              ))),
+              // RECOVERY: Ignore redeclaration
+            Ok(Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<Result<Parsed<()>, _>>>(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -59,35 +79,51 @@ fn ident_decl() {
     assert_eq!(
         Ok(ident),
         Ident::declare(id)
-            .resolve(S1, kind.clone(), src.clone())
+            .resolve(S2, kind.clone(), src.clone())
             .as_ref(),
-    );
-
-    // Re-instantiate the parser and test an error by attempting to
-    //   redeclare the same identifier.
-    let bad_toks =
-        vec![IdentDecl(SPair(id.symbol(), S2), kind, src)].into_iter();
-    let mut sut = Sut::parse_with_context(bad_toks, asg);
-
-    assert_matches!(
-        sut.next(),
-        Some(Err(ParseError::StateError(AsgError::IdentTransition(_)))),
     );
 }
 
 #[test]
 fn ident_extern_decl() {
-    let id = SPair("foo".into(), S1);
+    let id = SPair("foo".into(), S2);
+    let re_id = SPair("foo".into(), S3);
     let kind = IdentKind::Tpl;
+    let different_kind = IdentKind::Meta;
     let src = Source {
         src: Some("test/decl-extern".into()),
         ..Default::default()
     };
 
-    let toks = vec![IdentExternDecl(id, kind.clone(), src.clone())].into_iter();
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          IdentExternDecl(id, kind.clone(), src.clone()),
+          // Redeclare with a different kind
+          IdentExternDecl(re_id, different_kind.clone(), src.clone()),
+        PkgEnd(S4),
+    ].into_iter();
+
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next());
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Incomplete), // PkgStart
+              Ok(Incomplete), // IdentDecl
+              // Redeclare identifier with a different kind
+              Err(ParseError::StateError(AsgError::IdentTransition(
+                  TransitionError::ExternResolution(
+                      id,
+                      kind.clone(),
+                      (different_kind, S3)
+                  )
+              ))),
+              // RECOVERY: Ignore redeclaration
+            Ok(Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<Result<Parsed<()>, _>>>(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -97,32 +133,33 @@ fn ident_extern_decl() {
 
     assert_eq!(
         Ok(ident),
-        Ident::declare(id).extern_(S1, kind, src.clone()).as_ref(),
-    );
-
-    // Re-instantiate the parser and test an error by attempting to
-    //   redeclare with a different kind.
-    let different_kind = IdentKind::Meta;
-    let bad_toks =
-        vec![IdentExternDecl(SPair(id.symbol(), S2), different_kind, src)]
-            .into_iter();
-    let mut sut = Sut::parse_with_context(bad_toks, asg);
-
-    assert_matches!(
-        sut.next(),
-        Some(Err(ParseError::StateError(AsgError::IdentTransition(_)))),
+        Ident::declare(id).extern_(S2, kind, src.clone()).as_ref(),
     );
 }
 
 #[test]
 fn ident_dep() {
-    let id = SPair("foo".into(), S1);
-    let dep = SPair("dep".into(), S2);
+    let id = SPair("foo".into(), S2);
+    let dep = SPair("dep".into(), S3);
 
-    let toks = vec![IdentDep(id, dep)].into_iter();
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          IdentDep(id, dep),
+        PkgEnd(S4),
+    ].into_iter();
+
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next());
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            Incomplete, // PkgStart
+              Incomplete, // IdentDep
+            Incomplete, // PkgEnd
+        ]),
+        sut.by_ref().collect(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -135,7 +172,7 @@ fn ident_dep() {
 
 #[test]
 fn ident_fragment() {
-    let id = SPair("frag".into(), S1);
+    let id = SPair("frag".into(), S2);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/frag".into()),
@@ -143,18 +180,36 @@ fn ident_fragment() {
     };
     let frag = "fragment text".into();
 
+    #[rustfmt::skip]
     let toks = vec![
-        // Identifier must be declared before it can be given a
-        //   fragment.
-        IdentDecl(id, kind.clone(), src.clone()),
-        IdentFragment(id, frag),
-    ]
-    .into_iter();
+        PkgStart(S1),
+          // Identifier must be declared before it can be given a
+          //   fragment.
+          IdentDecl(id, kind.clone(), src.clone()),
+          IdentFragment(id, frag),
+          // Reset fragment (error)
+          IdentFragment(id, frag),
+          // RECOVERY: Ignore reset
+        PkgEnd(S4),
+    ] .into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentDecl
-    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentFragment
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Incomplete),   // PkgStart
+              Ok(Incomplete), // IdentDecl
+              Ok(Incomplete), // IdentFragment
+              // Reset fragment
+              Err(ParseError::StateError(AsgError::IdentTransition(
+                  TransitionError::BadFragmentDest(id)
+              ))),
+              // RECOVERY: Ignore reset
+            Ok(Incomplete),   // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<Result<Parsed<()>, _>>>(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -165,19 +220,9 @@ fn ident_fragment() {
     assert_eq!(
         Ok(ident),
         Ident::declare(id)
-            .resolve(S1, kind.clone(), src.clone())
+            .resolve(S2, kind.clone(), src.clone())
             .and_then(|resolved| resolved.set_fragment(frag))
             .as_ref(),
-    );
-
-    // Re-instantiate the parser and test an error by attempting to
-    //   re-set the fragment.
-    let bad_toks = vec![IdentFragment(id, frag)].into_iter();
-    let mut sut = Sut::parse_with_context(bad_toks, asg);
-
-    assert_matches!(
-        sut.next(),
-        Some(Err(ParseError::StateError(AsgError::IdentTransition(_)))),
     );
 }
 
@@ -185,12 +230,26 @@ fn ident_fragment() {
 //   `Ident::Missing`.
 #[test]
 fn ident_root_missing() {
-    let id = SPair("toroot".into(), S1);
+    let id = SPair("toroot".into(), S2);
 
-    let toks = vec![IdentRoot(id)].into_iter();
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          IdentRoot(id),
+        PkgEnd(S3),
+    ].into_iter();
+
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next());
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            Incomplete, // PkgStart
+              Incomplete, // IdentRoot
+            Incomplete, // PkgEnd
+        ]),
+        sut.by_ref().collect(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -208,7 +267,7 @@ fn ident_root_missing() {
 
 #[test]
 fn ident_root_existing() {
-    let id = SPair("toroot".into(), S1);
+    let id = SPair("toroot".into(), S2);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/root-existing".into()),
@@ -219,16 +278,27 @@ fn ident_root_existing() {
     //   otherwise we won't be testing the right thing.
     assert!(!kind.is_auto_root());
 
+    #[rustfmt::skip]
     let toks = vec![
-        IdentDecl(id, kind.clone(), src.clone()),
-        IdentRoot(SPair(id.symbol(), S2)),
+        PkgStart(S1),
+          IdentDecl(id, kind.clone(), src.clone()),
+          IdentRoot(SPair(id.symbol(), S3)),
+        PkgEnd(S3),
     ]
     .into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentDecl
-    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentRoot
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            Incomplete, // PkgStart
+              Incomplete, // IdentDecl
+              Incomplete, // IdentRoot
+            Incomplete, // PkgEnd
+        ]),
+        sut.by_ref().collect(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -240,7 +310,7 @@ fn ident_root_existing() {
     assert_eq!(
         Ok(ident),
         Ident::declare(id)
-            .resolve(S1, kind.clone(), src.clone())
+            .resolve(S2, kind.clone(), src.clone())
             .as_ref()
     );
 
@@ -257,21 +327,36 @@ fn declare_kind_auto_root() {
     assert!(auto_kind.is_auto_root());
     assert!(!no_auto_kind.is_auto_root());
 
-    let id_auto = SPair("auto_root".into(), S1);
-    let id_no_auto = SPair("no_auto_root".into(), S2);
+    let id_auto = SPair("auto_root".into(), S2);
+    let id_no_auto = SPair("no_auto_root".into(), S3);
 
+    let src = Source {
+        src: Some("src/pkg".into()),
+        ..Default::default()
+    };
+
+    #[rustfmt::skip]
     let toks = [
-        // auto-rooting
-        IdentDecl(id_auto, auto_kind, Default::default()),
-        // non-auto-rooting
-        IdentDecl(id_no_auto, no_auto_kind, Default::default()),
-    ]
-    .into_iter();
+        PkgStart(S1),
+          // auto-rooting
+          IdentDecl(id_auto, auto_kind, src.clone()),
+          // non-auto-rooting
+          IdentDecl(id_no_auto, no_auto_kind, src),
+        PkgEnd(S4),
+    ].into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Incomplete)), sut.next());
-    assert_eq!(Some(Ok(Incomplete)), sut.next());
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            Incomplete, // PkgStart
+              Incomplete, // IdentDecl
+              Incomplete, // IdentDecl
+            Incomplete, // PkgEnd
+        ]),
+        sut.by_ref().collect(),
+    );
 
     let asg = sut.finalize().unwrap().into_context();
 

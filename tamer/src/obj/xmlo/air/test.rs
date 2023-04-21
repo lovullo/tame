@@ -37,9 +37,10 @@ fn data_from_package_event() {
     let relroot = "some/path".into();
 
     let toks = vec![
-        PkgName(SPair(name, S1)),
-        PkgRootPath(SPair(relroot, S2)),
-        Eoh(S3),
+        PkgStart(S1),
+        PkgName(SPair(name, S2)),
+        PkgRootPath(SPair(relroot, S4)),
+        Eoh(S4),
     ]
     .into_iter();
 
@@ -47,9 +48,10 @@ fn data_from_package_event() {
 
     assert_eq!(
         Ok(vec![
-            Incomplete, // PkgName
-            Incomplete, // PkgRootPath
-            Incomplete, // Eoh
+            O(Air::PkgStart(S1)),
+            Incomplete,         // PkgName
+            Incomplete,         // PkgRootPath
+            O(Air::PkgEnd(S4)), // Eoh
         ]),
         sut.by_ref().collect(),
     );
@@ -66,16 +68,18 @@ fn adds_elig_as_root() {
     let elig_sym = "elig".into();
 
     let toks = vec![
-        PkgName(SPair(name, S1)),
-        PkgEligClassYields(SPair(elig_sym, S2)),
-        Eoh(S3),
+        PkgStart(S1),
+        PkgName(SPair(name, S2)),
+        PkgEligClassYields(SPair(elig_sym, S3)),
+        Eoh(S4),
     ];
 
     assert_eq!(
         Ok(vec![
+            O(Air::PkgStart(S1)),
             Incomplete, // PkgName
-            O(Air::IdentRoot(SPair(elig_sym, S2))),
-            Incomplete, // Eoh
+            O(Air::IdentRoot(SPair(elig_sym, S3))),
+            O(Air::PkgEnd(S4)), // Eoh
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -88,20 +92,22 @@ fn adds_sym_deps() {
     let sym_to2 = "to2".into();
 
     let toks = vec![
-        PkgName(SPair("name".into(), S1)),
-        SymDepStart(SPair(sym_from, S2)),
-        Symbol(SPair(sym_to1, S3)),
-        Symbol(SPair(sym_to2, S4)),
-        Eoh(S1),
+        PkgStart(S1),
+        PkgName(SPair("name".into(), S2)),
+        SymDepStart(SPair(sym_from, S3)),
+        Symbol(SPair(sym_to1, S4)),
+        Symbol(SPair(sym_to2, S5)),
+        Eoh(S6),
     ];
 
     assert_eq!(
         Ok(vec![
+            O(Air::PkgStart(S1)),
             Incomplete, // PkgName
             Incomplete, // SymDepStart
-            O(Air::IdentDep(SPair(sym_from, S2), SPair(sym_to1, S3))),
-            O(Air::IdentDep(SPair(sym_from, S2), SPair(sym_to2, S4))),
-            Incomplete, // Eoh
+            O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
+            O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to2, S5))),
+            O(Air::PkgEnd(S6)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -114,32 +120,34 @@ fn sym_decl_with_src_not_added_and_populates_found() {
     let src_b = "src_b".into();
 
     let toks = vec![
-        PkgName(SPair("name".into(), S1)),
+        PkgStart(S1),
+        PkgName(SPair("name".into(), S2)),
         SymDecl(
-            SPair(sym, S2),
+            SPair(sym, S3),
             SymAttrs {
                 src: Some(src_a),
                 ..Default::default()
             },
         ),
         SymDecl(
-            SPair(sym, S3),
+            SPair(sym, S4),
             SymAttrs {
                 src: Some(src_b),
                 ..Default::default()
             },
         ),
-        Eoh(S1),
+        Eoh(S5),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
 
     assert_eq!(
         Ok(vec![
+            O(Air::PkgStart(S1)),
             Incomplete, // PkgName
             Incomplete, // SymDecl (@src)
             Incomplete, // SymDecl (@src)
-            Incomplete, // Eoh
+            O(Air::PkgEnd(S5)),
         ]),
         sut.by_ref().collect(),
     );
@@ -163,9 +171,10 @@ fn sym_decl_added_to_graph() {
     let pkg_name = "pkg name".into();
 
     let toks = vec![
-        PkgName(SPair("name".into(), S1)),
+        PkgStart(S1),
+        PkgName(SPair("name".into(), S2)),
         SymDecl(
-            SPair(sym_extern, S1),
+            SPair(sym_extern, S3),
             SymAttrs {
                 pkg_name: Some(pkg_name),
                 extern_: true,
@@ -174,7 +183,7 @@ fn sym_decl_added_to_graph() {
             },
         ),
         SymDecl(
-            SPair(sym_non_extern, S2),
+            SPair(sym_non_extern, S4),
             SymAttrs {
                 pkg_name: Some(pkg_name),
                 ty: Some(SymType::Meta),
@@ -182,7 +191,7 @@ fn sym_decl_added_to_graph() {
             },
         ),
         SymDecl(
-            SPair(sym_map, S3),
+            SPair(sym_map, S5),
             SymAttrs {
                 pkg_name: Some(pkg_name),
                 ty: Some(SymType::Map),
@@ -190,24 +199,25 @@ fn sym_decl_added_to_graph() {
             },
         ),
         SymDecl(
-            SPair(sym_retmap, S4),
+            SPair(sym_retmap, S6),
             SymAttrs {
                 pkg_name: Some(pkg_name),
                 ty: Some(SymType::RetMap),
                 ..Default::default()
             },
         ),
-        Eoh(S1),
+        Eoh(S7),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
 
     // Note that each of these will have their package names cleared
     //   since this is considered to be the first package encountered.
+    assert_eq!(Some(Ok(O(Air::PkgStart(S1)))), sut.next()); // PkgStart
     assert_eq!(Some(Ok(Incomplete)), sut.next()); // PkgName
     assert_eq!(
         Some(Ok(O(Air::IdentExternDecl(
-            SPair(sym_extern, S1),
+            SPair(sym_extern, S3),
             IdentKind::Meta,
             Source {
                 pkg_name: None,
@@ -218,7 +228,7 @@ fn sym_decl_added_to_graph() {
     );
     assert_eq!(
         Some(Ok(O(Air::IdentDecl(
-            SPair(sym_non_extern, S2),
+            SPair(sym_non_extern, S4),
             IdentKind::Meta,
             Source {
                 pkg_name: None,
@@ -229,7 +239,7 @@ fn sym_decl_added_to_graph() {
     );
     assert_eq!(
         Some(Ok(O(Air::IdentDecl(
-            SPair(sym_map, S3),
+            SPair(sym_map, S5),
             IdentKind::Map,
             Source {
                 pkg_name: None,
@@ -240,7 +250,7 @@ fn sym_decl_added_to_graph() {
     );
     assert_eq!(
         Some(Ok(O(Air::IdentDecl(
-            SPair(sym_retmap, S4),
+            SPair(sym_retmap, S6),
             IdentKind::RetMap,
             Source {
                 pkg_name: None,
@@ -249,7 +259,8 @@ fn sym_decl_added_to_graph() {
         )))),
         sut.next(),
     );
-    assert_eq!(Some(Ok(Incomplete)), sut.next()); // Eoh
+
+    assert_eq!(Some(Ok(O(Air::PkgEnd(S7)))), sut.next());
 
     let ctx = sut.finalize().unwrap().into_context();
 
@@ -274,30 +285,32 @@ fn sym_decl_pkg_name_retained_if_not_first() {
     };
 
     let toks = vec![
-        PkgName(SPair(pkg_name, S1)),
+        PkgStart(S1),
+        PkgName(SPair(pkg_name, S2)),
         SymDecl(
-            SPair(sym, S2),
+            SPair(sym, S3),
             SymAttrs {
                 pkg_name: Some(pkg_name),
                 ty: Some(SymType::Meta),
                 ..Default::default()
             },
         ),
-        Eoh(S1),
+        Eoh(S4),
     ];
 
     assert_eq!(
         Ok(vec![
+            O(Air::PkgStart(S1)),
             Incomplete, // PkgName
             O(Air::IdentDecl(
-                SPair(sym, S2),
+                SPair(sym, S3),
                 IdentKind::Meta,
                 Source {
                     pkg_name: Some(pkg_name),
                     ..Default::default()
                 }
             )),
-            Incomplete, // Eoh
+            O(Air::PkgEnd(S4)),
         ]),
         Sut::parse_with_context(toks.into_iter(), ctx).collect(),
     );
@@ -316,30 +329,32 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
     };
 
     let toks = vec![
-        PkgName(SPair(pkg_name, S1)),
+        PkgStart(S1),
+        PkgName(SPair(pkg_name, S2)),
         SymDecl(
-            SPair(sym, S2),
+            SPair(sym, S3),
             SymAttrs {
                 // No name
                 ty: Some(SymType::Meta),
                 ..Default::default()
             },
         ),
-        Eoh(S1),
+        Eoh(S4),
     ];
 
     assert_eq!(
         Ok(vec![
+            O(Air::PkgStart(S1)),
             Incomplete, // PkgName
             O(Air::IdentDecl(
-                SPair(sym, S2),
+                SPair(sym, S3),
                 IdentKind::Meta,
                 Source {
                     pkg_name: Some(pkg_name), // Name inherited
                     ..Default::default()
                 },
             )),
-            Incomplete, // Eoh
+            O(Air::PkgEnd(S4)),
         ]),
         Sut::parse_with_context(toks.into_iter(), ctx).collect(),
     );
@@ -351,8 +366,9 @@ fn ident_kind_conversion_error_propagates() {
     let bad_attrs = SymAttrs::default();
 
     let toks = vec![
-        PkgName(SPair("name".into(), S1)),
-        SymDecl(SPair(sym, S2), bad_attrs),
+        PkgStart(S1),
+        PkgName(SPair("name".into(), S2)),
+        SymDecl(SPair(sym, S3), bad_attrs),
         Eoh(S1),
     ];
 
@@ -367,16 +383,18 @@ fn sets_fragment() {
     let frag = FragmentText::from("foo");
 
     let toks = vec![
-        PkgName(SPair("name".into(), S1)),
-        Fragment(SPair(sym, S2), frag.clone()),
-        Eoh(S1),
+        PkgStart(S1),
+        PkgName(SPair("name".into(), S2)),
+        Fragment(SPair(sym, S3), frag.clone()),
+        Eoh(S4),
     ];
 
     assert_eq!(
         Ok(vec![
+            O(Air::PkgStart(S1)),
             Incomplete, // PkgName
-            O(Air::IdentFragment(SPair(sym, S2), frag)),
-            Incomplete, // Eoh
+            O(Air::IdentFragment(SPair(sym, S3), frag)),
+            O(Air::PkgEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

@@ -81,7 +81,7 @@ fn common_parses_package_attrs(package: QName) {
 
     assert_eq!(
         Ok(vec![
-            Incomplete,
+            O(PkgStart(S1)),
             O(PkgName(SPair(name, S3))),
             O(PkgRootPath(SPair(relroot, S3))),
             // Span for the program flag is the attr name,
@@ -127,7 +127,7 @@ fn ignores_unknown_package_attr() {
 
     assert_eq!(
         Ok(vec![
-            Incomplete,
+            O(PkgStart(S1)),
             O(PkgName(SPair(name, S3))),
             Incomplete, // The unknown attribute
             Incomplete,
@@ -669,6 +669,7 @@ fn xmlo_composite_parsers_header() {
 
     assert_eq!(
         Ok(vec![
+            O(PkgStart(S1)),
             O(SymDecl(SPair(sym_name, S3), Default::default(),)),
             O(SymDepStart(SPair(symdep_name, S3))),
             O(Fragment(SPair(symfrag_id, S4), frag)),

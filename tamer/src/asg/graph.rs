@@ -257,12 +257,9 @@ impl Asg {
     ///   you must resolve the [`ObjectIndex`] and inspect it.
     ///
     /// See [`Self::index`] for more information.
-    pub(super) fn lookup_or_missing<
-        O: ObjectRelatable,
-        OS: ObjectIndexTreeRelTo<O>,
-    >(
+    pub(super) fn lookup_or_missing<O: ObjectRelatable>(
         &mut self,
-        imm_env: OS,
+        imm_env: impl ObjectIndexTreeRelTo<O>,
         name: SPair,
     ) -> ObjectIndex<O>
     where

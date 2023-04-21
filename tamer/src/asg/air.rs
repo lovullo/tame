@@ -232,27 +232,27 @@ impl ParseState for AirAggregate {
                 tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
             ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
 
-            (Empty, AirIdent(IdentDecl(name, kind, src))) => {
+            (Toplevel(oi_pkg), AirIdent(IdentDecl(name, kind, src))) => {
                 let asg = ctx.asg_mut();
                 let oi_root = asg.root(name);
 
                 asg.lookup_or_missing(oi_root, name)
                     .declare(asg, name, kind, src)
                     .map(|_| ())
-                    .transition(Empty)
+                    .transition(Toplevel(oi_pkg))
             }
 
-            (Empty, AirIdent(IdentExternDecl(name, kind, src))) => {
+            (Toplevel(oi_pkg), AirIdent(IdentExternDecl(name, kind, src))) => {
                 let asg = ctx.asg_mut();
                 let oi_root = asg.root(name);
 
                 asg.lookup_or_missing(oi_root, name)
                     .declare_extern(asg, name, kind, src)
                     .map(|_| ())
-                    .transition(Empty)
+                    .transition(Toplevel(oi_pkg))
             }
 
-            (Empty, AirIdent(IdentDep(name, dep))) => {
+            (Toplevel(oi_pkg), AirIdent(IdentDep(name, dep))) => {
                 let asg = ctx.asg_mut();
                 let oi_root = asg.root(dep);
 
@@ -260,24 +260,24 @@ impl ParseState for AirAggregate {
                 let oi_to = asg.lookup_or_missing(oi_root, dep);
                 oi_from.add_opaque_dep(ctx.asg_mut(), oi_to);
 
-                Transition(Empty).incomplete()
+                Transition(Toplevel(oi_pkg)).incomplete()
             }
 
-            (Empty, AirIdent(IdentFragment(name, text))) => {
+            (Toplevel(oi_pkg), AirIdent(IdentFragment(name, text))) => {
                 let asg = ctx.asg_mut();
                 let oi_root = asg.root(name);
 
                 asg.lookup_or_missing(oi_root, name)
                     .set_fragment(asg, text)
                     .map(|_| ())
-                    .transition(Empty)
+                    .transition(Toplevel(oi_pkg))
             }
 
-            (Empty, AirIdent(IdentRoot(name))) => {
+            (Toplevel(oi_pkg), AirIdent(IdentRoot(name))) => {
                 let asg = ctx.asg_mut();
                 asg.root(name).root_ident(asg, name);
 
-                Transition(Empty).incomplete()
+                Transition(Toplevel(oi_pkg)).incomplete()
             }
 
             (st, tok @ AirIdent(..)) => todo!("{st:?}, {tok:?}"),
