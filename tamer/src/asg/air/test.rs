@@ -33,6 +33,9 @@ use std::assert_matches::assert_matches;
 
 type Sut = AirAggregate;
 
+use Air::*;
+use Parsed::Incomplete;
+
 #[test]
 fn ident_decl() {
     let id = SPair("foo".into(), S1);
@@ -42,10 +45,10 @@ fn ident_decl() {
         ..Default::default()
     };
 
-    let toks = vec![Air::IdentDecl(id, kind.clone(), src.clone())].into_iter();
+    let toks = vec![IdentDecl(id, kind.clone(), src.clone())].into_iter();
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -63,7 +66,7 @@ fn ident_decl() {
     // Re-instantiate the parser and test an error by attempting to
     //   redeclare the same identifier.
     let bad_toks =
-        vec![Air::IdentDecl(SPair(id.symbol(), S2), kind, src)].into_iter();
+        vec![IdentDecl(SPair(id.symbol(), S2), kind, src)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -81,11 +84,10 @@ fn ident_extern_decl() {
         ..Default::default()
     };
 
-    let toks =
-        vec![Air::IdentExternDecl(id, kind.clone(), src.clone())].into_iter();
+    let toks = vec![IdentExternDecl(id, kind.clone(), src.clone())].into_iter();
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -101,12 +103,9 @@ fn ident_extern_decl() {
     // Re-instantiate the parser and test an error by attempting to
     //   redeclare with a different kind.
     let different_kind = IdentKind::Meta;
-    let bad_toks = vec![Air::IdentExternDecl(
-        SPair(id.symbol(), S2),
-        different_kind,
-        src,
-    )]
-    .into_iter();
+    let bad_toks =
+        vec![IdentExternDecl(SPair(id.symbol(), S2), different_kind, src)]
+            .into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -120,10 +119,10 @@ fn ident_dep() {
     let id = SPair("foo".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let toks = vec![Air::IdentDep(id, dep)].into_iter();
+    let toks = vec![IdentDep(id, dep)].into_iter();
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -147,15 +146,15 @@ fn ident_fragment() {
     let toks = vec![
         // Identifier must be declared before it can be given a
         //   fragment.
-        Air::IdentDecl(id, kind.clone(), src.clone()),
-        Air::IdentFragment(id, frag),
+        IdentDecl(id, kind.clone(), src.clone()),
+        IdentFragment(id, frag),
     ]
     .into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentDecl
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentFragment
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentDecl
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentFragment
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -173,7 +172,7 @@ fn ident_fragment() {
 
     // Re-instantiate the parser and test an error by attempting to
     //   re-set the fragment.
-    let bad_toks = vec![Air::IdentFragment(id, frag)].into_iter();
+    let bad_toks = vec![IdentFragment(id, frag)].into_iter();
     let mut sut = Sut::parse_with_context(bad_toks, asg);
 
     assert_matches!(
@@ -188,10 +187,10 @@ fn ident_fragment() {
 fn ident_root_missing() {
     let id = SPair("toroot".into(), S1);
 
-    let toks = vec![Air::IdentRoot(id)].into_iter();
+    let toks = vec![IdentRoot(id)].into_iter();
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -221,15 +220,15 @@ fn ident_root_existing() {
     assert!(!kind.is_auto_root());
 
     let toks = vec![
-        Air::IdentDecl(id, kind.clone(), src.clone()),
-        Air::IdentRoot(SPair(id.symbol(), S2)),
+        IdentDecl(id, kind.clone(), src.clone()),
+        IdentRoot(SPair(id.symbol(), S2)),
     ]
     .into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentDecl
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next()); // IdentRoot
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentDecl
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // IdentRoot
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -263,16 +262,16 @@ fn declare_kind_auto_root() {
 
     let toks = [
         // auto-rooting
-        Air::IdentDecl(id_auto, auto_kind, Default::default()),
+        IdentDecl(id_auto, auto_kind, Default::default()),
         // non-auto-rooting
-        Air::IdentDecl(id_no_auto, no_auto_kind, Default::default()),
+        IdentDecl(id_no_auto, no_auto_kind, Default::default()),
     ]
     .into_iter();
 
     let mut sut = Sut::parse(toks);
 
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
-    assert_eq!(Some(Ok(Parsed::Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next());
 
     let asg = sut.finalize().unwrap().into_context();
 
@@ -285,7 +284,7 @@ fn declare_kind_auto_root() {
 
 #[test]
 fn pkg_is_rooted() {
-    let toks = vec![Air::PkgStart(S1), Air::PkgEnd(S2)];
+    let toks = vec![PkgStart(S1), PkgEnd(S2)];
 
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
@@ -305,18 +304,18 @@ fn pkg_is_rooted() {
 #[test]
 fn close_pkg_without_open() {
     let toks = vec![
-        Air::PkgEnd(S1),
+        PkgEnd(S1),
         // RECOVERY: Try again.
-        Air::PkgStart(S2),
-        Air::PkgEnd(S3),
+        PkgStart(S2),
+        PkgEnd(S3),
     ];
 
     assert_eq!(
         vec![
             Err(ParseError::StateError(AsgError::InvalidPkgEndContext(S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgStart
-            Ok(Parsed::Incomplete), // PkgEnd
+            Ok(Incomplete), // PkgStart
+            Ok(Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -325,18 +324,18 @@ fn close_pkg_without_open() {
 #[test]
 fn nested_open_pkg() {
     let toks = vec![
-        Air::PkgStart(S1),
-        Air::PkgStart(S2),
+        PkgStart(S1),
+        PkgStart(S2),
         // RECOVERY
-        Air::PkgEnd(S3),
+        PkgEnd(S3),
     ];
 
     assert_eq!(
         vec![
-            Ok(Parsed::Incomplete), // PkgStart
+            Ok(Incomplete), // PkgStart
             Err(ParseError::StateError(AsgError::NestedPkgStart(S2, S1))),
             // RECOVERY
-            Ok(Parsed::Incomplete), // PkgEnd
+            Ok(Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
     );
@@ -348,9 +347,9 @@ fn pkg_import() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
-          Air::RefIdent(pathspec),
-        Air::PkgEnd(S3),
+        PkgStart(S1),
+          RefIdent(pathspec),
+        PkgEnd(S3),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -380,13 +379,13 @@ fn pkg_doc() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::DocText(doc_a),
+        DocText(doc_a),
 
         // Some object to place in-between the two
         //   documentation blocks.
-        Air::RefIdent(id_import),
+        RefIdent(id_import),
 
-        Air::DocText(doc_b),
+        DocText(doc_b),
     ];
 
     let asg = asg_from_toks(toks);
@@ -416,9 +415,9 @@ where
     use std::iter;
 
     Sut::parse(
-        iter::once(Air::PkgStart(S1))
+        iter::once(PkgStart(S1))
             .chain(toks.into_iter())
-            .chain(iter::once(Air::PkgEnd(S1))),
+            .chain(iter::once(PkgEnd(S1))),
     )
 }
 
