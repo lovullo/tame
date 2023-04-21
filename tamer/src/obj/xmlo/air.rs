@@ -222,7 +222,12 @@ impl ParseState for XmloToAir {
                 Transition(Done(span)).incomplete()
             }
 
-            (st, tok) => Transition(st).dead(tok),
+            (st @ Package(..), tok @ (PkgName(..) | Symbol(..))) => {
+                Transition(st).dead(tok)
+            }
+            (st @ (PackageExpected | SymDep(..) | Done(..)), tok) => {
+                Transition(st).dead(tok)
+            }
         }
     }
 
