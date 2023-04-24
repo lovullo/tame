@@ -45,8 +45,18 @@ impl Display for Root {
 object_rel! {
     /// The root of the graph by definition has no cross edges.
     Root -> {
+        // Packages are always rooted since they are the toplevel
+        //   collection.
         tree Pkg,
-        tree Ident,
+
+        // Identifiers may optionally be explicitly rooted in contexts where
+        //   the system cares only about particular identifiers and their
+        //   dependencies,
+        //     with `Pkg`s being only incidental.
+        // For example,
+        //   `tameld` only links objects that are reachable from identifiers
+        //   in the return map.
+        cross Ident,
     }
 }
 

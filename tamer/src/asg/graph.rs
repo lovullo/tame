@@ -22,8 +22,8 @@
 //! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
-    DynObjectRel, NameableMissingObject, ObjectIndexRelTo,
-    ObjectIndexTreeRelTo, ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
+    DynObjectRel, NameableMissingObject, ObjectIndexRelTo, ObjectRelFrom,
+    ObjectRelTy, ObjectRelatable, Root,
 };
 
 use super::{AsgError, Object, ObjectIndex, ObjectKind};
@@ -199,7 +199,7 @@ impl Asg {
     /// Debug builds contain an assertion that will panic in this instance.
     pub(super) fn index<
         O: ObjectRelatable,
-        OS: ObjectIndexTreeRelTo<O>,
+        OS: ObjectIndexRelTo<O>,
         S: Into<SymbolId>,
     >(
         &mut self,
@@ -219,7 +219,7 @@ impl Asg {
             use crate::fmt::{DisplayWrapper, TtQuote};
             crate::debug_diagnostic_panic!(
                 vec![
-                    imm_env.into().note("at this scope boundary"),
+                    imm_env.widen().note("at this scope boundary"),
                     prev_oi.note("previously indexed identifier was here"),
                     oi.internal_error(
                         "this identifier has already been indexed at the above scope boundary"
@@ -259,7 +259,7 @@ impl Asg {
     /// See [`Self::index`] for more information.
     pub(super) fn lookup_or_missing<O: ObjectRelatable>(
         &mut self,
-        imm_env: impl ObjectIndexTreeRelTo<O>,
+        imm_env: impl ObjectIndexRelTo<O>,
         name: SPair,
     ) -> ObjectIndex<O>
     where
@@ -493,7 +493,7 @@ impl Asg {
     ///   compilation unit,
     ///     which is a package.
     #[inline]
-    pub fn lookup<O: ObjectRelatable, OS: ObjectIndexTreeRelTo<O>>(
+    pub fn lookup<O: ObjectRelatable, OS: ObjectIndexRelTo<O>>(
         &self,
         imm_env: OS,
         id: SPair,
