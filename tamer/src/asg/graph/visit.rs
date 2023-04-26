@@ -24,5 +24,7 @@
 //!   state of the [`Asg`](super::Asg).
 
 mod ontree;
+mod topo;
 
 pub use ontree::{tree_reconstruction, Depth, TreePreOrderDfs, TreeWalkRel};
+pub use topo::{topo_sort, TopoPostOrderDfs};

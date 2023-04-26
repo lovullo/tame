@@ -210,6 +210,14 @@ macro_rules! object_gen {
             $($kind,)+
         }
 
+        impl<T: ObjectInner> From<&Object<T>> for ObjectTy {
+            fn from(obj: &Object<T>) -> Self {
+                match obj {
+                    $(Object::$kind(_) => ObjectTy::$kind,)+
+                }
+            }
+        }
+
         /// The collection of potential objects of [`Object`].
         pub trait ObjectInner {
             $(type $kind;)+
@@ -348,6 +356,10 @@ impl Object<OnlyObjectInner> {
             Self::Meta(meta) => meta.span(),
             Self::Doc(doc) => doc.span(),
         }
+    }
+
+    pub fn ty(&self) -> ObjectTy {
+        self.into()
     }
 
     /// Retrieve an [`Ident`] reference,
@@ -846,6 +858,12 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for NodeIndex {
         match objref {
             ObjectIndex(index, _, _) => index,
         }
+    }
+}
+
+impl<O: ObjectKind> From<ObjectIndex<O>> for usize {
+    fn from(value: ObjectIndex<O>) -> Self {
+        Into::<NodeIndex>::into(value).index()
     }
 }
 

@@ -26,6 +26,7 @@ lto = true
 arrayvec = ">= 0.7.1"
 bumpalo = ">= 2.6.0"
 exitcode = "1.1.2"
+fixedbitset = ">= 0.4.1"  # also used by petgraph
 fxhash = ">= 0.2.1"
 getopts = "0.2"
 memchr = ">= 2.3.4"  # quick-xml expects =2.3.4 at the time

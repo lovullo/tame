@@ -182,6 +182,15 @@ impl Asg {
         self.graph
     }
 
+    /// Number of [`Object`]s on the graph.
+    ///
+    /// This is equivalent to the number of nodes on the graph at the time
+    ///   of writing,
+    ///     but that may not always be the case.
+    fn object_count(&self) -> usize {
+        self.graph.node_count()
+    }
+
     /// Index the provided symbol `name` as representing the
     ///   [`ObjectIndex`] in the immediate environment `imm_env`.
     ///
@@ -493,9 +502,9 @@ impl Asg {
     ///   compilation unit,
     ///     which is a package.
     #[inline]
-    pub fn lookup<O: ObjectRelatable, OS: ObjectIndexRelTo<O>>(
+    pub fn lookup<O: ObjectRelatable>(
         &self,
-        imm_env: OS,
+        imm_env: impl ObjectIndexRelTo<O>,
         id: SPair,
     ) -> Option<ObjectIndex<O>> {
         // The type `O` is encoded into the index on [`Self::index`] and so

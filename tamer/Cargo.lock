@@ -116,6 +116,7 @@ dependencies = [
  "arrayvec",
  "bumpalo",
  "exitcode",
+ "fixedbitset",
  "fxhash",
  "getopts",
  "memchr",
