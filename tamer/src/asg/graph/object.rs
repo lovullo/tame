@@ -492,6 +492,9 @@ where
 ///     this is intended to be used to provide diagnostic information in the
 ///     event that the object somehow becomes unavailable for later
 ///       operations.
+/// [`Self::resolve_span`] may be used to replace the inner [`Span`] with
+///   that of the object that [`Self`] represents,
+///     which is useful in a different diagnostic context.
 ///
 /// _The span is not accounted for in [`PartialEq`] or [`Hash`]_,
 ///   since it represents the context in which the [`ObjectIndex`] was
@@ -623,6 +626,17 @@ impl<O: ObjectKind> ObjectIndex<O> {
     /// Curried [`Self::resolve`].
     pub fn cresolve<'a>(asg: &'a Asg) -> impl FnMut(Self) -> &'a O {
         move |oi| oi.resolve(asg)
+    }
+
+    /// Replace our associated [`Span`] with the span of the resolved
+    ///   [`Object`].
+    ///
+    /// This is useful to utilize [`ObjectIndex`] in a diagnostic context
+    ///   without having to allocate space for additional metadata.
+    pub fn resolve_span(self, asg: &Asg) -> ObjectIndexResolvedSpan<O> {
+        ObjectIndexResolvedSpan(
+            self.overwrite(self.widen().resolve(asg).span()),
+        )
     }
 
     /// Resolve the identifier and map over the resulting [`Object`]
@@ -874,6 +888,47 @@ impl<O: ObjectKind> From<ObjectIndex<O>> for Span {
         }
     }
 }
+
+/// An [`ObjectKind`] whose associated [`Span`] has been resolved.
+///
+/// This exists simply to provide proof via the type system that resolution
+///   occurred.
+///
+/// See [`ObjectIndex::resolve_span`].
+#[derive(Debug, PartialEq, Eq)]
+pub struct ObjectIndexResolvedSpan<O: ObjectKind>(ObjectIndex<O>);
+
+impl<O: ObjectKind> ObjectIndexResolvedSpan<O> {
+    pub fn oi(&self) -> ObjectIndex<O> {
+        (*self).into()
+    }
+
+    pub fn span(&self) -> Span {
+        self.oi().span()
+    }
+}
+
+impl<O: ObjectKind> From<ObjectIndexResolvedSpan<O>> for ObjectIndex<O> {
+    fn from(value: ObjectIndexResolvedSpan<O>) -> Self {
+        match value {
+            ObjectIndexResolvedSpan(oi) => oi,
+        }
+    }
+}
+
+impl<O: ObjectKind> From<ObjectIndexResolvedSpan<O>> for Span {
+    fn from(value: ObjectIndexResolvedSpan<O>) -> Self {
+        ObjectIndex::from(value).span()
+    }
+}
+
+impl<O: ObjectKind> Clone for ObjectIndexResolvedSpan<O> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<O: ObjectKind> Copy for ObjectIndexResolvedSpan<O> {}
 
 /// A container for an [`Object`] allowing for owned borrowing of data.
 ///

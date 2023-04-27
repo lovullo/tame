@@ -31,7 +31,7 @@ use crate::{
     span::Span,
 };
 
-use super::TransitionError;
+use super::{visit::Cycle, TransitionError};
 
 /// An error from an ASG operation.
 ///
@@ -129,6 +129,13 @@ pub enum AsgError {
     /// The spans represent the expression and the documentation text
     ///   respectively.
     InvalidDocContextExpr(Span, Span),
+
+    /// A circular dependency was found where it is not permitted.
+    ///
+    /// A cycle almost always means that computing the value of an object
+    ///   depends on first having computed itself,
+    ///     which is not possible.
+    UnsupportedCycle(Cycle),
 }
 
 impl Display for AsgError {
@@ -170,6 +177,9 @@ impl Display for AsgError {
             }
             InvalidDocContextExpr(_, _) => {
                 write!(f, "document text is not permitted within expressions")
+            }
+            UnsupportedCycle(cycle) => {
+                write!(f, "circular dependency: {cycle}")
             }
         }
     }
@@ -290,6 +300,34 @@ impl Diagnostic for AsgError {
                         likely be lifted in the future",
                 ),
             ],
+            UnsupportedCycle(cycle) => {
+                // The cycle description clearly describes the cycle,
+                //   but in neutral terms,
+                //   since cycles may not necessarily be errors.
+                let mut desc = cycle.describe();
+
+                // (this will always be non-empty)
+                if let Some(obj) = cycle.path_rev().last() {
+                    // But in this context,
+                    //   this _is_ a problem,
+                    //   so make clear why we're pointing this out.
+                    // TODO: Include an identifier name,
+                    //   once `Cycle` supports it.
+                    desc.extend(
+                        [
+                            obj.help(
+                                "the value cannot be computed because its",
+                            ),
+                            obj.help(
+                                "  definition requires first computing itself.",
+                            ),
+                        ]
+                        .into_iter(),
+                    );
+                }
+
+                desc
+            }
         }
     }
 }

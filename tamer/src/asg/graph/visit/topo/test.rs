@@ -34,19 +34,29 @@ use Air::*;
 fn topo_report_only(
     asg: &Asg,
     edges: impl Iterator<Item = ObjectIndex<Object>>,
-) -> Vec<Result<(ObjectTy, Span), AsgError>> {
+) -> Vec<Result<(ObjectTy, Span), Vec<(ObjectTy, Span)>>> {
     topo_sort(asg, edges)
         .map(|result| {
             result
                 .map(|oi| oi.resolve(asg))
                 .map(|obj| (obj.ty(), obj.span()))
+                .map_err(|cycle| {
+                    cycle
+                        .path_rev()
+                        .iter()
+                        // Retain the resolved span from Cycle so that our
+                        //   assertions verify that it is being resolved
+                        //   correctly.
+                        .map(|oirs| (oirs.oi().resolve(asg).ty(), oirs.span()))
+                        .collect()
+                })
         })
         .collect()
 }
 
 fn topo_report<I: IntoIterator<Item = Air>>(
     toks: I,
-) -> Vec<Result<(ObjectTy, Span), AsgError>>
+) -> Vec<Result<(ObjectTy, Span), Vec<(ObjectTy, Span)>>>
 where
     I::IntoIter: Debug,
 {
@@ -327,5 +337,71 @@ fn sorts_objects_given_multiple_roots() {
             (Pkg,   m(S6, S10)),
         ]),
         topo_report(toks).into_iter().collect(),
+    );
+}
+
+// Most cycles are unsupported by TAME.
+// Recovery allows compilation/linking to continue so that additional errors
+//   can be discovered and reported.
+#[test]
+fn unsupported_cycles_with_recovery() {
+    let id_a = SPair("expr_a".into(), S3);
+    let id_b = SPair("expr_b".into(), S8);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          ExprStart(ExprOp::Sum, S2),
+            BindIdent(id_a),                     // <----.  self-cycle
+            RefIdent(SPair(id_a.symbol(), S4)),  // ____/ \
+            RefIdent(SPair(id_b.symbol(), S5)),  // ---.   \  a->b->a
+          ExprEnd(S6),                           //     )   )  cycle
+                                                 //    /   /
+          ExprStart(ExprOp::Sum, S7),            //   /   /
+            BindIdent(id_b),                     // <'   /
+            RefIdent(SPair(id_a.symbol(), S9)),  // ----'
+          ExprEnd(S10),
+        PkgEnd(S11),
+    ];
+
+    use ObjectTy::*;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            // Pkg -> Ident (id_a) -> Ref (id_a) gives us a self-cycle.
+            Err(vec![
+                (Expr,  m(S2, S6)),  // -.
+                (Ident, S3       ),  // <'   id_a
+            ]),
+
+            // RECOVERY: We do not traverse into the cycle and continue as
+            //   if the edge causing the cycle was not taken.
+
+            // ...which unfortunately lands us on another cycle caused by
+            //   a->b->a before we can emit the parent Expr.
+            // TODO: In the future we ought to represent the reference here
+            //   as well.
+            Err(vec![
+                (Expr, m(S7, S10)),  // -.
+                (Ident, S8       ),  //  |   id_b
+                (Expr,  m(S2, S6)),  //  |
+                (Ident, S3       ),  // <'   id_a
+            ]),
+
+            // RECOVERY: We ignore the edge leading to the cycle,
+            //   which means that id_b Expr has no more dependencies.
+            Ok((Expr,  m(S7, S10))),
+            Ok((Ident, S8        )),
+
+            // And id_a is now also complete,
+            //   since the cycle was the last dependency.
+            Ok((Expr,  m(S2, S6 ))),
+            Ok((Ident, S3        )),
+
+            Ok((Pkg,   m(S1, S11))),
+        ],
+        topo_report(toks).into_iter().collect::<Vec<_>>(),
     );
 }
