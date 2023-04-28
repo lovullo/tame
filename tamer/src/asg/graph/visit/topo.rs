@@ -40,6 +40,35 @@
 //!     so any additional information would provide an incomplete picture;
 //!       this sort is _not_ intended to provide information about all paths
 //!       to a particular object and cannot be used in that way.
+//!
+//! Cutting Of Cycles
+//! =================
+//! A _cycle_ is a path that references another object earlier in the path,
+//!   as if it loops in on itself.
+//! Cycles are generally not permitted,
+//!   as they would require that a value would have to be computed before it
+//!   could compute itself.
+//! This almost certainly represents an error in the program's specification.
+//!
+//! Cycles are permitted for recursion.
+//! More information can be found in [`ObjectRel::can_recurse`].
+//!
+//! A toplogical ordering is defined only for graphs that do not contain
+//!   cycles.
+//! To order a graph _with_ cycles,
+//!   the depth-first search performs a _cut_,
+//!     whereby the edge that would have led to the cycle is omitted,
+//!       as if cutting a loop of string at the point that it is tied.
+//! An example of such a cut can be found in [`ObjectRel::can_recurse`].
+//!
+//! This is done in two scenarios:
+//!
+//!   1. An unsupported cycle is an error.
+//!      A cut is performed as a means of error recovery so that the process
+//!        may continue and discover more errors before terminating.
+//!
+//!   2. A cycle representing allowed recursion performs a cut since the
+//!        path taken thus far already represents a valid ordering.
 
 use super::super::{Asg, ObjectIndex};
 use crate::{
@@ -50,7 +79,7 @@ use fixedbitset::FixedBitSet;
 use std::{error::Error, fmt::Display, iter::once};
 
 #[cfg(doc)]
-use crate::span::Span;
+use crate::{asg::graph::object::ObjectRel, span::Span};
 
 pub fn topo_sort(
     asg: &Asg,
@@ -77,7 +106,7 @@ pub struct TopoPostOrderDfs<'a> {
     /// Each iterator pops a relationship off the stack and visits it.
     ///
     /// The inner [`Result`] serves as a cycle flag set by
-    ///   [`Self::flag_if_cycle`].
+    ///   [`Self::flag_or_cut_cycle`].
     /// Computing the proper [`Cycle`] error before placing it on the stack
     ///   would not only bloat the size of each element of this stack,
     ///     but also use unnecessary memory on the heap.
@@ -167,7 +196,7 @@ impl<'a> TopoPostOrderDfs<'a> {
     ///     this determination is made by consulting [`Self::finished`].
     ///
     /// Each object that is pushed onto the stack will be checked by
-    ///   [`Self::flag_if_cycle`];
+    ///   [`Self::flag_or_cut_cycle`];
     ///     see that function for more information.
     /// It is important that each cycle be flagged individually,
     ///   rather than returning an error from this function,
@@ -210,13 +239,14 @@ impl<'a> TopoPostOrderDfs<'a> {
     fn push_neighbors(&mut self, src_oi: ObjectIndex<Object>) {
         self.asg
             .edges_dyn(src_oi)
-            .map(|dyn_oi| *dyn_oi.target())
-            .filter(|&oi| !self.finished.contains(oi.into()))
-            .map(|oi| Self::flag_if_cycle(&self.visited, oi))
+            .filter(|dyn_oi| !self.finished.contains((*dyn_oi.target()).into()))
+            .filter_map(|dyn_oi| {
+                Self::flag_or_cut_cycle(&self.visited, self.asg, dyn_oi)
+            })
             .collect_into(&mut self.stack);
     }
 
-    /// Determine if the provided [`ObjectIndex`] would introduce a cycle if
+    /// Determine if the provided relation would introduce a cycle if
     ///   appended to the current path and flag it if so.
     ///
     /// This should be called only after having checked [`Self::finished`],
@@ -229,6 +259,17 @@ impl<'a> TopoPostOrderDfs<'a> {
     /// If so,
     ///   then introducing it again would produce a cycle.
     ///
+    /// Cycles are permitted under limited circumstances,
+    ///   where the edge represents a recursive target.
+    /// This determination is made utilizing the graph's ontology via
+    ///   [`DynObjectRel::can_recurse`].
+    /// If the cycle ends up being permitted,
+    ///   then we perform a cut by filtering out the edge entirely,
+    ///     as if it did not exist.
+    /// It is up to the graph's ontology to ensure that all such cuts will
+    ///   result in a valid ordering.
+    /// (Cuts also occur during error recovery for unsupported cycles.)
+    ///
     /// We use [`Result`] where `E` is [`ObjectIndex`] to simply flag the
     ///   object as containing a cycle;
     ///     this allows us to defer computation of the cycle and allocation
@@ -238,14 +279,21 @@ impl<'a> TopoPostOrderDfs<'a> {
     ///
     /// See [`Self::find_cycle_path`] for the actual cycle computation that
     ///   will eventually be performed.
-    fn flag_if_cycle(
+    fn flag_or_cut_cycle(
         visited: &FixedBitSet,
-        oi: ObjectIndex<Object>,
-    ) -> Result<ObjectIndex<Object>, ObjectIndex<Object>> {
+        asg: &Asg,
+        dyn_oi: DynObjectRel,
+    ) -> Option<Result<ObjectIndex<Object>, ObjectIndex<Object>>> {
+        let oi = *dyn_oi.target();
+
         if visited.contains(oi.into()) {
-            Err(oi)
+            if dyn_oi.can_recurse(asg) {
+                None // cut
+            } else {
+                Some(Err(oi))
+            }
         } else {
-            Ok(oi)
+            Some(Ok(oi))
         }
     }
 
@@ -254,7 +302,7 @@ impl<'a> TopoPostOrderDfs<'a> {
     ///     leaving it on the stack.
     ///
     /// If the object atop of the stack has been flagged as a cycle by
-    ///   [`Self::flag_if_cycle`],
+    ///   [`Self::flag_or_cut_cycle`],
     ///     then the actual path associated with the cycle will be computed
     ///     by [`Self::find_cycle_path`] and an a [`Cycle`] returned.
     ///

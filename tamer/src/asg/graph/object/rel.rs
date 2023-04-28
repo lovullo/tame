@@ -58,6 +58,7 @@ macro_rules! object_rel {
         $from:ident -> {
             $($ety:ident $kind:ident,)*
         }
+        $(can_recurse($rec_obj:ident) if $rec_expr:expr)?
     ) => {paste::paste! {
         /// Subset of [`ObjectKind`]s that are valid targets for edges from
         #[doc=concat!("[`", stringify!($from), "`].")]
@@ -73,10 +74,10 @@ macro_rules! object_rel {
         }
 
         impl ObjectRel<$from> for [<$from Rel>] {
-            fn narrow<OB: ObjectRelFrom<$from> + ObjectRelatable>(
-                self,
+            fn narrow_ref<OB: ObjectRelFrom<$from> + ObjectRelatable>(
+                &self,
             ) -> Option<ObjectIndex<OB>> {
-                match self {
+                match *self {
                     $(Self::$kind(oi) => oi.filter_rel(),)*
                 }
             }
@@ -98,6 +99,15 @@ macro_rules! object_rel {
                     ),
                 }
             }
+
+            $(
+                fn can_recurse(&self, asg: &Asg) -> bool {
+                    self.narrow_ref::<$from>()
+                        .map(|oi| oi.resolve(asg))
+                        .map(|$rec_obj| $rec_expr)
+                        .unwrap_or(false)
+                }
+            )?
         }
 
         impl ObjectRelatable for $from {
@@ -319,6 +329,29 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
 
         ty_cross_edge!(Root, Pkg, Ident, Expr, Tpl, Meta, Doc)
     }
+
+    /// Dynamically determine whether this edge represents a permitted
+    ///   cycle.
+    ///
+    /// A cycle is permitted in certain cases of recursion.
+    /// See [`ObjectRel::can_recurse`] for more information.
+    pub fn can_recurse(&self, asg: &Asg) -> bool {
+        macro_rules! ty_can_recurse {
+            ($($ty:ident),*) => {
+                match self.source_ty() {
+                    $(
+                        ObjectRelTy::$ty => {
+                            self.narrow_target::<$ty>().is_some_and(
+                                |rel| rel.can_recurse(asg)
+                            )
+                        },
+                    )*
+                }
+            }
+        }
+
+        ty_can_recurse!(Root, Pkg, Ident, Expr, Tpl, Meta, Doc)
+    }
 }
 
 impl<T> DynObjectRel<ObjectIndex<Object>, T> {
@@ -502,6 +535,16 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>:
     ///   query for edges of particular kinds.
     fn narrow<OB: ObjectRelFrom<OA> + ObjectRelatable>(
         self,
+    ) -> Option<ObjectIndex<OB>> {
+        self.narrow_ref()
+    }
+
+    /// Attempt to narrow into the [`ObjectKind`] `OB`.
+    ///
+    /// This method is the same as [`Self::narrow`],
+    ///   but taking a reference instead of ownership.
+    fn narrow_ref<OB: ObjectRelFrom<OA> + ObjectRelatable>(
+        &self,
     ) -> Option<ObjectIndex<OB>>;
 
     /// Attempt to narrow into the [`ObjectKind`] `OB`,
@@ -624,6 +667,49 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>:
     ///     that,
     ///       once all use cases are clear.
     fn is_cross_edge<S, T>(&self, rel: &DynObjectRel<S, T>) -> bool;
+
+    /// Whether the provided relationship represents a valid recursive
+    ///   target.
+    ///
+    /// It is expected that this method will be consulted only when the
+    ///   provided [`ObjectIndex`] would produce a cycle when added to some
+    ///   path.
+    /// This means that the source and target object will be identical.
+    ///
+    /// It is expected that a cycle should be able to be "cut" at this point
+    ///   while still producing a valid topological ordering of the graph.
+    /// For example,
+    ///   consider two mutually recursive functions `A` and `B`,
+    ///   as shown here:
+    ///
+    /// ```text
+    ///   A -> B
+    ///   ^----'
+    /// ```
+    ///
+    /// There are two cycles that might be encountered:
+    ///
+    ///   - `A -> B -> A`, which would cut to `A -> B`; and
+    ///   - `B -> A -> B`, which would cut to `B -> A`.
+    ///
+    /// In both cases,
+    ///   since both `A` and `B` are functions,
+    ///   a valid ordering is produced.
+    ///
+    /// Failure to uphold this invariant when designing the graph's ontology
+    ///   will result in an invalid ordering of the graph,
+    ///     which will compile a program that does not behave according to
+    ///     its specification.
+    /// That is:
+    ///   proper ordering is a requirement to uphold soundness.
+    ///
+    /// Recursion will continue to be limited as TAMER progresses,
+    ///   migrating to a more APL-like alternative to solving
+    ///   otherwise-recursive problems and restricting remaining recursion
+    ///   to that which can provably terminate.
+    fn can_recurse(&self, _asg: &Asg) -> bool {
+        false
+    }
 }
 
 /// An [`ObjectIndex`]-like object that is able to relate to

@@ -21,9 +21,12 @@ use super::*;
 use crate::{
     asg::{
         air::{Air, AirAggregate},
-        graph::object::{self, ObjectTy, Pkg},
-        ExprOp,
+        graph::object::{
+            self, ObjectKind, ObjectRelFrom, ObjectRelatable, ObjectTy, Root,
+        },
+        ExprOp, IdentKind,
     },
+    num::{Dim, Dtype},
     parse::{util::SPair, ParseState},
     span::{dummy::*, Span, UNKNOWN_SPAN},
 };
@@ -54,11 +57,12 @@ fn topo_report_only(
         .collect()
 }
 
-fn topo_report<I: IntoIterator<Item = Air>>(
+fn topo_report<O: ObjectKind + ObjectRelatable, I: IntoIterator<Item = Air>>(
     toks: I,
 ) -> Vec<Result<(ObjectTy, Span), Vec<(ObjectTy, Span)>>>
 where
     I::IntoIter: Debug,
+    O: ObjectRelFrom<Root>,
 {
     let mut parser = AirAggregate::parse(toks.into_iter());
     assert!(parser.all(|x| x.is_ok()));
@@ -68,7 +72,7 @@ where
 
     topo_report_only(
         asg,
-        oi_root.edges_filtered::<Pkg>(asg).map(ObjectIndex::widen),
+        oi_root.edges_filtered::<O>(asg).map(ObjectIndex::widen),
     )
 }
 
@@ -151,7 +155,7 @@ fn sorts_objects_given_single_root() {
             //   `topo_sort` via `topo_report`.
             (Pkg,   m(S1, S14) ),
         ]),
-        topo_report(toks).into_iter().collect(),
+        topo_report::<object::Pkg, _>(toks).into_iter().collect(),
     );
 }
 
@@ -211,7 +215,7 @@ fn sorts_objects_given_single_root_more_complex() {
 
             (Pkg,   m(S1, S17) ),
         ]),
-        topo_report(toks).into_iter().collect(),
+        topo_report::<object::Pkg, _>(toks).into_iter().collect(),
     );
 }
 
@@ -336,7 +340,7 @@ fn sorts_objects_given_multiple_roots() {
             (Ident, S8),
             (Pkg,   m(S6, S10)),
         ]),
-        topo_report(toks).into_iter().collect(),
+        topo_report::<object::Pkg, _>(toks).into_iter().collect(),
     );
 }
 
@@ -402,6 +406,59 @@ fn unsupported_cycles_with_recovery() {
 
             Ok((Pkg,   m(S1, S11))),
         ],
-        topo_report(toks).into_iter().collect::<Vec<_>>(),
+        topo_report::<object::Pkg, _>(toks)
+            .into_iter()
+            .collect::<Vec<_>>(),
+    );
+}
+
+// TAME supports cycles in certain contexts,
+//   as a component of the graph's ontology.
+// A topological sort of a graph containing permitted cycles should be
+//   viewed as sorting a graph that first "cuts" those cycles,
+//     filtering out the edge that would have caused the cycle to occur.
+// It is the responsibility of the ontology to ensure that all such cuts
+//   will result in a topological sort.
+#[test]
+fn supported_cycles() {
+    let id_a = SPair("func_a".into(), S3);
+    let id_b = SPair("func_b".into(), S8);
+    let kind = IdentKind::Func(Dim::Scalar, Dtype::Integer);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          // Two mutually recursive functions.
+          IdentDecl(id_a, kind.clone(), Default::default()),  // <--.
+          IdentDep(id_a, id_b),                               // -. |
+                                                              //  | |
+          IdentDecl(id_b, kind.clone(), Default::default()),  // <' |
+          IdentDep(id_b, id_a),                               // ---'
+
+          // Root so that `topo_report` will find them.
+          IdentRoot(id_a),
+          IdentRoot(id_b),
+        PkgEnd(S11),
+    ];
+
+    // TODO: Template recursion was not part of the ontology at the time of
+    //   writing.
+
+    use ObjectTy::*;
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            // The order in which the above functions will be visited is
+            //   undefined;
+            //     this is the ordering that happens to be taken by the
+            //     implementation based on the definition and stack
+            //     ordering.
+            (Ident, S8),
+            (Ident, S3),
+        ]),
+        topo_report::<object::Ident, _>(toks)
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>(),
     );
 }

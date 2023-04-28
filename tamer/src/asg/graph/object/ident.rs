@@ -980,12 +980,17 @@ object_rel! {
     /// Opaque identifiers at the time of writing are used by the linker
     ///   which does not reason about cross edges
     ///     (again at the time of writing).
+    ///
+    /// Identifiers representing functions are able to produce cycles,
+    ///   representing recursion.
+    /// This is a legacy feature expected to be removed in the future;
+    ///   see [`ObjectRel::can_recurse`] for more information.
     Ident -> {
         tree Ident,
         tree Expr,
         tree Tpl,
         tree Meta,
-    }
+    } can_recurse(ident) if matches!(ident.kind(), Some(IdentKind::Func(..)))
 }
 
 impl ObjectIndex<Ident> {
