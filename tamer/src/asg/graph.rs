@@ -87,9 +87,8 @@ type Ix = global::ProgSymSize;
 /// For more information,
 ///   see the [module-level documentation][self].
 pub struct Asg {
-    // TODO: private; see `ld::xmle::lower`.
     /// Directed graph on which objects are stored.
-    pub graph: DiGraph<Node, AsgEdge, Ix>,
+    graph: DiGraph<Node, AsgEdge, Ix>,
 
     /// Edge cache of [`SymbolId`][crate::sym::SymbolId] to
     ///   [`ObjectIndex`]es.

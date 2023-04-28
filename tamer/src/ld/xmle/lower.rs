@@ -36,9 +36,7 @@ pub type SortResult<T> = Result<T, SortError>;
 
 /// Lower ASG into [`XmleSections`] by ordering relocatable text fragments.
 ///
-/// This performs the equivalent of a topological sort,
-///   although function cycles are permitted.
-/// The actual operation performed is a post-order depth-first traversal.
+/// The topological sort is performed by [`topo_sort`].
 pub fn sort<'a, S: XmleSections<'a>>(asg: &'a Asg, mut dest: S) -> SortResult<S>
 where
     S: XmleSections<'a>,
