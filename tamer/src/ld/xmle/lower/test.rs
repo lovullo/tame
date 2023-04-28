@@ -23,7 +23,7 @@ use crate::{
     ld::xmle::{section::PushResult, Sections},
     parse::util::SPair,
     span::dummy::*,
-    sym::GlobalSymbolIntern,
+    sym::SymbolId,
 };
 
 fn declare(
@@ -43,43 +43,7 @@ fn lookup_or_missing(asg: &mut Asg, name: SPair) -> ObjectIndex<Ident> {
 
 /// Create a graph with the expected {ret,}map head/tail identifiers.
 fn make_asg() -> Asg {
-    let mut asg = Asg::new();
-
-    let text = "dummy fragment".intern();
-
-    {
-        let sym = SPair(st::L_MAP_UUUHEAD.into(), S1);
-        declare(&mut asg, sym, IdentKind::MapHead, Default::default())
-            .unwrap()
-            .set_fragment(&mut asg, text)
-            .unwrap();
-    }
-
-    {
-        let sym = SPair(st::L_MAP_UUUTAIL.into(), S2);
-        declare(&mut asg, sym, IdentKind::MapTail, Default::default())
-            .unwrap()
-            .set_fragment(&mut asg, text)
-            .unwrap();
-    }
-
-    {
-        let sym = SPair(st::L_RETMAP_UUUHEAD.into(), S3);
-        declare(&mut asg, sym, IdentKind::RetMapHead, Default::default())
-            .unwrap()
-            .set_fragment(&mut asg, text)
-            .unwrap();
-    }
-
-    {
-        let sym = SPair(st::L_RETMAP_UUUTAIL.into(), S4);
-        declare(&mut asg, sym, IdentKind::RetMapTail, Default::default())
-            .unwrap()
-            .set_fragment(&mut asg, text)
-            .unwrap();
-    }
-
-    asg
+    Asg::new()
 }
 
 #[test]
@@ -156,16 +120,10 @@ fn graph_sort() -> SortResult<()> {
     assert_eq!(
         sections.pushed,
         vec![
-            // Static head
-            get_ident(&asg, st::L_MAP_UUUHEAD),
-            get_ident(&asg, st::L_RETMAP_UUUHEAD),
             // Post-order
             asg.get(adepdep).unwrap(),
             asg.get(adep).unwrap(),
             asg.get(a).unwrap(),
-            // Static tail
-            get_ident(&asg, st::L_MAP_UUUTAIL),
-            get_ident(&asg, st::L_RETMAP_UUUTAIL),
         ]
         .into_iter()
         .collect::<Vec<_>>()

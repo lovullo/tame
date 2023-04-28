@@ -75,34 +75,16 @@
   <variable name="retmap" select="/lv:package/l:retmap-exec" />
 
   <!-- store a reference to the mapper in rater.fromMap() -->
-  <text>rater.fromMap = </text>
-    <choose>
-      <when test="/lv:package/l:dep/preproc:sym[@type='map'][1]">
-        <value-of disable-output-escaping="yes" select="$map/text()" />
-      </when>
-
-      <!-- no map available -->
-      <otherwise>
-        <!-- simply invoke the conintuation with the provided data -->
-        <text>function(d,c){c(d);}</text>
-      </otherwise>
-    </choose>
-  <text>; </text>
+  <text>rater.fromMap=function(input,callback){</text>
+    <text>var output={};</text>
+    <value-of disable-output-escaping="yes" select="$map/text()" />
+  <text>callback(output);}; </text>
 
   <!-- return map -->
-  <text>rater._retmap = </text>
-    <choose>
-      <when test="/lv:package/l:dep/preproc:sym[@type='retmap'][1]">
-        <value-of disable-output-escaping="yes" select="$retmap/text()" />
-      </when>
-
-      <!-- no map available -->
-      <otherwise>
-        <!-- simply invoke the conintuation with the provided data -->
-        <text>function(d,c){c(d);}</text>
-      </otherwise>
-    </choose>
-  <text>; </text>
+  <text>rater._retmap=function(input,callback){</text>
+    <text>var output={};</text>
+    <value-of disable-output-escaping="yes" select="$retmap/text()" />
+  <text>callback(output);}; </text>
 
   <!-- we'll export a version that automatically performs the mapping -->
   <text>module.exports = function( args_base, _canterm ) { </text>

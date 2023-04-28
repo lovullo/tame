@@ -720,11 +720,6 @@ pub mod st {
 
         CC_ANY_OF: cid "anyOf",
 
-        L_MAP_UUUHEAD: str ":map:___head",
-        L_MAP_UUUTAIL: str ":map:___tail",
-        L_RETMAP_UUUHEAD: str ":retmap:___head",
-        L_RETMAP_UUUTAIL: str ":retmap:___tail",
-
         U_TRUE: cid "TRUE",
 
         URI_LV_CALC: uri "http://www.lovullo.com/calc",

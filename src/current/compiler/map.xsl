@@ -127,27 +127,12 @@
                       $pkg-with-symtable/preproc:sym-deps" />
 
     <preproc:fragments>
-      <!-- special fragment to be output as the head -->
-      <preproc:fragment id=":map:___head">
-        <!-- use a callback just in case we need to make portions of this async in the
-             future -->
-        <text>function( input, callback ) {</text>
-        <text>var output = {};</text>
-      </preproc:fragment>
-
-      <!-- compile mapped -->
       <apply-templates select="./lvm:*" mode="lvmc:compile">
         <with-param name="rater"    select="$rater" />
         <with-param name="type"     select="'map'" />
         <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable"
                     tunnel="yes"/>
       </apply-templates>
-
-      <!-- special fragment to be output as the foot -->
-      <preproc:fragment id=":map:___tail">
-        <text>callback(output);</text>
-        <text>};</text>
-      </preproc:fragment>
     </preproc:fragments>
 
     <sequence select="$pkg-with-symtable/preproc:sym-deps/following-sibling::*" />
@@ -204,27 +189,12 @@
                       $pkg-with-symtable/preproc:sym-deps" />
 
     <preproc:fragments>
-      <!-- special fragment to be output as the head -->
-      <preproc:fragment id=":retmap:___head">
-        <!-- use a callback just in case we need to make portions of this async in the
-             future -->
-        <text>function( input, callback ) {</text>
-        <text>var output = {};</text>
-      </preproc:fragment>
-
-      <!-- compile mapped -->
       <apply-templates select="./lvm:*" mode="lvmc:compile">
         <with-param name="rater"    select="$rater" />
         <with-param name="type"     select="'retmap'" />
         <with-param name="symtable" select="$pkg-with-symtable/preproc:symtable"
                     tunnel="yes"/>
       </apply-templates>
-
-      <!-- special fragment to be output as the foot -->
-      <preproc:fragment id=":retmap:___tail">
-        <text>callback(output);</text>
-        <text>};</text>
-      </preproc:fragment>
     </preproc:fragments>
 
     <sequence select="$pkg-with-symtable/preproc:sym-deps/following-sibling::*" />
@@ -236,19 +206,6 @@
   <param name="type-prefix" select="'map'" />
 
   <preproc:symtable>
-    <!-- purposely non-polluting.  @ignore-dup is intended to be
-         temporary until static generation of these names is resolved;
-         this will not cause problems, since the code is always the
-         same (future bug pending!) -->
-    <preproc:sym name=":{$type-prefix}:___head"
-                 type="{$type-prefix}:head"
-                 pollute="true"
-                 ignore-dup="true"
-                 no-deps="true" />
-    <preproc:sym name=":{$type-prefix}:___tail"
-                 type="{$type-prefix}:tail"
-                 ignore-dup="true"
-                 no-deps="true" />
   </preproc:symtable>
 </template>
 
