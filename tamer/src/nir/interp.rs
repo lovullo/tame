@@ -250,6 +250,13 @@ impl ParseState for InterpState {
         let span = tok.span();
 
         match self {
+            // TODO: For now we must maintain BC with existing documentation
+            //   that was written as LaTeX,
+            //     which naturally contains many curly braces.
+            // This can go away once we introduce a proper documentation
+            //   language.
+            Ready if matches!(tok, Nir::Text(..)) => Transition(Ready).ok(tok),
+
             // When receiving a new symbol,
             //   we must make a quick determination as to whether it
             //   requires desugaring.

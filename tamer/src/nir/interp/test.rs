@@ -63,6 +63,22 @@ fn does_not_desugar_tokens_without_symbols() {
     );
 }
 
+// We ought to desugar text at some point,
+//   but we need to maintain BC with existing systems.
+// The literate documentation was intended to be LaTeX back in the day,
+//   rather than a proper abstraction atop of it,
+//   and so there are many curly braces in existing code.
+#[test]
+fn does_not_desugar_text() {
+    let spair = SPair("\\footnote{foo}".into(), S1);
+    let toks = vec![Nir::Text(spair)];
+
+    assert_eq!(
+        Ok(vec![Object(Nir::Text(spair))]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
 fn expect_expanded_header(
     sut: &mut Parser<InterpState, std::vec::IntoIter<Nir>>,
     given_val: &str,
