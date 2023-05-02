@@ -190,6 +190,27 @@ impl Asg {
         self.graph.node_count()
     }
 
+    pub(super) fn try_index<
+        O: ObjectRelatable,
+        OS: ObjectIndexRelTo<O>,
+        S: Into<SymbolId>,
+    >(
+        &mut self,
+        imm_env: OS,
+        name: S,
+        oi: ObjectIndex<O>,
+    ) -> Result<(), ObjectIndex<O>> {
+        let sym = name.into();
+        let prev = self
+            .index
+            .insert((O::rel_ty(), sym, imm_env.widen()), oi.widen());
+
+        match prev {
+            None => Ok(()),
+            Some(oi) => Err(oi.must_narrow_into::<O>()),
+        }
+    }
+
     /// Index the provided symbol `name` as representing the
     ///   [`ObjectIndex`] in the immediate environment `imm_env`.
     ///
@@ -216,14 +237,12 @@ impl Asg {
         oi: ObjectIndex<O>,
     ) {
         let sym = name.into();
-        let prev = self
-            .index
-            .insert((O::rel_ty(), sym, imm_env.widen()), oi.widen());
+        let prev = self.try_index(imm_env, sym, oi);
 
         // We should never overwrite indexes
         #[allow(unused_variables)] // used only for debug
         #[allow(unused_imports)]
-        if let Some(prev_oi) = prev {
+        if let Err(prev_oi) = prev {
             use crate::fmt::{DisplayWrapper, TtQuote};
             crate::debug_diagnostic_panic!(
                 vec![

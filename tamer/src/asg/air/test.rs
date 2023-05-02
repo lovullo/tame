@@ -442,13 +442,75 @@ fn pkg_canonical_name() {
 
     let asg = sut.finalize().unwrap().into_context();
 
-    let pkg = asg
-        .root(S1)
+    let oi_root = asg.root(S1);
+    let oi_pkg = oi_root
         .edges_filtered::<Pkg>(&asg)
         .next()
         .expect("cannot find package from root");
 
-    assert_eq!(Some(name), pkg.resolve(&asg).canonical_name());
+    assert_eq!(Some(name), oi_pkg.resolve(&asg).canonical_name());
+
+    // We should be able to find the same package by its index.
+    let oi_pkg_indexed = asg.lookup(oi_root, name);
+    assert_eq!(
+        Some(oi_pkg),
+        oi_pkg_indexed,
+        "package was not indexed at Root"
+    );
+}
+
+// This isn't supposed to happen in practice,
+//   especially with normal usage of TAME where names are generated from
+//   filenames.
+#[test]
+fn pkg_cannot_redeclare() {
+    let name = SPair("foo/bar".into(), S2);
+    let name2 = SPair("foo/bar".into(), S5);
+    let namefix = SPair("foo/fix".into(), S6);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          BindIdent(name),
+        PkgEnd(S3),
+
+        PkgStart(S4),
+          // Attempt to define a package of the same name.
+          BindIdent(name2),
+
+          // RECOVERY: Use a proper name.
+          BindIdent(namefix),
+        PkgEnd(S7),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Incomplete),   // PkgStart
+              Ok(Incomplete), // BindIdent
+            Ok(Incomplete),   // PkgEnd
+
+            Ok(Incomplete),   // PkgStart
+              Err(ParseError::StateError(
+                  AsgError::PkgRedeclare(name, name2)
+              )),
+              // RECOVERY: Ignore the attempted name
+              Ok(Incomplete), // BindIdent
+            Ok(Incomplete),   // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // The second package should be available under the recovery name.
+    let oi_root = asg.root(S1);
+    let oi_pkg = asg
+        .lookup::<Pkg>(oi_root, namefix)
+        .expect("failed to locate package by its recovery name");
+    assert_eq!(S4.merge(S7).unwrap(), oi_pkg.resolve(&asg).span());
 }
 
 #[test]
@@ -463,8 +525,10 @@ fn pkg_cannot_rename() {
           // Attempt to provide a name a second time.
           BindIdent(name2),
           // RECOVERY: Just ignore it.
-        PkgEnd(S3),
+        PkgEnd(S4),
     ];
+
+    let mut sut = Sut::parse(toks.into_iter());
 
     assert_eq!(
         vec![
@@ -474,8 +538,17 @@ fn pkg_cannot_rename() {
             // RECOVERY: Ignore the attempted rename
             Ok(Incomplete), // PkgEnd
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+        sut.by_ref().collect::<Vec<_>>(),
     );
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    // The original name should have been kept.
+    let oi_root = asg.root(S1);
+    let oi_pkg = asg
+        .lookup::<Pkg>(oi_root, name)
+        .expect("failed to locate package by its original name");
+    assert_eq!(S1.merge(S4).unwrap(), oi_pkg.resolve(&asg).span());
 }
 
 #[test]

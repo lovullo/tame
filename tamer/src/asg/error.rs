@@ -61,6 +61,12 @@ pub enum AsgError {
     ///     whereas _declaring_ an identifier provides metadata about it.
     IdentRedefine(SPair, Span),
 
+    /// A package of this same name has already been defined.
+    ///
+    /// The [`SPair`]s represent the original and redefinition names
+    ///   respectively.
+    PkgRedeclare(SPair, SPair),
+
     /// Attempted to rename a package from the first [`SPair`] to the
     ///   second.
     ///
@@ -155,6 +161,11 @@ impl Display for AsgError {
             IdentRedefine(spair, _) => {
                 write!(f, "cannot redefine {}", TtQuote::wrap(spair))
             }
+            PkgRedeclare(orig, _) => write!(
+                f,
+                "attempted to redeclare or redefine package {}",
+                TtQuote::wrap(orig),
+            ),
             PkgRename(from, to) => write!(
                 f,
                 "attempted to rename package {} to {}",
@@ -234,6 +245,11 @@ impl Diagnostic for AsgError {
                 )),
                 span_redecl
                     .help("  defined and its definition cannot be changed."),
+            ],
+
+            PkgRedeclare(orig, redef) => vec![
+                orig.note("package originally declared here"),
+                redef.error("attempting to redeclare or redefine package here"),
             ],
 
             PkgRename(from, to) => vec![

@@ -202,12 +202,25 @@ impl ObjectIndex<Pkg> {
 
     /// Attempt to assign a canonical name to this package.
     ///
-    /// This assignment will fail if the package already has a name.
+    /// This assignment will fail if the package either already has a name
+    ///   or if a package of the same name has already been declared.
     pub fn assign_canonical_name(
         self,
         asg: &mut Asg,
         name: SPair,
     ) -> Result<Self, AsgError> {
+        let oi_root = asg.root(name);
+
+        asg.try_index(oi_root, name, self).map_err(|oi_prev| {
+            let prev = oi_prev.resolve(asg);
+
+            // unwrap note: a canonical name must exist for this error to
+            //   have been thrown,
+            //     but this will at least not blow up if something really
+            //     odd happens.
+            AsgError::PkgRedeclare(prev.canonical_name().unwrap_or(name), name)
+        })?;
+
         self.try_map_obj(asg, |pkg| pkg.assign_canonical_name(name))
     }
 
