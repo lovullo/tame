@@ -61,6 +61,14 @@ pub enum AsgError {
     ///     whereas _declaring_ an identifier provides metadata about it.
     IdentRedefine(SPair, Span),
 
+    /// Attempted to rename a package from the first [`SPair`] to the
+    ///   second.
+    ///
+    /// "Rename" here means that the package already had a name and we were
+    ///   provided another,
+    ///     which is almost certainly a mistake.
+    PkgRename(SPair, SPair),
+
     /// Attempted to open a package while defining another package.
     ///
     /// Packages cannot be nested.
@@ -147,6 +155,12 @@ impl Display for AsgError {
             IdentRedefine(spair, _) => {
                 write!(f, "cannot redefine {}", TtQuote::wrap(spair))
             }
+            PkgRename(from, to) => write!(
+                f,
+                "attempted to rename package {} to {}",
+                TtQuote::wrap(from),
+                TtQuote::wrap(to)
+            ),
             NestedPkgStart(_, _) => write!(f, "cannot nest packages"),
             InvalidPkgEndContext(_) => {
                 write!(f, "invalid context for package close",)
@@ -222,6 +236,12 @@ impl Diagnostic for AsgError {
                     .help("  defined and its definition cannot be changed."),
             ],
 
+            PkgRename(from, to) => vec![
+                from.note("package was originally named here"),
+                to.error("attempted to rename package here"),
+                to.help("a package cannot have its name changed"),
+            ],
+
             NestedPkgStart(second, first) => vec![
                 first.note("this package is still being defined"),
                 second.error("attempted to open another package here"),
@@ -274,15 +294,8 @@ impl Diagnostic for AsgError {
                 vec![span.error("there is no open template to close here")]
             }
 
-            InvalidBindContext(span) => vec![
-                span.error(
-                    "there is no active expression to bind this identifier to",
-                ),
-                span.help(
-                    "an identifier must be bound to an expression before \
-                        the expression is closed",
-                ),
-            ],
+            InvalidBindContext(span) => vec![span
+                .error("there is no active object to bind this identifier to")],
 
             InvalidRefContext(ident) => vec![ident.error(
                 "cannot reference the value of an expression from outside \

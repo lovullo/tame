@@ -236,7 +236,7 @@ impl<'a> TreeContext<'a> {
 
     /// Emit a package import statement.
     fn emit_import(&mut self, pkg: &Pkg, depth: Depth) -> Option<Xirf> {
-        let ps = pkg.pathspec();
+        let ps = pkg.import_path()?;
         self.push(Xirf::attr(QN_PACKAGE, ps.symbol(), (ps.span(), ps.span())));
 
         Some(Xirf::open(

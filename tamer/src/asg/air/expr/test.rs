@@ -22,7 +22,7 @@ use crate::asg::{
     air::{
         test::{
             asg_from_toks, parse_as_pkg_body, pkg_expect_ident_obj,
-            pkg_expect_ident_oi, pkg_get_ident_obj, pkg_lookup,
+            pkg_expect_ident_oi, pkg_lookup,
         },
         Air, AirAggregate,
     },
@@ -462,82 +462,6 @@ fn expr_close_unbalanced() {
     // Just verify that the expression was successfully added after recovery.
     let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
     assert_eq!(expr.span(), S2.merge(S4).unwrap());
-}
-
-#[test]
-fn expr_bind_to_empty() {
-    let id_pre = SPair("pre".into(), S2);
-    let id_noexpr_a = SPair("noexpr_a".into(), S4);
-    let id_good = SPair("good".into(), S6);
-    let id_noexpr_b = SPair("noexpr_b".into(), S8);
-
-    #[rustfmt::skip]
-    let toks = vec![
-        // We need to first bring ourselves out of the context of the
-        //   package header,
-        //     otherwise the bind will be interpreted as a bind to the
-        //     package itself.
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_pre),
-        Air::ExprEnd(S3),
-
-        // No open expression to bind to.
-        Air::BindIdent(id_noexpr_a),
-
-        // Post-recovery create an expression.
-        Air::ExprStart(ExprOp::Sum, S5),
-          Air::BindIdent(id_good),
-        Air::ExprEnd(S7),
-
-        // Once again we have nothing to bind to.
-        Air::BindIdent(id_noexpr_b),
-    ];
-
-    let mut sut = parse_as_pkg_body(toks);
-
-    assert_eq!(
-        #[rustfmt::skip]
-        vec![
-            Ok(Parsed::Incomplete), // PkgStart
-              // Just to get out of a package header context
-              Ok(Parsed::Incomplete), // ExprStart (pre)
-                Ok(Parsed::Incomplete), // BindIdent (pre)
-              Ok(Parsed::Incomplete), // ExprEnd (pre)
-
-              // Now that we've encountered an expression,
-              //   we want an error specific to expression binding,
-              //   since it's likely that a bind token was issued too late,
-              //     rather than trying to interpret this as being back in a
-              //     package context and binding to the package.
-              Err(ParseError::StateError(AsgError::InvalidBindContext(
-                  id_noexpr_a
-              ))),
-
-              // RECOVERY
-              Ok(Parsed::Incomplete), // ExprStart
-                Ok(Parsed::Incomplete), // BindIdent
-              Ok(Parsed::Incomplete), // ExprEnd
-
-              // Another error after a successful expression.
-              Err(ParseError::StateError(AsgError::InvalidBindContext(
-                  id_noexpr_b
-              ))),
-            // RECOVERY
-            Ok(Parsed::Incomplete), // PkgEnd
-        ],
-        sut.by_ref().collect::<Vec<_>>(),
-    );
-
-    let asg = sut.finalize().unwrap().into_context();
-
-    // Neither of the identifiers outside of expressions should exist on the
-    //   graph.
-    assert_eq!(None, pkg_get_ident_obj::<Expr>(&asg, id_noexpr_a));
-    assert_eq!(None, pkg_get_ident_obj::<Expr>(&asg, id_noexpr_b));
-
-    // Verify that the expression was successfully added after recovery.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_good);
-    assert_eq!(expr.span(), S5.merge(S7).unwrap());
 }
 
 // Subexpressions should not only have edges to their parent,

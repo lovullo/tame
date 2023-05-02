@@ -164,10 +164,12 @@ impl ParseState for AirAggregate {
                 Transition(Empty).incomplete()
             }
 
-            // Packages are identified by their paths.
-            (st @ Toplevel(..), AirBind(BindIdent(id))) => {
-                Transition(st).err(AsgError::InvalidBindContext(id))
-            }
+            // Packages are identified by canonical paths relative to the
+            //   project root.
+            (Toplevel(oi_pkg), AirBind(BindIdent(name))) => oi_pkg
+                .assign_canonical_name(ctx.asg_mut(), name)
+                .map(|_| ())
+                .transition(Toplevel(oi_pkg)),
 
             (Toplevel(oi_pkg), tok @ AirDoc(DocIndepClause(..))) => {
                 diagnostic_todo!(

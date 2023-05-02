@@ -427,6 +427,58 @@ fn nested_open_pkg() {
 }
 
 #[test]
+fn pkg_canonical_name() {
+    let name = SPair("foo/bar".into(), S2);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          BindIdent(name),
+        PkgEnd(S3),
+    ];
+
+    let mut sut = Sut::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
+
+    let asg = sut.finalize().unwrap().into_context();
+
+    let pkg = asg
+        .root(S1)
+        .edges_filtered::<Pkg>(&asg)
+        .next()
+        .expect("cannot find package from root");
+
+    assert_eq!(Some(name), pkg.resolve(&asg).canonical_name());
+}
+
+#[test]
+fn pkg_cannot_rename() {
+    let name = SPair("foo/bar".into(), S2);
+    let name2 = SPair("bad/rename".into(), S3);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          BindIdent(name),
+          // Attempt to provide a name a second time.
+          BindIdent(name2),
+          // RECOVERY: Just ignore it.
+        PkgEnd(S3),
+    ];
+
+    assert_eq!(
+        vec![
+            Ok(Incomplete), // PkgStart
+            Ok(Incomplete), // BindIdent
+            Err(ParseError::StateError(AsgError::PkgRename(name, name2))),
+            // RECOVERY: Ignore the attempted rename
+            Ok(Incomplete), // PkgEnd
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
 fn pkg_import() {
     let pathspec = SPair("foo/bar".into(), S2);
 
@@ -452,7 +504,7 @@ fn pkg_import() {
         .expect("cannot find imported package")
         .resolve(&asg);
 
-    assert_eq!(pathspec, import.pathspec());
+    assert_eq!(Some(pathspec), import.import_path());
 }
 
 // Documentation can be mixed in with objects in a literate style.
@@ -529,15 +581,6 @@ pub fn pkg_lookup(asg: &Asg, name: SPair) -> Option<ObjectIndex<Ident>> {
     asg.lookup(oi_pkg, name)
 }
 
-pub fn pkg_get_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
-    asg: &Asg,
-    name: SPair,
-) -> Option<ObjectIndex<O>> {
-    pkg_lookup(asg, name)
-        .and_then(|oi| oi.edges(asg).next())
-        .and_then(|oi| oi.narrow())
-}
-
 pub fn pkg_expect_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
     asg: &Asg,
     name: SPair,
@@ -552,13 +595,6 @@ pub fn pkg_expect_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
         .expect(&format!("missing definition for ident `{name}`"))
         .narrow()
         .expect(&format!("ident `{name}` was not of expected ObjectKind"))
-}
-
-pub fn pkg_get_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
-    asg: &Asg,
-    name: SPair,
-) -> Option<&O> {
-    pkg_get_ident_oi(asg, name).map(|oi| oi.resolve(asg))
 }
 
 pub fn pkg_expect_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
