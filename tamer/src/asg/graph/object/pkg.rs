@@ -35,10 +35,11 @@ use super::ObjectKind;
 pub struct Pkg(Span, PathSpec);
 
 impl Pkg {
-    /// Create a new package intended to serve as the compilation unit,
-    ///   with an empty pathspec.
-    pub fn new<S: Into<Span>>(span: S) -> Self {
-        Self(span.into(), PathSpec::Unnamed)
+    /// Create a new package with a canonicalized name.
+    ///
+    /// A canonical package name is a path relative to the project root.
+    pub(super) fn new_canonical<S: Into<Span>>(start: S, name: SPair) -> Self {
+        Self(start.into(), PathSpec::Canonical(name))
     }
 
     /// Represent a package imported according to the provided
@@ -53,26 +54,8 @@ impl Pkg {
         }
     }
 
-    /// Attempt to assign a canonical name to this package.
-    ///
-    /// Only [`PathSpec::Unnamed`] packages may have a named assigned,
-    ///   otherwise an [`AsgError::PkgRename`] [`Err`] will be returned.
-    pub fn assign_canonical_name(
-        self,
-        name: SPair,
-    ) -> Result<Self, (Self, AsgError)> {
-        match self {
-            Self(span, PathSpec::Unnamed) => {
-                Ok(Self(span, PathSpec::Canonical(name)))
-            }
-            Self(_, PathSpec::Canonical(orig) | PathSpec::TodoImport(orig)) => {
-                Err((self, AsgError::PkgRename(orig, name)))
-            }
-        }
-    }
-
     /// The canonical name for this package assigned by
-    ///   [`Self::assign_canonical_name`],
+    ///   [`Self::new_canonical`],
     ///     if any.
     pub fn canonical_name(&self) -> Option<SPair> {
         match self {
@@ -112,9 +95,6 @@ impl Functor<Span> for Pkg {
 
 #[derive(Debug, PartialEq, Eq)]
 enum PathSpec {
-    /// Unnamed package.
-    Unnamed,
-
     /// Canonical package name.
     ///
     /// This is the name of the package relative to the project root.
@@ -136,7 +116,6 @@ impl PathSpec {
         use PathSpec::*;
 
         match self {
-            Unnamed => None,
             Canonical(spair) => Some(*spair),
             TodoImport(_) => None,
         }
@@ -146,7 +125,6 @@ impl PathSpec {
         use PathSpec::*;
 
         match self {
-            Unnamed => None,
             // TODO: Let's wait to see if we actually need this,
             //   since we'll need to allocate and intern a `/`-prefixed
             //   symbol.
@@ -161,9 +139,6 @@ impl Display for PathSpec {
         use PathSpec::*;
 
         match self {
-            Unnamed => {
-                write!(f, "unnamed package")
-            }
             Canonical(spair) => write!(f, "package {}", TtQuote::wrap(spair)),
             TodoImport(spair) => write!(
                 f,
@@ -198,30 +173,6 @@ impl ObjectIndex<Pkg> {
     /// Complete the definition of a package.
     pub fn close(self, asg: &mut Asg, span: Span) -> Self {
         self.map_obj(asg, Pkg::fmap(|open| open.merge(span).unwrap_or(open)))
-    }
-
-    /// Attempt to assign a canonical name to this package.
-    ///
-    /// This assignment will fail if the package either already has a name
-    ///   or if a package of the same name has already been declared.
-    pub fn assign_canonical_name(
-        self,
-        asg: &mut Asg,
-        name: SPair,
-    ) -> Result<Self, AsgError> {
-        let oi_root = asg.root(name);
-
-        asg.try_index(oi_root, name, self).map_err(|oi_prev| {
-            let prev = oi_prev.resolve(asg);
-
-            // unwrap note: a canonical name must exist for this error to
-            //   have been thrown,
-            //     but this will at least not blow up if something really
-            //     odd happens.
-            AsgError::PkgRedeclare(prev.canonical_name().unwrap_or(name), name)
-        })?;
-
-        self.try_map_obj(asg, |pkg| pkg.assign_canonical_name(name))
     }
 
     /// Indicate that a package should be imported at the provided

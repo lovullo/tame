@@ -408,18 +408,24 @@ fn close_pkg_without_open() {
 
 #[test]
 fn nested_open_pkg() {
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgStart(S2),
-        // RECOVERY
-        PkgEnd(S3),
+          BindIdent(SPair("foo".into(), S2)),
+
+          // Cannot nest package
+          PkgStart(S3),
+          // RECOVERY
+        PkgEnd(S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         vec![
             Ok(Incomplete), // PkgStart
-            Err(ParseError::StateError(AsgError::NestedPkgStart(S2, S1))),
-            // RECOVERY
+              Ok(Incomplete), // BindIdent
+              Err(ParseError::StateError(AsgError::NestedPkgStart(S3, S1))),
+              // RECOVERY
             Ok(Incomplete), // PkgEnd
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<_>>(),

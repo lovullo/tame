@@ -301,25 +301,32 @@ fn omits_unreachable() {
 //   roots since that is the entry point for this API.
 #[test]
 fn sorts_objects_given_multiple_roots() {
-    let id_a = SPair("expr_a".into(), S3);
-    let id_b = SPair("expr_b".into(), S8);
+    let pkg_a_name = SPair("pkg/a".into(), S2);
+    let pkg_b_name = SPair("pkg/b".into(), S8);
+
+    let id_a = SPair("expr_a".into(), S4);
+    let id_b = SPair("expr_b".into(), S10);
 
     #[rustfmt::skip]
     let toks = vec![
         // First root
         PkgStart(S1),
-          ExprStart(ExprOp::Sum, S2),
+          BindIdent(pkg_a_name),
+
+          ExprStart(ExprOp::Sum, S3),
             BindIdent(id_a),
-          ExprEnd(S4),
-        PkgEnd(S5),
+          ExprEnd(S5),
+        PkgEnd(S6),
 
         // Second root,
         //   independent of the first.
-        PkgStart(S6),
-          ExprStart(ExprOp::Sum, S7),
+        PkgStart(S7),
+          BindIdent(pkg_b_name),
+
+          ExprStart(ExprOp::Sum, S9),
             BindIdent(id_b),
-          ExprEnd(S9),
-        PkgEnd(S10),
+          ExprEnd(S11),
+        PkgEnd(S12),
     ];
 
     use ObjectTy::*;
@@ -329,16 +336,16 @@ fn sorts_objects_given_multiple_roots() {
     assert_eq!(
         Ok(vec![
             // First root.
-            (Expr,  m(S2, S4) ),
-            (Ident, S3),
-            (Pkg,   m(S1, S5) ),
+            (Expr,  m(S3, S5) ),
+            (Ident, S4),
+            (Pkg,   m(S1, S6) ),
 
             // Second root,
             //   but the fact that it is emitted after the first is not
             //   behavior that should be relied upon.
-            (Expr,  m(S7, S9) ),
-            (Ident, S8),
-            (Pkg,   m(S6, S10)),
+            (Expr,  m(S9, S11) ),
+            (Ident, S10),
+            (Pkg,   m(S7, S12)),
         ]),
         topo_report::<object::Pkg, _>(toks).into_iter().collect(),
     );

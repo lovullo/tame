@@ -44,7 +44,7 @@ use crate::{
     diagnostic_todo,
     parse::{prelude::*, StateStack},
     span::{Span, UNKNOWN_SPAN},
-    sym::SymbolId,
+    sym::{st::raw::WS_EMPTY, SymbolId},
 };
 use std::fmt::{Debug, Display};
 
@@ -66,6 +66,10 @@ pub enum AirAggregate {
     /// Parser is not currently performing any work.
     #[default]
     Empty,
+
+    /// Package definition or declaration started,
+    ///   but the name is not yet known.
+    UnnamedPkg(Span),
 
     /// Expecting a package-level token.
     Toplevel(ObjectIndex<Pkg>),
@@ -91,6 +95,9 @@ impl Display for AirAggregate {
 
         match self {
             Empty => write!(f, "awaiting AIR input for ASG"),
+            UnnamedPkg(_) => {
+                write!(f, "expecting canonical package name")
+            }
             Toplevel(_) => {
                 write!(f, "expecting package header or an expression")
             }
@@ -143,12 +150,11 @@ impl ParseState for AirAggregate {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
             (Empty, AirPkg(PkgStart(span))) => {
-                let oi_pkg = ctx.begin_pkg(span);
-                Transition(Toplevel(oi_pkg)).incomplete()
+                Transition(UnnamedPkg(span)).incomplete()
             }
 
             (
-                st @ (Toplevel(_) | PkgExpr(_) | PkgTpl(_)),
+                st @ (UnnamedPkg(_) | Toplevel(_) | PkgExpr(_) | PkgTpl(_)),
                 AirPkg(PkgStart(span)),
             ) => {
                 // This should always be available in this context.
@@ -158,18 +164,43 @@ impl ParseState for AirAggregate {
                 Transition(st).err(AsgError::NestedPkgStart(span, first_span))
             }
 
+            // Packages are identified by canonical paths relative to the
+            //   project root.
+            (UnnamedPkg(span), AirBind(BindIdent(name))) => {
+                match ctx.begin_pkg(span, name) {
+                    Ok(oi_pkg) => Transition(Toplevel(oi_pkg)).incomplete(),
+                    Err(e) => Transition(UnnamedPkg(span)).err(e),
+                }
+            }
+
+            // TODO: Remove; transitionary (no package name required)
+            (UnnamedPkg(span), tok) => {
+                match ctx.begin_pkg(span, SPair(WS_EMPTY, span)) {
+                    Ok(oi_pkg) => Transition(Toplevel(oi_pkg))
+                        .incomplete()
+                        .with_lookahead(tok),
+                    Err(e) => Transition(UnnamedPkg(span)).err(e),
+                }
+            }
+
+            (Toplevel(oi_pkg), AirBind(BindIdent(rename))) => {
+                // TODO: `unwrap_or` is just until canonical name is
+                //   unconditionally available just to avoid the possibility
+                //   of a panic.
+                let name = oi_pkg
+                    .resolve(ctx.asg_mut())
+                    .canonical_name()
+                    .unwrap_or(rename);
+
+                Transition(Toplevel(oi_pkg))
+                    .err(AsgError::PkgRename(name, rename))
+            }
+
             // No expression was started.
             (Toplevel(oi_pkg), AirPkg(PkgEnd(span))) => {
                 oi_pkg.close(ctx.asg_mut(), span);
                 Transition(Empty).incomplete()
             }
-
-            // Packages are identified by canonical paths relative to the
-            //   project root.
-            (Toplevel(oi_pkg), AirBind(BindIdent(name))) => oi_pkg
-                .assign_canonical_name(ctx.asg_mut(), name)
-                .map(|_| ())
-                .transition(Toplevel(oi_pkg)),
 
             (Toplevel(oi_pkg), tok @ AirDoc(DocIndepClause(..))) => {
                 diagnostic_todo!(
@@ -301,7 +332,7 @@ impl AirAggregate {
 
         match self {
             Empty => true,
-            Toplevel(_) => self.is_accepting(ctx),
+            UnnamedPkg(_) | Toplevel(_) => self.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
             PkgTpl(st) => st.is_accepting(ctx),
         }
@@ -316,6 +347,7 @@ impl AirAggregate {
     fn active_rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
         match self {
             AirAggregate::Empty => None,
+            AirAggregate::UnnamedPkg(_) => None,
             AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
 
             // Expressions never serve as roots for identifiers;
@@ -444,12 +476,18 @@ impl AirAggregateCtx {
     }
 
     /// Create a new rooted package and record it as the active package.
-    fn begin_pkg(&mut self, span: Span) -> ObjectIndex<Pkg> {
+    fn begin_pkg(
+        &mut self,
+        start: Span,
+        name: SPair,
+    ) -> Result<ObjectIndex<Pkg>, AsgError> {
         let Self(asg, _, pkg) = self;
-        let oi_pkg = asg.create(Pkg::new(span)).root(asg);
+
+        let oi_root = asg.root(start);
+        let oi_pkg = oi_root.create_pkg(asg, start, name)?;
 
         pkg.replace(oi_pkg);
-        oi_pkg
+        Ok(oi_pkg)
     }
 
     /// The active package if any.
@@ -488,7 +526,7 @@ impl AirAggregateCtx {
             //   unreachable.
             // There should be no parent frame and so this will fail to find
             //   a value.
-            AirAggregate::Toplevel(_) => None,
+            AirAggregate::UnnamedPkg(_) | AirAggregate::Toplevel(_) => None,
 
             // Expressions may always contain other expressions,
             //   and so this method should not be consulted in such a
@@ -515,6 +553,7 @@ impl AirAggregateCtx {
 
         stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
+            AirAggregate::UnnamedPkg(_) => None,
             AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
             AirAggregate::PkgExpr(exprst) => {
                 exprst.active_expr_oi().map(Into::into)
