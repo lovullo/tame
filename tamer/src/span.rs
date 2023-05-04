@@ -439,6 +439,30 @@ impl Span {
         }
     }
 
+    /// Slice a span with an offset from the end.
+    ///
+    /// This can be read as "reverse slice" or "right-hand slice".
+    /// It is like [`Self::slice`],
+    ///   but the provided offset is relative to the _end_ of the span
+    ///   rather than the beginning.
+    pub fn rslice(self, rel_offset: usize, len: usize) -> Self {
+        self.slice(self.len() as usize - rel_offset, len)
+    }
+
+    /// Slice a span from its beginning.
+    ///
+    /// This is equivalent to [`Self::slice`] with an offset of `0`.
+    pub fn slice_head(self, len: usize) -> Self {
+        self.slice(0, len)
+    }
+
+    /// Slice a span from its end.
+    ///
+    /// This is equivalent to [`Self::rslice`] with an offset of `len`.
+    pub fn slice_tail(self, len: usize) -> Self {
+        self.rslice(len, len)
+    }
+
     /// Adjust span such that its offset is relative to the provided span.
     ///
     /// If the provide `rel_span` does not precede this span,
@@ -883,6 +907,13 @@ mod test {
         let span = ctx.span(10, 10);
 
         assert_eq!(ctx.span(15, 5), span.slice(5, 5));
+        // and from the opposite direction
+        assert_eq!(ctx.span(17, 2), span.rslice(3, 2));
+
+        // While we're at it,
+        //   these also use the above:
+        assert_eq!(ctx.span(10, 5), span.slice_head(5));
+        assert_eq!(ctx.span(15, 5), span.slice_tail(5));
     }
 
     #[test]
