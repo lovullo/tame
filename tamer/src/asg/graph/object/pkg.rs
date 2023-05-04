@@ -19,7 +19,7 @@
 
 //! Package object on the ASG.
 
-use super::{prelude::*, Doc, Ident, NameableMissingObject, Tpl};
+use super::{prelude::*, Doc, Ident, Tpl};
 use crate::{
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
@@ -33,21 +33,34 @@ use super::ObjectKind;
 
 mod name;
 
+pub use name::{CanonicalName, CanonicalNameError};
+
 #[derive(Debug, PartialEq, Eq)]
-pub struct Pkg(Span, PathSpec);
+pub struct Pkg(Span, CanonicalName);
 
 impl Pkg {
     /// Create a new package with a canonicalized name.
     ///
     /// A canonical package name is a path relative to the project root.
-    pub(super) fn new_canonical<S: Into<Span>>(start: S, name: SPair) -> Self {
-        Self(start.into(), PathSpec::Canonical(name))
+    pub(super) fn new_canonical<S: Into<Span>>(
+        start: S,
+        name: SPair,
+    ) -> Result<Self, AsgError> {
+        Ok(Self(start.into(), CanonicalName::from_canonical(name)?))
     }
 
-    /// Represent a package imported according to the provided
-    ///   [`PathSpec`].
-    pub fn new_imported(pathspec: SPair) -> Self {
-        Self(pathspec.span(), PathSpec::TodoImport(pathspec))
+    /// Import a package with a namespec canonicalized against a reference
+    ///   parent package.
+    ///
+    /// The parent package should be the package containing the namespec.
+    pub fn new_imported(
+        Pkg(_, parent_name): &Pkg,
+        namespec: SPair,
+    ) -> Result<Self, AsgError> {
+        Ok(Self(
+            namespec.span(),
+            CanonicalName::resolve_namespec_rel(parent_name, namespec)?,
+        ))
     }
 
     pub fn span(&self) -> Span {
@@ -59,31 +72,18 @@ impl Pkg {
     /// The canonical name for this package assigned by
     ///   [`Self::new_canonical`],
     ///     if any.
-    pub fn canonical_name(&self) -> Option<SPair> {
+    pub fn canonical_name(&self) -> SPair {
         match self {
-            Self(_, pathspec) => pathspec.canonical_name(),
-        }
-    }
-
-    /// The import path to this package as provided by
-    ///   [`Self::new_imported`],
-    ///     if any.
-    pub fn import_path(&self) -> Option<SPair> {
-        match self {
-            Self(_, pathspec) => pathspec.import_path(),
+            Self(_, name) => (*name).into(),
         }
     }
 }
 
 impl Display for Pkg {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "package")
-    }
-}
-
-impl NameableMissingObject for Pkg {
-    fn missing(pathspec: SPair) -> Self {
-        Self::new_imported(pathspec)
+        match self {
+            Self(_, name) => write!(f, "package {}", TtQuote::wrap(name)),
+        }
     }
 }
 
@@ -91,62 +91,6 @@ impl Functor<Span> for Pkg {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
         match self {
             Self(span, path) => Self(f(span), path),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum PathSpec {
-    /// Canonical package name.
-    ///
-    /// This is the name of the package relative to the project root.
-    /// This is like the module name after `crate::` in Rust,
-    ///   but with `/` package separators in place of `::`.
-    Canonical(SPair),
-
-    /// Import path relative to the current package
-    ///   (which is likely the compilation unit).
-    ///
-    /// TODO: This will be replaced with [`Self::Canonical`] once that is
-    ///   working and relative paths can be resolved against the active
-    ///   package.
-    TodoImport(SPair),
-}
-
-impl PathSpec {
-    fn canonical_name(&self) -> Option<SPair> {
-        use PathSpec::*;
-
-        match self {
-            Canonical(spair) => Some(*spair),
-            TodoImport(_) => None,
-        }
-    }
-
-    fn import_path(&self) -> Option<SPair> {
-        use PathSpec::*;
-
-        match self {
-            // TODO: Let's wait to see if we actually need this,
-            //   since we'll need to allocate and intern a `/`-prefixed
-            //   symbol.
-            Canonical(_) => None,
-            TodoImport(spair) => Some(*spair),
-        }
-    }
-}
-
-impl Display for PathSpec {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use PathSpec::*;
-
-        match self {
-            Canonical(spair) => write!(f, "package {}", TtQuote::wrap(spair)),
-            TodoImport(spair) => write!(
-                f,
-                "package import {} relative to compilation unit",
-                TtQuote::wrap(spair)
-            ),
         }
     }
 }
@@ -182,9 +126,15 @@ impl ObjectIndex<Pkg> {
     ///
     /// This simply adds the import to the graph;
     ///   package loading must be performed by another subsystem.
-    pub fn import(self, asg: &mut Asg, pathspec: SPair) -> Self {
-        let oi_import = asg.create(Pkg::new_imported(pathspec));
-        self.add_edge_to(asg, oi_import, Some(pathspec.span()))
+    pub fn import(
+        self,
+        asg: &mut Asg,
+        namespec: SPair,
+    ) -> Result<Self, AsgError> {
+        let parent = self.resolve(asg);
+        let oi_import = asg.create(Pkg::new_imported(parent, namespec)?);
+
+        Ok(self.add_edge_to(asg, oi_import, Some(namespec.span())))
     }
 
     /// Arbitrary text serving as documentation in a literate style.

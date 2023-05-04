@@ -5,8 +5,8 @@
 
 
 
-  <import package="first" />
-  <import package="second" />
-  <import package="third" />
+  <import package="/first/pkg" />
+  <import package="/second" />
+  <import package="/third" />
 </package>
 

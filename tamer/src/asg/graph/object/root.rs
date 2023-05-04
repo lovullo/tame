@@ -109,7 +109,7 @@ impl ObjectIndex<Root> {
         start: Span,
         name: SPair,
     ) -> Result<ObjectIndex<Pkg>, AsgError> {
-        let oi_pkg = asg.create(Pkg::new_canonical(start, name));
+        let oi_pkg = asg.create(Pkg::new_canonical(start, name)?);
 
         asg.try_index(self, name, oi_pkg).map_err(|oi_prev| {
             let prev = oi_prev.resolve(asg);
@@ -118,7 +118,7 @@ impl ObjectIndex<Root> {
             //   have been thrown,
             //     but this will at least not blow up if something really
             //     odd happens.
-            AsgError::PkgRedeclare(prev.canonical_name().unwrap_or(name), name)
+            AsgError::PkgRedeclare(prev.canonical_name(), name)
         })?;
 
         Ok(oi_pkg.root(asg))

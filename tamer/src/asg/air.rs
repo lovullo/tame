@@ -44,7 +44,7 @@ use crate::{
     diagnostic_todo,
     parse::{prelude::*, StateStack},
     span::{Span, UNKNOWN_SPAN},
-    sym::{st::raw::WS_EMPTY, SymbolId},
+    sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
 
@@ -175,7 +175,7 @@ impl ParseState for AirAggregate {
 
             // TODO: Remove; transitionary (no package name required)
             (UnnamedPkg(span), tok) => {
-                match ctx.begin_pkg(span, SPair(WS_EMPTY, span)) {
+                match ctx.begin_pkg(span, SPair("/TODO".into(), span)) {
                     Ok(oi_pkg) => Transition(Toplevel(oi_pkg))
                         .incomplete()
                         .with_lookahead(tok),
@@ -187,10 +187,7 @@ impl ParseState for AirAggregate {
                 // TODO: `unwrap_or` is just until canonical name is
                 //   unconditionally available just to avoid the possibility
                 //   of a panic.
-                let name = oi_pkg
-                    .resolve(ctx.asg_mut())
-                    .canonical_name()
-                    .unwrap_or(rename);
+                let name = oi_pkg.resolve(ctx.asg_mut()).canonical_name();
 
                 Transition(Toplevel(oi_pkg))
                     .err(AsgError::PkgRename(name, rename))
@@ -220,10 +217,10 @@ impl ParseState for AirAggregate {
             }
 
             // Package import
-            (Toplevel(oi_pkg), AirBind(RefIdent(pathspec))) => {
-                oi_pkg.import(ctx.asg_mut(), pathspec);
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
+            (Toplevel(oi_pkg), AirBind(RefIdent(pathspec))) => oi_pkg
+                .import(ctx.asg_mut(), pathspec)
+                .map(|_| ())
+                .transition(Toplevel(oi_pkg)),
 
             // Note: We unfortunately can't match on `AirExpr | AirBind | ...`
             //   and delegate in the same block

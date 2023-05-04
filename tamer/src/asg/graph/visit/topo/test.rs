@@ -301,8 +301,8 @@ fn omits_unreachable() {
 //   roots since that is the entry point for this API.
 #[test]
 fn sorts_objects_given_multiple_roots() {
-    let pkg_a_name = SPair("pkg/a".into(), S2);
-    let pkg_b_name = SPair("pkg/b".into(), S8);
+    let pkg_a_name = SPair("/pkg/a".into(), S2);
+    let pkg_b_name = SPair("/pkg/b".into(), S8);
 
     let id_a = SPair("expr_a".into(), S4);
     let id_b = SPair("expr_b".into(), S10);

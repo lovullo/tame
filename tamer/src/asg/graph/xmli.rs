@@ -235,8 +235,10 @@ impl<'a> TreeContext<'a> {
     }
 
     /// Emit a package import statement.
+    ///
+    /// The import will have its path canonicalized.
     fn emit_import(&mut self, pkg: &Pkg, depth: Depth) -> Option<Xirf> {
-        let ps = pkg.import_path()?;
+        let ps = pkg.canonical_name();
         self.push(Xirf::attr(QN_PACKAGE, ps.symbol(), (ps.span(), ps.span())));
 
         Some(Xirf::open(

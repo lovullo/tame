@@ -325,6 +325,14 @@ fn validate_components(
         .map(|_| name)
 }
 
+impl Display for CanonicalName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self(name) => Display::fmt(name, f),
+        }
+    }
+}
+
 impl From<CanonicalName> for SPair {
     fn from(value: CanonicalName) -> Self {
         match value {

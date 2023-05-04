@@ -31,7 +31,9 @@ use crate::{
     span::Span,
 };
 
-use super::{visit::Cycle, TransitionError};
+use super::{
+    graph::object::pkg::CanonicalNameError, visit::Cycle, TransitionError,
+};
 
 /// An error from an ASG operation.
 ///
@@ -60,6 +62,9 @@ pub enum AsgError {
     ///   _defining_ an identifier associates it with an object,
     ///     whereas _declaring_ an identifier provides metadata about it.
     IdentRedefine(SPair, Span),
+
+    /// Error while processing the canonical name for a package.
+    PkgCanonicalName(CanonicalNameError),
 
     /// A package of this same name has already been defined.
     ///
@@ -157,10 +162,11 @@ impl Display for AsgError {
         use AsgError::*;
 
         match self {
-            IdentTransition(err) => Display::fmt(&err, f),
+            IdentTransition(e) => Display::fmt(&e, f),
             IdentRedefine(spair, _) => {
                 write!(f, "cannot redefine {}", TtQuote::wrap(spair))
             }
+            PkgCanonicalName(e) => Display::fmt(&e, f),
             PkgRedeclare(orig, _) => write!(
                 f,
                 "attempted to redeclare or redefine package {}",
@@ -213,8 +219,14 @@ impl Display for AsgError {
 impl Error for AsgError {}
 
 impl From<TransitionError> for AsgError {
-    fn from(err: TransitionError) -> Self {
-        Self::IdentTransition(err)
+    fn from(e: TransitionError) -> Self {
+        Self::IdentTransition(e)
+    }
+}
+
+impl From<CanonicalNameError> for AsgError {
+    fn from(e: CanonicalNameError) -> Self {
+        Self::PkgCanonicalName(e)
     }
 }
 
@@ -246,6 +258,8 @@ impl Diagnostic for AsgError {
                 span_redecl
                     .help("  defined and its definition cannot be changed."),
             ],
+
+            PkgCanonicalName(e) => e.describe(),
 
             PkgRedeclare(orig, redef) => vec![
                 orig.note("package originally declared here"),

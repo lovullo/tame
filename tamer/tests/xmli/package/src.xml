@@ -5,7 +5,9 @@
 
   Packages aren't actually imported yet,
     but they do need to be represented on the graph for `xmli` derivation.
-  <import package="first" />
+  Import paths will be canonicalized.
+
+  <import package="first/pkg" />
   <import package="second" />
   <import package="third" />
 </package>

@@ -411,7 +411,7 @@ fn nested_open_pkg() {
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-          BindIdent(SPair("foo".into(), S2)),
+          BindIdent(SPair("/foo".into(), S2)),
 
           // Cannot nest package
           PkgStart(S3),
@@ -434,7 +434,7 @@ fn nested_open_pkg() {
 
 #[test]
 fn pkg_canonical_name() {
-    let name = SPair("foo/bar".into(), S2);
+    let name = SPair("/foo/bar".into(), S2);
 
     #[rustfmt::skip]
     let toks = vec![
@@ -454,7 +454,7 @@ fn pkg_canonical_name() {
         .next()
         .expect("cannot find package from root");
 
-    assert_eq!(Some(name), oi_pkg.resolve(&asg).canonical_name());
+    assert_eq!(name, oi_pkg.resolve(&asg).canonical_name());
 
     // We should be able to find the same package by its index.
     let oi_pkg_indexed = asg.lookup(oi_root, name);
@@ -470,9 +470,9 @@ fn pkg_canonical_name() {
 //   filenames.
 #[test]
 fn pkg_cannot_redeclare() {
-    let name = SPair("foo/bar".into(), S2);
-    let name2 = SPair("foo/bar".into(), S5);
-    let namefix = SPair("foo/fix".into(), S6);
+    let name = SPair("/foo/bar".into(), S2);
+    let name2 = SPair("/foo/bar".into(), S5);
+    let namefix = SPair("/foo/fix".into(), S6);
 
     #[rustfmt::skip]
     let toks = vec![
@@ -521,8 +521,8 @@ fn pkg_cannot_redeclare() {
 
 #[test]
 fn pkg_cannot_rename() {
-    let name = SPair("foo/bar".into(), S2);
-    let name2 = SPair("bad/rename".into(), S3);
+    let name = SPair("/foo/bar".into(), S2);
+    let name2 = SPair("/bad/rename".into(), S3);
 
     #[rustfmt::skip]
     let toks = vec![
@@ -558,13 +558,15 @@ fn pkg_cannot_rename() {
 }
 
 #[test]
-fn pkg_import() {
-    let pathspec = SPair("foo/bar".into(), S2);
+fn pkg_import_canonicalized_against_current_pkg() {
+    let pkg_name = SPair("/foo/bar".into(), S2);
+    let pkg_rel = SPair("baz/quux".into(), S3);
 
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-          RefIdent(pathspec),
+          BindIdent(pkg_name),
+          RefIdent(pkg_rel),
         PkgEnd(S3),
     ];
 
@@ -583,7 +585,8 @@ fn pkg_import() {
         .expect("cannot find imported package")
         .resolve(&asg);
 
-    assert_eq!(Some(pathspec), import.import_path());
+    // TODO
+    assert_eq!(SPair("/foo/baz/quux".into(), S3), import.canonical_name());
 }
 
 // Documentation can be mixed in with objects in a literate style.
