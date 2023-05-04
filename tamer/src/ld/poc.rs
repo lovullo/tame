@@ -136,10 +136,11 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
                                 air,
                                 asg,
                                 |end| {
-                                    end.fold(
-                                        Result::<(), TameldError>::Ok(()),
-                                        |x, _| x,
-                                    )
+                                    for result in end {
+                                        let _ = result?;
+                                    }
+
+                                    Ok::<_, TameldError>(())
                                 },
                             )?;
 
