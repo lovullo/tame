@@ -14,7 +14,7 @@ cd "$(dirname "$0")"
 #
 # So, to be clear:
 #   do _not_ do something like `grep -rl 'object_rel!' ../src/asg`.
-find ../src/asg/graph/object/ -name '*.rs' \
+find ../src/asg/graph/object/ -maxdepth 1 -name '*.rs' \
      -a \! -name 'rel.rs' \
      -a \! -name 'test.rs' \
   | xargs awk -f asg-ontviz.awk

@@ -718,6 +718,9 @@ pub mod st {
 
         L_TPLP_VALUES: str "@values@",
 
+        FW_SLASH: str "/",
+        FW_SLASH_DOT: str "/.",
+
         CC_ANY_OF: cid "anyOf",
 
         U_TRUE: cid "TRUE",

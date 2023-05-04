@@ -31,6 +31,8 @@ use std::fmt::Display;
 #[cfg(doc)]
 use super::ObjectKind;
 
+mod name;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Pkg(Span, PathSpec);
 

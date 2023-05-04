@@ -66,6 +66,12 @@
 // Collecting interators into existing objects.
 // Can be done manually in a more verbose way.
 #![feature(iter_collect_into)]
+// Concise and descriptive.
+// Can be done manually in a more verbose way.
+#![feature(str_split_remainder)]
+// Concise and descriptive.
+// Can be done manually in a more verbose way.
+#![feature(iter_intersperse)]
 // Used for const params like `&'static str` in `crate::fmt`.
 // If this is not stabalized,
 //   then we can do without by changing the abstraction;
