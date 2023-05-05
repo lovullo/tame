@@ -149,13 +149,13 @@ impl ParseState for NirToAir {
                 Transition(PredPartial(ospan, on)).incomplete()
             }
             (PredPartial(ospan, on), Ref(value)) => {
-                stack.push(Air::RefIdent(value));
-                stack.push(Air::RefIdent(on));
+                stack.push(Air::RefIdent(value, None));
+                stack.push(Air::RefIdent(on, None));
                 Transition(Ready).ok(Air::ExprStart(ExprOp::Eq, ospan))
             }
             (PredPartial(ospan, on), Close(Match, cspan)) => {
-                stack.push(Air::RefIdent(SPair(SYM_TRUE, ospan)));
-                stack.push(Air::RefIdent(on));
+                stack.push(Air::RefIdent(SPair(SYM_TRUE, ospan), None));
+                stack.push(Air::RefIdent(on, None));
                 Transition(Ready)
                     .ok(Air::ExprStart(ExprOp::Eq, ospan))
                     .with_lookahead(Close(Match, cspan))
@@ -248,7 +248,7 @@ impl ParseState for NirToAir {
                 Transition(st).ok(Air::BindIdent(spair))
             }
             (Ready, Ref(spair) | RefSubject(spair)) => {
-                Transition(Ready).ok(Air::RefIdent(spair))
+                Transition(Ready).ok(Air::RefIdent(spair, None))
             }
 
             (Ready, Desc(clause)) => {

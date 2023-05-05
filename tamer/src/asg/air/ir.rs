@@ -537,7 +537,22 @@ sum_ir! {
             /// However,
             ///   the identifier must eventually be bound to an object of
             ///   the appropriate type depending on context.
-            RefIdent(id: SPair) => {
+            ///
+            /// A reference may optionally be accompanied by an explicit
+            ///   package resolution.
+            /// If present,
+            ///   then the identifier is explicitly bound to an identifier
+            ///   in a package _canonically_ named by the provided
+            ///   [`SPair`].
+            /// Otherwise,
+            ///   a value of [`None`] indicates that the reference should be
+            ///   resolved in the usual way using lexical scoping rules and
+            ///   considering package imports.
+            ///
+            /// The canonical name has potential attractive future use cases,
+            ///   including the ability to reference identifiers from
+            ///   packages that have not been explicitly imported.
+            RefIdent(id: SPair, pkg: Option<SPair>) => {
                 span: id,
                 display: |f| write!(
                     f,

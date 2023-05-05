@@ -566,7 +566,7 @@ fn pkg_import_canonicalized_against_current_pkg() {
     let toks = vec![
         PkgStart(S1),
           BindIdent(pkg_name),
-          RefIdent(pkg_rel),
+          RefIdent(pkg_rel, None),
         PkgEnd(S3),
     ];
 
@@ -602,7 +602,7 @@ fn pkg_doc() {
 
         // Some object to place in-between the two
         //   documentation blocks.
-        RefIdent(id_import),
+        RefIdent(id_import, None),
 
         DocText(doc_b),
     ];

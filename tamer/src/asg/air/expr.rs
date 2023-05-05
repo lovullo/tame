@@ -138,13 +138,26 @@ impl ParseState for AirExprAggregate {
                 }
             }
 
-            (BuildingExpr(es, oi), AirBind(RefIdent(name))) => {
+            (BuildingExpr(es, oi), AirBind(RefIdent(name, None))) => {
                 let oi_ident = ctx.lookup_lexical_or_missing(name);
                 Transition(BuildingExpr(
                     es,
                     oi.ref_expr(ctx.asg_mut(), oi_ident),
                 ))
                 .incomplete()
+            }
+
+            (BuildingExpr(..), AirBind(RefIdent(name, Some(in_pkg)))) => {
+                use crate::diagnose::Annotate;
+                crate::diagnostic_todo!(
+                    vec![
+                        in_pkg.note("for an identifier in this package"),
+                        name.internal_error(
+                            "RefIdent with resolved Pkg not yet supported"
+                        )
+                    ],
+                    "RefIdent with resolved Pkg",
+                )
             }
 
             (BuildingExpr(es, oi), AirDoc(DocIndepClause(clause))) => {

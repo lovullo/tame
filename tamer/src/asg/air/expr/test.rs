@@ -703,7 +703,7 @@ fn expr_ref_to_ident() {
 
           // Reference to an as-of-yet-undefined id (okay),
           //   with a different span than `id_bar`.
-          Air::RefIdent(SPair("bar".into(), S3)),
+          Air::RefIdent(SPair("bar".into(), S3), None),
         Air::ExprEnd(S4),
 
         //
@@ -762,7 +762,7 @@ fn idents_share_defining_pkg() {
 
             Air::ExprStart(ExprOp::Sum, S4),
               Air::BindIdent(id_bar),
-              Air::RefIdent(id_baz),
+              Air::RefIdent(id_baz, None),
             Air::ExprEnd(S7),
           Air::ExprEnd(S8),
         Air::PkgEnd(S9),

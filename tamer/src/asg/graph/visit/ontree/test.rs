@@ -84,7 +84,7 @@ fn traverses_ontological_tree() {
             ExprStart(ExprOp::Sum, S4),
             ExprEnd(S5),
 
-            RefIdent(SPair(id_b.symbol(), S6)),
+            RefIdent(SPair(id_b.symbol(), S6), None),
           ExprEnd(S7),
 
           ExprStart(ExprOp::Sum, S8),
@@ -212,7 +212,7 @@ fn traverses_ontological_tree_tpl_apply() {
 
           // Apply the above template.
           TplStart(S5),
-            RefIdent(ref_tpl),
+            RefIdent(ref_tpl, None),
 
             TplMetaStart(S7),
               BindIdent(id_param),
@@ -273,18 +273,18 @@ fn traverses_ontological_tree_tpl_within_template() {
             //   which will begin as Missing and must be later resolved when
             //     the template is defined.
             TplStart(S6),
-              RefIdent(ref_inner_before),   // --.
-            TplEndRef(S8),                  //    |
-                                            //    |
-            // Named inner template.        //    |
-            TplStart(S9),                   //   /
-              BindIdent(id_tpl_inner),      //<-:
-            TplEnd(S11),                    //   \
-                                            //    |
-            // Apply above inner template,  //    |
-            //   _after_ definition.        //    |
-            TplStart(S12),                  //    |
-              RefIdent(ref_inner_after),    // __/
+              RefIdent(ref_inner_before, None),   // --.
+            TplEndRef(S8),                        //    |
+                                                  //    |
+            // Named inner template.              //    |
+            TplStart(S9),                         //   /
+              BindIdent(id_tpl_inner),            //<-:
+            TplEnd(S11),                          //   \
+                                                  //    |
+            // Apply above inner template,        //    |
+            //   _after_ definition.              //    |
+            TplStart(S12),                        //    |
+              RefIdent(ref_inner_after, None),    // __/
             TplEndRef(S14),
           TplEnd(S15),
         PkgEnd(S16),

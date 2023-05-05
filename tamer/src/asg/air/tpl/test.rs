@@ -182,7 +182,7 @@ fn tpl_apply_within_expr() {
 
           // But the application will remain.
           Air::TplStart(S7),
-            Air::RefIdent(ref_tpl),
+            Air::RefIdent(ref_tpl, None),
           Air::TplEndRef(S9),
         Air::ExprEnd(S10),
     ];
@@ -600,7 +600,7 @@ fn tpl_apply_nested_missing() {
 
           // Inner template application (Missing)
           Air::TplStart(S3),
-            Air::RefIdent(ref_tpl_inner_pre),
+            Air::RefIdent(ref_tpl_inner_pre, None),
           Air::TplEndRef(S5),
 
           // Define the template above
@@ -611,7 +611,7 @@ fn tpl_apply_nested_missing() {
           // Apply again,
           //   this time _after_ having been defined.
           Air::TplStart(S9),
-            Air::RefIdent(ref_tpl_inner_post),
+            Air::RefIdent(ref_tpl_inner_post, None),
           Air::TplEndRef(S11),
         Air::TplEnd(S12),
     ];
