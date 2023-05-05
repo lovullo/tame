@@ -36,10 +36,11 @@ fn data_from_package_event() {
     let name = "name".into();
     let relroot = "some/path".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair(name, S2)),
-        PkgRootPath(SPair(relroot, S4)),
+          PkgName(SPair(name, S2)),
+          PkgRootPath(SPair(relroot, S4)),
         Eoh(S4),
     ]
     .into_iter();
@@ -47,11 +48,12 @@ fn data_from_package_event() {
     let mut sut = Sut::parse(toks);
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete,         // PkgName
-            Incomplete,         // PkgRootPath
-            O(Air::PkgEnd(S4)), // Eoh
+              Incomplete,         // PkgName
+              Incomplete,         // PkgRootPath
+            O(Air::PkgEnd(S4)),
         ]),
         sut.by_ref().collect(),
     );
@@ -67,18 +69,20 @@ fn adds_elig_as_root() {
     let name = "name-root".into();
     let elig_sym = "elig".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair(name, S2)),
-        PkgEligClassYields(SPair(elig_sym, S3)),
+          PkgName(SPair(name, S2)),
+          PkgEligClassYields(SPair(elig_sym, S3)),
         Eoh(S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete, // PkgName
-            O(Air::IdentRoot(SPair(elig_sym, S3))),
+              Incomplete, // PkgName
+              O(Air::IdentRoot(SPair(elig_sym, S3))),
             O(Air::PkgEnd(S4)), // Eoh
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -91,22 +95,25 @@ fn adds_sym_deps() {
     let sym_to1 = "to1".into();
     let sym_to2 = "to2".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair("name".into(), S2)),
-        SymDepStart(SPair(sym_from, S3)),
-        Symbol(SPair(sym_to1, S4)),
-        Symbol(SPair(sym_to2, S5)),
+          PkgName(SPair("name".into(), S2)),
+
+          SymDepStart(SPair(sym_from, S3)),
+          Symbol(SPair(sym_to1, S4)),
+          Symbol(SPair(sym_to2, S5)),
         Eoh(S6),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete, // PkgName
-            Incomplete, // SymDepStart
-            O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
-            O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to2, S5))),
+              Incomplete, // PkgName
+              Incomplete, // SymDepStart
+              O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
+              O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to2, S5))),
             O(Air::PkgEnd(S6)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -119,34 +126,37 @@ fn sym_decl_with_src_not_added_and_populates_found() {
     let src_a = "src_a".into();
     let src_b = "src_b".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair("name".into(), S2)),
-        SymDecl(
-            SPair(sym, S3),
-            SymAttrs {
-                src: Some(src_a),
-                ..Default::default()
-            },
-        ),
-        SymDecl(
-            SPair(sym, S4),
-            SymAttrs {
-                src: Some(src_b),
-                ..Default::default()
-            },
-        ),
+          PkgName(SPair("name".into(), S2)),
+
+          SymDecl(
+              SPair(sym, S3),
+              SymAttrs {
+                  src: Some(src_a),
+                  ..Default::default()
+              },
+          ),
+          SymDecl(
+              SPair(sym, S4),
+              SymAttrs {
+                  src: Some(src_b),
+                  ..Default::default()
+              },
+          ),
         Eoh(S5),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete, // PkgName
-            Incomplete, // SymDecl (@src)
-            Incomplete, // SymDecl (@src)
+              Incomplete, // PkgName
+              Incomplete, // SymDecl (@src)
+              Incomplete, // SymDecl (@src)
             O(Air::PkgEnd(S5)),
         ]),
         sut.by_ref().collect(),
@@ -170,42 +180,44 @@ fn sym_decl_added_to_graph() {
     let sym_retmap = "sym_retmap".into();
     let pkg_name = "pkg name".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair("name".into(), S2)),
-        SymDecl(
-            SPair(sym_extern, S3),
-            SymAttrs {
-                pkg_name: Some(pkg_name),
-                extern_: true,
-                ty: Some(SymType::Meta),
-                ..Default::default()
-            },
-        ),
-        SymDecl(
-            SPair(sym_non_extern, S4),
-            SymAttrs {
-                pkg_name: Some(pkg_name),
-                ty: Some(SymType::Meta),
-                ..Default::default()
-            },
-        ),
-        SymDecl(
-            SPair(sym_map, S5),
-            SymAttrs {
-                pkg_name: Some(pkg_name),
-                ty: Some(SymType::Map),
-                ..Default::default()
-            },
-        ),
-        SymDecl(
-            SPair(sym_retmap, S6),
-            SymAttrs {
-                pkg_name: Some(pkg_name),
-                ty: Some(SymType::RetMap),
-                ..Default::default()
-            },
-        ),
+          PkgName(SPair("name".into(), S2)),
+
+          SymDecl(
+              SPair(sym_extern, S3),
+              SymAttrs {
+                  pkg_name: Some(pkg_name),
+                  extern_: true,
+                  ty: Some(SymType::Meta),
+                  ..Default::default()
+              },
+          ),
+          SymDecl(
+              SPair(sym_non_extern, S4),
+              SymAttrs {
+                  pkg_name: Some(pkg_name),
+                  ty: Some(SymType::Meta),
+                  ..Default::default()
+              },
+          ),
+          SymDecl(
+              SPair(sym_map, S5),
+              SymAttrs {
+                  pkg_name: Some(pkg_name),
+                  ty: Some(SymType::Map),
+                  ..Default::default()
+              },
+          ),
+          SymDecl(
+              SPair(sym_retmap, S6),
+              SymAttrs {
+                  pkg_name: Some(pkg_name),
+                  ty: Some(SymType::RetMap),
+                  ..Default::default()
+              },
+          ),
         Eoh(S7),
     ];
 
@@ -284,32 +296,36 @@ fn sym_decl_pkg_name_retained_if_not_first() {
         ..Default::default()
     };
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair(pkg_name, S2)),
-        SymDecl(
-            SPair(sym, S3),
-            SymAttrs {
-                pkg_name: Some(pkg_name),
-                ty: Some(SymType::Meta),
-                ..Default::default()
-            },
-        ),
+          PkgName(SPair(pkg_name, S2)),
+
+          SymDecl(
+              SPair(sym, S3),
+              SymAttrs {
+                  pkg_name: Some(pkg_name),
+                  ty: Some(SymType::Meta),
+                  ..Default::default()
+              },
+          ),
         Eoh(S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete, // PkgName
-            O(Air::IdentDecl(
-                SPair(sym, S3),
-                IdentKind::Meta,
-                Source {
-                    pkg_name: Some(pkg_name),
-                    ..Default::default()
-                }
-            )),
+              Incomplete, // PkgName
+
+              O(Air::IdentDecl(
+                  SPair(sym, S3),
+                  IdentKind::Meta,
+                  Source {
+                      pkg_name: Some(pkg_name),
+                      ..Default::default()
+                  }
+              )),
             O(Air::PkgEnd(S4)),
         ]),
         Sut::parse_with_context(toks.into_iter(), ctx).collect(),
@@ -328,32 +344,36 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
         ..Default::default()
     };
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair(pkg_name, S2)),
-        SymDecl(
-            SPair(sym, S3),
-            SymAttrs {
-                // No name
-                ty: Some(SymType::Meta),
-                ..Default::default()
-            },
-        ),
+          PkgName(SPair(pkg_name, S2)),
+
+          SymDecl(
+              SPair(sym, S3),
+              SymAttrs {
+                  // No name
+                  ty: Some(SymType::Meta),
+                  ..Default::default()
+              },
+          ),
         Eoh(S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete, // PkgName
-            O(Air::IdentDecl(
-                SPair(sym, S3),
-                IdentKind::Meta,
-                Source {
-                    pkg_name: Some(pkg_name), // Name inherited
-                    ..Default::default()
-                },
-            )),
+              Incomplete, // PkgName
+
+              O(Air::IdentDecl(
+                  SPair(sym, S3),
+                  IdentKind::Meta,
+                  Source {
+                      pkg_name: Some(pkg_name), // Name inherited
+                      ..Default::default()
+                  },
+              )),
             O(Air::PkgEnd(S4)),
         ]),
         Sut::parse_with_context(toks.into_iter(), ctx).collect(),
@@ -365,10 +385,11 @@ fn ident_kind_conversion_error_propagates() {
     let sym = "sym".into();
     let bad_attrs = SymAttrs::default();
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair("name".into(), S2)),
-        SymDecl(SPair(sym, S3), bad_attrs),
+          PkgName(SPair("name".into(), S2)),
+          SymDecl(SPair(sym, S3), bad_attrs),
         Eoh(S1),
     ];
 
@@ -382,18 +403,20 @@ fn sets_fragment() {
     let sym = "sym".into();
     let frag = FragmentText::from("foo");
 
+    #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-        PkgName(SPair("name".into(), S2)),
-        Fragment(SPair(sym, S3), frag.clone()),
+          PkgName(SPair("name".into(), S2)),
+          Fragment(SPair(sym, S3), frag.clone()),
         Eoh(S4),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-            Incomplete, // PkgName
-            O(Air::IdentFragment(SPair(sym, S3), frag)),
+              Incomplete, // PkgName
+              O(Air::IdentFragment(SPair(sym, S3), frag)),
             O(Air::PkgEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),

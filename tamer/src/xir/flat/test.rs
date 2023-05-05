@@ -80,6 +80,20 @@ where
     XirfToken::Close(qname.map(ExpectInto::unwrap_into), span.into(), depth)
 }
 
+/// Hastily and lazily produce a [`XirfToken::Attr`].
+///
+/// This function is intended for testing only.
+pub fn attr<Q: TryInto<QName>, T: TextType>(
+    qname: Q,
+    value: SymbolId,
+    spans: (Span, Span),
+) -> XirfToken<T>
+where
+    <Q as TryInto<QName>>::Error: Debug,
+{
+    XirfToken::Attr(Attr::new(qname.unwrap_into(), value, spans))
+}
+
 #[test]
 fn empty_element_self_close() {
     let name = ("ns", "elem");
