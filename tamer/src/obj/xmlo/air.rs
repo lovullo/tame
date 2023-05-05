@@ -125,7 +125,7 @@ impl ParseState for XmloToAir {
                     ctx.prog_name = Some(name.symbol());
                 }
 
-                Transition(Package(name)).incomplete()
+                Transition(Package(name)).ok(Air::BindIdent(name))
             }
 
             (st @ Package(..), PkgRootPath(relroot)) => {

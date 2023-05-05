@@ -54,7 +54,7 @@ fn fails_on_invalid_root() {
 }
 
 fn common_parses_package_attrs(package: QName) {
-    let name = "pkgroot".into();
+    let name = "/pkgroot".into();
     let relroot = "../../".into();
     let elig = "elig-class-yields".into();
 
@@ -101,11 +101,37 @@ fn parses_package_attrs_with_ns_prefix() {
     common_parses_package_attrs(("lv", "package").unwrap_into());
 }
 
+// For compatibility with XSLT-based compiler.
+#[test]
+fn adds_missing_leading_slash_to_canonical_name() {
+    let name = "needs/leading".into();
+
+    #[rustfmt::skip]
+    let toks = [
+        open(QN_PACKAGE, S1, Depth(0)),
+          attr("name", name, (S2, S3)),
+        close(Some(QN_PACKAGE), S2, Depth(0)),
+    ]
+    .into_iter();
+
+    let sut = Sut::parse(toks);
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            O(PkgStart(S1)),
+              O(PkgName(SPair("/needs/leading".into(), S3))),
+            Incomplete,
+        ]),
+        sut.collect(),
+    );
+}
+
 // Maintains BC with existing system,
 //   but this ought to reject in the future.
 #[test]
 fn ignores_unknown_package_attr() {
-    let name = "pkgroot".into();
+    let name = "/pkgroot".into();
 
     #[rustfmt::skip]
     let toks = [

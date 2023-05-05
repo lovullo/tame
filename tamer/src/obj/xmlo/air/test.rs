@@ -51,7 +51,7 @@ fn data_from_package_event() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete,         // PkgName
+              O(Air::BindIdent(SPair(name, S2))),
               Incomplete,         // PkgRootPath
             O(Air::PkgEnd(S4)),
         ]),
@@ -81,7 +81,7 @@ fn adds_elig_as_root() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete, // PkgName
+              O(Air::BindIdent(SPair(name, S2))),
               O(Air::IdentRoot(SPair(elig_sym, S3))),
             O(Air::PkgEnd(S4)), // Eoh
         ]),
@@ -91,6 +91,7 @@ fn adds_elig_as_root() {
 
 #[test]
 fn adds_sym_deps() {
+    let name = "name".into();
     let sym_from = "from".into();
     let sym_to1 = "to1".into();
     let sym_to2 = "to2".into();
@@ -98,7 +99,7 @@ fn adds_sym_deps() {
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-          PkgName(SPair("name".into(), S2)),
+          PkgName(SPair(name, S2)),
 
           SymDepStart(SPair(sym_from, S3)),
           Symbol(SPair(sym_to1, S4)),
@@ -110,7 +111,7 @@ fn adds_sym_deps() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete, // PkgName
+              O(Air::BindIdent(SPair(name, S2))),
               Incomplete, // SymDepStart
               O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
               O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to2, S5))),
@@ -122,6 +123,7 @@ fn adds_sym_deps() {
 
 #[test]
 fn sym_decl_with_src_not_added_and_populates_found() {
+    let name = "name".into();
     let sym = "sym".into();
     let src_a = "src_a".into();
     let src_b = "src_b".into();
@@ -129,7 +131,7 @@ fn sym_decl_with_src_not_added_and_populates_found() {
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-          PkgName(SPair("name".into(), S2)),
+          PkgName(SPair(name, S2)),
 
           SymDecl(
               SPair(sym, S3),
@@ -154,7 +156,7 @@ fn sym_decl_with_src_not_added_and_populates_found() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete, // PkgName
+              O(Air::BindIdent(SPair(name, S2))),
               Incomplete, // SymDecl (@src)
               Incomplete, // SymDecl (@src)
             O(Air::PkgEnd(S5)),
@@ -174,6 +176,7 @@ fn sym_decl_with_src_not_added_and_populates_found() {
 
 #[test]
 fn sym_decl_added_to_graph() {
+    let name = "name".into();
     let sym_extern = "sym_extern".into();
     let sym_non_extern = "sym_non_extern".into();
     let sym_map = "sym_map".into();
@@ -183,7 +186,7 @@ fn sym_decl_added_to_graph() {
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-          PkgName(SPair("name".into(), S2)),
+          PkgName(SPair(name, S2)),
 
           SymDecl(
               SPair(sym_extern, S3),
@@ -226,7 +229,7 @@ fn sym_decl_added_to_graph() {
     // Note that each of these will have their package names cleared
     //   since this is considered to be the first package encountered.
     assert_eq!(Some(Ok(O(Air::PkgStart(S1)))), sut.next()); // PkgStart
-    assert_eq!(Some(Ok(Incomplete)), sut.next()); // PkgName
+    assert_eq!(Some(Ok(O(Air::BindIdent(SPair(name, S2))))), sut.next());
     assert_eq!(
         Some(Ok(O(Air::IdentExternDecl(
             SPair(sym_extern, S3),
@@ -316,7 +319,7 @@ fn sym_decl_pkg_name_retained_if_not_first() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete, // PkgName
+              O(Air::BindIdent(SPair(pkg_name, S2))),
 
               O(Air::IdentDecl(
                   SPair(sym, S3),
@@ -364,7 +367,7 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete, // PkgName
+              O(Air::BindIdent(SPair(pkg_name, S2))),
 
               O(Air::IdentDecl(
                   SPair(sym, S3),
@@ -400,13 +403,14 @@ fn ident_kind_conversion_error_propagates() {
 
 #[test]
 fn sets_fragment() {
+    let name = "name".into();
     let sym = "sym".into();
     let frag = FragmentText::from("foo");
 
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1),
-          PkgName(SPair("name".into(), S2)),
+          PkgName(SPair(name, S2)),
           Fragment(SPair(sym, S3), frag.clone()),
         Eoh(S4),
     ];
@@ -415,7 +419,7 @@ fn sets_fragment() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::PkgStart(S1)),
-              Incomplete, // PkgName
+              O(Air::BindIdent(SPair(name, S2))),
               O(Air::IdentFragment(SPair(sym, S3), frag)),
             O(Air::PkgEnd(S4)),
         ]),

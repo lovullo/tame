@@ -29,7 +29,7 @@ use crate::{
         ParseState, Token, Transition, TransitionResult, Transitionable,
     },
     span::Span,
-    sym::{st::raw, SymbolId},
+    sym::{st::raw, GlobalSymbolIntern, GlobalSymbolResolve, SymbolId},
     xir::{
         attr::{Attr, AttrSpan},
         flat::{Text, XirfToken as Xirf},
@@ -227,9 +227,10 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
                 //   which can result in confusing output depending on the context;
                 //     we ought to retain _both_ token- and value-spans.
                 Transition(Package(span)).ok(match name {
-                    QN_NAME => {
-                        XmloToken::PkgName(SPair(value, aspan.value_span()))
-                    }
+                    QN_NAME => XmloToken::PkgName(SPair(
+                        canonical_slash(value),
+                        aspan.value_span(),
+                    )),
                     QN_UUROOTPATH => {
                         XmloToken::PkgRootPath(SPair(value, aspan.value_span()))
                     }
@@ -318,6 +319,27 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Eoh || *self == Self::Done
+    }
+}
+
+/// Introduce a leading `/` to `name` if missing.
+///
+/// A new [`SymbolId`] will be allocated if the leading slash is missing
+///   from `name.
+///
+/// The XSLT-based compiler at the time of writing produced canonical names
+///   _without_ a leading slash.
+/// This convention was not changed until TAMER,
+///   so that canonical paths could be used as namespecs for import in an
+///   unambiguous way.
+/// We want to support both,
+///   so that TAMER-compiled object files will also work.
+fn canonical_slash(name: SymbolId) -> SymbolId {
+    let s = name.lookup_str();
+
+    match s.starts_with('/') {
+        true => name,
+        false => format!("/{s}").intern(),
     }
 }
 
