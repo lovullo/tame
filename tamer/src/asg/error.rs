@@ -155,6 +155,9 @@ pub enum AsgError {
     ///   depends on first having computed itself,
     ///     which is not possible.
     UnsupportedCycle(Cycle),
+
+    /// An opaque identifier was declared in an invalid context.
+    UnexpectedOpaqueIdent(SPair),
 }
 
 impl Display for AsgError {
@@ -211,6 +214,13 @@ impl Display for AsgError {
             }
             UnsupportedCycle(cycle) => {
                 write!(f, "circular dependency: {cycle}")
+            }
+            UnexpectedOpaqueIdent(name) => {
+                write!(
+                    f,
+                    "opaque identifier {} declaration",
+                    TtQuote::wrap(name)
+                )
             }
         }
     }
@@ -371,6 +381,12 @@ impl Diagnostic for AsgError {
 
                 desc
             }
+            // TODO: This doesn't seem all that helpful.
+            //   What are the circumstances under which this can be hit,
+            //     and what additional information can we provide?
+            UnexpectedOpaqueIdent(name) => vec![name.error(
+                "an opaque identifier declaration was not expected here",
+            )],
         }
     }
 }

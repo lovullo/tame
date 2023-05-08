@@ -310,7 +310,9 @@ impl ParseState for AirAggregate {
                 Transition(Toplevel(oi_pkg)).incomplete()
             }
 
-            (st, tok @ AirIdent(..)) => todo!("{st:?}, {tok:?}"),
+            (st @ (Empty | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
+                Transition(st).err(AsgError::UnexpectedOpaqueIdent(tok.name()))
+            }
         }
     }
 

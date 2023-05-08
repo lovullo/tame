@@ -825,3 +825,18 @@ sum_ir! {
     /// Tokens that may be used to define or apply templates.
     pub sum enum AirBindableTpl = AirTpl | AirBind | AirDoc;
 }
+
+impl AirIdent {
+    /// Name of the identifier described by this token.
+    pub fn name(&self) -> SPair {
+        use AirIdent::*;
+
+        match self {
+            IdentDecl(name, _, _)
+            | IdentExternDecl(name, _, _)
+            | IdentDep(name, _)
+            | IdentFragment(name, _)
+            | IdentRoot(name) => *name,
+        }
+    }
+}
