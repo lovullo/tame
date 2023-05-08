@@ -197,25 +197,13 @@ impl ParseState for AirTplAggregate {
                 .map(|_| ())
                 .transition(Toplevel(tpl.identify(id))),
 
-            (Toplevel(tpl), AirBind(RefIdent(name, None))) => {
+            (Toplevel(tpl), AirBind(RefIdent(name))) => {
                 let tpl_oi = tpl.oi();
                 let ref_oi = ctx.lookup_lexical_or_missing(name);
 
                 tpl_oi.apply_named_tpl(ctx.asg_mut(), ref_oi, name.span());
 
                 Transition(Toplevel(tpl)).incomplete()
-            }
-
-            (Toplevel(..), AirBind(RefIdent(name, Some(in_pkg)))) => {
-                crate::diagnostic_todo!(
-                    vec![
-                        in_pkg.note("for an identifier in this package"),
-                        name.internal_error(
-                            "RefIdent with resolved Pkg not yet supported"
-                        )
-                    ],
-                    "RefIdent with resolved Pkg",
-                )
             }
 
             (Toplevel(tpl), AirDoc(DocIndepClause(clause))) => {

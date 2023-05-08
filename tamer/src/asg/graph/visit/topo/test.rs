@@ -89,26 +89,26 @@ fn sorts_objects_given_single_root() {
         PkgStart(S1),
           // Before this can be computed,
           //   its dependencies must be.
-          ExprStart(ExprOp::Sum, S2),                  // -.
-            BindIdent(id_a),                           //  |
-                                                       //  |
-            // This is a dependency,                   //  |
-            //   but it is owned by this Expr          //  |
-            //   and so would have been emitted        //  |
-            //   first anyway.                         //  |
-            ExprStart(ExprOp::Sum, S4),                //  |
-            ExprEnd(S5),                               //  |
-                                                       //  v
+          ExprStart(ExprOp::Sum, S2),           // -.
+            BindIdent(id_a),                    //  |
+                                                //  |
+            // This is a dependency,            //  |
+            //   but it is owned by this Expr   //  |
+            //   and so would have been emitted //  |
+            //   first anyway.                  //  |
+            ExprStart(ExprOp::Sum, S4),         //  |
+            ExprEnd(S5),                        //  |
+                                                //  v
             // But this is a reference to another
             //   Expr that appears later.
-            RefIdent(SPair(id_b.symbol(), S6), None),  // --.
-          ExprEnd(S7),                                 //    |
-                                                       //    |
-          // This will have to be emitted              //    |
-          //   _before_ the above Expr that            //    |
-          //   depends on its value having been        //    |
-          //   computed.                               //   /
-          ExprStart(ExprOp::Sum, S8),                  // <`
+            RefIdent(SPair(id_b.symbol(), S6)),  // --. 
+          ExprEnd(S7),                           //    | 
+                                                 //    |
+          // This will have to be emitted        //    |
+          //   _before_ the above Expr that      //    |
+          //   depends on its value having been  //    |
+          //   computed.                         //   /  
+          ExprStart(ExprOp::Sum, S8),            // <`
             BindIdent(id_b),
           ExprEnd(S10),
 
@@ -176,21 +176,21 @@ fn sorts_objects_given_single_root_more_complex() {
         PkgStart(S1),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),
-            RefIdent(SPair(id_b.symbol(), S4), None),  // ---.
-          ExprEnd(S5),                                 //     )
-                                                       //    /
-          ExprStart(ExprOp::Sum, S6),                  //   /
-            BindIdent(id_b),                           // <'
-            RefIdent(SPair(id_d.symbol(), S8), None),  // -------.
-          ExprEnd(S9),                                 // <.      |
-                                                       //   \     |
-          ExprStart(ExprOp::Sum, S10),                 //    \    |
-            BindIdent(id_c),                           //     )   |
-            RefIdent(SPair(id_b.symbol(), S12), None), // ---'   /
-          ExprEnd(S13),                                //       /
-                                                       //      /
-          ExprStart(ExprOp::Sum, S14),                 //     /
-            BindIdent(id_d),                           // <--'
+            RefIdent(SPair(id_b.symbol(), S4)),  // ---.
+          ExprEnd(S5),                           //     )
+                                                 //    /
+          ExprStart(ExprOp::Sum, S6),            //   /
+            BindIdent(id_b),                     // <'
+            RefIdent(SPair(id_d.symbol(), S8)),  // -------.
+          ExprEnd(S9),                           // <.      |
+                                                 //   \     |
+          ExprStart(ExprOp::Sum, S10),           //    \    |
+            BindIdent(id_c),                     //     )   |
+            RefIdent(SPair(id_b.symbol(), S12)), // ---'   /
+          ExprEnd(S13),                          //       /
+                                                 //      /
+          ExprStart(ExprOp::Sum, S14),           //     /
+            BindIdent(id_d),                     // <--'
           ExprEnd(S16),
         PkgEnd(S17),
     ];
@@ -236,21 +236,21 @@ fn omits_unreachable() {
         PkgStart(S1),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),
-            RefIdent(SPair(id_b.symbol(), S4), None),  // ---.
-          ExprEnd(S5),                                 //     )
-                                                       //    /
-          ExprStart(ExprOp::Sum, S6),                  //   /
-            BindIdent(id_b),                           // <'
-            RefIdent(SPair(id_d.symbol(), S8), None),  // -------.
-          ExprEnd(S9),                                 // <.      |
-                                                       //   \     |
-          ExprStart(ExprOp::Sum, S10),                 //    \    |
-            BindIdent(id_c),                           //     )   |
-            RefIdent(SPair(id_b.symbol(), S12), None), // ---'   /
-          ExprEnd(S13),                                //       /
-                                                       //      /
-          ExprStart(ExprOp::Sum, S14),                 //     /
-            BindIdent(id_d),                           // <--'
+            RefIdent(SPair(id_b.symbol(), S4)),  // ---.
+          ExprEnd(S5),                           //     )
+                                                 //    /
+          ExprStart(ExprOp::Sum, S6),            //   /
+            BindIdent(id_b),                     // <'
+            RefIdent(SPair(id_d.symbol(), S8)),  // -------.
+          ExprEnd(S9),                           // <.      |
+                                                 //   \     |
+          ExprStart(ExprOp::Sum, S10),           //    \    |
+            BindIdent(id_c),                     //     )   |
+            RefIdent(SPair(id_b.symbol(), S12)), // ---'   /
+          ExprEnd(S13),                          //       /
+                                                 //      /
+          ExprStart(ExprOp::Sum, S14),           //     /
+            BindIdent(id_d),                     // <--'
           ExprEnd(S16),
         PkgEnd(S17),
     ];
@@ -363,14 +363,14 @@ fn unsupported_cycles_with_recovery() {
     let toks = vec![
         PkgStart(S1),
           ExprStart(ExprOp::Sum, S2),
-            BindIdent(id_a),                           // <----.  self-cycle
-            RefIdent(SPair(id_a.symbol(), S4), None),  // ____/ \
-            RefIdent(SPair(id_b.symbol(), S5), None),  // ---.   \  a->b->a
-          ExprEnd(S6),                                 //     )   )  cycle
-                                                       //    /   /
-          ExprStart(ExprOp::Sum, S7),                  //   /   /
-            BindIdent(id_b),                           // <'   /
-            RefIdent(SPair(id_a.symbol(), S9), None),  // ----'
+            BindIdent(id_a),                     // <----.  self-cycle
+            RefIdent(SPair(id_a.symbol(), S4)),  // ____/ \
+            RefIdent(SPair(id_b.symbol(), S5)),  // ---.   \  a->b->a
+          ExprEnd(S6),                           //     )   )  cycle
+                                                 //    /   /
+          ExprStart(ExprOp::Sum, S7),            //   /   /
+            BindIdent(id_b),                     // <'   /
+            RefIdent(SPair(id_a.symbol(), S9)),  // ----'
           ExprEnd(S10),
         PkgEnd(S11),
     ];

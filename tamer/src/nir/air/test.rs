@@ -188,7 +188,7 @@ fn apply_template_long_form_nullary() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::TplStart(S1)),
-              O(Air::RefIdent(name, None)),
+              O(Air::RefIdent(name)),
             O(Air::TplEndRef(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -224,7 +224,7 @@ fn apply_template_long_form_args() {
         #[rustfmt::skip]
         Ok(vec![
             O(Air::TplStart(S1)),
-              O(Air::RefIdent(name, None)),
+              O(Air::RefIdent(name)),
 
               O(Air::TplMetaStart(S3)),
                 O(Air::BindIdent(p1)),
@@ -267,8 +267,8 @@ fn match_short_no_value() {
             // Once closing,
             //   we default to an equality check against `TRUE`.
             O(Air::ExprStart(ExprOp::Eq, S1)),
-            O(Air::RefIdent(name, None)),
-            O(Air::RefIdent(SPair(SYM_TRUE, S1), None)),
+            O(Air::RefIdent(name)),
+            O(Air::RefIdent(SPair(SYM_TRUE, S1))),
             O(Air::ExprEnd(S3)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -297,10 +297,10 @@ fn match_short_with_value() {
             Incomplete,
             Incomplete,
             O(Air::ExprStart(ExprOp::Eq, S1)),
-            O(Air::RefIdent(name, None)),
+            O(Air::RefIdent(name)),
             // Rather than defaulting to `SYM_TRUE` as above,
             //   we use the _user-provided_ value.
-            O(Air::RefIdent(value, None)),
+            O(Air::RefIdent(value)),
             O(Air::ExprEnd(S4)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -338,8 +338,8 @@ fn match_short_value_before_subject_err() {
             //   because no value has been provided
             //     (rather the value was consumed in the error).
             Ok(O(Air::ExprStart(ExprOp::Eq, S1))),
-            Ok(O(Air::RefIdent(name, None))),
-            Ok(O(Air::RefIdent(SPair(SYM_TRUE, S1), None))),
+            Ok(O(Air::RefIdent(name))),
+            Ok(O(Air::RefIdent(SPair(SYM_TRUE, S1)))),
             Ok(O(Air::ExprEnd(S3))),
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),

@@ -42,7 +42,6 @@ use super::{
 use crate::{
     diagnose::Annotate,
     diagnostic_todo,
-    fmt::{DisplayWrapper, TtQuote},
     parse::{prelude::*, StateStack},
     span::{Span, UNKNOWN_SPAN},
     sym::SymbolId,
@@ -218,38 +217,10 @@ impl ParseState for AirAggregate {
             }
 
             // Package import
-            (Toplevel(oi_pkg), AirBind(RefIdent(namespec, None))) => oi_pkg
-                .import(ctx.asg_mut(), namespec)
+            (Toplevel(oi_pkg), AirBind(RefIdent(pathspec))) => oi_pkg
+                .import(ctx.asg_mut(), pathspec)
                 .map(|_| ())
                 .transition(Toplevel(oi_pkg)),
-
-            // Providing a canonical package name here makes a lot of sense,
-            //   but we'd have to figure out what to expect for the namespec
-            //   in this case.
-            // For example,
-            //   we could use it to import specific identifiers,
-            //     or '*',
-            //     or anything really.
-            // The system should never produce this,
-            //   thus the internal error.
-            (Toplevel(oi_pkg), AirBind(RefIdent(namespec, Some(in_pkg)))) => {
-                crate::diagnostic_panic!(
-                    vec![
-                        oi_pkg.note("in this package"),
-                        namespec.note("for this namespec"),
-                        in_pkg.internal_error(
-                            "unexpected pre-resolved canonical package name"
-                        ),
-                        in_pkg.help(
-                            "TAMER expected to resolve the namespec itself; \
-                                this could lead to a potential contradiction"
-                        ),
-                    ],
-                    "unexpected pre-resolved canonical package name \
-                        for namespec {}",
-                    TtQuote::wrap(namespec),
-                )
-            }
 
             // Note: We unfortunately can't match on `AirExpr | AirBind | ...`
             //   and delegate in the same block
