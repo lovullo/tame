@@ -70,9 +70,11 @@
 //!   2. A cycle representing allowed recursion performs a cut since the
 //!        path taken thus far already represents a valid ordering.
 
-use super::super::{Asg, ObjectIndex};
 use crate::{
-    asg::{graph::object::DynObjectRel, Object, ObjectIndexResolvedSpan},
+    asg::{
+        graph::object::DynObjectRel, Asg, Object, ObjectIndex,
+        ObjectIndexResolvedSpan, ObjectKind,
+    },
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
 };
 use fixedbitset::FixedBitSet;
@@ -81,11 +83,17 @@ use std::{error::Error, fmt::Display, iter::once};
 #[cfg(doc)]
 use crate::{asg::graph::object::ObjectRel, span::Span};
 
-pub fn topo_sort(
+/// Topological sort with cutting of ontologically permitted cycles.
+///
+/// This is a TAMER-specific topological sort that is aware of the graph's
+///   ontology and will automatically sort an acyclic subgraph produced by
+///   cutting permitted cycles.
+/// See the [module-level documentation](self) for more information.
+pub fn topo_sort<O: ObjectKind>(
     asg: &Asg,
-    init: impl Iterator<Item = ObjectIndex<Object>>,
+    init: impl Iterator<Item = ObjectIndex<O>>,
 ) -> TopoPostOrderDfs {
-    TopoPostOrderDfs::new(asg, init)
+    TopoPostOrderDfs::new(asg, init.map(ObjectIndex::widen))
 }
 
 /// Topological sort implemented as a post-order depth-first search (DFS).

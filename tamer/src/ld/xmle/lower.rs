@@ -23,7 +23,7 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{visit::topo_sort, Asg, AsgError, Object},
+    asg::{visit::topo_sort, Asg, AsgError, Ident, Object},
     diagnose::{Annotate, Diagnostic},
     diagnostic_unreachable,
     span::UNKNOWN_SPAN,
@@ -39,7 +39,13 @@ pub fn sort<'a, S: XmleSections<'a>>(asg: &'a Asg, mut dest: S) -> SortResult<S>
 where
     S: XmleSections<'a>,
 {
-    let roots = [asg.root(UNKNOWN_SPAN).widen()].into_iter();
+    // All rooted identifiers will be linked.
+    // This is important,
+    //   otherwise the sort will traverse into packages
+    //     (which are also rooted)
+    //     and we'll wind up linking everything rather than just the things
+    //     we need.
+    let roots = asg.root(UNKNOWN_SPAN).edges_filtered::<Ident>(asg);
 
     for result in topo_sort(asg, roots) {
         let oi = result.map_err(AsgError::UnsupportedCycle)?;
