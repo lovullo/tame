@@ -42,7 +42,7 @@ fn tpl_defining_pkg() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
+        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
           // This also tests tpl as a transition away from the package header.
           Air::TplStart(S2),
             Air::BindIdent(id_tpl),
@@ -71,7 +71,7 @@ fn tpl_after_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
+        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
           // This expression is incidental to this test;
           //   it need only parse.
           Air::ExprStart(ExprOp::Sum, S2),
@@ -110,7 +110,7 @@ fn tpl_within_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
+        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
           Air::ExprStart(ExprOp::Sum, S2),
             Air::BindIdent(id_expr),
 

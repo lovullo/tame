@@ -77,7 +77,7 @@ fn traverses_ontological_tree() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),
 
@@ -141,7 +141,7 @@ fn traverses_ontological_tree_tpl_with_sibling_at_increasing_depth() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           TplStart(S2),
             BindIdent(id_tpl),
 
@@ -201,7 +201,7 @@ fn traverses_ontological_tree_tpl_apply() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           // The template that will be applied.
           TplStart(S2),
             BindIdent(id_tpl),
@@ -260,7 +260,7 @@ fn traverses_ontological_tree_tpl_within_template() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           TplStart(S2),
             BindIdent(id_tpl_outer),
 

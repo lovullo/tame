@@ -29,7 +29,10 @@ fn package_to_pkg() {
     let toks = vec![Open(Package, S1), Close(Package, S2)];
 
     assert_eq!(
-        Ok(vec![O(Air::PkgStart(S1)), O(Air::PkgEnd(S2)),]),
+        Ok(vec![
+            O(Air::PkgStart(S1, SPair("/TODO".into(), S1))),
+            O(Air::PkgEnd(S2)),
+        ]),
         Sut::parse(toks.into_iter()).collect(),
     );
 }
@@ -388,7 +391,7 @@ fn text_as_arbitrary_doc() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-          O(Air::PkgStart(S1)),
+          O(Air::PkgStart(S1, SPair("/TODO".into(), S1))),
             O(Air::DocText(text)),
           O(Air::PkgEnd(S3)),
         ]),

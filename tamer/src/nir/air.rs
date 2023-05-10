@@ -119,7 +119,10 @@ impl ParseState for NirToAir {
         //     responsibilities betwen XIR->NIR, NIR->AIR, and AIR->ASG.
         match (self, tok) {
             (Ready, Open(Package, span)) => {
-                Transition(Ready).ok(Air::PkgStart(span))
+                // TODO: Package name needs to be generated and provided to us;
+                //   this is transitionary.
+                Transition(Ready)
+                    .ok(Air::PkgStart(span, SPair("/TODO".into(), span)))
             }
 
             (Ready, Close(Package, span)) => {

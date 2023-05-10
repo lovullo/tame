@@ -138,25 +138,13 @@ impl ParseState for AirAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
-        use ir::{AirBind::BindIdent, AirSubsets::*, AirTodo::*};
+        use ir::{AirSubsets::*, AirTodo::*};
         use AirAggregate::*;
-        use AirPkgAggregate::{Toplevel, UnnamedPkg};
 
         match (self, tok.into()) {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
-            // TODO: Remove this kluge; transitionary (no package name required)
-            (Pkg(UnnamedPkg(span)), tok)
-                if !matches!(tok, AirBind(BindIdent(..))) =>
-            {
-                match ctx.pkg_begin(span, SPair("/TODO".into(), span)) {
-                    Ok(oi_pkg) => Transition(Pkg(Toplevel(oi_pkg)))
-                        .incomplete()
-                        .with_lookahead(tok),
-                    Err(e) => Transition(Pkg(UnnamedPkg(span))).err(e),
-                }
-            }
-
+            // Package
             (st @ (Empty | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
                 ctx.ret_or_transfer(st, tok, AirPkgAggregate::new())
             }
@@ -165,6 +153,7 @@ impl ParseState for AirAggregate {
             (Pkg(pkg), AirIdent(etok)) => ctx.proxy(pkg, etok),
             (Pkg(pkg), AirDoc(etok)) => ctx.proxy(pkg, etok),
 
+            // Expression
             (st @ (Pkg(_) | PkgTpl(_)), tok @ AirExpr(..)) => {
                 ctx.ret_or_transfer(st, tok, AirExprAggregate::new())
             }
@@ -172,7 +161,7 @@ impl ParseState for AirAggregate {
             (PkgExpr(expr), AirBind(etok)) => ctx.proxy(expr, etok),
             (PkgExpr(expr), AirDoc(etok)) => ctx.proxy(expr, etok),
 
-            // Template parsing.
+            // Template
             (st @ (Pkg(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
                 ctx.ret_or_transfer(st, tok, AirTplAggregate::new())
             }
@@ -301,6 +290,10 @@ pub type AirStack = StateStack<AirAggregate, MAX_AIR_STACK_DEPTH>;
 impl AirAggregateCtx {
     fn asg_mut(&mut self) -> &mut Asg {
         self.as_mut()
+    }
+
+    fn asg_ref(&self) -> &Asg {
+        self.as_ref()
     }
 
     fn stack(&mut self) -> &mut AirStack {

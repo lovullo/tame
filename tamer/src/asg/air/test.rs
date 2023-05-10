@@ -46,7 +46,7 @@ fn ident_decl() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentDecl(id, kind.clone(), src.clone()),
           // Attempt re-declaration.
           IdentDecl(id, kind.clone(), src.clone()),
@@ -97,7 +97,7 @@ fn ident_extern_decl() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentExternDecl(id, kind.clone(), src.clone()),
           // Redeclare with a different kind
           IdentExternDecl(re_id, different_kind.clone(), src.clone()),
@@ -144,7 +144,7 @@ fn ident_dep() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentDep(id, dep),
         PkgEnd(S4),
     ].into_iter();
@@ -182,7 +182,7 @@ fn ident_fragment() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           // Identifier must be declared before it can be given a
           //   fragment.
           IdentDecl(id, kind.clone(), src.clone()),
@@ -234,7 +234,7 @@ fn ident_root_missing() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentRoot(id),
         PkgEnd(S3),
     ].into_iter();
@@ -280,7 +280,7 @@ fn ident_root_existing() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentDecl(id, kind.clone(), src.clone()),
           IdentRoot(SPair(id.symbol(), S3)),
         PkgEnd(S3),
@@ -337,7 +337,7 @@ fn declare_kind_auto_root() {
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           // auto-rooting
           IdentDecl(id_auto, auto_kind, src.clone()),
           // non-auto-rooting
@@ -369,7 +369,11 @@ fn declare_kind_auto_root() {
 
 #[test]
 fn pkg_is_rooted() {
-    let toks = vec![PkgStart(S1), PkgEnd(S2)];
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgEnd(S2),
+    ];
 
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
@@ -391,7 +395,7 @@ fn close_pkg_without_open() {
     let toks = vec![
         PkgEnd(S1),
         // RECOVERY: Try again.
-        PkgStart(S2),
+        PkgStart(S2, SPair("/pkg".into(), S2)),
         PkgEnd(S3),
     ];
 
@@ -408,23 +412,25 @@ fn close_pkg_without_open() {
 
 #[test]
 fn nested_open_pkg() {
+    let name_a = SPair("/pkg-a".into(), S2);
+    let name_b = SPair("/pkg-b".into(), S4);
+
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
-          BindIdent(SPair("/foo".into(), S2)),
-
+        PkgStart(S1, name_a),
           // Cannot nest package
-          PkgStart(S3),
+          PkgStart(S3, name_b),
           // RECOVERY
-        PkgEnd(S4),
+        PkgEnd(S5),
     ];
 
     assert_eq!(
         #[rustfmt::skip]
         vec![
             Ok(Incomplete), // PkgStart
-              Ok(Incomplete), // BindIdent
-              Err(ParseError::StateError(AsgError::NestedPkgStart(S3, S1))),
+              Err(ParseError::StateError(AsgError::NestedPkgStart(
+                  (S3, name_b), (S1, name_a),
+              ))),
               // RECOVERY
             Ok(Incomplete), // PkgEnd
         ],
@@ -438,8 +444,7 @@ fn pkg_canonical_name() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
-          BindIdent(name),
+        PkgStart(S1, name),
         PkgEnd(S3),
     ];
 
@@ -472,21 +477,19 @@ fn pkg_canonical_name() {
 fn pkg_cannot_redeclare() {
     let name = SPair("/foo/bar".into(), S2);
     let name2 = SPair("/foo/bar".into(), S5);
-    let namefix = SPair("/foo/fix".into(), S6);
+    let namefix = SPair("/foo/fix".into(), S7);
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
-          BindIdent(name),
+        PkgStart(S1, name),
         PkgEnd(S3),
 
-        PkgStart(S4),
-          // Attempt to define a package of the same name.
-          BindIdent(name2),
+        // Attempt to define a package of the same name.
+        PkgStart(S4, name2),
 
-          // RECOVERY: Use a proper name.
-          BindIdent(namefix),
-        PkgEnd(S7),
+        // RECOVERY: Use a proper name.
+        PkgStart(S6, namefix),
+        PkgEnd(S8),
     ];
 
     let mut sut = Sut::parse(toks.into_iter());
@@ -495,15 +498,14 @@ fn pkg_cannot_redeclare() {
         #[rustfmt::skip]
         vec![
             Ok(Incomplete),   // PkgStart
-              Ok(Incomplete), // BindIdent
             Ok(Incomplete),   // PkgEnd
 
+            Err(ParseError::StateError(
+                AsgError::PkgRedeclare(name, name2)
+            )),
+
+            // RECOVERY: Retry with a proper name
             Ok(Incomplete),   // PkgStart
-              Err(ParseError::StateError(
-                  AsgError::PkgRedeclare(name, name2)
-              )),
-              // RECOVERY: Ignore the attempted name
-              Ok(Incomplete), // BindIdent
             Ok(Incomplete),   // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
@@ -516,45 +518,37 @@ fn pkg_cannot_redeclare() {
     let oi_pkg = asg
         .lookup::<Pkg>(oi_root, namefix)
         .expect("failed to locate package by its recovery name");
-    assert_eq!(S4.merge(S7).unwrap(), oi_pkg.resolve(&asg).span());
+    assert_eq!(S6.merge(S8).unwrap(), oi_pkg.resolve(&asg).span());
 }
 
 #[test]
 fn pkg_cannot_rename() {
-    let name = SPair("/foo/bar".into(), S2);
-    let name2 = SPair("/bad/rename".into(), S3);
+    let pkg_name = SPair("/foo/bar".into(), S1);
+    let name = SPair("baz".into(), S2);
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, pkg_name),
           BindIdent(name),
-          // Attempt to provide a name a second time.
-          BindIdent(name2),
-          // RECOVERY: Just ignore it.
-        PkgEnd(S4),
+        PkgEnd(S3),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
+    let sut = Sut::parse(toks.into_iter());
 
     assert_eq!(
+        #[rustfmt::skip]
         vec![
-            Ok(Incomplete), // PkgStart
-            Ok(Incomplete), // BindIdent
-            Err(ParseError::StateError(AsgError::PkgRename(name, name2))),
-            // RECOVERY: Ignore the attempted rename
-            Ok(Incomplete), // PkgEnd
+            Ok(Incomplete),   // PkgStart
+
+            Err(ParseError::StateError(
+                AsgError::InvalidBindContext(name),
+            )),
+
+            // RECOVERY
+            Ok(Incomplete),   // PkgEnd
         ],
-        sut.by_ref().collect::<Vec<_>>(),
+        sut.collect::<Vec<_>>(),
     );
-
-    let asg = sut.finalize().unwrap().into_context();
-
-    // The original name should have been kept.
-    let oi_root = asg.root(S1);
-    let oi_pkg = asg
-        .lookup::<Pkg>(oi_root, name)
-        .expect("failed to locate package by its original name");
-    assert_eq!(S1.merge(S4).unwrap(), oi_pkg.resolve(&asg).span());
 }
 
 #[test]
@@ -564,8 +558,7 @@ fn pkg_import_canonicalized_against_current_pkg() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
-          BindIdent(pkg_name),
+        PkgStart(S1, pkg_name),
           RefIdent(pkg_rel),
         PkgEnd(S3),
     ];
@@ -634,7 +627,7 @@ where
     use std::iter;
 
     Sut::parse(
-        iter::once(PkgStart(S1))
+        iter::once(PkgStart(S1, SPair("/pkg".into(), S1)))
             .chain(toks.into_iter())
             .chain(iter::once(PkgEnd(S1))),
     )

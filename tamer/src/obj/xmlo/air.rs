@@ -115,17 +115,17 @@ impl ParseState for XmloToAir {
 
         match (self, tok) {
             (PackageExpected, PkgStart(span)) => {
-                Transition(PackageFound(span)).ok(Air::PkgStart(span))
+                Transition(PackageFound(span)).incomplete()
             }
 
             (PackageExpected, tok) => Transition(PackageExpected).dead(tok),
 
-            (PackageFound(_), PkgName(name)) => {
+            (PackageFound(span), PkgName(name)) => {
                 if ctx.is_first() {
                     ctx.prog_name = Some(name.symbol());
                 }
 
-                Transition(Package(name)).ok(Air::BindIdent(name))
+                Transition(Package(name)).ok(Air::PkgStart(span, name))
             }
 
             (st @ Package(..), PkgRootPath(relroot)) => {

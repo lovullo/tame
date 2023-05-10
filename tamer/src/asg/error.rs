@@ -72,21 +72,14 @@ pub enum AsgError {
     ///   respectively.
     PkgRedeclare(SPair, SPair),
 
-    /// Attempted to rename a package from the first [`SPair`] to the
-    ///   second.
-    ///
-    /// "Rename" here means that the package already had a name and we were
-    ///   provided another,
-    ///     which is almost certainly a mistake.
-    PkgRename(SPair, SPair),
-
     /// Attempted to open a package while defining another package.
     ///
     /// Packages cannot be nested.
     /// The first span represents the location of the second package open,
     ///   and the second span represents the location of the package already
     ///   being defined.
-    NestedPkgStart(Span, Span),
+    /// The [`SPair`]s are the respective package names.
+    NestedPkgStart((Span, SPair), (Span, SPair)),
 
     /// Attempted to close a package when not in a package toplevel context.
     InvalidPkgEndContext(Span),
@@ -175,13 +168,12 @@ impl Display for AsgError {
                 "attempted to redeclare or redefine package {}",
                 TtQuote::wrap(orig),
             ),
-            PkgRename(from, to) => write!(
+            NestedPkgStart((_, child), (_, parent)) => write!(
                 f,
-                "attempted to rename package {} to {}",
-                TtQuote::wrap(from),
-                TtQuote::wrap(to)
+                "cannot define package {} while defining package {}",
+                TtQuote::wrap(child),
+                TtQuote::wrap(parent),
             ),
-            NestedPkgStart(_, _) => write!(f, "cannot nest packages"),
             InvalidPkgEndContext(_) => {
                 write!(f, "invalid context for package close",)
             }
@@ -197,7 +189,7 @@ impl Display for AsgError {
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
             UnbalancedTpl(_) => write!(f, "unbalanced template definition"),
             InvalidBindContext(_) => {
-                write!(f, "invalid expression identifier binding context")
+                write!(f, "invalid identifier binding context")
             }
             InvalidRefContext(ident) => {
                 write!(
@@ -276,19 +268,15 @@ impl Diagnostic for AsgError {
                 redef.error("attempting to redeclare or redefine package here"),
             ],
 
-            PkgRename(from, to) => vec![
-                from.note("package was originally named here"),
-                to.error("attempted to rename package here"),
-                to.help("a package cannot have its name changed"),
-            ],
-
-            NestedPkgStart(second, first) => vec![
+            NestedPkgStart((second, sname), (first, fname)) => vec![
                 first.note("this package is still being defined"),
                 second.error("attempted to open another package here"),
-                second.help(
-                    "close the package to complete its definition before \
-                        attempting to open another",
-                ),
+                second.help(format!(
+                    "end the package {} complete its definition before \
+                        attempting to start the definition of {}",
+                    TtQuote::wrap(fname),
+                    TtQuote::wrap(sname),
+                )),
             ],
 
             InvalidPkgEndContext(span) => vec![
@@ -334,8 +322,8 @@ impl Diagnostic for AsgError {
                 vec![span.error("there is no open template to close here")]
             }
 
-            InvalidBindContext(span) => vec![span
-                .error("there is no active object to bind this identifier to")],
+            InvalidBindContext(name) => vec![name
+                .error("an identifier binding is not valid in this context")],
 
             InvalidRefContext(ident) => vec![ident.error(
                 "cannot reference the value of an expression from outside \

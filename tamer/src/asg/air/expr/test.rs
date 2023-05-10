@@ -73,7 +73,7 @@ fn expr_without_pkg() {
         //   (because we're not parsing with `parse_as_pkg_body` below)
         Air::ExprStart(ExprOp::Sum, S1),
         // RECOVERY
-        Air::PkgStart(S2),
+        Air::PkgStart(S2, SPair("/pkg".into(), S2)),
         Air::PkgEnd(S3),
     ];
 
@@ -95,7 +95,7 @@ fn close_pkg_mid_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
+        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
           Air::ExprStart(ExprOp::Sum, S2),
         Air::PkgEnd(S3),
             // RECOVERY: Let's finish the expression first...
@@ -126,13 +126,15 @@ fn close_pkg_mid_expr() {
 
 #[test]
 fn open_pkg_mid_expr() {
+    let pkg_a = SPair("/pkg".into(), S1);
+    let pkg_nested = SPair("/pkg-nested".into(), S3);
     let id = SPair("foo".into(), S4);
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
+        Air::PkgStart(S1, pkg_a),
           Air::ExprStart(ExprOp::Sum, S2),
-        Air::PkgStart(S3),
+        Air::PkgStart(S3, pkg_nested),
             // RECOVERY: We should still be able to complete successfully.
             Air::BindIdent(id),
           Air::ExprEnd(S5),
@@ -145,7 +147,10 @@ fn open_pkg_mid_expr() {
         vec![
             Ok(Parsed::Incomplete), // PkgStart
               Ok(Parsed::Incomplete), // ExprStart
-            Err(ParseError::StateError(AsgError::NestedPkgStart(S3, S1))),
+            Err(ParseError::StateError(AsgError::NestedPkgStart(
+                (S3, pkg_nested),
+                (S1, pkg_a),
+            ))),
                 // RECOVERY: Ignore the open and continue.
                 //   Of course,
                 //     this means that any identifiers would be defined in a
@@ -756,7 +761,7 @@ fn idents_share_defining_pkg() {
     // An expression nested within another.
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1),
+        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
           Air::ExprStart(ExprOp::Sum, S2),
             Air::BindIdent(id_foo),
 

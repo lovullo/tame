@@ -50,8 +50,8 @@ fn data_from_package_event() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(name, S2))),
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(name, S2))),
               Incomplete,         // PkgRootPath
             O(Air::PkgEnd(S4)),
         ]),
@@ -80,8 +80,8 @@ fn adds_elig_as_root() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(name, S2))),
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(name, S2))),
               O(Air::IdentRoot(SPair(elig_sym, S3))),
             O(Air::PkgEnd(S4)), // Eoh
         ]),
@@ -110,8 +110,8 @@ fn adds_sym_deps() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(name, S2))),
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(name, S2))),
               Incomplete, // SymDepStart
               O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
               O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to2, S5))),
@@ -155,8 +155,8 @@ fn sym_decl_with_src_not_added_and_populates_found() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(name, S2))),
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(name, S2))),
               Incomplete, // SymDecl (@src)
               Incomplete, // SymDecl (@src)
             O(Air::PkgEnd(S5)),
@@ -228,8 +228,8 @@ fn sym_decl_added_to_graph() {
 
     // Note that each of these will have their package names cleared
     //   since this is considered to be the first package encountered.
-    assert_eq!(Some(Ok(O(Air::PkgStart(S1)))), sut.next()); // PkgStart
-    assert_eq!(Some(Ok(O(Air::BindIdent(SPair(name, S2))))), sut.next());
+    assert_eq!(Some(Ok(Incomplete)), sut.next()); // PkgStart
+    assert_eq!(Some(Ok(O(Air::PkgStart(S1, SPair(name, S2))))), sut.next()); // PkgName
     assert_eq!(
         Some(Ok(O(Air::IdentExternDecl(
             SPair(sym_extern, S3),
@@ -318,9 +318,8 @@ fn sym_decl_pkg_name_retained_if_not_first() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(pkg_name, S2))),
-
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(pkg_name, S2))),
               O(Air::IdentDecl(
                   SPair(sym, S3),
                   IdentKind::Meta,
@@ -366,9 +365,8 @@ fn sym_decl_pkg_name_set_if_empty_and_not_first() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(pkg_name, S2))),
-
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(pkg_name, S2))),
               O(Air::IdentDecl(
                   SPair(sym, S3),
                   IdentKind::Meta,
@@ -418,8 +416,8 @@ fn sets_fragment() {
     assert_eq!(
         #[rustfmt::skip]
         Ok(vec![
-            O(Air::PkgStart(S1)),
-              O(Air::BindIdent(SPair(name, S2))),
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(name, S2))),
               O(Air::IdentFragment(SPair(sym, S3), frag)),
             O(Air::PkgEnd(S4)),
         ]),

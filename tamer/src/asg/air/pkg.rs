@@ -26,9 +26,7 @@ use super::{
     ir::AirLoadablePkg,
     AirAggregate, AirAggregateCtx,
 };
-use crate::{
-    diagnose::Annotate, diagnostic_todo, parse::prelude::*, span::Span,
-};
+use crate::{diagnose::Annotate, diagnostic_todo, parse::prelude::*};
 
 /// Package parsing with support for loaded identifiers.
 ///
@@ -41,10 +39,6 @@ pub enum AirPkgAggregate {
     ///   expression stack is empty.
     Ready,
 
-    /// Package definition or declaration started,
-    ///   but the name is not yet known.
-    UnnamedPkg(Span),
-
     /// Expecting a package-level token.
     Toplevel(ObjectIndex<Pkg>),
 }
@@ -56,9 +50,6 @@ impl Display for AirPkgAggregate {
         match self {
             Ready => {
                 write!(f, "expecting package definition")
-            }
-            UnnamedPkg(_) => {
-                write!(f, "expecting canonical package name")
             }
             Toplevel(_) => {
                 write!(f, "expecting package header or an expression")
@@ -84,34 +75,28 @@ impl ParseState for AirPkgAggregate {
         use AirPkgAggregate::*;
 
         match (self, tok) {
-            (Ready, AirPkg(PkgStart(span))) => {
-                if let Some(first_span) = ctx.pkg_oi().map(|oi| oi.span()) {
-                    Transition(Ready)
-                        .err(AsgError::NestedPkgStart(span, first_span))
+            (st @ (Ready | Toplevel(..)), AirPkg(PkgStart(span, name))) => {
+                if let Some(first) =
+                    ctx.pkg_oi().map(|oi| oi.resolve(ctx.asg_ref()))
+                {
+                    let first_span = first.span();
+                    let first_name = first.canonical_name();
+
+                    Transition(st).err(AsgError::NestedPkgStart(
+                        (span, name),
+                        (first_span, first_name),
+                    ))
                 } else {
-                    Transition(UnnamedPkg(span)).incomplete()
+                    match ctx.pkg_begin(span, name) {
+                        Ok(oi_pkg) => Transition(Toplevel(oi_pkg)).incomplete(),
+                        Err(e) => Transition(Ready).err(e),
+                    }
                 }
             }
 
-            (Toplevel(oi_pkg), AirPkg(PkgStart(span))) => {
+            (Toplevel(oi_pkg), AirBind(BindIdent(name))) => {
                 Transition(Toplevel(oi_pkg))
-                    .err(AsgError::NestedPkgStart(span, oi_pkg.span()))
-            }
-
-            // Packages are identified by canonical paths relative to the
-            //   project root.
-            (UnnamedPkg(span), AirBind(BindIdent(name))) => {
-                match ctx.pkg_begin(span, name) {
-                    Ok(oi_pkg) => Transition(Toplevel(oi_pkg)).incomplete(),
-                    Err(e) => Transition(UnnamedPkg(span)).err(e),
-                }
-            }
-
-            (Toplevel(oi_pkg), AirBind(BindIdent(rename))) => {
-                let name = oi_pkg.resolve(ctx.asg_mut()).canonical_name();
-
-                Transition(Toplevel(oi_pkg))
-                    .err(AsgError::PkgRename(name, rename))
+                    .err(AsgError::InvalidBindContext(name))
             }
 
             (Toplevel(oi_pkg), AirPkg(PkgEnd(span))) => {
@@ -195,19 +180,6 @@ impl ParseState for AirPkgAggregate {
                 Transition(Ready).err(AsgError::InvalidPkgEndContext(span))
             }
 
-            // TODO: See superstate
-            (UnnamedPkg(span), tok) => {
-                diagnostic_todo!(
-                    vec![
-                        span.note("for this package"),
-                        tok.internal_error(
-                            "package name expected before this token"
-                        ),
-                    ],
-                    "package name expected",
-                )
-            }
-
             // Token may refer to a parent context.
             (st @ Ready, tok @ (AirBind(..) | AirIdent(..) | AirDoc(..))) => {
                 Transition(st).dead(tok)
@@ -231,7 +203,7 @@ impl AirPkgAggregate {
         use AirPkgAggregate::*;
 
         match self {
-            Ready | UnnamedPkg(_) => None,
+            Ready => None,
             Toplevel(oi_pkg) => Some(*oi_pkg),
         }
     }

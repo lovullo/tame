@@ -466,10 +466,18 @@ sum_ir! {
             ///   within a given package,
             ///     but we have no such restriction.
             ///
-            /// TODO: The package needs a name,
-            ///   and we'll need to determine how to best represent that relative to
-            ///   the project root and be considerate of symlinks.
-            PkgStart(span: Span) => {
+            /// Packages are assigned unique names in a similar way to
+            ///   identifiers.
+            /// This name is generally expected to be generated from the
+            ///   path to the package on the host filesystem,
+            ///     so no guarantees are made as to the [`Span`] associated
+            ///     with the provided `name`.
+            /// For clarity,
+            ///   the first [`Span`] is intended to represent the start of
+            ///   the package declaration,
+            ///     however that is represented by the source stream;
+            ///       the `name` [`Span`] may or may not duplicate it.
+            PkgStart(span: Span, name: SPair) => {
                 span: span,
                 display: |f| write!(f, "open package"),
             },

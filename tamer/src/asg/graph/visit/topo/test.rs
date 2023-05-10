@@ -86,7 +86,7 @@ fn sorts_objects_given_single_root() {
     let toks = vec![
         // Packages are auto-rooted as part of the graph's ontology.
         // There is only one for this test.
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           // Before this can be computed,
           //   its dependencies must be.
           ExprStart(ExprOp::Sum, S2),           // -.
@@ -173,7 +173,7 @@ fn sorts_objects_given_single_root_more_complex() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),
             RefIdent(SPair(id_b.symbol(), S4)),  // ---.
@@ -233,7 +233,7 @@ fn omits_unreachable() {
     // We will only use a portion of this graph.
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),
             RefIdent(SPair(id_b.symbol(), S4)),  // ---.
@@ -310,9 +310,7 @@ fn sorts_objects_given_multiple_roots() {
     #[rustfmt::skip]
     let toks = vec![
         // First root
-        PkgStart(S1),
-          BindIdent(pkg_a_name),
-
+        PkgStart(S1, pkg_a_name),
           ExprStart(ExprOp::Sum, S3),
             BindIdent(id_a),
           ExprEnd(S5),
@@ -320,9 +318,7 @@ fn sorts_objects_given_multiple_roots() {
 
         // Second root,
         //   independent of the first.
-        PkgStart(S7),
-          BindIdent(pkg_b_name),
-
+        PkgStart(S7, pkg_b_name),
           ExprStart(ExprOp::Sum, S9),
             BindIdent(id_b),
           ExprEnd(S11),
@@ -361,7 +357,7 @@ fn unsupported_cycles_with_recovery() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg-a".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_a),                     // <----.  self-cycle
             RefIdent(SPair(id_a.symbol(), S4)),  // ____/ \
@@ -434,7 +430,7 @@ fn supported_cycles() {
 
     #[rustfmt::skip]
     let toks = vec![
-        PkgStart(S1),
+        PkgStart(S1, SPair("/pkg-a".into(), S1)),
           // Two mutually recursive functions.
           IdentDecl(id_a, kind.clone(), Default::default()),  // <--.
           IdentDep(id_a, id_b),                               // -. |
