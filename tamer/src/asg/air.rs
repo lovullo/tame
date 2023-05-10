@@ -63,9 +63,13 @@ pub type DepSym = SymbolId;
 /// AIR parser state.
 #[derive(Debug, PartialEq, Default)]
 pub enum AirAggregate {
-    /// Parser is not currently performing any work.
+    /// Parser is in the root context.
+    ///
+    /// As a parser,
+    ///   this does nothing but await work.
+    /// Its presence in the [`AirStack`] is used for the global environment.
     #[default]
-    Empty,
+    Root,
 
     /// Parsing a package.
     Pkg(AirPkgAggregate),
@@ -90,7 +94,7 @@ impl Display for AirAggregate {
         use AirAggregate::*;
 
         match self {
-            Empty => write!(f, "awaiting AIR input for ASG"),
+            Root => write!(f, "awaiting AIR input for ASG"),
             Pkg(pkg) => {
                 write!(f, "defining a package: {pkg}")
             }
@@ -145,7 +149,7 @@ impl ParseState for AirAggregate {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
             // Package
-            (st @ (Empty | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
+            (st @ (Root | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
                 ctx.ret_or_transfer(st, tok, AirPkgAggregate::new())
             }
             (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
@@ -170,11 +174,11 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
             (
-                Empty,
+                Root,
                 tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
-            ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
+            ) => Transition(Root).err(AsgError::PkgExpected(tok.span())),
 
-            (st @ (Empty | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
+            (st @ (Root | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
                 Transition(st).err(AsgError::UnexpectedOpaqueIdent(tok.name()))
             }
         }
@@ -200,7 +204,7 @@ impl AirAggregate {
         match self {
             // We can't be done with something we're not doing.
             // This is necessary to start the first child parser.
-            Empty => false,
+            Root => false,
 
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
@@ -215,7 +219,7 @@ impl AirAggregate {
         match self {
             // This must not recurse on `AirAggregate::is_accepting`,
             //   otherwise it'll be mutually recursive.
-            Empty => true,
+            Root => true,
 
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
@@ -231,7 +235,7 @@ impl AirAggregate {
     ///       (see [`AirAggregateCtx::rooting_oi`]).
     fn active_rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
         match self {
-            AirAggregate::Empty => None,
+            AirAggregate::Root => None,
 
             // Packages always serve as roots for identifiers
             //   (that is their entire purpose).
@@ -347,7 +351,7 @@ impl AirAggregateCtx {
 
         if st_super.active_is_complete(self) {
             // TODO: dead state or error
-            self.stack().ret_or_dead(AirAggregate::Empty, tok)
+            self.stack().ret_or_dead(AirAggregate::Root, tok)
         } else {
             self.stack().transfer_with_ret(
                 Transition(st_super),
@@ -367,7 +371,7 @@ impl AirAggregateCtx {
         tok: impl Token + Into<S::Token>,
     ) -> TransitionResult<AirAggregate> {
         st.delegate_child(tok.into(), self, |_deadst, tok, ctx| {
-            ctx.stack().ret_or_dead(AirAggregate::Empty, tok)
+            ctx.stack().ret_or_dead(AirAggregate::Root, tok)
         })
     }
 
@@ -422,7 +426,7 @@ impl AirAggregateCtx {
         let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match st {
-            AirAggregate::Empty => None,
+            AirAggregate::Root => None,
 
             // A dangling expression in a package context would be
             //   unreachable.
@@ -454,7 +458,7 @@ impl AirAggregateCtx {
         let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match st {
-            AirAggregate::Empty => None,
+            AirAggregate::Root => None,
             AirAggregate::Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
             AirAggregate::PkgExpr(exprst) => {
                 exprst.active_expr_oi().map(Into::into)
@@ -481,24 +485,23 @@ impl AirAggregateCtx {
     /// Attempt to locate a lexically scoped identifier,
     ///   or create a new one if missing.
     ///
-    /// Until [`Asg`] can be further generalized,
-    ///   there are unfortunately two rooting strategies employed:
+    /// Since shadowing is not permitted
+    ///   (but local identifiers are),
+    ///   we can reduce the cost of lookups for the majority of identifiers
+    ///     by beginning at the root and continuing down into the narrowest
+    ///     lexical scope until we find what we're looking for.
     ///
-    ///   1. If the stack has only a single held frame at a scope boundary,
-    ///        then it is assumed to be the package representing the active
-    ///        compilation unit and the identifier is indexed in the global
-    ///        scope.
-    ///   2. Otherwise,
-    ///        the identifier is defined locally and does not undergo
-    ///        indexing.
-    ///
-    /// TODO: This is very informal and just starts to get things working.
+    /// Note that the global environment,
+    ///   represented by the root,
+    ///   is a pool of identifiers from all packages;
+    ///     it does not form a hierarchy and local identifiers will not be
+    ///     indexed outside of their package hierarchy,
+    ///       so we'll have to continue searching for those.
     fn lookup_lexical_or_missing(&mut self, name: SPair) -> ObjectIndex<Ident> {
         let Self(asg, stack, _) = self;
 
         stack
             .iter()
-            .rev()
             .filter_map(|st| st.active_rooting_oi())
             .find_map(|oi| asg.lookup(oi, name))
             .unwrap_or_else(|| self.create_env_indexed_ident(name))
