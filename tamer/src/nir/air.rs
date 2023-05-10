@@ -113,6 +113,10 @@ impl ParseState for NirToAir {
             return Transition(Ready).ok(obj).with_lookahead(tok);
         }
 
+        // TODO: The intent is to refactor this monstrosity once we're far
+        //     enough along that a clear pattern emerges.
+        //   Part of this process has been deriving appropriate
+        //     responsibilities betwen XIR->NIR, NIR->AIR, and AIR->ASG.
         match (self, tok) {
             (Ready, Open(Package, span)) => {
                 Transition(Ready).ok(Air::PkgStart(span))
