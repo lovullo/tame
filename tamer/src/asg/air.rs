@@ -40,10 +40,8 @@ use super::{
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
-    diagnose::Annotate,
-    diagnostic_todo,
     parse::{prelude::*, StateStack},
-    span::{Span, UNKNOWN_SPAN},
+    span::Span,
     sym::SymbolId,
 };
 use std::fmt::{Debug, Display};
@@ -53,8 +51,10 @@ mod ir;
 pub use ir::Air;
 
 mod expr;
+mod pkg;
 mod tpl;
 use expr::AirExprAggregate;
+use pkg::AirPkgAggregate;
 use tpl::AirTplAggregate;
 
 pub type IdentSym = SymbolId;
@@ -67,12 +67,8 @@ pub enum AirAggregate {
     #[default]
     Empty,
 
-    /// Package definition or declaration started,
-    ///   but the name is not yet known.
-    UnnamedPkg(Span),
-
-    /// Expecting a package-level token.
-    Toplevel(ObjectIndex<Pkg>),
+    /// Parsing a package.
+    Pkg(AirPkgAggregate),
 
     /// Parsing an expression.
     ///
@@ -95,11 +91,8 @@ impl Display for AirAggregate {
 
         match self {
             Empty => write!(f, "awaiting AIR input for ASG"),
-            UnnamedPkg(_) => {
-                write!(f, "expecting canonical package name")
-            }
-            Toplevel(_) => {
-                write!(f, "expecting package header or an expression")
+            Pkg(pkg) => {
+                write!(f, "defining a package: {pkg}")
             }
             PkgExpr(expr) => {
                 write!(f, "defining a package expression: {expr}")
@@ -108,6 +101,12 @@ impl Display for AirAggregate {
                 write!(f, "building a template: {tpl}",)
             }
         }
+    }
+}
+
+impl From<AirPkgAggregate> for AirAggregate {
+    fn from(st: AirPkgAggregate) -> Self {
+        Self::Pkg(st)
     }
 }
 
@@ -139,95 +138,34 @@ impl ParseState for AirAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
-        use ir::{
-            AirBind::*, AirDoc::*, AirIdent::*, AirPkg::*, AirSubsets::*,
-            AirTodo::*,
-        };
+        use ir::{AirBind::BindIdent, AirSubsets::*, AirTodo::*};
         use AirAggregate::*;
+        use AirPkgAggregate::{Toplevel, UnnamedPkg};
 
-        // TODO: Seems to be about time for refactoring this...
         match (self, tok.into()) {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
-            (Empty, AirPkg(PkgStart(span))) => {
-                Transition(UnnamedPkg(span)).incomplete()
-            }
-
-            (
-                st @ (UnnamedPkg(_) | Toplevel(_) | PkgExpr(_) | PkgTpl(_)),
-                AirPkg(PkgStart(span)),
-            ) => {
-                // This should always be available in this context.
-                let first_span =
-                    ctx.pkg_oi().map(|oi| oi.span()).unwrap_or(UNKNOWN_SPAN);
-
-                Transition(st).err(AsgError::NestedPkgStart(span, first_span))
-            }
-
-            // Packages are identified by canonical paths relative to the
-            //   project root.
-            (UnnamedPkg(span), AirBind(BindIdent(name))) => {
-                match ctx.begin_pkg(span, name) {
-                    Ok(oi_pkg) => Transition(Toplevel(oi_pkg)).incomplete(),
-                    Err(e) => Transition(UnnamedPkg(span)).err(e),
-                }
-            }
-
-            // TODO: Remove; transitionary (no package name required)
-            (UnnamedPkg(span), tok) => {
-                match ctx.begin_pkg(span, SPair("/TODO".into(), span)) {
-                    Ok(oi_pkg) => Transition(Toplevel(oi_pkg))
+            // TODO: Remove this kluge; transitionary (no package name required)
+            (Pkg(UnnamedPkg(span)), tok)
+                if !matches!(tok, AirBind(BindIdent(..))) =>
+            {
+                match ctx.pkg_begin(span, SPair("/TODO".into(), span)) {
+                    Ok(oi_pkg) => Transition(Pkg(Toplevel(oi_pkg)))
                         .incomplete()
                         .with_lookahead(tok),
-                    Err(e) => Transition(UnnamedPkg(span)).err(e),
+                    Err(e) => Transition(Pkg(UnnamedPkg(span))).err(e),
                 }
             }
 
-            (Toplevel(oi_pkg), AirBind(BindIdent(rename))) => {
-                // TODO: `unwrap_or` is just until canonical name is
-                //   unconditionally available just to avoid the possibility
-                //   of a panic.
-                let name = oi_pkg.resolve(ctx.asg_mut()).canonical_name();
-
-                Transition(Toplevel(oi_pkg))
-                    .err(AsgError::PkgRename(name, rename))
+            (st @ (Empty | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
+                ctx.ret_or_transfer(st, tok, AirPkgAggregate::new())
             }
+            (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
+            (Pkg(pkg), AirBind(etok)) => ctx.proxy(pkg, etok),
+            (Pkg(pkg), AirIdent(etok)) => ctx.proxy(pkg, etok),
+            (Pkg(pkg), AirDoc(etok)) => ctx.proxy(pkg, etok),
 
-            // No expression was started.
-            (Toplevel(oi_pkg), AirPkg(PkgEnd(span))) => {
-                oi_pkg.close(ctx.asg_mut(), span);
-                Transition(Empty).incomplete()
-            }
-
-            (Toplevel(oi_pkg), tok @ AirDoc(DocIndepClause(..))) => {
-                diagnostic_todo!(
-                    vec![
-                        oi_pkg.note("for this package"),
-                        tok.internal_error(
-                            "this package description is not yet supported"
-                        )
-                    ],
-                    "package-level short description is not yet supported by TAMER",
-                )
-            }
-
-            (Toplevel(oi_pkg), AirDoc(DocText(text))) => {
-                oi_pkg.append_doc_text(ctx.asg_mut(), text);
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
-
-            // Package import
-            (Toplevel(oi_pkg), AirBind(RefIdent(pathspec))) => oi_pkg
-                .import(ctx.asg_mut(), pathspec)
-                .map(|_| ())
-                .transition(Toplevel(oi_pkg)),
-
-            // Note: We unfortunately can't match on `AirExpr | AirBind | ...`
-            //   and delegate in the same block
-            //     (without having to duplicate type checks and then handle
-            //       unreachable paths)
-            //     because of the different inner types.
-            (st @ (Toplevel(_) | PkgTpl(_)), tok @ AirExpr(..)) => {
+            (st @ (Pkg(_) | PkgTpl(_)), tok @ AirExpr(..)) => {
                 ctx.ret_or_transfer(st, tok, AirExprAggregate::new())
             }
             (PkgExpr(expr), AirExpr(etok)) => ctx.proxy(expr, etok),
@@ -235,80 +173,17 @@ impl ParseState for AirAggregate {
             (PkgExpr(expr), AirDoc(etok)) => ctx.proxy(expr, etok),
 
             // Template parsing.
-            (st @ (Toplevel(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
+            (st @ (Pkg(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
                 ctx.ret_or_transfer(st, tok, AirTplAggregate::new())
             }
             (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
-            (Empty, AirPkg(PkgEnd(span))) => {
-                Transition(Empty).err(AsgError::InvalidPkgEndContext(span))
-            }
-
-            (st @ (PkgExpr(_) | PkgTpl(_)), AirPkg(PkgEnd(span))) => {
-                match st.active_is_accepting(ctx) {
-                    true => {
-                        ctx.stack().ret_or_dead(Empty, AirPkg(PkgEnd(span)))
-                    }
-                    false => {
-                        Transition(st).err(AsgError::InvalidPkgEndContext(span))
-                    }
-                }
-            }
-
             (
                 Empty,
                 tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
             ) => Transition(Empty).err(AsgError::PkgExpected(tok.span())),
-
-            (Toplevel(oi_pkg), AirIdent(IdentDecl(name, kind, src))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-
-                asg.lookup_or_missing(oi_root, name)
-                    .declare(asg, name, kind, src)
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg))
-            }
-
-            (Toplevel(oi_pkg), AirIdent(IdentExternDecl(name, kind, src))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-
-                asg.lookup_or_missing(oi_root, name)
-                    .declare_extern(asg, name, kind, src)
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg))
-            }
-
-            (Toplevel(oi_pkg), AirIdent(IdentDep(name, dep))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(dep);
-
-                let oi_from = asg.lookup_or_missing(oi_root, name);
-                let oi_to = asg.lookup_or_missing(oi_root, dep);
-                oi_from.add_opaque_dep(ctx.asg_mut(), oi_to);
-
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
-
-            (Toplevel(oi_pkg), AirIdent(IdentFragment(name, text))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-
-                asg.lookup_or_missing(oi_root, name)
-                    .set_fragment(asg, text)
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg))
-            }
-
-            (Toplevel(oi_pkg), AirIdent(IdentRoot(name))) => {
-                let asg = ctx.asg_mut();
-                asg.root(name).root_ident(asg, name);
-
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
 
             (st @ (Empty | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
                 Transition(st).err(AsgError::UnexpectedOpaqueIdent(tok.name()))
@@ -316,22 +191,44 @@ impl ParseState for AirAggregate {
         }
     }
 
-    fn is_accepting(&self, _: &Self::Context) -> bool {
-        matches!(self, Self::Empty)
+    fn is_accepting(&self, ctx: &Self::Context) -> bool {
+        ctx.stack_ref().iter().all(|st| st.active_is_accepting(ctx))
+            && self.active_is_accepting(ctx)
     }
 }
 
 impl AirAggregate {
-    /// Whether the active parser is in an accepting state.
+    /// Whether the active parser is completed with active parsing.
+    ///
+    /// This method is used to determine whether control ought to be
+    ///   transferred to a new child parser.
     ///
     /// If a child parser is active,
     ///   then its [`ParseState::is_accepting`] will be consulted.
+    fn active_is_complete(&self, ctx: &<Self as ParseState>::Context) -> bool {
+        use AirAggregate::*;
+
+        match self {
+            // We can't be done with something we're not doing.
+            // This is necessary to start the first child parser.
+            Empty => false,
+
+            Pkg(st) => st.is_accepting(ctx),
+            PkgExpr(st) => st.is_accepting(ctx),
+            PkgTpl(st) => st.is_accepting(ctx),
+        }
+    }
+
+    // Whether the parser is in an accepting state.
     fn active_is_accepting(&self, ctx: &<Self as ParseState>::Context) -> bool {
         use AirAggregate::*;
 
         match self {
+            // This must not recurse on `AirAggregate::is_accepting`,
+            //   otherwise it'll be mutually recursive.
             Empty => true,
-            UnnamedPkg(_) | Toplevel(_) => self.is_accepting(ctx),
+
+            Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
             PkgTpl(st) => st.is_accepting(ctx),
         }
@@ -346,8 +243,10 @@ impl AirAggregate {
     fn active_rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
         match self {
             AirAggregate::Empty => None,
-            AirAggregate::UnnamedPkg(_) => None,
-            AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
+
+            // Packages always serve as roots for identifiers
+            //   (that is their entire purpose).
+            AirAggregate::Pkg(pkgst) => pkgst.active_pkg_oi().map(Into::into),
 
             // Expressions never serve as roots for identifiers;
             //   this will always fall through to the parent context.
@@ -409,6 +308,11 @@ impl AirAggregateCtx {
         stack
     }
 
+    fn stack_ref(&self) -> &AirStack {
+        let Self(_, stack, _) = self;
+        stack
+    }
+
     /// Return control to the parser atop of the stack if `st` is an
     ///   accepting state,
     ///     otherwise transfer control to a new parser `to`.
@@ -448,7 +352,7 @@ impl AirAggregateCtx {
     ) -> TransitionResult<AirAggregate> {
         let st_super = st.into();
 
-        if st_super.active_is_accepting(self) {
+        if st_super.active_is_complete(self) {
             // TODO: dead state or error
             self.stack().ret_or_dead(AirAggregate::Empty, tok)
         } else {
@@ -475,7 +379,7 @@ impl AirAggregateCtx {
     }
 
     /// Create a new rooted package and record it as the active package.
-    fn begin_pkg(
+    fn pkg_begin(
         &mut self,
         start: Span,
         name: SPair,
@@ -487,6 +391,12 @@ impl AirAggregateCtx {
 
         pkg.replace(oi_pkg);
         Ok(oi_pkg)
+    }
+
+    /// Indicate that there is no longer any active package.
+    fn pkg_clear(&mut self) {
+        let Self(_, _, pkg) = self;
+        pkg.take();
     }
 
     /// The active package if any.
@@ -525,7 +435,7 @@ impl AirAggregateCtx {
             //   unreachable.
             // There should be no parent frame and so this will fail to find
             //   a value.
-            AirAggregate::UnnamedPkg(_) | AirAggregate::Toplevel(_) => None,
+            AirAggregate::Pkg(_) => None,
 
             // Expressions may always contain other expressions,
             //   and so this method should not be consulted in such a
@@ -552,8 +462,7 @@ impl AirAggregateCtx {
 
         stack.iter().rev().find_map(|st| match st {
             AirAggregate::Empty => None,
-            AirAggregate::UnnamedPkg(_) => None,
-            AirAggregate::Toplevel(pkg_oi) => Some((*pkg_oi).into()),
+            AirAggregate::Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
             AirAggregate::PkgExpr(exprst) => {
                 exprst.active_expr_oi().map(Into::into)
             }
