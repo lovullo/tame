@@ -131,6 +131,23 @@ macro_rules! object_rel {
                     _ => None,
                 }
             }
+
+            fn oi_rel_to_dyn<OB: ObjectRelatable>(
+                #[allow(unused_variables)] // for empty Rel
+                oi: ObjectIndex<Self>,
+            ) -> Option<$crate::asg::graph::object::ObjectIndexTo<OB>> {
+                #[allow(unused_imports)]
+                use $crate::asg::graph::object::ObjectIndexTo;
+
+                match OB::rel_ty() {
+                    $(
+                        ObjectRelTy::$kind => {
+                            ObjectIndexTo::<$kind>::from(oi).reflexivity()
+                        },
+                    )*
+                    _ => None,
+                }
+            }
         }
 
         $(
@@ -289,6 +306,37 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
         asg: &Asg,
     ) -> DynObjectRel<S, Object<OiPairObjectInner>> {
         self.map(|(soi, toi)| (soi, toi.resolve(asg).pair_oi(toi)))
+    }
+
+    /// Retrieve the target [`ObjectIndex`] as an [`ObjectIndexTo<OB>`](ObjectIndexTo),
+    ///   if the object can be related to objects of type `OB`.
+    ///
+    /// This method may be confusing in that it represents another
+    ///   _possible_ relation on top of the relation represented by
+    ///   [`Self`].
+    /// That is:
+    ///
+    /// ```text
+    ///   OA -> OB [ -> OC]
+    ///   '______'
+    ///     Self
+    /// ```
+    ///
+    /// If this method returns [`Some`],
+    ///   that means that the target of this relation `OB` is an object
+    ///   _that is capable of being related to_ an object of type `OC`.
+    pub fn target_oi_rel_to_dyn<OC: ObjectRelatable>(
+        &self,
+    ) -> Option<ObjectIndexTo<OC>> {
+        // TODO: A newtype ought to couple these in a way that we don't have
+        //   to trust this assumption!
+        // This requires assuming that the target is of the target type,
+        //   which _should_ certainly be the case if originating from the graph,
+        //   but if it's not,
+        //     then later resolving the `ObjectIndex` with a mismatched type
+        //     will result in a panic.
+        self.target_ty()
+            .assuming_oi_maybe_rel_to_dyn(*self.target())
     }
 
     /// Dynamically determine whether this edge represents a cross edge.
@@ -461,7 +509,7 @@ pub trait ObjectRelatable: ObjectKind {
     /// Represent a relation to another [`ObjectKind`] that cannot be
     ///   statically known and must be handled at runtime.
     ///
-    /// A value of [`None`] means that the provided [`DynObjectRel`] is not
+    /// A value of [`None`] means that the provided [`ObjectRelTy`] is not
     ///   valid for [`Self`].
     /// If the caller is utilizing edge data that is already present on the graph,
     ///   then this means that the system is not properly upholding edge
@@ -476,6 +524,21 @@ pub trait ObjectRelatable: ObjectKind {
         ty: ObjectRelTy,
         oi: ObjectIndex<Object>,
     ) -> Option<Self::Rel>;
+
+    /// Cast the provided [`ObjectIndex`] into an [`ObjectIndexTo`] if it is
+    ///   able to be related to the provided `OB`.
+    ///
+    /// This is intended to be used in a dynamic context,
+    ///   where the caller is not aware statically of the [`ObjectKind`]s
+    ///   involved.
+    /// If it is _required_ that an object be relatable,
+    ///   use [`ObjectRelTo`] to statically verify that assertion.
+    ///
+    /// If the type `OB` is not a valid target of a relation from this type,
+    ///   [`None`] will be returned.
+    fn oi_rel_to_dyn<OB: ObjectRelatable>(
+        oi: ObjectIndex<Self>,
+    ) -> Option<ObjectIndexTo<OB>>;
 }
 
 impl<O: ObjectKind + ObjectRelatable> ObjectIndex<O> {
@@ -960,6 +1023,32 @@ mod private {
     impl<OB: ObjectRelatable> ObjectIndexTo<OB> {
         pub fn span(&self) -> Span {
             (*self).into()
+        }
+
+        /// Assert a reflexive relationship between `OB` and `OC`.
+        ///
+        /// The types `OB` and `OC` are equivalent (and therefore reflexive)
+        ///   iff they have matching `ObjectRelTy`s.
+        ///
+        /// The sole purpose of this method is to satisfy Rust's type system
+        ///   in dynamic situations where the type system is not able to
+        ///   understand what we're doing,
+        ///     where the type `OC` is more general than the type `OB`.
+        /// This method is always safe;
+        ///   it will return [`None`] if the two types differ in runtime
+        ///   value.
+        ///
+        /// While the term "reflexive" is a binary relation in mathematics,
+        ///   the term "reflexivity" originates from the Coq tactic.
+        ///
+        /// For an example of where this is needed,
+        ///   see [`ObjectRelatable::oi_rel_to_dyn`].
+        pub fn reflexivity<OC: ObjectRelatable>(
+            self,
+        ) -> Option<ObjectIndexTo<OC>> {
+            let Self(parts, _) = self;
+            (OB::rel_ty() == OC::rel_ty())
+                .then_some(ObjectIndexTo(parts, PhantomData::default()))
         }
     }
 

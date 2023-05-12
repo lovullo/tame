@@ -210,6 +210,31 @@ macro_rules! object_gen {
             $($kind,)+
         }
 
+        impl ObjectTy {
+            /// Assume that the provided [`ObjectIndex`] is of the type
+            ///   associated with `self`,
+            ///     and then determine whether that object can be related to
+            ///     another object of a given type `OB`.
+            ///
+            /// This method should be kept private;
+            ///   it is memory safe,
+            ///     but incorrect assumptions will violate graph object
+            ///     invariants and cause panics when the [`ObjectIndexTo`]
+            ///     is later resolved.
+            fn assuming_oi_maybe_rel_to_dyn<OB: ObjectRelatable>(
+                &self,
+                oi: ObjectIndex<Object>,
+            ) -> Option<ObjectIndexTo<OB>> {
+                match self {
+                    $(
+                        Self::$kind => {
+                            $kind::oi_rel_to_dyn(oi.must_narrow_into())
+                        }
+                    )+
+                }
+            }
+        }
+
         impl<T: ObjectInner> From<&Object<T>> for ObjectTy {
             fn from(obj: &Object<T>) -> Self {
                 match obj {

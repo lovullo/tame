@@ -523,6 +523,60 @@ impl AirAggregateCtx {
     }
 }
 
+/// Property of identifier scope within a given environment.
+///
+/// An _environment_ is the collection of identifiers associated with a
+///   container object.
+/// Environments stack,
+///   such that an environment inherits the identifiers of its parent.
+///
+/// The _scope_ of an identifier is defined by what environments can "see"
+///   that identifier.
+/// For the purposes of TAME's analysis,
+///   we care only about the global environment and shadowing.
+///
+/// The relationship between identifier scope and environment can be
+///   visualized as a two-dimensional table with the environments forming
+///   layers along the x-axes,
+///     and scopes slicing those layers along the y-axies.
+///
+/// TODO: Example visualization.
+#[cfg(test)]
+#[derive(Debug, PartialEq)]
+enum EnvScopeKind {
+    /// Identifiers are pooled without any defined hierarchy.
+    ///
+    /// An identifier that is part of a pool must be unique.
+    /// Since there is no hierarchy,
+    ///   the system should not suggest that shadowing is not permitted and
+    ///   should insteam emphasize that such an identifier must be unique
+    ///   globally.
+    ///
+    /// This should be used only at the root.
+    /// An identifier's scope can be further refined to provide more useful
+    ///   diagnostic messages by descending into the package in which it is
+    ///   defined and evaluating scope relative to the package.
+    _Pool,
+
+    /// Identifier in this environment is a shadow of a deeper environment.
+    ///
+    /// An identifier is said to cast a shadow on environments higher in its
+    ///   hierarchy.
+    /// Since shadowing is not permitted in TAME,
+    ///   this can be used to present useful diagnostic information to the
+    ///   user.
+    ///
+    /// A shadow can be used to check for identifier conflicts,
+    ///   but it cannot be used for lookup;
+    ///     this environment should be filtered out of this identifier's
+    ///     scope.
+    _Shadow,
+
+    /// This environment owns the identifier or is an environment descended
+    ///   from one that does.
+    Visible,
+}
+
 impl AsMut<AirAggregateCtx> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut AirAggregateCtx {
         self

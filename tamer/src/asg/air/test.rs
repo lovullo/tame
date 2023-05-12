@@ -35,6 +35,8 @@ type Sut = AirAggregate;
 use Air::*;
 use Parsed::Incomplete;
 
+mod scope;
+
 #[test]
 fn ident_decl() {
     let id = SPair("foo".into(), S2);
@@ -638,6 +640,16 @@ where
     I::IntoIter: Debug,
 {
     let mut sut = parse_as_pkg_body(toks);
+    assert!(sut.all(|x| x.is_ok()));
+    sut.finalize().unwrap().into_context()
+}
+
+/// [`asg_from_toks`] without creating a package automatically.
+pub fn asg_from_toks_raw<I: IntoIterator<Item = Air>>(toks: I) -> Asg
+where
+    I::IntoIter: Debug,
+{
+    let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
     sut.finalize().unwrap().into_context()
 }

@@ -90,7 +90,7 @@ pub struct Asg {
     /// Directed graph on which objects are stored.
     graph: DiGraph<Node, AsgEdge, Ix>,
 
-    /// Edge cache of [`SymbolId`][crate::sym::SymbolId] to
+    /// Environment cache of [`SymbolId`][crate::sym::SymbolId] to
     ///   [`ObjectIndex`]es.
     ///
     /// This maps a `(SymbolId, NodeIndex)` pair to a node on the graph for
