@@ -26,7 +26,7 @@ use self::object::{
     ObjectRelTy, ObjectRelatable, Root,
 };
 
-use super::{AsgError, Object, ObjectIndex, ObjectKind};
+use super::{air::EnvScopeKind, AsgError, Object, ObjectIndex, ObjectKind};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     f::Functor,
@@ -108,7 +108,7 @@ pub struct Asg {
     ///   the public API encapsulates it within an [`ObjectIndex`].
     index: FxHashMap<
         (ObjectRelTy, SymbolId, ObjectIndex<Object>),
-        ObjectIndex<Object>,
+        EnvScopeKind<ObjectIndex<Object>>,
     >,
 
     /// The root node used for reachability analysis and topological
@@ -198,16 +198,17 @@ impl Asg {
         &mut self,
         imm_env: OS,
         name: S,
-        oi: ObjectIndex<O>,
+        eoi: EnvScopeKind<ObjectIndex<O>>,
     ) -> Result<(), ObjectIndex<O>> {
         let sym = name.into();
-        let prev = self
-            .index
-            .insert((O::rel_ty(), sym, imm_env.widen()), oi.widen());
+        let prev = self.index.insert(
+            (O::rel_ty(), sym, imm_env.widen()),
+            eoi.map(ObjectIndex::widen),
+        );
 
         match prev {
             None => Ok(()),
-            Some(oi) => Err(oi.must_narrow_into::<O>()),
+            Some(eoi) => Err(eoi.into_inner().must_narrow_into::<O>()),
         }
     }
 
@@ -234,10 +235,10 @@ impl Asg {
         &mut self,
         imm_env: OS,
         name: S,
-        oi: ObjectIndex<O>,
+        eoi: EnvScopeKind<ObjectIndex<O>>,
     ) {
         let sym = name.into();
-        let prev = self.try_index(imm_env, sym, oi);
+        let prev = self.try_index(imm_env, sym, eoi);
 
         // We should never overwrite indexes
         #[allow(unused_variables)] // used only for debug
@@ -248,17 +249,17 @@ impl Asg {
                 vec![
                     imm_env.widen().note("at this scope boundary"),
                     prev_oi.note("previously indexed identifier was here"),
-                    oi.internal_error(
+                    eoi.internal_error(
                         "this identifier has already been indexed at the above scope boundary"
                     ),
-                    oi.help(
+                    eoi.help(
                         "this is a bug in the system responsible for analyzing \
                             identifier scope;"
                     ),
-                    oi.help(
+                    eoi.help(
                         "  you can try to work around it by duplicating the definition of "
                     ),
-                    oi.help(
+                    eoi.help(
                         format!(
                             "  {} as a _new_ identifier with a different name.",
                             TtQuote::wrap(sym),
@@ -294,7 +295,12 @@ impl Asg {
     {
         self.lookup(imm_env, name).unwrap_or_else(|| {
             let oi = self.create(O::missing(name));
-            self.index(imm_env, name.symbol(), oi);
+
+            // TODO: This responsibility is split between `Asg` and
+            //   `AirAggregateCtx`!
+            let eoi = EnvScopeKind::Visible(oi);
+
+            self.index(imm_env, name.symbol(), eoi);
             oi
         })
     }
@@ -515,16 +521,27 @@ impl Asg {
     ///   this method cannot be used to retrieve all possible objects on the
     ///   graph---for
     ///     that, see [`Asg::get`].
-    ///
-    /// The global environment is defined as the environment of the current
-    ///   compilation unit,
-    ///     which is a package.
     #[inline]
     pub fn lookup<O: ObjectRelatable>(
         &self,
         imm_env: impl ObjectIndexRelTo<O>,
         id: SPair,
     ) -> Option<ObjectIndex<O>> {
+        self.lookup_raw(imm_env, id)
+            .and_then(EnvScopeKind::in_scope)
+            .map(EnvScopeKind::into_inner)
+    }
+
+    /// Attempt to retrieve an identifier and its scope information from the
+    ///   graph by name relative to the immediate environment `imm_env`.
+    ///
+    /// See [`Self::lookup`] for more information.
+    #[inline]
+    pub(super) fn lookup_raw<O: ObjectRelatable>(
+        &self,
+        imm_env: impl ObjectIndexRelTo<O>,
+        id: SPair,
+    ) -> Option<EnvScopeKind<ObjectIndex<O>>> {
         // The type `O` is encoded into the index on [`Self::index`] and so
         //   should always be able to be narrowed into the expected type.
         // If this invariant somehow does not hold,
@@ -533,7 +550,9 @@ impl Asg {
         //   static assurances.
         self.index
             .get(&(O::rel_ty(), id.symbol(), imm_env.widen()))
-            .map(|&ni| ni.overwrite(id.span()).must_narrow_into::<O>())
+            .map(|&eoi| {
+                eoi.map(|oi| oi.overwrite(id.span()).must_narrow_into::<O>())
+            })
     }
 }
 

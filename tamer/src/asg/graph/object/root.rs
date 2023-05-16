@@ -21,7 +21,7 @@
 
 use super::{prelude::*, Ident, Pkg};
 use crate::{
-    asg::{IdentKind, Source},
+    asg::{air::EnvScopeKind, IdentKind, Source},
     parse::util::SPair,
     span::Span,
 };
@@ -111,7 +111,10 @@ impl ObjectIndex<Root> {
     ) -> Result<ObjectIndex<Pkg>, AsgError> {
         let oi_pkg = asg.create(Pkg::new_canonical(start, name)?);
 
-        asg.try_index(self, name, oi_pkg).map_err(|oi_prev| {
+        // TODO: We shouldn't be responsible for this
+        let eoi_pkg = EnvScopeKind::Pool(oi_pkg);
+
+        asg.try_index(self, name, eoi_pkg).map_err(|oi_prev| {
             let prev = oi_prev.resolve(asg);
 
             // unwrap note: a canonical name must exist for this error to

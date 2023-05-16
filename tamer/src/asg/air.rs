@@ -36,10 +36,11 @@
 //!     air such cringeworthy dad jokes here.
 
 use super::{
-    graph::object::{ObjectIndexTo, ObjectIndexToTree, Pkg, Tpl},
+    graph::object::{Object, ObjectIndexTo, ObjectIndexToTree, Pkg, Tpl},
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
+    f::Functor,
     parse::{prelude::*, StateStack},
     span::Span,
     sym::SymbolId,
@@ -255,6 +256,49 @@ impl AirAggregate {
             AirAggregate::PkgTpl(tplst) => {
                 tplst.active_tpl_oi().map(Into::into)
             }
+        }
+    }
+
+    /// Adjust a [`EnvScopeKind`] while crossing an environment boundary
+    ///   into `self`.
+    ///
+    /// An identifier is _visible_ at the environment in which it is defined.
+    /// This identifier casts a _shadow_ to lower environments,
+    ///   with the exception of the root.
+    /// The _root_ will absorb adjacent visible identifiers into a _pool_,
+    ///   which is distinct from the hierarchy that is otherwise created at
+    ///   the package level and lower.
+    fn env_cross_boundary_into<T>(
+        &self,
+        kind: EnvScopeKind<T>,
+    ) -> EnvScopeKind<T> {
+        use AirAggregate::*;
+        use EnvScopeKind::*;
+
+        match (self, kind) {
+            // Pool and Hidden are fixpoints
+            (_, kind @ (Pool(_) | Hidden(_))) => kind,
+
+            // Expressions do not introduce their own environment
+            //   (they are not containers)
+            //   and so act as an identity function.
+            (PkgExpr(_), kind) => kind,
+
+            // A visible identifier will always cast a shadow in one step.
+            // A shadow will always be cast (propagate) until the root.
+            (Pkg(_) | PkgTpl(_), Visible(x) | Shadow(x)) => Shadow(x),
+
+            // Above we see that Visual will always transition to Shadow in
+            //   one step.
+            // Consequently,
+            //   Visible at Root means that we're a package-level Visible,
+            //     which must contribute to the pool.
+            (Root, Visible(x)) => Pool(x),
+
+            // If we're _not_ Visible at the root,
+            //   then we're _not_ a package-level definition,
+            //     and so we should _not_ contribute to the pool.
+            (Root, Shadow(x)) => Hidden(x),
         }
     }
 }
@@ -511,13 +555,22 @@ impl AirAggregateCtx {
     ///
     /// TODO: More information as this is formalized.
     fn create_env_indexed_ident(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let oi_ident = self.asg_mut().create(Ident::declare(name));
+        let Self(asg, stack, _) = self;
+        let oi_ident = asg.create(Ident::declare(name));
 
-        // TODO: This currently only indexes for the top of the stack,
-        //   but we'll want no-shadow records for the rest of the env.
-        if let Some(oi) = self.rooting_oi() {
-            self.asg_mut().index(oi, name, oi_ident);
-        }
+        // TODO: This will need the active OI to support `AirIdent`s
+        stack
+            .iter()
+            .rev()
+            .filter_map(|frame| frame.active_rooting_oi().map(|oi| (oi, frame)))
+            .fold(None, |oeoi, (imm_oi, frame)| {
+                let eoi_next = oeoi
+                    .map(|eoi| frame.env_cross_boundary_into(eoi))
+                    .unwrap_or(EnvScopeKind::Visible(oi_ident));
+
+                asg.index(imm_oi, name, eoi_next);
+                Some(eoi_next)
+            });
 
         oi_ident
     }
@@ -541,9 +594,8 @@ impl AirAggregateCtx {
 ///     and scopes slicing those layers along the y-axies.
 ///
 /// TODO: Example visualization.
-#[cfg(test)]
-#[derive(Debug, PartialEq)]
-enum EnvScopeKind {
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub(super) enum EnvScopeKind<T = ObjectIndex<Object>> {
     /// Identifiers are pooled without any defined hierarchy.
     ///
     /// An identifier that is part of a pool must be unique.
@@ -556,7 +608,7 @@ enum EnvScopeKind {
     /// An identifier's scope can be further refined to provide more useful
     ///   diagnostic messages by descending into the package in which it is
     ///   defined and evaluating scope relative to the package.
-    _Pool,
+    Pool(T),
 
     /// Identifier in this environment is a shadow of a deeper environment.
     ///
@@ -570,11 +622,68 @@ enum EnvScopeKind {
     ///   but it cannot be used for lookup;
     ///     this environment should be filtered out of this identifier's
     ///     scope.
-    _Shadow,
+    Shadow(T),
 
     /// This environment owns the identifier or is an environment descended
     ///   from one that does.
-    Visible,
+    Visible(T),
+
+    /// The identifier is not in scope.
+    Hidden(T),
+}
+
+impl<T> EnvScopeKind<T> {
+    pub fn into_inner(self) -> T {
+        use EnvScopeKind::*;
+
+        match self {
+            Pool(x) | Shadow(x) | Visible(x) | Hidden(x) => x,
+        }
+    }
+
+    /// Whether this represents an identifier that is in scope.
+    pub fn in_scope(self) -> Option<Self> {
+        use EnvScopeKind::*;
+
+        match self {
+            Pool(_) | Visible(_) => Some(self),
+            Shadow(_) | Hidden(_) => None,
+        }
+    }
+}
+
+impl<T> AsRef<T> for EnvScopeKind<T> {
+    fn as_ref(&self) -> &T {
+        use EnvScopeKind::*;
+
+        match self {
+            Pool(x) | Shadow(x) | Visible(x) | Hidden(x) => x,
+        }
+    }
+}
+
+impl<T, U> Functor<T, U> for EnvScopeKind<T> {
+    type Target = EnvScopeKind<U>;
+
+    fn map(self, f: impl FnOnce(T) -> U) -> Self::Target {
+        use EnvScopeKind::*;
+
+        match self {
+            Pool(x) => Pool(f(x)),
+            Shadow(x) => Shadow(f(x)),
+            Visible(x) => Visible(f(x)),
+            Hidden(x) => Hidden(f(x)),
+        }
+    }
+}
+
+impl<T> From<EnvScopeKind<T>> for Span
+where
+    T: Into<Span>,
+{
+    fn from(kind: EnvScopeKind<T>) -> Self {
+        kind.into_inner().into()
+    }
 }
 
 impl AsMut<AirAggregateCtx> for AirAggregateCtx {

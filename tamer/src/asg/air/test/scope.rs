@@ -65,36 +65,18 @@ fn m(a: Span, b: Span) -> Span {
     a.merge(b).unwrap()
 }
 
-#[test]
-fn pkg_child_definition() {
-    let pkg_name = SPair("/pkg".into(), S1);
-    let name = SPair("foo".into(), S3);
-
-    #[rustfmt::skip]
-    let toks = vec![
-        // ENV: 0 global
-        PkgStart(S1, pkg_name),
-          // ENV: 1 pkg
-          ExprStart(ExprOp::Sum, S2),
-            // ENV: 1 pkg
-            BindIdent(name),
-          ExprEnd(S4),
-        PkgEnd(S5),
-    ];
-
-    let asg = asg_from_toks_raw(toks);
-
-    #[rustfmt::skip]
-    assert_scope(&asg, name, [
-        // The identifier is not local,
-        //   and so its scope should extend into the global environment.
-        // TODO: (Root, S0, Pool),
-
-        // Expr does not introduce a new environment,
-        //   and so the innermost environment in which we should be able to
-        //   find the identifier is the Pkg.
-        (Pkg, m(S1, S5), Visible)
-    ]);
+/// Apply [`assert_scope()`] without concern for the inner type or value of
+///   the expected [`EnvScopeKind`].
+macro_rules! assert_scope {
+    (
+        $asg:ident, $name:ident, [
+            $( ($obj:ident, $span:expr, $kind:ident), )*
+        ]
+    ) => {
+        assert_scope(&$asg, $name, [
+            $( ($obj, $span, $kind(())), )*
+        ])
+    }
 }
 
 #[test]
@@ -105,25 +87,37 @@ fn pkg_nested_expr_definition() {
 
     #[rustfmt::skip]
     let toks = vec![
-        // ENV: 0 global
-        PkgStart(S1, pkg_name),
-          // ENV: 1 pkg
-          ExprStart(ExprOp::Sum, S2),
-            // ENV: 1 pkg
-            BindIdent(outer),
-
-            ExprStart(ExprOp::Sum, S4),
-              // ENV: 1 pkg
-              BindIdent(inner),
-            ExprEnd(S6),
-          ExprEnd(S7),
-        PkgEnd(S8),
+        // ENV: 0 global          lexical scoping boundaries (envs)
+        PkgStart(S1, pkg_name),            //- -.
+          // ENV: 1 pkg                    //   :
+          ExprStart(ExprOp::Sum, S2),      //   :
+            // ENV: 1 pkg                  //   :
+            BindIdent(outer),              // v : p
+                                           //   :
+            ExprStart(ExprOp::Sum, S4),    //  1: 0
+              // ENV: 1 pkg                //   :
+              BindIdent(inner),            // v : p
+            ExprEnd(S6),                   //   :
+          ExprEnd(S7),                     //   :
+        PkgEnd(S8),                        //- -'
     ];
 
     let asg = asg_from_toks_raw(toks);
 
     #[rustfmt::skip]
-    assert_scope(&asg, inner, [
+    assert_scope!(asg, outer, [
+        // The identifier is not local,
+        //   and so its scope should extend into the global environment.
+        // TODO: (Root, S0, Pool),
+
+        // Expr does not introduce a new environment,
+        //   and so the innermost environment in which we should be able to
+        //   find the identifier is the Pkg.
+        (Pkg, m(S1, S8), Visible),
+    ]);
+
+    #[rustfmt::skip]
+    assert_scope!(asg, inner, [
         // The identifier is not local,
         //   and so its scope should extend into the global environment.
         // TODO: (Root, S0, Pool),
@@ -131,7 +125,7 @@ fn pkg_nested_expr_definition() {
         // Expr does not introduce a new environment,
         //   and so just as the outer expression,
         //   the inner is scoped to a package environment.
-        (Pkg, m(S1, S8), Visible)
+        (Pkg, m(S1, S8), Visible),
     ]);
 }
 
@@ -149,64 +143,148 @@ fn pkg_tpl_definition() {
 
     #[rustfmt::skip]
     let toks = vec![
-        // ENV: 0 global
-        PkgStart(S1, pkg_name),
-          // ENV: 1 pkg
-          TplStart(S2),
-            // ENV: 2 tpl
-            BindIdent(tpl_outer),
-
-            TplMetaStart(S4),
-              BindIdent(meta_outer),
-            TplMetaEnd(S6),
-
-            ExprStart(ExprOp::Sum, S7),
-              BindIdent(expr_outer),
-            ExprEnd(S9),
-
-            TplStart(S10),
-              // ENV: 3 tpl
-              BindIdent(tpl_inner),
-
-              TplMetaStart(S12),
-                BindIdent(meta_inner),
-              TplMetaEnd(S14),
-
-              ExprStart(ExprOp::Sum, S15),
-                BindIdent(expr_inner),
-              ExprEnd(S17),
-            TplEnd(S18),
-          TplEnd(S19),
-        PkgEnd(S20),
-    ];
+        // ENV: 0 global          lexical scoping boundaries (envs)
+        PkgStart(S1, pkg_name),            //- - - - -.
+          // ENV: 1 pkg                    //         :
+          TplStart(S2),                    //–-----.  :
+            // ENV: 2 tpl                  //      |  :
+            BindIdent(tpl_outer),          //      |v :p
+                                           //      |  :
+            TplMetaStart(S4),              //      |  :
+              BindIdent(meta_outer),       //    vl|s :
+            TplMetaEnd(S6),                //      |  :
+                                           //      |  :
+            ExprStart(ExprOp::Sum, S7),    //      |  :
+              BindIdent(expr_outer),       //    vd|s :
+            ExprEnd(S9),                   //      |  :
+                                           //      |  :
+            TplStart(S10),                 //---.  |  :
+              // ENV: 3 tpl                //   |  |  :
+              BindIdent(tpl_inner),        //   |v |s :
+                                           //   |  |  :
+              TplMetaStart(S12),           //   |  |  :
+                BindIdent(meta_inner),     // vl|s |s :
+              TplMetaEnd(S14),             //   |  |  :
+                                           //  3| 2| 1: 0
+              ExprStart(ExprOp::Sum, S15), //   |  |  :
+                BindIdent(expr_inner),     // vd|s |s :
+              ExprEnd(S17),                //   |  |  :
+            TplEnd(S18),                   //---'  |  :   v,s,p = EnvScopeKind
+          TplEnd(S19),                     //–-----'  :   |
+        PkgEnd(S20),                       //- - - - -'   |`- l = local
+    ]; //                                      ^           `- d = defer
+       //      observe: - (l)ocal shadows until root
+       //               - (d)efer shadows until root
+       //               - visual >|> shadow
+       //               - visual >:> pool
+       //               - shadow >|> shadow
+       //               - shadow >:> (no pool)
 
     let asg = asg_from_toks_raw(toks);
 
     #[rustfmt::skip]
-    assert_scope(&asg, tpl_outer, [
+    assert_scope!(asg, tpl_outer, [
+        // The template is defined at the package level,
+        //   and so is incorporated into the global environment.
         // TODO: (Root, S0, Pool),
-        (Pkg, m(S1, S20), Visible)
+
+        // Definition environment.
+        (Pkg, m(S1, S20), Visible),
     ]);
     #[rustfmt::skip]
-    assert_scope(&asg, meta_outer, [
-        // TODO: (Tpl, m(S2, S19), Visible)
+    assert_scope!(asg, meta_outer, [
+        // The metavariable is local to the template,
+        //   and so is not scoped outside of it.
+        // It does not contribute to the global scope,
+        //   however we must introduce shadow records so that we're able to
+        //   provide an error if shadowing would occur due to another
+        //   identifier of the same name,
+        //     such as a template within another template.
+        // Root never contains shadow records since it is not part of a
+        //   hierarchy,
+        //     so it is omitted from the metavariable's scope.
+        // TODO: (Pkg, m(S1, S20), Shadow),
+        // TODO: (Tpl, m(S2, S19), Visible),
     ]);
     #[rustfmt::skip]
-    assert_scope(&asg, expr_outer, [
-        (Tpl, m(S2, S19), Visible)
+    assert_scope!(asg, expr_outer, [
+        // Expressions defined within templates will eventually be scoped to
+        //   their _expansion site_.
+        // Since the future scope cannot possibly be known until the point
+        //   of expansion,
+        //     we don't know what its parent environment will be.
+        //
+        // Why, then, does it shadow?
+        //
+        // Templates in TAMER
+        //   (unlike in the original XSLT-based TAME)
+        //   are designed to _close_ over their definition environment.
+        // If a template references a value defined within the scope of its
+        //   definition
+        //     (e.g. an identifier imported into the package into which the
+        //       template itself was defined),
+        //     the intent is to be able to utilize that identifier at the
+        //     expansion site without having to break encapsulation by
+        //     having to know implementation details of the template;
+        //       this awkward problem is the reason for `import/@export`,
+        //         so that packages templates could re-export their symbols
+        //         to avoid this trap,
+        //           which is far too heavy-handed of an approach and is
+        //           easily forgotten.
+        // In that sense,
+        //   templates act more like how one would expect functions to
+        //   operate.
+        //
+        // Because of that lexical capture,
+        //   it is important that identifiers shadow to ensure that we do
+        //   not rebind an identifier without the user realizing it.
+        // The intent is that the system should just do the right thing
+        //   unless there happens to be a problem.
+        // If a user references an identifier from the outer scope,
+        //   the intent is almost certainly to have it be lexically captured
+        //   and available at the expansion site.
+        // If an identifier is unknown,
+        //   perhaps the intent is to have it defined by another template,
+        //   or to be defined at the expansion site.
+        // And if the situation changes from the second to the first because
+        //   of the introduction of an import or a duplicate identifier,
+        //     we want to help the user at the earliest possible moment.
+        (Pkg, m(S1, S20), Shadow),
+        (Tpl, m(S2, S19), Visible),
     ]);
 
     #[rustfmt::skip]
-    assert_scope(&asg, tpl_inner, [
-        (Tpl, m(S2, S19), Visible)
+    assert_scope!(asg, tpl_inner, [
+        // This is similar to `expr_outer` above.
+        // Even though the template is entirely scoped within the parent
+        //   `tpl_outer` such that it isn't even defined until it is expanded,
+        //     at which point it is defined within its expansion context,
+        //     we still want shadow records so that any _references_ to this
+        //       template can be resolved unambiguously in ways that are
+        //       helpful to the user
+        //         (see `expr_outer` above for more information).
+        (Pkg, m(S1, S20), Shadow),
+        (Tpl, m(S2, S19), Visible),
     ]);
     #[rustfmt::skip]
-    assert_scope(&asg, meta_inner, [
-        // TODO: (Tpl, m(S10, S18), Visible)
+    assert_scope!(asg, meta_inner, [
+        // Just as the previous metavariable,
+        //   we need to cast a shadow all the way up to the package level to
+        //   ensure that we do not permit identifier shadowing.
+        // See `meta_outer` above for more information.
+        // TODO: (Pkg, m(S1, S20), Shadow),
+        // TODO: (Tpl, m(S2, S19), Shadow),
+        // TODO: (Tpl, m(S10, S18), Visible),
     ]);
     #[rustfmt::skip]
-    assert_scope(&asg, expr_inner, [
-        (Tpl, m(S10, S18), Visible)
+    assert_scope!(asg, expr_inner, [
+        // Just the same as the previous expression.
+        // Note the intended consequence of this:
+        //   if `tpl_outer` contains an identifier,
+        //     it cannot be shadowed by `tpl_inner`.
+        (Pkg, m(S1, S20), Shadow),
+        (Tpl, m(S2, S19), Shadow),
+        (Tpl, m(S10, S18), Visible),
     ]);
 }
 
@@ -229,7 +307,7 @@ fn pkg_tpl_definition() {
 fn assert_scope(
     asg: &Asg,
     name: SPair,
-    expected: impl IntoIterator<Item = (ObjectTy, Span, EnvScopeKind)>,
+    expected: impl IntoIterator<Item = (ObjectTy, Span, EnvScopeKind<()>)>,
 ) {
     // We are interested only in identifiers for scoping,
     //   not the objects that they point to.
@@ -266,7 +344,7 @@ fn assert_scope(
                 (
                     dynrel.target_ty(),
                     dynrel.target().resolve(asg).span(),
-                    asg.lookup(oi_to, name),
+                    asg.lookup_raw(oi_to, name),
                 )
             })
         });
@@ -274,18 +352,21 @@ fn assert_scope(
     // `tree_reconstruction` omits root,
     //   so we'll have to add it ourselves.
     let oi_root = asg.root(name);
-    let given = once((Root, S0, asg.lookup(oi_root, name)))
+    let given = once((Root, S0, asg.lookup_raw(oi_root, name)))
         .chain(given_without_root)
-        .filter_map(|(ty, span, ooi)| ooi.map(|oi| (ty, span, oi.resolve(asg))))
-        .inspect(|(ty, span, ident)| assert_eq!(
+        .filter_map(|(ty, span, oeoi)| {
+            oeoi.map(|eoi| (ty, span, eoi.map(ObjectIndex::cresolve(asg))))
+        })
+        .inspect(|(ty, span, eid)| assert_eq!(
             expected_span,
-            ident.span(),
+            eid.as_ref().span(),
             "expected {wname} span {expected_span} at {ty}:{span}, but found {given}",
             wname = TtQuote::wrap(name),
-            given = ident.span(),
+            given = eid.as_ref().span(),
         ))
-        // TODO
-        .map(|(ty, span, _)| (ty, span, EnvScopeKind::Visible));
+        // We discard the inner ObjectIndex since it is not relevant for the
+        //   test assertion.
+        .map(|(ty, span, eid)| (ty, span, eid.map(|_| ())));
 
     // Collection allows us to see the entire expected and given lists on
     //   assertion failure.
