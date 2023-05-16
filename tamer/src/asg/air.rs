@@ -276,8 +276,8 @@ impl AirAggregate {
         use EnvScopeKind::*;
 
         match (self, kind) {
-            // Pool and Hidden are fixpoints
-            (_, kind @ (Pool(_) | Hidden(_))) => kind,
+            // Hidden is a fixpoint.
+            (_, kind @ Hidden(_)) => kind,
 
             // Expressions do not introduce their own environment
             //   (they are not containers)
@@ -293,7 +293,7 @@ impl AirAggregate {
             // Consequently,
             //   Visible at Root means that we're a package-level Visible,
             //     which must contribute to the pool.
-            (Root, Visible(x)) => Pool(x),
+            (Root, Visible(x)) => Visible(x),
 
             // If we're _not_ Visible at the root,
             //   then we're _not_ a package-level definition,
@@ -594,21 +594,26 @@ impl AirAggregateCtx {
 ///     and scopes slicing those layers along the y-axies.
 ///
 /// TODO: Example visualization.
+///
+/// Root and Global Environment
+/// ===========================
+/// Identifiers are pooled without any defined hierarchy at the root.
+///
+/// An identifier that is part of a pool must be unique.
+/// Since there is no hierarchy,
+///   the system should not suggest that shadowing is not permitted and
+///   should insteam emphasize that such an identifier must be unique
+///   globally.
+///
+/// An identifier's scope can be further refined to provide more useful
+///   diagnostic messages by descending into the package in which it is
+///   defined and evaluating scope relative to the package.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub(super) enum EnvScopeKind<T = ObjectIndex<Object>> {
-    /// Identifiers are pooled without any defined hierarchy.
-    ///
-    /// An identifier that is part of a pool must be unique.
-    /// Since there is no hierarchy,
-    ///   the system should not suggest that shadowing is not permitted and
-    ///   should insteam emphasize that such an identifier must be unique
-    ///   globally.
-    ///
-    /// This should be used only at the root.
-    /// An identifier's scope can be further refined to provide more useful
-    ///   diagnostic messages by descending into the package in which it is
-    ///   defined and evaluating scope relative to the package.
-    Pool(T),
+    /// This environment owns the identifier,
+    ///   is descended from an environment that does,
+    ///   or is a global pool of identifiers.
+    Visible(T),
 
     /// Identifier in this environment is a shadow of a deeper environment.
     ///
@@ -624,10 +629,6 @@ pub(super) enum EnvScopeKind<T = ObjectIndex<Object>> {
     ///     scope.
     Shadow(T),
 
-    /// This environment owns the identifier or is an environment descended
-    ///   from one that does.
-    Visible(T),
-
     /// The identifier is not in scope.
     Hidden(T),
 }
@@ -637,7 +638,7 @@ impl<T> EnvScopeKind<T> {
         use EnvScopeKind::*;
 
         match self {
-            Pool(x) | Shadow(x) | Visible(x) | Hidden(x) => x,
+            Shadow(x) | Visible(x) | Hidden(x) => x,
         }
     }
 
@@ -646,7 +647,7 @@ impl<T> EnvScopeKind<T> {
         use EnvScopeKind::*;
 
         match self {
-            Pool(_) | Visible(_) => Some(self),
+            Visible(_) => Some(self),
             Shadow(_) | Hidden(_) => None,
         }
     }
@@ -657,7 +658,7 @@ impl<T> AsRef<T> for EnvScopeKind<T> {
         use EnvScopeKind::*;
 
         match self {
-            Pool(x) | Shadow(x) | Visible(x) | Hidden(x) => x,
+            Shadow(x) | Visible(x) | Hidden(x) => x,
         }
     }
 }
@@ -669,7 +670,6 @@ impl<T, U> Functor<T, U> for EnvScopeKind<T> {
         use EnvScopeKind::*;
 
         match self {
-            Pool(x) => Pool(f(x)),
             Shadow(x) => Shadow(f(x)),
             Visible(x) => Visible(f(x)),
             Hidden(x) => Hidden(f(x)),

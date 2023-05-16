@@ -92,11 +92,11 @@ fn pkg_nested_expr_definition() {
           // ENV: 1 pkg                    //   :
           ExprStart(ExprOp::Sum, S2),      //   :
             // ENV: 1 pkg                  //   :
-            BindIdent(outer),              // v : p
+            BindIdent(outer),              // v :v
                                            //   :
             ExprStart(ExprOp::Sum, S4),    //  1: 0
               // ENV: 1 pkg                //   :
-              BindIdent(inner),            // v : p
+              BindIdent(inner),            // v :v
             ExprEnd(S6),                   //   :
           ExprEnd(S7),                     //   :
         PkgEnd(S8),                        //- -'
@@ -108,7 +108,7 @@ fn pkg_nested_expr_definition() {
     assert_scope!(asg, outer, [
         // The identifier is not local,
         //   and so its scope should extend into the global environment.
-        // TODO: (Root, S0, Pool),
+        // TODO: (Root, S0, Visible),
 
         // Expr does not introduce a new environment,
         //   and so the innermost environment in which we should be able to
@@ -120,7 +120,7 @@ fn pkg_nested_expr_definition() {
     assert_scope!(asg, inner, [
         // The identifier is not local,
         //   and so its scope should extend into the global environment.
-        // TODO: (Root, S0, Pool),
+        // TODO: (Root, S0, Visible),
 
         // Expr does not introduce a new environment,
         //   and so just as the outer expression,
@@ -148,7 +148,7 @@ fn pkg_tpl_definition() {
           // ENV: 1 pkg                    //         :
           TplStart(S2),                    //–-----.  :
             // ENV: 2 tpl                  //      |  :
-            BindIdent(tpl_outer),          //      |v :p
+            BindIdent(tpl_outer),          //      |v :v
                                            //      |  :
             TplMetaStart(S4),              //      |  :
               BindIdent(meta_outer),       //    vl|s :
@@ -169,16 +169,16 @@ fn pkg_tpl_definition() {
               ExprStart(ExprOp::Sum, S15), //   |  |  :
                 BindIdent(expr_inner),     // vd|s |s :
               ExprEnd(S17),                //   |  |  :
-            TplEnd(S18),                   //---'  |  :   v,s,p = EnvScopeKind
+            TplEnd(S18),                   //---'  |  :   v,s = EnvScopeKind
           TplEnd(S19),                     //–-----'  :   |
         PkgEnd(S20),                       //- - - - -'   |`- l = local
     ]; //                                      ^           `- d = defer
        //      observe: - (l)ocal shadows until root
        //               - (d)efer shadows until root
        //               - visual >|> shadow
-       //               - visual >:> pool
+       //               - visual >:> visual (pool)
        //               - shadow >|> shadow
-       //               - shadow >:> (no pool)
+       //               - shadow >:> (no visual/pool)
 
     let asg = asg_from_toks_raw(toks);
 
@@ -186,7 +186,7 @@ fn pkg_tpl_definition() {
     assert_scope!(asg, tpl_outer, [
         // The template is defined at the package level,
         //   and so is incorporated into the global environment.
-        // TODO: (Root, S0, Pool),
+        // TODO: (Root, S0, Visible),
 
         // Definition environment.
         (Pkg, m(S1, S20), Visible),

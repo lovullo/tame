@@ -112,7 +112,7 @@ impl ObjectIndex<Root> {
         let oi_pkg = asg.create(Pkg::new_canonical(start, name)?);
 
         // TODO: We shouldn't be responsible for this
-        let eoi_pkg = EnvScopeKind::Pool(oi_pkg);
+        let eoi_pkg = EnvScopeKind::Visible(oi_pkg);
 
         asg.try_index(self, name, eoi_pkg).map_err(|oi_prev| {
             let prev = oi_prev.resolve(asg);
