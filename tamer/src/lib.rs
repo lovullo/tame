@@ -87,6 +87,12 @@
 // Added for use with `rustfmt::skip`,
 //   so that we can ignore formatting more precisely.
 #![feature(stmt_expr_attributes)]
+// Allows using `impl Trait` for associated type bounds instead of having to
+//   extract it into a more verbose `where` clause.
+// This is not necessary,
+//   and may not even be desirable,
+//   but it's a nice option to have if `impl` would otherwise be used.
+#![feature(associated_type_bounds)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 // For sym::prefill recursive macro `static_symbols!`.

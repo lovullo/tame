@@ -19,31 +19,24 @@
 
 use super::*;
 use crate::{
-    asg::{AsgError, FragmentText, Ident, IdentKind, ObjectIndex, Source},
+    asg::{
+        air::{Air, AirAggregate},
+        AsgError, FragmentText, Ident, IdentKind, Source,
+    },
     ld::xmle::{section::PushResult, Sections},
-    parse::util::SPair,
+    parse::{util::SPair, ParseState},
     span::dummy::*,
     sym::SymbolId,
 };
+use std::fmt::Debug;
 
-fn declare(
-    asg: &mut Asg,
-    name: SPair,
-    kind: IdentKind,
-    src: Source,
-) -> Result<ObjectIndex<Ident>, AsgError> {
-    let oi_root = asg.root(name);
-    oi_root.declare(asg, name, kind, src)
-}
+use Air::*;
 
-fn lookup_or_missing(asg: &mut Asg, name: SPair) -> ObjectIndex<Ident> {
-    let oi_root = asg.root(name);
-    oi_root.lookup_or_missing(asg, name)
-}
+fn asg_from_toks(toks: impl IntoIterator<Item = Air, IntoIter: Debug>) -> Asg {
+    let mut sut = AirAggregate::parse(toks.into_iter());
+    assert!(sut.all(|x| x.is_ok()));
 
-/// Create a graph with the expected {ret,}map head/tail identifiers.
-fn make_asg() -> Asg {
-    Asg::new()
+    sut.finalize().unwrap().into_context()
 }
 
 #[test]
@@ -85,48 +78,57 @@ fn graph_sort() -> SortResult<()> {
         }
     }
 
-    let mut asg = make_asg();
+    let name_a_dep = SPair("adep".into(), S4);
+    let name_a = SPair("a".into(), S3);
+    let name_a_dep_dep = SPair("adepdep".into(), S2);
 
-    // Add them in an unsorted order.
-    let adep = declare(
-        &mut asg,
-        SPair("adep".into(), S1),
-        IdentKind::Meta,
-        Default::default(),
-    )
-    .unwrap();
-    let a = declare(
-        &mut asg,
-        SPair("a".into(), S2),
-        IdentKind::Meta,
-        Default::default(),
-    )
-    .unwrap();
-    let adepdep = declare(
-        &mut asg,
-        SPair("adepdep".into(), S3),
-        IdentKind::Meta,
-        Default::default(),
-    )
-    .unwrap();
+    #[rustfmt::skip]
+    let toks = [
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+          // Intentionally out-of-order.
+          IdentDecl(
+              name_a_dep,
+              IdentKind::Meta,
+              Default::default(),
+          ),
 
-    a.add_opaque_dep(&mut asg, adep);
-    adep.add_opaque_dep(&mut asg, adepdep);
+          IdentDecl(
+              name_a,
+              IdentKind::Meta,
+              Default::default(),
+          ),
 
-    a.root(&mut asg);
+          IdentDecl(
+              name_a_dep_dep,
+              IdentKind::Meta,
+              Default::default(),
+          ),
 
+          IdentDep(name_a, name_a_dep),
+          IdentDep(name_a_dep, name_a_dep_dep),
+          IdentRoot(name_a),
+        PkgEnd(S5),
+    ];
+
+    let asg = asg_from_toks(toks);
     let sections = sort(&asg, StubSections { pushed: Vec::new() })?;
 
+    let expected = vec![
+        // Post-order
+        name_a_dep_dep,
+        name_a_dep,
+        name_a,
+    ]
+    .into_iter()
+    .collect::<Vec<_>>();
+
     assert_eq!(
-        sections.pushed,
-        vec![
-            // Post-order
-            asg.get(adepdep).unwrap(),
-            asg.get(adep).unwrap(),
-            asg.get(a).unwrap(),
-        ]
-        .into_iter()
-        .collect::<Vec<_>>()
+        expected,
+        sections
+            .pushed
+            .iter()
+            .map(|ident| ident.name())
+            .collect::<Vec<_>>(),
     );
 
     Ok(())
@@ -134,27 +136,30 @@ fn graph_sort() -> SortResult<()> {
 
 #[test]
 fn graph_sort_missing_node() -> SortResult<()> {
-    let mut asg = make_asg();
-
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let oi_dep = lookup_or_missing(&mut asg, dep);
+    #[rustfmt::skip]
+    let toks = [
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+          IdentDecl(
+              sym,
+              IdentKind::Tpl,
+              Source {
+                  virtual_: true,
+                  ..Default::default()
+              },
+          ),
+          IdentFragment(sym, FragmentText::from("foo")),
 
-    declare(
-        &mut asg,
-        sym,
-        IdentKind::Tpl,
-        Source {
-            virtual_: true,
-            ..Default::default()
-        },
-    )
-    .unwrap()
-    .set_fragment(&mut asg, FragmentText::from("foo"))
-    .unwrap()
-    .add_opaque_dep(&mut asg, oi_dep)
-    .root(&mut asg);
+          // dep will be added as Missing
+          IdentDep(sym, dep),
+
+          IdentRoot(sym),
+        PkgEnd(S5),
+    ];
+
+    let asg = asg_from_toks(toks);
 
     match sort(&asg, Sections::new()) {
         Ok(_) => panic!("Unexpected success - dependency is not in graph"),
@@ -171,65 +176,42 @@ fn graph_sort_missing_node() -> SortResult<()> {
 }
 
 #[test]
-fn graph_sort_no_roots_same_as_empty_graph() -> SortResult<()> {
-    let mut asg = make_asg();
-
-    // "empty" (it has the head/tail {ret,}map objects)
-    let asg_empty = make_asg();
-
-    let sym = SPair("sym".into(), S1);
-    let dep = SPair("dep".into(), S2);
-
-    let oi_sym = lookup_or_missing(&mut asg, sym);
-    let oi_dep = lookup_or_missing(&mut asg, dep);
-    oi_sym.add_opaque_dep(&mut asg, oi_dep);
-
-    assert_eq!(
-        sort(&asg, Sections::new()),
-        sort(&asg_empty, Sections::new())
-    );
-
-    Ok(())
-}
-
-#[test]
 fn graph_sort_simple_cycle() -> SortResult<()> {
-    let mut asg = make_asg();
-
     let sym = SPair("sym".into(), S1);
     let dep = SPair("dep".into(), S2);
 
-    let oi_sym = declare(
-        &mut asg,
-        sym,
-        IdentKind::Tpl,
-        Source {
-            virtual_: true,
-            ..Default::default()
-        },
-    )
-    .unwrap()
-    .set_fragment(&mut asg, FragmentText::from("foo"))
-    .unwrap();
+    #[rustfmt::skip]
+    let toks = [
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+          IdentDecl(
+              sym,
+              IdentKind::Tpl,
+              Source {
+                  virtual_: true,
+                  ..Default::default()
+              },
+          ),
+          IdentFragment(sym, FragmentText::from("foo")),
 
-    let oi_dep = declare(
-        &mut asg,
-        dep,
-        IdentKind::Tpl,
-        Source {
-            virtual_: true,
-            ..Default::default()
-        },
-    )
-    .unwrap()
-    .set_fragment(&mut asg, FragmentText::from("bar"))
-    .unwrap();
+          IdentDecl(
+              dep,
+              IdentKind::Tpl,
+              Source {
+                  virtual_: true,
+                  ..Default::default()
+              },
+          ),
+          IdentFragment(dep, FragmentText::from("bar")),
 
-    oi_sym.add_opaque_dep(&mut asg, oi_dep);
-    oi_dep.add_opaque_dep(&mut asg, oi_sym);
+          // Produce a cycle (which will be an error)
+          IdentDep(sym, dep),
+          IdentDep(dep, sym),
 
-    oi_sym.root(&mut asg);
+          IdentRoot(sym),
+        PkgEnd(S5),
+    ];
 
+    let asg = asg_from_toks(toks);
     let result = sort(&asg, Sections::new());
 
     match result {
