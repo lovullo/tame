@@ -64,17 +64,30 @@ fn m(a: Span, b: Span) -> Span {
     a.merge(b).unwrap()
 }
 
-/// Apply [`assert_scope()`] without concern for the inner type or value of
-///   the expected [`EnvScopeKind`].
+/// Assert that the scope of the identifier named `name` is that of the
+///   provided environment list `expected`.
+///
+/// This macro allows us to ignore the type and value of `$kind`.
 macro_rules! assert_scope {
     (
         $asg:ident, $name:ident, [
             $( ($obj:ident, $span:expr, $kind:ident), )*
         ]
     ) => {
-        assert_scope(&$asg, $name, [
+        let given = derive_scopes_from_asg(&$asg, $name);
+        let expected = [
             $( (ObjectTy::$obj, $span, $kind(())), )*
-        ])
+        ];
+
+        // Collection allows us to see the entire expected and given lists on
+        //   assertion failure.
+        // Asserting within the macro itself ensures that panics will
+        //   reference the test function rather than a utility function.
+        assert_eq!(
+            given.collect::<Vec<_>>(),
+            expected.into_iter().collect::<Vec<_>>(),
+            "left: given, right: expected",
+        );
     }
 }
 
@@ -287,10 +300,9 @@ fn pkg_tpl_definition() {
     ]);
 }
 
-///// Tests end above this line, plumbing begins below /////
+///// Tests end above this line, plumbing below /////
 
-/// Assert that the scope of the identifier named `name` is that of the
-///   provided environment list `expected`.
+/// Independently derive identifier scopes from the graph.
 ///
 /// This will search the graph for all environments in which `name` has been
 ///   indexed,
@@ -303,11 +315,10 @@ fn pkg_tpl_definition() {
 ///   declarative scope test definitions,
 ///   which make it easy to form and prove hypotheses about the behavior of
 ///   TAMER's scoping system.
-fn assert_scope(
-    asg: &Asg,
+fn derive_scopes_from_asg<'a>(
+    asg: &'a Asg,
     name: SPair,
-    expected: impl IntoIterator<Item = (ObjectTy, Span, EnvScopeKind<()>)>,
-) {
+) -> impl Iterator<Item = (ObjectTy, Span, EnvScopeKind<()>)> + 'a {
     // We are interested only in identifiers for scoping,
     //   not the objects that they point to.
     // We will use the span of the identifier that we locate via index
@@ -338,7 +349,7 @@ fn assert_scope(
     //       it'll result in a test failure that should be easy enough to
     //       understand.
     let given_without_root =
-        tree_reconstruction(asg).filter_map(|TreeWalkRel(dynrel, _)| {
+        tree_reconstruction(asg).filter_map(move |TreeWalkRel(dynrel, _)| {
             dynrel.target_oi_rel_to_dyn::<object::Ident>().map(|oi_to| {
                 (
                     dynrel.target_ty(),
@@ -351,12 +362,13 @@ fn assert_scope(
     // `tree_reconstruction` omits root,
     //   so we'll have to add it ourselves.
     let oi_root = asg.root(name);
-    let given = once((ObjectTy::Root, S0, asg.lookup_raw(oi_root, name)))
+
+    once((ObjectTy::Root, S0, asg.lookup_raw(oi_root, name)))
         .chain(given_without_root)
         .filter_map(|(ty, span, oeoi)| {
             oeoi.map(|eoi| (ty, span, eoi.map(ObjectIndex::cresolve(asg))))
         })
-        .inspect(|(ty, span, eid)| assert_eq!(
+        .inspect(move |(ty, span, eid)| assert_eq!(
             expected_span,
             eid.as_ref().span(),
             "expected {wname} span {expected_span} at {ty}:{span}, but found {given}",
@@ -365,12 +377,5 @@ fn assert_scope(
         ))
         // We discard the inner ObjectIndex since it is not relevant for the
         //   test assertion.
-        .map(|(ty, span, eid)| (ty, span, eid.map(|_| ())));
-
-    // Collection allows us to see the entire expected and given lists on
-    //   assertion failure.
-    assert_eq!(
-        expected.into_iter().collect::<Vec<_>>(),
-        given.collect::<Vec<_>>(),
-    )
+        .map(|(ty, span, eid)| (ty, span, eid.map(|_| ())))
 }
