@@ -1092,6 +1092,14 @@ mod private {
         }
     }
 
+    impl<OB: ObjectRelatable> From<ObjectIndexToTree<OB>> for ObjectIndexTo<OB> {
+        fn from(value: ObjectIndexToTree<OB>) -> Self {
+            match value {
+                ObjectIndexToTree(oit) => oit,
+            }
+        }
+    }
+
     /// Some [`ObjectIndex`] that can create a _tree_ edge to `OB`.
     ///
     /// This is a specialization of

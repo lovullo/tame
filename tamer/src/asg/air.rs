@@ -36,7 +36,7 @@
 //!     air such cringeworthy dad jokes here.
 
 use super::{
-    graph::object::{Object, ObjectIndexTo, ObjectIndexToTree, Pkg, Tpl},
+    graph::object::{Object, ObjectIndexTo, ObjectIndexToTree, Pkg, Root, Tpl},
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
@@ -64,13 +64,16 @@ pub type DepSym = SymbolId;
 /// AIR parser state.
 #[derive(Debug, PartialEq, Default)]
 pub enum AirAggregate {
+    /// Parser has not yet been initialized.
+    #[default]
+    Uninit,
+
     /// Parser is in the root context.
     ///
     /// As a parser,
     ///   this does nothing but await work.
     /// Its presence in the [`AirStack`] is used for the global environment.
-    #[default]
-    Root,
+    Root(ObjectIndex<Root>),
 
     /// Parsing a package.
     Pkg(AirPkgAggregate),
@@ -95,7 +98,8 @@ impl Display for AirAggregate {
         use AirAggregate::*;
 
         match self {
-            Root => write!(f, "awaiting AIR input for ASG"),
+            Uninit => write!(f, "awaiting AIR input"),
+            Root(_) => write!(f, "awaiting input at root"),
             Pkg(pkg) => {
                 write!(f, "defining a package: {pkg}")
             }
@@ -147,10 +151,17 @@ impl ParseState for AirAggregate {
         use AirAggregate::*;
 
         match (self, tok.into()) {
+            // Initialize the parser with the graph root.
+            // The graph may contain multiple roots in the future to support
+            //   cross-version analysis.
+            (Uninit, tok) => Transition(Root(ctx.asg_mut().root(tok.span())))
+                .incomplete()
+                .with_lookahead(tok),
+
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
             // Package
-            (st @ (Root | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
+            (st @ (Root(..) | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
                 ctx.ret_or_transfer(st, tok, AirPkgAggregate::new())
             }
             (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
@@ -175,11 +186,11 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
             (
-                Root,
+                st @ Root(_),
                 tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
-            ) => Transition(Root).err(AsgError::PkgExpected(tok.span())),
+            ) => Transition(st).err(AsgError::PkgExpected(tok.span())),
 
-            (st @ (Root | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
+            (st @ (Root(..) | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
                 Transition(st).err(AsgError::UnexpectedOpaqueIdent(tok.name()))
             }
         }
@@ -203,9 +214,11 @@ impl AirAggregate {
         use AirAggregate::*;
 
         match self {
+            Uninit => false,
+
             // We can't be done with something we're not doing.
             // This is necessary to start the first child parser.
-            Root => false,
+            Root(_) => false,
 
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
@@ -218,9 +231,11 @@ impl AirAggregate {
         use AirAggregate::*;
 
         match self {
+            Uninit => false,
+
             // This must not recurse on `AirAggregate::is_accepting`,
             //   otherwise it'll be mutually recursive.
-            Root => true,
+            Root(_) => true,
 
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
@@ -235,27 +250,48 @@ impl AirAggregate {
     ///     but a parent context may
     ///       (see [`AirAggregateCtx::rooting_oi`]).
     fn active_rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
+        use AirAggregate::*;
+
         match self {
-            AirAggregate::Root => None,
+            Uninit => None,
+
+            // Root will serve as a pool of identifiers,
+            //   but it can never _contain_ their definitions.
+            // See `active_env_oi`.
+            Root(_) => None,
 
             // Packages always serve as roots for identifiers
             //   (that is their entire purpose).
-            AirAggregate::Pkg(pkgst) => pkgst.active_pkg_oi().map(Into::into),
+            Pkg(pkgst) => pkgst.active_pkg_oi().map(Into::into),
 
             // Expressions never serve as roots for identifiers;
             //   this will always fall through to the parent context.
             // Since the parent context is a package or a template,
             //   the next frame should succeed.
-            AirAggregate::PkgExpr(_) => None,
+            PkgExpr(_) => None,
 
             // Identifiers bound while within a template definition context
             //   must bind to the eventual _expansion_ site,
             //     as if the body were pasted there.
             // Templates must therefore serve as containers for identifiers
             //   bound therein.
-            AirAggregate::PkgTpl(tplst) => {
-                tplst.active_tpl_oi().map(Into::into)
-            }
+            PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+        }
+    }
+
+    /// Active environment for identifier lookups.
+    ///
+    /// An environment is a superset of a container,
+    ///   which is described by [`Self::active_rooting_oi`].
+    /// For example,
+    ///   [`Self::Root`] cannot own any identifiers,
+    ///     but it can serve as a pool of references to them.
+    fn active_env_oi(&self) -> Option<ObjectIndexTo<Ident>> {
+        use AirAggregate::*;
+
+        match self {
+            Root(oi_root) => Some((*oi_root).into()),
+            _ => self.active_rooting_oi().map(Into::into),
         }
     }
 
@@ -276,6 +312,9 @@ impl AirAggregate {
         use EnvScopeKind::*;
 
         match (self, kind) {
+            // This is not an environment.
+            (Uninit, kind) => kind,
+
             // Hidden is a fixpoint.
             (_, kind @ Hidden(_)) => kind,
 
@@ -293,12 +332,12 @@ impl AirAggregate {
             // Consequently,
             //   Visible at Root means that we're a package-level Visible,
             //     which must contribute to the pool.
-            (Root, Visible(x)) => Visible(x),
+            (Root(_), Visible(x)) => Visible(x),
 
             // If we're _not_ Visible at the root,
             //   then we're _not_ a package-level definition,
             //     and so we should _not_ contribute to the pool.
-            (Root, Shadow(x)) => Hidden(x),
+            (Root(_), Shadow(x)) => Hidden(x),
         }
     }
 }
@@ -394,8 +433,8 @@ impl AirAggregateCtx {
         let st_super = st.into();
 
         if st_super.active_is_complete(self) {
-            // TODO: dead state or error
-            self.stack().ret_or_dead(AirAggregate::Root, tok)
+            // TODO: error (this should never happen, so maybe panic instead?)
+            self.stack().ret_or_dead(AirAggregate::Uninit, tok)
         } else {
             self.stack().transfer_with_ret(
                 Transition(st_super),
@@ -415,7 +454,8 @@ impl AirAggregateCtx {
         tok: impl Token + Into<S::Token>,
     ) -> TransitionResult<AirAggregate> {
         st.delegate_child(tok.into(), self, |_deadst, tok, ctx| {
-            ctx.stack().ret_or_dead(AirAggregate::Root, tok)
+            // TODO: error (this should never happen, so maybe panic instead?)
+            ctx.stack().ret_or_dead(AirAggregate::Uninit, tok)
         })
     }
 
@@ -467,30 +507,33 @@ impl AirAggregateCtx {
     ///   dangle in the current context
     ///     (and so must be identified).
     fn dangling_expr_oi(&self) -> Option<ObjectIndexTo<Expr>> {
+        use AirAggregate::*;
         let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match st {
-            AirAggregate::Root => None,
+            Uninit => None,
+
+            // It should never be possible to define expressions directly in
+            //   Root.
+            Root(_) => None,
 
             // A dangling expression in a package context would be
             //   unreachable.
             // There should be no parent frame and so this will fail to find
             //   a value.
-            AirAggregate::Pkg(_) => None,
+            Pkg(_) => None,
 
             // Expressions may always contain other expressions,
             //   and so this method should not be consulted in such a
             //   context.
             // Nonetheless,
             //   fall through to the parent frame and give a correct answer.
-            AirAggregate::PkgExpr(_) => None,
+            PkgExpr(_) => None,
 
             // Templates serve as containers for dangling expressions,
             //   since they may expand into an context where they are not
             //   considered to be dangling.
-            AirAggregate::PkgTpl(tplst) => {
-                tplst.active_tpl_oi().map(Into::into)
-            }
+            PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
         })
     }
 
@@ -499,17 +542,15 @@ impl AirAggregateCtx {
     /// A value of [`None`] indicates that template expansion is not
     ///   permitted in this current context.
     fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
+        use AirAggregate::*;
         let Self(_, stack, _) = self;
 
         stack.iter().rev().find_map(|st| match st {
-            AirAggregate::Root => None,
-            AirAggregate::Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
-            AirAggregate::PkgExpr(exprst) => {
-                exprst.active_expr_oi().map(Into::into)
-            }
-            AirAggregate::PkgTpl(tplst) => {
-                tplst.active_tpl_oi().map(Into::into)
-            }
+            Uninit => None,
+            Root(_) => None,
+            Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
+            PkgExpr(exprst) => exprst.active_expr_oi().map(Into::into),
+            PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
         })
     }
 
@@ -546,7 +587,7 @@ impl AirAggregateCtx {
 
         stack
             .iter()
-            .filter_map(|st| st.active_rooting_oi())
+            .filter_map(|st| st.active_env_oi())
             .find_map(|oi| asg.lookup(oi, name))
             .unwrap_or_else(|| self.create_env_indexed_ident(name))
     }
@@ -562,13 +603,20 @@ impl AirAggregateCtx {
         stack
             .iter()
             .rev()
-            .filter_map(|frame| frame.active_rooting_oi().map(|oi| (oi, frame)))
+            .filter_map(|frame| frame.active_env_oi().map(|oi| (oi, frame)))
             .fold(None, |oeoi, (imm_oi, frame)| {
                 let eoi_next = oeoi
                     .map(|eoi| frame.env_cross_boundary_into(eoi))
                     .unwrap_or(EnvScopeKind::Visible(oi_ident));
 
-                asg.index(imm_oi, name, eoi_next);
+                // TODO: Let's find this a better home.
+                match eoi_next {
+                    // There is no use in indexing something that will be
+                    //   filtered out on retrieval.
+                    EnvScopeKind::Hidden(_) => (),
+                    _ => asg.index(imm_oi, name, eoi_next),
+                }
+
                 Some(eoi_next)
             });
 

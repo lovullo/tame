@@ -57,7 +57,6 @@ use crate::{
 use std::iter::once;
 
 use EnvScopeKind::*;
-use ObjectTy::*;
 
 const S0: Span = UNKNOWN_SPAN;
 
@@ -74,7 +73,7 @@ macro_rules! assert_scope {
         ]
     ) => {
         assert_scope(&$asg, $name, [
-            $( ($obj, $span, $kind(())), )*
+            $( (ObjectTy::$obj, $span, $kind(())), )*
         ])
     }
 }
@@ -108,7 +107,7 @@ fn pkg_nested_expr_definition() {
     assert_scope!(asg, outer, [
         // The identifier is not local,
         //   and so its scope should extend into the global environment.
-        // TODO: (Root, S0, Visible),
+        (Root, S0, Visible),
 
         // Expr does not introduce a new environment,
         //   and so the innermost environment in which we should be able to
@@ -120,7 +119,7 @@ fn pkg_nested_expr_definition() {
     assert_scope!(asg, inner, [
         // The identifier is not local,
         //   and so its scope should extend into the global environment.
-        // TODO: (Root, S0, Visible),
+        (Root, S0, Visible),
 
         // Expr does not introduce a new environment,
         //   and so just as the outer expression,
@@ -186,7 +185,7 @@ fn pkg_tpl_definition() {
     assert_scope!(asg, tpl_outer, [
         // The template is defined at the package level,
         //   and so is incorporated into the global environment.
-        // TODO: (Root, S0, Visible),
+        (Root, S0, Visible),
 
         // Definition environment.
         (Pkg, m(S1, S20), Visible),
@@ -352,7 +351,7 @@ fn assert_scope(
     // `tree_reconstruction` omits root,
     //   so we'll have to add it ourselves.
     let oi_root = asg.root(name);
-    let given = once((Root, S0, asg.lookup_raw(oi_root, name)))
+    let given = once((ObjectTy::Root, S0, asg.lookup_raw(oi_root, name)))
         .chain(given_without_root)
         .filter_map(|(ty, span, oeoi)| {
             oeoi.map(|eoi| (ty, span, eoi.map(ObjectIndex::cresolve(asg))))
