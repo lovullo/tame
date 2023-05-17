@@ -602,7 +602,7 @@ fn pkg_doc() {
         DocText(doc_b),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_pkg = asg
         .root(S1)
@@ -635,7 +635,9 @@ where
     )
 }
 
-pub fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
+pub(super) fn asg_from_pkg_body_toks<I: IntoIterator<Item = Air>>(
+    toks: I,
+) -> Asg
 where
     I::IntoIter: Debug,
 {
@@ -644,8 +646,8 @@ where
     sut.finalize().unwrap().into_context()
 }
 
-/// [`asg_from_toks`] without creating a package automatically.
-pub fn asg_from_toks_raw<I: IntoIterator<Item = Air>>(toks: I) -> Asg
+/// Create and yield a new [`Asg`] from an [`Air`] token stream.
+pub fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,
 {

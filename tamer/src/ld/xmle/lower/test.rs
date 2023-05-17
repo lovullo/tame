@@ -20,24 +20,16 @@
 use super::*;
 use crate::{
     asg::{
-        air::{Air, AirAggregate},
+        air::{test::asg_from_toks, Air},
         AsgError, FragmentText, Ident, IdentKind, Source,
     },
     ld::xmle::{section::PushResult, Sections},
-    parse::{util::SPair, ParseState},
+    parse::util::SPair,
     span::dummy::*,
     sym::SymbolId,
 };
-use std::fmt::Debug;
 
 use Air::*;
-
-fn asg_from_toks(toks: impl IntoIterator<Item = Air, IntoIter: Debug>) -> Asg {
-    let mut sut = AirAggregate::parse(toks.into_iter());
-    assert!(sut.all(|x| x.is_ok()));
-
-    sut.finalize().unwrap().into_context()
-}
 
 #[test]
 fn graph_sort() -> SortResult<()> {

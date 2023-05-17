@@ -83,7 +83,7 @@ macro_rules! test_scopes {
         #[test]
         fn $name() {
             $($setup)*
-            let asg = asg_from_toks_raw($toks);
+            let asg = asg_from_toks($toks);
 
             let given = derive_scopes_from_asg(&asg, $name);
             let expected = [

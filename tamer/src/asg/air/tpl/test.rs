@@ -22,7 +22,7 @@ use crate::asg::{
     air::{
         expr::test::collect_subexprs,
         test::{
-            asg_from_toks, parse_as_pkg_body, pkg_expect_ident_obj,
+            asg_from_pkg_body_toks, parse_as_pkg_body, pkg_expect_ident_obj,
             pkg_expect_ident_oi, pkg_lookup,
         },
         Air, AirAggregate,
@@ -187,7 +187,7 @@ fn tpl_apply_within_expr() {
         Air::ExprEnd(S10),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     // The inner template.
     let tpl = pkg_expect_ident_obj::<Tpl>(&asg, id_tpl);
@@ -262,7 +262,7 @@ fn tpl_with_reachable_expression() {
         Air::TplEnd(S9),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
     let tpl = oi_tpl.resolve(&asg);
@@ -332,7 +332,7 @@ fn tpl_holds_dangling_expressions() {
         Air::TplEnd(S7),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
 
     assert_eq!(
@@ -483,7 +483,7 @@ fn tpl_with_param() {
         Air::TplEnd(S10),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
 
     // The template should have an edge to each identifier for each
@@ -524,7 +524,7 @@ fn tpl_nested() {
         Air::TplEnd(S6),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     // The outer template should be defined globally,
     //   but not the inner,
@@ -567,7 +567,7 @@ fn tpl_apply_nested() {
         Air::TplEnd(S5),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl_outer);
     assert_eq!(S1.merge(S5).unwrap(), oi_tpl_outer.resolve(&asg).span());
@@ -616,7 +616,7 @@ fn tpl_apply_nested_missing() {
         Air::TplEnd(S12),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl_outer);
     assert_eq!(S1.merge(S12).unwrap(), oi_tpl_outer.resolve(&asg).span());
@@ -668,7 +668,7 @@ fn tpl_doc_short_desc() {
         Air::TplEnd(S4),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_expr = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
     let oi_docs = oi_expr

@@ -21,7 +21,7 @@ use super::*;
 use crate::asg::{
     air::{
         test::{
-            asg_from_toks, parse_as_pkg_body, pkg_expect_ident_obj,
+            asg_from_pkg_body_toks, parse_as_pkg_body, pkg_expect_ident_obj,
             pkg_expect_ident_oi, pkg_lookup,
         },
         Air, AirAggregate,
@@ -498,7 +498,7 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
         Air::ExprEnd(S9),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     // The root is the parent expression that should contain edges to each
     //   subexpression
@@ -541,7 +541,7 @@ fn nested_subexprs_related_to_relative_parent() {
         Air::ExprEnd(S6),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_0 = pkg_expect_ident_oi::<Expr>(&asg, id_root);
     let subexprs_0 = collect_subexprs(&asg, oi_0);
@@ -721,7 +721,7 @@ fn expr_ref_to_ident() {
         Air::ExprEnd(S7),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_foo = pkg_expect_ident_oi::<Expr>(&asg, id_foo);
 
@@ -807,7 +807,7 @@ fn expr_doc_short_desc() {
         Air::ExprEnd(S4),
     ];
 
-    let asg = asg_from_toks(toks);
+    let asg = asg_from_pkg_body_toks(toks);
 
     let oi_expr = pkg_expect_ident_oi::<Expr>(&asg, id_expr);
     let oi_docs = oi_expr

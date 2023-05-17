@@ -779,4 +779,4 @@ impl From<Asg> for AirAggregateCtx {
 }
 
 #[cfg(test)]
-mod test;
+pub mod test;
