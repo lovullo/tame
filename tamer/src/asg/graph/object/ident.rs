@@ -19,7 +19,7 @@
 
 //! Identifiers (a type of [object](super)).
 
-use super::{prelude::*, Expr, Meta, NameableMissingObject, Pkg, Tpl};
+use super::{prelude::*, Expr, Meta, Pkg, Tpl};
 use crate::{
     diagnose::{Annotate, Diagnostic},
     diagnostic_todo,
@@ -166,12 +166,6 @@ impl Display for Ident {
                 write!(f, "transparent identifier {}", TtQuote::wrap(id))
             }
         }
-    }
-}
-
-impl NameableMissingObject for Ident {
-    fn missing(name: SPair) -> Self {
-        Self::Missing(name)
     }
 }
 

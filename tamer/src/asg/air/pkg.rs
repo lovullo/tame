@@ -128,53 +128,35 @@ impl ParseState for AirPkgAggregate {
                 .map(|_| ())
                 .transition(Toplevel(oi_pkg)),
 
-            (Toplevel(oi_pkg), AirIdent(IdentDecl(name, kind, src))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-
-                asg.lookup_or_missing(oi_root, name)
-                    .declare(asg, name, kind, src)
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg))
-            }
+            (Toplevel(oi_pkg), AirIdent(IdentDecl(name, kind, src))) => ctx
+                .lookup_lexical_or_missing(name)
+                .declare(ctx.asg_mut(), name, kind, src)
+                .map(|_| ())
+                .transition(Toplevel(oi_pkg)),
 
             (Toplevel(oi_pkg), AirIdent(IdentExternDecl(name, kind, src))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-
-                asg.lookup_or_missing(oi_root, name)
-                    .declare_extern(asg, name, kind, src)
+                ctx.lookup_lexical_or_missing(name)
+                    .declare_extern(ctx.asg_mut(), name, kind, src)
                     .map(|_| ())
                     .transition(Toplevel(oi_pkg))
             }
 
             (Toplevel(oi_pkg), AirIdent(IdentDep(name, dep))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(dep);
-
-                let oi_from = asg.lookup_or_missing(oi_root, name);
-                let oi_to = asg.lookup_or_missing(oi_root, dep);
+                let oi_from = ctx.lookup_lexical_or_missing(name);
+                let oi_to = ctx.lookup_lexical_or_missing(dep);
                 oi_from.add_opaque_dep(ctx.asg_mut(), oi_to);
 
                 Transition(Toplevel(oi_pkg)).incomplete()
             }
 
-            (Toplevel(oi_pkg), AirIdent(IdentFragment(name, text))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-
-                asg.lookup_or_missing(oi_root, name)
-                    .set_fragment(asg, text)
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg))
-            }
+            (Toplevel(oi_pkg), AirIdent(IdentFragment(name, text))) => ctx
+                .lookup_lexical_or_missing(name)
+                .set_fragment(ctx.asg_mut(), text)
+                .map(|_| ())
+                .transition(Toplevel(oi_pkg)),
 
             (Toplevel(oi_pkg), AirIdent(IdentRoot(name))) => {
-                let asg = ctx.asg_mut();
-                let oi_root = asg.root(name);
-                let oi_ident = asg.lookup_or_missing(oi_root, name);
-
-                oi_root.root_ident(asg, oi_ident);
+                ctx.lookup_lexical_or_missing(name).root(ctx.asg_mut());
 
                 Transition(Toplevel(oi_pkg)).incomplete()
             }

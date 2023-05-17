@@ -1065,18 +1065,3 @@ fn container_oops() -> Vec<AnnotatedSpan<'static>> {
         ),
     ]
 }
-
-/// An [`ObjectKind`] with a representation of a missing object associated
-///   with a [`SymbolId`](crate::sym::SymbolId).
-///
-/// A _missing_ object has a node on the graph to which edges may be
-///   drawn for when the object is eventually defined.
-/// Missing objects are identified by a [`SymbolId`](crate::sym::SymbolId),
-///   allowing them to be later retrieved for definition.
-pub trait NameableMissingObject: ObjectKind {
-    /// Represent an object as missing on the [`Asg`].
-    ///
-    /// The provided `name` will be used to later look up the object to
-    ///   provide a definition.
-    fn missing(name: SPair) -> Self;
-}

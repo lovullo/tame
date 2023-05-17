@@ -325,6 +325,52 @@ test_scopes! {
     ];
 }
 
+// From the perspective of the linker (tameld):
+test_scopes! {
+    setup {
+        let pkg_a = SPair("/pkg/a".into(), S1);
+        let opaque_a = SPair("opaque_a".into(), S2);
+
+        let pkg_b = SPair("/pkg/b".into(), S4);
+        let opaque_b = SPair("opaque_b".into(), S5);
+    }
+
+    air {
+        [
+            // ENV: 0 global          lexical scoping boundaries (envs)
+            PkgStart(S1, pkg_a),               //- -.
+              // ENV: 1 pkg                    //   :
+              IdentDecl(                       // v :v
+                  opaque_a,                    //   :
+                  IdentKind::Meta,             //   :
+                  Default::default(),          //   :
+              ),                               //  1:
+            PkgEnd(S3),                        //- -'
+                                               //     0
+            PkgStart(S4, pkg_b),               //- -.
+              // ENV: 1 pkg                    //  1:
+              IdentDecl(                       // v :v
+                  opaque_b,                    //   :
+                  IdentKind::Meta,             //   :
+                  Default::default(),          //   :
+              ),                               //   :
+            PkgEnd(S6),                        //- -'
+        ]
+    }
+
+    #[test]
+    opaque_a == [
+        (Root, S0, Visible),
+        // TODO: (Pkg, m(S1, S3), Visible),
+    ];
+
+    #[test]
+    opaque_b == [
+        (Root, S0, Visible),
+        // TODO: (Pkg, m(S4, S6), Visible),
+    ];
+}
+
 ///// Tests end above this line, plumbing below /////
 
 /// Independently derive identifier scopes from the graph.

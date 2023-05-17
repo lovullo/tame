@@ -601,6 +601,16 @@ impl AirAggregateCtx {
     ///     it does not form a hierarchy and local identifiers will not be
     ///     indexed outside of their package hierarchy,
     ///       so we'll have to continue searching for those.
+    ///
+    /// The provided name's span is used to seed the missing object with
+    ///   some sort of context to aid in debugging why a missing object
+    ///   was introduced to the graph.
+    /// The provided span will be used by the returned [`ObjectIndex`] even
+    ///   if an object exists on the graph,
+    ///     which can be used for retaining information on the location that
+    ///     requested the object.
+    /// To retrieve the span of a previously declared object,
+    ///   you must resolve the [`ObjectIndex`] and inspect it.
     fn lookup_lexical_or_missing(&mut self, name: SPair) -> ObjectIndex<Ident> {
         let Self(asg, stack, _) = self;
 

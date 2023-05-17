@@ -22,8 +22,8 @@
 //! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
-    DynObjectRel, NameableMissingObject, ObjectIndexRelTo, ObjectRelFrom,
-    ObjectRelTy, ObjectRelatable, Root,
+    DynObjectRel, ObjectIndexRelTo, ObjectRelFrom, ObjectRelTy,
+    ObjectRelatable, Root,
 };
 
 use super::{air::EnvScopeKind, AsgError, Object, ObjectIndex, ObjectKind};
@@ -269,40 +269,6 @@ impl Asg {
                 "re-indexing of identifier at scope boundary",
             );
         }
-    }
-
-    /// Lookup `name or add a missing object to the graph relative to
-    ///   the immediate environment `imm_env` and return a reference to it.
-    ///
-    /// The provided span is necessary to seed the missing object with
-    ///   some sort of context to aid in debugging why a missing object
-    ///   was introduced to the graph.
-    /// The provided span will be used by the returned [`ObjectIndex`] even
-    ///   if an object exists on the graph,
-    ///     which can be used for retaining information on the location that
-    ///     requested the object.
-    /// To retrieve the span of a previously declared object,
-    ///   you must resolve the [`ObjectIndex`] and inspect it.
-    ///
-    /// See [`Self::index`] for more information.
-    pub(super) fn lookup_or_missing<O: ObjectRelatable>(
-        &mut self,
-        imm_env: impl ObjectIndexRelTo<O>,
-        name: SPair,
-    ) -> ObjectIndex<O>
-    where
-        O: NameableMissingObject,
-    {
-        self.lookup(imm_env, name).unwrap_or_else(|| {
-            let oi = self.create(O::missing(name));
-
-            // TODO: This responsibility is split between `Asg` and
-            //   `AirAggregateCtx`!
-            let eoi = EnvScopeKind::Visible(oi);
-
-            self.index(imm_env, name.symbol(), eoi);
-            oi
-        })
     }
 
     /// Root object.
