@@ -843,6 +843,9 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     /// Attempt to look up a locally bound [`Ident`] via a linear search of
     ///   `self`'s edges.
     ///
+    /// This should be used only when an index is not available,
+    ///   and is currently restricted to tests.
+    ///
     /// Performance
     /// ===========
     /// _This is a linear (O(1)) search of the edges of the node
@@ -863,6 +866,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     ///   circumstances during profiling,
     ///     then you should consider caching like the global environment
     ///       (see [`Asg::lookup`]).
+    #[cfg(test)]
     fn lookup_local_linear(
         &self,
         asg: &Asg,

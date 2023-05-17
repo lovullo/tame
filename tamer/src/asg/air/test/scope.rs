@@ -155,8 +155,8 @@ test_scopes! {
 
     #[test]
     inner == [
-        // Same as above,
-        //   since the environment is the same.
+        // Same as above since the environment is the same;
+        //   `Expr` does not introduce a new environment.
         (Root, S0, Visible),
         (Pkg, m(S1, S8), Visible),
     ];

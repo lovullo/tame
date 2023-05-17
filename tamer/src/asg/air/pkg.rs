@@ -171,7 +171,10 @@ impl ParseState for AirPkgAggregate {
 
             (Toplevel(oi_pkg), AirIdent(IdentRoot(name))) => {
                 let asg = ctx.asg_mut();
-                asg.root(name).root_ident(asg, name);
+                let oi_root = asg.root(name);
+                let oi_ident = asg.lookup_or_missing(oi_root, name);
+
+                oi_root.root_ident(asg, oi_ident);
 
                 Transition(Toplevel(oi_pkg)).incomplete()
             }

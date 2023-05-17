@@ -779,12 +779,16 @@ impl<O: ObjectKind> ObjectIndex<O> {
     /// Attempt to look up a locally bound [`Ident`] via a linear search of
     ///   `self`'s edges.
     ///
+    /// This should be used only when an index is not available,
+    ///   and is currently restricted to tests.
+    ///
     /// See [`ObjectIndexRelTo::lookup_local_linear`].
     //
     // TODO: This method exists here only as a fallback when Rust is unable
     //     to infer the proper type for [`ObjectIndexRelTo`].
     //   It can be removed once that is resolved;
     //     delete this method and compile to see.
+    #[cfg(test)]
     pub fn lookup_local_linear(
         &self,
         asg: &Asg,

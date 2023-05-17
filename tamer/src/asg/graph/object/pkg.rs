@@ -42,7 +42,7 @@ impl Pkg {
     /// Create a new package with a canonicalized name.
     ///
     /// A canonical package name is a path relative to the project root.
-    pub(super) fn new_canonical<S: Into<Span>>(
+    pub(in crate::asg) fn new_canonical<S: Into<Span>>(
         start: S,
         name: SPair,
     ) -> Result<Self, AsgError> {

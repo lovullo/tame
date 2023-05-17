@@ -459,7 +459,13 @@ impl AirAggregateCtx {
         })
     }
 
-    /// Create a new rooted package and record it as the active package.
+    /// Create a new rooted package of the given canonical name and record
+    ///   it as the active package.
+    ///
+    /// A canonical package name is a path relative to the project root.
+    ///
+    /// This operation will fail if a package of the same name has already
+    ///   been declared.
     fn pkg_begin(
         &mut self,
         start: Span,
@@ -468,9 +474,22 @@ impl AirAggregateCtx {
         let Self(asg, _, pkg) = self;
 
         let oi_root = asg.root(start);
-        let oi_pkg = oi_root.create_pkg(asg, start, name)?;
+        let oi_pkg = asg.create(Pkg::new_canonical(start, name)?);
+        let eoi_pkg = EnvScopeKind::Visible(oi_pkg);
 
+        asg.try_index(oi_root, name, eoi_pkg).map_err(|oi_prev| {
+            let prev = oi_prev.resolve(asg);
+
+            // unwrap note: a canonical name must exist for this error to
+            //   have been thrown,
+            //     but this will at least not blow up if something really
+            //     odd happens.
+            AsgError::PkgRedeclare(prev.canonical_name(), name)
+        })?;
+
+        oi_pkg.root(asg);
         pkg.replace(oi_pkg);
+
         Ok(oi_pkg)
     }
 

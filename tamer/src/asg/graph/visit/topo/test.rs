@@ -269,9 +269,7 @@ fn omits_unreachable() {
         .next()
         .expect("cannot find Pkg on graph");
 
-    let oi_b = asg
-        .lookup::<object::Ident>(oi_pkg, id_b)
-        .expect("missing oi_b");
+    let oi_b = oi_pkg.lookup_local_linear(asg, id_b).expect("missing oi_b");
 
     // We'll use only `oi_b` as the root,
     //   which will include it and its (only) dependency.
