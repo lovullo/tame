@@ -347,16 +347,26 @@ impl AirAggregate {
 
 /// Additional parser context,
 ///   including the ASG and parser stack frames.
-///
-/// [`ObjectIndex`] lookups perform reverse linear searches beginning from
-///   the last stack frame until a non-[`None`] value is found;
-///     this creates an environment whereby inner contexts shadow outer.
-/// Missing values create holes,
-///   much like a prototype chain.
-/// In practice,
-///   this should only have to search the last two frames.
 #[derive(Debug, Default)]
-pub struct AirAggregateCtx(Asg, AirStack, Option<ObjectIndex<Pkg>>);
+pub struct AirAggregateCtx {
+    /// The ASG under construction by this parser.
+    ///
+    /// The ASG must be under exclusive ownership of this parser to ensure
+    ///   that graph metadata
+    ///     (e.g. indexes)
+    ///     are accurate.
+    asg: Asg,
+
+    /// Held parser frames.
+    stack: AirStack,
+
+    /// The package currently being parsed,
+    ///   if any.
+    ///
+    /// This is not necessarily the current compilation unit,
+    ///   as the parser may be parsing imports.
+    ooi_pkg: Option<ObjectIndex<Pkg>>,
+}
 
 /// Limit of the maximum number of held parser frames.
 ///
@@ -387,13 +397,11 @@ impl AirAggregateCtx {
     }
 
     fn stack(&mut self) -> &mut AirStack {
-        let Self(_, stack, _) = self;
-        stack
+        &mut self.stack
     }
 
     fn stack_ref(&self) -> &AirStack {
-        let Self(_, stack, _) = self;
-        stack
+        &self.stack
     }
 
     /// Return control to the parser atop of the stack if `st` is an
@@ -474,7 +482,9 @@ impl AirAggregateCtx {
         start: Span,
         name: SPair,
     ) -> Result<ObjectIndex<Pkg>, AsgError> {
-        let Self(asg, _, pkg) = self;
+        let Self {
+            asg, ooi_pkg: pkg, ..
+        } = self;
 
         let oi_root = asg.root(start);
         let oi_pkg = asg.create(Pkg::new_canonical(start, name)?);
@@ -498,15 +508,12 @@ impl AirAggregateCtx {
 
     /// Indicate that there is no longer any active package.
     fn pkg_clear(&mut self) {
-        let Self(_, _, pkg) = self;
-        pkg.take();
+        self.ooi_pkg.take();
     }
 
     /// The active package if any.
     fn pkg_oi(&self) -> Option<ObjectIndex<Pkg>> {
-        match self {
-            Self(_, _, oi) => *oi,
-        }
+        self.ooi_pkg
     }
 
     /// The active container (rooting context) for [`Ident`]s.
@@ -518,9 +525,10 @@ impl AirAggregateCtx {
     /// A value of [`None`] indicates that no bindings are permitted in the
     ///   current context.
     fn rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
-        let Self(_, stack, _) = self;
-
-        stack.iter().rev().find_map(|st| st.active_rooting_oi())
+        self.stack
+            .iter()
+            .rev()
+            .find_map(|st| st.active_rooting_oi())
     }
 
     /// The active dangling expression context for [`Expr`]s.
@@ -530,9 +538,8 @@ impl AirAggregateCtx {
     ///     (and so must be identified).
     fn dangling_expr_oi(&self) -> Option<ObjectIndexTo<Expr>> {
         use AirAggregate::*;
-        let Self(_, stack, _) = self;
 
-        stack.iter().rev().find_map(|st| match st {
+        self.stack.iter().rev().find_map(|st| match st {
             Uninit => None,
 
             // It should never be possible to define expressions directly in
@@ -565,9 +572,8 @@ impl AirAggregateCtx {
     ///   permitted in this current context.
     fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
         use AirAggregate::*;
-        let Self(_, stack, _) = self;
 
-        stack.iter().rev().find_map(|st| match st {
+        self.stack.iter().rev().find_map(|st| match st {
             Uninit => None,
             Root(_) => None,
             Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
@@ -643,7 +649,7 @@ impl AirAggregateCtx {
     /// To retrieve the span of a previously declared object,
     ///   you must resolve the [`ObjectIndex`] and inspect it.
     fn lookup_lexical_or_missing(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let Self(asg, stack, _) = self;
+        let Self { asg, stack, .. } = self;
 
         stack
             .iter()
@@ -656,7 +662,7 @@ impl AirAggregateCtx {
     ///
     /// TODO: More information as this is formalized.
     fn create_env_indexed_ident(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let Self(asg, stack, _) = self;
+        let Self { asg, stack, .. } = self;
         let oi_ident = asg.create(Ident::declare(name));
 
         // TODO: This will need the active OI to support `AirIdent`s
@@ -802,39 +808,34 @@ impl AsMut<AirAggregateCtx> for AirAggregateCtx {
 
 impl AsRef<Asg> for AirAggregateCtx {
     fn as_ref(&self) -> &Asg {
-        match self {
-            Self(asg, _, _) => asg,
-        }
+        &self.asg
     }
 }
 
 impl AsMut<Asg> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut Asg {
-        match self {
-            Self(asg, _, _) => asg,
-        }
+        &mut self.asg
     }
 }
 
 impl AsMut<AirStack> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut AirStack {
-        match self {
-            Self(_, stack, _) => stack,
-        }
+        &mut self.stack
     }
 }
 
 impl From<AirAggregateCtx> for Asg {
     fn from(ctx: AirAggregateCtx) -> Self {
-        match ctx {
-            AirAggregateCtx(asg, _, _) => asg,
-        }
+        ctx.asg
     }
 }
 
 impl From<Asg> for AirAggregateCtx {
     fn from(asg: Asg) -> Self {
-        Self(asg, Default::default(), None)
+        Self {
+            asg,
+            ..Default::default()
+        }
     }
 }
 
