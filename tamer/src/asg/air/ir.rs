@@ -824,13 +824,13 @@ sum_ir! {
         }
     }
 
-    /// Package definitions also capable of being loaded from object files.
+    /// Package definitions.
     ///
     /// It is assumed that tokens that may appear as the body of a package,
     ///   with the exception of [`AirIdent`],
     ///   will preempt the package parser,
     ///     and so are not included here.
-    pub sum enum AirLoadablePkg = AirPkg | AirBind | AirIdent | AirDoc;
+    pub sum enum AirBindablePkg = AirPkg | AirBind | AirDoc;
 
     /// Expressions that are able to be bound to identifiers.
     ///

@@ -40,6 +40,7 @@ use super::{
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
+    diagnose::Annotate,
     f::Functor,
     parse::{prelude::*, StateStack},
     span::Span,
@@ -55,9 +56,11 @@ mod ir;
 pub use ir::Air;
 
 mod expr;
+mod opaque;
 mod pkg;
 mod tpl;
 use expr::AirExprAggregate;
+use opaque::AirOpaqueAggregate;
 use pkg::AirPkgAggregate;
 use tpl::AirTplAggregate;
 
@@ -94,6 +97,12 @@ pub enum AirAggregate {
     ///   parented to this template rather than the parent [`Pkg`].
     /// See [`Air::TplStart`] for more information.
     PkgTpl(AirTplAggregate),
+
+    /// Parsing opaque objects.
+    ///
+    /// This parser is intended for loading declarations from object files
+    ///   without loading their corresponding definitions.
+    PkgOpaque(AirOpaqueAggregate),
 }
 
 impl Display for AirAggregate {
@@ -110,7 +119,10 @@ impl Display for AirAggregate {
                 write!(f, "defining a package expression: {expr}")
             }
             PkgTpl(tpl) => {
-                write!(f, "building a template: {tpl}",)
+                write!(f, "building a template: {tpl}")
+            }
+            PkgOpaque(opaque) => {
+                write!(f, "loading opaque objects: {opaque}")
             }
         }
     }
@@ -131,6 +143,12 @@ impl From<AirExprAggregate> for AirAggregate {
 impl From<AirTplAggregate> for AirAggregate {
     fn from(st: AirTplAggregate) -> Self {
         Self::PkgTpl(st)
+    }
+}
+
+impl From<AirOpaqueAggregate> for AirAggregate {
+    fn from(st: AirOpaqueAggregate) -> Self {
+        Self::PkgOpaque(st)
     }
 }
 
@@ -164,12 +182,18 @@ impl ParseState for AirAggregate {
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
             // Package
-            (st @ (Root(..) | PkgExpr(..) | PkgTpl(..)), tok @ AirPkg(..)) => {
-                ctx.ret_or_transfer(st, tok, AirPkgAggregate::new())
-            }
+            //
+            // Note that `ret_or_transfer` will return from the active frame
+            //   if it is in an accepting state,
+            //     and so encountering a properly nested `PkgClose` will pop
+            //     frames off of the stack until reaching the still-active
+            //     parent package frame.
+            (
+                st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgOpaque(..)),
+                tok @ AirPkg(..),
+            ) => ctx.ret_or_transfer(st, tok, AirPkgAggregate::new()),
             (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
             (Pkg(pkg), AirBind(etok)) => ctx.proxy(pkg, etok),
-            (Pkg(pkg), AirIdent(etok)) => ctx.proxy(pkg, etok),
             (Pkg(pkg), AirDoc(etok)) => ctx.proxy(pkg, etok),
 
             // Expression
@@ -187,6 +211,36 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
+
+            // Opaque
+            //
+            // By having opaque object loading be its _own_ child parser,
+            //   we ensure that the active package frame becomes held on the
+            //   stack before loading e.g. opaque identifiers.
+            // Since scope is determined by stack frames,
+            //   this has the effect of ensuring that the package `st`
+            //   becomes included in the identifier's scope.
+            (st @ Pkg(_), tok @ AirIdent(..)) => {
+                ctx.ret_or_transfer(st, tok, AirOpaqueAggregate::new())
+            }
+            (PkgOpaque(opaque), AirIdent(otok)) => ctx.proxy(opaque, otok),
+            (
+                PkgOpaque(_),
+                tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
+            ) => {
+                // This is simply not expected at the time of writing,
+                //   since this is used for importing object files.
+                crate::diagnostic_panic!(
+                    vec![
+                        tok.span()
+                            .internal_error("this is not an opaque identifier"),
+                        tok.span().help(
+                            "this may represent a problem with an object file"
+                        )
+                    ],
+                    "expected opaque identifier, found {tok}",
+                );
+            }
 
             (
                 st @ Root(_),
@@ -226,6 +280,7 @@ impl AirAggregate {
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
             PkgTpl(st) => st.is_accepting(ctx),
+            PkgOpaque(st) => st.is_accepting(ctx),
         }
     }
 
@@ -243,6 +298,7 @@ impl AirAggregate {
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
             PkgTpl(st) => st.is_accepting(ctx),
+            PkgOpaque(st) => st.is_accepting(ctx),
         }
     }
 
@@ -279,6 +335,12 @@ impl AirAggregate {
             // Templates must therefore serve as containers for identifiers
             //   bound therein.
             PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+
+            // Loading of opaque objects happens within the context of the
+            //   parent frame.
+            // At the time of writing,
+            //   that is only a package.
+            PkgOpaque(_) => None,
         }
     }
 
@@ -317,6 +379,10 @@ impl AirAggregate {
         match (self, kind) {
             // This is not an environment.
             (Uninit, kind) => kind,
+
+            // This is just a parsing state,
+            //   not an environment.
+            (PkgOpaque(_), kind) => kind,
 
             // Hidden is a fixpoint.
             (_, kind @ Hidden(_)) => kind,
@@ -563,6 +629,11 @@ impl AirAggregateCtx {
             //   since they may expand into an context where they are not
             //   considered to be dangling.
             PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+
+            // Expressions are transparent definitions,
+            //   not opaque,
+            //   and so not permitted in this context.
+            PkgOpaque(_) => None,
         })
     }
 
@@ -579,6 +650,13 @@ impl AirAggregateCtx {
             Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
             PkgExpr(exprst) => exprst.active_expr_oi().map(Into::into),
             PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+
+            // Templates _could_ conceptually expand into opaque objects,
+            //   but the source language of TAME provides no mechanism to do
+            //   such a thing,
+            //     and so it'd be best to leave this alone unless it's
+            //     actually needed.
+            PkgOpaque(_) => None,
         })
     }
 
@@ -665,7 +743,6 @@ impl AirAggregateCtx {
         let Self { asg, stack, .. } = self;
         let oi_ident = asg.create(Ident::declare(name));
 
-        // TODO: This will need the active OI to support `AirIdent`s
         stack
             .iter()
             .rev()

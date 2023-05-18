@@ -23,7 +23,7 @@
 
 use super::{
     super::{graph::object::Pkg, AsgError, ObjectIndex},
-    ir::AirLoadablePkg,
+    ir::AirBindablePkg,
     AirAggregate, AirAggregateCtx,
 };
 use crate::{diagnose::Annotate, diagnostic_todo, parse::prelude::*};
@@ -59,7 +59,7 @@ impl Display for AirPkgAggregate {
 }
 
 impl ParseState for AirPkgAggregate {
-    type Token = AirLoadablePkg;
+    type Token = AirBindablePkg;
     type Object = ();
     type Error = AsgError;
     type Context = AirAggregateCtx;
@@ -70,8 +70,8 @@ impl ParseState for AirPkgAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirDoc::*, AirIdent::*, AirPkg::*};
-        use AirLoadablePkg::*;
+        use super::ir::{AirBind::*, AirDoc::*, AirPkg::*};
+        use AirBindablePkg::*;
         use AirPkgAggregate::*;
 
         match (self, tok) {
@@ -128,45 +128,12 @@ impl ParseState for AirPkgAggregate {
                 .map(|_| ())
                 .transition(Toplevel(oi_pkg)),
 
-            (Toplevel(oi_pkg), AirIdent(IdentDecl(name, kind, src))) => ctx
-                .lookup_lexical_or_missing(name)
-                .declare(ctx.asg_mut(), name, kind, src)
-                .map(|_| ())
-                .transition(Toplevel(oi_pkg)),
-
-            (Toplevel(oi_pkg), AirIdent(IdentExternDecl(name, kind, src))) => {
-                ctx.lookup_lexical_or_missing(name)
-                    .declare_extern(ctx.asg_mut(), name, kind, src)
-                    .map(|_| ())
-                    .transition(Toplevel(oi_pkg))
-            }
-
-            (Toplevel(oi_pkg), AirIdent(IdentDep(name, dep))) => {
-                let oi_from = ctx.lookup_lexical_or_missing(name);
-                let oi_to = ctx.lookup_lexical_or_missing(dep);
-                oi_from.add_opaque_dep(ctx.asg_mut(), oi_to);
-
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
-
-            (Toplevel(oi_pkg), AirIdent(IdentFragment(name, text))) => ctx
-                .lookup_lexical_or_missing(name)
-                .set_fragment(ctx.asg_mut(), text)
-                .map(|_| ())
-                .transition(Toplevel(oi_pkg)),
-
-            (Toplevel(oi_pkg), AirIdent(IdentRoot(name))) => {
-                ctx.lookup_lexical_or_missing(name).root(ctx.asg_mut());
-
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
-
             (Ready, AirPkg(PkgEnd(span))) => {
                 Transition(Ready).err(AsgError::InvalidPkgEndContext(span))
             }
 
             // Token may refer to a parent context.
-            (st @ Ready, tok @ (AirBind(..) | AirIdent(..) | AirDoc(..))) => {
+            (st @ Ready, tok @ (AirBind(..) | AirDoc(..))) => {
                 Transition(st).dead(tok)
             }
         }

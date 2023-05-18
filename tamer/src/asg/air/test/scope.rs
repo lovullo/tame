@@ -361,13 +361,13 @@ test_scopes! {
     #[test]
     opaque_a == [
         (Root, S0, Visible),
-        // TODO: (Pkg, m(S1, S3), Visible),
+        (Pkg, m(S1, S3), Visible),
     ];
 
     #[test]
     opaque_b == [
         (Root, S0, Visible),
-        // TODO: (Pkg, m(S4, S6), Visible),
+        (Pkg, m(S4, S6), Visible),
     ];
 }
 
