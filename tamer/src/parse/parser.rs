@@ -496,8 +496,25 @@ where
 pub struct FinalizedParser<S: ParseState>(S::Context);
 
 impl<S: ParseState> FinalizedParser<S> {
-    /// Take ownership over the inner [`ParseState::Context`].
+    /// Take ownership over the inner [`ParseState::Context`],
+    ///   converting it into its public representation.
+    ///
+    /// This represents,
+    ///   in essence,
+    ///   a final aggregate return value of the parser.
     pub fn into_context(self) -> S::PubContext {
+        match self {
+            Self(ctx) => ctx.into(),
+        }
+    }
+
+    /// Take ownership over the inner [`ParseState::Context`].
+    ///
+    /// It is expected that `S::Context` is not suitable for consumption
+    ///   outside of the module that defined `S`.
+    /// [`Self::into_context`] should be used as a public API.
+    #[cfg(test)]
+    pub fn into_private_context(self) -> S::Context {
         match self {
             Self(ctx) => ctx.into(),
         }

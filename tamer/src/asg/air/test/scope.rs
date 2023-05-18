@@ -83,9 +83,9 @@ macro_rules! test_scopes {
         #[test]
         fn $name() {
             $($setup)*
-            let asg = asg_from_toks($toks);
+            let ctx = air_ctx_from_toks($toks);
 
-            let given = derive_scopes_from_asg(&asg, $name);
+            let given = derive_scopes_from_asg(&ctx, $name);
             let expected = [
                 $( (ObjectTy::$obj, $span, $kind(())), )*
             ];
@@ -387,7 +387,7 @@ test_scopes! {
 ///   which make it easy to form and prove hypotheses about the behavior of
 ///   TAMER's scoping system.
 fn derive_scopes_from_asg<'a>(
-    asg: &'a Asg,
+    ctx: &'a <AirAggregate as ParseState>::Context,
     name: SPair,
 ) -> impl Iterator<Item = (ObjectTy, Span, EnvScopeKind<()>)> + 'a {
     // We are interested only in identifiers for scoping,
@@ -419,25 +419,26 @@ fn derive_scopes_from_asg<'a>(
     //     but that is okay;
     //       it'll result in a test failure that should be easy enough to
     //       understand.
-    let given_without_root =
-        tree_reconstruction(asg).filter_map(move |TreeWalkRel(dynrel, _)| {
+    let given_without_root = tree_reconstruction(ctx.asg_ref()).filter_map(
+        move |TreeWalkRel(dynrel, _)| {
             dynrel.target_oi_rel_to_dyn::<object::Ident>().map(|oi_to| {
                 (
                     dynrel.target_ty(),
-                    dynrel.target().resolve(asg).span(),
-                    asg.lookup_raw(oi_to, name),
+                    dynrel.target().resolve(ctx.asg_ref()).span(),
+                    ctx.env_scope_lookup_raw(oi_to, name),
                 )
             })
-        });
+        },
+    );
 
     // `tree_reconstruction` omits root,
     //   so we'll have to add it ourselves.
-    let oi_root = asg.root(name);
+    let oi_root = ctx.asg_ref().root(name);
 
-    once((ObjectTy::Root, S0, asg.lookup_raw(oi_root, name)))
+    once((ObjectTy::Root, S0, ctx.env_scope_lookup_raw(oi_root, name)))
         .chain(given_without_root)
         .filter_map(|(ty, span, oeoi)| {
-            oeoi.map(|eoi| (ty, span, eoi.map(ObjectIndex::cresolve(asg))))
+            oeoi.map(|eoi| (ty, span, eoi.map(ObjectIndex::cresolve(ctx.asg_ref()))))
         })
         .inspect(move |(ty, span, eid)| assert_eq!(
             expected_span,

@@ -47,6 +47,9 @@ use crate::{
 };
 use std::fmt::{Debug, Display};
 
+#[cfg(test)]
+use super::{graph::object::ObjectRelatable, ObjectIndexRelTo};
+
 #[macro_use]
 mod ir;
 pub use ir::Air;
@@ -586,7 +589,35 @@ impl AirAggregateCtx {
         ))
     }
 
-    /// Attempt to locate a lexically scoped identifier,
+    /// Attempt to retrieve an identifier and its scope information from the
+    ///   graph by name relative to the environment `env`.
+    ///
+    /// See [`Self::lookup`] for more information.
+    #[cfg(test)]
+    fn env_scope_lookup_raw<O: ObjectRelatable>(
+        &self,
+        env: impl ObjectIndexRelTo<O>,
+        name: SPair,
+    ) -> Option<EnvScopeKind<ObjectIndex<O>>> {
+        self.asg_ref().lookup_raw(env, name)
+    }
+
+    /// Resolve an identifier at the scope of the provided environment.
+    ///
+    /// If the identifier is not in scope at `env`,
+    ///   [`None`] will be returned.
+    #[cfg(test)]
+    fn env_scope_lookup<O: ObjectRelatable>(
+        &self,
+        env: impl ObjectIndexRelTo<O>,
+        name: SPair,
+    ) -> Option<ObjectIndex<O>> {
+        self.env_scope_lookup_raw(env, name)
+            .and_then(EnvScopeKind::in_scope)
+            .map(EnvScopeKind::into_inner)
+    }
+
+    /// Attempt to locate a lexically scoped identifier in the current stack,
     ///   or create a new one if missing.
     ///
     /// Since shadowing is not permitted

@@ -21,8 +21,8 @@ use super::*;
 use crate::asg::{
     air::{
         test::{
-            asg_from_pkg_body_toks, parse_as_pkg_body, pkg_expect_ident_obj,
-            pkg_expect_ident_oi, pkg_lookup,
+            air_ctx_from_pkg_body_toks, air_ctx_from_toks, parse_as_pkg_body,
+            pkg_expect_ident_obj, pkg_expect_ident_oi, pkg_lookup,
         },
         Air, AirAggregate,
     },
@@ -55,14 +55,11 @@ fn expr_empty_ident() {
         Air::ExprEnd(S3),
     ];
 
-    let mut sut = parse_as_pkg_body(toks);
-    assert!(sut.all(|x| x.is_ok()));
-
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = air_ctx_from_pkg_body_toks(toks);
 
     // The expression should have been bound to this identifier so that
     //   we're able to retrieve it from the graph by name.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id);
     assert_eq!(expr.span(), S1.merge(S3).unwrap());
 }
 
@@ -185,16 +182,13 @@ fn expr_non_empty_ident_root() {
         Air::ExprEnd(S6),
     ];
 
-    let mut sut = parse_as_pkg_body(toks);
-    assert!(sut.all(|x| x.is_ok()));
+    let ctx = air_ctx_from_pkg_body_toks(toks);
 
-    let asg = sut.finalize().unwrap().into_context();
-
-    let expr_a = pkg_expect_ident_obj::<Expr>(&asg, id_a);
+    let expr_a = pkg_expect_ident_obj::<Expr>(&ctx, id_a);
     assert_eq!(expr_a.span(), S1.merge(S6).unwrap());
 
     // Identifiers should reference the same expression.
-    let expr_b = pkg_expect_ident_obj::<Expr>(&asg, id_b);
+    let expr_b = pkg_expect_ident_obj::<Expr>(&ctx, id_b);
     assert_eq!(expr_a, expr_b);
 }
 
@@ -219,12 +213,9 @@ fn expr_non_empty_bind_only_after() {
         Air::ExprEnd(S5),
     ];
 
-    let mut sut = parse_as_pkg_body(toks);
-    assert!(sut.all(|x| x.is_ok()));
+    let ctx = air_ctx_from_pkg_body_toks(toks);
 
-    let asg = sut.finalize().unwrap().into_context();
-
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id);
     assert_eq!(expr.span(), S1.merge(S5).unwrap());
 }
 
@@ -406,11 +397,11 @@ fn recovery_expr_reachable_after_dangling() {
         sut.by_ref().collect::<Vec<_>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     // Let's make sure that we _actually_ added it to the graph,
     //   despite the previous error.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id);
     assert_eq!(expr.span(), S3.merge(S5).unwrap());
 
     // The dangling expression may or may not be on the graph,
@@ -462,10 +453,10 @@ fn expr_close_unbalanced() {
         sut.by_ref().collect::<Vec<_>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     // Just verify that the expression was successfully added after recovery.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id);
     assert_eq!(expr.span(), S2.merge(S4).unwrap());
 }
 
@@ -498,14 +489,15 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
         Air::ExprEnd(S9),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
     // The root is the parent expression that should contain edges to each
     //   subexpression
     //     (the siblings above).
     // Note that we retrieve its _index_,
     //   not the object itself.
-    let oi_root = pkg_expect_ident_oi::<Expr>(&asg, id_root);
+    let oi_root = pkg_expect_ident_oi::<Expr>(&ctx, id_root);
 
     let siblings = oi_root
         .edges_filtered::<Expr>(&asg)
@@ -541,9 +533,10 @@ fn nested_subexprs_related_to_relative_parent() {
         Air::ExprEnd(S6),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_0 = pkg_expect_ident_oi::<Expr>(&asg, id_root);
+    let oi_0 = pkg_expect_ident_oi::<Expr>(&ctx, id_root);
     let subexprs_0 = collect_subexprs(&asg, oi_0);
 
     // Subexpr 1
@@ -598,10 +591,10 @@ fn expr_redefine_ident() {
         sut.by_ref().collect::<Vec<_>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     // The identifier should continue to reference the first expression.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_first);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id_first);
     assert_eq!(expr.span(), S1.merge(S5).unwrap());
 }
 
@@ -681,10 +674,10 @@ fn expr_still_dangling_on_redefine() {
         sut.by_ref().collect::<Vec<_>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     // The identifier should continue to reference the first expression.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_first);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id_first);
     assert_eq!(expr.span(), S1.merge(S3).unwrap());
 
     // There's nothing we can do using the ASG's public API at the time of
@@ -692,7 +685,7 @@ fn expr_still_dangling_on_redefine() {
 
     // The second identifier should have been successfully bound despite the
     //   failed initial attempt.
-    let expr = pkg_expect_ident_obj::<Expr>(&asg, id_second);
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, id_second);
     assert_eq!(expr.span(), S7.merge(S10).unwrap());
 }
 
@@ -721,9 +714,10 @@ fn expr_ref_to_ident() {
         Air::ExprEnd(S7),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_foo = pkg_expect_ident_oi::<Expr>(&asg, id_foo);
+    let oi_foo = pkg_expect_ident_oi::<Expr>(&ctx, id_foo);
 
     let mut foo_rels = oi_foo
         .edges(&asg)
@@ -748,7 +742,7 @@ fn expr_ref_to_ident() {
     //     added it as `Missing`.
     assert_eq!(ident_bar.span(), id_bar.span());
 
-    let oi_expr_bar = pkg_expect_ident_oi::<Expr>(&asg, id_bar);
+    let oi_expr_bar = pkg_expect_ident_oi::<Expr>(&ctx, id_bar);
     assert!(oi_ident_bar.is_bound_to(&asg, oi_expr_bar));
 }
 
@@ -773,24 +767,23 @@ fn idents_share_defining_pkg() {
         Air::PkgEnd(S9),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-    assert!(sut.all(|x| x.is_ok()));
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = air_ctx_from_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_foo = pkg_lookup(&asg, id_foo).unwrap();
-    let oi_bar = pkg_lookup(&asg, id_bar).unwrap();
+    let oi_foo = pkg_lookup(&ctx, id_foo).unwrap();
+    let oi_bar = pkg_lookup(&ctx, id_bar).unwrap();
 
-    assert_eq!(oi_foo.src_pkg(&asg).unwrap(), oi_bar.src_pkg(&asg).unwrap());
+    assert_eq!(oi_foo.src_pkg(asg).unwrap(), oi_bar.src_pkg(asg).unwrap());
 
     // Missing identifiers should not have a source package,
     //   since we don't know what defined it yet.
-    let oi_baz = pkg_lookup(&asg, id_baz).unwrap();
-    assert_eq!(None, oi_baz.src_pkg(&asg));
+    let oi_baz = pkg_lookup(&ctx, id_baz).unwrap();
+    assert_eq!(None, oi_baz.src_pkg(asg));
 
     // The package span should encompass the entire definition.
     assert_eq!(
         S1.merge(S9),
-        oi_foo.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span())
+        oi_foo.src_pkg(asg).map(|pkg| pkg.resolve(asg).span())
     )
 }
 
@@ -807,9 +800,10 @@ fn expr_doc_short_desc() {
         Air::ExprEnd(S4),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_expr = pkg_expect_ident_oi::<Expr>(&asg, id_expr);
+    let oi_expr = pkg_expect_ident_oi::<Expr>(&ctx, id_expr);
     let oi_docs = oi_expr
         .edges_filtered::<Doc>(&asg)
         .map(ObjectIndex::cresolve(&asg));

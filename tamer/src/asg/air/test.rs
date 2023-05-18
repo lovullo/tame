@@ -72,11 +72,11 @@ fn ident_decl() {
         sut.by_ref().collect::<Vec<Result<Parsed<()>, _>>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     let ident_node =
-        root_lookup(&asg, id).expect("identifier was not added to graph");
-    let ident = asg.get(ident_node).unwrap();
+        root_lookup(&ctx, id).expect("identifier was not added to graph");
+    let ident = ctx.asg_ref().get(ident_node).unwrap();
 
     assert_eq!(
         Ok(ident),
@@ -127,11 +127,11 @@ fn ident_extern_decl() {
         sut.by_ref().collect::<Vec<Result<Parsed<()>, _>>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     let ident_node =
-        root_lookup(&asg, id).expect("identifier was not added to graph");
-    let ident = asg.get(ident_node).unwrap();
+        root_lookup(&ctx, id).expect("identifier was not added to graph");
+    let ident = ctx.asg_ref().get(ident_node).unwrap();
 
     assert_eq!(
         Ok(ident),
@@ -163,13 +163,13 @@ fn ident_dep() {
         sut.by_ref().collect(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     let ident_node =
-        root_lookup(&asg, id).expect("identifier was not added to graph");
-    let dep_node = root_lookup(&asg, dep).expect("dep was not added to graph");
+        root_lookup(&ctx, id).expect("identifier was not added to graph");
+    let dep_node = root_lookup(&ctx, dep).expect("dep was not added to graph");
 
-    assert!(ident_node.has_edge_to(&asg, dep_node));
+    assert!(ident_node.has_edge_to(ctx.asg_ref(), dep_node));
 }
 
 #[test]
@@ -213,11 +213,11 @@ fn ident_fragment() {
         sut.by_ref().collect::<Vec<Result<Parsed<()>, _>>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     let ident_node =
-        root_lookup(&asg, id).expect("identifier was not added to graph");
-    let ident = asg.get(ident_node).unwrap();
+        root_lookup(&ctx, id).expect("identifier was not added to graph");
+    let ident = ctx.asg_ref().get(ident_node).unwrap();
 
     assert_eq!(
         Ok(ident),
@@ -253,18 +253,18 @@ fn ident_root_missing() {
         sut.by_ref().collect(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     let ident_node =
-        root_lookup(&asg, id).expect("identifier was not added to the graph");
-    let ident = asg.get(ident_node).unwrap();
+        root_lookup(&ctx, id).expect("identifier was not added to the graph");
+    let ident = ctx.asg_ref().get(ident_node).unwrap();
 
     // The identifier did not previously exist,
     //   and so a missing node is created as a placeholder.
     assert_eq!(&Ident::Missing(id), ident);
 
     // And that missing identifier should be rooted.
-    assert!(ident_node.is_rooted(&asg));
+    assert!(ident_node.is_rooted(ctx.asg_ref()));
 }
 
 #[test]
@@ -302,11 +302,11 @@ fn ident_root_existing() {
         sut.by_ref().collect(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     let ident_node =
-        root_lookup(&asg, id).expect("identifier was not added to the graph");
-    let ident = asg.get(ident_node).unwrap();
+        root_lookup(&ctx, id).expect("identifier was not added to the graph");
+    let ident = ctx.asg_ref().get(ident_node).unwrap();
 
     // The previously-declared identifier...
     assert_eq!(
@@ -317,7 +317,7 @@ fn ident_root_existing() {
     );
 
     // ...should have been subsequently rooted.
-    assert!(ident_node.is_rooted(&asg));
+    assert!(ident_node.is_rooted(ctx.asg_ref()));
 }
 
 #[test]
@@ -360,13 +360,13 @@ fn declare_kind_auto_root() {
         sut.by_ref().collect(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
-    let oi_auto = root_lookup(&asg, id_auto).unwrap();
-    let oi_no_auto = root_lookup(&asg, id_no_auto).unwrap();
+    let oi_auto = root_lookup(&ctx, id_auto).unwrap();
+    let oi_no_auto = root_lookup(&ctx, id_no_auto).unwrap();
 
-    assert!(oi_auto.is_rooted(&asg));
-    assert!(!oi_no_auto.is_rooted(&asg));
+    assert!(oi_auto.is_rooted(ctx.asg_ref()));
+    assert!(!oi_no_auto.is_rooted(ctx.asg_ref()));
 }
 
 #[test]
@@ -450,21 +450,21 @@ fn pkg_canonical_name() {
         PkgEnd(S3),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-    assert!(sut.all(|x| x.is_ok()));
+    let ctx = air_ctx_from_toks(toks);
 
-    let asg = sut.finalize().unwrap().into_context();
-
-    let oi_root = asg.root(S1);
+    let oi_root = ctx.asg_ref().root(S1);
     let oi_pkg = oi_root
-        .edges_filtered::<Pkg>(&asg)
+        .edges_filtered::<Pkg>(ctx.asg_ref())
         .next()
         .expect("cannot find package from root");
 
-    assert_eq!(name, oi_pkg.resolve(&asg).canonical_name());
+    assert_eq!(name, oi_pkg.resolve(ctx.asg_ref()).canonical_name());
 
     // We should be able to find the same package by its index.
-    let oi_pkg_indexed = asg.lookup(oi_root, name);
+    let oi_pkg_indexed = ctx
+        .env_scope_lookup_raw(oi_root, name)
+        .map(|eoi| eoi.into_inner());
+
     assert_eq!(
         Some(oi_pkg),
         oi_pkg_indexed,
@@ -513,14 +513,16 @@ fn pkg_cannot_redeclare() {
         sut.by_ref().collect::<Vec<_>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     // The second package should be available under the recovery name.
-    let oi_root = asg.root(S1);
-    let oi_pkg = asg
-        .lookup::<Pkg>(oi_root, namefix)
+    let oi_root = ctx.asg_ref().root(S1);
+    let oi_pkg = ctx
+        .env_scope_lookup_raw::<Pkg>(oi_root, namefix)
+        .map(|eoi| eoi.into_inner())
         .expect("failed to locate package by its recovery name");
-    assert_eq!(S6.merge(S8).unwrap(), oi_pkg.resolve(&asg).span());
+
+    assert_eq!(S6.merge(S8).unwrap(), oi_pkg.resolve(ctx.asg_ref()).span());
 }
 
 #[test]
@@ -641,9 +643,19 @@ pub(super) fn asg_from_pkg_body_toks<I: IntoIterator<Item = Air>>(
 where
     I::IntoIter: Debug,
 {
+    // Equivalent to `into_{private_=>}context` in this function.
+    air_ctx_from_pkg_body_toks(toks).into()
+}
+
+pub(super) fn air_ctx_from_pkg_body_toks<I: IntoIterator<Item = Air>>(
+    toks: I,
+) -> <Sut as ParseState>::Context
+where
+    I::IntoIter: Debug,
+{
     let mut sut = parse_as_pkg_body(toks);
     assert!(sut.all(|x| x.is_ok()));
-    sut.finalize().unwrap().into_context()
+    sut.finalize().unwrap().into_private_context()
 }
 
 /// Create and yield a new [`Asg`] from an [`Air`] token stream.
@@ -651,35 +663,54 @@ pub fn asg_from_toks<I: IntoIterator<Item = Air>>(toks: I) -> Asg
 where
     I::IntoIter: Debug,
 {
+    // Equivalent to `into_{private_=>}context` in this function.
+    air_ctx_from_toks(toks).into()
+}
+
+/// Create and yield a new [`Asg`] from an [`Air`] token stream.
+pub(super) fn air_ctx_from_toks<I: IntoIterator<Item = Air>>(
+    toks: I,
+) -> <Sut as ParseState>::Context
+where
+    I::IntoIter: Debug,
+{
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
-    sut.finalize().unwrap().into_context()
+    sut.finalize().unwrap().into_private_context()
 }
 
-fn root_lookup(asg: &Asg, name: SPair) -> Option<ObjectIndex<Ident>> {
-    asg.lookup(asg.root(S1), name)
+fn root_lookup(
+    ctx: &<AirAggregate as ParseState>::Context,
+    name: SPair,
+) -> Option<ObjectIndex<Ident>> {
+    ctx.env_scope_lookup_raw(ctx.asg_ref().root(S1), name)
+        .map(|eoi| eoi.into_inner())
 }
 
-pub fn pkg_lookup(asg: &Asg, name: SPair) -> Option<ObjectIndex<Ident>> {
-    let oi_pkg = asg
+pub fn pkg_lookup(
+    ctx: &<AirAggregate as ParseState>::Context,
+    name: SPair,
+) -> Option<ObjectIndex<Ident>> {
+    let oi_pkg = ctx
+        .asg_ref()
         .root(S1)
-        .edges_filtered::<Pkg>(&asg)
+        .edges_filtered::<Pkg>(ctx.asg_ref())
         .next()
         .expect("missing rooted package");
 
-    asg.lookup(oi_pkg, name)
+    ctx.env_scope_lookup(oi_pkg, name)
 }
 
 pub fn pkg_expect_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
-    asg: &Asg,
+    ctx: &<AirAggregate as ParseState>::Context,
     name: SPair,
 ) -> ObjectIndex<O> {
     // Duplicates logic of `pkg_get_ident_oi`,
     //   but in doing so,
     //   provides better assertion messages.
-    pkg_lookup(asg, name)
+    pkg_lookup(ctx, name)
         .expect(&format!("missing ident: `{name}`"))
-        .edges(asg)
+        .edges(ctx.asg_ref())
         .next()
         .expect(&format!("missing definition for ident `{name}`"))
         .narrow()
@@ -687,8 +718,8 @@ pub fn pkg_expect_ident_oi<O: ObjectRelatable + ObjectRelFrom<Ident>>(
 }
 
 pub fn pkg_expect_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
-    asg: &Asg,
+    ctx: &<AirAggregate as ParseState>::Context,
     name: SPair,
 ) -> &O {
-    pkg_expect_ident_oi(asg, name).resolve(asg)
+    pkg_expect_ident_oi(ctx, name).resolve(ctx.asg_ref())
 }

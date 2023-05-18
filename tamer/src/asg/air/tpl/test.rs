@@ -22,17 +22,15 @@ use crate::asg::{
     air::{
         expr::test::collect_subexprs,
         test::{
-            asg_from_pkg_body_toks, parse_as_pkg_body, pkg_expect_ident_obj,
-            pkg_expect_ident_oi, pkg_lookup,
+            air_ctx_from_pkg_body_toks, air_ctx_from_toks, parse_as_pkg_body,
+            pkg_expect_ident_obj, pkg_expect_ident_oi, pkg_lookup,
         },
-        Air, AirAggregate,
+        Air,
     },
     graph::object::{Doc, Meta, ObjectRel},
     Expr, ExprOp, Ident,
 };
 use crate::span::dummy::*;
-
-type Sut = AirAggregate;
 
 // A template is defined by the package containing it,
 //   like an expression.
@@ -50,14 +48,13 @@ fn tpl_defining_pkg() {
         Air::PkgEnd(S5),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-    assert!(sut.all(|x| x.is_ok()));
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = air_ctx_from_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let tpl = pkg_expect_ident_obj::<Tpl>(&asg, id_tpl);
+    let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S2.merge(S4).unwrap(), tpl.span());
 
-    let oi_id_tpl = pkg_lookup(&asg, id_tpl).unwrap();
+    let oi_id_tpl = pkg_lookup(&ctx, id_tpl).unwrap();
     assert_eq!(
         S1.merge(S5),
         oi_id_tpl.src_pkg(&asg).map(|pkg| pkg.resolve(&asg).span()),
@@ -85,11 +82,9 @@ fn tpl_after_expr() {
         Air::PkgEnd(S8),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-    assert!(sut.all(|x| x.is_ok()));
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = air_ctx_from_toks(toks);
 
-    let tpl = pkg_expect_ident_obj::<Tpl>(&asg, id_tpl);
+    let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S5.merge(S7).unwrap(), tpl.span());
 }
 
@@ -133,18 +128,17 @@ fn tpl_within_expr() {
         Air::PkgEnd(S12),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-    assert!(sut.all(|x| x.is_ok()));
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = air_ctx_from_toks(toks);
+    let asg = ctx.asg_ref();
 
     // The inner template.
-    let tpl = pkg_expect_ident_obj::<Tpl>(&asg, id_tpl);
+    let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S6.merge(S8).unwrap(), tpl.span());
 
     // The expression that was produced on the graph ought to be equivalent
     //   to the expression without the template being present at all
     //     (noting that the spans are of course not adjusted).
-    let oi_expr = pkg_expect_ident_oi::<Expr>(&asg, id_expr);
+    let oi_expr = pkg_expect_ident_oi::<Expr>(&ctx, id_expr);
     let expr = oi_expr.resolve(&asg);
     assert_eq!(S2.merge(S11).unwrap(), expr.span());
     assert_eq!(
@@ -187,16 +181,17 @@ fn tpl_apply_within_expr() {
         Air::ExprEnd(S10),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
     // The inner template.
-    let tpl = pkg_expect_ident_obj::<Tpl>(&asg, id_tpl);
+    let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S4.merge(S6).unwrap(), tpl.span());
 
     // The expression that was produced on the graph ought to be equivalent
     //   to the expression without the template being present at all,
     //     but retaining the _application_.
-    let oi_expr = pkg_expect_ident_oi::<Expr>(&asg, id_expr);
+    let oi_expr = pkg_expect_ident_oi::<Expr>(&ctx, id_expr);
     let expr = oi_expr.resolve(&asg);
     assert_eq!(S2.merge(S10).unwrap(), expr.span());
     assert_eq!(
@@ -262,9 +257,10 @@ fn tpl_with_reachable_expression() {
         Air::TplEnd(S9),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
     let tpl = oi_tpl.resolve(&asg);
     assert_eq!(S1.merge(S9).unwrap(), tpl.span());
 
@@ -293,19 +289,19 @@ fn tpl_with_reachable_expression() {
     );
 
     // ...but not by the package containing the template.
-    let oi_pkg = pkg_lookup(&asg, id_tpl).unwrap().src_pkg(&asg).unwrap();
+    let oi_pkg = pkg_lookup(&ctx, id_tpl).unwrap().src_pkg(&asg).unwrap();
     assert_eq!(
         vec![
             // The only identifier on the package should be the template itself.
-            pkg_lookup(&asg, id_tpl).unwrap(),
+            pkg_lookup(&ctx, id_tpl).unwrap(),
         ],
         oi_pkg.edges_filtered::<Ident>(&asg).collect::<Vec<_>>()
     );
 
     // Verify the above claim that these are not cached in the global
     //   environment.
-    assert_eq!(None, pkg_lookup(&asg, id_expr_a));
-    assert_eq!(None, pkg_lookup(&asg, id_expr_b));
+    assert_eq!(None, pkg_lookup(&ctx, id_expr_a));
+    assert_eq!(None, pkg_lookup(&ctx, id_expr_b));
 }
 
 // Templates can expand into many contexts,
@@ -332,8 +328,10 @@ fn tpl_holds_dangling_expressions() {
         Air::TplEnd(S7),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
-    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
 
     assert_eq!(
         vec![S5.merge(S6).unwrap(), S3.merge(S4).unwrap(),],
@@ -430,10 +428,10 @@ fn unreachable_anonymous_tpl() {
         sut.by_ref().collect::<Vec<_>>(),
     );
 
-    let asg = sut.finalize().unwrap().into_context();
+    let ctx = sut.finalize().unwrap().into_private_context();
 
     // Let's make sure that the template created after recovery succeeded.
-    pkg_expect_ident_obj::<Tpl>(&asg, id_ok);
+    pkg_expect_ident_obj::<Tpl>(&ctx, id_ok);
 }
 
 // Normally we cannot reference objects without an identifier using AIR
@@ -483,8 +481,10 @@ fn tpl_with_param() {
         Air::TplEnd(S10),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
-    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
 
     // The template should have an edge to each identifier for each
     //   metavariable.
@@ -524,13 +524,14 @@ fn tpl_nested() {
         Air::TplEnd(S6),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
     // The outer template should be defined globally,
     //   but not the inner,
     //   since it hasn't been expanded yet.
-    let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl_outer);
-    assert_eq!(None, pkg_lookup(&asg, id_tpl_inner));
+    let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl_outer);
+    assert_eq!(None, pkg_lookup(&ctx, id_tpl_inner));
     assert_eq!(S1.merge(S6).unwrap(), oi_tpl_outer.resolve(&asg).span());
 
     // The identifier for the inner template should be local to the outer
@@ -567,9 +568,10 @@ fn tpl_apply_nested() {
         Air::TplEnd(S5),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl_outer);
+    let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl_outer);
     assert_eq!(S1.merge(S5).unwrap(), oi_tpl_outer.resolve(&asg).span());
 
     // The inner template,
@@ -616,14 +618,15 @@ fn tpl_apply_nested_missing() {
         Air::TplEnd(S12),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl_outer);
+    let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl_outer);
     assert_eq!(S1.merge(S12).unwrap(), oi_tpl_outer.resolve(&asg).span());
 
     // The inner template should be contained within the outer and so not
     //   globally resolvable.
-    assert!(pkg_lookup(&asg, id_tpl_inner).is_none());
+    assert!(pkg_lookup(&ctx, id_tpl_inner).is_none());
 
     // But it is accessible as a local on the outer template.
     let oi_tpl_inner = oi_tpl_outer
@@ -668,9 +671,10 @@ fn tpl_doc_short_desc() {
         Air::TplEnd(S4),
     ];
 
-    let asg = asg_from_pkg_body_toks(toks);
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
 
-    let oi_expr = pkg_expect_ident_oi::<Tpl>(&asg, id_tpl);
+    let oi_expr = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
     let oi_docs = oi_expr
         .edges_filtered::<Doc>(&asg)
         .map(ObjectIndex::cresolve(&asg));
