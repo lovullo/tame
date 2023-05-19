@@ -26,16 +26,13 @@ use self::object::{
     ObjectRelatable, Root,
 };
 
-use super::{air::EnvScopeKind, AsgError, Object, ObjectIndex, ObjectKind};
+use super::{AsgError, Object, ObjectIndex, ObjectKind};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     f::Functor,
     global,
-    parse::{util::SPair, Token},
     span::Span,
-    sym::SymbolId,
 };
-use fxhash::FxHashMap;
 use petgraph::{
     graph::{DiGraph, Graph, NodeIndex},
     visit::EdgeRef,
@@ -86,52 +83,14 @@ type Ix = global::ProgSymSize;
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
+#[derive(Debug)]
 pub struct Asg {
     /// Directed graph on which objects are stored.
     graph: DiGraph<Node, AsgEdge, Ix>,
 
-    /// Environment cache of [`SymbolId`][crate::sym::SymbolId] to
-    ///   [`ObjectIndex`]es.
-    ///
-    /// This maps a `(SymbolId, NodeIndex)` pair to a node on the graph for
-    ///   a given [`ObjectRelTy`].
-    /// _This indexing is not automatic_;
-    ///   it must be explicitly performed using [`Self::index`].
-    ///
-    /// This index serves as a shortcut for finding nodes on a graph,
-    ///   _but makes no claims about the structure of the graph_.
-    ///
-    /// This allows for `O(1)` lookup of identifiers in the graph relative
-    ///   to a given node.
-    /// Note that,
-    ///   while we store [`NodeIndex`] internally,
-    ///   the public API encapsulates it within an [`ObjectIndex`].
-    index: FxHashMap<
-        (ObjectRelTy, SymbolId, ObjectIndex<Object>),
-        EnvScopeKind<ObjectIndex<Object>>,
-    >,
-
     /// The root node used for reachability analysis and topological
     ///   sorting.
     root_node: NodeIndex<Ix>,
-}
-
-impl Debug for Asg {
-    /// Trimmed-down Asg [`Debug`] output.
-    ///
-    /// This primarily hides the large `self.index` that takes up so much
-    ///   space in parser traces,
-    ///     but also hides irrelevant information.
-    ///
-    /// The better option in the future may be to create a newtype for
-    ///   `index` if it sticks around in its current form,
-    ///     which in turn can encapsulate `self.empty_node`.
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("Asg")
-            .field("root_node", &self.root_node)
-            .field("graph", &self.graph)
-            .finish_non_exhaustive()
-    }
 }
 
 impl Default for Asg {
@@ -161,19 +120,13 @@ impl Asg {
     ///     edge to another object.
     pub fn with_capacity(objects: usize, edges: usize) -> Self {
         let mut graph = Graph::with_capacity(objects, edges);
-        let index =
-            FxHashMap::with_capacity_and_hasher(objects, Default::default());
 
         // Automatically add the root which will be used to determine what
         //   identifiers ought to be retained by the final program.
         // This is not indexed and is not accessable by name.
         let root_node = graph.add_node(Object::Root(Root).into());
 
-        Self {
-            graph,
-            index,
-            root_node,
-        }
+        Self { graph, root_node }
     }
 
     /// Get the underlying Graph
@@ -188,87 +141,6 @@ impl Asg {
     ///     but that may not always be the case.
     fn object_count(&self) -> usize {
         self.graph.node_count()
-    }
-
-    pub(super) fn try_index<
-        O: ObjectRelatable,
-        OS: ObjectIndexRelTo<O>,
-        S: Into<SymbolId>,
-    >(
-        &mut self,
-        imm_env: OS,
-        name: S,
-        eoi: EnvScopeKind<ObjectIndex<O>>,
-    ) -> Result<(), ObjectIndex<O>> {
-        let sym = name.into();
-        let prev = self.index.insert(
-            (O::rel_ty(), sym, imm_env.widen()),
-            eoi.map(ObjectIndex::widen),
-        );
-
-        match prev {
-            None => Ok(()),
-            Some(eoi) => Err(eoi.into_inner().must_narrow_into::<O>()),
-        }
-    }
-
-    /// Index the provided symbol `name` as representing the
-    ///   [`ObjectIndex`] in the immediate environment `imm_env`.
-    ///
-    /// An index does not require the existence of an edge,
-    ///   but an index may only be created if an edge `imm_env->oi` _could_
-    ///   be constructed.
-    ///
-    /// This index permits `O(1)` object lookups.
-    /// The term "immediate environment" is meant to convey that this index
-    ///   applies only to the provided `imm_env` node and does not
-    ///   propagate to any other objects that share this environment.
-    ///
-    /// After an object is indexed it is not expected to be re-indexed
-    ///   to another node.
-    /// Debug builds contain an assertion that will panic in this instance.
-    pub(super) fn index<
-        O: ObjectRelatable,
-        OS: ObjectIndexRelTo<O>,
-        S: Into<SymbolId>,
-    >(
-        &mut self,
-        imm_env: OS,
-        name: S,
-        eoi: EnvScopeKind<ObjectIndex<O>>,
-    ) {
-        let sym = name.into();
-        let prev = self.try_index(imm_env, sym, eoi);
-
-        // We should never overwrite indexes
-        #[allow(unused_variables)] // used only for debug
-        #[allow(unused_imports)]
-        if let Err(prev_oi) = prev {
-            use crate::fmt::{DisplayWrapper, TtQuote};
-            crate::debug_diagnostic_panic!(
-                vec![
-                    imm_env.widen().note("at this scope boundary"),
-                    prev_oi.note("previously indexed identifier was here"),
-                    eoi.internal_error(
-                        "this identifier has already been indexed at the above scope boundary"
-                    ),
-                    eoi.help(
-                        "this is a bug in the system responsible for analyzing \
-                            identifier scope;"
-                    ),
-                    eoi.help(
-                        "  you can try to work around it by duplicating the definition of "
-                    ),
-                    eoi.help(
-                        format!(
-                            "  {} as a _new_ identifier with a different name.",
-                            TtQuote::wrap(sym),
-                        )
-                    ),
-                ],
-                "re-indexing of identifier at scope boundary",
-            );
-        }
     }
 
     /// Root object.
@@ -478,47 +350,6 @@ impl Asg {
             );
 
         obj_container.get()
-    }
-
-    /// Attempt to retrieve an identifier from the graph by name relative to
-    ///   the immediate environment `imm_env`.
-    ///
-    /// Since only identifiers carry a name,
-    ///   this method cannot be used to retrieve all possible objects on the
-    ///   graph---for
-    ///     that, see [`Asg::get`].
-    #[inline]
-    pub fn lookup<O: ObjectRelatable>(
-        &self,
-        imm_env: impl ObjectIndexRelTo<O>,
-        id: SPair,
-    ) -> Option<ObjectIndex<O>> {
-        self.lookup_raw(imm_env, id)
-            .and_then(EnvScopeKind::in_scope)
-            .map(EnvScopeKind::into_inner)
-    }
-
-    /// Attempt to retrieve an identifier and its scope information from the
-    ///   graph by name relative to the immediate environment `imm_env`.
-    ///
-    /// See [`Self::lookup`] for more information.
-    #[inline]
-    pub(super) fn lookup_raw<O: ObjectRelatable>(
-        &self,
-        imm_env: impl ObjectIndexRelTo<O>,
-        id: SPair,
-    ) -> Option<EnvScopeKind<ObjectIndex<O>>> {
-        // The type `O` is encoded into the index on [`Self::index`] and so
-        //   should always be able to be narrowed into the expected type.
-        // If this invariant somehow does not hold,
-        //   then the system will panic when the object is resolved.
-        // Maybe future Rust will have dependent types that allow for better
-        //   static assurances.
-        self.index
-            .get(&(O::rel_ty(), id.symbol(), imm_env.widen()))
-            .map(|&eoi| {
-                eoi.map(|oi| oi.overwrite(id.span()).must_narrow_into::<O>())
-            })
     }
 }
 

@@ -36,7 +36,10 @@
 //!     air such cringeworthy dad jokes here.
 
 use super::{
-    graph::object::{Object, ObjectIndexTo, ObjectIndexToTree, Pkg, Root, Tpl},
+    graph::object::{
+        Object, ObjectIndexRelTo, ObjectIndexTo, ObjectIndexToTree,
+        ObjectRelTy, ObjectRelatable, Pkg, Root, Tpl,
+    },
     Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
@@ -48,11 +51,9 @@ use crate::{
 };
 use std::fmt::{Debug, Display};
 
-#[cfg(test)]
-use super::{graph::object::ObjectRelatable, ObjectIndexRelTo};
-
 #[macro_use]
 mod ir;
+use fxhash::FxHashMap;
 pub use ir::Air;
 
 mod expr;
@@ -430,7 +431,20 @@ pub struct AirAggregateCtx {
     /// This is not necessarily the current compilation unit,
     ///   as the parser may be parsing imports.
     ooi_pkg: Option<ObjectIndex<Pkg>>,
+
+    /// Cache of object scope at a given environment.
+    ///
+    // TODO: FxHashMap is used for other parts of TAMER,
+    //   but here it's really used primarily for bucketing,
+    //   so it may be worth profiling compared to alternatives.
+    index: ScopeIndex,
 }
+
+/// Object scope index at a given environment.
+type ScopeIndex = FxHashMap<
+    (ObjectRelTy, SymbolId, ObjectIndex<Object>),
+    EnvScopeKind<ObjectIndex<Object>>,
+>;
 
 /// Limit of the maximum number of held parser frames.
 ///
@@ -534,6 +548,83 @@ impl AirAggregateCtx {
         })
     }
 
+    fn try_index<
+        O: ObjectRelatable,
+        OS: ObjectIndexRelTo<O>,
+        S: Into<SymbolId>,
+    >(
+        index: &mut ScopeIndex,
+        imm_env: OS,
+        name: S,
+        eoi: EnvScopeKind<ObjectIndex<O>>,
+    ) -> Result<(), ObjectIndex<O>> {
+        let sym = name.into();
+        let prev = index.insert(
+            (O::rel_ty(), sym, imm_env.widen()),
+            eoi.map(ObjectIndex::widen),
+        );
+
+        match prev {
+            None => Ok(()),
+            Some(eoi) => Err(eoi.into_inner().must_narrow_into::<O>()),
+        }
+    }
+
+    /// Index the provided symbol `name` as representing the
+    ///   [`ObjectIndex`] in the immediate environment `imm_env`.
+    ///
+    /// An index does not require the existence of an edge,
+    ///   but an index may only be created if an edge `imm_env->oi` _could_
+    ///   be constructed.
+    ///
+    /// This index permits `O(1)` object lookups.
+    /// The term "immediate environment" is meant to convey that this index
+    ///   applies only to the provided `imm_env` node and does not
+    ///   propagate to any other objects that share this environment.
+    ///
+    /// After an object is indexed it is not expected to be re-indexed
+    ///   to another node.
+    /// Debug builds contain an assertion that will panic in this instance.
+    fn index<O: ObjectRelatable, OS: ObjectIndexRelTo<O>, S: Into<SymbolId>>(
+        index: &mut ScopeIndex,
+        imm_env: OS,
+        name: S,
+        eoi: EnvScopeKind<ObjectIndex<O>>,
+    ) {
+        let sym = name.into();
+        let prev = Self::try_index(index, imm_env, sym, eoi);
+
+        // We should never overwrite indexes
+        #[allow(unused_variables)] // used only for debug
+        #[allow(unused_imports)]
+        if let Err(prev_oi) = prev {
+            use crate::fmt::{DisplayWrapper, TtQuote};
+            crate::debug_diagnostic_panic!(
+                vec![
+                    imm_env.widen().note("at this scope boundary"),
+                    prev_oi.note("previously indexed identifier was here"),
+                    eoi.internal_error(
+                        "this identifier has already been indexed at the above scope boundary"
+                    ),
+                    eoi.help(
+                        "this is a bug in the system responsible for analyzing \
+                            identifier scope;"
+                    ),
+                    eoi.help(
+                        "  you can try to work around it by duplicating the definition of "
+                    ),
+                    eoi.help(
+                        format!(
+                            "  {} as a _new_ identifier with a different name.",
+                            TtQuote::wrap(sym),
+                        )
+                    ),
+                ],
+                "re-indexing of identifier at scope boundary",
+            );
+        }
+    }
+
     /// Create a new rooted package of the given canonical name and record
     ///   it as the active package.
     ///
@@ -546,26 +637,24 @@ impl AirAggregateCtx {
         start: Span,
         name: SPair,
     ) -> Result<ObjectIndex<Pkg>, AsgError> {
-        let Self {
-            asg, ooi_pkg: pkg, ..
-        } = self;
-
-        let oi_root = asg.root(start);
-        let oi_pkg = asg.create(Pkg::new_canonical(start, name)?);
+        let oi_root = self.asg.root(start);
+        let oi_pkg = self.asg.create(Pkg::new_canonical(start, name)?);
         let eoi_pkg = EnvScopeKind::Visible(oi_pkg);
 
-        asg.try_index(oi_root, name, eoi_pkg).map_err(|oi_prev| {
-            let prev = oi_prev.resolve(asg);
+        Self::try_index(&mut self.index, oi_root, name, eoi_pkg).map_err(
+            |oi_prev| {
+                let prev = oi_prev.resolve(&self.asg);
 
-            // unwrap note: a canonical name must exist for this error to
-            //   have been thrown,
-            //     but this will at least not blow up if something really
-            //     odd happens.
-            AsgError::PkgRedeclare(prev.canonical_name(), name)
-        })?;
+                // unwrap note: a canonical name must exist for this error to
+                //   have been thrown,
+                //     but this will at least not blow up if something really
+                //     odd happens.
+                AsgError::PkgRedeclare(prev.canonical_name(), name)
+            },
+        )?;
 
-        oi_pkg.root(asg);
-        pkg.replace(oi_pkg);
+        oi_pkg.root(&mut self.asg);
+        self.ooi_pkg.replace(oi_pkg);
 
         Ok(oi_pkg)
     }
@@ -681,7 +770,7 @@ impl AirAggregateCtx {
         env: impl ObjectIndexRelTo<O>,
         name: SPair,
     ) -> Option<EnvScopeKind<ObjectIndex<O>>> {
-        self.asg_ref().lookup_raw(env, name)
+        self.lookup_raw(env, name)
     }
 
     /// Resolve an identifier at the scope of the provided environment.
@@ -697,6 +786,47 @@ impl AirAggregateCtx {
         self.env_scope_lookup_raw(env, name)
             .and_then(EnvScopeKind::in_scope)
             .map(EnvScopeKind::into_inner)
+    }
+
+    /// Attempt to retrieve an identifier from the graph by name relative to
+    ///   the immediate environment `imm_env`.
+    ///
+    /// Since only identifiers carry a name,
+    ///   this method cannot be used to retrieve all possible objects on the
+    ///   graph---for
+    ///     that, see [`Asg::get`].
+    #[inline]
+    fn lookup<O: ObjectRelatable>(
+        &self,
+        imm_env: impl ObjectIndexRelTo<O>,
+        id: SPair,
+    ) -> Option<ObjectIndex<O>> {
+        self.lookup_raw(imm_env, id)
+            .and_then(EnvScopeKind::in_scope)
+            .map(EnvScopeKind::into_inner)
+    }
+
+    /// Attempt to retrieve an identifier and its scope information from the
+    ///   graph by name relative to the immediate environment `imm_env`.
+    ///
+    /// See [`Self::lookup`] for more information.
+    #[inline]
+    fn lookup_raw<O: ObjectRelatable>(
+        &self,
+        imm_env: impl ObjectIndexRelTo<O>,
+        id: SPair,
+    ) -> Option<EnvScopeKind<ObjectIndex<O>>> {
+        // The type `O` is encoded into the index on [`Self::index`] and so
+        //   should always be able to be narrowed into the expected type.
+        // If this invariant somehow does not hold,
+        //   then the system will panic when the object is resolved.
+        // Maybe future Rust will have dependent types that allow for better
+        //   static assurances.
+        self.index
+            .get(&(O::rel_ty(), id.symbol(), imm_env.widen()))
+            .map(|&eoi| {
+                eoi.map(|oi| oi.overwrite(id.span()).must_narrow_into::<O>())
+            })
     }
 
     /// Attempt to locate a lexically scoped identifier in the current stack,
@@ -725,12 +855,10 @@ impl AirAggregateCtx {
     /// To retrieve the span of a previously declared object,
     ///   you must resolve the [`ObjectIndex`] and inspect it.
     fn lookup_lexical_or_missing(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let Self { asg, stack, .. } = self;
-
-        stack
+        self.stack
             .iter()
             .filter_map(|st| st.active_env_oi())
-            .find_map(|oi| asg.lookup(oi, name))
+            .find_map(|oi| self.lookup(oi, name))
             .unwrap_or_else(|| self.create_env_indexed_ident(name))
     }
 
@@ -738,10 +866,9 @@ impl AirAggregateCtx {
     ///
     /// TODO: More information as this is formalized.
     fn create_env_indexed_ident(&mut self, name: SPair) -> ObjectIndex<Ident> {
-        let Self { asg, stack, .. } = self;
-        let oi_ident = asg.create(Ident::declare(name));
+        let oi_ident = self.asg.create(Ident::declare(name));
 
-        stack
+        self.stack
             .iter()
             .rev()
             .filter_map(|frame| frame.active_env_oi().map(|oi| (oi, frame)))
@@ -755,7 +882,7 @@ impl AirAggregateCtx {
                     // There is no use in indexing something that will be
                     //   filtered out on retrieval.
                     EnvScopeKind::Hidden(_) => (),
-                    _ => asg.index(imm_oi, name, eoi_next),
+                    _ => Self::index(&mut self.index, imm_oi, name, eoi_next),
                 }
 
                 Some(eoi_next)

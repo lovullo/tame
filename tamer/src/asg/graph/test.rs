@@ -18,7 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::span::dummy::*;
+use crate::{parse::util::SPair, span::dummy::*};
 use object::Ident;
 use std::convert::Infallible;
 
@@ -33,7 +33,6 @@ fn create_with_capacity() {
     let (nc, ec) = sut.graph.capacity();
     assert!(nc >= node_capacity);
     assert!(ec >= edge_capacity);
-    assert!(sut.index.capacity() >= node_capacity);
 }
 
 #[test]
