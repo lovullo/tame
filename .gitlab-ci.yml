@@ -20,7 +20,7 @@ build:
         - export SAXON_CP=/usr/share/ant/lib/saxon9/saxon9he.jar
         - export HOXSL=hoxsl
         - ./bootstrap
-        - make all check info pdf html
+        - make clean all check info pdf html
     artifacts:
         paths:
             - doc/
