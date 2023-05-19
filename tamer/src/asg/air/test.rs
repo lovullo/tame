@@ -380,7 +380,7 @@ fn pkg_is_rooted() {
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
 
-    let asg = sut.finalize().unwrap().into_context();
+    let asg = sut.finalize().unwrap().into_context().finish();
 
     let oi_root = asg.root(S3);
     let pkg = oi_root
@@ -570,7 +570,7 @@ fn pkg_import_canonicalized_against_current_pkg() {
     let mut sut = Sut::parse(toks.into_iter());
     assert!(sut.all(|x| x.is_ok()));
 
-    let asg = sut.finalize().unwrap().into_context();
+    let asg = sut.finalize().unwrap().into_context().finish();
 
     let import = asg
         .root(S1)
@@ -621,6 +621,97 @@ fn pkg_doc() {
     );
 }
 
+// Package imports will trigger parsing,
+//   but the intent is to re-use the previous parsing context so that we can
+//   continue to accumulate into the same graph along with the same scope
+//   index.
+#[test]
+fn resume_previous_parsing_context() {
+    let name_foo = SPair("foo".into(), S2);
+    let name_bar = SPair("bar".into(), S5);
+    let name_baz = SPair("baz".into(), S6);
+    let kind = IdentKind::Tpl;
+    let src = Source::default();
+
+    // We're going to test with opaque objects as if we are the linker.
+    // This is the first parse.
+    #[rustfmt::skip]
+    let toks = vec![
+        // The first package will reference an identifier from another
+        //   package.
+        PkgStart(S1, SPair("/pkg-a".into(), S1)),
+          IdentDep(name_foo, name_bar),
+        PkgEnd(S3),
+    ];
+
+    let ctx = air_ctx_from_toks(toks);
+
+    // We consumed the parser above and retrieved its context.
+    // This is the token stream for the second parser,
+    //   which will re-use the above context.
+    #[rustfmt::skip]
+    let toks = vec![
+        // This package will define that identifier,
+        //   which should also find the identifier having been placed into
+        //   the global environment.
+        PkgStart(S4, SPair("/pkg-b".into(), S4)),
+          IdentDecl(name_bar, kind.clone(), src.clone()),
+
+          // This is a third identifier that is unique to this package.
+          // This is intended to catch the following situation,
+          //   where `P` is the ParseState and `S` is the stack.
+          //
+          //   1. P:Uninit  S:[]
+          //   2. P:Root    S:[]
+          //   3. P:Pkg     S:[Root]
+          //   ---- next parser ---
+          //   4. P:Uninit  S:[Root]
+          //   5. P:Root    S:[Root]         <-- new Root
+          //   6. P:Pkg     S:[Root, Root]
+          //                     ^     ^
+          //                      `-----\
+          //                          Would try to index at oi_root
+          //                          _twice_, which would panic.
+          //
+          // AirAggregate is designed to resume from the top of the stack
+          //   when initializing to avoid this scenario.
+          // So here's what it's expected to do instead:
+          //
+          //  [...]
+          //   ---- next parser ---
+          //   4. P:Uninit  S:[Root]
+          //   5. P:Root    S:[]             <-- pop existing Root
+          //   6. P:Pkg     S:[Root]
+          IdentDecl(name_baz, kind.clone(), src),
+        PkgEnd(S7),
+    ];
+
+    // We _resume_ parsing with the previous context.
+    let mut sut = Sut::parse_with_context(toks.into_iter(), ctx);
+    assert!(sut.all(|x| x.is_ok()));
+
+    // The ASG should have been constructed from _both_ of the previous
+    //   individual parsers,
+    //     having used the shared context.
+    let ctx = sut.finalize().unwrap().into_private_context();
+
+    // Both should have been added to the same graph.
+    let oi_foo = root_lookup(&ctx, name_foo).expect("missing foo");
+    let oi_bar = root_lookup(&ctx, name_bar).expect("missing bar");
+
+    assert!(oi_foo.has_edge_to(ctx.asg_ref(), oi_bar));
+
+    // And it should have been resolved via the _second_ package,
+    //   which is parsed separately,
+    //   as part of the same graph and with the same indexed identifiers.
+    // If there were not a shared index between the two parsers,
+    //   then it would have retained an original `Missing` Ident and created
+    //   a new resolved one.
+    assert_eq!(Some(&kind), oi_bar.resolve(ctx.asg_ref()).kind());
+}
+
+/////// Tests above; plumbing begins below ///////
+
 /// Parse using [`Sut`] when the test does not care about the outer package.
 pub fn parse_as_pkg_body<I: IntoIterator<Item = Air>>(
     toks: I,
@@ -644,7 +735,7 @@ where
     I::IntoIter: Debug,
 {
     // Equivalent to `into_{private_=>}context` in this function.
-    air_ctx_from_pkg_body_toks(toks).into()
+    air_ctx_from_pkg_body_toks(toks).finish()
 }
 
 pub(super) fn air_ctx_from_pkg_body_toks<I: IntoIterator<Item = Air>>(
@@ -664,7 +755,7 @@ where
     I::IntoIter: Debug,
 {
     // Equivalent to `into_{private_=>}context` in this function.
-    air_ctx_from_toks(toks).into()
+    air_ctx_from_toks(toks).finish()
 }
 
 /// Create and yield a new [`Asg`] from an [`Air`] token stream.

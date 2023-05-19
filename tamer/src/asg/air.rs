@@ -158,11 +158,6 @@ impl ParseState for AirAggregate {
     type Error = AsgError;
     type Context = AirAggregateCtx;
 
-    /// Destination [`Asg`] that this parser lowers into.
-    ///
-    /// This ASG will be yielded by [`crate::parse::Parser::finalize`].
-    type PubContext = Asg;
-
     fn parse_token(
         self,
         tok: Self::Token,
@@ -172,12 +167,15 @@ impl ParseState for AirAggregate {
         use AirAggregate::*;
 
         match (self, tok.into()) {
-            // Initialize the parser with the graph root.
-            // The graph may contain multiple roots in the future to support
-            //   cross-version analysis.
-            (Uninit, tok) => Transition(Root(ctx.asg_mut().root(tok.span())))
-                .incomplete()
-                .with_lookahead(tok),
+            // Initialize the parser with the graph root,
+            //   or continue with a previous context that has already been
+            //   initialized.
+            // See `asg::air::test::resume_previous_parsing_context` for an
+            //   explanation of why this is important.
+            (Uninit, tok) => {
+                let oi_root = ctx.asg_ref().root(tok.span());
+                ctx.stack().continue_or_init(|| Root(oi_root), tok)
+            }
 
             (st, AirTodo(Todo(_))) => Transition(st).incomplete(),
 
@@ -765,6 +763,15 @@ impl AirAggregateCtx {
 
         oi_ident
     }
+
+    /// Consume the context and yield the inner [`Asg`].
+    ///
+    /// This indicates that all package parsing has been completed and that
+    ///   the ASG contains complete information about the program sources
+    ///   for the requested compilation unit.
+    pub fn finish(self) -> Asg {
+        self.asg
+    }
 }
 
 /// Property of identifier scope within a given environment.
@@ -898,12 +905,6 @@ impl AsMut<Asg> for AirAggregateCtx {
 impl AsMut<AirStack> for AirAggregateCtx {
     fn as_mut(&mut self) -> &mut AirStack {
         &mut self.stack
-    }
-}
-
-impl From<AirAggregateCtx> for Asg {
-    fn from(ctx: AirAggregateCtx) -> Self {
-        ctx.asg
     }
 }
 

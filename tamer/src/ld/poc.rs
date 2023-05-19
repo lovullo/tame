@@ -27,8 +27,8 @@ use super::xmle::{
 };
 use crate::{
     asg::{
-        air::{Air, AirAggregate},
-        Asg, AsgError, DefaultAsg,
+        air::{Air, AirAggregate, AirAggregateCtx},
+        AsgError, DefaultAsg,
     },
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
@@ -67,10 +67,10 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
     let mut fs = VisitOnceFilesystem::new();
     let escaper = DefaultEscaper::default();
 
-    let (depgraph, state) = load_xmlo(
+    let (air_ctx, state) = load_xmlo(
         package_path,
         &mut fs,
-        LinkerAsg::with_capacity(65536, 65536),
+        LinkerAsg::with_capacity(65536, 65536).into(),
         &escaper,
         XmloAirContext::default(),
     )?;
@@ -81,7 +81,8 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
         ..
     } = state;
 
-    let sorted = sort(&depgraph, Sections::new())?;
+    let asg = air_ctx.finish();
+    let sorted = sort(&asg, Sections::new())?;
 
     output_xmle(
         sorted,
@@ -97,14 +98,14 @@ pub fn xmle(package_path: &str, output: &str) -> Result<(), TameldError> {
 fn load_xmlo<P: AsRef<Path>, S: Escaper>(
     path_str: P,
     fs: &mut VisitOnceFilesystem<FsCanonicalizer, FxBuildHasher>,
-    asg: Asg,
+    air_ctx: AirAggregateCtx,
     escaper: &S,
     state: XmloAirContext,
-) -> Result<(Asg, XmloAirContext), TameldError> {
+) -> Result<(AirAggregateCtx, XmloAirContext), TameldError> {
     let PathFile(path, file, ctx): PathFile<BufReader<fs::File>> =
         match fs.open(path_str)? {
             VisitOnceFile::FirstVisit(file) => file,
-            VisitOnceFile::Visited => return Ok((asg, state)),
+            VisitOnceFile::Visited => return Ok((air_ctx, state)),
         };
 
     let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx))
@@ -112,7 +113,7 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
 
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
-    let (mut asg, mut state) = Lower::<
+    let (mut air_ctx, mut state) = Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
         PartialXirToXirf<4, Text>,
         _,
@@ -131,10 +132,10 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
                 &mut iter,
                 state,
                 |air| {
-                    let (_, asg) =
+                    let (_, air_ctx) =
                             Lower::<XmloToAir, AirAggregate, _>::lower_with_context(
                                 air,
-                                asg,
+                                air_ctx,
                                 |end| {
                                     for result in end {
                                         let _ = result?;
@@ -144,7 +145,7 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
                                 },
                             )?;
 
-                    Ok::<_, TameldError>(asg)
+                    Ok::<_, TameldError>(air_ctx)
                 },
             )
         })
@@ -160,10 +161,10 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
         path_buf.push(relpath.lookup_str());
         path_buf.set_extension("xmlo");
 
-        (asg, state) = load_xmlo(path_buf, fs, asg, escaper, state)?;
+        (air_ctx, state) = load_xmlo(path_buf, fs, air_ctx, escaper, state)?;
     }
 
-    Ok((asg, state))
+    Ok((air_ctx, state))
 }
 
 fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(

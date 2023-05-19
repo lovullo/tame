@@ -40,7 +40,7 @@ use std::{
 };
 use tamer::{
     asg::{
-        air::{Air, AirAggregate},
+        air::{Air, AirAggregate, AirAggregateCtx},
         AsgError, DefaultAsg,
     },
     diagnose::{
@@ -156,9 +156,9 @@ fn compile<R: Reporter>(
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
-    let asg = DefaultAsg::with_capacity(1024, 2048);
+    let air_ctx: AirAggregateCtx = DefaultAsg::with_capacity(1024, 2048).into();
 
-    let (_, asg) = Lower::<
+    let (_, air_ctx) = Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
         XirToXirf<64, RefinedText>,
         _,
@@ -169,7 +169,7 @@ fn compile<R: Reporter>(
                     Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
                         Lower::<NirToAir, AirAggregate, _>::lower_with_context(
                             air,
-                            asg,
+                            air_ctx,
                             |end| {
                                 end.fold(Ok(()), |x, result| match result {
                                     Ok(_) => x,
@@ -190,11 +190,12 @@ fn compile<R: Reporter>(
         false => {
             #[cfg(feature = "wip-asg-derived-xmli")]
             {
+                let asg = air_ctx.finish();
                 derive_xmli(asg, fout, &escaper)
             }
             #[cfg(not(feature = "wip-asg-derived-xmli"))]
             {
-                let _ = asg; // unused_variables
+                let _ = air_ctx; // unused_variables
                 Ok(())
             }
         }

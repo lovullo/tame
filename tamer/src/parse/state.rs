@@ -718,6 +718,9 @@ impl<S: ClosedParseState, const MAX_DEPTH: usize> StateStack<S, MAX_DEPTH> {
     /// If there is no state to return to on the stack,
     ///   then it is assumed that we have received more input than expected
     ///   after having completed a full parse.
+    ///
+    /// If a missing state is _not_ an error condition,
+    ///   see [`Self::continue_or_init`] instead.
     pub fn ret_or_dead(
         &mut self,
         deadst: S,
@@ -726,13 +729,35 @@ impl<S: ClosedParseState, const MAX_DEPTH: usize> StateStack<S, MAX_DEPTH> {
         let Self(stack) = self;
 
         // This should certainly never happen unless there is a bug in the
-        //   `ele_parse!` parser-generator,
+        //   parser,
         //     since it means that we're trying to return to a caller that
         //     does not exist.
         match stack.pop() {
             Some(st) => Transition(st).incomplete().with_lookahead(lookahead),
             None => Transition(deadst).dead(lookahead),
         }
+    }
+
+    /// Attempt to resume a computation atop of the stack,
+    ///   or initialize with a new [`ParseState`] if the stack is empty.
+    ///
+    /// This can be thought of like invoking a stored continuation,
+    ///   as if with `call-with-current-continuation` in Scheme.
+    /// It is fully the responsibility of the caller to ensure that all
+    ///   necessary state is captured or is otherwise able to be restored in
+    ///   such a way that the computation can be resumed.
+    ///
+    /// If a missing state is an error condition,
+    ///   see [`Self::ret_or_dead`] instead.
+    pub fn continue_or_init(
+        &mut self,
+        init: impl FnOnce() -> S,
+        lookahead: impl Token + Into<S::Token>,
+    ) -> TransitionResult<S> {
+        let Self(stack) = self;
+
+        let st = stack.pop().unwrap_or_else(init);
+        Transition(st).incomplete().with_lookahead(lookahead)
     }
 
     /// Iterate through each [`ClosedParseState`] held on the stack.

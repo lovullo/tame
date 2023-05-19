@@ -67,7 +67,7 @@ where
     let mut parser = AirAggregate::parse(toks.into_iter());
     assert!(parser.all(|x| x.is_ok()));
 
-    let asg = &parser.finalize().unwrap().into_context();
+    let asg = &parser.finalize().unwrap().into_context().finish();
     let oi_root = asg.root(UNKNOWN_SPAN);
 
     topo_report_only(
@@ -261,7 +261,7 @@ fn omits_unreachable() {
     let mut parser = AirAggregate::parse(toks.into_iter());
     assert!(parser.all(|x| x.is_ok()));
 
-    let asg = &parser.finalize().unwrap().into_context();
+    let asg = &parser.finalize().unwrap().into_context().finish();
 
     let oi_pkg = asg
         .root(UNKNOWN_SPAN)

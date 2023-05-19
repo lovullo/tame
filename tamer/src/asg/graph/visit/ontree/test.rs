@@ -45,7 +45,7 @@ where
     let mut parser = AirAggregate::parse(toks.into_iter());
     assert!(parser.all(|x| x.is_ok()));
 
-    let asg = &parser.finalize().unwrap().into_context();
+    let asg = &parser.finalize().unwrap().into_context().finish();
 
     tree_reconstruction(asg)
         .map(|TreeWalkRel(rel, depth)| {
