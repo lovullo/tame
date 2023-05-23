@@ -24,7 +24,7 @@
 //!   have historically been a feature of the template system.
 //! The canonical metavariable is the template parameter.
 
-use super::{prelude::*, Ident, Tpl};
+use super::{prelude::*, Ident};
 use crate::{
     diagnose::Annotate,
     diagnostic_todo,
@@ -137,17 +137,6 @@ object_rel! {
 }
 
 impl ObjectIndex<Meta> {
-    pub fn identify_as_tpl_param(
-        &self,
-        asg: &mut Asg,
-        oi_tpl: ObjectIndex<Tpl>,
-        name: SPair,
-    ) -> ObjectIndex<Ident> {
-        oi_tpl
-            .declare_local(asg, name)
-            .add_edge_to(asg, *self, None)
-    }
-
     pub fn assign_lexeme(self, asg: &mut Asg, lexeme: SPair) -> Self {
         self.map_obj(asg, |meta| meta.assign_lexeme(lexeme))
     }

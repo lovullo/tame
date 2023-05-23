@@ -28,7 +28,6 @@ use super::{
 use crate::{
     asg::{graph::object::Tpl, Asg},
     f::Functor,
-    parse::util::SPair,
     span::Span,
 };
 use std::{fmt::Display, marker::PhantomData};
@@ -870,7 +869,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     fn lookup_local_linear(
         &self,
         asg: &Asg,
-        name: SPair,
+        name: crate::parse::util::SPair,
     ) -> Option<ObjectIndex<Ident>>
     where
         Self: ObjectIndexRelTo<Ident>,
@@ -878,21 +877,6 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         // Rust fails to infer OB with `self.edges_rel_to` as of 2023-03
         ObjectIndexRelTo::<Ident>::edges_rel_to(self, asg)
             .find(|oi| oi.resolve(asg).name().symbol() == name.symbol())
-    }
-
-    /// Declare a local identifier.
-    ///
-    /// A local identifier is lexically scoped to `self`.
-    /// This operation is valid only for [`ObjectKind`]s that can contain
-    ///   edges to [`Ident`]s.
-    ///
-    /// TODO: This allows for duplicate local identifiers!
-    fn declare_local(&self, asg: &mut Asg, name: SPair) -> ObjectIndex<Ident>
-    where
-        Self: ObjectIndexRelTo<Ident>,
-    {
-        asg.create(Ident::declare(name))
-            .add_edge_from(asg, *self, None)
     }
 }
 

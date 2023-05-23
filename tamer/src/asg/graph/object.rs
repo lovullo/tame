@@ -800,25 +800,6 @@ impl<O: ObjectKind> ObjectIndex<O> {
         ObjectIndexRelTo::lookup_local_linear(self, asg, name)
     }
 
-    /// Declare a local identifier.
-    ///
-    /// See [`ObjectIndexRelTo::declare_local`].
-    //
-    // TODO: This method exists here only as a fallback when Rust is unable
-    //     to infer the proper type for [`ObjectIndexRelTo`].
-    //   It can be removed once that is resolved;
-    //     delete this method and compile to see.
-    pub fn declare_local(
-        &self,
-        asg: &mut Asg,
-        name: SPair,
-    ) -> ObjectIndex<Ident>
-    where
-        O: ObjectRelTo<Ident>,
-    {
-        ObjectIndexRelTo::declare_local(self, asg, name)
-    }
-
     /// Retrieve the identifier for this object,
     ///   if any.
     ///
