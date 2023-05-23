@@ -83,7 +83,6 @@ type Ix = global::ProgSymSize;
 ///
 /// For more information,
 ///   see the [module-level documentation][self].
-#[derive(Debug)]
 pub struct Asg {
     /// Directed graph on which objects are stored.
     graph: DiGraph<Node, AsgEdge, Ix>,
@@ -96,6 +95,27 @@ pub struct Asg {
 impl Default for Asg {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Debug for Asg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The ASG provides far too much information even on modestly size
+        //   tests,
+        //     letalone real-world graphs with tens to hundreds of thousands
+        //     of nodes and edges.
+        // Outputting the graph also brings Parser trace generation to a
+        //   crawl,
+        //     making tracing  half-useless.
+        // So this provides a simple summary.
+        // If we need a graph representation,
+        //   a visualization or ability to query it is far more appropriate.
+        write!(
+            f,
+            "[ASG: {} objects, {} edges]",
+            self.object_count(),
+            self.graph.edge_count(),
+        )
     }
 }
 

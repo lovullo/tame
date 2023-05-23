@@ -450,7 +450,7 @@ impl AirAggregate {
 
 /// Additional parser context,
 ///   including the ASG and parser stack frames.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct AirAggregateCtx {
     /// The ASG under construction by this parser.
     ///
@@ -476,6 +476,19 @@ pub struct AirAggregateCtx {
     //   but here it's really used primarily for bucketing,
     //   so it may be worth profiling compared to alternatives.
     index: ScopeIndex,
+}
+
+impl Debug for AirAggregateCtx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The index provides far too much information to be useful,
+        //   and slows down Parser trace generation.
+        f.debug_struct("AirAggregateCtx")
+            .field("asg", &self.asg)
+            .field("stack", &self.stack)
+            .field("ooi_pkg", &self.ooi_pkg)
+            .field("index.len()", &self.index.len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// Object scope index at a given environment.
