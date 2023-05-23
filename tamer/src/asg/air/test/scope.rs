@@ -186,9 +186,9 @@ test_scopes! {
                 // ENV: 2 tpl                  //      |  :
                 BindIdent(tpl_outer),          //      |v :v
                                                //      |  :
-                TplMetaStart(S4),              //      |  :
+                MetaStart(S4),                 //      |  :
                   BindIdent(meta_outer),       //    vl|s :
-                TplMetaEnd(S6),                //      |  :
+                MetaEnd(S6),                   //      |  :
                                                //      |  :
                 ExprStart(ExprOp::Sum, S7),    //      |  :
                   BindIdent(expr_outer),       //    vd|s :
@@ -198,9 +198,9 @@ test_scopes! {
                   // ENV: 3 tpl                //   |  |  :
                   BindIdent(tpl_inner),        //   |v |s :
                                                //   |  |  :
-                  TplMetaStart(S12),           //   |  |  :
+                  MetaStart(S12),              //   |  |  :
                     BindIdent(meta_inner),     // vl|s |s :
-                  TplMetaEnd(S14),             //   |  |  :
+                  MetaEnd(S14),                //   |  |  :
                                                //  3| 2| 1: 0
                   ExprStart(ExprOp::Sum, S15), //   |  |  :
                     BindIdent(expr_inner),     // vd|s |s :
@@ -355,18 +355,18 @@ test_scopes! {
                 // ENV: 2 tpl                  //    |  :
                 BindIdent(tpl_outer),          //    |~ :
                                                //    |  :
-                TplMetaStart(S4),              //    |  :
+                MetaStart(S4),                 //    |  :
                   BindIdent(meta_same_a),      //  vl|s :   <--.
-                TplMetaEnd(S6),                //    |  :      |
+                MetaEnd(S6),                   //    |  :      |
               TplEnd(S7),                      //----'  :      |
                                                //       :      |s
               TplStart(S8),                    //----.  :      |a
                 // ENV: 3 tpl                  //    |  :      |m
                 BindIdent(tpl_inner),          //    |~ :      |e
                                                //    |  :      |
-                TplMetaStart(S10),             //    |  :      |
+                MetaStart(S10),                //    |  :      |
                   BindIdent(meta_same_b),      //  vl|s :   <--'
-                TplMetaEnd(S12),               //    |  :
+                MetaEnd(S12),                  //    |  :
               TplEnd(S13),                     //----'  :    ~ = ignored for
             PkgEnd(S14),                       //- - - -'        these tests
         ]

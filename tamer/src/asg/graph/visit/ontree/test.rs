@@ -214,10 +214,10 @@ fn traverses_ontological_tree_tpl_apply() {
           TplStart(S5),
             RefIdent(ref_tpl),
 
-            TplMetaStart(S7),
+            MetaStart(S7),
               BindIdent(id_param),
-              TplLexeme(value_param),
-            TplMetaEnd(S10),
+              MetaLexeme(value_param),
+            MetaEnd(S10),
           TplEndRef(S11),  // notice the `Ref` at the end
         PkgEnd(S12),
     ];

@@ -225,13 +225,13 @@ impl ParseState for NirToAir {
             }
 
             (Ready, Open(TplParam, span)) => {
-                Transition(Meta(span)).ok(Air::TplMetaStart(span))
+                Transition(Meta(span)).ok(Air::MetaStart(span))
             }
             (Meta(mspan), Text(lexeme)) => {
-                Transition(Meta(mspan)).ok(Air::TplLexeme(lexeme))
+                Transition(Meta(mspan)).ok(Air::MetaLexeme(lexeme))
             }
             (Ready | Meta(_), Close(TplParam, span)) => {
-                Transition(Ready).ok(Air::TplMetaEnd(span))
+                Transition(Ready).ok(Air::MetaEnd(span))
             }
             // Some of these will be permitted in the future.
             (

@@ -634,7 +634,7 @@ sum_ir! {
         ///
         /// Templates serve as containers for objects that reference
         ///   metasyntactic variables,
-        ///     defined by [`AirMeta::TplMetaStart`].
+        ///     defined by [`AirMeta::MetaStart`].
         ///
         /// Template Application
         /// ====================
@@ -652,7 +652,7 @@ sum_ir! {
         ///   (via [`Air::TplStart`])
         ///   and let β be the inner template.
         /// All free metavariables in β that contain default values in α
-        ///   (via [`Air::TplMetaStart`])
+        ///   (via [`Air::MetaStart`])
         ///   corresponding to the same [`Ident`] will be _bound_ to
         ///   that value.
         /// The body of the inner template β will be expanded into the
@@ -738,13 +738,13 @@ sum_ir! {
             /// Begin a metavariable definition.
             ///
             /// A metavariable is anonymous unless identified via
-            ///   [`AirBind::BindIdent`] before [`Self::TplMetaEnd`].
+            ///   [`AirBind::BindIdent`] before [`Self::MetaEnd`].
             ///
             /// Metavariables may contain default values,
             ///   making their specification during application optional.
             /// A metavariable may contain an ordered mixture of references
             ///   to another metavariables via [`AirBind::RefIdent`] and
-            ///   literals via [`Self::TplLexeme`].
+            ///   literals via [`Self::MetaLexeme`].
             /// Once all metavariable references have been satisfied during
             ///   application,
             ///     all children will be combined into a single lexeme to
@@ -752,7 +752,7 @@ sum_ir! {
             ///
             /// The interpretation of a metavariable depends solely on the
             ///   context in which it is referenced.
-            TplMetaStart(span: Span) => {
+            MetaStart(span: Span) => {
                 span: span,
                 display: |f| write!(
                     f,
@@ -762,15 +762,15 @@ sum_ir! {
 
             /// A lexeme to be interpreted in the context of a template
             ///   expansion.
-            TplLexeme(lex: SPair) => {
+            MetaLexeme(lex: SPair) => {
                 span: lex,
                 display: |f| write!(f, "lexeme {}", TtQuote::wrap(lex)),
             },
 
             /// Complete a metavariable definition.
             ///
-            /// See [`Self::TplMetaStart`] for more information.
-            TplMetaEnd(span: Span) => {
+            /// See [`Self::MetaStart`] for more information.
+            MetaEnd(span: Span) => {
                 span: span,
                 display: |f| write!(
                     f,

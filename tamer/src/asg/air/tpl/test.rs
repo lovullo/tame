@@ -469,15 +469,15 @@ fn tpl_with_param() {
           Air::BindIdent(id_tpl),
 
           // Metavariable with a value.
-          Air::TplMetaStart(S3),
+          Air::MetaStart(S3),
             Air::BindIdent(id_param1),
-            Air::TplLexeme(pval1),
-          Air::TplMetaEnd(S6),
+            Air::MetaLexeme(pval1),
+          Air::MetaEnd(S6),
 
           // Required metavariable (no value).
-          Air::TplMetaStart(S7),
+          Air::MetaStart(S7),
             Air::BindIdent(id_param2),
-          Air::TplMetaEnd(S9),
+          Air::MetaEnd(S9),
         Air::TplEnd(S10),
     ];
 

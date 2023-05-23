@@ -69,16 +69,16 @@ impl ParseState for AirMetaAggregate {
         use AirMetaAggregate::*;
 
         match (self, tok) {
-            (Ready, AirMeta(TplMetaStart(span))) => {
+            (Ready, AirMeta(MetaStart(span))) => {
                 let oi_meta = ctx.asg_mut().create(Meta::new_required(span));
                 Transition(TplMeta(oi_meta)).incomplete()
             }
-            (TplMeta(oi_meta), AirMeta(TplMetaEnd(cspan))) => {
+            (TplMeta(oi_meta), AirMeta(MetaEnd(cspan))) => {
                 oi_meta.close(ctx.asg_mut(), cspan);
                 Transition(Ready).incomplete()
             }
 
-            (TplMeta(oi_meta), AirMeta(TplLexeme(lexeme))) => Transition(
+            (TplMeta(oi_meta), AirMeta(MetaLexeme(lexeme))) => Transition(
                 TplMeta(oi_meta.assign_lexeme(ctx.asg_mut(), lexeme)),
             )
             .incomplete(),
@@ -98,21 +98,21 @@ impl ParseState for AirMetaAggregate {
                 )
             }
 
-            (TplMeta(..), tok @ AirMeta(TplMetaStart(..))) => {
+            (TplMeta(..), tok @ AirMeta(MetaStart(..))) => {
                 diagnostic_todo!(
                     vec![tok.note("this token")],
                     "AirMeta variant"
                 )
             }
 
-            (Ready, tok @ AirMeta(TplMetaEnd(..))) => {
+            (Ready, tok @ AirMeta(MetaEnd(..))) => {
                 diagnostic_todo!(
                     vec![tok.note("this token")],
                     "unbalanced meta"
                 )
             }
 
-            (Ready, tok @ AirMeta(TplLexeme(..))) => {
+            (Ready, tok @ AirMeta(MetaLexeme(..))) => {
                 diagnostic_todo!(
                     vec![tok.note("this token")],
                     "unexpected lexeme"
