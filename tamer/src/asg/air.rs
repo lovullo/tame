@@ -25,15 +25,6 @@
 //! It allows parsers to operate as a raw stream of data without having to
 //!   worry about ownership of or references to the ASG,
 //!     and allows for multiple such parsers to be joined.
-//!
-//! AIR is _not_ intended to replace the API of the ASG---it
-//!   is intended as a termination point for the parsing pipeline,
-//!     and as such implements a subset of the ASG's API that is suitable
-//!     for aggregating raw data from source and object files.
-//! Given that it does so little and is so close to the [`Asg`] API,
-//!   one might say that the abstraction is as light as air,
-//!   but that would surely result in face-palming and so we're not going
-//!     air such cringeworthy dad jokes here.
 
 use super::{
     graph::object::{
