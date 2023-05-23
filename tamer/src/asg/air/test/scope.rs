@@ -51,7 +51,6 @@ use crate::{
         visit::{tree_reconstruction, TreeWalkRel},
         ExprOp,
     },
-    fmt::{DisplayWrapper, TtQuote},
     span::UNKNOWN_SPAN,
 };
 use std::iter::once;
@@ -67,7 +66,10 @@ fn m(a: Span, b: Span) -> Span {
 /// Assert that the scope of the identifier named `name` is that of the
 ///   provided environment list `expected`.
 ///
-/// This macro allows us to ignore the type and value of `$kind`.
+/// The inner value of `$kind` is the span of the identifier that is
+///   expected to have been indexed at that environment.
+/// This distinction comes into play for local identifiers that may have
+///   overlapping shadows.
 macro_rules! test_scopes {
     (
         setup { $($setup:tt)* }
@@ -75,7 +77,7 @@ macro_rules! test_scopes {
 
         #[test]
         $name:ident == [
-            $( ($obj:ident, $span:expr, $kind:ident), )*
+            $( ($obj:ident, $span:expr, $kind:expr), )*
         ];
 
         $( $rest:tt )*
@@ -87,7 +89,7 @@ macro_rules! test_scopes {
 
             let given = derive_scopes_from_asg(&ctx, $name);
             let expected = [
-                $( (ObjectTy::$obj, $span, $kind(())), )*
+                $( (ObjectTy::$obj, $span, $kind), )*
             ];
 
             // Collection allows us to see the entire expected and given
@@ -145,20 +147,20 @@ test_scopes! {
     outer == [
         // The identifier is not local,
         //   and so its scope should extend into the global environment.
-        (Root, S0, Visible),
+        (Root, S0,       Visible(S3)),
 
         // Expr does not introduce a new environment,
         //   and so the innermost environment in which we should be able to
         //   find the identifier is the Pkg.
-        (Pkg, m(S1, S8), Visible),
+        (Pkg, m(S1, S8), Visible(S3)),
     ];
 
     #[test]
     inner == [
         // Same as above since the environment is the same;
         //   `Expr` does not introduce a new environment.
-        (Root, S0, Visible),
-        (Pkg, m(S1, S8), Visible),
+        (Root, S0,       Visible(S5)),
+        (Pkg, m(S1, S8), Visible(S5)),
     ];
 }
 
@@ -219,10 +221,10 @@ test_scopes! {
     tpl_outer == [
         // The template is defined at the package level,
         //   and so is incorporated into the global environment.
-        (Root, S0, Visible),
+        (Root, S0,        Visible(S3)),
 
         // Definition environment.
-        (Pkg, m(S1, S20), Visible),
+        (Pkg, m(S1, S20), Visible(S3)),
     ];
 
     #[test]
@@ -284,8 +286,8 @@ test_scopes! {
         // And if the situation changes from the second to the first because
         //   of the introduction of an import or a duplicate identifier,
         //     we want to help the user at the earliest possible moment.
-        (Pkg, m(S1, S20), Shadow),
-        (Tpl, m(S2, S19), Visible),
+        (Pkg, m(S1, S20), Shadow (S8)),
+        (Tpl, m(S2, S19), Visible(S8)),
     ];
 
     #[test]
@@ -298,8 +300,8 @@ test_scopes! {
         //       template can be resolved unambiguously in ways that are
         //       helpful to the user
         //         (see `expr_outer` above for more information).
-        (Pkg, m(S1, S20), Shadow),
-        (Tpl, m(S2, S19), Visible),
+        (Pkg, m(S1, S20), Shadow (S11)),
+        (Tpl, m(S2, S19), Visible(S11)),
     ];
 
     #[test]
@@ -319,9 +321,9 @@ test_scopes! {
         // Note the intended consequence of this:
         //   if `tpl_outer` contains an identifier,
         //     it cannot be shadowed by `tpl_inner`.
-        (Pkg, m(S1, S20), Shadow),
-        (Tpl, m(S2, S19), Shadow),
-        (Tpl, m(S10, S18), Visible),
+        (Pkg, m(S1,  S20), Shadow (S16)),
+        (Tpl, m(S2,  S19), Shadow (S16)),
+        (Tpl, m(S10, S18), Visible(S16)),
     ];
 }
 
@@ -360,14 +362,14 @@ test_scopes! {
 
     #[test]
     opaque_a == [
-        (Root, S0, Visible),
-        (Pkg, m(S1, S3), Visible),
+        (Root, S0,        Visible(S2)),
+        (Pkg,  m(S1, S3), Visible(S2)),
     ];
 
     #[test]
     opaque_b == [
-        (Root, S0, Visible),
-        (Pkg, m(S4, S6), Visible),
+        (Root, S0,        Visible(S5)),
+        (Pkg,  m(S4, S6), Visible(S5)),
     ];
 }
 
@@ -389,16 +391,7 @@ test_scopes! {
 fn derive_scopes_from_asg<'a>(
     ctx: &'a <AirAggregate as ParseState>::Context,
     name: SPair,
-) -> impl Iterator<Item = (ObjectTy, Span, EnvScopeKind<()>)> + 'a {
-    // We are interested only in identifiers for scoping,
-    //   not the objects that they point to.
-    // We will use the span of the identifier that we locate via index
-    //   lookups to determine whether we've found the right one.
-    // This relies on the tests using unique spans for each object on the
-    //   graph,
-    //     which is standard convention for TAMER's tests.
-    let expected_span = name.span();
-
+) -> impl Iterator<Item = (ObjectTy, Span, EnvScopeKind<Span>)> + 'a {
     // We use what was most convenient at the time of writing to gather
     //   environments representing the scope of `name`.
     // This is not the most efficient,
@@ -438,16 +431,11 @@ fn derive_scopes_from_asg<'a>(
     once((ObjectTy::Root, S0, ctx.env_scope_lookup_raw(oi_root, name)))
         .chain(given_without_root)
         .filter_map(|(ty, span, oeoi)| {
-            oeoi.map(|eoi| (ty, span, eoi.map(ObjectIndex::cresolve(ctx.asg_ref()))))
+            oeoi.map(|eoi| {
+                (ty, span, eoi.map(ObjectIndex::cresolve(ctx.asg_ref())))
+            })
         })
-        .inspect(move |(ty, span, eid)| assert_eq!(
-            expected_span,
-            eid.as_ref().span(),
-            "expected {wname} span {expected_span} at {ty}:{span}, but found {given}",
-            wname = TtQuote::wrap(name),
-            given = eid.as_ref().span(),
-        ))
         // We discard the inner ObjectIndex since it is not relevant for the
         //   test assertion.
-        .map(|(ty, span, eid)| (ty, span, eid.map(|_| ())))
+        .map(|(ty, span, eid)| (ty, span, eid.map(|id| id.span())))
 }
