@@ -128,10 +128,10 @@ impl Functor<Span> for Meta {
 }
 
 object_rel! {
-    /// Templates may expand into nearly any context,
-    ///   and must therefore be able to contain just about anything.
+    /// Metavariables contain lexical data and references to other
+    ///   metavariables.
     Meta -> {
-        tree  Meta,
+        tree  Meta,   // TODO: do we need tree?
         cross Ident,
     }
 }

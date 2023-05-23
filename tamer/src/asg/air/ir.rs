@@ -634,7 +634,7 @@ sum_ir! {
         ///
         /// Templates serve as containers for objects that reference
         ///   metasyntactic variables,
-        ///     defined by [`AirTpl::TplMetaStart`].
+        ///     defined by [`AirMeta::TplMetaStart`].
         ///
         /// Template Application
         /// ====================
@@ -693,6 +693,48 @@ sum_ir! {
                 display: |f| write!(f, "open template"),
             },
 
+            /// Complete the active [`Tpl`] and exit template parsing.
+            ///
+            /// The expression stack will be restored to its prior state.
+            ///
+            /// If the template is anonymous,
+            ///   then this will result in an error,
+            ///   since nothing will be able to reference the template to
+            ///     utilize it.
+            /// See [`Self::TplEndRef`] if you wish to apply an anonymous
+            ///   template.
+            TplEnd(span: Span) => {
+                span: span,
+                display: |f| write!(f, "end template definition"),
+            },
+
+            /// Complete the active _closed_ [`Tpl`] just as [`Self::TplEnd`],
+            ///   but reference its value,
+            ///   with the effect of expanding it in place.
+            ///
+            /// If the active template is not closed,
+            ///   this will result in an error.
+            ///
+            /// This additional token is not ideal;
+            ///   ideally [`Air`] would have a means by which to manipulate
+            ///   anonymous objects.
+            /// However,
+            ///   until such a thing is derived,
+            ///   this is the only current use case,
+            ///     allowing us to avoid having to generate identifiers for
+            ///     templates just for the sake of expansion.
+            ///
+            /// If the active template is identified as τ,
+            ///   then this has the same behavior as first completing its
+            ///   definition with [`Self::TplEnd`] and then referencing τ as
+            ///   in [`Air::RefIdent(SPair(τ, …))`](Air::RefIdent).
+            TplEndRef(span: Span) => {
+                span: span,
+                display: |f| write!(f, "end template definition and expand it"),
+            },
+        }
+
+        enum AirMeta {
             /// Begin a metavariable definition.
             ///
             /// A metavariable is anonymous unless identified via
@@ -736,45 +778,6 @@ sum_ir! {
                 ),
             },
 
-            /// Complete the active [`Tpl`] and exit template parsing.
-            ///
-            /// The expression stack will be restored to its prior state.
-            ///
-            /// If the template is anonymous,
-            ///   then this will result in an error,
-            ///   since nothing will be able to reference the template to
-            ///     utilize it.
-            /// See [`Self::TplEndRef`] if you wish to apply an anonymous
-            ///   template.
-            TplEnd(span: Span) => {
-                span: span,
-                display: |f| write!(f, "end template definition"),
-            },
-
-            /// Complete the active _closed_ [`Tpl`] just as [`Self::TplEnd`],
-            ///   but reference its value,
-            ///   with the effect of expanding it in place.
-            ///
-            /// If the active template is not closed,
-            ///   this will result in an error.
-            ///
-            /// This additional token is not ideal;
-            ///   ideally [`Air`] would have a means by which to manipulate
-            ///   anonymous objects.
-            /// However,
-            ///   until such a thing is derived,
-            ///   this is the only current use case,
-            ///     allowing us to avoid having to generate identifiers for
-            ///     templates just for the sake of expansion.
-            ///
-            /// If the active template is identified as τ,
-            ///   then this has the same behavior as first completing its
-            ///   definition with [`Self::TplEnd`] and then referencing τ as
-            ///   in [`Air::RefIdent(SPair(τ, …))`](Air::RefIdent).
-            TplEndRef(span: Span) => {
-                span: span,
-                display: |f| write!(f, "end template definition and expand it"),
-            },
         }
 
         enum AirDoc {
@@ -840,6 +843,9 @@ sum_ir! {
 
     /// Tokens that may be used to define or apply templates.
     pub sum enum AirBindableTpl = AirTpl | AirBind | AirDoc;
+
+    /// Tokens that may be used to define metavariables.
+    pub sum enum AirBindableMeta = AirMeta | AirBind;
 }
 
 impl AirIdent {

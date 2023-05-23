@@ -44,12 +44,16 @@ use super::{
 };
 use crate::{
     diagnose::Annotate,
+    diagnostic_unreachable,
     f::Functor,
     parse::{prelude::*, StateStack},
     span::Span,
     sym::SymbolId,
 };
-use std::fmt::{Debug, Display};
+use std::{
+    collections::hash_map::Entry,
+    fmt::{Debug, Display},
+};
 
 #[macro_use]
 mod ir;
@@ -57,10 +61,12 @@ use fxhash::FxHashMap;
 pub use ir::Air;
 
 mod expr;
+mod meta;
 mod opaque;
 mod pkg;
 mod tpl;
 use expr::AirExprAggregate;
+use meta::AirMetaAggregate;
 use opaque::AirOpaqueAggregate;
 use pkg::AirPkgAggregate;
 use tpl::AirTplAggregate;
@@ -99,6 +105,9 @@ pub enum AirAggregate {
     /// See [`Air::TplStart`] for more information.
     PkgTpl(AirTplAggregate),
 
+    /// Parsing metavariables.
+    PkgMeta(AirMetaAggregate),
+
     /// Parsing opaque objects.
     ///
     /// This parser is intended for loading declarations from object files
@@ -122,6 +131,9 @@ impl Display for AirAggregate {
             PkgTpl(tpl) => {
                 write!(f, "building a template: {tpl}")
             }
+            PkgMeta(meta) => {
+                write!(f, "building metavariable: {meta}")
+            }
             PkgOpaque(opaque) => {
                 write!(f, "loading opaque objects: {opaque}")
             }
@@ -144,6 +156,12 @@ impl From<AirExprAggregate> for AirAggregate {
 impl From<AirTplAggregate> for AirAggregate {
     fn from(st: AirTplAggregate) -> Self {
         Self::PkgTpl(st)
+    }
+}
+
+impl From<AirMetaAggregate> for AirAggregate {
+    fn from(st: AirMetaAggregate) -> Self {
+        Self::PkgMeta(st)
     }
 }
 
@@ -188,7 +206,8 @@ impl ParseState for AirAggregate {
             //     frames off of the stack until reaching the still-active
             //     parent package frame.
             (
-                st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgOpaque(..)),
+                st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgMeta(..)
+                | PkgOpaque(..)),
                 tok @ AirPkg(..),
             ) => ctx.ret_or_transfer(st, tok, AirPkgAggregate::new()),
             (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
@@ -210,6 +229,16 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
+
+            // Metasyntactic variables (metavariables)
+            (st @ PkgTpl(_), tok @ AirMeta(..)) => {
+                ctx.ret_or_transfer(st, tok, AirMetaAggregate::new())
+            }
+            (PkgMeta(meta), AirMeta(mtok)) => ctx.proxy(meta, mtok),
+            (PkgMeta(meta), AirBind(mtok)) => ctx.proxy(meta, mtok),
+            (PkgMeta(meta), tok @ (AirExpr(..) | AirTpl(..) | AirDoc(..))) => {
+                ctx.try_ret_with_lookahead(meta, tok)
+            }
 
             // Opaque
             //
@@ -243,10 +272,21 @@ impl ParseState for AirAggregate {
 
             (
                 st @ Root(_),
-                tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirDoc(..)),
+                tok @ (AirExpr(..) | AirBind(..) | AirTpl(..) | AirMeta(..)
+                | AirDoc(..)),
             ) => Transition(st).err(AsgError::PkgExpected(tok.span())),
 
-            (st @ (Root(..) | PkgExpr(..) | PkgTpl(..)), AirIdent(tok)) => {
+            // TODO: We will need to be more intelligent about this,
+            //   since desugaring will produce metavariables in nested contexts,
+            //     e.g. within an expression within a template.
+            (st @ (Pkg(..) | PkgExpr(..) | PkgOpaque(..)), AirMeta(tok)) => {
+                Transition(st).err(AsgError::UnexpectedMeta(tok.span()))
+            }
+
+            (
+                st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgMeta(..)),
+                AirIdent(tok),
+            ) => {
                 Transition(st).err(AsgError::UnexpectedOpaqueIdent(tok.name()))
             }
         }
@@ -279,6 +319,7 @@ impl AirAggregate {
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
             PkgTpl(st) => st.is_accepting(ctx),
+            PkgMeta(st) => st.is_accepting(ctx),
             PkgOpaque(st) => st.is_accepting(ctx),
         }
     }
@@ -297,6 +338,7 @@ impl AirAggregate {
             Pkg(st) => st.is_accepting(ctx),
             PkgExpr(st) => st.is_accepting(ctx),
             PkgTpl(st) => st.is_accepting(ctx),
+            PkgMeta(st) => st.is_accepting(ctx),
             PkgOpaque(st) => st.is_accepting(ctx),
         }
     }
@@ -334,6 +376,10 @@ impl AirAggregate {
             // Templates must therefore serve as containers for identifiers
             //   bound therein.
             PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+
+            // Identifiers cannot be rooted within metavariables since they
+            //   contain only lexical information.
+            PkgMeta(_) => None,
 
             // Loading of opaque objects happens within the context of the
             //   parent frame.
@@ -386,10 +432,11 @@ impl AirAggregate {
             // Hidden is a fixpoint.
             (_, kind @ Hidden(_)) => kind,
 
-            // Expressions do not introduce their own environment
-            //   (they are not containers)
-            //   and so act as an identity function.
-            (PkgExpr(_), kind) => kind,
+            // Expressions and metavariables do not introduce their own
+            //   environment
+            //     (they are not containers)
+            //     and so act as an identity function.
+            (PkgExpr(_) | PkgMeta(_), kind) => kind,
 
             // A visible identifier will always cast a shadow in one step.
             // A shadow will always be cast (propagate) until the root.
@@ -532,6 +579,30 @@ impl AirAggregateCtx {
         }
     }
 
+    /// Attempt to return to the previous stack frame,
+    ///   using the provided token as a token of lookahead.
+    ///
+    /// If the provided `st` is in an accepting state,
+    ///   then control will return to the frame atop of the stack.
+    /// Otherwise,
+    ///   an unexpected token was found,
+    ///   and a dead state transition will be yielded,
+    ///     leaving `st` unchanged.
+    fn try_ret_with_lookahead<S: Into<AirAggregate>>(
+        &mut self,
+        st: S,
+        tok: impl Token + Into<Air>,
+    ) -> TransitionResult<AirAggregate> {
+        let st_super = st.into();
+
+        if st_super.active_is_complete(self) {
+            // TODO: error (this should never happen, so maybe panic instead?)
+            self.stack().ret_or_dead(AirAggregate::Uninit, tok)
+        } else {
+            Transition(st_super).dead(tok)
+        }
+    }
+
     /// Proxy `tok` to `st`,
     ///   returning to the state atop of the stack if parsing reaches a dead
     ///   state.
@@ -548,6 +619,17 @@ impl AirAggregateCtx {
         })
     }
 
+    /// Index the provided symbol `name` as representing the
+    ///   [`ObjectIndex`] in the immediate environment `imm_env`.
+    ///
+    /// Intersecting shadows are permitted,
+    ///   but the existing index will be kept in tact.
+    /// This behavior may change in the future to permit diagnostic messages
+    ///   that list _all_ identifiers in the event of a shadowing error.
+    ///
+    /// If indexing fails,
+    ///   the _existing_ [`ObjectIndex`] will be returned,
+    ///     leaving the caller to determine how to react.
     fn try_index<
         O: ObjectRelatable,
         OS: ObjectIndexRelTo<O>,
@@ -559,14 +641,38 @@ impl AirAggregateCtx {
         eoi: EnvScopeKind<ObjectIndex<O>>,
     ) -> Result<(), ObjectIndex<O>> {
         let sym = name.into();
-        let prev = index.insert(
-            (O::rel_ty(), sym, imm_env.widen()),
-            eoi.map(ObjectIndex::widen),
-        );
+        let ient = index.entry((O::rel_ty(), sym, imm_env.widen()));
 
-        match prev {
-            None => Ok(()),
-            Some(eoi) => Err(eoi.into_inner().must_narrow_into::<O>()),
+        use Entry::*;
+        use EnvScopeKind::*;
+
+        match (ient, eoi) {
+            (Vacant(_), Hidden(_)) => Ok(()),
+
+            (Vacant(ent), Shadow(_) | Visible(_)) => {
+                ent.insert(eoi.map(ObjectIndex::widen));
+                Ok(())
+            }
+
+            (Occupied(ent), eoi) => match (ent.get(), eoi) {
+                // This ought to be omitted from the index,
+                //   as shown above.
+                (Hidden(oi), _) => diagnostic_unreachable!(
+                    vec![oi.internal_error(
+                        "this should not have been indexed as Hidden"
+                    )],
+                    "unexpected Hidden scope index entry",
+                ),
+
+                (Visible(_), Hidden(_)) => Ok(()),
+
+                (Shadow(_), Hidden(_) | Shadow(_)) => Ok(()),
+
+                (Shadow(oi), Visible(_))
+                | (Visible(oi), Shadow(_) | Visible(_)) => {
+                    Err(oi.must_narrow_into::<O>())
+                }
+            },
         }
     }
 
@@ -717,6 +823,9 @@ impl AirAggregateCtx {
             //   considered to be dangling.
             PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
 
+            // No definitions can be made within metavariables.
+            PkgMeta(_) => None,
+
             // Expressions are transparent definitions,
             //   not opaque,
             //   and so not permitted in this context.
@@ -737,6 +846,11 @@ impl AirAggregateCtx {
             Pkg(pkg_st) => pkg_st.active_pkg_oi().map(Into::into),
             PkgExpr(exprst) => exprst.active_expr_oi().map(Into::into),
             PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+
+            // Metavariables do not historically support template
+            //   applications within their body.
+            // Support for such a feature can be evaluated in the future.
+            PkgMeta(_) => None,
 
             // Templates _could_ conceptually expand into opaque objects,
             //   but the source language of TAME provides no mechanism to do

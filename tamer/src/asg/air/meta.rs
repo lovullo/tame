@@ -1,0 +1,136 @@
+// ASG IR metavariable parsing
+//
+//  Copyright (C) 2014-2023 Ryan Specialty, LLC.
+//
+//  This file is part of TAME.
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+//! AIR metavariable parser.
+//!
+//! See the [parent module](super) for more information.
+
+use super::{
+    super::{AsgError, ObjectIndex},
+    ir::AirBindableMeta,
+    AirAggregate, AirAggregateCtx,
+};
+use crate::{
+    asg::graph::object::Meta, diagnose::Annotate, diagnostic_todo,
+    parse::prelude::*,
+};
+
+/// Metasyntactic variable (metavariable) parser.
+#[derive(Debug, PartialEq)]
+pub enum AirMetaAggregate {
+    /// Ready for the start of a metavariable.
+    Ready,
+
+    /// Defining a metavariable.
+    TplMeta(ObjectIndex<Meta>),
+}
+
+impl Display for AirMetaAggregate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use AirMetaAggregate::*;
+
+        match self {
+            Ready => write!(f, "ready for metavariable"),
+            TplMeta(_) => write!(f, "defining metavariable"),
+        }
+    }
+}
+
+impl ParseState for AirMetaAggregate {
+    type Token = AirBindableMeta;
+    type Object = ();
+    type Error = AsgError;
+    type Context = AirAggregateCtx;
+    type Super = AirAggregate;
+
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        ctx: &mut Self::Context,
+    ) -> TransitionResult<Self::Super> {
+        use super::ir::{AirBind::*, AirMeta::*};
+        use AirBindableMeta::*;
+        use AirMetaAggregate::*;
+
+        match (self, tok) {
+            (Ready, AirMeta(TplMetaStart(span))) => {
+                let oi_meta = ctx.asg_mut().create(Meta::new_required(span));
+                Transition(TplMeta(oi_meta)).incomplete()
+            }
+            (TplMeta(oi_meta), AirMeta(TplMetaEnd(cspan))) => {
+                oi_meta.close(ctx.asg_mut(), cspan);
+                Transition(Ready).incomplete()
+            }
+
+            (TplMeta(oi_meta), AirMeta(TplLexeme(lexeme))) => Transition(
+                TplMeta(oi_meta.assign_lexeme(ctx.asg_mut(), lexeme)),
+            )
+            .incomplete(),
+
+            (TplMeta(oi_meta), AirBind(BindIdent(name))) => ctx
+                .defines(name)
+                .and_then(|oi_ident| {
+                    oi_ident.bind_definition(ctx.asg_mut(), name, oi_meta)
+                })
+                .map(|_| ())
+                .transition(TplMeta(oi_meta)),
+
+            (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "AirBind in metavar context (param-value)"
+                )
+            }
+
+            (TplMeta(..), tok @ AirMeta(TplMetaStart(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "AirMeta variant"
+                )
+            }
+
+            (Ready, tok @ AirMeta(TplMetaEnd(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "unbalanced meta"
+                )
+            }
+
+            (Ready, tok @ AirMeta(TplLexeme(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "unexpected lexeme"
+                )
+            }
+
+            // Maybe the bind can be handled by the parent frame.
+            (Ready, tok @ AirBind(..)) => Transition(Ready).dead(tok),
+        }
+    }
+
+    fn is_accepting(&self, _: &Self::Context) -> bool {
+        matches!(self, Self::Ready)
+    }
+}
+
+impl AirMetaAggregate {
+    pub(super) fn new() -> Self {
+        Self::Ready
+    }
+}

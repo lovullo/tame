@@ -239,8 +239,8 @@ test_scopes! {
         // Root never contains shadow records since it is not part of a
         //   hierarchy,
         //     so it is omitted from the metavariable's scope.
-        // TODO: (Pkg, m(S1, S20), Shadow),
-        // TODO: (Tpl, m(S2, S19), Visible),
+        (Pkg, m(S1, S20), Shadow (S5)),
+        (Tpl, m(S2, S19), Visible(S5)),
     ];
 
     #[test]
@@ -310,9 +310,9 @@ test_scopes! {
         //   we need to cast a shadow all the way up to the package level to
         //   ensure that we do not permit identifier shadowing.
         // See `meta_outer` above for more information.
-        // TODO: (Pkg, m(S1, S20), Shadow),
-        // TODO: (Tpl, m(S2, S19), Shadow),
-        // TODO: (Tpl, m(S10, S18), Visible),
+        (Pkg, m(S1,  S20), Shadow (S13)),
+        (Tpl, m(S2,  S19), Shadow (S13)),
+        (Tpl, m(S10, S18), Visible(S13)),
     ];
 
     #[test]
@@ -324,6 +324,109 @@ test_scopes! {
         (Pkg, m(S1,  S20), Shadow (S16)),
         (Tpl, m(S2,  S19), Shadow (S16)),
         (Tpl, m(S10, S18), Visible(S16)),
+    ];
+}
+
+test_scopes! {
+    setup {
+        let pkg_name = SPair("/pkg".into(), S1);
+
+        let tpl_outer = SPair("_tpl-outer_".into(), S3);
+        let tpl_inner = SPair("_tpl-inner_".into(), S9);
+
+        // Note how these have the _same name_.
+        let meta_name = "@param@".into();
+        let meta_same_a = SPair(meta_name, S5);
+        let meta_same_b = SPair(meta_name, S11);
+
+        // This one will be used for asserting.
+        let meta_same = SPair(meta_name, S11);
+    }
+
+    air {
+        // Note that,
+        //   unlike the above set of tests,
+        //   these templates are _siblings_.
+        [
+            // ENV: 0 global          lexical scoping boundaries (envs)
+            PkgStart(S1, pkg_name),            //- - - -.
+              // ENV: 1 pkg                    //       :
+              TplStart(S2),                    //----.  :
+                // ENV: 2 tpl                  //    |  :
+                BindIdent(tpl_outer),          //    |~ :
+                                               //    |  :
+                TplMetaStart(S4),              //    |  :
+                  BindIdent(meta_same_a),      //  vl|s :   <--.
+                TplMetaEnd(S6),                //    |  :      |
+              TplEnd(S7),                      //----'  :      |
+                                               //       :      |s
+              TplStart(S8),                    //----.  :      |a
+                // ENV: 3 tpl                  //    |  :      |m
+                BindIdent(tpl_inner),          //    |~ :      |e
+                                               //    |  :      |
+                TplMetaStart(S10),             //    |  :      |
+                  BindIdent(meta_same_b),      //  vl|s :   <--'
+                TplMetaEnd(S12),               //    |  :
+              TplEnd(S13),                     //----'  :    ~ = ignored for
+            PkgEnd(S14),                       //- - - -'        these tests
+        ]
+    }
+
+    // Detailed information on metavariables is present in previous tests.
+    // We focus here only on the fact that these definitions were permitted
+    //   to occur since identifiers of the same name have overlapping
+    //   shadows.
+
+    // Keep in mind that this test is a filtering of an ontological tree,
+    //   so this is ordered as such and does not contain duplicate objects.
+    #[test]
+    meta_same == [
+        // A shadow is cast by both `meta_same_a` and `meta_same_b`.
+        // When they intersect,
+        //   we must make a choice:
+        //
+        //   (a) Index both of them; or
+        //   (b) Keep only one of them.
+        //
+        // At the time of writing,
+        //   the choice was (b).
+        // But by keeping only one identifier indexed,
+        //   we do lose information and therefore will only be able to
+        //     present one diagnostic error in the event that we later
+        //     discover that the metavariables shadow another identifier
+        //     that is visible in scope.
+        // This would present only one error at a time to the user,
+        //   depending on how they chose to resolve it,
+        //   and so is not ideal;
+        //     the solution may eventually move to (a) to retain this
+        //     important information.
+        //
+        // Since (b) was chosen,
+        //   which do we keep?
+        // This choice is not important,
+        //   since in the event of a future error we'll still be providing
+        //     correct
+        //       (albeit incomplete)
+        //       information to the user,
+        //   but it is defined by implementation details,
+        //     and so is subject to change.
+        // At the time of writing,
+        //   because of how indexing is carried out,
+        //   we retain the shadow of the _first_ encountered identifier.
+        (Pkg, m(S1, S14), Shadow (S5 )),
+
+        // The first identifier of this name is found in the first
+        //   template.
+        // Its shadow is discussed above.
+        (Tpl, m(S2, S7),  Visible(S5 )),
+
+        // And the second identifier in the second template,
+        //   with its shadow also discussed above.
+        // As noted atop this test,
+        //   we do not have duplicate objects in this test data,
+        //   and so the `Pkg` object above is not duplicated despite two
+        //   shadows being cast.
+        (Tpl, m(S8, S13), Visible(S11)),
     ];
 }
 

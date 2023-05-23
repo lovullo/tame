@@ -151,6 +151,12 @@ pub enum AsgError {
 
     /// An opaque identifier was declared in an invalid context.
     UnexpectedOpaqueIdent(SPair),
+
+    /// A metavariable is being defined in an invalid context.
+    ///
+    /// The provided [`Span`] indicates the location of the start of the
+    ///   metavariable definition.
+    UnexpectedMeta(Span),
 }
 
 impl Display for AsgError {
@@ -210,9 +216,12 @@ impl Display for AsgError {
             UnexpectedOpaqueIdent(name) => {
                 write!(
                     f,
-                    "opaque identifier {} declaration",
+                    "unexpected opaque identifier {} declaration",
                     TtQuote::wrap(name)
                 )
+            }
+            UnexpectedMeta(_) => {
+                write!(f, "unexpected metavariable definition")
             }
         }
     }
@@ -375,6 +384,12 @@ impl Diagnostic for AsgError {
             UnexpectedOpaqueIdent(name) => vec![name.error(
                 "an opaque identifier declaration was not expected here",
             )],
+            UnexpectedMeta(span) => {
+                vec![
+                    span.error("this metavariable cannot occur here"),
+                    span.help("metavariables are expected to occur in a template context"),
+                ]
+            }
         }
     }
 }

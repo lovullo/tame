@@ -27,9 +27,6 @@ use super::{
     AirAggregate, AirAggregateCtx,
 };
 use crate::{
-    asg::graph::object::Meta,
-    diagnose::Annotate,
-    diagnostic_todo,
     fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
     span::Span,
@@ -67,9 +64,6 @@ pub enum AirTplAggregate {
     ///     or creating an object directly owned by the template.
     Toplevel(TplState),
 
-    /// Defining a template metavariable.
-    TplMeta(TplState, ObjectIndex<Meta>),
-
     /// A template has been completed.
     ///
     /// This is used to determine whether the next token of input ought to
@@ -82,12 +76,7 @@ impl Display for AirTplAggregate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Ready => write!(f, "ready for template definition"),
-
             Self::Toplevel(tpl) => write!(f, "building {tpl} at toplevel"),
-
-            Self::TplMeta(tpl, _) => {
-                write!(f, "building {tpl} metavariable")
-            }
             Self::Done => write!(f, "completed building template"),
         }
     }
@@ -216,71 +205,6 @@ impl ParseState for AirTplAggregate {
                 Transition(Toplevel(tpl)).incomplete()
             }
 
-            (Toplevel(tpl), AirTpl(TplMetaStart(span))) => {
-                let oi_meta = ctx.asg_mut().create(Meta::new_required(span));
-                Transition(TplMeta(tpl, oi_meta)).incomplete()
-            }
-            (TplMeta(tpl, oi_meta), AirTpl(TplMetaEnd(cspan))) => {
-                oi_meta.close(ctx.asg_mut(), cspan);
-                Transition(Toplevel(tpl)).incomplete()
-            }
-
-            (TplMeta(tpl, oi_meta), AirTpl(TplLexeme(lexeme))) => Transition(
-                TplMeta(tpl, oi_meta.assign_lexeme(ctx.asg_mut(), lexeme)),
-            )
-            .incomplete(),
-
-            (TplMeta(tpl, oi_meta), AirBind(BindIdent(name))) => {
-                oi_meta.identify_as_tpl_param(ctx.asg_mut(), tpl.oi(), name);
-                Transition(TplMeta(tpl, oi_meta)).incomplete()
-            }
-
-            (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
-                diagnostic_todo!(
-                    vec![tok.note("this token")],
-                    "AirBind in metavar context (param-value)"
-                )
-            }
-
-            (
-                TplMeta(..),
-                tok @ AirTpl(
-                    TplStart(..) | TplMetaStart(..) | TplEnd(..)
-                    | TplEndRef(..),
-                ),
-            ) => {
-                diagnostic_todo!(vec![tok.note("this token")], "AirTpl variant")
-            }
-
-            (TplMeta(tpl, oi_meta), tok @ AirDoc(..)) => {
-                diagnostic_todo!(
-                    vec![
-                        tpl.oi().note("in this template"),
-                        oi_meta.note("this metavariable"),
-                        tok.internal_error(
-                            "this metavariable-level documentation is not \
-                                yet supported"
-                        )
-                    ],
-                    "metavariable-level documentation is not yet supported \
-                        by TAMER",
-                )
-            }
-
-            (Toplevel(..), tok @ AirTpl(TplMetaEnd(..))) => {
-                diagnostic_todo!(
-                    vec![tok.note("this token")],
-                    "unbalanced meta"
-                )
-            }
-
-            (Toplevel(..), tok @ AirTpl(TplLexeme(..))) => {
-                diagnostic_todo!(
-                    vec![tok.note("this token")],
-                    "err: TplLexeme outside of metavar"
-                )
-            }
-
             (Toplevel(tpl), AirTpl(TplEnd(span))) => {
                 tpl.close(ctx.asg_mut(), span).transition(Done)
             }
@@ -301,16 +225,6 @@ impl ParseState for AirTplAggregate {
                         .err(AsgError::InvalidExpansionContext(span)),
                 }
                 .with_lookahead(AirTpl(TplEnd(span)))
-            }
-
-            (
-                Ready | Done,
-                tok @ AirTpl(TplMetaStart(..) | TplLexeme(..) | TplMetaEnd(..)),
-            ) => {
-                diagnostic_todo!(
-                    vec![tok.note("for this token")],
-                    "metasyntactic token in non-tpl-toplevel context: {tok:?}"
-                )
             }
 
             // If we just finished a template then this end may represent
@@ -345,7 +259,7 @@ impl AirTplAggregate {
 
         match self {
             Ready | Done => None,
-            Toplevel(tplst) | TplMeta(tplst, _) => Some(tplst.oi()),
+            Toplevel(tplst) => Some(tplst.oi()),
         }
     }
 }
