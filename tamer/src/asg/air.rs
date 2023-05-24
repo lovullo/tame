@@ -396,54 +396,112 @@ impl AirAggregate {
         }
     }
 
-    /// Adjust a [`EnvScopeKind`] while crossing an environment boundary
-    ///   into `self`.
+    /// The boundary associated with the active environment.
     ///
-    /// An identifier is _visible_ at the environment in which it is defined.
-    /// This identifier casts a _shadow_ to lower environments,
-    ///   with the exception of the root.
-    /// The _root_ will absorb adjacent visible identifiers into a _pool_,
-    ///   which is distinct from the hierarchy that is otherwise created at
-    ///   the package level and lower.
-    fn env_cross_boundary_into<T>(
-        &self,
-        kind: EnvScopeKind<T>,
-    ) -> EnvScopeKind<T> {
+    /// If the active parser does not introduce its own scope
+    ///   (if its environment is that of an ancestor frame)
+    ///   then the boundary will be [`EnvBoundary::Transparent`].
+    fn active_env_boundary(&self) -> EnvBoundary {
         use AirAggregate::*;
+        use EnvBoundary::*;
+
+        match self {
+            // These are just parsing states,
+            //   not environments.
+            Uninit => Transparent,
+            PkgOpaque(_) => Transparent,
+
+            // Expressions and metadata are not containers,
+            //   and do not introduce scope.
+            PkgExpr(_) => Transparent,
+            PkgMeta(_) => Transparent,
+
+            // Packages and templates act as containers and so restrict
+            //   identifier scope.
+            Pkg(_) => Opaque,
+            PkgTpl(_) => Opaque,
+
+            // Root will absorb any identifiers that are Visibile
+            //   immediately below it
+            //     (which is `Pkg` in practice).
+            Root(_) => Filter,
+        }
+    }
+}
+
+/// Behavior of an environment boundary when crossing environment upward
+///   into a parent (less nested) environment.
+///
+/// An identifier's [`EnvScopeKind`] is a function of its current
+///   [`EnvScopeKind`] and the boundary that it is crossing upward toward.
+///
+/// This system focuses heavily on identifier "shadows".
+/// This boundary is therefore described in terms of material properties
+///   with respect to light,
+///     where [`EnvScopeKind`] represents a light source
+///       (or absence thereof in the case of a shadow).
+///
+/// TAME does not explicitly track identifier scope at environments more
+///   deeply nested than its definition site,
+///     since the scope is always implicitly [`EnvScopeKind::Visible`] at
+///     those levels.
+///
+/// Boundary rules are applied to an [`EnvScopeKind`] via
+///   [`Self::cross_low_to_high`].
+///
+/// TODO: Diagrams are still only in test cases.
+enum EnvBoundary {
+    /// Identifier scope is unaffected by this boundary.
+    ///
+    /// From a boundary crossing function perspective,
+    ///   this represents the identity function.
+    Transparent,
+
+    /// Identifier scope will end at this boundary,
+    ///   casting a shadow from that point forward.
+    ///
+    /// Opaque boundaries are visualized as `|` in TAME's scope diagrams.
+    Opaque,
+
+    /// Visible identifiers will remain visible after crossing this
+    ///   boundary,
+    ///     but shadows will not cross.
+    ///
+    /// Filtering boundaries are visualized as `:` in TAME's scope
+    ///   diagrams.
+    Filter,
+}
+
+impl EnvBoundary {
+    /// Apply boundary rules to the given `kind` when crossing the boundary
+    ///   from a lower (more nested) environment toward a higher (less
+    ///   nested) one.
+    ///
+    /// The definition (source code) of this function clearly states the
+    ///   transformation rules and how they map to the scope diagram
+    ///   representation.
+    /// See [`Self`] for a summary.
+    fn cross_low_to_high<T>(self, kind: EnvScopeKind<T>) -> EnvScopeKind<T> {
+        use EnvBoundary::*;
         use EnvScopeKind::*;
 
-        match (self, kind) {
-            // This is not an environment.
-            (Uninit, kind) => kind,
+        match (kind, self) {
+            // x . x
+            (kind, Transparent) => kind,
 
-            // This is just a parsing state,
-            //   not an environment.
-            (PkgOpaque(_), kind) => kind,
+            // v | s
+            (Visible(x), Opaque) => Shadow(x),
+            // s | s
+            (Shadow(x), Opaque) => Shadow(x),
+            // _ | _
+            (Hidden(x), Opaque) => Hidden(x),
 
-            // Hidden is a fixpoint.
-            (_, kind @ Hidden(_)) => kind,
-
-            // Expressions and metavariables do not introduce their own
-            //   environment
-            //     (they are not containers)
-            //     and so act as an identity function.
-            (PkgExpr(_) | PkgMeta(_), kind) => kind,
-
-            // A visible identifier will always cast a shadow in one step.
-            // A shadow will always be cast (propagate) until the root.
-            (Pkg(_) | PkgTpl(_), Visible(x) | Shadow(x)) => Shadow(x),
-
-            // Above we see that Visual will always transition to Shadow in
-            //   one step.
-            // Consequently,
-            //   Visible at Root means that we're a package-level Visible,
-            //     which must contribute to the pool.
-            (Root(_), Visible(x)) => Visible(x),
-
-            // If we're _not_ Visible at the root,
-            //   then we're _not_ a package-level definition,
-            //     and so we should _not_ contribute to the pool.
-            (Root(_), Shadow(x)) => Hidden(x),
+            // v : v
+            (Visible(x), Filter) => Visible(x),
+            // s : _
+            (Shadow(x), Filter) => Hidden(x),
+            // _ : _
+            (Hidden(x), Filter) => Hidden(x),
         }
     }
 }
@@ -992,7 +1050,9 @@ impl AirAggregateCtx {
             .filter_map(|frame| frame.active_env_oi().map(|oi| (oi, frame)))
             .fold(None, |oeoi, (imm_oi, frame)| {
                 let eoi_next = oeoi
-                    .map(|eoi| frame.env_cross_boundary_into(eoi))
+                    .map(|eoi| {
+                        frame.active_env_boundary().cross_low_to_high(eoi)
+                    })
                     .unwrap_or(EnvScopeKind::Visible(oi_ident));
 
                 // TODO: Let's find this a better home.
