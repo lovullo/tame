@@ -239,6 +239,16 @@ pub trait WidenedError<S: ParseState, LS: ParseState> = Diagnostic
     + From<ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>
     + From<ParseError<<LS as ParseState>::Token, <LS as ParseState>::Error>>;
 
+/// Convenience trait for converting [`From`] a [`ParseError`] for the
+///   provided [`ParseState`] `S`.
+///
+/// This allows specifying this type in terms of only the [`ParseState`]
+///   that is almost certainly already utilized,
+///     rather than having to either import more types or use the verbose
+///     associated type.
+pub trait FromParseError<S: ParseState> =
+    From<ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>;
+
 /// A [`ParsedResult`](super::ParsedResult) with a [`WidenedError`].
 pub type WidenedParsedResult<S, E> =
     Result<Parsed<<S as ParseState>::Object>, E>;

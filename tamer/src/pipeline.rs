@@ -41,21 +41,15 @@
 //!   see [`Lower`].
 
 use crate::{
-    asg::{
-        air::{Air, AirAggregate, AirAggregateCtx},
-        AsgError,
-    },
+    asg::air::{AirAggregate, AirAggregateCtx},
     diagnose::Diagnostic,
-    obj::xmlo::{
-        XmloAirContext, XmloAirError, XmloError, XmloReader, XmloToAir,
-        XmloToken,
-    },
+    obj::xmlo::{XmloAirContext, XmloReader, XmloToAir, XmloToken},
     parse::{
-        FinalizeError, Lower, LowerSource, ParseError, Parsed, ParsedObject,
-        UnknownToken,
+        FinalizeError, FromParseError, Lower, LowerSource, ParseError, Parsed,
+        ParsedObject, UnknownToken,
     },
     xir::{
-        flat::{PartialXirToXirf, Text, XirToXirfError, XirfToken},
+        flat::{PartialXirToXirf, Text},
         Error as XirError, Token as XirToken,
     },
 };
@@ -76,10 +70,10 @@ pub fn load_xmlo<EO: Diagnostic + PartialEq>(
 ) -> Result<(AirAggregateCtx, XmloAirContext), EO>
 where
     EO: From<ParseError<UnknownToken, XirError>>
-        + From<ParseError<XirfToken<Text>, XmloError>>
-        + From<ParseError<XirToken, XirToXirfError>>
-        + From<ParseError<XmloToken, XmloAirError>>
-        + From<ParseError<Air, AsgError>>
+        + FromParseError<PartialXirToXirf<4, Text>>
+        + FromParseError<XmloReader>
+        + FromParseError<XmloToAir>
+        + FromParseError<AirAggregate>
         + From<FinalizeError>,
 {
     // TODO: This entire block is a WIP and will be incrementally
