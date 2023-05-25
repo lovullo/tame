@@ -27,7 +27,7 @@ use super::xmle::{
 };
 use crate::{
     asg::{
-        air::{Air, AirAggregate, AirAggregateCtx},
+        air::{Air, AirAggregateCtx},
         AsgError, DefaultAsg,
     },
     diagnose::{AnnotatedSpan, Diagnostic},
@@ -36,17 +36,12 @@ use crate::{
         VisitOnceFilesystem,
     },
     ld::xmle::Sections,
-    obj::xmlo::{
-        XmloAirContext, XmloAirError, XmloError, XmloReader, XmloToAir,
-        XmloToken,
-    },
-    parse::{
-        lowerable, FinalizeError, Lower, ParseError, Parsed, ParsedObject,
-        UnknownToken,
-    },
+    obj::xmlo::{XmloAirContext, XmloAirError, XmloError, XmloToken},
+    parse::{lowerable, FinalizeError, ParseError, UnknownToken},
+    pipeline,
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
-        flat::{PartialXirToXirf, Text, XirToXirfError, XirfToken},
+        flat::{Text, XirToXirfError, XirfToken},
         reader::XmlXirReader,
         writer::{Error as XirWriterError, XmlWriter},
         DefaultEscaper, Error as XirError, Escaper, Token as XirToken,
@@ -108,48 +103,10 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
             VisitOnceFile::Visited => return Ok((air_ctx, state)),
         };
 
-    let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx))
-        .map(|result| result.map_err(TameldError::from));
+    let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx));
 
-    // TODO: This entire block is a WIP and will be incrementally
-    //   abstracted away.
-    let (mut air_ctx, mut state) = Lower::<
-        ParsedObject<UnknownToken, XirToken, XirError>,
-        PartialXirToXirf<4, Text>,
-        _,
-    >::lower(src, |toks| {
-        Lower::<PartialXirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
-            let mut iter = xmlo.scan(false, |st, rtok| match st {
-                true => None,
-                false => {
-                    *st =
-                        matches!(rtok, Ok(Parsed::Object(XmloToken::Eoh(..))));
-                    Some(rtok)
-                }
-            });
-
-            Lower::<XmloReader, XmloToAir, _>::lower_with_context(
-                &mut iter,
-                state,
-                |air| {
-                    let (_, air_ctx) =
-                            Lower::<XmloToAir, AirAggregate, _>::lower_with_context(
-                                air,
-                                air_ctx,
-                                |end| {
-                                    for result in end {
-                                        let _ = result?;
-                                    }
-
-                                    Ok::<_, TameldError>(())
-                                },
-                            )?;
-
-                    Ok::<_, TameldError>(air_ctx)
-                },
-            )
-        })
-    })?;
+    let (mut air_ctx, mut state) =
+        pipeline::load_xmlo::<TameldError>(src, air_ctx, state)?;
 
     let mut dir = path;
     dir.pop();
@@ -196,9 +153,9 @@ fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
 /// This cannot include panics,
 ///   but efforts have been made to reduce panics to situations that
 ///   represent the equivalent of assertions.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TameldError {
-    Io(io::Error),
+    Io(NeqIoError),
     SortError(SortError),
     XirParseError(ParseError<UnknownToken, XirError>),
     XirfParseError(ParseError<XirToken, XirToXirfError>),
@@ -210,9 +167,34 @@ pub enum TameldError {
     Fmt(fmt::Error),
 }
 
+#[derive(Debug)]
+pub struct NeqIoError(io::Error);
+
+impl PartialEq for NeqIoError {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl Display for NeqIoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self(e) => e.fmt(f),
+        }
+    }
+}
+
+impl Error for NeqIoError {}
+
+impl From<io::Error> for NeqIoError {
+    fn from(e: io::Error) -> Self {
+        Self(e)
+    }
+}
+
 impl From<io::Error> for TameldError {
     fn from(e: io::Error) -> Self {
-        Self::Io(e)
+        Self::Io(e.into())
     }
 }
 

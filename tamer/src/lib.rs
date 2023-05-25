@@ -194,6 +194,7 @@ pub mod nir;
 pub mod num;
 pub mod obj;
 pub mod parse;
+pub mod pipeline;
 pub mod span;
 pub mod sym;
 

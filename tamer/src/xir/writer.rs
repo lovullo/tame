@@ -60,6 +60,21 @@ impl std::fmt::Display for Error {
     }
 }
 
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Error::Io(_), _) => false,
+            (Error::Xir(a), Error::Xir(b)) => a == b,
+            (
+                Error::UnexpectedToken(aa, ab),
+                Error::UnexpectedToken(ba, bb),
+            ) => aa == ba && ab == bb,
+            (Error::Todo(aa, ab), Error::Todo(ba, bb)) => aa == ba && ab == bb,
+            _ => false,
+        }
+    }
+}
+
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {

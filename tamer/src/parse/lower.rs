@@ -243,6 +243,10 @@ pub trait WidenedError<S: ParseState, LS: ParseState> = Diagnostic
 pub type WidenedParsedResult<S, E> =
     Result<Parsed<<S as ParseState>::Object>, E>;
 
+/// A source of a lowering operation.
+pub trait LowerSource<T: Token, O: Object, E: Diagnostic + PartialEq> =
+    Iterator<Item = ParsedResult<ParsedObject<T, O, E>>>;
+
 /// Make the provided [`Iterator`] `iter` usable in a `Lower` pipeline.
 ///
 /// This will produce an iterator that shares the same output as a
@@ -255,7 +259,7 @@ pub type WidenedParsedResult<S, E> =
 /// This is the dual of [`terminal`].
 pub fn lowerable<T: Token, O: Object, E: Diagnostic + PartialEq>(
     iter: impl Iterator<Item = Result<O, E>>,
-) -> impl Iterator<Item = ParsedResult<ParsedObject<T, O, E>>> {
+) -> impl LowerSource<T, O, E> {
     iter.map(|result| {
         result.map(Parsed::Object).map_err(ParseError::StateError)
     })
