@@ -43,13 +43,14 @@
 use crate::{
     asg::air::{AirAggregate, AirAggregateCtx},
     diagnose::Diagnostic,
+    nir::{InterpolateNir, NirToAir, TplShortDesugar, XirfToNir},
     obj::xmlo::{XmloAirContext, XmloReader, XmloToAir, XmloToken},
     parse::{
         FinalizeError, FromParseError, Lower, LowerSource, ParseError, Parsed,
         ParsedObject, UnknownToken,
     },
     xir::{
-        flat::{PartialXirToXirf, Text},
+        flat::{PartialXirToXirf, RefinedText, Text, XirToXirf},
         Error as XirError, Token as XirToken,
     },
 };
@@ -63,13 +64,13 @@ use crate::{
 /// TODO: To re-use this in `tamec` we want to be able to ignore fragments.
 ///
 /// TODO: More documentation once this has been further cleaned up.
-pub fn load_xmlo<EO: Diagnostic + PartialEq>(
+pub fn load_xmlo<EU: Diagnostic + PartialEq>(
     src: impl LowerSource<UnknownToken, XirToken, XirError>,
     air_ctx: AirAggregateCtx,
     xmlo_ctx: XmloAirContext,
-) -> Result<(AirAggregateCtx, XmloAirContext), EO>
+) -> Result<(AirAggregateCtx, XmloAirContext), EU>
 where
-    EO: From<ParseError<UnknownToken, XirError>>
+    EU: From<ParseError<UnknownToken, XirError>>
         + FromParseError<PartialXirToXirf<4, Text>>
         + FromParseError<XmloReader>
         + FromParseError<XmloToAir>
@@ -81,8 +82,8 @@ where
     Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
         PartialXirToXirf<4, Text>,
-        EO,
-    >::lower(&mut src.map(|result| result.map_err(EO::from)), |toks| {
+        EU,
+    >::lower(&mut src.map(|result| result.map_err(EU::from)), |toks| {
         Lower::<PartialXirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
             let mut iter = xmlo.scan(false, |st, rtok| match st {
                 true => None,
@@ -106,13 +107,60 @@ where
                                         let _ = result?;
                                     }
 
-                                    Ok::<_, EO>(())
+                                    Ok::<_, EU>(())
                                 },
                             )?;
 
-                    Ok::<_, EO>(air_ctx)
+                    Ok::<_, EU>(air_ctx)
                 },
             )
         })
     })
+}
+
+/// Parse a source package into the [ASG](crate::asg) using TAME's XML
+///   source language.
+///
+/// TODO: More documentation once this has been further cleaned up.
+pub fn parse_package_xml<ER: Diagnostic, EU: Diagnostic>(
+    src: impl LowerSource<UnknownToken, XirToken, XirError>,
+    air_ctx: AirAggregateCtx,
+    mut report_err: impl FnMut(&ER) -> Result<(), EU>,
+) -> Result<AirAggregateCtx, EU>
+where
+    ER: From<ParseError<UnknownToken, XirError>>
+        + FromParseError<XirToXirf<64, Text>>
+        + FromParseError<XirfToNir>
+        + FromParseError<TplShortDesugar>
+        + FromParseError<InterpolateNir>
+        + FromParseError<NirToAir>
+        + FromParseError<AirAggregate>,
+    EU: From<FinalizeError>,
+{
+    #[rustfmt::skip] // better visualize the structure despite the line length
+    let (_, air_ctx) = Lower::<
+        ParsedObject<UnknownToken, XirToken, XirError>,
+        XirToXirf<64, RefinedText>,
+        _,
+    >::lower::<_, EU>(&mut src.map(|result| result.map_err(ER::from)), |toks| {
+        Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
+            Lower::<XirfToNir, TplShortDesugar, _>::lower(nir, |nir| {
+                Lower::<TplShortDesugar, InterpolateNir, _>::lower(nir, |nir| {
+                    Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
+                        Lower::<NirToAir, AirAggregate, _>::lower_with_context(air, air_ctx, |end| {
+                            end.fold(Ok(()), |x, result| match result {
+                                Ok(_) => x,
+                                Err(e) => {
+                                    report_err(&e)?;
+                                    x
+                                }
+                            })
+                        })
+                    })
+                })
+            })
+        })
+    })?;
+
+    Ok(air_ctx)
 }

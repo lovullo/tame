@@ -39,26 +39,21 @@ use std::{
     path::Path,
 };
 use tamer::{
-    asg::{
-        air::{Air, AirAggregate, AirAggregateCtx},
-        AsgError, DefaultAsg,
-    },
+    asg::{air::Air, AsgError, DefaultAsg},
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    nir::{
-        InterpError, InterpolateNir, Nir, NirToAir, NirToAirError,
-        TplShortDesugar, XirfToNir, XirfToNirError,
-    },
+    nir::{InterpError, Nir, NirToAirError, XirfToNirError},
     parse::{
         lowerable, FinalizeError, Lower, ParseError, ParsedObject, Token,
         UnknownToken,
     },
+    pipeline::parse_package_xml,
     xir::{
         self,
-        flat::{RefinedText, XirToXirf, XirToXirfError, XirfToken},
+        flat::{RefinedText, XirToXirfError, XirfToken},
         reader::XmlXirReader,
-        DefaultEscaper, Error as XirError, Token as XirToken,
+        DefaultEscaper, Token as XirToken,
     },
 };
 
@@ -96,7 +91,7 @@ fn src_reader<'a>(
 fn copy_xml_to<'e, W: io::Write + 'e>(
     mut fout: W,
     escaper: &'e DefaultEscaper,
-) -> impl FnMut(&Result<XirToken, XirError>) + 'e {
+) -> impl FnMut(&Result<XirToken, tamer::xir::Error>) + 'e {
     use tamer::xir::writer::XmlWriter;
 
     let mut xmlwriter = Default::default();
@@ -127,18 +122,14 @@ fn compile<R: Reporter>(
 
     let mut ebuf = String::new();
 
-    fn report_err<R: Reporter>(
-        e: &RecoverableError,
-        reporter: &mut R,
-        ebuf: &mut String,
-    ) -> Result<(), UnrecoverableError> {
+    let report_err = |e: &RecoverableError| {
         // See below note about buffering.
         ebuf.clear();
         writeln!(ebuf, "{}", reporter.render(e))?;
         println!("{ebuf}");
 
-        Ok(())
-    }
+        Ok::<_, UnrecoverableError>(())
+    };
 
     // TODO: We're just echoing back out XIR,
     //   which will be the same sans some formatting.
@@ -151,40 +142,15 @@ fn compile<R: Reporter>(
         {
             |_| ()
         }
-    }))
-    .map(|result| result.map_err(RecoverableError::from));
+    }));
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
-    let air_ctx: AirAggregateCtx = DefaultAsg::with_capacity(1024, 2048).into();
-
-    let (_, air_ctx) = Lower::<
-        ParsedObject<UnknownToken, XirToken, XirError>,
-        XirToXirf<64, RefinedText>,
-        _,
-    >::lower::<_, UnrecoverableError>(src, |toks| {
-        Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
-            Lower::<XirfToNir, TplShortDesugar, _>::lower(nir, |nir| {
-                Lower::<TplShortDesugar, InterpolateNir, _>::lower(nir, |nir| {
-                    Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
-                        Lower::<NirToAir, AirAggregate, _>::lower_with_context(
-                            air,
-                            air_ctx,
-                            |end| {
-                                end.fold(Ok(()), |x, result| match result {
-                                    Ok(_) => x,
-                                    Err(e) => {
-                                        report_err(&e, reporter, &mut ebuf)?;
-                                        x
-                                    }
-                                })
-                            },
-                        )
-                    })
-                })
-            })
-        })
-    })?;
+    let air_ctx = parse_package_xml(
+        src,
+        DefaultAsg::with_capacity(1024, 2048).into(),
+        report_err,
+    )?;
 
     match reporter.has_errors() {
         false => {
