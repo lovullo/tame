@@ -44,10 +44,7 @@ use tamer::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
     nir::{InterpError, Nir, NirToAirError, XirfToNirError},
-    parse::{
-        lowerable, FinalizeError, Lower, ParseError, ParsedObject, Token,
-        UnknownToken,
-    },
+    parse::{lowerable, FinalizeError, ParseError, Token, UnknownToken},
     pipeline::parse_package_xml,
     xir::{
         self,
@@ -189,61 +186,16 @@ fn derive_xmli(
     escaper: &DefaultEscaper,
 ) -> Result<(), UnrecoverableError> {
     use tamer::{
-        asg::{
-            visit::{tree_reconstruction, TreeWalkRel},
-            AsgTreeToXirf,
-        },
-        iter::TrippableIterator,
-        parse::terminal,
-        xir::{
-            autoclose::XirfAutoClose,
-            flat::{Text, XirfToXir},
-            writer::XmlWriter,
-        },
+        asg::visit::tree_reconstruction, pipeline, xir::writer::XmlWriter,
     };
 
-    let mut head =
-        lowerable::<UnknownToken, _, _>(tree_reconstruction(&asg).map(Ok))
-            .map(|result| result.map_err(UnrecoverableError::from));
+    let src = lowerable(tree_reconstruction(&asg).map(Ok));
 
-    // THIS IS A PROOF-OF-CONCEPT LOWERING PIPELINE.
-    Lower::<
-        ParsedObject<UnknownToken, TreeWalkRel, Infallible>,
-        AsgTreeToXirf,
-        _,
-    >::lower_with_context::<_, UnrecoverableError>(
-        &mut head,
-        &asg,
-        |xirf_unclosed| {
-            Lower::<AsgTreeToXirf, XirfAutoClose, _>::lower(
-                xirf_unclosed,
-                |xirf| {
-                    Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(
-                        xirf,
-                        |xir| {
-                            terminal::<XirfToXir<Text>, _>(xir).while_ok(
-                                |toks| {
-                                    // Write failures should immediately bail out;
-                                    //   we can't skip writing portions of the file and
-                                    //   just keep going!
-                                    toks.write(
-                                        &mut fout,
-                                        Default::default(),
-                                        escaper,
-                                    )?;
-                                    Ok::<_, UnrecoverableError>(())
-                                },
-                                // TODO: Remove bad file?
-                                //   Let make do it?
-                            )
-                        },
-                    )
-                },
-            )
-        },
-    )?;
-
-    Ok(())
+    // TODO: Remove bad file?
+    //   Let make do it?
+    pipeline::lower_xmli(src, &asg, |st, tok| {
+        tok.write(&mut fout, st, escaper).map_err(Into::into)
+    })
 }
 
 /// Entrypoint for the compiler

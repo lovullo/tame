@@ -40,17 +40,26 @@
 //! For information on the lowering pipeline as an abstraction,
 //!   see [`Lower`].
 
+use std::convert::Infallible;
+
 use crate::{
-    asg::air::{AirAggregate, AirAggregateCtx},
+    asg::{
+        air::{AirAggregate, AirAggregateCtx},
+        visit::TreeWalkRel,
+        Asg, AsgTreeToXirf,
+    },
     diagnose::Diagnostic,
+    iter::TrippableIterator,
     nir::{InterpolateNir, NirToAir, TplShortDesugar, XirfToNir},
     obj::xmlo::{XmloAirContext, XmloReader, XmloToAir, XmloToken},
     parse::{
-        FinalizeError, FromParseError, Lower, LowerSource, ParseError, Parsed,
-        ParsedObject, UnknownToken,
+        terminal, FinalizeError, FromParseError, Lower, LowerSource,
+        ParseError, Parsed, ParsedObject, UnknownToken,
     },
     xir::{
-        flat::{PartialXirToXirf, RefinedText, Text, XirToXirf},
+        autoclose::XirfAutoClose,
+        flat::{PartialXirToXirf, RefinedText, Text, XirToXirf, XirfToXir},
+        writer::WriterState,
         Error as XirError, Token as XirToken,
     },
 };
@@ -163,4 +172,44 @@ where
     })?;
 
     Ok(air_ctx)
+}
+
+/// Lower an [`Asg`]-derived token stream into an `xmli` file.
+///
+/// TODO: More documentation once this has been further cleaned up.
+pub fn lower_xmli<EU: Diagnostic>(
+    src: impl LowerSource<UnknownToken, TreeWalkRel, Infallible>,
+    asg: &Asg,
+    sink: impl FnMut(WriterState, XirToken) -> Result<WriterState, EU>,
+) -> Result<(), EU>
+where
+    EU: From<ParseError<UnknownToken, Infallible>>
+        + From<ParseError<TreeWalkRel, Infallible>> // see note above
+        + FromParseError<XirfAutoClose>
+        + FromParseError<XirfToXir<Text>>
+        + From<FinalizeError>,
+{
+    #[rustfmt::skip] // better visualize the structure despite the line length
+    Lower::<
+        ParsedObject<UnknownToken, TreeWalkRel, Infallible>,
+        AsgTreeToXirf,
+        _,
+    >::lower_with_context::<_, EU>(
+        &mut src.map(|result| result.map_err(EU::from)),
+        asg,
+        |xirf_unclosed| {
+            Lower::<AsgTreeToXirf, XirfAutoClose, _>::lower(xirf_unclosed, |xirf| {
+                Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(xirf, |xir| {
+                    terminal::<XirfToXir<Text>, _>(xir).while_ok(|toks| {
+                        // Write failures should immediately bail out;
+                        //   we can't skip writing portions of the file and
+                        //   just keep going!
+                        toks.try_fold(Default::default(), sink)
+                    })
+                })
+            })
+        }
+    )?;
+
+    Ok(())
 }
