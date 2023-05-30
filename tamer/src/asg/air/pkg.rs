@@ -23,7 +23,7 @@
 
 use super::{
     super::{graph::object::Pkg, AsgError, ObjectIndex},
-    ir::AirBindablePkg,
+    ir::AirLiteratePkg,
     AirAggregate, AirAggregateCtx,
 };
 use crate::{diagnose::Annotate, diagnostic_todo, parse::prelude::*};
@@ -59,7 +59,7 @@ impl Display for AirPkgAggregate {
 }
 
 impl ParseState for AirPkgAggregate {
-    type Token = AirBindablePkg;
+    type Token = AirLiteratePkg;
     type Object = ();
     type Error = AsgError;
     type Context = AirAggregateCtx;
@@ -70,8 +70,8 @@ impl ParseState for AirPkgAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirDoc::*, AirPkg::*};
-        use AirBindablePkg::*;
+        use super::ir::{AirDoc::*, AirPkg::*};
+        use AirLiteratePkg::*;
         use AirPkgAggregate::*;
 
         match (self, tok) {
@@ -92,11 +92,6 @@ impl ParseState for AirPkgAggregate {
                         Err(e) => Transition(Ready).err(e),
                     }
                 }
-            }
-
-            (Toplevel(oi_pkg), AirBind(BindIdent(name))) => {
-                Transition(Toplevel(oi_pkg))
-                    .err(AsgError::InvalidBindContext(name))
             }
 
             (Toplevel(oi_pkg), AirPkg(PkgEnd(span))) => {
@@ -123,19 +118,21 @@ impl ParseState for AirPkgAggregate {
             }
 
             // Package import
-            (Toplevel(oi_pkg), AirBind(RefIdent(pathspec))) => oi_pkg
-                .import(ctx.asg_mut(), pathspec)
+            (Toplevel(oi_pkg), AirPkg(PkgImport(namespec))) => oi_pkg
+                .import(ctx.asg_mut(), namespec)
                 .map(|_| ())
                 .transition(Toplevel(oi_pkg)),
+
+            (Ready, AirPkg(PkgImport(namespec))) => {
+                Transition(Ready).err(AsgError::InvalidPkgImport(namespec))
+            }
 
             (Ready, AirPkg(PkgEnd(span))) => {
                 Transition(Ready).err(AsgError::InvalidPkgEndContext(span))
             }
 
             // Token may refer to a parent context.
-            (st @ Ready, tok @ (AirBind(..) | AirDoc(..))) => {
-                Transition(st).dead(tok)
-            }
+            (st @ Ready, tok @ AirDoc(..)) => Transition(st).dead(tok),
         }
     }
 

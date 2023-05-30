@@ -261,7 +261,7 @@ ele_parse! {
     ///   for composing larger systems out of smaller components.
     ImportStmt := QN_IMPORT(_, ospan) {
         @ {
-            QN_PACKAGE => Ref,
+            QN_PACKAGE => Import,
             QN_EXPORT => TodoAttr,
         } => Noop(ospan.into()),
         //   ^ we only care about the `Ref`

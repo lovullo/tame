@@ -526,36 +526,6 @@ fn pkg_cannot_redeclare() {
 }
 
 #[test]
-fn pkg_cannot_rename() {
-    let pkg_name = SPair("/foo/bar".into(), S1);
-    let name = SPair("baz".into(), S2);
-
-    #[rustfmt::skip]
-    let toks = vec![
-        PkgStart(S1, pkg_name),
-          BindIdent(name),
-        PkgEnd(S3),
-    ];
-
-    let sut = Sut::parse(toks.into_iter());
-
-    assert_eq!(
-        #[rustfmt::skip]
-        vec![
-            Ok(Incomplete),   // PkgStart
-
-            Err(ParseError::StateError(
-                AsgError::InvalidBindContext(name),
-            )),
-
-            // RECOVERY
-            Ok(Incomplete),   // PkgEnd
-        ],
-        sut.collect::<Vec<_>>(),
-    );
-}
-
-#[test]
 fn pkg_import_canonicalized_against_current_pkg() {
     let pkg_name = SPair("/foo/bar".into(), S2);
     let pkg_rel = SPair("baz/quux".into(), S3);
@@ -563,7 +533,7 @@ fn pkg_import_canonicalized_against_current_pkg() {
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1, pkg_name),
-          RefIdent(pkg_rel),
+          PkgImport(pkg_rel),
         PkgEnd(S3),
     ];
 
@@ -599,7 +569,7 @@ fn pkg_doc() {
 
         // Some object to place in-between the two
         //   documentation blocks.
-        RefIdent(id_import),
+        PkgImport(id_import),
 
         DocText(doc_b),
     ];

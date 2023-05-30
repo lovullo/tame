@@ -202,8 +202,10 @@ impl ParseState for AirAggregate {
                 tok @ AirPkg(..),
             ) => ctx.ret_or_transfer(st, tok, AirPkgAggregate::new()),
             (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
-            (Pkg(pkg), AirBind(etok)) => ctx.proxy(pkg, etok),
             (Pkg(pkg), AirDoc(etok)) => ctx.proxy(pkg, etok),
+            (st @ Pkg(..), tok @ AirBind(_)) => {
+                ctx.try_ret_with_lookahead(st, tok)
+            }
 
             // Expression
             (st @ (Pkg(_) | PkgTpl(_)), tok @ AirExpr(..)) => {

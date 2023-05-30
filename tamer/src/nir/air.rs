@@ -262,6 +262,16 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::DocIndepClause(clause))
             }
 
+            (Ready, Import(namespec)) => {
+                Transition(Ready).ok(Air::PkgImport(namespec))
+            }
+
+            // Shouldn't happen in  practice because nir::parse will not
+            //   produce this.
+            // This assumption is only valid so long as that's the only
+            //   thing producing NIR.
+            (st @ Meta(..), tok @ Import(_)) => Transition(st).dead(tok),
+
             (_, tok @ (Todo(..) | TodoAttr(..))) => {
                 crate::diagnostic_todo!(
                     vec![tok.internal_error(

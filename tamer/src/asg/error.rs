@@ -87,6 +87,9 @@ pub enum AsgError {
     /// Attempted to open an expression in an invalid context.
     PkgExpected(Span),
 
+    /// Requested package import in a non-package context.
+    InvalidPkgImport(SPair),
+
     /// An expresion is not reachable by any other expression or
     ///   identifier.
     ///
@@ -184,6 +187,11 @@ impl Display for AsgError {
                 write!(f, "invalid context for package close",)
             }
             PkgExpected(_) => write!(f, "expected package definition"),
+            InvalidPkgImport(namespec) => write!(
+                f,
+                "unexpected package import {}",
+                TtQuote::wrap(namespec)
+            ),
             DanglingExpr(_) => write!(
                 f,
                 "dangling expression (anonymous expression has no parent)"
@@ -298,6 +306,15 @@ impl Diagnostic for AsgError {
 
             PkgExpected(span) => {
                 vec![span.error("a package definition was expected here")]
+            }
+
+            InvalidPkgImport(namespec) => {
+                vec![
+                    namespec.error("this package cannot be imported here"),
+                    namespec.help(
+                        "imports must appear in the context of a package",
+                    ),
+                ]
             }
 
             DanglingExpr(span) => vec![

@@ -145,6 +145,9 @@ pub enum Nir {
     ///   metavariable definition.
     Text(SPair),
 
+    /// Import a package identified by the provided namespec.
+    Import(SPair),
+
     /// "No-op" (no operation) that does nothing.
     ///
     /// Since this is taking user input and effectively discarding it,
@@ -178,7 +181,7 @@ impl Nir {
             Open(_, _) | Close(_, _) => None,
 
             BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
-            | Text(spair) => Some(spair.symbol()),
+            | Text(spair) | Import(spair) => Some(spair.symbol()),
 
             Noop(_) => None,
         }
@@ -214,6 +217,7 @@ impl Functor<SymbolId> for Nir {
             Ref(spair) => Ref(spair.map(f)),
             Desc(spair) => Desc(spair.map(f)),
             Text(spair) => Text(spair.map(f)),
+            Import(spair) => Import(spair.map(f)),
 
             Noop(_) => self,
         }
@@ -336,7 +340,7 @@ impl Token for Nir {
             Close(_, span) => *span,
 
             BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
-            | Text(spair) => spair.span(),
+            | Text(spair) | Import(spair) => spair.span(),
 
             // A no-op is discarding user input,
             //   so we still want to know where that is so that we can
@@ -373,6 +377,12 @@ impl Display for Nir {
             //   need to determine how to handle newlines and other types of
             //   output.
             Text(_) => write!(f, "text"),
+
+            Import(namespec) => write!(
+                f,
+                "import package with namespec {}",
+                TtQuote::wrap(namespec)
+            ),
 
             Noop(_) => write!(f, "no-op"),
         }

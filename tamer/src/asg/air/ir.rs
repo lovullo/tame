@@ -482,6 +482,19 @@ sum_ir! {
                 display: |f| write!(f, "open package"),
             },
 
+            /// Import a package identified by the provided namespec.
+            ///
+            /// This is similar to [`AirBind::RefIdent`],
+            ///   except that this is used for package references whereas
+            ///   the latter is used for identifiers.
+            /// Having a token to uniquely represent imports allows package
+            ///   parsers to omit support for [`AirBind`] entirely rather
+            ///   than supporting that subset only to use the one token.
+            PkgImport(namespec: SPair) => {
+                span: namespec,
+                display: |f| write!(f, "import package {}", TtQuote::wrap(namespec)),
+            },
+
             /// Complete processing of the current package.
             PkgEnd(span: Span) => {
                 span: span,
@@ -827,13 +840,9 @@ sum_ir! {
         }
     }
 
-    /// Package definitions.
-    ///
-    /// It is assumed that tokens that may appear as the body of a package,
-    ///   with the exception of [`AirIdent`],
-    ///   will preempt the package parser,
-    ///     and so are not included here.
-    pub sum enum AirBindablePkg = AirPkg | AirBind | AirDoc;
+    /// Package definitions interspersed with documentation in a
+    ///   literate style.
+    pub sum enum AirLiteratePkg = AirPkg | AirDoc;
 
     /// Expressions that are able to be bound to identifiers.
     ///
@@ -846,6 +855,17 @@ sum_ir! {
 
     /// Tokens that may be used to define metavariables.
     pub sum enum AirBindableMeta = AirMeta | AirBind;
+}
+
+impl AirBind {
+    /// Name of the identifier described by this token.
+    pub fn name(&self) -> SPair {
+        use AirBind::*;
+
+        match self {
+            BindIdent(name) | RefIdent(name) => *name,
+        }
+    }
 }
 
 impl AirIdent {
