@@ -73,26 +73,27 @@ use crate::{
 /// TODO: To re-use this in `tamec` we want to be able to ignore fragments.
 ///
 /// TODO: More documentation once this has been further cleaned up.
-pub fn load_xmlo<EU: Diagnostic + PartialEq>(
+pub fn load_xmlo<ER: Diagnostic, EU: Diagnostic>(
     src: impl LowerSource<UnknownToken, XirToken, XirError>,
     air_ctx: AirAggregateCtx,
     xmlo_ctx: XmloAirContext,
+    mut report_err: impl FnMut(ER) -> Result<(), EU>,
 ) -> Result<(AirAggregateCtx, XmloAirContext), EU>
 where
-    EU: From<ParseError<UnknownToken, XirError>>
+    ER: From<ParseError<UnknownToken, XirError>>
         + FromParseError<PartialXirToXirf<4, Text>>
         + FromParseError<XmloReader>
         + FromParseError<XmloToAir>
-        + FromParseError<AirAggregate>
-        + From<FinalizeError>,
+        + FromParseError<AirAggregate>,
+    EU: From<FinalizeError>,
 {
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
     Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
         PartialXirToXirf<4, Text>,
-        EU,
-    >::lower(&mut src.map(|result| result.map_err(EU::from)), |toks| {
+        _,
+    >::lower(&mut src.map(|result| result.map_err(ER::from)), |toks| {
         Lower::<PartialXirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
             let mut iter = xmlo.scan(false, |st, rtok| match st {
                 true => None,
@@ -112,15 +113,17 @@ where
                                 air,
                                 air_ctx,
                                 |end| {
-                                    for result in end {
-                                        let _ = result?;
-                                    }
-
-                                    Ok::<_, EU>(())
+                                    end.fold(Ok::<_, EU>(()), |x, result| match result {
+                                        Ok(_) => x,
+                                        Err(e) => {
+                                            report_err(e)?;
+                                            x
+                                        }
+                                    })
                                 },
                             )?;
 
-                    Ok::<_, EU>(air_ctx)
+                    Ok(air_ctx)
                 },
             )
         })
@@ -134,7 +137,7 @@ where
 pub fn parse_package_xml<ER: Diagnostic, EU: Diagnostic>(
     src: impl LowerSource<UnknownToken, XirToken, XirError>,
     air_ctx: AirAggregateCtx,
-    mut report_err: impl FnMut(&ER) -> Result<(), EU>,
+    mut report_err: impl FnMut(ER) -> Result<(), EU>,
 ) -> Result<AirAggregateCtx, EU>
 where
     ER: From<ParseError<UnknownToken, XirError>>
@@ -160,7 +163,7 @@ where
                             end.fold(Ok(()), |x, result| match result {
                                 Ok(_) => x,
                                 Err(e) => {
-                                    report_err(&e)?;
+                                    report_err(e)?;
                                     x
                                 }
                             })
