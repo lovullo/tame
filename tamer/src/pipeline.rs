@@ -89,11 +89,12 @@ where
 {
     // TODO: This entire block is a WIP and will be incrementally
     //   abstracted away.
-    Lower::<
+    #[rustfmt::skip] // better visualize the structure despite the line length
+    let (((), air_ctx), xmlo_ctx) = Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
         PartialXirToXirf<4, Text>,
-        _,
-    >::lower(&mut src.map(|result| result.map_err(ER::from)), |toks| {
+        ER,
+    >::lower::<_, EU>(&mut src.map(|result| result.map_err(ER::from)), |toks| {
         Lower::<PartialXirToXirf<4, Text>, XmloReader, _>::lower(toks, |xmlo| {
             let mut iter = xmlo.scan(false, |st, rtok| match st {
                 true => None,
@@ -104,30 +105,21 @@ where
                 }
             });
 
-            Lower::<XmloReader, XmloToAir, _>::lower_with_context(
-                &mut iter,
-                xmlo_ctx,
-                |air| {
-                    let (_, air_ctx) =
-                            Lower::<XmloToAir, AirAggregate, _>::lower_with_context(
-                                air,
-                                air_ctx,
-                                |end| {
-                                    end.fold(Ok::<_, EU>(()), |x, result| match result {
-                                        Ok(_) => x,
-                                        Err(e) => {
-                                            report_err(e)?;
-                                            x
-                                        }
-                                    })
-                                },
-                            )?;
-
-                    Ok(air_ctx)
-                },
-            )
+            Lower::<XmloReader, XmloToAir, _>::lower_with_context(&mut iter, xmlo_ctx, |air| {
+                Lower::<XmloToAir, AirAggregate, _>::lower_with_context(air, air_ctx, |end| {
+                    end.fold(Ok(()), |x, result| match result {
+                        Ok(_) => x,
+                        Err(e) => {
+                            report_err(e)?;
+                            x
+                        }
+                    })
+                })
+            })
         })
-    })
+    })?;
+
+    Ok((air_ctx, xmlo_ctx))
 }
 
 /// Parse a source package into the [ASG](crate::asg) using TAME's XML
@@ -150,10 +142,10 @@ where
     EU: From<FinalizeError>,
 {
     #[rustfmt::skip] // better visualize the structure despite the line length
-    let (_, air_ctx) = Lower::<
+    let ((), air_ctx) = Lower::<
         ParsedObject<UnknownToken, XirToken, XirError>,
         XirToXirf<64, RefinedText>,
-        _,
+        ER,
     >::lower::<_, EU>(&mut src.map(|result| result.map_err(ER::from)), |toks| {
         Lower::<XirToXirf<64, RefinedText>, XirfToNir, _>::lower(toks, |nir| {
             Lower::<XirfToNir, TplShortDesugar, _>::lower(nir, |nir| {
