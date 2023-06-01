@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Diagnostic system for error reporting.
+//! Diagnostic system for error reporting and logging.
 //!
 //! This system is heavily motivated by Rust's.
 //! While the data structures and organization may differ,
@@ -81,11 +81,14 @@ pub mod panic;
 mod report;
 mod resolve;
 
+use std::{
+    borrow::Cow,
+    convert::Infallible,
+    fmt::{self, Debug, Display},
+};
+
 pub use report::{Reporter, VisualReporter};
 pub use resolve::FsSpanResolver;
-
-use core::fmt;
-use std::{borrow::Cow, convert::Infallible, error::Error, fmt::Display};
 
 use crate::span::Span;
 
@@ -97,12 +100,17 @@ use crate::span::Span;
 ///   depends on the error context.
 pub const NO_DESC: Vec<AnnotatedSpan> = vec![];
 
-/// Diagnostic report.
+/// An event able to describe itself for diagnostic reporting.
 ///
-/// This describes an error condition or other special event using a series
-///   of [`Span`]s to describe the source, cause, and circumstances around
-///   an event.
-pub trait Diagnostic: Error + Sized {
+/// This describes an event using a series of [`Span`]s to describe the
+///   source, cause, and circumstances around an event.
+///
+/// A diagnostic event is not necessarily an error condition;
+///   for example,
+///     a user may request logging of compilation events to inspect the
+///     state of the system or help them to debug why the system is
+///     interpreting their program in a certain way.
+pub trait Diagnostic: Display + Debug + Sized {
     /// Produce a series of [`AnnotatedSpan`]s describing the source and
     ///   circumstances of the diagnostic event.
     fn describe(&self) -> Vec<AnnotatedSpan>;
@@ -283,7 +291,7 @@ pub trait Annotate: Sized {
         self.annotate(Level::Error, Some(label.into()))
     }
 
-    /// Like [`Annotate::error`],
+    /// Like [`Annotate::error`]r
     ///   but only styles the span as a [`Level::Error`] without attaching a
     ///   label.
     ///

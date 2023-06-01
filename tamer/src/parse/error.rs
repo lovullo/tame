@@ -107,7 +107,9 @@ impl<T: Token, E: Diagnostic + PartialEq> Display for ParseError<T, E> {
     }
 }
 
-impl<T: Token, E: Diagnostic + PartialEq + 'static> Error for ParseError<T, E> {
+impl<T: Token, E: Diagnostic + Error + PartialEq + 'static> Error
+    for ParseError<T, E>
+{
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::UnexpectedToken(_, _) => None,
