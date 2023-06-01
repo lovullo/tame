@@ -49,6 +49,7 @@ use crate::{
 };
 use fxhash::FxBuildHasher;
 use std::{
+    convert::identity,
     error::Error,
     fmt::{self, Display},
     fs,
@@ -106,7 +107,7 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
     let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx));
 
     let (mut air_ctx, mut state) =
-        pipeline::load_xmlo::<TameldError, _>(src, air_ctx, state, Err)?;
+        pipeline::load_xmlo::<TameldError, _>(src, air_ctx, state, identity)?;
 
     let mut dir = path;
     dir.pop();

@@ -119,13 +119,15 @@ fn compile<R: Reporter>(
 
     let mut ebuf = String::new();
 
-    let report_err = |e: RecoverableError| {
-        // See below note about buffering.
-        ebuf.clear();
-        writeln!(ebuf, "{}", reporter.render(&e))?;
-        println!("{ebuf}");
+    let report_err = |result: Result<(), RecoverableError>| {
+        result.or_else(|e| {
+            // See below note about buffering.
+            ebuf.clear();
+            writeln!(ebuf, "{}", reporter.render(&e))?;
+            println!("{ebuf}");
 
-        Ok::<_, UnrecoverableError>(())
+            Ok::<_, UnrecoverableError>(())
+        })
     };
 
     // TODO: We're just echoing back out XIR,

@@ -77,7 +77,7 @@ pub fn load_xmlo<ER: Diagnostic, EU: Diagnostic>(
     src: impl LowerSource<UnknownToken, XirToken, XirError>,
     air_ctx: AirAggregateCtx,
     xmlo_ctx: XmloAirContext,
-    mut report_err: impl FnMut(ER) -> Result<(), EU>,
+    report: impl FnMut(Result<(), ER>) -> Result<(), EU>,
 ) -> Result<(AirAggregateCtx, XmloAirContext), EU>
 where
     ER: From<ParseError<UnknownToken, XirError>>
@@ -107,13 +107,7 @@ where
 
             Lower::<XmloReader, XmloToAir, _>::lower_with_context(&mut iter, xmlo_ctx, |air| {
                 Lower::<XmloToAir, AirAggregate, _>::lower_with_context(air, air_ctx, |end| {
-                    end.fold(Ok(()), |x, result| match result {
-                        Ok(_) => x,
-                        Err(e) => {
-                            report_err(e)?;
-                            x
-                        }
-                    })
+                    terminal::<AirAggregate, _>(end).try_for_each(report)
                 })
             })
         })
@@ -129,7 +123,7 @@ where
 pub fn parse_package_xml<ER: Diagnostic, EU: Diagnostic>(
     src: impl LowerSource<UnknownToken, XirToken, XirError>,
     air_ctx: AirAggregateCtx,
-    mut report_err: impl FnMut(ER) -> Result<(), EU>,
+    report: impl FnMut(Result<(), ER>) -> Result<(), EU>,
 ) -> Result<AirAggregateCtx, EU>
 where
     ER: From<ParseError<UnknownToken, XirError>>
@@ -152,13 +146,7 @@ where
                 Lower::<TplShortDesugar, InterpolateNir, _>::lower(nir, |nir| {
                     Lower::<InterpolateNir, NirToAir, _>::lower(nir, |air| {
                         Lower::<NirToAir, AirAggregate, _>::lower_with_context(air, air_ctx, |end| {
-                            end.fold(Ok(()), |x, result| match result {
-                                Ok(_) => x,
-                                Err(e) => {
-                                    report_err(e)?;
-                                    x
-                                }
-                            })
+                            terminal::<AirAggregate, _>(end).try_for_each(report)
                         })
                     })
                 })
