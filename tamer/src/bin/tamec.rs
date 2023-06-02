@@ -198,7 +198,7 @@ fn derive_xmli(
     // TODO: Remove bad file?
     //   Let make do it?
     let mut st = WriterState::default();
-    pipeline::lower_xmli(src, &asg, |result| {
+    let (_asg,) = pipeline::lower_xmli(src, &asg, |result| {
         // Write failures should immediately bail out;
         //   we can't skip writing portions of the file and
         //   just keep going!
@@ -207,7 +207,9 @@ fn derive_xmli(
                 .map(|newst| st = newst)
                 .map_err(Into::<UnrecoverableError>::into)
         })
-    })
+    })?;
+
+    Ok(())
 }
 
 /// Entrypoint for the compiler

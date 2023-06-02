@@ -43,13 +43,13 @@
 use std::convert::Infallible;
 
 use crate::{
-    asg::{air::AirAggregate, visit::TreeWalkRel, Asg, AsgTreeToXirf},
+    asg::{air::AirAggregate, visit::TreeWalkRel, AsgTreeToXirf},
     diagnose::Diagnostic,
     nir::{InterpolateNir, NirToAir, TplShortDesugar, XirfToNir},
     obj::xmlo::{XmloReader, XmloToAir, XmloToken},
     parse::{
-        terminal, FinalizeError, FromParseError, Lower, LowerSource,
-        ParseError, ParseState, Parsed, ParsedObject, UnknownToken,
+        terminal, FinalizeError, Lower, LowerSource, ParseError, ParseState,
+        Parsed, ParsedObject, UnknownToken,
     },
     xir::{
         autoclose::XirfAutoClose,
@@ -75,25 +75,27 @@ use crate::{
 macro_rules! lower_pipeline {
     ($(
         $(#[$meta:meta])*
-        $vis:vis $fn:ident($srcobj:ty, $srcerr:ty)
+        $vis:vis $fn:ident$(<$l:lifetime>)?($srcobj:ty, $srcerr:ty)
             $(|> $lower:ty $([$ctx:ident])? $(, until ($until:pat))?)*;
     )*) => {$(
         $(#[$meta])*
-        $vis fn $fn<ER: Diagnostic, EU: Diagnostic>(
+        $vis fn $fn<$($l,)? ER: Diagnostic, EU: Diagnostic>(
             src: impl LowerSource<UnknownToken, $srcobj, $srcerr>,
             $(
                 // Each parser may optionally receive context from an
                 //   earlier run.
                 $($ctx: impl Into<<$lower as ParseState>::PubContext>,)?
             )*
-            sink: impl FnMut(Result<(), ER>) -> Result<(), EU>,
+            sink: impl FnMut(
+                Result<lower_pipeline!(@last_obj_ty $($lower),*), ER>
+            ) -> Result<(), EU>,
         ) -> Result<
             (
                 $(
                     // Any context that is passed in is also returned so
                     //   that individual pipelines can continue to build
                     //   upon state from previous pipelines.
-                    $( lower_pipeline!(@ret_ty $lower, $ctx), )?
+                    $( lower_pipeline!(@ret_ctx_ty $lower, $ctx), )?
                 )*
             ),
             EU
@@ -134,8 +136,16 @@ macro_rules! lower_pipeline {
         }
     )*};
 
-    (@ret_ty $lower:ty, $_ctx:ident) => {
+    (@ret_ctx_ty $lower:ty, $_ctx:ident) => {
         <$lower as ParseState>::PubContext
+    };
+
+    // The last object type enters the sink.
+    (@last_obj_ty $lower:ty, $($rest:ty),+) => {
+        lower_pipeline!(@last_obj_ty $($rest),+)
+    };
+    (@last_obj_ty $last:ty) => {
+        <$last as ParseState>::Object
     };
 
     // Because of how the lowering pipeline composes,
@@ -169,6 +179,27 @@ macro_rules! lower_pipeline {
         })
     };
 
+    // TODO: Roll this into the above
+    (
+        @body_head($src:ident, $srcobj:ty, $srcerr:ty, $sink:ident)
+        (|> $head:ty [$ctx:ident]) $($rest:tt)*
+    ) => {
+        Lower::<
+            ParsedObject<UnknownToken, $srcobj, $srcerr>,
+            $head,
+            ER,
+        >::lower_with_context::<_, EU>(
+            &mut $src.map(|result| result.map_err(ER::from)),
+            $ctx,
+            |next| {
+                lower_pipeline!(
+                    @body_inner(next, $head, $sink)
+                    $($rest)*
+                )
+            }
+        )
+    };
+
     // Lower without context
     //   (with the default context for the parser).
     //
@@ -189,6 +220,8 @@ macro_rules! lower_pipeline {
     // Lower with a context provided by the caller,
     //   optionally with an `until` clause that stops at (and includes) a
     //   matching object from the previous parser.
+    //
+    // TODO: Roll this into the above
     (
         @body_inner($next:ident, $lower_prev:ty, $sink:ident)
         (|> $lower:ty [$ctx:ident] $(, until ($until:pat))?) $($rest:tt)*
@@ -251,39 +284,13 @@ lower_pipeline! {
         |> InterpolateNir
         |> NirToAir
         |> AirAggregate[air_ctx];
-}
 
-/// Lower an [`Asg`]-derived token stream into an `xmli` file.
-///
-/// TODO: More documentation once this has been further cleaned up.
-pub fn lower_xmli<ER: Diagnostic, EU: Diagnostic>(
-    src: impl LowerSource<UnknownToken, TreeWalkRel, Infallible>,
-    asg: &Asg,
-    sink: impl FnMut(Result<XirToken, ER>) -> Result<(), EU>,
-) -> Result<(), EU>
-where
-    ER: From<ParseError<UnknownToken, Infallible>>
-        + From<ParseError<TreeWalkRel, Infallible>>
-        + FromParseError<XirfAutoClose>
-        + FromParseError<XirfToXir<Text>>,
-    EU: From<FinalizeError>,
-{
-    #[rustfmt::skip] // better visualize the structure despite the line length
-    Lower::<
-        ParsedObject<UnknownToken, TreeWalkRel, Infallible>,
-        AsgTreeToXirf,
-        ER,
-    >::lower_with_context::<_, EU>(
-        &mut src.map(|result| result.map_err(ER::from)),
-        asg,
-        |xirf_unclosed| {
-            Lower::<AsgTreeToXirf, XirfAutoClose, _>::lower(xirf_unclosed, |xirf| {
-                Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(xirf, |xir| {
-                    terminal::<XirfToXir<Text>, _>(xir).try_for_each(sink)
-                })
-            })
-        }
-    )?;
-
-    Ok(())
+    /// Lower an [`Asg`](crate::asg::Asg)-derived token stream into an
+    ///   `xmli` file.
+    ///
+    /// TODO: More documentation once this has been further cleaned up.
+    pub lower_xmli<'a>(TreeWalkRel, Infallible)
+        |> AsgTreeToXirf<'a>[asg]
+        |> XirfAutoClose
+        |> XirfToXir<Text>;
 }
