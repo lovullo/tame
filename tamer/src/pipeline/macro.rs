@@ -42,12 +42,16 @@
 macro_rules! lower_pipeline {
     ($(
         $(#[$meta:meta])*
-        $vis:vis $fn:ident$(<$l:lifetime>)?($srcobj:ty)
+        $vis:vis $fn:ident$(<$l:lifetime>)?
             $(|> $lower:ty $([$ctx:ident])? $(, until ($until:pat))?)*;
     )*) => {$(
         $(#[$meta])*
         $vis fn $fn<$($l,)? ES: Diagnostic, ER: Diagnostic, EU: Diagnostic>(
-            src: impl LowerSource<UnknownToken, $srcobj, ES>,
+            src: impl LowerSource<
+                UnknownToken,
+                lower_pipeline!(@first_tok_ty $($lower),*),
+                ES
+                >,
             $(
                 // Each parser may optionally receive context from an
                 //   earlier run.
@@ -93,7 +97,7 @@ macro_rules! lower_pipeline {
             EU: From<FinalizeError>,
         {
             let lower_pipeline!(@ret_pat $($($ctx)?)*) = lower_pipeline!(
-                @body_head(src, $srcobj, sink)
+                @body_head(src, sink)
                 $((|> $lower $([$ctx])? $(, until ($until))?))*
             )?;
 
@@ -105,6 +109,13 @@ macro_rules! lower_pipeline {
 
     (@ret_ctx_ty $lower:ty, $_ctx:ident) => {
         <$lower as ParseState>::PubContext
+    };
+
+    // We are able to determine the necessary type of the source token
+    //   stream by observing what token is expected by the first parser in the
+    //   pipeline.
+    (@first_tok_ty $lower:ty, $($rest:ty),+) => {
+        <$lower as ParseState>::Token
     };
 
     // The last object type enters the sink.
@@ -131,11 +142,11 @@ macro_rules! lower_pipeline {
     // This doesn't support context or `until`;
     //   it can be added if ever it is needed.
     (
-        @body_head($src:ident, $srcobj:ty, $sink:ident)
+        @body_head($src:ident, $sink:ident)
         (|> $head:ty) $($rest:tt)*
     ) => {
         Lower::<
-            ParsedObject<UnknownToken, $srcobj, ES>,
+            ParsedObject<UnknownToken, _, ES>,
             $head,
             ER,
         >::lower::<_, EU>(&mut $src.map(|result| result.map_err(ER::from)), |next| {
@@ -148,11 +159,11 @@ macro_rules! lower_pipeline {
 
     // TODO: Roll this into the above
     (
-        @body_head($src:ident, $srcobj:ty, $sink:ident)
+        @body_head($src:ident, $sink:ident)
         (|> $head:ty [$ctx:ident]) $($rest:tt)*
     ) => {
         Lower::<
-            ParsedObject<UnknownToken, $srcobj, ES>,
+            ParsedObject<UnknownToken, _, ES>,
             $head,
             ER,
         >::lower_with_context::<_, EU>(

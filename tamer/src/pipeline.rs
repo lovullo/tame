@@ -41,7 +41,7 @@
 //!   see [`Lower`].
 
 use crate::{
-    asg::{air::AirAggregate, visit::TreeWalkRel, AsgTreeToXirf},
+    asg::{air::AirAggregate, AsgTreeToXirf},
     diagnose::Diagnostic,
     nir::{InterpolateNir, NirToAir, TplShortDesugar, XirfToNir},
     obj::xmlo::{XmloReader, XmloToAir, XmloToken},
@@ -52,7 +52,6 @@ use crate::{
     xir::{
         autoclose::XirfAutoClose,
         flat::{PartialXirToXirf, RefinedText, Text, XirToXirf, XirfToXir},
-        Token as XirToken,
     },
 };
 
@@ -71,7 +70,7 @@ lower_pipeline! {
     /// TODO: To re-use this in `tamec` we want to be able to ignore fragments.
     ///
     /// TODO: More documentation once this has been further cleaned up.
-    pub load_xmlo(XirToken)
+    pub load_xmlo
         |> PartialXirToXirf<4, Text>
         |> XmloReader
         |> XmloToAir[xmlo_ctx], until (XmloToken::Eoh(..))
@@ -81,7 +80,7 @@ lower_pipeline! {
     ///   source language.
     ///
     /// TODO: More documentation once this has been further cleaned up.
-    pub parse_package_xml(XirToken)
+    pub parse_package_xml
         |> XirToXirf<64, RefinedText>
         |> XirfToNir
         |> TplShortDesugar
@@ -93,7 +92,7 @@ lower_pipeline! {
     ///   `xmli` file.
     ///
     /// TODO: More documentation once this has been further cleaned up.
-    pub lower_xmli<'a>(TreeWalkRel)
+    pub lower_xmli<'a>
         |> AsgTreeToXirf<'a>[asg]
         |> XirfAutoClose
         |> XirfToXir<Text>;
