@@ -106,8 +106,9 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
 
     let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx));
 
-    let (mut state, mut air_ctx) =
-        pipeline::load_xmlo::<TameldError, _>(src, state, air_ctx, identity)?;
+    let (mut state, mut air_ctx) = pipeline::load_xmlo::<_, TameldError, _>(
+        src, state, air_ctx, identity,
+    )?;
 
     let mut dir = path;
     dir.pop();
