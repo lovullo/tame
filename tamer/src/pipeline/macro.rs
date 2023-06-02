@@ -46,6 +46,58 @@ macro_rules! lower_pipeline {
             $(|> $lower:ty $([$ctx:ident])? $(, until ($until:pat))?)*;
     )*) => {$(
         $(#[$meta])*
+        ///
+        /// Pipeline Definition
+        /// ===================
+        /// This pipeline consists of the following parsers,
+        ///   where the first parser accepts the `src` token stream and the
+        ///   final parser outputs to the provided `sink`.
+        ///
+        $(
+            #[doc=concat!("  - [`", stringify!($lower), "`]")]
+            $(
+                #[doc=concat!(" with context `", stringify!($ctx), "`")]
+            )?
+            $(
+                #[doc=concat!(
+                    "up to and including the first token matching `",
+                    stringify!($until),
+                    "`",
+                )]
+            )?
+            #[doc="\n"]
+        )*
+        ///
+        /// The type signature of this function is complex due to the wiring
+        ///   of the types of all parsers in the pipeline.
+        /// It can be understood as:
+        ///
+        ///   1. A function accepting three classes of arguments:
+        ///      1. The _source_ token stream,
+        ///           which consists of tokens expected by the first parser
+        ///           in the pipeline;
+        ///      2. _Context_ for certain parsers that request it,
+        ///           allowing for state to persist between separate
+        ///           pipelines; and
+        ///      3. A _sink_ that serves as the final destination for the
+        ///           token stream.
+        ///   2. A [`Result`] consisting of the updated context that was
+        ///        originally passed into the function,
+        ///          so that it may be utilized in future pipelines.
+        ///   3. A _recoverable error_ type `ER` that may be utilized when
+        ///        compilation should continue despite an error.
+        ///      All parsers are expected to perform their own error
+        ///        recovery in an attempt to continue parsing to discover
+        ///        further errors;
+        ///          as such,
+        ///            this error type `ER` must be able to contain the
+        ///            errors of any parser in the pipeline,
+        ///              which is the reason for the large block of
+        ///              [`From`]s in this function's `where` clause.
+        ///   4. An _unrecoverable error_ type `EU` that may be yielded by
+        ///        the sink to terminate compilation immediately.
+        ///      This is a component of the [`Result`] type that is
+        ///        ultimately yielded as the result of this function.
         $vis fn $fn<$($l,)? ES: Diagnostic, ER: Diagnostic, EU: Diagnostic>(
             src: impl LowerSource<
                 UnknownToken,
