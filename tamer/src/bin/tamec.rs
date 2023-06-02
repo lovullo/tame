@@ -188,15 +188,25 @@ fn derive_xmli(
     escaper: &DefaultEscaper,
 ) -> Result<(), UnrecoverableError> {
     use tamer::{
-        asg::visit::tree_reconstruction, pipeline, xir::writer::XmlWriter,
+        asg::visit::tree_reconstruction,
+        pipeline,
+        xir::writer::{WriterState, XmlWriter},
     };
 
     let src = lowerable(tree_reconstruction(&asg).map(Ok));
 
     // TODO: Remove bad file?
     //   Let make do it?
-    pipeline::lower_xmli(src, &asg, |st, tok| {
-        tok.write(&mut fout, st, escaper).map_err(Into::into)
+    let mut st = WriterState::default();
+    pipeline::lower_xmli(src, &asg, |result| {
+        // Write failures should immediately bail out;
+        //   we can't skip writing portions of the file and
+        //   just keep going!
+        result.and_then(|tok| {
+            tok.write(&mut fout, st, escaper)
+                .map(|newst| st = newst)
+                .map_err(Into::<UnrecoverableError>::into)
+        })
     })
 }
 

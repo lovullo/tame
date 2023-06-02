@@ -45,7 +45,6 @@ use std::convert::Infallible;
 use crate::{
     asg::{air::AirAggregate, visit::TreeWalkRel, Asg, AsgTreeToXirf},
     diagnose::Diagnostic,
-    iter::TrippableIterator,
     nir::{InterpolateNir, NirToAir, TplShortDesugar, XirfToNir},
     obj::xmlo::{XmloReader, XmloToAir, XmloToken},
     parse::{
@@ -55,7 +54,6 @@ use crate::{
     xir::{
         autoclose::XirfAutoClose,
         flat::{PartialXirToXirf, RefinedText, Text, XirToXirf, XirfToXir},
-        writer::WriterState,
         Error as XirError, Token as XirToken,
     },
 };
@@ -258,35 +256,30 @@ lower_pipeline! {
 /// Lower an [`Asg`]-derived token stream into an `xmli` file.
 ///
 /// TODO: More documentation once this has been further cleaned up.
-pub fn lower_xmli<EU: Diagnostic>(
+pub fn lower_xmli<ER: Diagnostic, EU: Diagnostic>(
     src: impl LowerSource<UnknownToken, TreeWalkRel, Infallible>,
     asg: &Asg,
-    sink: impl FnMut(WriterState, XirToken) -> Result<WriterState, EU>,
+    sink: impl FnMut(Result<XirToken, ER>) -> Result<(), EU>,
 ) -> Result<(), EU>
 where
-    EU: From<ParseError<UnknownToken, Infallible>>
-        + From<ParseError<TreeWalkRel, Infallible>> // see note above
+    ER: From<ParseError<UnknownToken, Infallible>>
+        + From<ParseError<TreeWalkRel, Infallible>>
         + FromParseError<XirfAutoClose>
-        + FromParseError<XirfToXir<Text>>
-        + From<FinalizeError>,
+        + FromParseError<XirfToXir<Text>>,
+    EU: From<FinalizeError>,
 {
     #[rustfmt::skip] // better visualize the structure despite the line length
     Lower::<
         ParsedObject<UnknownToken, TreeWalkRel, Infallible>,
         AsgTreeToXirf,
-        _,
+        ER,
     >::lower_with_context::<_, EU>(
-        &mut src.map(|result| result.map_err(EU::from)),
+        &mut src.map(|result| result.map_err(ER::from)),
         asg,
         |xirf_unclosed| {
             Lower::<AsgTreeToXirf, XirfAutoClose, _>::lower(xirf_unclosed, |xirf| {
                 Lower::<XirfAutoClose, XirfToXir<Text>, _>::lower(xirf, |xir| {
-                    terminal::<XirfToXir<Text>, _>(xir).while_ok(|toks| {
-                        // Write failures should immediately bail out;
-                        //   we can't skip writing portions of the file and
-                        //   just keep going!
-                        toks.try_fold(Default::default(), sink)
-                    })
+                    terminal::<XirfToXir<Text>, _>(xir).try_for_each(sink)
                 })
             })
         }
