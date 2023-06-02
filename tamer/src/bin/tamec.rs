@@ -145,9 +145,9 @@ fn compile<R: Reporter>(
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
-    let air_ctx = parse_package_xml(
+    let (air_ctx,) = parse_package_xml(
         src,
-        DefaultAsg::with_capacity(1024, 2048).into(),
+        DefaultAsg::with_capacity(1024, 2048),
         report_err,
     )?;
 
