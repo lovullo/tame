@@ -26,7 +26,6 @@ use crate::{
     fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
     span::Span,
-    sym::{st::raw::U_TRUE, SymbolId},
 };
 use arrayvec::ArrayVec;
 use std::{error::Error, fmt::Display};
@@ -36,6 +35,7 @@ use std::{error::Error, fmt::Display};
 use crate::{
     asg::ExprOp,
     nir::{Nir::*, NirEntity::*},
+    sym::{st::raw::U_TRUE, SymbolId},
 };
 
 #[derive(Debug, PartialEq, Eq, Default)]
@@ -78,6 +78,7 @@ type ObjStack = ArrayVec<Air, 2>;
 
 /// The symbol to use when lexically expanding shorthand notations to
 ///   compare against values of `1`.
+#[cfg(feature = "wip-asg-derived-xmli")]
 pub const SYM_TRUE: SymbolId = U_TRUE;
 
 impl ParseState for NirToAir {
