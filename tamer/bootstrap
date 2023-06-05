@@ -24,6 +24,12 @@
 
 set -euo pipefail
 
+# Invoke cargo both to output version information to the log and to trigger
+# rustup based on `rust-toolchain.toml`, if the user happens to use rustup.
+# This will allow `cargo` commands to work in the usual way, though `make`
+# should still be preferred.
+which cargo &>/dev/null && cargo --version
+
 # This will apply a default configuration, which will be used to perform a
 # fetch of the dependencies.  You are of course free to reconfigure after.
 ./autogen.sh && ./configure && make fetch

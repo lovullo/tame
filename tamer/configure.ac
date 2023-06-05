@@ -43,11 +43,28 @@ AC_SUBST(SUFFIX, m4_argn(4, ver_split))
 AC_ARG_VAR([CARGO], [Rust Cargo executable])
 AC_CHECK_PROGS(CARGO, [cargo])
 
-# Rust toolchain (stable/nightly) is hard-coded for now, since decisions
-# regarding whether to use it are nuanced.
-AC_SUBST([RUST_TC], nightly)
-
 test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
+
+# Derive the expected nightly version from `rust-toolchain.toml` and
+# configure the build system to use that version explicitly for each cargo
+# invoation in the Makefile.
+#
+# See rust-toolchain.toml for information about this process.  Note that
+# this file will only trigger an auto-update if it is actually used to
+# derive the version (if TAMER_RUST_TOOLCHAIN is _not_ used).
+AC_ARG_VAR([TAMER_RUST_TOOLCHAIN],
+           [Rust toolchain channel to use in place of rust-toolchain.toml contents])
+AC_MSG_CHECKING([toolchain channel])
+AS_IF([test -n "$TAMER_RUST_TOOLCHAIN"],
+      [AC_MSG_RESULT([$TAMER_RUST_TOOLCHAIN (from TAMER_RUST_TOOLCHAIN)])
+       AC_SUBST(RUST_TC, [$TAMER_RUST_TOOLCHAIN])],
+      [rust_channel=$($AWK -F '[[ "]]' '$1=="channel" { print $4 }' rust-toolchain.toml)
+       AS_IF([test -n "$rust_channel"],
+             [AC_MSG_RESULT([$rust_channel (from rust-toolchain.toml)])
+              AC_SUBST([RUST_TC], [$rust_channel])],
+             [AC_MSG_RESULT([missing (from both rust-toolchain.toml and TAMER_RUST_TOOLCHAIN)])
+              AC_MSG_ERROR([rust-toolchain.toml is missing or does not contain channel])])
+       AC_SUBST([CONFIG_STATUS_DEPENDENCIES], rust-toolchain.toml)])
 
 # There is no reason the build should _ever_ access the network.
 # This both helps with reproducibility and helps to mitigate supply chain
@@ -55,16 +72,21 @@ test -n "$CARGO" || AC_MSG_ERROR([cargo not found])
 # fetch a network resource (by invoking cargo manually).
 AC_SUBST([CARGO_FLAGS], "--frozen --offline")
 
-# This is a nightly version at the time of writing
+# This is the version of Rust that would be required if we were not
+# utilizing nightly features.  This serves as a lower version bound, whereas
+# the nightly check above serves as an upper bound.
 rustc_ver_req=1.70
 
 AC_CHECK_PROGS(RUSTC, [rustc])
 AC_MSG_CHECKING([rustc $RUST_TC version >= $rustc_ver_req])
 rustc_version=$("$RUSTC" "+$RUST_TC" --version | cut -d' ' -f2)
+AS_IF([test -z "$rustc_version"],
+      [AC_MSG_ERROR([
+failed to execute rustc with toolchain $RUST_TC (see above for error message)
+  - if the above toolchain is not found, try running `bootstrap`])])
 AX_COMPARE_VERSION([$rustc_version], [ge], [$rustc_ver_req],
                    [AC_MSG_RESULT([yes ($rustc_version)])],
-                   [AC_MSG_RESULT([no ($rustc_version)])
-                    AC_MSG_ERROR([If using rustup, run `rustup update'])])
+                   [AC_MSG_RESULT([no ($rustc_version)])])
 
 AC_ARG_VAR([CARGO_BUILD_FLAGS],
            [Flags to be passed to `cargo build' when invoked via Make])

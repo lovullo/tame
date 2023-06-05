@@ -1,0 +1,52 @@
+# See <https://rust-lang.github.io/rustup/overrides.html?highlight=rust-toolchain#the-toolchain-file>
+#
+# This file is used to pin the version of Rust used to build TAMER.  This is
+# not at all an ideal situation, but is necessary because TAMER uses nightly
+# features, and those features will occaisonally make
+# backwards-incompatabile changes.
+#
+# The default behavior caused by this file is not ideal:  If the user uses
+# rustup, it'll cause the toolchain to be downloaded during build,
+# _ignoring_ any `--offline` flag provided to Cargo.  Projects ought to be
+# able to build without network access; the `bootstrap` script is intended
+# to install necessary dependencies on a system prior to building.
+#
+# By explicitly specifying the toolchain via `cargo +toolchain`, we bypass
+# the system utilizing this file.  It becomes clear that TAMER is being
+# compiled with a particular toolchain version---the invoked command (by
+# `make`) explicitly says so.  This also avoids automatically downloading
+# the toolchain if it's missing, relying instead on any prior bootstrapping
+# or system-installed toolchain.
+#
+# Why have `rust-toolchain.toml` at all, then?  Because then `cargo` will
+# work when invoked independently, if someone chooses not to use `make` for
+# any reason.  It is still recommended that `make` be utilized so that all
+# the other build configuration takes effect.
+#
+# `configure.ac` will extract the channel from this file and utilize it to
+# configure the build to explicitly pass the channel via each cargo
+# invocation via the `Makefile`.  Changing this file will will cause
+# reconfiguration automatically.
+#
+# Alternatively, `TAMER_RUST_TOOLCHAIN` may be used to explicitly specify
+# the channel for the toolchain.  If you do this, then modifying
+# `rust-toolchain.toml` will _not_ trigger a reconfiguration automatically.
+#
+# If you are building an earlier commit that does not have this file, then
+# you will need to modify `configure.ac` / `Makefile.am` to do your bidding.
+
+[toolchain]
+channel = "nightly-2023-04-15"
+
+# The components should be checked in `configure.ac`
+#   - Note that `cargo-fmt` is `rustfmt`.
+components = ["rustfmt", "clippy"]
+
+# A note on the above version: it's not likely to be the case that _this
+# specific version_ is necessary to build TAMER.  Instead, this is an upper
+# bound, whereas the Rust version in `configure.ac` is a lower bound.  Some,
+# or all, of the versions within that bound are likely to work.  If you know
+# another version that works (e.g. you are packaging TAMER and want to use
+# another version of Rust already available elsewhere), you may use the
+# `TAMER_RUST_TOOLCHAIN` `configure` parameter.
+
