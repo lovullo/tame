@@ -25,8 +25,8 @@ use crate::{
     num::{Dim, Dtype},
     obj::xmlo::SymType,
     parse::{
-        self, util::SPair, ClosedParseState, EmptyContext, NoContext,
-        ParseState, Token, Transition, TransitionResult, Transitionable,
+        self, util::SPair, NoContext, ParseState, Token, Transition,
+        TransitionResult, Transitionable,
     },
     span::Span,
     sym::{st::raw, GlobalSymbolIntern, GlobalSymbolResolve, SymbolId},
@@ -163,44 +163,30 @@ impl Display for XmloToken {
     }
 }
 
-/// A parser capable of being composed with [`XmloReader`].
-pub trait XmloState =
-    ClosedParseState<Token = Xirf<Text>, Context = EmptyContext>
-    where
-        Self: Default,
-        <Self as ParseState>::Error: Into<XmloError>,
-        <Self as ParseState>::Object: Into<XmloToken>;
-
 #[derive(Debug, Default, PartialEq, Eq)]
-pub enum XmloReader<
-    SS: XmloState = SymtableState,
-    SD: XmloState = SymDepsState,
-    SF: XmloState = FragmentsState,
-> {
+pub enum XmloReader {
     /// Parser has not yet processed any input.
     #[default]
     Ready,
     /// Processing `package` attributes.
     Package(Span),
     /// Expecting a symbol declaration or closing `preproc:symtable`.
-    Symtable(Span, SS),
+    Symtable(Span, SymtableState),
     /// Symbol dependencies are expected next.
     SymDepsExpected,
     /// Expecting symbol dependency list or closing `preproc:sym-deps`.
-    SymDeps(Span, SD),
+    SymDeps(Span, SymDepsState),
     /// Compiled text fragments are expected next.
     FragmentsExpected,
     /// Expecting text fragment or closing `preproc:fragments`.
-    Fragments(Span, SF),
+    Fragments(Span, FragmentsState),
     /// End of header parsing.
     Eoh,
     /// `xmlo` file has been fully read.
     Done,
 }
 
-impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
-    for XmloReader<SS, SD, SF>
-{
+impl ParseState for XmloReader {
     type Token = Xirf<Text>;
     type Object = XmloToken;
     type Error = XmloError;
@@ -249,7 +235,7 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             (Package(_), Xirf::Close(..)) => Transition(Done).incomplete(),
 
             (Package(_), Xirf::Open(QN_P_SYMTABLE, span, ..)) => {
-                Transition(Symtable(span.tag_span(), SS::default()))
+                Transition(Symtable(span.tag_span(), SymtableState::default()))
                     .incomplete()
             }
 
@@ -269,7 +255,8 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             ),
 
             (SymDepsExpected, Xirf::Open(QN_P_SYM_DEPS, span, _)) => {
-                Transition(SymDeps(span.tag_span(), SD::default())).incomplete()
+                Transition(SymDeps(span.tag_span(), SymDepsState::default()))
+                    .incomplete()
             }
 
             (SymDeps(_, sd), Xirf::Close(None | Some(QN_P_SYM_DEPS), ..))
@@ -286,8 +273,11 @@ impl<SS: XmloState, SD: XmloState, SF: XmloState> ParseState
             ),
 
             (FragmentsExpected, Xirf::Open(QN_P_FRAGMENTS, span, _)) => {
-                Transition(Fragments(span.tag_span(), SF::default()))
-                    .incomplete()
+                Transition(Fragments(
+                    span.tag_span(),
+                    FragmentsState::default(),
+                ))
+                .incomplete()
             }
 
             (
@@ -343,9 +333,7 @@ fn canonical_slash(name: SymbolId) -> SymbolId {
     }
 }
 
-impl<SS: XmloState, SD: XmloState, SF: XmloState> Display
-    for XmloReader<SS, SD, SF>
-{
+impl Display for XmloReader {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use XmloReader::*;
 
