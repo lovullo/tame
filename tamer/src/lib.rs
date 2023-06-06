@@ -76,6 +76,8 @@
 // If this is not stabalized,
 //   then we can do without by changing the abstraction;
 //     this is largely experimentation to see if it's useful.
+// See `rust-toolchain.toml` for information on how this blocks more recent
+//   nightly versions as of 2023-06.
 #![allow(incomplete_features)]
 #![feature(adt_const_params)]
 // Used for traits returning functions,

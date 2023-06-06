@@ -36,7 +36,7 @@
 # you will need to modify `configure.ac` / `Makefile.am` to do your bidding.
 
 [toolchain]
-channel = "nightly-2023-04-15"
+channel = "nightly-2023-04-15" #¹
 
 # The components should be checked in `configure.ac`
 #   - Note that `cargo-fmt` is `rustfmt`.
@@ -50,3 +50,26 @@ components = ["rustfmt", "clippy"]
 # another version of Rust already available elsewhere), you may use the
 # `TAMER_RUST_TOOLCHAIN` `configure` parameter.
 
+
+# ¹ TAMER uses the incomplete feature `adt_const_params`.  "Incomplete"
+# features require a special flag to enable---`incomplete_features`---and
+# are described as "incomplete and may not be safe to use and/or cause
+# compiler crashes".
+#
+# The `ConstParamTy` trait was introduced by
+# <https://github.com/rust-lang/rust/pull/111670> and merged in early
+# June 2023.  After this change, const params types must implement this
+# trait.
+#
+# Unfortunately, at the time of writing (2023-06), while the trait is
+# implemented on a number of core primitives, it is _not_ implemented on the
+# `NonZero*` types.  There is an inquiry into this limitation on Zulip, and
+# it is expected to be resolved in the future:
+#   <https://rust-lang.zulipchat.com/#narrow/stream/182449-t-compiler.2Fhelp/topic/ConstParamTy.20for.20NonZero*.20types>
+#
+# We will sit on this and watch how it evolves over the following
+# weeks/months to assess how to best proceed.
+#
+# Aside from this, there seems to be a rustdoc bug at some point between
+# April and June that causes documentation failures.  This needs further
+# investigation, and possibly a bug report.
