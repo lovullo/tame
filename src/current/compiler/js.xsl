@@ -159,7 +159,7 @@
 
     <!-- make the name of the supplier available -->
     <text>/**@expose*/rater.supplier = '</text>
-      <value-of select="substring-after( $name, '/' )" />
+      <value-of select="( tokenize( $name, '/' ) )[ last() ]" />
     <text>'; </text>
 
     <text>/**@expose*/rater.meta = meta;</text>
