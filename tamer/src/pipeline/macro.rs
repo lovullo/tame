@@ -72,19 +72,20 @@ macro_rules! lower_pipeline {
         ///   of the types of all parsers in the pipeline.
         /// It can be understood as:
         ///
-        ///   1. A function accepting three classes of arguments:
-        ///      1. The _source_ token stream,
-        ///           which consists of tokens expected by the first parser
-        ///           in the pipeline;
-        ///      2. _Context_ for certain parsers that request it,
-        ///           allowing for state to persist between separate
-        ///           pipelines; and
-        ///      3. A _sink_ that serves as the final destination for the
-        ///           token stream.
-        ///   2. A [`Result`] consisting of the updated context that was
+        ///   1. A function accepting _context_ for whatever parsers request
+        ///        it,
+        ///          allowing both for configuration and for state to
+        ///          persist between separate pipelines.
+        ///      This returns a closure representing a configured pipeline.
+        ///   2. The _source_ token stream is accepted by the closure,
+        ///         which consists of tokens expected by the first parser
+        ///         in the pipeline;
+        ///   4. A _sink_ serves as the final destination for the token
+        ///        stream.
+        ///   5. A [`Result`] consisting of the updated context that was
         ///        originally passed into the function,
         ///          so that it may be utilized in future pipelines.
-        ///   3. A _recoverable error_ type `ER` that may be utilized when
+        ///   6. A _recoverable error_ type `ER` that may be utilized when
         ///        compilation should continue despite an error.
         ///      All parsers are expected to perform their own error
         ///        recovery in an attempt to continue parsing to discover
@@ -94,25 +95,17 @@ macro_rules! lower_pipeline {
         ///            errors of any parser in the pipeline,
         ///              which is the reason for the large block of
         ///              [`From`]s in this function's `where` clause.
-        ///   4. An _unrecoverable error_ type `EU` that may be yielded by
+        ///   7. An _unrecoverable error_ type `EU` that may be yielded by
         ///        the sink to terminate compilation immediately.
         ///      This is a component of the [`Result`] type that is
         ///        ultimately yielded as the result of this function.
-        $vis fn $fn<$($l,)? ES: Diagnostic, ER: Diagnostic, EU: Diagnostic>(
-            src: impl LowerSource<
-                UnknownToken,
-                lower_pipeline!(@first_tok_ty $($lower),*),
-                ES
-                >,
+        $vis fn $fn<$($l,)? ES: Diagnostic, ER: Diagnostic, EU: Diagnostic, SA, SB>(
             $(
                 // Each parser may optionally receive context from an
                 //   earlier run.
                 $($ctx: impl Into<<$lower as ParseState>::PubContext>,)?
             )*
-            sink: impl FnMut(
-                Result<lower_pipeline!(@last_obj_ty $($lower),*), ER>
-            ) -> Result<(), EU>,
-        ) -> Result<
+        ) -> impl FnOnce(SA, SB) -> Result<
             (
                 $(
                     // Any context that is passed in is also returned so
@@ -147,7 +140,18 @@ macro_rules! lower_pipeline {
             //     which is _not_ an error that parsers are expected to
             //     recover from.
             EU: From<FinalizeError>,
+
+            SA: LowerSource<
+                UnknownToken,
+                lower_pipeline!(@first_tok_ty $($lower),*),
+                ES
+            >,
+
+            SB: FnMut(
+                Result<lower_pipeline!(@last_obj_ty $($lower),*), ER>
+            ) -> Result<(), EU>
         {
+            move |src, sink| {
             let lower_pipeline!(@ret_pat $($($ctx)?)*) = lower_pipeline!(
                 @body_head(src, sink)
                 $((|> $lower $([$ctx])? $(, until ($until))?))*
@@ -156,6 +160,7 @@ macro_rules! lower_pipeline {
             Ok(($(
                 $($ctx,)?
             )*))
+            }
         }
     )*};
 

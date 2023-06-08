@@ -150,10 +150,8 @@ fn compile<R: Reporter>(
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
-    let (air_ctx,) = parse_package_xml(
-        src,
-        DefaultAsg::with_capacity(1024, 2048),
-        report_err,
+    let (air_ctx,) = parse_package_xml(DefaultAsg::with_capacity(1024, 2048))(
+        src, report_err,
     )?;
 
     match reporter.has_errors() {
@@ -203,7 +201,7 @@ fn derive_xmli(
     // TODO: Remove bad file?
     //   Let make do it?
     let mut st = WriterState::default();
-    let (_asg,) = pipeline::lower_xmli(src, &asg, |result| {
+    let (_asg,) = pipeline::lower_xmli(&asg)(src, |result| {
         // Write failures should immediately bail out;
         //   we can't skip writing portions of the file and
         //   just keep going!
