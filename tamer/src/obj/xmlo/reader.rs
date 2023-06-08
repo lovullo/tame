@@ -80,6 +80,17 @@ pub enum XmloToken {
     ///   object file representing the source location of this symbol.
     Symbol(SPair),
 
+    /// End of symbol dependencies.
+    ///
+    /// This token indicates that all symbols and their dependencies have
+    ///   been parsed.
+    /// This is a safe stopping point for subsystems that do not wish to
+    ///   load fragments.
+    ///
+    /// (This is not named `Eos` because that is not a commonly used
+    ///   initialism and is not clear.)
+    SymDepEnd(Span),
+
     /// Text (compiled code) fragment for a given symbol.
     ///
     /// This contains the compiler output for a given symbol,
@@ -120,6 +131,7 @@ impl Token for XmloToken {
             | SymDecl(SPair(_, span), _)
             | SymDepStart(SPair(_, span))
             | Symbol(SPair(_, span))
+            | SymDepEnd(span)
             | Fragment(SPair(_, span), _)
             | Eoh(span) => *span,
         }
@@ -155,6 +167,7 @@ impl Display for XmloToken {
                 )
             }
             Symbol(sym) => write!(f, "symbol {}", TtQuote::wrap(sym)),
+            SymDepEnd(_) => write!(f, "end of symbol dependencies"),
             Fragment(sym, _) => {
                 write!(f, "symbol {} code fragment", TtQuote::wrap(sym))
             }
@@ -259,11 +272,11 @@ impl ParseState for XmloReader {
                     .incomplete()
             }
 
-            (SymDeps(_, sd), Xirf::Close(None | Some(QN_P_SYM_DEPS), ..))
-                if sd.is_accepting(ctx) =>
-            {
-                Transition(FragmentsExpected).incomplete()
-            }
+            (
+                SymDeps(_, sd),
+                Xirf::Close(None | Some(QN_P_SYM_DEPS), cspan, _),
+            ) if sd.is_accepting(ctx) => Transition(FragmentsExpected)
+                .ok(XmloToken::SymDepEnd(cspan.span())),
 
             (SymDeps(span, sd), tok) => sd.delegate(
                 tok,
@@ -308,7 +321,7 @@ impl ParseState for XmloReader {
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        *self == Self::Eoh || *self == Self::Done
+        matches!(self, Self::FragmentsExpected | Self::Eoh | Self::Done)
     }
 }
 

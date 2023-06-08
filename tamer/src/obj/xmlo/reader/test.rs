@@ -701,8 +701,51 @@ fn xmlo_composite_parsers_header() {
             O(PkgStart(S1)),
               O(SymDecl(SPair(sym_name, S3), Default::default(),)),
               O(SymDepStart(SPair(symdep_name, S3))),
+              O(SymDepEnd(S3)),
               O(Fragment(SPair(symfrag_id, S4), frag)),
               O(Eoh(S3)),
+        ]),
+        sut.filter(|parsed| match parsed {
+            Ok(Incomplete) => false,
+            _ => true,
+        })
+        .collect(),
+    );
+}
+
+#[test]
+fn xmlo_end_after_sym_deps_before_fragments() {
+    let sym_name = "sym".into();
+    let symdep_name = "symdep".into();
+
+    #[rustfmt::skip]
+    let toks_header = [
+        open(QN_PACKAGE, S1, Depth(0)),
+          open(QN_P_SYMTABLE, S2, Depth(1)),
+            open(QN_P_SYM, S3, Depth(2)),
+              attr(QN_NAME, sym_name, (S2, S3)),
+            close_empty(S4, Depth(2)),
+          close(Some(QN_P_SYMTABLE), S4, Depth(1)),
+
+          open(QN_P_SYM_DEPS, S2, Depth(1)),
+            open(QN_P_SYM_DEP, S3, Depth(3)),
+              attr(QN_NAME, symdep_name, (S2, S3)),
+            close(Some(QN_P_SYM_DEP), S4, Depth(3)),
+          close(Some(QN_P_SYM_DEPS), S3, Depth(1)),
+
+        // End before fragments.
+    ]
+    .into_iter();
+
+    let sut = Sut::parse(toks_header);
+
+    #[rustfmt::skip]
+    assert_eq!(
+        Ok(vec![
+            O(PkgStart(S1)),
+              O(SymDecl(SPair(sym_name, S3), Default::default(),)),
+              O(SymDepStart(SPair(symdep_name, S3))),
+              O(SymDepEnd(S3)),
         ]),
         sut.filter(|parsed| match parsed {
             Ok(Incomplete) => false,

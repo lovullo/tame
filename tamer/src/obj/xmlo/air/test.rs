@@ -102,9 +102,10 @@ fn adds_sym_deps() {
           PkgName(SPair(name, S2)),
 
           SymDepStart(SPair(sym_from, S3)),
-          Symbol(SPair(sym_to1, S4)),
-          Symbol(SPair(sym_to2, S5)),
-        Eoh(S6),
+            Symbol(SPair(sym_to1, S4)),
+            Symbol(SPair(sym_to2, S5)),
+          SymDepEnd(S6),
+        Eoh(S7),
     ];
 
     assert_eq!(
@@ -115,7 +116,42 @@ fn adds_sym_deps() {
               Incomplete, // SymDepStart
               O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
               O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to2, S5))),
-            O(Air::PkgEnd(S6)),
+              Incomplete, // EndOfDeps
+            O(Air::PkgEnd(S7)),
+        ]),
+        Sut::parse(toks.into_iter()).collect(),
+    );
+}
+
+#[test]
+fn accepting_state_after_sym_deps() {
+    let name = "name".into();
+    let sym_from = "from".into();
+    let sym_to1 = "to1".into();
+
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1),
+          PkgName(SPair(name, S2)),
+
+          SymDepStart(SPair(sym_from, S3)),
+            Symbol(SPair(sym_to1, S4)),
+          SymDepEnd(S5),
+        // Missing EOH; this should be a valid accepting state so that
+        //   parsing can end early.
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            Incomplete, // PkgStart
+            O(Air::PkgStart(S1, SPair(name, S2))),
+              Incomplete, // SymDepStart
+              O(Air::IdentDep(SPair(sym_from, S3), SPair(sym_to1, S4))),
+              Incomplete, // EndOfDeps
+            // The missing EOH is added automatically.
+            // TODO: Span of last-encountered token.
+            O(Air::PkgEnd(S5)),
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );

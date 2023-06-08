@@ -29,6 +29,7 @@ use fxhash::FxHashSet;
 use crate::{
     asg::{air::Air, IdentKind, Source},
     diagnose::{AnnotatedSpan, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
     obj::xmlo::{SymAttrs, SymType},
     parse::{util::SPair, ParseState, ParseStatus, Transition, Transitionable},
     span::Span,
@@ -95,6 +96,7 @@ pub enum XmloToAir {
     PackageFound(Span),
     Package(PackageSPair),
     SymDep(PackageSPair, SPair),
+    SymDepEnded(PackageSPair, Span),
     /// End of header (EOH) reached.
     Done(Span),
 }
@@ -212,13 +214,22 @@ impl ParseState for XmloToAir {
                     .transition(Package(pkg_name))
             }
 
-            (Package(pkg_name) | SymDep(pkg_name, _), Fragment(name, text)) => {
+            (Package(pkg_name) | SymDep(pkg_name, _), SymDepEnd(span)) => {
+                Transition(SymDepEnded(pkg_name, span)).incomplete()
+            }
+
+            (
+                Package(pkg_name)
+                | SymDep(pkg_name, _)
+                | SymDepEnded(pkg_name, _),
+                Fragment(name, text),
+            ) => {
                 Transition(Package(pkg_name)).ok(Air::IdentFragment(name, text))
             }
 
             // We don't need to read any further than the end of the
             //   header (symtable, sym-deps, fragments).
-            (Package(..) | SymDep(..), Eoh(span)) => {
+            (Package(..) | SymDep(..) | SymDepEnded(..), Eoh(span)) => {
                 // It's important to set this _after_ we're done processing,
                 //   otherwise our `first` checks above will be inaccurate.
                 ctx.first = false;
@@ -234,14 +245,35 @@ impl ParseState for XmloToAir {
                 tok @ (PkgStart(..) | PkgName(..) | Symbol(..)),
             ) => Transition(st).dead(tok),
 
-            (st @ (PackageFound(..) | SymDep(..) | Done(..)), tok) => {
-                Transition(st).dead(tok)
-            }
+            (
+                st @ (PackageFound(..) | SymDep(..) | SymDepEnded(..)
+                | Done(..)),
+                tok,
+            ) => Transition(st).dead(tok),
         }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         matches!(*self, Self::Done(_))
+    }
+
+    fn eof_tok(&self, _ctx: &Self::Context) -> Option<Self::Token> {
+        use XmloToAir::*;
+
+        match self {
+            // We are able to stop parsing immediately after symbol
+            //   dependencies have ended if the caller wishes to ignore
+            //   fragments.
+            // Pretend that we received an `Eoh` token in this case so that
+            //   we can conclude parsing.
+            SymDepEnded(_, span) => Some(XmloToken::Eoh(*span)),
+
+            Package(_)
+            | PackageExpected
+            | PackageFound(_)
+            | SymDep(_, _)
+            | Done(_) => None,
+        }
     }
 }
 
@@ -257,6 +289,13 @@ impl Display for XmloToAir {
             }
             SymDep(pkg_name, sym) => {
                 write!(f, "expecting dependency for symbol `/{pkg_name}/{sym}`")
+            }
+            SymDepEnded(pkg_name, _) => {
+                write!(
+                    f,
+                    "expecting fragments or end of header for package {}",
+                    TtQuote::wrap(pkg_name)
+                )
             }
             Done(_) => write!(f, "done lowering xmlo into AIR"),
         }
