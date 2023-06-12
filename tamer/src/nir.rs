@@ -77,7 +77,7 @@ pub use interp::{InterpError, InterpState as InterpolateNir};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,
 };
-pub use tplshort::TplShortDesugar;
+pub use tplshort::{TplShortDesugar, TplShortDesugarError};
 
 /// IR that is "near" the source code.
 ///

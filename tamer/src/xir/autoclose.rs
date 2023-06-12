@@ -106,7 +106,7 @@ use crate::{
     span::{Span, UNKNOWN_SPAN},
     xir::EleSpan,
 };
-use std::{convert::Infallible, fmt::Display};
+use std::fmt::Display;
 
 use XirfAutoClose::*;
 
@@ -138,10 +138,14 @@ impl Display for XirfAutoClose {
     }
 }
 
+diagnostic_infallible! {
+    pub enum XirfAutoCloseError {}
+}
+
 impl ParseState for XirfAutoClose {
     type Token = XirfToken<Text>;
     type Object = XirfToken<Text>;
-    type Error = Infallible;
+    type Error = XirfAutoCloseError;
     type Context = AutoCloseStack;
 
     fn parse_token(

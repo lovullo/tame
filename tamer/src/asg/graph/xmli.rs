@@ -54,7 +54,7 @@ use crate::{
     },
 };
 use arrayvec::ArrayVec;
-use std::{convert::Infallible, fmt::Display, marker::PhantomData};
+use std::{fmt::Display, marker::PhantomData};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AsgTreeToXirf<'a> {
@@ -75,10 +75,14 @@ impl<'a> Display for AsgTreeToXirf<'a> {
 
 type Xirf = XirfToken<Text>;
 
+diagnostic_infallible! {
+    pub enum AsgTreeToXirfError {}
+}
+
 impl<'a> ParseState for AsgTreeToXirf<'a> {
     type Token = TreeWalkRel;
     type Object = Xirf;
-    type Error = Infallible;
+    type Error = AsgTreeToXirfError;
     type Context = TreeContext<'a>;
 
     fn parse_token(

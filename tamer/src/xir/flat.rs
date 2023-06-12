@@ -55,7 +55,6 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use std::{
-    convert::Infallible,
     error::Error,
     fmt::{Debug, Display},
     marker::PhantomData,
@@ -926,10 +925,14 @@ impl<T: TextType> Display for XirfToXir<T> {
     }
 }
 
+diagnostic_infallible! {
+    pub enum XirfToXirError {}
+}
+
 impl<T: TextType> ParseState for XirfToXir<T> {
     type Token = XirfToken<T>;
     type Object = XirToken;
-    type Error = Infallible;
+    type Error = XirfToXirError;
 
     fn parse_token(
         self,

@@ -332,3 +332,55 @@ impl<S: Into<Span>> Annotate for S {
         AnnotatedSpan(self.into(), level, label)
     }
 }
+
+/// Generate a variant-less error enum akin to [`Infallible`].
+///
+/// This is used to create [`Infallible`]-like newtypes where unique error
+///   types are beneficial.
+/// For example,
+///   this can be used so that [`From`] implementations can be exclusively
+///   used to widen errors
+///     (or lack thereof)
+///     into error sum variants,
+///       and is especially useful when code generation is involved to avoid
+///       generation of overlapping [`From`] `impl`s.
+///
+/// The generated enum is convertable [`Into`] and [`From`] [`Infallible`].
+macro_rules! diagnostic_infallible {
+    ($vis:vis enum $name:ident {}) => {
+        /// A unique [`Infallible`](std::convert::Infallible) type.
+        #[derive(Debug, PartialEq)]
+        $vis enum $name {}
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, stringify!($name))
+            }
+        }
+
+        impl $crate::diagnose::Diagnostic for $name {
+            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan> {
+                // This is a unit struct and should not be able to be
+                //   instantiated!
+                unreachable!(
+                    concat!(
+                        stringify!($name),
+                        " should be unreachable!"
+                    )
+                )
+            }
+        }
+
+        impl From<std::convert::Infallible> for $name {
+            fn from(_: std::convert::Infallible) -> Self {
+                unreachable!()
+            }
+        }
+
+        impl From<$name> for std::convert::Infallible {
+            fn from(_: $name) -> Self {
+                unreachable!()
+            }
+        }
+    }
+}

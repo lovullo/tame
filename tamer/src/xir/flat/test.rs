@@ -619,10 +619,10 @@ fn xirf_to_xir() {
     );
 
     // The lowering pipeline above requires compatible errors.
-    impl From<ParseError<XirfToken<Text>, Infallible>>
+    impl From<ParseError<XirfToken<Text>, XirfToXirError>>
         for ParseError<XirToken, XirToXirfError>
     {
-        fn from(_value: ParseError<XirfToken<Text>, Infallible>) -> Self {
+        fn from(_value: ParseError<XirfToken<Text>, XirfToXirError>) -> Self {
             unreachable!()
         }
     }

@@ -39,6 +39,18 @@
 //! The module is responsible for pipeline composition.
 //! For information on the lowering pipeline as an abstraction,
 //!   see [`Lower`].
+//!
+//! Error Widening
+//! ==============
+//! Each [`ParseState`] in the pipeline is expected to have its own unique
+//!   error type,
+//!     utilizing newtypes if necessary;
+//!       this ensures that errors are able to be uniquely paired with each
+//!         [`ParseState`] that produced it without having to perform an
+//!         explicit mapping at the call site.
+//! To facilitate that automatic mapping/aggregation,
+//!   this uniqueness property also allows for generation of [`From`]
+//!   implementations that will not overlap.
 
 use crate::{
     asg::{air::AirAggregate, AsgTreeToXirf},

@@ -88,7 +88,6 @@ use crate::{
         SymbolId,
     },
 };
-use std::convert::Infallible;
 
 use Nir::*;
 use NirEntity::*;
@@ -130,10 +129,14 @@ impl Display for TplShortDesugar {
     }
 }
 
+diagnostic_infallible! {
+    pub enum TplShortDesugarError {}
+}
+
 impl ParseState for TplShortDesugar {
     type Token = Nir;
     type Object = Nir;
-    type Error = Infallible;
+    type Error = TplShortDesugarError;
     type Context = Stack;
 
     fn parse_token(

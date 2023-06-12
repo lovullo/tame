@@ -108,8 +108,6 @@ impl ParseState for NirToAir {
         use NirToAir::*;
         use NirToAirError::*;
 
-        use crate::diagnostic_panic;
-
         if let Some(obj) = stack.pop() {
             return Transition(Ready).ok(obj).with_lookahead(tok);
         }

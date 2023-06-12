@@ -39,16 +39,21 @@ use std::{
     path::Path,
 };
 use tamer::{
-    asg::{air::Air, AsgError, DefaultAsg},
+    asg::{
+        air::Air, visit::TreeWalkRel, AsgError, AsgTreeToXirfError, DefaultAsg,
+    },
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    nir::{InterpError, Nir, NirToAirError, XirfToNirError},
+    nir::{
+        InterpError, Nir, NirToAirError, TplShortDesugarError, XirfToNirError,
+    },
     parse::{lowerable, FinalizeError, ParseError, Token, UnknownToken},
     pipeline::parse_package_xml,
     xir::{
         self,
-        flat::{RefinedText, XirToXirfError, XirfToken},
+        autoclose::XirfAutoCloseError,
+        flat::{RefinedText, Text, XirToXirfError, XirfToXirError, XirfToken},
         reader::XmlXirReader,
         DefaultEscaper, Token as XirToken,
     },
@@ -317,6 +322,9 @@ pub enum UnrecoverableError {
     Io(io::Error),
     Fmt(fmt::Error),
     XirWriterError(xir::writer::Error),
+    AsgTreeToXirfError(ParseError<TreeWalkRel, AsgTreeToXirfError>),
+    XirfAutoCloseError(ParseError<XirfToken<Text>, XirfAutoCloseError>),
+    XirfToXirError(ParseError<XirfToken<Text>, XirfToXirError>),
     ErrorsDuringLowering(ErrorCount),
     FinalizeError(FinalizeError),
 }
@@ -353,6 +361,7 @@ pub enum RecoverableError {
     XirParseError(ParseError<UnknownToken, xir::Error>),
     XirfParseError(ParseError<XirToken, XirToXirfError>),
     NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
+    TplShortDesugarError(ParseError<Nir, TplShortDesugarError>),
     InterpError(ParseError<Nir, InterpError>),
     NirToAirError(ParseError<Nir, NirToAirError>),
     AirAggregateError(ParseError<Air, AsgError>),
@@ -376,15 +385,29 @@ impl From<xir::writer::Error> for UnrecoverableError {
     }
 }
 
-impl From<FinalizeError> for UnrecoverableError {
-    fn from(e: FinalizeError) -> Self {
-        Self::FinalizeError(e)
+impl From<ParseError<TreeWalkRel, AsgTreeToXirfError>> for UnrecoverableError {
+    fn from(e: ParseError<TreeWalkRel, AsgTreeToXirfError>) -> Self {
+        Self::AsgTreeToXirfError(e)
     }
 }
 
-impl From<Infallible> for UnrecoverableError {
-    fn from(_: Infallible) -> Self {
-        unreachable!("<UnrecoverableError as From<Infallible>>::from")
+impl From<ParseError<XirfToken<Text>, XirfToXirError>> for UnrecoverableError {
+    fn from(e: ParseError<XirfToken<Text>, XirfToXirError>) -> Self {
+        Self::XirfToXirError(e)
+    }
+}
+
+impl From<ParseError<XirfToken<Text>, XirfAutoCloseError>>
+    for UnrecoverableError
+{
+    fn from(e: ParseError<XirfToken<Text>, XirfAutoCloseError>) -> Self {
+        Self::XirfAutoCloseError(e)
+    }
+}
+
+impl From<FinalizeError> for UnrecoverableError {
+    fn from(e: FinalizeError) -> Self {
+        Self::FinalizeError(e)
     }
 }
 
@@ -392,14 +415,6 @@ impl<T: Token> From<ParseError<T, Infallible>> for UnrecoverableError {
     fn from(_: ParseError<T, Infallible>) -> Self {
         unreachable!(
             "<UnrecoverableError as From<ParseError<T, Infallible>>>::from"
-        )
-    }
-}
-
-impl<T: Token> From<ParseError<T, Infallible>> for RecoverableError {
-    fn from(_: ParseError<T, Infallible>) -> Self {
-        unreachable!(
-            "<RecoverableError as From<ParseError<T, Infallible>>>::from"
         )
     }
 }
@@ -421,6 +436,12 @@ impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>>
 {
     fn from(e: ParseError<XirfToken<RefinedText>, XirfToNirError>) -> Self {
         Self::NirParseError(e)
+    }
+}
+
+impl From<ParseError<Nir, TplShortDesugarError>> for RecoverableError {
+    fn from(e: ParseError<Nir, TplShortDesugarError>) -> Self {
+        Self::TplShortDesugarError(e)
     }
 }
 
@@ -450,6 +471,9 @@ impl Display for UnrecoverableError {
             Io(e) => Display::fmt(e, f),
             Fmt(e) => Display::fmt(e, f),
             XirWriterError(e) => Display::fmt(e, f),
+            AsgTreeToXirfError(e) => Display::fmt(e, f),
+            XirfToXirError(e) => Display::fmt(e, f),
+            XirfAutoCloseError(e) => Display::fmt(e, f),
             FinalizeError(e) => Display::fmt(e, f),
 
             // TODO: Use formatter for dynamic "error(s)"
@@ -468,6 +492,7 @@ impl Display for RecoverableError {
             XirParseError(e) => Display::fmt(e, f),
             XirfParseError(e) => Display::fmt(e, f),
             NirParseError(e) => Display::fmt(e, f),
+            TplShortDesugarError(e) => Display::fmt(e, f),
             InterpError(e) => Display::fmt(e, f),
             NirToAirError(e) => Display::fmt(e, f),
             AirAggregateError(e) => Display::fmt(e, f),
@@ -475,40 +500,16 @@ impl Display for RecoverableError {
     }
 }
 
-impl Error for UnrecoverableError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use UnrecoverableError::*;
-
-        match self {
-            Io(e) => Some(e),
-            Fmt(e) => Some(e),
-            XirWriterError(e) => Some(e),
-            ErrorsDuringLowering(_) => None,
-            FinalizeError(e) => Some(e),
-        }
-    }
-}
-
-impl Error for RecoverableError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use RecoverableError::*;
-
-        match self {
-            XirParseError(e) => Some(e),
-            XirfParseError(e) => Some(e),
-            NirParseError(e) => Some(e),
-            InterpError(e) => Some(e),
-            NirToAirError(e) => Some(e),
-            AirAggregateError(e) => Some(e),
-        }
-    }
-}
+impl Error for UnrecoverableError {}
 
 impl Diagnostic for UnrecoverableError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         use UnrecoverableError::*;
 
         match self {
+            AsgTreeToXirfError(e) => e.describe(),
+            XirfToXirError(e) => e.describe(),
+            XirfAutoCloseError(e) => e.describe(),
             FinalizeError(e) => e.describe(),
 
             // Fall back to `Display`
@@ -527,6 +528,7 @@ impl Diagnostic for RecoverableError {
             XirParseError(e) => e.describe(),
             XirfParseError(e) => e.describe(),
             NirParseError(e) => e.describe(),
+            TplShortDesugarError(e) => e.describe(),
             InterpError(e) => e.describe(),
             NirToAirError(e) => e.describe(),
             AirAggregateError(e) => e.describe(),

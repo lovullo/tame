@@ -74,7 +74,7 @@ pub use graph::{
         ObjectKind,
     },
     visit,
-    xmli::AsgTreeToXirf,
+    xmli::{AsgTreeToXirf, AsgTreeToXirfError},
     Asg, AsgResult, IndexType,
 };
 
