@@ -221,6 +221,16 @@ where
     }
 }
 
+/// Short-hand [`ParseError`] with types derived from the provided
+///   [`ParseState`] `S`.
+///
+/// The reason that [`ParseError`] does not accept [`ParseState`] is because
+///   a [`ParseState`] may carry a lot of additional type baggage---​
+///     including lifetimes and other generics---​
+///   that are irrelevant to the error type.
+pub type ParseStateError<S> =
+    ParseError<<S as ParseState>::Token, <S as ParseState>::Error>;
+
 /// A [`Diagnostic`] error type common to both `S` and `LS`.
 ///
 /// This error type must be able to accommodate error variants from all
@@ -235,9 +245,17 @@ where
 ///     which may then decide what to do
 ///       (e.g. report errors and permit recovery,
 ///         or terminate at the first sign of trouble).
-pub trait WidenedError<S: ParseState, LS: ParseState> = Diagnostic
-    + From<ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>
-    + From<ParseError<<LS as ParseState>::Token, <LS as ParseState>::Error>>;
+///
+/// Note that the [`From`] trait bound utilizing `S` is purely a development
+///   aid to help guide the user (developer) in deriving the necessary
+///   types,
+///     since lowering pipelines are deeply complex with all the types
+///     involved.
+/// It can be safely removed in the future,
+///   at least at the time of writing,
+///   and have no effect on compilation.
+pub trait WidenedError<S: ParseState, LS: ParseState> =
+    Diagnostic + From<ParseStateError<S>> + From<ParseStateError<LS>>;
 
 /// Convenience trait for converting [`From`] a [`ParseError`] for the
 ///   provided [`ParseState`] `S`.
@@ -246,8 +264,7 @@ pub trait WidenedError<S: ParseState, LS: ParseState> = Diagnostic
 ///   that is almost certainly already utilized,
 ///     rather than having to either import more types or use the verbose
 ///     associated type.
-pub trait FromParseError<S: ParseState> =
-    From<ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>;
+pub trait FromParseError<S: ParseState> = From<ParseStateError<S>>;
 
 /// A [`ParsedResult`](super::ParsedResult) with a [`WidenedError`].
 pub type WidenedParsedResult<S, E> =

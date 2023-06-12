@@ -25,6 +25,103 @@
 //!   and to see TAMER's pipelines,
 //!   see the [parent module](super).
 
+#[cfg(doc)]
+use crate::parse::ParseState;
+
+/// Generate an error sum type for a lowering pipeline.
+///
+/// Given a series of [`ParseState`] types,
+///   this derives a sum type capable of representing the associated
+///   [`ParseState::Error`] of each.
+/// See the [parent module](super) for more information,
+///   including the challenges/concerns with this approach.
+/// In particular,
+///   note that all lifetimes on the [`ParseState`] type are rewritten to be
+///   `'static';
+///     all associated `Error` types must not contain non-static lifetimes,
+///       as is the standard convention in TAMER.
+macro_rules! lower_error_sum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis $name:ident = $(
+            $st:ident $(<$($l:lifetime,)* $($c:literal,)* $($t:ident,)*>)?
+        )+
+    ) => {
+        // Pair `'static` with each lifetime so that it may be used to
+        //   replace the respective lifetime in `@gen`
+        //     (we need an iteration token).
+        lower_error_sum!(
+            @gen
+            $(#[$meta])*
+            $vis $name = $($st$(<$($l: 'static,)* $($c,)* $($t,)*>)?)+
+        );
+    };
+
+    (
+        @gen
+        $(#[$meta:meta])*
+        $vis:vis $name:ident = $(
+            $st:ident $(<
+                $($_:lifetime: $l:lifetime,)*
+                //             ^^ `'static` (see above)
+                $($c:literal,)*
+                $($t:ident,)*
+            >)?
+        )+
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, PartialEq)]
+        $vis enum $name<ES: Diagnostic + PartialEq + 'static> {
+            Src(ParseError<UnknownToken, ES>),
+            $(
+                $st(ParseStateError<$st$(<$($l,)* $($c,)* $($t),* >)?>)
+                //                          ^^ `'static`
+            ),+
+        }
+
+        impl<ES: Diagnostic + PartialEq + 'static> From<ParseError<UnknownToken, ES>>
+            for $name<ES>
+        {
+            fn from(e: ParseError<UnknownToken, ES>) -> Self {
+                Self::Src(e)
+            }
+        }
+
+        $(
+            impl<ES: Diagnostic + PartialEq + 'static>
+                From<ParseStateError<$st$(<$($l,)* $($c,)* $($t),*>)?>>
+                for $name<ES>
+            {
+                fn from(e: ParseStateError<$st$(<$($l,)* $($c,)* $($t),*>)?>) -> Self {
+                    Self::$st(e)
+                }
+            }
+        )+
+
+        impl<ES: Diagnostic + PartialEq + 'static> std::fmt::Display for $name<ES> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    Self::Src(e) => std::fmt::Display::fmt(e, f),
+                    $(
+                        Self::$st(e) => std::fmt::Display::fmt(e, f),
+                    )+
+                }
+            }
+        }
+
+        impl<ES: Diagnostic + PartialEq + 'static> Diagnostic for $name<ES> {
+            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+                match self {
+                    Self::Src(e) => e.describe(),
+                    $(
+                        Self::$st(e) => e.describe(),
+                    )+
+                }
+            }
+        }
+    };
+}
+
 /// Declaratively define a lowering pipeline.
 ///
 /// A lowering pipeline stitches together parsers such that the objects of
@@ -42,9 +139,48 @@
 macro_rules! lower_pipeline {
     ($(
         $(#[$meta:meta])*
-        $vis:vis $fn:ident$(<$l:lifetime>)?
-            $(|> $lower:ty $([$ctx:ident])? $(, until ($until:pat))?)*;
+        $vis:vis $fn:ident$(<$l:lifetime>)? -> $struct:ident
+            $(|>
+              $lower_name:tt$(<$($lower_t:tt),+>)?
+              $([$ctx:ident])?
+              $(, until ($until:pat))?
+            )*
+            ;
     )*) => {$(
+        paste::paste! {
+            lower_error_sum! {
+                /// Recoverable error for
+                #[doc=concat!("[`", stringify!($fn), "`]")]
+                /// lowering pipeline.
+                ///
+                /// This represents an error that occurred from one of the
+                ///   [`ParseState`]s in the lowering pipeline.
+                /// Since all [`ParseState`]s are expected to attempt
+                ///   recovery on failure,
+                ///     this error represents a _recoverable_ error.
+                /// Whether or not the error should be treated as
+                ///   recoverable is entirely at the discretion of the sink
+                ///   provided to the pipeline;
+                ///     a sink may choose to promote all errors to
+                ///     unrecoverable.
+                $vis [<$struct Error>] = $(
+                    $lower_name$(<$($lower_t,)+>)?
+                )*
+            }
+        }
+
+        lower_pipeline!(
+            @pipeline
+            $vis $fn$(<$l>)? -> $struct
+                $(|> $lower_name$(<$($lower_t),+>)? $([$ctx])? $(, until ($until))?)*
+        );
+    )*};
+
+    (@pipeline
+        $(#[$meta:meta])*
+        $vis:vis $fn:ident$(<$l:lifetime>)? -> $struct:ident
+            $(|> $lower:ty $([$ctx:ident])? $(, until ($until:pat))?)*
+    ) => {paste::paste!{
         $(#[$meta])*
         ///
         /// Pipeline Definition
@@ -80,26 +216,21 @@ macro_rules! lower_pipeline {
         ///   2. The _source_ token stream is accepted by the closure,
         ///         which consists of tokens expected by the first parser
         ///         in the pipeline;
-        ///   4. A _sink_ serves as the final destination for the token
+        ///   3. A _sink_ serves as the final destination for the token
         ///        stream.
-        ///   5. A [`Result`] consisting of the updated context that was
+        ///   4. A [`Result`] consisting of the updated context that was
         ///        originally passed into the function,
         ///          so that it may be utilized in future pipelines.
-        ///   6. A _recoverable error_ type `ER` that may be utilized when
+        ///   5. A _recoverable error_ type
+        #[doc=concat!("[`", stringify!([<$struct Error>]), "`]")]
+        ///      that may be utilized when
         ///        compilation should continue despite an error.
-        ///      All parsers are expected to perform their own error
-        ///        recovery in an attempt to continue parsing to discover
-        ///        further errors;
-        ///          as such,
-        ///            this error type `ER` must be able to contain the
-        ///            errors of any parser in the pipeline,
-        ///              which is the reason for the large block of
-        ///              [`From`]s in this function's `where` clause.
-        ///   7. An _unrecoverable error_ type `EU` that may be yielded by
+        ///      See [`crate::pipeline`] for more information.
+        ///   6. An _unrecoverable error_ type `EU` that may be yielded by
         ///        the sink to terminate compilation immediately.
         ///      This is a component of the [`Result`] type that is
         ///        ultimately yielded as the result of this function.
-        $vis fn $fn<$($l,)? ES: Diagnostic, ER: Diagnostic, EU: Diagnostic, SA, SB>(
+        $vis fn $fn<$($l,)? ES: Diagnostic + 'static, EU: Diagnostic, SA, SB>(
             $(
                 // Each parser may optionally receive context from an
                 //   earlier run.
@@ -117,21 +248,6 @@ macro_rules! lower_pipeline {
             EU
         >
         where
-            // Recoverable errors (ER) are errors that could potentially be
-            //   handled by the sink.
-            // Parsers are always expected to perform error recovery to the
-            //   best of their ability.
-            // We need to support widening into this error type from every
-            //   individual ParseState in this pipeline,
-            //     plus the source.
-            ER: From<ParseError<UnknownToken, ES>>
-            $(
-                + From<ParseError<
-                    <$lower as ParseState>::Token,
-                    <$lower as ParseState>::Error,
-                >>
-            )*,
-
             // Unrecoverable errors (EU) are errors that the sink chooses
             //   not to handle.
             // It is constructed explicitly from the sink,
@@ -148,21 +264,25 @@ macro_rules! lower_pipeline {
             >,
 
             SB: FnMut(
-                Result<lower_pipeline!(@last_obj_ty $($lower),*), ER>
+                Result<lower_pipeline!(@last_obj_ty $($lower),*), [<$struct Error>]<ES>>
             ) -> Result<(), EU>
         {
             move |src, sink| {
-            let lower_pipeline!(@ret_pat $($($ctx)?)*) = lower_pipeline!(
-                @body_head(src, sink)
-                $((|> $lower $([$ctx])? $(, until ($until))?))*
-            )?;
+                // Recoverable error type (for brevity).
+                #[doc(hidden)]
+                type ER<T> = [<$struct Error>]<T>;
 
-            Ok(($(
-                $($ctx,)?
-            )*))
+                let lower_pipeline!(@ret_pat $($($ctx)?)*) = lower_pipeline!(
+                    @body_head(src, sink)
+                    $((|> $lower $([$ctx])? $(, until ($until))?))*
+                )?;
+
+                Ok(($(
+                    $($ctx,)?
+                )*))
             }
         }
-    )*};
+    }};
 
     (@ret_ctx_ty $lower:ty, $_ctx:ident) => {
         <$lower as ParseState>::PubContext
@@ -205,8 +325,8 @@ macro_rules! lower_pipeline {
         Lower::<
             ParsedObject<UnknownToken, _, ES>,
             $head,
-            ER,
-        >::lower::<_, EU>(&mut $src.map(|result| result.map_err(ER::from)), |next| {
+            ER<ES>,
+        >::lower::<_, EU>(&mut $src.map(|result| result.map_err(ER::Src)), |next| {
             lower_pipeline!(
                 @body_inner(next, $head, $sink)
                 $($rest)*
@@ -222,9 +342,9 @@ macro_rules! lower_pipeline {
         Lower::<
             ParsedObject<UnknownToken, _, ES>,
             $head,
-            ER,
+            ER<ES>,
         >::lower_with_context::<_, EU>(
-            &mut $src.map(|result| result.map_err(ER::from)),
+            &mut $src.map(|result| result.map_err(ER::Src)),
             $ctx,
             |next| {
                 lower_pipeline!(

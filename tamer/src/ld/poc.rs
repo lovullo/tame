@@ -26,30 +26,25 @@ use super::xmle::{
     XmleSections,
 };
 use crate::{
-    asg::{
-        air::{Air, AirAggregateCtx},
-        AsgError, DefaultAsg,
-    },
+    asg::{air::AirAggregateCtx, DefaultAsg},
     diagnose::{AnnotatedSpan, Diagnostic},
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,
     },
     ld::xmle::Sections,
-    obj::xmlo::{XmloAirContext, XmloAirError, XmloError, XmloToken},
-    parse::{lowerable, FinalizeError, ParseError, UnknownToken},
-    pipeline,
+    obj::xmlo::XmloAirContext,
+    parse::{lowerable, FinalizeError},
+    pipeline::{self, LoadXmloError},
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
-        flat::{Text, XirToXirfError, XirfToken},
         reader::XmlXirReader,
         writer::{Error as XirWriterError, XmlWriter},
-        DefaultEscaper, Error as XirError, Escaper, Token as XirToken,
+        DefaultEscaper, Error as XirError, Escaper,
     },
 };
 use fxhash::FxBuildHasher;
 use std::{
-    convert::identity,
     error::Error,
     fmt::{self, Display},
     fs,
@@ -107,9 +102,9 @@ fn load_xmlo<P: AsRef<Path>, S: Escaper>(
     let src = &mut lowerable(XmlXirReader::new(file, escaper, ctx));
 
     let (mut state, mut air_ctx) =
-        pipeline::load_xmlo::<_, TameldError, _, _, _>(state, air_ctx)(
-            src, identity,
-        )?;
+        pipeline::load_xmlo(state, air_ctx)(src, |result| {
+            result.map_err(TameldError::from)
+        })?;
 
     let mut dir = path;
     dir.pop();
@@ -160,11 +155,7 @@ fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
 pub enum TameldError {
     Io(NeqIoError),
     SortError(SortError),
-    XirParseError(ParseError<UnknownToken, XirError>),
-    XirfParseError(ParseError<XirToken, XirToXirfError>),
-    XmloParseError(ParseError<XirfToken<Text>, XmloError>),
-    XmloLowerError(ParseError<XmloToken, XmloAirError>),
-    AirLowerError(ParseError<Air, AsgError>),
+    LoadXmloError(LoadXmloError<XirError>),
     XirWriterError(XirWriterError),
     FinalizeError(FinalizeError),
     Fmt(fmt::Error),
@@ -207,33 +198,9 @@ impl From<SortError> for TameldError {
     }
 }
 
-impl From<ParseError<UnknownToken, XirError>> for TameldError {
-    fn from(e: ParseError<UnknownToken, XirError>) -> Self {
-        Self::XirParseError(e)
-    }
-}
-
-impl From<ParseError<XirfToken<Text>, XmloError>> for TameldError {
-    fn from(e: ParseError<XirfToken<Text>, XmloError>) -> Self {
-        Self::XmloParseError(e)
-    }
-}
-
-impl From<ParseError<XirToken, XirToXirfError>> for TameldError {
-    fn from(e: ParseError<XirToken, XirToXirfError>) -> Self {
-        Self::XirfParseError(e)
-    }
-}
-
-impl From<ParseError<XmloToken, XmloAirError>> for TameldError {
-    fn from(e: ParseError<XmloToken, XmloAirError>) -> Self {
-        Self::XmloLowerError(e)
-    }
-}
-
-impl From<ParseError<Air, AsgError>> for TameldError {
-    fn from(e: ParseError<Air, AsgError>) -> Self {
-        Self::AirLowerError(e)
+impl From<LoadXmloError<XirError>> for TameldError {
+    fn from(e: LoadXmloError<XirError>) -> Self {
+        Self::LoadXmloError(e)
     }
 }
 
@@ -260,11 +227,7 @@ impl Display for TameldError {
         match self {
             Self::Io(e) => Display::fmt(e, f),
             Self::SortError(e) => Display::fmt(e, f),
-            Self::XirParseError(e) => Display::fmt(e, f),
-            Self::XirfParseError(e) => Display::fmt(e, f),
-            Self::XmloParseError(e) => Display::fmt(e, f),
-            Self::XmloLowerError(e) => Display::fmt(e, f),
-            Self::AirLowerError(e) => Display::fmt(e, f),
+            Self::LoadXmloError(e) => Display::fmt(e, f),
             Self::XirWriterError(e) => Display::fmt(e, f),
             Self::FinalizeError(e) => Display::fmt(e, f),
             Self::Fmt(e) => Display::fmt(e, f),
@@ -272,31 +235,12 @@ impl Display for TameldError {
     }
 }
 
-impl Error for TameldError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::Io(e) => Some(e),
-            Self::SortError(e) => Some(e),
-            Self::XirParseError(e) => Some(e),
-            Self::XirfParseError(e) => Some(e),
-            Self::XmloParseError(e) => Some(e),
-            Self::XmloLowerError(e) => Some(e),
-            Self::AirLowerError(e) => Some(e),
-            Self::XirWriterError(e) => Some(e),
-            Self::FinalizeError(e) => Some(e),
-            Self::Fmt(e) => Some(e),
-        }
-    }
-}
+impl Error for TameldError {}
 
 impl Diagnostic for TameldError {
     fn describe(&self) -> Vec<AnnotatedSpan> {
         match self {
-            Self::XirParseError(e) => e.describe(),
-            Self::XirfParseError(e) => e.describe(),
-            Self::XmloParseError(e) => e.describe(),
-            Self::XmloLowerError(e) => e.describe(),
-            Self::AirLowerError(e) => e.describe(),
+            Self::LoadXmloError(e) => e.describe(),
             Self::FinalizeError(e) => e.describe(),
             Self::SortError(e) => e.describe(),
 

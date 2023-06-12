@@ -32,7 +32,7 @@ pub mod util;
 pub use error::{FinalizeError, ParseError};
 pub use lower::{
     lowerable, terminal, FromParseError, Lower, LowerIter, LowerSource,
-    ParsedObject,
+    ParseStateError, ParsedObject,
 };
 pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{

@@ -39,24 +39,13 @@ use std::{
     path::Path,
 };
 use tamer::{
-    asg::{
-        air::Air, visit::TreeWalkRel, AsgError, AsgTreeToXirfError, DefaultAsg,
-    },
+    asg::DefaultAsg,
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
-    nir::{
-        InterpError, Nir, NirToAirError, TplShortDesugarError, XirfToNirError,
-    },
-    parse::{lowerable, FinalizeError, ParseError, Token, UnknownToken},
-    pipeline::parse_package_xml,
-    xir::{
-        self,
-        autoclose::XirfAutoCloseError,
-        flat::{RefinedText, Text, XirToXirfError, XirfToXirError, XirfToken},
-        reader::XmlXirReader,
-        DefaultEscaper, Token as XirToken,
-    },
+    parse::{lowerable, FinalizeError, ParseError, Token},
+    pipeline::{parse_package_xml, LowerXmliError, ParsePackageXmlError},
+    xir::{self, reader::XmlXirReader, DefaultEscaper},
 };
 
 /// Types of commands
@@ -93,7 +82,7 @@ fn src_reader<'a>(
 fn copy_xml_to<'e, W: io::Write + 'e>(
     mut fout: W,
     escaper: &'e DefaultEscaper,
-) -> impl FnMut(&Result<XirToken, tamer::xir::Error>) + 'e {
+) -> impl FnMut(&Result<tamer::xir::Token, tamer::xir::Error>) + 'e {
     use tamer::xir::writer::XmlWriter;
 
     let mut xmlwriter = Default::default();
@@ -124,7 +113,7 @@ fn compile<R: Reporter>(
 
     let mut ebuf = String::new();
 
-    let report_err = |result: Result<(), RecoverableError>| {
+    let report_err = |result: Result<(), ParsePackageXmlError<_>>| {
         result.or_else(|e| {
             // See below note about buffering.
             ebuf.clear();
@@ -205,11 +194,13 @@ fn derive_xmli(
         // Write failures should immediately bail out;
         //   we can't skip writing portions of the file and
         //   just keep going!
-        result.and_then(|tok| {
-            tok.write(&mut fout, st, escaper)
-                .map(|newst| st = newst)
-                .map_err(Into::<UnrecoverableError>::into)
-        })
+        result
+            .map_err(Into::<UnrecoverableError>::into)
+            .and_then(|tok| {
+                tok.write(&mut fout, st, escaper)
+                    .map(|newst| st = newst)
+                    .map_err(Into::<UnrecoverableError>::into)
+            })
     })?;
 
     Ok(())
@@ -312,17 +303,20 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
 ///
 /// These are errors that will result in aborting execution and exiting with
 ///   a non-zero status.
-/// Contrast this with [`RecoverableError`],
+/// Contrast this with recoverable errors in [`tamer::pipeline`],
 ///   which is reported real-time to the user and _does not_ cause the
 ///   program to abort until the end of the compilation unit.
+///
+/// Note that an recoverable error,
+///   under a normal compilation strategy,
+///   will result in an [`UnrecoverableError::ErrorsDuringLowering`] at the
+///     end of the compilation unit.
 #[derive(Debug)]
 pub enum UnrecoverableError {
     Io(io::Error),
     Fmt(fmt::Error),
     XirWriterError(xir::writer::Error),
-    AsgTreeToXirfError(ParseError<TreeWalkRel, AsgTreeToXirfError>),
-    XirfAutoCloseError(ParseError<XirfToken<Text>, XirfAutoCloseError>),
-    XirfToXirError(ParseError<XirfToken<Text>, XirfToXirError>),
+    LowerXmliError(LowerXmliError<Infallible>),
     ErrorsDuringLowering(ErrorCount),
     FinalizeError(FinalizeError),
 }
@@ -332,38 +326,6 @@ pub enum UnrecoverableError {
 /// Let's hope that this is large enough for the number of errors you may
 ///   have in your code.
 type ErrorCount = usize;
-
-/// An error that occurs during the lowering pipeline that may be recovered
-///   from to continue parsing and collection of additional errors.
-///
-/// This represents the aggregation of all possible errors that can occur
-///   during lowering.
-/// This cannot include panics,
-///   but efforts have been made to reduce panics to situations that
-///   represent the equivalent of assertions.
-///
-/// These errors are distinct from [`UnrecoverableError`],
-///   which represents the errors that could be returned to the toplevel
-///     `main`,
-///   because these errors are intended to be reported to the user _and then
-///     recovered from_ so that compilation may continue and more errors may
-///     be collected;
-///       nobody wants a compiler that reports one error at a time.
-///
-/// Note that an recoverable error,
-///   under a normal compilation strategy,
-///   will result in an [`UnrecoverableError::ErrorsDuringLowering`] at the
-///     end of the compilation unit.
-#[derive(Debug)]
-pub enum RecoverableError {
-    XirParseError(ParseError<UnknownToken, xir::Error>),
-    XirfParseError(ParseError<XirToken, XirToXirfError>),
-    NirParseError(ParseError<XirfToken<RefinedText>, XirfToNirError>),
-    TplShortDesugarError(ParseError<Nir, TplShortDesugarError>),
-    InterpError(ParseError<Nir, InterpError>),
-    NirToAirError(ParseError<Nir, NirToAirError>),
-    AirAggregateError(ParseError<Air, AsgError>),
-}
 
 impl From<io::Error> for UnrecoverableError {
     fn from(e: io::Error) -> Self {
@@ -383,23 +345,9 @@ impl From<xir::writer::Error> for UnrecoverableError {
     }
 }
 
-impl From<ParseError<TreeWalkRel, AsgTreeToXirfError>> for UnrecoverableError {
-    fn from(e: ParseError<TreeWalkRel, AsgTreeToXirfError>) -> Self {
-        Self::AsgTreeToXirfError(e)
-    }
-}
-
-impl From<ParseError<XirfToken<Text>, XirfToXirError>> for UnrecoverableError {
-    fn from(e: ParseError<XirfToken<Text>, XirfToXirError>) -> Self {
-        Self::XirfToXirError(e)
-    }
-}
-
-impl From<ParseError<XirfToken<Text>, XirfAutoCloseError>>
-    for UnrecoverableError
-{
-    fn from(e: ParseError<XirfToken<Text>, XirfAutoCloseError>) -> Self {
-        Self::XirfAutoCloseError(e)
+impl From<LowerXmliError<Infallible>> for UnrecoverableError {
+    fn from(e: LowerXmliError<Infallible>) -> Self {
+        Self::LowerXmliError(e)
     }
 }
 
@@ -417,50 +365,6 @@ impl<T: Token> From<ParseError<T, Infallible>> for UnrecoverableError {
     }
 }
 
-impl From<ParseError<UnknownToken, xir::Error>> for RecoverableError {
-    fn from(e: ParseError<UnknownToken, xir::Error>) -> Self {
-        Self::XirParseError(e)
-    }
-}
-
-impl From<ParseError<XirToken, XirToXirfError>> for RecoverableError {
-    fn from(e: ParseError<XirToken, XirToXirfError>) -> Self {
-        Self::XirfParseError(e)
-    }
-}
-
-impl From<ParseError<XirfToken<RefinedText>, XirfToNirError>>
-    for RecoverableError
-{
-    fn from(e: ParseError<XirfToken<RefinedText>, XirfToNirError>) -> Self {
-        Self::NirParseError(e)
-    }
-}
-
-impl From<ParseError<Nir, TplShortDesugarError>> for RecoverableError {
-    fn from(e: ParseError<Nir, TplShortDesugarError>) -> Self {
-        Self::TplShortDesugarError(e)
-    }
-}
-
-impl From<ParseError<Nir, InterpError>> for RecoverableError {
-    fn from(e: ParseError<Nir, InterpError>) -> Self {
-        Self::InterpError(e)
-    }
-}
-
-impl From<ParseError<Nir, NirToAirError>> for RecoverableError {
-    fn from(e: ParseError<Nir, NirToAirError>) -> Self {
-        Self::NirToAirError(e)
-    }
-}
-
-impl From<ParseError<Air, AsgError>> for RecoverableError {
-    fn from(e: ParseError<Air, AsgError>) -> Self {
-        Self::AirAggregateError(e)
-    }
-}
-
 impl Display for UnrecoverableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use UnrecoverableError::*;
@@ -468,32 +372,14 @@ impl Display for UnrecoverableError {
         match self {
             Io(e) => Display::fmt(e, f),
             Fmt(e) => Display::fmt(e, f),
+            LowerXmliError(e) => Display::fmt(e, f),
             XirWriterError(e) => Display::fmt(e, f),
-            AsgTreeToXirfError(e) => Display::fmt(e, f),
-            XirfToXirError(e) => Display::fmt(e, f),
-            XirfAutoCloseError(e) => Display::fmt(e, f),
             FinalizeError(e) => Display::fmt(e, f),
 
             // TODO: Use formatter for dynamic "error(s)"
             ErrorsDuringLowering(err_count) => {
                 write!(f, "aborting due to previous {err_count} error(s)",)
             }
-        }
-    }
-}
-
-impl Display for RecoverableError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use RecoverableError::*;
-
-        match self {
-            XirParseError(e) => Display::fmt(e, f),
-            XirfParseError(e) => Display::fmt(e, f),
-            NirParseError(e) => Display::fmt(e, f),
-            TplShortDesugarError(e) => Display::fmt(e, f),
-            InterpError(e) => Display::fmt(e, f),
-            NirToAirError(e) => Display::fmt(e, f),
-            AirAggregateError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -505,31 +391,13 @@ impl Diagnostic for UnrecoverableError {
         use UnrecoverableError::*;
 
         match self {
-            AsgTreeToXirfError(e) => e.describe(),
-            XirfToXirError(e) => e.describe(),
-            XirfAutoCloseError(e) => e.describe(),
+            LowerXmliError(e) => e.describe(),
             FinalizeError(e) => e.describe(),
 
             // Fall back to `Display`
             Io(_) | Fmt(_) | XirWriterError(_) | ErrorsDuringLowering(_) => {
                 vec![]
             }
-        }
-    }
-}
-
-impl Diagnostic for RecoverableError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
-        use RecoverableError::*;
-
-        match self {
-            XirParseError(e) => e.describe(),
-            XirfParseError(e) => e.describe(),
-            NirParseError(e) => e.describe(),
-            TplShortDesugarError(e) => e.describe(),
-            InterpError(e) => e.describe(),
-            NirToAirError(e) => e.describe(),
-            AirAggregateError(e) => e.describe(),
         }
     }
 }

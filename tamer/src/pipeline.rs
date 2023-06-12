@@ -42,15 +42,70 @@
 //!
 //! Error Widening
 //! ==============
+//! Every lowering pipeline will have an associated error sum type generated
+//!   for it;
+//!     this is necessary to maintain an appropriate level of encapsulation
+//!     and keep implementation details away from the caller.
+//! All of the individual errors types is otherwise significant source of
+//!   complexity.
+//!
+//! Since all [`ParseState`]s in the lowering pipeline are expected to
+//!   support error recovery,
+//!     this generated error sum type represents a _recoverable_ error.
+//! It is up to the sink to deermine whether the error should be promoted
+//!   into an unrecoverable error `EU`,
+//!     which is the error type yielded by the lowering operation.
+//! Error reporting and recovery should be utilized whenever it makes sense
+//!   to present the user with as many errors as possible rather than
+//!   aborting the process immediately,
+//!     which would otherwise force the user to correct errors one at a
+//!     time.
+//!
+//! [`ParseState`] Requirements
+//! ---------------------------
 //! Each [`ParseState`] in the pipeline is expected to have its own unique
 //!   error type,
 //!     utilizing newtypes if necessary;
 //!       this ensures that errors are able to be uniquely paired with each
 //!         [`ParseState`] that produced it without having to perform an
 //!         explicit mapping at the call site.
-//! To facilitate that automatic mapping/aggregation,
-//!   this uniqueness property also allows for generation of [`From`]
-//!   implementations that will not overlap.
+//! This uniqueness property allows for generation of [`From`]
+//!   implementations that will not overlap,
+//!     and remains compatible with the API of [`Lower`].
+//!
+//! [`ParseState::Error`] Lifetime Requirements and Workarounds
+//! -----------------------------------------------------------
+//! Error types in TAMER _never_ have lifetime bounds;
+//!   this is necessary to allow error types to be propapgated all the way
+//!   up the stack regardless of dependencies.[^lifetime-alt]
+//!
+//! [^lifetime-alt]: Rather than utilizing references with lifetimes,
+//!   TAMER error types may hold symbols representing interned values,
+//!   or may instead [`Copy`] data that has no interner.
+//!
+//! However,
+//!   [`ParseState::Error`] is an associated type on [`ParseState`],
+//!     which _may_ have lifetimes.[^parse-state-lifetime-ex]
+//! At the time of writing,
+//!   even though the associated error type does not utilize the lifetime
+//!   bounds of the [`ParseState`],
+//!     Rust still requires some lifetime specification and will not elide
+//!     it or allow for anonymous lifetimes.
+//!
+//! [^parse-state-lifetime-ex]: One example of a [`ParseState`] with
+//!   an associated lifetime is [`AsgTreeToXirf`].
+//!
+//! We want to be able to derive error types from the provided
+//!   [`ParseState`]s along so that the caller does not have to peel back
+//!   layers of abstraction in order to determine how the error type ought
+//!   to be specified.
+//! To handle this,
+//!   the `lower_pipeline!` macro will _rewrite all lifetimes to `'static`'_
+//!   in the provided pipeline types.
+//! Since no [`ParseState::Error`] type should have a lifetime,
+//!   and therefore should not reference the lifetime of its parent
+//!     [`ParseState`],
+//!   this should have no practical effect on the error type itself.
 
 use crate::{
     asg::{air::AirAggregate, AsgTreeToXirf},
@@ -59,7 +114,7 @@ use crate::{
     obj::xmlo::{XmloReader, XmloToAir, XmloToken},
     parse::{
         terminal, FinalizeError, Lower, LowerSource, ParseError, ParseState,
-        Parsed, ParsedObject, UnknownToken,
+        ParseStateError, Parsed, ParsedObject, UnknownToken,
     },
     xir::{
         autoclose::XirfAutoClose,
@@ -82,7 +137,7 @@ lower_pipeline! {
     /// TODO: To re-use this in `tamec` we want to be able to ignore fragments.
     ///
     /// TODO: More documentation once this has been further cleaned up.
-    pub load_xmlo
+    pub load_xmlo -> LoadXmlo
         |> PartialXirToXirf<4, Text>
         |> XmloReader
         |> XmloToAir[xmlo_ctx], until (XmloToken::Eoh(..))
@@ -92,7 +147,7 @@ lower_pipeline! {
     ///   source language.
     ///
     /// TODO: More documentation once this has been further cleaned up.
-    pub parse_package_xml
+    pub parse_package_xml -> ParsePackageXml
         |> XirToXirf<64, RefinedText>
         |> XirfToNir
         |> TplShortDesugar
@@ -104,7 +159,7 @@ lower_pipeline! {
     ///   `xmli` file.
     ///
     /// TODO: More documentation once this has been further cleaned up.
-    pub lower_xmli<'a>
+    pub lower_xmli<'a> -> LowerXmli
         |> AsgTreeToXirf<'a>[asg]
         |> XirfAutoClose
         |> XirfToXir<Text>;
