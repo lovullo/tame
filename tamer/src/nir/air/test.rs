@@ -18,11 +18,32 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{parse::util::SPair, span::dummy::*};
+use crate::{
+    parse::{util::SPair, Parser},
+    span::dummy::*,
+};
 
 type Sut = NirToAir;
 
 use Parsed::{Incomplete, Object as O};
+
+fn sut_parse<I: Iterator<Item = Nir>>(toks: I) -> Parser<Sut, I> {
+    Sut::parse_with_context(
+        toks.into_iter(),
+        NirToAirParseType::LowerKnownErrorRest,
+    )
+}
+
+#[test]
+fn ignores_input_when_parse_type_is_noop() {
+    let toks = vec![Open(Package, S1), Close(Package, S2)];
+
+    assert_eq!(
+        Ok(vec![Incomplete, Incomplete,]),
+        Sut::parse_with_context(toks.into_iter(), NirToAirParseType::Noop)
+            .collect(),
+    );
+}
 
 #[test]
 fn package_to_pkg() {
@@ -33,7 +54,7 @@ fn package_to_pkg() {
             O(Air::PkgStart(S1, SPair("/TODO".into(), S1))),
             O(Air::PkgEnd(S2)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -55,7 +76,7 @@ fn rate_to_sum_expr() {
               O(Air::BindIdent(id)),
             O(Air::ExprEnd(S3)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -77,7 +98,7 @@ fn calc_exprs() {
               O(Air::ExprEnd(S3)),
             O(Air::ExprEnd(S4)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -99,7 +120,7 @@ fn classify_to_conj_expr() {
               O(Air::BindIdent(id)),
             O(Air::ExprEnd(S3)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -121,7 +142,7 @@ fn logic_exprs() {
               O(Air::ExprEnd(S3)),
             O(Air::ExprEnd(S4)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -148,7 +169,7 @@ fn desc_as_indep_clause() {
               O(Air::DocIndepClause(desc)),
             O(Air::ExprEnd(S4)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -170,7 +191,7 @@ fn tpl_with_name() {
               O(Air::BindIdent(name)),
             O(Air::TplEnd(S3)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -194,7 +215,7 @@ fn apply_template_long_form_nullary() {
               O(Air::RefIdent(name)),
             O(Air::TplEndRef(S3)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -240,7 +261,7 @@ fn apply_template_long_form_args() {
               O(Air::MetaEnd(S10)),
             O(Air::TplEndRef(S11)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -274,7 +295,7 @@ fn match_short_no_value() {
             O(Air::RefIdent(SPair(SYM_TRUE, S1))),
             O(Air::ExprEnd(S3)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -306,7 +327,7 @@ fn match_short_with_value() {
             O(Air::RefIdent(value)),
             O(Air::ExprEnd(S4)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }
 
@@ -345,7 +366,7 @@ fn match_short_value_before_subject_err() {
             Ok(O(Air::RefIdent(SPair(SYM_TRUE, S1)))),
             Ok(O(Air::ExprEnd(S3))),
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
+        sut_parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
     );
 }
 
@@ -370,7 +391,7 @@ fn match_no_args_err() {
             )),
             // RECOVERY: Useless match above discarded.
         ],
-        Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
+        sut_parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
     );
 }
 
@@ -395,6 +416,6 @@ fn text_as_arbitrary_doc() {
             O(Air::DocText(text)),
           O(Air::PkgEnd(S3)),
         ]),
-        Sut::parse(toks.into_iter()).collect(),
+        sut_parse(toks.into_iter()).collect(),
     );
 }

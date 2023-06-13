@@ -43,6 +43,7 @@ use tamer::{
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
+    nir::NirToAirParseType,
     parse::{lowerable, FinalizeError, ParseError, Token},
     pipeline::{parse_package_xml, LowerXmliError, ParsePackageXmlError},
     xir::{self, reader::XmlXirReader, DefaultEscaper},
@@ -137,11 +138,17 @@ fn compile<R: Reporter>(
         }
     }));
 
+    #[cfg(not(feature = "wip-asg-derived-xmli"))]
+    let parse_type = NirToAirParseType::Noop;
+    #[cfg(feature = "wip-asg-derived-xmli")]
+    let parse_type = NirToAirParseType::LowerKnownErrorRest;
+
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
-    let (air_ctx,) = parse_package_xml(DefaultAsg::with_capacity(1024, 2048))(
-        src, report_err,
-    )?;
+    let (_, air_ctx) = parse_package_xml(
+        parse_type,
+        DefaultAsg::with_capacity(1024, 2048),
+    )(src, report_err)?;
 
     match reporter.has_errors() {
         false => {

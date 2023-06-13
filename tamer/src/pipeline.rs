@@ -152,7 +152,7 @@ lower_pipeline! {
         |> XirfToNir
         |> TplShortDesugar
         |> InterpolateNir
-        |> NirToAir
+        |> NirToAir[nir_air_ty]
         |> AirAggregate[air_ctx];
 
     /// Lower an [`Asg`](crate::asg::Asg)-derived token stream into an

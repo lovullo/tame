@@ -72,7 +72,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
-pub use air::{NirToAir, NirToAirError};
+pub use air::{NirToAir, NirToAirError, NirToAirParseType};
 pub use interp::{InterpError, InterpState as InterpolateNir};
 pub use parse::{
     NirParseState as XirfToNir, NirParseStateError_ as XirfToNirError,

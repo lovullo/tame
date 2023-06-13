@@ -21,22 +21,58 @@
 
 use super::Nir;
 use crate::{
-    asg::air::Air,
+    asg::{air::Air, ExprOp},
     diagnose::{Annotate, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
+    nir::{Nir::*, NirEntity::*},
     parse::prelude::*,
     span::Span,
+    sym::{st::raw::U_TRUE, SymbolId},
 };
 use arrayvec::ArrayVec;
 use std::{error::Error, fmt::Display};
 
-// These are also used by the `test` module which imports `super`.
-#[cfg(feature = "wip-asg-derived-xmli")]
-use crate::{
-    asg::ExprOp,
-    nir::{Nir::*, NirEntity::*},
-    sym::{st::raw::U_TRUE, SymbolId},
-};
+/// Dynamic [`NirToAir`] parser configuration.
+///
+/// This acts as a runtime feature flag while this portions of TAMER is
+///   under development.
+#[derive(Debug, PartialEq, Eq)]
+pub enum NirToAirParseType {
+    /// Discard incoming tokens instead of lowering them.
+    Noop,
+
+    /// Lower known tokens,
+    ///   but produce errors for everything else that is not yet supported.
+    ///
+    /// It is expected that this will fail on at least some packages;
+    ///   this should be enabled only on packages known to compile with the
+    ///   new system.
+    LowerKnownErrorRest,
+}
+
+impl Display for NirToAirParseType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Noop => write!(f, "discarding all tokens (noop)"),
+            Self::LowerKnownErrorRest => write!(
+                f,
+                "lowering only supported tokens and failing on all others"
+            ),
+        }
+    }
+}
+
+impl From<NirToAirParseType> for (NirToAirParseType, ObjStack) {
+    fn from(ty: NirToAirParseType) -> Self {
+        (ty, Default::default())
+    }
+}
+
+impl From<(NirToAirParseType, ObjStack)> for NirToAirParseType {
+    fn from((ty, _): (NirToAirParseType, ObjStack)) -> Self {
+        ty
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum NirToAir {
@@ -78,35 +114,27 @@ type ObjStack = ArrayVec<Air, 2>;
 
 /// The symbol to use when lexically expanding shorthand notations to
 ///   compare against values of `1`.
-#[cfg(feature = "wip-asg-derived-xmli")]
 pub const SYM_TRUE: SymbolId = U_TRUE;
 
 impl ParseState for NirToAir {
     type Token = Nir;
     type Object = Air;
     type Error = NirToAirError;
-    type Context = ObjStack;
+    type Context = (NirToAirParseType, ObjStack);
+    type PubContext = NirToAirParseType;
 
-    #[cfg(not(feature = "wip-asg-derived-xmli"))]
     fn parse_token(
         self,
         tok: Self::Token,
-        _queue: &mut Self::Context,
-    ) -> TransitionResult<Self::Super> {
-        use NirToAir::*;
-
-        let _ = tok; // prevent `unused_variables` warning
-        Transition(Ready).ok(Air::Todo(crate::span::UNKNOWN_SPAN))
-    }
-
-    #[cfg(feature = "wip-asg-derived-xmli")]
-    fn parse_token(
-        self,
-        tok: Self::Token,
-        stack: &mut Self::Context,
+        (parse_type, stack): &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         use NirToAir::*;
         use NirToAirError::*;
+
+        match parse_type {
+            NirToAirParseType::Noop => return Transition(Ready).incomplete(),
+            NirToAirParseType::LowerKnownErrorRest => (),
+        }
 
         if let Some(obj) = stack.pop() {
             return Transition(Ready).ok(obj).with_lookahead(tok);
@@ -284,7 +312,7 @@ impl ParseState for NirToAir {
         }
     }
 
-    fn is_accepting(&self, stack: &Self::Context) -> bool {
+    fn is_accepting(&self, (_, stack): &Self::Context) -> bool {
         matches!(self, Self::Ready) && stack.is_empty()
     }
 }
@@ -364,5 +392,5 @@ impl Diagnostic for NirToAirError {
     }
 }
 
-#[cfg(all(test, feature = "wip-asg-derived-xmli"))]
+#[cfg(test)]
 mod test;
