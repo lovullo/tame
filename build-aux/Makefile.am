@@ -136,7 +136,12 @@ common: $(xmlo_common)
 
 program-ui: ui/package.strip.js ui/Program.js ui/html/index.phtml
 
-# Handle an intermediate step as we transition to the new compiler
+# Handle an intermediate step as we transition to the new compiler.
+# If a source file is paired with an `*.experimental` file with the same
+# stem, then it will trigger compilation using `xmlo-experimental`.  The
+# file may contain additional arguments to the pass to the compiler.
+%.xmli: %.xml %.experimental
+	$(path_tame)/tamer/target/release/tamec --emit xmlo-experimental $$(grep -v '^#' $*.experimental) -o $@ $<
 %.xmli: %.xml
 	$(path_tame)/tamer/target/release/tamec --emit xmlo -o $@ $<
 
