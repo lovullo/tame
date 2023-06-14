@@ -24,7 +24,7 @@
 //!   have historically been a feature of the template system.
 //! The canonical metavariable is the template parameter.
 
-use super::{prelude::*, Ident};
+use super::{prelude::*, Doc, Ident};
 use crate::{
     diagnose::Annotate,
     diagnostic_todo,
@@ -133,6 +133,9 @@ object_rel! {
     Meta -> {
         tree  Meta,   // TODO: do we need tree?
         cross Ident,
+
+        // e.g. template paramater description.
+        tree Doc,
     }
 }
 

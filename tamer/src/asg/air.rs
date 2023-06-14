@@ -229,7 +229,8 @@ impl ParseState for AirAggregate {
             }
             (PkgMeta(meta), AirMeta(mtok)) => ctx.proxy(meta, mtok),
             (PkgMeta(meta), AirBind(mtok)) => ctx.proxy(meta, mtok),
-            (PkgMeta(meta), tok @ (AirExpr(..) | AirTpl(..) | AirDoc(..))) => {
+            (PkgMeta(meta), AirDoc(mtok)) => ctx.proxy(meta, mtok),
+            (PkgMeta(meta), tok @ (AirExpr(..) | AirTpl(..))) => {
                 ctx.try_ret_with_lookahead(meta, tok)
             }
 

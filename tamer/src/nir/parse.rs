@@ -1425,9 +1425,10 @@ ele_parse! {
     ///   expanded.
     TplParamStmt := QN_PARAM(_, ospan) {
         @ {
-            QN_NAME => TodoAttr,
-            QN_DESC => TodoAttr,
-        } => Todo(ospan.into()),
+            QN_NAME => BindIdent,
+            QN_DESC => Desc,
+        } => Nir::Open(NirEntity::TplParam, ospan.into()),
+        /(cspan) => Nir::Close(NirEntity::TplParam, cspan.into()),
 
         TplParamDefault,
     };

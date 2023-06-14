@@ -154,6 +154,10 @@ type TokenStack = ArrayVec<Xirf, TOK_STACK_SIZE>;
 pub struct TreeContext<'a> {
     stack: TokenStack,
     asg: &'a Asg,
+
+    /// Whether the most recently encountered template has been interpreted
+    ///   as an application.
+    tpl_apply: Option<ObjectIndex<Tpl>>,
 }
 
 impl<'a> TreeContext<'a> {
@@ -210,9 +214,10 @@ impl<'a> TreeContext<'a> {
                 self.emit_template(tpl, *oi_tpl, paired_rel.source(), depth)
             }
 
-            Object::Meta((meta, oi_meta)) => {
-                self.emit_tpl_arg(meta, *oi_meta, depth)
-            }
+            Object::Meta((meta, oi_meta)) => match self.tpl_apply {
+                Some(_) => self.emit_tpl_arg(meta, *oi_meta, depth),
+                None => self.emit_tpl_param(meta, *oi_meta, depth),
+            },
 
             Object::Doc((doc, oi_doc)) => {
                 self.emit_doc(doc, *oi_doc, paired_rel.source(), depth)
@@ -387,6 +392,7 @@ impl<'a> TreeContext<'a> {
     ) -> Option<Xirf> {
         match src {
             Object::Ident((ident, _)) => {
+                self.tpl_apply = None;
                 self.push(attr_name(ident.name()));
 
                 Some(Xirf::open(
@@ -404,6 +410,12 @@ impl<'a> TreeContext<'a> {
             //   do not have to deal with converting underscore-padded
             //   template names back into short-hand form.
             Object::Pkg(..) | Object::Tpl(..) | Object::Expr(..) => {
+                // This really ought to be a state transition;
+                //   this is a sheer act of laziness.
+                // If we introduce states for other things,
+                //   let's convert this as well.
+                self.tpl_apply = Some(oi_tpl);
+
                 // [`Ident`]s are skipped during traversal,
                 //   so we'll handle it ourselves here.
                 // This also gives us the opportunity to make sure that
@@ -442,6 +454,33 @@ impl<'a> TreeContext<'a> {
                 "emit_template: {src:?}"
             ),
         }
+    }
+
+    /// Emit a metavariable as a template parameter.
+    ///
+    /// For the parent template,
+    ///   see [`Self::emit_template`].
+    fn emit_tpl_param(
+        &mut self,
+        meta: &Meta,
+        oi_meta: ObjectIndex<Meta>,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        let pname =
+            oi_meta
+                .ident(self.asg)
+                .map(Ident::name)
+                .diagnostic_unwrap(|| {
+                    vec![meta.internal_error("missing param name")]
+                });
+
+        self.push(attr_name(pname));
+
+        Some(Xirf::open(
+            QN_PARAM,
+            OpenSpan::without_name_span(meta.span()),
+            depth,
+        ))
     }
 
     /// Emit a long-form template argument.
@@ -498,6 +537,13 @@ impl<'a> TreeContext<'a> {
         match (src, doc) {
             // TODO: Non-stmt exprs should use `@label` instead.
             (Object::Expr(..) | Object::Tpl(..), Doc::IndepClause(desc)) => {
+                Some(attr_desc(*desc))
+            }
+
+            // template/param/@desc
+            (Object::Meta(_), Doc::IndepClause(desc))
+                if self.tpl_apply.is_none() =>
+            {
                 Some(attr_desc(*desc))
             }
 
@@ -564,6 +610,7 @@ impl<'a> From<&'a Asg> for TreeContext<'a> {
         TreeContext {
             stack: Default::default(),
             asg,
+            tpl_apply: None,
         }
     }
 }

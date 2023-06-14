@@ -64,7 +64,7 @@ impl ParseState for AirMetaAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirMeta::*};
+        use super::ir::{AirBind::*, AirDoc::*, AirMeta::*};
         use AirBindableMeta::*;
         use AirMetaAggregate::*;
 
@@ -90,6 +90,19 @@ impl ParseState for AirMetaAggregate {
                 })
                 .map(|_| ())
                 .transition(TplMeta(oi_meta)),
+
+            (TplMeta(oi_meta), AirDoc(DocIndepClause(clause))) => {
+                oi_meta.desc_short(ctx.asg_mut(), clause);
+                Transition(TplMeta(oi_meta)).incomplete()
+            }
+
+            (TplMeta(..), tok @ AirDoc(DocText(..))) => {
+                diagnostic_todo!(
+                    vec![tok.note("this token")],
+                    "AirDoc in metavar context \
+                        (is this something we want to support?)"
+                )
+            }
 
             (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
                 diagnostic_todo!(
@@ -119,8 +132,10 @@ impl ParseState for AirMetaAggregate {
                 )
             }
 
-            // Maybe the bind can be handled by the parent frame.
-            (Ready, tok @ AirBind(..)) => Transition(Ready).dead(tok),
+            // Maybe the token can be handled by the parent frame.
+            (Ready, tok @ (AirBind(..) | AirDoc(..))) => {
+                Transition(Ready).dead(tok)
+            }
         }
     }
 

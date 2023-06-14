@@ -195,6 +195,40 @@ fn tpl_with_name() {
     );
 }
 
+#[test]
+fn tpl_with_param() {
+    let name_tpl = SPair("_tpl_".into(), S2);
+    let name_param = SPair("@param@".into(), S4);
+    let desc_param = SPair("param desc".into(), S5);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Tpl, S1),
+          BindIdent(name_tpl),
+
+          Open(TplParam, S3),
+            BindIdent(name_param),
+            Desc(desc_param),
+          Close(TplParam, S6),
+        Close(Tpl, S7),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            O(Air::TplStart(S1)),
+              O(Air::BindIdent(name_tpl)),
+
+              O(Air::MetaStart(S3)),
+                O(Air::BindIdent(name_param)),
+                O(Air::DocIndepClause(desc_param)),
+              O(Air::MetaEnd(S6)),
+            O(Air::TplEnd(S7)),
+        ]),
+        sut_parse(toks.into_iter()).collect(),
+    );
+}
+
 // Long form takes the actual underscore-padded template name without any
 //   additional processing.
 #[test]

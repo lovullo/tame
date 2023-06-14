@@ -462,6 +462,7 @@ fn tpl_with_param() {
     let id_param1 = SPair("@param1@".into(), S4);
     let pval1 = SPair("value1".into(), S5);
     let id_param2 = SPair("@param2@".into(), S8);
+    let param_desc = SPair("param desc".into(), S9);
 
     #[rustfmt::skip]
     let toks = vec![
@@ -477,8 +478,9 @@ fn tpl_with_param() {
           // Required metavariable (no value).
           Air::MetaStart(S7),
             Air::BindIdent(id_param2),
-          Air::MetaEnd(S9),
-        Air::TplEnd(S10),
+            Air::DocIndepClause(param_desc),
+          Air::MetaEnd(S10),
+        Air::TplEnd(S11),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -494,12 +496,28 @@ fn tpl_with_param() {
             oi_tpl
                 .lookup_local_linear(&asg, *id)
                 .and_then(|oi| oi.edges_filtered::<Meta>(&asg).next())
-                .map(ObjectIndex::cresolve(&asg))
+                .map(|oi| (oi, oi.resolve(&asg)))
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(params[0], Some(&Meta::Lexeme(S3.merge(S6).unwrap(), pval1)));
-    assert_eq!(params[1], Some(&Meta::Required(S7.merge(S9).unwrap())));
+    assert_eq!(
+        params[0].unwrap().1,
+        &Meta::Lexeme(S3.merge(S6).unwrap(), pval1)
+    );
+    assert_eq!(
+        params[1].unwrap().1,
+        &Meta::Required(S7.merge(S10).unwrap())
+    );
+
+    // The second param should have a description.
+    let doc = params[1]
+        .unwrap()
+        .0
+        .edges_filtered::<Doc>(&asg)
+        .last()
+        .map(ObjectIndex::cresolve(&asg));
+
+    assert_eq!(doc, Some(&Doc::new_indep_clause(param_desc)));
 }
 
 // A template definition nested within another creates a

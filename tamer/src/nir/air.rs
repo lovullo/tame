@@ -263,8 +263,7 @@ impl ParseState for NirToAir {
             // Some of these will be permitted in the future.
             (
                 Meta(mspan),
-                tok @ (Open(..) | Close(..) | Ref(..) | RefSubject(..)
-                | Desc(..)),
+                tok @ (Open(..) | Close(..) | Ref(..) | RefSubject(..)),
             ) => Transition(Meta(mspan))
                 .err(NirToAirError::UnexpectedMetaToken(mspan, tok)),
 
@@ -285,8 +284,8 @@ impl ParseState for NirToAir {
                 Transition(Ready).ok(Air::RefIdent(spair))
             }
 
-            (Ready, Desc(clause)) => {
-                Transition(Ready).ok(Air::DocIndepClause(clause))
+            (st @ (Ready | Meta(_)), Desc(clause)) => {
+                Transition(st).ok(Air::DocIndepClause(clause))
             }
 
             (Ready, Import(namespec)) => {

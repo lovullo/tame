@@ -854,7 +854,7 @@ sum_ir! {
     pub sum enum AirBindableTpl = AirTpl | AirBind | AirDoc;
 
     /// Tokens that may be used to define metavariables.
-    pub sum enum AirBindableMeta = AirMeta | AirBind;
+    pub sum enum AirBindableMeta = AirMeta | AirBind | AirDoc;
 }
 
 impl AirBind {

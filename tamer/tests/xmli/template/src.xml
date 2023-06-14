@@ -189,5 +189,10 @@
   <template name="_match-child_" desc="Template with a match child">
     <match on="foo" />
   </template>
+
+  <template name="_tpl-param_" desc="Template with a param">
+    <param name="@foo@" desc="A parameter" />
+    <param name="@bar@" desc="Another parameter" />
+  </template>
 </package>
 
