@@ -398,6 +398,10 @@ impl Diagnostic for NirToAirError {
                         are you unintentionally using the `--emit xmlo-experimental` \
                         command line option?"
                 ),
+                tok.span().help(
+                    "this package may also have a sibling `.experimental` file \
+                        that triggers `xmlo-experimental`"
+                ),
             ],
 
             MatchSubjectExpected(ospan, given) => vec![
