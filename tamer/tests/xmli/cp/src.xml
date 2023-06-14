@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  This simply verifies that the file is copied to the destination.
+  This can be removed once more of tamec becomes stable.
+
+  <t:foo-bar />
+</package>
+

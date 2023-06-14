@@ -11,8 +11,6 @@ mypath=$(dirname "$0")
 # Performing this check within `<()` below won't cause a failure.
 : "${P_XMLLINT?}" # conf.sh
 
-tamer-flag-or-exit-ok wip-asg-derived-xmli
-
 run-test() {
   local name="${1?Missing test name}"
   local dir="${2?Missing dir}"
@@ -45,8 +43,13 @@ timed-tamec() {
   #   but it'll be close enough.
   local -i start_ns=$(date +%s%N)
 
+  local objty=xmlo
+  if [ -f "$dir/is-experimental" ]; then
+      objty=xmlo-experimental
+  fi
+
   command time -f "%F/%Rfault %I/%Oio %Mrss %c/%wctx \n%C" -o "$dir/time.log" \
-    "${TAMER_PATH_TAMEC?}" -o "$dir/$out" --emit xmlo "$dir/$in" \
+    "${TAMER_PATH_TAMEC?}" -o "$dir/$out" --emit "$objty" "$dir/$in" \
     &> "$dir/tamec-$out.log" \
     || ret=$?
 

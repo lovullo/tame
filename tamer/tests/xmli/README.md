@@ -22,6 +22,10 @@ slightly different representation than the original sources, but it must
 express an equivalent program, and the program must be at least as
 performant when emitted by TAME XSLT.
 
+# Experimental Features
+If a file `is-experimental` exists in a test directory, then
+`--emit xmlo-experimental` will be used in place of `--emit xmlo`.
+
 # Running Tests
 Test are prefixed with `test-*` and are executable.  They must be invoked
 with the environment variable `PATH_TAMEC` set to the path of `tamec`

@@ -20,6 +20,7 @@
 // Use your judgment;
 //   a `match` may be more clear within a given context.
 #![allow(clippy::single_match)]
+#![feature(assert_matches)]
 
 //! This is the TAME compiler.
 //!
@@ -46,13 +47,40 @@ use tamer::{
     nir::NirToAirParseType,
     parse::{lowerable, FinalizeError, ParseError, Token},
     pipeline::{parse_package_xml, LowerXmliError, ParsePackageXmlError},
-    xir::{self, reader::XmlXirReader, DefaultEscaper},
+    xir::{self, reader::XmlXirReader, writer::XmlWriter, DefaultEscaper},
 };
 
 /// Types of commands
+#[derive(Debug, PartialEq)]
 enum Command {
-    Compile(String, String, String),
+    Compile(String, ObjectFileKind, String),
     Usage,
+}
+
+/// The type of object file to output.
+///
+/// While TAMER is under development,
+///   object files serve as a transition between the new compiler and the
+///   old.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum ObjectFileKind {
+    /// Produce something akin to an object file.
+    ///
+    /// During TAME's development,
+    ///   this is an `xmli` file that is passed to the old compiler to pick
+    ///   up where this one left off.
+    ///
+    /// This is the stable feature set,
+    ///   expected to work with any package.
+    XmloStable,
+
+    /// Enable experimental flag(s),
+    ///   attempting to build the given package with an system that has not
+    ///   yet stabalized and is bound to fail on some packages.
+    ///
+    /// This is intentionally vague.
+    /// It should be used only for testing.
+    XmloExperimental,
 }
 
 /// Create a [`XmlXirReader`] for a source file.
@@ -79,18 +107,15 @@ fn src_reader<'a>(
 ///   transition period between the XSLT-based TAME and TAMER.
 /// Writing XIR proves that the source file is being successfully parsed and
 ///   helps to evaluate system performance.
-#[cfg(not(feature = "wip-asg-derived-xmli"))]
 fn copy_xml_to<'e, W: io::Write + 'e>(
-    mut fout: W,
+    mut fout: Option<W>,
     escaper: &'e DefaultEscaper,
 ) -> impl FnMut(&Result<tamer::xir::Token, tamer::xir::Error>) + 'e {
-    use tamer::xir::writer::XmlWriter;
-
     let mut xmlwriter = Default::default();
 
-    move |tok_result| match tok_result {
-        Ok(tok) => {
-            xmlwriter = tok.write(&mut fout, xmlwriter, escaper).unwrap();
+    move |tok_result| match (fout.as_mut(), tok_result) {
+        (Some(mut dest), Ok(tok)) => {
+            xmlwriter = tok.write(&mut dest, xmlwriter, escaper).unwrap();
         }
         _ => (),
     }
@@ -105,13 +130,31 @@ fn compile<R: Reporter>(
     src_path: &String,
     dest_path: &String,
     reporter: &mut R,
+    kind: ObjectFileKind,
 ) -> Result<(), UnrecoverableError> {
     let dest = Path::new(&dest_path);
-    #[allow(unused_mut)] // wip-asg-derived-xmli
-    let mut fout = BufWriter::new(fs::File::create(dest)?);
+
+    let (fcopy, fout, parse_type) = match kind {
+        // Parse XML and re-emit into target verbatim
+        //   (but missing some formatting).
+        // Tokens will act as no-ops after NIR.
+        ObjectFileKind::XmloStable => (
+            Some(BufWriter::new(fs::File::create(dest)?)),
+            None,
+            NirToAirParseType::Noop,
+        ),
+
+        // Parse sources into ASG and re-generate sources from there.
+        // This will fail if the source package utilize features that are
+        //   not yet supported.
+        ObjectFileKind::XmloExperimental => (
+            None,
+            Some(BufWriter::new(fs::File::create(dest)?)),
+            NirToAirParseType::LowerKnownErrorRest,
+        ),
+    };
 
     let escaper = DefaultEscaper::default();
-
     let mut ebuf = String::new();
 
     let report_err = |result: Result<(), ParsePackageXmlError<_>>| {
@@ -125,23 +168,9 @@ fn compile<R: Reporter>(
         })
     };
 
-    // TODO: We're just echoing back out XIR,
-    //   which will be the same sans some formatting.
-    let src = &mut lowerable(src_reader(src_path, &escaper)?.inspect({
-        #[cfg(not(feature = "wip-asg-derived-xmli"))]
-        {
-            copy_xml_to(fout, &escaper)
-        }
-        #[cfg(feature = "wip-asg-derived-xmli")]
-        {
-            |_| ()
-        }
-    }));
-
-    #[cfg(not(feature = "wip-asg-derived-xmli"))]
-    let parse_type = NirToAirParseType::Noop;
-    #[cfg(feature = "wip-asg-derived-xmli")]
-    let parse_type = NirToAirParseType::LowerKnownErrorRest;
+    let src = &mut lowerable(
+        src_reader(src_path, &escaper)?.inspect(copy_xml_to(fcopy, &escaper)),
+    );
 
     // TODO: Determine a good default capacity once we have this populated
     //   and can come up with some heuristics.
@@ -150,23 +179,15 @@ fn compile<R: Reporter>(
         DefaultAsg::with_capacity(1024, 2048),
     )(src, report_err)?;
 
-    match reporter.has_errors() {
-        false => {
-            #[cfg(feature = "wip-asg-derived-xmli")]
-            {
-                let asg = air_ctx.finish();
-                derive_xmli(asg, fout, &escaper)
-            }
-            #[cfg(not(feature = "wip-asg-derived-xmli"))]
-            {
-                let _ = air_ctx; // unused_variables
-                Ok(())
-            }
-        }
-
-        true => Err(UnrecoverableError::ErrorsDuringLowering(
+    if reporter.has_errors() {
+        Err(UnrecoverableError::ErrorsDuringLowering(
             reporter.error_count(),
-        )),
+        ))
+    } else if let Some(dest) = fout {
+        let asg = air_ctx.finish();
+        derive_xmli(asg, dest, &escaper)
+    } else {
+        Ok(())
     }
 }
 
@@ -180,16 +201,13 @@ fn compile<R: Reporter>(
 ///     and must be an equivalent program,
 ///     but will look different;
 ///       TAMER reasons about the system using a different paradigm.
-#[cfg(feature = "wip-asg-derived-xmli")]
 fn derive_xmli(
     asg: tamer::asg::Asg,
     mut fout: impl std::io::Write,
     escaper: &DefaultEscaper,
 ) -> Result<(), UnrecoverableError> {
     use tamer::{
-        asg::visit::tree_reconstruction,
-        pipeline,
-        xir::writer::{WriterState, XmlWriter},
+        asg::visit::tree_reconstruction, pipeline, xir::writer::WriterState,
     };
 
     let src = lowerable(tree_reconstruction(&asg).map(Ok));
@@ -221,10 +239,10 @@ pub fn main() -> Result<(), UnrecoverableError> {
     let usage = opts.usage(&format!("Usage: {program} [OPTIONS] INPUT"));
 
     match parse_options(opts, args) {
-        Ok(Command::Compile(src_path, _, dest_path)) => {
+        Ok(Command::Compile(src_path, kind, dest_path)) => {
             let mut reporter = VisualReporter::new(FsSpanResolver);
 
-            compile(&src_path, &dest_path, &mut reporter).map_err(
+            compile(&src_path, &dest_path, &mut reporter, kind).map_err(
                 |e: UnrecoverableError| {
                     // Rendering to a string ensures buffering so that we
                     //   don't interleave output between processes.
@@ -286,15 +304,12 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
 
     let emit = match matches.opt_str("emit") {
         Some(m) => match &m[..] {
-            "xmlo" => m,
-            _ => {
-                return Err(Fail::ArgumentMissing(String::from("--emit xmlo")))
-            }
+            "xmlo" => Ok(ObjectFileKind::XmloStable),
+            "xmlo-experimental" => Ok(ObjectFileKind::XmloExperimental),
+            _ => Err(Fail::ArgumentMissing(String::from("--emit xmlo"))),
         },
-        None => {
-            return Err(Fail::OptionMissing(String::from("--emit xmlo")));
-        }
-    };
+        None => Err(Fail::OptionMissing(String::from("--emit xmlo"))),
+    }?;
 
     let output = match matches.opt_str("o") {
         Some(m) => m,
@@ -412,6 +427,7 @@ impl Diagnostic for UnrecoverableError {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::assert_matches::assert_matches;
 
     #[test]
     fn parse_options_help() {
@@ -545,7 +561,7 @@ mod test {
             Ok(Command::Compile(infile, xmlo, outfile)) => {
                 assert_eq!("foo.xml", infile);
                 assert_eq!("foo.xmlo", outfile);
-                assert_eq!("xmlo", xmlo);
+                assert_eq!(ObjectFileKind::XmloStable, xmlo);
             }
             _ => panic!("Unexpected result"),
         }
@@ -571,7 +587,7 @@ mod test {
             Ok(Command::Compile(infile, xmlo, outfile)) => {
                 assert_eq!("foo.xml", infile);
                 assert_eq!("foo.xmli", outfile);
-                assert_eq!("xmlo", xmlo);
+                assert_eq!(ObjectFileKind::XmloStable, xmlo);
             }
             _ => panic!("Unexpected result"),
         }
@@ -597,9 +613,31 @@ mod test {
             Ok(Command::Compile(infile, xmlo, outfile)) => {
                 assert_eq!("foo.xml", infile);
                 assert_eq!("foo.xmli", outfile);
-                assert_eq!("xmlo", xmlo);
+                assert_eq!(ObjectFileKind::XmloStable, xmlo);
             }
             _ => panic!("Unexpected result"),
         }
+    }
+
+    #[test]
+    fn parse_options_xmlo_experimetal() {
+        let opts = get_opts();
+        let xmlo = String::from("xmlo-experimental");
+        let result = parse_options(
+            opts,
+            vec![
+                String::from("program"),
+                String::from("foo.xml"),
+                String::from("--emit"),
+                xmlo,
+                String::from("--output"),
+                String::from("foo.xmli"),
+            ],
+        );
+
+        assert_matches!(
+            result,
+            Ok(Command::Compile(_, ObjectFileKind::XmloExperimental, _)),
+        );
     }
 }
