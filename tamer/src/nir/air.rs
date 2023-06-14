@@ -299,13 +299,25 @@ impl ParseState for NirToAir {
             //   thing producing NIR.
             (st @ Meta(..), tok @ Import(_)) => Transition(st).dead(tok),
 
-            (_, tok @ (Todo(..) | TodoAttr(..))) => {
-                crate::diagnostic_todo!(
-                    vec![tok.internal_error(
-                        "this token is not yet supported in TAMER"
-                    )],
-                    "unsupported token: {tok}",
-                )
+            // Unsupported tokens yield errors.
+            // There _is_ a risk that this will put us in a wildly
+            //   inconsistent state,
+            //     yielding nonsense errors in the future.
+            // This used to panic,
+            //   but yielding errors allows compilation to continue and
+            //   discover further problems,
+            //     so that this new parser can be run on a given package
+            //       (with e.g. `--emit xmlo-experimental`)
+            //       to get some idea of what type of missing features may
+            //       be needed to support the compilation of that package.
+            // Note also that,
+            //   at the time of writing,
+            //   large numbers of diagnostic spans may be quite slow to
+            //     output on large files because the system does not cache
+            //     newline locations and requires re-calculating from the
+            //     beginning of the file for earlier spans.
+            (st, tok @ (Todo(..) | TodoAttr(..))) => {
+                Transition(st).err(NirToAirError::UnsupportedToken(tok))
             }
 
             (st, Noop(_)) => Transition(st).incomplete(),
@@ -319,6 +331,14 @@ impl ParseState for NirToAir {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NirToAirError {
+    /// The provided token is not yet supported by TAMER.
+    ///
+    /// This means that a token was recognized by NIR but it makes no
+    ///   guarantees about _whether_ a token will be supported in the
+    ///   future;
+    ///     explicit rejection is still a future possibility.
+    UnsupportedToken(Nir),
+
     /// Expected a match subject,
     ///   but encountered some other token.
     ///
@@ -340,6 +360,10 @@ impl Display for NirToAirError {
         use NirToAirError::*;
 
         match self {
+            UnsupportedToken(tok) => {
+                write!(f, "unsupported token: {tok}")
+            }
+
             MatchSubjectExpected(_, nir) => {
                 write!(f, "expected match subject, found {nir}")
             }
@@ -367,6 +391,15 @@ impl Diagnostic for NirToAirError {
         use NirToAirError::*;
 
         match self {
+            UnsupportedToken(tok) => vec![
+                tok.span().internal_error("this token is not yet supported in TAMER"),
+                tok.span().help(
+                    "if this is unexpected, \
+                        are you unintentionally using the `--emit xmlo-experimental` \
+                        command line option?"
+                ),
+            ],
+
             MatchSubjectExpected(ospan, given) => vec![
                 ospan.note("for this match"),
                 given
