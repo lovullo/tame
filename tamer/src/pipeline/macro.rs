@@ -171,6 +171,7 @@ macro_rules! lower_pipeline {
 
         lower_pipeline!(
             @pipeline
+            $(#[$meta])*
             $vis $fn$(<$l>)? -> $struct
                 $(|> $lower_name$(<$($lower_t),+>)? $([$ctx])? $(, until ($until))?)*
         );

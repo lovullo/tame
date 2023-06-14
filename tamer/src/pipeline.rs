@@ -128,25 +128,23 @@ use crate::{
 mod r#macro;
 
 lower_pipeline! {
-    /// Load an `xmlo` file represented by `src` into the graph held
-    ///   by `air_ctx`.
-    ///
-    /// Loading an object file will result in opaque objects being added to the
-    ///   graph.
-    ///
-    /// TODO: To re-use this in `tamec` we want to be able to ignore fragments.
-    ///
-    /// TODO: More documentation once this has been further cleaned up.
-    pub load_xmlo -> LoadXmlo
-        |> PartialXirToXirf<4, Text>
-        |> XmloReader
-        |> XmloToAir[xmlo_ctx], until (XmloToken::Eoh(..))
-        |> AirAggregate[air_ctx];
-
     /// Parse a source package into the [ASG](crate::asg) using TAME's XML
     ///   source language.
     ///
-    /// TODO: More documentation once this has been further cleaned up.
+    /// Source XML is represented by [XIR](crate::xir).
+    /// This is parsed into [NIR`](crate::nir),
+    ///   which extracts TAME's high-level source language from the document
+    ///   format (XML).
+    /// NIR is then desugared in various ways,
+    ///   producing a more verbose NIR than what the user originally
+    ///   entered.
+    ///
+    /// NIR is then lowered into [AIR](crate::asg::air),
+    ///   which is then aggregated into the [ASG](crate::asg) to await
+    ///   further processing.
+    /// It is after this point that package imports should be processed and
+    ///   also aggregated into the same ASG so that all needed dependencies
+    ///   definitions are available.
     pub parse_package_xml -> ParsePackageXml
         |> XirToXirf<64, RefinedText>
         |> XirfToNir
@@ -155,10 +153,31 @@ lower_pipeline! {
         |> NirToAir[nir_air_ty]
         |> AirAggregate[air_ctx];
 
+    /// Load an `xmlo` file into the graph held by `air_ctx`.
+    ///
+    /// Loading an object file will result in opaque objects being added to the
+    ///   graph;
+    ///     no sources will be parsed.
+    ///
+    /// To parse sources instead,
+    ///   see [`parse_package_xml`].
+    pub load_xmlo -> LoadXmlo
+        |> PartialXirToXirf<4, Text>
+        |> XmloReader
+        |> XmloToAir[xmlo_ctx], until (XmloToken::Eoh(..))
+        |> AirAggregate[air_ctx];
+
     /// Lower an [`Asg`](crate::asg::Asg)-derived token stream into an
     ///   `xmli` file.
     ///
-    /// TODO: More documentation once this has been further cleaned up.
+    /// After a package has been parsed with [`parse_package_xml`] and
+    ///   further processing has taken place,
+    ///     this pipeline will re-generate TAME sources from the ASG for the
+    ///     purpose of serving as source input to the XSLT-based compiler.
+    /// This allows us to incrementally replace that compiler's
+    ///   functionality by having the XSLT-based system pick up where we
+    ///   leave off,
+    ///     skipping anything that we have already done.
     pub lower_xmli<'a> -> LowerXmli
         |> AsgTreeToXirf<'a>[asg]
         |> XirfAutoClose

@@ -23,6 +23,11 @@
 //!
 //!   - [`tamec`](../tamec), the TAME compiler; and
 //!   - [`tameld`](../tameld), the TAME linker.
+//!
+//! The [`pipeline`] module contains declarative definitions and
+//!   documentation for TAMER's _lowering pipelines_;
+//!     you should start there if you are looking for how a particular
+//!     component of parsing or code generation is integrated.
 
 // Constant functions are still in their infancy as of the time of writing
 //   (October 2021).
