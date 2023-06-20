@@ -224,7 +224,7 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
             // Metasyntactic variables (metavariables)
-            (st @ PkgTpl(_), tok @ AirMeta(..)) => {
+            (st @ (PkgTpl(_) | PkgExpr(_)), tok @ AirMeta(..)) => {
                 ctx.ret_or_transfer(st, tok, AirMetaAggregate::new())
             }
             (PkgMeta(meta), AirMeta(mtok)) => ctx.proxy(meta, mtok),
@@ -273,7 +273,7 @@ impl ParseState for AirAggregate {
             // TODO: We will need to be more intelligent about this,
             //   since desugaring will produce metavariables in nested contexts,
             //     e.g. within an expression within a template.
-            (st @ (Pkg(..) | PkgExpr(..) | PkgOpaque(..)), AirMeta(tok)) => {
+            (st @ (Pkg(..) | PkgOpaque(..)), AirMeta(tok)) => {
                 Transition(st).err(AsgError::UnexpectedMeta(tok.span()))
             }
 

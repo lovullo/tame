@@ -702,3 +702,86 @@ fn tpl_doc_short_desc() {
         oi_docs.collect::<Vec<_>>(),
     );
 }
+
+// While NIR does not accept metavariables (params) within expressions that
+//   are the body of a template,
+//     metavariable interpolation does create them.
+// Hoisting them out of the expression and into the template context is a
+//   fairly simple thing to do for AIR,
+//     but would be vastly more complicated for NIR,
+//       especially for a streaming parser,
+//         as it'd have to hold tokens until it was sure that no
+//         interpolation would occur.
+// We therefore adopt the simple rule that metavariables are hoisted into
+//   the context of the parent template.
+// This also gives much greater flexibility to any other (AIR) code
+//   generators.
+#[test]
+fn metavars_within_exprs_hoisted_to_parent_tpl() {
+    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
+    let id_tpl_inner = SPair("_tpl-inner_".into(), S9);
+
+    let id_param_outer = SPair("@param_outer@".into(), S5);
+    let id_param_inner = SPair("@param_inner@".into(), S12);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          Air::BindIdent(id_tpl_outer),
+
+          // This expression begins the body of the template.
+          // NIR would not allow params past this point.
+          Air::ExprStart(ExprOp::Sum, S3),
+            // Expresions are not containers and so this metavariable should
+            //   be hoisted to the parent container context.
+            // That container must be a valid meta context.
+            Air::MetaStart(S4),
+              Air::BindIdent(id_param_outer),
+            Air::MetaEnd(S6),
+          Air::ExprEnd(S7),
+
+          // Nested template
+          Air::TplStart(S8),
+            Air::BindIdent(id_tpl_inner),
+
+            Air::ExprStart(ExprOp::Sum, S10),
+              // Hoisting should be relative to the innermost template.
+              Air::MetaStart(S11),
+                Air::BindIdent(id_param_inner),
+              Air::MetaEnd(S13),
+            Air::ExprEnd(S14),
+          Air::TplEnd(S15),
+        Air::TplEnd(S16),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    let oi_outer = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl_outer);
+
+    let span_outer = ctx
+        .env_scope_lookup::<Ident>(oi_outer, id_param_outer)
+        .expect("missing id_param_outer Ident")
+        .definition::<Meta>(asg)
+        .expect("missing id_param_outer definition")
+        .resolve(asg)
+        .span();
+
+    assert_eq!(S4.merge(S6).unwrap(), span_outer);
+
+    let oi_inner = ctx
+        .env_scope_lookup::<Ident>(oi_outer, id_tpl_inner)
+        .expect("could not locate inner Tpl's Ident")
+        .definition::<Tpl>(asg)
+        .expect("missing inner Tpl");
+
+    let span_inner = ctx
+        .env_scope_lookup::<Ident>(oi_inner, id_param_inner)
+        .expect("missing id_param_inner Ident")
+        .definition::<Meta>(asg)
+        .expect("missing id_param_inner definition")
+        .resolve(asg)
+        .span();
+
+    assert_eq!(S11.merge(S13).unwrap(), span_inner);
+}
