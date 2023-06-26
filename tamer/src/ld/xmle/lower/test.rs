@@ -105,12 +105,13 @@ fn graph_sort() -> SortResult<()> {
     let asg = asg_from_toks(toks);
     let sections = sort(&asg, StubSections { pushed: Vec::new() })?;
 
-    let expected = vec![
+    let expected = [
         // Post-order
         name_a_dep_dep,
         name_a_dep,
         name_a,
     ]
+    .map(Some)
     .into_iter()
     .collect::<Vec<_>>();
 

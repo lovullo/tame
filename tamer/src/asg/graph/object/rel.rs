@@ -875,8 +875,10 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         Self: ObjectIndexRelTo<Ident>,
     {
         // Rust fails to infer OB with `self.edges_rel_to` as of 2023-03
-        ObjectIndexRelTo::<Ident>::edges_rel_to(self, asg)
-            .find(|oi| oi.resolve(asg).name().symbol() == name.symbol())
+        ObjectIndexRelTo::<Ident>::edges_rel_to(self, asg).find(|oi| {
+            oi.resolve(asg).name().map(|name| name.symbol())
+                == Some(name.symbol())
+        })
     }
 }
 

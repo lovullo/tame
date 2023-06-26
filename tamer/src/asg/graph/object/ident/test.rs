@@ -30,20 +30,20 @@ fn ident_name() {
     let name = "name".into();
     let spair = SPair(name, S1);
 
-    assert_eq!(spair, Ident::Missing(spair).name());
+    assert_eq!(Some(spair), Ident::Missing(spair).name());
 
     assert_eq!(
-        spair,
+        Some(spair),
         Ident::Opaque(spair, IdentKind::Meta, Source::default()).name()
     );
 
     assert_eq!(
-        spair,
+        Some(spair),
         Ident::Extern(spair, IdentKind::Meta, Source::default()).name()
     );
 
     assert_eq!(
-        spair,
+        Some(spair),
         Ident::IdentFragment(
             spair,
             IdentKind::Meta,
@@ -182,7 +182,10 @@ fn resolved_on_ident() {
             .unwrap()
             .resolved()
             .unwrap(),
-        &Ident::Opaque(SPair(sym, S2), kind.clone(), src.clone()),
+        (
+            &Ident::Opaque(SPair(sym, S2), kind.clone(), src.clone()),
+            SPair(sym, S2)
+        ),
     );
 }
 
@@ -403,7 +406,10 @@ fn resolved_on_fragment() {
 
     assert_eq!(
         ident.set_fragment(text.clone()).unwrap().resolved(),
-        Ok(&Ident::IdentFragment(SPair(sym, S2), kind, src, text)),
+        Ok((
+            &Ident::IdentFragment(SPair(sym, S2), kind, src, text),
+            SPair(sym, S2),
+        )),
     );
 }
 

@@ -113,10 +113,10 @@ impl<'a> XmleSections<'a> for Sections<'a> {
     fn push(&mut self, ident: &'a Ident) -> PushResult {
         self.deps.push(ident);
 
-        let name = ident.name();
         let frag = ident.fragment();
+        let (resolved, name) = ident.resolved()?;
 
-        match ident.resolved()?.kind() {
+        match resolved.kind() {
             Some(kind) => match kind {
                 IdentKind::Cgen(..)
                 | IdentKind::Gen(..)
@@ -156,7 +156,7 @@ impl<'a> XmleSections<'a> for Sections<'a> {
                 // compiler bug and there is no use in trying to be nice
                 // about a situation where something went terribly, horribly
                 // wrong.
-                return Err(SectionsError::MissingObjectKind(ident.name()));
+                return Err(SectionsError::MissingObjectKind(name));
             }
         }
 

@@ -170,14 +170,18 @@ impl Display for Ident {
 }
 
 impl Ident {
-    /// Identifier name.
-    pub fn name(&self) -> SPair {
+    /// Concrete identifier name.
+    ///
+    /// Note: This [`Option`] is in preparation for identifiers that may not
+    ///   yet have names,
+    ///     awaiting expansion of a metavariable.
+    pub fn name(&self) -> Option<SPair> {
         match self {
             Missing(name)
             | Opaque(name, ..)
             | Extern(name, ..)
             | IdentFragment(name, ..)
-            | Transparent(name) => *name,
+            | Transparent(name) => Some(*name),
         }
     }
 
@@ -357,10 +361,11 @@ impl Ident {
 
             Missing(name) => Ok(Opaque(name.overwrite(span), kind, src)),
 
-            // TODO: Remove guards and catch-all for exhaustiveness check.
-            _ => {
-                let err = TransitionError::Redeclare(self.name(), span);
-
+            // TODO: Remove guards for better exhaustiveness check
+            Opaque(name, _, _)
+            | IdentFragment(name, _, _, _)
+            | Transparent(name) => {
+                let err = TransitionError::Redeclare(name, span);
                 Err((self, err))
             }
         }
@@ -381,7 +386,7 @@ impl Ident {
     /// At present,
     ///   both [`Ident::Missing`] and [`Ident::Extern`] are
     ///   considered to be unresolved.
-    pub fn resolved(&self) -> Result<&Ident, UnresolvedError> {
+    pub fn resolved(&self) -> Result<(&Ident, SPair), UnresolvedError> {
         match self {
             Missing(name) => Err(UnresolvedError::Missing(*name)),
 
@@ -389,7 +394,9 @@ impl Ident {
                 Err(UnresolvedError::Extern(*name, kind.clone()))
             }
 
-            Opaque(..) | IdentFragment(..) | Transparent(..) => Ok(self),
+            Opaque(name, ..)
+            | IdentFragment(name, ..)
+            | Transparent(name, ..) => Ok((self, *name)),
         }
     }
 
@@ -414,21 +421,26 @@ impl Ident {
         kind: IdentKind,
         src: Source,
     ) -> TransitionResult<Ident> {
-        match self.kind() {
-            None => Ok(Extern(self.name().overwrite(span), kind, src)),
-            Some(cur_kind) => {
+        match self {
+            Missing(name) | Transparent(name) => {
+                Ok(Extern(name.overwrite(span), kind, src))
+            }
+
+            Opaque(name, ref cur_kind, _)
+            | Extern(name, ref cur_kind, _)
+            | IdentFragment(name, ref cur_kind, _, _) => {
                 if cur_kind != &kind {
                     let err = TransitionError::ExternResolution(
-                        self.name(),
+                        name,
                         cur_kind.clone(),
                         (kind, span),
                     );
 
-                    return Err((self, err));
+                    Err((self, err))
+                } else {
+                    // Resolved successfully, so keep what we already have.
+                    Ok(self)
                 }
-
-                // Resolved successfully, so keep what we already have.
-                Ok(self)
             }
         }
     }
@@ -457,6 +469,9 @@ impl Ident {
             IdentFragment(_, _, ref src, ..) if src.override_ => Ok(self),
 
             // These represent the prologue and epilogue of maps.
+            //
+            // TODO: Is this arm still needed after having eliminated their
+            //   fragments from xmlo files?
             IdentFragment(
                 _,
                 IdentKind::MapHead
@@ -466,8 +481,10 @@ impl Ident {
                 ..,
             ) => Ok(self),
 
-            _ => {
-                let name = self.name();
+            Missing(name)
+            | Extern(name, _, _)
+            | IdentFragment(name, _, _, _)
+            | Transparent(name) => {
                 Err((self, TransitionError::BadFragmentDest(name)))
             }
         }
@@ -1166,6 +1183,19 @@ impl ObjectIndex<Ident> {
         oi_dep: ObjectIndex<Ident>,
     ) -> Self {
         self.add_edge_to(asg, oi_dep, None)
+    }
+
+    /// Retrieve either the concrete name of the identifier or the name of
+    ///   the metavariable that will be used to produce it.
+    pub fn name_or_meta(&self, asg: &Asg) -> SPair {
+        let ident = self.resolve(asg);
+
+        ident.name().unwrap_or_else(|| {
+            diagnostic_todo!(
+                vec![ident.span().internal_error("for this abstract ident")],
+                "metavariable lookup not yet supported",
+            )
+        })
     }
 }
 

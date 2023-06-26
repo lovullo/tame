@@ -810,13 +810,11 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///   on the graph,
     ///     like common subexpression elimination,
     ///   in which case it's best not to rely on following edges in reverse.
-    pub fn ident<'a>(&self, asg: &'a Asg) -> Option<&'a Ident>
+    pub fn ident<'a>(&self, asg: &'a Asg) -> Option<ObjectIndex<Ident>>
     where
         O: ObjectRelFrom<Ident>,
     {
-        self.incoming_edges_filtered(asg)
-            .map(ObjectIndex::cresolve(asg))
-            .next()
+        self.incoming_edges_filtered(asg).next()
     }
 
     /// Describe this expression using a short independent clause.

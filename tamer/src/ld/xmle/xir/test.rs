@@ -256,7 +256,7 @@ fn test_writes_deps() -> TestResult {
 
         assert_eq!(
             attrs.find(QN_NAME).map(|a| a.value()),
-            Some(ident.name().symbol()),
+            ident.name().map(|name| name.symbol()),
         );
 
         assert_eq!(

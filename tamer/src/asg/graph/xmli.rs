@@ -282,8 +282,8 @@ impl<'a> TreeContext<'a> {
         depth: Depth,
     ) -> Option<Xirf> {
         match src {
-            Object::Ident((ident, _)) => {
-                self.emit_expr_ident(expr, ident, depth)
+            Object::Ident((ident, oi_ident)) => {
+                self.emit_expr_ident(expr, *oi_ident, ident, depth)
             }
             Object::Expr((pexpr, _)) => match (pexpr.op(), expr.op()) {
                 (ExprOp::Conj | ExprOp::Disj, ExprOp::Eq) => {
@@ -315,6 +315,7 @@ impl<'a> TreeContext<'a> {
     fn emit_expr_ident(
         &mut self,
         expr: &Expr,
+        oi_ident: ObjectIndex<Ident>,
         ident: &Ident,
         depth: Depth,
     ) -> Option<Xirf> {
@@ -331,8 +332,9 @@ impl<'a> TreeContext<'a> {
             }
         };
 
+        let name = oi_ident.name_or_meta(self.asg);
         let ispan = ident.span();
-        self.push(Xirf::attr(ident_qname, ident.name(), (ispan, ispan)));
+        self.push(Xirf::attr(ident_qname, name, (ispan, ispan)));
 
         Some(Xirf::open(
             qname,
@@ -353,21 +355,15 @@ impl<'a> TreeContext<'a> {
         let mut edges = oi_expr.edges_filtered::<Ident>(self.asg);
 
         // note: the edges are reversed (TODO?)
-        let value = edges
-            .next()
-            .diagnostic_expect(
-                || vec![oi_expr.note("for this match")],
-                "missing @value ref",
-            )
-            .resolve(self.asg);
+        let value = edges.next().diagnostic_expect(
+            || vec![oi_expr.note("for this match")],
+            "missing @value ref",
+        );
 
-        let on = edges
-            .next()
-            .diagnostic_expect(
-                || vec![oi_expr.note("for this match")],
-                "missing @on ref",
-            )
-            .resolve(self.asg);
+        let on = edges.next().diagnostic_expect(
+            || vec![oi_expr.note("for this match")],
+            "missing @on ref",
+        );
 
         if let Some(unexpected) = edges.next() {
             diagnostic_panic!(
@@ -376,8 +372,8 @@ impl<'a> TreeContext<'a> {
             );
         }
 
-        self.push(attr_value(value.name()));
-        self.push(attr_on(on.name()));
+        self.push(attr_value(value.name_or_meta(self.asg)));
+        self.push(attr_on(on.name_or_meta(self.asg)));
 
         Xirf::open(QN_MATCH, OpenSpan::without_name_span(expr.span()), depth)
     }
@@ -391,9 +387,9 @@ impl<'a> TreeContext<'a> {
         depth: Depth,
     ) -> Option<Xirf> {
         match src {
-            Object::Ident((ident, _)) => {
+            Object::Ident((_, oi_ident)) => {
                 self.tpl_apply = None;
-                self.push(attr_name(ident.name()));
+                self.push(attr_name(oi_ident.name_or_meta(self.asg)));
 
                 Some(Xirf::open(
                     QN_TEMPLATE,
@@ -438,7 +434,7 @@ impl<'a> TreeContext<'a> {
                     "cannot derive name of template for application",
                 );
 
-                self.push(attr_name(apply_tpl.resolve(self.asg).name()));
+                self.push(attr_name(apply_tpl.name_or_meta(self.asg)));
 
                 Some(Xirf::open(
                     QN_APPLY_TEMPLATE,
@@ -466,13 +462,12 @@ impl<'a> TreeContext<'a> {
         oi_meta: ObjectIndex<Meta>,
         depth: Depth,
     ) -> Option<Xirf> {
-        let pname =
-            oi_meta
-                .ident(self.asg)
-                .map(Ident::name)
-                .diagnostic_unwrap(|| {
-                    vec![meta.internal_error("missing param name")]
-                });
+        let pname = oi_meta
+            .ident(self.asg)
+            .map(|oi| oi.name_or_meta(self.asg))
+            .diagnostic_unwrap(|| {
+                vec![meta.internal_error("missing param name")]
+            });
 
         self.push(attr_name(pname));
 
@@ -493,7 +488,7 @@ impl<'a> TreeContext<'a> {
         oi_meta: ObjectIndex<Meta>,
         depth: Depth,
     ) -> Option<Xirf> {
-        let pname = oi_meta.ident(self.asg).map(Ident::name)
+        let pname = oi_meta.ident(self.asg).map(|oi| oi.name_or_meta(self.asg))
             .diagnostic_unwrap(|| vec![meta.internal_error(
                 "anonymous metavariables are not supported as template arguments"
             )]);
