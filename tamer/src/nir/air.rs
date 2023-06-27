@@ -254,6 +254,9 @@ impl ParseState for NirToAir {
             (Ready, Open(TplParam, span)) => {
                 Transition(Meta(span)).ok(Air::MetaStart(span))
             }
+            (Meta(mspan), BindIdentMeta(spair)) => {
+                Transition(Meta(mspan)).ok(Air::BindIdent(spair))
+            }
             (Meta(mspan), Text(lexeme)) => {
                 Transition(Meta(mspan)).ok(Air::MetaLexeme(lexeme))
             }
@@ -263,9 +266,10 @@ impl ParseState for NirToAir {
             // Some of these will be permitted in the future.
             (
                 Meta(mspan),
-                tok @ (Open(..) | Close(..) | Ref(..) | RefSubject(..)),
+                tok @ (Open(..) | Close(..) | BindIdent(..) | Ref(..)
+                | RefSubject(..)),
             ) => Transition(Meta(mspan))
-                .err(NirToAirError::UnexpectedMetaToken(mspan, tok)),
+                .err(NirToAirError::ExpectedMetaToken(mspan, tok)),
 
             (Ready, Text(text)) => Transition(Ready).ok(Air::DocText(text)),
 
@@ -277,8 +281,8 @@ impl ParseState for NirToAir {
                 ),
             ) => Transition(Ready).ok(Air::ExprEnd(span)),
 
-            (st @ (Ready | Meta(_)), BindIdent(spair)) => {
-                Transition(st).ok(Air::BindIdent(spair))
+            (Ready, BindIdent(spair)) => {
+                Transition(Ready).ok(Air::BindIdent(spair))
             }
             (st @ (Ready | Meta(_)), BindIdentAbstract(spair)) => {
                 Transition(st).ok(Air::BindIdentAbstract(spair))
@@ -300,6 +304,7 @@ impl ParseState for NirToAir {
             // This assumption is only valid so long as that's the only
             //   thing producing NIR.
             (st @ Meta(..), tok @ Import(_)) => Transition(st).dead(tok),
+            (st @ Ready, tok @ BindIdentMeta(_)) => Transition(st).dead(tok),
 
             // Unsupported tokens yield errors.
             // There _is_ a risk that this will put us in a wildly
@@ -354,7 +359,7 @@ pub enum NirToAirError {
 
     /// The provided [`Nir`] token of input was unexpected for the body of a
     ///   metavariable that was opened at the provided [`Span`].
-    UnexpectedMetaToken(Span, Nir),
+    ExpectedMetaToken(Span, Nir),
 }
 
 impl Display for NirToAirError {
@@ -374,7 +379,7 @@ impl Display for NirToAirError {
                 write!(f, "match body is not yet supported by TAMER")
             }
 
-            UnexpectedMetaToken(_, tok) => {
+            ExpectedMetaToken(_, tok) => {
                 write!(
                     f,
                     "expected lexical token for metavariable, found {tok}"
@@ -423,7 +428,7 @@ impl Diagnostic for NirToAirError {
             // The user should have been preempted by the parent parser
             //   (e.g. XML->Nir),
             //     and so shouldn't see this.
-            UnexpectedMetaToken(mspan, given) => vec![
+            ExpectedMetaToken(mspan, given) => vec![
                 mspan.note("while parsing the body of this metavariable"),
                 given.span().error("expected a lexical token here"),
             ],

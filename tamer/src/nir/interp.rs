@@ -282,7 +282,7 @@ impl ParseState for InterpState {
                 let GenIdentSymbolId(ident_sym) = gen_ident;
 
                 Transition(GenDesc(sym, gen_ident))
-                    .ok(Nir::BindIdent(SPair(ident_sym, span)))
+                    .ok(Nir::BindIdentMeta(SPair(ident_sym, span)))
                     .with_lookahead(tok)
             }
 

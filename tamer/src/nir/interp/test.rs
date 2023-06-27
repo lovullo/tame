@@ -99,7 +99,7 @@ fn expect_expanded_header(
     );
     assert_eq!(
         sut.next(),
-        Some(Ok(Object(Nir::BindIdent(SPair(expect_name_sym, span))))),
+        Some(Ok(Object(Nir::BindIdentMeta(SPair(expect_name_sym, span))))),
     );
     assert_matches!(
         sut.next(),

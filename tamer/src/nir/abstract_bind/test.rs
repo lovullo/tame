@@ -70,35 +70,13 @@ fn non_meta_concrete_bind_with_metavar_naming_translated_to_abstract_bind() {
 fn meta_concrete_bind_with_metavar_naming_ignored() {
     // This is named as a metavariable.
     let name = "@param@".into();
-    let name_outside = "@foo@".into();
 
-    #[rustfmt::skip]
-    let toks = [
-        Open(TplParam, S1),
-          // This identifier utilizes a metavariable naming convention,
-          //   but we're in a template parameter context,
-          //   which defines a metavariable.
-          BindIdent(SPair(name, S2)),
-        Close(TplParam, S3),
-
-        // Back outside of a param context.
-        BindIdent(SPair(name_outside, S4)),
-    ];
-
-    #[rustfmt::skip]
-    assert_eq!(
-        Ok(vec![
-            O(Open(TplParam, S1)),
-              // Since we are in a metavariable definition context,
-              //   the bind _stays concrete_.
-              O(BindIdent(SPair(name, S2))),
-            O(Close(TplParam, S3)),
-
-            // This one is now outside the metavariable context,
-            //   and so we should go back to translating to abstract.
-            O(BindIdentAbstract(SPair(name_outside, S4))),
-        ]),
-        Sut::parse(toks.into_iter()).collect()
+    assert_tok_translate(
+        // This identifier utilizes a metavariable naming convention,
+        //   but we're in a metavariable definition context.
+        BindIdentMeta(SPair(name, S2)),
+        // And so the bind stays concrete.
+        BindIdentMeta(SPair(name, S2)),
     );
 }
 

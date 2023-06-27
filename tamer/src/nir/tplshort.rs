@@ -179,7 +179,7 @@ impl ParseState for TplShortDesugar {
                 // note: reversed (stack)
                 stack.push(Close(TplParam, span));
                 stack.push(Text(val));
-                stack.push(BindIdent(SPair(pname, name.span())));
+                stack.push(BindIdentMeta(SPair(pname, name.span())));
                 Transition(DesugaringParams(ospan)).ok(Open(TplParam, span))
             }
 
@@ -215,7 +215,7 @@ impl ParseState for TplShortDesugar {
                 stack.push(Close(TplApply, ospan));
                 stack.push(Close(TplParam, ospan));
                 stack.push(Text(SPair(gen_name, ospan)));
-                stack.push(BindIdent(SPair(L_TPLP_VALUES, ospan)));
+                stack.push(BindIdentMeta(SPair(L_TPLP_VALUES, ospan)));
 
                 // Note that we must have `tok` as lookahead instead of
                 //   pushing directly on the stack in case it's a

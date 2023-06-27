@@ -128,33 +128,14 @@
 //!   At the time of writing,
 //!     no part of TAMER yet enforces metavariable naming conventions.
 
-use super::{Nir, NirEntity};
+use super::Nir;
 use crate::{parse::prelude::*, sym::GlobalSymbolResolve};
 use memchr::memchr;
 
 use Nir::*;
-use NirEntity::*;
 
 #[derive(Debug, PartialEq, Default)]
-pub enum AbstractBindTranslate {
-    #[default]
-    Ready,
-
-    /// The next bind is in the context of a metavariable definition
-    ///   (e.g. template parameter).
-    ///
-    /// This should always be accurate since the grammar of NIR,
-    ///   at least in XML form,
-    ///   both requires binding as part of the attribute list and so before any
-    ///     other opening element and may only contain one such attribute.
-    /// If this assumption does not hold in the future,
-    ///   then the metavariable identifier will not be defined and will
-    ///   result in a reference instead,
-    ///     leading to errors.
-    /// Until then,
-    ///   this is a simple and straightforward implementation.
-    BindingMeta,
-}
+pub struct AbstractBindTranslate;
 
 impl Display for AbstractBindTranslate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -175,18 +156,12 @@ impl ParseState for AbstractBindTranslate {
         tok: Self::Token,
         _: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use AbstractBindTranslate::*;
-
-        match (self, tok) {
-            (Ready, BindIdent(name)) if needs_translation(name) => {
-                Transition(Ready).ok(BindIdentAbstract(name))
+        match tok {
+            BindIdent(name) if needs_translation(name) => {
+                Transition(self).ok(BindIdentAbstract(name))
             }
 
-            (Ready, tok @ Open(TplParam, _)) => Transition(BindingMeta).ok(tok),
-
-            (BindingMeta, tok @ BindIdent(_)) => Transition(Ready).ok(tok),
-
-            (st @ (Ready | BindingMeta), tok) => Transition(st).ok(tok),
+            _ => Transition(self).ok(tok),
         }
     }
 

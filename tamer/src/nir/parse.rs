@@ -1425,7 +1425,7 @@ ele_parse! {
     ///   expanded.
     TplParamStmt := QN_PARAM(_, ospan) {
         @ {
-            QN_NAME => BindIdent,
+            QN_NAME => BindIdentMeta,
             QN_DESC => Desc,
         } => Nir::Open(NirEntity::TplParam, ospan.into()),
         /(cspan) => Nir::Close(NirEntity::TplParam, cspan.into()),
@@ -1697,7 +1697,7 @@ ele_parse! {
     ///   which gets desugared into this via [`super::tplshort`].
     ApplyTemplateParam := QN_WITH_PARAM(_, ospan) {
         @ {
-            QN_NAME => BindIdent,
+            QN_NAME => BindIdentMeta,
             QN_VALUE => Text,
         } => Nir::Open(NirEntity::TplParam, ospan.into()),
         /(cspan) => Nir::Close(NirEntity::TplParam, cspan.into()),

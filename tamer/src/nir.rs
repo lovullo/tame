@@ -117,6 +117,14 @@ pub enum Nir {
     /// See also [`Self::BindIdent`] for a concrete identifier.
     BindIdentAbstract(SPair),
 
+    /// The name should be interpreted as a concrete name of a
+    ///   metavariable.
+    ///
+    /// This is broadly equivalent to [`Self::BindIdent`] but is intended to
+    ///   convey that no NIR operation should ever translate this token into
+    ///   [`Self::BindIdentAbstract`].
+    BindIdentMeta(SPair),
+
     /// Reference the value of the given identifier as the subject of the
     ///   current expression.
     ///
@@ -203,8 +211,10 @@ impl Nir {
 
             Open(_, _) | Close(_, _) => None,
 
-            BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
-            | Text(spair) | Import(spair) => Some(spair.symbol()),
+            BindIdent(spair) | BindIdentMeta(spair) | RefSubject(spair)
+            | Ref(spair) | Desc(spair) | Text(spair) | Import(spair) => {
+                Some(spair.symbol())
+            }
 
             // An abstract identifier does not yet have a concrete symbol
             //   assigned;
@@ -243,6 +253,7 @@ impl Functor<SymbolId> for Nir {
 
             BindIdent(spair) => BindIdent(spair.map(f)),
             BindIdentAbstract(spair) => BindIdentAbstract(spair.map(f)),
+            BindIdentMeta(spair) => BindIdentMeta(spair.map(f)),
             RefSubject(spair) => RefSubject(spair.map(f)),
             Ref(spair) => Ref(spair.map(f)),
             Desc(spair) => Desc(spair.map(f)),
@@ -371,6 +382,7 @@ impl Token for Nir {
 
             BindIdent(spair)
             | BindIdentAbstract(spair)
+            | BindIdentMeta(spair)
             | RefSubject(spair)
             | Ref(spair)
             | Desc(spair)
@@ -409,6 +421,13 @@ impl Display for Nir {
                     f,
                     "bind to abstract identifier with future value of \
                         metavariable {}",
+                    TtQuote::wrap(spair)
+                )
+            }
+            BindIdentMeta(spair) => {
+                write!(
+                    f,
+                    "bind metavariable to concreate identifier {}",
                     TtQuote::wrap(spair)
                 )
             }

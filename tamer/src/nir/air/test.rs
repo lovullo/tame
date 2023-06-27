@@ -207,7 +207,7 @@ fn tpl_with_param() {
           BindIdent(name_tpl),
 
           Open(TplParam, S3),
-            BindIdent(name_param),
+            BindIdentMeta(name_param),
             Desc(desc_param),
           Close(TplParam, S6),
         Close(Tpl, S7),
@@ -267,12 +267,12 @@ fn apply_template_long_form_args() {
           RefSubject(name),
 
           Open(TplParam, S3),
-            BindIdent(p1),
+            BindIdentMeta(p1),
             Text(v1),
           Close(TplParam, S6),
 
           Open(TplParam, S7),
-            BindIdent(p2),
+            BindIdentMeta(p2),
             Text(v2),
           Close(TplParam, S10),
         Close(TplApply, S11),

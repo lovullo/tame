@@ -86,7 +86,7 @@ fn desugars_unary() {
 
               O(Open(TplParam, S2)),
                 // Derived from `aname` (by padding)
-                O(BindIdent(pname)),
+                O(BindIdentMeta(pname)),
                 // The value is left untouched.
                 O(Text(pval)),
               // Close is derived from open.
@@ -137,7 +137,7 @@ fn desugars_body_into_tpl_with_ref_in_values_param() {
               // @values@ remains lexical by referencing the name of a
               //   template we're about to generate.
               O(Open(TplParam, S1)),
-                O(BindIdent(SPair(L_TPLP_VALUES, S1))),
+                O(BindIdentMeta(SPair(L_TPLP_VALUES, S1))),
                 O(Text(SPair(gen_name, S1))),      //:-.
               O(Close(TplParam, S1)),              //   |
             O(Close(TplApply, S1)),                //   |
@@ -193,7 +193,7 @@ fn desugar_nested_apply() {
 
               // @values@
               O(Open(TplParam, S1)),
-                O(BindIdent(SPair(L_TPLP_VALUES, S1))),
+                O(BindIdentMeta(SPair(L_TPLP_VALUES, S1))),
                 O(Text(SPair(gen_name_outer, S1))),    //:-.
               O(Close(TplParam, S1)),                  //   |
             O(Close(TplApply, S1)),                    //   |
@@ -227,7 +227,7 @@ fn does_not_desugar_long_form() {
           BindIdent(name),
 
           Open(TplParam, S3),
-            BindIdent(pname),
+            BindIdentMeta(pname),
             Text(pval),
           Close(TplParam, S6),
         Close(TplApply, S7),
@@ -244,7 +244,7 @@ fn does_not_desugar_long_form() {
               O(BindIdent(name)),
 
               O(Open(TplParam, S3)),
-                O(BindIdent(pname)),
+                O(BindIdentMeta(pname)),
                 O(Text(pval)),
               O(Close(TplParam, S6)),
             O(Close(TplApply, S7)),
