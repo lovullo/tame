@@ -27,6 +27,7 @@ use super::{
     AirAggregate, AirAggregateCtx,
 };
 use crate::{
+    diagnose::Annotate,
     fmt::{DisplayWrapper, TtQuote},
     parse::prelude::*,
     span::Span,
@@ -185,6 +186,19 @@ impl ParseState for AirTplAggregate {
                 })
                 .map(|_| ())
                 .transition(Toplevel(tpl.identify(id))),
+
+            (Toplevel(tpl), AirBind(BindIdentAbstract(meta_name))) => {
+                diagnostic_todo!(
+                    vec![
+                        tpl.oi().note("for this template"),
+                        meta_name.note(
+                            "attempting to bind an abstract identifier with \
+                                this metavariable"
+                        ),
+                    ],
+                    "attempt to bind abstract identifier to template",
+                )
+            }
 
             (Toplevel(tpl), AirBind(RefIdent(name))) => {
                 let tpl_oi = tpl.oi();

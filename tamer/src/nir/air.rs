@@ -280,6 +280,9 @@ impl ParseState for NirToAir {
             (st @ (Ready | Meta(_)), BindIdent(spair)) => {
                 Transition(st).ok(Air::BindIdent(spair))
             }
+            (st @ (Ready | Meta(_)), BindIdentAbstract(spair)) => {
+                Transition(st).ok(Air::BindIdentAbstract(spair))
+            }
             (Ready, Ref(spair) | RefSubject(spair)) => {
                 Transition(Ready).ok(Air::RefIdent(spair))
             }

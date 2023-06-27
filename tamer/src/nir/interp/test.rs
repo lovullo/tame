@@ -111,6 +111,93 @@ fn expect_expanded_header(
     expect_name_sym
 }
 
+// This allows for unambiguously requesting desugaring in situations where
+//   the default is to treat the name as concrete.
+#[test]
+fn desugars_spec_with_only_var() {
+    let given_val = "{@foo@}";
+    //               |[---]|
+    //               |1   5|
+    //               |  B  |
+    //               [-----]
+    //               0     6
+    //                  A
+
+    // Non-zero span offset ensures that derived spans properly consider
+    //   parent offset.
+    let a = DC.span(10, 7);
+    let b = DC.span(11, 5);
+
+    let given_sym = Nir::Ref(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        Ok(vec![
+            // This is the actual metavariable reference, pulled out of the
+            //   interpolated portion of the given value.
+            Object(Nir::Ref(SPair("@foo@".into(), b))),
+            // This is an object generated from user input, so the closing
+            //   span has to identify what were generated from.
+            Object(Nir::Close(NirEntity::TplParam, a)),
+            // Finally,
+            //   we replace the original provided attribute
+            //     (the interpolation specification)
+            //   with a metavariable reference to the generated parameter.
+            Object(Nir::Ref(SPair(expect_name, a))),
+        ]),
+        sut.collect(),
+    );
+}
+
+// This is like the above test,
+//   but with a `BindIdent` instead of a `Ref`,
+//   which desugars into `BindIdentAbstract`.
+// We could handle that translation in a later lowering operation,
+//   but re-parsing the symbol would be wasteful.
+#[test]
+fn concrete_bind_ident_desugars_into_abstract_bind_after_interpolation() {
+    let given_val = "{@bindme@}";
+    //               |[------]|
+    //               |1      8|
+    //               |   B    |
+    //               [--------]
+    //               0        9
+    //                   A
+
+    // Non-zero span offset ensures that derived spans properly consider
+    //   parent offset.
+    let a = DC.span(10, 10);
+    let b = DC.span(11, 8);
+
+    // This is a bind,
+    //   unlike above.
+    let given_sym = Nir::BindIdent(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+
+    assert_eq!(
+        Ok(vec![
+            // The interpolation occurs the same as above.
+            Object(Nir::Ref(SPair("@bindme@".into(), b))),
+            Object(Nir::Close(NirEntity::TplParam, a)),
+            // But at the end,
+            //   instead of keeping the original `BindIdent` token,
+            //   we translate to `BindIdentAbstract`,
+            //   indicating that the name of this identifier depends on the
+            //     value of the metavariable during expansion
+            Object(Nir::BindIdentAbstract(SPair(expect_name, a))),
+        ]),
+        sut.collect(),
+    );
+}
+
 // When ending with an interpolated variable,
 //   the parser should recognize that we've returned to the outer literal
 //   context and permit successful termination of the specification string.

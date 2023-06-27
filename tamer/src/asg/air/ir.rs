@@ -542,12 +542,36 @@ sum_ir! {
             /// Assign an identifier to the active object.
             ///
             /// The "active" object depends on the current parsing state.
+            ///
+            /// See also [`Self::BindIdentAbstract`] if the name of the
+            ///   identifier cannot be know until future expansion based on
+            ///   the value of a metavariable.
             BindIdent(id: SPair) => {
                 span: id,
                 display: |f| write!(
                     f,
                     "identify active object as {}",
                     TtQuote::wrap(id),
+                ),
+            },
+
+            /// Assign an abstract identifier to the active object.
+            ///
+            /// This differs from [`Self::BindIdent`] in that the name of
+            ///   the identifier will not be known until expansion time.
+            /// The identifier is bound to a metavariable of the
+            ///   name `meta`,
+            ///     from which its name will eventually be derived.
+            ///
+            /// If the name is known,
+            ///   use [`Self::BindIdent`] to bind a concrete identifier.
+            BindIdentAbstract(meta: SPair) => {
+                span: meta,
+                display: |f| write!(
+                    f,
+                    "identify active object by the value of the \
+                        metavariable {} during future expansion",
+                    TtQuote::wrap(meta),
                 ),
             },
 
@@ -747,6 +771,18 @@ sum_ir! {
             },
         }
 
+        /// Metasyntactic objects.
+        ///
+        /// TAME's metalanguage supports the generation of lexemes using
+        ///   metavariables.
+        /// Those generated lexemes are utilized by the template system
+        ///   (via [`AirTpl`])
+        ///   during expansion,
+        ///     yielding objects as if the user had entered the lexemes
+        ///     statically.
+        ///
+        /// [`AirBind`] is able to utilize metasyntactic variables for
+        ///   dynamically generated bindings.
         enum AirMeta {
             /// Begin a metavariable definition.
             ///
@@ -855,17 +891,6 @@ sum_ir! {
 
     /// Tokens that may be used to define metavariables.
     pub sum enum AirBindableMeta = AirMeta | AirBind | AirDoc;
-}
-
-impl AirBind {
-    /// Name of the identifier described by this token.
-    pub fn name(&self) -> SPair {
-        use AirBind::*;
-
-        match self {
-            BindIdent(name) | RefIdent(name) => *name,
-        }
-    }
 }
 
 impl AirIdent {

@@ -96,11 +96,24 @@ pub enum Nir {
     /// Finish definition of a [`NirEntity`] atop of the stack and pop it.
     Close(NirEntity, Span),
 
-    /// Bind the given name as an identifier for the entity atop of the
-    ///   stack.
+    /// Bind the given name as a concrete identifier for the entity atop of
+    ///   the stack.
     ///
     /// [`Self::Ref`] references identifiers created using this token.
+    ///
+    /// See also [`Self::BindIdentAbstract`].
     BindIdent(SPair),
+
+    /// Bind entity atop of the stack to an abstract identifier whose name
+    ///   will eventually be derived from the metavariable identifier by the
+    ///   given [`SPair`].
+    ///
+    /// The identifier is intended to become concrete when a lexical value
+    ///   for the metavariable becomes available during expansion,
+    ///     which is outside of the scope of NIR.
+    ///
+    /// See also [`Self::BindIdent`] for a concrete identifier.
+    BindIdentAbstract(SPair),
 
     /// Reference the value of the given identifier as the subject of the
     ///   current expression.
@@ -163,15 +176,23 @@ pub enum Nir {
 }
 
 impl Nir {
-    /// Retrieve inner [`SymbolId`] that this token represents,
+    /// Retrieve a _concrete_ inner [`SymbolId`] that this token represents,
     ///   if any.
     ///
     /// Not all NIR tokens contain associated symbols;
     ///   a token's [`SymbolId`] is retained only if it provides additional
     ///   information over the token itself.
     ///
-    /// See also [`Nir::map`] if you wish to change the symbol.
-    pub fn symbol(&self) -> Option<SymbolId> {
+    /// An abstract identifier will yield [`None`],
+    ///   since its concrete symbol has yet to be defined;
+    ///     the available symbol instead represents the name of the
+    ///     metavariable from which the concrete symbol will eventually
+    ///     have its value derived.
+    ///
+    /// See also [`Nir::map`] if you wish to change the symbol,
+    ///   noting however that it does not distinguish between notions of
+    ///   concrete and abstract as this method does.
+    pub fn concrete_symbol(&self) -> Option<SymbolId> {
         use Nir::*;
 
         match self {
@@ -182,6 +203,13 @@ impl Nir {
 
             BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
             | Text(spair) | Import(spair) => Some(spair.symbol()),
+
+            // An abstract identifier does not yet have a concrete symbol
+            //   assigned;
+            //     the available symbol represents the metavariable from
+            //     which a symbol will eventually be derived during
+            //     expansion.
+            BindIdentAbstract(_) => None,
 
             Noop(_) => None,
         }
@@ -201,8 +229,7 @@ impl Functor<SymbolId> for Nir {
     /// If a token does not contain a symbol,
     ///   this returns the token unchanged.
     ///
-    /// See also [`Nir::symbol`] if you only wish to retrieve the symbol
-    ///   rather than map over it.
+    /// See also [`Nir::concrete_symbol`].
     fn map(self, f: impl FnOnce(SymbolId) -> SymbolId) -> Self {
         use Nir::*;
 
@@ -213,6 +240,7 @@ impl Functor<SymbolId> for Nir {
             Open(_, _) | Close(_, _) => self,
 
             BindIdent(spair) => BindIdent(spair.map(f)),
+            BindIdentAbstract(spair) => BindIdentAbstract(spair.map(f)),
             RefSubject(spair) => RefSubject(spair.map(f)),
             Ref(spair) => Ref(spair.map(f)),
             Desc(spair) => Desc(spair.map(f)),
@@ -339,8 +367,13 @@ impl Token for Nir {
             Open(_, span) => *span,
             Close(_, span) => *span,
 
-            BindIdent(spair) | RefSubject(spair) | Ref(spair) | Desc(spair)
-            | Text(spair) | Import(spair) => spair.span(),
+            BindIdent(spair)
+            | BindIdentAbstract(spair)
+            | RefSubject(spair)
+            | Ref(spair)
+            | Desc(spair)
+            | Text(spair)
+            | Import(spair) => spair.span(),
 
             // A no-op is discarding user input,
             //   so we still want to know where that is so that we can
@@ -363,7 +396,19 @@ impl Display for Nir {
             Open(entity, _) => write!(f, "open {entity} entity"),
             Close(entity, _) => write!(f, "close {entity} entity"),
             BindIdent(spair) => {
-                write!(f, "bind identifier {}", TtQuote::wrap(spair))
+                write!(
+                    f,
+                    "bind to concrete identifier {}",
+                    TtQuote::wrap(spair)
+                )
+            }
+            BindIdentAbstract(spair) => {
+                write!(
+                    f,
+                    "bind to abstract identifier with future value of \
+                        metavariable {}",
+                    TtQuote::wrap(spair)
+                )
             }
             RefSubject(spair) => {
                 write!(f, "subject ref {}", TtQuote::wrap(spair))

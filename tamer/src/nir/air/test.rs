@@ -453,3 +453,49 @@ fn text_as_arbitrary_doc() {
         sut_parse(toks.into_iter()).collect(),
     );
 }
+
+// NIR's concept of abstract identifiers exists for the sake of
+//   disambiguation for AIR.
+// While NIR's grammar does not explicitly utilize it,
+//   interpolation via `nir::interp` will desugar into it.
+#[test]
+fn abstract_idents_lowered_to_air_equivalent() {
+    let meta_id = SPair("@foo@".into(), S2);
+    let meta_meta_id = SPair("@bar@".into(), S5);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Open(Rate, S1),
+          // NIR does not know or care that this metavariable does not
+          //   exist.
+          BindIdentAbstract(meta_id),
+        Close(Rate, S3),
+
+        // The XSLT-based TAME had a grammatical ambiguity that disallowed
+        //   for this type of construction,
+        //     but there's no reason we can't allow for abstract
+        //     metavariables
+        //       (which would make `meta_meta_id` a meta-metavariable).
+        // (See `nir::interp` for more information on the handling of
+        //   `TplParam` and abstract identifiers.)
+        Open(TplParam, S4),
+          // NIR does not know or care that this metavariable does not
+          //   exist.
+          BindIdentAbstract(meta_meta_id),
+        Close(TplParam, S6),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        Ok(vec![
+            O(Air::ExprStart(ExprOp::Sum, S1)),
+              O(Air::BindIdentAbstract(meta_id)),
+            O(Air::ExprEnd(S3)),
+
+            O(Air::MetaStart(S4)),
+              O(Air::BindIdentAbstract(meta_meta_id)),
+            O(Air::MetaEnd(S6)),
+        ]),
+        sut_parse(toks.into_iter()).collect(),
+    );
+}

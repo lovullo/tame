@@ -266,7 +266,7 @@ impl ParseState for InterpState {
             //     filter out non-interpolated strings quickly,
             //       before we start to parse.
             // Symbols that require no interpoolation are simply echoed back.
-            Ready => match tok.symbol() {
+            Ready => match tok.concrete_symbol() {
                 Some(sym) if needs_interpolation(sym) => {
                     Transition(GenIdent(sym))
                         .ok(Nir::Open(NirEntity::TplParam, span))
@@ -458,7 +458,19 @@ impl ParseState for InterpState {
             //     generated.
             // We finally release the lookahead symbol.
             FinishSym(_, GenIdentSymbolId(gen_param)) => {
-                Transition(Ready).ok(tok.map(|_| gen_param))
+                let replacement = match tok.map(|_| gen_param) {
+                    // `BindIdent` represents a concrete identifier.
+                    // Our interpolation has generated a metavariable,
+                    //   meaning that this identifier has become abstract
+                    //   since its name will not be known until expansion-time.
+                    Nir::BindIdent(x) => Nir::BindIdentAbstract(x),
+
+                    // All other tokens only have their symbols replaced by
+                    //   the above.
+                    x => x,
+                };
+
+                Transition(Ready).ok(replacement)
             }
         }
     }

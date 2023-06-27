@@ -143,6 +143,20 @@ pub enum Ident {
     ///   itself;
     ///     this is safe since identifiers in TAME are immutable.
     Transparent(SPair),
+
+    /// The name of the identifier is not yet known and will be determined
+    ///   by the lexical value of a metavariable.
+    ///
+    /// This is intended for use by identifiers that will be generated as a
+    ///   result of template expansion---​
+    ///     it represents the abstract _idea_ of an identifier,
+    ///       to be made concrete at a later time,
+    ///       and is not valid outside of a metasyntactic context.
+    ///
+    /// The associated span represents the location that the identifier
+    ///   was defined,
+    ///     e.g. within a template body.
+    Abstract(Span),
 }
 
 impl Display for Ident {
@@ -165,6 +179,9 @@ impl Display for Ident {
             Transparent(id) => {
                 write!(f, "transparent identifier {}", TtQuote::wrap(id))
             }
+            Abstract(_) => {
+                write!(f, "pending identifier (to be named during expansion)")
+            }
         }
     }
 }
@@ -182,6 +199,8 @@ impl Ident {
             | Extern(name, ..)
             | IdentFragment(name, ..)
             | Transparent(name) => Some(*name),
+
+            Abstract(_) => None,
         }
     }
 
@@ -192,6 +211,8 @@ impl Ident {
             | Extern(name, ..)
             | IdentFragment(name, ..)
             | Transparent(name) => name.span(),
+
+            Abstract(span) => *span,
         }
     }
 
@@ -202,7 +223,7 @@ impl Ident {
     ///     [`None`] is returned.
     pub fn kind(&self) -> Option<&IdentKind> {
         match self {
-            Missing(_) | Transparent(_) => None,
+            Missing(_) | Transparent(_) | Abstract(_) => None,
 
             Opaque(_, kind, _)
             | Extern(_, kind, _)
@@ -217,7 +238,7 @@ impl Ident {
     ///     [`None`] is returned.
     pub fn src(&self) -> Option<&Source> {
         match self {
-            Missing(_) | Extern(_, _, _) | Transparent(_) => None,
+            Missing(_) | Extern(_, _, _) | Transparent(_) | Abstract(_) => None,
 
             Opaque(_, _, src) | IdentFragment(_, _, src, _) => Some(src),
         }
@@ -229,9 +250,11 @@ impl Ident {
     ///   [`None`] is returned.
     pub fn fragment(&self) -> Option<FragmentText> {
         match self {
-            Missing(_) | Opaque(_, _, _) | Extern(_, _, _) | Transparent(_) => {
-                None
-            }
+            Missing(_)
+            | Opaque(_, _, _)
+            | Extern(_, _, _)
+            | Transparent(_)
+            | Abstract(_) => None,
 
             IdentFragment(_, _, _, text) => Some(*text),
         }
@@ -368,6 +391,17 @@ impl Ident {
                 let err = TransitionError::Redeclare(name, span);
                 Err((self, err))
             }
+
+            // This really should never happen at the time of writing,
+            //   since to resolve an identifier it first needs to be located
+            //   on the graph,
+            //     and abstract identifiers do not have an indexed name.
+            // Does the system now discover identifiers through other means,
+            //   e.g. by trying to pre-draw edges within template bodies?
+            Abstract(abstract_span) => Err((
+                self,
+                TransitionError::ResolveAbstract(abstract_span, span),
+            )),
         }
     }
 
@@ -393,6 +427,8 @@ impl Ident {
             Extern(name, ref kind, _) => {
                 Err(UnresolvedError::Extern(*name, kind.clone()))
             }
+
+            Abstract(span) => Err(UnresolvedError::Abstract(*span)),
 
             Opaque(name, ..)
             | IdentFragment(name, ..)
@@ -442,6 +478,12 @@ impl Ident {
                     Ok(self)
                 }
             }
+
+            // See notes on `resolve()` for this arm.
+            Abstract(abstract_span) => Err((
+                self,
+                TransitionError::ResolveAbstract(abstract_span, span),
+            )),
         }
     }
 
@@ -453,6 +495,11 @@ impl Ident {
     /// Note, however, that an identifier's fragment may be cleared under
     ///   certain circumstances (such as symbol overrides),
     ///     making way for a new fragment to be set.
+    ///
+    /// Fragments cannot be attached to abstract identifiers,
+    ///   nor does it make sense to,
+    ///   since fragment code generation only takes place on expanded
+    ///   objects.
     pub fn set_fragment(self, text: FragmentText) -> TransitionResult<Ident> {
         match self {
             Opaque(sym, kind, src) => Ok(IdentFragment(sym, kind, src, text)),
@@ -487,6 +534,10 @@ impl Ident {
             | Transparent(name) => {
                 Err((self, TransitionError::BadFragmentDest(name)))
             }
+
+            Abstract(span) => {
+                Err((self, TransitionError::AbstractFragmentDest(span)))
+            }
         }
     }
 }
@@ -520,6 +571,16 @@ pub enum TransitionError {
     ///
     /// See [`Ident::set_fragment`].
     BadFragmentDest(SPair),
+
+    /// Attempted to resolve an abstract identifier.
+    ///
+    /// An abstract identifier must be made to be concrete before any
+    ///   resolution can occur.
+    ResolveAbstract(Span, Span),
+
+    /// Like [`Self::BadFragmentDest`] but for abstract identifiers without
+    ///   a name.
+    AbstractFragmentDest(Span),
 }
 
 impl std::fmt::Display for TransitionError {
@@ -557,7 +618,15 @@ impl std::fmt::Display for TransitionError {
 
             BadFragmentDest(name) => {
                 write!(fmt, "bad fragment destination: {}", TtQuote::wrap(name))
+            },
+
+            ResolveAbstract(_, _) => {
+                write!(fmt, "cannot resolve abstract identifier")
             }
+
+            AbstractFragmentDest(_) => {
+                write!(fmt, "cannot attach fragment to abstract identifier")
+            },
         }
     }
 }
@@ -627,6 +696,27 @@ impl Diagnostic for TransitionError {
                 ),
                 name.help("  object file; this error should never occur."),
             ],
+
+            ResolveAbstract(span, resolve_span) => vec![
+                span.note("for this abstract identifier"),
+                resolve_span.internal_error(
+                    "attempted to resolve abstract identifier here",
+                ),
+                resolve_span.help(
+                    "this is a suspicious error that may represent \
+                        a compiler bug",
+                ),
+            ],
+
+            AbstractFragmentDest(span) => vec![
+                span.internal_error(
+                    "this abstract identifier cannot be assigned a text fragment",
+                ),
+                span.help(
+                    "the term 'text fragment' refers to compiled code from an \
+                       object file; this error should never occur."
+                ),
+            ],
         }
     }
 }
@@ -646,6 +736,13 @@ pub enum UnresolvedError {
     /// Expected identifier has not yet been resolved with a concrete
     ///   definition.
     Extern(SPair, IdentKind),
+
+    /// The identifier at the given location is pending expansion and is not
+    ///   yet a concrete identifier.
+    ///
+    /// These identifiers represent a template for the creation of a future
+    ///   identifier during template expansion.
+    Abstract(Span),
 }
 
 impl std::fmt::Display for UnresolvedError {
@@ -663,6 +760,8 @@ impl std::fmt::Display for UnresolvedError {
                 TtQuote::wrap(name),
                 TtQuote::wrap(kind),
             ),
+
+            Abstract(_) => write!(fmt, "abstract (unexpanded) identifier"),
         }
     }
 }
@@ -700,6 +799,16 @@ impl Diagnostic for UnresolvedError {
                 name.help(
                     "  later provide a concrete definition for it."
                 )
+            ],
+
+            // This should not occur under normal circumstances;
+            //   the user is likely to hit a more helpful and
+            //   context-specific error before this.
+            Abstract(span) => vec![
+                span.error("this identifier has not been expanded"),
+                span.help(
+                    "are you using a metavariable outside of a template body?",
+                ),
             ],
         }
     }
@@ -1114,6 +1223,12 @@ impl ObjectIndex<Ident> {
                     TtQuote::wrap(id),
                 )
             }
+
+            // e.g. in a template body
+            Abstract(span) => diagnostic_todo!(
+                vec![span.note("abstract defintion bind here")],
+                "bind definition to abstract identifier",
+            ),
 
             // We are okay to proceed to add an edge to the `definition`.
             // Discard the original span

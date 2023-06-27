@@ -91,6 +91,19 @@ impl ParseState for AirMetaAggregate {
                 .map(|_| ())
                 .transition(TplMeta(oi_meta)),
 
+            (TplMeta(oi_meta), AirBind(BindIdentAbstract(meta_name))) => {
+                diagnostic_todo!(
+                    vec![
+                        oi_meta.note("for this metavariable"),
+                        meta_name.note(
+                            "attempting to bind an abstract identifier with \
+                                this metavariable"
+                        ),
+                    ],
+                    "attempt to bind abstract identifier to metavariable",
+                )
+            }
+
             (TplMeta(oi_meta), AirDoc(DocIndepClause(clause))) => {
                 oi_meta.desc_short(ctx.asg_mut(), clause);
                 Transition(TplMeta(oi_meta)).incomplete()

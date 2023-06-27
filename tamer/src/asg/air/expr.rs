@@ -34,6 +34,7 @@ use crate::{
         graph::object::{ObjectIndexRelTo, ObjectIndexTo},
         ObjectKind,
     },
+    diagnose::Annotate,
     f::Functor,
     parse::prelude::*,
 };
@@ -136,6 +137,19 @@ impl ParseState for AirExprAggregate {
                     }
                     Err(e) => Transition(BuildingExpr(es, oi)).err(e),
                 }
+            }
+
+            (BuildingExpr(_, oi), AirBind(BindIdentAbstract(meta_name))) => {
+                diagnostic_todo!(
+                    vec![
+                        oi.note("for this expression"),
+                        meta_name.note(
+                            "attempting to bind an abstract identifier with \
+                                this metavariable"
+                        ),
+                    ],
+                    "attempt to bind abstract identifier to expression",
+                )
             }
 
             (BuildingExpr(es, oi), AirBind(RefIdent(name))) => {
