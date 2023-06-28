@@ -26,7 +26,6 @@
 
 use super::{super::AsgError, ir::AirIdent, AirAggregate, AirAggregateCtx};
 use crate::parse::prelude::*;
-use std::fmt::Display;
 
 #[derive(Debug, PartialEq)]
 pub enum AirOpaqueAggregate {

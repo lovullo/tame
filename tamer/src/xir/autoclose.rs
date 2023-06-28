@@ -106,7 +106,6 @@ use crate::{
     span::{Span, UNKNOWN_SPAN},
     xir::EleSpan,
 };
-use std::fmt::Display;
 
 use XirfAutoClose::*;
 

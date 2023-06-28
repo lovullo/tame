@@ -22,15 +22,13 @@
 use super::Nir;
 use crate::{
     asg::{air::Air, ExprOp},
-    diagnose::{Annotate, Diagnostic},
-    fmt::{DisplayWrapper, TtQuote},
+    fmt::TtQuote,
     nir::{Nir::*, NirEntity::*},
     parse::prelude::*,
     span::Span,
     sym::{st::raw::U_TRUE, SymbolId},
 };
 use arrayvec::ArrayVec;
-use std::{error::Error, fmt::Display};
 
 /// Dynamic [`NirToAir`] parser configuration.
 ///

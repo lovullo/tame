@@ -26,12 +26,7 @@ use super::{
     ir::AirBindableTpl,
     AirAggregate, AirAggregateCtx,
 };
-use crate::{
-    diagnose::Annotate,
-    fmt::{DisplayWrapper, TtQuote},
-    parse::prelude::*,
-    span::Span,
-};
+use crate::{fmt::TtQuote, parse::prelude::*, span::Span};
 
 /// Template parser and token aggregator.
 ///

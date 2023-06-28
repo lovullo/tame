@@ -26,10 +26,7 @@ use super::{
     ir::AirBindableMeta,
     AirAggregate, AirAggregateCtx,
 };
-use crate::{
-    asg::graph::object::Meta, diagnose::Annotate, diagnostic_todo,
-    parse::prelude::*,
-};
+use crate::{asg::graph::object::Meta, diagnostic_todo, parse::prelude::*};
 
 /// Metasyntactic variable (metavariable) parser.
 #[derive(Debug, PartialEq)]

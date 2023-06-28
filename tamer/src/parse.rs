@@ -58,8 +58,13 @@ pub mod prelude {
         TransitionResult, Transitionable,
     };
 
-    // Every `Token` must implement `Display`.
-    pub use std::fmt::Display;
+    // Every `Token`.
+    pub use crate::fmt::DisplayWrapper;
+    pub use std::fmt::{Debug, Display};
+
+    // Every `ParseState::Error`.
+    pub use crate::diagnose::{Annotate, AnnotatedSpan, Diagnostic};
+    pub use std::error::Error;
 }
 
 /// A single datum from a streaming IR with an associated [`Span`].

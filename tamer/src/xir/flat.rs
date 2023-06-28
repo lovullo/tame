@@ -46,7 +46,6 @@ use super::{
     CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream,
 };
 use crate::{
-    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     f::Functor,
     parse::prelude::*,
     span::Span,
@@ -54,11 +53,7 @@ use crate::{
     xir::EleSpan,
 };
 use arrayvec::ArrayVec;
-use std::{
-    error::Error,
-    fmt::{Debug, Display},
-    marker::PhantomData,
-};
+use std::marker::PhantomData;
 
 // Used for organization.
 pub use accept::*;

@@ -34,7 +34,6 @@ use crate::{
         graph::object::{ObjectIndexRelTo, ObjectIndexTo},
         ObjectKind,
     },
-    diagnose::Annotate,
     f::Functor,
     parse::prelude::*,
 };

@@ -26,7 +26,7 @@ use super::{
     ir::AirLiteratePkg,
     AirAggregate, AirAggregateCtx,
 };
-use crate::{diagnose::Annotate, diagnostic_todo, parse::prelude::*};
+use crate::{diagnostic_todo, parse::prelude::*};
 
 /// Package parsing with support for loaded identifiers.
 ///

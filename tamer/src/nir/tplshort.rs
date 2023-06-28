@@ -80,7 +80,7 @@ use arrayvec::ArrayVec;
 
 use super::{Nir, NirEntity};
 use crate::{
-    fmt::{DisplayWrapper, TtQuote},
+    fmt::TtQuote,
     parse::prelude::*,
     span::Span,
     sym::{
