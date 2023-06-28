@@ -114,22 +114,30 @@
 //!        metavariable naming convention as abstract bindings.
 //!      This is equivalent to the interpolation behavior.
 //!
-//! This module is therefore an _optional_ syntactic feature of TAME.
+//! To support this interpretation,
+//!   this lowering operation requires that all names of
+//!   [`Nir::BindIdentMeta`] be padded with a single `@` on each side,
+//!     as shown in the examples above.
+//!
+//! Lowering Pipeline Ordering
+//! ==========================
+//! This module is an _optional_ syntactic feature of TAME.
 //! If desired,
 //!   this module could be omitted from the lowering pipeline in favor of
 //!   explicitly utilizing interpolation for all abstract identifiers.
-//! When utilized,
-//!   this lowering operation may be intergrated into the lowering pipeline
-//!   either before or after interpolation.
 //!
-//! TODO: Since this module acts upon a naming convention,
-//!     shouldn't it also enforce it on definition so that we know that
-//!     metavariables _will_ always follow that convention?
-//!   At the time of writing,
-//!     no part of TAMER yet enforces metavariable naming conventions.
+//! Interpolation via [`super::interp`] its own [`Nir::BindIdentAbstract`]
+//!   tokens,
+//!     and shorthand template application via [`super::tplshort`] desugars
+//!     into both the proper `@`-padded naming convention and
+//!     [`Nir::BindIdentAbstract`].
+//! It should therefore be possible to place this operation in any order
+//!   relative to those two.
 
 use super::Nir;
-use crate::{parse::prelude::*, sym::GlobalSymbolResolve};
+use crate::{
+    fmt::TtQuote, parse::prelude::*, span::Span, sym::GlobalSymbolResolve,
+};
 use memchr::memchr;
 
 use Nir::*;
@@ -161,12 +169,48 @@ impl ParseState for AbstractBindTranslate {
                 Transition(self).ok(BindIdentAbstract(name))
             }
 
+            BindIdentMeta(name) => validate_meta_name(name)
+                .map(BindIdentMeta)
+                .map(ParseStatus::Object)
+                .transition(self),
+
             _ => Transition(self).ok(tok),
         }
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         true
+    }
+}
+
+/// Validate that the provided name is padded with a single `@` on both
+///   sides.
+///
+/// This check is necessary to ensure that we can properly infer when a
+///   metavariable is in use in a bind position without having to rely on
+///   interpolation.
+///
+/// TODO: This does not yet place any other restrictions on the name of a
+///   metavariable;
+///     we'll take care of that when we decide on an approach for other
+///     names.
+fn validate_meta_name(
+    meta: SPair,
+) -> Result<SPair, AbstractBindTranslateError> {
+    let name = meta.symbol().lookup_str();
+
+    if !name.starts_with('@') {
+        Err(AbstractBindTranslateError::MetaNamePadMissing(
+            meta,
+            meta.span().slice_head(0),
+        ))
+    } else if !name.ends_with('@') {
+        Err(AbstractBindTranslateError::MetaNamePadMissing(
+            meta,
+            meta.span().slice_tail(0),
+        ))
+    } else {
+        Ok(meta)
     }
 }
 
@@ -200,8 +244,51 @@ fn needs_translation(name: SPair) -> bool {
     )
 }
 
-diagnostic_infallible! {
-    pub enum AbstractBindTranslateError {}
+#[derive(Debug, PartialEq, Eq)]
+pub enum AbstractBindTranslateError {
+    /// A metavariable does not adhere to the naming convention requiring
+    ///   `@`-padding.
+    ///
+    /// The provided [`Span`] is the first occurrence of such a violation.
+    /// If `@` is missing from both the beginning and end of the name,
+    ///   then one of them is chosen.
+    MetaNamePadMissing(SPair, Span),
+}
+
+impl Display for AbstractBindTranslateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use AbstractBindTranslateError::*;
+
+        match self {
+            MetaNamePadMissing(name, _) => write!(
+                f,
+                "metavariable {} must both begin and end with `@`",
+                TtQuote::wrap(name),
+            ),
+        }
+    }
+}
+
+impl Diagnostic for AbstractBindTranslateError {
+    fn describe(&self) -> Vec<AnnotatedSpan> {
+        use AbstractBindTranslateError::*;
+
+        match self {
+            MetaNamePadMissing(_, at) => vec![
+                at.error("missing `@` here"),
+                at.help(
+                    "metavariables (such as template parameters) must \
+                        have names that both begin and end with the \
+                        character `@`",
+                ),
+                at.help(
+                    "this naming requirement is necessary to make curly \
+                        braces optional when referencing metavariables \
+                        without requiring interpolation",
+                ),
+            ],
+        }
+    }
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::span::dummy::*;
+use crate::span::dummy::{DUMMY_CONTEXT as DC, *};
 
 type Sut = AbstractBindTranslate;
 use Parsed::Object as O;
@@ -77,6 +77,88 @@ fn meta_concrete_bind_with_metavar_naming_ignored() {
         BindIdentMeta(SPair(name, S2)),
         // And so the bind stays concrete.
         BindIdentMeta(SPair(name, S2)),
+    );
+}
+
+// This lowering operation utilizes a naming convention to infer user intent
+//   and lift the requirement for curly braces;
+//     they go hand-in-hand.
+// To utilize this feature,
+//   we must also require adherence to the naming convention so that we know
+//   that our assumptions hold.
+//
+// We can't check for the opposite---
+//   that non-meta identifiers must _not_ follow that convention---
+//   because we interpet such occurrences as abstract identifiers.
+// In practice,
+//   users will get an error because the conversion into a reference will
+//   yield an error when the metavariable does not exist already as a
+//   reference,
+//     or a duplicate definition error if it was already defined.
+#[test]
+fn rejects_metavariable_without_naming_convention() {
+    let name_a = "@missing-end".into();
+    //            |          |
+    //            |         11
+    //            |          B
+    //            [----------]
+    //            0         11
+    //                 A
+
+    let a_a = DC.span(10, 12);
+    let a_b = DC.span(22, 0); // _after_ last char
+
+    let name_b = "missing-start@".into();
+    //            |            |
+    //            0            |
+    //            A            |
+    //            [------------]
+    //            0           13
+    //                  A
+    let b_a = DC.span(10, 14);
+    let b_b = DC.span(10, 0); // _before_ first char
+
+    let name_c = "missing-both".into();
+    //            |          |
+    //            0          |
+    //            B          |
+    //            [----------]
+    //            0         11
+    //                 A
+    let c_a = DC.span(10, 12);
+    let c_b = DC.span(10, 0); // _before_ first char
+
+    // Each of these will result in slightly different failures.
+    #[rustfmt::skip]
+    let toks = [
+        BindIdentMeta(SPair(name_a, a_a)),
+        BindIdentMeta(SPair(name_b, b_a)),
+        BindIdentMeta(SPair(name_c, c_a)),
+    ];
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Err(ParseError::StateError(
+                AbstractBindTranslateError::MetaNamePadMissing(
+                    SPair(name_a, a_a),
+                    a_b,
+                ),
+            )),
+            Err(ParseError::StateError(
+                AbstractBindTranslateError::MetaNamePadMissing(
+                    SPair(name_b, b_a),
+                    b_b,
+                ),
+            )),
+            Err(ParseError::StateError(
+                AbstractBindTranslateError::MetaNamePadMissing(
+                    SPair(name_c, c_a),
+                    c_b,
+                ),
+            )),
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<Result<_, _>>>(),
     );
 }
 
