@@ -21,7 +21,7 @@
 
 use super::{prelude::*, Expr, Meta, Pkg, Tpl};
 use crate::{
-    diagnose::{Annotate, Diagnostic},
+    diagnose::{panic::DiagnosticPanic, Annotate, Diagnostic},
     diagnostic_todo,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
@@ -269,6 +269,17 @@ impl Ident {
     ///     its definition is found.
     pub fn declare(ident: SPair) -> Self {
         Missing(ident)
+    }
+
+    /// Create a new abstract identifier at the given location.
+    ///
+    /// The provided [`Span`] is the only way to uniquely identify this
+    ///   identifier since it does not yet have a name.
+    /// Note that this just _represents_ an abstract identifier;
+    ///   it is given meaning only when given the proper relationships on
+    ///   the ASG.
+    pub fn new_abstract<S: Into<Span>>(at: S) -> Self {
+        Abstract(at.into())
     }
 
     /// Attempt to redeclare an identifier with additional information.
@@ -1106,7 +1117,10 @@ object_rel! {
     /// This is a legacy feature expected to be removed in the future;
     ///   see [`ObjectRel::can_recurse`] for more information.
     Ident -> {
-        tree Ident,
+        // Could represent an opaque dependency or an abstract identifier's
+        //   metavariable reference.
+        dyn Ident,
+
         tree Expr,
         tree Tpl,
         tree Meta,
@@ -1224,11 +1238,22 @@ impl ObjectIndex<Ident> {
                 )
             }
 
-            // e.g. in a template body
-            Abstract(span) => diagnostic_todo!(
-                vec![span.note("abstract defintion bind here")],
-                "bind definition to abstract identifier",
-            ),
+            // An abstract identifier will become `Transparent` during
+            //   expansion.
+            // This does not catch multiple definitions,
+            //   but this is hopefully not a problem in practice since there
+            //   is no lookup mechanism in source languages for abstract
+            //   identifiers since this has no name yet and cannot be
+            //   indexed in the usual way.
+            // Even so,
+            //   multiple definitions can be caught at expansion-time if
+            //   they somehow are able to slip through
+            //     (which would be a compiler bug);
+            //     it is not worth complicating `Ident`'s API or variants
+            //     even further,
+            //       and not worth the cost of a graph lookup here when
+            //       we'll have to do it later anyway.
+            Abstract(span) => Ok(Abstract(span)),
 
             // We are okay to proceed to add an edge to the `definition`.
             // Discard the original span
@@ -1305,12 +1330,65 @@ impl ObjectIndex<Ident> {
     pub fn name_or_meta(&self, asg: &Asg) -> SPair {
         let ident = self.resolve(asg);
 
+        // It would be nice if this could be built more into the type system
+        //   in the future,
+        //     if it's worth the effort of doing so.
+        // This is a simple lookup;
+        //   the robust internal diagnostic messages make it look
+        //   more complicated than it is.
         ident.name().unwrap_or_else(|| {
-            diagnostic_todo!(
-                vec![ident.span().internal_error("for this abstract ident")],
-                "metavariable lookup not yet supported",
+            let oi_meta_ident =
+                self.edges_filtered::<Ident>(asg).next().diagnostic_expect(
+                    || {
+                        vec![
+                            self.internal_error(
+                                "this abstract identifier has no Ident edge",
+                            ),
+                            self.help(
+                                "the compiler created an `Ident::Abstract` \
+                                   object but did not produce an edge to the \
+                                   Ident of the Meta from which its name \
+                                   will be derived",
+                            ),
+                        ]
+                    },
+                    "invalid ASG representation of abstract identifier",
+                );
+
+            oi_meta_ident.resolve(asg).name().diagnostic_expect(
+                || {
+                    vec![
+                    self.note(
+                        "while trying to find the Meta name of this abstract \
+                          identifier"
+                    ),
+                    oi_meta_ident.internal_error(
+                        "encountered another abstract identifier"
+                    ),
+                    oi_meta_ident.help(
+                        "an abstract identifier must reference a concrete \
+                          `Ident`"
+                    ),
+                ]
+                },
+                "abstract identifier references another abstract identifier",
             )
         })
+    }
+
+    /// Create a new abstract identifier whose name will be derived from
+    ///   this one during expansion.
+    ///
+    /// It is expected that `self` defines a [`Meta`],
+    ///   but this is not enforced here and will be checked during
+    ///   expansion.
+    pub fn new_abstract_ident(
+        self,
+        asg: &mut Asg,
+        at: Span,
+    ) -> ObjectIndex<Ident> {
+        asg.create(Ident::new_abstract(at))
+            .add_edge_to(asg, self, Some(at))
     }
 }
 

@@ -813,3 +813,73 @@ fn expr_doc_short_desc() {
         oi_docs.collect::<Vec<_>>(),
     );
 }
+
+// Binding an abstract identifier to an expression means that the expression
+//   may _eventually_ be reachable after expansion,
+//     but it is not yet.
+// They must therefore only be utilized within the context of a container
+//   that supports dangling expressions,
+//     like a template.
+#[test]
+fn abstract_bind_without_dangling_container() {
+    let id_meta = SPair("@foo@".into(), S2);
+    let id_ok = SPair("concrete".into(), S5);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::ExprStart(ExprOp::Sum, S1),
+          // This expression is bound to an _abstract_ identifier,
+          //   which will be expanded at a later time.
+          // Consequently,
+          //   this expression is still dangling.
+          Air::BindIdentAbstract(id_meta),
+
+        // Since the expression is still dangling,
+        //   attempting to close it will produce an error.
+        Air::ExprEnd(S3),
+
+        // RECOVERY: Since an attempt at identification has been made,
+        //   we shouldn't expect that another attempt will be made.
+        // The sensible thing to do is to move on to try to find other
+        //   errors,
+        //     leaving the expression alone and unreachable.
+        Air::ExprStart(ExprOp::Sum, S4),
+          // This is intended to demonstrate that we can continue on to the
+          //   next expression despite the prior error.
+          Air::BindIdent(id_ok),
+        Air::ExprEnd(S6),
+    ];
+
+    let mut sut = parse_as_pkg_body(toks);
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Parsed::Incomplete), // PkgStart
+              Ok(Parsed::Incomplete), // ExprStart
+
+              // This provides an _abstract_ identifier,
+              //   which is not permitted in this context.
+              Err(ParseError::StateError(AsgError::InvalidAbstractBindContext(
+                  id_meta,
+                  Some(S1), // Pkg
+              ))),
+
+              // RECOVERY: Ignore the bind and move to close.
+              // The above identifier was rejected and so we are still dangling.
+              Err(ParseError::StateError(AsgError::DanglingExpr(
+                  S1.merge(S3).unwrap()
+              ))),
+
+              // RECOVERY: This observes that we're able to continue parsing
+              //   the package after the above identification problem.
+              Ok(Parsed::Incomplete), // ExprStart
+                Ok(Parsed::Incomplete), // BindIdent (ok)
+              Ok(Parsed::Incomplete), // ExprEnd
+            Ok(Parsed::Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let _ = sut.finalize().unwrap();
+}

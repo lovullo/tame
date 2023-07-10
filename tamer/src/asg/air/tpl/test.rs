@@ -785,3 +785,52 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
 
     assert_eq!(S11.merge(S13).unwrap(), span_inner);
 }
+
+#[test]
+fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
+    let id_tpl = SPair("_tpl_".into(), S2);
+    let id_meta = SPair("@foo@".into(), S4);
+
+    #[rustfmt::skip]
+    let toks = vec![
+        Air::TplStart(S1),
+          // This identifier is concrete;
+          //   the abstract identifier will be the _expression_.
+          Air::BindIdent(id_tpl),
+
+          Air::ExprStart(ExprOp::Sum, S3),
+            // This expression is bound to an _abstract_ identifier,
+            //   which will be expanded at a later time.
+            // This does _not_ change the dangling status,
+            //   and so can only occur within an expression that acts as a
+            //   container for otherwise-dangling expressions.
+            Air::BindIdentAbstract(id_meta),
+          Air::ExprEnd(S5),
+        Air::TplEnd(S6),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    // The expression is dangling and so we must find it through a
+    //   traversal.
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
+    let oi_expr = oi_tpl
+        .edges_filtered::<Expr>(asg)
+        .next()
+        .expect("could not locate child Expr");
+
+    // The abstract identifier that should have been bound to the expression.
+    let oi_ident = oi_expr
+        .ident(asg)
+        .expect("abstract identifier was not bound to Expr");
+
+    assert_eq!(
+        None,
+        oi_ident.resolve(asg).name(),
+        "abstract identifier must not have a concrete name",
+    );
+
+    // The metavariable referenced by the abstract identifier
+    assert_eq!(id_meta, oi_ident.name_or_meta(asg));
+}

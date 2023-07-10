@@ -138,17 +138,54 @@ impl ParseState for AirExprAggregate {
                 }
             }
 
-            (BuildingExpr(_, oi), AirBind(BindIdentAbstract(meta_name))) => {
-                diagnostic_todo!(
-                    vec![
-                        oi.note("for this expression"),
-                        meta_name.note(
-                            "attempting to bind an abstract identifier with \
-                                this metavariable"
-                        ),
-                    ],
-                    "attempt to bind abstract identifier to expression",
-                )
+            (BuildingExpr(es, oi), AirBind(BindIdentAbstract(meta_name))) => {
+                // To help mitigate potentially cryptic errors down the line,
+                //   let's try to be helpful and notify the user when
+                //   they're trying to do something that almost certainly
+                //   will not succeed.
+                match ctx.dangling_expr_oi() {
+                    // The container does not support dangling expressions
+                    //   and so there is no chance that this expression will
+                    //   be expanded in the future.
+                    None => {
+                        let rooting_span = ctx
+                            .rooting_oi()
+                            .map(|oi| oi.widen().resolve(ctx.asg_ref()).span());
+
+                        // Note that we _discard_ the attempted bind token
+                        //   and so remain in a dangling state.
+                        Transition(BuildingExpr(es, oi)).err(
+                            AsgError::InvalidAbstractBindContext(
+                                meta_name,
+                                rooting_span,
+                            ),
+                        )
+                    }
+
+                    // We don't care what our container is,
+                    //   only that the above check passed.
+                    // That is:
+                    //   the above check is entirely optional and intended
+                    //   only as a debugging aid for users.
+                    Some(_) => {
+                        let oi_meta_ident =
+                            ctx.lookup_lexical_or_missing(meta_name);
+
+                        let oi_abstract = oi_meta_ident.new_abstract_ident(
+                            ctx.asg_mut(),
+                            meta_name.span(),
+                        );
+
+                        // Note that we are still dangling,
+                        //   since the identifier is abstract and is
+                        //   therefore not yet reachable via its
+                        //   yet-to-be-determined identifier.
+                        oi_abstract
+                            .bind_definition(ctx.asg_mut(), meta_name, oi)
+                            .map(|_| ())
+                            .transition(BuildingExpr(es, oi))
+                    }
+                }
             }
 
             (BuildingExpr(es, oi), AirBind(RefIdent(name))) => {

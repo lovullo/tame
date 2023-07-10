@@ -117,12 +117,19 @@ pub enum AsgError {
     ///   delimiter.
     UnbalancedTpl(Span),
 
-    /// Attempted to bind an identifier to an object while not in a context
-    ///   that can receive an identifier binding.
+    /// Attempted to bind a concrete identifier to an object while not in a
+    ///   context that can receive an identifier binding.
     ///
     /// Note that the user may encounter an error from a higher-level IR
     ///   instead of this one.
     InvalidBindContext(SPair),
+
+    /// Attempted to bind an abstract identifier in a context where
+    ///   expansion will not take place.
+    ///
+    /// This is intended to preempt future errors when we know that the
+    ///   context does not make sense for an abstract binding.
+    InvalidAbstractBindContext(SPair, Option<Span>),
 
     /// Attempted to reference an identifier while not in a context that can
     ///   receive an identifier reference.
@@ -202,8 +209,20 @@ impl Display for AsgError {
             ),
             UnbalancedExpr(_) => write!(f, "unbalanced expression"),
             UnbalancedTpl(_) => write!(f, "unbalanced template definition"),
-            InvalidBindContext(_) => {
-                write!(f, "invalid identifier binding context")
+            InvalidBindContext(name) => {
+                write!(
+                    f,
+                    "invalid identifier binding context for {}",
+                    TtQuote::wrap(name),
+                )
+            }
+            InvalidAbstractBindContext(name, _) => {
+                write!(
+                    f,
+                    "invalid abstract identifier binding context for \
+                       metavariable {}",
+                    TtQuote::wrap(name),
+                )
             }
             InvalidRefContext(ident) => {
                 write!(
@@ -350,6 +369,25 @@ impl Diagnostic for AsgError {
 
             InvalidBindContext(name) => vec![name
                 .error("an identifier binding is not valid in this context")],
+
+            InvalidAbstractBindContext(name, parent_span) => parent_span
+                .map(|span| {
+                    span.note(
+                    "this definition context does not support metavariable \
+                       expansion"
+                )
+                })
+                .into_iter()
+                .chain(vec![
+                    name.error("this metavariable will never be expanded"),
+                    name.help(format!(
+                        "this identifier must have its name derived from \
+                           the metavariable {},
+                             but that metavariable will never be expanded here",
+                        TtQuote::wrap(name),
+                    )),
+                ])
+                .collect(),
 
             InvalidRefContext(ident) => vec![ident.error(
                 "cannot reference the value of an expression from outside \
