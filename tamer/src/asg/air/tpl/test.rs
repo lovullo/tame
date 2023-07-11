@@ -25,7 +25,7 @@ use crate::asg::{
             air_ctx_from_pkg_body_toks, air_ctx_from_toks, parse_as_pkg_body,
             pkg_expect_ident_obj, pkg_expect_ident_oi, pkg_lookup,
         },
-        Air,
+        Air::*,
     },
     graph::object::{Doc, Meta, ObjectRel},
     Expr, ExprOp, Ident,
@@ -40,12 +40,12 @@ fn tpl_defining_pkg() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           // This also tests tpl as a transition away from the package header.
-          Air::TplStart(S2),
-            Air::BindIdent(id_tpl),
-          Air::TplEnd(S4),
-        Air::PkgEnd(S5),
+          TplStart(S2),
+            BindIdent(id_tpl),
+          TplEnd(S4),
+        PkgEnd(S5),
     ];
 
     let ctx = air_ctx_from_toks(toks);
@@ -68,18 +68,18 @@ fn tpl_after_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
           // This expression is incidental to this test;
           //   it need only parse.
-          Air::ExprStart(ExprOp::Sum, S2),
-            Air::BindIdent(id_expr),
-          Air::ExprEnd(S4),
+          ExprStart(ExprOp::Sum, S2),
+            BindIdent(id_expr),
+          ExprEnd(S4),
 
           // Open after an expression.
-          Air::TplStart(S5),
-            Air::BindIdent(id_tpl),
-          Air::TplEnd(S7),
-        Air::PkgEnd(S8),
+          TplStart(S5),
+            BindIdent(id_tpl),
+          TplEnd(S7),
+        PkgEnd(S8),
     ];
 
     let ctx = air_ctx_from_toks(toks);
@@ -105,27 +105,27 @@ fn tpl_within_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
-          Air::ExprStart(ExprOp::Sum, S2),
-            Air::BindIdent(id_expr),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+          ExprStart(ExprOp::Sum, S2),
+            BindIdent(id_expr),
 
             // Child expression before the template to ensure that the
             //   context is properly restored after template parsing.
-            Air::ExprStart(ExprOp::Sum, S4),
-            Air::ExprEnd(S5),
+            ExprStart(ExprOp::Sum, S4),
+            ExprEnd(S5),
 
             // Template _within_ an expression.
             // This will not be present in the final expression,
             //   as if it were hoisted out.
-            Air::TplStart(S6),
-              Air::BindIdent(id_tpl),
-            Air::TplEnd(S8),
+            TplStart(S6),
+              BindIdent(id_tpl),
+            TplEnd(S8),
 
             // Child expression _after_ the template for the same reason.
-            Air::ExprStart(ExprOp::Sum, S9),
-            Air::ExprEnd(S10),
-          Air::ExprEnd(S11),
-        Air::PkgEnd(S12),
+            ExprStart(ExprOp::Sum, S9),
+            ExprEnd(S10),
+          ExprEnd(S11),
+        PkgEnd(S12),
     ];
 
     let ctx = air_ctx_from_toks(toks);
@@ -165,20 +165,20 @@ fn tpl_apply_within_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S2),
-          Air::BindIdent(id_expr),
+        ExprStart(ExprOp::Sum, S2),
+          BindIdent(id_expr),
 
           // This will not be present in the final expression,
           //   as if it were hoisted out.
-          Air::TplStart(S4),
-            Air::BindIdent(id_tpl),
-          Air::TplEnd(S6),
+          TplStart(S4),
+            BindIdent(id_tpl),
+          TplEnd(S6),
 
           // But the application will remain.
-          Air::TplStart(S7),
-            Air::RefIdent(ref_tpl),
-          Air::TplEndRef(S9),
-        Air::ExprEnd(S10),
+          TplStart(S7),
+            RefIdent(ref_tpl),
+          TplEndRef(S9),
+        ExprEnd(S10),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -212,11 +212,11 @@ fn close_tpl_without_open() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplEnd(S1),
+        TplEnd(S1),
         // RECOVERY: Try again.
-        Air::TplStart(S2),
-          Air::BindIdent(id_tpl),
-        Air::TplEnd(S4),
+        TplStart(S2),
+          BindIdent(id_tpl),
+        TplEnd(S4),
     ];
 
     assert_eq!(
@@ -242,19 +242,19 @@ fn tpl_with_reachable_expression() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl),
+        TplStart(S1),
+          BindIdent(id_tpl),
 
-          Air::ExprStart(ExprOp::Sum, S3),
+          ExprStart(ExprOp::Sum, S3),
             // Must not be cached in the global env.
-            Air::BindIdent(id_expr_a),
-          Air::ExprEnd(S5),
+            BindIdent(id_expr_a),
+          ExprEnd(S5),
 
-          Air::ExprStart(ExprOp::Sum, S6),
+          ExprStart(ExprOp::Sum, S6),
             // Must not be cached in the global env.
-            Air::BindIdent(id_expr_b),
-          Air::ExprEnd(S8),
-        Air::TplEnd(S9),
+            BindIdent(id_expr_b),
+          ExprEnd(S8),
+        TplEnd(S9),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -315,17 +315,17 @@ fn tpl_holds_dangling_expressions() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl),
+        TplStart(S1),
+          BindIdent(id_tpl),
 
           // Dangling
-          Air::ExprStart(ExprOp::Sum, S3),
-          Air::ExprEnd(S4),
+          ExprStart(ExprOp::Sum, S3),
+          ExprEnd(S4),
 
           // Dangling
-          Air::ExprStart(ExprOp::Sum, S5),
-          Air::ExprEnd(S6),
-        Air::TplEnd(S7),
+          ExprStart(ExprOp::Sum, S5),
+          ExprEnd(S6),
+        TplEnd(S7),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -350,16 +350,16 @@ fn close_tpl_mid_open() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl),
+        TplStart(S1),
+          BindIdent(id_tpl),
 
-          Air::ExprStart(ExprOp::Sum, S3),
-            Air::BindIdent(id_expr),
+          ExprStart(ExprOp::Sum, S3),
+            BindIdent(id_expr),
         // This is misplaced.
-        Air::TplEnd(S5),
+        TplEnd(S5),
           // RECOVERY: Close the expression and try again.
-          Air::ExprEnd(S6),
-        Air::TplEnd(S7),
+          ExprEnd(S6),
+        TplEnd(S7),
     ];
 
     assert_eq!(
@@ -397,16 +397,16 @@ fn unreachable_anonymous_tpl() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
+        TplStart(S1),
           // No BindIdent
-        Air::TplEnd(S2),
+        TplEnd(S2),
 
         // Recovery should ignore the above template
         //   (it's lost to the void)
         //   and allow continuing.
-        Air::TplStart(S3),
-          Air::BindIdent(id_ok),
-        Air::TplEnd(S5),
+        TplStart(S3),
+          BindIdent(id_ok),
+        TplEnd(S5),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -441,12 +441,12 @@ fn unreachable_anonymous_tpl() {
 fn anonymous_tpl_immediate_ref() {
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
+        TplStart(S1),
           // No BindIdent
         // But ended with `TplEndRef`,
         //   so the missing identifier is okay.
         // This would fail if it were `TplEnd`.
-        Air::TplEndRef(S2),
+        TplEndRef(S2),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -466,21 +466,21 @@ fn tpl_with_param() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl),
+        TplStart(S1),
+          BindIdent(id_tpl),
 
           // Metavariable with a value.
-          Air::MetaStart(S3),
-            Air::BindIdent(id_param1),
-            Air::MetaLexeme(pval1),
-          Air::MetaEnd(S6),
+          MetaStart(S3),
+            BindIdent(id_param1),
+            MetaLexeme(pval1),
+          MetaEnd(S6),
 
           // Required metavariable (no value).
-          Air::MetaStart(S7),
-            Air::BindIdent(id_param2),
-            Air::DocIndepClause(param_desc),
-          Air::MetaEnd(S10),
-        Air::TplEnd(S11),
+          MetaStart(S7),
+            BindIdent(id_param2),
+            DocIndepClause(param_desc),
+          MetaEnd(S10),
+        TplEnd(S11),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -532,14 +532,14 @@ fn tpl_nested() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl_outer),
+        TplStart(S1),
+          BindIdent(id_tpl_outer),
 
           // Inner template
-          Air::TplStart(S3),
-            Air::BindIdent(id_tpl_inner),
-          Air::TplEnd(S5),
-        Air::TplEnd(S6),
+          TplStart(S3),
+            BindIdent(id_tpl_inner),
+          TplEnd(S5),
+        TplEnd(S6),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -577,13 +577,13 @@ fn tpl_apply_nested() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl_outer),
+        TplStart(S1),
+          BindIdent(id_tpl_outer),
 
           // Inner template application
-          Air::TplStart(S3),
-          Air::TplEndRef(S4),
-        Air::TplEnd(S5),
+          TplStart(S3),
+          TplEndRef(S4),
+        TplEnd(S5),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -615,25 +615,25 @@ fn tpl_apply_nested_missing() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl_outer),
+        TplStart(S1),
+          BindIdent(id_tpl_outer),
 
           // Inner template application (Missing)
-          Air::TplStart(S3),
-            Air::RefIdent(ref_tpl_inner_pre),
-          Air::TplEndRef(S5),
+          TplStart(S3),
+            RefIdent(ref_tpl_inner_pre),
+          TplEndRef(S5),
 
           // Define the template above
-          Air::TplStart(S6),
-            Air::BindIdent(id_tpl_inner),
-          Air::TplEnd(S8),
+          TplStart(S6),
+            BindIdent(id_tpl_inner),
+          TplEnd(S8),
 
           // Apply again,
           //   this time _after_ having been defined.
-          Air::TplStart(S9),
-            Air::RefIdent(ref_tpl_inner_post),
-          Air::TplEndRef(S11),
-        Air::TplEnd(S12),
+          TplStart(S9),
+            RefIdent(ref_tpl_inner_post),
+          TplEndRef(S11),
+        TplEnd(S12),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -683,10 +683,10 @@ fn tpl_doc_short_desc() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl),
-          Air::DocIndepClause(clause),
-        Air::TplEnd(S4),
+        TplStart(S1),
+          BindIdent(id_tpl),
+          DocIndepClause(clause),
+        TplEnd(S4),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -726,32 +726,32 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
-          Air::BindIdent(id_tpl_outer),
+        TplStart(S1),
+          BindIdent(id_tpl_outer),
 
           // This expression begins the body of the template.
           // NIR would not allow params past this point.
-          Air::ExprStart(ExprOp::Sum, S3),
+          ExprStart(ExprOp::Sum, S3),
             // Expresions are not containers and so this metavariable should
             //   be hoisted to the parent container context.
             // That container must be a valid meta context.
-            Air::MetaStart(S4),
-              Air::BindIdent(id_param_outer),
-            Air::MetaEnd(S6),
-          Air::ExprEnd(S7),
+            MetaStart(S4),
+              BindIdent(id_param_outer),
+            MetaEnd(S6),
+          ExprEnd(S7),
 
           // Nested template
-          Air::TplStart(S8),
-            Air::BindIdent(id_tpl_inner),
+          TplStart(S8),
+            BindIdent(id_tpl_inner),
 
-            Air::ExprStart(ExprOp::Sum, S10),
+            ExprStart(ExprOp::Sum, S10),
               // Hoisting should be relative to the innermost template.
-              Air::MetaStart(S11),
-                Air::BindIdent(id_param_inner),
-              Air::MetaEnd(S13),
-            Air::ExprEnd(S14),
-          Air::TplEnd(S15),
-        Air::TplEnd(S16),
+              MetaStart(S11),
+                BindIdent(id_param_inner),
+              MetaEnd(S13),
+            ExprEnd(S14),
+          TplEnd(S15),
+        TplEnd(S16),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -793,20 +793,20 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::TplStart(S1),
+        TplStart(S1),
           // This identifier is concrete;
           //   the abstract identifier will be the _expression_.
-          Air::BindIdent(id_tpl),
+          BindIdent(id_tpl),
 
-          Air::ExprStart(ExprOp::Sum, S3),
+          ExprStart(ExprOp::Sum, S3),
             // This expression is bound to an _abstract_ identifier,
             //   which will be expanded at a later time.
             // This does _not_ change the dangling status,
             //   and so can only occur within an expression that acts as a
             //   container for otherwise-dangling expressions.
-            Air::BindIdentAbstract(id_meta),
-          Air::ExprEnd(S5),
-        Air::TplEnd(S6),
+            BindIdentAbstract(id_meta),
+          ExprEnd(S5),
+        TplEnd(S6),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);

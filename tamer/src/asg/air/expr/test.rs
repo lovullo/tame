@@ -24,7 +24,8 @@ use crate::asg::{
             air_ctx_from_pkg_body_toks, air_ctx_from_toks, parse_as_pkg_body,
             pkg_expect_ident_obj, pkg_expect_ident_oi, pkg_lookup,
         },
-        Air, AirAggregate,
+        Air::*,
+        AirAggregate,
     },
     graph::object::{expr::ExprRel, Doc, ObjectRel},
     ExprOp, Ident,
@@ -50,9 +51,9 @@ fn expr_empty_ident() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id),
-        Air::ExprEnd(S3),
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(id),
+        ExprEnd(S3),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -68,10 +69,10 @@ fn expr_without_pkg() {
     let toks = vec![
         // No package
         //   (because we're not parsing with `parse_as_pkg_body` below)
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
         // RECOVERY
-        Air::PkgStart(S2, SPair("/pkg".into(), S2)),
-        Air::PkgEnd(S3),
+        PkgStart(S2, SPair("/pkg".into(), S2)),
+        PkgEnd(S3),
     ];
 
     assert_eq!(
@@ -92,14 +93,14 @@ fn close_pkg_mid_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
-          Air::ExprStart(ExprOp::Sum, S2),
-        Air::PkgEnd(S3),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+          ExprStart(ExprOp::Sum, S2),
+        PkgEnd(S3),
             // RECOVERY: Let's finish the expression first...
-            Air::BindIdent(id),
-          Air::ExprEnd(S5),
+            BindIdent(id),
+          ExprEnd(S5),
         // ...and then try to close again.
-        Air::PkgEnd(S6),
+        PkgEnd(S6),
     ];
 
     assert_eq!(
@@ -129,14 +130,14 @@ fn open_pkg_mid_expr() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1, pkg_a),
-          Air::ExprStart(ExprOp::Sum, S2),
-        Air::PkgStart(S3, pkg_nested),
+        PkgStart(S1, pkg_a),
+          ExprStart(ExprOp::Sum, S2),
+        PkgStart(S3, pkg_nested),
             // RECOVERY: We should still be able to complete successfully.
-            Air::BindIdent(id),
-          Air::ExprEnd(S5),
+            BindIdent(id),
+          ExprEnd(S5),
         // Closes the _original_ package.
-        Air::PkgEnd(S6),
+        PkgEnd(S6),
     ];
 
     assert_eq!(
@@ -168,18 +169,18 @@ fn expr_non_empty_ident_root() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
           // Identifier while still empty...
-          Air::BindIdent(id_a),
+          BindIdent(id_a),
 
-          Air::ExprStart(ExprOp::Sum, S3),
+          ExprStart(ExprOp::Sum, S3),
             // (note that the inner expression _does not_ have an ident
             //   binding)
-          Air::ExprEnd(S4),
+          ExprEnd(S4),
 
           // ...and an identifier non-empty.
-          Air::BindIdent(id_b),
-        Air::ExprEnd(S6),
+          BindIdent(id_b),
+        ExprEnd(S6),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -201,16 +202,16 @@ fn expr_non_empty_bind_only_after() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
           // Expression root is still dangling at this point.
-          Air::ExprStart(ExprOp::Sum, S2),
-          Air::ExprEnd(S3),
+          ExprStart(ExprOp::Sum, S2),
+          ExprEnd(S3),
 
           // We only bind an identifier _after_ we've created the expression,
           //   which should cause the still-dangling root to become
           //   reachable.
-          Air::BindIdent(id),
-        Air::ExprEnd(S5),
+          BindIdent(id),
+        ExprEnd(S5),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -226,10 +227,10 @@ fn expr_non_empty_bind_only_after() {
 #[test]
 fn expr_dangling_no_subexpr() {
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
         // No `BindIdent`,
         //   so this expression is dangling.
-        Air::ExprEnd(S2),
+        ExprEnd(S2),
     ];
 
     // The error span should encompass the entire expression.
@@ -252,13 +253,13 @@ fn expr_dangling_no_subexpr() {
 fn expr_dangling_with_subexpr() {
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
           // Expression root is still dangling at this point.
-          Air::ExprStart(ExprOp::Sum, S2),
-          Air::ExprEnd(S3),
+          ExprStart(ExprOp::Sum, S2),
+          ExprEnd(S3),
         // Still no ident binding,
         //   so root should still be dangling.
-        Air::ExprEnd(S4),
+        ExprEnd(S4),
     ];
 
     let full_span = S1.merge(S4).unwrap();
@@ -284,19 +285,19 @@ fn expr_dangling_with_subexpr_ident() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
           // Expression root is still dangling at this point.
-          Air::ExprStart(ExprOp::Sum, S2),
+          ExprStart(ExprOp::Sum, S2),
             // The _inner_ expression receives an identifier,
             //   but that should have no impact on the dangling status of
             //   the root,
             //     especially given that subexpressions are always reachable
             //     anyway.
-            Air::BindIdent(id),
-          Air::ExprEnd(S4),
+            BindIdent(id),
+          ExprEnd(S4),
           // But the root still has no ident binding,
           //   and so should still be dangling.
-        Air::ExprEnd(S5),
+        ExprEnd(S5),
     ];
 
     let full_span = S1.merge(S5).unwrap();
@@ -328,13 +329,13 @@ fn expr_reachable_subsequent_dangling() {
     #[rustfmt::skip]
     let toks = vec![
         // Reachable
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id),
-        Air::ExprEnd(S3),
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(id),
+        ExprEnd(S3),
 
         // Dangling
-        Air::ExprStart(ExprOp::Sum, S4),
-        Air::ExprEnd(S5),
+        ExprStart(ExprOp::Sum, S4),
+        ExprEnd(S5),
     ];
 
     // The error span should encompass the entire expression.
@@ -367,13 +368,13 @@ fn recovery_expr_reachable_after_dangling() {
     #[rustfmt::skip]
     let toks = vec![
         // Dangling
-        Air::ExprStart(ExprOp::Sum, S1),
-        Air::ExprEnd(S2),
+        ExprStart(ExprOp::Sum, S1),
+        ExprEnd(S2),
 
         // Reachable, after error from dangling.
-        Air::ExprStart(ExprOp::Sum, S3),
-          Air::BindIdent(id),
-        Air::ExprEnd(S5),
+        ExprStart(ExprOp::Sum, S3),
+          BindIdent(id),
+        ExprEnd(S5),
     ];
 
     // The error span should encompass the entire expression.
@@ -420,16 +421,16 @@ fn expr_close_unbalanced() {
     #[rustfmt::skip]
     let toks = vec![
         // Close before _any_ open.
-        Air::ExprEnd(S1),
+        ExprEnd(S1),
 
         // Should recover,
         //   allowing for a normal expr.
-        Air::ExprStart(ExprOp::Sum, S2),
-          Air::BindIdent(id),
-        Air::ExprEnd(S4),
+        ExprStart(ExprOp::Sum, S2),
+          BindIdent(id),
+        ExprEnd(S4),
 
         // And now an extra close _after_ a valid expr.
-        Air::ExprEnd(S5),
+        ExprEnd(S5),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -471,22 +472,22 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
           // Identify the root so that it is not dangling.
-          Air::BindIdent(id_root),
+          BindIdent(id_root),
 
           // Sibling A
-          Air::ExprStart(ExprOp::Sum, S3),
-          Air::ExprEnd(S4),
+          ExprStart(ExprOp::Sum, S3),
+          ExprEnd(S4),
 
           // Sibling B
-          Air::ExprStart(ExprOp::Sum, S5),
-          Air::ExprEnd(S6),
+          ExprStart(ExprOp::Sum, S5),
+          ExprEnd(S6),
 
           // Sibling C
-          Air::ExprStart(ExprOp::Sum, S7),
-          Air::ExprEnd(S8),
-        Air::ExprEnd(S9),
+          ExprStart(ExprOp::Sum, S7),
+          ExprEnd(S8),
+        ExprEnd(S9),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -521,16 +522,16 @@ fn nested_subexprs_related_to_relative_parent() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1), // 0
-          Air::BindIdent(id_root),
+        ExprStart(ExprOp::Sum, S1), // 0
+          BindIdent(id_root),
 
-          Air::ExprStart(ExprOp::Sum, S2), // 1
-            Air::BindIdent(id_suba),
+          ExprStart(ExprOp::Sum, S2), // 1
+            BindIdent(id_suba),
 
-            Air::ExprStart(ExprOp::Sum, S3), // 2
-            Air::ExprEnd(S4),
-          Air::ExprEnd(S5),
-        Air::ExprEnd(S6),
+            ExprStart(ExprOp::Sum, S3), // 2
+            ExprEnd(S4),
+          ExprEnd(S5),
+        ExprEnd(S6),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -561,13 +562,13 @@ fn expr_redefine_ident() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_first),
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(id_first),
 
-          Air::ExprStart(ExprOp::Sum, S3),
-            Air::BindIdent(id_dup),
-          Air::ExprEnd(S4),
-        Air::ExprEnd(S5),
+          ExprStart(ExprOp::Sum, S3),
+            BindIdent(id_dup),
+          ExprEnd(S4),
+        ExprEnd(S5),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -614,24 +615,24 @@ fn expr_still_dangling_on_redefine() {
     #[rustfmt::skip]
     let toks = vec![
         // First expr (OK)
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_first),
-        Air::ExprEnd(S3),
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(id_first),
+        ExprEnd(S3),
 
         // Second expr should still dangle due to use of duplicate
         //   identifier
-        Air::ExprStart(ExprOp::Sum, S4),
-          Air::BindIdent(id_dup),
-        Air::ExprEnd(S6),
+        ExprStart(ExprOp::Sum, S4),
+          BindIdent(id_dup),
+        ExprEnd(S6),
 
         // Third expr will error on redefine but then be successful.
         // This probably won't happen in practice with TAME's original
         //   source language,
         //     but could happen at e.g. a REPL.
-        Air::ExprStart(ExprOp::Sum, S7),
-          Air::BindIdent(id_dup2),   // fail
-          Air::BindIdent(id_second), // succeed
-        Air::ExprEnd(S10),
+        ExprStart(ExprOp::Sum, S7),
+          BindIdent(id_dup2),   // fail
+          BindIdent(id_second), // succeed
+        ExprEnd(S10),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
@@ -696,22 +697,22 @@ fn expr_ref_to_ident() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_foo),
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(id_foo),
 
           // Reference to an as-of-yet-undefined id (okay),
           //   with a different span than `id_bar`.
-          Air::RefIdent(SPair("bar".into(), S3)),
-        Air::ExprEnd(S4),
+          RefIdent(SPair("bar".into(), S3)),
+        ExprEnd(S4),
 
         //
         // Another expression to reference the first
         //   (we don't handle cyclic references until a topological sort,
         //     so no point in referencing ourselves;
         //       it'd work just fine here.)
-        Air::ExprStart(ExprOp::Sum, S5),
-          Air::BindIdent(id_bar),
-        Air::ExprEnd(S7),
+        ExprStart(ExprOp::Sum, S5),
+          BindIdent(id_bar),
+        ExprEnd(S7),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -755,16 +756,16 @@ fn idents_share_defining_pkg() {
     // An expression nested within another.
     #[rustfmt::skip]
     let toks = vec![
-        Air::PkgStart(S1, SPair("/pkg".into(), S1)),
-          Air::ExprStart(ExprOp::Sum, S2),
-            Air::BindIdent(id_foo),
+        PkgStart(S1, SPair("/pkg".into(), S1)),
+          ExprStart(ExprOp::Sum, S2),
+            BindIdent(id_foo),
 
-            Air::ExprStart(ExprOp::Sum, S4),
-              Air::BindIdent(id_bar),
-              Air::RefIdent(id_baz),
-            Air::ExprEnd(S7),
-          Air::ExprEnd(S8),
-        Air::PkgEnd(S9),
+            ExprStart(ExprOp::Sum, S4),
+              BindIdent(id_bar),
+              RefIdent(id_baz),
+            ExprEnd(S7),
+          ExprEnd(S8),
+        PkgEnd(S9),
     ];
 
     let ctx = air_ctx_from_toks(toks);
@@ -794,10 +795,10 @@ fn expr_doc_short_desc() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
-          Air::BindIdent(id_expr),
-          Air::DocIndepClause(clause),
-        Air::ExprEnd(S4),
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(id_expr),
+          DocIndepClause(clause),
+        ExprEnd(S4),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -827,27 +828,27 @@ fn abstract_bind_without_dangling_container() {
 
     #[rustfmt::skip]
     let toks = vec![
-        Air::ExprStart(ExprOp::Sum, S1),
+        ExprStart(ExprOp::Sum, S1),
           // This expression is bound to an _abstract_ identifier,
           //   which will be expanded at a later time.
           // Consequently,
           //   this expression is still dangling.
-          Air::BindIdentAbstract(id_meta),
+          BindIdentAbstract(id_meta),
 
         // Since the expression is still dangling,
         //   attempting to close it will produce an error.
-        Air::ExprEnd(S3),
+        ExprEnd(S3),
 
         // RECOVERY: Since an attempt at identification has been made,
         //   we shouldn't expect that another attempt will be made.
         // The sensible thing to do is to move on to try to find other
         //   errors,
         //     leaving the expression alone and unreachable.
-        Air::ExprStart(ExprOp::Sum, S4),
+        ExprStart(ExprOp::Sum, S4),
           // This is intended to demonstrate that we can continue on to the
           //   next expression despite the prior error.
-          Air::BindIdent(id_ok),
-        Air::ExprEnd(S6),
+          BindIdent(id_ok),
+        ExprEnd(S6),
     ];
 
     let mut sut = parse_as_pkg_body(toks);
