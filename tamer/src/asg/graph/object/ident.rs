@@ -151,7 +151,7 @@ pub enum Ident {
     ///   result of template expansion---​
     ///     it represents the abstract _idea_ of an identifier,
     ///       to be made concrete at a later time,
-    ///       and is not valid outside of a metasyntactic context.
+    ///       and is not valid outside of a metalinguistic context.
     ///
     /// The associated span represents the location that the identifier
     ///   was defined,

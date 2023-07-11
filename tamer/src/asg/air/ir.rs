@@ -670,7 +670,7 @@ sum_ir! {
         /// Subset of [`Air`] tokens for defining [`Tpl`]s.
         ///
         /// Templates serve as containers for objects that reference
-        ///   metasyntactic variables,
+        ///   metavariables,
         ///     defined by [`AirMeta::MetaStart`].
         ///
         /// Template Application
@@ -771,7 +771,7 @@ sum_ir! {
             },
         }
 
-        /// Metasyntactic objects.
+        /// Metalinguistic objects.
         ///
         /// TAME's metalanguage supports the generation of lexemes using
         ///   metavariables.
@@ -781,7 +781,7 @@ sum_ir! {
         ///     yielding objects as if the user had entered the lexemes
         ///     statically.
         ///
-        /// [`AirBind`] is able to utilize metasyntactic variables for
+        /// [`AirBind`] is able to utilize metavariables for
         ///   dynamically generated bindings.
         enum AirMeta {
             /// Begin a metavariable definition.
@@ -805,7 +805,7 @@ sum_ir! {
                 span: span,
                 display: |f| write!(
                     f,
-                    "open definition of metasyntactic variable",
+                    "open definition of metavariable",
                 ),
             },
 
@@ -823,7 +823,7 @@ sum_ir! {
                 span: span,
                 display: |f| write!(
                     f,
-                    "close definition of metasyntactic variable",
+                    "close definition of metavariable",
                 ),
             },
 

@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{asg::graph::object::Meta, diagnostic_todo, parse::prelude::*};
 
-/// Metasyntactic variable (metavariable) parser.
+/// Metalinguistic variable (metavariable) parser.
 #[derive(Debug, PartialEq)]
 pub enum AirMetaAggregate {
     /// Ready for the start of a metavariable.

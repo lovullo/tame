@@ -1,4 +1,4 @@
-// Metasyntactic variables represented on the ASG
+// Metalinguistic objects represented on the ASG
 //
 //  Copyright (C) 2014-2023 Ryan Specialty, LLC.
 //
@@ -17,12 +17,18 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Metasyntactic variables on the ASG.
+//! Metalinguistic objects on the ASG.
 //!
-//! Metasyntactic variables
-//!   (sometimes called "metavariables" herein for short)
+//! Metalinguistic variables[^w],
+//!   called "metavariables" for short,
 //!   have historically been a feature of the template system.
 //! The canonical metavariable is the template parameter.
+//!
+//! [^w]: This term comes from logic; see
+//!         <https://en.wikipedia.org/wiki/Metavariable_(logic)>.
+//!       The term "metasyntactic" was originally used with TAMER,
+//!         but that term generally has a different meaning in programming:
+//!           <https://en.wikipedia.org/wiki/Metasyntactic_variable>.
 
 use super::{prelude::*, Doc, Ident};
 use crate::{
@@ -35,7 +41,7 @@ use crate::{
 };
 use std::fmt::Display;
 
-/// Metasyntactic variable (metavariable).
+/// Metalinguistic variable (metavariable).
 ///
 /// A metavariable is a lexical construct.
 /// Its value is a lexeme that represents an [`Ident`],
@@ -105,10 +111,10 @@ impl Display for Meta {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Required(_) => {
-                write!(f, "metasyntactic parameter with required value")
+                write!(f, "metalinguistic parameter with required value")
             }
             Self::ConcatList(_) => {
-                write!(f, "metasyntactic concatenation list")
+                write!(f, "metalinguistic concatenation list")
             }
             Self::Lexeme(_, spair) => {
                 write!(f, "lexeme {}", TtQuote::wrap(spair))

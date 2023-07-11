@@ -223,7 +223,7 @@ impl ParseState for AirAggregate {
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
-            // Metasyntactic variables (metavariables)
+            // Metavariables
             (st @ (PkgTpl(_) | PkgExpr(_)), tok @ AirMeta(..)) => {
                 ctx.ret_or_transfer(st, tok, AirMetaAggregate::new())
             }

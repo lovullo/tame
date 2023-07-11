@@ -363,7 +363,7 @@ object_gen! {
     /// A template definition.
     Tpl,
 
-    /// Metasyntactic variable (metavariable).
+    /// Metalinguistic variable (metavariable).
     Meta,
 
     /// Documentation.
