@@ -47,7 +47,7 @@ fn ident_decl() {
     };
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentDecl(id, kind.clone(), src.clone()),
           // Attempt re-declaration.
@@ -98,7 +98,7 @@ fn ident_extern_decl() {
     };
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentExternDecl(id, kind.clone(), src.clone()),
           // Redeclare with a different kind
@@ -145,7 +145,7 @@ fn ident_dep() {
     let dep = SPair("dep".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentDep(id, dep),
         PkgEnd(S4),
@@ -183,7 +183,7 @@ fn ident_fragment() {
     let frag = "fragment text".into();
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           // Identifier must be declared before it can be given a
           //   fragment.
@@ -235,7 +235,7 @@ fn ident_root_missing() {
     let id = SPair("toroot".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentRoot(id),
         PkgEnd(S3),
@@ -281,7 +281,7 @@ fn ident_root_existing() {
     assert!(!kind.is_auto_root());
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           IdentDecl(id, kind.clone(), src.clone()),
           IdentRoot(SPair(id.symbol(), S3)),
@@ -372,7 +372,7 @@ fn declare_kind_auto_root() {
 #[test]
 fn pkg_is_rooted() {
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
         PkgEnd(S2),
     ];
@@ -394,7 +394,7 @@ fn pkg_is_rooted() {
 
 #[test]
 fn close_pkg_without_open() {
-    let toks = vec![
+    let toks = [
         PkgEnd(S1),
         // RECOVERY: Try again.
         PkgStart(S2, SPair("/pkg".into(), S2)),
@@ -418,7 +418,7 @@ fn nested_open_pkg() {
     let name_b = SPair("/pkg-b".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, name_a),
           // Cannot nest package
           PkgStart(S3, name_b),
@@ -445,7 +445,7 @@ fn pkg_canonical_name() {
     let name = SPair("/foo/bar".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, name),
         PkgEnd(S3),
     ];
@@ -482,7 +482,7 @@ fn pkg_cannot_redeclare() {
     let namefix = SPair("/foo/fix".into(), S7);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, name),
         PkgEnd(S3),
 
@@ -531,7 +531,7 @@ fn pkg_import_canonicalized_against_current_pkg() {
     let pkg_rel = SPair("baz/quux".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, pkg_name),
           PkgImport(pkg_rel),
         PkgEnd(S3),
@@ -564,7 +564,7 @@ fn pkg_doc() {
     let doc_b = SPair("first".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         DocText(doc_a),
 
         // Some object to place in-between the two
@@ -606,7 +606,7 @@ fn resume_previous_parsing_context() {
     // We're going to test with opaque objects as if we are the linker.
     // This is the first parse.
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         // The first package will reference an identifier from another
         //   package.
         PkgStart(S1, SPair("/pkg-a".into(), S1)),
@@ -620,7 +620,7 @@ fn resume_previous_parsing_context() {
     // This is the token stream for the second parser,
     //   which will re-use the above context.
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         // This package will define that identifier,
         //   which should also find the identifier having been placed into
         //   the global environment.

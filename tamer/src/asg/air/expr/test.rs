@@ -50,7 +50,7 @@ fn expr_empty_ident() {
     let id = SPair("foo".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           BindIdent(id),
         ExprEnd(S3),
@@ -66,7 +66,7 @@ fn expr_empty_ident() {
 
 #[test]
 fn expr_without_pkg() {
-    let toks = vec![
+    let toks = [
         // No package
         //   (because we're not parsing with `parse_as_pkg_body` below)
         ExprStart(ExprOp::Sum, S1),
@@ -92,7 +92,7 @@ fn close_pkg_mid_expr() {
     let id = SPair("foo".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
         PkgEnd(S3),
@@ -129,7 +129,7 @@ fn open_pkg_mid_expr() {
     let id = SPair("foo".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, pkg_a),
           ExprStart(ExprOp::Sum, S2),
         PkgStart(S3, pkg_nested),
@@ -168,7 +168,7 @@ fn expr_non_empty_ident_root() {
     let id_b = SPair("bar".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           // Identifier while still empty...
           BindIdent(id_a),
@@ -201,7 +201,7 @@ fn expr_non_empty_bind_only_after() {
     let id = SPair("foo".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           // Expression root is still dangling at this point.
           ExprStart(ExprOp::Sum, S2),
@@ -226,7 +226,7 @@ fn expr_non_empty_bind_only_after() {
 //   since they're either mistakes or misconceptions.
 #[test]
 fn expr_dangling_no_subexpr() {
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
         // No `BindIdent`,
         //   so this expression is dangling.
@@ -252,7 +252,7 @@ fn expr_dangling_no_subexpr() {
 #[test]
 fn expr_dangling_with_subexpr() {
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           // Expression root is still dangling at this point.
           ExprStart(ExprOp::Sum, S2),
@@ -284,7 +284,7 @@ fn expr_dangling_with_subexpr_ident() {
     let id = SPair("foo".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           // Expression root is still dangling at this point.
           ExprStart(ExprOp::Sum, S2),
@@ -327,7 +327,7 @@ fn expr_reachable_subsequent_dangling() {
     let id = SPair("foo".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         // Reachable
         ExprStart(ExprOp::Sum, S1),
           BindIdent(id),
@@ -366,7 +366,7 @@ fn recovery_expr_reachable_after_dangling() {
     let id = SPair("foo".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         // Dangling
         ExprStart(ExprOp::Sum, S1),
         ExprEnd(S2),
@@ -419,7 +419,7 @@ fn expr_close_unbalanced() {
     let id = SPair("foo".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         // Close before _any_ open.
         ExprEnd(S1),
 
@@ -471,7 +471,7 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
     let id_root = SPair("root".into(), S1);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           // Identify the root so that it is not dangling.
           BindIdent(id_root),
@@ -521,7 +521,7 @@ fn nested_subexprs_related_to_relative_parent() {
     let id_suba = SPair("suba".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1), // 0
           BindIdent(id_root),
 
@@ -561,7 +561,7 @@ fn expr_redefine_ident() {
     let id_dup = SPair("foo".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           BindIdent(id_first),
 
@@ -613,7 +613,7 @@ fn expr_still_dangling_on_redefine() {
     let id_second = SPair("bar".into(), S9);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         // First expr (OK)
         ExprStart(ExprOp::Sum, S1),
           BindIdent(id_first),
@@ -696,7 +696,7 @@ fn expr_ref_to_ident() {
     let id_bar = SPair("bar".into(), S6);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           BindIdent(id_foo),
 
@@ -755,7 +755,7 @@ fn idents_share_defining_pkg() {
 
     // An expression nested within another.
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_foo),
@@ -794,7 +794,7 @@ fn expr_doc_short_desc() {
     let clause = SPair("short desc".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           BindIdent(id_expr),
           DocIndepClause(clause),
@@ -827,7 +827,7 @@ fn abstract_bind_without_dangling_container() {
     let id_ok = SPair("concrete".into(), S5);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S1),
           // This expression is bound to an _abstract_ identifier,
           //   which will be expanded at a later time.

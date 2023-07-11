@@ -39,7 +39,7 @@ fn tpl_defining_pkg() {
     let id_tpl = SPair("_tpl_".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           // This also tests tpl as a transition away from the package header.
           TplStart(S2),
@@ -67,7 +67,7 @@ fn tpl_after_expr() {
     let id_tpl = SPair("_tpl_".into(), S6);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           // This expression is incidental to this test;
           //   it need only parse.
@@ -104,7 +104,7 @@ fn tpl_within_expr() {
     let id_tpl = SPair("_tpl_".into(), S7);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         PkgStart(S1, SPair("/pkg".into(), S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_expr),
@@ -164,7 +164,7 @@ fn tpl_apply_within_expr() {
     let ref_tpl = SPair("_tpl_".into(), S8);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         ExprStart(ExprOp::Sum, S2),
           BindIdent(id_expr),
 
@@ -211,7 +211,7 @@ fn close_tpl_without_open() {
     let id_tpl = SPair("_tpl_".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplEnd(S1),
         // RECOVERY: Try again.
         TplStart(S2),
@@ -241,7 +241,7 @@ fn tpl_with_reachable_expression() {
     let id_expr_b = SPair("exprb".into(), S7);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl),
 
@@ -314,7 +314,7 @@ fn tpl_holds_dangling_expressions() {
     let id_tpl = SPair("_tpl_".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl),
 
@@ -349,7 +349,7 @@ fn close_tpl_mid_open() {
     let id_expr = SPair("expr".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl),
 
@@ -396,7 +396,7 @@ fn unreachable_anonymous_tpl() {
     let id_ok = SPair("_tpl_".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           // No BindIdent
         TplEnd(S2),
@@ -440,7 +440,7 @@ fn unreachable_anonymous_tpl() {
 #[test]
 fn anonymous_tpl_immediate_ref() {
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           // No BindIdent
         // But ended with `TplEndRef`,
@@ -465,7 +465,7 @@ fn tpl_with_param() {
     let param_desc = SPair("param desc".into(), S9);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl),
 
@@ -576,7 +576,7 @@ fn tpl_apply_nested() {
     let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl_outer),
 
@@ -614,7 +614,7 @@ fn tpl_apply_nested_missing() {
     let ref_tpl_inner_post = SPair(tpl_inner, S10);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl_outer),
 
@@ -682,7 +682,7 @@ fn tpl_doc_short_desc() {
     let clause = SPair("short desc".into(), S3);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl),
           DocIndepClause(clause),
@@ -725,7 +725,7 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
     let id_param_inner = SPair("@param_inner@".into(), S12);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           BindIdent(id_tpl_outer),
 
@@ -792,7 +792,7 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
     let id_meta = SPair("@foo@".into(), S4);
 
     #[rustfmt::skip]
-    let toks = vec![
+    let toks = [
         TplStart(S1),
           // This identifier is concrete;
           //   the abstract identifier will be the _expression_.
