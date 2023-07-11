@@ -26,7 +26,7 @@ use crate::{
         graph::object::{ObjectRel, ObjectRelFrom, ObjectRelatable},
         IdentKind, ObjectIndexRelTo, Source, TransitionError,
     },
-    parse::{ParseError, Parsed, Parser},
+    parse::{util::spair, ParseError, Parsed, Parser},
     span::dummy::*,
 };
 
@@ -39,7 +39,7 @@ mod scope;
 
 #[test]
 fn ident_decl() {
-    let id = SPair("foo".into(), S2);
+    let id = spair("foo", S2);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/decl".into()),
@@ -48,7 +48,7 @@ fn ident_decl() {
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           IdentDecl(id, kind.clone(), src.clone()),
           // Attempt re-declaration.
           IdentDecl(id, kind.clone(), src.clone()),
@@ -88,8 +88,8 @@ fn ident_decl() {
 
 #[test]
 fn ident_extern_decl() {
-    let id = SPair("foo".into(), S2);
-    let re_id = SPair("foo".into(), S3);
+    let id = spair("foo", S2);
+    let re_id = spair("foo", S3);
     let kind = IdentKind::Tpl;
     let different_kind = IdentKind::Meta;
     let src = Source {
@@ -99,7 +99,7 @@ fn ident_extern_decl() {
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           IdentExternDecl(id, kind.clone(), src.clone()),
           // Redeclare with a different kind
           IdentExternDecl(re_id, different_kind.clone(), src.clone()),
@@ -141,12 +141,12 @@ fn ident_extern_decl() {
 
 #[test]
 fn ident_dep() {
-    let id = SPair("foo".into(), S2);
-    let dep = SPair("dep".into(), S3);
+    let id = spair("foo", S2);
+    let dep = spair("dep", S3);
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           IdentDep(id, dep),
         PkgEnd(S4),
     ].into_iter();
@@ -174,7 +174,7 @@ fn ident_dep() {
 
 #[test]
 fn ident_fragment() {
-    let id = SPair("frag".into(), S2);
+    let id = spair("frag", S2);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/frag".into()),
@@ -184,7 +184,7 @@ fn ident_fragment() {
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           // Identifier must be declared before it can be given a
           //   fragment.
           IdentDecl(id, kind.clone(), src.clone()),
@@ -232,11 +232,11 @@ fn ident_fragment() {
 //   `Ident::Missing`.
 #[test]
 fn ident_root_missing() {
-    let id = SPair("toroot".into(), S2);
+    let id = spair("toroot", S2);
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           IdentRoot(id),
         PkgEnd(S3),
     ].into_iter();
@@ -269,7 +269,7 @@ fn ident_root_missing() {
 
 #[test]
 fn ident_root_existing() {
-    let id = SPair("toroot".into(), S2);
+    let id = spair("toroot", S2);
     let kind = IdentKind::Tpl;
     let src = Source {
         src: Some("test/root-existing".into()),
@@ -282,9 +282,9 @@ fn ident_root_existing() {
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           IdentDecl(id, kind.clone(), src.clone()),
-          IdentRoot(SPair(id.symbol(), S3)),
+          IdentRoot(spair(id, S3)),
         PkgEnd(S3),
     ]
     .into_iter();
@@ -329,8 +329,8 @@ fn declare_kind_auto_root() {
     assert!(auto_kind.is_auto_root());
     assert!(!no_auto_kind.is_auto_root());
 
-    let id_auto = SPair("auto_root".into(), S2);
-    let id_no_auto = SPair("no_auto_root".into(), S3);
+    let id_auto = spair("auto_root", S2);
+    let id_no_auto = spair("no_auto_root", S3);
 
     let src = Source {
         src: Some("src/pkg".into()),
@@ -339,7 +339,7 @@ fn declare_kind_auto_root() {
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           // auto-rooting
           IdentDecl(id_auto, auto_kind, src.clone()),
           // non-auto-rooting
@@ -373,7 +373,7 @@ fn declare_kind_auto_root() {
 fn pkg_is_rooted() {
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
         PkgEnd(S2),
     ];
 
@@ -397,7 +397,7 @@ fn close_pkg_without_open() {
     let toks = [
         PkgEnd(S1),
         // RECOVERY: Try again.
-        PkgStart(S2, SPair("/pkg".into(), S2)),
+        PkgStart(S2, spair("/pkg", S2)),
         PkgEnd(S3),
     ];
 
@@ -414,8 +414,8 @@ fn close_pkg_without_open() {
 
 #[test]
 fn nested_open_pkg() {
-    let name_a = SPair("/pkg-a".into(), S2);
-    let name_b = SPair("/pkg-b".into(), S4);
+    let name_a = spair("/pkg-a", S2);
+    let name_b = spair("/pkg-b", S4);
 
     #[rustfmt::skip]
     let toks = [
@@ -442,7 +442,7 @@ fn nested_open_pkg() {
 
 #[test]
 fn pkg_canonical_name() {
-    let name = SPair("/foo/bar".into(), S2);
+    let name = spair("/foo/bar", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -477,9 +477,9 @@ fn pkg_canonical_name() {
 //   filenames.
 #[test]
 fn pkg_cannot_redeclare() {
-    let name = SPair("/foo/bar".into(), S2);
-    let name2 = SPair("/foo/bar".into(), S5);
-    let namefix = SPair("/foo/fix".into(), S7);
+    let name = spair("/foo/bar", S2);
+    let name2 = spair("/foo/bar", S5);
+    let namefix = spair("/foo/fix", S7);
 
     #[rustfmt::skip]
     let toks = [
@@ -527,8 +527,8 @@ fn pkg_cannot_redeclare() {
 
 #[test]
 fn pkg_import_canonicalized_against_current_pkg() {
-    let pkg_name = SPair("/foo/bar".into(), S2);
-    let pkg_rel = SPair("baz/quux".into(), S3);
+    let pkg_name = spair("/foo/bar", S2);
+    let pkg_rel = spair("baz/quux", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -553,15 +553,15 @@ fn pkg_import_canonicalized_against_current_pkg() {
         .resolve(&asg);
 
     // TODO
-    assert_eq!(SPair("/foo/baz/quux".into(), S3), import.canonical_name());
+    assert_eq!(spair("/foo/baz/quux", S3), import.canonical_name());
 }
 
 // Documentation can be mixed in with objects in a literate style.
 #[test]
 fn pkg_doc() {
-    let doc_a = SPair("first".into(), S2);
-    let id_import = SPair("import".into(), S3);
-    let doc_b = SPair("first".into(), S4);
+    let doc_a = spair("first", S2);
+    let id_import = spair("import", S3);
+    let doc_b = spair("first", S4);
 
     #[rustfmt::skip]
     let toks = [
@@ -597,9 +597,9 @@ fn pkg_doc() {
 //   index.
 #[test]
 fn resume_previous_parsing_context() {
-    let name_foo = SPair("foo".into(), S2);
-    let name_bar = SPair("bar".into(), S5);
-    let name_baz = SPair("baz".into(), S6);
+    let name_foo = spair("foo", S2);
+    let name_bar = spair("bar", S5);
+    let name_baz = spair("baz", S6);
     let kind = IdentKind::Tpl;
     let src = Source::default();
 
@@ -609,7 +609,7 @@ fn resume_previous_parsing_context() {
     let toks = [
         // The first package will reference an identifier from another
         //   package.
-        PkgStart(S1, SPair("/pkg-a".into(), S1)),
+        PkgStart(S1, spair("/pkg-a", S1)),
           IdentDep(name_foo, name_bar),
         PkgEnd(S3),
     ];
@@ -624,7 +624,7 @@ fn resume_previous_parsing_context() {
         // This package will define that identifier,
         //   which should also find the identifier having been placed into
         //   the global environment.
-        PkgStart(S4, SPair("/pkg-b".into(), S4)),
+        PkgStart(S4, spair("/pkg-b", S4)),
           IdentDecl(name_bar, kind.clone(), src.clone()),
 
           // This is a third identifier that is unique to this package.
@@ -692,7 +692,7 @@ where
     use std::iter;
 
     Sut::parse(
-        iter::once(PkgStart(S1, SPair("/pkg".into(), S1)))
+        iter::once(PkgStart(S1, spair("/pkg", S1)))
             .chain(toks.into_iter())
             .chain(iter::once(PkgEnd(S1))),
     )

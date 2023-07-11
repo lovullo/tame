@@ -51,6 +51,7 @@ use crate::{
         visit::{tree_reconstruction, TreeWalkRel},
         ExprOp,
     },
+    parse::util::spair,
     span::UNKNOWN_SPAN,
 };
 use std::iter::once;
@@ -120,9 +121,9 @@ macro_rules! test_scopes {
 
 test_scopes! {
     setup {
-        let pkg_name = SPair("/pkg".into(), S1);
-        let outer = SPair("outer".into(), S3);
-        let inner = SPair("inner".into(), S5);
+        let pkg_name = spair("/pkg", S1);
+        let outer = spair("outer", S3);
+        let inner = spair("inner", S5);
     }
 
     air {
@@ -166,15 +167,15 @@ test_scopes! {
 
 test_scopes! {
     setup {
-        let pkg_name = SPair("/pkg".into(), S1);
+        let pkg_name = spair("/pkg", S1);
 
-        let tpl_outer = SPair("_tpl-outer_".into(), S3);
-        let meta_outer = SPair("@param_outer@".into(), S5);
-        let expr_outer = SPair("exprOuter".into(), S8);
+        let tpl_outer = spair("_tpl-outer_", S3);
+        let meta_outer = spair("@param_outer@", S5);
+        let expr_outer = spair("exprOuter", S8);
 
-        let tpl_inner = SPair("_tpl-inner_".into(), S11);
-        let meta_inner = SPair("@param_inner@".into(), S13);
-        let expr_inner = SPair("exprInner".into(), S16);
+        let tpl_inner = spair("_tpl-inner_", S11);
+        let meta_inner = spair("@param_inner@", S13);
+        let expr_inner = spair("exprInner", S16);
     }
 
     air {
@@ -329,18 +330,18 @@ test_scopes! {
 
 test_scopes! {
     setup {
-        let pkg_name = SPair("/pkg".into(), S1);
+        let pkg_name = spair("/pkg", S1);
 
-        let tpl_outer = SPair("_tpl-outer_".into(), S3);
-        let tpl_inner = SPair("_tpl-inner_".into(), S9);
+        let tpl_outer = spair("_tpl-outer_", S3);
+        let tpl_inner = spair("_tpl-inner_", S9);
 
         // Note how these have the _same name_.
-        let meta_name = "@param@".into();
-        let meta_same_a = SPair(meta_name, S5);
-        let meta_same_b = SPair(meta_name, S11);
+        let meta_name = "@param@";
+        let meta_same_a = spair(meta_name, S5);
+        let meta_same_b = spair(meta_name, S11);
 
         // This one will be used for asserting.
-        let meta_same = SPair(meta_name, S11);
+        let meta_same = spair(meta_name, S11);
     }
 
     air {
@@ -433,11 +434,11 @@ test_scopes! {
 // From the perspective of the linker (tameld):
 test_scopes! {
     setup {
-        let pkg_a = SPair("/pkg/a".into(), S1);
-        let opaque_a = SPair("opaque_a".into(), S2);
+        let pkg_a = spair("/pkg/a", S1);
+        let opaque_a = spair("opaque_a", S2);
 
-        let pkg_b = SPair("/pkg/b".into(), S4);
-        let opaque_b = SPair("opaque_b".into(), S5);
+        let pkg_b = spair("/pkg/b", S4);
+        let opaque_b = spair("opaque_b", S5);
     }
 
     air {

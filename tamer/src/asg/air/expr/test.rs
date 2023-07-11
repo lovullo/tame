@@ -18,19 +18,23 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::asg::{
-    air::{
-        test::{
-            air_ctx_from_pkg_body_toks, air_ctx_from_toks, parse_as_pkg_body,
-            pkg_expect_ident_obj, pkg_expect_ident_oi, pkg_lookup,
-        },
-        Air::*,
-        AirAggregate,
-    },
-    graph::object::{expr::ExprRel, Doc, ObjectRel},
-    ExprOp, Ident,
-};
 use crate::span::dummy::*;
+use crate::{
+    asg::{
+        air::{
+            test::{
+                air_ctx_from_pkg_body_toks, air_ctx_from_toks,
+                parse_as_pkg_body, pkg_expect_ident_obj, pkg_expect_ident_oi,
+                pkg_lookup,
+            },
+            Air::*,
+            AirAggregate,
+        },
+        graph::object::{expr::ExprRel, Doc, ObjectRel},
+        ExprOp, Ident,
+    },
+    parse::util::spair,
+};
 use std::assert_matches::assert_matches;
 
 type Sut = AirAggregate;
@@ -47,7 +51,7 @@ pub fn collect_subexprs(
 
 #[test]
 fn expr_empty_ident() {
-    let id = SPair("foo".into(), S2);
+    let id = spair("foo", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -71,7 +75,7 @@ fn expr_without_pkg() {
         //   (because we're not parsing with `parse_as_pkg_body` below)
         ExprStart(ExprOp::Sum, S1),
         // RECOVERY
-        PkgStart(S2, SPair("/pkg".into(), S2)),
+        PkgStart(S2, spair("/pkg", S2)),
         PkgEnd(S3),
     ];
 
@@ -89,11 +93,11 @@ fn expr_without_pkg() {
 // Note that this can't happen in e.g. NIR / TAME's source XML.
 #[test]
 fn close_pkg_mid_expr() {
-    let id = SPair("foo".into(), S4);
+    let id = spair("foo", S4);
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           ExprStart(ExprOp::Sum, S2),
         PkgEnd(S3),
             // RECOVERY: Let's finish the expression first...
@@ -124,9 +128,9 @@ fn close_pkg_mid_expr() {
 
 #[test]
 fn open_pkg_mid_expr() {
-    let pkg_a = SPair("/pkg".into(), S1);
-    let pkg_nested = SPair("/pkg-nested".into(), S3);
-    let id = SPair("foo".into(), S4);
+    let pkg_a = spair("/pkg", S1);
+    let pkg_nested = spair("/pkg-nested", S3);
+    let id = spair("foo", S4);
 
     #[rustfmt::skip]
     let toks = [
@@ -164,8 +168,8 @@ fn open_pkg_mid_expr() {
 
 #[test]
 fn expr_non_empty_ident_root() {
-    let id_a = SPair("foo".into(), S2);
-    let id_b = SPair("bar".into(), S2);
+    let id_a = spair("foo", S2);
+    let id_b = spair("bar", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -198,7 +202,7 @@ fn expr_non_empty_ident_root() {
 //     which only becomes reachable at the end.
 #[test]
 fn expr_non_empty_bind_only_after() {
-    let id = SPair("foo".into(), S2);
+    let id = spair("foo", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -281,7 +285,7 @@ fn expr_dangling_with_subexpr() {
 
 #[test]
 fn expr_dangling_with_subexpr_ident() {
-    let id = SPair("foo".into(), S3);
+    let id = spair("foo", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -324,7 +328,7 @@ fn expr_dangling_with_subexpr_ident() {
 //   but this also protects against potential future breakages.
 #[test]
 fn expr_reachable_subsequent_dangling() {
-    let id = SPair("foo".into(), S2);
+    let id = spair("foo", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -363,7 +367,7 @@ fn expr_reachable_subsequent_dangling() {
 // Recovery from dangling expression.
 #[test]
 fn recovery_expr_reachable_after_dangling() {
-    let id = SPair("foo".into(), S4);
+    let id = spair("foo", S4);
 
     #[rustfmt::skip]
     let toks = [
@@ -416,7 +420,7 @@ fn recovery_expr_reachable_after_dangling() {
 
 #[test]
 fn expr_close_unbalanced() {
-    let id = SPair("foo".into(), S3);
+    let id = spair("foo", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -468,7 +472,7 @@ fn expr_close_unbalanced() {
 //   for non-associative expressions.
 #[test]
 fn sibling_subexprs_have_ordered_edges_to_parent() {
-    let id_root = SPair("root".into(), S1);
+    let id_root = spair("root", S1);
 
     #[rustfmt::skip]
     let toks = [
@@ -517,8 +521,8 @@ fn sibling_subexprs_have_ordered_edges_to_parent() {
 
 #[test]
 fn nested_subexprs_related_to_relative_parent() {
-    let id_root = SPair("root".into(), S1);
-    let id_suba = SPair("suba".into(), S2);
+    let id_root = spair("root", S1);
+    let id_suba = spair("suba", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -557,8 +561,8 @@ fn nested_subexprs_related_to_relative_parent() {
 fn expr_redefine_ident() {
     // Same identifier but with different spans
     //   (which would be the case in the real world).
-    let id_first = SPair("foo".into(), S2);
-    let id_dup = SPair("foo".into(), S3);
+    let id_first = spair("foo", S2);
+    let id_dup = spair("foo", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -607,10 +611,10 @@ fn expr_redefine_ident() {
 fn expr_still_dangling_on_redefine() {
     // Same identifier but with different spans
     //   (which would be the case in the real world).
-    let id_first = SPair("foo".into(), S2);
-    let id_dup = SPair("foo".into(), S5);
-    let id_dup2 = SPair("foo".into(), S8);
-    let id_second = SPair("bar".into(), S9);
+    let id_first = spair("foo", S2);
+    let id_dup = spair("foo", S5);
+    let id_dup2 = spair("foo", S8);
+    let id_second = spair("bar", S9);
 
     #[rustfmt::skip]
     let toks = [
@@ -692,8 +696,8 @@ fn expr_still_dangling_on_redefine() {
 
 #[test]
 fn expr_ref_to_ident() {
-    let id_foo = SPair("foo".into(), S2);
-    let id_bar = SPair("bar".into(), S6);
+    let id_foo = spair("foo", S2);
+    let id_bar = spair("bar", S6);
 
     #[rustfmt::skip]
     let toks = [
@@ -702,7 +706,7 @@ fn expr_ref_to_ident() {
 
           // Reference to an as-of-yet-undefined id (okay),
           //   with a different span than `id_bar`.
-          RefIdent(SPair("bar".into(), S3)),
+          RefIdent(spair("bar", S3)),
         ExprEnd(S4),
 
         //
@@ -749,14 +753,14 @@ fn expr_ref_to_ident() {
 
 #[test]
 fn idents_share_defining_pkg() {
-    let id_foo = SPair("foo".into(), S3);
-    let id_bar = SPair("bar".into(), S5);
-    let id_baz = SPair("baz".into(), S6);
+    let id_foo = spair("foo", S3);
+    let id_bar = spair("bar", S5);
+    let id_baz = spair("baz", S6);
 
     // An expression nested within another.
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_foo),
 
@@ -790,8 +794,8 @@ fn idents_share_defining_pkg() {
 
 #[test]
 fn expr_doc_short_desc() {
-    let id_expr = SPair("foo".into(), S2);
-    let clause = SPair("short desc".into(), S3);
+    let id_expr = spair("foo", S2);
+    let clause = spair("short desc", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -823,8 +827,8 @@ fn expr_doc_short_desc() {
 //     like a template.
 #[test]
 fn abstract_bind_without_dangling_container() {
-    let id_meta = SPair("@foo@".into(), S2);
-    let id_ok = SPair("concrete".into(), S5);
+    let id_meta = spair("@foo@", S2);
+    let id_ok = spair("concrete", S5);
 
     #[rustfmt::skip]
     let toks = [

@@ -56,6 +56,22 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct SPair(pub SymbolId, pub Span);
 
+/// More concisely construct an [`SPair`] from [`SymbolId`]- and
+///   [`Span`]-like things.
+///
+/// This is restricted to `cfg(test)` because it can cause unexpected
+///   internment if you're not careful.
+/// For example,
+///   if a [`str`] is assigned to a variable and then that variable is
+///   supplied to multiple calls to this function,
+///     each call will invoke the internment system.
+/// This isn't much of a concern for short-running tests,
+///   but is not acceptable elsewhere.
+#[cfg(test)]
+pub fn spair(sym: impl Into<SymbolId>, span: impl Into<Span>) -> SPair {
+    SPair(sym.into(), span.into())
+}
+
 impl SPair {
     /// Retrieve the [`SymbolId`] of this pair.
     ///

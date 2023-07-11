@@ -18,29 +18,33 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::asg::{
-    air::{
-        expr::test::collect_subexprs,
-        test::{
-            air_ctx_from_pkg_body_toks, air_ctx_from_toks, parse_as_pkg_body,
-            pkg_expect_ident_obj, pkg_expect_ident_oi, pkg_lookup,
-        },
-        Air::*,
-    },
-    graph::object::{Doc, Meta, ObjectRel},
-    Expr, ExprOp, Ident,
-};
 use crate::span::dummy::*;
+use crate::{
+    asg::{
+        air::{
+            expr::test::collect_subexprs,
+            test::{
+                air_ctx_from_pkg_body_toks, air_ctx_from_toks,
+                parse_as_pkg_body, pkg_expect_ident_obj, pkg_expect_ident_oi,
+                pkg_lookup,
+            },
+            Air::*,
+        },
+        graph::object::{Doc, Meta, ObjectRel},
+        Expr, ExprOp, Ident,
+    },
+    parse::util::spair,
+};
 
 // A template is defined by the package containing it,
 //   like an expression.
 #[test]
 fn tpl_defining_pkg() {
-    let id_tpl = SPair("_tpl_".into(), S3);
+    let id_tpl = spair("_tpl_", S3);
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           // This also tests tpl as a transition away from the package header.
           TplStart(S2),
             BindIdent(id_tpl),
@@ -63,12 +67,12 @@ fn tpl_defining_pkg() {
 
 #[test]
 fn tpl_after_expr() {
-    let id_expr = SPair("expr".into(), S3);
-    let id_tpl = SPair("_tpl_".into(), S6);
+    let id_expr = spair("expr", S3);
+    let id_tpl = spair("_tpl_", S6);
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           // This expression is incidental to this test;
           //   it need only parse.
           ExprStart(ExprOp::Sum, S2),
@@ -100,12 +104,12 @@ fn tpl_after_expr() {
 // This context includes the entire active expression stack.
 #[test]
 fn tpl_within_expr() {
-    let id_expr = SPair("expr".into(), S3);
-    let id_tpl = SPair("_tpl_".into(), S7);
+    let id_expr = spair("expr", S3);
+    let id_tpl = spair("_tpl_", S7);
 
     #[rustfmt::skip]
     let toks = [
-        PkgStart(S1, SPair("/pkg".into(), S1)),
+        PkgStart(S1, spair("/pkg", S1)),
           ExprStart(ExprOp::Sum, S2),
             BindIdent(id_expr),
 
@@ -159,9 +163,9 @@ fn tpl_within_expr() {
 //   but now we're _applying_ a template.
 #[test]
 fn tpl_apply_within_expr() {
-    let id_expr = SPair("expr".into(), S3);
-    let id_tpl = SPair("_tpl_".into(), S5);
-    let ref_tpl = SPair("_tpl_".into(), S8);
+    let id_expr = spair("expr", S3);
+    let id_tpl = spair("_tpl_", S5);
+    let ref_tpl = spair("_tpl_", S8);
 
     #[rustfmt::skip]
     let toks = [
@@ -208,7 +212,7 @@ fn tpl_apply_within_expr() {
 
 #[test]
 fn close_tpl_without_open() {
-    let id_tpl = SPair("_tpl_".into(), S3);
+    let id_tpl = spair("_tpl_", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -236,9 +240,9 @@ fn close_tpl_without_open() {
 
 #[test]
 fn tpl_with_reachable_expression() {
-    let id_tpl = SPair("_tpl_".into(), S2);
-    let id_expr_a = SPair("expra".into(), S4);
-    let id_expr_b = SPair("exprb".into(), S7);
+    let id_tpl = spair("_tpl_", S2);
+    let id_expr_a = spair("expra", S4);
+    let id_expr_b = spair("exprb", S7);
 
     #[rustfmt::skip]
     let toks = [
@@ -311,7 +315,7 @@ fn tpl_with_reachable_expression() {
 //     will become reachable in its expansion context.
 #[test]
 fn tpl_holds_dangling_expressions() {
-    let id_tpl = SPair("_tpl_".into(), S2);
+    let id_tpl = spair("_tpl_", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -345,8 +349,8 @@ fn tpl_holds_dangling_expressions() {
 
 #[test]
 fn close_tpl_mid_open() {
-    let id_tpl = SPair("_tpl_".into(), S2);
-    let id_expr = SPair("expr".into(), S4);
+    let id_tpl = spair("_tpl_", S2);
+    let id_expr = spair("expr", S4);
 
     #[rustfmt::skip]
     let toks = [
@@ -393,7 +397,7 @@ fn close_tpl_mid_open() {
 //   but may not be true in the future.
 #[test]
 fn unreachable_anonymous_tpl() {
-    let id_ok = SPair("_tpl_".into(), S4);
+    let id_ok = spair("_tpl_", S4);
 
     #[rustfmt::skip]
     let toks = [
@@ -457,12 +461,12 @@ fn anonymous_tpl_immediate_ref() {
 
 #[test]
 fn tpl_with_param() {
-    let id_tpl = SPair("_tpl_".into(), S2);
+    let id_tpl = spair("_tpl_", S2);
 
-    let id_param1 = SPair("@param1@".into(), S4);
-    let pval1 = SPair("value1".into(), S5);
-    let id_param2 = SPair("@param2@".into(), S8);
-    let param_desc = SPair("param desc".into(), S9);
+    let id_param1 = spair("@param1@", S4);
+    let pval1 = spair("value1", S5);
+    let id_param2 = spair("@param2@", S8);
+    let param_desc = spair("param desc", S9);
 
     #[rustfmt::skip]
     let toks = [
@@ -527,8 +531,8 @@ fn tpl_with_param() {
 //   definition in the context of the expansion site.
 #[test]
 fn tpl_nested() {
-    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
-    let id_tpl_inner = SPair("_tpl-inner_".into(), S4);
+    let id_tpl_outer = spair("_tpl-outer_", S2);
+    let id_tpl_inner = spair("_tpl-inner_", S4);
 
     #[rustfmt::skip]
     let toks = vec![
@@ -573,7 +577,7 @@ fn tpl_nested() {
 //   it all starts the same.
 #[test]
 fn tpl_apply_nested() {
-    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
+    let id_tpl_outer = spair("_tpl-outer_", S2);
 
     #[rustfmt::skip]
     let toks = [
@@ -606,12 +610,12 @@ fn tpl_apply_nested() {
 //   ref/def.
 #[test]
 fn tpl_apply_nested_missing() {
-    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
-    let tpl_inner = "_tpl-inner_".into();
-    let id_tpl_inner = SPair(tpl_inner, S7);
+    let id_tpl_outer = spair("_tpl-outer_", S2);
 
-    let ref_tpl_inner_pre = SPair(tpl_inner, S4);
-    let ref_tpl_inner_post = SPair(tpl_inner, S10);
+    let tpl_inner = "_tpl-inner_";
+    let id_tpl_inner = spair(tpl_inner, S7);
+    let ref_tpl_inner_pre = spair(tpl_inner, S4);
+    let ref_tpl_inner_post = spair(tpl_inner, S10);
 
     #[rustfmt::skip]
     let toks = [
@@ -678,8 +682,8 @@ fn tpl_apply_nested_missing() {
 
 #[test]
 fn tpl_doc_short_desc() {
-    let id_tpl = SPair("foo".into(), S2);
-    let clause = SPair("short desc".into(), S3);
+    let id_tpl = spair("foo", S2);
+    let clause = spair("short desc", S3);
 
     #[rustfmt::skip]
     let toks = [
@@ -718,11 +722,11 @@ fn tpl_doc_short_desc() {
 //   generators.
 #[test]
 fn metavars_within_exprs_hoisted_to_parent_tpl() {
-    let id_tpl_outer = SPair("_tpl-outer_".into(), S2);
-    let id_tpl_inner = SPair("_tpl-inner_".into(), S9);
+    let id_tpl_outer = spair("_tpl-outer_", S2);
+    let id_tpl_inner = spair("_tpl-inner_", S9);
 
-    let id_param_outer = SPair("@param_outer@".into(), S5);
-    let id_param_inner = SPair("@param_inner@".into(), S12);
+    let id_param_outer = spair("@param_outer@", S5);
+    let id_param_inner = spair("@param_inner@", S12);
 
     #[rustfmt::skip]
     let toks = [
@@ -788,8 +792,8 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
 
 #[test]
 fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
-    let id_tpl = SPair("_tpl_".into(), S2);
-    let id_meta = SPair("@foo@".into(), S4);
+    let id_tpl = spair("_tpl_", S2);
+    let id_meta = spair("@foo@", S4);
 
     #[rustfmt::skip]
     let toks = [
