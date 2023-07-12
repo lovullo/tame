@@ -25,7 +25,10 @@ use crate::{
         ExprOp,
     },
     f::Functor,
-    parse::{util::SPair, ParseState},
+    parse::{
+        util::{spair, SPair},
+        ParseState,
+    },
     span::{dummy::*, Span},
 };
 use std::fmt::Debug;
@@ -324,6 +327,65 @@ fn traverses_ontological_tree_tpl_within_template() {
             //     of reference/definition order.
             // This lexical analysis is something that the XSLT-based TAME
             //   was not capable of doing.
+        ],
+        tree_reconstruction_report(toks),
+    );
+}
+
+// Metavariables are used to represent template parameters,
+//   and are used to perform various lexical manipulations.
+// The most fundamental of them is concatenation,
+//   and in the special case of concatenating a single value,
+//   assignment.
+//
+// This asserts that concatenation results in the expected graph and that
+//   the traversal respects concatenation order.
+#[test]
+fn traverses_ontological_tree_complex_tpl_meta() {
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1, spair("/pkg", S1)),
+          TplStart(S2),
+            BindIdent(spair("_tpl_", S3)),
+
+            // -- Above this line was setup -- //
+
+            MetaStart(S4),
+              BindIdent(spair("@param@", S5)),
+
+              // It will be important to observe that ordering
+              //   is respected during traversal,
+              //     otherwise concatenation order will be wrong.
+              MetaLexeme(spair("foo", S6)),
+              RefIdent(spair("@other@", S7)),    // --.
+              MetaLexeme(spair("bar", S8)),      //   |
+            MetaEnd(S9),                         //   |
+                                                 //   |
+            MetaStart(S10),                      //   |
+              BindIdent(spair("@other@", S11)),  // <-'
+            MetaEnd(S12),
+          TplEnd(S13),
+       PkgEnd(S14),
+    ];
+
+    // We need more concise expressions for the below table of values.
+    let d = DynObjectRel::new;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
+    #[rustfmt::skip]
+    assert_eq!(
+        //      A  -|-> B   |  A span  -|->  B span  | espan  |  depth
+        vec![//-----|-------|-----------|------------|--------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S14),  None    ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S14), S3,          None    ),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S13),  None    ),     Depth(3)),
+            (d(Tpl,   Ident, m(S2, S13), S5,          None    ),       Depth(4)),
+            (d(Ident, Meta,  S5,         m(S4, S9),   None    ),         Depth(5)),
+            (d(Meta,  Meta,  m(S4, S9),  S6,          None    ),           Depth(6)),
+  /*cross*/ (d(Meta,  Ident, m(S4, S9),  S11,         Some(S7)),           Depth(6)),
+            (d(Meta,  Meta,  m(S4, S9),  S8,          None,   ),           Depth(6)),
+            (d(Tpl,   Ident, m(S2, S13), S11,         None    ),       Depth(4)),
+            (d(Ident, Meta,  S11,        m(S10, S12), None    ),         Depth(5)),
         ],
         tree_reconstruction_report(toks),
     );

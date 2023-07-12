@@ -692,7 +692,7 @@ where
     use std::iter;
 
     Sut::parse(
-        iter::once(PkgStart(S1, spair("/pkg", S1)))
+        iter::once(PkgStart(S1, spair("/incidental-pkg", S1)))
             .chain(toks.into_iter())
             .chain(iter::once(PkgEnd(S1))),
     )

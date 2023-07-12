@@ -46,6 +46,9 @@ use std::{
     fmt::{Debug, Display},
 };
 
+#[cfg(test)]
+use super::graph::object::ObjectRelTo;
+
 #[macro_use]
 mod ir;
 use fxhash::FxHashMap;
@@ -965,6 +968,26 @@ impl AirAggregateCtx {
         self.env_scope_lookup_raw(env, name)
             .and_then(EnvScopeKind::in_scope)
             .map(EnvScopeKind::into_inner)
+    }
+
+    /// Resolve an identifier at the scope of the provided environment and
+    ///   retrieve its definition.
+    ///
+    /// If the identifier is not in scope or does not have a definition,
+    ///   [`None`] will be returned;
+    ///     the caller cannot distinguish between the two using this method;
+    ///     see [`Self::env_scope_lookup`] if that distinction is important.
+    #[cfg(test)]
+    fn env_scope_lookup_ident_dfn<O: ObjectRelatable>(
+        &self,
+        env: impl ObjectIndexRelTo<Ident>,
+        name: SPair,
+    ) -> Option<ObjectIndex<O>>
+    where
+        Ident: ObjectRelTo<O>,
+    {
+        self.env_scope_lookup::<Ident>(env, name)
+            .and_then(|oi| oi.definition(self.asg_ref()))
     }
 
     /// Attempt to retrieve an identifier from the graph by name relative to

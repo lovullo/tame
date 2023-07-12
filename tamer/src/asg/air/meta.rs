@@ -76,7 +76,7 @@ impl ParseState for AirMetaAggregate {
             }
 
             (TplMeta(oi_meta), AirMeta(MetaLexeme(lexeme))) => Transition(
-                TplMeta(oi_meta.assign_lexeme(ctx.asg_mut(), lexeme)),
+                TplMeta(oi_meta.append_lexeme(ctx.asg_mut(), lexeme)),
             )
             .incomplete(),
 
@@ -106,6 +106,8 @@ impl ParseState for AirMetaAggregate {
                 Transition(TplMeta(oi_meta)).incomplete()
             }
 
+            // TODO: The user _probably_ meant to use `<text>` in XML NIR,
+            //   so maybe we should have an error to that effect.
             (TplMeta(..), tok @ AirDoc(DocText(..))) => {
                 diagnostic_todo!(
                     vec![tok.note("this token")],
@@ -114,11 +116,13 @@ impl ParseState for AirMetaAggregate {
                 )
             }
 
-            (TplMeta(..), tok @ AirBind(RefIdent(..))) => {
-                diagnostic_todo!(
-                    vec![tok.note("this token")],
-                    "AirBind in metavar context (param-value)"
-                )
+            // Reference to another metavariable,
+            //   e.g. using `<param-value>` in XML NIR.
+            (TplMeta(oi_meta), AirBind(RefIdent(name))) => {
+                let oi_ref = ctx.lookup_lexical_or_missing(name);
+
+                Transition(TplMeta(oi_meta.concat_ref(ctx.asg_mut(), oi_ref)))
+                    .incomplete()
             }
 
             (TplMeta(..), tok @ AirMeta(MetaStart(..))) => {
@@ -159,3 +163,6 @@ impl AirMetaAggregate {
         Self::Ready
     }
 }
+
+#[cfg(test)]
+mod test;

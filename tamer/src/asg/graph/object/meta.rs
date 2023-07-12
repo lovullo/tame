@@ -30,13 +30,15 @@
 //!         but that term generally has a different meaning in programming:
 //!           <https://en.wikipedia.org/wiki/Metasyntactic_variable>.
 
+use arrayvec::ArrayVec;
+
 use super::{prelude::*, Doc, Ident};
 use crate::{
     diagnose::Annotate,
     diagnostic_todo,
     f::Functor,
     fmt::{DisplayWrapper, TtQuote},
-    parse::util::SPair,
+    parse::{util::SPair, Token},
     span::Span,
 };
 use std::fmt::Display;
@@ -55,9 +57,26 @@ use std::fmt::Display;
 ///   the symbol representing that identifier then acts as a metavariable.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Meta {
+    /// Metavariable represents a parameter without a value.
+    ///
+    /// A value must be provided at or before expansion,
+    ///   generally via template application arguments.
     Required(Span),
-    ConcatList(Span),
+
+    /// Metavariable has a concrete lexical value.
+    ///
+    /// This metavariable represents a literal and requires no further
+    ///   reduction or processing.
     Lexeme(Span, SPair),
+
+    /// Metavariable whose value is to be the concatenation of all
+    ///   referenced metavariables.
+    ///
+    /// This object has no value on its own;
+    ///   it must contain edges to other metavariables,
+    ///     and the order of those edges on the ASG represents concatenation
+    ///     order.
+    ConcatList(Span),
 }
 
 impl Meta {
@@ -137,8 +156,15 @@ object_rel! {
     /// Metavariables contain lexical data and references to other
     ///   metavariables.
     Meta -> {
-        tree  Meta,   // TODO: do we need tree?
+        // References to other metavariables
+        //   (e.g. `<param-value>` in XML-based sources).
         cross Ident,
+
+        // Owned lexical values.
+        //
+        // These differ from the above references because they represent
+        //   inline lexemes that have no identifier.
+        tree Meta,
 
         // e.g. template paramater description.
         tree Doc,
@@ -146,8 +172,63 @@ object_rel! {
 }
 
 impl ObjectIndex<Meta> {
-    pub fn assign_lexeme(self, asg: &mut Asg, lexeme: SPair) -> Self {
-        self.map_obj(asg, |meta| meta.assign_lexeme(lexeme))
+    /// Append a lexeme to this metavariable.
+    ///
+    /// If `self` is [`Meta::Required`],
+    ///   this provides a value and reuses the object already allocated.
+    ///
+    /// If `self` is a single [`Meta::Lexeme`],
+    ///   it is re-allocated to a separate [`Meta`] object along with the
+    ///   provided `lexeme`,
+    ///     and edges are added to both,
+    ///     indicating concatenation.
+    ///
+    /// Metavariables with multiple values already represents concatenation
+    ///   and a new edge will be added without changing `self`.
+    pub fn append_lexeme(self, asg: &mut Asg, lexeme: SPair) -> Self {
+        use Meta::*;
+
+        let mut rels = ArrayVec::<SPair, 2>::new();
+
+        // We don't have access to `asg` within this closure because of
+        //   `map_obj`;
+        //     the above variable will be mutated by it to return extra
+        //     information to do those operations afterward.
+        // If we do this often,
+        //   then let's create a `map_obj` that is able to return
+        //   supplemental information or create additional relationships
+        //     (so, a map over a subgraph rather than an object).
+        self.map_obj(asg, |meta| match meta {
+            // Storage is already allocated for this lexeme.
+            Required(span) => Lexeme(span, lexeme),
+
+            // We could technically allocate a new symbol and combine the
+            //   lexeme now,
+            //     but let's wait so that we can avoid allocating
+            //     intermediate symbols.
+            Lexeme(span, first_lexeme) => {
+                // We're converting from a single lexeme stored on `self` to
+                //   a `Meta` with edges to both individual lexemes.
+                rels.push(first_lexeme);
+                rels.push(lexeme);
+
+                ConcatList(span)
+            }
+
+            // We're already representing concatenation so we need only add
+            //   an edge to the new lexeme.
+            ConcatList(span) => {
+                rels.push(lexeme);
+                ConcatList(span)
+            }
+        });
+
+        for rel_lexeme in rels {
+            let oi = asg.create(Meta::Lexeme(rel_lexeme.span(), rel_lexeme));
+            self.add_edge_to(asg, oi, None);
+        }
+
+        self
     }
 
     pub fn close(self, asg: &mut Asg, close_span: Span) -> Self {
@@ -156,5 +237,50 @@ impl ObjectIndex<Meta> {
                 open_span.merge(close_span).unwrap_or(open_span)
             })
         })
+    }
+
+    // Append a reference to a metavariable identified by `oi_ref`.
+    //
+    // The value of the metavariable will not be known until expansion time,
+    //   at which point its lexical value will be concatenated with those of
+    //   any other references,
+    //     in the order that they were added.
+    //
+    // It is expected that the value of `oi_ref` was produced via a lookup
+    //   from the reference location and therefore contains the reference
+    //   [`Span`];
+    //     this is used to provide accurate diagnostic information.
+    pub fn concat_ref(self, asg: &mut Asg, oi_ref: ObjectIndex<Ident>) -> Self {
+        use Meta::*;
+
+        // We cannot mutate the ASG within `map_obj` below because of the
+        //   held reference to `asg`,
+        //     so this will be used to store data for later mutation.
+        let mut pre = None;
+
+        // References are only valid for a [`Self::ConcatList`].
+        self.map_obj(asg, |meta| match meta {
+            Required(span) | ConcatList(span) => ConcatList(span),
+
+            Lexeme(span, lex) => {
+                // We will move the lexeme into a _new_ object,
+                //   and store a reference to it.
+                pre.replace(Meta::Lexeme(lex.span(), lex));
+
+                ConcatList(span)
+            }
+        });
+
+        // This represents a lexeme that was extracted into a new `Meta`;
+        //   we must add the edge before appending the ref since
+        //   concatenation will occur during expansion in edge order.
+        if let Some(orig) = pre {
+            asg.create(orig).add_edge_from(asg, self, None);
+        }
+
+        // Having been guaranteed a `ConcatList` above,
+        //   we now only need to append an edge that references what to
+        //   concatenate.
+        self.add_edge_to(asg, oi_ref, Some(oi_ref.span()))
     }
 }
