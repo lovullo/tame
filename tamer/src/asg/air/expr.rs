@@ -139,15 +139,22 @@ impl ParseState for AirExprAggregate {
             }
 
             (BuildingExpr(es, oi), AirBind(BindIdentAbstract(meta_name))) => {
-                // Note that we are still dangling,
-                //   since the identifier is abstract and is therefore not
-                //   yet reachable via its yet-to-be-determined identifier.
-                ctx.defines_abstract(meta_name)
-                    .and_then(|oi_ident| {
+                let result =
+                    ctx.defines_abstract(meta_name).and_then(|oi_ident| {
                         oi_ident.bind_definition(ctx.asg_mut(), meta_name, oi)
-                    })
-                    .map(|_| ())
-                    .transition(BuildingExpr(es, oi))
+                    });
+
+                // It is important that we do not mark this expression as
+                //   reachable unless we successfully bind the identifier.
+                // Even though the identifier is abstract,
+                //   we want to mimic the concrete structure of the graph.
+                match result {
+                    Ok(oi_ident) => {
+                        Transition(BuildingExpr(es.reachable_by(oi_ident), oi))
+                            .incomplete()
+                    }
+                    Err(e) => Transition(BuildingExpr(es, oi)).err(e),
+                }
             }
 
             (BuildingExpr(es, oi), AirBind(RefIdent(name))) => {

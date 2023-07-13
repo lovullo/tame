@@ -816,18 +816,18 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
     let ctx = air_ctx_from_pkg_body_toks(toks);
     let asg = ctx.asg_ref();
 
-    // The expression is dangling and so we must find it through a
-    //   traversal.
+    // The expression cannot be indexed by a named (concrete) identifier
+    //   and so we must find it through a traversal.
+    // The abstract identifier should be bound to our rooting context,
+    //   which is the template,
+    //   despite not having a name;
+    //     this mirrors the same structure that the template body will
+    //     assume upon instantiation.
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
-    let oi_expr = oi_tpl
-        .edges_filtered::<Expr>(asg)
+    let oi_ident = oi_tpl
+        .edges_filtered::<Ident>(asg)
         .next()
-        .expect("could not locate child Expr");
-
-    // The abstract identifier that should have been bound to the expression.
-    let oi_ident = oi_expr
-        .ident(asg)
-        .expect("abstract identifier was not bound to Expr");
+        .expect("abstract identifier is not rooted in template");
 
     assert_eq!(
         None,
@@ -837,4 +837,22 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
 
     // The metavariable referenced by the abstract identifier
     assert_eq!(id_meta, oi_ident.name_or_meta(asg));
+
+    // The identifier should be bound to the expression.
+    let oi_expr = oi_ident
+        .definition::<Expr>(asg)
+        .expect("abstract identifier did not bind to Expr");
+
+    assert_eq!(S3.merge(S5).unwrap(), oi_expr.resolve(asg).span());
+
+    // Finally,
+    //   the expression should not be considered dangling and so we should
+    //   not have an edge directly from the template to the Expr.
+    // If that were to happen,
+    //   then we'd end up duplicating the expression.
+    assert!(
+        oi_tpl.edges_filtered::<Expr>(asg).next().is_none(),
+        "Tpl must not have an edge directly to Expr \
+           (is it considered dangling?)",
+    );
 }

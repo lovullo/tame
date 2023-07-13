@@ -433,6 +433,42 @@ impl AirAggregate {
             Root(_) => Filter,
         }
     }
+
+    /// Whether the active context represents an object that can be
+    ///   lexically instantiated.
+    ///
+    /// Only containers that support _instantiation_ are able to contain
+    ///   abstract identifiers.
+    /// Instantiation triggers expansion,
+    ///   which resolves metavariables and makes all abstract objects
+    ///   therein concrete.
+    fn is_lexically_instantiatible(&self) -> bool {
+        use AirAggregate::*;
+
+        match self {
+            Uninit => false,
+
+            // These objects cannot be instantiated,
+            //   and so the abstract identifiers that they own would never
+            //   be able to be made concrete.
+            Root(_) => false,
+            Pkg(_) => false,
+            PkgExpr(_) => false,
+
+            // Templates are the metalinguistic abstraction and are,
+            //   at the time of writing,
+            //   the only containers capable of instantiation.
+            PkgTpl(_) => true,
+
+            // Metavariables cannot own identifiers
+            //   (they can only reference them).
+            PkgMeta(_) => false,
+
+            // If an object is opaque to us then we cannot possibly look
+            //   into it to see what needs expansion.
+            PkgOpaque(_) => false,
+        }
+    }
 }
 
 /// Behavior of an environment boundary when crossing environment upward
@@ -851,11 +887,33 @@ impl AirAggregateCtx {
     ///
     /// A value of [`None`] indicates that no bindings are permitted in the
     ///   current context.
-    fn rooting_oi(&self) -> Option<ObjectIndexToTree<Ident>> {
+    fn rooting_oi(&self) -> Option<(&AirAggregate, ObjectIndexToTree<Ident>)> {
         self.stack
             .iter()
             .rev()
-            .find_map(|st| st.active_rooting_oi())
+            .find_map(|st| st.active_rooting_oi().map(|oi| (st, oi)))
+    }
+
+    /// The active container (rooting context) for _abstract_ [`Ident`]s.
+    ///
+    /// Only containers that support _instantiation_ are able to contain
+    ///   abstract identifiers.
+    /// Instantiation triggers expansion,
+    ///   which resolves metavariables and makes all abstract objects
+    ///   therein concrete.
+    ///
+    /// This utilizes [`Self::rooting_oi`] to determine the active rooting
+    ///   context.
+    /// If that context does not support instantiation,
+    ///   [`None`] is returned.
+    /// This method will _not_ continue looking further up the stack for a
+    ///   context that is able to be instantiated,
+    ///     since that would change the parent of the binding.
+    fn instantiable_rooting_oi(
+        &self,
+    ) -> Option<(&AirAggregate, ObjectIndexToTree<Ident>)> {
+        self.rooting_oi()
+            .filter(|(st, _)| st.is_lexically_instantiatible())
     }
 
     /// The active dangling expression context for [`Expr`]s.
@@ -943,7 +1001,7 @@ impl AirAggregateCtx {
         &mut self,
         binding_name: SPair,
     ) -> Result<ObjectIndex<Ident>, AsgError> {
-        let oi_root = self
+        let (_, oi_root) = self
             .rooting_oi()
             .ok_or(AsgError::InvalidBindContext(binding_name))?;
 
@@ -967,18 +1025,22 @@ impl AirAggregateCtx {
         &mut self,
         meta_name: SPair,
     ) -> Result<ObjectIndex<Ident>, AsgError> {
-        // To help mitigate potentially cryptic errors down the line,
-        //   let's try to be helpful and notify the user when
-        //   they're trying to do something that almost certainly
-        //   will not succeed.
-        match self.dangling_expr_oi() {
-            // The container does not support dangling expressions
-            //   and so there is no chance that this expression will
-            //   be expanded in the future.
+        match self.instantiable_rooting_oi() {
+            // The container cannot be instantiated and so there is no
+            //   chance that this expression will be expanded in the future.
             None => {
+                // Since we do not have an abstract container,
+                //   the nearest container (if any) is presumably concrete,
+                //   so let's reference that in the hope of making the error
+                //     more informative.
+                // Note that this _does_ re-search the stack,
+                //   but this is an error case that should seldom occur.
+                // If it's a problem,
+                //   we can have `instantiable_rooting_oi` retain
+                //   information.
                 let rooting_span = self
                     .rooting_oi()
-                    .map(|oi| oi.widen().resolve(self.asg_ref()).span());
+                    .map(|(_, oi)| oi.widen().resolve(self.asg_ref()).span());
 
                 // Note that we _discard_ the attempted bind token
                 //   and so remain in a dangling state.
@@ -988,18 +1050,15 @@ impl AirAggregateCtx {
                 ))
             }
 
-            // We don't care what our container is,
-            //   only that the above check passed.
-            // That is:
-            //   the above check is entirely optional and intended
-            //   only as a debugging aid for users.
-            Some(_) => {
+            // We root a new identifier in the instantiable container,
+            //   but we do not index it,
+            //   since its name is not known until instantiation.
+            Some((_, oi_root)) => {
                 let oi_meta_ident = self.lookup_lexical_or_missing(meta_name);
 
-                let oi_abstract = oi_meta_ident
-                    .new_abstract_ident(self.asg_mut(), meta_name.span());
-
-                Ok(oi_abstract)
+                Ok(oi_meta_ident
+                    .new_abstract_ident(self.asg_mut(), meta_name.span())
+                    .add_edge_from(self.asg_mut(), oi_root, None))
             }
         }
     }
