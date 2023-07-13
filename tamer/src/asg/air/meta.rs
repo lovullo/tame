@@ -81,7 +81,7 @@ impl ParseState for AirMetaAggregate {
             .incomplete(),
 
             (TplMeta(oi_meta), AirBind(BindIdent(name))) => ctx
-                .defines(name)
+                .defines_concrete(name)
                 .and_then(|oi_ident| {
                     oi_ident.bind_definition(ctx.asg_mut(), name, oi_meta)
                 })

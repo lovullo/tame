@@ -175,7 +175,7 @@ impl ParseState for AirTplAggregate {
             }
 
             (Toplevel(tpl), AirBind(BindIdent(id))) => ctx
-                .defines(id)
+                .defines_concrete(id)
                 .and_then(|oi_ident| {
                     oi_ident.bind_definition(ctx.asg_mut(), id, tpl.oi())
                 })

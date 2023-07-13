@@ -929,17 +929,79 @@ impl AirAggregateCtx {
         })
     }
 
-    /// Root an identifier using the [`Self::rooting_oi`] atop of the stack.
-    fn defines(&mut self, name: SPair) -> Result<ObjectIndex<Ident>, AsgError> {
+    /// Root a concrete identifier using the [`Self::rooting_oi`] atop of
+    ///   the stack.
+    ///
+    /// This definition will index the identifier into the proper
+    ///   environments,
+    ///     giving it scope.
+    /// If the identifier is abstract,
+    ///   it is important to use [`Self::defines_abstract`] instead so that
+    ///   the metavariable that the identifier references will not be
+    ///   indexed as the binding `name`.
+    fn defines_concrete(
+        &mut self,
+        binding_name: SPair,
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
         let oi_root = self
             .rooting_oi()
-            .ok_or(AsgError::InvalidBindContext(name))?;
+            .ok_or(AsgError::InvalidBindContext(binding_name))?;
 
-        Ok(self.lookup_lexical_or_missing(name).add_edge_from(
+        Ok(self.lookup_lexical_or_missing(binding_name).add_edge_from(
             self.asg_mut(),
             oi_root,
             None,
         ))
+    }
+
+    /// Define an abstract identifier within the context of a container that
+    ///   is able to hold dangling objects.
+    ///
+    /// If the identifier is concrete,
+    ///   then it is important to use [`Self::defines_concrete`] instead to
+    ///   ensure that the identifier has its scope computed and indexed.
+    ///
+    /// TODO: This is about to evolve;
+    ///   document further.
+    fn defines_abstract(
+        &mut self,
+        meta_name: SPair,
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
+        // To help mitigate potentially cryptic errors down the line,
+        //   let's try to be helpful and notify the user when
+        //   they're trying to do something that almost certainly
+        //   will not succeed.
+        match self.dangling_expr_oi() {
+            // The container does not support dangling expressions
+            //   and so there is no chance that this expression will
+            //   be expanded in the future.
+            None => {
+                let rooting_span = self
+                    .rooting_oi()
+                    .map(|oi| oi.widen().resolve(self.asg_ref()).span());
+
+                // Note that we _discard_ the attempted bind token
+                //   and so remain in a dangling state.
+                Err(AsgError::InvalidAbstractBindContext(
+                    meta_name,
+                    rooting_span,
+                ))
+            }
+
+            // We don't care what our container is,
+            //   only that the above check passed.
+            // That is:
+            //   the above check is entirely optional and intended
+            //   only as a debugging aid for users.
+            Some(_) => {
+                let oi_meta_ident = self.lookup_lexical_or_missing(meta_name);
+
+                let oi_abstract = oi_meta_ident
+                    .new_abstract_ident(self.asg_mut(), meta_name.span());
+
+                Ok(oi_abstract)
+            }
+        }
     }
 
     /// Attempt to retrieve an identifier and its scope information from the
