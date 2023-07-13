@@ -193,18 +193,30 @@ impl<'a> TreeContext<'a> {
                 ),
             },
 
-            // Identifiers will be considered in context;
-            //   pass over it for now.
-            // But we must not skip over its depth,
-            //   otherwise we parent a following sibling at a matching
-            //   depth;
-            //     this close will force the auto-closing system to close
-            //     any siblings in preparation for the object to follow.
-            Object::Ident((ident, _)) => Some(Xirf::Close(
-                None,
-                CloseSpan::without_name_span(ident.span()),
-                depth,
-            )),
+            Object::Ident((ident, oi_ident)) => match paired_rel.source() {
+                Object::Meta(..) => {
+                    self.emit_tpl_param_value(ident, oi_ident, depth)
+                }
+
+                // All other identifiers will be considered in context;
+                //   pass over it for now.
+                // But we must not skip over its depth,
+                //   otherwise we parent a following sibling at a matching
+                //   depth;
+                //     this close will force the auto-closing system to
+                //     close any siblings in preparation for the object to
+                //     follow.
+                Object::Root(..)
+                | Object::Pkg(..)
+                | Object::Ident(..)
+                | Object::Expr(..)
+                | Object::Tpl(..)
+                | Object::Doc(..) => Some(Xirf::Close(
+                    None,
+                    CloseSpan::without_name_span(ident.span()),
+                    depth,
+                )),
+            },
 
             Object::Expr((expr, oi_expr)) => {
                 self.emit_expr(expr, *oi_expr, paired_rel.source(), depth)
@@ -282,8 +294,9 @@ impl<'a> TreeContext<'a> {
         depth: Depth,
     ) -> Option<Xirf> {
         match src {
-            Object::Ident((ident, oi_ident)) => {
-                self.emit_expr_ident(expr, *oi_ident, ident, depth)
+            Object::Ident((_, oi_ident)) => {
+                let name = oi_ident.name_or_meta(self.asg);
+                self.emit_expr_ident(expr, name, depth)
             }
             Object::Expr((pexpr, _)) => match (pexpr.op(), expr.op()) {
                 (ExprOp::Conj | ExprOp::Disj, ExprOp::Eq) => {
@@ -315,8 +328,7 @@ impl<'a> TreeContext<'a> {
     fn emit_expr_ident(
         &mut self,
         expr: &Expr,
-        oi_ident: ObjectIndex<Ident>,
-        ident: &Ident,
+        name: SPair,
         depth: Depth,
     ) -> Option<Xirf> {
         let (qname, ident_qname) = match expr.op() {
@@ -332,9 +344,8 @@ impl<'a> TreeContext<'a> {
             }
         };
 
-        let name = oi_ident.name_or_meta(self.asg);
-        let ispan = ident.span();
-        self.push(Xirf::attr(ident_qname, name, (ispan, ispan)));
+        let span = name.span();
+        self.push(Xirf::attr(ident_qname, name, (span, span)));
 
         Some(Xirf::open(
             qname,
@@ -462,18 +473,57 @@ impl<'a> TreeContext<'a> {
         oi_meta: ObjectIndex<Meta>,
         depth: Depth,
     ) -> Option<Xirf> {
-        let pname = oi_meta
-            .ident(self.asg)
-            .map(|oi| oi.name_or_meta(self.asg))
-            .diagnostic_unwrap(|| {
-                vec![meta.internal_error("missing param name")]
-            });
+        if let Some(pname) =
+            oi_meta.ident(self.asg).map(|oi| oi.name_or_meta(self.asg))
+        {
+            self.push(attr_name(pname));
 
-        self.push(attr_name(pname));
+            Some(Xirf::open(
+                QN_PARAM,
+                OpenSpan::without_name_span(meta.span()),
+                depth,
+            ))
+        } else if let Some(lexeme) = meta.lexeme() {
+            self.push(Xirf::close(
+                Some(QN_TEXT),
+                CloseSpan::without_name_span(meta.span()),
+                depth,
+            ));
+
+            self.push(Xirf::text(
+                Text(lexeme.symbol(), lexeme.span()),
+                depth.child_depth(),
+            ));
+
+            Some(Xirf::open(
+                QN_TEXT,
+                OpenSpan::without_name_span(meta.span()),
+                depth,
+            ))
+        } else {
+            // TODO: Rewrite the above to be an exhaustive match, perhaps,
+            //   so we know what we'll error on.
+            diagnostic_todo!(
+                vec![oi_meta.internal_error("unsupported Meta type")],
+                "xmli output does not yet support this Meta object",
+            )
+        }
+    }
+
+    /// Emit a `<param-value>` node assumed to be within a template param
+    ///   body.
+    fn emit_tpl_param_value(
+        &mut self,
+        ident: &Ident,
+        oi_ident: &ObjectIndex<Ident>,
+        depth: Depth,
+    ) -> Option<Xirf> {
+        let name = oi_ident.name_or_meta(self.asg);
+        self.push(attr_name(name));
 
         Some(Xirf::open(
-            QN_PARAM,
-            OpenSpan::without_name_span(meta.span()),
+            QN_PARAM_VALUE,
+            OpenSpan::without_name_span(ident.span()),
             depth,
         ))
     }

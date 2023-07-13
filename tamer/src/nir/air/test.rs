@@ -269,6 +269,7 @@ fn apply_template_long_form_args() {
           Open(TplParam, S3),
             BindIdentMeta(p1),
             Text(v1),
+            Ref(p2),
           Close(TplParam, S6),
 
           Open(TplParam, S7),
@@ -287,6 +288,7 @@ fn apply_template_long_form_args() {
               O(Air::MetaStart(S3)),
                 O(Air::BindIdent(p1)),
                 O(Air::MetaLexeme(v1)),
+                O(Air::RefIdent(p2)),
               O(Air::MetaEnd(S6)),
 
               O(Air::MetaStart(S7)),

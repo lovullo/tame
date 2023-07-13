@@ -118,6 +118,20 @@ impl Meta {
             ),
         }
     }
+
+    /// Retrieve a concrete lexeme,
+    ///   if any.
+    ///
+    /// If this metavariable represents a concatenation list,
+    ///   this will return [`None`].
+    /// This method _does not_ expand metavariables,
+    ///   and does not have the context necessary to do so.
+    pub fn lexeme(&self) -> Option<SPair> {
+        match self {
+            Self::Required(_) | Self::ConcatList(_) => None,
+            Self::Lexeme(_, lex) => Some(*lex),
+        }
+    }
 }
 
 impl From<&Meta> for Span {

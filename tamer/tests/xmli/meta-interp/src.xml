@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<package xmlns="http://www.lovullo.com/rater"
+         xmlns:c="http://www.lovullo.com/calc"
+         xmlns:t="http://www.lovullo.com/rater/apply-template">
+
+  <!-- note: the extra vertical space is for alignment with expected.xml;
+       open them side-by-side in your editor of choice -->
+
+  <!-- because the output contains identifiers derived from spans, this test
+       is exceptionally fragile; if you add or remove a single byte, you're
+       bound to break things.  If that happens, it is safe to update the
+       span portion of identifier names.  In the future, a tool may be
+       created to help with this tedious chore. -->
+
+  <template name="_interp-non-bind_"
+            desc="Interpolation in non-binding position">
+    <!-- note the `{}` here -->
+    <classify as="only" desc="{@bar@}" />
+
+
+
+
+
+    <classify as="prefixed" desc="Prefix {@bar@}" />
+
+
+
+
+
+
+    <classify as="suffixed" desc="{@bar@} suffix" />
+
+
+
+
+
+
+    <classify as="both" desc="Prefix {@bar@} suffix" />
+
+
+
+
+
+
+  </template>
+
+
+  <template name="_with-abstract-ident_"
+            desc="Metavariable interpolation in binding position">
+    <!-- note the `{}` here -->
+    <classify as="{@as@}" />
+
+
+
+
+
+    <classify as="prefix-{@as@}" />
+
+
+
+
+
+
+    <classify as="{@as@}-suffix" />
+
+
+
+
+
+
+    <classify as="prefix-{@as@}-suffix" />
+
+
+
+
+
+
+  </template>
+</package>
+

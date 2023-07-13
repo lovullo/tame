@@ -255,6 +255,9 @@ impl ParseState for NirToAir {
             (Meta(mspan), BindIdentMeta(spair)) => {
                 Transition(Meta(mspan)).ok(Air::BindIdent(spair))
             }
+            (Meta(mspan), Ref(spair)) => {
+                Transition(Meta(mspan)).ok(Air::RefIdent(spair))
+            }
             (Meta(mspan), Text(lexeme)) => {
                 Transition(Meta(mspan)).ok(Air::MetaLexeme(lexeme))
             }
@@ -264,8 +267,7 @@ impl ParseState for NirToAir {
             // Some of these will be permitted in the future.
             (
                 Meta(mspan),
-                tok @ (Open(..) | Close(..) | BindIdent(..) | Ref(..)
-                | RefSubject(..)),
+                tok @ (Open(..) | Close(..) | BindIdent(..) | RefSubject(..)),
             ) => Transition(Meta(mspan))
                 .err(NirToAirError::ExpectedMetaToken(mspan, tok)),
 
