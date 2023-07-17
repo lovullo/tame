@@ -165,6 +165,8 @@ impl ParseState for TplShortDesugar {
                 let tpl_name =
                     format!("_{}_", qname.local_name().lookup_str()).intern();
 
+                // TODO: This should be emitted _after_ params to save work
+                //   for `crate::asg:graph::visit::ontree::SourceCompatibleTreeEdgeOrder`.
                 let name = SPair(tpl_name, span);
                 stack.push(Ref(name));
 

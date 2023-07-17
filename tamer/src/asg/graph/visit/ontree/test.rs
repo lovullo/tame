@@ -207,21 +207,21 @@ fn traverses_ontological_tree_tpl_apply() {
         PkgStart(S1, SPair("/pkg".into(), S1)),
           // The template that will be applied.
           TplStart(S2),
-            BindIdent(id_tpl),
-
-            // This test is light for now,
-            //   until we develop the ASG further.
-          TplEnd(S4),
-
-          // Apply the above template.
-          TplStart(S5),
-            RefIdent(ref_tpl),
-
-            MetaStart(S7),
-              BindIdent(id_param),
-              MetaLexeme(value_param),
-            MetaEnd(S10),
-          TplEndRef(S11),  // notice the `Ref` at the end
+            BindIdent(id_tpl),                          // <-,
+                                                        //   |
+            // This test is light for now,              //   |
+            //   until we develop the ASG further.      //   |
+          TplEnd(S4),                                   //   |
+                                                        //   |
+          // Apply the above template.                  //   |
+          TplStart(S5),                                 //   |
+            RefIdent(ref_tpl),                          //   |
+                                                        //   |
+            MetaStart(S7),                              //   |
+              BindIdent(id_param),                      //   |
+              MetaLexeme(value_param),                  //   |
+            MetaEnd(S10),                               //   |
+          TplEndRef(S11),  // notice the `Ref` at the end  --'
         PkgEnd(S12),
     ];
 
@@ -237,9 +237,13 @@ fn traverses_ontological_tree_tpl_apply() {
             (d(Pkg,   Ident, m(S1, S12), S3,         None    ),   Depth(2)),
             (d(Ident, Tpl,   S3,         m(S2, S4),  None    ),     Depth(3)),
             (d(Pkg,   Tpl,   m(S1, S12), m(S5, S11), None    ),   Depth(2)),
-  /*cross*/ (d(Tpl,   Ident, m(S5, S11), S3,         Some(S6)),     Depth(3)),
             (d(Tpl,   Ident, m(S5, S11), S8,         None    ),     Depth(3)),
             (d(Ident, Meta,  S8,         m(S7, S10), None    ),       Depth(4)),
+  /*cross*/ (d(Tpl,   Ident, m(S5, S11), S3,         Some(S6)),     Depth(3)),
+         //             ^
+         //              `- Note that the cross edge was moved to the bottom
+         //                 because all template params are moved into the
+         //                 template header for `SourceCompatibleTreeEdgeOrder`.
         ],
         tree_reconstruction_report(toks),
     );
@@ -387,6 +391,91 @@ fn traverses_ontological_tree_complex_tpl_meta() {
             (d(Tpl,   Ident, m(S2, S13), S11,         None    ),       Depth(4)),
             (d(Ident, Meta,  S11,        m(S10, S12), None    ),         Depth(5)),
         ],
+        tree_reconstruction_report(toks),
+    );
+}
+
+// TAME's grammar expects that template parameters be defined in a header,
+//   before the template body.
+// This is important for disambiguating `<param`> in the sources,
+//   since they could otherwise refer to other types of parameters.
+//
+// TAMER generates metavariables during interpolation,
+//   causing params to be mixed with the body of the template;
+//     this is reflected in the natural ordering.
+// But this would result in a semantically invalid source reconstruction,
+//   and so we must reorder edges during traversal such that the
+//   metavariables representing template parameters are visited _before_
+//   everything else.
+#[test]
+fn tpl_header_source_order() {
+    #[rustfmt::skip]
+    let toks = vec![
+        PkgStart(S1, spair("/pkg", S1)),
+          TplStart(S2),
+            BindIdent(spair("_tpl_", S3)),
+
+            // -- Above this line was setup -- //
+
+            MetaStart(S4),
+              BindIdent(spair("@param_before@", S5)),
+            MetaEnd(S6),
+
+            // Dangling (no Ident)
+            ExprStart(ExprOp::Sum, S7),
+            ExprEnd(S8),
+
+            MetaStart(S9),
+              BindIdent(spair("@param_after_a@", S10)),
+            MetaEnd(S11),
+
+            MetaStart(S12),
+              BindIdent(spair("@param_after_b@", S13)),
+            MetaEnd(S14),
+
+            // Reachable (with an Ident)
+            //   (We want to be sure that we're not just hoisting all Idents
+            //      without checking that they're actually Meta
+            //      definitions).
+            ExprStart(ExprOp::Sum, S15),
+              BindIdent(spair("sum", S16)),
+            ExprEnd(S17),
+          TplEnd(S18),
+       PkgEnd(S19),
+    ];
+
+    // We need more concise expressions for the below table of values.
+    let d = DynObjectRel::new;
+    let m = |a: Span, b: Span| a.merge(b).unwrap();
+
+    #[rustfmt::skip]
+    assert_eq!(
+        //      A  -|-> B   |  A span  -|->  B span  | espan  |  depth
+        vec![//-----|-------|-----------|------------|--------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S19),  None    ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S19), S3,          None    ),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S18),  None    ),     Depth(3)),
+            (d(Tpl,   Ident, m(S2, S18), S5,          None    ),       Depth(4)),
+            (d(Ident, Meta,  S5,         m(S4, S6),   None    ),         Depth(5)),
+        // ,-----------------------------------------------------------------------,
+            (d(Tpl,   Ident, m(S2, S18), S10,         None    ),       Depth(4)),
+            (d(Ident, Meta,  S10,        m(S9, S11),  None    ),         Depth(5)),
+            (d(Tpl,   Ident, m(S2, S18), S13,         None    ),       Depth(4)),
+            (d(Ident, Meta,  S13,        m(S12, S14), None    ),         Depth(5)),
+        // '-----------------------------------------------------------------------'
+            (d(Tpl,   Expr,  m(S2, S18), m(S7, S8),   None    ),       Depth(4)),
+            (d(Tpl,   Ident, m(S2, S18), S16,         None    ),       Depth(4)),
+            (d(Ident, Expr,  S16,        m(S15, S17), None    ),         Depth(5)),
+        ],
+        // ^ The enclosed Ident->Meta pairs above have been hoisted out of
+        //     the body and into the header of `Tpl`.
+        //   This is a stable, partial ordering;
+        //     elements do not change poisitions relative to one-another
+        //     with the exception of hoisting.
+        //   This means that all hoisted params retain their order relative
+        //     to other params,
+        //       and all objects in the body retain their positions relative
+        //       to other objects in the body.
         tree_reconstruction_report(toks),
     );
 }

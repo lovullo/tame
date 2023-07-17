@@ -29,7 +29,7 @@
 //! This is a [depth-first search][w-depth-first-search]
 //!   visiting all nodes that are _reachable_ from the graph root
 //!     (see [`Asg::root`]).
-//! [`ObjectIndex`]es are emitted in pre-order during the traversal,
+//! [`TreeWalkRel`]s are emitted in pre-order during the traversal,
 //!   and may be emitted more than once if
 //!     (a) they are the destination of cross edges or
 //!     (b) they are shared between trees
@@ -103,7 +103,7 @@
 //!
 //! Depth Tracking
 //! ==============
-//! Each [`ObjectIndex`] emitted by this traversal is accompanied by a
+//! Each [`TreeWalkRel`] emitted by this traversal is accompanied by a
 //!   [`Depth`] representing the length of the current path relative to the
 //!   [`Asg`] root.
 //! Since the ASG root is never emitted,
@@ -135,11 +135,34 @@
 //!   because the [`Depth`] represents the current _path_,
 //!   the same [`ObjectIndex`] may be emitted multiple times with different
 //!   [`Depth`]s.
+//!
+//!
+//! Edge Order
+//! ==========
+//! The order of edges in the tree is important,
+//!   since there are a number of non-commutative operations in TAME.
+//! Ordering is determined by a [`TreeEdgeOrder`] strategy:
+//!
+//!   1. [`NaturalTreeEdgeOrder`] will traverse in the same order that edges
+//!        were added to the graph.
+//!      This ordering is fine for most internal operations,
+//!        but is not suitable for [`tree_reconstruction`].
+//!
+//!   2. [`SourceCompatibleTreeEdgeOrder`] traverses edges in an order that
+//!        will produce a valid source file for [NIR XML](crate::nir).
+//!      For example,
+//!        templates require a header and body section,
+//!          where [`Asg`] permits mixing them.
+//!      This maintains natural order in all other cases.
 
-use std::fmt::Display;
+use std::{fmt::Display, marker::PhantomData};
 
-use super::super::{object::DynObjectRel, Asg, Object, ObjectIndex};
+use super::super::{
+    object::{self, DynObjectRel},
+    Asg,
+};
 use crate::{
+    asg::graph::object::ObjectTy,
     parse::{self, Token},
     span::{Span, UNKNOWN_SPAN},
 };
@@ -149,7 +172,9 @@ use crate::{
 pub use crate::xir::flat::Depth;
 
 #[cfg(doc)]
-use super::super::object::ObjectRel;
+use super::super::object::{ObjectIndex, ObjectRel};
+
+pub use order::*;
 
 /// Produce an iterator suitable for reconstructing a source tree based on
 ///   the contents of the [`Asg`].
@@ -160,7 +185,9 @@ use super::super::object::ObjectRel;
 ///
 /// See the [module-level documentation](super) for important information
 ///   about this traversal.
-pub fn tree_reconstruction(asg: &Asg) -> TreePreOrderDfs {
+pub fn tree_reconstruction(
+    asg: &Asg,
+) -> TreePreOrderDfs<SourceCompatibleTreeEdgeOrder> {
     TreePreOrderDfs::new(asg)
 }
 
@@ -170,11 +197,11 @@ pub fn tree_reconstruction(asg: &Asg) -> TreePreOrderDfs {
 ///   _it does not track visited nodes_,
 ///     relying instead on the ontology and recognition of cross edges to
 ///     produce the intended spanning tree.
-/// An [`ObjectIndex`] that is the target of a cross edge will be output
+/// An object that is the target of a cross edge will be output
 ///   more than once.
 ///
 /// See [`tree_reconstruction`] for more information.
-pub struct TreePreOrderDfs<'a> {
+pub struct TreePreOrderDfs<'a, O: TreeEdgeOrder> {
     /// Reference [`Asg`].
     ///
     /// Holding a reference to the [`Asg`] allows us to serve conveniently
@@ -189,6 +216,8 @@ pub struct TreePreOrderDfs<'a> {
     ///
     /// The traversal ends once the stack becomes empty.
     stack: Vec<(DynObjectRel, Depth)>,
+
+    _phantom: PhantomData<O>,
 }
 
 /// Initial size of the DFS stack for [`TreePreOrderDfs`].
@@ -196,34 +225,40 @@ pub struct TreePreOrderDfs<'a> {
 /// TODO: Derive a heuristic from our systems.
 const TREE_INITIAL_STACK_SIZE: usize = 8;
 
-impl<'a> TreePreOrderDfs<'a> {
+impl<'a, O: TreeEdgeOrder> TreePreOrderDfs<'a, O> {
     fn new(asg: &'a Asg) -> Self {
         let span = UNKNOWN_SPAN;
 
         let mut dfs = Self {
             asg,
             stack: Vec::with_capacity(TREE_INITIAL_STACK_SIZE),
+            _phantom: PhantomData,
         };
 
         let root = asg.root(span);
-        dfs.push_edges_of(root.widen(), Depth::root());
+        let root_rel = DynObjectRel::new(
+            root.rel_ty(),
+            root.rel_ty(),
+            root.widen(),
+            root.widen(),
+            None,
+        );
+
+        dfs.push_edges_of(&root_rel, Depth::root());
         dfs
     }
 
-    fn push_edges_of(&mut self, oi: ObjectIndex<Object>, depth: Depth) {
-        self.asg
-            .edges_dyn(oi)
-            .map(|rel| (rel, depth.child_depth()))
-            .collect_into(&mut self.stack);
+    fn push_edges_of(&mut self, rel: &DynObjectRel, depth: Depth) {
+        O::push_edges_of(self.asg, rel, depth, &mut self.stack)
     }
 }
 
-impl<'a> Iterator for TreePreOrderDfs<'a> {
+impl<'a, O: TreeEdgeOrder> Iterator for TreePreOrderDfs<'a, O> {
     type Item = TreeWalkRel;
 
-    /// Produce the next [`ObjectIndex`] from the traversal in pre-order.
+    /// Produce the next [`TreeWalkRel`] from the traversal in pre-order.
     ///
-    /// An [`ObjectIndex`] may be emitted more than once;
+    /// An object may be emitted more than once;
     ///   see [`tree_reconstruction`] for more information.
     ///
     /// Each item contains a corresponding [`Depth`],
@@ -233,12 +268,17 @@ impl<'a> Iterator for TreePreOrderDfs<'a> {
     /// This depth is the only way to derive the tree structure from this
     ///   iterator.
     fn next(&mut self) -> Option<Self::Item> {
+        // Note that we pushed edges in the order that `Asg` provided,
+        //   and now pop them,
+        //   which causes us to visit the edges in reverse.
+        // Because of implementation details (Petgraph),
+        //   this reversal ends up giving us the correct ordering.
         let (rel, depth) = self.stack.pop()?;
 
         // We want to output information about references to other trees,
         //   but we must not traverse into them.
         if !rel.is_cross_edge() {
-            self.push_edges_of(*rel.target(), depth);
+            self.push_edges_of(&rel, depth);
         }
 
         Some(TreeWalkRel(rel, depth))
@@ -282,6 +322,193 @@ impl Token for TreeWalkRel {
 }
 
 impl parse::Object for TreeWalkRel {}
+
+mod order {
+    use super::*;
+
+    /// Emit edges in the same order that they were added to the graph.
+    ///
+    /// Various parts of the system take care in what order edges are
+    ///   added.
+    /// This ordering is important for operations that are not commutative.
+    pub struct NaturalTreeEdgeOrder;
+
+    /// Emit edges in as close to [`NaturalTreeEdgeOrder`] as possible,
+    ///   sorting only where object ordering would otherwise be
+    ///   syntactically or grammatically invalid for streaming source
+    ///   generation.
+    ///
+    /// Unless otherwise mentioned below,
+    ///   ordering for objects will be the same as
+    ///   [`NaturalTreeEdgeOrder`].
+    ///
+    /// Template Headers
+    /// ----------------
+    /// For [NIR XML](crate::nir) sources for TAME,
+    ///   templates require that parameters be placed in a header,
+    ///     before all objects representing the body of the template.
+    /// This is necessary to disambiguate `<param>` nodes in sources,
+    ///   even though no such ambiguity exists on the [`Asg`].
+    ///
+    /// All metavariables representing template params will be hoisted into
+    ///   the header,
+    ///     immediately after any template description [`Doc`](object::Doc)
+    ///     node.
+    /// This is a stable partial ordering:
+    ///   the ordering of parameters relative to one-another will not change,
+    ///   nor will the order of any objects in the body of the template.
+    /// See [`TplOrder`].
+    pub struct SourceCompatibleTreeEdgeOrder;
+
+    /// Order in which tree edges are emitted.
+    ///
+    /// TAME is sensitive to edge ordering for non-commutative operations.
+    /// For source lk
+    pub trait TreeEdgeOrder {
+        /// Push the edges of `rel` onto the `target` stack.
+        ///
+        /// The system will pop edges off of `target` to determine what edge
+        ///   to traverse next.
+        /// This means that edges will be visited in an order that is the
+        ///   reverse of the elements of `target`.
+        fn push_edges_of(
+            asg: &Asg,
+            rel: &DynObjectRel,
+            depth: Depth,
+            target: &mut Vec<(DynObjectRel, Depth)>,
+        );
+    }
+
+    impl TreeEdgeOrder for NaturalTreeEdgeOrder {
+        fn push_edges_of(
+            asg: &Asg,
+            rel: &DynObjectRel,
+            depth: Depth,
+            stack: &mut Vec<(DynObjectRel, Depth)>,
+        ) {
+            let oi = *rel.target();
+
+            asg.edges_dyn(oi)
+                .map(|rel| (rel, depth.child_depth()))
+                .collect_into(stack);
+        }
+    }
+
+    /// Ordering of template children for [`SourceCompatibleTreeEdgeOrder`].
+    ///
+    /// Since these edges are added to a _stack_,
+    ///   larger values will be `pop`'d _before_ smaller ones,
+    ///   as demonstrated by the variant order.
+    /// That is:
+    ///   we sort in the reverse order that we will visit them.
+    ///
+    /// ```text
+    ///   ------> Sort direction
+    ///   [ Body, Body, Param, Param, Desc ]
+    ///              <------ visit direction
+    ///                      (pop from stack)
+    /// ```
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+    enum TplOrder {
+        /// Forcing the template description to come first mimics
+        ///   the expected [`NaturalTreeEdgeOrder`].
+        ///
+        /// We don't want to re-order things before it,
+        ///   since we want to be able to stream source output,
+        ///     e.g. `template/@desc` in XML.
+        TplDesc = 2,
+        /// Template parameters must appear in the template
+        ///   "header",
+        ///     which is all the nodes before the body that is to be
+        ///     expanded on application.
+        Param = 1,
+        /// The body of the template is anything that is not part of
+        ///   the header.
+        ///
+        /// The body represents the contents of the template that
+        ///   will be expanded in place of any template application.
+        Body = 0,
+    }
+
+    impl TreeEdgeOrder for SourceCompatibleTreeEdgeOrder {
+        fn push_edges_of(
+            asg: &Asg,
+            rel: &DynObjectRel,
+            depth: Depth,
+            stack: &mut Vec<(DynObjectRel, Depth)>,
+        ) {
+            use ObjectTy::*;
+
+            // We start by adding edges to the stack in natural order,
+            //   remembering the original stack offset so that we can sort
+            //   just the portion that we added.
+            let offset = stack.len();
+            NaturalTreeEdgeOrder::push_edges_of(asg, rel, depth, stack);
+
+            match rel.target_ty() {
+                // Templates require partial ordering into a header and a body.
+                Tpl => {
+                    // This represents the portion of the stack that we just
+                    //   contributed to via [`NaturalTreeEdgeOrder`] above.
+                    let part = &mut stack[offset..];
+
+                    // TODO: Ideally we'd have metadata on the edge itself
+                    //     about what type of object an `Ident` points to,
+                    //       so that we can use the faster `sort_by_key`.
+                    //   With that said,
+                    //     initial profiling on large packages with many
+                    //     template applications did not yield a
+                    //     significant difference between the two methods on
+                    //     system-level tests,
+                    //       and given the small number of template
+                    //       children,
+                    //         this consideration may be a micro-optimization.
+                    //   An unstable sort is avoided because we wish to
+                    //     retain natural ordering as much as possible.
+                    //
+                    // TODO: In practice,
+                    //     most of these are template _applications_ resulting
+                    //     from `tplshort` desugaring.
+                    //   At the time of writing,
+                    //     _all_ need sorting because `Ref` is output before
+                    //     the params.
+                    //   We could recognize them as template applications at
+                    //     some point and leave their order alone,
+                    //       but at the time of writing we have no imports,
+                    //         and so most refs are `Ident::Missing` in
+                    //         practice.
+                    //   Once template imports are taken care of,
+                    //     then _nearly every single `Tpl` in practice` will
+                    //     already be ordered and this will rarely have any
+                    //     reordering to do
+                    //       (just hoisting for interpolation in template
+                    //          definitions,
+                    //            which are not all that common relative to
+                    //            everything else).
+                    part.sort_by_cached_key(|(child_rel, _)| {
+                        if let Some(ident) =
+                            child_rel.filter_into_target::<object::Ident>()
+                        {
+                            // This is the (comparatively) expensive lookup,
+                            //   requiring a small graph traversal.
+                            match ident.definition::<object::Meta>(asg) {
+                                Some(_) => TplOrder::Param,
+                                None => TplOrder::Body,
+                            }
+                        } else if child_rel.target_ty() == Doc {
+                            TplOrder::TplDesc
+                        } else {
+                            TplOrder::Body
+                        }
+                    });
+                }
+
+                // Leave natural (graph) ordering for everything else.
+                Root | Pkg | Ident | Expr | Meta | Doc => (),
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod test;

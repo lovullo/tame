@@ -14,66 +14,60 @@
 
   <template name="_interp-non-bind_"
             desc="Interpolation in non-binding position">
-
-    <classify as="only" desc="@___dsgr_335@"/>
     <param name="@___dsgr_335@"
            desc="Generated from interpolated string `{@bar@}`">
       <param-value name="@bar@" />
     </param>
-
-    <classify as="prefixed" desc="@___dsgr_368@"/>
     <param name="@___dsgr_368@"
            desc="Generated from interpolated string `Prefix {@bar@}`">
       <text>Prefix </text>
       <param-value name="@bar@" />
     </param>
-
-    <classify as="suffixed" desc="@___dsgr_3a3@"/>
     <param name="@___dsgr_3a3@"
            desc="Generated from interpolated string `{@bar@} suffix`">
       <param-value name="@bar@" />
       <text> suffix</text>
     </param>
-
-    <classify as="both" desc="@___dsgr_3da@" />
     <param name="@___dsgr_3da@"
            desc="Generated from interpolated string `Prefix {@bar@} suffix`">
       <text>Prefix </text>
       <param-value name="@bar@" />
       <text> suffix</text>
     </param>
+
+    <classify as="only" desc="@___dsgr_335@"/>
+    <classify as="prefixed" desc="@___dsgr_368@"/>
+    <classify as="suffixed" desc="@___dsgr_3a3@"/>
+    <classify as="both" desc="@___dsgr_3da@" />
   </template>
 
 
   <template name="_with-abstract-ident_"
             desc="Metavariable interpolation in binding position">
-
     <param name="@___dsgr_4a8@"
            desc="Generated from interpolated string `{@as@}`">
       <param-value name="@as@" />
     </param>
-    <classify as="@___dsgr_4a8@" />
-
     <param name="@___dsgr_4ca@"
            desc="Generated from interpolated string `prefix-{@as@}`">
       <text>prefix-</text>
       <param-value name="@as@" />
     </param>
-    <classify as="@___dsgr_4ca@" />
-
     <param name="@___dsgr_4f4@"
            desc="Generated from interpolated string `{@as@}-suffix`">
       <param-value name="@as@" />
       <text>-suffix</text>
     </param>
-    <classify as="@___dsgr_4f4@" />
-
     <param name="@___dsgr_51e@"
            desc="Generated from interpolated string `prefix-{@as@}-suffix`">
       <text>prefix-</text>
       <param-value name="@as@" />
       <text>-suffix</text>
     </param>
+
+    <classify as="@___dsgr_4a8@" />
+    <classify as="@___dsgr_4ca@" />
+    <classify as="@___dsgr_4f4@" />
     <classify as="@___dsgr_51e@" />
   </template>
 </package>
