@@ -837,12 +837,26 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///   simple sentence or as part of a compound sentence.
     /// There should only be one such clause for any given object,
     ///   but that is not enforced here.
-    pub fn desc_short(&self, asg: &mut Asg, clause: SPair) -> Self
+    pub fn add_desc_short(&self, asg: &mut Asg, clause: SPair) -> Self
     where
         O: ObjectRelTo<Doc>,
     {
         let oi_doc = asg.create(Doc::new_indep_clause(clause));
         self.add_edge_to(asg, oi_doc, None)
+    }
+
+    /// Retrieve a description of this expression using a short independent
+    ///   clause,
+    ///     if one has been set.
+    ///
+    /// See [`Self::add_desc_short`] to add such a description.
+    pub fn desc_short(&self, asg: &Asg) -> Option<SPair>
+    where
+        O: ObjectRelTo<Doc>,
+    {
+        self.edges_filtered::<Doc>(asg)
+            .map(ObjectIndex::cresolve(asg))
+            .find_map(Doc::indep_clause)
     }
 }
 

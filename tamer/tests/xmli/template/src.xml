@@ -186,6 +186,7 @@
         we cannot support the generation of each of those things within
         templates.
 
+
   <template name="_match-child_" desc="Template with a match child">
     <match on="foo" />
   </template>
@@ -193,6 +194,24 @@
   <template name="_tpl-param_" desc="Template with a param">
     <param name="@foo@" desc="A parameter" />
     <param name="@bar@" desc="Another parameter" />
+  </template>
+
+
+  <template name="_tpl-param_body_"
+            desc="Template with params with bodies">
+    <param name="@text@" desc="A param with a literal">
+      <text>lonely foo</text>
+    </param>
+
+    <param name="@ref@" desc="A param with a ref">
+      <param-value name="@text@" />
+    </param>
+
+    <param name="@both@" desc="A param with both literal and ref">
+      <text>foo </text>
+      <param-value name="@text@" />
+      <text> bar</text>
+    </param>
   </template>
 </package>
 

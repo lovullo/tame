@@ -205,7 +205,7 @@ impl ParseState for AirTplAggregate {
             }
 
             (Toplevel(tpl), AirDoc(DocIndepClause(clause))) => {
-                tpl.oi().desc_short(ctx.asg_mut(), clause);
+                tpl.oi().add_desc_short(ctx.asg_mut(), clause);
                 Transition(Toplevel(tpl)).incomplete()
             }
 

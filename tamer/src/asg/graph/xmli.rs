@@ -476,6 +476,28 @@ impl<'a> TreeContext<'a> {
         if let Some(pname) =
             oi_meta.ident(self.asg).map(|oi| oi.name_or_meta(self.asg))
         {
+            // This may have a body that is a single lexeme,
+            //   representing a default value for the parameter.
+            if let Some(lexeme) = meta.lexeme() {
+                let open = self.emit_text_node(
+                    lexeme,
+                    lexeme.span(),
+                    depth.child_depth(),
+                );
+                self.push(open);
+            }
+
+            // Because of the above,
+            //   we must check here if we have a description rather than
+            //   waiting to encounter it during the traversal;
+            //     otherwise we'd be outputting child nodes before a
+            //     description attribute,
+            //       which would result in invalid XML that is rejected by
+            //       the XIR writer.
+            if let Some(desc_short) = oi_meta.desc_short(self.asg) {
+                self.push(attr_desc(desc_short));
+            }
+
             self.push(attr_name(pname));
 
             Some(Xirf::open(
@@ -484,22 +506,7 @@ impl<'a> TreeContext<'a> {
                 depth,
             ))
         } else if let Some(lexeme) = meta.lexeme() {
-            self.push(Xirf::close(
-                Some(QN_TEXT),
-                CloseSpan::without_name_span(meta.span()),
-                depth,
-            ));
-
-            self.push(Xirf::text(
-                Text(lexeme.symbol(), lexeme.span()),
-                depth.child_depth(),
-            ));
-
-            Some(Xirf::open(
-                QN_TEXT,
-                OpenSpan::without_name_span(meta.span()),
-                depth,
-            ))
+            Some(self.emit_text_node(lexeme, meta.span(), depth))
         } else {
             // TODO: Rewrite the above to be an exhaustive match, perhaps,
             //   so we know what we'll error on.
@@ -508,6 +515,27 @@ impl<'a> TreeContext<'a> {
                 "xmli output does not yet support this Meta object",
             )
         }
+    }
+
+    /// Emit a `<text>` node containing a lexeme.
+    fn emit_text_node(
+        &mut self,
+        lexeme: SPair,
+        node_span: Span,
+        depth: Depth,
+    ) -> Xirf {
+        self.push(Xirf::close(
+            Some(QN_TEXT),
+            CloseSpan::without_name_span(node_span),
+            depth,
+        ));
+
+        self.push(Xirf::text(
+            Text(lexeme.symbol(), lexeme.span()),
+            depth.child_depth(),
+        ));
+
+        Xirf::open(QN_TEXT, OpenSpan::without_name_span(node_span), depth)
     }
 
     /// Emit a `<param-value>` node assumed to be within a template param
@@ -586,10 +614,11 @@ impl<'a> TreeContext<'a> {
             }
 
             // template/param/@desc
-            (Object::Meta(_), Doc::IndepClause(desc))
+            (Object::Meta(_), Doc::IndepClause(_desc))
                 if self.tpl_apply.is_none() =>
             {
-                Some(attr_desc(*desc))
+                // This is already covered in `emit_tpl_param`
+                None
             }
 
             (_, Doc::Text(_text)) => {

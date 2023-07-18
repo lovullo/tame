@@ -102,7 +102,7 @@ impl ParseState for AirMetaAggregate {
             }
 
             (TplMeta(oi_meta), AirDoc(DocIndepClause(clause))) => {
-                oi_meta.desc_short(ctx.asg_mut(), clause);
+                oi_meta.add_desc_short(ctx.asg_mut(), clause);
                 Transition(TplMeta(oi_meta)).incomplete()
             }
 

@@ -167,7 +167,7 @@ impl ParseState for AirExprAggregate {
             }
 
             (BuildingExpr(es, oi), AirDoc(DocIndepClause(clause))) => {
-                oi.desc_short(ctx.asg_mut(), clause);
+                oi.add_desc_short(ctx.asg_mut(), clause);
                 Transition(BuildingExpr(es, oi)).incomplete()
             }
 

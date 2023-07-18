@@ -1458,10 +1458,16 @@ ele_parse! {
     ///     providing constant values.
     /// The result will be as if the user typed the text themselves in the
     ///   associated template application argument.
+    ///
+    /// TODO: This just produces a no-op right now and lets the text hander
+    ///     produce text for the inner character data.
+    ///   This is consequently ambiguous with omitting this node entirely;
+    ///     this might be okay,
+    ///       but this needs explicit design.
     TplText := QN_TEXT(_, ospan) {
         @ {
             QN_UNIQUE => TodoAttr,
-        } => Todo(ospan.into()),
+        } => Noop(ospan.into()),
     };
 
     /// Default the param to the value of another template param,
@@ -1475,7 +1481,7 @@ ele_parse! {
     ///   cumbersome and slow
     TplParamValue := QN_PARAM_VALUE(_, ospan) {
         @ {
-            QN_NAME => TodoAttr,
+            QN_NAME => Ref,
             QN_DASH => TodoAttr,
             QN_UPPER => TodoAttr,
             QN_LOWER => TodoAttr,
@@ -1484,7 +1490,7 @@ ele_parse! {
             QN_RMUNDERSCORE => TodoAttr,
             QN_IDENTIFIER => TodoAttr,
             QN_SNAKE => TodoAttr,
-        } => Todo(ospan.into()),
+        } => Noop(ospan.into()),
     };
 
     /// Inherit a default value from a metavalue.

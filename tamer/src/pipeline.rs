@@ -110,7 +110,10 @@
 use crate::{
     asg::{air::AirAggregate, AsgTreeToXirf},
     diagnose::Diagnostic,
-    nir::{InterpolateNir, NirToAir, TplShortDesugar, XirfToNir},
+    nir::{
+        AbstractBindTranslate, InterpolateNir, NirToAir, TplShortDesugar,
+        XirfToNir,
+    },
     obj::xmlo::{XmloReader, XmloToAir, XmloToken},
     parse::{
         terminal, FinalizeError, Lower, LowerSource, ParseError, ParseState,
@@ -150,6 +153,7 @@ lower_pipeline! {
         |> XirfToNir
         |> TplShortDesugar
         |> InterpolateNir
+        |> AbstractBindTranslate
         |> NirToAir[nir_air_ty]
         |> AirAggregate[air_ctx];
 
