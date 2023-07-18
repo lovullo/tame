@@ -41,7 +41,7 @@
 //!
 //! ```xml
 //!   <param name="@___dsgr_01@"
-//!          desc="Generated from interpolated string `foo{@bar@}baz`">
+//!          desc="Generated from interpolated string">
 //!     <text>foo</text>
 //!     <param-value name="@bar@" />
 //!     <text>baz</text>
@@ -68,6 +68,12 @@
 //! If a string does not require interpolation,
 //!   then it is interpreted as a literal within the context of the template
 //!   system and is echoed back unchanged.
+//!
+//! There is currently no way to escape `{` within a string.
+//! Such a feature will be considered in the future,
+//!   but for the meantime,
+//!   this can be worked around by using metavariables that expand into the
+//!     desired literal.
 //!
 //! Desugared Spans
 //! ---------------
@@ -107,8 +113,8 @@ use crate::{
     parse::{prelude::*, util::SPair, NoContext},
     span::Span,
     sym::{
-        st::quick_contains_byte, GlobalSymbolIntern, GlobalSymbolResolve,
-        SymbolId,
+        st::{quick_contains_byte, raw::S_GEN_FROM_INTERP},
+        GlobalSymbolIntern, GlobalSymbolResolve, SymbolId,
     },
 };
 use std::{error::Error, fmt::Display};
@@ -286,25 +292,25 @@ impl ParseState for InterpState {
                     .with_lookahead(tok)
             }
 
+            // Note: This historically generated a description containing
+            //     the interpolated string,
+            //       which was useful when looking at generated code.
+            //   But this ends up producing output that is not a fixpoint,
+            //     because if you run it back through the compiler,
+            //     it needs interpolation again,
+            //       but now in an incorrect context.
+            //   We can revisit this
+            //     (see commit introducing this comment)
+            //     when we introduce escaping of some form,
+            //       if it's worth doing.
             GenDesc(sym, gen_ident) => {
                 let s = sym.lookup_str();
-
-                // Description is not interned since there's no use in
-                //   wasting time hashing something that will not be
-                //   referenced
-                //     (it's just informative for a human).
-                // Note that this means that tests cannot compare SymbolId.
-                let gen_desc = format!(
-                    "Generated from interpolated string {}",
-                    TtQuote::wrap(s)
-                )
-                .clone_uninterned();
 
                 // Begin parsing in a _literal_ context,
                 //   since interpolation is most commonly utilized with literal
                 //   prefixes.
                 Transition(ParseLiteralAt(s, gen_ident, 0))
-                    .ok(Nir::Desc(SPair(gen_desc, span)))
+                    .ok(Nir::Desc(SPair(S_GEN_FROM_INTERP, span)))
                     .with_lookahead(tok)
             }
 

@@ -733,6 +733,8 @@ pub mod st {
         URI_LV_TPL: uri "http://www.lovullo.com/rater/apply-template",
         URI_LV_WORKSHEET: uri "http://www.lovullo.com/rater/worksheet",
 
+        S_GEN_FROM_INTERP: str "Generated from interpolated string",
+
         // Common whitespace.
         //
         // _This does not represent all forms of whitespace!_

@@ -15,21 +15,21 @@
   <template name="_interp-non-bind_"
             desc="Interpolation in non-binding position">
     <param name="@___dsgr_335@"
-           desc="Generated from interpolated string `{@bar@}`">
+           desc="Generated from interpolated string">
       <param-value name="@bar@" />
     </param>
     <param name="@___dsgr_368@"
-           desc="Generated from interpolated string `Prefix {@bar@}`">
+           desc="Generated from interpolated string">
       <text>Prefix </text>
       <param-value name="@bar@" />
     </param>
     <param name="@___dsgr_3a3@"
-           desc="Generated from interpolated string `{@bar@} suffix`">
+           desc="Generated from interpolated string">
       <param-value name="@bar@" />
       <text> suffix</text>
     </param>
     <param name="@___dsgr_3da@"
-           desc="Generated from interpolated string `Prefix {@bar@} suffix`">
+           desc="Generated from interpolated string">
       <text>Prefix </text>
       <param-value name="@bar@" />
       <text> suffix</text>
@@ -45,21 +45,21 @@
   <template name="_with-abstract-ident_"
             desc="Metavariable interpolation in binding position">
     <param name="@___dsgr_4a8@"
-           desc="Generated from interpolated string `{@as@}`">
+           desc="Generated from interpolated string">
       <param-value name="@as@" />
     </param>
     <param name="@___dsgr_4ca@"
-           desc="Generated from interpolated string `prefix-{@as@}`">
+           desc="Generated from interpolated string">
       <text>prefix-</text>
       <param-value name="@as@" />
     </param>
     <param name="@___dsgr_4f4@"
-           desc="Generated from interpolated string `{@as@}-suffix`">
+           desc="Generated from interpolated string">
       <param-value name="@as@" />
       <text>-suffix</text>
     </param>
     <param name="@___dsgr_51e@"
-           desc="Generated from interpolated string `prefix-{@as@}-suffix`">
+           desc="Generated from interpolated string">
       <text>prefix-</text>
       <param-value name="@as@" />
       <text>-suffix</text>

@@ -22,7 +22,6 @@ use crate::{
     nir::NirEntity,
     parse::{Parsed, ParsedResult, Parser},
     span::dummy::{DUMMY_CONTEXT as DC, *},
-    sym::GlobalSymbolResolve,
 };
 use std::assert_matches::assert_matches;
 use Parsed::*;
@@ -81,7 +80,6 @@ fn does_not_desugar_text() {
 
 fn expect_expanded_header(
     sut: &mut Parser<InterpState, std::vec::IntoIter<Nir>>,
-    given_val: &str,
     span: Span,
 ) -> SymbolId {
     let GenIdentSymbolId(expect_name) = gen_tpl_param_ident_at_offset(span);
@@ -103,9 +101,8 @@ fn expect_expanded_header(
     );
     assert_matches!(
         sut.next(),
-        Some(Ok(Object(Nir::Desc(SPair(desc_str, desc_span)))))
-            if desc_str.lookup_str().contains(given_val)
-                && desc_span == span
+        Some(Ok(Object(Nir::Desc(SPair(S_GEN_FROM_INTERP, desc_span)))))
+            if desc_span == span
     );
 
     expect_name_sym
@@ -133,7 +130,7 @@ fn desugars_spec_with_only_var() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -180,7 +177,7 @@ fn concrete_bind_ident_desugars_into_abstract_bind_after_interpolation() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -222,7 +219,7 @@ fn desugars_literal_with_ending_var() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -269,7 +266,7 @@ fn desugars_var_with_ending_literal() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -306,7 +303,7 @@ fn desugars_many_vars_and_literals() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -356,7 +353,7 @@ fn proper_multibyte_handling() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -397,7 +394,7 @@ fn desugars_adjacent_interpolated_vars() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         Ok(vec![
@@ -432,7 +429,7 @@ fn error_missing_closing_interp_delim() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         vec![
@@ -478,7 +475,7 @@ fn error_nested_delim() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         vec![
@@ -527,7 +524,7 @@ fn error_empty_interp() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         vec![
@@ -569,7 +566,7 @@ fn error_close_before_open() {
 
     let mut sut = Sut::parse(toks.into_iter());
 
-    let expect_name = expect_expanded_header(&mut sut, given_val, a);
+    let expect_name = expect_expanded_header(&mut sut, a);
 
     assert_eq!(
         vec![
