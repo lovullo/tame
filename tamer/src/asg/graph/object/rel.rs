@@ -22,8 +22,8 @@
 //! See (parent module)[super] for more information.
 
 use super::{
-    Doc, Expr, Ident, Meta, Object, ObjectIndex, ObjectKind, OiPairObjectInner,
-    Pkg, Root,
+    Doc, Expr, Ident, Meta, Object, ObjectIndex, ObjectIndexRefined,
+    ObjectKind, OiPairObjectInner, Pkg, Root,
 };
 use crate::{
     asg::{graph::object::Tpl, Asg},
@@ -270,10 +270,45 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
     /// Attempt to narrow the target into the [`ObjectRel`] of `O`.
     ///
     /// See [`ObjectRelatable::new_rel_dyn`] for more information.
+    ///
+    /// To exhaustively match against all possible [`ObjectKind`]s,
+    ///   see [`Self::refine_target`].
     pub fn narrow_target<O: ObjectKind + ObjectRelatable>(
         &self,
     ) -> Option<O::Rel> {
         O::new_rel_dyn(self.target_ty(), *self.target())
+    }
+
+    /// Refine the target [`ObjectIndex<Object>`](ObjectIndex) into
+    ///   [`ObjectIndexRefined`] such that the returned variant has a
+    ///   narrowed [`ObjectIndex<O>`] type.
+    ///
+    /// This allows converting a dynamic [`ObjectIndex`] into a statically
+    ///   known type where `O` is derived from [`Self::target_ty`].
+    /// This avoids having to manually match on [`Self::target_ty`] and then
+    ///   use [`ObjectIndex::must_narrow_into`] on the matching
+    ///   [`ObjectKind`],
+    ///     since there is a risk of those getting out of sync.
+    ///
+    /// In contrast to [`Self::narrow_target`],
+    ///   where the caller must specify the expected [`ObjectKind`],
+    ///   this allows for exhaustively matching against all possible objects.
+    pub fn refine_target(&self) -> ObjectIndexRefined {
+        macro_rules! narrow_each_rel_ty {
+            ( $($var:ident),+ ) => {
+                match self.target_ty() {
+                    $(
+                        ObjectRelTy::$var => {
+                            ObjectIndexRefined::$var(
+                                self.target().must_narrow_into()
+                            )
+                        }
+                    )+
+                }
+            }
+        }
+
+        narrow_each_rel_ty!(Root, Pkg, Ident, Expr, Tpl, Meta, Doc)
     }
 
     /// Attempt to convert [`Self`] into an [`ObjectIndex`] with an

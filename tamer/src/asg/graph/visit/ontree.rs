@@ -324,6 +324,8 @@ impl Token for TreeWalkRel {
 impl parse::Object for TreeWalkRel {}
 
 mod order {
+    use crate::asg::graph::object::ObjectIndexRefined;
+
     use super::*;
 
     /// Emit edges in the same order that they were added to the graph.
@@ -437,14 +439,13 @@ mod order {
             depth: Depth,
             stack: &mut Vec<(DynObjectRel, Depth)>,
         ) {
-            use ObjectTy::*;
-
             // We start by adding edges to the stack in natural order,
             //   remembering the original stack offset so that we can sort
             //   just the portion that we added.
             let offset = stack.len();
             NaturalTreeEdgeOrder::push_edges_of(asg, rel, depth, stack);
 
+            use ObjectTy::*;
             match rel.target_ty() {
                 // Templates require partial ordering into a header and a body.
                 Tpl => {
@@ -485,20 +486,23 @@ mod order {
                     //          definitions,
                     //            which are not all that common relative to
                     //            everything else).
+                    use ObjectIndexRefined::*;
                     part.sort_by_cached_key(|(child_rel, _)| {
-                        if let Some(ident) =
-                            child_rel.filter_into_target::<object::Ident>()
-                        {
-                            // This is the (comparatively) expensive lookup,
-                            //   requiring a small graph traversal.
-                            match ident.definition::<object::Meta>(asg) {
-                                Some(_) => TplOrder::Param,
-                                None => TplOrder::Body,
+                        match child_rel.refine_target() {
+                            Ident(oi_ident) => {
+                                // This is the (comparatively) expensive lookup,
+                                //   requiring a small graph traversal.
+                                match oi_ident.definition::<object::Meta>(asg) {
+                                    Some(_) => TplOrder::Param,
+                                    None => TplOrder::Body,
+                                }
                             }
-                        } else if child_rel.target_ty() == Doc {
-                            TplOrder::TplDesc
-                        } else {
-                            TplOrder::Body
+
+                            Doc(_) => TplOrder::TplDesc,
+
+                            Root(_) | Pkg(_) | Expr(_) | Tpl(_) | Meta(_) => {
+                                TplOrder::Body
+                            }
                         }
                     });
                 }

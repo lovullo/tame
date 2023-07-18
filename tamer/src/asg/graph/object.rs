@@ -243,6 +243,20 @@ macro_rules! object_gen {
             }
         }
 
+        /// Narrowed [`ObjectIndex`] types for each [`ObjectKind`].
+        ///
+        /// This allows for converting a dynamic
+        ///   [`ObjectIndex<Object>`](ObjectIndex) into a statically known
+        ///   [`ObjectKind`],
+        ///     while also providing the ability to exhaustively match
+        ///     against all such possibilities.
+        #[derive(Debug, PartialEq, Eq)]
+        pub enum ObjectIndexRefined {
+            $(
+                $kind(ObjectIndex<$kind>),
+            )+
+        }
+
         /// The collection of potential objects of [`Object`].
         pub trait ObjectInner {
             $(type $kind;)+
