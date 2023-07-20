@@ -197,6 +197,11 @@ impl Asg {
     ///
     /// For more information on how the ASG's ontology is enforced statically,
     ///   see [`ObjectRelTo`](object::ObjectRelTo).
+    ///
+    /// Callers external to this module should use [`ObjectIndex`] APIs to
+    ///   manipulate the graph;
+    ///     this allows those objects to uphold their own invariants
+    ///     relative to the state of the graph.
     fn add_edge<OB: ObjectKind + ObjectRelatable>(
         &mut self,
         from_oi: impl ObjectIndexRelTo<OB>,

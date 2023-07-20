@@ -19,7 +19,7 @@
 
 //! Expressions on the ASG.
 
-use super::{prelude::*, Doc, Ident, Tpl};
+use super::{prelude::*, Doc, Ident, ObjectIndexTo, Tpl};
 use crate::{f::Functor, num::Dim, span::Span};
 use std::fmt::Display;
 
@@ -242,5 +242,25 @@ impl ObjectIndex<Expr> {
     ///   it were a subexpression.
     pub fn ref_expr(self, asg: &mut Asg, oi_ident: ObjectIndex<Ident>) -> Self {
         self.add_edge_to(asg, oi_ident, Some(oi_ident.span()))
+    }
+
+    /// The expression is held by the container `oi_container`.
+    ///
+    /// This is intended to convey that an expression would otherwise be
+    ///   dangling (unreachable) were it not for the properties
+    ///   of `oi_container`.
+    /// If this is not true,
+    ///   consider using:
+    ///
+    ///  1. [`Self::create_subexpr`] to create and assign ownership of
+    ///       expressions contained within other expressions; or
+    ///  2. [`ObjectIndex<Ident>::bind_definition`] if this expression is to
+    ///       be assigned to an identifier.
+    pub fn held_by(
+        &self,
+        asg: &mut Asg,
+        oi_container: ObjectIndexTo<Expr>,
+    ) -> Self {
+        self.add_edge_from(asg, oi_container, None)
     }
 }

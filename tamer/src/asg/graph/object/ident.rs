@@ -1316,6 +1316,20 @@ impl ObjectIndex<Ident> {
         self.incoming_edges_filtered(asg).next()
     }
 
+    /// Root this identifier into the provided object,
+    ///   as if making the statement "`oi_root` defines `self`".
+    ///
+    /// This causes `oi_root` to act as an owner of this identifier.
+    /// An identifier really only ought to have one owner,
+    ///   but this is not enforced here.
+    pub fn defined_by(
+        &self,
+        asg: &mut Asg,
+        oi_root: impl ObjectIndexRelTo<Ident>,
+    ) -> Self {
+        self.add_edge_from(asg, oi_root, None)
+    }
+
     /// Declare that `oi_dep` is an opaque dependency of `self`.
     pub fn add_opaque_dep(
         &self,

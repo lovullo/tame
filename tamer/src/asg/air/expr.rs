@@ -30,10 +30,7 @@ use super::{
     AirAggregate, AirAggregateCtx,
 };
 use crate::{
-    asg::{
-        graph::object::{ObjectIndexRelTo, ObjectIndexTo},
-        ObjectKind,
-    },
+    asg::{graph::object::ObjectIndexTo, ObjectKind},
     f::Functor,
     parse::prelude::*,
 };
@@ -207,9 +204,10 @@ impl AirExprAggregate {
         oi_root: Option<ObjectIndexTo<Expr>>,
         oi_expr: ObjectIndex<Expr>,
     ) -> Result<(), AsgError> {
-        oi_root
-            .ok_or(AsgError::DanglingExpr(oi_expr.resolve(asg).span()))?
-            .add_edge_to(asg, oi_expr, None);
+        let oi_container = oi_root
+            .ok_or(AsgError::DanglingExpr(oi_expr.resolve(asg).span()))?;
+
+        oi_expr.held_by(asg, oi_container);
         Ok(())
     }
 

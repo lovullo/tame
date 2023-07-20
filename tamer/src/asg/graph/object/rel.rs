@@ -826,37 +826,9 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     /// See [`ObjectIndex::widen`] for more information.
     fn widen(&self) -> ObjectIndex<Object>;
 
-    /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
-    ///
-    /// Since the only invariant asserted by [`ObjectIndexRelTo`] is that
-    ///   it may be related to `OB`,
-    ///     this method will only permit edges to `OB`;
-    ///       nothing else about the inner object is statically known.
-    /// To create edges to other types of objects,
-    ///   and for more information about this operation
-    ///     (including `ctx_span`),
-    ///   see [`ObjectIndex::add_edge_to`].
-    fn add_edge_to(
-        self,
-        asg: &mut Asg,
-        to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
-    ) -> Self {
-        asg.add_edge(self, to_oi, ctx_span);
-        self
-    }
-
     /// Check whether an edge exists from `self` to `to_oi`.
     fn has_edge_to(&self, asg: &Asg, to_oi: ObjectIndex<OB>) -> bool {
         asg.has_edge(*self, to_oi)
-    }
-
-    /// Indicate that the given identifier `oi` is defined by this object.
-    fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
-    where
-        Self: ObjectIndexRelTo<Ident>,
-    {
-        self.add_edge_to(asg, oi, None)
     }
 
     /// Iterate over the [`ObjectIndex`]es of the outgoing edges of `self`

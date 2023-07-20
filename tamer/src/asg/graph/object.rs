@@ -587,13 +587,44 @@ impl<O: ObjectKind> ObjectIndex<O> {
         }
     }
 
+    /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
+    ///
+    /// Since the only invariant asserted by [`ObjectIndexRelTo`] is that
+    ///   it may be related to `OB`,
+    ///     this method will only permit edges to `OB`;
+    ///       nothing else about the inner object is statically known.
+    ///
+    /// See also [`Self::add_edge_from`].
+    ///
+    /// _This method must remain private_,
+    ///   forcing callers to go through APIs for specific operations that
+    ///   allow objects to enforce their own invariants.
+    /// This is also the reason why this method is defined here rather than
+    ///   on [`ObjectIndexRelTo`].
+    fn add_edge_to<OB: ObjectRelatable>(
+        self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
+    ) -> Self
+    where
+        Self: ObjectIndexRelTo<OB>,
+    {
+        asg.add_edge(self, to_oi, ctx_span);
+        self
+    }
+
     /// Add an edge from `from_oi` to `self` on the provided [`Asg`].
     ///
     /// An edge can only be added if ontologically valid;
     ///   see [`ObjectRelTo`] for more information.
     ///
     /// See also [`Self::add_edge_to`].
-    pub fn add_edge_from<OF: ObjectIndexRelTo<O>>(
+    ///
+    /// _This method must remain private_,
+    ///   forcing callers to go through APIs for specific operations that
+    ///   allow objects to enforce their own invariants.
+    fn add_edge_from<OF: ObjectIndexRelTo<O>>(
         self,
         asg: &mut Asg,
         from_oi: OF,
@@ -829,6 +860,15 @@ impl<O: ObjectKind> ObjectIndex<O> {
         O: ObjectRelFrom<Ident>,
     {
         self.incoming_edges_filtered(asg).next()
+    }
+
+    /// Indicate that the given identifier `oi` is defined by this object.
+    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
+    where
+        Self: ObjectIndexRelTo<Ident>,
+    {
+        oi.defined_by(asg, self);
+        self
     }
 
     /// Describe this expression using a short independent clause.
