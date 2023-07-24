@@ -98,7 +98,7 @@ impl ObjectIndex<Tpl> {
         asg: &mut Asg,
         oi_apply: ObjectIndex<Ident>,
         ref_span: Span,
-    ) -> Self {
+    ) -> Result<Self, AsgError> {
         self.add_edge_to(asg, oi_apply, Some(ref_span))
     }
 
@@ -116,14 +116,20 @@ impl ObjectIndex<Tpl> {
         self,
         asg: &mut Asg,
         oi_target_parent: OP,
-    ) -> Self {
+    ) -> Result<Self, AsgError> {
         self.add_edge_from(asg, oi_target_parent, None)
     }
 
     /// Arbitrary text serving as documentation in a literate style,
     ///   to be expanded into the application site.
-    pub fn append_doc_text(&self, asg: &mut Asg, text: SPair) -> Self {
+    pub fn append_doc_text(
+        &self,
+        asg: &mut Asg,
+        text: SPair,
+    ) -> Result<Self, AsgError> {
         let oi_doc = asg.create(Doc::new_text(text));
         self.add_edge_to(asg, oi_doc, None)
     }
 }
+
+impl AsgObjectMut for Tpl {}

@@ -26,7 +26,10 @@ use super::{
     ObjectKind, OiPairObjectInner, Pkg, Root,
 };
 use crate::{
-    asg::{graph::object::Tpl, Asg},
+    asg::{
+        graph::{object::Tpl, AsgObjectMut},
+        Asg, AsgError,
+    },
     f::Functor,
     span::Span,
 };
@@ -529,7 +532,7 @@ pub trait ObjectTreeRelTo<OB: ObjectKind + ObjectRelatable>:
 /// This is used to derive [`ObjectRelTo``],
 ///   which can be used as a trait bound to assert a valid relationship
 ///   between two [`Object`]s.
-pub trait ObjectRelatable: ObjectKind {
+pub trait ObjectRelatable: ObjectKind + AsgObjectMut {
     /// Sum type representing a subset of [`Object`] variants that are valid
     ///   targets for edges from [`Self`].
     ///
@@ -826,6 +829,32 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     /// See [`ObjectIndex::widen`] for more information.
     fn widen(&self) -> ObjectIndex<Object>;
 
+    /// Request permission to add an edge from `self` to another object.
+    ///
+    /// This gives the object ownership over the edges that are created,
+    ///   in addition to the static guarantees provided by
+    ///   [`ObjectIndexRelTo`].
+    /// Since [`ObjectIndexRelTo` supports dynamic source objects,
+    ///   this allows calling code to be written in a concise manner that is
+    ///   agnostic to the source type,
+    ///     without sacrificing edge ownership.
+    ///
+    /// For more information,
+    ///   see [`AsgObjectMut::pre_add_edge`].
+    ///
+    /// _This should only be called by [`Asg`]_;
+    ///   `commit` is expected to be a continuation that adds the edge to
+    ///   the graph,
+    ///     and the object represented by `self` may modify itself expecting
+    ///     such an edge to be added.
+    fn pre_add_edge(
+        &self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError>;
+
     /// Check whether an edge exists from `self` to `to_oi`.
     fn has_edge_to(&self, asg: &Asg, to_oi: ObjectIndex<OB>) -> bool {
         asg.has_edge(*self, to_oi)
@@ -901,6 +930,16 @@ where
     fn widen(&self) -> ObjectIndex<Object> {
         ObjectIndex::<O>::widen(*self)
     }
+
+    fn pre_add_edge(
+        &self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError> {
+        O::pre_add_edge(asg, self, to_oi, ctx_span, commit)
+    }
 }
 
 impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
@@ -912,6 +951,30 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
 
     fn widen(&self) -> ObjectIndex<Object> {
         *self.as_ref()
+    }
+
+    fn pre_add_edge(
+        &self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError> {
+        macro_rules! pre_add_edge {
+            ($ty:ident) => {
+                $ty::pre_add_edge(asg, self, to_oi, ctx_span, commit)
+            };
+        }
+
+        match self.src_rel_ty() {
+            ObjectRelTy::Root => pre_add_edge!(Root),
+            ObjectRelTy::Pkg => pre_add_edge!(Pkg),
+            ObjectRelTy::Ident => pre_add_edge!(Ident),
+            ObjectRelTy::Expr => pre_add_edge!(Expr),
+            ObjectRelTy::Tpl => pre_add_edge!(Tpl),
+            ObjectRelTy::Meta => pre_add_edge!(Meta),
+            ObjectRelTy::Doc => pre_add_edge!(Doc),
+        }
     }
 }
 
@@ -925,6 +988,18 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
     fn widen(&self) -> ObjectIndex<Object> {
         match self {
             Self(oito) => oito.widen(),
+        }
+    }
+
+    fn pre_add_edge(
+        &self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError> {
+        match self {
+            Self(oito) => oito.pre_add_edge(asg, to_oi, ctx_span, commit),
         }
     }
 }

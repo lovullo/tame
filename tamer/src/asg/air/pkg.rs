@@ -112,10 +112,10 @@ impl ParseState for AirPkgAggregate {
                 )
             }
 
-            (Toplevel(oi_pkg), AirDoc(DocText(text))) => {
-                oi_pkg.append_doc_text(ctx.asg_mut(), text);
-                Transition(Toplevel(oi_pkg)).incomplete()
-            }
+            (Toplevel(oi_pkg), AirDoc(DocText(text))) => oi_pkg
+                .append_doc_text(ctx.asg_mut(), text)
+                .map(|_| ())
+                .transition(Toplevel(oi_pkg)),
 
             // Package import
             (Toplevel(oi_pkg), AirPkg(PkgImport(namespec))) => oi_pkg

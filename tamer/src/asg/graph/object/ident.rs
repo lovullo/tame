@@ -1262,7 +1262,7 @@ impl ObjectIndex<Ident> {
             //   and use the newly provided `id` and its span.
             Missing(_) => Ok(Transparent(id)),
         })
-        .map(|ident_oi| ident_oi.add_edge_to(asg, definition, None))
+        .and_then(|ident_oi| ident_oi.add_edge_to(asg, definition, None))
     }
 
     /// Set the fragment associated with a concrete identifier.
@@ -1326,7 +1326,7 @@ impl ObjectIndex<Ident> {
         &self,
         asg: &mut Asg,
         oi_root: impl ObjectIndexRelTo<Ident>,
-    ) -> Self {
+    ) -> Result<Self, AsgError> {
         self.add_edge_from(asg, oi_root, None)
     }
 
@@ -1335,7 +1335,7 @@ impl ObjectIndex<Ident> {
         &self,
         asg: &mut Asg,
         oi_dep: ObjectIndex<Ident>,
-    ) -> Self {
+    ) -> Result<Self, AsgError> {
         self.add_edge_to(asg, oi_dep, None)
     }
 
@@ -1400,11 +1400,13 @@ impl ObjectIndex<Ident> {
         self,
         asg: &mut Asg,
         at: Span,
-    ) -> ObjectIndex<Ident> {
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
         asg.create(Ident::new_abstract(at))
             .add_edge_to(asg, self, Some(at))
     }
 }
+
+impl AsgObjectMut for Ident {}
 
 #[cfg(test)]
 mod test;

@@ -93,8 +93,12 @@ impl ParseState for AirExprAggregate {
             }
 
             (BuildingExpr(es, poi), AirExpr(ExprStart(op, span))) => {
-                let oi = poi.create_subexpr(ctx.asg_mut(), Expr::new(op, span));
-                Transition(BuildingExpr(es.push(poi), oi)).incomplete()
+                match poi.create_subexpr(ctx.asg_mut(), Expr::new(op, span)) {
+                    Ok(oi) => {
+                        Transition(BuildingExpr(es.push(poi), oi)).incomplete()
+                    }
+                    Err(e) => Transition(BuildingExpr(es, poi)).err(e),
+                }
             }
 
             (BuildingExpr(es, oi), AirExpr(ExprEnd(end))) => {
@@ -156,17 +160,16 @@ impl ParseState for AirExprAggregate {
 
             (BuildingExpr(es, oi), AirBind(RefIdent(name))) => {
                 let oi_ident = ctx.lookup_lexical_or_missing(name);
-                Transition(BuildingExpr(
-                    es,
-                    oi.ref_expr(ctx.asg_mut(), oi_ident),
-                ))
-                .incomplete()
+
+                oi.ref_expr(ctx.asg_mut(), oi_ident)
+                    .map(|_| ())
+                    .transition(BuildingExpr(es, oi))
             }
 
-            (BuildingExpr(es, oi), AirDoc(DocIndepClause(clause))) => {
-                oi.add_desc_short(ctx.asg_mut(), clause);
-                Transition(BuildingExpr(es, oi)).incomplete()
-            }
+            (BuildingExpr(es, oi), AirDoc(DocIndepClause(clause))) => oi
+                .add_desc_short(ctx.asg_mut(), clause)
+                .map(|_| ())
+                .transition(BuildingExpr(es, oi)),
 
             (BuildingExpr(es, oi), AirDoc(DocText(text))) => Transition(
                 BuildingExpr(es, oi),
@@ -207,7 +210,7 @@ impl AirExprAggregate {
         let oi_container = oi_root
             .ok_or(AsgError::DanglingExpr(oi_expr.resolve(asg).span()))?;
 
-        oi_expr.held_by(asg, oi_container);
+        oi_expr.held_by(asg, oi_container)?;
         Ok(())
     }
 

@@ -202,17 +202,19 @@ impl Asg {
     ///   manipulate the graph;
     ///     this allows those objects to uphold their own invariants
     ///     relative to the state of the graph.
-    fn add_edge<OB: ObjectKind + ObjectRelatable>(
+    fn add_edge<OA: ObjectIndexRelTo<OB>, OB: ObjectKind + ObjectRelatable>(
         &mut self,
-        from_oi: impl ObjectIndexRelTo<OB>,
+        from_oi: OA,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-    ) {
-        self.graph.add_edge(
-            from_oi.widen().into(),
-            to_oi.into(),
-            (from_oi.src_rel_ty(), OB::rel_ty(), ctx_span),
-        );
+    ) -> Result<(), AsgError> {
+        from_oi.pre_add_edge(self, to_oi, ctx_span, |asg| {
+            asg.graph.add_edge(
+                from_oi.widen().into(),
+                to_oi.into(),
+                (from_oi.src_rel_ty(), OB::rel_ty(), ctx_span),
+            );
+        })
     }
 
     /// Retrieve an object from the graph by [`ObjectIndex`].
@@ -389,6 +391,57 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
         index.help("  corruption."),
         index.help("The system cannot proceed with confidence."),
     ]
+}
+
+/// Mutation of an [`Object`] or its edges on the [`Asg`].
+///
+/// This trait is intended to delegate certain responsibilities to
+///   [`ObjectKind`]s so that they may enforce their own invariants with
+///   respect to their relationships to other objects on the graph.
+///
+/// TODO: It'd be nice if only [`Asg`] were able to invoke methods on this
+///   trait,
+///     but the current module structure together with Rust's visibility
+///     with sibling modules doesn't seem to make that possible.
+pub trait AsgObjectMut: ObjectKind {
+    /// Allow an object to handle or reject the creation of an edge from it
+    ///   to another object.
+    ///
+    /// Objects own both their node on the graph and the edges _from_ that
+    ///   node to another object.
+    /// Phrased another way:
+    ///   they own their data and their relationships.
+    ///
+    /// This gives an opportunity for the [`ObjectKind`] associated with the
+    ///   source object to evaluate the proposed relationship.
+    /// This guarantee allows objects to cache information about these
+    ///   relationships and enforce any associated invariants without
+    ///   worrying about how the object may change out from underneath
+    ///   them.
+    /// In some cases,
+    ///   this is the only way that an object will know whether an edge has
+    ///   been added,
+    ///     since the [`ObjectIndex`] APIs may not be utilized
+    ///       (e.g. in the case of [`ObjectIndexRelTo`].
+    ///
+    /// This is invoked by [`Asg::add_edge`].
+    /// The provided `commit` callback will complete the addition of the
+    ///   edge if provided [`Ok`],
+    ///     and the commit cannot fail.
+    /// If [`Err`] is provided to `commit`,
+    ///   then [`Asg::add_edge`] will fail with that error.
+    fn pre_add_edge<
+        OA: ObjectIndexRelTo<OB>,
+        OB: ObjectKind + ObjectRelatable,
+    >(
+        asg: &mut Asg,
+        _from_oi: &OA,
+        _to_oi: ObjectIndex<OB>,
+        _ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError> {
+        Ok(commit(asg))
+    }
 }
 
 #[cfg(test)]

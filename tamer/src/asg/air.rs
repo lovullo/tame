@@ -863,7 +863,7 @@ impl AirAggregateCtx {
             },
         )?;
 
-        oi_pkg.root(&mut self.asg);
+        oi_pkg.root(&mut self.asg)?;
         self.ooi_pkg.replace(oi_pkg);
 
         Ok(oi_pkg)
@@ -1005,9 +1005,8 @@ impl AirAggregateCtx {
             .rooting_oi()
             .ok_or(AsgError::InvalidBindContext(binding_name))?;
 
-        Ok(self
-            .lookup_lexical_or_missing(binding_name)
-            .defined_by(self.asg_mut(), oi_root))
+        self.lookup_lexical_or_missing(binding_name)
+            .defined_by(self.asg_mut(), oi_root)
     }
 
     /// Define an abstract identifier within the context of a container that
@@ -1054,9 +1053,9 @@ impl AirAggregateCtx {
             Some((_, oi_root)) => {
                 let oi_meta_ident = self.lookup_lexical_or_missing(meta_name);
 
-                Ok(oi_meta_ident
+                oi_meta_ident
                     .new_abstract_ident(self.asg_mut(), meta_name.span())
-                    .defined_by(self.asg_mut(), oi_root))
+                    .and_then(|oi| oi.defined_by(self.asg_mut(), oi_root))
             }
         }
     }

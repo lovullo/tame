@@ -233,14 +233,18 @@ impl ObjectIndex<Expr> {
         self,
         asg: &mut Asg,
         expr: Expr,
-    ) -> ObjectIndex<Expr> {
+    ) -> Result<ObjectIndex<Expr>, AsgError> {
         let oi_subexpr = asg.create(expr);
         oi_subexpr.add_edge_from(asg, self, None)
     }
 
     /// Reference the value of the expression identified by `oi_ident` as if
     ///   it were a subexpression.
-    pub fn ref_expr(self, asg: &mut Asg, oi_ident: ObjectIndex<Ident>) -> Self {
+    pub fn ref_expr(
+        self,
+        asg: &mut Asg,
+        oi_ident: ObjectIndex<Ident>,
+    ) -> Result<Self, AsgError> {
         self.add_edge_to(asg, oi_ident, Some(oi_ident.span()))
     }
 
@@ -260,7 +264,9 @@ impl ObjectIndex<Expr> {
         &self,
         asg: &mut Asg,
         oi_container: ObjectIndexTo<Expr>,
-    ) -> Self {
+    ) -> Result<Self, AsgError> {
         self.add_edge_from(asg, oi_container, None)
     }
 }
+
+impl AsgObjectMut for Expr {}

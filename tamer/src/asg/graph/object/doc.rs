@@ -91,3 +91,5 @@ object_rel! {
         // empty
     }
 }
+
+impl AsgObjectMut for Doc {}

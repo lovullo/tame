@@ -199,7 +199,11 @@ impl ObjectIndex<Meta> {
     ///
     /// Metavariables with multiple values already represents concatenation
     ///   and a new edge will be added without changing `self`.
-    pub fn append_lexeme(self, asg: &mut Asg, lexeme: SPair) -> Self {
+    pub fn append_lexeme(
+        self,
+        asg: &mut Asg,
+        lexeme: SPair,
+    ) -> Result<Self, AsgError> {
         use Meta::*;
 
         let mut rels = ArrayVec::<SPair, 2>::new();
@@ -239,10 +243,10 @@ impl ObjectIndex<Meta> {
 
         for rel_lexeme in rels {
             let oi = asg.create(Meta::Lexeme(rel_lexeme.span(), rel_lexeme));
-            self.add_edge_to(asg, oi, None);
+            self.add_edge_to(asg, oi, None)?;
         }
 
-        self
+        Ok(self)
     }
 
     pub fn close(self, asg: &mut Asg, close_span: Span) -> Self {
@@ -264,7 +268,11 @@ impl ObjectIndex<Meta> {
     //   from the reference location and therefore contains the reference
     //   [`Span`];
     //     this is used to provide accurate diagnostic information.
-    pub fn concat_ref(self, asg: &mut Asg, oi_ref: ObjectIndex<Ident>) -> Self {
+    pub fn concat_ref(
+        self,
+        asg: &mut Asg,
+        oi_ref: ObjectIndex<Ident>,
+    ) -> Result<Self, AsgError> {
         use Meta::*;
 
         // We cannot mutate the ASG within `map_obj` below because of the
@@ -289,7 +297,7 @@ impl ObjectIndex<Meta> {
         //   we must add the edge before appending the ref since
         //   concatenation will occur during expansion in edge order.
         if let Some(orig) = pre {
-            asg.create(orig).add_edge_from(asg, self, None);
+            asg.create(orig).add_edge_from(asg, self, None)?;
         }
 
         // Having been guaranteed a `ConcatList` above,
@@ -298,3 +306,5 @@ impl ObjectIndex<Meta> {
         self.add_edge_to(asg, oi_ref, Some(oi_ref.span()))
     }
 }
+
+impl AsgObjectMut for Meta {}

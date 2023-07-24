@@ -75,10 +75,10 @@ impl ParseState for AirMetaAggregate {
                 Transition(Ready).incomplete()
             }
 
-            (TplMeta(oi_meta), AirMeta(MetaLexeme(lexeme))) => Transition(
-                TplMeta(oi_meta.append_lexeme(ctx.asg_mut(), lexeme)),
-            )
-            .incomplete(),
+            (TplMeta(oi_meta), AirMeta(MetaLexeme(lexeme))) => oi_meta
+                .append_lexeme(ctx.asg_mut(), lexeme)
+                .map(|_| ())
+                .transition(TplMeta(oi_meta)),
 
             (TplMeta(oi_meta), AirBind(BindIdent(name))) => ctx
                 .defines_concrete(name)
@@ -101,10 +101,10 @@ impl ParseState for AirMetaAggregate {
                 )
             }
 
-            (TplMeta(oi_meta), AirDoc(DocIndepClause(clause))) => {
-                oi_meta.add_desc_short(ctx.asg_mut(), clause);
-                Transition(TplMeta(oi_meta)).incomplete()
-            }
+            (TplMeta(oi_meta), AirDoc(DocIndepClause(clause))) => oi_meta
+                .add_desc_short(ctx.asg_mut(), clause)
+                .map(|_| ())
+                .transition(TplMeta(oi_meta)),
 
             // TODO: The user _probably_ meant to use `<text>` in XML NIR,
             //   so maybe we should have an error to that effect.
@@ -121,8 +121,10 @@ impl ParseState for AirMetaAggregate {
             (TplMeta(oi_meta), AirBind(RefIdent(name))) => {
                 let oi_ref = ctx.lookup_lexical_or_missing(name);
 
-                Transition(TplMeta(oi_meta.concat_ref(ctx.asg_mut(), oi_ref)))
-                    .incomplete()
+                oi_meta
+                    .concat_ref(ctx.asg_mut(), oi_ref)
+                    .map(|_| ())
+                    .transition(TplMeta(oi_meta))
             }
 
             (TplMeta(..), tok @ AirMeta(MetaStart(..))) => {

@@ -134,12 +134,18 @@ impl ObjectIndex<Pkg> {
         let parent = self.resolve(asg);
         let oi_import = asg.create(Pkg::new_imported(parent, namespec)?);
 
-        Ok(self.add_edge_to(asg, oi_import, Some(namespec.span())))
+        self.add_edge_to(asg, oi_import, Some(namespec.span()))
     }
 
     /// Arbitrary text serving as documentation in a literate style.
-    pub fn append_doc_text(&self, asg: &mut Asg, text: SPair) -> Self {
+    pub fn append_doc_text(
+        &self,
+        asg: &mut Asg,
+        text: SPair,
+    ) -> Result<Self, AsgError> {
         let oi_doc = asg.create(Doc::new_text(text));
         self.add_edge_to(asg, oi_doc, None)
     }
 }
+
+impl AsgObjectMut for Pkg {}

@@ -199,20 +199,23 @@ impl ParseState for AirTplAggregate {
                 let tpl_oi = tpl.oi();
                 let ref_oi = ctx.lookup_lexical_or_missing(name);
 
-                tpl_oi.apply_named_tpl(ctx.asg_mut(), ref_oi, name.span());
-
-                Transition(Toplevel(tpl)).incomplete()
+                tpl_oi
+                    .apply_named_tpl(ctx.asg_mut(), ref_oi, name.span())
+                    .map(|_| ())
+                    .transition(Toplevel(tpl))
             }
 
-            (Toplevel(tpl), AirDoc(DocIndepClause(clause))) => {
-                tpl.oi().add_desc_short(ctx.asg_mut(), clause);
-                Transition(Toplevel(tpl)).incomplete()
-            }
+            (Toplevel(tpl), AirDoc(DocIndepClause(clause))) => tpl
+                .oi()
+                .add_desc_short(ctx.asg_mut(), clause)
+                .map(|_| ())
+                .transition(Toplevel(tpl)),
 
-            (Toplevel(tpl), AirDoc(DocText(text))) => {
-                tpl.oi().append_doc_text(ctx.asg_mut(), text);
-                Transition(Toplevel(tpl)).incomplete()
-            }
+            (Toplevel(tpl), AirDoc(DocText(text))) => tpl
+                .oi()
+                .append_doc_text(ctx.asg_mut(), text)
+                .map(|_| ())
+                .transition(Toplevel(tpl)),
 
             (Toplevel(tpl), AirTpl(TplEnd(span))) => {
                 tpl.close(ctx.asg_mut(), span).transition(Done)
@@ -224,12 +227,11 @@ impl ParseState for AirTplAggregate {
                 //   we are effectively discarding the ref and translating
                 //     into a `TplEnd`.
                 match ctx.expansion_oi() {
-                    Some(oi_target) => {
-                        tpl.oi().expand_into(ctx.asg_mut(), oi_target);
-
-                        Transition(Toplevel(tpl.anonymous_reachable()))
-                            .incomplete()
-                    }
+                    Some(oi_target) => tpl
+                        .oi()
+                        .expand_into(ctx.asg_mut(), oi_target)
+                        .map(|_| ())
+                        .transition(Toplevel(tpl.anonymous_reachable())),
                     None => Transition(Toplevel(tpl))
                         .err(AsgError::InvalidExpansionContext(span)),
                 }

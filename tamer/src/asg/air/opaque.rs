@@ -73,9 +73,11 @@ impl ParseState for AirOpaqueAggregate {
             (Ready, IdentDep(name, dep)) => {
                 let oi_from = ctx.lookup_lexical_or_missing(name);
                 let oi_to = ctx.lookup_lexical_or_missing(dep);
-                oi_from.add_opaque_dep(ctx.asg_mut(), oi_to);
 
-                Transition(Ready).incomplete()
+                oi_from
+                    .add_opaque_dep(ctx.asg_mut(), oi_to)
+                    .map(|_| ())
+                    .transition(Ready)
             }
 
             (Ready, IdentFragment(name, text)) => ctx
@@ -84,11 +86,11 @@ impl ParseState for AirOpaqueAggregate {
                 .map(|_| ())
                 .transition(Ready),
 
-            (Ready, IdentRoot(name)) => {
-                ctx.lookup_lexical_or_missing(name).root(ctx.asg_mut());
-
-                Transition(Ready).incomplete()
-            }
+            (Ready, IdentRoot(name)) => ctx
+                .lookup_lexical_or_missing(name)
+                .root(ctx.asg_mut())
+                .map(|_| ())
+                .transition(Ready),
         }
     }
 

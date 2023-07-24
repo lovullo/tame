@@ -66,7 +66,9 @@ impl ObjectIndex<Root> {
         &self,
         asg: &mut Asg,
         oi: ObjectIndex<Ident>,
-    ) -> ObjectIndex<Ident> {
+    ) -> Result<ObjectIndex<Ident>, AsgError> {
         oi.add_edge_from(asg, *self, None)
     }
 }
+
+impl AsgObjectMut for Root {}

@@ -112,8 +112,14 @@
 //! Since [`ObjectRel`] narrows into an [`ObjectIndex`],
 //!   the system will produce runtime panics if there is ever any attempt to
 //!   follow an edge to an unexpected [`ObjectKind`].
+//!
+//! In addition to these static guarantees,
+//!   [`AsgObjectMut`](super::AsgObjectMut) is utilized by [`Asg`] to
+//!   consult an object before an edge is added _from_ it,
+//!     allowing objects to assert ownership over their edges and cache
+//!     information about them as the graph is being built.
 
-use super::Asg;
+use super::{Asg, AsgError};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     diagnostic_panic,
@@ -156,7 +162,7 @@ pub use tpl::Tpl;
 /// Often-needed exports for [`ObjectKind`]s.
 pub mod prelude {
     pub use super::{
-        super::{super::error::AsgError, Asg},
+        super::{super::error::AsgError, Asg, AsgObjectMut},
         Object, ObjectIndex, ObjectIndexRelTo, ObjectKind, ObjectRel,
         ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
         ObjectTreeRelTo,
@@ -606,12 +612,11 @@ impl<O: ObjectKind> ObjectIndex<O> {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-    ) -> Self
+    ) -> Result<Self, AsgError>
     where
         Self: ObjectIndexRelTo<OB>,
     {
-        asg.add_edge(self, to_oi, ctx_span);
-        self
+        asg.add_edge(self, to_oi, ctx_span).map(|()| self)
     }
 
     /// Add an edge from `from_oi` to `self` on the provided [`Asg`].
@@ -624,17 +629,16 @@ impl<O: ObjectKind> ObjectIndex<O> {
     /// _This method must remain private_,
     ///   forcing callers to go through APIs for specific operations that
     ///   allow objects to enforce their own invariants.
-    fn add_edge_from<OF: ObjectIndexRelTo<O>>(
+    fn add_edge_from<OA: ObjectIndexRelTo<O>>(
         self,
         asg: &mut Asg,
-        from_oi: OF,
+        from_oi: OA,
         ctx_span: Option<Span>,
-    ) -> Self
+    ) -> Result<Self, AsgError>
     where
         O: ObjectRelatable,
     {
-        asg.add_edge(from_oi, self, ctx_span);
-        self
+        asg.add_edge(from_oi, self, ctx_span).map(|()| self)
     }
 
     /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
@@ -781,12 +785,13 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///   objects.
     /// Forcing objects to be reachable can prevent them from being
     ///   optimized away if they are not used.
-    pub fn root(self, asg: &mut Asg) -> Self
+    pub fn root(self, asg: &mut Asg) -> Result<Self, AsgError>
     where
         Root: ObjectRelTo<O>,
     {
-        asg.root(self.span()).add_edge_to(asg, self, None);
-        self
+        asg.root(self.span())
+            .add_edge_to(asg, self, None)
+            .map(|_| self)
     }
 
     /// Whether this object has been rooted in the ASG's [`Root`] object.
@@ -863,12 +868,15 @@ impl<O: ObjectKind> ObjectIndex<O> {
     }
 
     /// Indicate that the given identifier `oi` is defined by this object.
-    pub fn defines(self, asg: &mut Asg, oi: ObjectIndex<Ident>) -> Self
+    pub fn defines(
+        self,
+        asg: &mut Asg,
+        oi: ObjectIndex<Ident>,
+    ) -> Result<Self, AsgError>
     where
         Self: ObjectIndexRelTo<Ident>,
     {
-        oi.defined_by(asg, self);
-        self
+        oi.defined_by(asg, self).map(|_| self)
     }
 
     /// Describe this expression using a short independent clause.
@@ -877,7 +885,11 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///   simple sentence or as part of a compound sentence.
     /// There should only be one such clause for any given object,
     ///   but that is not enforced here.
-    pub fn add_desc_short(&self, asg: &mut Asg, clause: SPair) -> Self
+    pub fn add_desc_short(
+        &self,
+        asg: &mut Asg,
+        clause: SPair,
+    ) -> Result<Self, AsgError>
     where
         O: ObjectRelTo<Doc>,
     {
