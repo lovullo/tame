@@ -307,4 +307,4 @@ impl ObjectIndex<Meta> {
     }
 }
 
-impl AsgObjectMut for Meta {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Meta {}

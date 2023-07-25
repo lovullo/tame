@@ -393,7 +393,7 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
     ]
 }
 
-/// Mutation of an [`Object`] or its edges on the [`Asg`].
+/// Mutation of an [`Object`]'s relationships (edges) on the [`Asg`].
 ///
 /// This trait is intended to delegate certain responsibilities to
 ///   [`ObjectKind`]s so that they may enforce their own invariants with
@@ -403,7 +403,7 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
 ///   trait,
 ///     but the current module structure together with Rust's visibility
 ///     with sibling modules doesn't seem to make that possible.
-pub trait AsgObjectMut: ObjectKind {
+pub trait AsgRelMut<OB: ObjectRelatable>: ObjectKind {
     /// Allow an object to handle or reject the creation of an edge from it
     ///   to another object.
     ///
@@ -434,7 +434,7 @@ pub trait AsgObjectMut: ObjectKind {
     /// Unlike the type of [`Asg::add_edge`],
     ///   the source [`ObjectIndex`] has been narrowed to the appropriate
     ///   type for you.
-    fn pre_add_edge<OB: ObjectKind + ObjectRelatable>(
+    fn pre_add_edge(
         asg: &mut Asg,
         _from_oi: ObjectIndex<Self>,
         _to_oi: ObjectIndex<OB>,

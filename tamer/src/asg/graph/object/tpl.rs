@@ -132,4 +132,4 @@ impl ObjectIndex<Tpl> {
     }
 }
 
-impl AsgObjectMut for Tpl {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Tpl {}

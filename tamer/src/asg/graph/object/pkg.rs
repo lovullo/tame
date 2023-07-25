@@ -148,4 +148,4 @@ impl ObjectIndex<Pkg> {
     }
 }
 
-impl AsgObjectMut for Pkg {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Pkg {}

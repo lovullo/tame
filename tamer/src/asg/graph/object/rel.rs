@@ -27,7 +27,7 @@ use super::{
 };
 use crate::{
     asg::{
-        graph::{object::Tpl, AsgObjectMut},
+        graph::{object::Tpl, AsgRelMut},
         Asg, AsgError,
     },
     f::Functor,
@@ -504,7 +504,8 @@ impl<T: Display> Display for DynObjectRel<T> {
 ///   statically analyzed by the type system to ensure that they only
 ///   construct graphs that adhere to this schema.
 pub trait ObjectRelTo<OB: ObjectKind + ObjectRelatable> =
-    ObjectRelatable where <Self as ObjectRelatable>::Rel: From<ObjectIndex<OB>>;
+    ObjectRelatable + AsgRelMut<OB>
+    where <Self as ObjectRelatable>::Rel: From<ObjectIndex<OB>>;
 
 /// Reverse of [`ObjectRelTo`].
 ///
@@ -532,7 +533,7 @@ pub trait ObjectTreeRelTo<OB: ObjectKind + ObjectRelatable>:
 /// This is used to derive [`ObjectRelTo``],
 ///   which can be used as a trait bound to assert a valid relationship
 ///   between two [`Object`]s.
-pub trait ObjectRelatable: ObjectKind + AsgObjectMut {
+pub trait ObjectRelatable: ObjectKind {
     /// Sum type representing a subset of [`Object`] variants that are valid
     ///   targets for edges from [`Self`].
     ///
@@ -840,7 +841,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     ///     without sacrificing edge ownership.
     ///
     /// For more information,
-    ///   see [`AsgObjectMut::pre_add_edge`].
+    ///   see [`AsgRelMut::pre_add_edge`].
     ///
     /// _This should only be called by [`Asg`]_;
     ///   `commit` is expected to be a continuation that adds the edge to

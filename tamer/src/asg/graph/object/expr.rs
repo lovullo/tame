@@ -269,4 +269,4 @@ impl ObjectIndex<Expr> {
     }
 }
 
-impl AsgObjectMut for Expr {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Expr {}

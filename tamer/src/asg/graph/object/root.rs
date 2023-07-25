@@ -71,4 +71,4 @@ impl ObjectIndex<Root> {
     }
 }
 
-impl AsgObjectMut for Root {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Root {}

@@ -1406,7 +1406,7 @@ impl ObjectIndex<Ident> {
     }
 }
 
-impl AsgObjectMut for Ident {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Ident {}
 
 #[cfg(test)]
 mod test;

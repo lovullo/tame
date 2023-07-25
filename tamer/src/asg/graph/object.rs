@@ -114,8 +114,8 @@
 //!   follow an edge to an unexpected [`ObjectKind`].
 //!
 //! In addition to these static guarantees,
-//!   [`AsgObjectMut`](super::AsgObjectMut) is utilized by [`Asg`] to
-//!   consult an object before an edge is added _from_ it,
+//!   [`AsgRelMut`](super::AsgRelMut) is utilized by [`Asg`] to consult an
+//!   object before an edge is added _from_ it,
 //!     allowing objects to assert ownership over their edges and cache
 //!     information about them as the graph is being built.
 
@@ -162,7 +162,7 @@ pub use tpl::Tpl;
 /// Often-needed exports for [`ObjectKind`]s.
 pub mod prelude {
     pub use super::{
-        super::{super::error::AsgError, Asg, AsgObjectMut},
+        super::{super::error::AsgError, Asg, AsgRelMut},
         Object, ObjectIndex, ObjectIndexRelTo, ObjectKind, ObjectRel,
         ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
         ObjectTreeRelTo,

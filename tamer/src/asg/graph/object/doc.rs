@@ -92,4 +92,4 @@ object_rel! {
     }
 }
 
-impl AsgObjectMut for Doc {}
+impl<OB: ObjectRelatable> AsgRelMut<OB> for Doc {}
