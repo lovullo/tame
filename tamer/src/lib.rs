@@ -180,6 +180,73 @@
 //       which can be inscrutable if you are not very familiar with Rust's
 //       borrow checker.
 #![allow(clippy::needless_lifetimes)]
+// Uh oh.  Trait specialization, you say?
+// This deserves its own section.
+//
+// Rust has two trait specialization feature flags:
+//   - min_specialization; and
+//   - specialization.
+//
+// Both are unstable,
+//   but _the latter has soundness holes when it comes to lifetimes_.
+// A viable subset of `specialization` was introduced for use in the Rust
+//   compiler itself,
+//     dubbed `min_specialization`.
+// That hopefully-not-unsound subset is what has been adopted here.
+//
+// Here's the problem:
+//   TAMER makes _heavy_ use of the type system for various guarantees,
+//     operating as proofs.
+// This static information means that we're able to determine a lot of
+//   behavior statically.
+// However,
+//   we also have to support various operations dynamically,
+//     and marry to the two together.
+// The best example of this at the time of writing is AIR,
+//   which uses static types for graph construction and manipulation
+//   whenever it can,
+//     but sometimes has to rely on runtime information to determine which
+//     types are applicable.
+// In that case,
+//   we have to match on runtime type information and branch into various
+//   static paths based on that information.
+//
+// Furthermore,
+//   this type information often exhibits specialized behavior for certain
+//   cases,
+//     and fallback behavior for all others.
+//
+// This conversion back and fourth in various direction results in either a
+//   maintenance burden
+//     (e.g. any time new types or variants are introduced,
+//       branching code has to be manually updated),
+//     or complex macros that attempt to generate that code.
+// It's all boilerplate,
+//   and it's messy.
+//
+// Trait specialization allows for a simple and declarative approach to
+//   solving these problems without all of the boilerplate;
+//     the type system can be used to match on relevant types and will fall
+//     back to specialization in situations where we are not concerned with
+//     other types.
+// In situations where we _do_ want to comprehensively match all types,
+//   we still have that option in the traditional way.
+//
+// TAMER will begin to slowly and carefully utilize `min_specialization` in
+//   isolated areas to experiment with the stability and soundness of the
+//   system.
+// You can search for its uses by searching for `default fn`.
+//
+// If it is decided to _not_ utilize this feature in the future,
+//   then specialization must be replaced with burdensome branching code as
+//   mentioned above.
+// It is doable without sacrificing type safety,
+//   but it makes many changes very time-consuming and therefore very
+//   expensive.
+//
+// (At the time of writing,
+//    there is no clear path to stabalization of this feature.)
+#![feature(min_specialization)]
 
 pub mod global;
 

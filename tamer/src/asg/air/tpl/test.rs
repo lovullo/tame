@@ -30,7 +30,7 @@ use crate::{
             },
             Air::*,
         },
-        graph::object::{Doc, Meta, ObjectRel},
+        graph::object::{tpl::TplShape, Doc, Meta, ObjectRel},
         Expr, ExprOp, Ident,
     },
     parse::util::spair,
@@ -57,6 +57,7 @@ fn tpl_defining_pkg() {
 
     let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S2.merge(S4).unwrap(), tpl.span());
+    assert_eq!(TplShape::Empty, tpl.shape());
 
     let oi_id_tpl = pkg_lookup(&ctx, id_tpl).unwrap();
     assert_eq!(
@@ -90,6 +91,7 @@ fn tpl_after_expr() {
 
     let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S5.merge(S7).unwrap(), tpl.span());
+    assert_eq!(TplShape::Empty, tpl.shape());
 }
 
 // Templates within expressions are permitted by NIR at the time of writing
@@ -138,6 +140,7 @@ fn tpl_within_expr() {
     // The inner template.
     let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S6.merge(S8).unwrap(), tpl.span());
+    assert_eq!(TplShape::Empty, tpl.shape());
 
     // The expression that was produced on the graph ought to be equivalent
     //   to the expression without the template being present at all
@@ -188,9 +191,9 @@ fn tpl_apply_within_expr() {
     let ctx = air_ctx_from_pkg_body_toks(toks);
     let asg = ctx.asg_ref();
 
-    // The inner template.
     let tpl = pkg_expect_ident_obj::<Tpl>(&ctx, id_tpl);
     assert_eq!(S4.merge(S6).unwrap(), tpl.span());
+    assert_eq!(TplShape::Empty, tpl.shape());
 
     // The expression that was produced on the graph ought to be equivalent
     //   to the expression without the template being present at all,
@@ -268,6 +271,13 @@ fn tpl_with_reachable_expression() {
     let tpl = oi_tpl.resolve(&asg);
     assert_eq!(S1.merge(S9).unwrap(), tpl.span());
 
+    // Because the above expressions were bound to identifiers,
+    //   they will not be inlined into the application site
+    //     (they'll be hoisted to the nearest container,
+    //        which might be the same as the application site,
+    //        but it's still not inlining an expression).
+    assert_eq!(TplShape::Empty, tpl.shape());
+
     // The inner expressions are reachable,
     //   but the intent is to expand them into the template's eventual
     //   application site.
@@ -322,11 +332,16 @@ fn tpl_holds_dangling_expressions() {
         TplStart(S1),
           BindIdent(id_tpl),
 
-          // Dangling
+          // Dangling expression.
+          // This would be inlined at an application site,
+          //   and so this changes the shape of the template.
           ExprStart(ExprOp::Sum, S3),
           ExprEnd(S4),
 
           // Dangling
+          //   (TODO: This won't be valid;
+          //      extract into separate test case to check for a new
+          //      AsgError variant.)
           ExprStart(ExprOp::Sum, S5),
           ExprEnd(S6),
         TplEnd(S7),
@@ -336,6 +351,11 @@ fn tpl_holds_dangling_expressions() {
     let asg = ctx.asg_ref();
 
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
+    let tpl = oi_tpl.resolve(&asg);
+
+    // TODO: Until the above is invalid,
+    //   the second is overwriting the first.
+    assert_eq!(TplShape::Expr(S5.merge(S6).unwrap()), tpl.shape());
 
     assert_eq!(
         vec![S5.merge(S6).unwrap(), S3.merge(S4).unwrap(),],
@@ -491,6 +511,11 @@ fn tpl_with_param() {
     let asg = ctx.asg_ref();
 
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
+    let tpl = oi_tpl.resolve(&asg);
+
+    // The template contains no body
+    //   (only metavariables / params).
+    assert_eq!(TplShape::Empty, tpl.shape());
 
     // The template should have an edge to each identifier for each
     //   metavariable.
@@ -558,13 +583,23 @@ fn tpl_nested() {
 
     // The identifier for the inner template should be local to the outer
     //   template.
-    let oi_tpl_inner = oi_tpl_outer.lookup_local_linear(&asg, id_tpl_inner);
-    assert_eq!(
-        S3.merge(S5),
-        oi_tpl_inner
-            .and_then(|oi| oi.definition::<Tpl>(&asg))
-            .map(|oi| oi.resolve(&asg).span())
-    );
+    let oi_tpl_inner_ident =
+        oi_tpl_outer.lookup_local_linear(&asg, id_tpl_inner);
+    let tpl_inner = oi_tpl_inner_ident
+        .and_then(|oi| oi.definition::<Tpl>(&asg))
+        .map(ObjectIndex::cresolve(&asg));
+
+    assert_eq!(S3.merge(S5), tpl_inner.map(Tpl::span));
+
+    let tpl_outer = oi_tpl_outer.resolve(&asg);
+
+    // The inner template has no body and so is empty.
+    assert_eq!(TplShape::Empty, tpl_inner.unwrap().shape());
+
+    // The outer template defines an inner template but has nothing to
+    //   inline,
+    //     and so its shape is also empty.
+    assert_eq!(TplShape::Empty, tpl_outer.shape());
 }
 
 // A template application within another template can be interpreted as
@@ -603,7 +638,12 @@ fn tpl_apply_nested() {
         .edges_filtered::<Tpl>(&asg)
         .map(|oi| oi.resolve(&asg).span());
 
-    assert_eq!(vec![S3.merge(S4).unwrap()], inners.collect::<Vec<_>>(),);
+    assert_eq!(vec![S3.merge(S4).unwrap()], inners.collect::<Vec<_>>());
+
+    // Since the inner template is empty,
+    //   so too should the outer.
+    let tpl_outer = oi_tpl_outer.resolve(&asg);
+    assert_eq!(TplShape::Empty, tpl_outer.shape());
 }
 
 // Template application should resolve all the same regardless of order of
@@ -645,6 +685,12 @@ fn tpl_apply_nested_missing() {
 
     let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl_outer);
     assert_eq!(S1.merge(S12).unwrap(), oi_tpl_outer.resolve(&asg).span());
+
+    // We apply two template,
+    //   both of which are empty,
+    //   and so the outer shape is still empty.
+    let tpl_outer = oi_tpl_outer.resolve(&asg);
+    assert_eq!(TplShape::Empty, tpl_outer.shape());
 
     // The inner template should be contained within the outer and so not
     //   globally resolvable.
@@ -696,8 +742,8 @@ fn tpl_doc_short_desc() {
     let ctx = air_ctx_from_pkg_body_toks(toks);
     let asg = ctx.asg_ref();
 
-    let oi_expr = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
-    let oi_docs = oi_expr
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
+    let oi_docs = oi_tpl
         .edges_filtered::<Doc>(&asg)
         .map(ObjectIndex::cresolve(&asg));
 
@@ -705,6 +751,10 @@ fn tpl_doc_short_desc() {
         vec![&Doc::new_indep_clause(clause)],
         oi_docs.collect::<Vec<_>>(),
     );
+
+    // The documentation does not contribute to expansion and therefore does
+    //   not influence the shape of the template.
+    assert_eq!(TplShape::Empty, oi_tpl.resolve(&asg).shape());
 }
 
 // While NIR does not accept metavariables (params) within expressions that
@@ -734,7 +784,8 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
           BindIdent(id_tpl_outer),
 
           // This expression begins the body of the template.
-          // NIR would not allow params past this point.
+          // NIR would not allow params past this point,
+          //   but desugaring may produce this.
           ExprStart(ExprOp::Sum, S3),
             // Expresions are not containers and so this metavariable should
             //   be hoisted to the parent container context.
@@ -788,6 +839,13 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
         .span();
 
     assert_eq!(S11.merge(S13).unwrap(), span_inner);
+
+    // The template would expand into an expression,
+    //   since it otherwise dangling.
+    assert_eq!(
+        TplShape::Expr(S3.merge(S7).unwrap()),
+        oi_outer.resolve(&asg).shape(),
+    );
 }
 
 #[test]
@@ -855,4 +913,12 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
         "Tpl must not have an edge directly to Expr \
            (is it considered dangling?)",
     );
+
+    // Because the expression _will be_ bound to an identifier during
+    //   instantiation,
+    //     it'll be hoisted upon expansion,
+    //     and so our shape is still empty.
+    // This is the same result as if we had a concrete identifier;
+    //   it all ends up expanding into the same thing in the end.
+    assert_eq!(TplShape::Empty, oi_tpl.resolve(&asg).shape());
 }
