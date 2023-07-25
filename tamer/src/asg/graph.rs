@@ -430,12 +430,13 @@ pub trait AsgObjectMut: ObjectKind {
     ///     and the commit cannot fail.
     /// If [`Err`] is provided to `commit`,
     ///   then [`Asg::add_edge`] will fail with that error.
-    fn pre_add_edge<
-        OA: ObjectIndexRelTo<OB>,
-        OB: ObjectKind + ObjectRelatable,
-    >(
+    ///
+    /// Unlike the type of [`Asg::add_edge`],
+    ///   the source [`ObjectIndex`] has been narrowed to the appropriate
+    ///   type for you.
+    fn pre_add_edge<OB: ObjectKind + ObjectRelatable>(
         asg: &mut Asg,
-        _from_oi: &OA,
+        _from_oi: ObjectIndex<Self>,
         _to_oi: ObjectIndex<OB>,
         _ctx_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),

@@ -938,7 +938,13 @@ where
         ctx_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
-        O::pre_add_edge(asg, self, to_oi, ctx_span, commit)
+        O::pre_add_edge(
+            asg,
+            self.widen().must_narrow_into::<O>(),
+            to_oi,
+            ctx_span,
+            commit,
+        )
     }
 }
 
@@ -962,7 +968,13 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
     ) -> Result<(), AsgError> {
         macro_rules! pre_add_edge {
             ($ty:ident) => {
-                $ty::pre_add_edge(asg, self, to_oi, ctx_span, commit)
+                $ty::pre_add_edge(
+                    asg,
+                    self.widen().must_narrow_into::<$ty>(),
+                    to_oi,
+                    ctx_span,
+                    commit,
+                )
             };
         }
 
