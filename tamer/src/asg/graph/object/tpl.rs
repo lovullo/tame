@@ -167,7 +167,20 @@ object_rel! {
     Tpl -> {
         // Expressions must be able to be anonymous to allow templates in
         //   any `Expr` context.
-        tree Expr,
+        tree Expr {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                from_oi: ObjectIndex<Self>,
+                to_oi: ObjectIndex<Expr>,
+                _ctx_span: Option<Span>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                let span = to_oi.resolve(asg).span();
+                from_oi.map_obj(asg, |tpl| tpl.overwrite(TplShape::Expr(span)));
+
+                Ok(commit(asg))
+            }
+        },
 
         // Identifiers are used for both references and identifiers that
         //   will expand into an application site.
@@ -236,42 +249,5 @@ impl ObjectIndex<Tpl> {
     ) -> Result<Self, AsgError> {
         let oi_doc = asg.create(Doc::new_text(text));
         self.add_edge_to(asg, oi_doc, None)
-    }
-}
-
-impl AsgRelMut<Expr> for Tpl {
-    fn pre_add_edge(
-        asg: &mut Asg,
-        from_oi: ObjectIndex<Self>,
-        to_oi: ObjectIndex<Expr>,
-        _ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
-    ) -> Result<(), AsgError> {
-        let span = to_oi.resolve(asg).span();
-        from_oi.map_obj(asg, |tpl| tpl.overwrite(TplShape::Expr(span)));
-
-        Ok(commit(asg))
-    }
-}
-
-// TODO: Merge this into the macro above
-impl AsgRelMut<Ident> for Tpl {}
-impl AsgRelMut<Tpl> for Tpl {}
-impl AsgRelMut<Doc> for Tpl {}
-
-// This uses `min_specialization` to satisfy trait bounds for
-//   `<ObjectIndexTo as ObjectIndexRelTo>::add_edge`.
-// This will be better integrated in future commits.
-// See message of the commit that introduced this comment for more
-//   information.
-impl<OB: ObjectRelatable> AsgRelMut<OB> for Tpl {
-    default fn pre_add_edge(
-        asg: &mut Asg,
-        _from_oi: ObjectIndex<Self>,
-        _to_oi: ObjectIndex<OB>,
-        _ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
-    ) -> Result<(), AsgError> {
-        Ok(commit(asg))
     }
 }

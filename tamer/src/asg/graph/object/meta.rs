@@ -306,5 +306,3 @@ impl ObjectIndex<Meta> {
         self.add_edge_to(asg, oi_ref, Some(oi_ref.span()))
     }
 }
-
-impl<OB: ObjectRelatable> AsgRelMut<OB> for Meta {}

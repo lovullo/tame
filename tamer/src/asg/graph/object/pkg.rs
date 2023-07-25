@@ -147,5 +147,3 @@ impl ObjectIndex<Pkg> {
         self.add_edge_to(asg, oi_doc, None)
     }
 }
-
-impl<OB: ObjectRelatable> AsgRelMut<OB> for Pkg {}

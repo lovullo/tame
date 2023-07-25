@@ -58,7 +58,7 @@ macro_rules! object_rel {
     (
         $(#[$attr:meta])+
         $from:ident -> {
-            $($ety:ident $kind:ident,)*
+            $($ety:ident $kind:ident $({$($impl:tt)*})?,)*
         }
         $(can_recurse($rec_obj:ident) if $rec_expr:expr)?
     ) => {paste::paste! {
@@ -171,6 +171,17 @@ macro_rules! object_rel {
                 }
             }
         }
+
+        // This generates a specialized implementation _per target `$kind`_
+        //   and allows for the caller to override methods on the trait.
+        // This takes advantage of trait specialization via
+        //   `min_specialization`;
+        //     see `AsgRelMut` for more information.
+        $(
+            impl AsgRelMut<$kind> for $from {
+                $( $($impl)* )?
+            }
+        )*
     }};
 
     // Static edge types.

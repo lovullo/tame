@@ -70,5 +70,3 @@ impl ObjectIndex<Root> {
         oi.add_edge_from(asg, *self, None)
     }
 }
-
-impl<OB: ObjectRelatable> AsgRelMut<OB> for Root {}

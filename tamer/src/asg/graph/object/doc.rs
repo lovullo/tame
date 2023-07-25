@@ -91,5 +91,3 @@ object_rel! {
         // empty
     }
 }
-
-impl<OB: ObjectRelatable> AsgRelMut<OB> for Doc {}

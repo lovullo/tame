@@ -40,6 +40,9 @@ use petgraph::{
 };
 use std::{fmt::Debug, result::Result};
 
+#[cfg(doc)]
+use object::{ObjectIndexTo, Tpl};
+
 pub mod object;
 pub mod visit;
 pub mod xmli;
@@ -403,7 +406,79 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
 ///   trait,
 ///     but the current module structure together with Rust's visibility
 ///     with sibling modules doesn't seem to make that possible.
-pub trait AsgRelMut<OB: ObjectRelatable>: ObjectKind {
+///
+/// How Does This Work With Trait Specialization?
+/// =============================================
+/// [`Asg::add_edge`] is provided a [`ObjectIndexRelTo`],
+///   which needs narrowing to an appropriate source [`ObjectKind`] so that
+///   we can invoke [`<O as AsgRelMut>::pre_add_edge`](AsgRelMut::pre_add_edge).
+///
+/// At the time of writing,
+///   there are two implementors of [`ObjectIndexRelTo`]:
+///
+///   - [`ObjectIndex<O>`],
+///       for which we will know `O: ObjectKind`.
+///   - [`ObjectIndexTo<OB>`],
+///       for which we only know the _target_ `OB: ObjectKind`.
+///
+/// The entire purpose of [`ObjectIndexTo`] is to allow for a dynamic
+///   source [`ObjectKind`];
+///     we do not know what it is statically.
+/// So [`ObjectIndexTo::pre_add_edge`] is a method that will dynamically
+///   branch to an appropriate static path to invoke the correct
+///   [`AsgRelMut::pre_add_edge`].
+///
+/// And there's the problem.
+///
+/// We match on each [`ObjectRelTy`] based on
+///   [`ObjectIndexTo::src_rel_ty`],
+///     and invoke the appropriate [`AsgRelMut::pre_add_edge`].
+/// But the trait bound on `OB` for the `ObjectIndexRelTo` `impl` is
+///   [`ObjectRelatable`].
+/// So it resolves as `AsgRelMut<OB: ObjectRelatable>`.
+///
+/// But we don't have that implementation.
+/// We have implementations for _individual target [`ObjectRelatable`]s,
+///   e.g. `impl AsgRelMut<Expr> for Tpl`.
+/// So Rust rightfully complains that `AsgRelMut<OB: ObjectRelatable>`
+///   is not implemented for [`Tpl`].
+/// (Go ahead and remove the generic `impl` block containing `default fn`
+///    and see what happens.)
+///
+/// Of course,
+///   _we_ know that there's a trait implemented for every possible
+///   [`ObjectRelFrom<Tpl>`],
+///     because `object_rel!` does that for us based on the same
+///     definition that generates those other types.
+/// But Rust does not perform that type of analysis---​
+///   it does not know that we've accounted for every type.
+/// So the `default fn`` uses the unstable `min_specialization` feature to
+///   satisfy those more generic trait bounds,
+///     making the compiler happy.
+///
+/// But if Rust is seeing `OB: ObjectRelatable`,
+///   why is it not monomorphizing to _this_ one rather than the more
+///   specialized implementation?
+///
+/// That type error described above is contemplating bounds for _any
+///   potential caller_.
+/// But when we're about to add an edge,
+///   we're invoking with a specific type of `OB`.
+/// Monomorphization takes place at that point,
+///   with the expected type,
+///   and uses the appropriate specialization.
+///
+/// Because of other trait bounds leading up to this point,
+///   including those on [`Asg::add_edge`] and [`ObjectIndexRelTo`],
+///   this cannot be invoked for any `to_oi` that is not a valid target
+///     for `Self`.
+/// But we cannot be too strict on that bound _here_,
+///   because otherwise it's not general enough for
+///   [`ObjectIndexTo::pre_add_edge`].
+/// We could do more runtime verification and further refine types,
+///   but that is a lot of work for no additional practical benefit,
+///     at least at this time.
+pub trait AsgRelMut<OB: ObjectRelatable>: ObjectRelatable {
     /// Allow an object to handle or reject the creation of an edge from it
     ///   to another object.
     ///
@@ -437,6 +512,27 @@ pub trait AsgRelMut<OB: ObjectRelatable>: ObjectKind {
     fn pre_add_edge(
         asg: &mut Asg,
         _from_oi: ObjectIndex<Self>,
+        _to_oi: ObjectIndex<OB>,
+        _ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError>;
+}
+
+impl<O: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for O {
+    /// Default edge creation method for all [`ObjectKind`]s.
+    ///
+    /// This takes the place of a default implementation on the trait itself
+    ///   above.
+    /// It will be invoked any time there is not a more specialized
+    ///   implementation.
+    /// Note that `object_rel!` doesn't provide method
+    ///   definitions unless explicitly specified by the user,
+    ///     so this is effective the method called for all edges _unless_
+    ///     overridden for a particular edge for a particular object
+    ///       (see [`object::tpl`] as an example).
+    default fn pre_add_edge(
+        asg: &mut Asg,
+        _from_oi: ObjectIndex<O>,
         _to_oi: ObjectIndex<OB>,
         _ctx_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),

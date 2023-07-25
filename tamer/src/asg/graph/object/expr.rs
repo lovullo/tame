@@ -268,5 +268,3 @@ impl ObjectIndex<Expr> {
         self.add_edge_from(asg, oi_container, None)
     }
 }
-
-impl<OB: ObjectRelatable> AsgRelMut<OB> for Expr {}
